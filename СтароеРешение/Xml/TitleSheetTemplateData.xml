@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="file:///E:/ArchAndDesign/BIMObjects/Templates/Sheet%20Templates/CustomXmlParts/TitleSheetStyles.xsl"?>
+<ТитульныйЛист xmlns='urn:BimHouse:CommonDataType' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:schemaLocation='urn:BimHouse:CommonDataType file:///E:/ArchAndDesign/BIMObjects/Templates/Sheet%20Templates/CustomXmlParts/CommonDataTypes.xsd' xsi:type='Тип.Базовый.Документ.Проект.Лист.Титульный' id='ТитульныйЛист.1' ref='ПроектСотвДубки1'>
+	<ФайлОбщихДанных xsi:type='Тип.ФайлОбщихДанных' uri='file:///E:/ArchAndDesign/BIMObjects/Templates/Sheet%20Templates/CustomXmlParts/CommonDataTemplateData.xml'/>
+	<Здание>Исполнительная документация</Здание>
+	<ИмяЛиста>Объёмы ВидеоАльянса</ИмяЛиста>
+	<Подписи>
+		<Подпись>
+			<ХарактерРаботы>Производитель работ</ХарактерРаботы>
+			<Исполнитель xsi:type='Тип.Базовый.Персона' ref='ПредставительПодрядчика'/>
+		</Подпись>
+		<Подпись>
+			<ХарактерРаботы>Производитель работ</ХарактерРаботы>
+			<Исполнитель xsi:type='Тип.Базовый.Персона' ref='ПредставительПодрядчика'/>
+		</Подпись>
+		<Подпись>
+			<ХарактерРаботы>Производитель работ</ХарактерРаботы>
+			<Исполнитель xsi:type='Тип.Базовый.Персона' ref='ПредставительПодрядчика'/>
+		</Подпись>
+	</Подписи>
+	<ДатаДокумента>2023-05-15</ДатаДокумента>
+</ТитульныйЛист>

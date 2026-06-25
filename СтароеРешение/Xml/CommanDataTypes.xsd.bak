@@ -1,0 +1,459 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2023 rel. 2 (x64) (http://www.altova.com) by  () -->
+<xs:schema xmlns="urn:BimHouse:CommonDataType" xmlns:ct="urn:BimHouse:CommonDataType" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning" targetNamespace="urn:BimHouse:CommonDataType" elementFormDefault="qualified" attributeFormDefault="unqualified" vc:minVersion="1.1">
+	<xs:complexType name="ЛабораторияОрганизацияType">
+		<xs:all>
+			<xs:element name="Логотип"/>
+			<xs:element name="Наименование"/>
+			<xs:element name="Реквизиты">
+				<xs:complexType>
+					<xs:all>
+						<xs:element name="Адрес"/>
+						<xs:element name="Телефон"/>
+						<xs:element name="Сайт"/>
+						<xs:element name="Email"/>
+					</xs:all>
+				</xs:complexType>
+			</xs:element>
+			<xs:element name="Свидетельство" minOccurs="0">
+				<xs:complexType>
+					<xs:sequence>
+						<xs:element name="Номер"/>
+						<xs:choice>
+							<xs:element name="Дата" type="xs:date"/>
+							<xs:element name="ДействительноДо" type="xs:date"/>
+						</xs:choice>
+					</xs:sequence>
+				</xs:complexType>
+			</xs:element>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ОсновнойДокументType">
+		<xs:all>
+			<xs:element name="ТипДокумента"/>
+			<xs:element name="НомерДокумента"/>
+			<xs:element name="ДатаДокумента" type="xs:date"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ОбъектType">
+		<xs:all>
+			<xs:element name="Наименование"/>
+			<xs:element name="Адрес"/>
+			<xs:element name="Участок" minOccurs="0"/>
+			<xs:element name="Проект" type="ПроектType" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ПроектType">
+		<xs:all>
+			<xs:element name="Номер"/>
+			<xs:element name="Наименование"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ПриборType">
+		<xs:all>
+			<xs:element name="Тип"/>
+			<xs:element name="ЗаводскойНомер"/>
+			<xs:element name="МетрологическиеХарактеристики" minOccurs="0">
+				<xs:complexType>
+					<xs:all>
+						<xs:element name="ДиапозонИзмерений" minOccurs="0"/>
+						<xs:element name="КлассТочности" minOccurs="0"/>
+					</xs:all>
+				</xs:complexType>
+			</xs:element>
+			<xs:element name="Поверка">
+				<xs:complexType>
+					<xs:sequence>
+						<xs:element name="Свидетельство">
+							<xs:complexType>
+								<xs:sequence>
+									<xs:element name="Номер"/>
+									<xs:element name="Дата" type="xs:date"/>
+								</xs:sequence>
+							</xs:complexType>
+						</xs:element>
+						<xs:element name="ОрганПроводившийПоверку" minOccurs="0"/>
+						<xs:choice>
+							<xs:sequence>
+								<xs:element name="ДатаПоследнейПоверки" type="xs:date"/>
+								<xs:element name="ДатаОчереднойПоверки" type="xs:date" minOccurs="0"/>
+							</xs:sequence>
+							<xs:element name="ДействительнаДо" type="xs:date"/>
+						</xs:choice>
+					</xs:sequence>
+				</xs:complexType>
+			</xs:element>
+		</xs:all>
+	</xs:complexType>
+	<xs:simpleType name="ЦельИзмерений">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="приёмо-сдаточные"/>
+			<xs:enumeration value="сличительные"/>
+			<xs:enumeration value="контрольные испытания"/>
+			<xs:enumeration value="эксплуатационные"/>
+			<xs:enumeration value="для целей сертификации"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="ИзмерениеЗаземленияType">
+		<xs:all>
+			<xs:element name="МестоИзмерения"/>
+			<xs:element name="РасстоянияМеждуЭлектродами">
+				<xs:complexType>
+					<xs:all>
+						<xs:element name="ЗаземлительЗонд"/>
+						<xs:element name="ЗаземлительВспомЭлектрод"/>
+						<xs:element name="ЗондВспомЭлектрод"/>
+					</xs:all>
+				</xs:complexType>
+			</xs:element>
+			<xs:element name="Сопротивление">
+				<xs:complexType>
+					<xs:sequence>
+						<xs:element name="Измеренное"/>
+						<xs:element name="Контура"/>
+						<xs:element name="ПоНТД"/>
+						<xs:element name="ПоправочныйКоэффициент" minOccurs="0"/>
+					</xs:sequence>
+				</xs:complexType>
+			</xs:element>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ИзмерениеМеталосвязиType">
+		<xs:all>
+			<xs:element name="ПорядковыйНомер"/>
+			<xs:element name="УстановкаЭлементы"/>
+			<xs:element name="КоличествоПроверенныхЭлементов" minOccurs="0"/>
+			<xs:element name="СопротивлениеИзмеренное"/>
+			<xs:element name="Примечание"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ИзмерениеИзоляцииType">
+		<xs:all>
+			<xs:element name="ПорядковыйНомер" minOccurs="0"/>
+			<xs:element name="ИспытуемыйОбъект" minOccurs="0"/>
+			<xs:element name="МаркаКабеля" minOccurs="0"/>
+			<xs:element name="СеченияКабеля" minOccurs="0"/>
+			<xs:element name="Сопротивление" minOccurs="0"/>
+			<xs:element name="СопротивлениеAB" minOccurs="0"/>
+			<xs:element name="СопротивлениеBC" minOccurs="0"/>
+			<xs:element name="СопротивлениеAC" minOccurs="0"/>
+			<xs:element name="СопротивлениеANPEN" minOccurs="0"/>
+			<xs:element name="СопротивлениеBNPEN" minOccurs="0"/>
+			<xs:element name="СопротивлениеCNPEN" minOccurs="0"/>
+			<xs:element name="СопротивлениеAPE" minOccurs="0"/>
+			<xs:element name="СопротивлениеBPE" minOccurs="0"/>
+			<xs:element name="СопротивлениеCPE" minOccurs="0"/>
+			<xs:element name="Заключение"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ПротоколType">
+		<xs:all>
+			<xs:element name="Номер"/>
+			<xs:element name="Дата" type="xs:date"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ПодписьType">
+		<xs:all>
+			<xs:element name="Роль" minOccurs="0"/>
+			<xs:element name="Организация" minOccurs="0">
+				<xs:complexType>
+					<xs:all>
+						<xs:element name="Наименование" minOccurs="0"/>
+						<xs:element name="Реквизиты" minOccurs="0"/>
+					</xs:all>
+				</xs:complexType>
+			</xs:element>
+			<xs:element name="Должность"/>
+			<xs:element name="ФИО"/>
+			<xs:element name="Приказ" minOccurs="0">
+				<xs:complexType>
+					<xs:all>
+						<xs:element name="Номер" minOccurs="0"/>
+						<xs:element name="Дата" type="xs:date" minOccurs="0"/>
+					</xs:all>
+				</xs:complexType>
+			</xs:element>
+			<xs:element name="ДополнительныеРеквизиты" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ОбъектСтроительстваТип">
+		<xs:complexContent>
+			<xs:extension base="БазовыйТип">
+				<xs:all>
+					<xs:element name="Наименование" type="xs:string"/>
+					<xs:element name="Адрес" type="АдресТип" minOccurs="0"/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name="АдресТип">
+		<xs:complexContent>
+			<xs:extension base="БазовыйТип">
+				<xs:all>
+					<xs:element name="Страна" type="xs:string" minOccurs="0"/>
+					<xs:element name="Индекс" type="RussianPostCode" default="000000" minOccurs="0"/>
+					<xs:element name="Регион" type="xs:string" minOccurs="0"/>
+					<xs:element name="Район" type="xs:string" minOccurs="0"/>
+					<xs:element name="НаселённыйПункт" type="xs:string" minOccurs="0"/>
+					<xs:element name="Улица" type="xs:string" minOccurs="0"/>
+					<xs:element name="Дом" type="xs:string" minOccurs="0"/>
+					<xs:element name="Помещение" type="xs:string" minOccurs="0"/>
+					<xs:element name="Координаты" type="КоординатыТип" minOccurs="0"/>
+					<xs:element name="Сайт" type="xs:string" minOccurs="0"/>
+					<xs:element name="Email" type="xs:string" minOccurs="0"/>
+					<xs:element name="Телефон" type="xs:string" minOccurs="0"/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name="ОрганизацияТип">
+		<xs:complexContent>
+			<xs:extension base="БазовыйТип">
+				<xs:all>
+					<xs:element name="Наименование" type="НаименованиеТип" minOccurs="0"/>
+					<xs:element name="ИНН" type="AnyStringOfDigits" minOccurs="0"/>
+					<xs:element name="КПП" type="AnyStringOfDigits" minOccurs="0"/>
+					<xs:element name="ОГРН" type="AnyStringOfDigits" minOccurs="0"/>
+					<xs:element name="АдресЮридический" type="АдресТип" minOccurs="0"/>
+					<xs:element name="АдресПочтовый" type="АдресТип" minOccurs="0"/>
+					<xs:element name="СРО" type="СРОТип" minOccurs="0" maxOccurs="unbounded"/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name="КоординатыТип">
+		<xs:complexContent>
+			<xs:extension base="БазовыйТип">
+				<xs:all>
+					<xs:element name="Широта" type="УголТип"/>
+					<xs:element name="Долгота" type="УголТип"/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:simpleType name="AnyStringOfDigits">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[0-9]+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="RussianPostCode">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[0-9]{6,6}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="СРОТип">
+		<xs:complexContent>
+			<xs:extension base="БазовыйТип">
+				<xs:all>
+					<xs:element name="ОрганизацияСРО" type="xs:string"/>
+					<xs:element name="Свидетельство">
+						<xs:complexType>
+							<xs:all>
+								<xs:element name="Номер" type="xs:string"/>
+								<xs:element name="Дата" type="xs:date" minOccurs="0"/>
+								<xs:element name="ДействительноДо" type="xs:date" minOccurs="0"/>
+							</xs:all>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name="НаименованиеТип">
+		<xs:all>
+			<xs:element name="Полное" type="xs:string" minOccurs="0"/>
+			<xs:element name="Краткое" type="xs:string" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ДокументТип">
+		<xs:complexContent>
+			<xs:extension base="БазовыйТип">
+				<xs:all>
+					<xs:element name="ТипДокумента" type="xs:string" minOccurs="0"/>
+					<xs:element name="Титул" type="xs:string" minOccurs="0"/>
+					<xs:element name="НомерДокумента" type="xs:string" minOccurs="0"/>
+					<xs:element name="ДатаДокумента" type="xs:date" minOccurs="0"/>
+					<xs:element name="ВыпустившаяОрганизация" type="ОрганизацияТип" minOccurs="0"/>
+					<xs:element name="КоличествоЭкземпляров" type="xs:int" minOccurs="0"/>
+					<xs:element name="ПериодДействия" type="ПериодДействияТип" minOccurs="0"/>
+					<xs:element name="ДополнительнаяИнформация" type="xs:string" minOccurs="0"/>
+					<xs:element name="КоличествоЛистов" type="xs:int" minOccurs="0"/>
+					<xs:element name="Файл" type="xs:anyURI" minOccurs="0"/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name="ПерсонаТип">
+		<xs:complexContent>
+			<xs:extension base="БазовыйТип">
+				<xs:all>
+					<xs:element name="ПорядковыйНомер" type="xs:int" minOccurs="0"/>
+					<xs:element name="ФИО" type="ФИОТип"/>
+					<xs:element name="Организация" type="ОрганизацияТип" minOccurs="0"/>
+					<xs:element name="Должность" type="xs:string" minOccurs="0"/>
+					<xs:element name="Приказ" minOccurs="0">
+						<xs:complexType>
+							<xs:complexContent>
+								<xs:restriction base="ДокументТип">
+									<xs:all>
+										<xs:element name="ТипДокумента" default="приказ">
+											<xs:simpleType>
+												<xs:restriction base="xs:string">
+													<xs:pattern value="приказ"/>
+												</xs:restriction>
+											</xs:simpleType>
+										</xs:element>
+										<xs:element name="НомерДокумента" type="xs:string"/>
+										<xs:element name="ДатаДокумента" type="xs:date"/>
+									</xs:all>
+								</xs:restriction>
+							</xs:complexContent>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name="ДополнительнаяХарактеристика" type="ДополнительнаяХарактеристикаПерсоныТип" minOccurs="0" maxOccurs="unbounded"/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name="ФИОТип">
+		<xs:all>
+			<xs:element name="Фамилия" type="xs:string"/>
+			<xs:element name="Имя" type="xs:string" minOccurs="0"/>
+			<xs:element name="Отчество" type="xs:string" minOccurs="0"/>
+			<xs:element name="Инициалы" type="xs:string" minOccurs="0"/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name="ДополнительнаяХарактеристикаПерсоныТип">
+		<xs:sequence>
+			<xs:element name="Характеристика" type="xs:string"/>
+			<xs:element name="Значение" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ВедомостьМатериаловТип">
+		<xs:choice>
+			<xs:element name="Ведомость" minOccurs="0">
+				<xs:complexType>
+					<xs:complexContent>
+						<xs:restriction base="ДокументТип">
+							<xs:all>
+								<xs:element name="ТипДокумента">
+									<xs:simpleType>
+										<xs:restriction base="xs:string">
+											<xs:enumeration value="Ведомость материалов"/>
+											<xs:enumeration value="Реестр материалов"/>
+										</xs:restriction>
+									</xs:simpleType>
+								</xs:element>
+								<xs:element name="Титул" type="xs:string"/>
+								<xs:element name="НомерДокумента" type="xs:string"/>
+								<xs:element name="ДатаДокумента" type="xs:date"/>
+							</xs:all>
+						</xs:restriction>
+					</xs:complexContent>
+				</xs:complexType>
+			</xs:element>
+			<xs:element name="Материал" type="МатериалТип" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:element name="ТекстовоеПредставление" minOccurs="0" maxOccurs="unbounded">
+				<xs:complexType>
+					<xs:sequence>
+						<xs:element name="Строка" type="xs:string"/>
+					</xs:sequence>
+				</xs:complexType>
+			</xs:element>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="МатериалТип">
+		<xs:sequence>
+			<xs:element name="ПорядковыйНомер" type="xs:int" minOccurs="0"/>
+			<xs:element name="Наименование" type="xs:string"/>
+			<xs:element name="ЕдиницаИзмерения" type="xs:string" minOccurs="0"/>
+			<xs:element name="Количество" type="xs:decimal" minOccurs="0"/>
+			<xs:element name="ДокументПодтверждающийКачество" minOccurs="0">
+				<xs:complexType>
+					<xs:complexContent>
+						<xs:restriction base="ДокументТип">
+							<xs:all>
+								<xs:element name="ТипДокумента" type="xs:string"/>
+								<xs:element name="Титул" type="xs:string"/>
+								<xs:element name="НомерДокумента" type="xs:string"/>
+								<xs:element name="ДатаДокумента" type="xs:date" minOccurs="0"/>
+								<xs:element name="ВыпустившаяОрганизация" type="ОрганизацияТип" minOccurs="0"/>
+								<xs:element name="КоличествоЭкземпляров" type="xs:int" minOccurs="0"/>
+								<xs:element name="КоличествоЛистов" type="xs:int" minOccurs="0"/>
+								<xs:element name="ПериодДействия" type="ПериодДействияТип" minOccurs="0"/>
+							</xs:all>
+						</xs:restriction>
+					</xs:complexContent>
+				</xs:complexType>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ВедомостьИсполнительныхДокументовТип">
+		<xs:choice>
+			<xs:element name="Ведомость" minOccurs="0">
+				<xs:complexType>
+					<xs:complexContent>
+						<xs:restriction base="ДокументТип">
+							<xs:all>
+								<xs:element name="ТипДокумента">
+									<xs:simpleType>
+										<xs:restriction base="xs:string">
+											<xs:enumeration value="Ведомость исполнительных схем"/>
+											<xs:enumeration value="Реестр исполнительных схем"/>
+										</xs:restriction>
+									</xs:simpleType>
+								</xs:element>
+								<xs:element name="Титул" type="xs:string"/>
+								<xs:element name="НомерДокумента" type="xs:string"/>
+								<xs:element name="ДатаДокумента" type="xs:date"/>
+							</xs:all>
+							<xs:attribute name="id" type="xs:ID"/>
+							<xs:attribute name="ref" type="xs:IDREF"/>
+						</xs:restriction>
+					</xs:complexContent>
+				</xs:complexType>
+			</xs:element>
+			<xs:element name="Документ" type="ИсполнительныйДокументТип" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:element name="ТекстовоеПредставление" minOccurs="0">
+				<xs:complexType>
+					<xs:sequence>
+						<xs:element name="Строка"/>
+					</xs:sequence>
+				</xs:complexType>
+			</xs:element>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="ИсполнительныйДокументТип">
+		<xs:sequence>
+			<xs:element name="ПорядковыйНомер" type="xs:int"/>
+			<xs:element name="ТитулДокумента" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ПериодДействияТип">
+		<xs:sequence>
+			<xs:element name="Начало" type="xs:date"/>
+			<xs:element name="Конец" type="xs:date"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="БазовыйТип" abstract="true">
+		<xs:all>
+			<xs:element name="ТекстовоеПредставление1" type="xs:string" minOccurs="0"/>
+			<xs:element name="ТекстовоеПредставление2" type="xs:string" minOccurs="0"/>
+			<xs:element name="ТекстовоеПредставление3" type="xs:string" minOccurs="0"/>
+			<xs:element name="ТекстовоеПредставление4" type="xs:string" minOccurs="0"/>
+			<xs:element name="ТекстовоеПредставление5" type="xs:string" minOccurs="0"/>
+		</xs:all>
+		<xs:attribute name="id" type="xs:ID"/>
+		<xs:attribute name="ref" type="xs:IDREF"/>
+	</xs:complexType>
+	<xs:complexType name="УголТип">
+		<xs:sequence>
+			<xs:element name="Градусы" type="xs:decimal"/>
+			<xs:element name="Минуты" type="xs:decimal" minOccurs="0"/>
+			<xs:element name="Секунды" type="xs:decimal" minOccurs="0"/>
+		</xs:sequence>
+		<xs:attribute name="ГрадусыСимвол" type="xs:string" use="optional" default="°"/>
+		<xs:attribute name="МинутыСимвол" use="optional" default="'"/>
+		<xs:attribute name="СекундыСимвол" use="optional" default='"'/>
+	</xs:complexType>
+</xs:schema>

@@ -1,0 +1,100 @@
+import * as Dialog from '@radix-ui/react-dialog';
+import { X } from 'lucide-react';
+import { useState, useEffect, type ReactNode } from 'react';
+
+interface ModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  children: ReactNode;
+  wide?: boolean;
+  extraWide?: boolean;
+  isDirty?: boolean;
+}
+
+export function Modal({ open, onOpenChange, title, children, wide, extraWide, isDirty }: ModalProps) {
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  useEffect(() => {
+    if (!open) setConfirmClose(false);
+  }, [open]);
+
+  function attemptClose() {
+    if (isDirty) setConfirmClose(true);
+    else onOpenChange(false);
+  }
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay
+          className="fixed inset-0 z-40 bg-black/50"
+          style={{ backdropFilter: 'blur(2px)' }}
+        />
+        <Dialog.Content
+          className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-lg max-h-[90vh] flex flex-col overflow-hidden focus:outline-none bg-surface border border-stroke ${
+            extraWide ? 'w-full max-w-5xl' : wide ? 'w-full max-w-2xl' : 'w-full max-w-lg'
+          }`}
+          style={{ boxShadow: 'var(--f-shadow28)' }}
+          onEscapeKeyDown={e => {
+            if (isDirty) {
+              e.preventDefault();
+              setConfirmClose(true);
+            }
+          }}
+          onPointerDownOutside={e => {
+            if (isDirty) {
+              e.preventDefault();
+              setConfirmClose(true);
+            }
+          }}
+        >
+          <div className="flex items-center justify-between shrink-0 px-6 pt-6 pb-5">
+            <Dialog.Title className="text-base font-semibold text-fg1">
+              {title}
+            </Dialog.Title>
+            <button
+              type="button"
+              onClick={attemptClose}
+              className="flex items-center justify-center w-8 h-8 rounded-md transition-colors text-fg3 hover:text-fg1 hover:bg-muted"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <div className="overflow-y-auto flex-1 px-6 pb-6">
+            {children}
+          </div>
+
+          {confirmClose && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/50">
+              <div className="rounded-xl p-5 shadow-2xl w-80 bg-surface border border-stroke">
+                <p className="text-sm font-semibold mb-1 text-fg1">
+                  Закрыть без сохранения?
+                </p>
+                <p className="text-xs mb-4 text-fg3">
+                  Несохранённые изменения будут потеряны.
+                </p>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmClose(false)}
+                    className="px-3 py-1.5 text-sm rounded-md transition-colors border border-stroke text-fg2 hover:bg-muted"
+                  >
+                    Продолжить редактирование
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setConfirmClose(false); onOpenChange(false); }}
+                    className="px-3 py-1.5 text-sm rounded-md bg-danger text-white transition-colors"
+                  >
+                    Закрыть
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}

@@ -1,0 +1,131 @@
+using System.Security.Claims;
+using System.Text.Json;
+using BHS.CRG.Application.Documents;
+using MediatR;
+
+namespace BHS.CRG.Api.Endpoints.Documents;
+
+public static class DocumentSetEndpoints
+{
+    public static void MapDocumentSetEndpoints(this IEndpointRouteBuilder app)
+    {
+        // ── Constructions ──────────────────────────────────────────────────────
+        var c = app.MapGroup("/api/constructions").RequireAuthorization();
+
+        c.MapGet("/", async (IMediator m, ClaimsPrincipal user) =>
+        {
+            var userId = GetUserId(user);
+            return Results.Ok(await m.Send(new ListConstructionsQuery(userId)));
+        });
+
+        c.MapGet("/{id:guid}", async (Guid id, IMediator m) =>
+        {
+            var construction = await m.Send(new GetConstructionQuery(id));
+            return construction is null ? Results.NotFound() : Results.Ok(construction);
+        });
+
+        c.MapPost("/", async (CreateConstructionRequest req, IMediator m, ClaimsPrincipal user) =>
+        {
+            var userId = GetUserId(user);
+            return Results.Ok(await m.Send(new CreateConstructionCommand(req.Name, userId)));
+        });
+
+        c.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
+            => Results.Ok(await m.Send(new RenameConstructionCommand(id, req.Name))));
+
+        c.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        {
+            await m.Send(new DeleteConstructionCommand(id));
+            return Results.NoContent();
+        });
+
+        // ── Sections ───────────────────────────────────────────────────────────
+        c.MapPost("/{constructionId:guid}/sections", async (Guid constructionId, CreateSectionRequest req, IMediator m)
+            => Results.Ok(await m.Send(new CreateSectionCommand(constructionId, req.Name))));
+
+        var s = app.MapGroup("/api/sections").RequireAuthorization();
+
+        s.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
+            => Results.Ok(await m.Send(new RenameSectionCommand(id, req.Name))));
+
+        s.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        {
+            await m.Send(new DeleteSectionCommand(id));
+            return Results.NoContent();
+        });
+
+        // ── DocumentSets ───────────────────────────────────────────────────────
+        s.MapPost("/{sectionId:guid}/sets", async (Guid sectionId, CreateSetRequest req, IMediator m)
+            => Results.Ok(await m.Send(new CreateDocumentSetCommand(sectionId, req.Name))));
+
+        var g = app.MapGroup("/api/document-sets").RequireAuthorization();
+
+        g.MapGet("/{id:guid}", async (Guid id, IMediator m) =>
+        {
+            var set = await m.Send(new GetDocumentSetQuery(id));
+            return set is null ? Results.NotFound() : Results.Ok(set);
+        });
+
+        g.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
+            => Results.Ok(await m.Send(new RenameDocumentSetCommand(id, req.Name))));
+
+        g.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        {
+            await m.Send(new DeleteDocumentSetCommand(id));
+            return Results.NoContent();
+        });
+
+        // ── DocumentInstances ──────────────────────────────────────────────────
+        g.MapGet("/{id:guid}/available-instances", async (Guid id, IMediator m)
+            => Results.Ok(await m.Send(new ListAvailableInstancesQuery(id))));
+
+        g.MapPost("/{setId:guid}/documents", async (Guid setId, AddDocumentRequest req, IMediator m)
+            => Results.Ok(await m.Send(new AddDocumentToSetCommand(setId, req.DocumentTypeId))));
+
+        g.MapGet("/{setId:guid}/documents/{id:guid}", async (Guid id, IMediator m) =>
+        {
+            var inst = await m.Send(new GetDocumentInstanceQuery(id));
+            return inst is null ? Results.NotFound() : Results.Ok(inst);
+        });
+
+        g.MapPut("/{setId:guid}/documents/{id:guid}/name",
+            async (Guid id, RenameDocumentInstanceRequest req, IMediator m)
+                => Results.Ok(await m.Send(new RenameDocumentInstanceCommand(id, req.Name))));
+
+        g.MapPut("/{setId:guid}/documents/{id:guid}/requisites",
+            async (Guid id, JsonElement body, IMediator m)
+                => Results.Ok(await m.Send(new UpdateRequisitesCommand(
+                    id, JsonDocument.Parse(body.GetRawText())))));
+
+        g.MapPut("/{setId:guid}/documents/{id:guid}/entity-refs",
+            async (Guid id, JsonElement body, IMediator m)
+                => Results.Ok(await m.Send(new UpdateEntityRefsCommand(
+                    id, JsonDocument.Parse(body.GetRawText())))));
+
+        g.MapPut("/{setId:guid}/documents/{id:guid}/plugin-data",
+            async (Guid id, JsonElement body, IMediator m)
+                => Results.Ok(await m.Send(new UpdatePluginDataCommand(
+                    id, JsonDocument.Parse(body.GetRawText())))));
+
+        g.MapPut("/{setId:guid}/documents/{id:guid}/template",
+            async (Guid id, SetTemplateRequest req, IMediator m)
+                => Results.Ok(await m.Send(new SetDocumentTemplateCommand(id, req.TemplateId))));
+
+        g.MapDelete("/{setId:guid}/documents/{id:guid}", async (Guid id, IMediator m) =>
+        {
+            await m.Send(new DeleteDocumentInstanceCommand(id));
+            return Results.NoContent();
+        });
+    }
+
+    static Guid GetUserId(ClaimsPrincipal user)
+        => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub")!);
+
+    record CreateConstructionRequest(string Name);
+    record CreateSectionRequest(string Name);
+    record CreateSetRequest(string Name);
+    record RenameRequest(string Name);
+    record AddDocumentRequest(Guid DocumentTypeId);
+    record RenameDocumentInstanceRequest(string? Name);
+    record SetTemplateRequest(Guid? TemplateId);
+}

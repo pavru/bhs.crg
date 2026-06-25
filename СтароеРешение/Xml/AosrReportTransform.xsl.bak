@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsl:stylesheet version="2.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:aosr="urn:BimHouse:AosrReport" xmlns:ct="urn:BimHouse:CommonDataType">
+	<xsl:import href="file:///E:/ArchAndDesign/BIMObjects/Templates/Sheet%20Templates/CustomXmlParts/SigingPersonTextPresentation.xsl"/>
+	<xsl:import href="file:///E:/ArchAndDesign/BIMObjects/Templates/Sheet%20Templates/CustomXmlParts/OrgTextPresentationAosr.xsl"/>
+	<xsl:import-schema schema-location="file:///E:/ArchAndDesign/BIMObjects/Templates/Sheet%20Templates/CustomXmlParts/CommonDataTypes.xsd" namespace="urn:BimHouse:CommonDataType"/>
+	<xsl:output method="xml" version="1.0" encoding="UTF-8" indent="yes"/>
+	<xsl:variable name="CommonData" select="document(//element(*, ct:ФайлОбщихДанныхТип)/@href)/*"/>
+	<xsl:template match="@*|node()">
+		<xsl:copy>
+			<xsl:apply-templates select="@*|node()"/>
+		</xsl:copy>
+	</xsl:template>
+	<xsl:template match="element(*, ct:ФайлОбщихДанныхТип)"/>
+	
+	<xsl:template match="//element(*, ct:ОрганизацияТип)">
+		<xsl:call-template name="ResolvedOrgWithTextPresentation">
+			<xsl:with-param name="Org" select="."/>
+		</xsl:call-template>
+	</xsl:template>
+	
+	<xsl:template match="aosr:Материалы[not(aosr:ТекстовоеПредставление)]">
+		<xsl:variable name="MatNodesCount" select="count( aosr:Материал )"/>
+		<xsl:variable name="DocRefCount" select="count( aosr:Ведомость )"/>
+		<xsl:element name="{name()}" namespace="urn:AosrReport">
+			<xsl:choose>
+				<xsl:when test="$MatNodesCount &gt; 0">
+					<xsl:for-each select="aosr:Материал">
+						<xsl:sort select="aosr:ПорядковыйНомер"/>
+						<xsl:variable name="sd" select="aosr:ДокументПодтверждающийКачество/aosr:ПериодДействия/aosr:Начало"/>
+						<xsl:variable name="ed" select="aosr:ДокументПодтверждающийКачество/aosr:ПериодДействия/aosr:Конец"/>
+						<xsl:element name="ТекстовоеПредставление" namespace="urn:AosrReport">
+							<xsl:element name="aosr:Строка"><xsl:value-of select="aosr:ПорядковыйНомер"/>. <xsl:value-of select="aosr:Наименование"/> - <xsl:value-of select="aosr:Количество"/><xsl:value-of select="aosr:ЕдиницаИзмерения"/> (<xsl:value-of select="aosr:ДокументПодтверждающийКачество/aosr:ТипДокумента"/> № <xsl:value-of select="aosr:ДокументПодтверждающийКачество/aosr:НомерДокумента"/> действует с <xsl:value-of select="concat(substring($sd,9,2),'.',substring($sd,6,2),'.',substring($sd,1,4))"/> по <xsl:value-of select="concat(substring($ed,9,2),'.',substring($ed,6,2),'.',substring($ed,1,4))"/>)</xsl:element>
+						</xsl:element>
+					</xsl:for-each>
+				</xsl:when>
+				<xsl:when test="$DocRefCount &gt; 0">
+					<xsl:element name="ТекстовоеПредставление" namespace="urn:AosrReport">
+						<xsl:element name="aosr:Строка"><xsl:value-of select="aosr:Ведомость/aosr:ТипДокумента"/> № <xsl:value-of select="aosr:Ведомость/aosr:НомерДокумента"/> от <xsl:value-of select="aosr:Ведомость/aosr:ДатаДокумента"/><xsl:text> </xsl:text><xsl:value-of select="aosr:Ведомость/aosr:Титул"/>
+					</xsl:element>
+					</xsl:element>
+				</xsl:when>
+			</xsl:choose>
+		</xsl:element>
+	</xsl:template>
+	<xsl:template match="aosr:Схемы[not(aosr:ТекстовоеПредставление)]">
+		<xsl:variable name="DrawingCount" select="count( aosr:Документ )"/>
+		<xsl:variable name="DocRefCount" select="count( aosr:Ведомость )"/>
+		<xsl:element name="{name()}" namespace="urn:AosrReport">
+			<xsl:choose>
+				<xsl:when test="$DrawingCount &gt; 0">
+					<xsl:element name="ТекстовоеПредставление">
+						<xsl:for-each select="aosr:Документ">
+							<xsl:sort select="aosr:ПорядковыйНомер"/>
+							<xsl:element name="ТекстовоеПредставление" namespace="urn:AosrReport">
+								<xsl:element name="aosr:Строка"><xsl:value-of select="aosr:ПорядковыйНомер"/>. <xsl:value-of select="aosr:ТитулДокумента"/></xsl:element>
+							</xsl:element>
+						</xsl:for-each>
+					</xsl:element>
+				</xsl:when>
+				<xsl:when test="$DocRefCount &gt; 0">
+					<xsl:variable name="sd" select="aosr:Ведомость/aosr:ДатаДокумента"/>
+					<xsl:element name="ТекстовоеПредставление" namespace="urn:AosrReport">
+						<xsl:element name="aosr:Строка"><xsl:value-of select="aosr:Ведомость/aosr:ТипДокумента"/> № <xsl:value-of select="aosr:Ведомость/aosr:НомерДокумента"/> от <xsl:value-of select="concat(substring($sd,9,2),'.',substring($sd,6,2),'.',substring($sd,1,4))"/><xsl:text> </xsl:text><xsl:value-of select="aosr:Ведомость/aosr:Титул"/></xsl:element>
+					</xsl:element>
+				</xsl:when>
+			</xsl:choose>
+		</xsl:element>
+	</xsl:template>
+	<xsl:template match="aosr:ТекстовоеПредставление1 | aosr:ТекстовоеПредставление2 | aosr:ТекстовоеПредставление3 | aosr:ТекстовоеПредставление4 | aosr:ТекстовоеПредставление5"/>
+	<xsl:template match="aosr:ПредставительПоВопросомамСтроительногоКонтроля | aosr:ПредставительЗастройщика | aosr:ПредставительЗастройщикаПоВопросамСтроительногоКонтроля | aosr:ПредставиельВыполнившийРаботы | aosr:ПредставительПроектировщика | aosr:ИныеПредствители/aosr:Представитель">
+		<xsl:call-template name="SigningPersonTextPresentationForAosr"/>
+	</xsl:template>
+	<xsl:template match="aosr:ЗастройщикИлиЗаказчик[not(@СсылкаНаОрганизацию)] | aosr:Подрядчик[not(@СсылкаНаОрганизацию)] | aosr:Проектировщик[not(@СсылкаНаОрганизацию)] | aosr:ДополнительныеОрганизации/aosr:Организация[not(@СсылкаНаОрганизацию)]">
+		<xsl:element name="{name()}" namespace="urn:AosrReport">
+			<xsl:copy-of select="./*"/>
+			<xsl:element name="ТекстовоеПредставление1" namespace="urn:AsorReport">
+				<xsl:call-template name="OrgTextPresentationFullIinfo">
+					<xsl:with-param name="Org" select="."/>
+				</xsl:call-template>
+			</xsl:element>
+		</xsl:element>
+	</xsl:template>
+	<xsl:template match="aosr:ОбъектСтроительства">
+		<xsl:element name="{name()}" namespace="urn:AosrReport">
+			<xsl:copy-of select="./*"/>
+			<xsl:element name="ТекстовоеПредставление1" namespace="urn:AsorReport">
+				<xsl:value-of select="./aosr:Наименование"/>
+				<xsl:text>, расположенный по адресу: </xsl:text>
+				<xsl:call-template name="AdressTextPresentationAllInfo">
+					<xsl:with-param name="Address" select="./aosr:Адрес"/>
+				</xsl:call-template>
+			</xsl:element>
+		</xsl:element>
+	</xsl:template>
+</xsl:stylesheet>

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Project>
+	<Folder FolderName="XML Files" ExtStr="xml;cml;math;rdf;smil;svg;wml">
+		<File FilePath="AosrTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="BomFromKsTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="BomTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="CableLineCatalogHighTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="CableLineCatalogTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="CableWorkJournalTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="CommonDataTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="ContactResistanceTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="DocumentScheduleTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="DrawingListTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="EarthMeasurementTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="MatQualityDocs.xml" HomeFolder="Yes"/>
+		<File FilePath="ProjectCableListTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="ResistanceMeasureHighTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="ResistanceMeasureTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="ResistancePhaseGroundTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="SampleKS2.xml" HomeFolder="Yes"/>
+		<File FilePath="TitleSheetTemplateData.xml" HomeFolder="Yes"/>
+		<File FilePath="WorkScheduleTemplateData.xml" HomeFolder="Yes"/>
+		<ExtMountFolder FolderName="SampleData\ПНР"/>
+	</Folder>
+	<Folder FolderName="XSL Files" ExtStr="xsl;xslt">
+		<File FilePath="AddressStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="AosrReportStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="BillOfMaterialStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="BimHouseFunctions.xsl" HomeFolder="Yes"/>
+		<File FilePath="CableWorkJournalStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="ConstructionObjectStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="ContactResistanceStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="DateStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="DocumentScheduleStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="DocumentStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="DrawingListStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="EarthMeasurementStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="ElementResolverStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="ListOfDrawingStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="ListOfMaterialStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="ListOfWorkStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="MaterialsFromGrand.xsl" HomeFolder="Yes"/>
+		<File FilePath="MeasuringDeviceStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="MergeNodesStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="NewElementResolverStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="NewMergeNodesStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="OrgStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="PersonStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="ProjectCableListStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="ResistanceMeasureStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="TitleSheetStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="WorkScheduleStyles.xsl" HomeFolder="Yes"/>
+		<File FilePath="Ведомость недоделок.xsl" HomeFolder="Yes"/>
+		<File FilePath="Ведомость отклонений от проекта.xsl" HomeFolder="Yes"/>
+		<File FilePath="Ведомость технической документации.xsl" HomeFolder="Yes"/>
+	</Folder>
+	<Folder FolderName="XQuery Files" ExtStr="xq;xql;xquery;xqu"/>
+	<Folder FolderName="HTML Files" ExtStr="html;htm;xhtml;asp"/>
+	<Folder FolderName="DTD/Schemas" ExtStr="dtd;dcd;xdr;biz;xsd">
+		<File FilePath="AosrReport.xsd" HomeFolder="Yes"/>
+		<File FilePath="BillOfMaterial.xsd" HomeFolder="Yes"/>
+		<File FilePath="CableLineCatalog.xsd" HomeFolder="Yes"/>
+		<File FilePath="CableWorkJournal.xsd" HomeFolder="Yes"/>
+		<File FilePath="CommonDataTypes.xsd" HomeFolder="Yes"/>
+		<File FilePath="ContactResistance.xsd" HomeFolder="Yes"/>
+		<File FilePath="DocumentationCommonData.xsd" HomeFolder="Yes"/>
+		<File FilePath="DrawingList.xsd" HomeFolder="Yes"/>
+		<File FilePath="EarthMeauserementProtocol.xsd" HomeFolder="Yes"/>
+		<File FilePath="MatQualityDocs.xsd" HomeFolder="Yes"/>
+		<File FilePath="ProjectCableList.xsd" HomeFolder="Yes"/>
+		<File FilePath="ResistanceMeasure.xsd" HomeFolder="Yes"/>
+	</Folder>
+	<Folder FolderName="Entities" ExtStr="ent"/>
+</Project>

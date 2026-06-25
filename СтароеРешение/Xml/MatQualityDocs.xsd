@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2023 rel. 2 (x64) (http://www.altova.com) by  () -->
+<xs:schema xmlns:qdl='urn:BimHouse:MatQualityDocs' xmlns:xs='http://www.w3.org/2001/XMLSchema' xmlns:vc='http://www.w3.org/2007/XMLSchema-versioning' xmlns:ct='urn:BimHouse:CommonDataType' targetNamespace='urn:BimHouse:MatQualityDocs' elementFormDefault='qualified' attributeFormDefault='unqualified' vc:minVersion='1.1'>
+	<xs:import namespace='urn:BimHouse:CommonDataType' schemaLocation='file:///E:/ArchAndDesign/BIMObjects/Templates/Sheet%20Templates/CustomXmlParts/CommonDataTypes.xsd'/>
+	<xs:element name='КаталогДокументовПодтверждающихКачество' type='ct:Тип.КаталогДокументовПодтверждающихКачество'>
+		<xs:annotation>
+			<xs:documentation>Comment describing your root element</xs:documentation>
+		</xs:annotation>
+		<xs:unique name='UniqueMaterial'>
+			<xs:selector xpath='ct:Материал'/>
+			<xs:field xpath='ct:Наименование'/>
+		</xs:unique>
+	</xs:element>
+</xs:schema>

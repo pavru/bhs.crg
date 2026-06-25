@@ -1,0 +1,91 @@
+using BHS.CRG.Application.DataSets;
+
+namespace BHS.CRG.Api.Endpoints.DataSets;
+
+public static class DataSetEndpoints
+{
+    public static void MapDataSetEndpoints(this IEndpointRouteBuilder app)
+    {
+        var g = app.MapGroup("/api/datasets").RequireAuthorization();
+
+        // ── Файлы ──────────────────────────────────────────────────────────────
+
+        g.MapGet("/files", async (string? scope, Guid? scopeId, IDataSetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListFilesAsync(scope, scopeId, ct)));
+
+        g.MapGet("/available", async (Guid setId, IDataSetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListAvailableFilesAsync(setId, ct)));
+
+        g.MapPost("/files", async (HttpRequest request, IDataSetService svc, CancellationToken ct) =>
+        {
+            if (!request.HasFormContentType)
+                return Results.BadRequest(new { error = "Ожидается multipart/form-data" });
+
+            var form = await request.ReadFormAsync(ct);
+            var file = form.Files.GetFile("file");
+            if (file == null) return Results.BadRequest(new { error = "Файл не указан" });
+
+            var input = new UploadFileInput(
+                await ReadBytesAsync(file, ct), file.FileName, file.ContentType,
+                form["name"].FirstOrDefault(), form["scope"].ToString(), form["scopeId"].ToString());
+
+            return Results.Ok(await svc.UploadFileAsync(input, ct));
+        }).DisableAntiforgery();
+
+        g.MapPut("/files/{id:guid}", async (Guid id, HttpRequest request, IDataSetService svc, CancellationToken ct) =>
+        {
+            if (!request.HasFormContentType)
+                return Results.BadRequest(new { error = "Ожидается multipart/form-data" });
+
+            var form = await request.ReadFormAsync(ct);
+            var file = form.Files.GetFile("file");
+            if (file == null) return Results.BadRequest(new { error = "Файл не указан" });
+
+            var input = new ReplaceFileInput(
+                await ReadBytesAsync(file, ct), file.FileName, file.ContentType, form["name"].FirstOrDefault());
+
+            var result = await svc.ReplaceFileAsync(id, input, ct);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        }).DisableAntiforgery();
+
+        g.MapGet("/files/{id:guid}/download", async (Guid id, IDataSetService svc, CancellationToken ct) =>
+        {
+            var dl = await svc.DownloadFileAsync(id, ct);
+            return dl is null ? Results.NotFound() : Results.File(dl.Stream, dl.ContentType, dl.FileName);
+        });
+
+        g.MapDelete("/files/{id:guid}", async (Guid id, IDataSetService svc, CancellationToken ct) =>
+            await svc.DeleteFileAsync(id, ct) ? Results.NoContent() : Results.NotFound());
+
+        // ── Источники ──────────────────────────────────────────────────────────
+
+        g.MapGet("/files/{fileId:guid}/sources", async (Guid fileId, IDataSetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListSourcesAsync(fileId, ct)));
+
+        g.MapGet("/sources/{sourceId:guid}/preview", async (
+            Guid sourceId, int maxRows, IDataSetService svc, CancellationToken ct) =>
+        {
+            var preview = await svc.PreviewSourceAsync(sourceId, maxRows, ct);
+            return preview is null ? Results.NotFound() : Results.Ok(preview);
+        });
+
+        g.MapPost("/sources/{sourceId:guid}/auto-map", async (
+            Guid sourceId, AutoMapRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            var fields = req.Fields.Select(f => new FieldInfo(f.Key, f.Title)).ToList();
+            var mapping = await svc.AutoMapAsync(sourceId, fields, ct);
+            return mapping is null ? Results.NotFound() : Results.Ok(new { mapping });
+        });
+    }
+
+    private static async Task<byte[]> ReadBytesAsync(IFormFile file, CancellationToken ct)
+    {
+        await using var stream = file.OpenReadStream();
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+        return ms.ToArray();
+    }
+
+    private record AutoMapRequest(AutoMapFieldDto[] Fields);
+    private record AutoMapFieldDto(string Key, string Title);
+}

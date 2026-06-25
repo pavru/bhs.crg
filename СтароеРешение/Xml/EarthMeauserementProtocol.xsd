@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2023 rel. 2 (x64) (http://www.altova.com) by  () -->
+<xs:schema xmlns:em='urn:BimHouse:EarthMeasurement' xmlns:ct='urn:BimHouse:CommonDataType' xmlns:xs='http://www.w3.org/2001/XMLSchema' xmlns:vc='http://www.w3.org/2007/XMLSchema-versioning' targetNamespace='urn:BimHouse:EarthMeasurement' elementFormDefault='qualified' attributeFormDefault='unqualified' vc:minVersion='1.1'>
+	<xs:import namespace='urn:BimHouse:CommonDataType' schemaLocation='file:///E:/ArchAndDesign/BIMObjects/Templates/Sheet%20Templates/CustomXmlParts/CommonDataTypes.xsd'/>
+	<xs:element name='ПротоколИзмеренияЗаземления' type='ct:Тип.Базовый.Документ.Приложение.ПротоколИзмеренияЗаземления'>
+		<xs:annotation>
+			<xs:documentation>Comment describing your root element</xs:documentation>
+		</xs:annotation>
+	</xs:element>
+</xs:schema>

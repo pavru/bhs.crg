@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="file:///E:/ArchAndDesign/BIMObjects/Templates/Sheet%20Templates/CustomXmlParts/WorkScheduleStyles.xsl"?>
+<РеестрРабот xmlns='urn:BimHouse:CommonDataType' xmlns:ct='urn:BimHouse:CommonDataType' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:schemaLocation='urn:BimHouse:CommonDataType file:///E:/ArchAndDesign/BIMObjects/Templates/Sheet%20Templates/CustomXmlParts/CommonDataTypes.xsd' xsi:type='Тип.Базовый.Документ.Приложение.РеестрРабот'>
+	<ФайлОбщихДанных xsi:type='Тип.ФайлОбщихДанных' uri='file:///E:/ArchAndDesign/BIMObjects/Templates/Sheet%20Templates/CustomXmlParts/CommonDataTemplateData.xml'/>
+	<Объект xsi:type='Тип.Базовый.ОбъектСтроительства' ref='СкДубки1'/>
+	<Проект xsi:type='Тип.Базовый.Документ.Проект' ref='ПроектСотвДубки1'/>
+	<ТипДокумента>Реестр работ</ТипДокумента>
+	<Титул>Работы представленные к освидетельствованию</Титул>
+	<НомерДокумента>1РР-СОТВ 1</НомерДокумента>
+	<ДатаДокумента>1971-01-01</ДатаДокумента>
+	<ВыпустившаяОрганизация xsi:type='Тип.Базовый.Организация' ref='ВидеоАльянс'/>
+	<ОсновнойДокумент xsi:type='Тип.Базовый.Документ.Аоср' uri='file://E:/ArchAndDesign/BIMObjects/Templates/Sheet%20Templates/CustomXmlParts/AosrTemplateData.xml' ref='АОСР.1-СОТВ-1'/>
+	<НомерПриложения>1</НомерПриложения>
+	<Работы>
+		<Работа xsi:type='Тип.Базовый.Работа'>
+			<ПорядковыйНомер>1</ПорядковыйНомер>
+			<Наименование>Работа1</Наименование>
+			<Количество>1</Количество>
+			<ЕдиницаИзмерения>шт</ЕдиницаИзмерения>
+			<МеcтоВыполнения>Место1</МеcтоВыполнения>
+		</Работа>
+		<Работа xsi:type='Тип.Базовый.Работа'>
+			<ПорядковыйНомер>2</ПорядковыйНомер>
+			<Наименование>Работа2</Наименование>
+			<Количество>3</Количество>
+			<ЕдиницаИзмерения>м</ЕдиницаИзмерения>
+			<МеcтоВыполнения>Место1</МеcтоВыполнения>
+		</Работа>
+		<Работа xsi:type='Тип.Базовый.Работа'>
+			<ПорядковыйНомер>3</ПорядковыйНомер>
+			<Наименование>Работа3</Наименование>
+			<Количество>2</Количество>
+			<ЕдиницаИзмерения>машин</ЕдиницаИзмерения>
+			<МеcтоВыполнения>Место2</МеcтоВыполнения>
+		</Работа>
+	</Работы>
+	<ct:Подписанты>
+		<ct:Подписант xsi:type='ct:Тип.Базовый.Персона' ref='ПредставительПодрядчика'/>
+		<ct:Подписант xsi:type='ct:Тип.Базовый.Персона' ref='ПредставительПодрядчика'/>
+	</ct:Подписанты>
+	<Файл>E:\ArchAndDesign\BIMObjects\Templates\Sheet Templates\CustomXmlParts\WorkScheduleTemplateData.xml</Файл>
+</РеестрРабот>

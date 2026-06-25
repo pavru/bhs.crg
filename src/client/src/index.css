@@ -1,0 +1,183 @@
+@import "tailwindcss";
+
+/* ── Fluent 2 design tokens ────────────────────────────────────────────────── */
+
+:root {
+  /* Typography */
+  --f-font: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  /* Surface layers */
+  --f-bg1: #ffffff;   /* card / panel */
+  --f-bg2: #f5f5f5;   /* page background */
+  --f-bg3: #f0f0f0;   /* input, subtle */
+  --f-bg4: #ebebeb;   /* selected, hover-deep */
+
+  /* Foregrounds */
+  --f-fg1: #242424;   /* primary text */
+  --f-fg2: #424242;   /* secondary text / labels */
+  --f-fg3: #616161;   /* tertiary / placeholder */
+  --f-fg4: #707070;   /* caption / disabled-light */
+  --f-fg-disabled: #bdbdbd;
+
+  /* Strokes */
+  --f-stroke1: #d1d1d1;  /* stronger border */
+  --f-stroke2: #e0e0e0;  /* default border */
+  --f-stroke3: #f0f0f0;  /* subtle separator */
+
+  /* Brand (Microsoft blue) */
+  --f-brand:         #0f6cbd;
+  --f-brand-hover:   #115ea3;
+  --f-brand-pressed: #0e4775;
+  --f-brand-bg2:     #cfe4fa;  /* subtle brand tint */
+  --f-brand-fg:      #0f6cbd;  /* brand-coloured text */
+  --f-brand-text:    #ffffff;  /* text on brand bg */
+
+  /* Status */
+  --f-success-bg: #f1faf1;
+  --f-success-fg: #107c10;
+  --f-warning-bg: #fff8e8;
+  --f-warning-fg: #835b00;
+  --f-warning-stroke: #c49500;
+  --f-danger-bg:  #fdf3f4;
+  --f-danger-fg:  #bc2f32;
+
+  /* Elevation shadows */
+  --f-shadow4:  0 2px 4px rgba(0,0,0,.14), 0 0 2px rgba(0,0,0,.12);
+  --f-shadow16: 0 8px 16px rgba(0,0,0,.14), 0 0 2px rgba(0,0,0,.12);
+  --f-shadow28: 0 14px 28px rgba(0,0,0,.16), 0 0 8px rgba(0,0,0,.10);
+
+  /* Border radii */
+  --f-r-sm: 2px;
+  --f-r-md: 4px;
+  --f-r-lg: 6px;
+  --f-r-xl: 8px;
+}
+
+/* ── Dark theme ──────────────────────────────────────────────────────────────── */
+
+:root[data-theme="dark"] {
+  --f-bg1: #1b1b1b;
+  --f-bg2: #141414;
+  --f-bg3: #292929;
+  --f-bg4: #333333;
+
+  --f-fg1: #ffffff;
+  --f-fg2: #d6d6d6;
+  --f-fg3: #adadad;
+  --f-fg4: #999999;
+  --f-fg-disabled: #5c5c5c;
+
+  --f-stroke1: #424242;
+  --f-stroke2: #333333;
+  --f-stroke3: #1b1b1b;
+
+  --f-brand:         #479ef5;
+  --f-brand-hover:   #62abf5;
+  --f-brand-pressed: #1a6ca8;
+  --f-brand-bg2:     #00306e;
+  --f-brand-fg:      #62abf5;
+  --f-brand-text:    #003d6b;
+
+  --f-success-bg: #052505;
+  --f-success-fg: #54b054;
+  --f-warning-bg: #3a2a00;
+  --f-warning-fg: #fcba60;
+  --f-warning-stroke: #5a3c00;
+  --f-danger-bg:  #3b0509;
+  --f-danger-fg:  #f1707b;
+
+  --f-shadow4:  0 2px 4px rgba(0,0,0,.28), 0 0 2px rgba(0,0,0,.24);
+  --f-shadow16: 0 8px 16px rgba(0,0,0,.28), 0 0 2px rgba(0,0,0,.24);
+  --f-shadow28: 0 14px 28px rgba(0,0,0,.36), 0 0 8px rgba(0,0,0,.20);
+}
+
+/* ── Tailwind v4: map color scales to Fluent tokens ─────────────────────────── */
+
+@theme inline {
+  /* ── Semantic colour vocabulary (preferred) ─────────────────────────────────
+     Use these everywhere: text-fg1, bg-surface, border-stroke, text-brand, etc.
+     They map onto the Fluent --f-* runtime tokens, so they flip with the theme. */
+
+  /* Text */
+  --color-fg1: var(--f-fg1);          /* primary text          */
+  --color-fg2: var(--f-fg2);          /* secondary / labels    */
+  --color-fg3: var(--f-fg3);          /* tertiary / placeholder*/
+  --color-fg4: var(--f-fg4);          /* caption               */
+  --color-fg-disabled: var(--f-fg-disabled);
+
+  /* Surfaces */
+  --color-surface:      var(--f-bg1); /* cards / panels / popovers */
+  --color-base:         var(--f-bg2); /* page / app background     */
+  --color-muted:        var(--f-bg3); /* input fills, subtle zones */
+  --color-muted-hover:  var(--f-bg4); /* selected / deep hover     */
+
+  /* Strokes */
+  --color-stroke:        var(--f-stroke2); /* default border  */
+  --color-stroke-strong: var(--f-stroke1);
+  --color-stroke-subtle: var(--f-stroke3);
+
+  /* Brand */
+  --color-brand:         var(--f-brand);
+  --color-brand-hover:   var(--f-brand-hover);
+  --color-brand-pressed: var(--f-brand-pressed);
+  --color-brand-subtle:  var(--f-brand-bg2);
+
+  /* Status */
+  --color-success:         var(--f-success-fg);
+  --color-success-subtle:  var(--f-success-bg);
+  --color-warning:         var(--f-warning-fg);
+  --color-warning-subtle:  var(--f-warning-bg);
+  --color-warning-border:  var(--f-warning-stroke);
+  --color-danger:          var(--f-danger-fg);
+  --color-danger-subtle:   var(--f-danger-bg);
+
+  /* Border radius → Fluent 2 scale */
+  --radius-sm: var(--f-r-sm);   /* 2px */
+  --radius-md: var(--f-r-md);   /* 4px  (Tailwind default: 6px) */
+  --radius-lg: var(--f-r-lg);   /* 6px  (Tailwind default: 8px) */
+  --radius-xl: var(--f-r-xl);   /* 8px  (Tailwind default: 12px) */
+}
+
+/* ── dark: variant using data-theme ─────────────────────────────────────────── */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* ── Base ─────────────────────────────────────────────────────────────────────  */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: var(--f-font);
+  font-size: 14px;
+  line-height: 1.5;
+  background-color: var(--f-bg2);
+  color: var(--f-fg1);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth transitions for theme switch */
+*, *::before, *::after {
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+              box-shadow 0.15s ease;
+}
+/* Disable transitions on elements that shouldn't animate */
+.no-transition, .no-transition * {
+  transition: none !important;
+}
+
+/* Tell the browser to render native widgets (select dropdowns, scrollbars, etc.)
+   in the same light/dark mode as the app, regardless of OS preference. */
+:root { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+/* Form elements don't inherit color from parent in some browsers.
+   Put in @layer base so Tailwind utility classes can still override. */
+@layer base {
+  input, select, textarea {
+    color: var(--f-fg1);
+    background-color: var(--f-bg1);
+  }
+  option {
+    color: var(--f-fg1);
+    background-color: var(--f-bg1);
+  }
+}

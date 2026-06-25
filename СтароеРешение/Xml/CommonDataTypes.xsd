@@ -1,0 +1,2363 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2026 (x64) (https://www.altova.com) by  () -->
+<xs:schema
+	xmlns='urn:BimHouse:CommonDataType'
+	xmlns:ct='urn:BimHouse:CommonDataType'
+	xmlns:xs='http://www.w3.org/2001/XMLSchema'
+	xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'
+	xmlns:vc='http://www.w3.org/2007/XMLSchema-versioning'
+	xmlns:altova='http://www.altova.com/xml-schema-extensions'
+	targetNamespace='urn:BimHouse:CommonDataType'
+	elementFormDefault='qualified'
+	attributeFormDefault='unqualified'
+	vc:minVersion='1.1'>
+	<xs:element name='РеестрДокументов' type='Тип.Базовый.Документ.РеестрДокументов'/>
+	<xs:element name='ПротоколИзмеренияИзоляции' type='ct:Тип.Базовый.Документ.Приложение.ПротоколИзмеренияИзоляции'>
+		<xs:annotation>
+			<xs:documentation>Comment describing your root element</xs:documentation>
+		</xs:annotation>
+	</xs:element>
+	<xs:element name='ПротоколИзмеренияЗаземления' type='ct:Тип.Базовый.Документ.Приложение.ПротоколИзмеренияЗаземления'>
+		<xs:annotation>
+			<xs:documentation>Comment describing your root element</xs:documentation>
+		</xs:annotation>
+	</xs:element>
+	<xs:element name='ПротоколИзмеренияФазаНоль' type='Тип.Базовый.Документ.Приложение.ПротоколИзмеренияФазаНоль'/>
+	<xs:element name='ВедомостьСхем' type='ct:Тип.Базовый.Документ.Приложение.ВедомостьСхем'>
+		<xs:annotation>
+			<xs:documentation>Comment describing your root element</xs:documentation>
+		</xs:annotation>
+	</xs:element>
+	<xs:element name='ПротоколИзмеренияМеталосвязи' type='ct:Тип.Базовый.Документ.Приложение.ПротоколИзмеренияМеталосвязи'>
+		<xs:annotation>
+			<xs:documentation>Comment describing your root element</xs:documentation>
+		</xs:annotation>
+	</xs:element>
+	<xs:element name='ЖурналПрокладкиКабеля' type='ct:Тип.Базовый.Документ.Приложение.ЖурналПрокладкиКабеля'>
+		<xs:annotation>
+			<xs:documentation>Comment describing your root element</xs:documentation>
+		</xs:annotation>
+	</xs:element>
+	<xs:element name='КаталогДокументовПодтверждающихКачество' type='ct:Тип.КаталогДокументовПодтверждающихКачество'>
+		<xs:annotation>
+			<xs:documentation>Comment describing your root element</xs:documentation>
+		</xs:annotation>
+		<xs:unique name='UniqueMaterial'>
+			<xs:selector xpath='ct:Группа/ct:Материал'/>
+			<xs:field xpath='ct:Наименование'/>
+		</xs:unique>
+	</xs:element>
+	<xs:element name='ВедомостьМатериалов' type='ct:Тип.Базовый.Документ.Приложение.ВедомостьМатериалов'/>
+	<xs:element name='ВедомостьМатериаловГрупировка' type='Тип.Базовый.Документ.Приложение.ВедомостьМатериаловГруппировка'/>
+	<xs:element name='АОСР' type='ct:Тип.Базовый.Документ.Аоср'/>
+	<xs:element name='КаталогКабельныхЛиний' type='ct:Тип.КаталогКабельныхЛинии'/>
+	<xs:element name='КабельныйЖурнал' type='Тип.Базовый.Документ.Проект.Лист.КабельныйЖурнал'/>
+	<xs:element name='РеестрРабот' type='Тип.Базовый.Документ.Приложение.РеестрРабот'/>
+	<xs:element name='КаталогОбщихДанных' type='Тип.Базовый.КаталогОбщихДанных'/>
+	<xs:element name='ТитульныйЛист' type='Тип.Базовый.Документ.Проект.Лист.Титульный'/>
+	<xs:element name='ПНР.ВедомостьТехническойДокументации' type='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьТехническойДокументации'/>
+	<xs:element name='ПНР.АктТехническойГотовности' type='Тип.Базовый'/>
+	<xs:element name='ПНР.ВедомостьОтклоненийОтПроекта' type='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьОтклоненийОтПроекта'/>
+	<xs:element name='ПНР.ВедомостьНедоделок' type='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьНедоделок'/>
+	<xs:element name='ПНР.ВедомостьСмонтированногоОборудования' type='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьСмонтированногоОборудования'/>
+	<xs:element name='ПНР.АктПередачиДляПНР' type='Тип.Базовый.Документ.Приложение.ПНР.АктПередачиДляПНР'/>
+	<xs:element name='ПНР.ПротоколОсмотраБатареи' type='Тип.Базовый.Документ.Приложение.ПНР.ПротоколОсмотраБатареи'/>
+	<xs:element name='ПНР.ВедомостьЗамеровБатареи' type='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьЗамеровБатареи'/>
+	<xs:simpleType name='DecimalOrSpace'>
+		<xs:union memberTypes='xs:decimal'>
+			<xs:simpleType>
+				<xs:restriction base='xs:string'>
+					<xs:enumeration value=' '/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:union>
+	</xs:simpleType>
+	<xs:simpleType name='AnyStringOfDigits'>
+		<xs:restriction base='xs:string'>
+			<xs:pattern value='[0-9]+'/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name='RussianPostCode'>
+		<xs:restriction base='xs:string'>
+			<xs:pattern value='[0-9]{6,6}'/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name='Тип.Наименование'>
+		<xs:all>
+			<xs:element
+				name='Полное'
+				type='xs:string'
+				minOccurs='0'/>
+			<xs:element name='Краткое' type='xs:string'/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name='Тип.ПериодДействия'>
+		<xs:sequence>
+			<xs:element
+				name='Начало'
+				type='xs:date'
+				nillable='true'
+				minOccurs='0'/>
+			<xs:element
+				name='Конец'
+				type='xs:date'
+				nillable='true'/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name='Тип.Угол'>
+		<xs:sequence>
+			<xs:element name='Градусы' type='xs:decimal'/>
+			<xs:element
+				name='Минуты'
+				type='xs:decimal'
+				minOccurs='0'/>
+			<xs:element
+				name='Секунды'
+				type='xs:decimal'
+				minOccurs='0'/>
+		</xs:sequence>
+		<xs:attribute
+			name='ГрадусыСимвол'
+			type='xs:string'
+			use='optional'
+			default='°'/>
+		<xs:attribute
+			name='МинутыСимвол'
+			use='optional'
+			default="'"/>
+		<xs:attribute
+			name='СекундыСимвол'
+			use='optional'
+			default='"'/>
+	</xs:complexType>
+	<xs:complexType name='Тип.ФИО'>
+		<xs:all>
+			<xs:element name='Фамилия' type='xs:string'/>
+			<xs:element
+				name='Имя'
+				type='xs:string'
+				minOccurs='0'/>
+			<xs:element
+				name='Отчество'
+				type='xs:string'
+				minOccurs='0'/>
+			<xs:element
+				name='Инициалы'
+				type='xs:string'
+				minOccurs='0'/>
+		</xs:all>
+	</xs:complexType>
+	<xs:complexType name='Тип.ДополнительнаяХарактеристикаПерсоны'>
+		<xs:sequence>
+			<xs:element name='Характеристика' type='xs:string'/>
+			<xs:element name='Значение' type='xs:string'/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name='Тип.ФайлОбщихДанных'>
+		<xs:sequence>
+			<xs:element
+				name='Исключения'
+				type='Тип.Исключения'
+				minOccurs='0'/>
+		</xs:sequence>
+		<xs:attribute
+			name='uri'
+			type='xs:anyURI'
+			use='required'/>
+		<xs:assert test='@xsi:type'/>
+	</xs:complexType>
+	<xs:complexType name='Тип.Использовть'>
+		<xs:sequence>
+			<xs:element
+				name='Идентификатор'
+				minOccurs='0'
+				maxOccurs='unbounded'>
+				<xs:complexType>
+					<xs:attribute name='id' type='xs:ID'/>
+				</xs:complexType>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый' abstract='true'>
+		<xs:all>
+			<xs:element
+				name='Ошибка'
+				type='xs:string'
+				minOccurs='0'/>
+			<xs:element name='Представления' minOccurs='0'/>
+			<xs:element name='Обработки' minOccurs='0'/>
+			<xs:element
+				name='Исключения'
+				type='Тип.Исключения'
+				minOccurs='0'/>
+			<xs:element name='Заменить' minOccurs='0'>
+				<xs:complexType>
+					<xs:sequence>
+						<xs:element name='Элемент'>
+							<xs:complexType>
+								<xs:sequence>
+									<xs:element name='НаЭлемент' type='xs:anyType'/>
+								</xs:sequence>
+								<xs:attribute
+									name='xpath'
+									type='xs:string'
+									use='required'/>
+							</xs:complexType>
+						</xs:element>
+					</xs:sequence>
+				</xs:complexType>
+			</xs:element>
+		</xs:all>
+		<xs:attribute name='id' type='xs:string'/>
+		<xs:attribute name='uri' type='xs:anyURI'/>
+		<xs:attribute name='ref' type='xs:string'/>
+		<xs:assert test='@xsi:type'/>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.ОбъектСтроительства'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element
+						name='Наименование'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='Адрес'
+						type='Тип.Базовый.Адрес'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Адрес'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element
+						name='Страна'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='Индекс'
+						type='RussianPostCode'
+						default='000000'
+						minOccurs='0'/>
+					<xs:element
+						name='Регион'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='Район'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='НаселённыйПункт'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='Улица'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='Дом'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='Помещение'
+						type='xs:string'
+						nillable='true'
+						minOccurs='0'/>
+					<xs:element
+						name='Координаты'
+						type='Тип.Базовый.Координаты'
+						minOccurs='0'/>
+					<xs:element
+						name='Телефон'
+						type='xs:string'
+						nillable='true'
+						minOccurs='0'/>
+					<xs:element
+						name='Email'
+						type='xs:string'
+						nillable='true'
+						minOccurs='0'/>
+					<xs:element
+						name='Сайт'
+						type='xs:string'
+						nillable='true'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Организация'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element
+						name='Наименование'
+						type='Тип.Наименование'
+						minOccurs='0'/>
+					<xs:element
+						name='ОГРН'
+						type='AnyStringOfDigits'
+						minOccurs='0'/>
+					<xs:element
+						name='ИНН'
+						type='AnyStringOfDigits'
+						minOccurs='0'/>
+					<xs:element
+						name='КПП'
+						type='AnyStringOfDigits'
+						minOccurs='0'/>
+					<xs:element
+						name='АдресЮридический'
+						type='Тип.Базовый.Адрес'
+						minOccurs='0'/>
+					<xs:element
+						name='АдресПочтовый'
+						type='Тип.Базовый.Адрес'
+						minOccurs='0'/>
+					<xs:element
+						name='СРО'
+						type='Тип.Базовый.СРО'
+						minOccurs='0'
+						maxOccurs='unbounded'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Организация.ИзмерительнаяЛаборатория'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Организация'>
+				<xs:all>
+					<xs:element
+						name='Свидетельство'
+						type='Тип.Базовый.Документ'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Координаты'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element name='Широта' type='Тип.Угол'/>
+					<xs:element name='Долгота' type='Тип.Угол'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.СРО'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element name='ОрганизацияСРО' type='xs:string'/>
+					<xs:element name='Свидетельство'>
+						<xs:complexType>
+							<xs:all>
+								<xs:element name='Номер' type='xs:string'/>
+								<xs:element
+									name='Дата'
+									type='xs:date'
+									minOccurs='0'/>
+								<xs:element
+									name='ДействительноДо'
+									type='xs:date'
+									minOccurs='0'/>
+							</xs:all>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element
+						name='ТипДокумента'
+						type='xs:string'
+						nillable='true'
+						minOccurs='0'/>
+					<xs:element
+						name='Титул'
+						type='xs:string'
+						nillable='true'
+						minOccurs='0'/>
+					<xs:element
+						name='НомерДокумента'
+						type='xs:string'
+						nillable='true'
+						minOccurs='0'/>
+					<xs:element
+						name='ДатаДокумента'
+						type='xs:date'
+						nillable='true'
+						minOccurs='0'/>
+					<xs:element
+						name='ВыпустившаяОрганизация'
+						type='Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element
+						name='КоличествоЭкземпляров'
+						type='xs:int'
+						nillable='true'
+						minOccurs='0'/>
+					<xs:element
+						name='ПериодДействия'
+						type='Тип.ПериодДействия'
+						minOccurs='0'/>
+					<xs:element
+						name='ДополнительнаяИнформация'
+						type='xs:string'
+						nillable='true'
+						minOccurs='0'/>
+					<xs:element
+						name='КоличествоЛистов'
+						type='xs:int'
+						nillable='true'
+						minOccurs='0'/>
+					<xs:element
+						name='Файл'
+						type='xs:anyURI'
+						minOccurs='0'/>
+					<xs:element
+						name='ПорядковыйНомерВРеестре'
+						type='xs:unsignedInt'
+						minOccurs='0'/>
+					<xs:element
+						name='ФайлЛоготипа'
+						type='xs:anyURI'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ'>
+				<xs:all>
+					<xs:element
+						name='НомерПриложения'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='ОсновнойДокумент'
+						type='Тип.Базовый.Документ'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.РеестрДокументов'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ'>
+				<xs:all>
+					<xs:element
+						name='ФайлОбщихДанных'
+						type='Тип.ФайлОбщихДанных'
+						minOccurs='0'/>
+					<xs:element
+						name='Объект'
+						type='Тип.Базовый.ОбъектСтроительства'
+						minOccurs='0'/>
+					<xs:element
+						name='Проект'
+						type='Тип.Базовый.Документ.Проект'
+						minOccurs='0'/>
+					<xs:element
+						name='Заказчик'
+						type='Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element
+						name='Подрядчик'
+						type='Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element name='Документы' minOccurs='0'>
+						<xs:complexType>
+							<xs:all>
+								<xs:element name='Группа' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='НаименованиеГруппы' type='xs:string'/>
+											<xs:element
+												name='Документ'
+												type='Тип.Базовый.Документ'
+												maxOccurs='unbounded'/>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+							</xs:all>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Подписанты' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Подписант'
+									type='Тип.Базовый.Персона.Подписант'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Проект'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ'>
+				<xs:all>
+					<xs:element
+						name='Объект'
+						type='Тип.Базовый.ОбъектСтроительства'
+						minOccurs='0'/>
+					<xs:element
+						name='Заказчик'
+						type='Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element
+						name='Стадия'
+						type='xs:string'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Проект.Лист'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ.Проект'>
+				<xs:all>
+					<xs:element
+						name='Здание'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='ИмяЛиста'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='НомерЛиста'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='ВсегоЛистов'
+						type='xs:unsignedInt'
+						minOccurs='0'/>
+					<xs:element name='Подписи' minOccurs='0'>
+						<xs:complexType>
+							<xs:all>
+								<xs:element name='Подпись' maxOccurs='6'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='ХарактерРаботы' type='xs:string'/>
+											<xs:element name='Исполнитель' type='Тип.Базовый.Персона'/>
+											<xs:element
+												name='Дата'
+												type='xs:date'
+												minOccurs='0'/>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+							</xs:all>
+						</xs:complexType>
+					</xs:element>
+					<xs:element
+						name='ПорядковыйНомер'
+						type='xs:unsignedInt'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Проект.Лист.КабельныйЖурнал'>
+		<xs:complexContent>
+			<xs:extension base='ct:Тип.Базовый.Документ.Проект.Лист'>
+				<xs:all>
+					<xs:element
+						name='ФайлОбщихДанных'
+						type='ct:Тип.ФайлОбщихДанных'
+						minOccurs='0'/>
+					<xs:element
+						name='КабельныеЛинии'
+						type='ct:Тип.Базовый.КабельныеЛинии'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Проект.Лист.Титульный'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ.Проект.Лист'>
+				<xs:all>
+					<xs:element
+						name='ФайлОбщихДанных'
+						type='Тип.ФайлОбщихДанных'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Аоср'>
+		<xs:complexContent>
+			<xs:extension base='ct:Тип.Базовый.Документ'>
+				<xs:all>
+					<xs:element
+						name='ФайлОбщихДанных'
+						type='ct:Тип.ФайлОбщихДанных'
+						minOccurs='0'/>
+					<xs:element
+						name='ОбъектСтроительства'
+						type='ct:Тип.Базовый.ОбъектСтроительства'
+						minOccurs='0'/>
+					<xs:element
+						name='ЗастройщикИлиЗаказчик'
+						type='ct:Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element
+						name='Подрядчик'
+						type='ct:Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element
+						name='Проектировщик'
+						type='ct:Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element name='ДополнительныеОрганизации' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Организация'
+									type='ct:Тип.Базовый.Организация'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element
+						name='Проект'
+						type='ct:Тип.Базовый.Документ.Проект'
+						minOccurs='0'/>
+					<xs:element name='ЧленыКомиссии' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='ПредставительЗаказчикаТехнадзор' type='ct:Тип.Базовый.Персона'/>
+								<xs:element name='ПредставительПодрядчика' type='ct:Тип.Базовый.Персона'/>
+								<xs:element name='ПредставительПодрядчикаТехнадзор' type='ct:Тип.Базовый.Персона'/>
+								<xs:element name='ПредставиельВыполнившийРаботы' type='ct:Тип.Базовый.Персона'/>
+								<xs:element
+									name='ПредставительПроектировщика'
+									type='ct:Тип.Базовый.Персона'
+									minOccurs='0'/>
+								<xs:element name='ИныеПредствители' minOccurs='0'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element
+												name='Представитель'
+												type='ct:Тип.Базовый.Персона'
+												maxOccurs='unbounded'/>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element
+						name='ОрганизацияВыполнившаяРаботы'
+						type='Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element
+						name='Работы'
+						type='Тип.Базовый.СписокРабот'
+						minOccurs='0'/>
+					<xs:element
+						name='ИсползованныеМатериалы'
+						type='ct:Тип.Базовый.СписокМатериалов'
+						minOccurs='0'/>
+					<xs:element
+						name='Схемы'
+						type='ct:Тип.Базовый.СписокДокументов'
+						minOccurs='0'/>
+					<xs:element name='ДатаРабот' minOccurs='0'>
+						<xs:complexType>
+							<xs:all>
+								<xs:element name='Начало' type='xs:date'/>
+								<xs:element name='Окончание' type='xs:date'/>
+							</xs:all>
+						</xs:complexType>
+					</xs:element>
+					<xs:element
+						name='ДокументыСоответсвия'
+						type='ct:Тип.Базовый.НаборДокументов'
+						minOccurs='0'/>
+					<xs:element name='СледующиеРаботы' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Работа' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:choice>
+											<xs:element name='Описание' type='xs:string'/>
+										</xs:choice>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element
+						name='Приложения'
+						type='ct:Тип.Базовый.НаборДокументов'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ЖурналПрокладкиКабеля'>
+		<xs:complexContent>
+			<xs:extension base='ct:Тип.Базовый.Документ.Приложение'>
+				<xs:all>
+					<xs:element
+						name='ФайлОбщихДанных'
+						type='ct:Тип.ФайлОбщихДанных'
+						minOccurs='0'/>
+					<xs:element
+						name='Заказчик'
+						type='ct:Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element
+						name='Объект'
+						type='Тип.Базовый.ОбъектСтроительства.Участок'
+						minOccurs='0'/>
+					<xs:element
+						name='Проект'
+						type='ct:Тип.Базовый.Документ.Проект'
+						minOccurs='0'/>
+					<xs:element
+						name='КабельныеЛинии'
+						type='ct:Тип.Базовый.КабельныеЛинии'
+						minOccurs='0'/>
+					<xs:element name='Подписанты' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Подписант'
+									type='Тип.Базовый.Персона.Подписант'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ВедомостьМатериалов'>
+		<xs:complexContent>
+			<xs:extension base='ct:Тип.Базовый.Документ.Приложение'>
+				<xs:all>
+					<xs:element
+						name='ФайлОбщихДанных'
+						type='ct:Тип.ФайлОбщихДанных'
+						minOccurs='0'/>
+					<xs:element
+						name='ОбъектСтроительства'
+						type='ct:Тип.Базовый.ОбъектСтроительства'
+						minOccurs='0'/>
+					<xs:element
+						name='Проект'
+						type='ct:Тип.Базовый.Документ.Проект'
+						minOccurs='0'/>
+					<xs:element name='Материалы' minOccurs='0'>
+						<xs:complexType>
+							<xs:choice>
+								<xs:element
+									name='Материал'
+									type='ct:Тип.Базовый.Материал'
+									maxOccurs='unbounded'/>
+								<xs:element name='АктКС2' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='АктUri' type='xs:anyURI'/>
+											<xs:element name='НомерАкта'/>
+											<xs:element name='СертификатUri'/>
+											<xs:element name='ОбработкаНаименования' minOccurs='0'>
+												<xs:complexType>
+													<xs:sequence>
+														<xs:element name='ШаблонПоиска' type='xs:string'/>
+														<xs:element name='ШаблонЗамены' type='xs:string'/>
+													</xs:sequence>
+												</xs:complexType>
+											</xs:element>
+											<xs:element name='ИсключитьМатериалы' minOccurs='0'>
+												<xs:complexType>
+													<xs:sequence>
+														<xs:element
+															name='Наименование'
+															type='xs:string'
+															minOccurs='0'
+															maxOccurs='unbounded'/>
+														<xs:element
+															name='Обоснование'
+															type='xs:string'
+															minOccurs='0'
+															maxOccurs='unbounded'/>
+													</xs:sequence>
+												</xs:complexType>
+											</xs:element>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+							</xs:choice>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Подписанты' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Подписант'
+									type='ct:Тип.Базовый.Персона'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ВедомостьМатериаловГруппировка'>
+		<xs:complexContent>
+			<xs:extension base='ct:Тип.Базовый.Документ.Приложение'>
+				<xs:all>
+					<xs:element
+						name='ФайлОбщихДанных'
+						type='ct:Тип.ФайлОбщихДанных'
+						minOccurs='0'/>
+					<xs:element
+						name='ОбъектСтроительства'
+						type='ct:Тип.Базовый.ОбъектСтроительства'
+						minOccurs='0'/>
+					<xs:element
+						name='Проект'
+						type='ct:Тип.Базовый.Документ.Проект'
+						minOccurs='0'/>
+					<xs:element name='Материалы' minOccurs='0'>
+						<xs:complexType>
+							<xs:choice>
+								<xs:element name='Группа' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='НаименованиеГруппы' type='xs:string'/>
+											<xs:element
+												name='Материал'
+												type='Тип.Базовый.Материал'
+												maxOccurs='unbounded'/>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+							</xs:choice>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Подписанты' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Подписант'
+									type='ct:Тип.Базовый.Персона'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ВедомостьСхем'>
+		<xs:complexContent>
+			<xs:extension base='ct:Тип.Базовый.Документ.Приложение'>
+				<xs:all>
+					<xs:element
+						name='ФайлОбщихДанных'
+						type='ct:Тип.ФайлОбщихДанных'
+						minOccurs='0'/>
+					<xs:element
+						name='ОбъектСтроительства'
+						type='ct:Тип.Базовый.ОбъектСтроительства'
+						minOccurs='0'/>
+					<xs:element
+						name='Проект'
+						type='ct:Тип.Базовый.Документ.Проект'
+						minOccurs='0'/>
+					<xs:element name='Схемы' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Схема'
+									type='ct:Тип.Базовый.Документ.Проект.Лист'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Подписатны' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Подписант'
+									type='ct:Тип.Базовый.Персона'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.РеестрРабот'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ.Приложение'>
+				<xs:all>
+					<xs:element
+						name='ФайлОбщихДанных'
+						type='Тип.ФайлОбщихДанных'
+						minOccurs='0'/>
+					<xs:element
+						name='Объект'
+						type='Тип.Базовый.ОбъектСтроительства'
+						minOccurs='0'/>
+					<xs:element
+						name='Проект'
+						type='Тип.Базовый.Документ.Проект'
+						minOccurs='0'/>
+					<xs:element name='Работы' minOccurs='0'>
+						<xs:complexType>
+							<xs:all>
+								<xs:element
+									name='Работа'
+									type='Тип.Базовый.Работа'
+									maxOccurs='unbounded'/>
+							</xs:all>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Подписанты' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Подписант'
+									type='Тип.Базовый.Персона'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ПротоколИзмеренияМеталосвязи'>
+		<xs:complexContent>
+			<xs:extension base='ct:Тип.Базовый.Документ.Приложение'>
+				<xs:all>
+					<xs:element
+						name='ФайлОбщихДанных'
+						type='ct:Тип.ФайлОбщихДанных'
+						minOccurs='0'/>
+					<xs:element
+						name='Заказчик'
+						type='ct:Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element
+						name='Объект'
+						type='Тип.Базовый.ОбъектСтроительства.Участок'
+						minOccurs='0'/>
+					<xs:element
+						name='Проект'
+						type='ct:Тип.Базовый.Документ.Проект'
+						minOccurs='0'/>
+					<xs:element name='ЦельИзмерений' minOccurs='0'>
+						<xs:simpleType>
+							<xs:restriction base='xs:string'>
+								<xs:enumeration value='приёмо-сдаточные'/>
+								<xs:enumeration value='сличительные'/>
+								<xs:enumeration value='контрольные испытания'/>
+								<xs:enumeration value='эксплуатационные'/>
+								<xs:enumeration value='для целей сертификации'/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:element>
+					<xs:element name='РезультатыВнешнегоОсмотра' minOccurs='0'/>
+					<xs:element
+						name='УсловияПровденияИзмерений'
+						type='ct:Тип.Базовый.УсловияПроведенияИзмерений'
+						minOccurs='0'/>
+					<xs:element name='Измерения' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Измерение' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:all>
+											<xs:element name='ПорядковыйНомер' type='xs:unsignedInt'/>
+											<xs:element name='МестоИзмерения' type='xs:string'/>
+											<xs:element
+												name='КоличествоЭлементов'
+												type='xs:unsignedInt'
+												minOccurs='0'/>
+											<xs:element name='Знак' type='xs:string'/>
+											<xs:element name='Сопротивление' type='xs:decimal'/>
+											<xs:element
+												name='Примечание'
+												type='xs:string'
+												minOccurs='0'/>
+										</xs:all>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element
+						name='Примечание'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element name='Заключение' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='СопротивлениеВышеНормы'
+									type='xs:string'
+									minOccurs='0'/>
+								<xs:element
+									name='ОборудованиеНеЗаземлено'
+									type='xs:string'
+									minOccurs='0'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Подписанты' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Подписант'
+									type='Тип.Базовый.Персона.Подписант'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ПротоколИзмеренияЗаземления'>
+		<xs:complexContent>
+			<xs:extension base='ct:Тип.Базовый.Документ.Приложение'>
+				<xs:all>
+					<xs:element
+						name='ФайлОбщихДанных'
+						type='ct:Тип.ФайлОбщихДанных'
+						minOccurs='0'/>
+					<xs:element
+						name='Заказчик'
+						type='ct:Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element
+						name='Объект'
+						type='Тип.Базовый.ОбъектСтроительства.Участок'
+						minOccurs='0'/>
+					<xs:element
+						name='Проект'
+						type='ct:Тип.Базовый.Документ.Проект'
+						minOccurs='0'/>
+					<xs:element name='ЦельИзмерений' minOccurs='0'>
+						<xs:simpleType>
+							<xs:restriction base='xs:string'>
+								<xs:enumeration value='приёмо-сдаточные'/>
+								<xs:enumeration value='сличительные'/>
+								<xs:enumeration value='контрольные испытания'/>
+								<xs:enumeration value='эксплуатационные'/>
+								<xs:enumeration value='для целей сертификации'/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:element>
+					<xs:element
+						name='ХарактеристикиЗаземлинтеля'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element name='РезультатыВнешнегоОсмотра' minOccurs='0'/>
+					<xs:element
+						name='УсловияПровденияИзмерений'
+						type='Тип.Базовый.УсловияПроведенияИзмерений.Заземление'
+						minOccurs='0'/>
+					<xs:element
+						name='НомативнаяДокументация'
+						type='ct:Тип.Базовый.НаборДокументов'
+						minOccurs='0'/>
+					<xs:element name='Измерения' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Измерение' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:all>
+											<xs:element name='МестоИзмерения' type='xs:string'/>
+											<xs:element name='Расстояние'>
+												<xs:complexType>
+													<xs:sequence>
+														<xs:element name='ЗаземлительЗонд' nillable='true'/>
+														<xs:element name='ЗаземлительВспмЭлектрод'/>
+														<xs:element name='ЗондВспомЭлектрод'/>
+													</xs:sequence>
+												</xs:complexType>
+											</xs:element>
+											<xs:element name='Сопротивление'>
+												<xs:complexType>
+													<xs:sequence>
+														<xs:element name='Измеренное' type='xs:decimal'/>
+														<xs:element name='Контура' type='xs:decimal'/>
+														<xs:element name='ПоНТД' type='xs:decimal'/>
+													</xs:sequence>
+												</xs:complexType>
+											</xs:element>
+										</xs:all>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element
+						name='Примечание'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='Заключение'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element name='Подписанты' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Подписант'
+									type='Тип.Базовый.Персона.Подписант'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ПротоколИзмеренияИзоляции'>
+		<xs:complexContent>
+			<xs:extension base='ct:Тип.Базовый.Документ.Приложение'>
+				<xs:all>
+					<xs:element
+						name='ФайлОбщихДанных'
+						type='ct:Тип.ФайлОбщихДанных'
+						minOccurs='0'/>
+					<xs:element
+						name='Заказчик'
+						type='ct:Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element
+						name='Объект'
+						type='Тип.Базовый.ОбъектСтроительства.Участок'
+						minOccurs='0'/>
+					<xs:element
+						name='Проект'
+						type='ct:Тип.Базовый.Документ.Проект'
+						minOccurs='0'/>
+					<xs:element
+						name='ЦепьИзмерения'
+						type='xs:string'
+						nillable='true'
+						minOccurs='0'/>
+					<xs:element
+						name='УсловияПровденияИзмерений'
+						type='ct:Тип.Базовый.УсловияПроведенияИзмерений'
+						minOccurs='0'/>
+					<xs:element
+						name='КабельныеЛинии'
+						type='ct:Тип.Базовый.КабельныеЛинии'
+						minOccurs='0'/>
+					<xs:element name='Подписанты' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Подписант'
+									type='Тип.Базовый.Персона.Подписант'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ПротоколИзмеренияФазаНоль'>
+		<xs:complexContent>
+			<xs:extension base='ct:Тип.Базовый.Документ.Приложение'>
+				<xs:all>
+					<xs:element
+						name='ФайлОбщихДанных'
+						type='ct:Тип.ФайлОбщихДанных'
+						minOccurs='0'/>
+					<xs:element
+						name='Заказчик'
+						type='ct:Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element
+						name='Объект'
+						type='Тип.Базовый.ОбъектСтроительства.Участок'
+						minOccurs='0'/>
+					<xs:element
+						name='Проект'
+						type='ct:Тип.Базовый.Документ.Проект'
+						minOccurs='0'/>
+					<xs:element
+						name='УсловияПровденияИзмерений'
+						type='Тип.Базовый.УсловияПроведенияИзмерений.ФазаНоль'
+						minOccurs='0'/>
+					<xs:element
+						name='КабельныеЛинии'
+						type='ct:Тип.Базовый.КабельныеЛинии'
+						minOccurs='0'/>
+					<xs:element name='Заключение' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='СопротивлениеВышеНормы'
+									type='xs:string'
+									minOccurs='0'/>
+								<xs:element
+									name='ОборудованиеНеПрисоединено'
+									type='xs:string'
+									minOccurs='0'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Подписанты' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Подписант'
+									type='Тип.Базовый.Персона.Подписант'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ПНР'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ.Приложение'>
+				<xs:all>
+					<xs:element
+						name='НомерФормы'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='ФайлОбщихДанных'
+						type='Тип.ФайлОбщихДанных'
+						minOccurs='0'/>
+					<xs:element
+						name='Заказчик'
+						type='Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element
+						name='Объект'
+						type='Тип.Базовый.ОбъектСтроительства.Участок'
+						minOccurs='0'/>
+					<xs:element
+						name='Проект'
+						type='Тип.Базовый.Документ.Проект'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьТехническойДокументации'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ.Приложение.ПНР'>
+				<xs:all>
+					<xs:element name='Документация' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Раздел' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='Номер' type='xs:string'/>
+											<xs:element name='Наименование' type='xs:string'/>
+											<xs:element
+												name='Документ'
+												type='Тип.Базовый.Документ'
+												maxOccurs='unbounded'/>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element
+						name='ПредставительМонтажнойОрганизации'
+						type='Тип.Базовый.Персона.Подписант'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ПНР.АктТехническойГотовности'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ.Приложение.ПНР'>
+				<xs:all>
+					<xs:element name='Комисия' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='ПредставительЗаказчика' type='Тип.Базовый.Персона.Подписант'/>
+								<xs:element name='ПредставительГенеральногоПодрядчика' type='Тип.Базовый.Персона.Подписант'/>
+								<xs:element name='ПредставительЭлектромонтажнойОрганизации' type='Тип.Базовый.Персона.Подписант'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Работы' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Работа'
+									type='Тип.Базовый.Работа'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element
+						name='ОтклоненияОтПроекта'
+						type='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьОтклоненийОтПроекта'
+						minOccurs='0'/>
+					<xs:element
+						name='ТехническаяДокументация'
+						type='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьТехническойДокументации'
+						minOccurs='0'/>
+					<xs:element name='ИндивидуальныеИспытания' minOccurs='0'>
+						<xs:simpleType>
+							<xs:restriction base='xs:string'>
+								<xs:enumeration value='проведены'/>
+								<xs:enumeration value='не проведены'/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:element>
+					<xs:element
+						name='ВедомостьНедоделок'
+						type='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьНедоделок'
+						minOccurs='0'/>
+					<xs:element
+						name='ВедомостьСмонтированногоОборудования'
+						type='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьСмонтированногоОборудования'
+						minOccurs='0'/>
+					<xs:element
+						name='АктОснованиеДля'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element name='ПодписиПередачи' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Сдал'
+									type='Тип.Базовый.Персона.Подписант'
+									maxOccurs='unbounded'/>
+								<xs:element
+									name='Принял'
+									type='Тип.Базовый.Персона.Подписант'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьОтклоненийОтПроекта'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ.Приложение.ПНР'>
+				<xs:all>
+					<xs:element name='Изменения' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Строка' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='НомерПоПорядку' type='xs:int'/>
+											<xs:element name='СоставИзменений' type='xs:string'/>
+											<xs:element name='ПричинаИзменений' type='xs:string'/>
+											<xs:element name='ДанныеСогласования' type='xs:string'/>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element
+						name='ПроизводительРабот'
+						type='Тип.Базовый.Персона.Подписант'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьНедоделок'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ.Приложение.ПНР'>
+				<xs:all>
+					<xs:element name='Ведомость' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Строка' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='НомерПоПорядку' type='xs:int'/>
+											<xs:element name='Недоделки' type='xs:string'/>
+											<xs:element name='СрокУстранения' type='xs:date'/>
+											<xs:element name='ОтветственныйЗаУстранение' type='Тип.Базовый.ПерсонаИлиОрганизация'/>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Подписи' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='ПредставительПодряднойОрганизации' type='Тип.Базовый.Персона.Подписант'/>
+								<xs:element name='ПредставительГенПрядчика' type='Тип.Базовый.Персона.Подписант'/>
+								<xs:element name='ПредставительЗаказчика' type='Тип.Базовый.Персона.Подписант'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьСмонтированногоОборудования'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ.Приложение.ПНР'>
+				<xs:all>
+					<xs:element name='Ведомость' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Оборудование' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='НомерПоПорядку' type='xs:int'/>
+											<xs:element name='Наименование' type='xs:string'/>
+											<xs:element name='Тип' type='xs:string'/>
+											<xs:element name='НомерМаркировка' type='xs:string'/>
+											<xs:element name='Количество' type='xs:decimal'/>
+											<xs:element name='ЕдиницаИзмерения' type='xs:string'/>
+											<xs:element name='Примечание' type='xs:string'/>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Подписи' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='ПредставительМонтажнойОрганизации' type='Тип.Базовый.Персона.Подписант'/>
+								<xs:element name='ПредставительГенПодрядчика' type='Тип.Базовый.Персона.Подписант'/>
+								<xs:element name='ПредставительЗаказчика' type='Тип.Базовый.Персона.Подписант'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ПНР.АктПередачиДляПНР'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ.Приложение.ПНР'>
+				<xs:all>
+					<xs:element name='Комиссия' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='ПредставительПусконаладочнойОрганизации' type='Тип.Базовый.Персона.Подписант'/>
+								<xs:element name='ПредставительЭлектромонтажнойОрганизации' type='Тип.Базовый.Персона.Подписант'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='РаботыВыполненыеМонтажнойОгрнанизацией' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Работа'
+									type='Тип.Базовый.Работа'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element
+						name='ОтклоненияОтПроекта'
+						type='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьОтклоненийОтПроекта'
+						minOccurs='0'/>
+					<xs:element
+						name='ВедомостьДокументации'
+						type='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьТехническойДокументации'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ПНР.ПротоколОсмотраБатареи'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ.Приложение.ПНР'>
+				<xs:all>
+					<xs:element
+						name='ТипАккумуляторнойБатареи'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='ЁмкостьБатареи'
+						type='xs:decimal'
+						minOccurs='0'/>
+					<xs:element
+						name='НапряжениеБатареи'
+						type='xs:decimal'
+						minOccurs='0'/>
+					<xs:element
+						name='КоличествоЭлементов'
+						type='xs:int'
+						minOccurs='0'/>
+					<xs:element name='Подписи' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Подпись' type='Тип.Базовый.Персона.Подписант'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Документ.Приложение.ПНР.ВедомостьЗамеровБатареи'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.Документ.Приложение.ПНР'>
+				<xs:all>
+					<xs:element
+						name='ТипАккумуляторнойБатареи'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='ЁмкостьБатареи'
+						type='xs:decimal'
+						minOccurs='0'/>
+					<xs:element
+						name='НапряжениеБатареи'
+						type='xs:decimal'
+						minOccurs='0'/>
+					<xs:element
+						name='КоличествоЭлементов'
+						type='xs:int'
+						minOccurs='0'/>
+					<xs:element
+						name='СопротивлениеИзоляции'
+						type='xs:decimal'
+						minOccurs='0'/>
+					<xs:element
+						name='УсловияОкуражающейСреды'
+						type='Тип.Базовый.УсловияОкружающейСреды'
+						minOccurs='0'/>
+					<xs:element
+						name='ТемператураЭлектролита'
+						type='xs:decimal'
+						minOccurs='0'/>
+					<xs:element
+						name='ВремяРазряда'
+						type='xs:decimal'
+						minOccurs='0'/>
+					<xs:element name='ТаблицаЗамеров' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Замер' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='НомерЭлемента' type='xs:int'/>
+											<xs:element name='Напряжение'>
+												<xs:complexType>
+													<xs:sequence>
+														<xs:element name='БатареияЗаряжена' type='xs:decimal'/>
+														<xs:element name='БатареияРазряжена' type='xs:decimal'/>
+														<xs:element name='БатареияПовторноЗаряжена' type='xs:decimal'/>
+													</xs:sequence>
+												</xs:complexType>
+											</xs:element>
+											<xs:element name='ПлотностьЭлектролита'>
+												<xs:complexType>
+													<xs:sequence>
+														<xs:element name='БатареияЗаряжена' type='xs:decimal'/>
+														<xs:element name='БатареияРазряжена' type='xs:decimal'/>
+														<xs:element name='БатареияПовторноЗаряжена' type='xs:decimal'/>
+													</xs:sequence>
+												</xs:complexType>
+											</xs:element>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element
+						name='ЁмкостьПоЗаряду'
+						type='xs:decimal'
+						minOccurs='0'/>
+					<xs:element name='НомераОтстающихЭлементов' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence maxOccurs='unbounded'>
+								<xs:element name='Номер' type='xs:int'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Подписи' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='ЗамерыВыполнил' type='Тип.Базовый.Персона.Подписант'/>
+								<xs:element name='ПроизводительРабот' type='Тип.Базовый.Персона.Подписант'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Персона'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element
+						name='ПорядковыйНомер'
+						type='xs:int'
+						minOccurs='0'/>
+					<xs:element
+						name='ФИО'
+						type='Тип.ФИО'
+						minOccurs='0'/>
+					<xs:element
+						name='Организация'
+						type='Тип.Базовый.Организация'
+						minOccurs='0'/>
+					<xs:element
+						name='Должность'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='Приказ'
+						type='Тип.Базовый.Документ'
+						minOccurs='0'/>
+					<xs:element
+						name='ДополнительнаяХарактеристика'
+						type='Тип.ДополнительнаяХарактеристикаПерсоны'
+						minOccurs='0'
+						maxOccurs='unbounded'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Персона.Подписант'>
+		<xs:complexContent>
+			<xs:extension base='ct:Тип.Базовый.Персона'>
+				<xs:all>
+					<xs:element
+						name='ХарактерРабот'
+						type='xs:string'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Материал'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element
+						name='ПорядковыйНомер'
+						type='xs:int'
+						minOccurs='0'/>
+					<xs:element name='Наименование' type='xs:string'/>
+					<xs:element
+						name='ЕдиницаИзмерения'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='Количество'
+						type='xs:decimal'
+						minOccurs='0'/>
+					<xs:element
+						name='ДокументПодтверждающийКачество'
+						type='Тип.Базовый.Документ'
+						minOccurs='0'/>
+					<xs:element
+						name='СсылочнаяИнформация'
+						type='xs:string'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.СписокМатериалов'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element name='Материалы' maxOccurs='unbounded'>
+						<xs:complexType>
+							<xs:choice>
+								<xs:element
+									name='Ведомость'
+									type='Тип.Базовый.Документ'
+									minOccurs='0'/>
+								<xs:element
+									name='Материал'
+									type='Тип.Базовый.Материал'
+									minOccurs='0'
+									maxOccurs='unbounded'/>
+							</xs:choice>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.СписокДокументов'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element name='Документы'>
+						<xs:complexType>
+							<xs:choice>
+								<xs:element
+									name='Ведомость'
+									type='Тип.Базовый.Документ'
+									minOccurs='0'/>
+								<xs:element
+									name='Документ'
+									type='Тип.Базовый.Документ'
+									minOccurs='0'
+									maxOccurs='unbounded'/>
+							</xs:choice>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Работа'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element
+						name='ПорядковыйНомер'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='Наименование'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='Количество'
+						type='xs:decimal'
+						minOccurs='0'/>
+					<xs:element
+						name='ЕдиницаИзмерения'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='МеcтоВыполнения'
+						type='xs:string'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.СписокРабот'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element name='Работы'>
+						<xs:complexType>
+							<xs:choice>
+								<xs:element
+									name='Реестр'
+									type='Тип.Базовый.Документ'
+									minOccurs='0'/>
+								<xs:element
+									name='Работа'
+									type='Тип.Базовый.Работа'
+									minOccurs='0'
+									maxOccurs='unbounded'/>
+							</xs:choice>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.КабельнаяЛиния'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element name='Метки' minOccurs='0'/>
+					<xs:element name='ПорядковыйНомер' type='xs:unsignedInt'/>
+					<xs:element name='НомерКабеля' type='xs:string'/>
+					<xs:element name='Трасса'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Начало' type='xs:string'/>
+								<xs:element name='Конец' type='xs:string'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Участок' type='xs:string'/>
+					<xs:element name='Кабель'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='ПоПроекту'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='Марка' type='xs:string'/>
+											<xs:element name='КоличествоЖилСечение' type='xs:string'/>
+											<xs:element name='Длина' type='xs:decimal'/>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+								<xs:element name='Проложено'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='Марка' type='xs:string'/>
+											<xs:element name='КоличествоЖилСечение' type='xs:string'/>
+											<xs:element name='Длина' type='xs:decimal'/>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='ДанныеПрокладки' minOccurs='0'>
+						<xs:complexType>
+							<xs:all>
+								<xs:element name='ДатаПрокладки'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='Начало' type='xs:date'/>
+											<xs:element name='Конец' type='xs:date'/>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+								<xs:element name='НомерБарабана' type='xs:string'/>
+								<xs:element name='КоличествоМуфт' type='xs:unsignedInt'/>
+								<xs:element name='УсловияОкружающейСреды' type='Тип.Базовый.УсловияОкружающейСреды'/>
+								<xs:element name='СпособПрогреваКабеля' type='xs:string'/>
+								<xs:element name='ОтветсвтенныйЗаПрокладку' type='Тип.Базовый.Персона'/>
+							</xs:all>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='ДанныеИзмерений' minOccurs='0'>
+						<xs:complexType>
+							<xs:all>
+								<xs:element
+									name='СопротивлениеИзоляции'
+									type='Тип.Базовый.СопротивлениеИзоляции'
+									minOccurs='0'/>
+								<xs:element name='СертификацияCat5e' minOccurs='0'/>
+								<xs:element name='ОптическиеИзмерения' minOccurs='0'/>
+								<xs:element
+									name='СопротиалениеФазаНоль'
+									type='Тип.Базовый.СопротивлениеФазаНоль'
+									minOccurs='0'/>
+							</xs:all>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.КабельныеЛинии'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element
+						name='КабельнаяЛиниия'
+						type='Тип.Базовый.КабельнаяЛиния'
+						minOccurs='0'
+						maxOccurs='unbounded'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.УсловияОкружающейСреды'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element
+						name='ВремяГода'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='Температура'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element
+						name='Влажность'
+						type='xs:decimal'
+						minOccurs='0'/>
+					<xs:element
+						name='Давление'
+						type='xs:decimal'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.СопротивлениеИзоляции'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element name='СиловойКабель' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='L1_L2'
+									type='DecimalOrSpace'
+									nillable='false'/>
+								<xs:element
+									name='L1_L3'
+									type='DecimalOrSpace'
+									nillable='false'/>
+								<xs:element
+									name='L2_L3'
+									type='DecimalOrSpace'
+									nillable='false'/>
+								<xs:element
+									name='L1_N'
+									type='DecimalOrSpace'
+									nillable='false'/>
+								<xs:element
+									name='L2_N'
+									type='DecimalOrSpace'
+									nillable='false'/>
+								<xs:element
+									name='L3_N'
+									type='DecimalOrSpace'
+									nillable='false'/>
+								<xs:element
+									name='L1_PE'
+									type='DecimalOrSpace'
+									nillable='false'/>
+								<xs:element
+									name='L2_PE'
+									type='DecimalOrSpace'
+									nillable='false'/>
+								<xs:element
+									name='L3_PE'
+									type='DecimalOrSpace'
+									nillable='false'/>
+								<xs:element
+									name='N_PE'
+									type='DecimalOrSpace'
+									nillable='false'/>
+								<xs:element
+									name='Норма'
+									type='DecimalOrSpace'
+									minOccurs='0'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='СлаботочныйКабель' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Знак'
+									type='xs:string'
+									nillable='true'
+									minOccurs='0'/>
+								<xs:element
+									name='L_X'
+									type='xs:decimal'
+									nillable='true'/>
+								<xs:element
+									name='Норма'
+									type='xs:decimal'
+									minOccurs='0'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element
+						name='Примечание'
+						type='xs:string'
+						nillable='true'
+						minOccurs='0'/>
+					<xs:element
+						name='ДопустимоеСопротивление'
+						type='xs:decimal'
+						nillable='true'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.СопротивлениеФазаНоль'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element name='АвтоматЗащиты' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='СпособЗащиты' type='xs:string'/>
+								<xs:element name='Тип' type='xs:string'/>
+								<xs:element name='НоминальныйТок' type='xs:int'/>
+								<xs:element name='Характеристика'>
+									<xs:simpleType>
+										<xs:restriction base='xs:string'>
+											<xs:enumeration value='B'/>
+											<xs:enumeration value='C'/>
+											<xs:enumeration value='D'/>
+											<xs:enumeration value='Z'/>
+											<xs:enumeration value='K'/>
+											<xs:enumeration value='S'/>
+										</xs:restriction>
+									</xs:simpleType>
+								</xs:element>
+								<xs:element name='ПредельныйТокОтключения'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='Мнимальный' type='xs:int'/>
+											<xs:element name='Максимальный'/>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+								<xs:element name='ДопустимоеСопротивление' type='xs:decimal'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Измерение' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Петля' maxOccurs='6'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='Имя' type='xs:string'/>
+											<xs:element name='СопротивлениеПетли' type='xs:decimal'/>
+											<xs:element name='ТокКороткогоЗамыкания' type='xs:int'/>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.УсловияПроведенияИзмерений'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element
+						name='ПогодныеУсловия'
+						type='Тип.Базовый.УсловияОкружающейСреды'
+						minOccurs='0'/>
+					<xs:element
+						name='Грунт'
+						type='Тип.Базовый.Грунт'
+						minOccurs='0'/>
+					<xs:element name='Приборы'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Прибор'
+									type='Тип.Базовый.Прибор'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element
+						name='НапряжениеИспытанийВ'
+						type='xs:decimal'
+						nillable='true'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.УсловияПроведенияИзмерений.ФазаНоль'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый.УсловияПроведенияИзмерений'>
+				<xs:all>
+					<xs:element name='ПитающаяСеть' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Сеть' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element name='КоличествоФаз' type='xs:int'/>
+											<xs:element name='НапряжениеФазаНоль' type='xs:int'/>
+											<xs:element
+												name='НапряжениеФазаФаза'
+												type='xs:int'
+												minOccurs='0'/>
+										</xs:sequence>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.УсловияПроведенияИзмерений.Заземление'>
+		<xs:complexContent>
+			<xs:extension base='ct:Тип.Базовый.УсловияПроведенияИзмерений'>
+				<xs:all>
+					<xs:element name='ПоправочныйКоэффициент' type='xs:decimal'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Грунт'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element
+						name='Вид'
+						type='xs:string'
+						nillable='true'
+						minOccurs='0'/>
+					<xs:element
+						name='Состояние'
+						type='xs:string'
+						nillable='true'
+						minOccurs='0'/>
+					<xs:element
+						name='УдельнеСопротивлениеОМ'
+						type='xs:decimal'
+						nillable='true'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.Прибор'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element name='Тип' minOccurs='0'>
+						<xs:simpleType>
+							<xs:restriction base='xs:string'/>
+						</xs:simpleType>
+					</xs:element>
+					<xs:element
+						name='ЗаводскойНомер'
+						type='xs:string'
+						minOccurs='0'/>
+					<xs:element name='Поверка' minOccurs='0'>
+						<xs:complexType>
+							<xs:all>
+								<xs:element
+									name='ДатаПоверки'
+									type='xs:date'
+									nillable='true'/>
+								<xs:element
+									name='ДействительнаДо'
+									type='xs:date'
+									nillable='true'/>
+								<xs:element name='Свидетельство' type='Тип.Базовый.Документ'/>
+							</xs:all>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.ПерсонаИлиОрганизация'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element name='Лицо'>
+						<xs:complexType>
+							<xs:choice>
+								<xs:element name='Персона' type='Тип.Базовый.Персона'/>
+								<xs:element name='Организация' type='Тип.Базовый.Организация'/>
+							</xs:choice>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.Исключения'>
+		<xs:sequence>
+			<xs:element name='Исключение' maxOccurs='unbounded'>
+				<xs:complexType>
+					<xs:attribute name='xpath' type='xs:string'/>
+				</xs:complexType>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.НаборДокументов'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element name='Документы'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element
+									name='Документ'
+									type='Тип.Базовый.Документ'
+									maxOccurs='unbounded'/>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.КаталогКабельныхЛинии'>
+		<xs:sequence>
+			<xs:element name='КабельныеЛинии' type='ct:Тип.Базовый.КабельныеЛинии'/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.ОбъектСтроительства.Участок'>
+		<xs:complexContent>
+			<xs:extension base='ct:Тип.Базовый.ОбъектСтроительства'>
+				<xs:all>
+					<xs:element
+						name='Участок'
+						type='xs:string'
+						minOccurs='0'/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.КаталогДокументовПодтверждающихКачество'>
+		<xs:sequence>
+			<xs:element name='Группа' maxOccurs='unbounded'>
+				<xs:complexType>
+					<xs:sequence>
+						<xs:element
+							name='Материал'
+							type='Тип.Базовый.Материал'
+							maxOccurs='unbounded'/>
+					</xs:sequence>
+					<xs:attribute name='Имя' type='xs:string'/>
+				</xs:complexType>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name='Тип.Базовый.КаталогОбщихДанных'>
+		<xs:complexContent>
+			<xs:extension base='Тип.Базовый'>
+				<xs:all>
+					<xs:element name='ОбъектыСтроительства' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Группа' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element
+												name='ОбъектСтроительства'
+												type='Тип.Базовый.ОбъектСтроительства'
+												maxOccurs='unbounded'/>
+										</xs:sequence>
+										<xs:attribute name='Имя' type='xs:string'/>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Организации' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Группа' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element
+												name='Организация'
+												type='Тип.Базовый.Организация'
+												maxOccurs='unbounded'/>
+										</xs:sequence>
+										<xs:attribute name='Имя' type='xs:string'/>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Контакты' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Группа' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element
+												name='Контакт'
+												type='Тип.Базовый.Персона'
+												maxOccurs='unbounded'/>
+										</xs:sequence>
+										<xs:attribute name='Имя' type='xs:string'/>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Документы' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Группа' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element
+												name='Документ'
+												type='Тип.Базовый.Документ'
+												maxOccurs='unbounded'/>
+										</xs:sequence>
+										<xs:attribute name='Имя' type='xs:string'/>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Приборы' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Группа' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element
+												name='Прибор'
+												type='Тип.Базовый.Прибор'
+												maxOccurs='unbounded'/>
+										</xs:sequence>
+										<xs:attribute name='Имя' type='xs:string'/>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name='Подписанты' minOccurs='0'>
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name='Группа' maxOccurs='unbounded'>
+									<xs:complexType>
+										<xs:sequence>
+											<xs:element
+												name='Подписант'
+												type='Тип.Базовый.Персона'
+												maxOccurs='unbounded'/>
+										</xs:sequence>
+										<xs:attribute name='Имя' type='xs:string'/>
+									</xs:complexType>
+								</xs:element>
+							</xs:sequence>
+						</xs:complexType>
+					</xs:element>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name='Тип.ИзмеренияИзоляции'>
+		<xs:choice>
+			<xs:element name='ыва'/>
+			<xs:element name='цук'/>
+		</xs:choice>
+	</xs:complexType>
+</xs:schema>
