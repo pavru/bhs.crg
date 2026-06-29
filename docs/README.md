@@ -7,6 +7,7 @@
 | Развёртывание системы | [DEPLOYMENT.md](DEPLOYMENT.md) | [pdf/DEPLOYMENT.pdf](pdf/DEPLOYMENT.pdf) |
 | Инструкция пользователя | [USER_GUIDE.md](USER_GUIDE.md) | [pdf/USER_GUIDE.pdf](pdf/USER_GUIDE.pdf) |
 | Инструкция администратора | [ADMIN_GUIDE.md](ADMIN_GUIDE.md) | [pdf/ADMIN_GUIDE.pdf](pdf/ADMIN_GUIDE.pdf) |
+| Функциональные тэги (разработка) | [FUNCTIONAL_TAGS.md](FUNCTIONAL_TAGS.md) | — |
 
 - `images/` — скриншоты, используемые в инструкциях.
 - `tools/` — конвертер Markdown → PDF.
