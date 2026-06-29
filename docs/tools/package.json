@@ -1,0 +1,13 @@
+{
+  "name": "bhs-crg-docs-tools",
+  "private": true,
+  "type": "module",
+  "description": "Сборка PDF из Markdown-инструкций BHS.CRG",
+  "scripts": {
+    "pdf": "node build-pdf.mjs"
+  },
+  "dependencies": {
+    "marked": "^14.1.3",
+    "playwright": "^1.48.0"
+  }
+}

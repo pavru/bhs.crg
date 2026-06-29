@@ -1,0 +1,13 @@
+# Исключаем из контекста сборки тяжёлое и ненужное
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/coverage/
+**/TestResults/
+.git/
+.vs/
+.idea/
+docs/pdf/
+docs/tools/node_modules/
+СтароеРешение/

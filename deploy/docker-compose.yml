@@ -1,0 +1,111 @@
+name: bhs-crg
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    restart: unless-stopped
+
+  # Одноразовый сервис: создаёт bucket в MinIO
+  createbuckets:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD; do
+        echo 'ожидание MinIO...'; sleep 2;
+      done;
+      mc mb --ignore-existing local/$$MINIO_BUCKET;
+      echo 'bucket готов';
+      "
+    restart: "no"
+
+  # Локальная модель распознавания сканов (опционально)
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+  # Одноразовый сервис: загружает модель в Ollama (тяжёлая ~6 ГБ)
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL}
+    entrypoint: >
+      /bin/sh -c "
+      sleep 3;
+      echo 'загрузка модели '$$OLLAMA_MODEL' (может занять время)...';
+      ollama pull $$OLLAMA_MODEL || echo 'не удалось загрузить модель — распознавание будет недоступно';
+      "
+    restart: "no"
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      BlobStorage__Endpoint: "minio:9000"
+      BlobStorage__AccessKey: ${MINIO_ROOT_USER}
+      BlobStorage__SecretKey: ${MINIO_ROOT_PASSWORD}
+      BlobStorage__Bucket: ${MINIO_BUCKET}
+      BlobStorage__UseSSL: "false"
+      Jwt__Key: ${JWT_KEY}
+      Ollama__BaseUrl: "http://ollama:11434"
+      Ollama__Model: ${OLLAMA_MODEL}
+      Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
+      Gemini__ApiKey: ${GEMINI_API_KEY:-}
+      WebSearch__ApiKey: ${SERPER_API_KEY:-}
+      AllowedOrigins: ${ALLOWED_ORIGINS:-http://localhost:${WEB_PORT:-8080}}
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  minio_data:
+  ollama_data:

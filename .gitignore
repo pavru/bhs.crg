@@ -16,6 +16,9 @@ dist/
 coverage/
 TestResults/
 
+# ── Deploy secrets ────────────────────────────────────
+deploy/.env
+
 # ── Editors / OS ──────────────────────────────────────
 .idea/
 .DS_Store
