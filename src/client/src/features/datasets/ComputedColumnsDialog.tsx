@@ -35,12 +35,12 @@ function ColumnRow({
       </div>
       <div className="space-y-1">
         <label className="block text-[10px] font-medium uppercase tracking-wide text-fg4">
-          Выражение (Scriban)
+          Выражение (JavaScript)
         </label>
         <input
           value={col.expr}
           onChange={e => onChange({ ...col, expr: e.target.value })}
-          placeholder="Напр.: {{ Фамилия }} {{ Имя }}"
+          placeholder="Напр.: Фамилия + ' ' + Имя"
           className="w-full border border-stroke rounded px-2 py-1.5 text-xs font-mono bg-surface text-fg1"
         />
       </div>
@@ -83,16 +83,43 @@ export function ComputedColumnsDialog({
       onOpenChange={o => { if (!o) onClose(); }}
       title="Вычисляемые колонки"
       wide
+      footer={
+        <div className="flex gap-2">
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand"
+          >
+            Сохранить
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted"
+          >
+            Отмена
+          </button>
+          {columns.length > 0 && (
+            <button
+              onClick={() => { setColumns([]); onSave(null); onClose(); }}
+              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted"
+            >
+              Сбросить
+            </button>
+          )}
+        </div>
+      }
     >
       <div className="rounded-lg p-3 mb-4 text-xs space-y-1 bg-base border border-stroke">
-        <p className="font-semibold text-fg2">Синтаксис Scriban</p>
+        <p className="font-semibold text-fg2">Синтаксис JavaScript</p>
         <p className="text-fg3">
-          Используйте <code className="font-mono px-1 rounded bg-muted">{'{{ НазваниеКолонки }}'}</code> для подстановки значений.
-          Колонки с пробелами: замените пробелы на <code className="font-mono px-1 rounded bg-muted">_</code> в выражении.
+          Имена колонок доступны как переменные. Пробелы заменяются на <code className="font-mono px-1 rounded bg-muted">_</code>.
         </p>
         <p className="text-fg4">
-          Примеры: <code className="font-mono text-fg2">{'{{ Фамилия }} {{ Имя }}'}</code>
-          {' — '}<code className="font-mono text-fg2">{'{{ Количество | math.round 2 }}'}</code>
+          Примеры:{' '}
+          <code className="font-mono text-fg2">{"Фамилия + ' ' + Имя"}</code>
+          {' — '}
+          <code className="font-mono text-fg2">{"String(parseFloat(Цена) * parseFloat(Кол_во))"}</code>
+          {' — '}
+          <code className="font-mono text-fg2">{"Статус === 'Принят' ? 'Да' : 'Нет'"}</code>
         </p>
         <p className="text-fg4">
           Вычисляемые колонки применяются до фильтрации и маппинга — их можно использовать в условиях фильтра.
@@ -117,33 +144,10 @@ export function ComputedColumnsDialog({
 
       <button
         onClick={addColumn}
-        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md mb-5 text-brand bg-brand-subtle"
+        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md text-brand bg-brand-subtle"
       >
         <Plus size={13} /> Добавить колонку
       </button>
-
-      <div className="flex gap-2">
-        <button
-          onClick={handleSave}
-          className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand"
-        >
-          Сохранить
-        </button>
-        <button
-          onClick={onClose}
-          className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted"
-        >
-          Отмена
-        </button>
-        {columns.length > 0 && (
-          <button
-            onClick={() => { setColumns([]); onSave(null); onClose(); }}
-            className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted"
-          >
-            Сбросить
-          </button>
-        )}
-      </div>
     </Modal>
   );
 }

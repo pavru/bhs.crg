@@ -1,7 +1,10 @@
 using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Notifications;
+using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.Templates;
 using MediatR;
 
@@ -15,9 +18,11 @@ public class GenerateDocumentHandler(
     IRepository<TypstUserLib> userLibRepo,
     IEntityResolver entityResolver,
     IDataSetResolver dataSetResolver,
+    IQualityLinkResolver qualityLinkResolver,
     IDocumentGeneratorFactory generatorFactory,
     IBlobStorage blobStorage,
-    IMetadataExtractor metadataExtractor
+    IMetadataExtractor metadataExtractor,
+    INotificationService notifications
 ) : IRequestHandler<GenerateDocumentCommand, GeneratedFile>
 {
     public async Task<GeneratedFile> Handle(GenerateDocumentCommand cmd, CancellationToken ct)
@@ -40,14 +45,25 @@ public class GenerateDocumentHandler(
                 ?? throw new InvalidOperationException($"No active template for DocumentType {instance.DocumentTypeId}");
 
             var allDocTypes = await docTypeRepo.GetAllAsync(ct);
+            var diagnostics = new List<ResolutionDiagnostic>();
             var context = await entityResolver.ResolveAsync(instance, ct);
-            await dataSetResolver.InjectAsync(context, instance, ct);
+            await dataSetResolver.InjectAsync(context, instance, diagnostics, ct);
+            // Подмешиваем документы качества по идентичности материала (артикул/наименование).
+            await qualityLinkResolver.InjectAsync(context, instance, ct);
+            // Наборы данных могли добавить ссылки на каталог ($ref) в составные поля —
+            // разрешаем их вторым проходом (для уже разрешённых данных идемпотентно).
+            await entityResolver.ResolveContextRefsAsync(context, instance.DocumentSetId, ct);
+            // Проверка разрешения ссылок перед генерацией: оставшиеся $ref — ошибки,
+            // при их наличии прерываем генерацию с диагностикой.
+            ResolutionScanner.ScanLeftoverRefs(context, diagnostics);
+            if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
+                throw new ResolutionValidationException(diagnostics);
 
             string? typeBlocksContent = null;
             string? userLibContent = null;
             if (cmd.Format == OutputFormat.Pdf)
             {
-                var preamble = BuildTypstPreamble(allDocTypes);
+                var preamble = TypstPreambleBuilder.Build(allDocTypes);
                 if (!string.IsNullOrEmpty(preamble))
                     typeBlocksContent = preamble;
 
@@ -61,18 +77,19 @@ public class GenerateDocumentHandler(
             var request = new GenerationRequest(instance, template.Content, cmd.Format, context,
                 template.PageSize, template.PageOrientation,
                 template.MarginTop, template.MarginRight, template.MarginBottom, template.MarginLeft,
-                TypeBlocksContent: typeBlocksContent, UserLibContent: userLibContent);
+                TypeBlocksContent: typeBlocksContent, UserLibContent: userLibContent,
+                ImageOptions: SchemaImageOptions.Collect(allDocTypes));
             var bytes = await generator.GenerateAsync(request, ct);
 
             // ── Обратная запись метаданных в реквизиты ───────────────────────
             var docType = allDocTypes.FirstOrDefault(dt => dt.Id == instance.DocumentTypeId);
             if (docType is not null)
             {
-                var taggedFields = DocumentMetaTagHelper.GetTaggedFields(docType, allDocTypes);
+                var taggedFields = SchemaTags.TaggedFields(docType, allDocTypes);
                 if (taggedFields.Count > 0)
                 {
                     var meta = metadataExtractor.Extract(bytes, cmd.Format, cmd.GeneratedBy);
-                    var patchedRequisites = DocumentMetaTagHelper.PatchMetadata(instance.Requisites, taggedFields, meta);
+                    var patchedRequisites = SchemaTags.PatchMetadata(instance.Requisites, taggedFields, meta);
                     instance.UpdateRequisites(patchedRequisites);
                 }
             }
@@ -89,32 +106,24 @@ public class GenerateDocumentHandler(
             await fileRepo.AddAsync(generatedFile, ct);
             await instanceRepo.SaveChangesAsync(ct);
 
+            var ext2 = cmd.Format == OutputFormat.Pdf ? "pdf" : "docx";
+            await notifications.PublishAsync(NotificationSeverity.Info, "Документ сгенерирован",
+                $"«{instance.Name}» — {cmd.Format}.", "Генерация",
+                userId: cmd.UserId,
+                linkUrl: $"/api/generate/download/{instance.Id}/{ext2}",
+                linkLabel: $"Скачать {ext2.ToUpperInvariant()}",
+                ct: ct);
+
             return generatedFile;
         }
-        catch
+        catch (Exception ex)
         {
             instance.MarkFailed();
             instanceRepo.Update(instance);
             await instanceRepo.SaveChangesAsync(ct);
+            await notifications.PublishAsync(NotificationSeverity.Error, "Ошибка генерации",
+                $"«{instance.Name}»: {ex.Message}", "Генерация", userId: cmd.UserId, ct: ct);
             throw;
         }
-    }
-
-    private static string BuildTypstPreamble(IEnumerable<DocumentType> compositeTypes)
-    {
-        var sb = new StringBuilder();
-        foreach (var ct in compositeTypes)
-        {
-            if (!ct.Schema.RootElement.TryGetProperty("typstRenders", out var renders)) continue;
-            if (renders.ValueKind != JsonValueKind.Array) continue;
-            foreach (var render in renders.EnumerateArray())
-            {
-                var fnName = render.TryGetProperty("fnName", out var fn) ? fn.GetString() : null;
-                var block = render.TryGetProperty("block", out var bl) ? bl.GetString() : null;
-                if (string.IsNullOrWhiteSpace(fnName) || string.IsNullOrWhiteSpace(block)) continue;
-                sb.AppendLine($"#let {fnName}(it) = {block}");
-            }
-        }
-        return sb.ToString();
     }
 }

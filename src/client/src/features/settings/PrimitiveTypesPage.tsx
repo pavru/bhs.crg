@@ -10,6 +10,7 @@ import {
   buildPrimitiveTypeDto,
 } from '@/shared/api/primitiveTypes';
 import type { FieldConstraints, PrimitiveTypeDef } from '@/shared/api/types';
+import { useTagRegistry, fieldTags } from '@/shared/api/tags';
 
 // ─── Base type options ────────────────────────────────────────────────────────
 
@@ -41,20 +42,20 @@ function ConstraintEditor({ baseType, constraints, onChange }: ConstraintEditorP
     return (
       <div className="space-y-3">
         <div>
-          <label className="block text-sm font-medium text-[--color-text-primary] mb-1">Шаблон (regex)</label>
+          <label className="block text-sm font-medium text-fg1 mb-1">Шаблон (regex)</label>
           <input
             type="text"
-            className="w-full px-3 py-2 rounded-lg border border-[--color-border-default] bg-[--color-bg-primary] text-sm font-mono"
+            className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm font-mono"
             placeholder="например: ^[\w.]+@[\w]+\.\w+$"
             value={constraints.pattern ?? ''}
             onChange={e => e.target.value ? set('pattern', e.target.value) : unset('pattern')}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-[--color-text-primary] mb-1">Сообщение об ошибке</label>
+          <label className="block text-sm font-medium text-fg1 mb-1">Сообщение об ошибке</label>
           <input
             type="text"
-            className="w-full px-3 py-2 rounded-lg border border-[--color-border-default] bg-[--color-bg-primary] text-sm"
+            className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
             placeholder="например: Введите корректный email"
             value={constraints.patternMessage ?? ''}
             onChange={e => e.target.value ? set('patternMessage', e.target.value) : unset('patternMessage')}
@@ -62,21 +63,21 @@ function ConstraintEditor({ baseType, constraints, onChange }: ConstraintEditorP
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-[--color-text-primary] mb-1">Мин. длина</label>
+            <label className="block text-sm font-medium text-fg1 mb-1">Мин. длина</label>
             <input
               type="number"
               min={0}
-              className="w-full px-3 py-2 rounded-lg border border-[--color-border-default] bg-[--color-bg-primary] text-sm"
+              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
               value={constraints.minLength ?? ''}
               onChange={e => e.target.value ? set('minLength', Number(e.target.value)) : unset('minLength')}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[--color-text-primary] mb-1">Макс. длина</label>
+            <label className="block text-sm font-medium text-fg1 mb-1">Макс. длина</label>
             <input
               type="number"
               min={0}
-              className="w-full px-3 py-2 rounded-lg border border-[--color-border-default] bg-[--color-bg-primary] text-sm"
+              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
               value={constraints.maxLength ?? ''}
               onChange={e => e.target.value ? set('maxLength', Number(e.target.value)) : unset('maxLength')}
             />
@@ -91,19 +92,19 @@ function ConstraintEditor({ baseType, constraints, onChange }: ConstraintEditorP
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-[--color-text-primary] mb-1">Минимум</label>
+            <label className="block text-sm font-medium text-fg1 mb-1">Минимум</label>
             <input
               type="number"
-              className="w-full px-3 py-2 rounded-lg border border-[--color-border-default] bg-[--color-bg-primary] text-sm"
+              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
               value={constraints.min ?? ''}
               onChange={e => e.target.value ? set('min', Number(e.target.value)) : unset('min')}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[--color-text-primary] mb-1">Максимум</label>
+            <label className="block text-sm font-medium text-fg1 mb-1">Максимум</label>
             <input
               type="number"
-              className="w-full px-3 py-2 rounded-lg border border-[--color-border-default] bg-[--color-bg-primary] text-sm"
+              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
               value={constraints.max ?? ''}
               onChange={e => e.target.value ? set('max', Number(e.target.value)) : unset('max')}
             />
@@ -112,22 +113,22 @@ function ConstraintEditor({ baseType, constraints, onChange }: ConstraintEditorP
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
-            className="w-4 h-4 rounded accent-[--color-brand-default]"
+            className="w-4 h-4 rounded accent-brand"
             checked={constraints.integer ?? false}
             onChange={e => e.target.checked ? set('integer', true) : unset('integer')}
           />
-          <span className="text-sm text-[--color-text-primary]">Только целые числа</span>
+          <span className="text-sm text-fg1">Только целые числа</span>
         </label>
       </div>
     );
   }
 
   // date
-  const dateCls = 'w-full px-3 py-2 rounded-lg border border-[--color-border-default] bg-[--color-bg-primary] text-sm';
+  const dateCls = 'w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm';
   return (
     <div className="grid grid-cols-2 gap-3">
       <div>
-        <label className="block text-sm font-medium text-[--color-text-primary] mb-1">Минимальная дата</label>
+        <label className="block text-sm font-medium text-fg1 mb-1">Минимальная дата</label>
         <DateInput
           value={constraints.minDate ?? ''}
           onChange={v => v ? set('minDate', v) : unset('minDate')}
@@ -135,7 +136,7 @@ function ConstraintEditor({ baseType, constraints, onChange }: ConstraintEditorP
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-[--color-text-primary] mb-1">Максимальная дата</label>
+        <label className="block text-sm font-medium text-fg1 mb-1">Максимальная дата</label>
         <DateInput
           value={constraints.maxDate ?? ''}
           onChange={v => v ? set('maxDate', v) : unset('maxDate')}
@@ -159,14 +160,18 @@ function EditModal({ initial, onClose }: EditModalProps) {
   const [baseType, setBaseType] = useState<'string' | 'number' | 'date'>(initial?.baseType ?? 'string');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [constraints, setConstraints] = useState<FieldConstraints>(initial?.constraints ?? {});
+  const [allowedTags, setAllowedTags] = useState<string[]>(initial?.allowedTags ?? []);
   const [error, setError] = useState('');
 
   const create = useCreatePrimitiveType();
   const update = useUpdatePrimitiveType(initial?.id ?? '');
+  const { data: tagRegistry } = useTagRegistry();
+  const applicableTags = fieldTags(tagRegistry, baseType);
 
   function handleBaseTypeChange(bt: 'string' | 'number' | 'date') {
     setBaseType(bt);
     setConstraints({});
+    setAllowedTags([]); // применимость тэгов зависит от базового типа
   }
 
   async function handleSave() {
@@ -176,7 +181,7 @@ function EditModal({ initial, onClose }: EditModalProps) {
       setError('Код: только латинские буквы, цифры и _'); return;
     }
     setError('');
-    const dto = buildPrimitiveTypeDto(name.trim(), code.trim(), baseType, description.trim() || undefined, constraints);
+    const dto = buildPrimitiveTypeDto(name.trim(), code.trim(), baseType, description.trim() || undefined, constraints, allowedTags);
     try {
       if (initial) await update.mutateAsync(dto);
       else await create.mutateAsync(dto);
@@ -189,24 +194,43 @@ function EditModal({ initial, onClose }: EditModalProps) {
   const isPending = create.isPending || update.isPending;
 
   return (
-    <Modal open onOpenChange={open => { if (!open) onClose(); }} title={initial ? 'Редактировать тип' : 'Новый тип поля'}>
+    <Modal open onOpenChange={open => { if (!open) onClose(); }} title={initial ? 'Редактировать тип' : 'Новый тип поля'}
+      footer={
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-base text-fg2 hover:bg-muted"
+          >
+            Отмена
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isPending}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-50"
+          >
+            {isPending ? 'Сохранение…' : 'Сохранить'}
+          </button>
+        </div>
+      }>
       <div className="space-y-4 min-w-[480px]">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-[--color-text-primary] mb-1">Название</label>
+            <label className="block text-sm font-medium text-fg1 mb-1">Название</label>
             <input
               type="text"
-              className="w-full px-3 py-2 rounded-lg border border-[--color-border-default] bg-[--color-bg-primary] text-sm"
+              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
               placeholder="Email"
               value={name}
               onChange={e => setName(e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[--color-text-primary] mb-1">Код</label>
+            <label className="block text-sm font-medium text-fg1 mb-1">Код</label>
             <input
               type="text"
-              className="w-full px-3 py-2 rounded-lg border border-[--color-border-default] bg-[--color-bg-primary] text-sm font-mono"
+              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm font-mono"
               placeholder="email"
               value={code}
               onChange={e => setCode(e.target.value)}
@@ -216,7 +240,7 @@ function EditModal({ initial, onClose }: EditModalProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[--color-text-primary] mb-1">Базовый тип</label>
+          <label className="block text-sm font-medium text-fg1 mb-1">Базовый тип</label>
           <div className="flex gap-2">
             {BASE_TYPES.map(bt => (
               <button
@@ -226,8 +250,8 @@ function EditModal({ initial, onClose }: EditModalProps) {
                 disabled={!!initial}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   baseType === bt.value
-                    ? 'bg-[--color-brand-default] text-white'
-                    : 'bg-[--color-bg-secondary] text-[--color-text-secondary] hover:bg-[--color-bg-tertiary]'
+                    ? 'bg-brand text-white'
+                    : 'bg-base text-fg2 hover:bg-muted'
                 } disabled:opacity-50`}
               >
                 {bt.label}
@@ -237,40 +261,47 @@ function EditModal({ initial, onClose }: EditModalProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[--color-text-primary] mb-1">Описание</label>
+          <label className="block text-sm font-medium text-fg1 mb-1">Описание</label>
           <input
             type="text"
-            className="w-full px-3 py-2 rounded-lg border border-[--color-border-default] bg-[--color-bg-primary] text-sm"
+            className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
             placeholder="Необязательное описание типа"
             value={description}
             onChange={e => setDescription(e.target.value)}
           />
         </div>
 
-        <div className="border-t border-[--color-border-subtle] pt-3">
-          <p className="text-sm font-medium text-[--color-text-primary] mb-3">Ограничения</p>
+        <div className="border-t border-stroke pt-3">
+          <p className="text-sm font-medium text-fg1 mb-3">Ограничения</p>
           <ConstraintEditor baseType={baseType} constraints={constraints} onChange={setConstraints} />
         </div>
 
-        {error && <p className="text-sm text-[--color-error-text]">{error}</p>}
-
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-[--color-bg-secondary] text-[--color-text-secondary] hover:bg-[--color-bg-tertiary]"
-          >
-            Отмена
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isPending}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-[--color-brand-default] text-white hover:bg-[--color-brand-hover] disabled:opacity-50"
-          >
-            {isPending ? 'Сохранение…' : 'Сохранить'}
-          </button>
+        <div className="border-t border-stroke pt-3">
+          <p className="text-sm font-medium text-fg1 mb-1">Применимые функциональные тэги</p>
+          <p className="text-xs text-fg3 mb-2">
+            Какие функциональные тэги можно назначить полям этого типа (показываются в редакторе схемы).
+          </p>
+          {applicableTags.length === 0 ? (
+            <p className="text-xs text-fg4">Для базового типа «{baseType}» подходящих тэгов нет.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {applicableTags.map(t => {
+                const on = allowedTags.includes(t.code);
+                return (
+                  <button key={t.code} type="button" title={t.description}
+                    onClick={() => setAllowedTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code])}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                      on ? 'bg-purple-500/15 border-purple-400 text-purple-700' : 'border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1'
+                    }`}>
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
+
+        {error && <p className="text-sm text-danger">{error}</p>}
       </div>
     </Modal>
   );
@@ -292,7 +323,7 @@ function ConstraintSummary({ baseType, c }: { baseType: string; c: FieldConstrai
     if (c.minDate) parts.push(`от ${c.minDate}`);
     if (c.maxDate) parts.push(`до ${c.maxDate}`);
   }
-  if (parts.length === 0) return <span className="text-[--color-text-tertiary] italic">нет ограничений</span>;
+  if (parts.length === 0) return <span className="text-fg4 italic">нет ограничений</span>;
   return <span>{parts.join(', ')}</span>;
 }
 
@@ -307,18 +338,18 @@ export function PrimitiveTypesPage() {
   const baseTypeLabel: Record<string, string> = { string: 'Строка', number: 'Число', date: 'Дата' };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="px-6 py-4 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-[--color-text-primary]">Типы полей</h1>
-          <p className="text-sm text-[--color-text-secondary] mt-1">
+          <h1 className="text-xl font-semibold text-fg1">Типы полей</h1>
+          <p className="text-xs text-fg2 mt-0.5">
             Пользовательские типы реквизитов на основе строки, числа или даты с ограничениями
           </p>
         </div>
         <button
           type="button"
           onClick={() => setEditing('new')}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[--color-brand-default] text-white hover:bg-[--color-brand-hover]"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover"
         >
           <Plus size={16} />
           Добавить тип
@@ -326,36 +357,36 @@ export function PrimitiveTypesPage() {
       </div>
 
       {isLoading ? (
-        <p className="text-[--color-text-secondary]">Загрузка…</p>
+        <p className="text-fg2">Загрузка…</p>
       ) : types.length === 0 ? (
-        <div className="text-center py-16 text-[--color-text-tertiary]">
+        <div className="text-center py-16 text-fg4">
           <p>Пользовательских типов ещё нет.</p>
           <p className="text-sm mt-1">Создайте тип, например «Email» или «ИНН».</p>
         </div>
       ) : (
-        <div className="border border-[--color-border-default] rounded-xl overflow-hidden">
+        <div className="border border-stroke-strong rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-[--color-bg-secondary] border-b border-[--color-border-subtle]">
-                <th className="text-left px-4 py-3 font-medium text-[--color-text-secondary]">Название</th>
-                <th className="text-left px-4 py-3 font-medium text-[--color-text-secondary]">Код</th>
-                <th className="text-left px-4 py-3 font-medium text-[--color-text-secondary]">Базовый тип</th>
-                <th className="text-left px-4 py-3 font-medium text-[--color-text-secondary]">Ограничения</th>
+              <tr className="bg-base border-b border-stroke">
+                <th className="text-left px-4 py-3 font-medium text-fg2">Название</th>
+                <th className="text-left px-4 py-3 font-medium text-fg2">Код</th>
+                <th className="text-left px-4 py-3 font-medium text-fg2">Базовый тип</th>
+                <th className="text-left px-4 py-3 font-medium text-fg2">Ограничения</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-[--color-border-subtle]">
+            <tbody className="divide-y divide-stroke">
               {[...types].sort((a, b) => a.name.localeCompare(b.name, 'ru')).map(t => (
-                <tr key={t.id} className="hover:bg-[--color-bg-secondary] transition-colors">
-                  <td className="px-4 py-3 font-medium text-[--color-text-primary]">
+                <tr key={t.id} className="hover:bg-base transition-colors">
+                  <td className="px-4 py-3 font-medium text-fg1">
                     {t.name}
                     {t.description && (
-                      <p className="text-xs text-[--color-text-tertiary] font-normal">{t.description}</p>
+                      <p className="text-xs text-fg4 font-normal">{t.description}</p>
                     )}
                   </td>
-                  <td className="px-4 py-3 font-mono text-[--color-text-secondary]">{t.code}</td>
-                  <td className="px-4 py-3 text-[--color-text-secondary]">{baseTypeLabel[t.baseType] ?? t.baseType}</td>
-                  <td className="px-4 py-3 text-[--color-text-secondary] text-xs">
+                  <td className="px-4 py-3 font-mono text-fg2">{t.code}</td>
+                  <td className="px-4 py-3 text-fg2">{baseTypeLabel[t.baseType] ?? t.baseType}</td>
+                  <td className="px-4 py-3 text-fg2 text-xs">
                     <ConstraintSummary baseType={t.baseType} c={t.constraints} />
                   </td>
                   <td className="px-4 py-3">
@@ -363,14 +394,14 @@ export function PrimitiveTypesPage() {
                       <button
                         type="button"
                         onClick={() => setEditing(t)}
-                        className="p-2 rounded-lg hover:bg-[--color-bg-tertiary] text-[--color-text-secondary]"
+                        className="p-2 rounded-lg hover:bg-muted text-fg2"
                       >
                         <Pencil size={15} />
                       </button>
                       <button
                         type="button"
                         onClick={() => setConfirmDelete(t)}
-                        className="p-2 rounded-lg hover:bg-[--color-bg-tertiary] text-[--color-error-text]"
+                        className="p-2 rounded-lg hover:bg-muted text-danger"
                       >
                         <Trash2 size={15} />
                       </button>
@@ -391,17 +422,13 @@ export function PrimitiveTypesPage() {
       )}
 
       {confirmDelete && (
-        <Modal open onOpenChange={o => { if (!o) setConfirmDelete(null); }} title="Удалить тип поля">
-          <div className="space-y-4 min-w-[360px]">
-            <p className="text-sm text-[--color-text-secondary]">
-              Тип <span className="font-semibold text-[--color-text-primary]">«{confirmDelete.name}»</span> будет удалён.
-              Поля документов, использующие этот тип, перестанут валидироваться.
-            </p>
+        <Modal open onOpenChange={o => { if (!o) setConfirmDelete(null); }} title="Удалить тип поля"
+          footer={
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setConfirmDelete(null)}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-[--color-bg-secondary] text-[--color-text-secondary] hover:bg-[--color-bg-tertiary]"
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-base text-fg2 hover:bg-muted"
               >
                 Отмена
               </button>
@@ -409,11 +436,17 @@ export function PrimitiveTypesPage() {
                 type="button"
                 disabled={deleteMut.isPending}
                 onClick={() => deleteMut.mutateAsync(confirmDelete.id).then(() => setConfirmDelete(null))}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-[--color-error-default] text-white hover:bg-[--color-error-hover] disabled:opacity-50"
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-danger text-white hover:bg-danger disabled:opacity-50"
               >
                 Удалить
               </button>
             </div>
+          }>
+          <div className="space-y-4 min-w-[360px]">
+            <p className="text-sm text-fg2">
+              Тип <span className="font-semibold text-fg1">«{confirmDelete.name}»</span> будет удалён.
+              Поля документов, использующие этот тип, перестанут валидироваться.
+            </p>
           </div>
         </Modal>
       )}

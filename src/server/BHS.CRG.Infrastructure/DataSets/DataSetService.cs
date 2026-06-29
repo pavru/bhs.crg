@@ -282,7 +282,7 @@ public class DataSetService(
                     var data = new Dictionary<string, string?>();
                     foreach (var (fieldKey, colName) in mapping)
                         if (!string.IsNullOrEmpty(colName))
-                            data[fieldKey] = row != null && row.TryGetValue(colName, out var v) ? v : null;
+                            data[fieldKey] = PreviewCell(colName, row);
 
                     results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
                         "scalar", null, rows.Count, data, null));
@@ -294,7 +294,7 @@ public class DataSetService(
                         var obj = new Dictionary<string, string?>();
                         foreach (var (fieldKey, colName) in mapping)
                             if (!string.IsNullOrEmpty(colName))
-                                obj[fieldKey] = row.TryGetValue(colName, out var v) ? v : null;
+                                obj[fieldKey] = PreviewCell(colName, row);
                         return obj;
                     }).ToList();
 
@@ -382,6 +382,20 @@ public class DataSetService(
 
     private static string SerializeMapping(Dictionary<string, string>? mapping) =>
         JsonSerializer.Serialize(mapping ?? new Dictionary<string, string>());
+
+    // Значение ячейки для предпросмотра. Для ссылочного маппинга (@@ref) показываем
+    // искомое значение колонки с маркером — фактический резолвинг в каталог выполняется
+    // при генерации.
+    private static string? PreviewCell(string mapVal, IReadOnlyDictionary<string, string?>? row)
+    {
+        var refMap = DataSetMappingValue.ParseRef(mapVal);
+        if (refMap is not null)
+        {
+            var v = row != null && row.TryGetValue(refMap.Column, out var lv) ? lv : null;
+            return string.IsNullOrWhiteSpace(v) ? null : $"🔗 {v}";
+        }
+        return row != null && row.TryGetValue(mapVal, out var val) ? val : null;
+    }
 
     private static string? SerializeJson(object? value) =>
         value is null ? null : JsonSerializer.Serialize(value);

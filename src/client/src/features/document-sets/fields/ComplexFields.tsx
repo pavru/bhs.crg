@@ -174,7 +174,32 @@ export function ArrayTableModal({
   return (
     <Modal open={open} onOpenChange={onOpenChange}
       title={`${compositeType?.name ?? field.title} — таблица`}
-      extraWide>
+      extraWide
+      footer={
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={addRow}
+              className="flex items-center gap-1.5 text-sm text-brand hover:text-brand-hover transition-colors">
+              <Plus size={13} /> Добавить строку
+            </button>
+            <span className="text-stroke-strong">·</span>
+            <button type="button" onClick={handlePasteClick}
+              className="flex items-center gap-1.5 text-sm text-fg3 hover:text-fg2 transition-colors">
+              <Clipboard size={13} /> Вставить из Excel
+            </button>
+          </div>
+          <div className="flex gap-3">
+            <button type="button" onClick={() => onOpenChange(false)}
+              className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md transition-colors">
+              Отмена
+            </button>
+            <button type="button" onClick={handleSave}
+              className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors">
+              Применить
+            </button>
+          </div>
+        </div>
+      }>
       <div className="overflow-x-auto -mx-6 px-6">
         <table style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
           <colgroup>
@@ -242,29 +267,6 @@ export function ArrayTableModal({
             : `${hiddenFields.length} полей скрыто`} — редактируйте в режиме аккордеона
         </p>
       )}
-      <div className="flex items-center justify-between mt-5 pt-4 border-t border-stroke">
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={addRow}
-            className="flex items-center gap-1.5 text-sm text-brand hover:text-brand-hover transition-colors">
-            <Plus size={13} /> Добавить строку
-          </button>
-          <span className="text-stroke-strong">·</span>
-          <button type="button" onClick={handlePasteClick}
-            className="flex items-center gap-1.5 text-sm text-fg3 hover:text-fg2 transition-colors">
-            <Clipboard size={13} /> Вставить из Excel
-          </button>
-        </div>
-        <div className="flex gap-3">
-          <button type="button" onClick={() => onOpenChange(false)}
-            className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md transition-colors">
-            Отмена
-          </button>
-          <button type="button" onClick={handleSave}
-            className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors">
-            Применить
-          </button>
-        </div>
-      </div>
       <PasteMappingModal
         open={pasteOpen} onOpenChange={setPasteOpen}
         initialText={pasteText}
@@ -541,7 +543,6 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
                   <label className="block text-sm font-medium text-fg2 mb-1">
                     {sf.title}
                     {sf.required && <span className="ml-0.5 text-danger">*</span>}
-                    <span className="ml-2 text-xs text-fg4 font-mono font-normal">{sf.key}</span>
                   </label>
                 )}
                 {sf.type === 'complex' ? (

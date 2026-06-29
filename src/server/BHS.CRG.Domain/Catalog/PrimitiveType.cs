@@ -28,29 +28,40 @@ public class PrimitiveType : Entity
     /// </summary>
     public JsonDocument Constraints { get; private set; } = default!;
 
+    /// <summary>
+    /// Коды функциональных тэгов, применимых к полям этого типа (см. реестр FunctionalTag).
+    /// Определяет, какие тэги показываются в редакторе схемы для поля type="primitive".
+    /// </summary>
+    public List<string> AllowedTags { get; private set; } = [];
+
     private PrimitiveType() { }
 
     public static PrimitiveType Create(string name, string code, string baseType,
-        string? description, JsonDocument constraints)
+        string? description, JsonDocument constraints, IEnumerable<string>? allowedTags = null)
         => new()
         {
             Name = name, Code = code, BaseType = baseType,
             Description = description, Constraints = constraints,
+            AllowedTags = allowedTags?.ToList() ?? [],
         };
 
-    public void Update(string name, string code, string? description, JsonDocument constraints)
+    public void Update(string name, string code, string? description, JsonDocument constraints,
+        IEnumerable<string>? allowedTags = null)
     {
         Name = name; Code = code; Description = description; Constraints = constraints;
+        AllowedTags = allowedTags?.ToList() ?? [];
         TouchUpdatedAt();
     }
 
     public static PrimitiveType Restore(
         Guid id, string name, string code, string baseType, string? description,
-        JsonDocument constraints, DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        JsonDocument constraints, DateTimeOffset createdAt, DateTimeOffset updatedAt,
+        IEnumerable<string>? allowedTags = null)
         => new()
         {
             Id = id, Name = name, Code = code, BaseType = baseType,
             Description = description, Constraints = constraints,
             CreatedAt = createdAt, UpdatedAt = updatedAt,
+            AllowedTags = allowedTags?.ToList() ?? [],
         };
 }

@@ -26,6 +26,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DataSetSource> DataSetSources => Set<DataSetSource>();
     public DbSet<DataSetBinding> DataSetBindings => Set<DataSetBinding>();
     public DbSet<DataSetBindingTemplate> DataSetBindingTemplates => Set<DataSetBindingTemplate>();
+    public DbSet<QualityDocument> QualityDocuments => Set<QualityDocument>();
+    public DbSet<MaterialQualityLink> MaterialQualityLinks => Set<MaterialQualityLink>();
+    public DbSet<BHS.CRG.Domain.Settings.IntegrationSettingsEntity> IntegrationSettings => Set<BHS.CRG.Domain.Settings.IntegrationSettingsEntity>();
+    public DbSet<BHS.CRG.Domain.Notifications.Notification> Notifications => Set<BHS.CRG.Domain.Notifications.Notification>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

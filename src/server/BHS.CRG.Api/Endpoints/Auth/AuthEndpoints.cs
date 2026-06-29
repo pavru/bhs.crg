@@ -13,13 +13,24 @@ public static class AuthEndpoints
     {
         var g = app.MapGroup("/api/auth");
 
+        // Bootstrap: регистрация открыта ТОЛЬКО когда в системе ещё нет пользователей.
+        // Первый зарегистрированный становится администратором. Дальше пользователей
+        // заводит администратор через /api/users.
         g.MapPost("/register", async (RegisterRequest req,
             UserManager<ApplicationUser> users) =>
         {
+            if (users.Users.Any())
+                return Results.Problem("Регистрация закрыта. Обратитесь к администратору.", statusCode: 403);
+
             var user = new ApplicationUser { UserName = req.Email, Email = req.Email, DisplayName = req.DisplayName };
             var result = await users.CreateAsync(user, req.Password);
-            return result.Succeeded ? Results.Ok() : Results.BadRequest(result.Errors);
+            if (!result.Succeeded) return Results.BadRequest(result.Errors);
+            await users.AddToRoleAsync(user, "Admin");
+            return Results.Ok();
         });
+
+        g.MapGet("/registration-open", (UserManager<ApplicationUser> users) =>
+            Results.Ok(new { open = !users.Users.Any() }));
 
         g.MapPost("/login", async (LoginRequest req,
             UserManager<ApplicationUser> users,
@@ -29,21 +40,39 @@ public static class AuthEndpoints
             if (user is null || !await users.CheckPasswordAsync(user, req.Password))
                 return Results.Unauthorized();
 
-            var token = CreateToken(user, cfg);
+            var roles = await users.GetRolesAsync(user);
+            var token = CreateToken(user, roles, cfg);
             return Results.Ok(new { accessToken = token });
         });
+
+        // Самостоятельная смена пароля текущим пользователем.
+        g.MapPost("/change-password", async (ChangePasswordRequest req,
+            UserManager<ApplicationUser> users, ClaimsPrincipal principal) =>
+        {
+            var id = principal.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                  ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (id is null) return Results.Unauthorized();
+            var user = await users.FindByIdAsync(id);
+            if (user is null) return Results.Unauthorized();
+
+            var result = await users.ChangePasswordAsync(user, req.CurrentPassword, req.NewPassword);
+            return result.Succeeded ? Results.Ok() : Results.BadRequest(result.Errors);
+        }).RequireAuthorization();
     }
 
-    private static string CreateToken(ApplicationUser user, IConfiguration cfg)
+    private static string CreateToken(ApplicationUser user, IList<string> roles, IConfiguration cfg)
     {
         var jwtCfg = cfg.GetSection("Jwt");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtCfg["Key"]!));
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email!),
-            new Claim("displayName", user.DisplayName),
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Email, user.Email!),
+            new("displayName", user.DisplayName),
         };
+        foreach (var role in roles)
+            claims.Add(new Claim("role", role));
+
         var token = new JwtSecurityToken(
             issuer: jwtCfg["Issuer"],
             audience: jwtCfg["Audience"],
@@ -55,4 +84,5 @@ public static class AuthEndpoints
 
     record RegisterRequest(string Email, string Password, string DisplayName);
     record LoginRequest(string Email, string Password);
+    record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 }

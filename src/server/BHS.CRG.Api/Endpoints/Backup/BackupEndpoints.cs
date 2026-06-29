@@ -6,7 +6,7 @@ public static class BackupEndpoints
 {
     public static void MapBackupEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/backup").RequireAuthorization();
+        var g = app.MapGroup("/api/backup").RequireAuthorization("Admin");
 
         g.MapGet("/", async (BackupService svc, CancellationToken ct) =>
         {

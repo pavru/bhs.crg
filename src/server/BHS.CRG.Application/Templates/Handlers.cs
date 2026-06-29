@@ -7,6 +7,7 @@ namespace BHS.CRG.Application.Templates;
 public class TemplateHandlers(IRepository<Template> repo) :
     IRequestHandler<CreateTemplateCommand, Template>,
     IRequestHandler<UpdateTemplateCommand, Template>,
+    IRequestHandler<DuplicateTemplateCommand, Template>,
     IRequestHandler<DeleteTemplateCommand>,
     IRequestHandler<GetActiveTemplateQuery, Template?>,
     IRequestHandler<ListTemplatesQuery, IReadOnlyList<Template>>,
@@ -30,6 +31,17 @@ public class TemplateHandlers(IRepository<Template> repo) :
         await repo.AddAsync(newVersion, ct);
         await repo.SaveChangesAsync(ct);
         return newVersion;
+    }
+
+    public async Task<Template> Handle(DuplicateTemplateCommand cmd, CancellationToken ct)
+    {
+        var source = await repo.GetByIdAsync(cmd.Id, ct)
+            ?? throw new KeyNotFoundException($"Template {cmd.Id} not found");
+        var name = string.IsNullOrWhiteSpace(cmd.NewName) ? $"{source.Name} (копия)" : cmd.NewName.Trim();
+        var copy = source.Duplicate(name);
+        await repo.AddAsync(copy, ct);
+        await repo.SaveChangesAsync(ct);
+        return copy;
     }
 
     public async Task Handle(DeleteTemplateCommand cmd, CancellationToken ct)

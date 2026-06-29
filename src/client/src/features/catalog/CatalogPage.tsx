@@ -63,7 +63,8 @@ function EntityForm({ entity, knownTypes, onClose }: EntityFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
       <div>
         <label className="block text-sm font-medium text-fg2 mb-1">Тип сущности</label>
         <input
@@ -100,7 +101,8 @@ function EntityForm({ entity, knownTypes, onClose }: EntityFormProps) {
         />
       </div>
       {error && <p className="text-sm text-danger">{error}</p>}
-      <div className="flex justify-end gap-3 pt-2">
+      </div>
+      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-3">
         <button
           type="button"
           onClick={onClose}
@@ -144,9 +146,9 @@ export function CatalogPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-fg1">Каталог сущностей</h1>
+    <div className="px-6 py-4">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-semibold text-fg1">Каталог сущностей</h1>
         <button
           onClick={() => setModal({ open: true })}
           className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors"
@@ -155,7 +157,7 @@ export function CatalogPage() {
         </button>
       </div>
 
-      <div className="flex gap-3 mb-5">
+      <div className="flex gap-3 mb-4">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -176,7 +178,7 @@ export function CatalogPage() {
         </select>
       </div>
 
-      <div className="bg-surface border border-stroke rounded-xl overflow-hidden">
+      <div className="bg-surface border border-stroke rounded-lg overflow-hidden">
         {isLoading ? (
           <div className="p-10 text-center text-fg4 text-sm">Загрузка...</div>
         ) : filtered.length === 0 ? (
@@ -185,21 +187,21 @@ export function CatalogPage() {
           <table className="w-full text-sm">
             <thead className="bg-base border-b border-stroke">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-fg2 w-48">Тип</th>
-                <th className="text-left px-4 py-3 font-medium text-fg2">Наименование</th>
-                <th className="px-4 py-3 w-20" />
+                <th className="text-left px-4 py-2.5 font-medium text-fg2 w-48">Тип</th>
+                <th className="text-left px-4 py-2.5 font-medium text-fg2">Наименование</th>
+                <th className="px-4 py-2.5 w-20" />
               </tr>
             </thead>
             <tbody>
               {filtered.map((entity) => (
                 <tr key={entity.id} className="border-b border-muted last:border-0 hover:bg-base">
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2">
                     <span className="bg-brand-subtle text-brand-hover text-xs px-2 py-0.5 rounded font-medium">
                       {entity.entityType}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-fg1">{entity.displayName}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2 text-fg1">{entity.displayName}</td>
+                  <td className="px-4 py-2">
                     <div className="flex gap-2 justify-end">
                       <button
                         onClick={() => setModal({ open: true, entity })}
@@ -229,6 +231,7 @@ export function CatalogPage() {
         onOpenChange={(open) => setModal({ open })}
         title={modal.entity ? 'Редактировать запись' : 'Добавить запись'}
         wide
+        flushBody
       >
         {modal.open && (
           <EntityForm

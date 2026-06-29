@@ -12,8 +12,18 @@ export interface SchemaField {
   required: boolean;
   /** Pre-filled value for new entries. For 'array' fields use [] as default. */
   defaultValue?: unknown;
-  /** System meta-tag: field is auto-populated after generation. Values: 'pageCount' | 'generatedAt' | 'generatedBy' */
-  metaTag?: string;
+  /** Functional tags binding this field to hard-coded behaviour (registry: GET /api/tags). */
+  tags?: string[];
+  /** Render options for image fields (used by the generator: image() width/height/align/fit). */
+  image?: ImageOptions;
+}
+
+export interface ImageOptions {
+  /** Typst length, e.g. "4cm", "100%". */
+  width?: string;
+  height?: string;
+  align?: 'left' | 'center' | 'right';
+  fit?: 'cover' | 'contain' | 'stretch';
 }
 
 export interface FieldGroup {
@@ -40,6 +50,8 @@ export interface SchemaDefinition {
   fieldOverrides?: Record<string, { required?: boolean; defaultValue?: unknown }>;
   /** Named Typst rendering functions for Composite types (generated as preamble before template). */
   typstRenders?: TypstRender[];
+  /** Type-level functional tags (registry: GET /api/tags, scope=Type). */
+  tags?: string[];
 }
 
 /**
@@ -82,7 +94,8 @@ export function parseSchemaFields(schema: Record<string, unknown>): SchemaField[
     options: f.options,
     required: f.required ?? false,
     defaultValue: f.defaultValue,
-    metaTag: f.metaTag,
+    tags: f.tags,
+    image: f.image,
   }));
 }
 
@@ -132,6 +145,53 @@ export function isSubtypeOf(childId: string, parentId: string, allDocTypes: Docu
   const child = allDocTypes.find(t => t.id === childId);
   if (!child?.parentId) return false;
   return isSubtypeOf(child.parentId, parentId, allDocTypes);
+}
+
+/**
+ * True if the type has an array/complex field whose row composite type (incl. inheritance)
+ * carries a field with the given functional tag. Used e.g. to detect documents that require
+ * quality documents (material.qualityDocLink on a material row type).
+ */
+export function compositeFieldHasTag(docType: DocumentType, tag: string, allDocTypes: DocumentType[]): boolean {
+  return resolveEffectiveFields(docType, allDocTypes).some(f => {
+    if ((f.type !== 'array' && f.type !== 'complex') || !f.typeId) return false;
+    const ct = allDocTypes.find(d => d.id === f.typeId);
+    if (!ct) return false;
+    return resolveEffectiveFields(ct, allDocTypes).some(cf => cf.tags?.includes(tag));
+  });
+}
+
+/**
+ * Path (dotted segments) to the first effective field carrying the given functional tag,
+ * searching the type's own fields and one level into complex fields. Null if none.
+ * E.g. for quality.validUntil → ["ПериодДействия", "Окончание"].
+ */
+export function findTaggedFieldPath(docType: DocumentType, tag: string, allDocTypes: DocumentType[]): string[] | null {
+  const eff = resolveEffectiveFields(docType, allDocTypes);
+  const direct = eff.find(f => f.tags?.includes(tag));
+  if (direct) return [direct.key];
+  for (const f of eff) {
+    if (f.type === 'complex' && f.typeId) {
+      const ct = allDocTypes.find(d => d.id === f.typeId);
+      if (!ct) continue;
+      const inner = resolveEffectiveFields(ct, allDocTypes).find(cf => cf.tags?.includes(tag));
+      if (inner) return [f.key, inner.key];
+    }
+  }
+  return null;
+}
+
+/** True if the type (or any ancestor) carries the given type-level functional tag (schema.tags). */
+export function typeHasTag(docType: DocumentType, tag: string, allDocTypes: DocumentType[]): boolean {
+  let current: DocumentType | undefined = docType;
+  const visited = new Set<string>();
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    const tags = (current.schema as unknown as SchemaDefinition)?.tags;
+    if (Array.isArray(tags) && tags.includes(tag)) return true;
+    current = current.parentId ? allDocTypes.find(t => t.id === current!.parentId) : undefined;
+  }
+  return false;
 }
 
 /**

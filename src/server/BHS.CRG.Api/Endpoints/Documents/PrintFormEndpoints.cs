@@ -2,7 +2,9 @@ using System.Security.Claims;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Schema;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Api.Endpoints.Documents;
@@ -75,10 +77,10 @@ public static class PrintFormEndpoints
                 // Затем — все метаданные (кроме printForm-тега самого поля)
                 if (docType is not null)
                 {
-                    var tagged = DocumentMetaTagHelper.GetTaggedFields(docType, allDocTypes);
+                    var tagged = SchemaTags.TaggedFields(docType, allDocTypes);
                     foreach (var (key, tag) in tagged)
                     {
-                        if (tag == DocumentMetaTag.PrintForm) continue; // само поле уже выше
+                        if (tag == FunctionalTag.DocPrintForm) continue; // само поле уже выше
                         if (meta.TryGetValue(tag, out var val))
                             updatedFields[key] = val;
                     }

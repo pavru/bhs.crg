@@ -1,3 +1,4 @@
+using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
 
 namespace BHS.CRG.Application.Generation;
@@ -19,5 +20,6 @@ public record GenerationRequest(
     int MarginBottom = 20,
     int MarginLeft = 30,
     string? TypeBlocksContent = null,
-    string? UserLibContent = null
+    string? UserLibContent = null,
+    IReadOnlyDictionary<string, ImageRenderOptions>? ImageOptions = null
 );

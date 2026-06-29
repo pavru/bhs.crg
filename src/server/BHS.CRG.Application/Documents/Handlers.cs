@@ -16,7 +16,10 @@ public class DocumentTypeHandlers(IRepository<DocumentType> repo) :
 {
     public async Task<DocumentType> Handle(CreateDocumentTypeCommand cmd, CancellationToken ct)
     {
-        var dt = DocumentType.Create(cmd.Name, cmd.Code, cmd.Kind, cmd.ParentId, cmd.Schema, cmd.IsAbstract);
+        var all = await repo.GetAllAsync(ct);
+        EnsureUnique(all, cmd.Name, cmd.Code, excludeId: null);
+
+        var dt = DocumentType.Create(cmd.Name.Trim(), cmd.Code.Trim(), cmd.Kind, cmd.ParentId, cmd.Schema, cmd.IsAbstract);
         await repo.AddAsync(dt, ct);
         await repo.SaveChangesAsync(ct);
         return dt;
@@ -26,18 +29,33 @@ public class DocumentTypeHandlers(IRepository<DocumentType> repo) :
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new KeyNotFoundException($"DocumentType {cmd.Id} not found");
+        var all = await repo.GetAllAsync(ct);
+        EnsureUnique(all, cmd.Name, cmd.Code, excludeId: cmd.Id);
         // Prevent cycles: parentId must not be a descendant of this type
-        if (cmd.ParentId.HasValue)
-        {
-            var all = await repo.GetAllAsync(ct);
-            if (IsDescendant(cmd.ParentId.Value, cmd.Id, all))
-                throw new InvalidOperationException("Нельзя установить дочерний тип в качестве родителя — возникнет цикл.");
-        }
-        dt.Rename(cmd.Name, cmd.Code);
+        if (cmd.ParentId.HasValue && IsDescendant(cmd.ParentId.Value, cmd.Id, all))
+            throw new InvalidOperationException("Нельзя установить дочерний тип в качестве родителя — возникнет цикл.");
+
+        dt.Rename(cmd.Name.Trim(), cmd.Code.Trim());
         dt.SetParent(cmd.ParentId);
         repo.Update(dt);
         await repo.SaveChangesAsync(ct);
         return dt;
+    }
+
+    // Код и имя типа документа должны быть уникальны (без учёта регистра и краёв).
+    private static void EnsureUnique(IReadOnlyList<DocumentType> all, string name, string code, Guid? excludeId)
+    {
+        static string N(string s) => s.Trim().ToLowerInvariant();
+        var nName = N(name);
+        var nCode = N(code);
+        foreach (var t in all)
+        {
+            if (excludeId.HasValue && t.Id == excludeId.Value) continue;
+            if (N(t.Code) == nCode)
+                throw new ArgumentException($"Тип документа с кодом «{code.Trim()}» уже существует.");
+            if (N(t.Name) == nName)
+                throw new ArgumentException($"Тип документа с именем «{name.Trim()}» уже существует.");
+        }
     }
 
     private static bool IsDescendant(Guid candidateId, Guid ancestorId, IReadOnlyList<DocumentType> all)

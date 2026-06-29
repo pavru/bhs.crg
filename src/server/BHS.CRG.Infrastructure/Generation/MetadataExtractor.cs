@@ -1,5 +1,6 @@
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Schema;
 using Microsoft.Extensions.Logging;
 using UglyToad.PdfPig;
 
@@ -11,15 +12,15 @@ public class MetadataExtractor(ILogger<MetadataExtractor> logger) : IMetadataExt
     {
         var meta = new Dictionary<string, object?>();
 
-        meta[DocumentMetaTag.GeneratedAt] = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd");
-        meta[DocumentMetaTag.GeneratedBy] = generatedBy ?? string.Empty;
+        meta[FunctionalTag.DocGeneratedAt] = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd");
+        meta[FunctionalTag.DocGeneratedBy] = generatedBy ?? string.Empty;
 
         if (format == OutputFormat.Pdf && bytes.Length > 0)
         {
             try
             {
                 using var doc = PdfDocument.Open(bytes);
-                meta[DocumentMetaTag.PageCount] = doc.NumberOfPages;
+                meta[FunctionalTag.DocPageCount] = doc.NumberOfPages;
             }
             catch (Exception ex)
             {

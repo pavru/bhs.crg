@@ -94,15 +94,15 @@ export function DataSetsPage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="px-6 py-4 max-w-3xl">
       <h1 className="text-xl font-semibold mb-1 text-fg1">
         Наборы данных
       </h1>
-      <p className="text-sm mb-5 text-fg4">
+      <p className="text-xs mb-4 text-fg4">
         Системные наборы доступны во всех комплектах. Наборы уровня стройки, раздела и комплекта управляются на соответствующих страницах.
       </p>
 
-      <div className="rounded-xl overflow-hidden border border-stroke bg-surface">
+      <div className="rounded-lg overflow-hidden border border-stroke bg-surface">
         <div className="flex items-center justify-between px-4 py-3 border-b border-stroke bg-base">
           <span className="text-sm font-medium text-fg2">Системный уровень</span>
           <div className="flex items-center gap-2">

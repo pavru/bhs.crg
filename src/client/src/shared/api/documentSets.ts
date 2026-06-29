@@ -106,11 +106,45 @@ export async function downloadGeneratedFile(instanceId: string, format: 'pdf' | 
   URL.revokeObjectURL(url);
 }
 
-export async function previewGeneratedFile(instanceId: string, format: 'pdf' | 'docx') {
-  const response = await apiClient.get(`/generate/download/${instanceId}/${format}`, {
+export interface ResolutionDiagnostic {
+  severity: 'error' | 'warning';
+  path: string;
+  message: string;
+}
+
+/** Проверяет разрешение ссылок экземпляра «по требованию» (warning/error). */
+export async function validateResolution(instanceId: string): Promise<ResolutionDiagnostic[]> {
+  const r = await apiClient.get<ResolutionDiagnostic[]>(`/generate/validate/${instanceId}`);
+  return r.data;
+}
+
+/** Скачивает ZIP (template.typ + data.json + typeblocks.typ + userlib.typ) для отладки шаблона. */
+export async function downloadDebugBundle(instanceId: string) {
+  const response = await apiClient.get(`/generate/debug-bundle/${instanceId}`, {
     responseType: 'blob',
   });
   const url = URL.createObjectURL(response.data as Blob);
-  window.open(url, '_blank');
-  // intentionally not revoking — browser needs the URL while the tab is open
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `typst-debug-${instanceId}.zip`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function previewGeneratedFile(instanceId: string, format: 'pdf' | 'docx') {
+  // Open window synchronously (in user-gesture context) to avoid popup blocker,
+  // then navigate it to the blob URL once the download completes.
+  const newWindow = window.open('', '_blank');
+  if (!newWindow) return;
+
+  try {
+    const response = await apiClient.get(`/generate/download/${instanceId}/${format}`, {
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(response.data as Blob);
+    newWindow.location.href = url;
+    // intentionally not revoking — browser needs the URL while the tab is open
+  } catch {
+    newWindow.close();
+  }
 }

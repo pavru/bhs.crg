@@ -98,16 +98,8 @@ export function PasteMappingModal({
 
   if (step === 'input') {
     return (
-      <Modal open={open} onOpenChange={onOpenChange} title="Вставить из Excel" wide>
-        <div className="space-y-4">
-          <p className="text-sm text-fg2">Скопируйте ячейки в Excel и вставьте сюда (Ctrl+V):</p>
-          <textarea autoFocus value={rawText} onChange={e => setRawText(e.target.value)}
-            onPaste={e => {
-              const text = e.clipboardData.getData('text/plain');
-              if (text.trim()) { e.preventDefault(); setRawText(text); initMapping(text); setStep('map'); }
-            }}
-            placeholder="Вставьте данные из Excel..." rows={7}
-            className="w-full border border-stroke-strong rounded-md px-3 py-2 text-xs font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface resize-none" />
+      <Modal open={open} onOpenChange={onOpenChange} title="Вставить из Excel" wide
+        footer={
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => onOpenChange(false)}
               className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
@@ -117,6 +109,16 @@ export function PasteMappingModal({
               Далее →
             </button>
           </div>
+        }>
+        <div className="space-y-4">
+          <p className="text-sm text-fg2">Скопируйте ячейки в Excel и вставьте сюда (Ctrl+V):</p>
+          <textarea autoFocus value={rawText} onChange={e => setRawText(e.target.value)}
+            onPaste={e => {
+              const text = e.clipboardData.getData('text/plain');
+              if (text.trim()) { e.preventDefault(); setRawText(text); initMapping(text); setStep('map'); }
+            }}
+            placeholder="Вставьте данные из Excel..." rows={7}
+            className="w-full border border-stroke-strong rounded-md px-3 py-2 text-xs font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface resize-none" />
         </div>
       </Modal>
     );
@@ -124,7 +126,21 @@ export function PasteMappingModal({
 
   // step === 'map'
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Сопоставление столбцов" wide>
+    <Modal open={open} onOpenChange={onOpenChange} title="Сопоставление столбцов" wide
+      footer={
+        <div className="flex justify-between">
+          <button type="button" onClick={() => setStep('input')}
+            className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">← Назад</button>
+          <div className="flex gap-3">
+            <button type="button" onClick={() => onOpenChange(false)}
+              className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
+            <button type="button" onClick={apply} disabled={importCount === 0}
+              className="px-4 py-2 text-sm bg-brand text-white rounded-md disabled:opacity-50 hover:bg-brand-hover">
+              Импортировать {importCount > 0 ? `(${importCount} стр.)` : ''}
+            </button>
+          </div>
+        </div>
+      }>
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-fg2 cursor-pointer">
@@ -192,18 +208,6 @@ export function PasteMappingModal({
               })}
             </tbody>
           </table>
-        </div>
-        <div className="flex justify-between pt-2 border-t border-stroke">
-          <button type="button" onClick={() => setStep('input')}
-            className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">← Назад</button>
-          <div className="flex gap-3">
-            <button type="button" onClick={() => onOpenChange(false)}
-              className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-            <button type="button" onClick={apply} disabled={importCount === 0}
-              className="px-4 py-2 text-sm bg-brand text-white rounded-md disabled:opacity-50 hover:bg-brand-hover">
-              Импортировать {importCount > 0 ? `(${importCount} стр.)` : ''}
-            </button>
-          </div>
         </div>
       </div>
     </Modal>

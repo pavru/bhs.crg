@@ -2,6 +2,7 @@ using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
@@ -17,7 +18,8 @@ public class DataSetResolver(
     ILogger<DataSetResolver> logger
 ) : IDataSetResolver
 {
-    public async Task InjectAsync(GenerationContext ctx, DocumentInstance instance, CancellationToken ct = default)
+    public async Task InjectAsync(GenerationContext ctx, DocumentInstance instance,
+        List<ResolutionDiagnostic>? diagnostics = null, CancellationToken ct = default)
     {
         var bindings = await db.DataSetBindings
             .Include(b => b.Source)
@@ -27,6 +29,12 @@ public class DataSetResolver(
             .ToListAsync(ct);
 
         if (bindings.Count == 0) return;
+
+        // Цепочка scope каталога (Set → Section → Construction → System) и кэш записей
+        // по составному типу — строятся лениво, только если встретится ссылочный маппинг.
+        Task<ScopeChain>? scopeChainTask = null;
+        Task<ScopeChain> ChainAsync() => scopeChainTask ??= LoadScopeChainAsync(instance, ct);
+        var entryCache = new Dictionary<Guid, List<CommonDataEntry>>();
 
         foreach (var binding in bindings)
         {
@@ -46,23 +54,35 @@ public class DataSetResolver(
                     if (rows.Count > 0)
                     {
                         var row = rows[0];
-                        foreach (var (fieldKey, colName) in mapping)
-                            if (row.TryGetValue(colName, out var val))
-                                ctx.Set(fieldKey, val);
+                        foreach (var (fieldKey, mapVal) in mapping)
+                        {
+                            var value = await MapValueAsync(mapVal, row, instance, ChainAsync, entryCache, diagnostics, fieldKey, ct);
+                            if (value is not null)
+                                ctx.Set(fieldKey, value);
+                        }
                     }
                 }
                 else
                 {
-                    // Табличный: все строки → List<Dict> в array-поле
-                    var mapped = rows.Select(row =>
+                    // Табличный: все строки → массив объектов в array-поле.
+                    // Храним как JsonElement, чтобы повторный проход EntityResolver
+                    // разрешил добавленные ссылки $ref на каталог.
+                    var mapped = new List<Dictionary<string, object?>>();
+                    var rowIndex = 0;
+                    foreach (var row in rows)
                     {
-                        var obj = new Dictionary<string, string?>();
-                        foreach (var (fieldKey, colName) in mapping)
-                            if (row.TryGetValue(colName, out var val))
-                                obj[fieldKey] = val;
-                        return obj;
-                    }).ToList();
-                    ctx.Set(binding.TargetFieldKey, mapped);
+                        var obj = new Dictionary<string, object?>();
+                        foreach (var (fieldKey, mapVal) in mapping)
+                        {
+                            var path = $"{binding.TargetFieldKey}[{rowIndex}].{fieldKey}";
+                            var value = await MapValueAsync(mapVal, row, instance, ChainAsync, entryCache, diagnostics, path, ct);
+                            if (value is not null)
+                                obj[fieldKey] = value;
+                        }
+                        mapped.Add(obj);
+                        rowIndex++;
+                    }
+                    ctx.Set(binding.TargetFieldKey, JsonSerializer.SerializeToElement(mapped));
                 }
             }
             catch (Exception ex)
@@ -72,7 +92,118 @@ public class DataSetResolver(
                 logger.LogWarning(ex,
                     "Привязка набора данных пропущена при генерации. BindingId={BindingId}, SourceId={SourceId}, Instance={InstanceId}",
                     binding.Id, binding.SourceId, instance.Id);
+                // Иначе поле просто исчезает без следа — поднимаем причину в диагностику.
+                diagnostics?.Add(new ResolutionDiagnostic(
+                    DiagnosticSeverity.Error,
+                    binding.TargetFieldKey ?? "(скалярная привязка)",
+                    $"Источник данных недоступен — поле не заполнено. {ex.Message}"));
             }
         }
     }
+
+    /// <summary>
+    /// Преобразует одно значение маппинга: обычная колонка → строка;
+    /// ссылочный маппинг (@@ref) → объект {$ref:catalog, entryId} по найденной записи каталога.
+    /// Возвращает null, если значение отсутствует/не найдено (поле не добавляется).
+    /// </summary>
+    private async Task<object?> MapValueAsync(
+        string mapVal,
+        IReadOnlyDictionary<string, string?> row,
+        DocumentInstance instance,
+        Func<Task<ScopeChain>> scopeChainAccessor,
+        Dictionary<Guid, List<CommonDataEntry>> entryCache,
+        List<ResolutionDiagnostic>? diagnostics,
+        string path,
+        CancellationToken ct)
+    {
+        var refMap = DataSetMappingValue.ParseRef(mapVal);
+        if (refMap is null)
+            return row.TryGetValue(mapVal, out var val) ? val : null;
+
+        // Ссылочное поле: ищем запись каталога по значению колонки.
+        if (!row.TryGetValue(refMap.Column, out var lookup) || string.IsNullOrWhiteSpace(lookup))
+            return null;
+
+        var chain = await scopeChainAccessor();
+        var entryId = await FindCatalogEntryIdAsync(refMap.TypeId, refMap.Match, lookup, chain, entryCache, ct);
+        if (entryId is null)
+        {
+            logger.LogWarning(
+                "Запись каталога не найдена при маппинге набора данных. TypeId={TypeId}, Match={Match}, Value={Value}, Instance={InstanceId}",
+                refMap.TypeId, refMap.Match, lookup, instance.Id);
+            diagnostics?.Add(new ResolutionDiagnostic(
+                DiagnosticSeverity.Warning, path,
+                $"Значение «{lookup}» не найдено в каталоге — ссылка не подставлена."));
+            return null;
+        }
+
+        return new Dictionary<string, object?> { ["$ref"] = "catalog", ["entryId"] = entryId.Value.ToString() };
+    }
+
+    private async Task<Guid?> FindCatalogEntryIdAsync(
+        Guid typeId, string match, string value, ScopeChain chain,
+        Dictionary<Guid, List<CommonDataEntry>> entryCache, CancellationToken ct)
+    {
+        if (!entryCache.TryGetValue(typeId, out var candidates))
+        {
+            candidates = await db.CommonDataEntries
+                .AsNoTracking()
+                .Where(e => e.CompositeTypeId == typeId &&
+                    ((e.Scope == CatalogScope.Set && e.ScopeId == chain.SetId) ||
+                     (e.Scope == CatalogScope.Section && e.ScopeId == chain.SectionId) ||
+                     (e.Scope == CatalogScope.Construction && e.ScopeId == chain.ConstructionId) ||
+                     e.Scope == CatalogScope.System))
+                .ToListAsync(ct);
+            // Приоритет: Set=1 (высший) … System=5 (низший).
+            candidates = candidates.OrderBy(e => (int)e.Scope).ToList();
+            entryCache[typeId] = candidates;
+        }
+
+        var needle = Normalize(value);
+        if (needle.Length == 0) return null; // пустое значение ни с чем не сопоставляем
+        foreach (var entry in candidates)
+        {
+            var hay = string.IsNullOrEmpty(match)
+                ? entry.DisplayName
+                : ReadDataField(entry.Data, match);
+            if (hay is not null && Normalize(hay) == needle)
+                return entry.Id;
+        }
+        return null;
+    }
+
+    // Нормализация для сопоставления: регистр, окружающие пробелы и завершающие
+    // точки/пробелы игнорируются — "шт.", "Шт", "шт " считаются равными "шт".
+    private static string Normalize(string s) => s.Trim().TrimEnd('.', ' ').ToLowerInvariant();
+
+    private static string? ReadDataField(JsonDocument data, string field)
+    {
+        if (!data.RootElement.TryGetProperty(field, out var el))
+            return null;
+        return el.ValueKind switch
+        {
+            JsonValueKind.String => el.GetString(),
+            JsonValueKind.Number => el.GetRawText(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            _ => null,
+        };
+    }
+
+    private async Task<ScopeChain> LoadScopeChainAsync(DocumentInstance instance, CancellationToken ct)
+    {
+        var set = await db.DocumentSets.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == instance.DocumentSetId, ct);
+        Guid sectionId = set?.SectionId ?? Guid.Empty;
+        Guid constructionId = Guid.Empty;
+        if (sectionId != Guid.Empty)
+        {
+            var section = await db.Sections.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == sectionId, ct);
+            constructionId = section?.ConstructionId ?? Guid.Empty;
+        }
+        return new ScopeChain(instance.DocumentSetId, sectionId, constructionId);
+    }
+
+    private readonly record struct ScopeChain(Guid SetId, Guid SectionId, Guid ConstructionId);
 }

@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useTheme, type Theme } from '@/shared/ui/ThemeProvider';
+import { NotificationsCenter } from '@/features/notifications/NotificationsCenter';
+import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
 import {
   FolderOpen, BookOpen, FileText, Settings, LogOut, Building2,
-  Sun, Moon, Monitor, Layers, Database, Tag,
+  Sun, Moon, Monitor, Layers, Database, Tag, ShieldCheck, Users, KeyRound,
 } from 'lucide-react';
 
 const workNav = [
@@ -11,6 +14,7 @@ const workNav = [
   { to: '/catalog',       label: 'Каталог',         icon: Building2  },
   { to: '/common-data',   label: 'Общие данные',    icon: Database   },
   { to: '/datasets',      label: 'Наборы данных',   icon: Layers     },
+  { to: '/quality-docs',  label: 'Документы качества', icon: ShieldCheck },
 ];
 
 const settingsNav = [
@@ -18,6 +22,7 @@ const settingsNav = [
   { to: '/composite-types', label: 'Составные типы',  icon: Layers    },
   { to: '/field-types',     label: 'Типы полей',      icon: Tag       },
   { to: '/templates',       label: 'Шаблоны',         icon: FileText  },
+  { to: '/users',           label: 'Пользователи',    icon: Users     },
   { to: '/settings',        label: 'Настройки',       icon: Settings  },
 ];
 
@@ -93,6 +98,8 @@ function NavSection({
 
 export function AppShell() {
   const { user, logout } = useAuth();
+  const isAdmin = user?.role === 'Admin';
+  const [pwOpen, setPwOpen] = useState(false);
 
   return (
     <div className="flex h-screen bg-base">
@@ -108,16 +115,27 @@ export function AppShell() {
         {/* Nav sections */}
         <nav className="flex-1 px-2 py-3 space-y-4 overflow-y-auto">
           <NavSection label="Документы и данные" items={workNav} />
-          <div className="border-t border-stroke mt-2" />
-          <NavSection label="Настройка системы" items={settingsNav} />
+          {isAdmin && (
+            <>
+              <div className="border-t border-stroke mt-2" />
+              <NavSection label="Настройка системы" items={settingsNav} />
+            </>
+          )}
         </nav>
 
         {/* Bottom: theme + user */}
         <div className="px-3 py-3 border-t border-stroke space-y-3 shrink-0">
           <ThemeToggle />
           <div className="text-xs truncate text-fg3">
-            {user?.email}
+            {user?.displayName || user?.email}
+            <span className="ml-1 text-fg4">· {isAdmin ? 'Администратор' : 'Пользователь'}</span>
           </div>
+          <button
+            onClick={() => setPwOpen(true)}
+            className="flex items-center gap-2 text-sm transition-colors w-full text-fg2 hover:text-brand"
+          >
+            <KeyRound size={14} /> Сменить пароль
+          </button>
           <button
             onClick={logout}
             className="flex items-center gap-2 text-sm transition-colors w-full text-fg2 hover:text-danger"
@@ -126,10 +144,16 @@ export function AppShell() {
           </button>
         </div>
       </aside>
+      <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
 
       {/* Content */}
-      <main className="flex-1 overflow-auto">
-        <Outlet />
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <header className="h-12 shrink-0 border-b border-stroke bg-surface flex items-center justify-end px-4">
+          <NotificationsCenter />
+        </header>
+        <div className="flex-1 overflow-auto">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

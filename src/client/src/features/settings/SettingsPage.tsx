@@ -6,6 +6,8 @@ import type { RestoreReport } from '@/shared/api/types';
 import {
   useLocale, LOCALE_OPTIONS, SYSTEM_LOCALE, resolveLocale, formatDate, formatNumber,
 } from '@/shared/hooks/useLocale';
+import { IntegrationSettingsSection } from './IntegrationSettingsSection';
+import { CollapsibleSection } from './CollapsibleSection';
 
 // ─── Settings hook (re-exported for use by other pages) ───────────────────────
 
@@ -34,7 +36,8 @@ function RestoreConfirmModal({ file, onConfirm, onCancel }: {
 }) {
   const sizeMb = (file.size / 1024 / 1024).toFixed(2);
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col min-h-0 flex-1">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
       <div className="rounded-lg border border-stroke bg-base p-4 text-sm space-y-1">
         <div className="flex gap-2">
           <span className="text-fg3 w-32 shrink-0">Файл:</span>
@@ -53,7 +56,8 @@ function RestoreConfirmModal({ file, onConfirm, onCancel }: {
           Данные операционной работы (стройки, комплекты, документы) не затрагиваются.
         </span>
       </div>
-      <div className="flex justify-end gap-3 pt-1">
+      </div>
+      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-3">
         <button type="button" onClick={onCancel}
           className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md transition-colors">
           Отмена
@@ -84,7 +88,8 @@ function RestoreResultModal({
     report.commonDataEntriesCreated + report.commonDataEntriesUpdated;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col min-h-0 flex-1">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
       {/* Status banner */}
       <div className={`flex items-center gap-3 rounded-lg p-3 ${
         report.success ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'
@@ -149,7 +154,8 @@ function RestoreResultModal({
         </div>
       )}
 
-      <div className="flex justify-end pt-1">
+      </div>
+      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end">
         <button type="button" onClick={onClose}
           className="px-4 py-2 text-sm bg-fg1 hover:bg-fg2 text-white rounded-md transition-colors">
           Закрыть
@@ -191,10 +197,7 @@ function LocaleSection() {
   }
 
   return (
-    <div className="border border-stroke rounded-xl p-4 space-y-4">
-      <h2 className="text-sm font-semibold text-fg2 uppercase tracking-wide">
-        Региональные настройки
-      </h2>
+    <CollapsibleSection title="Региональные настройки" storageKey="locale" defaultOpen={false}>
       <p className="text-xs text-fg3">
         Определяет формат дат и чисел в интерфейсе. Сохраняется в браузере.
       </p>
@@ -262,7 +265,7 @@ function LocaleSection() {
       {localeSaved && (
         <p className="text-sm text-success">Сохранено</p>
       )}
-    </div>
+    </CollapsibleSection>
   );
 }
 
@@ -338,13 +341,12 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-lg space-y-8">
-      <h1 className="text-2xl font-semibold text-fg1">Настройки</h1>
+    <div className="px-6 py-4 max-w-2xl space-y-5">
+      <h1 className="text-xl font-semibold text-fg1">Настройки</h1>
 
       {/* ── Template versioning ────────────────────────────────────────────── */}
-      <form onSubmit={handleSave} className="space-y-4">
-        <div className="border border-stroke rounded-xl p-4 space-y-4">
-          <h2 className="text-sm font-semibold text-fg2 uppercase tracking-wide">Шаблоны</h2>
+      <form onSubmit={handleSave}>
+        <CollapsibleSection title="Шаблоны" storageKey="templates">
           <div>
             <label className="block text-sm font-medium text-fg2 mb-1">
               Максимум версий шаблона
@@ -358,25 +360,25 @@ export function SettingsPage() {
               className="w-28 border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
             />
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <button type="submit"
-            className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors">
-            Сохранить
-          </button>
-          {saved && <span className="text-sm text-success">Сохранено</span>}
-        </div>
+          <div className="flex items-center gap-3">
+            <button type="submit"
+              className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors">
+              Сохранить
+            </button>
+            {saved && <span className="text-sm text-success">Сохранено</span>}
+          </div>
+        </CollapsibleSection>
       </form>
 
       {/* ── Locale / regional settings ─────────────────────────────────────── */}
       <LocaleSection />
 
+      {/* ── Поиск и распознавание (интеграции) ─────────────────────────────── */}
+      <IntegrationSettingsSection />
+
       {/* ── Backup & Restore ───────────────────────────────────────────────── */}
-      <div className="border border-stroke rounded-xl p-4 space-y-5">
-        <h2 className="text-sm font-semibold text-fg2 uppercase tracking-wide">
-          Резервное копирование
-        </h2>
-        <p className="text-xs text-fg3 -mt-2">
+      <CollapsibleSection title="Резервное копирование" storageKey="backup" defaultOpen={false}>
+        <p className="text-xs text-fg3">
           Резервная копия включает: типы документов, шаблоны, каталог сущностей и общие данные.
           Включает типы документов, шаблоны, общие данные, прикреплённые файлы и изображения. Стройки, комплекты и документы не включаются.
         </p>
@@ -435,13 +437,14 @@ export function SettingsPage() {
             <XCircle size={13} /> {restoreError}
           </p>
         )}
-      </div>
+      </CollapsibleSection>
 
       {/* Restore confirmation modal */}
       <Modal
         open={confirmOpen}
         onOpenChange={(o) => { if (!o) { setConfirmOpen(false); setPendingFile(null); } }}
         title="Подтвердите восстановление"
+        flushBody
       >
         {pendingFile && (
           <RestoreConfirmModal
@@ -457,6 +460,7 @@ export function SettingsPage() {
         open={restoreResult !== null}
         onOpenChange={(o) => { if (!o) setRestoreResult(null); }}
         title={restoreResult?.success ? 'Восстановление завершено' : 'Ошибка восстановления'}
+        flushBody
       >
         {restoreResult && (
           <RestoreResultModal

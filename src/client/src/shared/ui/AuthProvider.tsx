@@ -1,11 +1,13 @@
 import { useState, useCallback, type ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { apiClient } from '@/shared/api/client';
-import { AuthContext, type AuthUser } from '@/shared/hooks/useAuth';
+import { AuthContext, type AuthUser, type UserRole } from '@/shared/hooks/useAuth';
 
 function decodeUser(token: string): AuthUser {
-  const payload = jwtDecode<{ sub: string; email: string; displayName: string }>(token);
-  return { sub: payload.sub, email: payload.email, displayName: payload.displayName };
+  const payload = jwtDecode<{ sub: string; email: string; displayName: string; role?: string | string[] }>(token);
+  const roles = Array.isArray(payload.role) ? payload.role : payload.role ? [payload.role] : [];
+  const role: UserRole = roles.includes('Admin') ? 'Admin' : 'User';
+  return { sub: payload.sub, email: payload.email, displayName: payload.displayName, role };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

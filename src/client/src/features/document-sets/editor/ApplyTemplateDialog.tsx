@@ -161,6 +161,24 @@ export function ApplyTemplateDialog({
       open={true}
       onOpenChange={o => { if (!o) onClose(); }}
       title="Применить шаблон данных"
+      footer={
+        <div className="flex gap-2">
+          <button
+            onClick={handleApply}
+            disabled={!selectedTemplate || !selectedSource || create.isPending}
+            className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-white disabled:opacity-40 bg-brand"
+          >
+            {create.isPending && <Loader2 size={13} className="animate-spin" />}
+            Создать привязку
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted"
+          >
+            Отмена
+          </button>
+        </div>
+      }
     >
       <div className="space-y-5">
         {/* Выбор шаблона */}
@@ -226,24 +244,6 @@ export function ApplyTemplateDialog({
         {error && (
           <p className="text-xs text-danger">{error}</p>
         )}
-
-        {/* Кнопки */}
-        <div className="flex gap-2">
-          <button
-            onClick={handleApply}
-            disabled={!selectedTemplate || !selectedSource || create.isPending}
-            className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-white disabled:opacity-40 bg-brand"
-          >
-            {create.isPending && <Loader2 size={13} className="animate-spin" />}
-            Создать привязку
-          </button>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted"
-          >
-            Отмена
-          </button>
-        </div>
       </div>
     </Modal>
   );

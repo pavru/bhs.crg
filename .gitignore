@@ -12,6 +12,10 @@ node_modules/
 dist/
 *.local
 
+# ── Test / coverage artifacts ─────────────────────────
+coverage/
+TestResults/
+
 # ── Editors / OS ──────────────────────────────────────
 .idea/
 .DS_Store

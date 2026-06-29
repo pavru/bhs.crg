@@ -29,6 +29,7 @@ function SetDetail() {
   const { data: docTypes = [] } = useListDocumentTypes();
   const [addDocOpen, setAddDocOpen] = useState(false);
   const [editInstance, setEditInstance] = useState<DocumentInstance | null>(null);
+  const [editDirty, setEditDirty] = useState(false);
   const addMutation = useAddDocumentToSet();
   const deleteMutation = useDeleteDocumentInstance();
   const [addTypeId, setAddTypeId] = useState('');
@@ -161,9 +162,19 @@ function SetDetail() {
         </div>
       )}
 
-      <Modal open={addDocOpen} onOpenChange={setAddDocOpen} title="Добавить документ">
+      <Modal open={addDocOpen} onOpenChange={setAddDocOpen} title="Добавить документ"
+        footer={
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setAddDocOpen(false)}
+              className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
+            <button type="submit" form="add-doc-form" disabled={addMutation.isPending}
+              className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
+              {addMutation.isPending ? 'Добавление...' : 'Добавить'}
+            </button>
+          </div>
+        }>
         {addDocOpen && (
-          <form onSubmit={handleAddDoc} className="space-y-4">
+          <form id="add-doc-form" onSubmit={handleAddDoc} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-fg2 mb-1">Тип документа</label>
               <select value={addTypeId} onChange={e => setAddTypeId(e.target.value)} required
@@ -173,14 +184,6 @@ function SetDetail() {
               </select>
             </div>
             {addError && <p className="text-sm text-danger">{addError}</p>}
-            <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setAddDocOpen(false)}
-                className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-              <button type="submit" disabled={addMutation.isPending}
-                className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-                {addMutation.isPending ? 'Добавление...' : 'Добавить'}
-              </button>
-            </div>
           </form>
         )}
       </Modal>
@@ -188,9 +191,11 @@ function SetDetail() {
       {editInstance && setId && (() => {
         const liveInstance = set.instances.find(i => i.id === editInstance.id) ?? editInstance;
         return (
-          <Modal open={!!editInstance} onOpenChange={open => { if (!open) setEditInstance(null); }} title="Редактировать документ" wide>
-            <InstanceEditor instance={liveInstance} setId={setId} docType={docTypeMap[liveInstance.documentTypeId]}
-              allDocTypes={docTypes} otherInstances={otherInstances} onClose={() => setEditInstance(null)} />
+          <Modal open={!!editInstance} onOpenChange={open => { if (!open) { setEditInstance(null); setEditDirty(false); } }}
+            title="Редактировать документ" wide isDirty={editDirty} flushBody>
+            <InstanceEditor key={liveInstance.id} instance={liveInstance} setId={setId} docType={docTypeMap[liveInstance.documentTypeId]}
+              allDocTypes={docTypes} otherInstances={otherInstances}
+              onClose={() => { setEditInstance(null); setEditDirty(false); }} onDirtyChange={setEditDirty} />
           </Modal>
         );
       })()}
@@ -279,9 +284,17 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
         </div>
       )}
 
-      <Modal open={addSetOpen} onOpenChange={setAddSetOpen} title="Новый комплект">
+      <Modal open={addSetOpen} onOpenChange={setAddSetOpen} title="Новый комплект"
+        footer={
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setAddSetOpen(false)} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
+            <button type="submit" form="add-set-form" disabled={createSet.isPending} className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
+              {createSet.isPending ? 'Создание...' : 'Создать'}
+            </button>
+          </div>
+        }>
         {addSetOpen && (
-          <form onSubmit={handleAddSet} className="space-y-4">
+          <form id="add-set-form" onSubmit={handleAddSet} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-fg2 mb-1">Наименование</label>
               <input value={newSetName} onChange={e => setNewSetName(e.target.value)} required autoFocus
@@ -289,12 +302,6 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
                 className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
             </div>
             {addError && <p className="text-sm text-danger">{addError}</p>}
-            <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setAddSetOpen(false)} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-              <button type="submit" disabled={createSet.isPending} className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-                {createSet.isPending ? 'Создание...' : 'Создать'}
-              </button>
-            </div>
           </form>
         )}
       </Modal>
@@ -404,9 +411,17 @@ function ConstructionDetail() {
         <ScopedDataSetsPanel scope="Construction" scopeId={constructionId!} />
       </div>
 
-      <Modal open={addSectionOpen} onOpenChange={setAddSectionOpen} title="Новый раздел">
+      <Modal open={addSectionOpen} onOpenChange={setAddSectionOpen} title="Новый раздел"
+        footer={
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setAddSectionOpen(false)} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
+            <button type="submit" form="add-section-form" disabled={createSection.isPending} className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
+              {createSection.isPending ? 'Создание...' : 'Создать'}
+            </button>
+          </div>
+        }>
         {addSectionOpen && (
-          <form onSubmit={handleAddSection} className="space-y-4">
+          <form id="add-section-form" onSubmit={handleAddSection} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-fg2 mb-1">Название раздела (дисциплина)</label>
               <input value={newSectionName} onChange={e => setNewSectionName(e.target.value)} required autoFocus
@@ -414,12 +429,6 @@ function ConstructionDetail() {
                 className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
             </div>
             {sectionError && <p className="text-sm text-danger">{sectionError}</p>}
-            <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setAddSectionOpen(false)} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-              <button type="submit" disabled={createSection.isPending} className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-                {createSection.isPending ? 'Создание...' : 'Создать'}
-              </button>
-            </div>
           </form>
         )}
       </Modal>
@@ -460,9 +469,9 @@ function ConstructionsList() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-fg1">Стройки</h1>
+    <div className="px-6 py-4">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-semibold text-fg1">Стройки</h1>
         <button onClick={() => setCreateOpen(true)}
           className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
           <Plus size={16} /> Новая стройка
@@ -521,9 +530,17 @@ function ConstructionsList() {
         </div>
       )}
 
-      <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новая стройка">
+      <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новая стройка"
+        footer={
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setCreateOpen(false)} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
+            <button type="submit" form="create-construction-form" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
+              {createMutation.isPending ? 'Создание...' : 'Создать'}
+            </button>
+          </div>
+        }>
         {createOpen && (
-          <form onSubmit={handleCreate} className="space-y-4">
+          <form id="create-construction-form" onSubmit={handleCreate} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-fg2 mb-1">Название стройки</label>
               <input value={newName} onChange={e => setNewName(e.target.value)} required autoFocus
@@ -531,12 +548,6 @@ function ConstructionsList() {
                 className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
             </div>
             {createError && <p className="text-sm text-danger">{createError}</p>}
-            <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setCreateOpen(false)} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-              <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-                {createMutation.isPending ? 'Создание...' : 'Создать'}
-              </button>
-            </div>
           </form>
         )}
       </Modal>

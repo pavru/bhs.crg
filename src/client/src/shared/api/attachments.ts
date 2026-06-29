@@ -56,6 +56,21 @@ export async function loadAttachmentObjectUrl(blobPath: string): Promise<{ url: 
   return { url: URL.createObjectURL(blob), mimeType };
 }
 
+/** Открывает вложение в отдельной вкладке браузера (полноразмерный просмотр PDF/изображения). */
+export async function openAttachmentInNewTab(blobPath: string): Promise<void> {
+  // Вкладку открываем синхронно (в обработчике клика), чтобы не блокировал поп-ап-блокировщик.
+  const w = window.open('', '_blank');
+  try {
+    const { url } = await loadAttachmentObjectUrl(blobPath);
+    if (w) w.location.href = url;
+    else window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (e) {
+    if (w) w.close();
+    throw e;
+  }
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} Б`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`;

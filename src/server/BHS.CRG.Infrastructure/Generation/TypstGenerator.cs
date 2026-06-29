@@ -23,9 +23,11 @@ public class TypstGenerator : IDocumentGenerator
 
         try
         {
-            await File.WriteAllTextAsync(
-                Path.Combine(tmpDir, "data.json"),
-                JsonSerializer.Serialize(request.Context.Data), ct);
+            // Поля-изображения (data-URI) декодируем в файлы assets/ и подставляем пути,
+            // чтобы шаблон мог обращаться к ним через image(it.Поле).
+            var dataJson = TypstImageMaterializer.Materialize(request.Context.Data, tmpDir,
+                imageOptions: request.ImageOptions);
+            await File.WriteAllTextAsync(Path.Combine(tmpDir, "data.json"), dataJson, ct);
 
             await File.WriteAllTextAsync(
                 Path.Combine(tmpDir, "template.typ"),

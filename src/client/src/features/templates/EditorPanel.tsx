@@ -6,6 +6,7 @@ import type { Template, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields } from '@/shared/api/schema';
 import { useUpdateTemplate, useUpdateTemplateSettings, useSetTemplateDefault } from '@/shared/api/templates';
 import { flattenFields } from './templateBlank';
+import type * as monacoEditor from 'monaco-editor';
 
 const ISO_SIZES = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6'] as const;
 // ─── Toolbar button ───────────────────────────────────────────────────────────
@@ -206,27 +207,77 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const [error, setError] = useState('');
-  // Ref to Monaco editor instance for cursor-based insertion
-  const editorRef = useRef<import('monaco-editor').editor.IStandaloneCodeEditor | null>(null);
+  const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
   const updateMutation = useUpdateTemplate();
 
+  // When true, the next template.id change came from our own save — skip content reset
+  // so Monaco keeps its cursor position and scroll offset.
+  const justSavedRef = useRef(false);
+
+  // Re-entrancy guard: blocks a second save while one is in flight. State alone is
+  // async, so a synchronous double-trigger (e.g. Ctrl+S) could fire two PUTs before
+  // `saving` updates — that branched the version history into duplicates.
+  const savingRef = useRef(false);
+
   useEffect(() => {
+    if (justSavedRef.current) {
+      justSavedRef.current = false;
+      return;
+    }
     setContent(template.content);
-  }, [template.id]);
+  }, [template.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSave() {
+    if (savingRef.current) return; // a save is already in flight — ignore duplicate trigger
+    // Read live content from Monaco so this function is safe to call from the
+    // window-level Ctrl+S handler (avoids stale-closure on `content`).
+    const currentContent = editorRef.current?.getValue() ?? content;
+    savingRef.current = true;
     setError('');
     setSaving(true);
     try {
-      const updated = await updateMutation.mutateAsync({ id: template.id, content });
+      const updated = await updateMutation.mutateAsync({ id: template.id, content: currentContent });
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
+      justSavedRef.current = true; // prevent useEffect from resetting cursor
       onSaved(updated);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка сохранения');
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
+  }
+
+  // Keep a stable ref so the Monaco command (registered once at mount) always
+  // calls the latest handleSave without capturing a stale closure.
+  const handleSaveRef = useRef(handleSave);
+  useEffect(() => { handleSaveRef.current = handleSave; });
+
+  // Prevent the browser's native Ctrl+S / Cmd+S ("Save page") using capture phase —
+  // this runs before any other handler, including the browser's own shortcut.
+  // Trigger save only when Monaco has text focus.
+  // Use e.code (physical key) so it works on non-Latin layouts — on a Russian
+  // layout Ctrl+S gives e.key === 'ы', so an e.key === 's' check would never fire.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') {
+        e.preventDefault();
+        if (editorRef.current?.hasTextFocus()) {
+          void handleSaveRef.current();
+        }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, []);
+
+  function handleEditorMount(editor: monacoEditor.editor.IStandaloneCodeEditor) {
+    editorRef.current = editor;
+    // Ctrl+S is handled by the window-level capture listener above. We intentionally
+    // do NOT register a Monaco command for it: that fired a second, concurrent save
+    // (the window handler preventDefaults but doesn't stopPropagation), branching the
+    // version history into duplicate same-numbered versions.
   }
 
   function insertAtCursor(snippet: string) {
@@ -269,9 +320,10 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
               <Star size={11} className="fill-yellow-400 text-yellow-400" /> по умолчанию
             </span>
           )}
-          {savedMsg && <span className="text-xs text-success">Сохранено</span>}
+          {savedMsg && <span className="text-xs text-success">Сохранено ✓</span>}
           {error && <span className="text-xs text-danger max-w-xs truncate">{error}</span>}
           <button onClick={handleSave} disabled={saving}
+            title="Сохранить (Ctrl+S)"
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand hover:bg-brand-hover text-white rounded-md transition-colors disabled:opacity-50">
             <Save size={12} /> {saving ? 'Сохранение...' : 'Сохранить'}
           </button>
@@ -286,7 +338,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
           value={content}
           onChange={(val) => setContent(val ?? '')}
           beforeMount={registerTypstLanguage}
-          onMount={(editor) => { editorRef.current = editor; }}
+          onMount={handleEditorMount}
           options={{
             minimap: { enabled: false },
             fontSize: 13,
@@ -306,4 +358,3 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
     </div>
   );
 }
-

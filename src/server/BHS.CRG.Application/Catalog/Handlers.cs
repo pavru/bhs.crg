@@ -61,7 +61,8 @@ public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo) :
 
     public async Task<PrimitiveType> Handle(CreatePrimitiveTypeCommand cmd, CancellationToken ct)
     {
-        var pt = PrimitiveType.Create(cmd.Name, cmd.Code, cmd.BaseType, cmd.Description, cmd.Constraints);
+        await EnsureCodeUniqueAsync(cmd.Code, excludeId: null, ct);
+        var pt = PrimitiveType.Create(cmd.Name, cmd.Code.Trim(), cmd.BaseType, cmd.Description, cmd.Constraints, cmd.AllowedTags);
         await repo.AddAsync(pt, ct);
         await repo.SaveChangesAsync(ct);
         return pt;
@@ -71,10 +72,20 @@ public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo) :
     {
         var pt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new KeyNotFoundException($"PrimitiveType {cmd.Id} not found");
-        pt.Update(cmd.Name, cmd.Code, cmd.Description, cmd.Constraints);
+        await EnsureCodeUniqueAsync(cmd.Code, excludeId: cmd.Id, ct);
+        pt.Update(cmd.Name, cmd.Code.Trim(), cmd.Description, cmd.Constraints, cmd.AllowedTags);
         repo.Update(pt);
         await repo.SaveChangesAsync(ct);
         return pt;
+    }
+
+    // Код типа поля должен быть уникален (без учёта регистра и краёв).
+    private async Task EnsureCodeUniqueAsync(string code, Guid? excludeId, CancellationToken ct)
+    {
+        var nCode = code.Trim().ToLowerInvariant();
+        var all = await repo.GetAllAsync(ct);
+        if (all.Any(t => (!excludeId.HasValue || t.Id != excludeId.Value) && t.Code.Trim().ToLowerInvariant() == nCode))
+            throw new ArgumentException($"Тип поля с кодом «{code.Trim()}» уже существует.");
     }
 
     public async Task Handle(DeletePrimitiveTypeCommand cmd, CancellationToken ct)

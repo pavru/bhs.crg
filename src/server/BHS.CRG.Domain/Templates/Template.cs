@@ -69,6 +69,27 @@ public class Template : Entity
         };
     }
 
+    /// <summary>
+    /// Создаёт независимую копию шаблона как новый шаблон (version 1, активный, не по умолчанию)
+    /// с тем же содержимым и настройками страницы. Применяется для дублирования.
+    /// </summary>
+    public Template Duplicate(string newName)
+        => new()
+        {
+            DocumentTypeId = DocumentTypeId,
+            Name = newName,
+            Content = Content,
+            Version = 1,
+            IsActive = true,
+            IsDefault = false,
+            PageSize = PageSize,
+            PageOrientation = PageOrientation,
+            MarginTop = MarginTop,
+            MarginRight = MarginRight,
+            MarginBottom = MarginBottom,
+            MarginLeft = MarginLeft,
+        };
+
     public void SetPageSettings(string pageSize, string pageOrientation, int top, int right, int bottom, int left)
     {
         PageSize = pageSize;

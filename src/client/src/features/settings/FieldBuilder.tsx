@@ -3,7 +3,8 @@ import { Plus, Trash2, ArrowUp, ArrowDown, Cpu } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
 import type { DocumentType, PrimitiveTypeDef } from '@/shared/api/types';
 import type { SchemaField, FieldGroup } from '@/shared/api/schema';
-import { PRIMITIVE_TYPES, META_TAGS } from './schemaConstants';
+import { PRIMITIVE_TYPES } from './schemaConstants';
+import { useTagRegistry, fieldTags } from '@/shared/api/tags';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
 
 export function JsonPreview({
@@ -46,11 +47,32 @@ interface FieldBuilderProps {
 
 export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, primitiveTypes, allDocTypes }: FieldBuilderProps) {
   const uid = useId();
+  const { data: tagRegistry } = useTagRegistry();
 
   const add = () => onChange([...fields, { key: '', title: '', type: 'string', required: false }]);
   const remove = (i: number) => onChange(fields.filter((_, idx) => idx !== i));
   const update = (i: number, patch: Partial<SchemaField>) =>
     onChange(fields.map((f, idx) => idx === i ? { ...f, ...patch } : f));
+  const toggleTag = (i: number, code: string) => {
+    const cur = fields[i].tags ?? [];
+    const next = cur.includes(code) ? cur.filter(c => c !== code) : [...cur, code];
+    update(i, { tags: next.length ? next : undefined });
+  };
+  // Для поля type="primitive" применимые тэги берём из самого типа поля (allowedTags),
+  // для встроенных типов — из реестра по типу поля.
+  const applicableTagsFor = (f: SchemaField) => {
+    if (f.type === 'primitive') {
+      const pt = primitiveTypes.find(p => p.id === f.typeId);
+      const codes = new Set(pt?.allowedTags ?? []);
+      return (tagRegistry ?? []).filter(t => t.scope === 'Field' && codes.has(t.code));
+    }
+    return fieldTags(tagRegistry, f.type);
+  };
+  const setImageOpt = (i: number, patch: Partial<NonNullable<SchemaField['image']>>) => {
+    const merged = { ...(fields[i].image ?? {}), ...patch };
+    const cleaned = Object.fromEntries(Object.entries(merged).filter(([, v]) => v !== undefined && v !== ''));
+    update(i, { image: Object.keys(cleaned).length ? cleaned : undefined });
+  };
   const moveUp = (i: number) => {
     if (i === 0) return;
     const next = [...fields]; [next[i - 1], next[i]] = [next[i], next[i - 1]]; onChange(next);
@@ -278,27 +300,76 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
                 </button>
               </div>
             )}
-            {/* metaTag selector — только для скалярных полей */}
-            {field.type !== 'complex' && field.type !== 'array' && field.type !== 'doc-ref' && field.type !== 'doc-array' && (
-              <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] flex items-center gap-2">
-                <Cpu size={12} className={field.metaTag ? 'text-purple-500' : 'text-stroke-strong'} />
-                <span className="text-xs text-fg4 shrink-0 w-28">Метаданные авто:</span>
+            {/* Опции изображения (размер/выравнивание) */}
+            {field.type === 'image' && (
+              <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] flex flex-wrap items-center gap-2">
+                <span className="text-xs text-fg4 shrink-0 w-28">Изображение:</span>
+                <input
+                  value={field.image?.width ?? ''}
+                  onChange={e => setImageOpt(i, { width: e.target.value })}
+                  placeholder="ширина (напр. 4cm)"
+                  className="w-32 border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
+                />
+                <input
+                  value={field.image?.height ?? ''}
+                  onChange={e => setImageOpt(i, { height: e.target.value })}
+                  placeholder="высота"
+                  className="w-24 border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
+                />
                 <select
-                  value={field.metaTag ?? ''}
-                  onChange={e => update(i, { metaTag: e.target.value || undefined })}
-                  className={`flex-1 border rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-purple-400 ${
-                    field.metaTag ? 'border-purple-300 text-purple-700' : 'border-stroke text-fg4'
-                  }`}
+                  value={field.image?.align ?? ''}
+                  onChange={e => setImageOpt(i, { align: (e.target.value || undefined) as 'left' | 'center' | 'right' | undefined })}
+                  className="border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
                 >
-                  <option value="">— не задано —</option>
-                  {META_TAGS
-                    .filter(t => field.type === 'file' ? t.fileOnly : !t.fileOnly)
-                    .map(t => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
+                  <option value="">выравнивание</option>
+                  <option value="left">слева</option>
+                  <option value="center">по центру</option>
+                  <option value="right">справа</option>
+                </select>
+                <select
+                  value={field.image?.fit ?? ''}
+                  onChange={e => setImageOpt(i, { fit: (e.target.value || undefined) as 'cover' | 'contain' | 'stretch' | undefined })}
+                  className="border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
+                >
+                  <option value="">fit (вписывание)</option>
+                  <option value="contain">contain</option>
+                  <option value="cover">cover</option>
+                  <option value="stretch">stretch</option>
                 </select>
               </div>
             )}
+
+            {/* Функциональные тэги поля (для primitive — из типа поля, иначе из реестра) */}
+            {(() => {
+              const applicable = applicableTagsFor(field);
+              if (applicable.length === 0) return null;
+              return (
+                <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] flex items-start gap-2">
+                  <Cpu size={12} className={`mt-1 ${field.tags?.length ? 'text-purple-500' : 'text-stroke-strong'}`} />
+                  <span className="text-xs text-fg4 shrink-0 w-28 mt-1">Функц. тэги:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {applicable.map(t => {
+                      const on = field.tags?.includes(t.code) ?? false;
+                      return (
+                        <button
+                          key={t.code}
+                          type="button"
+                          title={t.description}
+                          onClick={() => toggleTag(i, t.code)}
+                          className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                            on
+                              ? 'bg-purple-500/15 border-purple-400 text-purple-700'
+                              : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })}

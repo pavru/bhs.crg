@@ -10,9 +10,15 @@ interface ModalProps {
   wide?: boolean;
   extraWide?: boolean;
   isDirty?: boolean;
+  /** Не добавлять собственный скролл и паддинг тела — содержимое само управляет
+   *  раскладкой (фиксированный футер, прокрутка только области полей). */
+  flushBody?: boolean;
+  /** Зафиксированная нижняя область (кнопки действий). Заголовок сверху и футер снизу
+   *  не скроллятся; прокручивается только тело между ними. */
+  footer?: ReactNode;
 }
 
-export function Modal({ open, onOpenChange, title, children, wide, extraWide, isDirty }: ModalProps) {
+export function Modal({ open, onOpenChange, title, children, wide, extraWide, isDirty, flushBody, footer }: ModalProps) {
   const [confirmClose, setConfirmClose] = useState(false);
 
   useEffect(() => {
@@ -61,9 +67,21 @@ export function Modal({ open, onOpenChange, title, children, wide, extraWide, is
               <X size={16} />
             </button>
           </div>
-          <div className="overflow-y-auto flex-1 px-6 pb-6">
-            {children}
-          </div>
+          {flushBody ? (
+            <div className="flex-1 min-h-0 flex flex-col">
+              {children}
+            </div>
+          ) : (
+            <div className={`overflow-y-auto flex-1 px-6 ${footer ? 'pb-4' : 'pb-6'}`}>
+              {children}
+            </div>
+          )}
+
+          {footer && (
+            <div className="shrink-0 px-6 py-3 border-t border-stroke bg-surface">
+              {footer}
+            </div>
+          )}
 
           {confirmClose && (
             <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/50">

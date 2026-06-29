@@ -22,6 +22,41 @@ export function parseSourceColumnNames(cachedSchema: string | undefined | null):
   return parseSourceColumns(cachedSchema).map(c => c.name);
 }
 
+// ─── Reference (catalog) mapping ────────────────────────────────────────────
+// Составное поле элемента может заполняться ссылкой на запись каталога: значение
+// колонки ищется среди записей составного типа. Кодируется в значении маппинга
+// строкой "@@ref:{json}". Формат разделяется с backend (DataSetMappingValue).
+
+const REF_PREFIX = '@@ref:';
+
+export interface RefMapping {
+  /** Колонка файла со значением для поиска. */
+  column: string;
+  /** Поле записи каталога для сопоставления; пусто = по отображаемому имени. */
+  match: string;
+  /** ID составного типа каталога. */
+  typeId: string;
+}
+
+export function isRefMappingValue(value: string | undefined | null): boolean {
+  return typeof value === 'string' && value.startsWith(REF_PREFIX);
+}
+
+export function parseRefMapping(value: string | undefined | null): RefMapping | null {
+  if (!isRefMappingValue(value)) return null;
+  try {
+    const parsed = JSON.parse((value as string).slice(REF_PREFIX.length)) as Partial<RefMapping>;
+    if (!parsed.typeId || !parsed.column) return null;
+    return { column: parsed.column, match: parsed.match ?? '', typeId: parsed.typeId };
+  } catch {
+    return null;
+  }
+}
+
+export function buildRefMapping(m: RefMapping): string {
+  return REF_PREFIX + JSON.stringify({ column: m.column, match: m.match, typeId: m.typeId });
+}
+
 /** Recursively counts non-empty conditions in a filter tree. */
 export function countFilterConditions(node: FilterNode | null | undefined): number {
   if (!node) return 0;

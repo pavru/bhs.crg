@@ -17,6 +17,7 @@ interface SavePrimitiveTypeDto {
   baseType: 'string' | 'number' | 'date';
   description?: string;
   constraints: string;
+  allowedTags: string[];
 }
 
 function toDto(
@@ -25,8 +26,9 @@ function toDto(
   baseType: 'string' | 'number' | 'date',
   description: string | undefined,
   constraints: FieldConstraints,
+  allowedTags: string[] = [],
 ): SavePrimitiveTypeDto {
-  return { name, code, baseType, description: description || undefined, constraints: JSON.stringify(constraints) };
+  return { name, code, baseType, description: description || undefined, constraints: JSON.stringify(constraints), allowedTags };
 }
 
 export function useCreatePrimitiveType() {

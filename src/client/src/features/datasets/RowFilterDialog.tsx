@@ -279,6 +279,30 @@ export function RowFilterDialog({
       onOpenChange={o => { if (!o) onClose(); }}
       title="Фильтрация строк"
       wide
+      footer={
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand"
+          >
+            Сохранить
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted"
+          >
+            Отмена
+          </button>
+          {hasAny && (
+            <button
+              onClick={handleReset}
+              className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted"
+            >
+              Сбросить фильтр
+            </button>
+          )}
+        </div>
+      }
     >
       <p className="text-xs mb-4 text-fg4">
         Строки, не прошедшие фильтр, исключаются до маппинга.
@@ -286,7 +310,7 @@ export function RowFilterDialog({
         Можно вкладывать группы с разной логикой (AND/OR).
       </p>
 
-      <div className="rounded-lg p-3 mb-4 border border-stroke bg-surface" style={{ minHeight: '60px' }}>
+      <div className="rounded-lg p-3 border border-stroke bg-surface" style={{ minHeight: '60px' }}>
         <FilterGroupEditor
           group={root}
           onChange={setRoot}
@@ -294,29 +318,6 @@ export function RowFilterDialog({
           depth={0}
           columns={columns ?? []}
         />
-      </div>
-
-      <div className="flex gap-2 items-center">
-        <button
-          onClick={handleSave}
-          className="px-4 py-2 rounded-md text-sm font-medium text-white bg-brand"
-        >
-          Сохранить
-        </button>
-        <button
-          onClick={onClose}
-          className="px-4 py-2 rounded-md text-sm font-medium text-fg2 bg-muted"
-        >
-          Отмена
-        </button>
-        {hasAny && (
-          <button
-            onClick={handleReset}
-            className="ml-auto px-4 py-2 rounded-md text-sm font-medium text-danger bg-muted"
-          >
-            Сбросить фильтр
-          </button>
-        )}
       </div>
     </Modal>
   );

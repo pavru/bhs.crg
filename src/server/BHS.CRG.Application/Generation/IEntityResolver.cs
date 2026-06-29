@@ -10,4 +10,12 @@ namespace BHS.CRG.Application.Generation;
 public interface IEntityResolver
 {
     Task<GenerationContext> ResolveAsync(DocumentInstance instance, CancellationToken ct = default);
+
+    /// <summary>
+    /// Повторно разрешает $ref-ссылки в уже собранном контексте. Применяется после
+    /// инъекции наборов данных, которые могут добавить ссылки на каталог ($ref) —
+    /// например, в составные поля элементов массива. Идемпотентно для уже
+    /// разрешённых данных.
+    /// </summary>
+    Task ResolveContextRefsAsync(GenerationContext ctx, Guid documentSetId, CancellationToken ct = default);
 }

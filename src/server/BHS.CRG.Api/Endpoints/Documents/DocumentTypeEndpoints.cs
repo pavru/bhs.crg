@@ -10,6 +10,7 @@ public static class DocumentTypeEndpoints
     public static void MapDocumentTypeEndpoints(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/api/document-types").RequireAuthorization();
+        var admin = app.MapGroup("/api/document-types").RequireAuthorization("Admin");
 
         g.MapGet("/", async (string? kind, IMediator m) =>
         {
@@ -28,7 +29,7 @@ public static class DocumentTypeEndpoints
             return dt is null ? Results.NotFound() : Results.Ok(dt);
         });
 
-        g.MapPost("/", async (CreateTypeRequest req, IMediator m) =>
+        admin.MapPost("/", async (CreateTypeRequest req, IMediator m) =>
         {
             var kind = req.Kind switch
             {
@@ -39,20 +40,20 @@ public static class DocumentTypeEndpoints
                 req.Name, req.Code, kind, req.ParentId, JsonDocument.Parse(req.Schema), req.IsAbstract)));
         });
 
-        g.MapPut("/{id:guid}", async (Guid id, UpdateTypeRequest req, IMediator m) =>
+        admin.MapPut("/{id:guid}", async (Guid id, UpdateTypeRequest req, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new UpdateDocumentTypeCommand(id, req.Name, req.Code, req.ParentId))); }
             catch (InvalidOperationException ex) { return Results.Conflict(ex.Message); }
         });
 
-        g.MapPut("/{id:guid}/schema", async (Guid id, UpdateSchemaRequest req, IMediator m)
+        admin.MapPut("/{id:guid}/schema", async (Guid id, UpdateSchemaRequest req, IMediator m)
             => Results.Ok(await m.Send(new UpdateDocumentTypeSchemaCommand(
                 id, JsonDocument.Parse(req.Schema)))));
 
-        g.MapPut("/{id:guid}/abstract", async (Guid id, SetAbstractRequest req, IMediator m)
+        admin.MapPut("/{id:guid}/abstract", async (Guid id, SetAbstractRequest req, IMediator m)
             => Results.Ok(await m.Send(new SetDocumentTypeAbstractCommand(id, req.IsAbstract))));
 
-        g.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        admin.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             try { await m.Send(new DeleteDocumentTypeCommand(id)); return Results.NoContent(); }
             catch (InvalidOperationException ex) { return Results.Conflict(ex.Message); }

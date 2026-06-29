@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Star, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Star, ChevronDown, ChevronUp, AlertTriangle, Copy } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import type { Template, DocumentType } from '@/shared/api/types';
 import { useDeleteTemplate } from '@/shared/api/templates';
@@ -76,7 +76,16 @@ export function VersionCleanupModal({ group, onClose, onDeleted }: {
   }
 
   return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Очистка старых версий">
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Очистка старых версий"
+      footer={
+        <div className="flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
+          <button onClick={handleDelete} disabled={deleting || toDelete.length === 0}
+            className="px-4 py-2 text-sm bg-danger hover:bg-danger text-white rounded-md disabled:opacity-50 transition-colors">
+            {deleting ? 'Удаление...' : `Удалить ${toDelete.length} вер.`}
+          </button>
+        </div>
+      }>
       <div className="space-y-4">
         <p className="text-sm text-fg2">
           Шаблон <strong>«{group.name}»</strong> — {group.versions.length} версий.
@@ -115,13 +124,6 @@ export function VersionCleanupModal({ group, onClose, onDeleted }: {
           : <p className="text-sm text-fg2">Будет удалено: <strong>{toDelete.length}</strong> вер.</p>
         }
         {error && <p className="text-sm text-danger">{error}</p>}
-        <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-          <button onClick={handleDelete} disabled={deleting || toDelete.length === 0}
-            className="px-4 py-2 text-sm bg-danger hover:bg-danger text-white rounded-md disabled:opacity-50 transition-colors">
-            {deleting ? 'Удаление...' : `Удалить ${toDelete.length} вер.`}
-          </button>
-        </div>
       </div>
     </Modal>
   );
@@ -146,7 +148,7 @@ export function DocTypeSelector({ docTypes, selected, onSelect }: {
 
 // ─── Grouped sidebar ──────────────────────────────────────────────────────────
 
-export function TemplateSidebar({ groups, selectedTemplate, maxVersions, onSelect, onNew, onDelete, onDeleteGroup, onCleanup }: {
+export function TemplateSidebar({ groups, selectedTemplate, maxVersions, onSelect, onNew, onDelete, onDeleteGroup, onDuplicate, onCleanup }: {
   groups: TemplateGroup[];
   selectedTemplate: Template | null;
   maxVersions: number;
@@ -154,6 +156,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, onSelec
   onNew: () => void;
   onDelete: (t: Template) => void;
   onDeleteGroup: (g: TemplateGroup) => void;
+  onDuplicate: (g: TemplateGroup) => void;
   onCleanup: (g: TemplateGroup) => void;
 }) {
   const [expandedNames, setExpandedNames] = useState<Set<string>>(() => {
@@ -222,6 +225,13 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, onSelec
                   {tooMany && (
                     <AlertTriangle size={12} className="text-warning shrink-0" />
                   )}
+                </button>
+                <button
+                  onClick={() => onDuplicate(group)}
+                  className="px-2 py-2.5 text-stroke-strong hover:text-brand opacity-0 group-hover/grp:opacity-100 transition-all shrink-0"
+                  title="Дублировать шаблон"
+                >
+                  <Copy size={13} />
                 </button>
                 <button
                   onClick={() => onDeleteGroup(group)}

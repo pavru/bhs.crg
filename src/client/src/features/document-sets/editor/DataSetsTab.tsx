@@ -11,7 +11,7 @@ import {
 import type { DocumentInstance, DocumentType, DataSetSource, DataSetBinding, DataSetBindingPreviewResult, RowFilterDef, ComputedColumn } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
-import { countFilterConditions, parseSourceColumnNames } from '@/shared/api/datasetHelpers';
+import { countFilterConditions, parseSourceColumnNames, parseRefMapping, buildRefMapping } from '@/shared/api/datasetHelpers';
 function MappingEditor({
   source,
   schemaFields,
@@ -31,17 +31,26 @@ function MappingEditor({
 }) {
   const columnNames = useMemo(() => parseSourceColumnNames(source.cachedSchema), [source.cachedSchema]);
 
-  const scalarFields = schemaFields.filter(isScalarField);
-
-  // Для табличного режима — берём поля составного типа самого массива
-  const mappableFields = useMemo(() => {
-    if (targetFieldKey === null) return scalarFields;
+  // Поля, доступные для маппинга: для скалярного режима — поля документа,
+  // для табличного — поля составного типа элемента массива.
+  const effectiveFields = useMemo(() => {
+    if (targetFieldKey === null) return schemaFields;
     const arrayField = arrayFields.find(f => f.key === targetFieldKey);
-    if (!arrayField?.typeId) return scalarFields;
+    if (!arrayField?.typeId) return [];
     const compositeType = allDocTypes.find(dt => dt.id === arrayField.typeId);
-    if (!compositeType) return scalarFields;
-    return resolveEffectiveFields(compositeType, allDocTypes).filter(isScalarField);
-  }, [targetFieldKey, arrayFields, allDocTypes, scalarFields]);
+    if (!compositeType) return [];
+    return resolveEffectiveFields(compositeType, allDocTypes);
+  }, [targetFieldKey, arrayFields, allDocTypes, schemaFields]);
+
+  const scalarMappable = effectiveFields.filter(isScalarField);
+  // Составные поля заполняются ссылкой на запись каталога (по значению колонки).
+  const complexMappable = effectiveFields.filter(f => f.type === 'complex' && f.typeId);
+
+  function matchFieldsFor(typeId: string): SchemaField[] {
+    const ct = allDocTypes.find(dt => dt.id === typeId);
+    if (!ct) return [];
+    return resolveEffectiveFields(ct, allDocTypes).filter(isScalarField);
+  }
 
   function setTarget(t: string) {
     // При смене цели сбрасываем маппинг
@@ -51,6 +60,12 @@ function MappingEditor({
     const next = { ...mapping };
     if (col) next[fieldKey] = col;
     else delete next[fieldKey];
+    onChange(next, targetFieldKey);
+  }
+  function setRef(f: SchemaField, column: string, match: string) {
+    const next = { ...mapping };
+    if (column) next[f.key] = buildRefMapping({ column, match, typeId: f.typeId! });
+    else delete next[f.key];
     onChange(next, targetFieldKey);
   }
 
@@ -78,7 +93,7 @@ function MappingEditor({
           {targetFieldKey && <span className="ml-1 font-normal text-fg4">(поля «{arrayFields.find(f => f.key === targetFieldKey)?.title ?? targetFieldKey}»)</span>}
         </label>
         <div className="space-y-1.5">
-          {mappableFields.map(f => (
+          {scalarMappable.map(f => (
             <div key={f.key} className="flex items-center gap-2">
               <span className="w-40 text-xs truncate shrink-0 text-fg2" title={`${f.title} (${f.key})`}>
                 {f.title}
@@ -93,8 +108,38 @@ function MappingEditor({
               </select>
             </div>
           ))}
+          {complexMappable.map(f => {
+            const refMap = parseRefMapping(mapping[f.key]);
+            const matchFields = matchFieldsFor(f.typeId!);
+            return (
+              <div key={f.key} className="flex items-center gap-2">
+                <span className="w-40 text-xs truncate shrink-0 text-fg2" title={`${f.title} (${f.key}) — ссылка на каталог`}>
+                  {f.title} <span className="text-fg4">↗</span>
+                </span>
+                <select
+                  value={refMap?.column ?? ''}
+                  onChange={e => setRef(f, e.target.value, refMap?.match ?? '')}
+                  className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
+                  title="Колонка со значением для поиска записи в каталоге"
+                >
+                  <option value="">— не привязано —</option>
+                  {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select
+                  value={refMap?.match ?? ''}
+                  onChange={e => setRef(f, refMap?.column ?? '', e.target.value)}
+                  disabled={!refMap?.column}
+                  className="w-32 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1 disabled:opacity-50"
+                  title="Поле записи каталога для сопоставления"
+                >
+                  <option value="">по названию</option>
+                  {matchFields.map(mf => <option key={mf.key} value={mf.key}>{mf.title}</option>)}
+                </select>
+              </div>
+            );
+          })}
         </div>
-        {mappableFields.length === 0 && (
+        {scalarMappable.length === 0 && complexMappable.length === 0 && (
           <p className="text-xs text-fg4">Нет доступных полей для маппинга</p>
         )}
       </div>

@@ -5,12 +5,14 @@ export function schemaToJson(
   fieldOverrides: Record<string, { required?: boolean; defaultValue?: unknown }>,
   groups: FieldGroup[] = [],
   typstRenders: TypstRender[] = [],
+  typeTags: string[] = [],
 ): string {
   const def: SchemaDefinition = { fields };
   if (groups.length) def.groups = groups;
   if (excludedFields.length) def.excludedFields = excludedFields;
   if (Object.keys(fieldOverrides).length) def.fieldOverrides = fieldOverrides;
   if (typstRenders.length) def.typstRenders = typstRenders;
+  if (typeTags.length) def.tags = typeTags;
   return JSON.stringify(def);
 }
 
@@ -55,11 +57,4 @@ export const PRIMITIVE_TYPES: { value: SchemaField['type']; label: string }[] = 
 export const TYPE_LABELS: Record<string, string> = Object.fromEntries(
   PRIMITIVE_TYPES.map(t => [t.value, t.label]),
 );
-
-export const META_TAGS: { value: string; label: string; fileOnly?: boolean }[] = [
-  { value: 'pageCount',    label: 'Кол-во страниц (PDF)' },
-  { value: 'generatedAt', label: 'Дата генерации' },
-  { value: 'generatedBy', label: 'Сгенерировал' },
-  { value: 'printForm',   label: 'Печатная форма (файл)', fileOnly: true },
-];
 

@@ -127,13 +127,13 @@ export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
           </button>
         </div>
       )}
-      <Modal open={addOpen} onOpenChange={setAddOpen} title="Новая запись каталога" wide>
+      <Modal open={addOpen} onOpenChange={setAddOpen} title="Новая запись каталога" wide flushBody>
         {addOpen && (
           <CatalogEntryForm compositeTypes={compositeTypes} documentTypes={documentTypes} allDocTypes={allDocTypes}
             scope={scope} scopeId={scopeId} setId={setId} onClose={() => setAddOpen(false)} />
         )}
       </Modal>
-      <Modal open={!!editEntry} onOpenChange={o => { if (!o) setEditEntry(null); }} title="Редактировать запись" wide>
+      <Modal open={!!editEntry} onOpenChange={o => { if (!o) setEditEntry(null); }} title="Редактировать запись" wide flushBody>
         {editEntry && (
           <CatalogEntryForm entry={editEntry} compositeTypes={compositeTypes} documentTypes={documentTypes} allDocTypes={allDocTypes}
             scope={scope} scopeId={scopeId} setId={setId} onClose={() => setEditEntry(null)} />
@@ -330,7 +330,8 @@ function CatalogEntryForm({
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
       <div className="flex items-center gap-2">
         <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${SCOPE_COLORS[scope]}`}>
           {SCOPE_LABELS[scope]}
@@ -439,7 +440,8 @@ function CatalogEntryForm({
       )}
 
       {error && <p className="text-sm text-danger">{error}</p>}
-      <div className="flex justify-end gap-3 pt-1">
+      </div>
+      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-3">
         <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
         <button type="submit" disabled={isPending}
           className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">

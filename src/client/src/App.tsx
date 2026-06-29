@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/shared/ui/ThemeProvider';
 import { AuthProvider } from '@/shared/ui/AuthProvider';
-import { ProtectedRoute } from '@/shared/ui/ProtectedRoute';
+import { ProtectedRoute, AdminRoute } from '@/shared/ui/ProtectedRoute';
 import { AppShell } from '@/shared/ui/AppShell';
 import { LoginPage } from '@/features/catalog/LoginPage';
 import { CatalogPage } from '@/features/catalog/CatalogPage';
@@ -12,7 +12,9 @@ import { DocumentSetsPage } from '@/features/document-sets/DocumentSetsPage';
 import { SystemCommonDataPage } from '@/features/common-data/SystemCommonDataPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { PrimitiveTypesPage } from '@/features/settings/PrimitiveTypesPage';
+import { UsersPage } from '@/features/settings/UsersPage';
 import { DataSetsPage } from '@/features/datasets/DataSetsPage';
+import { QualityDocsPage } from '@/features/quality-docs/QualityDocsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -33,11 +35,15 @@ export default function App() {
                 <Route path="catalog/*" element={<CatalogPage />} />
                 <Route path="common-data" element={<SystemCommonDataPage />} />
                 <Route path="datasets" element={<DataSetsPage />} />
-                <Route path="document-types/*" element={<DocumentTypesPage kind="Document" />} />
-                <Route path="composite-types/*" element={<DocumentTypesPage kind="Composite" />} />
-                <Route path="templates/*" element={<TemplatesPage />} />
-                <Route path="field-types" element={<PrimitiveTypesPage />} />
-                <Route path="settings" element={<SettingsPage />} />
+                <Route path="quality-docs" element={<QualityDocsPage />} />
+                <Route element={<AdminRoute />}>
+                  <Route path="document-types/*" element={<DocumentTypesPage kind="Document" />} />
+                  <Route path="composite-types/*" element={<DocumentTypesPage kind="Composite" />} />
+                  <Route path="templates/*" element={<TemplatesPage />} />
+                  <Route path="field-types" element={<PrimitiveTypesPage />} />
+                  <Route path="users" element={<UsersPage />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                </Route>
               </Route>
             </Route>
           </Routes>

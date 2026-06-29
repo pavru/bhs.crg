@@ -38,6 +38,9 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         return ctx;
     }
 
+    public Task ResolveContextRefsAsync(GenerationContext ctx, Guid documentSetId, CancellationToken ct = default)
+        => ResolveRefsAsync(ctx, documentSetId, ct, nested: false);
+
     private async Task ResolveRefsAsync(GenerationContext ctx, Guid documentSetId, CancellationToken ct, bool nested = false)
     {
         var keys = ctx.Data.Keys.ToList();
@@ -139,16 +142,30 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         return elem.Clone();
     }
 
+    // Максимальная глубина рекурсивного разворачивания вложенных ссылок (защита от циклов).
+    private const int MaxRefDepth = 8;
+
     /// <summary>
-    /// Раскрывает $ref-свойства внутри одного объекта (элемент составного массива).
+    /// Рекурсивно раскрывает $ref-свойства внутри объекта (элемент составного массива или
+    /// разрешённая запись каталога). Заходит внутрь разрешённых записей каталога и вложенных
+    /// объектов/массивов, чтобы вложенные ссылки (напр. Приказ→ВыпустившаяОрганизация) тоже
+    /// разворачивались. Ограничено глубиной <see cref="MaxRefDepth"/>.
     /// </summary>
-    private async Task<JsonElement> ResolveObjectRefsAsync(JsonElement obj, Guid documentSetId, CancellationToken ct)
+    private async Task<JsonElement> ResolveObjectRefsAsync(JsonElement obj, Guid documentSetId, CancellationToken ct, int depth = 0)
     {
         var dict = new Dictionary<string, JsonElement>();
         foreach (var prop in obj.EnumerateObject())
+            dict[prop.Name] = await ResolveNodeAsync(prop.Value, documentSetId, ct, depth);
+        return JsonSerializer.SerializeToElement(dict);
+    }
+
+    private async Task<JsonElement> ResolveNodeAsync(JsonElement val, Guid documentSetId, CancellationToken ct, int depth)
+    {
+        if (depth >= MaxRefDepth) return val.Clone();
+
+        if (val.ValueKind == JsonValueKind.Object)
         {
-            var val = prop.Value;
-            if (val.ValueKind == JsonValueKind.Object && val.TryGetProperty("$ref", out var refTypeProp))
+            if (val.TryGetProperty("$ref", out var refTypeProp))
             {
                 var refType = refTypeProp.GetString();
                 if (refType == "catalog"
@@ -156,26 +173,33 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
                     && Guid.TryParse(entryIdProp.GetString(), out var entryId))
                 {
                     var resolved = await ResolveCommonDataEntryAsync(entryId, [], ct);
-                    dict[prop.Name] = resolved.ValueKind != JsonValueKind.Undefined ? resolved : val.Clone();
+                    if (resolved.ValueKind == JsonValueKind.Undefined) return val.Clone();
+                    // Заходим внутрь записи каталога — её собственные ссылки тоже разворачиваем.
+                    return await ResolveObjectRefsAsync(resolved, documentSetId, ct, depth + 1);
                 }
-                else if (refType == "instance"
+                if (refType == "instance"
                     && val.TryGetProperty("instanceId", out var instIdProp)
                     && Guid.TryParse(instIdProp.GetString(), out var instId))
                 {
+                    // Экземпляр разворачивается своей логикой (с защитой от циклов), глубже не идём.
                     var resolved = await ResolveDocumentInstanceAsync(instId, documentSetId, ct);
-                    dict[prop.Name] = resolved.ValueKind != JsonValueKind.Undefined ? resolved : val.Clone();
+                    return resolved.ValueKind != JsonValueKind.Undefined ? resolved : val.Clone();
                 }
-                else
-                {
-                    dict[prop.Name] = val.Clone();
-                }
+                return val.Clone();
             }
-            else
-            {
-                dict[prop.Name] = val.Clone();
-            }
+            // Обычный вложенный объект — рекурсивно обходим его свойства.
+            return await ResolveObjectRefsAsync(val, documentSetId, ct, depth + 1);
         }
-        return JsonSerializer.SerializeToElement(dict);
+
+        if (val.ValueKind == JsonValueKind.Array)
+        {
+            var list = new List<JsonElement>();
+            foreach (var item in val.EnumerateArray())
+                list.Add(await ResolveNodeAsync(item, documentSetId, ct, depth + 1));
+            return JsonSerializer.SerializeToElement(list);
+        }
+
+        return val.Clone();
     }
 
     /// <summary>

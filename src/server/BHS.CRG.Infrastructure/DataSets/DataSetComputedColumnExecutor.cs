@@ -1,7 +1,6 @@
 using System.Text;
 using System.Text.Json;
-using Scriban;
-using Scriban.Runtime;
+using Jint;
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
@@ -26,18 +25,29 @@ public static class DataSetComputedColumnExecutor
             if (string.IsNullOrWhiteSpace(def.Alias) || string.IsNullOrWhiteSpace(def.Expr))
                 continue;
 
-            var tmpl = Template.Parse(def.Expr);
-            if (tmpl.HasErrors) continue;
-
             rows = rows.Select(row =>
             {
                 var dict = new Dictionary<string, string?>(row);
-                var so = new ScriptObject();
-                foreach (var (col, val) in dict)
-                    so.SetValue(SanitizeKey(col), val ?? "", readOnly: true);
-                var ctx = new TemplateContext { LoopLimit = 100, RecursiveLimit = 10 };
-                ctx.PushGlobal(so);
-                dict[def.Alias] = tmpl.Render(ctx);
+
+                try
+                {
+                    var engine = new Engine(cfg => cfg
+                        .TimeoutInterval(TimeSpan.FromSeconds(1))
+                        .LimitRecursion(32));
+
+                    foreach (var (col, val) in dict)
+                        engine.SetValue(SanitizeKey(col), val ?? "");
+
+                    var result = engine.Evaluate(def.Expr);
+                    dict[def.Alias] = result.IsNull() || result.IsUndefined()
+                        ? null
+                        : result.ToString();
+                }
+                catch
+                {
+                    dict[def.Alias] = null;
+                }
+
                 return (IReadOnlyDictionary<string, string?>)dict;
             }).ToList();
         }
@@ -45,8 +55,8 @@ public static class DataSetComputedColumnExecutor
         return rows;
     }
 
-    // Converts column name to a valid Scriban identifier.
-    // Replaces all non-letter/non-digit chars with underscore; prepends underscore if starts with digit.
+    // Column names with spaces/special chars become underscores so they are valid JS identifiers.
+    // E.g. "Полное Имя" → "Полное_Имя". Cyrillic letters are valid JS identifiers natively.
     static string SanitizeKey(string s)
     {
         if (string.IsNullOrEmpty(s)) return "col";

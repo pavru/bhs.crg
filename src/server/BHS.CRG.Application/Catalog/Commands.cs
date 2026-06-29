@@ -23,11 +23,13 @@ public record ListCatalogEntitiesQuery(string? EntityType, Guid? OwnerId) : IReq
 public record ListPrimitiveTypesQuery : IRequest<IReadOnlyList<PrimitiveType>>;
 
 public record CreatePrimitiveTypeCommand(
-    string Name, string Code, string BaseType, string? Description, JsonDocument Constraints
+    string Name, string Code, string BaseType, string? Description, JsonDocument Constraints,
+    IReadOnlyList<string>? AllowedTags = null
 ) : IRequest<PrimitiveType>;
 
 public record UpdatePrimitiveTypeCommand(
-    Guid Id, string Name, string Code, string? Description, JsonDocument Constraints
+    Guid Id, string Name, string Code, string? Description, JsonDocument Constraints,
+    IReadOnlyList<string>? AllowedTags = null
 ) : IRequest<PrimitiveType>;
 
 public record DeletePrimitiveTypeCommand(Guid Id) : IRequest;

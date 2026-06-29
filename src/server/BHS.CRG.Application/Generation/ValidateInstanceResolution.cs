@@ -1,0 +1,32 @@
+using BHS.CRG.Application.Common;
+using BHS.CRG.Domain.Documents;
+using MediatR;
+
+namespace BHS.CRG.Application.Generation;
+
+/// <summary>
+/// Прогоняет полный цикл разрешения ссылок для экземпляра (как при генерации),
+/// но вместо генерации возвращает собранную диагностику. Используется для проверки
+/// «по требованию» из UI.
+/// </summary>
+public record ValidateInstanceResolutionQuery(Guid InstanceId) : IRequest<IReadOnlyList<ResolutionDiagnostic>>;
+
+public class ValidateInstanceResolutionHandler(
+    IRepository<DocumentInstance> instanceRepo,
+    IEntityResolver entityResolver,
+    IDataSetResolver dataSetResolver
+) : IRequestHandler<ValidateInstanceResolutionQuery, IReadOnlyList<ResolutionDiagnostic>>
+{
+    public async Task<IReadOnlyList<ResolutionDiagnostic>> Handle(ValidateInstanceResolutionQuery q, CancellationToken ct)
+    {
+        var instance = await instanceRepo.GetByIdAsync(q.InstanceId, ct)
+            ?? throw new KeyNotFoundException($"DocumentInstance {q.InstanceId} not found");
+
+        var diagnostics = new List<ResolutionDiagnostic>();
+        var context = await entityResolver.ResolveAsync(instance, ct);
+        await dataSetResolver.InjectAsync(context, instance, diagnostics, ct);
+        await entityResolver.ResolveContextRefsAsync(context, instance.DocumentSetId, ct);
+        ResolutionScanner.ScanLeftoverRefs(context, diagnostics);
+        return diagnostics;
+    }
+}

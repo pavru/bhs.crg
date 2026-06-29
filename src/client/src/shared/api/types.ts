@@ -160,6 +160,8 @@ export interface PrimitiveTypeDef {
   baseType: 'string' | 'number' | 'date';
   description?: string;
   constraints: FieldConstraints;
+  /** Коды функциональных тэгов, применимых к полям этого типа. */
+  allowedTags: string[];
   createdAt: string;
   updatedAt: string;
 }

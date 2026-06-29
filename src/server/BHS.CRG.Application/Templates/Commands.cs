@@ -5,6 +5,7 @@ namespace BHS.CRG.Application.Templates;
 
 public record CreateTemplateCommand(Guid DocumentTypeId, string Name, string Content) : IRequest<Template>;
 public record UpdateTemplateCommand(Guid Id, string Content) : IRequest<Template>;
+public record DuplicateTemplateCommand(Guid Id, string? NewName) : IRequest<Template>;
 public record DeleteTemplateCommand(Guid Id) : IRequest;
 public record GetActiveTemplateQuery(Guid DocumentTypeId) : IRequest<Template?>;
 public record ListTemplatesQuery(Guid DocumentTypeId) : IRequest<IReadOnlyList<Template>>;

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Plus, ChevronDown, ChevronUp, Trash2,
-  Braces, Ban, RotateCcw, Layers, Code, Database,
+  Braces, Ban, RotateCcw, Layers, Code, Database, Cpu,
 } from 'lucide-react';
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
 import { Modal } from '@/shared/ui/Modal';
@@ -25,6 +25,7 @@ import {
 } from '@/shared/api/schema';
 import { TypstRendersEditor } from './TypstRendersEditor';
 import { schemaToJson, validateFields, TYPE_LABELS } from './schemaConstants';
+import { useTagRegistry, typeTags as typeTagDefs } from '@/shared/api/tags';
 import { GroupEditor } from './GroupEditor';
 import { JsonPreview, FieldBuilder, DefaultValueCell } from './FieldBuilder';
 
@@ -259,7 +260,8 @@ function CreateForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5">
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-fg2 mb-1">Наименование</label>
@@ -344,7 +346,8 @@ function CreateForm({
       </div>
 
       {error && <p className="text-sm text-danger">{error}</p>}
-      <div className="flex justify-end gap-3 pt-1">
+      </div>
+      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-3">
         <button type="button" onClick={onClose}
           className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">
           Отмена
@@ -373,6 +376,9 @@ function SchemaEditor({ docType, allDocTypes }: {
     () => schemaDef.fieldOverrides ?? {},
   );
   const [typstRenders, setTypstRenders] = useState<TypstRender[]>(() => schemaDef.typstRenders ?? []);
+  const [docTypeTags, setDocTypeTags] = useState<string[]>(() => schemaDef.tags ?? []);
+  const { data: tagRegistry } = useTagRegistry();
+  const applicableTypeTags = typeTagDefs(tagRegistry, docType.kind);
   const [showJson, setShowJson] = useState(false);
   const [showGroups, setShowGroups] = useState(groups.length > 0);
   const [showTypstRenders, setShowTypstRenders] = useState(typstRenders.length > 0);
@@ -433,7 +439,7 @@ function SchemaEditor({ docType, allDocTypes }: {
     if (crossDup) { setError(`Имя функции "${crossDup}" уже используется в другом типе`); return; }
 
     try {
-      await mutation.mutateAsync({ id: docType.id, schema: schemaToJson(fields, excludedFields, fieldOverrides, groups, typstRenders) });
+      await mutation.mutateAsync({ id: docType.id, schema: schemaToJson(fields, excludedFields, fieldOverrides, groups, typstRenders, docTypeTags) });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err: unknown) {
@@ -511,6 +517,32 @@ function SchemaEditor({ docType, allDocTypes }: {
         </div>
       )}
 
+      {!showJson && applicableTypeTags.length > 0 && (
+        <div className="border-t border-stroke pt-4">
+          <div className="flex items-center gap-2 mb-2 text-xs font-medium text-fg3 uppercase tracking-wide">
+            <Cpu size={12} /> Функциональные тэги типа
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {applicableTypeTags.map(t => {
+              const on = docTypeTags.includes(t.code);
+              return (
+                <button
+                  key={t.code}
+                  type="button"
+                  title={t.description}
+                  onClick={() => { setDocTypeTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code]); setSaved(false); }}
+                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                    on ? 'bg-purple-500/15 border-purple-400 text-purple-700' : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {!showJson && (docType.kind === 'Composite' || docType.kind === 'Document') && (
         <div className="border-t border-stroke pt-4">
           <button type="button"
@@ -581,44 +613,45 @@ function TypeRow({ docType, allDocTypes, expanded, onToggle }: {
     deleteMutation.mutate(docType.id);
   }
 
+  const requiredCount = effectiveFields.filter(f => f.required).length;
+  const complexFields = effectiveFields.filter(f => f.type === 'complex');
+
   return (
-    <div className="border border-stroke rounded-lg overflow-hidden group">
-      <div className="flex items-center bg-surface hover:bg-base transition-colors">
+    <div className={`overflow-hidden group ${expanded ? 'bg-base' : ''}`}>
+      <div className="flex items-center hover:bg-base transition-colors">
         <button onClick={onToggle}
-          className="flex-1 flex items-center justify-between px-4 py-3 text-left">
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-medium text-fg1">{docType.name}</span>
-            <span className="text-xs text-fg4 font-mono">{docType.code}</span>
-            {docType.isAbstract && (
-              <span className="text-xs bg-orange-50 text-orange-600 border border-orange-200 px-2 py-0.5 rounded-full">
-                абстрактный
-              </span>
-            )}
-            {parentType && (
-              <span className="text-xs bg-brand-subtle text-brand px-2 py-0.5 rounded-full">
-                ↑ {parentType.name}
-              </span>
-            )}
-            {effectiveFields.length > 0 && (
-              <span className="text-xs text-fg4">
-                {effectiveFields.length} {effectiveFields.length < 5 ? 'поля' : 'полей'}
-                {parentType && ownFieldCount > 0 && ` (+${ownFieldCount} своих)`}
-              </span>
-            )}
-            {effectiveFields.filter(f => f.required).length > 0 && (
-              <span className="text-xs text-danger">
-                {effectiveFields.filter(f => f.required).length} обяз.
-              </span>
-            )}
-            {effectiveFields.some(f => f.type === 'complex') && (
-              <span className="text-xs text-purple-500">
-                {effectiveFields.filter(f => f.type === 'complex').map(f => getFieldTypeLabel(f)).join(', ')}
-              </span>
-            )}
-          </div>
+          className="flex-1 min-w-0 flex items-center gap-2 px-4 py-2.5 text-left">
           {expanded
-            ? <ChevronUp size={16} className="text-fg4 shrink-0" />
-            : <ChevronDown size={16} className="text-fg4 shrink-0" />}
+            ? <ChevronUp size={15} className="text-fg4 shrink-0" />
+            : <ChevronDown size={15} className="text-fg4 shrink-0" />}
+          <span className="text-sm font-medium text-fg1 shrink-0">{docType.name}</span>
+          <span className="text-xs text-fg4 font-mono shrink-0">{docType.code}</span>
+          {docType.isAbstract && (
+            <span className="text-[11px] bg-orange-50 text-orange-600 border border-orange-200 px-1.5 py-0.5 rounded-full shrink-0">
+              абстрактный
+            </span>
+          )}
+          {parentType && (
+            <span className="text-[11px] bg-brand-subtle text-brand px-1.5 py-0.5 rounded-full shrink-0 truncate max-w-[160px]">
+              ↑ {parentType.name}
+            </span>
+          )}
+          <span className="flex-1" />
+          {effectiveFields.length > 0 && (
+            <span className="text-xs text-fg4 shrink-0">
+              {effectiveFields.length} {effectiveFields.length < 5 ? 'поля' : 'полей'}
+              {parentType && ownFieldCount > 0 && ` (+${ownFieldCount})`}
+            </span>
+          )}
+          {requiredCount > 0 && (
+            <span className="text-xs text-danger shrink-0">{requiredCount} обяз.</span>
+          )}
+          {complexFields.length > 0 && (
+            <span className="text-xs text-purple-500 shrink-0"
+              title={complexFields.map(f => getFieldTypeLabel(f)).join(', ')}>
+              {complexFields.length} сост.
+            </span>
+          )}
         </button>
         {docType.kind === 'Document' && (
           <>
@@ -688,12 +721,12 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="px-6 py-4">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-fg1">{title}</h1>
+          <h1 className="text-xl font-semibold text-fg1">{title}</h1>
           {kind === 'Composite' && (
-            <p className="text-sm text-fg3 mt-0.5">
+            <p className="text-xs text-fg3 mt-0.5">
               Переиспользуемые структуры полей для использования внутри типов документов
             </p>
           )}
@@ -711,7 +744,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
           {kind === 'Document' ? 'Типов документов не создано' : 'Составных типов не создано'}
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="border border-stroke rounded-lg divide-y divide-stroke overflow-hidden">
           {filtered.map(dt => (
             <TypeRow key={dt.id} docType={dt} allDocTypes={allDocTypes}
               expanded={expandedId === dt.id} onToggle={() => toggleExpanded(dt.id)} />
@@ -721,7 +754,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
 
       <Modal open={createOpen} onOpenChange={setCreateOpen}
         title={kind === 'Document' ? 'Новый тип документа' : 'Новый составной тип'}
-        wide>
+        wide flushBody>
         {createOpen && (
           <CreateForm kind={kind} onClose={() => setCreateOpen(false)} allDocTypes={allDocTypes} />
         )}

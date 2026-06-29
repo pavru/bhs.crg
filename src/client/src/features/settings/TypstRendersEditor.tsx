@@ -109,6 +109,18 @@ function TypstBlockDialog({ render, onSave, onClose }: {
       title={render.name || 'Typst-блок'}
       extraWide
       isDirty={isDirty}
+      footer={
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 text-sm text-fg2 hover:text-fg1 border border-stroke-strong rounded-md transition-colors">
+            Отмена
+          </button>
+          <button type="button" onClick={() => { onSave(draft); onClose(); }}
+            className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors">
+            Применить
+          </button>
+        </div>
+      }
     >
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">
@@ -169,16 +181,6 @@ function TypstBlockDialog({ render, onSave, onClose }: {
           </p>
         )}
 
-        <div className="flex justify-end gap-2 pt-1 border-t border-muted">
-          <button type="button" onClick={onClose}
-            className="px-4 py-2 text-sm text-fg2 hover:text-fg1 border border-stroke-strong rounded-md transition-colors">
-            Отмена
-          </button>
-          <button type="button" onClick={() => { onSave(draft); onClose(); }}
-            className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors">
-            Применить
-          </button>
-        </div>
       </div>
     </Modal>
   );

@@ -134,7 +134,8 @@ function EntryForm({
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
       <div>
         <label className="block text-sm font-medium text-fg2 mb-1">Наименование</label>
         <input value={displayName} onChange={e => setDisplayName(e.target.value)} required autoFocus
@@ -232,7 +233,8 @@ function EntryForm({
       )}
 
       {error && <p className="text-sm text-danger">{error}</p>}
-      <div className="flex justify-end gap-3 pt-1">
+      </div>
+      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-3">
         <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
         <button type="submit" disabled={isPending}
           className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
@@ -281,11 +283,11 @@ export function SystemCommonDataPage() {
   const noType = filtered.filter(e => !allSelectableTypes.find(t => t.id === e.compositeTypeId));
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="px-6 py-4 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-fg1">Системный каталог</h1>
-          <p className="text-sm text-fg3 mt-0.5">Общие данные, доступные во всех проектах (приоритет 5)</p>
+          <h1 className="text-xl font-semibold text-fg1">Системный каталог</h1>
+          <p className="text-xs text-fg3 mt-0.5">Общие данные, доступные во всех проектах (приоритет 5)</p>
         </div>
         <button onClick={() => setAddOpen(true)}
           className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
@@ -411,12 +413,12 @@ export function SystemCommonDataPage() {
         </div>
       )}
 
-      <Modal open={addOpen} onOpenChange={setAddOpen} title="Новая запись" wide>
+      <Modal open={addOpen} onOpenChange={setAddOpen} title="Новая запись" wide flushBody>
         {addOpen && (
           <EntryForm entry={null} compositeTypes={compositeTypes} documentTypes={documentTypes} allDocTypes={allDocTypes} onClose={() => setAddOpen(false)} />
         )}
       </Modal>
-      <Modal open={!!editEntry} onOpenChange={o => { if (!o) setEditEntry(null); }} title="Редактировать запись" wide>
+      <Modal open={!!editEntry} onOpenChange={o => { if (!o) setEditEntry(null); }} title="Редактировать запись" wide flushBody>
         {editEntry && (
           <EntryForm entry={editEntry} compositeTypes={compositeTypes} documentTypes={documentTypes} allDocTypes={allDocTypes} onClose={() => setEditEntry(null)} />
         )}

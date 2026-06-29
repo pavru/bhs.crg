@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Library } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
-import { useListTemplates, useCreateTemplate, useDeleteTemplate } from '@/shared/api/templates';
+import { useListTemplates, useCreateTemplate, useDeleteTemplate, useDuplicateTemplate } from '@/shared/api/templates';
 import type { Template, DocumentType } from '@/shared/api/types';
 import { useMaxTemplateVersions } from '@/features/settings/SettingsPage';
 import { buildBlankTypst } from './templateBlank';
@@ -38,17 +38,19 @@ function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose, onCrea
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-fg2 mb-1">Название шаблона</label>
-        <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus
-          className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
+    <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-fg2 mb-1">Название шаблона</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus
+            className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
+        </div>
+        <p className="text-xs text-fg4">
+          Будет создан Typst-шаблон с колонтитулами, нумерацией страниц и списком всех реквизитов типа документа.
+        </p>
+        {error && <p className="text-sm text-danger">{error}</p>}
       </div>
-      <p className="text-xs text-fg4">
-        Будет создан Typst-шаблон с колонтитулами, нумерацией страниц и списком всех реквизитов типа документа.
-      </p>
-      {error && <p className="text-sm text-danger">{error}</p>}
-      <div className="flex justify-end gap-3 pt-2">
+      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-3">
         <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
         <button type="submit" disabled={mutation.isPending}
           className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
@@ -74,6 +76,7 @@ export function TemplatesPage() {
   const { data: docTypes = [] } = useListDocumentTypes();
   const { data: templates = [], isLoading: templatesLoading } = useListTemplates(selectedTypeId || undefined);
   const deleteMutation = useDeleteTemplate();
+  const duplicateMutation = useDuplicateTemplate();
 
   const selectedDocType = docTypes.find(dt => dt.id === selectedTypeId) ?? null;
   const groups = groupTemplates(templates);
@@ -107,6 +110,14 @@ export function TemplatesPage() {
     for (const t of group.versions) {
       deleteMutation.mutate({ id: t.id, documentTypeId: t.documentTypeId });
     }
+  }
+
+  async function handleDuplicateGroup(group: TemplateGroup) {
+    // Источник — активная (или последняя) версия группы.
+    const source = group.versions.find(t => t.isActive) ?? group.versions[0];
+    if (!source) return;
+    const created = await duplicateMutation.mutateAsync({ id: source.id, documentTypeId: source.documentTypeId });
+    setSelectedTemplate(created);
   }
 
   function handleCleanupDeleted(deletedIds: Set<string>) {
@@ -169,13 +180,13 @@ export function TemplatesPage() {
             onNew={() => setNewModalOpen(true)}
             onDelete={handleDelete}
             onDeleteGroup={handleDeleteGroup}
+            onDuplicate={handleDuplicateGroup}
             onCleanup={setCleanupGroup}
           />
 
           <div className="flex-1 overflow-hidden">
             {selectedTemplate && selectedDocType ? (
               <EditorPanel
-                key={selectedTemplate.id}
                 template={selectedTemplate}
                 docType={selectedDocType}
                 allDocTypes={docTypes}
@@ -190,7 +201,7 @@ export function TemplatesPage() {
         </div>
       )}
 
-      <Modal open={newModalOpen} onOpenChange={setNewModalOpen} title="Новый шаблон">
+      <Modal open={newModalOpen} onOpenChange={setNewModalOpen} title="Новый шаблон" flushBody>
         {newModalOpen && selectedTypeId && selectedDocType && (
           <NewTemplateForm
             documentTypeId={selectedTypeId}
