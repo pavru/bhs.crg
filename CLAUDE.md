@@ -17,13 +17,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Слой | Технология |
 |---|---|
-| Frontend | React 19 + TypeScript, TipTap v3, Radix UI, Tailwind v4, React Query |
+| Frontend | React 19 + TypeScript, Radix UI, Tailwind v4, React Query, Monaco (редактор Typst-шаблонов) |
 | Backend | ASP.NET Core 10 (Minimal APIs), EF Core 10 (Npgsql), MediatR, SignalR |
-| Auth | ASP.NET Identity + JWT (без SSO / корп. интеграций) |
+| Auth | ASP.NET Identity + JWT, роли Admin/User (без SSO / корп. интеграций) |
 | БД | PostgreSQL 16 |
 | Blob-хранилище | MinIO (self-hosted) |
-| PDF | Playwright (.NET headless Chromium) |
-| DOCX | LibreOffice headless |
+| PDF | **Typst** (CLI, env `TYPST_PATH`). DOCX **не поддерживается** |
+| Распознавание/поиск | Ollama / Anthropic / Gemini (распознавание сканов), Serper / Yandex (веб-поиск) — для документов качества |
 | Скриптовой движок | Jint (JavaScript — вычисляемые колонки DataSet) |
 | Плагины | .NET AssemblyLoadContext + HTTP-плагины |
 
@@ -36,14 +36,14 @@ src/
     BHS.CRG.Api/          — ASP.NET Core Minimal API (точка входа)
     BHS.CRG.Application/  — MediatR команды/запросы, интерфейсы (IBlobStorage, IRepository)
     BHS.CRG.Domain/       — доменные сущности (чистый C#, без зависимостей)
-    BHS.CRG.Infrastructure/ — EF Core, MinIO, Playwright, LibreOffice, плагины
+    BHS.CRG.Infrastructure/ — EF Core, MinIO, Typst-генерация, распознавание/поиск, плагины
     BHS.CRG.Plugins/      — контракты плагинов (IDataSourcePlugin)
   client/
     package.json          — React SPA (Vite + Tailwind v4)
     src/
       features/
         catalog/          — управление каталогом сущностей + LoginPage
-        templates/        — редактор шаблонов (TipTap)
+        templates/        — редактор Typst-шаблонов (Monaco) + библиотека Typst
         document-sets/    — комплекты документов + генерация
         settings/         — типы документов, SettingsPage
       shared/
@@ -91,6 +91,14 @@ cd src/client && npm test
 > наследование схем (`resolveEffectiveFields`), группировку полей, дерево фильтров
 > и хелперы наборов данных (frontend).
 
+### Документация и развёртывание
+
+- `docs/` — инструкции (Markdown + PDF): `DEPLOYMENT.md`, `USER_GUIDE.md`, `ADMIN_GUIDE.md`
+  (индекс — `docs/README.md`). Сборка PDF: `docs/tools/` (`npm run pdf`).
+- `deploy/` — Docker Compose на весь стек (postgres, minio, ollama, api, web) + Dockerfile'ы
+  и `.env.example`. Запуск: `cp deploy/.env.example deploy/.env` → `docker compose -f deploy/docker-compose.yml up -d --build`.
+  Образ `api` включает **Typst CLI**.
+
 ### Статус первой версии
 
 Первая версия полностью реализована (backend + frontend + EF-миграция):
@@ -100,11 +108,12 @@ cd src/client && npm test
 | Auth (регистрация/вход, JWT) | ✅ |
 | Каталог сущностей (CRUD) | ✅ |
 | Типы документов (CRUD + схема) | ✅ |
-| Шаблоны (TipTap editor + версионирование) | ✅ |
+| Шаблоны (Monaco/Typst + версионирование) | ✅ |
 | Комплекты документов (CRUD + состав) | ✅ |
 | Реквизиты и связи документа | ✅ |
-| Генерация PDF / DOCX | ✅ |
-| EF Core migration (InitialCreate) | ✅ |
+| Генерация PDF (Typst) | ✅ |
+| Документы качества, тэги, уведомления, интеграции, роли | ✅ |
+| EF Core migrations | ✅ |
 
 ### REST API
 
@@ -122,8 +131,9 @@ POST   /api/document-types          { name, code, schema: string(JSON) }
 PUT    /api/document-types/{id}/schema  { schema: string(JSON) }
 
 GET    /api/templates?documentTypeId=
-POST   /api/templates               { documentTypeId, name, htmlContent }
-PUT    /api/templates/{id}          { htmlContent }  — создаёт новую версию
+POST   /api/templates               { documentTypeId, name, content }      — content = Typst
+PUT    /api/templates/{id}          { content }  — создаёт новую версию
+                                    (запись типов/полей/шаблонов/настроек — только роль Admin)
 
 GET    /api/document-sets
 GET    /api/document-sets/{id}      → DocumentSet (с instances[].generatedFiles[])
@@ -136,7 +146,7 @@ PUT    /api/document-sets/{setId}/documents/{id}/requisites   body = JSON object
 PUT    /api/document-sets/{setId}/documents/{id}/entity-refs  body = JSON object
 PUT    /api/document-sets/{setId}/documents/{id}/plugin-data  body = JSON object
 
-POST   /api/generate/{instanceId}   { format: "Pdf"|"Docx" }
+POST   /api/generate/{instanceId}   { format: "Pdf" }   (DOCX не поддерживается)
 GET    /api/generate/download/{instanceId}/{format}
 GET    /api/generate/debug-bundle/{instanceId}  → ZIP (template.typ + data.json + typeblocks.typ + userlib.typ) для отладки шаблона во внешнем Typst
 GET    /api/generate/plugins
@@ -150,8 +160,11 @@ WS     /hubs/generation             (SignalR, auth via ?access_token=)
 
 #### Два режима работы
 
-1. **Настройка** (роль Admin): типы документов (JSON Schema полей), HTML-шаблоны (TipTap), привязки плагинов.
-2. **Генерация** (роль User): создаёт `DocumentSet` (комплект), заполняет реквизиты, связывает с сущностями каталога, импортирует из плагинов → получает PDF или DOCX.
+1. **Настройка** (роль Admin): типы документов (схема полей), Typst-шаблоны, привязки наборов данных/плагинов, пользователи, настройки.
+2. **Генерация** (роль User): создаёт `DocumentSet` (комплект), заполняет реквизиты, связывает с сущностями каталога, подключает наборы данных и документы качества → получает PDF.
+
+Роли разграничены и в UI (раздел «Настройка системы» — только Admin), и в API
+(запись конфигурации защищена политикой `Admin`). См. память `project-roles-users`.
 
 #### Пайплайн генерации документа
 
@@ -161,38 +174,36 @@ DocumentInstance (реквизиты JSON + ссылки на сущности)
     ▼ EntityResolver (C#-аналог ref/merge из старой XSL-системы)
     │   подмешивает данные Organization/Person/etc. из EntityCatalog
     ▼
-GenerationContext (единый плоский/вложенный JSON)
+    ▼ DataSetResolver / QualityLinkResolver
+    │   подмешивают наборы данных и документы качества (по функциональным тэгам)
+    ▼
+GenerationContext (единый JSON-контекст)
     │
-    ▼ ScribanRenderer → HTML (с заполненными полями и раскрытыми repeat-блоками)
-    │
-    ├──► Playwright → PDF
-    └──► LibreOffice headless → DOCX
+    ▼ TypstGenerator: контекст → data.json; шаблон + typeblocks.typ + userlib.typ
+    │   компилируются Typst CLI (env TYPST_PATH)
+    ▼
+PDF
 ```
 
 #### Ключевой паттерн шаблона
 
-Шаблон хранится как HTML с data-атрибутами:
+Шаблон хранится как **Typst-документ** (поле `Template.Content`). При генерации во
+временной папке создаются файлы:
 
-```html
-<!-- Скалярное поле -->
-<span data-field="Подрядчик.Наименование.Краткое">{{ Подрядчик.Наименование.Краткое }}</span>
+- `data.json` — контекст генерации (реквизиты + подмешанные данные);
+- `typeblocks.typ` — авто-сгенерированные Typst-функции отображения составных типов;
+- `userlib.typ` — общая библиотека Typst (Typst User Lib, редактируется админом);
+- картинки из data-URI материализуются в файлы (`TypstImageMaterializer`).
 
-<!-- Повторяющийся блок (таблица материалов, строки кабельного журнала) -->
-<tr data-repeat="Материалы">
-  <td data-field="ПорядковыйНомер">{{ ПорядковыйНомер }}</td>
-  <td data-field="Наименование">{{ Наименование }}</td>
-  <td data-field="Количество">{{ Количество }}</td>
-</tr>
-```
-
-Разрыв страниц и поля печати задаются через CSS `@page`.
+Шаблон обращается к данным через JSON и переиспользуемые функции. Отладка — через
+`GET /api/generate/debug-bundle/{instanceId}` (ZIP со всеми этими файлами) во внешнем Typst.
 
 #### Модель данных (PostgreSQL)
 
 ```
 EntityCatalog: Organization, Person, ConstructionObject, Project  — JSONB data
 DocumentType: id, name, schema JSONB, pluginBindings JSONB
-Template: id, documentTypeId, htmlContent TEXT, version
+Template: id, documentTypeId, content TEXT (Typst), version
 DocumentSet: id, projectId, name
 DocumentInstance: id, documentSetId, documentTypeId,
                   requisites JSONB, entityRefs JSONB, pluginData JSONB
