@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { DateInput } from '@/shared/ui/DateInput';
 import {
@@ -147,14 +147,15 @@ function ConstraintEditor({ baseType, constraints, onChange }: ConstraintEditorP
   );
 }
 
-// ─── Edit modal ───────────────────────────────────────────────────────────────
+// ─── Type form (инлайн для редактирования строки, в модалке для создания) ─────
 
-interface EditModalProps {
+interface TypeFormProps {
   initial?: PrimitiveTypeDef;
-  onClose: () => void;
+  onSaved: () => void;
+  onCancel: () => void;
 }
 
-function EditModal({ initial, onClose }: EditModalProps) {
+function TypeForm({ initial, onSaved, onCancel }: TypeFormProps) {
   const [name, setName] = useState(initial?.name ?? '');
   const [code, setCode] = useState(initial?.code ?? '');
   const [baseType, setBaseType] = useState<'string' | 'number' | 'date'>(initial?.baseType ?? 'string');
@@ -185,7 +186,7 @@ function EditModal({ initial, onClose }: EditModalProps) {
     try {
       if (initial) await update.mutateAsync(dto);
       else await create.mutateAsync(dto);
-      onClose();
+      onSaved();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Ошибка сохранения');
     }
@@ -194,116 +195,106 @@ function EditModal({ initial, onClose }: EditModalProps) {
   const isPending = create.isPending || update.isPending;
 
   return (
-    <Modal open onOpenChange={open => { if (!open) onClose(); }} title={initial ? 'Редактировать тип' : 'Новый тип поля'}
-      footer={
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-base text-fg2 hover:bg-muted"
-          >
-            Отмена
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isPending}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-50"
-          >
-            {isPending ? 'Сохранение…' : 'Сохранить'}
-          </button>
-        </div>
-      }>
-      <div className="space-y-4 min-w-[480px]">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-fg1 mb-1">Название</label>
-            <input
-              type="text"
-              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
-              placeholder="Email"
-              value={name}
-              onChange={e => setName(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-fg1 mb-1">Код</label>
-            <input
-              type="text"
-              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm font-mono"
-              placeholder="email"
-              value={code}
-              onChange={e => setCode(e.target.value)}
-              disabled={!!initial}
-            />
-          </div>
-        </div>
-
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium text-fg1 mb-1">Базовый тип</label>
-          <div className="flex gap-2">
-            {BASE_TYPES.map(bt => (
-              <button
-                key={bt.value}
-                type="button"
-                onClick={() => handleBaseTypeChange(bt.value)}
-                disabled={!!initial}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  baseType === bt.value
-                    ? 'bg-brand text-white'
-                    : 'bg-base text-fg2 hover:bg-muted'
-                } disabled:opacity-50`}
-              >
-                {bt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-fg1 mb-1">Описание</label>
+          <label className="block text-sm font-medium text-fg1 mb-1">Название</label>
           <input
             type="text"
             className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
-            placeholder="Необязательное описание типа"
-            value={description}
-            onChange={e => setDescription(e.target.value)}
+            placeholder="Email"
+            value={name}
+            onChange={e => setName(e.target.value)}
           />
         </div>
-
-        <div className="border-t border-stroke pt-3">
-          <p className="text-sm font-medium text-fg1 mb-3">Ограничения</p>
-          <ConstraintEditor baseType={baseType} constraints={constraints} onChange={setConstraints} />
+        <div>
+          <label className="block text-sm font-medium text-fg1 mb-1">Код</label>
+          <input
+            type="text"
+            className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm font-mono"
+            placeholder="email"
+            value={code}
+            onChange={e => setCode(e.target.value)}
+            disabled={!!initial}
+          />
         </div>
-
-        <div className="border-t border-stroke pt-3">
-          <p className="text-sm font-medium text-fg1 mb-1">Применимые функциональные тэги</p>
-          <p className="text-xs text-fg3 mb-2">
-            Какие функциональные тэги можно назначить полям этого типа (показываются в редакторе схемы).
-          </p>
-          {applicableTags.length === 0 ? (
-            <p className="text-xs text-fg4">Для базового типа «{baseType}» подходящих тэгов нет.</p>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {applicableTags.map(t => {
-                const on = allowedTags.includes(t.code);
-                return (
-                  <button key={t.code} type="button" title={t.description}
-                    onClick={() => setAllowedTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code])}
-                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                      on ? 'bg-purple-500/15 border-purple-400 text-purple-700' : 'border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1'
-                    }`}>
-                    {t.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {error && <p className="text-sm text-danger">{error}</p>}
       </div>
-    </Modal>
+
+      <div>
+        <label className="block text-sm font-medium text-fg1 mb-1">Базовый тип</label>
+        <div className="flex gap-2">
+          {BASE_TYPES.map(bt => (
+            <button
+              key={bt.value}
+              type="button"
+              onClick={() => handleBaseTypeChange(bt.value)}
+              disabled={!!initial}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                baseType === bt.value
+                  ? 'bg-brand text-white'
+                  : 'bg-base text-fg2 hover:bg-muted'
+              } disabled:opacity-50`}
+            >
+              {bt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-fg1 mb-1">Описание</label>
+        <input
+          type="text"
+          className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
+          placeholder="Необязательное описание типа"
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+        />
+      </div>
+
+      <div className="border-t border-stroke pt-3">
+        <p className="text-sm font-medium text-fg1 mb-3">Ограничения</p>
+        <ConstraintEditor baseType={baseType} constraints={constraints} onChange={setConstraints} />
+      </div>
+
+      <div className="border-t border-stroke pt-3">
+        <p className="text-sm font-medium text-fg1 mb-1">Применимые функциональные тэги</p>
+        <p className="text-xs text-fg3 mb-2">
+          Какие функциональные тэги можно назначить полям этого типа (показываются в редакторе схемы).
+        </p>
+        {applicableTags.length === 0 ? (
+          <p className="text-xs text-fg4">Для базового типа «{baseType}» подходящих тэгов нет.</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {applicableTags.map(t => {
+              const on = allowedTags.includes(t.code);
+              return (
+                <button key={t.code} type="button" title={t.description}
+                  onClick={() => setAllowedTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code])}
+                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                    on ? 'bg-purple-500/15 border-purple-400 text-purple-700' : 'border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1'
+                  }`}>
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {error && <p className="text-sm text-danger">{error}</p>}
+
+      <div className="flex justify-end gap-2 border-t border-stroke pt-3">
+        <button type="button" onClick={onCancel}
+          className="px-4 py-2 rounded-lg text-sm font-medium bg-base text-fg2 hover:bg-muted">
+          Отмена
+        </button>
+        <button type="button" onClick={handleSave} disabled={isPending}
+          className="px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-50">
+          {isPending ? 'Сохранение…' : 'Сохранить'}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -327,115 +318,65 @@ function ConstraintSummary({ baseType, c }: { baseType: string; c: FieldConstrai
   return <span>{parts.join(', ')}</span>;
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Row ──────────────────────────────────────────────────────────────────────
 
-export function PrimitiveTypesPage() {
-  const { data: types = [], isLoading } = useListPrimitiveTypes();
-  const deleteMut = useDeletePrimitiveType();
-  const [editing, setEditing] = useState<PrimitiveTypeDef | null | 'new'>(null);
-  const [confirmDelete, setConfirmDelete] = useState<PrimitiveTypeDef | null>(null);
+const BASE_TYPE_LABEL: Record<string, string> = { string: 'Строка', number: 'Число', date: 'Дата' };
 
-  const baseTypeLabel: Record<string, string> = { string: 'Строка', number: 'Число', date: 'Дата' };
+function FieldTypeRow({ type, expanded, onToggle }: {
+  type: PrimitiveTypeDef; expanded: boolean; onToggle: () => void;
+}) {
+  const deleteMutation = useDeletePrimitiveType();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation();
+    setConfirmDelete(true);
+  }
 
   return (
-    <div className="px-6 py-4 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl font-semibold text-fg1">Типы полей</h1>
-          <p className="text-xs text-fg2 mt-0.5">
-            Пользовательские типы реквизитов на основе строки, числа или даты с ограничениями
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setEditing('new')}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover"
-        >
-          <Plus size={16} />
-          Добавить тип
+    <div className={`overflow-hidden group ${expanded ? 'bg-base' : ''}`}>
+      <div className="flex items-center hover:bg-base transition-colors">
+        <button onClick={onToggle}
+          className="flex-1 min-w-0 flex items-center gap-2 px-4 py-2.5 text-left">
+          {expanded
+            ? <ChevronUp size={15} className="text-fg4 shrink-0" />
+            : <ChevronDown size={15} className="text-fg4 shrink-0" />}
+          <span className="text-sm font-medium text-fg1 shrink-0">{type.name}</span>
+          <span className="text-xs text-fg4 font-mono shrink-0">{type.code}</span>
+          <span className="text-[11px] bg-brand-subtle text-brand px-1.5 py-0.5 rounded-full shrink-0">
+            {BASE_TYPE_LABEL[type.baseType] ?? type.baseType}
+          </span>
+          <span className="flex-1" />
+          <span className="text-xs text-fg4 shrink-0 truncate max-w-[240px]">
+            <ConstraintSummary baseType={type.baseType} c={type.constraints} />
+          </span>
+        </button>
+        <button onClick={handleDelete} disabled={deleteMutation.isPending}
+          className="px-3 py-3 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30"
+          title="Удалить">
+          <Trash2 size={14} />
         </button>
       </div>
-
-      {isLoading ? (
-        <p className="text-fg2">Загрузка…</p>
-      ) : types.length === 0 ? (
-        <div className="text-center py-16 text-fg4">
-          <p>Пользовательских типов ещё нет.</p>
-          <p className="text-sm mt-1">Создайте тип, например «Email» или «ИНН».</p>
-        </div>
-      ) : (
-        <div className="border border-stroke-strong rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-base border-b border-stroke">
-                <th className="text-left px-4 py-3 font-medium text-fg2">Название</th>
-                <th className="text-left px-4 py-3 font-medium text-fg2">Код</th>
-                <th className="text-left px-4 py-3 font-medium text-fg2">Базовый тип</th>
-                <th className="text-left px-4 py-3 font-medium text-fg2">Ограничения</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stroke">
-              {[...types].sort((a, b) => a.name.localeCompare(b.name, 'ru')).map(t => (
-                <tr key={t.id} className="hover:bg-base transition-colors">
-                  <td className="px-4 py-3 font-medium text-fg1">
-                    {t.name}
-                    {t.description && (
-                      <p className="text-xs text-fg4 font-normal">{t.description}</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-fg2">{t.code}</td>
-                  <td className="px-4 py-3 text-fg2">{baseTypeLabel[t.baseType] ?? t.baseType}</td>
-                  <td className="px-4 py-3 text-fg2 text-xs">
-                    <ConstraintSummary baseType={t.baseType} c={t.constraints} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setEditing(t)}
-                        className="p-2 rounded-lg hover:bg-muted text-fg2"
-                      >
-                        <Pencil size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDelete(t)}
-                        className="p-2 rounded-lg hover:bg-muted text-danger"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {expanded && (
+        <div className="px-4 pb-5 pt-3 border-t border-stroke bg-base">
+          <TypeForm initial={type} onSaved={onToggle} onCancel={onToggle} />
         </div>
       )}
-
-      {editing && (
-        <EditModal
-          initial={editing === 'new' ? undefined : editing}
-          onClose={() => setEditing(null)}
-        />
-      )}
-
       {confirmDelete && (
-        <Modal open onOpenChange={o => { if (!o) setConfirmDelete(null); }} title="Удалить тип поля"
+        <Modal open onOpenChange={o => { if (!o) setConfirmDelete(false); }} title="Удалить тип поля"
           footer={
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setConfirmDelete(null)}
+                onClick={() => setConfirmDelete(false)}
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-base text-fg2 hover:bg-muted"
               >
                 Отмена
               </button>
               <button
                 type="button"
-                disabled={deleteMut.isPending}
-                onClick={() => deleteMut.mutateAsync(confirmDelete.id).then(() => setConfirmDelete(null))}
+                disabled={deleteMutation.isPending}
+                onClick={() => deleteMutation.mutateAsync(type.id).then(() => setConfirmDelete(false))}
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-danger text-white hover:bg-danger disabled:opacity-50"
               >
                 Удалить
@@ -444,12 +385,62 @@ export function PrimitiveTypesPage() {
           }>
           <div className="space-y-4 min-w-[360px]">
             <p className="text-sm text-fg2">
-              Тип <span className="font-semibold text-fg1">«{confirmDelete.name}»</span> будет удалён.
+              Тип <span className="font-semibold text-fg1">«{type.name}»</span> будет удалён.
               Поля документов, использующие этот тип, перестанут валидироваться.
             </p>
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export function PrimitiveTypesPage() {
+  const { data: types = [], isLoading } = useListPrimitiveTypes();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  function toggleExpanded(id: string) {
+    setExpandedId(prev => prev === id ? null : id);
+  }
+
+  return (
+    <div className="px-6 py-4">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-xl font-semibold text-fg1">Типы полей</h1>
+          <p className="text-xs text-fg3 mt-0.5">
+            Пользовательские типы реквизитов на основе строки, числа или даты с ограничениями
+          </p>
+        </div>
+        <button onClick={() => setCreateOpen(true)}
+          className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
+          <Plus size={16} /> Добавить тип
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center text-fg4 text-sm py-10">Загрузка...</div>
+      ) : types.length === 0 ? (
+        <div className="text-center text-fg4 text-sm py-10">
+          Пользовательских типов ещё нет. Создайте тип, например «Email» или «ИНН».
+        </div>
+      ) : (
+        <div className="border border-stroke rounded-lg divide-y divide-stroke overflow-hidden">
+          {[...types].sort((a, b) => a.name.localeCompare(b.name, 'ru')).map(t => (
+            <FieldTypeRow key={t.id} type={t}
+              expanded={expandedId === t.id} onToggle={() => toggleExpanded(t.id)} />
+          ))}
+        </div>
+      )}
+
+      <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новый тип поля">
+        {createOpen && (
+          <TypeForm onSaved={() => setCreateOpen(false)} onCancel={() => setCreateOpen(false)} />
+        )}
+      </Modal>
     </div>
   );
 }
