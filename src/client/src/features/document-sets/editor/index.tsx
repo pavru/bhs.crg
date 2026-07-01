@@ -630,23 +630,27 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
         </div>
       )}
 
-      {/* Основные действия диалога — всегда внизу, на всех вкладках */}
+      {/* Основные действия диалога — только на редактируемых вкладках; на остальных — информационное сообщение */}
       <div className="shrink-0 px-6 py-3 bg-surface border-t border-stroke flex items-center gap-2 flex-wrap">
-        <button onClick={() => void doSave()} disabled={!editable || saving}
-          title={editable ? undefined : 'На этой вкладке изменения сохраняются автоматически'}
-          className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors disabled:opacity-50">
-          {saving ? 'Сохранение...' : 'Сохранить'}
-        </button>
-        <button onClick={() => void doSaveAndClose()} disabled={saving}
-          className="px-4 py-2 text-sm border border-brand text-brand-hover hover:bg-brand-subtle rounded-md transition-colors disabled:opacity-50">
-          Сохранить и закрыть
-        </button>
-        <button onClick={onClose} disabled={saving}
-          className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md transition-colors disabled:opacity-50">
-          Отмена
-        </button>
-        {savedFlash && <span className="text-sm text-success">Сохранено</span>}
-        {!editable && <span className="ml-auto text-xs text-fg4">Изменения на этой вкладке применяются сразу</span>}
+        {editable ? (
+          <>
+            <button onClick={() => void doSave()} disabled={saving}
+              className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors disabled:opacity-50">
+              {saving ? 'Сохранение...' : 'Сохранить'}
+            </button>
+            <button onClick={() => void doSaveAndClose()} disabled={saving}
+              className="px-4 py-2 text-sm border border-brand text-brand-hover hover:bg-brand-subtle rounded-md transition-colors disabled:opacity-50">
+              Сохранить и закрыть
+            </button>
+            <button onClick={onClose} disabled={saving}
+              className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md transition-colors disabled:opacity-50">
+              Отмена
+            </button>
+            {savedFlash && <span className="text-sm text-success">Сохранено</span>}
+          </>
+        ) : (
+          <span className="text-xs text-fg4">Изменения на этой вкладке применяются сразу</span>
+        )}
       </div>
 
       {pendingTab && (
