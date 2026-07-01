@@ -5,7 +5,6 @@ import { AuthProvider } from '@/shared/ui/AuthProvider';
 import { ProtectedRoute, AdminRoute } from '@/shared/ui/ProtectedRoute';
 import { AppShell } from '@/shared/ui/AppShell';
 import { LoginPage } from '@/features/catalog/LoginPage';
-import { CatalogPage } from '@/features/catalog/CatalogPage';
 import { DocumentTypesPage } from '@/features/settings/DocumentTypesPage';
 import { TemplatesPage } from '@/features/templates/TemplatesPage';
 import { DocumentSetsPage } from '@/features/document-sets/DocumentSetsPage';
@@ -32,7 +31,6 @@ export default function App() {
               <Route element={<AppShell />}>
                 <Route index element={<Navigate to="/document-sets" replace />} />
                 <Route path="document-sets/*" element={<DocumentSetsPage />} />
-                <Route path="catalog/*" element={<CatalogPage />} />
                 <Route path="common-data" element={<SystemCommonDataPage />} />
                 <Route path="datasets" element={<DataSetsPage />} />
                 <Route path="quality-docs" element={<QualityDocsPage />} />

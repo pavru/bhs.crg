@@ -5,13 +5,12 @@ import { useTheme, type Theme } from '@/shared/ui/ThemeProvider';
 import { NotificationsCenter } from '@/features/notifications/NotificationsCenter';
 import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
 import {
-  FolderOpen, BookOpen, FileText, Settings, LogOut, Building2,
+  FolderOpen, BookOpen, FileText, Settings, LogOut,
   Sun, Moon, Monitor, Layers, Database, Tag, ShieldCheck, Users, KeyRound,
 } from 'lucide-react';
 
 const workNav = [
   { to: '/document-sets', label: 'Стройки',        icon: FolderOpen },
-  { to: '/catalog',       label: 'Каталог',         icon: Building2  },
   { to: '/common-data',   label: 'Общие данные',    icon: Database   },
   { to: '/datasets',      label: 'Наборы данных',   icon: Layers     },
   { to: '/quality-docs',  label: 'Документы качества', icon: ShieldCheck },
