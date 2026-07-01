@@ -209,11 +209,19 @@ export const DATA_SET_FORMAT_LABELS: Record<DataSetFormat, string> = {
   Zip: 'ZIP-архив',
 };
 
+/** Явная относительная колонка XML-источника (см. XPathBuilder). */
+export interface ColumnExprDef {
+  name: string;
+  expr: string;
+}
+
 export interface DataSetSource {
   id: string;
   fileId: string;
   name: string;
   sheetOrPath: string;
+  /** Только для XML: JSON-массив ColumnExprDef[]. Null — авто-определение колонок (легаси). */
+  columnExpressions: string | null;
   cachedSchema: string; // JSON of {name, sampleValues}[]
   cachedRowCount: number;
 }

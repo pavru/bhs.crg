@@ -64,7 +64,7 @@ function FileRow({ file, scope, scopeId }: { file: DataSetFile; scope: CatalogSc
         )}
       </div>
       <div className="pl-5">
-        <SourcesExpander sources={file.sources} maxColumns={6} />
+        <SourcesExpander file={file} maxColumns={6} />
       </div>
     </div>
   );

@@ -65,7 +65,7 @@ function FileRow({ file }: { file: DataSetFile }) {
         )}
       </div>
       <div className="pl-7">
-        <SourcesExpander sources={file.sources} />
+        <SourcesExpander file={file} />
       </div>
     </div>
   );

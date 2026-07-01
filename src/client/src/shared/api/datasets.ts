@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { CatalogScope, DataSetBinding, DataSetBindingPreviewResult, DataSetFile, DataSetPreview, RowFilterDef, ComputedColumn } from './types';
+import type { CatalogScope, ColumnExprDef, DataSetBinding, DataSetBindingPreviewResult, DataSetFile, DataSetPreview, DataSetSource, RowFilterDef, ComputedColumn } from './types';
 
 // ── Файлы ─────────────────────────────────────────────────────────────────────
 
@@ -63,6 +63,44 @@ export function useDeleteDataSetFile() {
     onSuccess: (_, { scope, scopeId }) => {
       qc.invalidateQueries({ queryKey: ['datasets', 'files', scope, scopeId] });
     },
+  });
+}
+
+// ── Источники (ручное управление — для XML) ────────────────────────────────────
+
+export function useCreateDataSetSource() {
+  const qc = useQueryClient();
+  return useMutation<DataSetSource, Error, {
+    fileId: string;
+    name: string;
+    sheetOrPath: string;
+    columnExpressions?: ColumnExprDef[] | null;
+  }>({
+    mutationFn: ({ fileId, ...data }) =>
+      apiClient.post(`/datasets/files/${fileId}/sources`, data).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+  });
+}
+
+export function useUpdateDataSetSource() {
+  const qc = useQueryClient();
+  return useMutation<DataSetSource, Error, {
+    id: string;
+    name: string;
+    sheetOrPath: string;
+    columnExpressions?: ColumnExprDef[] | null;
+  }>({
+    mutationFn: ({ id, ...data }) =>
+      apiClient.put(`/datasets/sources/${id}`, data).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+  });
+}
+
+export function useDeleteDataSetSource() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { id: string }>({
+    mutationFn: ({ id }) => apiClient.delete(`/datasets/sources/${id}`).then(() => undefined),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
   });
 }
 
