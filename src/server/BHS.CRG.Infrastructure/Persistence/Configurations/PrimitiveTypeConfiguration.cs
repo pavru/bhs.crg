@@ -17,5 +17,6 @@ public class PrimitiveTypeConfiguration : IEntityTypeConfiguration<PrimitiveType
         b.Property(e => e.Description).HasMaxLength(512);
         b.Property(e => e.Constraints).HasColumnType("jsonb").IsRequired();
         b.Property(e => e.AllowedTags).HasColumnType("text[]").IsRequired().HasDefaultValueSql("'{}'::text[]");
+        b.Property(e => e.Group).HasMaxLength(256);
     }
 }

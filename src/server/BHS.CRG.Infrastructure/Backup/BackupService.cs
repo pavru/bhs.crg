@@ -71,7 +71,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             DocumentTypes: docTypes.Select(dt => new BackupDocumentType(
                 dt.Id, dt.Name, dt.Code, dt.Kind.ToString(), dt.ParentId, dt.IsAbstract,
                 dt.Schema.RootElement.Clone(), dt.PluginBindings.RootElement.Clone(),
-                dt.CreatedAt, dt.UpdatedAt)).ToArray(),
+                dt.CreatedAt, dt.UpdatedAt, dt.Group)).ToArray(),
             Templates: templates.Select(t => new BackupTemplate(
                 t.Id, t.DocumentTypeId, t.Name, t.Content, t.Version,
                 t.IsActive, t.IsDefault, t.PageSize, t.PageOrientation,
@@ -87,7 +87,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             PrimitiveTypes: primitiveTypes.Select(p => new BackupPrimitiveType(
                 p.Id, p.Name, p.Code, p.BaseType, p.Description,
                 p.Constraints.RootElement.Clone(),
-                p.CreatedAt, p.UpdatedAt)).ToArray());
+                p.CreatedAt, p.UpdatedAt, p.Group)).ToArray());
     }
 
     // ── Import ────────────────────────────────────────────────────────────────
@@ -235,7 +235,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             var entity = PrimitiveType.Restore(
                 item.Id, item.Name, item.Code, item.BaseType, item.Description,
                 JsonDocument.Parse(item.Constraints.GetRawText()),
-                item.CreatedAt, item.UpdatedAt);
+                item.CreatedAt, item.UpdatedAt, group: item.Group);
             db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
             if (existingIds.Contains(item.Id)) stats.PrimitiveTypesUpdated++; else stats.PrimitiveTypesCreated++;
         }
@@ -259,7 +259,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 item.Id, item.Name, item.Code, kind, item.ParentId,
                 JsonDocument.Parse(item.Schema.GetRawText()),
                 JsonDocument.Parse(item.PluginBindings.GetRawText()),
-                item.IsAbstract, item.CreatedAt, item.UpdatedAt);
+                item.IsAbstract, item.CreatedAt, item.UpdatedAt, item.Group);
             db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
             if (existingIds.Contains(item.Id)) stats.DocumentTypesUpdated++; else stats.DocumentTypesCreated++;
         }

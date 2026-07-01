@@ -33,3 +33,4 @@ public record UpdatePrimitiveTypeCommand(
 ) : IRequest<PrimitiveType>;
 
 public record DeletePrimitiveTypeCommand(Guid Id) : IRequest;
+public record SetPrimitiveTypeGroupCommand(Guid Id, string? Group) : IRequest<PrimitiveType>;

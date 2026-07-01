@@ -10,6 +10,7 @@ public class DocumentTypeHandlers(IRepository<DocumentType> repo) :
     IRequestHandler<UpdateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeSchemaCommand, DocumentType>,
     IRequestHandler<SetDocumentTypeAbstractCommand, DocumentType>,
+    IRequestHandler<SetDocumentTypeGroupCommand, DocumentType>,
     IRequestHandler<DeleteDocumentTypeCommand>,
     IRequestHandler<ListDocumentTypesQuery, IReadOnlyList<DocumentType>>,
     IRequestHandler<GetDocumentTypeQuery, DocumentType?>
@@ -87,6 +88,16 @@ public class DocumentTypeHandlers(IRepository<DocumentType> repo) :
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new KeyNotFoundException($"DocumentType {cmd.Id} not found");
         dt.SetAbstract(cmd.IsAbstract);
+        repo.Update(dt);
+        await repo.SaveChangesAsync(ct);
+        return dt;
+    }
+
+    public async Task<DocumentType> Handle(SetDocumentTypeGroupCommand cmd, CancellationToken ct)
+    {
+        var dt = await repo.GetByIdAsync(cmd.Id, ct)
+            ?? throw new KeyNotFoundException($"DocumentType {cmd.Id} not found");
+        dt.SetGroup(cmd.Group);
         repo.Update(dt);
         await repo.SaveChangesAsync(ct);
         return dt;

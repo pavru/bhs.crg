@@ -24,6 +24,9 @@ public static class PrimitiveTypeEndpoints
                 id, req.Name, req.Code, req.Description,
                 JsonDocument.Parse(req.Constraints), req.AllowedTags))));
 
+        admin.MapPut("/{id:guid}/group", async (Guid id, SetGroupRequest req, IMediator m)
+            => Results.Ok(await m.Send(new SetPrimitiveTypeGroupCommand(id, req.Group))));
+
         admin.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             await m.Send(new DeletePrimitiveTypeCommand(id));
@@ -32,4 +35,5 @@ public static class PrimitiveTypeEndpoints
     }
 
     record PrimitiveTypeRequest(string Name, string Code, string BaseType, string? Description, string Constraints, string[]? AllowedTags);
+    record SetGroupRequest(string? Group);
 }

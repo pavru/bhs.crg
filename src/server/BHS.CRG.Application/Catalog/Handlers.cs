@@ -54,6 +54,7 @@ public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo) :
     IRequestHandler<ListPrimitiveTypesQuery, IReadOnlyList<PrimitiveType>>,
     IRequestHandler<CreatePrimitiveTypeCommand, PrimitiveType>,
     IRequestHandler<UpdatePrimitiveTypeCommand, PrimitiveType>,
+    IRequestHandler<SetPrimitiveTypeGroupCommand, PrimitiveType>,
     IRequestHandler<DeletePrimitiveTypeCommand>
 {
     public Task<IReadOnlyList<PrimitiveType>> Handle(ListPrimitiveTypesQuery _, CancellationToken ct)
@@ -86,6 +87,16 @@ public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo) :
         var all = await repo.GetAllAsync(ct);
         if (all.Any(t => (!excludeId.HasValue || t.Id != excludeId.Value) && t.Code.Trim().ToLowerInvariant() == nCode))
             throw new ArgumentException($"Тип поля с кодом «{code.Trim()}» уже существует.");
+    }
+
+    public async Task<PrimitiveType> Handle(SetPrimitiveTypeGroupCommand cmd, CancellationToken ct)
+    {
+        var pt = await repo.GetByIdAsync(cmd.Id, ct)
+            ?? throw new KeyNotFoundException($"PrimitiveType {cmd.Id} not found");
+        pt.SetGroup(cmd.Group);
+        repo.Update(pt);
+        await repo.SaveChangesAsync(ct);
+        return pt;
     }
 
     public async Task Handle(DeletePrimitiveTypeCommand cmd, CancellationToken ct)

@@ -27,5 +27,6 @@ public class DocumentTypeConfiguration : IEntityTypeConfiguration<DocumentType>
          .OnDelete(DeleteBehavior.Restrict);
         b.Property(e => e.Schema).HasColumnType("jsonb").IsRequired();
         b.Property(e => e.PluginBindings).HasColumnType("jsonb");
+        b.Property(e => e.Group).HasMaxLength(256);
     }
 }

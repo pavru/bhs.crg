@@ -34,6 +34,9 @@ public class PrimitiveType : Entity
     /// </summary>
     public List<string> AllowedTags { get; private set; } = [];
 
+    /// <summary>Произвольная группа для отображения на странице типов (null — без группы).</summary>
+    public string? Group { get; private set; }
+
     private PrimitiveType() { }
 
     public static PrimitiveType Create(string name, string code, string baseType,
@@ -53,15 +56,18 @@ public class PrimitiveType : Entity
         TouchUpdatedAt();
     }
 
+    public void SetGroup(string? group) { Group = string.IsNullOrWhiteSpace(group) ? null : group.Trim(); TouchUpdatedAt(); }
+
     public static PrimitiveType Restore(
         Guid id, string name, string code, string baseType, string? description,
         JsonDocument constraints, DateTimeOffset createdAt, DateTimeOffset updatedAt,
-        IEnumerable<string>? allowedTags = null)
+        IEnumerable<string>? allowedTags = null, string? group = null)
         => new()
         {
             Id = id, Name = name, Code = code, BaseType = baseType,
             Description = description, Constraints = constraints,
             CreatedAt = createdAt, UpdatedAt = updatedAt,
             AllowedTags = allowedTags?.ToList() ?? [],
+            Group = group,
         };
 }
