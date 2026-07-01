@@ -77,6 +77,9 @@ public static class DataSetEndpoints
             return mapping is null ? Results.NotFound() : Results.Ok(new { mapping });
         });
 
+        g.MapGet("/files/{fileId:guid}/zip-xml-entries", async (Guid fileId, IDataSetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListZipXmlEntriesAsync(fileId, ct)));
+
         // Ручное создание/редактирование/удаление источника — единственный способ для XML
         // (авто-детект по top-level элементам не используется, см. XmlDataSetParser).
         g.MapPost("/files/{fileId:guid}/sources", async (

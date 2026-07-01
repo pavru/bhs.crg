@@ -7,8 +7,8 @@ import type { DataSetFile, DataSetSource } from '@/shared/api/types';
 
 /**
  * Collapsible list of a file's data sources with a preview of their column names.
- * For XML files — источники управляются вручную (создание/редактирование/удаление),
- * т.к. авто-детект по top-level элементам для XML не используется.
+ * Для XML (и XML внутри ZIP) источники управляются вручную (создание/редактирование/
+ * удаление) — авто-детект по top-level элементам для XML не используется.
  */
 export function SourcesExpander({
   file,
@@ -21,10 +21,10 @@ export function SourcesExpander({
   const [editing, setEditing] = useState<DataSetSource | 'new' | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<DataSetSource | null>(null);
   const deleteMutation = useDeleteDataSetSource();
-  const isXml = file.format === 'Xml';
+  const canManage = file.format === 'Xml' || file.format === 'Zip';
   const sources = file.sources;
 
-  if (sources.length === 0 && !isXml)
+  if (sources.length === 0 && !canManage)
     return <span className="text-xs text-fg4">Нет источников</span>;
 
   return (
@@ -36,7 +36,7 @@ export function SourcesExpander({
             ? `${sources.length} ${sources.length === 1 ? 'источник' : 'источника(-ов)'}`
             : 'Нет источников'}
         </button>
-        {isXml && (
+        {canManage && (
           <button onClick={() => { setEditing('new'); setOpen(true); }}
             className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
             <Plus size={11} /> Добавить источник
@@ -62,7 +62,7 @@ export function SourcesExpander({
                       </div>
                     )}
                   </div>
-                  {isXml && (
+                  {canManage && (
                     <div className="flex items-center gap-1 shrink-0">
                       <button onClick={() => setEditing(src)} className="p-1 text-fg4 hover:text-brand" title="Редактировать">
                         <Pencil size={12} />
@@ -82,6 +82,7 @@ export function SourcesExpander({
       {editing && (
         <SourceEditorDialog
           fileId={file.id}
+          isZip={file.format === 'Zip'}
           initial={editing === 'new' ? undefined : editing}
           onClose={() => setEditing(null)}
         />

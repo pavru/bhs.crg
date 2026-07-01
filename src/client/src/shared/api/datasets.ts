@@ -96,6 +96,15 @@ export function useUpdateDataSetSource() {
   });
 }
 
+/** Пути XML-записей внутри ZIP-файла — для выбора при ручном создании источника. */
+export function useListZipXmlEntries(fileId: string | undefined) {
+  return useQuery<string[]>({
+    queryKey: ['datasets', 'zip-xml-entries', fileId],
+    queryFn: () => apiClient.get(`/datasets/files/${fileId}/zip-xml-entries`).then(r => r.data),
+    enabled: !!fileId,
+  });
+}
+
 export function useDeleteDataSetSource() {
   const qc = useQueryClient();
   return useMutation<void, Error, { id: string }>({

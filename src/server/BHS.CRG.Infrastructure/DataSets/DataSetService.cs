@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
@@ -264,10 +265,29 @@ public class DataSetService(
             var result = await parser.ParseAsync(ms.ToArray(), sheetOrPath, columnExpressionsJson, ct);
             return (result.Columns, result.Rows.Count);
         }
-        catch (Exception ex) when (ex is System.Xml.XPath.XPathException or ArgumentException or System.Xml.XmlException)
+        catch (Exception ex) when (ex is System.Xml.XPath.XPathException or ArgumentException
+            or System.Xml.XmlException or InvalidOperationException)
         {
             throw new ArgumentException($"Не удалось разобрать выражение: {ex.Message}");
         }
+    }
+
+    public async Task<IReadOnlyList<string>> ListZipXmlEntriesAsync(Guid fileId, CancellationToken ct)
+    {
+        var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct)
+            ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
+        if (file.Format != DataSetFormat.Zip) return [];
+
+        await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+
+        using var zip = new ZipArchive(new MemoryStream(ms.ToArray()), ZipArchiveMode.Read, leaveOpen: false);
+        return zip.Entries
+            .Where(e => !string.IsNullOrEmpty(e.Name) && ZipDataSetParser.DetectEntryFormat(e.FullName) == DataSetFormat.Xml)
+            .Select(e => e.FullName)
+            .OrderBy(p => p)
+            .ToList();
     }
 
     private static string? SerializeColumnExpressions(IReadOnlyList<ColumnExprDto>? columnExpressions) =>

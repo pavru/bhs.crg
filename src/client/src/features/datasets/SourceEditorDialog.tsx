@@ -1,31 +1,49 @@
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
-import { useCreateDataSetSource, useUpdateDataSetSource } from '@/shared/api/datasets';
+import { useCreateDataSetSource, useUpdateDataSetSource, useListZipXmlEntries } from '@/shared/api/datasets';
 import { XPathBuilder } from './xpath/XPathBuilder';
 import type { ColumnExprDef, DataSetSource } from '@/shared/api/types';
 
+/** Для ZIP-архивов sheetOrPath хранится как "путь/в/архиве.xml::/Row/Selector" (см. ZipDataSetParser). */
+function splitZipPath(sheetOrPath: string | undefined, isZip: boolean): { entryPath: string; rowSelector: string } {
+  if (!isZip) return { entryPath: '', rowSelector: sheetOrPath ?? '/Root/Item' };
+  if (!sheetOrPath) return { entryPath: '', rowSelector: '/Root/Item' };
+  const idx = sheetOrPath.indexOf('::');
+  return idx < 0
+    ? { entryPath: sheetOrPath, rowSelector: '/Root/Item' }
+    : { entryPath: sheetOrPath.slice(0, idx), rowSelector: sheetOrPath.slice(idx + 2) };
+}
+
 /**
- * Ручное создание/редактирование источника XML-файла: имя + row-selector (XPathBuilder)
- * + список колонок (каждая — относительный XPathBuilder). Скаляр — частный случай:
- * row-selector с условиями сужен до одного узла, одна колонка (или несколько — тоже ок).
+ * Ручное создание/редактирование источника XML-файла (в т.ч. XML внутри ZIP/GSFX):
+ * имя + (для ZIP — выбор файла в архиве) + row-selector (XPathBuilder) + список колонок
+ * (каждая — относительный XPathBuilder). Скаляр — частный случай: row-selector с условиями
+ * сужен до одного узла, одна колонка (или несколько — тоже ок).
  */
-export function SourceEditorDialog({ fileId, initial, onClose }: {
+export function SourceEditorDialog({ fileId, isZip = false, initial, onClose }: {
   fileId: string;
+  isZip?: boolean;
   initial?: DataSetSource;
   onClose: () => void;
 }) {
+  const initialSplit = splitZipPath(initial?.sheetOrPath, isZip);
   const [name, setName] = useState(initial?.name ?? '');
-  const [sheetOrPath, setSheetOrPath] = useState(initial?.sheetOrPath ?? '/Root/Item');
+  const [entryPath, setEntryPath] = useState(initialSplit.entryPath);
+  const [sheetOrPath, setSheetOrPath] = useState(initialSplit.rowSelector);
   const [columns, setColumns] = useState<ColumnExprDef[]>(() => {
     try { return initial?.columnExpressions ? JSON.parse(initial.columnExpressions) : []; }
     catch { return []; }
   });
   const [error, setError] = useState('');
 
+  const { data: zipEntries = [] } = useListZipXmlEntries(isZip ? fileId : undefined);
   const create = useCreateDataSetSource();
   const update = useUpdateDataSetSource();
   const isPending = create.isPending || update.isPending;
+
+  // Текущее значение может отсутствовать в списке (архив обновился) — не терять его молча.
+  const entryOptions = entryPath && !zipEntries.includes(entryPath) ? [entryPath, ...zipEntries] : zipEntries;
 
   function addColumn() {
     setColumns(prev => [...prev, { name: '', expr: '' }]);
@@ -40,18 +58,20 @@ export function SourceEditorDialog({ fileId, initial, onClose }: {
   async function handleSave() {
     setError('');
     if (!name.trim()) { setError('Укажите название'); return; }
+    if (isZip && !entryPath.trim()) { setError('Выберите файл внутри архива'); return; }
     if (!sheetOrPath.trim()) { setError('Укажите row-selector (путь к строкам)'); return; }
     const cleanColumns = columns.filter(c => c.name.trim() && c.expr.trim());
+    const finalSheetOrPath = isZip ? `${entryPath.trim()}::${sheetOrPath.trim()}` : sheetOrPath.trim();
 
     try {
       if (initial) {
         await update.mutateAsync({
-          id: initial.id, name: name.trim(), sheetOrPath: sheetOrPath.trim(),
+          id: initial.id, name: name.trim(), sheetOrPath: finalSheetOrPath,
           columnExpressions: cleanColumns.length ? cleanColumns : null,
         });
       } else {
         await create.mutateAsync({
-          fileId, name: name.trim(), sheetOrPath: sheetOrPath.trim(),
+          fileId, name: name.trim(), sheetOrPath: finalSheetOrPath,
           columnExpressions: cleanColumns.length ? cleanColumns : null,
         });
       }
@@ -64,7 +84,7 @@ export function SourceEditorDialog({ fileId, initial, onClose }: {
 
   return (
     <Modal open onOpenChange={open => { if (!open) onClose(); }}
-      title={initial ? 'Редактировать источник' : 'Новый источник (XML)'} wide
+      title={initial ? 'Редактировать источник' : `Новый источник (${isZip ? 'XML в архиве' : 'XML'})`} wide
       footer={
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose}
@@ -84,6 +104,20 @@ export function SourceEditorDialog({ fileId, initial, onClose }: {
             placeholder="Позиции спецификации"
             className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm" />
         </div>
+
+        {isZip && (
+          <div>
+            <label className="block text-sm font-medium text-fg1 mb-1">Файл в архиве</label>
+            <select value={entryPath} onChange={e => setEntryPath(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm font-mono">
+              <option value="">— выберите XML-файл в архиве —</option>
+              {entryOptions.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            {entryOptions.length === 0 && (
+              <p className="text-xs text-fg4 mt-1">В архиве не найдено XML-файлов.</p>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-fg1 mb-1">
