@@ -147,8 +147,6 @@ export function ApplyTemplateDialog({
         sourceId: selectedSource.id,
         targetFieldKey: selectedTemplate.targetFieldKey,
         mapping: selectedTemplate.columnMappings,
-        rowFilter: selectedTemplate.rowFilter,
-        computedColumns: selectedTemplate.computedColumns,
       });
       onDone();
     } catch (err: unknown) {

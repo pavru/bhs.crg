@@ -1,15 +1,12 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Pencil, Check, Database, Filter, FunctionSquare } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, Database } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import {
   useListBindingTemplates, useCreateBindingTemplate,
   useUpdateBindingTemplate, useDeleteBindingTemplate,
 } from '@/shared/api/bindingTemplates';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
-import type { ComputedColumn, DataSetBindingTemplate, DocumentType, RowFilterDef } from '@/shared/api/types';
-import { countFilterConditions } from '@/shared/api/datasetHelpers';
-import { RowFilterDialog } from '@/features/datasets/RowFilterDialog';
-import { ComputedColumnsDialog } from '@/features/datasets/ComputedColumnsDialog';
+import type { DataSetBindingTemplate, DocumentType } from '@/shared/api/types';
 
 // Shared input styling.
 const FIELD_CLS = 'border border-stroke rounded-md px-3 py-1.5 text-sm bg-surface text-fg1';
@@ -20,8 +17,6 @@ interface TemplateFormState {
   name: string;
   targetFieldKey: string;   // '' = scalar
   columnMappings: Record<string, string>;
-  rowFilter: RowFilterDef | null;
-  computedColumns: ComputedColumn[] | null;
 }
 
 function TemplateForm({
@@ -48,12 +43,6 @@ function TemplateForm({
   const [columnMappings, setColumnMappings] = useState<Record<string, string>>(
     initial?.columnMappings ?? {},
   );
-  const [rowFilter, setRowFilter] = useState<RowFilterDef | null>(initial?.rowFilter ?? null);
-  const [computedColumns, setComputedColumns] = useState<ComputedColumn[] | null>(
-    initial?.computedColumns ?? null
-  );
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [transformsOpen, setTransformsOpen] = useState(false);
 
   const mappableFields = useMemo<SchemaField[]>(() => {
     if (!targetFieldKey) return scalarFields;
@@ -77,15 +66,6 @@ function TemplateForm({
     setTargetFieldKey(val);
     setColumnMappings({});
   }
-
-  const filterCount = countFilterConditions(rowFilter);
-  const transformCount = computedColumns?.length ?? 0;
-
-  // Toggle-button styling shared by the Filter / Transforms buttons.
-  const toggleCls = (active: boolean) =>
-    `flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-      active ? 'border-brand text-brand bg-brand-subtle' : 'border-stroke text-fg3 bg-base'
-    }`;
 
   return (
     <div className="space-y-4">
@@ -157,32 +137,10 @@ function TemplateForm({
         )}
       </div>
 
-      {/* Filter + Transforms row */}
-      <div className="flex gap-2 flex-wrap">
-        <button type="button" onClick={() => setFilterOpen(true)} className={toggleCls(filterCount > 0)}>
-          <Filter size={12} />
-          Фильтрация
-          {filterCount > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 rounded-full text-white text-[10px] bg-brand">
-              {filterCount}
-            </span>
-          )}
-        </button>
-        <button type="button" onClick={() => setTransformsOpen(true)} className={toggleCls(transformCount > 0)}>
-          <FunctionSquare size={12} />
-          Преобразования
-          {transformCount > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 rounded-full text-white text-[10px] bg-brand">
-              {transformCount}
-            </span>
-          )}
-        </button>
-      </div>
-
       {/* Кнопки */}
       <div className="flex gap-2 pt-1">
         <button
-          onClick={() => onSave({ name, targetFieldKey, columnMappings, rowFilter, computedColumns })}
+          onClick={() => onSave({ name, targetFieldKey, columnMappings })}
           disabled={saving || !name.trim()}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-white disabled:opacity-40 bg-brand"
         >
@@ -196,22 +154,6 @@ function TemplateForm({
           Отмена
         </button>
       </div>
-
-      {/* Dialogs */}
-      {filterOpen && (
-        <RowFilterDialog
-          initial={rowFilter}
-          onSave={f => setRowFilter(f)}
-          onClose={() => setFilterOpen(false)}
-        />
-      )}
-      {transformsOpen && (
-        <ComputedColumnsDialog
-          initial={computedColumns}
-          onSave={cols => setComputedColumns(cols)}
-          onClose={() => setTransformsOpen(false)}
-        />
-      )}
     </div>
   );
 }
@@ -238,8 +180,6 @@ function TemplateRow({
     : null;
 
   const mappedCount = Object.keys(template.columnMappings).filter(k => template.columnMappings[k]).length;
-  const filterCount = countFilterConditions(template.rowFilter);
-  const transformCount = template.computedColumns?.length ?? 0;
 
   async function handleSave(state: TemplateFormState) {
     await update.mutateAsync({
@@ -248,8 +188,6 @@ function TemplateRow({
       name: state.name,
       targetFieldKey: state.targetFieldKey || null,
       columnMappings: state.columnMappings,
-      rowFilter: state.rowFilter,
-      computedColumns: state.computedColumns,
     });
     setEditing(false);
   }
@@ -268,16 +206,6 @@ function TemplateRow({
                 : 'Скалярный'}
               {' · '}{mappedCount} {mappedCount === 1 ? 'поле' : 'полей'}
             </span>
-            {filterCount > 0 && (
-              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
-                <Filter size={9} /> {filterCount}
-              </span>
-            )}
-            {transformCount > 0 && (
-              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
-                <FunctionSquare size={9} /> {transformCount}
-              </span>
-            )}
           </div>
         </div>
         <button
@@ -355,8 +283,6 @@ export function BindingTemplatesDialog({
       name: state.name,
       targetFieldKey: state.targetFieldKey || null,
       columnMappings: state.columnMappings,
-      rowFilter: state.rowFilter,
-      computedColumns: state.computedColumns,
     });
     setAdding(false);
   }
@@ -369,8 +295,9 @@ export function BindingTemplatesDialog({
       wide
     >
       <p className="text-xs mb-4 text-fg4">
-        Шаблоны задают стандартный маппинг, фильтрацию и преобразования для этого типа документа.
-        При добавлении источника данных можно применить шаблон — настройки будут заполнены автоматически.
+        Шаблоны задают стандартный маппинг для этого типа документа (фильтрация/преобразование/
+        сортировка — на уровне источника данных, см. «Наборы данных»).
+        При добавлении источника можно применить шаблон — маппинг заполнится автоматически.
       </p>
 
       {/* Список */}

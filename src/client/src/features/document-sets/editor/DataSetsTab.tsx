@@ -1,17 +1,15 @@
 import { useState, useMemo } from 'react';
-import { Database, Filter, FunctionSquare, Pencil, Trash2, Plus, LayoutTemplate, PlayCircle, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Database, Pencil, Trash2, Plus, LayoutTemplate, PlayCircle, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { ApplyTemplateDialog } from './ApplyTemplateDialog';
-import { RowFilterDialog } from '@/features/datasets/RowFilterDialog';
-import { ComputedColumnsDialog } from '@/features/datasets/ComputedColumnsDialog';
 import {
   useAvailableDataSetFiles, useListDataSetBindings,
   useCreateDataSetBinding, useUpdateDataSetBinding, useDeleteDataSetBinding,
   useAutoMapDataSetSource, usePreviewDataSetBindings,
 } from '@/shared/api/datasets';
-import type { DocumentInstance, DocumentType, DataSetSource, DataSetBinding, DataSetBindingPreviewResult, RowFilterDef, ComputedColumn } from '@/shared/api/types';
+import type { DocumentInstance, DocumentType, DataSetSource, DataSetBinding, DataSetBindingPreviewResult } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
-import { countFilterConditions, parseSourceColumnNames, parseRefMapping, buildRefMapping } from '@/shared/api/datasetHelpers';
+import { parseSourceColumnNames, parseRefMapping, buildRefMapping } from '@/shared/api/datasetHelpers';
 function MappingEditor({
   source,
   schemaFields,
@@ -280,11 +278,7 @@ function BindingRow({
   const [editing, setEditing] = useState(false);
   const [mapping, setMappingState] = useState<Record<string, string>>(binding.mapping ?? {});
   const [targetFieldKey, setTargetFieldKey] = useState<string | null>(binding.targetFieldKey);
-  const [rowFilter, setRowFilter] = useState<RowFilterDef | null>(binding.rowFilter ?? null);
-  const [computedColumns, setComputedColumns] = useState<ComputedColumn[] | null>(binding.computedColumns ?? null);
   const [confirming, setConfirming] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [transformsOpen, setTransformsOpen] = useState(false);
 
   const update = useUpdateDataSetBinding();
   const del = useDeleteDataSetBinding();
@@ -294,9 +288,6 @@ function BindingRow({
   const file = source?.file;
   const arrayFields = schemaFields.filter(f => f.type === 'array');
   const scalarFields = schemaFields.filter(isScalarField);
-
-  // Available column names from source schema (for filter dialog)
-  const sourceColumns = useMemo(() => parseSourceColumnNames(source?.cachedSchema), [source?.cachedSchema]);
 
   async function handleAutoRemap() {
     if (!source) return;
@@ -308,18 +299,8 @@ function BindingRow({
   }
 
   async function handleSave() {
-    await update.mutateAsync({ id: binding.id, instanceId, targetFieldKey, mapping, rowFilter, computedColumns });
+    await update.mutateAsync({ id: binding.id, instanceId, targetFieldKey, mapping });
     setEditing(false);
-  }
-
-  async function handleSaveFilter(f: RowFilterDef | null) {
-    setRowFilter(f);
-    await update.mutateAsync({ id: binding.id, instanceId, targetFieldKey, mapping, rowFilter: f, computedColumns });
-  }
-
-  async function handleSaveTransforms(cols: ComputedColumn[] | null) {
-    setComputedColumns(cols);
-    await update.mutateAsync({ id: binding.id, instanceId, targetFieldKey, mapping, rowFilter, computedColumns: cols });
   }
 
   async function handleDelete() {
@@ -327,8 +308,6 @@ function BindingRow({
   }
 
   const mappedCount = Object.keys(mapping).filter(k => mapping[k]).length;
-  const filterCount = countFilterConditions(rowFilter);
-  const transformCount = computedColumns?.length ?? 0;
 
   return (
     <div className="border-b border-stroke last:border-0">
@@ -343,34 +322,8 @@ function BindingRow({
               {file?.name} · {mappedCount} пол{mappedCount === 1 ? 'е' : 'я'} привязано
               {targetFieldKey && ` · таблица: ${targetFieldKey}`}
             </span>
-            {filterCount > 0 && (
-              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
-                <Filter size={9} /> {filterCount}
-              </span>
-            )}
-            {transformCount > 0 && (
-              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
-                <FunctionSquare size={9} /> {transformCount}
-              </span>
-            )}
           </div>
         </div>
-        {/* Filter button */}
-        <button
-          onClick={() => setFilterOpen(true)}
-          className={`p-1.5 rounded ${filterCount > 0 ? 'text-brand' : 'text-fg4'}`}
-          title="Фильтрация строк"
-        >
-          <Filter size={13} />
-        </button>
-        {/* Transforms button */}
-        <button
-          onClick={() => setTransformsOpen(true)}
-          className={`p-1.5 rounded ${transformCount > 0 ? 'text-brand' : 'text-fg4'}`}
-          title="Вычисляемые колонки"
-        >
-          <FunctionSquare size={13} />
-        </button>
         <button
           onClick={() => setEditing(e => !e)}
           className="p-1.5 rounded text-xs text-fg3"
@@ -426,22 +379,6 @@ function BindingRow({
             </button>
           </div>
         </div>
-      )}
-
-      {filterOpen && (
-        <RowFilterDialog
-          columns={sourceColumns}
-          initial={rowFilter}
-          onSave={handleSaveFilter}
-          onClose={() => setFilterOpen(false)}
-        />
-      )}
-      {transformsOpen && (
-        <ComputedColumnsDialog
-          initial={computedColumns}
-          onSave={handleSaveTransforms}
-          onClose={() => setTransformsOpen(false)}
-        />
       )}
     </div>
   );
