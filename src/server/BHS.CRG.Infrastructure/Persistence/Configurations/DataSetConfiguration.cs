@@ -34,11 +34,31 @@ public class DataSetSourceConfiguration : IEntityTypeConfiguration<DataSetSource
         b.Property(e => e.ColumnExpressions).HasColumnType("jsonb");
         b.Property(e => e.CachedSchema).HasColumnType("jsonb").IsRequired();
         b.Property(e => e.CachedRowCount).IsRequired();
+        b.Property(e => e.RowFilter).HasColumnType("jsonb");
+        b.Property(e => e.ComputedColumns).HasColumnType("jsonb");
+        b.Property(e => e.SortSpec).HasColumnType("jsonb");
+        b.HasOne(e => e.ProcessingTemplate)
+         .WithMany()
+         .HasForeignKey(e => e.ProcessingTemplateId)
+         .OnDelete(DeleteBehavior.SetNull);
         b.HasMany(e => e.Bindings)
          .WithOne(b => b.Source)
          .HasForeignKey(b => b.SourceId)
          .OnDelete(DeleteBehavior.Cascade);
         b.HasIndex(e => e.FileId);
+    }
+}
+
+public class DataSetProcessingTemplateConfiguration : IEntityTypeConfiguration<DataSetProcessingTemplate>
+{
+    public void Configure(EntityTypeBuilder<DataSetProcessingTemplate> b)
+    {
+        b.ToTable("dataset_processing_templates");
+        b.HasKey(e => e.Id);
+        b.Property(e => e.Name).HasMaxLength(256).IsRequired();
+        b.Property(e => e.RowFilter).HasColumnType("jsonb");
+        b.Property(e => e.ComputedColumns).HasColumnType("jsonb");
+        b.Property(e => e.SortSpec).HasColumnType("jsonb");
     }
 }
 
@@ -51,8 +71,6 @@ public class DataSetBindingConfiguration : IEntityTypeConfiguration<DataSetBindi
         b.Property(e => e.InstanceId).IsRequired();
         b.Property(e => e.TargetFieldKey).HasMaxLength(256);
         b.Property(e => e.Mapping).HasColumnType("jsonb").IsRequired();
-        b.Property(e => e.RowFilter).HasColumnType("jsonb");
-        b.Property(e => e.ComputedColumns).HasColumnType("jsonb");
         b.HasIndex(e => e.InstanceId);
         b.HasIndex(e => e.SourceId);
     }
@@ -68,8 +86,6 @@ public class DataSetBindingTemplateConfiguration : IEntityTypeConfiguration<Data
         b.Property(e => e.Name).HasMaxLength(256).IsRequired();
         b.Property(e => e.TargetFieldKey).HasMaxLength(256);
         b.Property(e => e.ColumnMappings).HasColumnType("jsonb").IsRequired();
-        b.Property(e => e.RowFilter).HasColumnType("jsonb");
-        b.Property(e => e.ComputedColumns).HasColumnType("jsonb");
         b.Property(e => e.SortOrder).IsRequired();
         b.HasIndex(e => e.DocumentTypeId);
     }

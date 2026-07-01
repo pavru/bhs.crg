@@ -110,6 +110,41 @@ public static class DataSetEndpoints
             try { return await svc.DeleteSourceAsync(sourceId, ct) ? Results.NoContent() : Results.NotFound(); }
             catch (InvalidOperationException ex) { return Results.Conflict(ex.Message); }
         });
+
+        // Обработка (Filter/Conversion/Sort) — лёгкая правка, не трогает файл/кэш схемы.
+        g.MapPut("/sources/{sourceId:guid}/processing", async (
+            Guid sourceId, ProcessingRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            try
+            {
+                var input = new SetSourceProcessingInput(req.RowFilter, req.ComputedColumns, req.SortSpec, req.ProcessingTemplateId);
+                var result = await svc.SetSourceProcessingAsync(sourceId, input, ct);
+                return result is null ? Results.NotFound() : Results.Ok(result);
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+
+        // ── Шаблоны обработки (переиспользуемые Filter/Conversion/Sort) ─────────
+
+        g.MapGet("/processing-templates", async (IDataSetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListProcessingTemplatesAsync(ct)));
+
+        g.MapPost("/processing-templates", async (ProcessingTemplateRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            var input = new CreateProcessingTemplateInput(req.Name, req.RowFilter, req.ComputedColumns, req.SortSpec);
+            return Results.Ok(await svc.CreateProcessingTemplateAsync(input, ct));
+        });
+
+        g.MapPut("/processing-templates/{id:guid}", async (
+            Guid id, ProcessingTemplateRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            var input = new UpdateProcessingTemplateInput(req.Name, req.RowFilter, req.ComputedColumns, req.SortSpec);
+            var result = await svc.UpdateProcessingTemplateAsync(id, input, ct);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        });
+
+        g.MapDelete("/processing-templates/{id:guid}", async (Guid id, IDataSetService svc, CancellationToken ct) =>
+            await svc.DeleteProcessingTemplateAsync(id, ct) ? Results.NoContent() : Results.NotFound());
     }
 
     private static async Task<byte[]> ReadBytesAsync(IFormFile file, CancellationToken ct)
@@ -123,4 +158,6 @@ public static class DataSetEndpoints
     private record AutoMapRequest(AutoMapFieldDto[] Fields);
     private record AutoMapFieldDto(string Key, string Title);
     private record SourceRequest(string Name, string SheetOrPath, ColumnExprDto[]? ColumnExpressions);
+    private record ProcessingRequest(object? RowFilter, object? ComputedColumns, object? SortSpec, Guid? ProcessingTemplateId);
+    private record ProcessingTemplateRequest(string Name, object? RowFilter, object? ComputedColumns, object? SortSpec);
 }

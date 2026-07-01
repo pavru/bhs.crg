@@ -17,15 +17,14 @@ public static class DataSetBindingEndpoints
 
         g.MapPost("", async (CreateBindingRequest req, IDataSetService svc, CancellationToken ct) =>
         {
-            var input = new CreateBindingInput(
-                req.InstanceId, req.SourceId, req.TargetFieldKey, req.Mapping, req.RowFilter, req.ComputedColumns);
+            var input = new CreateBindingInput(req.InstanceId, req.SourceId, req.TargetFieldKey, req.Mapping);
             var result = await svc.CreateBindingAsync(input, ct);
             return result is null ? Results.NotFound(new { error = "DataSetSource не найден" }) : Results.Ok(result);
         });
 
         g.MapPut("/{id:guid}", async (Guid id, UpdateBindingRequest req, IDataSetService svc, CancellationToken ct) =>
         {
-            var input = new UpdateBindingInput(req.TargetFieldKey, req.Mapping, req.RowFilter, req.ComputedColumns);
+            var input = new UpdateBindingInput(req.TargetFieldKey, req.Mapping);
             var result = await svc.UpdateBindingAsync(id, input, ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
@@ -35,9 +34,7 @@ public static class DataSetBindingEndpoints
     }
 
     private record CreateBindingRequest(
-        Guid InstanceId, Guid SourceId, string? TargetFieldKey,
-        Dictionary<string, string>? Mapping, object? RowFilter, object? ComputedColumns);
+        Guid InstanceId, Guid SourceId, string? TargetFieldKey, Dictionary<string, string>? Mapping);
 
-    private record UpdateBindingRequest(
-        string? TargetFieldKey, Dictionary<string, string>? Mapping, object? RowFilter, object? ComputedColumns);
+    private record UpdateBindingRequest(string? TargetFieldKey, Dictionary<string, string>? Mapping);
 }

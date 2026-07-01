@@ -29,6 +29,15 @@ public interface IDataSetService
     /// <summary>Пути XML-записей внутри ZIP-файла — для выбора при ручном создании источника.</summary>
     Task<IReadOnlyList<string>> ListZipXmlEntriesAsync(Guid fileId, CancellationToken ct);
 
+    /// <summary>Обработка (Filter/Conversion/Sort) источника — лёгкая правка, файл не трогает.</summary>
+    Task<DataSetSourceDto?> SetSourceProcessingAsync(Guid sourceId, SetSourceProcessingInput input, CancellationToken ct);
+
+    // ── Processing templates (переиспользуемые Filter/Conversion/Sort, живая ссылка) ────
+    Task<IReadOnlyList<DataSetProcessingTemplateDto>> ListProcessingTemplatesAsync(CancellationToken ct);
+    Task<DataSetProcessingTemplateDto> CreateProcessingTemplateAsync(CreateProcessingTemplateInput input, CancellationToken ct);
+    Task<DataSetProcessingTemplateDto?> UpdateProcessingTemplateAsync(Guid id, UpdateProcessingTemplateInput input, CancellationToken ct);
+    Task<bool> DeleteProcessingTemplateAsync(Guid id, CancellationToken ct);
+
     // ── Bindings ────────────────────────────────────────────────────────────────
     Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid instanceId, CancellationToken ct);
     Task<DataSetBindingDto?> CreateBindingAsync(CreateBindingInput input, CancellationToken ct);

@@ -4,7 +4,8 @@ namespace BHS.CRG.Application.DataSets;
 
 public record DataSetSourceDto(
     Guid Id, Guid FileId, string Name, string SheetOrPath, string? ColumnExpressions,
-    string CachedSchema, int CachedRowCount);
+    string CachedSchema, int CachedRowCount,
+    object? RowFilter, object? ComputedColumns, object? SortSpec, Guid? ProcessingTemplateId);
 
 public record DataSetFileDto(
     Guid Id, string Name, string Format, string Scope, Guid? ScopeId,
@@ -15,15 +16,21 @@ public record BindingFileDto(Guid Id, string Name, string Format, string Scope, 
 public record BindingSourceDto(
     Guid Id, string Name, string SheetOrPath, string CachedSchema, int CachedRowCount, BindingFileDto? File);
 
+/// <summary>Привязка — только Mapping. Filter/Conversion/Sort живут на DataSetSource.</summary>
 public record DataSetBindingDto(
     Guid Id, Guid InstanceId, Guid SourceId, string? TargetFieldKey,
-    Dictionary<string, string> Mapping, object? RowFilter, object? ComputedColumns,
-    BindingSourceDto? Source);
+    Dictionary<string, string> Mapping, BindingSourceDto? Source);
 
+/// <summary>Шаблон маппинга (для типа документа). Filter/Conversion/Sort — см. DataSetProcessingTemplateDto.</summary>
 public record DataSetBindingTemplateDto(
     Guid Id, Guid DocumentTypeId, string Name, string? TargetFieldKey,
-    Dictionary<string, string> ColumnMappings, object? RowFilter, object? ComputedColumns,
+    Dictionary<string, string> ColumnMappings,
     int SortOrder, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+/// <summary>Переиспользуемый рецепт обработки (Filter/Conversion/Sort) — не привязан к типу документа.</summary>
+public record DataSetProcessingTemplateDto(
+    Guid Id, string Name, object? RowFilter, object? ComputedColumns, object? SortSpec,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 public record BindingPreviewDto(
     Guid BindingId, string SourceName, string FileName, string Mode,
@@ -49,17 +56,21 @@ public record CreateSourceInput(string Name, string SheetOrPath, IReadOnlyList<C
 
 public record UpdateSourceInput(string Name, string SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions);
 
-public record CreateBindingInput(
-    Guid InstanceId, Guid SourceId, string? TargetFieldKey,
-    Dictionary<string, string>? Mapping, object? RowFilter, object? ComputedColumns);
+/// <summary>Лёгкая правка обработки источника — не трогает файл/кэш схемы (в отличие от Update/CreateSourceInput).</summary>
+public record SetSourceProcessingInput(
+    object? RowFilter, object? ComputedColumns, object? SortSpec, Guid? ProcessingTemplateId);
 
-public record UpdateBindingInput(
-    string? TargetFieldKey, Dictionary<string, string>? Mapping, object? RowFilter, object? ComputedColumns);
+public record CreateProcessingTemplateInput(string Name, object? RowFilter, object? ComputedColumns, object? SortSpec);
+
+public record UpdateProcessingTemplateInput(string Name, object? RowFilter, object? ComputedColumns, object? SortSpec);
+
+public record CreateBindingInput(
+    Guid InstanceId, Guid SourceId, string? TargetFieldKey, Dictionary<string, string>? Mapping);
+
+public record UpdateBindingInput(string? TargetFieldKey, Dictionary<string, string>? Mapping);
 
 public record CreateTemplateInput(
-    string Name, string? TargetFieldKey, Dictionary<string, string>? ColumnMappings,
-    object? RowFilter, object? ComputedColumns);
+    string Name, string? TargetFieldKey, Dictionary<string, string>? ColumnMappings);
 
 public record UpdateTemplateInput(
-    string Name, string? TargetFieldKey, Dictionary<string, string>? ColumnMappings,
-    object? RowFilter, object? ComputedColumns, int? SortOrder);
+    string Name, string? TargetFieldKey, Dictionary<string, string>? ColumnMappings, int? SortOrder);

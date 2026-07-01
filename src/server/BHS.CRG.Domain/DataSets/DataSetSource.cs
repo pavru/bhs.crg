@@ -19,6 +19,21 @@ public class DataSetSource : Entity
     public string CachedSchema { get; private set; } = "[]";
     public int CachedRowCount { get; private set; }
 
+    /// <summary>
+    /// Обработка (Filter/Conversion/Sort) — либо своя (эти три поля), либо через ссылку на
+    /// шаблон (<see cref="ProcessingTemplateId"/>; если задан — свои поля не используются,
+    /// см. DataSetBindingProcessor.ResolveProcessing). JSON: FilterDef / ComputedColumnDef[] /
+    /// SortColumnDef[] соответственно.
+    /// </summary>
+    public string? RowFilter { get; private set; }
+    public string? ComputedColumns { get; private set; }
+    public string? SortSpec { get; private set; }
+
+    /// <summary>Живая ссылка на переиспользуемый шаблон обработки. Правка шаблона сразу
+    /// применяется ко всем источникам, которые на него ссылаются.</summary>
+    public Guid? ProcessingTemplateId { get; private set; }
+    public DataSetProcessingTemplate? ProcessingTemplate { get; private set; }
+
     public DataSetFile File { get; private set; } = null!;
     private readonly List<DataSetBinding> _bindings = [];
     public IReadOnlyList<DataSetBinding> Bindings => _bindings.AsReadOnly();
@@ -50,6 +65,20 @@ public class DataSetSource : Entity
         Name = name;
         SheetOrPath = sheetOrPath;
         ColumnExpressions = columnExpressions;
+        TouchUpdatedAt();
+    }
+
+    /// <summary>
+    /// Обработка (Filter/Conversion/Sort) — лёгкая правка, не трогает файл/кэш схемы.
+    /// processingTemplateId задан → свои rowFilter/computedColumns/sortSpec игнорируются
+    /// (но сохраняются как есть, чтобы не терять их при временном переключении на шаблон).
+    /// </summary>
+    public void SetProcessing(string? rowFilter, string? computedColumns, string? sortSpec, Guid? processingTemplateId)
+    {
+        RowFilter = rowFilter;
+        ComputedColumns = computedColumns;
+        SortSpec = sortSpec;
+        ProcessingTemplateId = processingTemplateId;
         TouchUpdatedAt();
     }
 }

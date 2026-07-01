@@ -22,8 +22,8 @@ public class DataSetResolver(
         List<ResolutionDiagnostic>? diagnostics = null, CancellationToken ct = default)
     {
         var bindings = await db.DataSetBindings
-            .Include(b => b.Source)
-                .ThenInclude(s => s.File)
+            .Include(b => b.Source).ThenInclude(s => s.File)
+            .Include(b => b.Source).ThenInclude(s => s.ProcessingTemplate)
             .Where(b => b.InstanceId == instance.Id)
             .AsNoTracking()
             .ToListAsync(ct);
@@ -40,11 +40,8 @@ public class DataSetResolver(
         {
             try
             {
-                // Download → parse → computed columns → filter (shared with preview via DataSetBindingProcessor).
-                var rows = await DataSetBindingProcessor.LoadRowsAsync(
-                    blobStorage, parserFactory, binding.Source.File.BlobPath, binding.Source.File.Format,
-                    binding.Source.SheetOrPath, binding.Source.ColumnExpressions,
-                    binding.ComputedColumns, binding.RowFilter, ct);
+                // Download → parse → conversion → filter → sort (shared with preview via DataSetBindingProcessor).
+                var rows = await DataSetBindingProcessor.LoadRowsAsync(blobStorage, parserFactory, binding.Source, ct);
 
                 var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(binding.Mapping)
                     ?? [];

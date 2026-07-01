@@ -16,16 +16,14 @@ public static class DataSetBindingTemplateEndpoints
 
         admin.MapPost("", async (Guid docTypeId, CreateTemplateRequest req, IDataSetService svc, CancellationToken ct) =>
         {
-            var input = new CreateTemplateInput(
-                req.Name, req.TargetFieldKey, req.ColumnMappings, req.RowFilter, req.ComputedColumns);
+            var input = new CreateTemplateInput(req.Name, req.TargetFieldKey, req.ColumnMappings);
             return Results.Ok(await svc.CreateTemplateAsync(docTypeId, input, ct));
         });
 
         admin.MapPut("/{id:guid}", async (
             Guid docTypeId, Guid id, UpdateTemplateRequest req, IDataSetService svc, CancellationToken ct) =>
         {
-            var input = new UpdateTemplateInput(
-                req.Name, req.TargetFieldKey, req.ColumnMappings, req.RowFilter, req.ComputedColumns, req.SortOrder);
+            var input = new UpdateTemplateInput(req.Name, req.TargetFieldKey, req.ColumnMappings, req.SortOrder);
             var result = await svc.UpdateTemplateAsync(docTypeId, id, input, ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
@@ -34,11 +32,8 @@ public static class DataSetBindingTemplateEndpoints
             await svc.DeleteTemplateAsync(docTypeId, id, ct) ? Results.NoContent() : Results.NotFound());
     }
 
-    private record CreateTemplateRequest(
-        string Name, string? TargetFieldKey, Dictionary<string, string>? ColumnMappings,
-        object? RowFilter, object? ComputedColumns);
+    private record CreateTemplateRequest(string Name, string? TargetFieldKey, Dictionary<string, string>? ColumnMappings);
 
     private record UpdateTemplateRequest(
-        string Name, string? TargetFieldKey, Dictionary<string, string>? ColumnMappings,
-        object? RowFilter, object? ComputedColumns, int? SortOrder);
+        string Name, string? TargetFieldKey, Dictionary<string, string>? ColumnMappings, int? SortOrder);
 }
