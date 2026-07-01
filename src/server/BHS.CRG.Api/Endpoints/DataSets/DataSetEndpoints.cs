@@ -80,6 +80,14 @@ public static class DataSetEndpoints
         g.MapGet("/files/{fileId:guid}/zip-xml-entries", async (Guid fileId, IDataSetService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListZipXmlEntriesAsync(fileId, ct)));
 
+        // Предпросмотр XPath-выражения в builder'е — без сохранения источника.
+        g.MapPost("/files/{fileId:guid}/xpath-preview", async (
+            Guid fileId, XPathPreviewRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            try { return Results.Ok(await svc.PreviewXPathAsync(fileId, req.RowSelector, req.Expr, ct)); }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+
         // Ручное создание/редактирование/удаление источника — единственный способ для XML
         // (авто-детект по top-level элементам не используется, см. XmlDataSetParser).
         g.MapPost("/files/{fileId:guid}/sources", async (
@@ -160,4 +168,5 @@ public static class DataSetEndpoints
     private record SourceRequest(string Name, string SheetOrPath, ColumnExprDto[]? ColumnExpressions);
     private record ProcessingRequest(object? RowFilter, object? ComputedColumns, object? SortSpec, Guid? ProcessingTemplateId);
     private record ProcessingTemplateRequest(string Name, object? RowFilter, object? ComputedColumns, object? SortSpec);
+    private record XPathPreviewRequest(string RowSelector, string? Expr);
 }

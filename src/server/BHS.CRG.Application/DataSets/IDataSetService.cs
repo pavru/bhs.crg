@@ -29,6 +29,9 @@ public interface IDataSetService
     /// <summary>Пути XML-записей внутри ZIP-файла — для выбора при ручном создании источника.</summary>
     Task<IReadOnlyList<string>> ListZipXmlEntriesAsync(Guid fileId, CancellationToken ct);
 
+    /// <summary>Предпросмотр XPath-выражения в builder'е — без сохранения источника.</summary>
+    Task<XPathPreviewDto> PreviewXPathAsync(Guid fileId, string rowSelector, string? expr, CancellationToken ct);
+
     /// <summary>Обработка (Filter/Conversion/Sort) источника — лёгкая правка, файл не трогает.</summary>
     Task<DataSetSourceDto?> SetSourceProcessingAsync(Guid sourceId, SetSourceProcessingInput input, CancellationToken ct);
 

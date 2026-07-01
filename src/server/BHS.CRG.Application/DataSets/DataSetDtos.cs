@@ -39,6 +39,13 @@ public record BindingPreviewDto(
 public record SourcePreviewDto(
     IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<string?>> Rows, int TotalRows);
 
+/// <summary>
+/// Предпросмотр XPath-выражения (row-selector или колонки) в builder'е — без сохранения
+/// источника. rowSelector — куда встать (context); expr — что вычислить относительно найденных
+/// узлов (null — предпросмотр самого rowSelector: сколько узлов найдено + их авто-колонки).
+/// </summary>
+public record XPathPreviewDto(int MatchCount, IReadOnlyList<string> Samples);
+
 /// <summary>Original blob stream + metadata for file download.</summary>
 public record FileDownloadDto(Stream Stream, string ContentType, string FileName);
 

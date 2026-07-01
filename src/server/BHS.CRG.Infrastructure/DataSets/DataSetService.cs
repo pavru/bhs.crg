@@ -298,6 +298,26 @@ public class DataSetService(
             .ToList();
     }
 
+    public async Task<XPathPreviewDto> PreviewXPathAsync(Guid fileId, string rowSelector, string? expr, CancellationToken ct)
+    {
+        var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct)
+            ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
+
+        // expr задан — предпросмотр относительного значения колонки (первые строки).
+        // expr пуст — предпросмотр самого row-selector'а: сколько узлов и какие у них поля.
+        var columnExpressionsJson = !string.IsNullOrWhiteSpace(expr)
+            ? JsonSerializer.Serialize(new[] { new { name = "value", expr } })
+            : null;
+
+        var (schema, rowCount) = await ParseForDefinitionAsync(file.BlobPath, file.Format, rowSelector, columnExpressionsJson, ct);
+
+        var samples = !string.IsNullOrWhiteSpace(expr)
+            ? (IReadOnlyList<string>)(schema.FirstOrDefault()?.SampleValues.ToList() ?? [])
+            : schema.Select(c => $"{c.Name}: {string.Join(", ", c.SampleValues)}").ToList();
+
+        return new XPathPreviewDto(rowCount, samples);
+    }
+
     private static string? SerializeColumnExpressions(IReadOnlyList<ColumnExprDto>? columnExpressions) =>
         columnExpressions is { Count: > 0 }
             ? JsonSerializer.Serialize(columnExpressions.Select(c => new { name = c.Name, expr = c.Expr }))
