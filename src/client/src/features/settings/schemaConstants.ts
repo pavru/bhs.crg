@@ -16,6 +16,17 @@ export function schemaToJson(
   return JSON.stringify(def);
 }
 
+// ─── Автогенерация ключа/кода из названия (CamelCase, без транслитерации) ──────
+
+/** "Номер документа" → "НомерДокумента": слова склеиваются, первая буква каждого — заглавная. */
+export function toCamelKey(title: string): string {
+  return title
+    .split(/[^A-Za-zА-Яа-яЁё0-9]+/)
+    .filter(Boolean)
+    .map(w => w[0].toUpperCase() + w.slice(1))
+    .join('');
+}
+
 // ─── Validation ───────────────────────────────────────────────────────────────
 
 export function validateFields(fields: SchemaField[]): string | null {

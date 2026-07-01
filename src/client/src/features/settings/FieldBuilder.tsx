@@ -3,7 +3,7 @@ import { Plus, Trash2, ArrowUp, ArrowDown, Cpu } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
 import type { DocumentType, PrimitiveTypeDef } from '@/shared/api/types';
 import type { SchemaField, FieldGroup } from '@/shared/api/schema';
-import { PRIMITIVE_TYPES } from './schemaConstants';
+import { PRIMITIVE_TYPES, toCamelKey } from './schemaConstants';
 import { useTagRegistry, fieldTags } from '@/shared/api/tags';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
 
@@ -73,6 +73,14 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
     const cleaned = Object.fromEntries(Object.entries(merged).filter(([, v]) => v !== undefined && v !== ''));
     update(i, { image: Object.keys(cleaned).length ? cleaned : undefined });
   };
+  // Ключ считается «автоматическим», если совпадает с тем, что сгенерировал бы toCamelKey
+  // из текущего названия — тогда при вводе названия перегенерируем его. Как только пользователь
+  // руками поправит ключ (он разойдётся с авто-значением), автогенерация для этого поля отключается.
+  const updateTitle = (i: number, title: string) => {
+    const field = fields[i];
+    const isKeyAuto = !field.key.trim() || field.key === toCamelKey(field.title);
+    update(i, { title, ...(isKeyAuto ? { key: toCamelKey(title) } : {}) });
+  };
   const moveUp = (i: number) => {
     if (i === 0) return;
     const next = [...fields]; [next[i - 1], next[i]] = [next[i], next[i - 1]]; onChange(next);
@@ -118,7 +126,7 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
               {/* Title */}
               <input
                 value={field.title}
-                onChange={e => update(i, { title: e.target.value })}
+                onChange={e => updateTitle(i, e.target.value)}
                 placeholder="Название"
                 className="border border-stroke-strong rounded-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
               />

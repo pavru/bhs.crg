@@ -24,7 +24,7 @@ import {
   type TypstRender,
 } from '@/shared/api/schema';
 import { TypstRendersEditor } from './TypstRendersEditor';
-import { schemaToJson, validateFields, TYPE_LABELS } from './schemaConstants';
+import { schemaToJson, validateFields, TYPE_LABELS, toCamelKey } from './schemaConstants';
 import { useTagRegistry, typeTags as typeTagDefs } from '@/shared/api/tags';
 import { GroupEditor } from './GroupEditor';
 import { JsonPreview, FieldBuilder, DefaultValueCell } from './FieldBuilder';
@@ -163,6 +163,15 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
 
   const dirty = name !== docType.name || code !== docType.code || parentId !== (docType.parentId ?? '');
 
+  // См. FieldBuilder.updateTitle — тот же принцип: код перегенерируется, пока совпадает
+  // с авто-значением текущего названия (или пуст); ручная правка кода отключает автогенерацию.
+  function handleNameChange(v: string) {
+    const isCodeAuto = !code.trim() || code === toCamelKey(name);
+    setName(v);
+    setSaved(false);
+    if (isCodeAuto) setCode(toCamelKey(v));
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !code.trim()) { setError('Наименование и код обязательны'); return; }
@@ -182,7 +191,7 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-fg2 mb-1">Наименование</label>
-          <input value={name} onChange={e => { setName(e.target.value); setSaved(false); }} required
+          <input value={name} onChange={e => handleNameChange(e.target.value)} required
             className="w-full border border-stroke-strong rounded-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
         </div>
         <div>
@@ -233,6 +242,12 @@ function CreateForm({
   const [error, setError] = useState('');
   const mutation = useCreateDocumentType();
 
+  function handleNameChange(v: string) {
+    const isCodeAuto = !code.trim() || code === toCamelKey(name);
+    setName(v);
+    if (isCodeAuto) setCode(toCamelKey(v));
+  }
+
   const sameKindTypes = allDocTypes.filter(dt => dt.kind === kind);
   const compositeTypes = allDocTypes.filter(dt => dt.kind === 'Composite');
   const parentType = sameKindTypes.find(dt => dt.id === parentId) ?? null;
@@ -265,7 +280,7 @@ function CreateForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-fg2 mb-1">Наименование</label>
-          <input value={name} onChange={e => setName(e.target.value)} required
+          <input value={name} onChange={e => handleNameChange(e.target.value)} required
             className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
         </div>
         <div>
