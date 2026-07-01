@@ -2,20 +2,19 @@ import { useState, useEffect, useRef } from 'react';
 import { Loader2, FileText, Download, Eye, Pencil, ChevronDown, ChevronUp, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import {
-  useUpdateRequisites, useUpdateEntityRefs, useGenerateDocument,
+  useUpdateRequisites, useGenerateDocument,
   useSetDocumentTemplate, useRenameDocumentInstance,
   downloadGeneratedFile, previewGeneratedFile, downloadDebugBundle,
   validateResolution, type ResolutionDiagnostic,
 } from '@/shared/api/documentSets';
 import { useListTemplates } from '@/shared/api/templates';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
-import { useListCatalogEntities } from '@/shared/api/catalog';
 import type { DocumentInstance, DocumentType, Template, PrimitiveTypeDef } from '@/shared/api/types';
 import {
   groupEffectiveFields, resolveEffectiveFields, compositeFieldHasTag, type SchemaField,
 } from '@/shared/api/schema';
 import {
-  STATUS_LABELS, STATUS_COLORS, tryPrettyJson, tryParseJson,
+  STATUS_LABELS, STATUS_COLORS,
   validateConstraint, isMissing, PrimitiveInput, FileField, ImageField,
   DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup,
 } from '../fields';
@@ -227,77 +226,6 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
           </div>
         );
       })}
-      </div>
-      {error && (
-        <div className="shrink-0 px-6 py-2 bg-surface border-t border-stroke">
-          <p className="text-sm text-danger">{error}</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Entity refs tab ──────────────────────────────────────────────────────────
-
-function EntityRefsTab({ instance, setId, onDirty, saveRef }: {
-  instance: DocumentInstance; setId: string; onClose: () => void;
-  onDirty: (dirty: boolean) => void; saveRef: SaveRef;
-}) {
-  const [json, setJson] = useState(tryPrettyJson(instance.entityRefs));
-  const [error, setError] = useState('');
-  const [refKey, setRefKey] = useState('');
-  const [entityType, setEntityType] = useState('');
-  const mutation = useUpdateEntityRefs();
-  const { data: entities = [] } = useListCatalogEntities(entityType || undefined);
-
-  async function handleSaveCore(): Promise<boolean> {
-    setError('');
-    const parsed = tryParseJson(json);
-    if (!parsed.ok) { setError('Неверный JSON: ' + parsed.error); return false; }
-    try {
-      await mutation.mutateAsync({ setId, instanceId: instance.id, entityRefs: parsed.value! });
-      onDirty(false);
-      return true;
-    } catch (err: unknown) { setError(err instanceof Error ? err.message : 'Ошибка'); return false; }
-  }
-
-  useEffect(() => { saveRef.current = handleSaveCore; return () => { saveRef.current = null; }; });
-
-  function addRef(entityId: string) {
-    if (!refKey.trim()) return;
-    const parsed = tryParseJson(json);
-    const current = parsed.ok ? parsed.value! : {};
-    current[refKey] = entityId;
-    setJson(tryPrettyJson(current));
-    setRefKey('');
-    onDirty(true);
-  }
-
-  return (
-    <div className="flex flex-col min-h-0 flex-1">
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-3">
-      <p className="text-xs text-fg3">Формат: <code className="bg-muted px-1 rounded">{'{ "ключ": "id-записи" }'}</code></p>
-      <div className="border border-stroke rounded-md p-3 bg-base space-y-2">
-        <p className="text-xs font-medium text-fg2">Добавить из каталога</p>
-        <div className="flex gap-2">
-          <input value={refKey} onChange={e => setRefKey(e.target.value)} placeholder="Ключ связи"
-            className="flex-1 border border-stroke-strong rounded px-2 py-1.5 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
-          <input value={entityType} onChange={e => setEntityType(e.target.value)} placeholder="Тип сущности"
-            className="w-40 border border-stroke-strong rounded px-2 py-1.5 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
-        </div>
-        {entityType && entities.length > 0 && (
-          <div className="max-h-32 overflow-y-auto border border-stroke rounded bg-surface">
-            {entities.map(e => (
-              <button key={e.id} onClick={() => addRef(e.id)}
-                className="w-full text-left px-3 py-1.5 text-xs hover:bg-brand-subtle flex items-center gap-2">
-                <span className="text-brand font-medium truncate">{e.displayName}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      <textarea value={json} onChange={e => { setJson(e.target.value); onDirty(true); }} rows={8} spellCheck={false}
-        className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-brand resize-y" />
       </div>
       {error && (
         <div className="shrink-0 px-6 py-2 bg-surface border-t border-stroke">
@@ -520,7 +448,7 @@ function InstanceNameEditor({ instance, setId, docType }: {
 
 // ─── Instance editor modal ────────────────────────────────────────────────────
 
-type InstanceTab = 'requisites' | 'entity-refs' | 'datasets' | 'quality' | 'generation';
+type InstanceTab = 'requisites' | 'datasets' | 'quality' | 'generation';
 
 export function InstanceEditor({ instance, setId, docType, allDocTypes, otherInstances, onClose, onDirtyChange }: {
   instance: DocumentInstance; setId: string; docType: DocumentType | undefined;
@@ -538,7 +466,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
   const saveRef = useRef<(() => Promise<boolean>) | null>(null);
 
   // Редактируемые вкладки (есть что сохранять на уровне документа).
-  const editable = tab === 'requisites' || tab === 'entity-refs';
+  const editable = tab === 'requisites';
   async function doSave(): Promise<boolean> {
     if (!saveRef.current) return true; // на этой вкладке нечего сохранять
     setSaving(true);
@@ -560,7 +488,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
   // с полем-ссылкой на документ качества, тэг material.qualityDocLink).
   const requiresQuality = !!docType && compositeFieldHasTag(docType, FUNCTIONAL_TAG.materialQualityDocLink, allDocTypes);
   const tabs: [InstanceTab, string][] = [
-    ['requisites', 'Реквизиты'], ['entity-refs', 'Связи'], ['datasets', 'Данные'],
+    ['requisites', 'Реквизиты'], ['datasets', 'Данные'],
     ...(requiresQuality ? [['quality', 'Документы качества'] as [InstanceTab, string]] : []),
     ['generation', 'Генерация'],
   ];
@@ -613,7 +541,6 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           allDocTypes={allDocTypes} docType={docType} otherInstances={otherInstances}
           onClose={onClose} onDirty={setDirty} saveRef={saveRef} />
       )}
-      {tab === 'entity-refs' && <EntityRefsTab instance={instance} setId={setId} onClose={onClose} onDirty={setDirty} saveRef={saveRef} />}
       {tab === 'datasets' && (
         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
           <DataSetsTab instance={instance} setId={setId} schemaFields={schemaFields} allDocTypes={allDocTypes} docType={docType} />

@@ -38,7 +38,6 @@ public record AddDocumentToSetCommand(Guid DocumentSetId, Guid DocumentTypeId) :
 public record RenameDocumentInstanceCommand(Guid Id, string? Name) : IRequest<DocumentInstance>;
 public record DeleteDocumentInstanceCommand(Guid Id) : IRequest;
 public record UpdateRequisitesCommand(Guid InstanceId, JsonDocument Requisites) : IRequest<DocumentInstance>;
-public record UpdateEntityRefsCommand(Guid InstanceId, JsonDocument EntityRefs) : IRequest<DocumentInstance>;
 public record UpdatePluginDataCommand(Guid InstanceId, JsonDocument PluginData) : IRequest<DocumentInstance>;
 public record GetDocumentInstanceQuery(Guid Id) : IRequest<DocumentInstance?>;
 public record SetDocumentTemplateCommand(Guid InstanceId, Guid? TemplateId) : IRequest<DocumentInstance>;

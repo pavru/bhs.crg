@@ -14,9 +14,6 @@ public class DocumentInstance : Entity
     /// <summary>Реквизиты, введённые пользователем (скалярные поля).</summary>
     public JsonDocument Requisites { get; private set; } = JsonDocument.Parse("{}");
 
-    /// <summary>Ссылки на сущности каталога: { "Подрядчик": "uuid", "Заказчик": "uuid" }.</summary>
-    public JsonDocument EntityRefs { get; private set; } = JsonDocument.Parse("{}");
-
     /// <summary>Кэш данных из плагинов на момент последней генерации.</summary>
     public JsonDocument PluginData { get; private set; } = JsonDocument.Parse("{}");
 
@@ -36,12 +33,6 @@ public class DocumentInstance : Entity
     public void UpdateRequisites(JsonDocument requisites)
     {
         Requisites = requisites;
-        TouchUpdatedAt();
-    }
-
-    public void UpdateEntityRefs(JsonDocument entityRefs)
-    {
-        EntityRefs = entityRefs;
         TouchUpdatedAt();
     }
 

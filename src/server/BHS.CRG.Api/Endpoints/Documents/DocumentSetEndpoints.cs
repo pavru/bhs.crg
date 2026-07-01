@@ -97,11 +97,6 @@ public static class DocumentSetEndpoints
                 => Results.Ok(await m.Send(new UpdateRequisitesCommand(
                     id, JsonDocument.Parse(body.GetRawText())))));
 
-        g.MapPut("/{setId:guid}/documents/{id:guid}/entity-refs",
-            async (Guid id, JsonElement body, IMediator m)
-                => Results.Ok(await m.Send(new UpdateEntityRefsCommand(
-                    id, JsonDocument.Parse(body.GetRawText())))));
-
         g.MapPut("/{setId:guid}/documents/{id:guid}/plugin-data",
             async (Guid id, JsonElement body, IMediator m)
                 => Results.Ok(await m.Send(new UpdatePluginDataCommand(

@@ -4,7 +4,7 @@ namespace BHS.CRG.Application.Generation;
 
 /// <summary>
 /// Полный контекст данных для рендеринга шаблона.
-/// Собирается EntityResolver-ом из реквизитов + entityRefs + pluginData.
+/// Собирается EntityResolver-ом из реквизитов + pluginData.
 /// </summary>
 public class GenerationContext
 {
@@ -14,14 +14,11 @@ public class GenerationContext
 
     public IReadOnlyDictionary<string, object?> Data => _data;
 
-    public static GenerationContext FromJson(JsonDocument requisites, JsonDocument entityRefs, JsonDocument pluginData)
+    public static GenerationContext FromJson(JsonDocument requisites, JsonDocument pluginData)
     {
         var ctx = new GenerationContext();
 
         foreach (var prop in requisites.RootElement.EnumerateObject())
-            ctx.Set(prop.Name, prop.Value.Clone());
-
-        foreach (var prop in entityRefs.RootElement.EnumerateObject())
             ctx.Set(prop.Name, prop.Value.Clone());
 
         foreach (var prop in pluginData.RootElement.EnumerateObject())

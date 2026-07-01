@@ -195,7 +195,6 @@ public class DocumentSetHandlers(
     IRequestHandler<RenameDocumentInstanceCommand, DocumentInstance>,
     IRequestHandler<DeleteDocumentInstanceCommand>,
     IRequestHandler<UpdateRequisitesCommand, DocumentInstance>,
-    IRequestHandler<UpdateEntityRefsCommand, DocumentInstance>,
     IRequestHandler<UpdatePluginDataCommand, DocumentInstance>,
     IRequestHandler<GetDocumentInstanceQuery, DocumentInstance?>,
     IRequestHandler<SetDocumentTemplateCommand, DocumentInstance>
@@ -276,17 +275,6 @@ public class DocumentSetHandlers(
         var inst = await instRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
         var blobs = inst.ResetToDraft();
         inst.UpdateRequisites(cmd.Requisites);
-        instRepo.Update(inst);
-        await instRepo.SaveChangesAsync(ct);
-        foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
-        return inst;
-    }
-
-    public async Task<DocumentInstance> Handle(UpdateEntityRefsCommand cmd, CancellationToken ct)
-    {
-        var inst = await instRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
-        var blobs = inst.ResetToDraft();
-        inst.UpdateEntityRefs(cmd.EntityRefs);
         instRepo.Update(inst);
         await instRepo.SaveChangesAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);

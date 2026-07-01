@@ -7,33 +7,17 @@ using Microsoft.EntityFrameworkCore;
 namespace BHS.CRG.Infrastructure.Generation;
 
 /// <summary>
-/// C#-аналог NewElementResolverStyles.xsl: разрешает ссылки entityRefs и $ref-объекты в реквизитах,
+/// C#-аналог NewElementResolverStyles.xsl: разрешает $ref-объекты в реквизитах,
 /// подмешивает данные сущностей каталога в контекст генерации.
 /// </summary>
 public class EntityResolver(AppDbContext db) : IEntityResolver
 {
     public async Task<GenerationContext> ResolveAsync(DocumentInstance instance, CancellationToken ct = default)
     {
-        var ctx = GenerationContext.FromJson(instance.Requisites, instance.EntityRefs, instance.PluginData);
+        var ctx = GenerationContext.FromJson(instance.Requisites, instance.PluginData);
 
-        // 1. Резолвинг $ref-объектов в реквизитах
+        // Резолвинг $ref-объектов в реквизитах
         await ResolveRefsAsync(ctx, instance.DocumentSetId, ct, nested: false);
-
-        // 2. Резолвинг entityRefs (legacy catalog references)
-        foreach (var prop in instance.EntityRefs.RootElement.EnumerateObject())
-        {
-            if (!Guid.TryParse(prop.Value.GetString(), out var entityId))
-                continue;
-
-            var entity = await db.CatalogEntities
-                .AsNoTracking()
-                .FirstOrDefaultAsync(e => e.Id == entityId, ct);
-
-            if (entity is null) continue;
-
-            var merged = MergeEntityData(ctx, prop.Name, entity.Data);
-            ctx.Set(prop.Name, merged);
-        }
 
         return ctx;
     }
@@ -214,7 +198,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
 
         if (instance is null) return default;
 
-        var subCtx = GenerationContext.FromJson(instance.Requisites, instance.EntityRefs, instance.PluginData);
+        var subCtx = GenerationContext.FromJson(instance.Requisites, instance.PluginData);
         // nested=true: дальнейшие instance-ссылки не разворачиваем (защита от циклов)
         await ResolveRefsAsync(subCtx, documentSetId, ct, nested: true);
 
@@ -261,20 +245,4 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         return JsonSerializer.SerializeToElement(merged);
     }
 
-    private static JsonElement MergeEntityData(GenerationContext ctx, string key, JsonDocument entityData)
-    {
-        if (ctx.Data.TryGetValue(key, out var existing) && existing is JsonElement existingEl
-            && existingEl.ValueKind == JsonValueKind.Object)
-        {
-            var merged = new Dictionary<string, JsonElement>();
-            foreach (var p in entityData.RootElement.EnumerateObject())
-                merged[p.Name] = p.Value.Clone();
-            foreach (var p in existingEl.EnumerateObject())
-                merged[p.Name] = p.Value.Clone();
-
-            return JsonSerializer.SerializeToElement(merged);
-        }
-
-        return entityData.RootElement.Clone();
-    }
 }

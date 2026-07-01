@@ -61,16 +61,6 @@ export function useUpdateRequisites() {
   });
 }
 
-export function useUpdateEntityRefs() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ setId, instanceId, entityRefs }: { setId: string; instanceId: string; entityRefs: Record<string, unknown> }) =>
-      apiClient
-        .put<DocumentInstance>(`/document-sets/${setId}/documents/${instanceId}/entity-refs`, entityRefs)
-        .then((r) => r.data),
-    onSuccess: (_d, { setId }) => qc.invalidateQueries({ queryKey: ['document-sets', setId] }),
-  });
-}
 
 export function useSetDocumentTemplate() {
   const qc = useQueryClient();

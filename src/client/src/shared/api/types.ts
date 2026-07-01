@@ -124,7 +124,6 @@ export interface DocumentInstance {
   name: string | null;
   templateId: string | null;
   requisites: Record<string, unknown>;
-  entityRefs: Record<string, unknown>;
   pluginData: Record<string, unknown>;
   status: 'Draft' | 'Generating' | 'Generated' | 'Failed';
   generatedFiles: GeneratedFile[];
