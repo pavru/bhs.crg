@@ -112,6 +112,8 @@ public class DataSetService(
             else
             {
                 var added = file.AddSource(info.Name, info.SheetOrPath, SerializeSchema(info.Columns), info.RowCount);
+                // file уже отслеживается — см. пояснение в CreateSourceAsync (иначе Modified вместо Added).
+                db.DataSetSources.Add(added);
                 updatedSourceIds.Add(added.Id);
             }
         }
@@ -225,6 +227,11 @@ public class DataSetService(
         var (schema, rowCount) = await ParseForDefinitionAsync(file.BlobPath, file.Format, input.SheetOrPath, columnExpressionsJson, ct);
 
         var source = file.AddSource(input.Name.Trim(), input.SheetOrPath.Trim(), SerializeSchema(schema), rowCount, columnExpressionsJson);
+        // file уже отслеживается (загружен из БД) — новый дочерний источник, добавленный в его
+        // коллекцию навигации, EF не распознаёт как Added автоматически (Guid — клиентский ключ,
+        // не default-значение), поэтому без явного Add() трекер помечает его Modified и
+        // пытается сделать UPDATE несуществующей строки → DbUpdateConcurrencyException.
+        db.DataSetSources.Add(source);
         await db.SaveChangesAsync(ct);
         return MapSource(source);
     }
