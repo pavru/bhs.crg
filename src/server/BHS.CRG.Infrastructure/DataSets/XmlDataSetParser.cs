@@ -1,59 +1,81 @@
+using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.DataSets;
 using System.Xml;
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
+/// <summary>
+/// XML — единственный формат без авто-детекта источников: структура произвольного XML
+/// слишком разнообразна для надёжной эвристики (в отличие от строк CSV или листов Excel).
+/// Источники создаются пользователем вручную через builder (row-selector XPath + опционально
+/// список относительных колонок) — см. IDataSetService.CreateSourceAsync/UpdateSourceAsync.
+/// </summary>
 public class XmlDataSetParser : IDataSetParser
 {
+    private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
+
+    private record ColumnExprDef(string Name, string Expr);
+
     public bool CanParse(DataSetFormat format) => format is DataSetFormat.Xml;
 
     public Task<IReadOnlyList<DataSetSourceInfo>> DetectSourcesAsync(byte[] bytes, CancellationToken ct)
-    {
-        var doc = LoadXml(bytes);
-        var root = doc.DocumentElement;
-        if (root == null) return Task.FromResult<IReadOnlyList<DataSetSourceInfo>>([]);
+        => Task.FromResult<IReadOnlyList<DataSetSourceInfo>>([]);
 
-        var sources = new List<DataSetSourceInfo>();
-
-        // Group direct children by element name
-        var childGroups = root.ChildNodes
-            .Cast<XmlNode>()
-            .Where(n => n.NodeType == XmlNodeType.Element)
-            .GroupBy(n => n.Name)
-            .ToList();
-
-        if (childGroups.Count == 0)
-        {
-            // Root itself is the single record
-            var cols = GetColumnsFromNodes([root]);
-            sources.Add(new DataSetSourceInfo(root.Name, $"/{root.Name}", cols, 1));
-        }
-        else
-        {
-            foreach (var group in childGroups)
-            {
-                var nodes = group.Cast<XmlNode>().ToList();
-                var path = $"/{root.Name}/{group.Key}";
-                var cols = GetColumnsFromNodes(nodes);
-                sources.Add(new DataSetSourceInfo(group.Key, path, cols, nodes.Count));
-            }
-        }
-
-        return Task.FromResult<IReadOnlyList<DataSetSourceInfo>>(sources);
-    }
-
-    public Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, CancellationToken ct)
+    public Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, string? columnExpressions, CancellationToken ct)
     {
         var doc = LoadXml(bytes);
         var nodes = doc.SelectNodes(sheetOrPath)?.Cast<XmlNode>().ToList() ?? [];
         if (nodes.Count == 0) return Task.FromResult(new DataSetParseResult([], []));
 
-        // Collect all keys (child element names + attributes)
-        var allKeys = nodes
-            .SelectMany(n => GetNodeKeys(n))
-            .Distinct()
-            .ToList();
+        var defs = ParseColumnExpressions(columnExpressions);
+        return Task.FromResult(defs is null
+            ? ParseWithAutoColumns(nodes)
+            : ParseWithExplicitColumns(nodes, defs));
+    }
+
+    // ── Явные относительные колонки (builder) ───────────────────────────────────
+
+    private static DataSetParseResult ParseWithExplicitColumns(List<XmlNode> nodes, ColumnExprDef[] defs)
+    {
+        const int sampleCount = 3;
+        var columns = defs.Select(d => new DataSetColumnInfo(d.Name,
+            nodes.Take(sampleCount).Select(n => EvalExpr(n, d.Expr) ?? "").ToArray()
+        )).ToArray();
+
+        var rows = nodes.Select(node =>
+        {
+            var dict = new Dictionary<string, string?>();
+            foreach (var d in defs)
+                dict[d.Name] = EvalExpr(node, d.Expr);
+            return (IReadOnlyDictionary<string, string?>)dict;
+        }).ToList();
+
+        return new DataSetParseResult(columns, rows);
+    }
+
+    private static string? EvalExpr(XmlNode node, string expr)
+        => node.SelectSingleNode(expr)?.InnerText;
+
+    private static ColumnExprDef[]? ParseColumnExpressions(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            var defs = JsonSerializer.Deserialize<ColumnExprDef[]>(json, JsonOpts);
+            return defs is { Length: > 0 } ? defs : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    // ── Легаси авто-определение колонок (когда явные не заданы) ─────────────────
+
+    private static DataSetParseResult ParseWithAutoColumns(List<XmlNode> nodes)
+    {
+        var allKeys = nodes.SelectMany(GetNodeKeys).Distinct().ToList();
 
         const int sampleCount = 3;
         var columns = allKeys.Select(k => new DataSetColumnInfo(k,
@@ -68,7 +90,7 @@ public class XmlDataSetParser : IDataSetParser
             return (IReadOnlyDictionary<string, string?>)dict;
         }).ToList();
 
-        return Task.FromResult(new DataSetParseResult(columns, rows));
+        return new DataSetParseResult(columns, rows);
     }
 
     private static XmlDocument LoadXml(byte[] bytes)
@@ -76,15 +98,6 @@ public class XmlDataSetParser : IDataSetParser
         var doc = new XmlDocument();
         doc.Load(new MemoryStream(bytes));
         return doc;
-    }
-
-    private static DataSetColumnInfo[] GetColumnsFromNodes(List<XmlNode> nodes)
-    {
-        const int sampleCount = 3;
-        var allKeys = nodes.SelectMany(n => GetNodeKeys(n)).Distinct().ToList();
-        return allKeys.Select(k => new DataSetColumnInfo(k,
-            nodes.Take(sampleCount).Select(n => GetNodeValue(n, k) ?? "").ToArray()
-        )).ToArray();
     }
 
     private static IEnumerable<string> GetNodeKeys(XmlNode node)

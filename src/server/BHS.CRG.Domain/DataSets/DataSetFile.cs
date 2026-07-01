@@ -22,9 +22,10 @@ public class DataSetFile : Entity
         CatalogScope scope, Guid? scopeId)
         => new() { Name = name, Format = format, BlobPath = blobPath, Scope = scope, ScopeId = scopeId };
 
-    public DataSetSource AddSource(string name, string sheetOrPath, string cachedSchema, int cachedRowCount)
+    public DataSetSource AddSource(string name, string sheetOrPath, string cachedSchema, int cachedRowCount,
+        string? columnExpressions = null)
     {
-        var src = DataSetSource.Create(Id, name, sheetOrPath, cachedSchema, cachedRowCount);
+        var src = DataSetSource.Create(Id, name, sheetOrPath, cachedSchema, cachedRowCount, columnExpressions);
         _sources.Add(src);
         TouchUpdatedAt();
         return src;

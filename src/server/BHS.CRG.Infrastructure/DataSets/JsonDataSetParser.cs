@@ -51,7 +51,7 @@ public class JsonDataSetParser : IDataSetParser
         return Task.FromResult<IReadOnlyList<DataSetSourceInfo>>(sources);
     }
 
-    public Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, CancellationToken ct)
+    public Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, string? columnExpressions, CancellationToken ct)
     {
         var doc = JsonDocument.Parse(bytes);
 

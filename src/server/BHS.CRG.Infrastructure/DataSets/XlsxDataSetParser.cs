@@ -20,7 +20,7 @@ public class XlsxDataSetParser : IDataSetParser
         return Task.FromResult<IReadOnlyList<DataSetSourceInfo>>(sources);
     }
 
-    public Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, CancellationToken ct)
+    public Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, string? columnExpressions, CancellationToken ct)
     {
         var ds = ReadExcel(bytes);
         var table = ds.Tables[sheetOrPath] ?? ds.Tables[0];

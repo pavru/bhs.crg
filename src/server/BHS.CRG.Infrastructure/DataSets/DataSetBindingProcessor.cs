@@ -17,6 +17,7 @@ public static class DataSetBindingProcessor
         string blobPath,
         DataSetFormat format,
         string sheetOrPath,
+        string? columnExpressions,
         string? computedColumns,
         string? rowFilter,
         CancellationToken ct)
@@ -27,7 +28,7 @@ public static class DataSetBindingProcessor
         var bytes = ms.ToArray();
 
         var parser = parserFactory.GetParser(format);
-        var parsed = await parser.ParseAsync(bytes, sheetOrPath, ct);
+        var parsed = await parser.ParseAsync(bytes, sheetOrPath, columnExpressions, ct);
 
         // Computed columns first (they may be referenced by the filter), then filter.
         var rows = DataSetComputedColumnExecutor.Apply(computedColumns, parsed.Rows.ToList());

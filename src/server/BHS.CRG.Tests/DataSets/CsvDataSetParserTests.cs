@@ -21,7 +21,7 @@ public class CsvDataSetParserTests
     public async Task ParsesCommaDelimited()
     {
         var bytes = Utf8("Имя,Количество\nКабель,10\nЛоток,5\n");
-        var result = await _parser.ParseAsync(bytes, "default", default);
+        var result = await _parser.ParseAsync(bytes, "default", null, default);
 
         Assert.Equal(["Имя", "Количество"], result.Columns.Select(c => c.Name));
         Assert.Equal(2, result.Rows.Count);
@@ -34,7 +34,7 @@ public class CsvDataSetParserTests
     public async Task DetectsTabDelimiter()
     {
         var bytes = Utf8("A\tB\n1\t2\n");
-        var result = await _parser.ParseAsync(bytes, "default", default);
+        var result = await _parser.ParseAsync(bytes, "default", null, default);
         Assert.Equal(["A", "B"], result.Columns.Select(c => c.Name));
         Assert.Equal("1", result.Rows[0]["A"]);
         Assert.Equal("2", result.Rows[0]["B"]);
@@ -44,7 +44,7 @@ public class CsvDataSetParserTests
     public async Task TrimsValues()
     {
         var bytes = Utf8("A,B\n  x  ,  y  \n");
-        var result = await _parser.ParseAsync(bytes, "default", default);
+        var result = await _parser.ParseAsync(bytes, "default", null, default);
         Assert.Equal("x", result.Rows[0]["A"]);
         Assert.Equal("y", result.Rows[0]["B"]);
     }
@@ -53,7 +53,7 @@ public class CsvDataSetParserTests
     public async Task SampleValues_TakeFirstThreeRows()
     {
         var bytes = Utf8("A\n1\n2\n3\n4\n");
-        var result = await _parser.ParseAsync(bytes, "default", default);
+        var result = await _parser.ParseAsync(bytes, "default", null, default);
         var col = Assert.Single(result.Columns);
         Assert.Equal(["1", "2", "3"], col.SampleValues);
         Assert.Equal(4, result.Rows.Count);
@@ -62,7 +62,7 @@ public class CsvDataSetParserTests
     [Fact]
     public async Task EmptyInput_ReturnsEmpty()
     {
-        var result = await _parser.ParseAsync(Utf8(""), "default", default);
+        var result = await _parser.ParseAsync(Utf8(""), "default", null, default);
         Assert.Empty(result.Columns);
         Assert.Empty(result.Rows);
     }

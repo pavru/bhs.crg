@@ -23,6 +23,10 @@ public interface IDataSetParser
     /// <summary>Обнаруживает все логические наборы внутри файла (листы, xpath-пути, json-ключи).</summary>
     Task<IReadOnlyList<DataSetSourceInfo>> DetectSourcesAsync(byte[] bytes, CancellationToken ct);
 
-    /// <summary>Парсит один конкретный набор по его sheetOrPath.</summary>
-    Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, CancellationToken ct);
+    /// <summary>
+    /// Парсит один конкретный набор по его sheetOrPath.
+    /// columnExpressions — опционально (используется XML-парсером): JSON [{name,expr}] с явными
+    /// относительными XPath-выражениями колонок; прочие парсеры параметр игнорируют.
+    /// </summary>
+    Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, string? columnExpressions, CancellationToken ct);
 }

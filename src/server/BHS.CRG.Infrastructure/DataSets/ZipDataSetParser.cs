@@ -54,7 +54,7 @@ public class ZipDataSetParser(IServiceProvider services) : IDataSetParser
         return sources;
     }
 
-    public async Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, CancellationToken ct)
+    public async Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, string? columnExpressions, CancellationToken ct)
     {
         using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read, leaveOpen: false);
 
@@ -83,7 +83,7 @@ public class ZipDataSetParser(IServiceProvider services) : IDataSetParser
         var parser = Factory.GetParser(format);
 
         // Для форматов с единственным источником innerSheet не используется.
-        var result = await parser.ParseAsync(entryBytes, innerSheet ?? "default", ct);
+        var result = await parser.ParseAsync(entryBytes, innerSheet ?? "default", columnExpressions, ct);
         return result;
     }
 

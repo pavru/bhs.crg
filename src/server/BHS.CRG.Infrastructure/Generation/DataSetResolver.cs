@@ -43,7 +43,8 @@ public class DataSetResolver(
                 // Download → parse → computed columns → filter (shared with preview via DataSetBindingProcessor).
                 var rows = await DataSetBindingProcessor.LoadRowsAsync(
                     blobStorage, parserFactory, binding.Source.File.BlobPath, binding.Source.File.Format,
-                    binding.Source.SheetOrPath, binding.ComputedColumns, binding.RowFilter, ct);
+                    binding.Source.SheetOrPath, binding.Source.ColumnExpressions,
+                    binding.ComputedColumns, binding.RowFilter, ct);
 
                 var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(binding.Mapping)
                     ?? [];

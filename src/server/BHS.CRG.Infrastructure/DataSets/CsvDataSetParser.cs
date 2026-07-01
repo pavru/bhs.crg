@@ -17,7 +17,7 @@ public class CsvDataSetParser : IDataSetParser
         return Task.FromResult<IReadOnlyList<DataSetSourceInfo>>([info]);
     }
 
-    public Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, CancellationToken ct)
+    public Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, string? columnExpressions, CancellationToken ct)
         => Task.FromResult(ParseInternal(bytes));
 
     private static DataSetParseResult ParseInternal(byte[] bytes)

@@ -187,7 +187,7 @@ public class DataSetService(
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms, ct);
         var parser = parserFactory.GetParser(source.File.Format);
-        var result = await parser.ParseAsync(ms.ToArray(), source.SheetOrPath, ct);
+        var result = await parser.ParseAsync(ms.ToArray(), source.SheetOrPath, source.ColumnExpressions, ct);
 
         var take = maxRows <= 0 ? 50 : maxRows;
         var columns = result.Columns.Select(c => c.Name).ToList();
@@ -272,7 +272,8 @@ public class DataSetService(
             {
                 var rows = await DataSetBindingProcessor.LoadRowsAsync(
                     blob, parserFactory, binding.Source.File.BlobPath, binding.Source.File.Format,
-                    binding.Source.SheetOrPath, binding.ComputedColumns, binding.RowFilter, ct);
+                    binding.Source.SheetOrPath, binding.Source.ColumnExpressions,
+                    binding.ComputedColumns, binding.RowFilter, ct);
 
                 var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(binding.Mapping) ?? [];
 
