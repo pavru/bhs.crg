@@ -94,8 +94,8 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
     <div className="space-y-2">
       {fields.length > 0 && (
         <div className="grid grid-cols-[1fr_1fr_160px_72px_48px] gap-2 px-2 pb-1">
-          <span className="text-xs font-medium text-fg3">Ключ</span>
           <span className="text-xs font-medium text-fg3">Название</span>
+          <span className="text-xs font-medium text-fg3">Ключ</span>
           <span className="text-xs font-medium text-fg3">Тип</span>
           <span className="text-xs font-medium text-fg3">Обяз.</span>
           <span />
@@ -106,6 +106,13 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
         return (
           <div key={`${uid}-${i}`} className="space-y-1">
             <div className="grid grid-cols-[1fr_1fr_160px_72px_48px] gap-2 items-center">
+              {/* Title */}
+              <input
+                value={field.title}
+                onChange={e => updateTitle(i, e.target.value)}
+                placeholder="Название"
+                className="border border-stroke-strong rounded-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
+              />
               {/* Key */}
               <div className="relative">
                 <input
@@ -123,13 +130,6 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
                   <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-danger">!</span>
                 )}
               </div>
-              {/* Title */}
-              <input
-                value={field.title}
-                onChange={e => updateTitle(i, e.target.value)}
-                placeholder="Название"
-                className="border border-stroke-strong rounded-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
-              />
               {/* Type */}
               <select
                 value={field.type}
