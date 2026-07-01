@@ -45,6 +45,14 @@ export function SourceEditorDialog({ fileId, isZip = false, initial, onClose }: 
   // Текущее значение может отсутствовать в списке (архив обновился) — не терять его молча.
   const entryOptions = entryPath && !zipEntries.includes(entryPath) ? [entryPath, ...zipEntries] : zipEntries;
 
+  // Полный row-selector с учётом ZIP-адресации — для предпросмотра (null = ещё не готов, напр.
+  // архив без выбранного файла). Колонки предпросматриваются относительно него же.
+  function composeRowSelector(rs: string): string | null {
+    if (!rs.trim()) return null;
+    if (!isZip) return rs;
+    return entryPath.trim() ? `${entryPath.trim()}::${rs.trim()}` : null;
+  }
+
   function addColumn() {
     setColumns(prev => [...prev, { name: '', expr: '' }]);
   }
@@ -123,7 +131,8 @@ export function SourceEditorDialog({ fileId, isZip = false, initial, onClose }: 
           <label className="block text-sm font-medium text-fg1 mb-1">
             Row-selector — путь к строкам (одна строка = один узел; условия сужают до конкретных)
           </label>
-          <XPathBuilder value={sheetOrPath} onChange={setSheetOrPath} placeholder="/Root/Item" />
+          <XPathBuilder value={sheetOrPath} onChange={setSheetOrPath} placeholder="/Root/Item"
+            preview={v => { const rs = composeRowSelector(v); return rs ? { fileId, rowSelector: rs } : null; }} />
         </div>
 
         <div className="border-t border-stroke pt-3">
@@ -149,7 +158,8 @@ export function SourceEditorDialog({ fileId, isZip = false, initial, onClose }: 
                   className="w-40 shrink-0 px-2 py-1.5 rounded-md border border-stroke-strong bg-surface text-sm" />
                 <div className="flex-1 min-w-0">
                   <XPathBuilder value={col.expr} onChange={expr => updateColumn(i, { expr })}
-                    placeholder="@id или Name или Info/Code" />
+                    placeholder="@id или Name или Info/Code"
+                    preview={v => { const rs = composeRowSelector(sheetOrPath); return rs && v.trim() ? { fileId, rowSelector: rs, expr: v } : null; }} />
                 </div>
                 <button type="button" onClick={() => removeColumn(i)}
                   className="p-1.5 text-fg4 hover:text-danger shrink-0">

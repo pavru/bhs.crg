@@ -108,6 +108,31 @@ export function useListZipXmlEntries(fileId: string | undefined) {
   });
 }
 
+export interface XPathPreviewSpec {
+  fileId: string;
+  /** Полный row-selector (с учётом "entry::" для ZIP) — контекст, либо сам предпросматриваемый путь. */
+  rowSelector: string;
+  /** Задан — предпросмотр значения колонки (относительно rowSelector); не задан — предпросмотр самого rowSelector. */
+  expr?: string;
+}
+
+export interface XPathPreviewResult {
+  matchCount: number;
+  samples: string[];
+}
+
+/** Предпросмотр XPath-выражения в builder'е — без сохранения источника. */
+export function useXPathPreview(spec: XPathPreviewSpec | null) {
+  return useQuery<XPathPreviewResult>({
+    queryKey: ['datasets', 'xpath-preview', spec?.fileId, spec?.rowSelector, spec?.expr],
+    queryFn: () =>
+      apiClient.post(`/datasets/files/${spec!.fileId}/xpath-preview`,
+        { rowSelector: spec!.rowSelector, expr: spec!.expr }).then(r => r.data),
+    enabled: !!spec && !!spec.rowSelector.trim(),
+    retry: false,
+  });
+}
+
 export function useDeleteDataSetSource() {
   const qc = useQueryClient();
   return useMutation<void, Error, { id: string }>({

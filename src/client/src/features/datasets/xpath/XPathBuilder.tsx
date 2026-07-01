@@ -1,11 +1,28 @@
-import { useMemo } from 'react';
-import { Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { parseXPath, toXPath, type XPathModel, type XPathStep, type XPathPredicate } from './xpathModel';
+import { useXPathPreview, type XPathPreviewSpec } from '@/shared/api/datasets';
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(t);
+  }, [value, delayMs]);
+  return debounced;
+}
 
 interface XPathBuilderProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /**
+   * Даёт предпросмотр данных, которые матчит текущее выражение — вычисляется от debounced
+   * value. Возвращает null, если предпросмотр сейчас невозможен (например, для колонки не
+   * задан ещё row-selector). Для row-selector'а — вернуть { fileId, rowSelector: value } (без
+   * expr — предпросмотр самого пути); для колонки — { fileId, rowSelector: <контекст>, expr: value }.
+   */
+  preview?: (value: string) => XPathPreviewSpec | null;
 }
 
 /**
@@ -14,13 +31,16 @@ interface XPathBuilderProps {
  * вышло за пределы поддерживаемого поднабора (см. xpathModel.ts), показывается
  * предупреждение вместо визуального редактора; сам текст при этом остаётся рабочим.
  */
-export function XPathBuilder({ value, onChange, placeholder }: XPathBuilderProps) {
+export function XPathBuilder({ value, onChange, placeholder, preview }: XPathBuilderProps) {
   const model = useMemo(() => parseXPath(value), [value]);
   const unparseable = value.trim() !== '' && model === null;
 
   function updateModel(next: XPathModel) {
     onChange(toXPath(next));
   }
+
+  const debouncedValue = useDebouncedValue(value, 400);
+  const previewSpec = preview ? preview(debouncedValue) : null;
 
   return (
     <div className="space-y-1.5">
@@ -41,6 +61,40 @@ export function XPathBuilder({ value, onChange, placeholder }: XPathBuilderProps
       ) : (
         <StepsEditor model={model ?? { absolute: true, steps: [] }} onChange={updateModel} />
       )}
+      {preview && <XPathPreviewPanel spec={previewSpec} />}
+    </div>
+  );
+}
+
+// ─── Предпросмотр данных ────────────────────────────────────────────────────────
+
+function XPathPreviewPanel({ spec }: { spec: XPathPreviewSpec | null }) {
+  const { data, isFetching, error } = useXPathPreview(spec);
+
+  if (!spec) return null;
+
+  return (
+    <div className="text-xs rounded-md border border-stroke bg-base px-2 py-1.5">
+      {isFetching ? (
+        <span className="flex items-center gap-1.5 text-fg4">
+          <Loader2 size={11} className="animate-spin" /> Проверка...
+        </span>
+      ) : error ? (
+        <span className="text-danger">
+          {(error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Не удалось проверить выражение'}
+        </span>
+      ) : data ? (
+        <div className="space-y-0.5">
+          <span className="font-medium text-fg2">
+            {spec.expr ? `Значений найдено: ${data.matchCount}` : `Узлов найдено: ${data.matchCount}`}
+          </span>
+          {data.samples.length > 0 && (
+            <ul className="text-fg4">
+              {data.samples.map((s, i) => <li key={i} className="truncate">{s}</li>)}
+            </ul>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
