@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { CatalogScope, ColumnExprDef, DataSetBinding, DataSetBindingPreviewResult, DataSetFile, DataSetPreview, DataSetSource, RowFilterDef, ComputedColumn } from './types';
+import type {
+  CatalogScope, ColumnExprDef, DataSetBinding, DataSetBindingPreviewResult, DataSetFile,
+  DataSetPreview, DataSetProcessingTemplate, DataSetSource, RowFilterDef, ComputedColumn, SortSpec,
+} from './types';
 
 // ── Файлы ─────────────────────────────────────────────────────────────────────
 
@@ -113,6 +116,70 @@ export function useDeleteDataSetSource() {
   });
 }
 
+// ── Обработка источника (Filter/Conversion/Sort) — лёгкая правка, файл не трогает ─────
+
+export function useSetDataSetSourceProcessing() {
+  const qc = useQueryClient();
+  return useMutation<DataSetSource, Error, {
+    id: string;
+    rowFilter?: RowFilterDef | null;
+    computedColumns?: ComputedColumn[] | null;
+    sortSpec?: SortSpec | null;
+    processingTemplateId?: string | null;
+  }>({
+    mutationFn: ({ id, ...data }) =>
+      apiClient.put(`/datasets/sources/${id}/processing`, data).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+  });
+}
+
+// ── Шаблоны обработки (переиспользуемые Filter/Conversion/Sort) ──────────────────
+
+export function useListProcessingTemplates() {
+  return useQuery<DataSetProcessingTemplate[]>({
+    queryKey: ['datasets', 'processing-templates'],
+    queryFn: () => apiClient.get('/datasets/processing-templates').then(r => r.data),
+  });
+}
+
+export function useCreateProcessingTemplate() {
+  const qc = useQueryClient();
+  return useMutation<DataSetProcessingTemplate, Error, {
+    name: string;
+    rowFilter?: RowFilterDef | null;
+    computedColumns?: ComputedColumn[] | null;
+    sortSpec?: SortSpec | null;
+  }>({
+    mutationFn: (data) => apiClient.post('/datasets/processing-templates', data).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'processing-templates'] }),
+  });
+}
+
+export function useUpdateProcessingTemplate() {
+  const qc = useQueryClient();
+  return useMutation<DataSetProcessingTemplate, Error, {
+    id: string;
+    name: string;
+    rowFilter?: RowFilterDef | null;
+    computedColumns?: ComputedColumn[] | null;
+    sortSpec?: SortSpec | null;
+  }>({
+    mutationFn: ({ id, ...data }) => apiClient.put(`/datasets/processing-templates/${id}`, data).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'processing-templates'] }),
+  });
+}
+
+export function useDeleteProcessingTemplate() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { id: string }>({
+    mutationFn: ({ id }) => apiClient.delete(`/datasets/processing-templates/${id}`).then(() => undefined),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['datasets', 'processing-templates'] });
+      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+    },
+  });
+}
+
 // ── Скачать оригинальный файл ─────────────────────────────────────────────────
 
 export async function downloadDataSetFile(id: string, name: string) {
@@ -186,8 +253,6 @@ export function useCreateDataSetBinding() {
     sourceId: string;
     targetFieldKey?: string | null;
     mapping?: Record<string, string>;
-    rowFilter?: RowFilterDef | null;
-    computedColumns?: ComputedColumn[] | null;
   }>({
     mutationFn: (data) =>
       apiClient.post('/datasets/bindings', data).then(r => r.data),
@@ -204,8 +269,6 @@ export function useUpdateDataSetBinding() {
     instanceId: string;
     targetFieldKey?: string | null;
     mapping?: Record<string, string>;
-    rowFilter?: RowFilterDef | null;
-    computedColumns?: ComputedColumn[] | null;
   }>({
     mutationFn: ({ id, instanceId: _i, ...data }) =>
       apiClient.put(`/datasets/bindings/${id}`, data).then(r => r.data),

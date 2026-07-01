@@ -1,14 +1,101 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react';
-import { parseSourceColumnNames } from '@/shared/api/datasetHelpers';
-import { useDeleteDataSetSource } from '@/shared/api/datasets';
+import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Filter, FunctionSquare, ArrowUpDown } from 'lucide-react';
+import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
+import { useDeleteDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates } from '@/shared/api/datasets';
 import { SourceEditorDialog } from './SourceEditorDialog';
-import type { DataSetFile, DataSetSource } from '@/shared/api/types';
+import { RowFilterDialog } from './RowFilterDialog';
+import { ComputedColumnsDialog } from './ComputedColumnsDialog';
+import { SortSpecDialog } from './SortSpecDialog';
+import type { DataSetFile, DataSetProcessingTemplate, DataSetSource, RowFilterDef, ComputedColumn, SortSpec } from '@/shared/api/types';
+
+/**
+ * Обработка (Filter/Conversion/Sort) одного источника — доступна для любого формата
+ * (не только XML). Либо своя настройка, либо живая ссылка на переиспользуемый шаблон
+ * (правится централизованно — см. «Шаблоны обработки» на странице «Наборы данных»).
+ */
+function SourceProcessingControls({ source, templates }: {
+  source: DataSetSource; templates: DataSetProcessingTemplate[];
+}) {
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [transformsOpen, setTransformsOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const setProcessing = useSetDataSetSourceProcessing();
+
+  const usesTemplate = !!source.processingTemplateId;
+  const activeTemplate = templates.find(t => t.id === source.processingTemplateId);
+  const effective = usesTemplate && activeTemplate
+    ? { rowFilter: activeTemplate.rowFilter, computedColumns: activeTemplate.computedColumns, sortSpec: activeTemplate.sortSpec }
+    : { rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec };
+
+  const filterCount = countFilterConditions(effective.rowFilter);
+  const transformCount = effective.computedColumns?.length ?? 0;
+  const sortCount = effective.sortSpec?.length ?? 0;
+  const columns = parseSourceColumnNames(source.cachedSchema);
+
+  function save(patch: {
+    rowFilter?: RowFilterDef | null; computedColumns?: ComputedColumn[] | null; sortSpec?: SortSpec | null;
+  }) {
+    setProcessing.mutate({
+      id: source.id,
+      rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec,
+      processingTemplateId: source.processingTemplateId,
+      ...patch,
+    });
+  }
+
+  function selectTemplate(templateId: string) {
+    setProcessing.mutate({
+      id: source.id,
+      // Свои значения не теряем — можно вернуться к individual-режиму с прежними настройками.
+      rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec,
+      processingTemplateId: templateId || null,
+    });
+  }
+
+  const iconCls = (count: number) => `p-1 rounded ${count > 0 ? 'text-brand' : 'text-fg4'} disabled:opacity-40`;
+
+  return (
+    <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+      <select value={source.processingTemplateId ?? ''} onChange={e => selectTemplate(e.target.value)}
+        title="Шаблон обработки (Filter/Conversion/Sort)"
+        className="text-[11px] border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[110px]">
+        <option value="">своя настройка</option>
+        {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+      </select>
+      <button onClick={() => setFilterOpen(true)} disabled={usesTemplate} className={iconCls(filterCount)}
+        title={usesTemplate ? 'Управляется шаблоном обработки' : 'Фильтрация строк'}>
+        <Filter size={12} />
+      </button>
+      <button onClick={() => setTransformsOpen(true)} disabled={usesTemplate} className={iconCls(transformCount)}
+        title={usesTemplate ? 'Управляется шаблоном обработки' : 'Вычисляемые колонки'}>
+        <FunctionSquare size={12} />
+      </button>
+      <button onClick={() => setSortOpen(true)} disabled={usesTemplate} className={iconCls(sortCount)}
+        title={usesTemplate ? 'Управляется шаблоном обработки' : 'Сортировка строк'}>
+        <ArrowUpDown size={12} />
+      </button>
+
+      {filterOpen && (
+        <RowFilterDialog columns={columns} initial={source.rowFilter}
+          onSave={f => save({ rowFilter: f })} onClose={() => setFilterOpen(false)} />
+      )}
+      {transformsOpen && (
+        <ComputedColumnsDialog initial={source.computedColumns}
+          onSave={c => save({ computedColumns: c })} onClose={() => setTransformsOpen(false)} />
+      )}
+      {sortOpen && (
+        <SortSpecDialog columns={columns} initial={source.sortSpec}
+          onSave={s => save({ sortSpec: s })} onClose={() => setSortOpen(false)} />
+      )}
+    </div>
+  );
+}
 
 /**
  * Collapsible list of a file's data sources with a preview of their column names.
  * Для XML (и XML внутри ZIP) источники управляются вручную (создание/редактирование/
  * удаление) — авто-детект по top-level элементам для XML не используется.
+ * Обработка (Filter/Conversion/Sort) доступна для источников любого формата.
  */
 export function SourcesExpander({
   file,
@@ -21,10 +108,11 @@ export function SourcesExpander({
   const [editing, setEditing] = useState<DataSetSource | 'new' | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<DataSetSource | null>(null);
   const deleteMutation = useDeleteDataSetSource();
-  const canManage = file.format === 'Xml' || file.format === 'Zip';
+  const { data: templates = [] } = useListProcessingTemplates();
+  const canManageExtraction = file.format === 'Xml' || file.format === 'Zip';
   const sources = file.sources;
 
-  if (sources.length === 0 && !canManage)
+  if (sources.length === 0 && !canManageExtraction)
     return <span className="text-xs text-fg4">Нет источников</span>;
 
   return (
@@ -36,7 +124,7 @@ export function SourcesExpander({
             ? `${sources.length} ${sources.length === 1 ? 'источник' : 'источника(-ов)'}`
             : 'Нет источников'}
         </button>
-        {canManage && (
+        {canManageExtraction && (
           <button onClick={() => { setEditing('new'); setOpen(true); }}
             className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
             <Plus size={11} /> Добавить источник
@@ -62,16 +150,19 @@ export function SourcesExpander({
                       </div>
                     )}
                   </div>
-                  {canManage && (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button onClick={() => setEditing(src)} className="p-1 text-fg4 hover:text-brand" title="Редактировать">
-                        <Pencil size={12} />
-                      </button>
-                      <button onClick={() => setConfirmDelete(src)} className="p-1 text-fg4 hover:text-danger" title="Удалить">
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <SourceProcessingControls source={src} templates={templates} />
+                    {canManageExtraction && (
+                      <>
+                        <button onClick={() => setEditing(src)} className="p-1 text-fg4 hover:text-brand" title="Редактировать">
+                          <Pencil size={12} />
+                        </button>
+                        <button onClick={() => setConfirmDelete(src)} className="p-1 text-fg4 hover:text-danger" title="Удалить">
+                          <Trash2 size={12} />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             );

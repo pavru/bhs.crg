@@ -224,6 +224,12 @@ export interface DataSetSource {
   columnExpressions: string | null;
   cachedSchema: string; // JSON of {name, sampleValues}[]
   cachedRowCount: number;
+  /** Обработка (Filter/Conversion/Sort) — своя, используется только если processingTemplateId пуст. */
+  rowFilter: RowFilterDef | null;
+  computedColumns: ComputedColumn[] | null;
+  sortSpec: SortSpec | null;
+  /** Живая ссылка на шаблон обработки — если задан, свои поля выше игнорируются. */
+  processingTemplateId: string | null;
 }
 
 export interface DataSetFile {
@@ -236,14 +242,13 @@ export interface DataSetFile {
   createdAt: string;
 }
 
+/** Привязка набора данных к документу — только Mapping. Filter/Conversion/Sort — на DataSetSource. */
 export interface DataSetBinding {
   id: string;
   instanceId: string;
   sourceId: string;
   targetFieldKey: string | null;
   mapping: Record<string, string>;
-  rowFilter: RowFilterDef | null;
-  computedColumns: ComputedColumn[] | null;
   source?: DataSetSource & { file?: Pick<DataSetFile, 'id' | 'name' | 'format' | 'scope' | 'scopeId'> };
 }
 
@@ -304,15 +309,33 @@ export interface ComputedColumn {
   expr: string;
 }
 
+/** Одна ступень сортировки — по колонке (в т.ч. вычисляемой). */
+export interface SortColumn {
+  column: string;
+  direction: 'asc' | 'desc';
+}
+
+export type SortSpec = SortColumn[];
+
+/** Шаблон маппинга (для типа документа). Filter/Conversion/Sort — см. DataSetProcessingTemplate. */
 export interface DataSetBindingTemplate {
   id: string;
   documentTypeId: string;
   name: string;
   targetFieldKey: string | null;
   columnMappings: Record<string, string>;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Переиспользуемый рецепт обработки (Filter/Conversion/Sort) — не привязан к типу документа. */
+export interface DataSetProcessingTemplate {
+  id: string;
+  name: string;
   rowFilter: RowFilterDef | null;
   computedColumns: ComputedColumn[] | null;
-  sortOrder: number;
+  sortSpec: SortSpec | null;
   createdAt: string;
   updatedAt: string;
 }

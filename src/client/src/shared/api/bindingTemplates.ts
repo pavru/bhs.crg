@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { DataSetBindingTemplate, RowFilterDef, ComputedColumn } from './types';
+import type { DataSetBindingTemplate } from './types';
 
 const base = (docTypeId: string) => `/document-types/${docTypeId}/binding-templates`;
 
@@ -19,8 +19,6 @@ export function useCreateBindingTemplate() {
     name: string;
     targetFieldKey?: string | null;
     columnMappings: Record<string, string>;
-    rowFilter?: RowFilterDef | null;
-    computedColumns?: ComputedColumn[] | null;
   }>({
     mutationFn: ({ documentTypeId, ...body }) =>
       apiClient.post(base(documentTypeId), body).then(r => r.data),
@@ -38,8 +36,6 @@ export function useUpdateBindingTemplate() {
     name: string;
     targetFieldKey?: string | null;
     columnMappings: Record<string, string>;
-    rowFilter?: RowFilterDef | null;
-    computedColumns?: ComputedColumn[] | null;
     sortOrder?: number;
   }>({
     mutationFn: ({ documentTypeId, id, ...body }) =>
