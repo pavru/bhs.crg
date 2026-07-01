@@ -354,7 +354,7 @@ function FieldTypeRow({ type, allGroups, expanded, onToggle }: {
             <ConstraintSummary baseType={type.baseType} c={type.constraints} />
           </span>
         </button>
-        <span className="opacity-0 group-hover:opacity-100 transition-all pr-1">
+        <span className="pr-1" onClick={e => e.stopPropagation()}>
           <GroupPicker groups={allGroups} value={type.group}
             onChange={group => groupMutation.mutate({ id: type.id, group })} />
         </span>

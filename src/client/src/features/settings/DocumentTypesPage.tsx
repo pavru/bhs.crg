@@ -693,7 +693,7 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
             </button>
           </>
         )}
-        <span className="opacity-0 group-hover:opacity-100 transition-all pr-1">
+        <span className="pr-1" onClick={e => e.stopPropagation()}>
           <GroupPicker groups={allGroups} value={docType.group}
             onChange={group => groupMutation.mutate({ id: docType.id, group })} />
         </span>
