@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
-import { Upload, Trash2, Database, RefreshCw, Download } from 'lucide-react';
+import { Upload, Trash2, Database, RefreshCw, Download, Layers } from 'lucide-react';
 import { useListDataSetFiles, useUploadDataSetFile } from '@/shared/api/datasets';
 import type { DataSetFile } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS } from '@/shared/api/types';
 import { SourcesExpander } from './SourcesExpander';
 import { useDataSetFileActions } from './useDataSetFileActions';
+import { ProcessingTemplatesDialog } from './ProcessingTemplatesDialog';
 
 function FileRow({ file }: { file: DataSetFile }) {
   const {
@@ -77,6 +78,7 @@ export function DataSetsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [templatesOpen, setTemplatesOpen] = useState(false);
 
   async function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -95,9 +97,15 @@ export function DataSetsPage() {
 
   return (
     <div className="px-6 py-4 max-w-3xl">
-      <h1 className="text-xl font-semibold mb-1 text-fg1">
-        Наборы данных
-      </h1>
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-xl font-semibold text-fg1">
+          Наборы данных
+        </h1>
+        <button onClick={() => setTemplatesOpen(true)}
+          className="flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-md transition-colors text-fg2 bg-muted hover:bg-brand-subtle hover:text-brand">
+          <Layers size={14} /> Шаблоны обработки
+        </button>
+      </div>
       <p className="text-xs mb-4 text-fg4">
         Системные наборы доступны во всех комплектах. Наборы уровня стройки, раздела и комплекта управляются на соответствующих страницах.
       </p>
@@ -139,6 +147,8 @@ export function DataSetsPage() {
       <p className="mt-3 text-xs text-fg4">
         Поддерживаемые форматы: CSV, TXT, XLSX, XLS, XML, JSON.
       </p>
+
+      {templatesOpen && <ProcessingTemplatesDialog onClose={() => setTemplatesOpen(false)} />}
     </div>
   );
 }
