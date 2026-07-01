@@ -49,6 +49,15 @@ export function useUpdatePrimitiveType(id: string) {
   });
 }
 
+export function useSetPrimitiveTypeGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, group }: { id: string; group: string | null }) =>
+      apiClient.put<PrimitiveTypeDef>(`/primitive-types/${id}/group`, { group }).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+  });
+}
+
 export function useDeletePrimitiveType() {
   const qc = useQueryClient();
   return useMutation({

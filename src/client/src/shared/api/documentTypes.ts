@@ -45,6 +45,15 @@ export function useSetDocumentTypeAbstract() {
   });
 }
 
+export function useSetDocumentTypeGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, group }: { id: string; group: string | null }) =>
+      apiClient.put<DocumentType>(`/document-types/${id}/group`, { group }).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['document-types'] }),
+  });
+}
+
 export function useDeleteDocumentType() {
   const qc = useQueryClient();
   return useMutation({

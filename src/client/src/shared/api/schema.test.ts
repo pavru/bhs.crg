@@ -18,7 +18,7 @@ function dt(schema: Record<string, unknown>, parentId: string | null = null, id?
   return {
     id: id ?? `dt${++seq}`,
     name: 'T', code: 'C', kind: 'Document', isAbstract: false,
-    parentId, schema, pluginBindings: {},
+    parentId, schema, pluginBindings: {}, group: null,
     createdAt: '', updatedAt: '',
   };
 }

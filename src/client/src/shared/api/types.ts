@@ -68,6 +68,7 @@ export interface DocumentType {
   parentId: string | null;
   schema: Record<string, unknown>;
   pluginBindings: Record<string, unknown>;
+  group: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -161,6 +162,7 @@ export interface PrimitiveTypeDef {
   constraints: FieldConstraints;
   /** Коды функциональных тэгов, применимых к полям этого типа. */
   allowedTags: string[];
+  group: string | null;
   createdAt: string;
   updatedAt: string;
 }

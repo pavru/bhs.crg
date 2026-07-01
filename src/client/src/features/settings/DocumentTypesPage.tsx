@@ -12,7 +12,9 @@ import {
   useUpdateDocumentTypeSchema,
   useDeleteDocumentType,
   useSetDocumentTypeAbstract,
+  useSetDocumentTypeGroup,
 } from '@/shared/api/documentTypes';
+import { TypeGroupAccordion, GroupPicker } from './TypeGroupAccordion';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import type { DocumentType, DocumentTypeKind } from '@/shared/api/types';
 import {
@@ -599,12 +601,13 @@ function SchemaEditor({ docType, allDocTypes }: {
 
 // ─── Type row ──────────────────────────────────────────────────────────────────
 
-function TypeRow({ docType, allDocTypes, expanded, onToggle }: {
-  docType: DocumentType; allDocTypes: DocumentType[];
+function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
+  docType: DocumentType; allDocTypes: DocumentType[]; allGroups: string[];
   expanded: boolean; onToggle: () => void;
 }) {
   const deleteMutation = useDeleteDocumentType();
   const abstractMutation = useSetDocumentTypeAbstract();
+  const groupMutation = useSetDocumentTypeGroup();
   const [templatesOpen, setTemplatesOpen] = useState(false);
 
   const effectiveFields = resolveEffectiveFields(docType, allDocTypes);
@@ -690,6 +693,10 @@ function TypeRow({ docType, allDocTypes, expanded, onToggle }: {
             </button>
           </>
         )}
+        <span className="opacity-0 group-hover:opacity-100 transition-all pr-1">
+          <GroupPicker groups={allGroups} value={docType.group}
+            onChange={group => groupMutation.mutate({ id: docType.id, group })} />
+        </span>
         <button onClick={handleDelete} disabled={deleteMutation.isPending}
           className="px-3 py-3 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30"
           title={hasChildren ? 'Нельзя удалить: есть дочерние типы' : 'Удалить'}>
@@ -727,6 +734,8 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   const filtered = allDocTypes
     .filter(dt => dt.kind === kind)
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+  const allGroups = [...new Set(filtered.map(dt => dt.group).filter((g): g is string => !!g))]
+    .sort((a, b) => a.localeCompare(b, 'ru'));
 
   const title = kind === 'Document' ? 'Типы документов' : 'Составные типы';
   const addLabel = kind === 'Document' ? 'Добавить тип документа' : 'Добавить составной тип';
@@ -759,12 +768,10 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
           {kind === 'Document' ? 'Типов документов не создано' : 'Составных типов не создано'}
         </div>
       ) : (
-        <div className="border border-stroke rounded-lg divide-y divide-stroke overflow-hidden">
-          {filtered.map(dt => (
-            <TypeRow key={dt.id} docType={dt} allDocTypes={allDocTypes}
-              expanded={expandedId === dt.id} onToggle={() => toggleExpanded(dt.id)} />
-          ))}
-        </div>
+        <TypeGroupAccordion items={filtered} getGroup={dt => dt.group} renderItem={dt => (
+          <TypeRow key={dt.id} docType={dt} allDocTypes={allDocTypes} allGroups={allGroups}
+            expanded={expandedId === dt.id} onToggle={() => toggleExpanded(dt.id)} />
+        )} />
       )}
 
       <Modal open={createOpen} onOpenChange={setCreateOpen}

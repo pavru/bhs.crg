@@ -7,10 +7,12 @@ import {
   useCreatePrimitiveType,
   useUpdatePrimitiveType,
   useDeletePrimitiveType,
+  useSetPrimitiveTypeGroup,
   buildPrimitiveTypeDto,
 } from '@/shared/api/primitiveTypes';
 import type { FieldConstraints, PrimitiveTypeDef } from '@/shared/api/types';
 import { useTagRegistry, fieldTags } from '@/shared/api/tags';
+import { TypeGroupAccordion, GroupPicker } from './TypeGroupAccordion';
 
 // ─── Base type options ────────────────────────────────────────────────────────
 
@@ -322,10 +324,11 @@ function ConstraintSummary({ baseType, c }: { baseType: string; c: FieldConstrai
 
 const BASE_TYPE_LABEL: Record<string, string> = { string: 'Строка', number: 'Число', date: 'Дата' };
 
-function FieldTypeRow({ type, expanded, onToggle }: {
-  type: PrimitiveTypeDef; expanded: boolean; onToggle: () => void;
+function FieldTypeRow({ type, allGroups, expanded, onToggle }: {
+  type: PrimitiveTypeDef; allGroups: string[]; expanded: boolean; onToggle: () => void;
 }) {
   const deleteMutation = useDeletePrimitiveType();
+  const groupMutation = useSetPrimitiveTypeGroup();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   function handleDelete(e: React.MouseEvent) {
@@ -351,6 +354,10 @@ function FieldTypeRow({ type, expanded, onToggle }: {
             <ConstraintSummary baseType={type.baseType} c={type.constraints} />
           </span>
         </button>
+        <span className="opacity-0 group-hover:opacity-100 transition-all pr-1">
+          <GroupPicker groups={allGroups} value={type.group}
+            onChange={group => groupMutation.mutate({ id: type.id, group })} />
+        </span>
         <button onClick={handleDelete} disabled={deleteMutation.isPending}
           className="px-3 py-3 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30"
           title="Удалить">
@@ -402,6 +409,10 @@ export function PrimitiveTypesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const sorted = [...types].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+  const allGroups = [...new Set(sorted.map(t => t.group).filter((g): g is string => !!g))]
+    .sort((a, b) => a.localeCompare(b, 'ru'));
+
   function toggleExpanded(id: string) {
     setExpandedId(prev => prev === id ? null : id);
   }
@@ -428,12 +439,10 @@ export function PrimitiveTypesPage() {
           Пользовательских типов ещё нет. Создайте тип, например «Email» или «ИНН».
         </div>
       ) : (
-        <div className="border border-stroke rounded-lg divide-y divide-stroke overflow-hidden">
-          {[...types].sort((a, b) => a.name.localeCompare(b.name, 'ru')).map(t => (
-            <FieldTypeRow key={t.id} type={t}
-              expanded={expandedId === t.id} onToggle={() => toggleExpanded(t.id)} />
-          ))}
-        </div>
+        <TypeGroupAccordion items={sorted} getGroup={t => t.group} renderItem={t => (
+          <FieldTypeRow key={t.id} type={t} allGroups={allGroups}
+            expanded={expandedId === t.id} onToggle={() => toggleExpanded(t.id)} />
+        )} />
       )}
 
       <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новый тип поля">
