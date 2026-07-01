@@ -21,6 +21,11 @@ public interface IDataSetService
     Task<SourcePreviewDto?> PreviewSourceAsync(Guid sourceId, int maxRows, CancellationToken ct);
     Task<Dictionary<string, string>?> AutoMapAsync(Guid sourceId, IReadOnlyList<FieldInfo> fields, CancellationToken ct);
 
+    /// <summary>Ручное создание источника (для XML — единственный способ, авто-детект не используется).</summary>
+    Task<DataSetSourceDto> CreateSourceAsync(Guid fileId, CreateSourceInput input, CancellationToken ct);
+    Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct);
+    Task<bool> DeleteSourceAsync(Guid sourceId, CancellationToken ct);
+
     // ── Bindings ────────────────────────────────────────────────────────────────
     Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid instanceId, CancellationToken ct);
     Task<DataSetBindingDto?> CreateBindingAsync(CreateBindingInput input, CancellationToken ct);

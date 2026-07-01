@@ -207,6 +207,74 @@ public class DataSetService(
         return DataSetAutoMapper.AutoMap(columns.Select(c => c.Name).ToList(), fields);
     }
 
+    public async Task<DataSetSourceDto> CreateSourceAsync(Guid fileId, CreateSourceInput input, CancellationToken ct)
+    {
+        var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)
+            ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
+
+        var columnExpressionsJson = SerializeColumnExpressions(input.ColumnExpressions);
+        var (schema, rowCount) = await ParseForDefinitionAsync(file.BlobPath, file.Format, input.SheetOrPath, columnExpressionsJson, ct);
+
+        var source = file.AddSource(input.Name.Trim(), input.SheetOrPath.Trim(), SerializeSchema(schema), rowCount, columnExpressionsJson);
+        await db.SaveChangesAsync(ct);
+        return MapSource(source);
+    }
+
+    public async Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct)
+    {
+        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        if (source == null) return null;
+
+        var columnExpressionsJson = SerializeColumnExpressions(input.ColumnExpressions);
+        var (schema, rowCount) = await ParseForDefinitionAsync(
+            source.File.BlobPath, source.File.Format, input.SheetOrPath, columnExpressionsJson, ct);
+
+        source.UpdateDefinition(input.Name.Trim(), input.SheetOrPath.Trim(), columnExpressionsJson);
+        source.UpdateCache(SerializeSchema(schema), rowCount);
+        await db.SaveChangesAsync(ct);
+        return MapSource(source);
+    }
+
+    public async Task<bool> DeleteSourceAsync(Guid sourceId, CancellationToken ct)
+    {
+        var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        if (source == null) return false;
+
+        var hasBindings = await db.DataSetBindings.AnyAsync(b => b.SourceId == sourceId, ct);
+        if (hasBindings)
+            throw new InvalidOperationException("Источник используется в привязках документов — сначала удалите привязки.");
+
+        db.DataSetSources.Remove(source);
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    // Скачивает файл и парсит указанное определение — используется для валидации и первичного
+    // расчёта кэша при ручном создании/редактировании источника (в первую очередь для XML).
+    private async Task<(IReadOnlyList<DataSetColumnInfo> Schema, int RowCount)> ParseForDefinitionAsync(
+        string blobPath, DataSetFormat format, string sheetOrPath, string? columnExpressionsJson, CancellationToken ct)
+    {
+        await using var stream = await blob.DownloadAsync(blobPath, ct);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+
+        var parser = parserFactory.GetParser(format);
+        try
+        {
+            var result = await parser.ParseAsync(ms.ToArray(), sheetOrPath, columnExpressionsJson, ct);
+            return (result.Columns, result.Rows.Count);
+        }
+        catch (Exception ex) when (ex is System.Xml.XPath.XPathException or ArgumentException or System.Xml.XmlException)
+        {
+            throw new ArgumentException($"Не удалось разобрать выражение: {ex.Message}");
+        }
+    }
+
+    private static string? SerializeColumnExpressions(IReadOnlyList<ColumnExprDto>? columnExpressions) =>
+        columnExpressions is { Count: > 0 }
+            ? JsonSerializer.Serialize(columnExpressions.Select(c => new { name = c.Name, expr = c.Expr }))
+            : null;
+
     // ── Bindings ────────────────────────────────────────────────────────────────
 
     public async Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid instanceId, CancellationToken ct)
@@ -409,7 +477,7 @@ public class DataSetService(
         f.Sources.Select(MapSource).ToList(), f.CreatedAt);
 
     private static DataSetSourceDto MapSource(DataSetSource s) =>
-        new(s.Id, s.FileId, s.Name, s.SheetOrPath, s.CachedSchema, s.CachedRowCount);
+        new(s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, s.CachedSchema, s.CachedRowCount);
 
     private static DataSetBindingDto MapBinding(DataSetBinding b) => new(
         b.Id, b.InstanceId, b.SourceId, b.TargetFieldKey,

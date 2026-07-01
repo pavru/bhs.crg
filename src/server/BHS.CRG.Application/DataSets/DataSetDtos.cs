@@ -3,7 +3,8 @@ namespace BHS.CRG.Application.DataSets;
 // ── Output DTOs (JSON shapes consumed by the SPA) ───────────────────────────────
 
 public record DataSetSourceDto(
-    Guid Id, Guid FileId, string Name, string SheetOrPath, string CachedSchema, int CachedRowCount);
+    Guid Id, Guid FileId, string Name, string SheetOrPath, string? ColumnExpressions,
+    string CachedSchema, int CachedRowCount);
 
 public record DataSetFileDto(
     Guid Id, string Name, string Format, string Scope, Guid? ScopeId,
@@ -40,6 +41,13 @@ public record UploadFileInput(
     byte[] Bytes, string FileName, string? ContentType, string? Name, string Scope, string? ScopeId);
 
 public record ReplaceFileInput(byte[] Bytes, string FileName, string? ContentType, string? Name);
+
+/// <summary>Явная относительная колонка XML-источника: имя + XPath-выражение относительно строки.</summary>
+public record ColumnExprDto(string Name, string Expr);
+
+public record CreateSourceInput(string Name, string SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions);
+
+public record UpdateSourceInput(string Name, string SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions);
 
 public record CreateBindingInput(
     Guid InstanceId, Guid SourceId, string? TargetFieldKey,

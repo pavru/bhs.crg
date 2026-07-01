@@ -76,6 +76,37 @@ public static class DataSetEndpoints
             var mapping = await svc.AutoMapAsync(sourceId, fields, ct);
             return mapping is null ? Results.NotFound() : Results.Ok(new { mapping });
         });
+
+        // Ручное создание/редактирование/удаление источника — единственный способ для XML
+        // (авто-детект по top-level элементам не используется, см. XmlDataSetParser).
+        g.MapPost("/files/{fileId:guid}/sources", async (
+            Guid fileId, SourceRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            try
+            {
+                var input = new CreateSourceInput(req.Name, req.SheetOrPath, req.ColumnExpressions);
+                return Results.Ok(await svc.CreateSourceAsync(fileId, input, ct));
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+
+        g.MapPut("/sources/{sourceId:guid}", async (
+            Guid sourceId, SourceRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            try
+            {
+                var input = new UpdateSourceInput(req.Name, req.SheetOrPath, req.ColumnExpressions);
+                var result = await svc.UpdateSourceAsync(sourceId, input, ct);
+                return result is null ? Results.NotFound() : Results.Ok(result);
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+
+        g.MapDelete("/sources/{sourceId:guid}", async (Guid sourceId, IDataSetService svc, CancellationToken ct) =>
+        {
+            try { return await svc.DeleteSourceAsync(sourceId, ct) ? Results.NoContent() : Results.NotFound(); }
+            catch (InvalidOperationException ex) { return Results.Conflict(ex.Message); }
+        });
     }
 
     private static async Task<byte[]> ReadBytesAsync(IFormFile file, CancellationToken ct)
@@ -88,4 +119,5 @@ public static class DataSetEndpoints
 
     private record AutoMapRequest(AutoMapFieldDto[] Fields);
     private record AutoMapFieldDto(string Key, string Title);
+    private record SourceRequest(string Name, string SheetOrPath, ColumnExprDto[]? ColumnExpressions);
 }
