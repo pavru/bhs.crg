@@ -113,6 +113,10 @@ public class DataSetResolver(
         string path,
         CancellationToken ct)
     {
+        var fileMap = DataSetMappingValue.ParseFile(mapVal);
+        if (fileMap is not null)
+            return DataSetMappingValue.ResolveFileValue(fileMap, row);
+
         var refMap = DataSetMappingValue.ParseRef(mapVal);
         if (refMap is null)
             return row.TryGetValue(mapVal, out var val) ? val : null;

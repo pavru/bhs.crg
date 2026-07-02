@@ -14,7 +14,7 @@ import {
   resolveEffectiveFields, parseSchemaFields, groupEffectiveFields,
   getDefaultValues, findTaggedFieldPath, type SchemaField,
 } from '@/shared/api/schema';
-import { isFileAttachment } from '@/shared/api/attachments';
+import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 import { recognizeDocument } from '@/shared/api/qualityDocs';
 import { flattenLeaves, applyRecognized } from '@/features/quality-docs/QualityDocForm';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
@@ -365,7 +365,9 @@ function CatalogEntryForm({
           if (isBoundScalar) {
             const display = val === undefined || val === null || val === ''
               ? null
-              : (typeof val === 'string' ? val : JSON.stringify(val));
+              : isFileAttachment(val)
+                ? `📎 ${val.fileName} (${formatBytes(val.size)})`
+                : (typeof val === 'string' ? val : JSON.stringify(val));
             return (
               <div key={field.key}>
                 <label className="flex items-center gap-1.5 text-sm font-medium text-fg2 mb-1">

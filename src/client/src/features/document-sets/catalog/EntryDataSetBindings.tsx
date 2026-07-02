@@ -40,7 +40,7 @@ function AddEntryBindingPanel({
 
   const selectedSource = allSources.find(s => s.id === sourceId);
   const arrayFields = schemaFields.filter(f => f.type === 'array');
-  const scalarFields = schemaFields.filter(isScalarField);
+  const scalarFields = schemaFields.filter(f => isScalarField(f) && f.type !== 'file');
 
   async function handleSourceChange(id: string) {
     setSourceId(id);

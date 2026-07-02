@@ -361,6 +361,7 @@ export interface DataSetBindingPreviewResult {
   mode: 'scalar' | 'tabular' | 'error';
   targetFieldKey: string | null;
   totalRows: number;
-  data: Record<string, string | null> | Record<string, string | null>[];
+  /** Значение ячейки — строка (обычный/ref-маппинг) или FileAttachment-объект (файловый маппинг). */
+  data: Record<string, unknown> | Record<string, unknown>[];
   error: string | null;
 }

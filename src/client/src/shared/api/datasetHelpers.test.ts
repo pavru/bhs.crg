@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseSourceColumns, parseSourceColumnNames, countFilterConditions, cleanFilterNode,
   mergeBindingPreviewsIntoValues, computeBoundFieldKeys,
+  isFileMappingValue, parseFileMapping, buildFileMapping,
 } from './datasetHelpers';
 import type { FilterGroup, DataSetBindingPreviewResult } from './types';
 
@@ -159,5 +160,35 @@ describe('computeBoundFieldKeys', () => {
     const { scalarKeys, arrayKeys } = computeBoundFieldKeys([]);
     expect(scalarKeys.size).toBe(0);
     expect(arrayKeys.size).toBe(0);
+  });
+});
+
+describe('file mapping (@@file:)', () => {
+  it('round-trips column and sizeColumn through build/parse', () => {
+    const encoded = buildFileMapping({ column: 'ФайлПуть', sizeColumn: 'РазмерБайт' });
+    expect(isFileMappingValue(encoded)).toBe(true);
+    expect(parseFileMapping(encoded)).toEqual({ column: 'ФайлПуть', sizeColumn: 'РазмерБайт' });
+  });
+
+  it('round-trips without a sizeColumn', () => {
+    const encoded = buildFileMapping({ column: 'ФайлПуть', sizeColumn: '' });
+    expect(parseFileMapping(encoded)).toEqual({ column: 'ФайлПуть', sizeColumn: '' });
+  });
+
+  it('does not treat a plain column name as a file mapping', () => {
+    expect(isFileMappingValue('ФайлПуть')).toBe(false);
+    expect(parseFileMapping('ФайлПуть')).toBeNull();
+  });
+
+  it('does not confuse file mapping with ref mapping prefix', () => {
+    expect(isFileMappingValue('@@ref:{"column":"X","match":"","typeId":"1"}')).toBe(false);
+  });
+
+  it('returns null for malformed JSON', () => {
+    expect(parseFileMapping('@@file:not-json')).toBeNull();
+  });
+
+  it('returns null when column is missing', () => {
+    expect(parseFileMapping('@@file:{"sizeColumn":"РазмерБайт"}')).toBeNull();
   });
 });

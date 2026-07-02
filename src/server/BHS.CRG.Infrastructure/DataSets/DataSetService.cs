@@ -763,7 +763,7 @@ public class DataSetService(
                 if (binding.TargetFieldKey is null)
                 {
                     var row = rows.Count > 0 ? rows[0] : null;
-                    var data = new Dictionary<string, string?>();
+                    var data = new Dictionary<string, object?>();
                     foreach (var (fieldKey, colName) in mapping)
                         if (!string.IsNullOrEmpty(colName))
                             data[fieldKey] = PreviewCell(colName, row);
@@ -775,7 +775,7 @@ public class DataSetService(
                 {
                     var mapped = rows.Select(row =>
                     {
-                        var obj = new Dictionary<string, string?>();
+                        var obj = new Dictionary<string, object?>();
                         foreach (var (fieldKey, colName) in mapping)
                             if (!string.IsNullOrEmpty(colName))
                                 obj[fieldKey] = PreviewCell(colName, row);
@@ -868,9 +868,14 @@ public class DataSetService(
 
     // Значение ячейки для предпросмотра. Для ссылочного маппинга (@@ref) показываем
     // искомое значение колонки с маркером — фактический резолвинг в каталог выполняется
-    // при генерации.
-    private static string? PreviewCell(string mapVal, IReadOnlyDictionary<string, string?>? row)
+    // при генерации. Для файлового маппинга (@@file) — уже полноценный объект-вложение
+    // (используется напрямую и при синхронизации CommonDataEntry.Data, не только для показа).
+    private static object? PreviewCell(string mapVal, IReadOnlyDictionary<string, string?>? row)
     {
+        var fileMap = DataSetMappingValue.ParseFile(mapVal);
+        if (fileMap is not null)
+            return row is null ? null : DataSetMappingValue.ResolveFileValue(fileMap, row);
+
         var refMap = DataSetMappingValue.ParseRef(mapVal);
         if (refMap is not null)
         {

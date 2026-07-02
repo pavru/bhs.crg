@@ -9,7 +9,8 @@ import {
 import type { DocumentInstance, DocumentType, DataSetSource, DataSetBinding, DataSetBindingPreviewResult } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
-import { parseSourceColumnNames, parseRefMapping, buildRefMapping } from '@/shared/api/datasetHelpers';
+import { parseSourceColumnNames, parseRefMapping, buildRefMapping, parseFileMapping, buildFileMapping } from '@/shared/api/datasetHelpers';
+import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 export function MappingEditor({
   source,
   schemaFields,
@@ -40,9 +41,11 @@ export function MappingEditor({
     return resolveEffectiveFields(compositeType, allDocTypes);
   }, [targetFieldKey, arrayFields, allDocTypes, schemaFields]);
 
-  const scalarMappable = effectiveFields.filter(isScalarField);
+  const scalarMappable = effectiveFields.filter(f => isScalarField(f) && f.type !== 'file');
   // Составные поля заполняются ссылкой на запись каталога (по значению колонки).
   const complexMappable = effectiveFields.filter(f => f.type === 'complex' && f.typeId);
+  // Файловые поля заполняются вложением, синтезированным из колонки-пути (+ опц. колонка-размер) той же строки.
+  const fileMappable = effectiveFields.filter(f => f.type === 'file');
 
   function matchFieldsFor(typeId: string): SchemaField[] {
     const ct = allDocTypes.find(dt => dt.id === typeId);
@@ -63,6 +66,12 @@ export function MappingEditor({
   function setRef(f: SchemaField, column: string, match: string) {
     const next = { ...mapping };
     if (column) next[f.key] = buildRefMapping({ column, match, typeId: f.typeId! });
+    else delete next[f.key];
+    onChange(next, targetFieldKey);
+  }
+  function setFile(f: SchemaField, column: string, sizeColumn: string) {
+    const next = { ...mapping };
+    if (column) next[f.key] = buildFileMapping({ column, sizeColumn });
     else delete next[f.key];
     onChange(next, targetFieldKey);
   }
@@ -136,8 +145,37 @@ export function MappingEditor({
               </div>
             );
           })}
+          {fileMappable.map(f => {
+            const fileMap = parseFileMapping(mapping[f.key]);
+            return (
+              <div key={f.key} className="flex items-center gap-2">
+                <span className="w-40 text-xs truncate shrink-0 text-fg2" title={`${f.title} (${f.key}) — файл-вложение`}>
+                  {f.title} <span className="text-fg4">📎</span>
+                </span>
+                <select
+                  value={fileMap?.column ?? ''}
+                  onChange={e => setFile(f, e.target.value, fileMap?.sizeColumn ?? '')}
+                  className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
+                  title="Колонка с путём к файлу (blob)"
+                >
+                  <option value="">— не привязано —</option>
+                  {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select
+                  value={fileMap?.sizeColumn ?? ''}
+                  onChange={e => setFile(f, fileMap?.column ?? '', e.target.value)}
+                  disabled={!fileMap?.column}
+                  className="w-32 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1 disabled:opacity-50"
+                  title="Колонка с размером файла в байтах (необязательно)"
+                >
+                  <option value="">без размера</option>
+                  {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            );
+          })}
         </div>
-        {scalarMappable.length === 0 && complexMappable.length === 0 && (
+        {scalarMappable.length === 0 && complexMappable.length === 0 && fileMappable.length === 0 && (
           <p className="text-xs text-fg4">Нет доступных полей для маппинга</p>
         )}
       </div>
@@ -174,7 +212,7 @@ function AddBindingPanel({
 
   const selectedSource = allSources.find(s => s.id === sourceId);
   const arrayFields = schemaFields.filter(f => f.type === 'array');
-  const scalarFields = schemaFields.filter(isScalarField);
+  const scalarFields = schemaFields.filter(f => isScalarField(f) && f.type !== 'file');
 
   async function handleSourceChange(id: string) {
     setSourceId(id);
@@ -287,7 +325,7 @@ function BindingRow({
   const source = binding.source;
   const file = source?.file;
   const arrayFields = schemaFields.filter(f => f.type === 'array');
-  const scalarFields = schemaFields.filter(isScalarField);
+  const scalarFields = schemaFields.filter(f => isScalarField(f) && f.type !== 'file');
 
   async function handleAutoRemap() {
     if (!source) return;
@@ -384,6 +422,13 @@ function BindingRow({
   );
 }
 
+/** Ячейка превью: строка как есть, FileAttachment (файловый маппинг) — имя + размер, иначе null. */
+function renderCellValue(v: unknown) {
+  if (v == null) return <em>null</em>;
+  if (isFileAttachment(v)) return <>📎 {v.fileName} <span className="text-fg4">({formatBytes(v.size)})</span></>;
+  return String(v);
+}
+
 function PreviewPanel({ results }: { results: DataSetBindingPreviewResult[] }) {
   if (results.length === 0)
     return <p className="text-xs py-2 text-fg4">Нет привязок для проверки</p>;
@@ -418,11 +463,11 @@ function PreviewPanel({ results }: { results: DataSetBindingPreviewResult[] }) {
             <div className="px-3 py-2 overflow-x-auto bg-surface">
               <table className="text-xs w-full">
                 <tbody>
-                  {Object.entries(r.data as Record<string, string | null>).map(([k, v]) => (
+                  {Object.entries(r.data as Record<string, unknown>).map(([k, v]) => (
                     <tr key={k} className="border-b border-stroke last:border-0">
                       <td className="py-1 pr-4 font-medium w-1/3 text-fg3">{k}</td>
                       <td className={`py-1 ${v == null ? 'text-fg4' : 'text-fg1'}`}>
-                        {v ?? <em>null</em>}
+                        {renderCellValue(v)}
                       </td>
                     </tr>
                   ))}
@@ -433,7 +478,7 @@ function PreviewPanel({ results }: { results: DataSetBindingPreviewResult[] }) {
             // Tabular — show first 5 rows
             <div className="overflow-x-auto bg-surface">
               {(() => {
-                const rows = r.data as Record<string, string | null>[];
+                const rows = r.data as Record<string, unknown>[];
                 const preview = rows.slice(0, 5);
                 const keys = preview.length > 0 ? Object.keys(preview[0]) : [];
                 if (keys.length === 0) return (
@@ -453,7 +498,7 @@ function PreviewPanel({ results }: { results: DataSetBindingPreviewResult[] }) {
                         <tr key={i} className="border-t border-stroke">
                           {keys.map(k => (
                             <td key={k} className={`px-3 py-1.5 whitespace-nowrap ${row[k] == null ? 'text-fg4' : 'text-fg1'}`}>
-                              {row[k] ?? <em>null</em>}
+                              {renderCellValue(row[k])}
                             </td>
                           ))}
                         </tr>
@@ -462,9 +507,9 @@ function PreviewPanel({ results }: { results: DataSetBindingPreviewResult[] }) {
                   </table>
                 );
               })()}
-              {(r.data as Record<string, string | null>[]).length > 5 && (
+              {(r.data as Record<string, unknown>[]).length > 5 && (
                 <p className="px-3 py-1.5 text-xs border-t border-stroke text-fg4">
-                  +{(r.data as Record<string, string | null>[]).length - 5} строк не показано
+                  +{(r.data as Record<string, unknown>[]).length - 5} строк не показано
                 </p>
               )}
             </div>

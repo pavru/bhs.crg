@@ -57,6 +57,39 @@ export function buildRefMapping(m: RefMapping): string {
   return REF_PREFIX + JSON.stringify({ column: m.column, match: m.match, typeId: m.typeId });
 }
 
+// ─── Файловый маппинг ───────────────────────────────────────────────────────
+// Поле типа "file" заполняется вложением, синтезированным из колонок ТОЙ ЖЕ строки источника
+// (в отличие от ref-маппинга — здесь нет поиска по каталогу). Кодируется строкой
+// "@@file:{json}". Формат разделяется с backend (DataSetMappingValue.ResolveFileValue).
+
+const FILE_PREFIX = '@@file:';
+
+export interface FileMapping {
+  /** Колонка с путём к blob'у (напр. "ФайлПуть"). */
+  column: string;
+  /** Необязательная колонка с размером в байтах (напр. "РазмерБайт"); пусто — size=0. */
+  sizeColumn: string;
+}
+
+export function isFileMappingValue(value: string | undefined | null): boolean {
+  return typeof value === 'string' && value.startsWith(FILE_PREFIX);
+}
+
+export function parseFileMapping(value: string | undefined | null): FileMapping | null {
+  if (!isFileMappingValue(value)) return null;
+  try {
+    const parsed = JSON.parse((value as string).slice(FILE_PREFIX.length)) as Partial<FileMapping>;
+    if (!parsed.column) return null;
+    return { column: parsed.column, sizeColumn: parsed.sizeColumn ?? '' };
+  } catch {
+    return null;
+  }
+}
+
+export function buildFileMapping(m: FileMapping): string {
+  return FILE_PREFIX + JSON.stringify({ column: m.column, sizeColumn: m.sizeColumn || undefined });
+}
+
 // ─── Слияние результата preview биндингов в значения формы ─────────────────────
 // Клиентское зеркало серверного CommonDataBindingMerge (Application/Documents) — те же правила:
 // пустое скалярное значение не затирает существующее, табличное поле пишется целиком (даже []).
@@ -69,7 +102,7 @@ export function mergeBindingPreviewsIntoValues(
   for (const p of previews) {
     if (p.error) continue;
     if (p.mode === 'scalar') {
-      const data = p.data as Record<string, string | null>;
+      const data = p.data as Record<string, unknown>;
       for (const [key, value] of Object.entries(data)) {
         if (value === null || value === '') continue;
         next[key] = value;

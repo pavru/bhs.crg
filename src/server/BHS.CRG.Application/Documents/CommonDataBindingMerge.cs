@@ -21,18 +21,21 @@ public static class CommonDataBindingMerge
         {
             if (preview.Error is not null) continue;
 
-            if (preview.Mode == "scalar" && preview.Data is Dictionary<string, string?> scalarData)
+            if (preview.Mode == "scalar" && preview.Data is Dictionary<string, object?> scalarData)
             {
                 foreach (var (key, value) in scalarData)
                 {
-                    // Пустое значение колонки не затирает ранее сохранённое (или введённое вручную
-                    // до создания биндинга) — источник мог временно не дать данных по этой строке.
-                    if (string.IsNullOrEmpty(value)) continue;
+                    // Пустое строковое значение колонки не затирает ранее сохранённое (или введённое
+                    // вручную до создания биндинга) — источник мог временно не дать данных по этой
+                    // строке. Не-строковое значение (напр. файловый объект от @@file-маппинга)
+                    // пишем всегда, если оно не null.
+                    if (value is string s && string.IsNullOrEmpty(s)) continue;
+                    if (value is null) continue;
                     dict[key] = JsonSerializer.SerializeToElement(value);
                 }
             }
             else if (preview.Mode == "tabular" && preview.TargetFieldKey is { } targetKey
-                     && preview.Data is List<Dictionary<string, string?>> rows)
+                     && preview.Data is List<Dictionary<string, object?>> rows)
             {
                 // Табличное поле целиком управляется источником — пишем как есть, включая [].
                 dict[targetKey] = JsonSerializer.SerializeToElement(rows);
