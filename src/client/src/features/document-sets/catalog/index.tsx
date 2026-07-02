@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Link2, Unlink, ChevronDown, ChevronUp, Plus, Pencil, Trash2, FileText, Database } from 'lucide-react';
+import {
+  Link2, Unlink, ChevronDown, ChevronUp, Plus, Pencil, Trash2, FileText, Database, ShieldCheck, Loader2,
+} from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import {
   useListCommonData, useCommonDataForSet, useCreateCommonDataEntry,
@@ -9,8 +11,12 @@ import type { CommonDataEntry, CatalogScope, DocumentType } from '@/shared/api/t
 import { SCOPE_LABELS, SCOPE_PRIORITY } from '@/shared/api/types';
 import {
   resolveEffectiveFields, parseSchemaFields, groupEffectiveFields,
-  getDefaultValues, type SchemaField,
+  getDefaultValues, findTaggedFieldPath, type SchemaField,
 } from '@/shared/api/schema';
+import { isFileAttachment } from '@/shared/api/attachments';
+import { recognizeDocument } from '@/shared/api/qualityDocs';
+import { flattenLeaves, applyRecognized } from '@/features/quality-docs/QualityDocForm';
+import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import {
   SCOPE_COLORS, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
   PrimitiveInput, FileField, ImageField,
@@ -212,6 +218,7 @@ function CatalogEntryForm({
   const [error, setError] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [basePickerOpen, setBasePickerOpen] = useState(false);
+  const [recognizing, setRecognizing] = useState(false);
   const createMutation = useCreateCommonDataEntry();
   const updateMutation = useUpdateCommonDataEntry();
 
@@ -226,6 +233,14 @@ function CatalogEntryForm({
   const effectiveFields = selectedType ? resolveEffectiveFields(selectedType, allDocTypes) : [];
   const displayFields = (parentType && baseRefId) ? ownFields : effectiveFields;
   const sections = selectedType ? groupEffectiveFields(displayFields, selectedType.schema) : [];
+
+  // Распознавание: берём первое поле-файл с загруженным вложением (обычно единственное —
+  // "Файл"). Заполняет только простые поля (flattenLeaves пропускает array/doc-ref/complex-с-
+  // ссылкой) — составные/ссылочные остаются ручными, этого достаточно для «выборочности».
+  const fileFieldValue = effectiveFields
+    .map(f => (f.type === 'file' ? values[f.key] : undefined))
+    .find(v => isFileAttachment(v));
+  const attachment = isFileAttachment(fileFieldValue) ? fileFieldValue : null;
 
   const { data: allParentEntries = [] } = useCommonDataForSet({
     setId: setId ?? '', typeId: parentType?.id, enabled: !!parentType && !!setId,
@@ -250,6 +265,29 @@ function CatalogEntryForm({
   }
   function toggleGroup(key: string) {
     setExpandedGroups(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  }
+
+  async function handleRecognize() {
+    if (!attachment || !selectedType) return;
+    setRecognizing(true); setError('');
+    try {
+      const rec = await recognizeDocument({
+        blobPath: attachment.blobPath, mimeType: attachment.mimeType,
+        fields: flattenLeaves(effectiveFields, allDocTypes),
+        promptKind: 'titleblock',
+      });
+      let next = applyRecognized(values, rec.values);
+      // Число страниц надёжнее брать из самого файла, чем просить модель прочитать его на штампе.
+      if (rec.pageCount != null) {
+        const p = findTaggedFieldPath(selectedType, FUNCTIONAL_TAG.docPageCount, allDocTypes);
+        if (p) next = applyRecognized(next, { [p.join('.')]: String(rec.pageCount) });
+      }
+      setValues(next);
+    } catch (e: unknown) {
+      const resp = (e as { response?: { data?: { error?: string; limit?: boolean } } })?.response;
+      if (resp?.data?.limit) setError('Лимит LLM исчерпан — повторите распознавание позже.');
+      else setError(resp?.data?.error ?? (e instanceof Error ? e.message : 'Ошибка распознавания'));
+    } finally { setRecognizing(false); }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -415,6 +453,22 @@ function CatalogEntryForm({
         </div>
       )}
 
+      {attachment && (
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={handleRecognize} disabled={recognizing}
+            title="Заполнит простые поля по штампу/реквизитам файла — ссылочные и составные поля не тронет"
+            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-brand-subtle text-brand hover:bg-brand-subtle disabled:opacity-50">
+            {recognizing ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+            Распознать «{attachment.fileName}»
+          </button>
+          {recognizing && (
+            <span className="flex items-center gap-1.5 text-xs text-fg3">
+              <Loader2 size={12} className="animate-spin" /> Идёт распознавание — дождитесь завершения перед сохранением…
+            </span>
+          )}
+        </div>
+      )}
+
       {selectedType && sections.length > 0 && (
         <div className="space-y-3 pt-1 border-t border-muted">
           {sections.map(section => {
@@ -443,7 +497,7 @@ function CatalogEntryForm({
       </div>
       <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-3">
         <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-        <button type="submit" disabled={isPending}
+        <button type="submit" disabled={isPending || recognizing}
           className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
           {isPending ? 'Сохранение...' : entry ? 'Сохранить' : 'Создать'}
         </button>

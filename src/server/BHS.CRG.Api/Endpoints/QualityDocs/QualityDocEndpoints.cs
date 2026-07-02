@@ -2,6 +2,7 @@ using System.Text.Json;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Infrastructure.Recognition;
 using MediatR;
 
 namespace BHS.CRG.Api.Endpoints.QualityDocs;
@@ -48,14 +49,22 @@ public static class QualityDocEndpoints
         });
 
         // ── Распознавание скана (vision-LLM) ─────────────────────────────────────
+        // PromptKind — необязательный выбор промпта: "titleblock" — под штамп чертежа/документа
+        // по ГОСТ Р 21.101-2020 (см. PDF-наборы данных), иначе — общий (сертификат/декларация).
         g.MapPost("/recognize", async (RecognizeReq req, IMediator m, System.Security.Claims.ClaimsPrincipal user) =>
         {
             var fields = (req.Fields ?? []).Select(f => new RecognitionField(f.Path, f.Title, f.Type, f.Options)).ToList();
             var uidStr = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? user.FindFirst("sub")?.Value;
             Guid? userId = Guid.TryParse(uidStr, out var uid) ? uid : null;
+            Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = req.PromptKind switch
+            {
+                "titleblock" => RecognitionShared.BuildTitleBlockPrompt,
+                _ => null,
+            };
             try
             {
-                var res = await m.Send(new RecognizeDocumentCommand(req.BlobPath, req.MimeType, fields, userId, Notify: !(req.Silent ?? false)));
+                var res = await m.Send(new RecognizeDocumentCommand(
+                    req.BlobPath, req.MimeType, fields, userId, Notify: !(req.Silent ?? false), promptBuilder));
                 return Results.Ok(new { values = res.Values, pageCount = res.PageCount });
             }
             catch (RecognitionLimitException ex)
@@ -142,7 +151,7 @@ public static class QualityDocEndpoints
     private record UpdateReq(Guid DocumentTypeId, string DisplayName, JsonElement Requisites);
     private record ScanReq(string? ScanBlobPath, string? ScanFileName, string? ScanMimeType);
     private record SetLinksReq(string Scope, Guid? ScopeId, string[] MaterialKeys, Guid QualityDocumentId);
-    private record RecognizeReq(string BlobPath, string MimeType, RecognizeFieldReq[]? Fields, bool? Silent);
+    private record RecognizeReq(string BlobPath, string MimeType, RecognizeFieldReq[]? Fields, bool? Silent, string? PromptKind);
     private record RecognizeFieldReq(string Path, string Title, string Type, string[]? Options);
     private record SuggestReq(Guid SetId, SuggestMaterialReq[]? Materials);
     private record SuggestMaterialReq(string Key, string Name);

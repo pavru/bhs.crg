@@ -12,9 +12,13 @@ namespace BHS.CRG.Application.QualityDocs;
 /// Скачивает скан из blob и извлекает реквизиты по списку полей через распознаватель.
 /// БД не меняет — возвращает извлечённые значения для предзаполнения формы (пользователь подтверждает).
 /// </summary>
+/// <param name="PromptBuilder">Необязательный кастомный промпт (см. IDocumentRecognizer) — Api-слой
+/// выбирает конкретную функцию (например, RecognitionShared.BuildTitleBlockPrompt для штампа
+/// чертежа), Application только прокидывает делегат дальше, не зная о его реализации.</param>
 public record RecognizeDocumentCommand(
     string BlobPath, string MimeType, IReadOnlyList<RecognitionField> Fields,
-    Guid? UserId = null, bool Notify = true) : IRequest<RecognitionResult>;
+    Guid? UserId = null, bool Notify = true,
+    Func<IReadOnlyList<RecognitionField>, string>? PromptBuilder = null) : IRequest<RecognitionResult>;
 
 public class RecognizeDocumentHandler(
     IBlobStorage blobStorage,
@@ -31,7 +35,7 @@ public class RecognizeDocumentHandler(
             using var ms = new MemoryStream();
             await stream.CopyToAsync(ms, ct);
             var bytes = ms.ToArray();
-            var result = await recognizer.RecognizeAsync(bytes, cmd.MimeType, cmd.Fields, ct: ct);
+            var result = await recognizer.RecognizeAsync(bytes, cmd.MimeType, cmd.Fields, cmd.PromptBuilder, ct: ct);
 
             // Служебные вызовы (напр. классификация типа) не уведомляют и не считают страницы.
             if (!cmd.Notify) return result;

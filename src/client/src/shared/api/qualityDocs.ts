@@ -83,9 +83,11 @@ export function useDeleteQualityDoc() {
 
 export interface RecognitionFieldReq { path: string; title: string; type: string; options?: string[]; }
 
-/** Извлекает реквизиты из загруженного скана (blobPath) по списку плоских полей. */
+/** Извлекает реквизиты из загруженного скана (blobPath) по списку плоских полей.
+ * promptKind: 'titleblock' — промпт под штамп чертежа/документа по ГОСТ Р 21.101-2020,
+ * не задан — общий промпт (сертификат/декларация). */
 export async function recognizeDocument(
-  req: { blobPath: string; mimeType: string; fields: RecognitionFieldReq[]; silent?: boolean },
+  req: { blobPath: string; mimeType: string; fields: RecognitionFieldReq[]; silent?: boolean; promptKind?: 'titleblock' },
 ): Promise<{ values: Record<string, string>; pageCount: number | null }> {
   const { data } = await apiClient.post<{ values: Record<string, string>; pageCount: number | null }>('/quality-docs/recognize', req);
   return { values: data.values ?? {}, pageCount: data.pageCount ?? null };
