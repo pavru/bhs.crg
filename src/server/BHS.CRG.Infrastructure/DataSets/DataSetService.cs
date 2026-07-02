@@ -281,7 +281,7 @@ public class DataSetService(
             return (result.Columns, result.Rows.Count);
         }
         catch (Exception ex) when (ex is System.Xml.XPath.XPathException or ArgumentException
-            or System.Xml.XmlException or InvalidOperationException)
+            or System.Xml.XmlException or InvalidOperationException or JsonCons.JsonPath.JsonPathParseException)
         {
             throw new ArgumentException($"Не удалось разобрать выражение: {ex.Message}");
         }
@@ -305,7 +305,7 @@ public class DataSetService(
             .ToList();
     }
 
-    public async Task<XPathPreviewDto> PreviewXPathAsync(Guid fileId, string rowSelector, string? expr, CancellationToken ct)
+    public async Task<ExpressionPreviewDto> PreviewExpressionAsync(Guid fileId, string rowSelector, string? expr, CancellationToken ct)
     {
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
@@ -322,7 +322,7 @@ public class DataSetService(
             ? (IReadOnlyList<string>)(schema.FirstOrDefault()?.SampleValues.ToList() ?? [])
             : schema.Select(c => $"{c.Name}: {string.Join(", ", c.SampleValues)}").ToList();
 
-        return new XPathPreviewDto(rowCount, samples);
+        return new ExpressionPreviewDto(rowCount, samples);
     }
 
     private static string? SerializeColumnExpressions(IReadOnlyList<ColumnExprDto>? columnExpressions) =>

@@ -3,31 +3,38 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { useCreateDataSetSource, useUpdateDataSetSource, useListZipXmlEntries } from '@/shared/api/datasets';
 import { XPathBuilder } from './xpath/XPathBuilder';
+import { JsonPathBuilder } from './jsonpath/JsonPathBuilder';
 import type { ColumnExprDef, DataSetSource } from '@/shared/api/types';
 
+type SourceFormat = 'Xml' | 'Json';
+
+const DEFAULT_ROW_SELECTOR: Record<SourceFormat, string> = { Xml: '/Root/Item', Json: '$.items[*]' };
+
 /** Для ZIP-архивов sheetOrPath хранится как "путь/в/архиве.xml::/Row/Selector" (см. ZipDataSetParser). */
-function splitZipPath(sheetOrPath: string | undefined, isZip: boolean): { entryPath: string; rowSelector: string } {
-  if (!isZip) return { entryPath: '', rowSelector: sheetOrPath ?? '/Root/Item' };
-  if (!sheetOrPath) return { entryPath: '', rowSelector: '/Root/Item' };
+function splitZipPath(sheetOrPath: string | undefined, isZip: boolean, format: SourceFormat): { entryPath: string; rowSelector: string } {
+  if (!isZip) return { entryPath: '', rowSelector: sheetOrPath ?? DEFAULT_ROW_SELECTOR[format] };
+  if (!sheetOrPath) return { entryPath: '', rowSelector: DEFAULT_ROW_SELECTOR[format] };
   const idx = sheetOrPath.indexOf('::');
   return idx < 0
-    ? { entryPath: sheetOrPath, rowSelector: '/Root/Item' }
+    ? { entryPath: sheetOrPath, rowSelector: DEFAULT_ROW_SELECTOR[format] }
     : { entryPath: sheetOrPath.slice(0, idx), rowSelector: sheetOrPath.slice(idx + 2) };
 }
 
 /**
- * Ручное создание/редактирование источника XML-файла (в т.ч. XML внутри ZIP/GSFX):
- * имя + (для ZIP — выбор файла в архиве) + row-selector (XPathBuilder) + список колонок
- * (каждая — относительный XPathBuilder). Скаляр — частный случай: row-selector с условиями
+ * Ручное создание/редактирование источника XML- или JSON-файла (в т.ч. XML внутри ZIP/GSFX):
+ * имя + (для ZIP — выбор файла в архиве) + row-selector (XPath/JSONPath-builder) + список колонок
+ * (каждая — относительный путь). Скаляр — частный случай: row-selector с условиями/фильтром
  * сужен до одного узла, одна колонка (или несколько — тоже ок).
  */
-export function SourceEditorDialog({ fileId, isZip = false, initial, onClose }: {
+export function SourceEditorDialog({ fileId, isZip = false, format = 'Xml', initial, onClose }: {
   fileId: string;
   isZip?: boolean;
+  format?: SourceFormat;
   initial?: DataSetSource;
   onClose: () => void;
 }) {
-  const initialSplit = splitZipPath(initial?.sheetOrPath, isZip);
+  const PathBuilder = format === 'Json' ? JsonPathBuilder : XPathBuilder;
+  const initialSplit = splitZipPath(initial?.sheetOrPath, isZip, format);
   const [name, setName] = useState(initial?.name ?? '');
   const [entryPath, setEntryPath] = useState(initialSplit.entryPath);
   const [sheetOrPath, setSheetOrPath] = useState(initialSplit.rowSelector);
@@ -92,7 +99,7 @@ export function SourceEditorDialog({ fileId, isZip = false, initial, onClose }: 
 
   return (
     <Modal open onOpenChange={open => { if (!open) onClose(); }}
-      title={initial ? 'Редактировать источник' : `Новый источник (${isZip ? 'XML в архиве' : 'XML'})`} wide
+      title={initial ? 'Редактировать источник' : `Новый источник (${isZip ? 'XML в архиве' : format})`} wide
       footer={
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose}
@@ -131,7 +138,7 @@ export function SourceEditorDialog({ fileId, isZip = false, initial, onClose }: 
           <label className="block text-sm font-medium text-fg1 mb-1">
             Row-selector — путь к строкам (одна строка = один узел; условия сужают до конкретных)
           </label>
-          <XPathBuilder value={sheetOrPath} onChange={setSheetOrPath} placeholder="/Root/Item"
+          <PathBuilder value={sheetOrPath} onChange={setSheetOrPath} placeholder={DEFAULT_ROW_SELECTOR[format]}
             preview={v => { const rs = composeRowSelector(v); return rs ? { fileId, rowSelector: rs } : null; }} />
         </div>
 
@@ -157,8 +164,8 @@ export function SourceEditorDialog({ fileId, isZip = false, initial, onClose }: 
                   placeholder="Название колонки"
                   className="w-40 shrink-0 px-2 py-1.5 rounded-md border border-stroke-strong bg-surface text-sm" />
                 <div className="flex-1 min-w-0">
-                  <XPathBuilder value={col.expr} onChange={expr => updateColumn(i, { expr })}
-                    placeholder="@id или Name или Info/Code"
+                  <PathBuilder value={col.expr} onChange={expr => updateColumn(i, { expr })}
+                    placeholder={format === 'Json' ? 'id или name или info.code' : '@id или Name или Info/Code'}
                     preview={v => { const rs = composeRowSelector(sheetOrPath); return rs && v.trim() ? { fileId, rowSelector: rs, expr: v } : null; }} />
                 </div>
                 <button type="button" onClick={() => removeColumn(i)}

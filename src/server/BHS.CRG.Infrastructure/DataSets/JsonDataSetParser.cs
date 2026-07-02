@@ -1,16 +1,30 @@
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.DataSets;
+using JsonCons.JsonPath;
 using System.Text.Json;
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
+/// <summary>
+/// row-selector — JSONPath (JsonCons, https://danielaparker.github.io/JsonCons.Net) над корнем документа.
+/// Авто-детект (DetectSourcesAsync) по-прежнему создаёт удобные источники на верхнем уровне
+/// ("$root" / "$.имяСвойства") — они остаются рабочими, т.к. если селектор даёт РОВНО одно
+/// совпадение и это массив, его элементы разворачиваются в строки (иначе каждое совпадение —
+/// отдельная строка, что покрывает и "$.prop[*]", и фильтры/рекурсивный спуск "$..").
+/// Колонки — либо явный список относительных JSONPath-выражений (builder), либо авто-определение
+/// по ключам объекта-строки; для строк-скаляров (после фильтра/индекса) — одна колонка "value".
+/// </summary>
 public class JsonDataSetParser : IDataSetParser
 {
+    private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
+
+    private record ColumnExprDef(string Name, string Expr);
+
     public bool CanParse(DataSetFormat format) => format is DataSetFormat.Json;
 
     public Task<IReadOnlyList<DataSetSourceInfo>> DetectSourcesAsync(byte[] bytes, CancellationToken ct)
     {
-        var doc = JsonDocument.Parse(bytes);
+        using var doc = JsonDocument.Parse(bytes);
         var sources = new List<DataSetSourceInfo>();
 
         if (doc.RootElement.ValueKind == JsonValueKind.Array)
@@ -32,7 +46,7 @@ public class JsonDataSetParser : IDataSetParser
                 else if (prop.Value.ValueKind == JsonValueKind.Object)
                 {
                     var cols = prop.Value.EnumerateObject()
-                        .Select(p => new DataSetColumnInfo(p.Name, [p.Value.ToString()]))
+                        .Select(p => new DataSetColumnInfo(p.Name, [JsonElementToString(p.Value) ?? ""]))
                         .ToArray();
                     sources.Add(new DataSetSourceInfo(prop.Name, $"$.{prop.Name}", cols, 1));
                 }
@@ -42,7 +56,7 @@ public class JsonDataSetParser : IDataSetParser
             if (sources.Count == 0)
             {
                 var cols = doc.RootElement.EnumerateObject()
-                    .Select(p => new DataSetColumnInfo(p.Name, [p.Value.ToString()]))
+                    .Select(p => new DataSetColumnInfo(p.Name, [JsonElementToString(p.Value) ?? ""]))
                     .ToArray();
                 sources.Add(new DataSetSourceInfo("root", "$root", cols, 1));
             }
@@ -53,41 +67,110 @@ public class JsonDataSetParser : IDataSetParser
 
     public Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, string? columnExpressions, CancellationToken ct)
     {
-        var doc = JsonDocument.Parse(bytes);
+        using var doc = JsonDocument.Parse(bytes);
 
-        JsonElement target;
-        if (sheetOrPath == "$root")
-        {
-            target = doc.RootElement;
-        }
-        else if (sheetOrPath.StartsWith("$."))
-        {
-            var key = sheetOrPath[2..];
-            if (!doc.RootElement.TryGetProperty(key, out target))
-                return Task.FromResult(new DataSetParseResult([], []));
-        }
-        else
-        {
-            target = doc.RootElement;
-        }
+        var path = sheetOrPath == "$root" ? "$" : sheetOrPath;
+        var matches = JsonSelector.Parse(path).Select(doc.RootElement);
 
-        if (target.ValueKind == JsonValueKind.Array)
-        {
-            var items = target.EnumerateArray().ToList();
-            var columns = GetColumnsFromArray(items);
-            var rows = items.Select(FlattenObject).ToList<IReadOnlyDictionary<string, string?>>();
-            return Task.FromResult(new DataSetParseResult(columns, rows));
-        }
+        // Единственное совпадение-массив — разворачиваем в строки (совместимость с "$root"/"$.prop"
+        // для массива и удобство: "выбери массив — получи его строки"). Иначе каждое совпадение —
+        // отдельная строка (покрывает "$.prop[*]", фильтры, рекурсивный спуск).
+        var rows = matches.Count == 1 && matches[0].ValueKind == JsonValueKind.Array
+            ? matches[0].EnumerateArray().ToList()
+            : matches.ToList();
 
-        if (target.ValueKind == JsonValueKind.Object)
-        {
-            var dict = FlattenObject(target);
-            DataSetColumnInfo[] columns = [..dict.Keys.Select(k => new DataSetColumnInfo(k, [dict[k] ?? ""]))];
-            return Task.FromResult(new DataSetParseResult(columns, [dict]));
-        }
+        if (rows.Count == 0) return Task.FromResult(new DataSetParseResult([], []));
 
-        return Task.FromResult(new DataSetParseResult([], []));
+        var defs = ParseColumnExpressions(columnExpressions);
+        return Task.FromResult(defs is null
+            ? ParseWithAutoColumns(rows)
+            : ParseWithExplicitColumns(rows, defs));
     }
+
+    // ── Явные относительные колонки (builder) ───────────────────────────────────
+
+    private static DataSetParseResult ParseWithExplicitColumns(List<JsonElement> rows, ColumnExprDef[] defs)
+    {
+        const int sampleCount = 3;
+        var columns = defs.Select(d => new DataSetColumnInfo(d.Name,
+            rows.Take(sampleCount).Select(r => EvalExpr(r, d.Expr) ?? "").ToArray()
+        )).ToArray();
+
+        var resultRows = rows.Select(row =>
+        {
+            var dict = new Dictionary<string, string?>();
+            foreach (var d in defs)
+                dict[d.Name] = EvalExpr(row, d.Expr);
+            return (IReadOnlyDictionary<string, string?>)dict;
+        }).ToList();
+
+        return new DataSetParseResult(columns, resultRows);
+    }
+
+    // expr без ведущего "$" считается относительным ("author" / "address.city") и дополняется
+    // до "$.author" — вычисляется относительно текущей строки-JsonElement как корня.
+    private static string? EvalExpr(JsonElement row, string expr)
+    {
+        var normalized = expr.TrimStart().StartsWith('$') ? expr : $"$.{expr}";
+        var matches = JsonSelector.Parse(normalized).Select(row);
+        return matches.Count > 0 ? JsonElementToString(matches[0]) : null;
+    }
+
+    private static ColumnExprDef[]? ParseColumnExpressions(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            var defs = JsonSerializer.Deserialize<ColumnExprDef[]>(json, JsonOpts);
+            return defs is { Length: > 0 } ? defs : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    // ── Авто-определение колонок (когда явные не заданы) ────────────────────────
+
+    private static DataSetParseResult ParseWithAutoColumns(List<JsonElement> rows)
+    {
+        const int sampleCount = 3;
+
+        // Строки-скаляры (после фильтра/индекса результат — не объект) — единственная колонка.
+        if (rows.All(r => r.ValueKind != JsonValueKind.Object))
+        {
+            var col = new DataSetColumnInfo("value", rows.Take(sampleCount).Select(r => JsonElementToString(r) ?? "").ToArray());
+            var scalarRows = rows.Select(r =>
+                (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?> { ["value"] = JsonElementToString(r) }
+            ).ToList();
+            return new DataSetParseResult([col], scalarRows);
+        }
+
+        var allKeys = rows.SelectMany(GetRowKeys).Distinct().ToList();
+        var columns = allKeys.Select(k => new DataSetColumnInfo(k,
+            rows.Take(sampleCount).Select(r => GetRowValue(r, k) ?? "").ToArray()
+        )).ToArray();
+
+        var dictRows = rows.Select(row =>
+        {
+            var dict = new Dictionary<string, string?>();
+            foreach (var key in allKeys)
+                dict[key] = GetRowValue(row, key);
+            return (IReadOnlyDictionary<string, string?>)dict;
+        }).ToList();
+
+        return new DataSetParseResult(columns, dictRows);
+    }
+
+    private static IEnumerable<string> GetRowKeys(JsonElement row)
+    {
+        if (row.ValueKind != JsonValueKind.Object) yield break;
+        foreach (var prop in row.EnumerateObject())
+            yield return prop.Name;
+    }
+
+    private static string? GetRowValue(JsonElement row, string key)
+        => row.ValueKind == JsonValueKind.Object && row.TryGetProperty(key, out var v) ? JsonElementToString(v) : null;
 
     private static DataSetColumnInfo[] GetColumnsFromArray(List<JsonElement> items)
     {
@@ -100,27 +183,18 @@ public class JsonDataSetParser : IDataSetParser
 
         return allKeys.Select(k => new DataSetColumnInfo(k,
             items.Take(sampleCount)
-                .Select(e => e.TryGetProperty(k, out var v) ? v.ToString() : "")
+                .Select(e => e.TryGetProperty(k, out var v) ? JsonElementToString(v) ?? "" : "")
                 .ToArray()
         )).ToArray();
     }
 
-    private static IReadOnlyDictionary<string, string?> FlattenObject(JsonElement element)
+    private static string? JsonElementToString(JsonElement el) => el.ValueKind switch
     {
-        var dict = new Dictionary<string, string?>();
-        if (element.ValueKind != JsonValueKind.Object) return dict;
-        foreach (var prop in element.EnumerateObject())
-        {
-            dict[prop.Name] = prop.Value.ValueKind switch
-            {
-                JsonValueKind.String => prop.Value.GetString(),
-                JsonValueKind.Number => prop.Value.ToString(),
-                JsonValueKind.True   => "true",
-                JsonValueKind.False  => "false",
-                JsonValueKind.Null   => null,
-                _                    => prop.Value.ToString(),
-            };
-        }
-        return dict;
-    }
+        JsonValueKind.String => el.GetString(),
+        JsonValueKind.Number => el.ToString(),
+        JsonValueKind.True   => "true",
+        JsonValueKind.False  => "false",
+        JsonValueKind.Null   => null,
+        _                    => el.ToString(), // object/array — сырой JSON-текст
+    };
 }

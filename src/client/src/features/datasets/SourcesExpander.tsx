@@ -93,8 +93,10 @@ function SourceProcessingControls({ source, templates }: {
 
 /**
  * Collapsible list of a file's data sources with a preview of their column names.
- * Для XML (и XML внутри ZIP) источники управляются вручную (создание/редактирование/
- * удаление) — авто-детект по top-level элементам для XML не используется.
+ * Для XML (и XML внутри ZIP) источники управляются только вручную (создание/редактирование/
+ * удаление) — авто-детект по top-level элементам для XML не используется. Для JSON — авто-детект
+ * top-level массивов/объектов создаёт исходные источники, но также доступно ручное управление
+ * (например, чтобы задать вложенный/фильтрующий JSONPath, недоступный авто-детекту).
  * Обработка (Filter/Conversion/Sort) доступна для источников любого формата.
  */
 export function SourcesExpander({
@@ -109,7 +111,7 @@ export function SourcesExpander({
   const [confirmDelete, setConfirmDelete] = useState<DataSetSource | null>(null);
   const deleteMutation = useDeleteDataSetSource();
   const { data: templates = [] } = useListProcessingTemplates();
-  const canManageExtraction = file.format === 'Xml' || file.format === 'Zip';
+  const canManageExtraction = file.format === 'Xml' || file.format === 'Zip' || file.format === 'Json';
   const sources = file.sources;
 
   if (sources.length === 0 && !canManageExtraction)
@@ -174,6 +176,7 @@ export function SourcesExpander({
         <SourceEditorDialog
           fileId={file.id}
           isZip={file.format === 'Zip'}
+          format={file.format === 'Json' ? 'Json' : 'Xml'}
           initial={editing === 'new' ? undefined : editing}
           onClose={() => setEditing(null)}
         />

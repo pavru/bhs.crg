@@ -1,16 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Plus, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { parseXPath, toXPath, type XPathModel, type XPathStep, type XPathPredicate } from './xpathModel';
-import { useXPathPreview, type XPathPreviewSpec } from '@/shared/api/datasets';
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(t);
-  }, [value, delayMs]);
-  return debounced;
-}
+import { useExpressionPreview, type ExpressionPreviewSpec } from '@/shared/api/datasets';
+import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 
 interface XPathBuilderProps {
   value: string;
@@ -22,7 +14,7 @@ interface XPathBuilderProps {
    * задан ещё row-selector). Для row-selector'а — вернуть { fileId, rowSelector: value } (без
    * expr — предпросмотр самого пути); для колонки — { fileId, rowSelector: <контекст>, expr: value }.
    */
-  preview?: (value: string) => XPathPreviewSpec | null;
+  preview?: (value: string) => ExpressionPreviewSpec | null;
 }
 
 /**
@@ -68,8 +60,8 @@ export function XPathBuilder({ value, onChange, placeholder, preview }: XPathBui
 
 // ─── Предпросмотр данных ────────────────────────────────────────────────────────
 
-function XPathPreviewPanel({ spec }: { spec: XPathPreviewSpec | null }) {
-  const { data, isFetching, error } = useXPathPreview(spec);
+function XPathPreviewPanel({ spec }: { spec: ExpressionPreviewSpec | null }) {
+  const { data, isFetching, error } = useExpressionPreview(spec);
 
   if (!spec) return null;
 

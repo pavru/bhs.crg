@@ -80,16 +80,17 @@ public static class DataSetEndpoints
         g.MapGet("/files/{fileId:guid}/zip-xml-entries", async (Guid fileId, IDataSetService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListZipXmlEntriesAsync(fileId, ct)));
 
-        // Предпросмотр XPath-выражения в builder'е — без сохранения источника.
-        g.MapPost("/files/{fileId:guid}/xpath-preview", async (
-            Guid fileId, XPathPreviewRequest req, IDataSetService svc, CancellationToken ct) =>
+        // Предпросмотр XPath/JSONPath-выражения в builder'е — без сохранения источника.
+        g.MapPost("/files/{fileId:guid}/expression-preview", async (
+            Guid fileId, ExpressionPreviewRequest req, IDataSetService svc, CancellationToken ct) =>
         {
-            try { return Results.Ok(await svc.PreviewXPathAsync(fileId, req.RowSelector, req.Expr, ct)); }
+            try { return Results.Ok(await svc.PreviewExpressionAsync(fileId, req.RowSelector, req.Expr, ct)); }
             catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         // Ручное создание/редактирование/удаление источника — единственный способ для XML
-        // (авто-детект по top-level элементам не используется, см. XmlDataSetParser).
+        // (авто-детект по top-level элементам не используется, см. XmlDataSetParser) и
+        // дополнительный способ для JSON (в дополнение к авто-детекту top-level узлов).
         g.MapPost("/files/{fileId:guid}/sources", async (
             Guid fileId, SourceRequest req, IDataSetService svc, CancellationToken ct) =>
         {
@@ -168,5 +169,5 @@ public static class DataSetEndpoints
     private record SourceRequest(string Name, string SheetOrPath, ColumnExprDto[]? ColumnExpressions);
     private record ProcessingRequest(object? RowFilter, object? ComputedColumns, object? SortSpec, Guid? ProcessingTemplateId);
     private record ProcessingTemplateRequest(string Name, object? RowFilter, object? ComputedColumns, object? SortSpec);
-    private record XPathPreviewRequest(string RowSelector, string? Expr);
+    private record ExpressionPreviewRequest(string RowSelector, string? Expr);
 }

@@ -108,7 +108,7 @@ export function useListZipXmlEntries(fileId: string | undefined) {
   });
 }
 
-export interface XPathPreviewSpec {
+export interface ExpressionPreviewSpec {
   fileId: string;
   /** Полный row-selector (с учётом "entry::" для ZIP) — контекст, либо сам предпросматриваемый путь. */
   rowSelector: string;
@@ -116,17 +116,17 @@ export interface XPathPreviewSpec {
   expr?: string;
 }
 
-export interface XPathPreviewResult {
+export interface ExpressionPreviewResult {
   matchCount: number;
   samples: string[];
 }
 
-/** Предпросмотр XPath-выражения в builder'е — без сохранения источника. */
-export function useXPathPreview(spec: XPathPreviewSpec | null) {
-  return useQuery<XPathPreviewResult>({
-    queryKey: ['datasets', 'xpath-preview', spec?.fileId, spec?.rowSelector, spec?.expr],
+/** Предпросмотр XPath/JSONPath-выражения в builder'е — без сохранения источника. */
+export function useExpressionPreview(spec: ExpressionPreviewSpec | null) {
+  return useQuery<ExpressionPreviewResult>({
+    queryKey: ['datasets', 'expression-preview', spec?.fileId, spec?.rowSelector, spec?.expr],
     queryFn: () =>
-      apiClient.post(`/datasets/files/${spec!.fileId}/xpath-preview`,
+      apiClient.post(`/datasets/files/${spec!.fileId}/expression-preview`,
         { rowSelector: spec!.rowSelector, expr: spec!.expr }).then(r => r.data),
     enabled: !!spec && !!spec.rowSelector.trim(),
     retry: false,
