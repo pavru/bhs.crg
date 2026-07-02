@@ -301,7 +301,23 @@ public class DataSetService(
         if (file.Format != DataSetFormat.Pdf)
             throw new ArgumentException("Файл не в формате PDF.");
 
-        var source = file.AddSource(input.Name.Trim(), PdfRowSelector, "[]", 0);
+        var name = input.Name.Trim();
+
+        if (input.Profile == PdfProfiles.Invoice)
+        {
+            // Профиль "Счёт на оплату" — один документ, шапка + вложенная таблица товаров.
+            // Оба хранятся как отдельные DataSetSource под одним файлом (тот же паттерн, что и
+            // у JSON/XML — один файл может иметь несколько источников), связаны маркерами в
+            // SheetOrPath, не настоящей связью в БД — распознаётся и обновляется одним запросом.
+            var header = file.AddSource(name, PdfProfiles.InvoiceHeaderMarker, "[]", 0);
+            var lineItems = file.AddSource($"{name} — Товары", PdfProfiles.InvoiceLineItemsMarker, "[]", 0);
+            db.DataSetSources.Add(header);
+            db.DataSetSources.Add(lineItems);
+            await db.SaveChangesAsync(ct);
+            return MapSource(header);
+        }
+
+        var source = file.AddSource(name, PdfRowSelector, "[]", 0);
         source.SetTags(input.Tags is { Count: > 0 } ? JsonSerializer.Serialize(input.Tags) : null);
         // file уже отслеживается — см. пояснение в CreateSourceAsync (иначе Modified вместо Added).
         db.DataSetSources.Add(source);
@@ -315,6 +331,9 @@ public class DataSetService(
         if (source == null) return null;
         if (source.File.Format != DataSetFormat.Pdf)
             throw new ArgumentException("Источник не относится к PDF-файлу.");
+
+        if (source.SheetOrPath is PdfProfiles.InvoiceHeaderMarker or PdfProfiles.InvoiceLineItemsMarker)
+            return await RecognizeInvoiceAsync(source, sourceId, ct);
 
         await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
         using var ms = new MemoryStream();
@@ -362,6 +381,57 @@ public class DataSetService(
         source.UpdateCache(SerializeSchema(columns), rows.Count, JsonSerializer.Serialize(rows));
         await db.SaveChangesAsync(ct);
         return MapSource(source);
+    }
+
+    /// <summary>
+    /// Профиль "Счёт на оплату" — один вызов распознавания на весь многостраничный PDF
+    /// (Gemini/Anthropic принимают application/pdf целиком без растеризации; Ollama растеризует
+    /// сама внутри движка) вместо цикла по страницам. Результат расщепляется на пару источников:
+    /// шапка (1 строка) и товары (N строк) — обе обновляются одним сохранением.
+    /// </summary>
+    private async Task<DataSetSourceDto?> RecognizeInvoiceAsync(DataSetSource source, Guid requestedSourceId, CancellationToken ct)
+    {
+        var header = source.SheetOrPath == PdfProfiles.InvoiceHeaderMarker
+            ? source
+            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.InvoiceHeaderMarker, ct);
+        var lineItems = source.SheetOrPath == PdfProfiles.InvoiceLineItemsMarker
+            ? source
+            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.InvoiceLineItemsMarker, ct);
+        if (header is null || lineItems is null)
+            throw new ArgumentException("Не найдена пара источников «Счёт на оплату» (шапка/товары).");
+
+        await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+        var bytes = ms.ToArray();
+
+        RecognitionResult result;
+        try
+        {
+            result = await recognizer.RecognizeAsync(bytes, "application/pdf", InvoiceFields.All, RecognitionShared.BuildInvoicePrompt, ct: ct);
+        }
+        catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
+        {
+            throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
+        }
+
+        var headerRow = InvoiceRecognitionSplitter.SplitHeader(result.Values);
+        var headerColumns = InvoiceFields.HeaderFields
+            .Select(f => new DataSetColumnInfo(f.Path, [headerRow.GetValueOrDefault(f.Path) ?? ""]))
+            .ToArray();
+        header.UpdateCache(SerializeSchema(headerColumns), 1, JsonSerializer.Serialize(new[] { headerRow }));
+
+        // Сломанный/не-JSON ответ модели по товарам — InvoiceRecognitionSplitter молча вернёт []
+        // (шапка уже распозналась независимо, та же философия, что и у постраничного профиля).
+        var lineItemRows = InvoiceRecognitionSplitter.SplitLineItems(result.Values);
+        var lineItemColumns = InvoiceFields.LineItemColumns
+            .Select(f => new DataSetColumnInfo(f.Path,
+                lineItemRows.Take(3).Select(r => r.GetValueOrDefault(f.Path) ?? "").ToArray()))
+            .ToArray();
+        lineItems.UpdateCache(SerializeSchema(lineItemColumns), lineItemRows.Count, JsonSerializer.Serialize(lineItemRows));
+
+        await db.SaveChangesAsync(ct);
+        return MapSource(requestedSourceId == header.Id ? header : lineItems);
     }
 
     // Скачивает файл и парсит указанное определение — используется для валидации и первичного

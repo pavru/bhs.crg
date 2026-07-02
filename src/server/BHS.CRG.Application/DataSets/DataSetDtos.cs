@@ -69,9 +69,12 @@ public record UpdateSourceInput(string Name, string SheetOrPath, IReadOnlyList<C
 /// <summary>
 /// Ручное создание PDF-источника: без SheetOrPath/ColumnExpressions (Extraction для PDF —
 /// распознавание, а не XPath/JSONPath-builder, см. RecognizePdfSourceAsync). Tags — коды
-/// функциональных тэгов (scope Dataset), напр. dataset.hasTitleBlock.
+/// функциональных тэгов (scope Dataset), напр. dataset.hasTitleBlock — применимы только к
+/// профилю "gost-titleblock". Profile — "gost-titleblock" (по умолчанию, один источник,
+/// реестр по страницам) или "invoice" (счёт на оплату — создаёт пару источников
+/// шапка+товары, см. PdfProfiles в Infrastructure).
 /// </summary>
-public record CreatePdfSourceInput(string Name, IReadOnlyList<string>? Tags);
+public record CreatePdfSourceInput(string Name, IReadOnlyList<string>? Tags, string? Profile = null);
 
 /// <summary>Лёгкая правка обработки источника — не трогает файл/кэш схемы (в отличие от Update/CreateSourceInput).</summary>
 public record SetSourceProcessingInput(object? RowFilter, object? ComputedColumns, object? SortSpec);

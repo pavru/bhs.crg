@@ -250,12 +250,18 @@ export function SourcesExpander({
                       className="p-1 text-fg4 hover:text-brand disabled:opacity-50" title="Создать копию">
                       <Copy size={12} />
                     </button>
-                    {isPdf && (
+                    {isPdf && src.sheetOrPath === 'invoice-lineitems' ? (
+                      <span className="text-fg4 italic" title="Заполняется вместе с источником-шапкой того же счёта">
+                        товары
+                      </span>
+                    ) : isPdf && (
                       <button
                         onClick={() => recognizeMutation.mutate({ id: src.id })}
                         disabled={recognizeMutation.isPending && recognizeMutation.variables?.id === src.id}
                         className="p-1 text-fg4 hover:text-brand disabled:opacity-50"
-                        title="Распознать основную надпись каждой страницы (может занять время)">
+                        title={src.sheetOrPath === 'invoice-header'
+                          ? 'Распознать счёт целиком: реквизиты шапки + таблицу товаров (один вызов, может занять время)'
+                          : 'Распознать основную надпись каждой страницы (может занять время)'}>
                         {recognizeMutation.isPending && recognizeMutation.variables?.id === src.id
                           ? <Loader2 size={12} className="animate-spin" />
                           : <ScanText size={12} />}

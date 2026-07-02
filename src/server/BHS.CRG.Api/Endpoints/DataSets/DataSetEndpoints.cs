@@ -131,7 +131,7 @@ public static class DataSetEndpoints
         g.MapPost("/files/{fileId:guid}/pdf-sources", async (
             Guid fileId, PdfSourceRequest req, IDataSetService svc, CancellationToken ct) =>
         {
-            try { return Results.Ok(await svc.CreatePdfSourceAsync(fileId, new CreatePdfSourceInput(req.Name, req.Tags), ct)); }
+            try { return Results.Ok(await svc.CreatePdfSourceAsync(fileId, new CreatePdfSourceInput(req.Name, req.Tags, req.Profile), ct)); }
             catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
             catch (KeyNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
         });
@@ -214,5 +214,5 @@ public static class DataSetEndpoints
         string Name, string? SheetOrPath, ColumnExprDto[]? ColumnExpressions,
         object? RowFilter, object? ComputedColumns, object? SortSpec);
     private record ExpressionPreviewRequest(string RowSelector, string? Expr);
-    private record PdfSourceRequest(string Name, string[]? Tags);
+    private record PdfSourceRequest(string Name, string[]? Tags, string? Profile);
 }

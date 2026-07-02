@@ -154,7 +154,10 @@ export function useDuplicateDataSetSource() {
 
 export function useCreatePdfSource() {
   const qc = useQueryClient();
-  return useMutation<DataSetSource, Error, { fileId: string; name: string; tags?: string[] | null }>({
+  return useMutation<DataSetSource, Error, {
+    fileId: string; name: string; tags?: string[] | null;
+    profile?: 'gost-titleblock' | 'invoice';
+  }>({
     mutationFn: ({ fileId, ...data }) =>
       apiClient.post(`/datasets/files/${fileId}/pdf-sources`, data).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
@@ -340,8 +343,8 @@ export function useUpdateDataSetBinding() {
     targetFieldKey?: string | null;
     mapping?: Record<string, string>;
   }>({
-    mutationFn: ({ id, instanceId: _i, commonDataEntryId: _c, ...data }) =>
-      apiClient.put(`/datasets/bindings/${id}`, data).then(r => r.data),
+    mutationFn: ({ id, targetFieldKey, mapping }) =>
+      apiClient.put(`/datasets/bindings/${id}`, { targetFieldKey, mapping }).then(r => r.data),
     onSuccess: (_, owner) => {
       qc.invalidateQueries({ queryKey: ['datasets', 'bindings', ...ownerKey(owner)] });
     },

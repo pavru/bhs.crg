@@ -10,6 +10,7 @@ import { useTagRegistry, datasetTags } from '@/shared/api/tags';
  */
 export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: () => void }) {
   const [name, setName] = useState('');
+  const [profile, setProfile] = useState<'gost-titleblock' | 'invoice'>('gost-titleblock');
   const [tags, setTags] = useState<string[]>([]);
   const [error, setError] = useState('');
   const { data: allTags = [] } = useTagRegistry();
@@ -23,7 +24,10 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
     if (!name.trim()) { setError('Укажите название'); return; }
     setError('');
     try {
-      await create.mutateAsync({ fileId, name: name.trim(), tags: tags.length ? tags : null });
+      await create.mutateAsync({
+        fileId, name: name.trim(), profile,
+        tags: profile === 'gost-titleblock' && tags.length ? tags : null,
+      });
       onClose();
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -49,11 +53,20 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
         <div>
           <label className="block text-sm font-medium text-fg1 mb-1">Название</label>
           <input value={name} onChange={e => setName(e.target.value)} autoFocus
-            placeholder="Реестр листов"
+            placeholder={profile === 'invoice' ? 'Счёт на оплату' : 'Реестр листов'}
             className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm" />
         </div>
 
-        {datasetTags(allTags).length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-fg1 mb-1">Профиль распознавания</label>
+          <select value={profile} onChange={e => setProfile(e.target.value as 'gost-titleblock' | 'invoice')}
+            className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm">
+            <option value="gost-titleblock">Основная надпись (ГОСТ Р 21.101-2020) — реестр по страницам</option>
+            <option value="invoice">Счёт на оплату — шапка + таблица товаров</option>
+          </select>
+        </div>
+
+        {profile === 'gost-titleblock' && datasetTags(allTags).length > 0 && (
           <div>
             <p className="text-sm font-medium text-fg1 mb-1">Структура PDF</p>
             <div className="space-y-1.5">
@@ -72,8 +85,9 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
         )}
 
         <p className="text-xs text-fg4">
-          После создания источника запустите распознавание («Распознать») — оно построчно
-          извлечёт основную надпись каждой страницы по ГОСТ Р 21.101-2020.
+          {profile === 'invoice'
+            ? 'После создания запустите распознавание («Распознать») на источнике «шапка» — оно за один вызов извлечёт реквизиты счёта и таблицу товаров, распознаются оба созданных источника вместе.'
+            : 'После создания источника запустите распознавание («Распознать») — оно построчно извлечёт основную надпись каждой страницы по ГОСТ Р 21.101-2020.'}
         </p>
 
         {error && <p className="text-sm text-danger">{error}</p>}

@@ -32,6 +32,21 @@ public static class RecognitionShared
         return sb.ToString();
     }
 
+    /// <summary>Промпт для распознавания счёта на оплату целиком (весь многостраничный документ
+    /// одним вызовом, не постранично) — шапка + вложенная таблица товаров/услуг одним полем.</summary>
+    public static string BuildInvoicePrompt(IReadOnlyList<RecognitionField> fields)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Ты извлекаешь реквизиты из счёта на оплату (может быть на нескольких страницах —");
+        sb.AppendLine("это ОДИН документ, не путай разные страницы с разными счетами).");
+        AppendCommonInstructions(sb, fields);
+        sb.AppendLine();
+        sb.Append("Поле ").Append(InvoiceFields.LineItemsPath)
+          .AppendLine(" — верни ЗНАЧЕНИЕМ этого ключа настоящий JSON-массив объектов");
+        sb.AppendLine("(не строку), по одному объекту на строку таблицы товаров/услуг. Если товаров нет — пустой массив [].");
+        return sb.ToString();
+    }
+
     private static void AppendCommonInstructions(StringBuilder sb, IReadOnlyList<RecognitionField> fields)
     {
         sb.AppendLine("Извлеки значения СТРОГО для перечисленных полей. Ответ — один JSON-объект {\"путь\": \"значение\"} без markdown и пояснений.");
