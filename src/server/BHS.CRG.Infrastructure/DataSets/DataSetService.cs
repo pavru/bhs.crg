@@ -317,12 +317,22 @@ public class DataSetService(
             return MapSource(header);
         }
 
-        var source = file.AddSource(name, PdfRowSelector, "[]", 0);
-        source.SetTags(input.Tags is { Count: > 0 } ? JsonSerializer.Serialize(input.Tags) : null);
-        // file уже отслеживается — см. пояснение в CreateSourceAsync (иначе Modified вместо Added).
-        db.DataSetSources.Add(source);
+        // Профиль "Основная надпись (ГОСТ Р 21.101-2020)" — тройка источников: обложка/титульный
+        // лист/документы (последний — сгруппированный по НаименованиюДокумента реестр, с
+        // разрезанием исходного PDF на под-файлы по группам, см. RecognizeGostSetAsync). Тэги —
+        // структурные метки (dataset.hasCover и т.п.), применимы ко всем трём.
+        var tagsJson = input.Tags is { Count: > 0 } ? JsonSerializer.Serialize(input.Tags) : null;
+        var cover = file.AddSource($"{name} — Обложка", PdfProfiles.GostCoverMarker, "[]", 0);
+        var titlePage = file.AddSource($"{name} — Титульный лист", PdfProfiles.GostTitlePageMarker, "[]", 0);
+        var documents = file.AddSource($"{name} — Документы", PdfProfiles.GostDocumentsMarker, "[]", 0);
+        cover.SetTags(tagsJson);
+        titlePage.SetTags(tagsJson);
+        documents.SetTags(tagsJson);
+        db.DataSetSources.Add(cover);
+        db.DataSetSources.Add(titlePage);
+        db.DataSetSources.Add(documents);
         await db.SaveChangesAsync(ct);
-        return MapSource(source);
+        return MapSource(documents);
     }
 
     public async Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, CancellationToken ct)
@@ -335,6 +345,12 @@ public class DataSetService(
         if (source.SheetOrPath is PdfProfiles.InvoiceHeaderMarker or PdfProfiles.InvoiceLineItemsMarker)
             return await RecognizeInvoiceAsync(source, sourceId, ct);
 
+        if (source.SheetOrPath is PdfProfiles.GostCoverMarker or PdfProfiles.GostTitlePageMarker or PdfProfiles.GostDocumentsMarker)
+            return await RecognizeGostSetAsync(source, sourceId, ct);
+
+        // Дальше — legacy-путь для источников, созданных до тройки обложка/титул/документы
+        // (маркер PdfRowSelector = "titleblock-registry") — постраничный плоский реестр без
+        // группировки/разрезания, поведение не меняем.
         await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms, ct);
@@ -432,6 +448,107 @@ public class DataSetService(
 
         await db.SaveChangesAsync(ct);
         return MapSource(requestedSourceId == header.Id ? header : lineItems);
+    }
+
+    /// <summary>
+    /// Профиль "gost-titleblock" (тройка) — тот же постраничный цикл распознавания, что и у
+    /// legacy-реестра, но с классификатором ТипСтраницы (см. GostTitleBlockFields.AllWithPageType)
+    /// и последующей маршрутизацией/группировкой (GostPageGrouper): обложка/титульный лист как
+    /// есть, документы — сгруппированы по НаименованиюДокумента с разрезанием исходного PDF на
+    /// под-файлы (PdfPageSplitter) для каждой группы.
+    /// </summary>
+    private async Task<DataSetSourceDto?> RecognizeGostSetAsync(DataSetSource source, Guid requestedSourceId, CancellationToken ct)
+    {
+        var cover = source.SheetOrPath == PdfProfiles.GostCoverMarker
+            ? source
+            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostCoverMarker, ct);
+        var titlePage = source.SheetOrPath == PdfProfiles.GostTitlePageMarker
+            ? source
+            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostTitlePageMarker, ct);
+        var documents = source.SheetOrPath == PdfProfiles.GostDocumentsMarker
+            ? source
+            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostDocumentsMarker, ct);
+        if (cover is null || titlePage is null || documents is null)
+            throw new ArgumentException("Не найдена тройка источников «обложка/титульный лист/документы».");
+
+        await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+        var bytes = ms.ToArray();
+
+        IReadOnlyList<byte[]> pngPages;
+        try
+        {
+            pngPages = await Task.Run(
+                () => PdfRasterizer.ToPngPages(bytes, PdfRasterizer.DefaultDpi, PdfRecognizeMaxPages), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new ArgumentException($"Не удалось подготовить страницы PDF: {ex.Message}");
+        }
+
+        var fields = GostTitleBlockFields.AllWithPageType;
+        var rows = new List<IReadOnlyDictionary<string, string?>>();
+        for (var i = 0; i < pngPages.Count; i++)
+        {
+            try
+            {
+                var result = await recognizer.RecognizeAsync(
+                    pngPages[i], "image/png", fields, RecognitionShared.BuildTitleBlockPrompt, ct: ct);
+                rows.Add(result.Values);
+            }
+            catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
+            {
+                if (i == 0)
+                    throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
+                logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, requestedSourceId);
+                rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
+            }
+        }
+
+        var grouping = GostPageGrouper.Group(rows);
+        var baseColumnPaths = GostTitleBlockFields.All.Select(f => f.Path).ToArray();
+
+        static DataSetColumnInfo[] BuildColumns(IReadOnlyList<string> columnPaths, IReadOnlyList<IReadOnlyDictionary<string, string?>> data) =>
+            columnPaths.Select(p => new DataSetColumnInfo(p,
+                data.Take(3).Select(r => r.TryGetValue(p, out var v) ? v ?? "" : "").ToArray())).ToArray();
+
+        cover.UpdateCache(SerializeSchema(BuildColumns(baseColumnPaths, grouping.Cover)), grouping.Cover.Count, JsonSerializer.Serialize(grouping.Cover));
+        titlePage.UpdateCache(SerializeSchema(BuildColumns(baseColumnPaths, grouping.TitlePage)), grouping.TitlePage.Count, JsonSerializer.Serialize(grouping.TitlePage));
+
+        var documentRows = new List<Dictionary<string, string?>>();
+        foreach (var group in grouping.Documents)
+        {
+            var row = new Dictionary<string, string?>(group.Fields);
+            try
+            {
+                var splitBytes = PdfPageSplitter.ExtractPages(bytes, group.PageIndices);
+                var fileName = $"{SanitizeFileName(group.DocumentName)}.pdf";
+                using var splitStream = new MemoryStream(splitBytes);
+                row["ФайлПуть"] = await blob.UploadAsync(fileName, splitStream, "application/pdf", ct);
+                row["РазмерБайт"] = splitBytes.Length.ToString();
+            }
+            catch (Exception ex)
+            {
+                // Не удалось разрезать конкретную группу — строка реестра остаётся без файла,
+                // остальные группы и вся операция не падают (та же философия отказоустойчивости).
+                logger.LogWarning(ex, "Не удалось разрезать PDF для документа «{DocumentName}» источника {SourceId}", group.DocumentName, documents.Id);
+            }
+            documentRows.Add(row);
+        }
+
+        var documentsColumnPaths = baseColumnPaths.Concat(["КоличествоЛистов", "ФайлПуть", "РазмерБайт"]).ToArray();
+        documents.UpdateCache(SerializeSchema(BuildColumns(documentsColumnPaths, documentRows)), documentRows.Count, JsonSerializer.Serialize(documentRows));
+
+        await db.SaveChangesAsync(ct);
+        return MapSource(requestedSourceId == cover.Id ? cover : requestedSourceId == titlePage.Id ? titlePage : documents);
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var sanitized = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
+        return string.IsNullOrWhiteSpace(sanitized) ? "документ" : sanitized;
     }
 
     // Скачивает файл и парсит указанное определение — используется для валидации и первичного

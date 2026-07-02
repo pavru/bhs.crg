@@ -15,4 +15,11 @@ public static class PdfProfiles
     /// <summary>Маркеры конкретных DataSetSource внутри пары «Счёт на оплату».</summary>
     public const string InvoiceHeaderMarker = "invoice-header";
     public const string InvoiceLineItemsMarker = "invoice-lineitems";
+
+    /// <summary>Маркеры тройки источников профиля "gost-titleblock" (созданных с этого момента —
+    /// legacy-источники с маркером "titleblock-registry" остаются постраничным плоским реестром,
+    /// не трогаем их поведение).</summary>
+    public const string GostCoverMarker = "gost-cover";
+    public const string GostTitlePageMarker = "gost-titlepage";
+    public const string GostDocumentsMarker = "gost-documents";
 }

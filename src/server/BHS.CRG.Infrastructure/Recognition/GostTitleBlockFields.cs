@@ -24,4 +24,19 @@ public static class GostTitleBlockFields
         new("Организация", "Организация-разработчик", "string"),
         new("Масштаб", "Масштаб", "string"),
     ];
+
+    /// <summary>JSON-ключ классификатора страницы — обложка/титульный лист/обычный документ.
+    /// Используется только для маршрутизации строки в нужный источник (обложка/титульный
+    /// лист/документы), в кэш итоговых источников не попадает.</summary>
+    public const string PageTypePath = "ТипСтраницы";
+
+    public static readonly RecognitionField PageTypeField = new(
+        PageTypePath,
+        "Тип страницы: Обложка / ТитульныйЛист / Документ (обычный лист со штампом)",
+        "string", ["Обложка", "ТитульныйЛист", "Документ"]);
+
+    /// <summary>Графы штампа + классификатор страницы — используется профилем "3 источника"
+    /// (обложка/титульный лист/документы). Обычный <see cref="All"/> остаётся для legacy-источников
+    /// с постраничным реестром (маркер "titleblock-registry"), не трогаем их поведение.</summary>
+    public static readonly IReadOnlyList<RecognitionField> AllWithPageType = [.. All, PageTypeField];
 }

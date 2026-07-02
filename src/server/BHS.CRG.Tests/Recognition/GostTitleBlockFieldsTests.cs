@@ -29,4 +29,18 @@ public class GostTitleBlockFieldsTests
         // (та же конвенция, что и у остальных RecognitionField в проекте — см. QualityDocs).
         Assert.All(GostTitleBlockFields.All, f => Assert.DoesNotContain(' ', f.Path));
     }
+
+    [Fact]
+    public void AllWithPageType_AppendsPageTypeFieldOnce()
+    {
+        Assert.Equal(GostTitleBlockFields.All.Count + 1, GostTitleBlockFields.AllWithPageType.Count);
+        Assert.Contains(GostTitleBlockFields.AllWithPageType, f => f.Path == GostTitleBlockFields.PageTypePath);
+        Assert.DoesNotContain(GostTitleBlockFields.All, f => f.Path == GostTitleBlockFields.PageTypePath);
+    }
+
+    [Fact]
+    public void PageTypeField_HasThreeOptions()
+    {
+        Assert.Equal(["Обложка", "ТитульныйЛист", "Документ"], GostTitleBlockFields.PageTypeField.Options);
+    }
 }

@@ -254,6 +254,10 @@ export function SourcesExpander({
                       <span className="text-fg4 italic" title="Заполняется вместе с источником-шапкой того же счёта">
                         товары
                       </span>
+                    ) : isPdf && (src.sheetOrPath === 'gost-cover' || src.sheetOrPath === 'gost-titlepage') ? (
+                      <span className="text-fg4 italic" title="Заполняется вместе с источником «Документы» той же тройки">
+                        {src.sheetOrPath === 'gost-cover' ? 'обложка' : 'титул'}
+                      </span>
                     ) : isPdf && (
                       <button
                         onClick={() => recognizeMutation.mutate({ id: src.id })}
@@ -261,6 +265,8 @@ export function SourcesExpander({
                         className="p-1 text-fg4 hover:text-brand disabled:opacity-50"
                         title={src.sheetOrPath === 'invoice-header'
                           ? 'Распознать счёт целиком: реквизиты шапки + таблицу товаров (один вызов, может занять время)'
+                          : src.sheetOrPath === 'gost-documents'
+                          ? 'Распознать: обложка/титульный лист/документы (постранично, может занять время)'
                           : 'Распознать основную надпись каждой страницы (может занять время)'}>
                         {recognizeMutation.isPending && recognizeMutation.variables?.id === src.id
                           ? <Loader2 size={12} className="animate-spin" />
