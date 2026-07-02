@@ -27,9 +27,10 @@ public record DataSetBindingTemplateDto(
     Dictionary<string, string> ColumnMappings,
     int SortOrder, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
-/// <summary>Переиспользуемый рецепт обработки (Filter/Transformation/Sort) — не привязан к типу документа.</summary>
+/// <summary>Переиспользуемый рецепт источника (Extraction + Filter/Transformation/Sort) — не привязан к типу документа.</summary>
 public record DataSetProcessingTemplateDto(
-    Guid Id, string Name, object? RowFilter, object? ComputedColumns, object? SortSpec,
+    Guid Id, string Name, string? SheetOrPath, string? ColumnExpressions,
+    object? RowFilter, object? ComputedColumns, object? SortSpec,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 public record BindingPreviewDto(
@@ -66,9 +67,13 @@ public record UpdateSourceInput(string Name, string SheetOrPath, IReadOnlyList<C
 /// <summary>Лёгкая правка обработки источника — не трогает файл/кэш схемы (в отличие от Update/CreateSourceInput).</summary>
 public record SetSourceProcessingInput(object? RowFilter, object? ComputedColumns, object? SortSpec);
 
-public record CreateProcessingTemplateInput(string Name, object? RowFilter, object? ComputedColumns, object? SortSpec);
+public record CreateProcessingTemplateInput(
+    string Name, string? SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions,
+    object? RowFilter, object? ComputedColumns, object? SortSpec);
 
-public record UpdateProcessingTemplateInput(string Name, object? RowFilter, object? ComputedColumns, object? SortSpec);
+public record UpdateProcessingTemplateInput(
+    string Name, string? SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions,
+    object? RowFilter, object? ComputedColumns, object? SortSpec);
 
 public record CreateBindingInput(
     Guid InstanceId, Guid SourceId, string? TargetFieldKey, Dictionary<string, string>? Mapping);

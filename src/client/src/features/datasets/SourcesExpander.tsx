@@ -5,14 +5,16 @@ import {
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
-  usePreviewDataSetSource, useCreateProcessingTemplate,
+  usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate,
 } from '@/shared/api/datasets';
 import { SourceEditorDialog } from './SourceEditorDialog';
 import { SourcePreviewDialog } from './SourcePreviewDialog';
 import { RowFilterDialog } from './RowFilterDialog';
 import { ComputedColumnsDialog } from './ComputedColumnsDialog';
 import { SortSpecDialog } from './SortSpecDialog';
-import type { DataSetFile, DataSetProcessingTemplate, DataSetSource, RowFilterDef, ComputedColumn, SortSpec } from '@/shared/api/types';
+import type {
+  DataSetFile, DataSetProcessingTemplate, DataSetSource, RowFilterDef, ComputedColumn, SortSpec, ColumnExprDef,
+} from '@/shared/api/types';
 
 /**
  * Обработка (Filter/Transformation/Sort) одного источника — доступна для любого формата
@@ -29,6 +31,7 @@ function SourceProcessingControls({ source, templates }: {
   const [savingTemplate, setSavingTemplate] = useState(false);
   const setProcessing = useSetDataSetSourceProcessing();
   const createTemplate = useCreateProcessingTemplate();
+  const applyTemplateMutation = useApplyProcessingTemplate();
 
   const filterCount = countFilterConditions(source.rowFilter);
   const transformCount = source.computedColumns?.length ?? 0;
@@ -38,7 +41,6 @@ function SourceProcessingControls({ source, templates }: {
   // уже поддерживает и в фильтре, и в сортировке).
   const computedAliases = (source.computedColumns ?? []).map(c => c.alias).filter(Boolean);
   const columns = [...new Set([...parseSourceColumnNames(source.cachedSchema), ...computedAliases])];
-  const hasOwnProcessing = filterCount > 0 || transformCount > 0 || sortCount > 0;
 
   function save(patch: {
     rowFilter?: RowFilterDef | null; computedColumns?: ComputedColumn[] | null; sortSpec?: SortSpec | null;
@@ -50,17 +52,23 @@ function SourceProcessingControls({ source, templates }: {
     });
   }
 
-  // Применение шаблона копирует его значения в источник ОДИН РАЗ (как и шаблон маппинга) —
-  // дальше это обычная своя настройка, дальнейшая правка шаблона на источник не влияет.
+  // Применение шаблона копирует его значения (Extraction, если задана, + Filter/Transformation/
+  // Sort) в источник ОДИН РАЗ (как и шаблон маппинга) — дальше это обычная своя настройка,
+  // дальнейшая правка шаблона на источник не влияет. Extraction триггерит пере-парсинг файла
+  // на backend, поэтому это отдельный эндпоинт, а не save() с локальными значениями.
   function applyTemplate(templateId: string) {
-    const t = templates.find(x => x.id === templateId);
-    if (!t) return;
-    save({ rowFilter: t.rowFilter, computedColumns: t.computedColumns, sortSpec: t.sortSpec });
+    if (!templateId) return;
+    applyTemplateMutation.mutate({ sourceId: source.id, templateId });
   }
 
   async function saveAsTemplate(name: string) {
+    let columnExpressions: ColumnExprDef[] | null = null;
+    try { columnExpressions = source.columnExpressions ? JSON.parse(source.columnExpressions) : null; }
+    catch { columnExpressions = null; }
+
     await createTemplate.mutateAsync({
-      name, rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec,
+      name, sheetOrPath: source.sheetOrPath, columnExpressions,
+      rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec,
     });
     setSavingTemplate(false);
   }
@@ -69,9 +77,9 @@ function SourceProcessingControls({ source, templates }: {
 
   return (
     <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-      <select value="" onChange={e => applyTemplate(e.target.value)}
-        title="Применить шаблон обработки (копирует значения, не живая ссылка)"
-        className="text-[11px] border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[110px]">
+      <select value="" onChange={e => applyTemplate(e.target.value)} disabled={applyTemplateMutation.isPending}
+        title="Применить шаблон (Extraction, если задана, + Filter/Transformation/Sort) — копирует значения, не живая ссылка"
+        className="text-[11px] border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[110px] disabled:opacity-50">
         <option value="">применить шаблон…</option>
         {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
       </select>
@@ -84,9 +92,8 @@ function SourceProcessingControls({ source, templates }: {
       <button onClick={() => setSortOpen(true)} className={iconCls(sortCount)} title="Сортировка строк">
         <ArrowUpDown size={12} />
       </button>
-      <button onClick={() => setSavingTemplate(true)} disabled={!hasOwnProcessing}
-        className="p-1 rounded text-fg4 hover:text-brand disabled:opacity-40"
-        title={!hasOwnProcessing ? 'Нечего сохранять — обработка не задана' : 'Сохранить текущую обработку как шаблон'}>
+      <button onClick={() => setSavingTemplate(true)} className="p-1 rounded text-fg4 hover:text-brand"
+        title="Сохранить Extraction (row-selector/колонки) + текущую обработку как шаблон">
         <BookmarkPlus size={12} />
       </button>
 
@@ -112,7 +119,7 @@ function SourceProcessingControls({ source, templates }: {
   );
 }
 
-/** Мини-диалог: только имя нового шаблона — сама обработка уже известна (текущая источника). */
+/** Мини-диалог: только имя нового шаблона — сама Extraction + обработка уже известны (текущие источника). */
 function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
   defaultName: string; isPending: boolean;
   onSave: (name: string) => void; onClose: () => void;
@@ -122,10 +129,10 @@ function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="rounded-xl p-5 w-full max-w-sm bg-surface border border-stroke shadow-2xl" onClick={e => e.stopPropagation()}>
-        <p className="text-sm font-semibold mb-1 text-fg1">Сохранить обработку как шаблон</p>
+        <p className="text-sm font-semibold mb-1 text-fg1">Сохранить как шаблон</p>
         <p className="text-xs mb-3 text-fg3">
-          Текущие Filter/Transformation/Sort источника станут переиспользуемым шаблоном;
-          источник сразу переключится на живую ссылку на него.
+          Row-selector/колонки (Extraction) и текущие Filter/Transformation/Sort источника
+          станут переиспользуемым шаблоном — копия, не живая ссылка.
         </p>
         <input value={name} onChange={e => setName(e.target.value)} autoFocus
           placeholder="Название шаблона"

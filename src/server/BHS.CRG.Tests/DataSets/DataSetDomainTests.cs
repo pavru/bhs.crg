@@ -50,9 +50,13 @@ public class DataSetDomainTests
     [Fact]
     public void ProcessingTemplate_Create_TrimsNameAndSetsFields()
     {
-        var t = DataSetProcessingTemplate.Create("  Стандартный  ", """{"logic":"and"}""", "[]", """[{"column":"A"}]""");
+        var t = DataSetProcessingTemplate.Create(
+            "  Стандартный  ", "/Root/Item", """[{"name":"A","expr":"@a"}]""",
+            """{"logic":"and"}""", "[]", """[{"column":"A"}]""");
 
         Assert.Equal("Стандартный", t.Name);
+        Assert.Equal("/Root/Item", t.SheetOrPath);
+        Assert.Equal("""[{"name":"A","expr":"@a"}]""", t.ColumnExpressions);
         Assert.Equal("""{"logic":"and"}""", t.RowFilter);
         Assert.Equal("[]", t.ComputedColumns);
         Assert.Equal("""[{"column":"A"}]""", t.SortSpec);
@@ -61,10 +65,12 @@ public class DataSetDomainTests
     [Fact]
     public void ProcessingTemplate_Update_ReplacesValues()
     {
-        var t = DataSetProcessingTemplate.Create("A", null, null, null);
-        t.Update("  B  ", """{"logic":"or"}""", "[{}]", "[]");
+        var t = DataSetProcessingTemplate.Create("A", null, null, null, null, null);
+        t.Update("  B  ", "/Root/Item", """[{"name":"A","expr":"@a"}]""", """{"logic":"or"}""", "[{}]", "[]");
 
         Assert.Equal("B", t.Name);
+        Assert.Equal("/Root/Item", t.SheetOrPath);
+        Assert.Equal("""[{"name":"A","expr":"@a"}]""", t.ColumnExpressions);
         Assert.Equal("""{"logic":"or"}""", t.RowFilter);
         Assert.Equal("[{}]", t.ComputedColumns);
         Assert.Equal("[]", t.SortSpec);

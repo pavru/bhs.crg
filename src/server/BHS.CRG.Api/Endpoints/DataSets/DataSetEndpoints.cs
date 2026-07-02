@@ -140,21 +140,37 @@ public static class DataSetEndpoints
             catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
-        // ── Шаблоны обработки (переиспользуемые Filter/Transformation/Sort) ─────────
+        // Применить шаблон (Extraction, если задана в шаблоне, + Filter/Transformation/Sort) —
+        // copy-on-apply, единожды; Extraction триггерит пере-парсинг файла.
+        g.MapPost("/sources/{sourceId:guid}/apply-template/{templateId:guid}", async (
+            Guid sourceId, Guid templateId, IDataSetService svc, CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await svc.ApplyProcessingTemplateAsync(sourceId, templateId, ct);
+                return result is null ? Results.NotFound() : Results.Ok(result);
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (KeyNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+        });
+
+        // ── Шаблоны обработки (переиспользуемые рецепты Extraction + Filter/Transformation/Sort) ─────────
 
         g.MapGet("/processing-templates", async (IDataSetService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListProcessingTemplatesAsync(ct)));
 
         g.MapPost("/processing-templates", async (ProcessingTemplateRequest req, IDataSetService svc, CancellationToken ct) =>
         {
-            var input = new CreateProcessingTemplateInput(req.Name, req.RowFilter, req.ComputedColumns, req.SortSpec);
+            var input = new CreateProcessingTemplateInput(
+                req.Name, req.SheetOrPath, req.ColumnExpressions, req.RowFilter, req.ComputedColumns, req.SortSpec);
             return Results.Ok(await svc.CreateProcessingTemplateAsync(input, ct));
         });
 
         g.MapPut("/processing-templates/{id:guid}", async (
             Guid id, ProcessingTemplateRequest req, IDataSetService svc, CancellationToken ct) =>
         {
-            var input = new UpdateProcessingTemplateInput(req.Name, req.RowFilter, req.ComputedColumns, req.SortSpec);
+            var input = new UpdateProcessingTemplateInput(
+                req.Name, req.SheetOrPath, req.ColumnExpressions, req.RowFilter, req.ComputedColumns, req.SortSpec);
             var result = await svc.UpdateProcessingTemplateAsync(id, input, ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
@@ -175,6 +191,8 @@ public static class DataSetEndpoints
     private record AutoMapFieldDto(string Key, string Title);
     private record SourceRequest(string Name, string SheetOrPath, ColumnExprDto[]? ColumnExpressions);
     private record ProcessingRequest(object? RowFilter, object? ComputedColumns, object? SortSpec);
-    private record ProcessingTemplateRequest(string Name, object? RowFilter, object? ComputedColumns, object? SortSpec);
+    private record ProcessingTemplateRequest(
+        string Name, string? SheetOrPath, ColumnExprDto[]? ColumnExpressions,
+        object? RowFilter, object? ComputedColumns, object? SortSpec);
     private record ExpressionPreviewRequest(string RowSelector, string? Expr);
 }

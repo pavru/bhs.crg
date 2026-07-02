@@ -38,7 +38,14 @@ public interface IDataSetService
     /// <summary>Обработка (Filter/Transformation/Sort) источника — лёгкая правка, файл не трогает.</summary>
     Task<DataSetSourceDto?> SetSourceProcessingAsync(Guid sourceId, SetSourceProcessingInput input, CancellationToken ct);
 
-    // ── Processing templates (переиспользуемые Filter/Transformation/Sort, живая ссылка) ────
+    /// <summary>
+    /// Применить шаблон (Extraction, если задан в шаблоне, + Filter/Transformation/Sort) к
+    /// источнику — copy-on-apply, единожды. Extraction в шаблоне триггерит пере-парсинг файла
+    /// (как Update/CreateSourceInput), в отличие от SetSourceProcessingAsync.
+    /// </summary>
+    Task<DataSetSourceDto?> ApplyProcessingTemplateAsync(Guid sourceId, Guid templateId, CancellationToken ct);
+
+    // ── Processing templates (переиспользуемые рецепты Extraction + Filter/Transformation/Sort) ────
     Task<IReadOnlyList<DataSetProcessingTemplateDto>> ListProcessingTemplatesAsync(CancellationToken ct);
     Task<DataSetProcessingTemplateDto> CreateProcessingTemplateAsync(CreateProcessingTemplateInput input, CancellationToken ct);
     Task<DataSetProcessingTemplateDto?> UpdateProcessingTemplateAsync(Guid id, UpdateProcessingTemplateInput input, CancellationToken ct);

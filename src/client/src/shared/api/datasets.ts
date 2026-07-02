@@ -166,7 +166,7 @@ export function useSetDataSetSourceProcessing() {
   });
 }
 
-// ── Шаблоны обработки (переиспользуемые Filter/Transformation/Sort) ──────────────────
+// ── Шаблоны обработки (переиспользуемые рецепты Extraction + Filter/Transformation/Sort) ──────
 
 export function useListProcessingTemplates() {
   return useQuery<DataSetProcessingTemplate[]>({
@@ -179,6 +179,8 @@ export function useCreateProcessingTemplate() {
   const qc = useQueryClient();
   return useMutation<DataSetProcessingTemplate, Error, {
     name: string;
+    sheetOrPath?: string | null;
+    columnExpressions?: ColumnExprDef[] | null;
     rowFilter?: RowFilterDef | null;
     computedColumns?: ComputedColumn[] | null;
     sortSpec?: SortSpec | null;
@@ -193,6 +195,8 @@ export function useUpdateProcessingTemplate() {
   return useMutation<DataSetProcessingTemplate, Error, {
     id: string;
     name: string;
+    sheetOrPath?: string | null;
+    columnExpressions?: ColumnExprDef[] | null;
     rowFilter?: RowFilterDef | null;
     computedColumns?: ComputedColumn[] | null;
     sortSpec?: SortSpec | null;
@@ -210,6 +214,16 @@ export function useDeleteProcessingTemplate() {
       qc.invalidateQueries({ queryKey: ['datasets', 'processing-templates'] });
       qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
     },
+  });
+}
+
+/** Применить шаблон (Extraction, если задана, + Filter/Transformation/Sort) к источнику — copy-on-apply. */
+export function useApplyProcessingTemplate() {
+  const qc = useQueryClient();
+  return useMutation<DataSetSource, Error, { sourceId: string; templateId: string }>({
+    mutationFn: ({ sourceId, templateId }) =>
+      apiClient.post(`/datasets/sources/${sourceId}/apply-template/${templateId}`).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
   });
 }
 

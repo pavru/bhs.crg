@@ -52,6 +52,8 @@ public class DataSetProcessingTemplateConfiguration : IEntityTypeConfiguration<D
         b.ToTable("dataset_processing_templates");
         b.HasKey(e => e.Id);
         b.Property(e => e.Name).HasMaxLength(256).IsRequired();
+        b.Property(e => e.SheetOrPath).HasMaxLength(1024);
+        b.Property(e => e.ColumnExpressions).HasColumnType("jsonb");
         b.Property(e => e.RowFilter).HasColumnType("jsonb");
         b.Property(e => e.ComputedColumns).HasColumnType("jsonb");
         b.Property(e => e.SortSpec).HasColumnType("jsonb");

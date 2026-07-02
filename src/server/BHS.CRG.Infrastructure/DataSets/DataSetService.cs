@@ -359,6 +359,28 @@ public class DataSetService(
         return MapSource(source);
     }
 
+    public async Task<DataSetSourceDto?> ApplyProcessingTemplateAsync(Guid sourceId, Guid templateId, CancellationToken ct)
+    {
+        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        if (source == null) return null;
+
+        var template = await db.DataSetProcessingTemplates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == templateId, ct)
+            ?? throw new KeyNotFoundException($"DataSetProcessingTemplate {templateId} not found");
+
+        // Extraction в шаблоне — опциональна: если задана, пере-парсим файл (имя источника не
+        // трогаем — оно своё у каждого источника, не часть рецепта).
+        if (!string.IsNullOrWhiteSpace(template.SheetOrPath))
+        {
+            var (schema, rowCount) = await ParseForDefinitionAsync(
+                source.File.BlobPath, source.File.Format, template.SheetOrPath, template.ColumnExpressions, ct);
+            source.UpdateDefinition(source.Name, template.SheetOrPath, template.ColumnExpressions);
+            source.UpdateCache(SerializeSchema(schema), rowCount);
+        }
+        source.SetProcessing(template.RowFilter, template.ComputedColumns, template.SortSpec);
+        await db.SaveChangesAsync(ct);
+        return MapSource(source);
+    }
+
     // ── Processing templates ───────────────────────────────────────────────────────
 
     public async Task<IReadOnlyList<DataSetProcessingTemplateDto>> ListProcessingTemplatesAsync(CancellationToken ct)
@@ -371,7 +393,8 @@ public class DataSetService(
         CreateProcessingTemplateInput input, CancellationToken ct)
     {
         var template = DataSetProcessingTemplate.Create(
-            input.Name, SerializeJson(input.RowFilter), SerializeJson(input.ComputedColumns), SerializeJson(input.SortSpec));
+            input.Name, input.SheetOrPath, SerializeColumnExpressions(input.ColumnExpressions),
+            SerializeJson(input.RowFilter), SerializeJson(input.ComputedColumns), SerializeJson(input.SortSpec));
         db.DataSetProcessingTemplates.Add(template);
         await db.SaveChangesAsync(ct);
         return MapProcessingTemplate(template);
@@ -383,7 +406,8 @@ public class DataSetService(
         var template = await db.DataSetProcessingTemplates.FirstOrDefaultAsync(t => t.Id == id, ct);
         if (template == null) return null;
 
-        template.Update(input.Name, SerializeJson(input.RowFilter), SerializeJson(input.ComputedColumns), SerializeJson(input.SortSpec));
+        template.Update(input.Name, input.SheetOrPath, SerializeColumnExpressions(input.ColumnExpressions),
+            SerializeJson(input.RowFilter), SerializeJson(input.ComputedColumns), SerializeJson(input.SortSpec));
         await db.SaveChangesAsync(ct);
         return MapProcessingTemplate(template);
     }
@@ -610,6 +634,7 @@ public class DataSetService(
         t.SortOrder, t.CreatedAt, t.UpdatedAt);
 
     private static DataSetProcessingTemplateDto MapProcessingTemplate(DataSetProcessingTemplate t) => new(
-        t.Id, t.Name, DeserializeJson(t.RowFilter), DeserializeJson(t.ComputedColumns), DeserializeJson(t.SortSpec),
+        t.Id, t.Name, t.SheetOrPath, t.ColumnExpressions,
+        DeserializeJson(t.RowFilter), DeserializeJson(t.ComputedColumns), DeserializeJson(t.SortSpec),
         t.CreatedAt, t.UpdatedAt);
 }

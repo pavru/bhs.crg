@@ -332,6 +332,10 @@ export interface DataSetBindingTemplate {
 export interface DataSetProcessingTemplate {
   id: string;
   name: string;
+  /** Extraction (опционально): row-selector — формат-зависимый (XPath/JSONPath/имя листа). */
+  sheetOrPath: string | null;
+  /** JSON-массив ColumnExprDef[] (как на DataSetSource). */
+  columnExpressions: string | null;
   rowFilter: RowFilterDef | null;
   computedColumns: ComputedColumn[] | null;
   sortSpec: SortSpec | null;

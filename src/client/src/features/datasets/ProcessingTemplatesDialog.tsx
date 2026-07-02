@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Pencil, Check, Layers, Filter, FunctionSquare, ArrowUpDown } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, Layers, Filter, FunctionSquare, ArrowUpDown, Route } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import {
   useListProcessingTemplates, useCreateProcessingTemplate,
@@ -9,15 +9,73 @@ import { countFilterConditions } from '@/shared/api/datasetHelpers';
 import { RowFilterDialog } from './RowFilterDialog';
 import { ComputedColumnsDialog } from './ComputedColumnsDialog';
 import { SortSpecDialog } from './SortSpecDialog';
-import type { ComputedColumn, DataSetProcessingTemplate, RowFilterDef, SortSpec } from '@/shared/api/types';
+import type { ColumnExprDef, ComputedColumn, DataSetProcessingTemplate, RowFilterDef, SortSpec } from '@/shared/api/types';
 
 const FIELD_CLS = 'border border-stroke rounded-md px-3 py-1.5 text-sm bg-surface text-fg1';
 
 interface TemplateFormState {
   name: string;
+  sheetOrPath: string | null;
+  columnExpressions: ColumnExprDef[] | null;
   rowFilter: RowFilterDef | null;
   computedColumns: ComputedColumn[] | null;
   sortSpec: SortSpec | null;
+}
+
+function parseColumnExpressions(json: string | null | undefined): ColumnExprDef[] {
+  if (!json) return [];
+  try { const parsed = JSON.parse(json); return Array.isArray(parsed) ? parsed : []; }
+  catch { return []; }
+}
+
+// ─── Extraction — без файлового контекста, поэтому обычный текст без builder'а/предпросмотра ───
+
+function ExtractionFields({
+  sheetOrPath, onSheetOrPathChange, columns, onColumnsChange,
+}: {
+  sheetOrPath: string; onSheetOrPathChange: (v: string) => void;
+  columns: ColumnExprDef[]; onColumnsChange: (v: ColumnExprDef[]) => void;
+}) {
+  function addColumn() { onColumnsChange([...columns, { name: '', expr: '' }]); }
+  function updateColumn(i: number, patch: Partial<ColumnExprDef>) {
+    onColumnsChange(columns.map((c, idx) => idx === i ? { ...c, ...patch } : c));
+  }
+  function removeColumn(i: number) { onColumnsChange(columns.filter((_, idx) => idx !== i)); }
+
+  return (
+    <div className="space-y-2 rounded-lg p-3 border border-stroke bg-base">
+      <div>
+        <label className="block text-xs font-medium mb-1 text-fg3">
+          Extraction — row-selector <span className="font-normal">(XPath/JSONPath/имя листа — по формату файла; необязательно)</span>
+        </label>
+        <input value={sheetOrPath} onChange={e => onSheetOrPathChange(e.target.value)}
+          placeholder="Напр.: //Position[not(Resources)]"
+          className={`w-full font-mono text-xs ${FIELD_CLS}`} />
+      </div>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-xs font-medium text-fg3">Колонки — относительно строки</label>
+          <button type="button" onClick={addColumn} className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
+            <Plus size={12} /> Колонка
+          </button>
+        </div>
+        {columns.length === 0 && <p className="text-xs text-fg4 py-0.5">Колонки не заданы.</p>}
+        <div className="space-y-1.5">
+          {columns.map((col, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input value={col.name} onChange={e => updateColumn(i, { name: e.target.value })}
+                placeholder="Название" className={`w-32 shrink-0 text-xs ${FIELD_CLS} px-2 py-1`} />
+              <input value={col.expr} onChange={e => updateColumn(i, { expr: e.target.value })}
+                placeholder="Выражение" className={`flex-1 min-w-0 font-mono text-xs ${FIELD_CLS} px-2 py-1`} />
+              <button type="button" onClick={() => removeColumn(i)} className="p-1 text-fg4 hover:text-danger shrink-0">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Template form ────────────────────────────────────────────────────────────
@@ -31,6 +89,8 @@ function TemplateForm({
   saving: boolean;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
+  const [sheetOrPath, setSheetOrPath] = useState(initial?.sheetOrPath ?? '');
+  const [columns, setColumns] = useState<ColumnExprDef[]>(() => parseColumnExpressions(initial?.columnExpressions));
   const [rowFilter, setRowFilter] = useState<RowFilterDef | null>(initial?.rowFilter ?? null);
   const [computedColumns, setComputedColumns] = useState<ComputedColumn[] | null>(initial?.computedColumns ?? null);
   const [sortSpec, setSortSpec] = useState<SortSpec | null>(initial?.sortSpec ?? null);
@@ -47,6 +107,14 @@ function TemplateForm({
       active ? 'border-brand text-brand bg-brand-subtle' : 'border-stroke text-fg3 bg-base'
     }`;
 
+  function handleSave() {
+    const cleanColumns = columns.filter(c => c.name.trim() && c.expr.trim());
+    onSave({
+      name, sheetOrPath: sheetOrPath.trim() || null, columnExpressions: cleanColumns.length ? cleanColumns : null,
+      rowFilter, computedColumns, sortSpec,
+    });
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -58,6 +126,9 @@ function TemplateForm({
           className={`w-full ${FIELD_CLS}`}
         />
       </div>
+
+      <ExtractionFields sheetOrPath={sheetOrPath} onSheetOrPathChange={setSheetOrPath}
+        columns={columns} onColumnsChange={setColumns} />
 
       <div className="flex gap-2 flex-wrap">
         <button type="button" onClick={() => setFilterOpen(true)} className={toggleCls(filterCount > 0)}>
@@ -76,7 +147,7 @@ function TemplateForm({
 
       <div className="flex gap-2 pt-1">
         <button
-          onClick={() => onSave({ name, rowFilter, computedColumns, sortSpec })}
+          onClick={handleSave}
           disabled={saving || !name.trim()}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-white disabled:opacity-40 bg-brand"
         >
@@ -125,8 +196,13 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-fg1">{template.name}</div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            {filterCount === 0 && transformCount === 0 && sortCount === 0 && (
+            {!template.sheetOrPath && filterCount === 0 && transformCount === 0 && sortCount === 0 && (
               <span className="text-xs text-fg4">Без обработки</span>
+            )}
+            {template.sheetOrPath && (
+              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand" title={template.sheetOrPath}>
+                <Route size={9} /> Extraction
+              </span>
             )}
             {filterCount > 0 && (
               <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">
@@ -190,9 +266,9 @@ export function ProcessingTemplatesDialog({ onClose }: { onClose: () => void }) 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Шаблоны обработки" wide>
       <p className="text-xs mb-4 text-fg4">
-        Переиспользуемые рецепты Filter/Transformation/Sort — источник данных может сослаться на
-        шаблон вместо своей настройки; правка шаблона сразу применяется ко всем источникам,
-        которые на него ссылаются (см. выбор «шаблон обработки» у каждого источника).
+        Переиспользуемые рецепты источника (Extraction + Filter/Transformation/Sort). Применение
+        к источнику копирует значения единожды (не живая ссылка) — дальше источник независим,
+        можно свободно скорректировать (см. «применить шаблон» у каждого источника).
       </p>
 
       <div className="rounded-xl overflow-hidden mb-4 border border-stroke bg-surface">
