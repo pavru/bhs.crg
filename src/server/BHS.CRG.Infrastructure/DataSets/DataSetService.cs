@@ -255,13 +255,52 @@ public class DataSetService(
         var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return false;
 
-        var hasBindings = await db.DataSetBindings.AnyAsync(b => b.SourceId == sourceId, ct);
-        if (hasBindings)
-            throw new InvalidOperationException("Источник используется в привязках документов — сначала удалите привязки.");
+        var bindings = await db.DataSetBindings.Where(b => b.SourceId == sourceId).ToListAsync(ct);
+        if (bindings.Count > 0)
+        {
+            var usages = await DescribeBindingUsagesAsync(bindings, ct);
+            throw new InvalidOperationException(
+                $"Источник используется в привязках: {string.Join("; ", usages)} — сначала удалите привязки.");
+        }
 
         db.DataSetSources.Remove(source);
         await db.SaveChangesAsync(ct);
         return true;
+    }
+
+    // Человекочитаемое описание, где именно используется источник (для сообщения об ошибке
+    // удаления) — по DocumentInstance (документ + комплект) и по CommonDataEntry (запись каталога).
+    private async Task<List<string>> DescribeBindingUsagesAsync(List<DataSetBinding> bindings, CancellationToken ct)
+    {
+        var usages = new List<string>();
+
+        var instanceIds = bindings.Where(b => b.InstanceId is not null).Select(b => b.InstanceId!.Value).Distinct().ToList();
+        if (instanceIds.Count > 0)
+        {
+            var instances = await db.DocumentInstances
+                .Where(i => instanceIds.Contains(i.Id))
+                .Select(i => new { i.Id, i.Name, i.DocumentTypeId, i.DocumentSetId })
+                .ToListAsync(ct);
+            var typeIds = instances.Select(i => i.DocumentTypeId).Distinct().ToList();
+            var setIds = instances.Select(i => i.DocumentSetId).Distinct().ToList();
+            var typeNames = await db.DocumentTypes.Where(t => typeIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.Name, ct);
+            var setNames = await db.DocumentSets.Where(s => setIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
+            foreach (var inst in instances)
+            {
+                var label = inst.Name ?? typeNames.GetValueOrDefault(inst.DocumentTypeId, "документ");
+                var setName = setNames.GetValueOrDefault(inst.DocumentSetId);
+                usages.Add(setName is not null ? $"документ «{label}» (комплект «{setName}»)" : $"документ «{label}»");
+            }
+        }
+
+        var entryIds = bindings.Where(b => b.CommonDataEntryId is not null).Select(b => b.CommonDataEntryId!.Value).Distinct().ToList();
+        if (entryIds.Count > 0)
+        {
+            var entryNames = await db.CommonDataEntries.Where(e => entryIds.Contains(e.Id)).Select(e => e.DisplayName).ToListAsync(ct);
+            usages.AddRange(entryNames.Select(name => $"запись каталога «{name}»"));
+        }
+
+        return usages;
     }
 
     // Копия источника на том же файле — тот же locator/колонки/обработка (Filter/Transformation/Sort),
