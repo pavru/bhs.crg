@@ -113,4 +113,19 @@ public class XmlDataSetParserTests
         Assert.Equal(["1", "2", "3"], col.SampleValues);
         Assert.Equal(4, result.Rows.Count);
     }
+
+    [Fact]
+    public async Task ParseAsync_UnevaluableColumnExpr_YieldsEmptyInsteadOfThrowing()
+    {
+        // Синтаксически валидный для парсера, но не вычислимый (вложенный предикат с
+        // относительным путём внутри — контекст сдвинут на кандидата) — не должен ронять
+        // остальные строки/колонки, просто пустое значение для этой колонки.
+        var columnExpressions = """[{"name":"Наименование","expr":"Name"},{"name":"Плохое","expr":"Name[count(::garbage=)]"}]""";
+        var result = await _parser.ParseAsync(Utf8(Sample), "/Root/Item", columnExpressions, default);
+
+        Assert.Equal(2, result.Rows.Count);
+        Assert.Equal("Кабель", result.Rows[0]["Наименование"]);
+        Assert.Null(result.Rows[0]["Плохое"]);
+        Assert.Null(result.Rows[1]["Плохое"]);
+    }
 }

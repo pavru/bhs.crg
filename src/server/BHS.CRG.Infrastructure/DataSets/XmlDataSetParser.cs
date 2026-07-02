@@ -54,8 +54,14 @@ public class XmlDataSetParser : IDataSetParser
         return new DataSetParseResult(columns, rows);
     }
 
+    // Невозможность вычислить выражение для конкретной строки (бросает исключение — например,
+    // из-за особенностей структуры именно этого узла) не должна ронять весь набор — колонка
+    // просто остаётся пустой для этой строки, остальные строки/колонки не затрагиваются.
     private static string? EvalExpr(XmlNode node, string expr)
-        => node.SelectSingleNode(expr)?.InnerText;
+    {
+        try { return node.SelectSingleNode(expr)?.InnerText; }
+        catch { return null; }
+    }
 
     private static ColumnExprDef[]? ParseColumnExpressions(string? json)
     {

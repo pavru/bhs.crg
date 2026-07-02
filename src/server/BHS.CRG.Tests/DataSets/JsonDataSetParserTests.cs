@@ -127,4 +127,16 @@ public class JsonDataSetParserTests
         Assert.Equal(["1", "2", "3"], col.SampleValues);
         Assert.Equal(4, result.Rows.Count);
     }
+
+    [Fact]
+    public async Task ParseAsync_UnevaluableColumnExpr_YieldsEmptyInsteadOfThrowing()
+    {
+        var columnExpressions = """[{"name":"Наименование","expr":"name"},{"name":"Плохое","expr":"$.["}]""";
+        var result = await _parser.ParseAsync(Utf8(Sample), "$.items[*]", columnExpressions, default);
+
+        Assert.Equal(2, result.Rows.Count);
+        Assert.Equal("Кабель", result.Rows[0]["Наименование"]);
+        Assert.Null(result.Rows[0]["Плохое"]);
+        Assert.Null(result.Rows[1]["Плохое"]);
+    }
 }

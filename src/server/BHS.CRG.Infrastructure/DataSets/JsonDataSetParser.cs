@@ -109,11 +109,17 @@ public class JsonDataSetParser : IDataSetParser
 
     // expr без ведущего "$" считается относительным ("author" / "address.city") и дополняется
     // до "$.author" — вычисляется относительно текущей строки-JsonElement как корня.
+    // Невозможность вычислить выражение для конкретной строки не должна ронять весь набор —
+    // колонка просто остаётся пустой для этой строки (см. симметричный EvalExpr в XmlDataSetParser).
     private static string? EvalExpr(JsonElement row, string expr)
     {
-        var normalized = expr.TrimStart().StartsWith('$') ? expr : $"$.{expr}";
-        var matches = JsonSelector.Parse(normalized).Select(row);
-        return matches.Count > 0 ? JsonElementToString(matches[0]) : null;
+        try
+        {
+            var normalized = expr.TrimStart().StartsWith('$') ? expr : $"$.{expr}";
+            var matches = JsonSelector.Parse(normalized).Select(row);
+            return matches.Count > 0 ? JsonElementToString(matches[0]) : null;
+        }
+        catch { return null; }
     }
 
     private static ColumnExprDef[]? ParseColumnExpressions(string? json)
