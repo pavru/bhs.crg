@@ -14,7 +14,8 @@ public class GeminiRecognizerEngine(
 {
     public string Name => "Gemini";
 
-    public async Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields, CancellationToken ct = default)
+    public async Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
+        Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)
     {
         var cfg = (await settings.GetEffectiveAsync(ct)).Rec("Gemini");
         var apiKey = cfg.ApiKey;
@@ -34,7 +35,7 @@ public class GeminiRecognizerEngine(
                 new { parts = new object[]
                 {
                     new { inline_data = new { mime_type = mt, data = Convert.ToBase64String(file) } },
-                    new { text = RecognitionShared.BuildPrompt(fields) },
+                    new { text = (promptBuilder ?? RecognitionShared.BuildPrompt)(fields) },
                 } },
             },
             generationConfig = new { response_mime_type = "application/json", temperature = 0 },

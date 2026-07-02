@@ -29,6 +29,19 @@ public interface IDataSetService
     /// <summary>Копия источника (тот же locator/колонки/Filter/Transformation/Sort) на том же файле — доступно для любого формата.</summary>
     Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, CancellationToken ct);
 
+    /// <summary>
+    /// Ручное создание PDF-источника (без Extraction через builder — см. RecognizePdfSourceAsync).
+    /// </summary>
+    Task<DataSetSourceDto> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct);
+
+    /// <summary>
+    /// Распознаёт основную надпись каждой страницы PDF (по одной странице за вызов, через
+    /// существующий IDocumentRecognizer) и кэширует результат на источнике (DataSetSource.CachedData).
+    /// Дорогая/небыстрая операция — запускается явным действием пользователя, не при каждом
+    /// preview/generation вызове.
+    /// </summary>
+    Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, CancellationToken ct);
+
     /// <summary>Пути XML-записей внутри ZIP-файла — для выбора при ручном создании источника.</summary>
     Task<IReadOnlyList<string>> ListZipXmlEntriesAsync(Guid fileId, CancellationToken ct);
 

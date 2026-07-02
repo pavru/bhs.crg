@@ -15,8 +15,12 @@ public record RecognitionResult(IReadOnlyDictionary<string, string?> Values, str
 /// </summary>
 public interface IDocumentRecognizer
 {
+    /// <param name="promptBuilder">Необязательный кастомный промпт (по умолчанию —
+    /// RecognitionShared.BuildPrompt, формулировка под сертификаты/декларации). Например,
+    /// RecognitionShared.BuildTitleBlockPrompt для распознавания штампа чертежа по ГОСТ.</param>
     Task<RecognitionResult> RecognizeAsync(
-        byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields, CancellationToken ct = default);
+        byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
+        Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default);
 }
 
 /// <summary>Превышен лимит запросов к LLM — следует остановиться до восстановления.</summary>

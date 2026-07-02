@@ -21,7 +21,7 @@ function FileRow({ file }: { file: DataSetFile }) {
           <div className="font-medium text-sm text-fg1">{file.name}</div>
           <div className="text-xs mt-0.5 text-fg4">{DATA_SET_FORMAT_LABELS[file.format]}</div>
         </div>
-        <input ref={updateInputRef} type="file" accept=".csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx" className="hidden" onChange={handleReplace} />
+        <input ref={updateInputRef} type="file" accept=".csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx,.pdf" className="hidden" onChange={handleReplace} />
         <button
           onClick={handleDownload}
           disabled={downloading}
@@ -118,7 +118,7 @@ export function DataSetsPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx"
+              accept=".csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx,.pdf"
               className="hidden"
               onChange={handleFileInput}
             />
@@ -145,7 +145,7 @@ export function DataSetsPage() {
       </div>
 
       <p className="mt-3 text-xs text-fg4">
-        Поддерживаемые форматы: CSV, TXT, XLSX, XLS, XML, JSON.
+        Поддерживаемые форматы: CSV, TXT, XLSX, XLS, XML, JSON, ZIP, PDF.
       </p>
 
       {templatesOpen && <ProcessingTemplatesDialog onClose={() => setTemplatesOpen(false)} />}

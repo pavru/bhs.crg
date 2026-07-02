@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import {
-  ChevronDown, ChevronRight, Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2, BookmarkPlus,
+  ChevronDown, ChevronRight, Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
+  BookmarkPlus, ScanText,
 } from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
-  usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate,
+  usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizePdfSource,
 } from '@/shared/api/datasets';
 import { SourceEditorDialog } from './SourceEditorDialog';
+import { PdfSourceDialog } from './PdfSourceDialog';
 import { SourcePreviewDialog } from './SourcePreviewDialog';
 import { RowFilterDialog } from './RowFilterDialog';
 import { ComputedColumnsDialog } from './ComputedColumnsDialog';
@@ -173,7 +175,10 @@ function SourceRowCountBadge({ sourceId }: { sourceId: string }) {
  * Для XML (и XML внутри ZIP) источники управляются только вручную (создание/редактирование/
  * удаление) — авто-детект по top-level элементам для XML не используется. Для JSON — авто-детект
  * top-level массивов/объектов создаёт исходные источники, но также доступно ручное управление
- * (например, чтобы задать вложенный/фильтрующий JSONPath, недоступный авто-детекту).
+ * (например, чтобы задать вложенный/фильтрующий JSONPath, недоступный авто-детекту). Для PDF —
+ * тоже только вручную (PdfSourceDialog: имя + структурные тэги, без row-selector), Extraction —
+ * распознавание (кнопка ScanText «Распознать»), не builder; редактирование существующего PDF-
+ * источника пока не поддержано (только пересоздание).
  * Обработка (Filter/Transformation/Sort) доступна для источников любого формата.
  */
 export function SourcesExpander({
@@ -189,8 +194,10 @@ export function SourcesExpander({
   const [confirmDelete, setConfirmDelete] = useState<DataSetSource | null>(null);
   const deleteMutation = useDeleteDataSetSource();
   const duplicateMutation = useDuplicateDataSetSource();
+  const recognizeMutation = useRecognizePdfSource();
   const { data: templates = [] } = useListProcessingTemplates();
-  const canManageExtraction = file.format === 'Xml' || file.format === 'Zip' || file.format === 'Json';
+  const isPdf = file.format === 'Pdf';
+  const canManageExtraction = file.format === 'Xml' || file.format === 'Zip' || file.format === 'Json' || isPdf;
   const sources = file.sources;
 
   if (sources.length === 0 && !canManageExtraction)
@@ -243,11 +250,26 @@ export function SourcesExpander({
                       className="p-1 text-fg4 hover:text-brand disabled:opacity-50" title="Создать копию">
                       <Copy size={12} />
                     </button>
+                    {isPdf && (
+                      <button
+                        onClick={() => recognizeMutation.mutate({ id: src.id })}
+                        disabled={recognizeMutation.isPending && recognizeMutation.variables?.id === src.id}
+                        className="p-1 text-fg4 hover:text-brand disabled:opacity-50"
+                        title="Распознать основную надпись каждой страницы (может занять время)">
+                        {recognizeMutation.isPending && recognizeMutation.variables?.id === src.id
+                          ? <Loader2 size={12} className="animate-spin" />
+                          : <ScanText size={12} />}
+                      </button>
+                    )}
                     {canManageExtraction && (
                       <>
-                        <button onClick={() => setEditing(src)} className="p-1 text-fg4 hover:text-brand" title="Редактировать">
-                          <Pencil size={12} />
-                        </button>
+                        {/* PDF пока без редактирования (нет способа поменять только имя/тэги
+                            без пере-парсинга) — переименовать можно копией+удалением. */}
+                        {!isPdf && (
+                          <button onClick={() => setEditing(src)} className="p-1 text-fg4 hover:text-brand" title="Редактировать">
+                            <Pencil size={12} />
+                          </button>
+                        )}
                         <button onClick={() => setConfirmDelete(src)} className="p-1 text-fg4 hover:text-danger" title="Удалить">
                           <Trash2 size={12} />
                         </button>
@@ -262,13 +284,17 @@ export function SourcesExpander({
       )}
 
       {editing && (
-        <SourceEditorDialog
-          fileId={file.id}
-          isZip={file.format === 'Zip'}
-          format={file.format === 'Json' ? 'Json' : 'Xml'}
-          initial={editing === 'new' ? undefined : editing}
-          onClose={() => setEditing(null)}
-        />
+        isPdf ? (
+          <PdfSourceDialog fileId={file.id} onClose={() => setEditing(null)} />
+        ) : (
+          <SourceEditorDialog
+            fileId={file.id}
+            isZip={file.format === 'Zip'}
+            format={file.format === 'Json' ? 'Json' : 'Xml'}
+            initial={editing === 'new' ? undefined : editing}
+            onClose={() => setEditing(null)}
+          />
+        )
       )}
 
       {previewing && (

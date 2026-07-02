@@ -18,6 +18,14 @@ public class DataSetSource : Entity
     /// <summary>JSON-кэш колонок: [{name, sampleValues[]}]. Заполняется при загрузке файла.</summary>
     public string CachedSchema { get; private set; } = "[]";
     public int CachedRowCount { get; private set; }
+    /// <summary>
+    /// JSON-массив полных распознанных строк (только для PDF — распознавание через vision-LLM
+    /// дорого/недетерминированно, в отличие от остальных форматов не перепарсивается на каждый
+    /// вызов). Null — ещё не распознавали. См. DataSetBindingProcessor.LoadRowsAsync.
+    /// </summary>
+    public string? CachedData { get; private set; }
+    /// <summary>JSON-массив кодов функциональных тэгов источника (scope Dataset — TagRegistry).</summary>
+    public string? Tags { get; private set; }
 
     /// <summary>
     /// Обработка (Filter/Transformation/Sort) — своя, независимая от других источников.
@@ -37,7 +45,7 @@ public class DataSetSource : Entity
     private DataSetSource() { }
 
     internal static DataSetSource Create(Guid fileId, string name, string sheetOrPath,
-        string cachedSchema, int cachedRowCount, string? columnExpressions = null)
+        string cachedSchema, int cachedRowCount, string? columnExpressions = null, string? cachedData = null)
         => new()
         {
             FileId = fileId,
@@ -46,12 +54,21 @@ public class DataSetSource : Entity
             CachedSchema = cachedSchema,
             CachedRowCount = cachedRowCount,
             ColumnExpressions = columnExpressions,
+            CachedData = cachedData,
         };
 
-    public void UpdateCache(string cachedSchema, int cachedRowCount)
+    public void UpdateCache(string cachedSchema, int cachedRowCount, string? cachedData = null)
     {
         CachedSchema = cachedSchema;
         CachedRowCount = cachedRowCount;
+        CachedData = cachedData;
+        TouchUpdatedAt();
+    }
+
+    /// <summary>Функциональные тэги источника (scope Dataset) — JSON-массив кодов или null.</summary>
+    public void SetTags(string? tagsJson)
+    {
+        Tags = tagsJson;
         TouchUpdatedAt();
     }
 

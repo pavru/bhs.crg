@@ -19,7 +19,8 @@ public class OllamaRecognizerEngine(
 
     public string Name => "Ollama";
 
-    public async Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields, CancellationToken ct = default)
+    public async Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
+        Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)
     {
         var cfg = (await settings.GetEffectiveAsync(ct)).Rec("Ollama");
         var model = cfg.Model;
@@ -62,7 +63,7 @@ public class OllamaRecognizerEngine(
         var requestBody = new
         {
             model,
-            prompt = RecognitionShared.BuildPrompt(fields),
+            prompt = (promptBuilder ?? RecognitionShared.BuildPrompt)(fields),
             images,
             stream = false,
             format = "json",

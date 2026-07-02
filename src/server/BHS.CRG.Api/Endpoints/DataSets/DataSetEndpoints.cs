@@ -127,6 +127,25 @@ public static class DataSetEndpoints
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
 
+        // PDF — Extraction через распознавание (vision-LLM), не XPath/JSONPath-builder.
+        g.MapPost("/files/{fileId:guid}/pdf-sources", async (
+            Guid fileId, PdfSourceRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            try { return Results.Ok(await svc.CreatePdfSourceAsync(fileId, new CreatePdfSourceInput(req.Name, req.Tags), ct)); }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (KeyNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+        });
+
+        g.MapPost("/sources/{sourceId:guid}/recognize", async (Guid sourceId, IDataSetService svc, CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await svc.RecognizePdfSourceAsync(sourceId, ct);
+                return result is null ? Results.NotFound() : Results.Ok(result);
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+
         // Обработка (Filter/Transformation/Sort) — лёгкая правка, не трогает файл/кэш схемы.
         g.MapPut("/sources/{sourceId:guid}/processing", async (
             Guid sourceId, ProcessingRequest req, IDataSetService svc, CancellationToken ct) =>
@@ -195,4 +214,5 @@ public static class DataSetEndpoints
         string Name, string? SheetOrPath, ColumnExprDto[]? ColumnExpressions,
         object? RowFilter, object? ComputedColumns, object? SortSpec);
     private record ExpressionPreviewRequest(string RowSelector, string? Expr);
+    private record PdfSourceRequest(string Name, string[]? Tags);
 }

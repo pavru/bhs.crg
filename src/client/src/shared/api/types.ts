@@ -198,7 +198,7 @@ export interface RestoreReport {
 
 // ─── DataSets ─────────────────────────────────────────────────────────────────
 
-export type DataSetFormat = 'Csv' | 'Xlsx' | 'Xls' | 'Xml' | 'Json' | 'Zip';
+export type DataSetFormat = 'Csv' | 'Xlsx' | 'Xls' | 'Xml' | 'Json' | 'Zip' | 'Pdf';
 
 export const DATA_SET_FORMAT_LABELS: Record<DataSetFormat, string> = {
   Csv: 'CSV / TXT',
@@ -207,6 +207,7 @@ export const DATA_SET_FORMAT_LABELS: Record<DataSetFormat, string> = {
   Xml: 'XML',
   Json: 'JSON',
   Zip: 'ZIP-архив',
+  Pdf: 'PDF',
 };
 
 /** Явная относительная колонка XML-источника (см. XPathBuilder). */
@@ -229,6 +230,8 @@ export interface DataSetSource {
   rowFilter: RowFilterDef | null;
   computedColumns: ComputedColumn[] | null;
   sortSpec: SortSpec | null;
+  /** Коды функциональных тэгов источника (scope Dataset) — только для PDF. */
+  tags: string[] | null;
 }
 
 export interface DataSetFile {

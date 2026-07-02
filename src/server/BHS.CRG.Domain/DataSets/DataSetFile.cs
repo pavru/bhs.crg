@@ -3,7 +3,7 @@ using BHS.CRG.Domain.Common;
 
 namespace BHS.CRG.Domain.DataSets;
 
-public enum DataSetFormat { Csv, Xlsx, Xls, Xml, Json, Zip }
+public enum DataSetFormat { Csv, Xlsx, Xls, Xml, Json, Zip, Pdf }
 
 public class DataSetFile : Entity
 {
@@ -23,9 +23,9 @@ public class DataSetFile : Entity
         => new() { Name = name, Format = format, BlobPath = blobPath, Scope = scope, ScopeId = scopeId };
 
     public DataSetSource AddSource(string name, string sheetOrPath, string cachedSchema, int cachedRowCount,
-        string? columnExpressions = null)
+        string? columnExpressions = null, string? cachedData = null)
     {
-        var src = DataSetSource.Create(Id, name, sheetOrPath, cachedSchema, cachedRowCount, columnExpressions);
+        var src = DataSetSource.Create(Id, name, sheetOrPath, cachedSchema, cachedRowCount, columnExpressions, cachedData);
         _sources.Add(src);
         TouchUpdatedAt();
         return src;

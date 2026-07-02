@@ -93,4 +93,36 @@ public class DataSetDomainTests
         Assert.Equal("[{}]", source.ComputedColumns);
         Assert.Equal("""[{"column":"A"}]""", source.SortSpec);
     }
+
+    [Fact]
+    public void Source_UpdateCache_WithCachedData_StoresRecognizedRows()
+    {
+        var file = DataSetFile.Create("f", DataSetFormat.Pdf, "blob", Domain.Catalog.CatalogScope.System, null);
+        var source = file.AddSource("s", "titleblock-registry", "[]", 0);
+        Assert.Null(source.CachedData);
+
+        var data = """[{"Шифр":"АБВ.01"}]""";
+        source.UpdateCache("""[{"name":"Шифр","sampleValues":["АБВ.01"]}]""", 1, data);
+
+        Assert.Equal(1, source.CachedRowCount);
+        Assert.Equal(data, source.CachedData);
+
+        // Формат без cachedData (обычный перепарсинг) — не передаётся, остаётся null.
+        source.UpdateCache("[]", 0);
+        Assert.Null(source.CachedData);
+    }
+
+    [Fact]
+    public void Source_SetTags_RoundTrips()
+    {
+        var file = DataSetFile.Create("f", DataSetFormat.Pdf, "blob", Domain.Catalog.CatalogScope.System, null);
+        var source = file.AddSource("s", "titleblock-registry", "[]", 0);
+        Assert.Null(source.Tags);
+
+        source.SetTags("""["dataset.hasTitleBlock"]""");
+        Assert.Equal("""["dataset.hasTitleBlock"]""", source.Tags);
+
+        source.SetTags(null);
+        Assert.Null(source.Tags);
+    }
 }

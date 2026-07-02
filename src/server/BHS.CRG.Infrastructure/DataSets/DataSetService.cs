@@ -2,10 +2,12 @@ using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Infrastructure.Recognition;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -15,6 +17,7 @@ public class DataSetService(
     AppDbContext db,
     IBlobStorage blob,
     DataSetParserFactory parserFactory,
+    IDocumentRecognizer recognizer,
     ILogger<DataSetService> logger
 ) : IDataSetService
 {
@@ -152,6 +155,7 @@ public class DataSetService(
             DataSetFormat.Xml  => "application/xml",
             DataSetFormat.Json => "application/json",
             DataSetFormat.Zip  => "application/zip",
+            DataSetFormat.Pdf  => "application/pdf",
             _                  => "application/octet-stream",
         };
 
@@ -186,18 +190,14 @@ public class DataSetService(
             .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
-        await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
-        using var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct);
-        var parser = parserFactory.GetParser(source.File.Format);
-        var result = await parser.ParseAsync(ms.ToArray(), source.SheetOrPath, source.ColumnExpressions, ct);
-
-        var rows = DataSetComputedColumnExecutor.Apply(source.ComputedColumns, result.Rows.ToList());
-        rows = DataSetRowFilterExecutor.Apply(source.RowFilter, rows);
-        rows = DataSetSortExecutor.Apply(source.SortSpec, rows);
+        var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
 
         var take = maxRows <= 0 ? 50 : maxRows;
-        var columns = result.Columns.Select(c => c.Name).ToList();
+        // Базовые колонки — из уже сохранённого кэша схемы (тот же парсер заполнил его при
+        // создании/обновлении источника), не повторный парсинг: для PDF вообще нет "живого"
+        // парсинга (см. LoadRowsAsync), а для остальных форматов результат эквивалентен.
+        var baseColumns = JsonSerializer.Deserialize<CachedColumnInfo[]>(source.CachedSchema, CachedSchemaJson) ?? [];
+        var columns = baseColumns.Select(c => c.Name).ToList();
         // Вычисляемые колонки могут добавить новые имена, которых нет в исходном разборе.
         columns.AddRange(rows.SelectMany(r => r.Keys).Distinct().Except(columns));
 
@@ -275,12 +275,93 @@ public class DataSetService(
         if (source == null) return null;
 
         var copy = source.File.AddSource(
-            $"{source.Name} (копия)", source.SheetOrPath, source.CachedSchema, source.CachedRowCount, source.ColumnExpressions);
+            $"{source.Name} (копия)", source.SheetOrPath, source.CachedSchema, source.CachedRowCount,
+            source.ColumnExpressions, source.CachedData);
         copy.SetProcessing(source.RowFilter, source.ComputedColumns, source.SortSpec);
+        copy.SetTags(source.Tags);
         // file уже отслеживается — см. пояснение в CreateSourceAsync (иначе Modified вместо Added).
         db.DataSetSources.Add(copy);
         await db.SaveChangesAsync(ct);
         return MapSource(copy);
+    }
+
+    // Extraction для PDF не переиспользуемый XPath/JSONPath, а фиксированный профиль
+    // (распознавание основной надписи каждой страницы) — SheetOrPath обязателен в домене,
+    // но для PDF не несёт смысла локатора, только метка формата.
+    private const string PdfRowSelector = "titleblock-registry";
+
+    // Комплект чертежей может быть большим (десятки листов) — выше, чем MaxPages=10 у
+    // PdfRasterizer (тот подобран под сертификаты/декларации, не трогаем).
+    private const int PdfRecognizeMaxPages = 100;
+
+    public async Task<DataSetSourceDto> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct)
+    {
+        var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)
+            ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
+        if (file.Format != DataSetFormat.Pdf)
+            throw new ArgumentException("Файл не в формате PDF.");
+
+        var source = file.AddSource(input.Name.Trim(), PdfRowSelector, "[]", 0);
+        source.SetTags(input.Tags is { Count: > 0 } ? JsonSerializer.Serialize(input.Tags) : null);
+        // file уже отслеживается — см. пояснение в CreateSourceAsync (иначе Modified вместо Added).
+        db.DataSetSources.Add(source);
+        await db.SaveChangesAsync(ct);
+        return MapSource(source);
+    }
+
+    public async Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, CancellationToken ct)
+    {
+        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        if (source == null) return null;
+        if (source.File.Format != DataSetFormat.Pdf)
+            throw new ArgumentException("Источник не относится к PDF-файлу.");
+
+        await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+        var bytes = ms.ToArray();
+
+        IReadOnlyList<byte[]> pages;
+        try
+        {
+            pages = await Task.Run(
+                () => PdfRasterizer.ToPngPages(bytes, PdfRasterizer.DefaultDpi, PdfRecognizeMaxPages), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new ArgumentException($"Не удалось подготовить страницы PDF: {ex.Message}");
+        }
+
+        var fields = GostTitleBlockFields.All;
+        var rows = new List<IReadOnlyDictionary<string, string?>>();
+        for (var i = 0; i < pages.Count; i++)
+        {
+            try
+            {
+                var result = await recognizer.RecognizeAsync(
+                    pages[i], "image/png", fields, RecognitionShared.BuildTitleBlockPrompt, ct: ct);
+                rows.Add(result.Values);
+            }
+            catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
+            {
+                // Первая же страница — вероятно, движки не настроены вообще: нет смысла повторять
+                // ту же ошибку ещё N-1 раз, сообщаем сразу. Дальше по комплекту — считаем
+                // страницо-специфичной проблемой (не роняем весь реестр, см. фикс невычислимых
+                // колонок XPath/JSONPath той же сессии), строка остаётся пустой.
+                if (i == 0)
+                    throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
+                logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, sourceId);
+                rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
+            }
+        }
+
+        var columns = fields.Select(f => new DataSetColumnInfo(f.Path,
+            rows.Take(3).Select(r => r.TryGetValue(f.Path, out var v) ? v ?? "" : "").ToArray()
+        )).ToArray();
+
+        source.UpdateCache(SerializeSchema(columns), rows.Count, JsonSerializer.Serialize(rows));
+        await db.SaveChangesAsync(ct);
+        return MapSource(source);
     }
 
     // Скачивает файл и парсит указанное определение — используется для валидации и первичного
@@ -582,6 +663,7 @@ public class DataSetService(
             ".xml"            => DataSetFormat.Xml,
             ".json"           => DataSetFormat.Json,
             ".zip" or ".gsfx" => DataSetFormat.Zip,
+            ".pdf"            => DataSetFormat.Pdf,
             _                 => null,
         };
 
@@ -617,7 +699,8 @@ public class DataSetService(
 
     private static DataSetSourceDto MapSource(DataSetSource s) => new(
         s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, s.CachedSchema, s.CachedRowCount,
-        DeserializeJson(s.RowFilter), DeserializeJson(s.ComputedColumns), DeserializeJson(s.SortSpec));
+        DeserializeJson(s.RowFilter), DeserializeJson(s.ComputedColumns), DeserializeJson(s.SortSpec),
+        s.Tags is null ? null : JsonSerializer.Deserialize<List<string>>(s.Tags));
 
     private static DataSetBindingDto MapBinding(DataSetBinding b) => new(
         b.Id, b.InstanceId, b.SourceId, b.TargetFieldKey,

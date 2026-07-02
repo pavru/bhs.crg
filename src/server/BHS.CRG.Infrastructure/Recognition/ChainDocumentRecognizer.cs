@@ -13,7 +13,8 @@ public class ChainDocumentRecognizer(
     IEnumerable<IRecognizerEngine> engines, IIntegrationSettings settings, ILogger<ChainDocumentRecognizer> logger
 ) : IDocumentRecognizer
 {
-    public async Task<RecognitionResult> RecognizeAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields, CancellationToken ct = default)
+    public async Task<RecognitionResult> RecognizeAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
+        Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)
     {
         var s = await settings.GetEffectiveAsync(ct);
         var byName = engines.ToDictionary(e => e.Name, StringComparer.OrdinalIgnoreCase);
@@ -34,7 +35,7 @@ public class ChainDocumentRecognizer(
         {
             try
             {
-                var text = await engine.RecognizeRawAsync(file, mimeType, fields, ct);
+                var text = await engine.RecognizeRawAsync(file, mimeType, fields, promptBuilder, ct);
                 var values = RecognitionShared.ParseValues(text, fields);
                 logger.LogInformation("Распознавание выполнено движком {Engine}, полей: {N}", engine.Name, values.Count);
                 return new RecognitionResult(values, text);

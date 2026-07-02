@@ -39,4 +39,14 @@ public static class FunctionalTag
     // ── Тэги типа ───────────────────────────────────────────────────────────────
     /// <summary>Тип документа является «документом качества» (база для подтипов).</summary>
     public const string TypeQualityDocument = "type.qualityDocument";
+    /// <summary>Тип документа относится к проектной документации (ГОСТ Р 21.101-2020).</summary>
+    public const string TypeProjectDocumentation = "type.projectDocumentation";
+
+    // ── Тэги набора данных (структура PDF-источника) ────────────────────────────
+    /// <summary>PDF содержит обложку (первая страница пропускается при распознавании).</summary>
+    public const string DatasetHasCover = "dataset.hasCover";
+    /// <summary>PDF содержит титульный лист — источник реквизитов (скалярный профиль).</summary>
+    public const string DatasetHasTitlePage = "dataset.hasTitlePage";
+    /// <summary>Каждая страница PDF содержит основную надпись — распознаётся построчно (реестр листов).</summary>
+    public const string DatasetHasTitleBlock = "dataset.hasTitleBlock";
 }

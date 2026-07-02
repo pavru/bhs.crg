@@ -5,7 +5,8 @@ namespace BHS.CRG.Application.DataSets;
 public record DataSetSourceDto(
     Guid Id, Guid FileId, string Name, string SheetOrPath, string? ColumnExpressions,
     string CachedSchema, int CachedRowCount,
-    object? RowFilter, object? ComputedColumns, object? SortSpec);
+    object? RowFilter, object? ComputedColumns, object? SortSpec,
+    IReadOnlyList<string>? Tags);
 
 public record DataSetFileDto(
     Guid Id, string Name, string Format, string Scope, Guid? ScopeId,
@@ -63,6 +64,13 @@ public record ColumnExprDto(string Name, string Expr);
 public record CreateSourceInput(string Name, string SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions);
 
 public record UpdateSourceInput(string Name, string SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions);
+
+/// <summary>
+/// Ручное создание PDF-источника: без SheetOrPath/ColumnExpressions (Extraction для PDF —
+/// распознавание, а не XPath/JSONPath-builder, см. RecognizePdfSourceAsync). Tags — коды
+/// функциональных тэгов (scope Dataset), напр. dataset.hasTitleBlock.
+/// </summary>
+public record CreatePdfSourceInput(string Name, IReadOnlyList<string>? Tags);
 
 /// <summary>Лёгкая правка обработки источника — не трогает файл/кэш схемы (в отличие от Update/CreateSourceInput).</summary>
 public record SetSourceProcessingInput(object? RowFilter, object? ComputedColumns, object? SortSpec);

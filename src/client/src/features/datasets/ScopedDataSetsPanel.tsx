@@ -23,7 +23,7 @@ function FileRow({ file, scope, scopeId }: { file: DataSetFile; scope: CatalogSc
           <span className="text-sm font-medium text-fg1">{file.name}</span>
           <span className="ml-2 text-xs text-fg4">{DATA_SET_FORMAT_LABELS[file.format]}</span>
         </div>
-        <input ref={updateInputRef} type="file" accept=".csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx" className="hidden" onChange={handleReplace} />
+        <input ref={updateInputRef} type="file" accept=".csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx,.pdf" className="hidden" onChange={handleReplace} />
         <button
           onClick={handleDownload}
           disabled={downloading}
@@ -111,7 +111,7 @@ export function ScopedDataSetsPanel({ scope, scopeId }: { scope: CatalogScope; s
 
         <div onClick={e => e.stopPropagation()} className="flex items-center gap-1">
           {uploadError && <span className="text-xs text-danger">{uploadError}</span>}
-          <input ref={fileInputRef} type="file" accept=".csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx" className="hidden" onChange={handleFile} />
+          <input ref={fileInputRef} type="file" accept=".csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx,.pdf" className="hidden" onChange={handleFile} />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}

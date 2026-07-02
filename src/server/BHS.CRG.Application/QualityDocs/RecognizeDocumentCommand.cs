@@ -31,7 +31,7 @@ public class RecognizeDocumentHandler(
             using var ms = new MemoryStream();
             await stream.CopyToAsync(ms, ct);
             var bytes = ms.ToArray();
-            var result = await recognizer.RecognizeAsync(bytes, cmd.MimeType, cmd.Fields, ct);
+            var result = await recognizer.RecognizeAsync(bytes, cmd.MimeType, cmd.Fields, ct: ct);
 
             // Служебные вызовы (напр. классификация типа) не уведомляют и не считают страницы.
             if (!cmd.Notify) return result;

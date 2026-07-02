@@ -7,13 +7,17 @@ export const FUNCTIONAL_TAG = {
   docPageCount: 'doc.pageCount',
   docNumber: 'doc.number',
   typeQualityDocument: 'type.qualityDocument',
+  typeProjectDocumentation: 'type.projectDocumentation',
   materialQualityDocLink: 'material.qualityDocLink',
   materialIdentity: 'material.identity',
   qualityValidUntil: 'quality.validUntil',
   qualityManufacturer: 'quality.manufacturer',
+  datasetHasCover: 'dataset.hasCover',
+  datasetHasTitlePage: 'dataset.hasTitlePage',
+  datasetHasTitleBlock: 'dataset.hasTitleBlock',
 } as const;
 
-export type TagScope = 'Field' | 'Type';
+export type TagScope = 'Field' | 'Type' | 'Dataset';
 
 export interface TagDefinition {
   code: string;
@@ -39,4 +43,8 @@ export function fieldTags(all: TagDefinition[] | undefined, fieldType: string): 
 
 export function typeTags(all: TagDefinition[] | undefined, kind: string): TagDefinition[] {
   return (all ?? []).filter(t => t.scope === 'Type' && (t.appliesTo.length === 0 || t.appliesTo.includes(kind)));
+}
+
+export function datasetTags(all: TagDefinition[] | undefined): TagDefinition[] {
+  return (all ?? []).filter(t => t.scope === 'Dataset');
 }

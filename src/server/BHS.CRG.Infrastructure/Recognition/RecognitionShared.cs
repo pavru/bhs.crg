@@ -17,6 +17,23 @@ public static class RecognitionShared
     {
         var sb = new StringBuilder();
         sb.AppendLine("Ты извлекаешь реквизиты из скан-копии документа (сертификат/декларация соответствия и т.п.).");
+        AppendCommonInstructions(sb, fields);
+        return sb.ToString();
+    }
+
+    /// <summary>Промпт для распознавания основной надписи (штампа) чертежа/документа по ГОСТ Р 21.101-2020 —
+    /// вместо общей формулировки про сертификаты (для точности на плотном мелком штампе).</summary>
+    public static string BuildTitleBlockPrompt(IReadOnlyList<RecognitionField> fields)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Ты извлекаешь данные из основной надписи (штампа) листа проектной/рабочей документации");
+        sb.AppendLine("по ГОСТ Р 21.101-2020 (обычно правый нижний угол листа, реже — верх текстового документа).");
+        AppendCommonInstructions(sb, fields);
+        return sb.ToString();
+    }
+
+    private static void AppendCommonInstructions(StringBuilder sb, IReadOnlyList<RecognitionField> fields)
+    {
         sb.AppendLine("Извлеки значения СТРОГО для перечисленных полей. Ответ — один JSON-объект {\"путь\": \"значение\"} без markdown и пояснений.");
         sb.AppendLine("Даты возвращай в ISO (ГГГГ-ММ-ДД). Если значения нет — пустая строка. Не выдумывай.");
         sb.AppendLine();
@@ -27,7 +44,6 @@ public static class RecognitionShared
             if (f.Options is { Count: > 0 }) sb.Append(" (варианты: ").Append(string.Join(", ", f.Options)).Append(')');
             sb.AppendLine();
         }
-        return sb.ToString();
     }
 
     public static IReadOnlyDictionary<string, string?> ParseValues(string text, IReadOnlyList<RecognitionField> fields)
@@ -76,5 +92,6 @@ public static class RecognitionShared
 public interface IRecognizerEngine
 {
     string Name { get; }
-    Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields, CancellationToken ct = default);
+    Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
+        Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default);
 }

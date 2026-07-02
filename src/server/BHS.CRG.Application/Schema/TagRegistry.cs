@@ -2,12 +2,13 @@ using BHS.CRG.Domain.Schema;
 
 namespace BHS.CRG.Application.Schema;
 
-public enum TagScope { Field, Type }
+public enum TagScope { Field, Type, Dataset }
 
 /// <summary>
 /// Описание функционального тэга для UI и валидации.
 /// <paramref name="AppliesTo"/>: для Field — допустимые типы поля (SchemaField.type);
-/// для Type — допустимые виды типа ("Document"/"Composite"). Пустой = любой.
+/// для Type — допустимые виды типа ("Document"/"Composite"); для Dataset не используется
+/// (пустой = любой формат источника).
 /// </summary>
 public record TagDefinition(
     string Code,
@@ -57,6 +58,20 @@ public static class TagRegistry
         new(FunctionalTag.TypeQualityDocument, "Документ качества",
             "Тип документа считается «документом качества» (для библиотеки и распознавания). Наследуется подтипами.",
             TagScope.Type, ["Document"], Multiple: false),
+        new(FunctionalTag.TypeProjectDocumentation, "Проектная документация",
+            "Тип документа относится к проектной документации (ГОСТ Р 21.101-2020).",
+            TagScope.Type, ["Document"], Multiple: false),
+
+        // ── Dataset: структура PDF-источника ──
+        new(FunctionalTag.DatasetHasCover, "Имеет обложку",
+            "PDF-источник содержит обложку (первая страница пропускается при распознавании основных надписей).",
+            TagScope.Dataset, [], Multiple: false),
+        new(FunctionalTag.DatasetHasTitlePage, "Имеет титульный лист",
+            "PDF-источник содержит титульный лист — реквизиты распознаются с него (скалярный профиль).",
+            TagScope.Dataset, [], Multiple: false),
+        new(FunctionalTag.DatasetHasTitleBlock, "Имеет основную надпись",
+            "Каждая страница PDF содержит основную надпись (штамп) по ГОСТ Р 21.101-2020 — распознаётся построчно в реестр листов.",
+            TagScope.Dataset, [], Multiple: false),
     ];
 
     public static TagDefinition? Find(string code) => All.FirstOrDefault(t => t.Code == code);

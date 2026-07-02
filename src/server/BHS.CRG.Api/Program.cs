@@ -165,6 +165,7 @@ builder.Services.AddSingleton<IDataSetParser, XlsxDataSetParser>();
 builder.Services.AddSingleton<IDataSetParser, XmlDataSetParser>();
 builder.Services.AddSingleton<IDataSetParser, JsonDataSetParser>();
 builder.Services.AddSingleton<IDataSetParser, ZipDataSetParser>();
+builder.Services.AddSingleton<IDataSetParser, PdfDataSetParser>();
 builder.Services.AddSingleton<DataSetParserFactory>();
 builder.Services.AddScoped<IDataSetService, DataSetService>();
 

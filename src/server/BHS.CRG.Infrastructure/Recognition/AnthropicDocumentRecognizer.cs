@@ -17,7 +17,8 @@ public class AnthropicRecognizerEngine(
 
     public string Name => "Anthropic";
 
-    public async Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields, CancellationToken ct = default)
+    public async Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
+        Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)
     {
         var cfg = (await settings.GetEffectiveAsync(ct)).Rec("Anthropic");
         var apiKey = cfg.ApiKey;
@@ -38,7 +39,7 @@ public class AnthropicRecognizerEngine(
             max_tokens = 2048,
             messages = new object[]
             {
-                new { role = "user", content = new object[] { fileBlock, new { type = "text", text = RecognitionShared.BuildPrompt(fields) } } },
+                new { role = "user", content = new object[] { fileBlock, new { type = "text", text = (promptBuilder ?? RecognitionShared.BuildPrompt)(fields) } } },
             },
         };
         var json = JsonSerializer.Serialize(requestBody);

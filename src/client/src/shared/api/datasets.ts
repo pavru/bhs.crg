@@ -150,6 +150,26 @@ export function useDuplicateDataSetSource() {
   });
 }
 
+// ── PDF-источники — Extraction через распознавание, не XPath/JSONPath-builder ──────────
+
+export function useCreatePdfSource() {
+  const qc = useQueryClient();
+  return useMutation<DataSetSource, Error, { fileId: string; name: string; tags?: string[] | null }>({
+    mutationFn: ({ fileId, ...data }) =>
+      apiClient.post(`/datasets/files/${fileId}/pdf-sources`, data).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+  });
+}
+
+/** Распознаёт основную надпись каждой страницы PDF и кэширует результат — может быть небыстро. */
+export function useRecognizePdfSource() {
+  const qc = useQueryClient();
+  return useMutation<DataSetSource, Error, { id: string }>({
+    mutationFn: ({ id }) => apiClient.post(`/datasets/sources/${id}/recognize`).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+  });
+}
+
 // ── Обработка источника (Filter/Transformation/Sort) — лёгкая правка, файл не трогает ─────
 
 export function useSetDataSetSourceProcessing() {
