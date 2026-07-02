@@ -265,11 +265,11 @@ public class DataSetService(
         return true;
     }
 
-    // Копия источника на том же файле — тот же locator/колонки/обработка (Filter/Conversion/Sort,
+    // Копия источника на том же файле — тот же locator/колонки/обработка (Filter/Transformation/Sort,
     // включая ссылку на шаблон), но независимая: правки одной копии не затрагивают другую.
     // Позволяет получить несколько наборов на основе одного файла без переопределения extraction
     // с нуля (актуально и для форматов без ручного builder'а — CSV/XLSX — где нужно только
-    // разное Filter/Conversion/Sort поверх одинаковых данных).
+    // разное Filter/Transformation/Sort поверх одинаковых данных).
     public async Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, CancellationToken ct)
     {
         var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);

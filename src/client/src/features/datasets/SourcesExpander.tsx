@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Copy, Filter, FunctionSquare, ArrowUpDown } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown } from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
 } from '@/shared/api/datasets';
 import { SourceEditorDialog } from './SourceEditorDialog';
+import { SourcePreviewDialog } from './SourcePreviewDialog';
 import { RowFilterDialog } from './RowFilterDialog';
 import { ComputedColumnsDialog } from './ComputedColumnsDialog';
 import { SortSpecDialog } from './SortSpecDialog';
 import type { DataSetFile, DataSetProcessingTemplate, DataSetSource, RowFilterDef, ComputedColumn, SortSpec } from '@/shared/api/types';
 
 /**
- * Обработка (Filter/Conversion/Sort) одного источника — доступна для любого формата
+ * Обработка (Filter/Transformation/Sort) одного источника — доступна для любого формата
  * (не только XML). Либо своя настройка, либо живая ссылка на переиспользуемый шаблон
  * (правится централизованно — см. «Шаблоны обработки» на странице «Наборы данных»).
  */
@@ -32,7 +33,11 @@ function SourceProcessingControls({ source, templates }: {
   const filterCount = countFilterConditions(effective.rowFilter);
   const transformCount = effective.computedColumns?.length ?? 0;
   const sortCount = effective.sortSpec?.length ?? 0;
-  const columns = parseSourceColumnNames(source.cachedSchema);
+  // Filter/Sort работают уже ПОСЛЕ Transformation в пайплайне (см. DataSetBindingProcessor) —
+  // их список колонок должен включать и вычисляемые (иначе в UI недоступны, хотя backend их
+  // уже поддерживает и в фильтре, и в сортировке).
+  const computedAliases = (effective.computedColumns ?? []).map(c => c.alias).filter(Boolean);
+  const columns = [...new Set([...parseSourceColumnNames(source.cachedSchema), ...computedAliases])];
 
   function save(patch: {
     rowFilter?: RowFilterDef | null; computedColumns?: ComputedColumn[] | null; sortSpec?: SortSpec | null;
@@ -59,7 +64,7 @@ function SourceProcessingControls({ source, templates }: {
   return (
     <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
       <select value={source.processingTemplateId ?? ''} onChange={e => selectTemplate(e.target.value)}
-        title="Шаблон обработки (Filter/Conversion/Sort)"
+        title="Шаблон обработки (Filter/Transformation/Sort)"
         className="text-[11px] border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[110px]">
         <option value="">своя настройка</option>
         {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -99,7 +104,7 @@ function SourceProcessingControls({ source, templates }: {
  * удаление) — авто-детект по top-level элементам для XML не используется. Для JSON — авто-детект
  * top-level массивов/объектов создаёт исходные источники, но также доступно ручное управление
  * (например, чтобы задать вложенный/фильтрующий JSONPath, недоступный авто-детекту).
- * Обработка (Filter/Conversion/Sort) доступна для источников любого формата.
+ * Обработка (Filter/Transformation/Sort) доступна для источников любого формата.
  */
 export function SourcesExpander({
   file,
@@ -110,6 +115,7 @@ export function SourcesExpander({
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<DataSetSource | 'new' | null>(null);
+  const [previewing, setPreviewing] = useState<DataSetSource | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<DataSetSource | null>(null);
   const deleteMutation = useDeleteDataSetSource();
   const duplicateMutation = useDuplicateDataSetSource();
@@ -157,6 +163,10 @@ export function SourcesExpander({
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <SourceProcessingControls source={src} templates={templates} />
+                    <button onClick={() => setPreviewing(src)} className="p-1 text-fg4 hover:text-brand"
+                      title="Просмотреть результат обработки">
+                      <Eye size={12} />
+                    </button>
                     <button
                       onClick={() => duplicateMutation.mutate({ id: src.id })}
                       disabled={duplicateMutation.isPending && duplicateMutation.variables?.id === src.id}
@@ -189,6 +199,10 @@ export function SourcesExpander({
           initial={editing === 'new' ? undefined : editing}
           onClose={() => setEditing(null)}
         />
+      )}
+
+      {previewing && (
+        <SourcePreviewDialog source={previewing} onClose={() => setPreviewing(null)} />
       )}
 
       {confirmDelete && (
