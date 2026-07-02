@@ -153,8 +153,11 @@ function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
  * SourcePreviewDialog, maxRows=1 просто чтобы не тянуть лишние данные строк.
  */
 function SourceRowCountBadge({ sourceId }: { sourceId: string }) {
+  // isFetching — true и при фоновом рефетче (после инвалидации списка файлов любым источником
+  // того же файла), не только при первой загрузке — спиннер только пока данных ещё вообще нет,
+  // иначе бейдж каждого источника мигал бы при правке ЛЮБОГО другого источника того же файла.
   const { data, isFetching } = usePreviewDataSetSource(sourceId, 1);
-  if (isFetching) return <Loader2 size={11} className="inline-block ml-2 animate-spin text-fg4" />;
+  if (isFetching && data === undefined) return <Loader2 size={11} className="inline-block ml-2 animate-spin text-fg4" />;
   return <span className="ml-2 font-normal text-fg4">{data?.totalRows ?? 0} строк</span>;
 }
 
