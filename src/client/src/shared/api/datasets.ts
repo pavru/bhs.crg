@@ -141,7 +141,7 @@ export function useDeleteDataSetSource() {
   });
 }
 
-/** Копия источника (тот же locator/колонки/Filter/Conversion/Sort) — доступна для любого формата. */
+/** Копия источника (тот же locator/колонки/Filter/Transformation/Sort) — доступна для любого формата. */
 export function useDuplicateDataSetSource() {
   const qc = useQueryClient();
   return useMutation<DataSetSource, Error, { id: string }>({
@@ -150,7 +150,7 @@ export function useDuplicateDataSetSource() {
   });
 }
 
-// ── Обработка источника (Filter/Conversion/Sort) — лёгкая правка, файл не трогает ─────
+// ── Обработка источника (Filter/Transformation/Sort) — лёгкая правка, файл не трогает ─────
 
 export function useSetDataSetSourceProcessing() {
   const qc = useQueryClient();
@@ -167,7 +167,7 @@ export function useSetDataSetSourceProcessing() {
   });
 }
 
-// ── Шаблоны обработки (переиспользуемые Filter/Conversion/Sort) ──────────────────
+// ── Шаблоны обработки (переиспользуемые Filter/Transformation/Sort) ──────────────────
 
 export function useListProcessingTemplates() {
   return useQuery<DataSetProcessingTemplate[]>({

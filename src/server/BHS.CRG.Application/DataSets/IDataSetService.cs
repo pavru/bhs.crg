@@ -26,7 +26,7 @@ public interface IDataSetService
     Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct);
     Task<bool> DeleteSourceAsync(Guid sourceId, CancellationToken ct);
 
-    /// <summary>Копия источника (тот же locator/колонки/Filter/Conversion/Sort) на том же файле — доступно для любого формата.</summary>
+    /// <summary>Копия источника (тот же locator/колонки/Filter/Transformation/Sort) на том же файле — доступно для любого формата.</summary>
     Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, CancellationToken ct);
 
     /// <summary>Пути XML-записей внутри ZIP-файла — для выбора при ручном создании источника.</summary>
@@ -35,10 +35,10 @@ public interface IDataSetService
     /// <summary>Предпросмотр XPath/JSONPath-выражения в builder'е — без сохранения источника.</summary>
     Task<ExpressionPreviewDto> PreviewExpressionAsync(Guid fileId, string rowSelector, string? expr, CancellationToken ct);
 
-    /// <summary>Обработка (Filter/Conversion/Sort) источника — лёгкая правка, файл не трогает.</summary>
+    /// <summary>Обработка (Filter/Transformation/Sort) источника — лёгкая правка, файл не трогает.</summary>
     Task<DataSetSourceDto?> SetSourceProcessingAsync(Guid sourceId, SetSourceProcessingInput input, CancellationToken ct);
 
-    // ── Processing templates (переиспользуемые Filter/Conversion/Sort, живая ссылка) ────
+    // ── Processing templates (переиспользуемые Filter/Transformation/Sort, живая ссылка) ────
     Task<IReadOnlyList<DataSetProcessingTemplateDto>> ListProcessingTemplatesAsync(CancellationToken ct);
     Task<DataSetProcessingTemplateDto> CreateProcessingTemplateAsync(CreateProcessingTemplateInput input, CancellationToken ct);
     Task<DataSetProcessingTemplateDto?> UpdateProcessingTemplateAsync(Guid id, UpdateProcessingTemplateInput input, CancellationToken ct);

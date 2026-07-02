@@ -66,7 +66,7 @@ public class DataSetSortExecutorTests
     public void SortsByComputedColumn()
     {
         // Проверяет, что сортировка видит любую колонку в строке — включая добавленную
-        // на этапе Conversion (в реальном пайплайне она уже есть в словаре к этому моменту).
+        // на этапе Transformation (в реальном пайплайне она уже есть в словаре к этому моменту).
         var rows = new List<IReadOnlyDictionary<string, string?>>
         {
             Row(("Итого", "30")), Row(("Итого", "10")),

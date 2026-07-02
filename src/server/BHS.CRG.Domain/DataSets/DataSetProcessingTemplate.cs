@@ -3,7 +3,7 @@ using BHS.CRG.Domain.Common;
 namespace BHS.CRG.Domain.DataSets;
 
 /// <summary>
-/// Переиспользуемый рецепт обработки набора данных (Filter/Conversion/Sort) — не привязан
+/// Переиспользуемый рецепт обработки набора данных (Filter/Transformation/Sort) — не привязан
 /// к типу документа (в отличие от <see cref="DataSetBindingTemplate"/>, который про Mapping).
 /// DataSetSource ссылается на шаблон живой связью (Guid): правка шаблона сразу отражается
 /// на всех источниках, которые его используют.

@@ -6,7 +6,7 @@ namespace BHS.CRG.Domain.DataSets;
 /// Шаблон стандартного маппинга набора данных для типа документа.
 /// Не содержит ссылку на конкретный файл — только ожидаемые имена колонок.
 /// При создании экземпляра маппинг копируется в DataSetBinding.
-/// Filter/Conversion/Sort сюда не входят — они на уровне DataSetSource
+/// Filter/Transformation/Sort сюда не входят — они на уровне DataSetSource
 /// (см. DataSetProcessingTemplate).
 /// </summary>
 public class DataSetBindingTemplate : Entity

@@ -190,7 +190,7 @@ export function ProcessingTemplatesDialog({ onClose }: { onClose: () => void }) 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Шаблоны обработки" wide>
       <p className="text-xs mb-4 text-fg4">
-        Переиспользуемые рецепты Filter/Conversion/Sort — источник данных может сослаться на
+        Переиспользуемые рецепты Filter/Transformation/Sort — источник данных может сослаться на
         шаблон вместо своей настройки; правка шаблона сразу применяется ко всем источникам,
         которые на него ссылаются (см. выбор «шаблон обработки» у каждого источника).
       </p>

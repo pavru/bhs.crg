@@ -20,7 +20,7 @@ public class DataSetSource : Entity
     public int CachedRowCount { get; private set; }
 
     /// <summary>
-    /// Обработка (Filter/Conversion/Sort) — либо своя (эти три поля), либо через ссылку на
+    /// Обработка (Filter/Transformation/Sort) — либо своя (эти три поля), либо через ссылку на
     /// шаблон (<see cref="ProcessingTemplateId"/>; если задан — свои поля не используются,
     /// см. DataSetBindingProcessor.ResolveProcessing). JSON: FilterDef / ComputedColumnDef[] /
     /// SortColumnDef[] соответственно.
@@ -69,7 +69,7 @@ public class DataSetSource : Entity
     }
 
     /// <summary>
-    /// Обработка (Filter/Conversion/Sort) — лёгкая правка, не трогает файл/кэш схемы.
+    /// Обработка (Filter/Transformation/Sort) — лёгкая правка, не трогает файл/кэш схемы.
     /// processingTemplateId задан → свои rowFilter/computedColumns/sortSpec игнорируются
     /// (но сохраняются как есть, чтобы не терять их при временном переключении на шаблон).
     /// </summary>

@@ -16,18 +16,18 @@ public record BindingFileDto(Guid Id, string Name, string Format, string Scope, 
 public record BindingSourceDto(
     Guid Id, string Name, string SheetOrPath, string CachedSchema, int CachedRowCount, BindingFileDto? File);
 
-/// <summary>Привязка — только Mapping. Filter/Conversion/Sort живут на DataSetSource.</summary>
+/// <summary>Привязка — только Mapping. Filter/Transformation/Sort живут на DataSetSource.</summary>
 public record DataSetBindingDto(
     Guid Id, Guid InstanceId, Guid SourceId, string? TargetFieldKey,
     Dictionary<string, string> Mapping, BindingSourceDto? Source);
 
-/// <summary>Шаблон маппинга (для типа документа). Filter/Conversion/Sort — см. DataSetProcessingTemplateDto.</summary>
+/// <summary>Шаблон маппинга (для типа документа). Filter/Transformation/Sort — см. DataSetProcessingTemplateDto.</summary>
 public record DataSetBindingTemplateDto(
     Guid Id, Guid DocumentTypeId, string Name, string? TargetFieldKey,
     Dictionary<string, string> ColumnMappings,
     int SortOrder, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
-/// <summary>Переиспользуемый рецепт обработки (Filter/Conversion/Sort) — не привязан к типу документа.</summary>
+/// <summary>Переиспользуемый рецепт обработки (Filter/Transformation/Sort) — не привязан к типу документа.</summary>
 public record DataSetProcessingTemplateDto(
     Guid Id, string Name, object? RowFilter, object? ComputedColumns, object? SortSpec,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);

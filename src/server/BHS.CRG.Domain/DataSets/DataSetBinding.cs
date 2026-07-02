@@ -4,7 +4,7 @@ namespace BHS.CRG.Domain.DataSets;
 
 /// <summary>
 /// Привязка набора данных к документу — только Mapping (колонка → поле).
-/// Filter/Conversion/Sort — на уровне DataSetSource, см. DataSetSource.SetProcessing.
+/// Filter/Transformation/Sort — на уровне DataSetSource, см. DataSetSource.SetProcessing.
 /// </summary>
 public class DataSetBinding : Entity
 {

@@ -40,7 +40,7 @@ public class DataSetResolver(
         {
             try
             {
-                // Download → parse → conversion → filter → sort (shared with preview via DataSetBindingProcessor).
+                // Download → parse → transformation → filter → sort (shared with preview via DataSetBindingProcessor).
                 var rows = await DataSetBindingProcessor.LoadRowsAsync(blobStorage, parserFactory, binding.Source, ct);
 
                 var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(binding.Mapping)

@@ -224,7 +224,7 @@ export interface DataSetSource {
   columnExpressions: string | null;
   cachedSchema: string; // JSON of {name, sampleValues}[]
   cachedRowCount: number;
-  /** Обработка (Filter/Conversion/Sort) — своя, используется только если processingTemplateId пуст. */
+  /** Обработка (Filter/Transformation/Sort) — своя, используется только если processingTemplateId пуст. */
   rowFilter: RowFilterDef | null;
   computedColumns: ComputedColumn[] | null;
   sortSpec: SortSpec | null;
@@ -242,7 +242,7 @@ export interface DataSetFile {
   createdAt: string;
 }
 
-/** Привязка набора данных к документу — только Mapping. Filter/Conversion/Sort — на DataSetSource. */
+/** Привязка набора данных к документу — только Mapping. Filter/Transformation/Sort — на DataSetSource. */
 export interface DataSetBinding {
   id: string;
   instanceId: string;
@@ -317,7 +317,7 @@ export interface SortColumn {
 
 export type SortSpec = SortColumn[];
 
-/** Шаблон маппинга (для типа документа). Filter/Conversion/Sort — см. DataSetProcessingTemplate. */
+/** Шаблон маппинга (для типа документа). Filter/Transformation/Sort — см. DataSetProcessingTemplate. */
 export interface DataSetBindingTemplate {
   id: string;
   documentTypeId: string;
@@ -329,7 +329,7 @@ export interface DataSetBindingTemplate {
   updatedAt: string;
 }
 
-/** Переиспользуемый рецепт обработки (Filter/Conversion/Sort) — не привязан к типу документа. */
+/** Переиспользуемый рецепт обработки (Filter/Transformation/Sort) — не привязан к типу документа. */
 export interface DataSetProcessingTemplate {
   id: string;
   name: string;

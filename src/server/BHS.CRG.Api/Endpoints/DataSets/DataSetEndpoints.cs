@@ -127,7 +127,7 @@ public static class DataSetEndpoints
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
 
-        // Обработка (Filter/Conversion/Sort) — лёгкая правка, не трогает файл/кэш схемы.
+        // Обработка (Filter/Transformation/Sort) — лёгкая правка, не трогает файл/кэш схемы.
         g.MapPut("/sources/{sourceId:guid}/processing", async (
             Guid sourceId, ProcessingRequest req, IDataSetService svc, CancellationToken ct) =>
         {
@@ -140,7 +140,7 @@ public static class DataSetEndpoints
             catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
-        // ── Шаблоны обработки (переиспользуемые Filter/Conversion/Sort) ─────────
+        // ── Шаблоны обработки (переиспользуемые Filter/Transformation/Sort) ─────────
 
         g.MapGet("/processing-templates", async (IDataSetService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListProcessingTemplatesAsync(ct)));
