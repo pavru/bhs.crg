@@ -1,18 +1,80 @@
-import { Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { Loader2, FileText, ExternalLink } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { usePreviewDataSetSource } from '@/shared/api/datasets';
-import type { DataSetSource } from '@/shared/api/types';
+import { openAttachmentInNewTab, formatBytes } from '@/shared/api/attachments';
+import type { DataSetPreview, DataSetSource } from '@/shared/api/types';
 
 const MAX_ROWS = 200;
+
+/**
+ * Специализированный просмотр для источника «Документы» (PDF, sheetOrPath === 'gost-documents'):
+ * вместо сырых строковых колонок — карточки по документу с именем, числом листов, размером
+ * и кнопкой открытия физически разделённого под-PDF (ФайлПуть — путь в MinIO). ФайлПуть может
+ * быть пустым, если разбиение конкретного документа не удалось (backend логирует предупреждение
+ * и оставляет колонку пустой) — это ожидаемо, кнопка в этом случае просто неактивна.
+ */
+function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
+  const nameIdx = data.columns.indexOf('НаименованиеДокумента');
+  const pagesIdx = data.columns.indexOf('КоличествоЛистов');
+  const sizeIdx = data.columns.indexOf('РазмерБайт');
+  const pathIdx = data.columns.indexOf('ФайлПуть');
+  const [opening, setOpening] = useState<number | null>(null);
+
+  async function handleOpen(i: number, path: string) {
+    setOpening(i);
+    try { await openAttachmentInNewTab(path); }
+    finally { setOpening(null); }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {data.rows.map((row, i) => {
+        const name = nameIdx >= 0 ? row[nameIdx] : null;
+        const pages = pagesIdx >= 0 ? row[pagesIdx] : null;
+        const sizeRaw = sizeIdx >= 0 ? row[sizeIdx] : null;
+        const path = pathIdx >= 0 ? row[pathIdx] : null;
+        const size = sizeRaw != null && sizeRaw !== '' && !Number.isNaN(Number(sizeRaw)) ? formatBytes(Number(sizeRaw)) : null;
+        return (
+          <div key={i} className="flex items-center gap-3 rounded-md px-3 py-2 bg-muted">
+            <FileText size={14} className="text-fg4 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-medium truncate text-fg1">
+                {name ?? <em className="text-fg4">без названия</em>}
+              </div>
+              <div className="text-[11px] text-fg4">
+                {pages ? `${pages} л.` : '—'}{size ? ` · ${size}` : ''}
+              </div>
+            </div>
+            <button
+              onClick={() => path && handleOpen(i, path)}
+              disabled={!path || opening === i}
+              title={path ? 'Открыть PDF в новой вкладке' : 'Файл не выделен — разбиение не удалось при распознавании'}
+              className="flex items-center gap-1 shrink-0 px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-surface disabled:opacity-40 disabled:hover:bg-transparent">
+              {opening === i ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
+              Просмотреть
+            </button>
+          </div>
+        );
+      })}
+      <div className="px-1 pt-1 text-xs text-fg4">
+        {data.totalRows} строк{data.totalRows > data.rows.length ? ` (показано первых ${data.rows.length})` : ''}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Результат источника ПОСЛЕ полного пайплайна обработки (Extraction → Filter →
  * Transformation → Sort) — тот же запрос, что видел бы маппинг документа. Скаляр и
  * табличный набор не различаются на уровне источника (см. DataSetBindingProcessor):
  * скаляр — просто таблица с одной строкой, единый рендер покрывает оба случая.
+ * Источник «Документы» (gost-documents) — исключение: у него вместо генерик-таблицы
+ * специализированный просмотр с карточками и открытием разделённых под-PDF (см. GostDocumentsPreview).
  */
 export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource; onClose: () => void }) {
   const { data, isFetching, error } = usePreviewDataSetSource(source.id, MAX_ROWS);
+  const isGostDocuments = source.sheetOrPath === 'gost-documents';
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Результат обработки — ${source.name}`} extraWide>
@@ -30,6 +92,8 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
         </p>
       ) : !data || data.columns.length === 0 ? (
         <p className="text-sm text-fg4 py-4 text-center">Нет данных — либо строки не найдены, либо все отфильтрованы.</p>
+      ) : isGostDocuments ? (
+        <GostDocumentsPreview data={data} />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-stroke">
           <table className="text-xs w-full">
