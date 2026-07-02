@@ -8,7 +8,9 @@ namespace BHS.CRG.Domain.DataSets;
 /// </summary>
 public class DataSetBinding : Entity
 {
-    public Guid InstanceId { get; private set; }
+    /// <summary>Владелец — ровно одно из InstanceId/CommonDataEntryId задано.</summary>
+    public Guid? InstanceId { get; private set; }
+    public Guid? CommonDataEntryId { get; private set; }
     public Guid SourceId { get; private set; }
 
     /// <summary>
@@ -24,10 +26,19 @@ public class DataSetBinding : Entity
 
     private DataSetBinding() { }
 
-    public static DataSetBinding Create(Guid instanceId, Guid sourceId, string? targetFieldKey, string mapping)
+    public static DataSetBinding ForInstance(Guid instanceId, Guid sourceId, string? targetFieldKey, string mapping)
         => new()
         {
             InstanceId = instanceId,
+            SourceId = sourceId,
+            TargetFieldKey = targetFieldKey,
+            Mapping = mapping,
+        };
+
+    public static DataSetBinding ForCommonDataEntry(Guid commonDataEntryId, Guid sourceId, string? targetFieldKey, string mapping)
+        => new()
+        {
+            CommonDataEntryId = commonDataEntryId,
             SourceId = sourceId,
             TargetFieldKey = targetFieldKey,
             Mapping = mapping,

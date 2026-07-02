@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type {
-  CatalogScope, ColumnExprDef, DataSetBinding, DataSetBindingPreviewResult, DataSetFile,
+  CatalogScope, ColumnExprDef, DataSetBinding, DataSetBindingOwner, DataSetBindingPreviewResult, DataSetFile,
   DataSetPreview, DataSetProcessingTemplate, DataSetSource, RowFilterDef, ComputedColumn, SortSpec,
 } from './types';
 
@@ -303,63 +303,66 @@ export function useAutoMapDataSetSource() {
   });
 }
 
-// ── Привязки ──────────────────────────────────────────────────────────────────
+// ── Привязки (владелец — DocumentInstance или CommonDataEntry) ─────────────────
 
-export function useListDataSetBindings(instanceId: string) {
+function ownerKey(owner: DataSetBindingOwner) {
+  return [owner.instanceId ?? null, owner.commonDataEntryId ?? null] as const;
+}
+
+export function useListDataSetBindings(owner: DataSetBindingOwner) {
   return useQuery<DataSetBinding[]>({
-    queryKey: ['datasets', 'bindings', instanceId],
+    queryKey: ['datasets', 'bindings', ...ownerKey(owner)],
     queryFn: () =>
-      apiClient.get('/datasets/bindings', { params: { instanceId } }).then(r => r.data),
+      apiClient.get('/datasets/bindings', { params: owner }).then(r => r.data),
+    enabled: !!(owner.instanceId || owner.commonDataEntryId),
   });
 }
 
 export function useCreateDataSetBinding() {
   const qc = useQueryClient();
-  return useMutation<DataSetBinding, Error, {
-    instanceId: string;
+  return useMutation<DataSetBinding, Error, DataSetBindingOwner & {
     sourceId: string;
     targetFieldKey?: string | null;
     mapping?: Record<string, string>;
   }>({
     mutationFn: (data) =>
       apiClient.post('/datasets/bindings', data).then(r => r.data),
-    onSuccess: (_, { instanceId }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'bindings', instanceId] });
+    onSuccess: (_, owner) => {
+      qc.invalidateQueries({ queryKey: ['datasets', 'bindings', ...ownerKey(owner)] });
     },
   });
 }
 
 export function useUpdateDataSetBinding() {
   const qc = useQueryClient();
-  return useMutation<DataSetBinding, Error, {
+  return useMutation<DataSetBinding, Error, DataSetBindingOwner & {
     id: string;
-    instanceId: string;
     targetFieldKey?: string | null;
     mapping?: Record<string, string>;
   }>({
-    mutationFn: ({ id, instanceId: _i, ...data }) =>
+    mutationFn: ({ id, instanceId: _i, commonDataEntryId: _c, ...data }) =>
       apiClient.put(`/datasets/bindings/${id}`, data).then(r => r.data),
-    onSuccess: (_, { instanceId }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'bindings', instanceId] });
+    onSuccess: (_, owner) => {
+      qc.invalidateQueries({ queryKey: ['datasets', 'bindings', ...ownerKey(owner)] });
     },
   });
 }
 
-export function usePreviewDataSetBindings(instanceId: string) {
+export function usePreviewDataSetBindings(owner: DataSetBindingOwner) {
   return useQuery<DataSetBindingPreviewResult[]>({
-    queryKey: ['datasets', 'bindings-preview', instanceId],
+    queryKey: ['datasets', 'bindings-preview', ...ownerKey(owner)],
     queryFn: () =>
-      apiClient.get('/datasets/bindings/preview', { params: { instanceId } }).then(r => r.data),
+      apiClient.get('/datasets/bindings/preview', { params: owner }).then(r => r.data),
     enabled: false,
   });
 }
 
 export function useDeleteDataSetBinding() {
   const qc = useQueryClient();
-  return useMutation<void, Error, { id: string; instanceId: string }>({
+  return useMutation<void, Error, DataSetBindingOwner & { id: string }>({
     mutationFn: ({ id }) => apiClient.delete(`/datasets/bindings/${id}`).then(() => undefined),
-    onSuccess: (_, { instanceId }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'bindings', instanceId] });
+    onSuccess: (_, owner) => {
+      qc.invalidateQueries({ queryKey: ['datasets', 'bindings', ...ownerKey(owner)] });
     },
   });
 }

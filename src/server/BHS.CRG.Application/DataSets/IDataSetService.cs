@@ -64,12 +64,12 @@ public interface IDataSetService
     Task<DataSetProcessingTemplateDto?> UpdateProcessingTemplateAsync(Guid id, UpdateProcessingTemplateInput input, CancellationToken ct);
     Task<bool> DeleteProcessingTemplateAsync(Guid id, CancellationToken ct);
 
-    // ── Bindings ────────────────────────────────────────────────────────────────
-    Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid instanceId, CancellationToken ct);
+    // ── Bindings (владелец — ровно одно из instanceId/commonDataEntryId) ─────────────
+    Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid? instanceId, Guid? commonDataEntryId, CancellationToken ct);
     Task<DataSetBindingDto?> CreateBindingAsync(CreateBindingInput input, CancellationToken ct);
     Task<DataSetBindingDto?> UpdateBindingAsync(Guid id, UpdateBindingInput input, CancellationToken ct);
     Task<bool> DeleteBindingAsync(Guid id, CancellationToken ct);
-    Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(Guid instanceId, CancellationToken ct);
+    Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(Guid? instanceId, Guid? commonDataEntryId, CancellationToken ct);
 
     // ── Binding templates ─────────────────────────────────────────────────────────
     Task<IReadOnlyList<DataSetBindingTemplateDto>> ListTemplatesAsync(Guid docTypeId, CancellationToken ct);

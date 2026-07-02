@@ -10,7 +10,7 @@ import type { DocumentInstance, DocumentType, DataSetSource, DataSetBinding, Dat
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
 import { parseSourceColumnNames, parseRefMapping, buildRefMapping } from '@/shared/api/datasetHelpers';
-function MappingEditor({
+export function MappingEditor({
   source,
   schemaFields,
   arrayFields,
@@ -479,11 +479,11 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
   instance: DocumentInstance; setId: string; schemaFields: SchemaField[];
   allDocTypes: DocumentType[]; docType: DocumentType | undefined;
 }) {
-  const { data: bindings = [], isLoading } = useListDataSetBindings(instance.id);
+  const { data: bindings = [], isLoading } = useListDataSetBindings({ instanceId: instance.id });
   const [adding, setAdding] = useState(false);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const { data: previewResults, isFetching: previewing, refetch: runPreview, error: previewError } = usePreviewDataSetBindings(instance.id);
+  const { data: previewResults, isFetching: previewing, refetch: runPreview, error: previewError } = usePreviewDataSetBindings({ instanceId: instance.id });
 
   async function handlePreview() {
     setShowPreview(true);

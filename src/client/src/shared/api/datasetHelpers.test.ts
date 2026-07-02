@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { parseSourceColumns, parseSourceColumnNames, countFilterConditions, cleanFilterNode } from './datasetHelpers';
-import type { FilterGroup } from './types';
+import {
+  parseSourceColumns, parseSourceColumnNames, countFilterConditions, cleanFilterNode,
+  mergeBindingPreviewsIntoValues, computeBoundFieldKeys,
+} from './datasetHelpers';
+import type { FilterGroup, DataSetBindingPreviewResult } from './types';
 
 describe('parseSourceColumns', () => {
   it('returns [] for null/undefined/blank', () => {
@@ -108,5 +111,53 @@ describe('cleanFilterNode', () => {
       children: [{ type: 'group', logic: 'or', children: [{ type: 'condition', column: '', op: 'eq' }] }],
     };
     expect(cleanFilterNode(tree)).toBeNull();
+  });
+});
+
+describe('mergeBindingPreviewsIntoValues', () => {
+  function scalar(data: Record<string, string | null>): DataSetBindingPreviewResult {
+    return { bindingId: '1', sourceName: 's', fileName: 'f', mode: 'scalar', targetFieldKey: null, totalRows: 1, data, error: null };
+  }
+  function tabular(targetFieldKey: string, data: Record<string, string | null>[]): DataSetBindingPreviewResult {
+    return { bindingId: '2', sourceName: 's', fileName: 'f', mode: 'tabular', targetFieldKey, totalRows: data.length, data, error: null };
+  }
+
+  it('overwrites matching scalar key', () => {
+    const result = mergeBindingPreviewsIntoValues({ inn: 'старое', name: 'не трогать' }, [scalar({ inn: 'новое' })]);
+    expect(result.inn).toBe('новое');
+    expect(result.name).toBe('не трогать');
+  });
+
+  it('does not overwrite existing value with empty scalar', () => {
+    const result = mergeBindingPreviewsIntoValues({ inn: 'ручное' }, [scalar({ inn: '' })]);
+    expect(result.inn).toBe('ручное');
+  });
+
+  it('writes tabular array into targetFieldKey, even empty', () => {
+    const result = mergeBindingPreviewsIntoValues({ Чертежи: [{ old: true }] }, [tabular('Чертежи', [])]);
+    expect(result['Чертежи']).toEqual([]);
+  });
+
+  it('skips error bindings', () => {
+    const errored: DataSetBindingPreviewResult = { bindingId: '3', sourceName: 's', fileName: 'f', mode: 'error', targetFieldKey: null, totalRows: 0, data: {}, error: 'нет источника' };
+    const result = mergeBindingPreviewsIntoValues({ inn: 'прежнее' }, [errored]);
+    expect(result.inn).toBe('прежнее');
+  });
+});
+
+describe('computeBoundFieldKeys', () => {
+  it('collects scalar mapping keys and array targetFieldKeys separately', () => {
+    const { scalarKeys, arrayKeys } = computeBoundFieldKeys([
+      { targetFieldKey: null, mapping: { inn: 'ИНН', name: 'Название' } },
+      { targetFieldKey: 'Чертежи', mapping: { НомерЛиста: 'НомерЛиста' } },
+    ]);
+    expect([...scalarKeys]).toEqual(['inn', 'name']);
+    expect([...arrayKeys]).toEqual(['Чертежи']);
+  });
+
+  it('returns empty sets for no bindings', () => {
+    const { scalarKeys, arrayKeys } = computeBoundFieldKeys([]);
+    expect(scalarKeys.size).toBe(0);
+    expect(arrayKeys.size).toBe(0);
   });
 });

@@ -504,11 +504,12 @@ public class DataSetService(
 
     // ── Bindings ────────────────────────────────────────────────────────────────
 
-    public async Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid instanceId, CancellationToken ct)
+    public async Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid? instanceId, Guid? commonDataEntryId, CancellationToken ct)
     {
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
-            .Where(b => b.InstanceId == instanceId)
+            .Where(b => (instanceId != null && b.InstanceId == instanceId)
+                     || (commonDataEntryId != null && b.CommonDataEntryId == commonDataEntryId))
             .AsNoTracking()
             .ToListAsync(ct);
         return bindings.Select(MapBinding).ToList();
@@ -516,12 +517,16 @@ public class DataSetService(
 
     public async Task<DataSetBindingDto?> CreateBindingAsync(CreateBindingInput input, CancellationToken ct)
     {
+        if ((input.InstanceId is null) == (input.CommonDataEntryId is null))
+            throw new ArgumentException("Ровно один из InstanceId/CommonDataEntryId должен быть задан");
+
         var source = await db.DataSetSources.Include(s => s.File)
             .FirstOrDefaultAsync(s => s.Id == input.SourceId, ct);
         if (source == null) return null;
 
-        var binding = DataSetBinding.Create(
-            input.InstanceId, input.SourceId, input.TargetFieldKey, SerializeMapping(input.Mapping));
+        var binding = input.InstanceId is not null
+            ? DataSetBinding.ForInstance(input.InstanceId.Value, input.SourceId, input.TargetFieldKey, SerializeMapping(input.Mapping))
+            : DataSetBinding.ForCommonDataEntry(input.CommonDataEntryId!.Value, input.SourceId, input.TargetFieldKey, SerializeMapping(input.Mapping));
         db.DataSetBindings.Add(binding);
         await db.SaveChangesAsync(ct);
 
@@ -550,11 +555,12 @@ public class DataSetService(
         return true;
     }
 
-    public async Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(Guid instanceId, CancellationToken ct)
+    public async Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(Guid? instanceId, Guid? commonDataEntryId, CancellationToken ct)
     {
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
-            .Where(b => b.InstanceId == instanceId)
+            .Where(b => (instanceId != null && b.InstanceId == instanceId)
+                     || (commonDataEntryId != null && b.CommonDataEntryId == commonDataEntryId))
             .AsNoTracking()
             .ToListAsync(ct);
 
@@ -703,7 +709,7 @@ public class DataSetService(
         s.Tags is null ? null : JsonSerializer.Deserialize<List<string>>(s.Tags));
 
     private static DataSetBindingDto MapBinding(DataSetBinding b) => new(
-        b.Id, b.InstanceId, b.SourceId, b.TargetFieldKey,
+        b.Id, b.InstanceId, b.CommonDataEntryId, b.SourceId, b.TargetFieldKey,
         JsonSerializer.Deserialize<Dictionary<string, string>>(b.Mapping) ?? [],
         b.Source is null ? null : new BindingSourceDto(
             b.Source.Id, b.Source.Name, b.Source.SheetOrPath, b.Source.CachedSchema, b.Source.CachedRowCount,

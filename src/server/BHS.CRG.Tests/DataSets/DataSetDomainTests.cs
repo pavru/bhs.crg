@@ -30,17 +30,29 @@ public class DataSetDomainTests
     }
 
     [Fact]
-    public void Binding_Create_DefaultsMapping()
+    public void Binding_ForInstance_DefaultsMapping()
     {
-        var b = DataSetBinding.Create(Guid.NewGuid(), Guid.NewGuid(), null, "{}");
+        var b = DataSetBinding.ForInstance(Guid.NewGuid(), Guid.NewGuid(), null, "{}");
         Assert.Null(b.TargetFieldKey);
         Assert.Equal("{}", b.Mapping);
+        Assert.NotNull(b.InstanceId);
+        Assert.Null(b.CommonDataEntryId);
+    }
+
+    [Fact]
+    public void Binding_ForCommonDataEntry_SetsOwner()
+    {
+        var entryId = Guid.NewGuid();
+        var b = DataSetBinding.ForCommonDataEntry(entryId, Guid.NewGuid(), "Чертежи", "{}");
+        Assert.Equal(entryId, b.CommonDataEntryId);
+        Assert.Null(b.InstanceId);
+        Assert.Equal("Чертежи", b.TargetFieldKey);
     }
 
     [Fact]
     public void Binding_Update_SetsTargetAndMapping()
     {
-        var b = DataSetBinding.Create(Guid.NewGuid(), Guid.NewGuid(), null, "{}");
+        var b = DataSetBinding.ForInstance(Guid.NewGuid(), Guid.NewGuid(), null, "{}");
         b.Update("Таблица", """{"a":"b"}""");
 
         Assert.Equal("Таблица", b.TargetFieldKey);

@@ -1,4 +1,4 @@
-import type { FilterGroup, FilterNode } from './types';
+import type { FilterGroup, FilterNode, DataSetBindingPreviewResult } from './types';
 
 /** A column descriptor cached on a DataSetSource. */
 export interface DataSetColumn {
@@ -55,6 +55,46 @@ export function parseRefMapping(value: string | undefined | null): RefMapping | 
 
 export function buildRefMapping(m: RefMapping): string {
   return REF_PREFIX + JSON.stringify({ column: m.column, match: m.match, typeId: m.typeId });
+}
+
+// ─── Слияние результата preview биндингов в значения формы ─────────────────────
+// Клиентское зеркало серверного CommonDataBindingMerge (Application/Documents) — те же правила:
+// пустое скалярное значение не затирает существующее, табличное поле пишется целиком (даже []).
+
+export function mergeBindingPreviewsIntoValues(
+  values: Record<string, unknown>,
+  previews: DataSetBindingPreviewResult[],
+): Record<string, unknown> {
+  const next = { ...values };
+  for (const p of previews) {
+    if (p.error) continue;
+    if (p.mode === 'scalar') {
+      const data = p.data as Record<string, string | null>;
+      for (const [key, value] of Object.entries(data)) {
+        if (value === null || value === '') continue;
+        next[key] = value;
+      }
+    } else if (p.mode === 'tabular' && p.targetFieldKey) {
+      next[p.targetFieldKey] = p.data;
+    }
+  }
+  return next;
+}
+
+/** Ключи полей, покрытых биндингами: скалярные (top-level) отдельно от табличных (array-полей). */
+export function computeBoundFieldKeys(
+  bindings: { targetFieldKey: string | null; mapping: Record<string, string> }[],
+): { scalarKeys: Set<string>; arrayKeys: Set<string> } {
+  const scalarKeys = new Set<string>();
+  const arrayKeys = new Set<string>();
+  for (const b of bindings) {
+    if (b.targetFieldKey === null) {
+      for (const key of Object.keys(b.mapping)) scalarKeys.add(key);
+    } else {
+      arrayKeys.add(b.targetFieldKey);
+    }
+  }
+  return { scalarKeys, arrayKeys };
 }
 
 /** Recursively counts non-empty conditions in a filter tree. */

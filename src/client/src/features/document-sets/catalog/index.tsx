@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   Link2, Unlink, ChevronDown, ChevronUp, Plus, Pencil, Trash2, FileText, Database, ShieldCheck, Loader2,
+  DatabaseZap, RefreshCw,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import {
@@ -17,6 +18,9 @@ import { isFileAttachment } from '@/shared/api/attachments';
 import { recognizeDocument } from '@/shared/api/qualityDocs';
 import { flattenLeaves, applyRecognized } from '@/features/quality-docs/QualityDocForm';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
+import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
+import { computeBoundFieldKeys, mergeBindingPreviewsIntoValues } from '@/shared/api/datasetHelpers';
+import { EntryDataSetBindings } from './EntryDataSetBindings';
 import {
   SCOPE_COLORS, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
   PrimitiveInput, FileField, ImageField,
@@ -257,6 +261,17 @@ function CatalogEntryForm({
     : [...scopeParentEntries, ...systemParentEntries.filter(e => !scopeParentEntries.some(s => s.id === e.id))];
   const baseEntry = parentEntries.find(e => e.id === baseRefId);
 
+  // Наборы данных: биндинги существуют только у уже сохранённой записи (нужен id-владелец).
+  const { data: bindings = [] } = useListDataSetBindings({ commonDataEntryId: entry?.id });
+  const { scalarKeys: boundFieldKeys, arrayKeys: boundArrayKeys } = computeBoundFieldKeys(bindings);
+  const { refetch: refetchBindingPreview, isFetching: refreshingFromSource } =
+    usePreviewDataSetBindings({ commonDataEntryId: entry?.id });
+
+  async function handleRefreshFromSource() {
+    const { data: previews } = await refetchBindingPreview();
+    if (previews) setValues(v => mergeBindingPreviewsIntoValues(v, previews));
+  }
+
   function setValue(key: string, val: unknown) {
     setValues(p => {
       if (val === undefined) { const n = { ...p }; delete n[key]; return n; }
@@ -309,6 +324,61 @@ function CatalogEntryForm({
       <div className="space-y-4">
         {sectionFields.map(field => {
           const val = values[field.key];
+          const isBoundArray = field.type === 'array' && boundArrayKeys.has(field.key);
+          const isBoundScalar = field.type !== 'array' && boundFieldKeys.has(field.key);
+
+          if (isBoundArray) {
+            const rows = Array.isArray(val) ? val as Record<string, unknown>[] : [];
+            const cols = rows.length > 0 ? Object.keys(rows[0]) : [];
+            return (
+              <div key={field.key}>
+                <label className="flex items-center gap-1.5 text-sm font-medium text-fg2 mb-1">
+                  {field.title}
+                  <span title="Значения подставляются из источника данных"><DatabaseZap size={12} className="text-brand" /></span>
+                </label>
+                <div className="rounded-md border border-stroke overflow-x-auto bg-muted">
+                  {rows.length === 0 ? (
+                    <p className="px-3 py-2 text-xs text-fg4">Нет данных из источника</p>
+                  ) : (
+                    <table className="text-xs w-full">
+                      <thead>
+                        <tr className="bg-base">
+                          {cols.map(k => <th key={k} className="px-3 py-1.5 text-left font-medium whitespace-nowrap text-fg3">{k}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row, i) => (
+                          <tr key={i} className="border-t border-stroke">
+                            {cols.map(k => (
+                              <td key={k} className="px-3 py-1.5 whitespace-nowrap text-fg1">{String(row[k] ?? '')}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          if (isBoundScalar) {
+            const display = val === undefined || val === null || val === ''
+              ? null
+              : (typeof val === 'string' ? val : JSON.stringify(val));
+            return (
+              <div key={field.key}>
+                <label className="flex items-center gap-1.5 text-sm font-medium text-fg2 mb-1">
+                  {field.title}
+                  <span title="Значение подставляется из источника данных"><DatabaseZap size={12} className="text-brand" /></span>
+                </label>
+                <div className="w-full border border-stroke rounded-md px-3 py-2 text-sm bg-muted text-fg2">
+                  {display ?? <em className="text-fg4">нет данных</em>}
+                </div>
+              </div>
+            );
+          }
+
           return (
             <div key={field.key}>
               {field.type === 'complex' || field.type === 'array' ? (
@@ -467,6 +537,29 @@ function CatalogEntryForm({
             </span>
           )}
         </div>
+      )}
+
+      {entry ? (
+        <div className="space-y-2">
+          <EntryDataSetBindings
+            entryId={entry.id}
+            bindings={bindings}
+            schemaFields={effectiveFields}
+            allDocTypes={allDocTypes}
+            setId={setId}
+            scope={scope}
+            scopeId={scopeId}
+          />
+          {bindings.length > 0 && (
+            <button type="button" onClick={handleRefreshFromSource} disabled={refreshingFromSource}
+              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-muted text-fg2 hover:bg-stroke disabled:opacity-50">
+              {refreshingFromSource ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+              Обновить из источника
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-fg4">Сохраните запись, чтобы привязать источники данных.</p>
       )}
 
       {selectedType && sections.length > 0 && (

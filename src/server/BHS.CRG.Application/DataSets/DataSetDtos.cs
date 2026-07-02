@@ -17,9 +17,10 @@ public record BindingFileDto(Guid Id, string Name, string Format, string Scope, 
 public record BindingSourceDto(
     Guid Id, string Name, string SheetOrPath, string CachedSchema, int CachedRowCount, BindingFileDto? File);
 
-/// <summary>Привязка — только Mapping. Filter/Transformation/Sort живут на DataSetSource.</summary>
+/// <summary>Привязка — только Mapping. Filter/Transformation/Sort живут на DataSetSource.
+/// Владелец — ровно одно из InstanceId/CommonDataEntryId задано.</summary>
 public record DataSetBindingDto(
-    Guid Id, Guid InstanceId, Guid SourceId, string? TargetFieldKey,
+    Guid Id, Guid? InstanceId, Guid? CommonDataEntryId, Guid SourceId, string? TargetFieldKey,
     Dictionary<string, string> Mapping, BindingSourceDto? Source);
 
 /// <summary>Шаблон маппинга (для типа документа). Filter/Transformation/Sort — см. DataSetProcessingTemplateDto.</summary>
@@ -83,8 +84,9 @@ public record UpdateProcessingTemplateInput(
     string Name, string? SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions,
     object? RowFilter, object? ComputedColumns, object? SortSpec);
 
+/// <summary>Владелец — ровно одно из InstanceId/CommonDataEntryId задано.</summary>
 public record CreateBindingInput(
-    Guid InstanceId, Guid SourceId, string? TargetFieldKey, Dictionary<string, string>? Mapping);
+    Guid? InstanceId, Guid? CommonDataEntryId, Guid SourceId, string? TargetFieldKey, Dictionary<string, string>? Mapping);
 
 public record UpdateBindingInput(string? TargetFieldKey, Dictionary<string, string>? Mapping);
 

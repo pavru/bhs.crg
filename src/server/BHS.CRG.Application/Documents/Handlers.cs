@@ -1,4 +1,5 @@
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using MediatR;
@@ -321,7 +322,8 @@ public class DocumentSetHandlers(
 public class CommonDataHandlers(
     IRepository<CommonDataEntry> repo,
     IRepository<DocumentSet> setRepo,
-    IRepository<Section> sectionRepo) :
+    IRepository<Section> sectionRepo,
+    IDataSetService dataSetService) :
     IRequestHandler<CreateCommonDataEntryCommand, CommonDataEntry>,
     IRequestHandler<UpdateCommonDataEntryCommand, CommonDataEntry>,
     IRequestHandler<DeleteCommonDataEntryCommand>,
@@ -339,7 +341,9 @@ public class CommonDataHandlers(
     public async Task<CommonDataEntry> Handle(UpdateCommonDataEntryCommand cmd, CancellationToken ct)
     {
         var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
-        entry.Update(cmd.DisplayName, cmd.Data);
+        var previews = await dataSetService.PreviewBindingsAsync(null, cmd.Id, ct);
+        var data = previews.Count == 0 ? cmd.Data : CommonDataBindingMerge.Merge(cmd.Data, previews);
+        entry.Update(cmd.DisplayName, data);
         repo.Update(entry);
         await repo.SaveChangesAsync(ct);
         return entry;

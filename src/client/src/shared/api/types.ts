@@ -244,14 +244,22 @@ export interface DataSetFile {
   createdAt: string;
 }
 
-/** Привязка набора данных к документу — только Mapping. Filter/Transformation/Sort — на DataSetSource. */
+/** Привязка набора данных к документу или записи каталога — только Mapping.
+ * Filter/Transformation/Sort — на DataSetSource. Владелец — ровно одно из instanceId/commonDataEntryId. */
 export interface DataSetBinding {
   id: string;
-  instanceId: string;
+  instanceId: string | null;
+  commonDataEntryId: string | null;
   sourceId: string;
   targetFieldKey: string | null;
   mapping: Record<string, string>;
   source?: DataSetSource & { file?: Pick<DataSetFile, 'id' | 'name' | 'format' | 'scope' | 'scopeId'> };
+}
+
+/** Владелец привязки к набору данных — ровно одно из полей задано. */
+export interface DataSetBindingOwner {
+  instanceId?: string;
+  commonDataEntryId?: string;
 }
 
 export interface DataSetPreview {

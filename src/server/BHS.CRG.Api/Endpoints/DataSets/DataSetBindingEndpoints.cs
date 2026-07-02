@@ -8,18 +8,22 @@ public static class DataSetBindingEndpoints
     {
         var g = app.MapGroup("/api/datasets/bindings").RequireAuthorization();
 
-        g.MapGet("", async (Guid instanceId, IDataSetService svc, CancellationToken ct) =>
-            Results.Ok(await svc.ListBindingsAsync(instanceId, ct)));
+        g.MapGet("", async (Guid? instanceId, Guid? commonDataEntryId, IDataSetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListBindingsAsync(instanceId, commonDataEntryId, ct)));
 
         // Literal route — registered before /{id:guid} so it is matched first.
-        g.MapGet("/preview", async (Guid instanceId, IDataSetService svc, CancellationToken ct) =>
-            Results.Ok(await svc.PreviewBindingsAsync(instanceId, ct)));
+        g.MapGet("/preview", async (Guid? instanceId, Guid? commonDataEntryId, IDataSetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.PreviewBindingsAsync(instanceId, commonDataEntryId, ct)));
 
         g.MapPost("", async (CreateBindingRequest req, IDataSetService svc, CancellationToken ct) =>
         {
-            var input = new CreateBindingInput(req.InstanceId, req.SourceId, req.TargetFieldKey, req.Mapping);
-            var result = await svc.CreateBindingAsync(input, ct);
-            return result is null ? Results.NotFound(new { error = "DataSetSource не найден" }) : Results.Ok(result);
+            var input = new CreateBindingInput(req.InstanceId, req.CommonDataEntryId, req.SourceId, req.TargetFieldKey, req.Mapping);
+            try
+            {
+                var result = await svc.CreateBindingAsync(input, ct);
+                return result is null ? Results.NotFound(new { error = "DataSetSource не найден" }) : Results.Ok(result);
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         g.MapPut("/{id:guid}", async (Guid id, UpdateBindingRequest req, IDataSetService svc, CancellationToken ct) =>
@@ -34,7 +38,7 @@ public static class DataSetBindingEndpoints
     }
 
     private record CreateBindingRequest(
-        Guid InstanceId, Guid SourceId, string? TargetFieldKey, Dictionary<string, string>? Mapping);
+        Guid? InstanceId, Guid? CommonDataEntryId, Guid SourceId, string? TargetFieldKey, Dictionary<string, string>? Mapping);
 
     private record UpdateBindingRequest(string? TargetFieldKey, Dictionary<string, string>? Mapping);
 }
