@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2 } from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
+  usePreviewDataSetSource,
 } from '@/shared/api/datasets';
 import { SourceEditorDialog } from './SourceEditorDialog';
 import { SourcePreviewDialog } from './SourcePreviewDialog';
@@ -99,6 +100,18 @@ function SourceProcessingControls({ source, templates }: {
 }
 
 /**
+ * Число строк ПОСЛЕ полного пайплайна (Extraction → Filter → Transformation → Sort) — не
+ * cachedRowCount источника (тот считается на Extraction, до Filter/Transformation, и может
+ * сильно расходиться с реальным результатом маппинга). Живой запрос — тот же путь, что и
+ * SourcePreviewDialog, maxRows=1 просто чтобы не тянуть лишние данные строк.
+ */
+function SourceRowCountBadge({ sourceId }: { sourceId: string }) {
+  const { data, isFetching } = usePreviewDataSetSource(sourceId, 1);
+  if (isFetching) return <Loader2 size={11} className="inline-block ml-2 animate-spin text-fg4" />;
+  return <span className="ml-2 font-normal text-fg4">{data?.totalRows ?? 0} строк</span>;
+}
+
+/**
  * Collapsible list of a file's data sources with a preview of their column names.
  * Для XML (и XML внутри ZIP) источники управляются только вручную (создание/редактирование/
  * удаление) — авто-детект по top-level элементам для XML не используется. Для JSON — авто-детект
@@ -152,7 +165,7 @@ export function SourcesExpander({
                   <div className="min-w-0">
                     <div className="font-medium text-fg1">
                       {src.name}
-                      <span className="ml-2 font-normal text-fg4">{src.cachedRowCount} строк</span>
+                      <SourceRowCountBadge sourceId={src.id} />
                     </div>
                     <div className="font-mono text-fg4 mt-0.5">{src.sheetOrPath}</div>
                     {cols.length > 0 && (
