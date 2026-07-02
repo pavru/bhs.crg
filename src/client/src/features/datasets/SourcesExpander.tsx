@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2 } from 'lucide-react';
+import {
+  ChevronDown, ChevronRight, Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2, BookmarkPlus,
+} from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
-  usePreviewDataSetSource,
+  usePreviewDataSetSource, useCreateProcessingTemplate,
 } from '@/shared/api/datasets';
 import { SourceEditorDialog } from './SourceEditorDialog';
 import { SourcePreviewDialog } from './SourcePreviewDialog';
@@ -23,7 +25,9 @@ function SourceProcessingControls({ source, templates }: {
   const [filterOpen, setFilterOpen] = useState(false);
   const [transformsOpen, setTransformsOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const setProcessing = useSetDataSetSourceProcessing();
+  const createTemplate = useCreateProcessingTemplate();
 
   const usesTemplate = !!source.processingTemplateId;
   const activeTemplate = templates.find(t => t.id === source.processingTemplateId);
@@ -54,13 +58,30 @@ function SourceProcessingControls({ source, templates }: {
   function selectTemplate(templateId: string) {
     setProcessing.mutate({
       id: source.id,
-      // Свои значения не теряем — можно вернуться к individual-режиму с прежними настройками.
+      // Свои значения не теряем — можно вернуться к индивидуальному режиму с прежними настройками.
       rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec,
       processingTemplateId: templateId || null,
     });
   }
 
+  // Текущая (индивидуальная) обработка источника становится переиспользуемым шаблоном, и
+  // источник сразу переключается на живую ссылку на него — по аналогии с выбором готового
+  // шаблона в списке выше. Доступно только пока источник не на шаблоне (иначе нечего сохранять
+  // отдельно от уже существующего шаблона).
+  async function saveAsTemplate(name: string) {
+    const created = await createTemplate.mutateAsync({
+      name, rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec,
+    });
+    setProcessing.mutate({
+      id: source.id,
+      rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec,
+      processingTemplateId: created.id,
+    });
+    setSavingTemplate(false);
+  }
+
   const iconCls = (count: number) => `p-1 rounded ${count > 0 ? 'text-brand' : 'text-fg4'} disabled:opacity-40`;
+  const hasOwnProcessing = filterCount > 0 || transformCount > 0 || sortCount > 0;
 
   return (
     <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
@@ -82,6 +103,11 @@ function SourceProcessingControls({ source, templates }: {
         title={usesTemplate ? 'Управляется шаблоном обработки' : 'Сортировка строк'}>
         <ArrowUpDown size={12} />
       </button>
+      <button onClick={() => setSavingTemplate(true)} disabled={usesTemplate || !hasOwnProcessing}
+        className="p-1 rounded text-fg4 hover:text-brand disabled:opacity-40"
+        title={usesTemplate ? 'Источник уже на шаблоне' : !hasOwnProcessing ? 'Нечего сохранять — обработка не задана' : 'Сохранить текущую обработку как шаблон'}>
+        <BookmarkPlus size={12} />
+      </button>
 
       {filterOpen && (
         <RowFilterDialog columns={columns} initial={source.rowFilter}
@@ -95,6 +121,46 @@ function SourceProcessingControls({ source, templates }: {
         <SortSpecDialog columns={columns} initial={source.sortSpec}
           onSave={s => save({ sortSpec: s })} onClose={() => setSortOpen(false)} />
       )}
+      {savingTemplate && (
+        <SaveAsTemplateDialog
+          defaultName={source.name} isPending={createTemplate.isPending}
+          onSave={saveAsTemplate} onClose={() => setSavingTemplate(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Мини-диалог: только имя нового шаблона — сама обработка уже известна (текущая источника). */
+function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
+  defaultName: string; isPending: boolean;
+  onSave: (name: string) => void; onClose: () => void;
+}) {
+  const [name, setName] = useState(defaultName);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="rounded-xl p-5 w-full max-w-sm bg-surface border border-stroke shadow-2xl" onClick={e => e.stopPropagation()}>
+        <p className="text-sm font-semibold mb-1 text-fg1">Сохранить обработку как шаблон</p>
+        <p className="text-xs mb-3 text-fg3">
+          Текущие Filter/Transformation/Sort источника станут переиспользуемым шаблоном;
+          источник сразу переключится на живую ссылку на него.
+        </p>
+        <input value={name} onChange={e => setName(e.target.value)} autoFocus
+          placeholder="Название шаблона"
+          className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-base text-sm mb-4" />
+        <div className="flex gap-2 justify-end">
+          <button onClick={onClose} className="px-3 py-1.5 text-sm rounded-md border border-stroke text-fg2 hover:bg-muted">
+            Отмена
+          </button>
+          <button
+            onClick={() => name.trim() && onSave(name.trim())}
+            disabled={isPending || !name.trim()}
+            className="px-3 py-1.5 text-sm rounded-md bg-brand text-white disabled:opacity-50">
+            {isPending ? 'Сохранение…' : 'Сохранить'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
