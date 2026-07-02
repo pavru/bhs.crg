@@ -133,7 +133,7 @@ public static class DataSetEndpoints
         {
             try
             {
-                var input = new SetSourceProcessingInput(req.RowFilter, req.ComputedColumns, req.SortSpec, req.ProcessingTemplateId);
+                var input = new SetSourceProcessingInput(req.RowFilter, req.ComputedColumns, req.SortSpec);
                 var result = await svc.SetSourceProcessingAsync(sourceId, input, ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
@@ -174,7 +174,7 @@ public static class DataSetEndpoints
     private record AutoMapRequest(AutoMapFieldDto[] Fields);
     private record AutoMapFieldDto(string Key, string Title);
     private record SourceRequest(string Name, string SheetOrPath, ColumnExprDto[]? ColumnExpressions);
-    private record ProcessingRequest(object? RowFilter, object? ComputedColumns, object? SortSpec, Guid? ProcessingTemplateId);
+    private record ProcessingRequest(object? RowFilter, object? ComputedColumns, object? SortSpec);
     private record ProcessingTemplateRequest(string Name, object? RowFilter, object? ComputedColumns, object? SortSpec);
     private record ExpressionPreviewRequest(string RowSelector, string? Expr);
 }

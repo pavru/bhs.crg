@@ -182,7 +182,7 @@ public class DataSetService(
 
     public async Task<SourcePreviewDto?> PreviewSourceAsync(Guid sourceId, int maxRows, CancellationToken ct)
     {
-        var source = await db.DataSetSources.Include(s => s.File).Include(s => s.ProcessingTemplate).AsNoTracking()
+        var source = await db.DataSetSources.Include(s => s.File).AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
@@ -192,10 +192,9 @@ public class DataSetService(
         var parser = parserFactory.GetParser(source.File.Format);
         var result = await parser.ParseAsync(ms.ToArray(), source.SheetOrPath, source.ColumnExpressions, ct);
 
-        var (rowFilter, computedColumns, sortSpec) = DataSetBindingProcessor.ResolveProcessing(source);
-        var rows = DataSetComputedColumnExecutor.Apply(computedColumns, result.Rows.ToList());
-        rows = DataSetRowFilterExecutor.Apply(rowFilter, rows);
-        rows = DataSetSortExecutor.Apply(sortSpec, rows);
+        var rows = DataSetComputedColumnExecutor.Apply(source.ComputedColumns, result.Rows.ToList());
+        rows = DataSetRowFilterExecutor.Apply(source.RowFilter, rows);
+        rows = DataSetSortExecutor.Apply(source.SortSpec, rows);
 
         var take = maxRows <= 0 ? 50 : maxRows;
         var columns = result.Columns.Select(c => c.Name).ToList();
@@ -265,11 +264,11 @@ public class DataSetService(
         return true;
     }
 
-    // Копия источника на том же файле — тот же locator/колонки/обработка (Filter/Transformation/Sort,
-    // включая ссылку на шаблон), но независимая: правки одной копии не затрагивают другую.
-    // Позволяет получить несколько наборов на основе одного файла без переопределения extraction
-    // с нуля (актуально и для форматов без ручного builder'а — CSV/XLSX — где нужно только
-    // разное Filter/Transformation/Sort поверх одинаковых данных).
+    // Копия источника на том же файле — тот же locator/колонки/обработка (Filter/Transformation/Sort),
+    // но независимая: правки одной копии не затрагивают другую. Позволяет получить несколько
+    // наборов на основе одного файла без переопределения extraction с нуля (актуально и для
+    // форматов без ручного builder'а — CSV/XLSX — где нужно только разное Filter/Transformation/Sort
+    // поверх одинаковых данных).
     public async Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, CancellationToken ct)
     {
         var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
@@ -277,7 +276,7 @@ public class DataSetService(
 
         var copy = source.File.AddSource(
             $"{source.Name} (копия)", source.SheetOrPath, source.CachedSchema, source.CachedRowCount, source.ColumnExpressions);
-        copy.SetProcessing(source.RowFilter, source.ComputedColumns, source.SortSpec, source.ProcessingTemplateId);
+        copy.SetProcessing(source.RowFilter, source.ComputedColumns, source.SortSpec);
         // file уже отслеживается — см. пояснение в CreateSourceAsync (иначе Modified вместо Added).
         db.DataSetSources.Add(copy);
         await db.SaveChangesAsync(ct);
@@ -354,13 +353,8 @@ public class DataSetService(
         var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
-        if (input.ProcessingTemplateId is { } templateId
-            && !await db.DataSetProcessingTemplates.AnyAsync(t => t.Id == templateId, ct))
-            throw new ArgumentException("Шаблон обработки не найден");
-
         source.SetProcessing(
-            SerializeJson(input.RowFilter), SerializeJson(input.ComputedColumns),
-            SerializeJson(input.SortSpec), input.ProcessingTemplateId);
+            SerializeJson(input.RowFilter), SerializeJson(input.ComputedColumns), SerializeJson(input.SortSpec));
         await db.SaveChangesAsync(ct);
         return MapSource(source);
     }
@@ -455,7 +449,6 @@ public class DataSetService(
     {
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
-            .Include(b => b.Source).ThenInclude(s => s.ProcessingTemplate)
             .Where(b => b.InstanceId == instanceId)
             .AsNoTracking()
             .ToListAsync(ct);
@@ -600,8 +593,7 @@ public class DataSetService(
 
     private static DataSetSourceDto MapSource(DataSetSource s) => new(
         s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, s.CachedSchema, s.CachedRowCount,
-        DeserializeJson(s.RowFilter), DeserializeJson(s.ComputedColumns), DeserializeJson(s.SortSpec),
-        s.ProcessingTemplateId);
+        DeserializeJson(s.RowFilter), DeserializeJson(s.ComputedColumns), DeserializeJson(s.SortSpec));
 
     private static DataSetBindingDto MapBinding(DataSetBinding b) => new(
         b.Id, b.InstanceId, b.SourceId, b.TargetFieldKey,

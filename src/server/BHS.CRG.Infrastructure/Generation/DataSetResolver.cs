@@ -23,7 +23,6 @@ public class DataSetResolver(
     {
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
-            .Include(b => b.Source).ThenInclude(s => s.ProcessingTemplate)
             .Where(b => b.InstanceId == instance.Id)
             .AsNoTracking()
             .ToListAsync(ct);

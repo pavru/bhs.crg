@@ -37,10 +37,6 @@ public class DataSetSourceConfiguration : IEntityTypeConfiguration<DataSetSource
         b.Property(e => e.RowFilter).HasColumnType("jsonb");
         b.Property(e => e.ComputedColumns).HasColumnType("jsonb");
         b.Property(e => e.SortSpec).HasColumnType("jsonb");
-        b.HasOne(e => e.ProcessingTemplate)
-         .WithMany()
-         .HasForeignKey(e => e.ProcessingTemplateId)
-         .OnDelete(DeleteBehavior.SetNull);
         b.HasMany(e => e.Bindings)
          .WithOne(b => b.Source)
          .HasForeignKey(b => b.SourceId)

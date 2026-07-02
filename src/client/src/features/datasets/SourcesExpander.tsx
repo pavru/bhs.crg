@@ -16,8 +16,9 @@ import type { DataSetFile, DataSetProcessingTemplate, DataSetSource, RowFilterDe
 
 /**
  * Обработка (Filter/Transformation/Sort) одного источника — доступна для любого формата
- * (не только XML). Либо своя настройка, либо живая ссылка на переиспользуемый шаблон
- * (правится централизованно — см. «Шаблоны обработки» на странице «Наборы данных»).
+ * (не только XML). Своя, независимая настройка; шаблон обработки — только источник значений
+ * для разового применения (копирование, как и шаблон маппинга), не живая ссылка: применили —
+ * дальше можно свободно корректировать под конкретный источник.
  */
 function SourceProcessingControls({ source, templates }: {
   source: DataSetSource; templates: DataSetProcessingTemplate[];
@@ -29,20 +30,15 @@ function SourceProcessingControls({ source, templates }: {
   const setProcessing = useSetDataSetSourceProcessing();
   const createTemplate = useCreateProcessingTemplate();
 
-  const usesTemplate = !!source.processingTemplateId;
-  const activeTemplate = templates.find(t => t.id === source.processingTemplateId);
-  const effective = usesTemplate && activeTemplate
-    ? { rowFilter: activeTemplate.rowFilter, computedColumns: activeTemplate.computedColumns, sortSpec: activeTemplate.sortSpec }
-    : { rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec };
-
-  const filterCount = countFilterConditions(effective.rowFilter);
-  const transformCount = effective.computedColumns?.length ?? 0;
-  const sortCount = effective.sortSpec?.length ?? 0;
+  const filterCount = countFilterConditions(source.rowFilter);
+  const transformCount = source.computedColumns?.length ?? 0;
+  const sortCount = source.sortSpec?.length ?? 0;
   // Filter/Sort работают уже ПОСЛЕ Transformation в пайплайне (см. DataSetBindingProcessor) —
   // их список колонок должен включать и вычисляемые (иначе в UI недоступны, хотя backend их
   // уже поддерживает и в фильтре, и в сортировке).
-  const computedAliases = (effective.computedColumns ?? []).map(c => c.alias).filter(Boolean);
+  const computedAliases = (source.computedColumns ?? []).map(c => c.alias).filter(Boolean);
   const columns = [...new Set([...parseSourceColumnNames(source.cachedSchema), ...computedAliases])];
+  const hasOwnProcessing = filterCount > 0 || transformCount > 0 || sortCount > 0;
 
   function save(patch: {
     rowFilter?: RowFilterDef | null; computedColumns?: ComputedColumn[] | null; sortSpec?: SortSpec | null;
@@ -50,62 +46,47 @@ function SourceProcessingControls({ source, templates }: {
     setProcessing.mutate({
       id: source.id,
       rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec,
-      processingTemplateId: source.processingTemplateId,
       ...patch,
     });
   }
 
-  function selectTemplate(templateId: string) {
-    setProcessing.mutate({
-      id: source.id,
-      // Свои значения не теряем — можно вернуться к индивидуальному режиму с прежними настройками.
-      rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec,
-      processingTemplateId: templateId || null,
-    });
+  // Применение шаблона копирует его значения в источник ОДИН РАЗ (как и шаблон маппинга) —
+  // дальше это обычная своя настройка, дальнейшая правка шаблона на источник не влияет.
+  function applyTemplate(templateId: string) {
+    const t = templates.find(x => x.id === templateId);
+    if (!t) return;
+    save({ rowFilter: t.rowFilter, computedColumns: t.computedColumns, sortSpec: t.sortSpec });
   }
 
-  // Текущая (индивидуальная) обработка источника становится переиспользуемым шаблоном, и
-  // источник сразу переключается на живую ссылку на него — по аналогии с выбором готового
-  // шаблона в списке выше. Доступно только пока источник не на шаблоне (иначе нечего сохранять
-  // отдельно от уже существующего шаблона).
   async function saveAsTemplate(name: string) {
-    const created = await createTemplate.mutateAsync({
+    await createTemplate.mutateAsync({
       name, rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec,
-    });
-    setProcessing.mutate({
-      id: source.id,
-      rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec,
-      processingTemplateId: created.id,
     });
     setSavingTemplate(false);
   }
 
   const iconCls = (count: number) => `p-1 rounded ${count > 0 ? 'text-brand' : 'text-fg4'} disabled:opacity-40`;
-  const hasOwnProcessing = filterCount > 0 || transformCount > 0 || sortCount > 0;
 
   return (
     <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-      <select value={source.processingTemplateId ?? ''} onChange={e => selectTemplate(e.target.value)}
-        title="Шаблон обработки (Filter/Transformation/Sort)"
+      <select value="" onChange={e => applyTemplate(e.target.value)}
+        title="Применить шаблон обработки (копирует значения, не живая ссылка)"
         className="text-[11px] border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[110px]">
-        <option value="">своя настройка</option>
+        <option value="">применить шаблон…</option>
         {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
       </select>
-      <button onClick={() => setFilterOpen(true)} disabled={usesTemplate} className={iconCls(filterCount)}
-        title={usesTemplate ? 'Управляется шаблоном обработки' : 'Фильтрация строк'}>
+      <button onClick={() => setFilterOpen(true)} className={iconCls(filterCount)} title="Фильтрация строк">
         <Filter size={12} />
       </button>
-      <button onClick={() => setTransformsOpen(true)} disabled={usesTemplate} className={iconCls(transformCount)}
-        title={usesTemplate ? 'Управляется шаблоном обработки' : 'Вычисляемые колонки'}>
+      <button onClick={() => setTransformsOpen(true)} className={iconCls(transformCount)} title="Вычисляемые колонки">
         <FunctionSquare size={12} />
       </button>
-      <button onClick={() => setSortOpen(true)} disabled={usesTemplate} className={iconCls(sortCount)}
-        title={usesTemplate ? 'Управляется шаблоном обработки' : 'Сортировка строк'}>
+      <button onClick={() => setSortOpen(true)} className={iconCls(sortCount)} title="Сортировка строк">
         <ArrowUpDown size={12} />
       </button>
-      <button onClick={() => setSavingTemplate(true)} disabled={usesTemplate || !hasOwnProcessing}
+      <button onClick={() => setSavingTemplate(true)} disabled={!hasOwnProcessing}
         className="p-1 rounded text-fg4 hover:text-brand disabled:opacity-40"
-        title={usesTemplate ? 'Источник уже на шаблоне' : !hasOwnProcessing ? 'Нечего сохранять — обработка не задана' : 'Сохранить текущую обработку как шаблон'}>
+        title={!hasOwnProcessing ? 'Нечего сохранять — обработка не задана' : 'Сохранить текущую обработку как шаблон'}>
         <BookmarkPlus size={12} />
       </button>
 

@@ -71,19 +71,20 @@ public class DataSetDomainTests
     }
 
     [Fact]
-    public void Source_SetProcessing_KeepsOwnValuesWhenTemplateCleared()
+    public void Source_SetProcessing_ReplacesOwnValues()
     {
         var file = DataSetFile.Create("f", DataSetFormat.Xml, "blob", Domain.Catalog.CatalogScope.System, null);
         var source = file.AddSource("s", "/Root/Item", "[]", 0);
 
-        var templateId = Guid.NewGuid();
-        source.SetProcessing("""{"logic":"and"}""", "[]", "[]", templateId);
-        Assert.Equal(templateId, source.ProcessingTemplateId);
-        // Свои поля сохраняются даже при выбранном шаблоне — на случай возврата к individual-режиму.
+        source.SetProcessing("""{"logic":"and"}""", "[]", "[]");
         Assert.Equal("""{"logic":"and"}""", source.RowFilter);
+        Assert.Equal("[]", source.ComputedColumns);
+        Assert.Equal("[]", source.SortSpec);
 
-        source.SetProcessing(source.RowFilter, source.ComputedColumns, source.SortSpec, null);
-        Assert.Null(source.ProcessingTemplateId);
-        Assert.Equal("""{"logic":"and"}""", source.RowFilter);
+        // Применение шаблона копирует значения единожды — источник дальше независим от шаблона.
+        source.SetProcessing("""{"logic":"or"}""", "[{}]", """[{"column":"A"}]""");
+        Assert.Equal("""{"logic":"or"}""", source.RowFilter);
+        Assert.Equal("[{}]", source.ComputedColumns);
+        Assert.Equal("""[{"column":"A"}]""", source.SortSpec);
     }
 }

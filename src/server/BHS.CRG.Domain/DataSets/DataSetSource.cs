@@ -20,19 +20,15 @@ public class DataSetSource : Entity
     public int CachedRowCount { get; private set; }
 
     /// <summary>
-    /// Обработка (Filter/Transformation/Sort) — либо своя (эти три поля), либо через ссылку на
-    /// шаблон (<see cref="ProcessingTemplateId"/>; если задан — свои поля не используются,
-    /// см. DataSetBindingProcessor.ResolveProcessing). JSON: FilterDef / ComputedColumnDef[] /
-    /// SortColumnDef[] соответственно.
+    /// Обработка (Filter/Transformation/Sort) — своя, независимая от других источников.
+    /// Применение шаблона обработки (<see cref="DataSetProcessingTemplate"/>) копирует его
+    /// значения сюда единожды (как и применение шаблона маппинга к DataSetBinding) — дальше
+    /// правки шаблона на уже применившие его источники не влияют. JSON: FilterDef /
+    /// ComputedColumnDef[] / SortColumnDef[] соответственно.
     /// </summary>
     public string? RowFilter { get; private set; }
     public string? ComputedColumns { get; private set; }
     public string? SortSpec { get; private set; }
-
-    /// <summary>Живая ссылка на переиспользуемый шаблон обработки. Правка шаблона сразу
-    /// применяется ко всем источникам, которые на него ссылаются.</summary>
-    public Guid? ProcessingTemplateId { get; private set; }
-    public DataSetProcessingTemplate? ProcessingTemplate { get; private set; }
 
     public DataSetFile File { get; private set; } = null!;
     private readonly List<DataSetBinding> _bindings = [];
@@ -68,17 +64,12 @@ public class DataSetSource : Entity
         TouchUpdatedAt();
     }
 
-    /// <summary>
-    /// Обработка (Filter/Transformation/Sort) — лёгкая правка, не трогает файл/кэш схемы.
-    /// processingTemplateId задан → свои rowFilter/computedColumns/sortSpec игнорируются
-    /// (но сохраняются как есть, чтобы не терять их при временном переключении на шаблон).
-    /// </summary>
-    public void SetProcessing(string? rowFilter, string? computedColumns, string? sortSpec, Guid? processingTemplateId)
+    /// <summary>Обработка (Filter/Transformation/Sort) — лёгкая правка, не трогает файл/кэш схемы.</summary>
+    public void SetProcessing(string? rowFilter, string? computedColumns, string? sortSpec)
     {
         RowFilter = rowFilter;
         ComputedColumns = computedColumns;
         SortSpec = sortSpec;
-        ProcessingTemplateId = processingTemplateId;
         TouchUpdatedAt();
     }
 }

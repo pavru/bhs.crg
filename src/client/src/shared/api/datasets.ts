@@ -159,7 +159,6 @@ export function useSetDataSetSourceProcessing() {
     rowFilter?: RowFilterDef | null;
     computedColumns?: ComputedColumn[] | null;
     sortSpec?: SortSpec | null;
-    processingTemplateId?: string | null;
   }>({
     mutationFn: ({ id, ...data }) =>
       apiClient.put(`/datasets/sources/${id}/processing`, data).then(r => r.data),

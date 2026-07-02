@@ -224,12 +224,11 @@ export interface DataSetSource {
   columnExpressions: string | null;
   cachedSchema: string; // JSON of {name, sampleValues}[]
   cachedRowCount: number;
-  /** Обработка (Filter/Transformation/Sort) — своя, используется только если processingTemplateId пуст. */
+  /** Обработка (Filter/Transformation/Sort) — своя, независимая. Применение шаблона обработки
+   *  копирует его значения сюда единожды (не живая ссылка). */
   rowFilter: RowFilterDef | null;
   computedColumns: ComputedColumn[] | null;
   sortSpec: SortSpec | null;
-  /** Живая ссылка на шаблон обработки — если задан, свои поля выше игнорируются. */
-  processingTemplateId: string | null;
 }
 
 export interface DataSetFile {

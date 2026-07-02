@@ -5,7 +5,7 @@ namespace BHS.CRG.Application.DataSets;
 public record DataSetSourceDto(
     Guid Id, Guid FileId, string Name, string SheetOrPath, string? ColumnExpressions,
     string CachedSchema, int CachedRowCount,
-    object? RowFilter, object? ComputedColumns, object? SortSpec, Guid? ProcessingTemplateId);
+    object? RowFilter, object? ComputedColumns, object? SortSpec);
 
 public record DataSetFileDto(
     Guid Id, string Name, string Format, string Scope, Guid? ScopeId,
@@ -64,8 +64,7 @@ public record CreateSourceInput(string Name, string SheetOrPath, IReadOnlyList<C
 public record UpdateSourceInput(string Name, string SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions);
 
 /// <summary>Лёгкая правка обработки источника — не трогает файл/кэш схемы (в отличие от Update/CreateSourceInput).</summary>
-public record SetSourceProcessingInput(
-    object? RowFilter, object? ComputedColumns, object? SortSpec, Guid? ProcessingTemplateId);
+public record SetSourceProcessingInput(object? RowFilter, object? ComputedColumns, object? SortSpec);
 
 public record CreateProcessingTemplateInput(string Name, object? RowFilter, object? ComputedColumns, object? SortSpec);
 
