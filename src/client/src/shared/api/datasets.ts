@@ -141,6 +141,15 @@ export function useDeleteDataSetSource() {
   });
 }
 
+/** Копия источника (тот же locator/колонки/Filter/Conversion/Sort) — доступна для любого формата. */
+export function useDuplicateDataSetSource() {
+  const qc = useQueryClient();
+  return useMutation<DataSetSource, Error, { id: string }>({
+    mutationFn: ({ id }) => apiClient.post(`/datasets/sources/${id}/duplicate`).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+  });
+}
+
 // ── Обработка источника (Filter/Conversion/Sort) — лёгкая правка, файл не трогает ─────
 
 export function useSetDataSetSourceProcessing() {

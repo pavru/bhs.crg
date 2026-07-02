@@ -265,6 +265,25 @@ public class DataSetService(
         return true;
     }
 
+    // Копия источника на том же файле — тот же locator/колонки/обработка (Filter/Conversion/Sort,
+    // включая ссылку на шаблон), но независимая: правки одной копии не затрагивают другую.
+    // Позволяет получить несколько наборов на основе одного файла без переопределения extraction
+    // с нуля (актуально и для форматов без ручного builder'а — CSV/XLSX — где нужно только
+    // разное Filter/Conversion/Sort поверх одинаковых данных).
+    public async Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, CancellationToken ct)
+    {
+        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        if (source == null) return null;
+
+        var copy = source.File.AddSource(
+            $"{source.Name} (копия)", source.SheetOrPath, source.CachedSchema, source.CachedRowCount, source.ColumnExpressions);
+        copy.SetProcessing(source.RowFilter, source.ComputedColumns, source.SortSpec, source.ProcessingTemplateId);
+        // file уже отслеживается — см. пояснение в CreateSourceAsync (иначе Modified вместо Added).
+        db.DataSetSources.Add(copy);
+        await db.SaveChangesAsync(ct);
+        return MapSource(copy);
+    }
+
     // Скачивает файл и парсит указанное определение — используется для валидации и первичного
     // расчёта кэша при ручном создании/редактировании источника (в первую очередь для XML).
     private async Task<(IReadOnlyList<DataSetColumnInfo> Schema, int RowCount)> ParseForDefinitionAsync(

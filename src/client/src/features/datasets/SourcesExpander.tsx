@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Filter, FunctionSquare, ArrowUpDown } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Copy, Filter, FunctionSquare, ArrowUpDown } from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
-import { useDeleteDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates } from '@/shared/api/datasets';
+import {
+  useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
+} from '@/shared/api/datasets';
 import { SourceEditorDialog } from './SourceEditorDialog';
 import { RowFilterDialog } from './RowFilterDialog';
 import { ComputedColumnsDialog } from './ComputedColumnsDialog';
@@ -110,6 +112,7 @@ export function SourcesExpander({
   const [editing, setEditing] = useState<DataSetSource | 'new' | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<DataSetSource | null>(null);
   const deleteMutation = useDeleteDataSetSource();
+  const duplicateMutation = useDuplicateDataSetSource();
   const { data: templates = [] } = useListProcessingTemplates();
   const canManageExtraction = file.format === 'Xml' || file.format === 'Zip' || file.format === 'Json';
   const sources = file.sources;
@@ -154,6 +157,12 @@ export function SourcesExpander({
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <SourceProcessingControls source={src} templates={templates} />
+                    <button
+                      onClick={() => duplicateMutation.mutate({ id: src.id })}
+                      disabled={duplicateMutation.isPending && duplicateMutation.variables?.id === src.id}
+                      className="p-1 text-fg4 hover:text-brand disabled:opacity-50" title="Создать копию">
+                      <Copy size={12} />
+                    </button>
                     {canManageExtraction && (
                       <>
                         <button onClick={() => setEditing(src)} className="p-1 text-fg4 hover:text-brand" title="Редактировать">

@@ -120,6 +120,13 @@ public static class DataSetEndpoints
             catch (InvalidOperationException ex) { return Results.Conflict(ex.Message); }
         });
 
+        // Копия источника — доступна для источников любого формата (не только с ручным builder'ом).
+        g.MapPost("/sources/{sourceId:guid}/duplicate", async (Guid sourceId, IDataSetService svc, CancellationToken ct) =>
+        {
+            var result = await svc.DuplicateSourceAsync(sourceId, ct);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        });
+
         // Обработка (Filter/Conversion/Sort) — лёгкая правка, не трогает файл/кэш схемы.
         g.MapPut("/sources/{sourceId:guid}/processing", async (
             Guid sourceId, ProcessingRequest req, IDataSetService svc, CancellationToken ct) =>

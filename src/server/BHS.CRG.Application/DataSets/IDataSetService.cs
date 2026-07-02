@@ -26,6 +26,9 @@ public interface IDataSetService
     Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct);
     Task<bool> DeleteSourceAsync(Guid sourceId, CancellationToken ct);
 
+    /// <summary>Копия источника (тот же locator/колонки/Filter/Conversion/Sort) на том же файле — доступно для любого формата.</summary>
+    Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, CancellationToken ct);
+
     /// <summary>Пути XML-записей внутри ZIP-файла — для выбора при ручном создании источника.</summary>
     Task<IReadOnlyList<string>> ListZipXmlEntriesAsync(Guid fileId, CancellationToken ct);
 
