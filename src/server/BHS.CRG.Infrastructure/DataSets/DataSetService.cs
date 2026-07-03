@@ -18,7 +18,9 @@ public class DataSetService(
     IBlobStorage blob,
     DataSetParserFactory parserFactory,
     IDocumentRecognizer recognizer,
-    ILogger<DataSetService> logger
+    ILogger<DataSetService> logger,
+    DataSetProcessingTemplateService processingTemplates,
+    DataSetBindingTemplateService bindingTemplates
 ) : IDataSetService
 {
     private record CachedColumnInfo(string Name, string[] SampleValues);
@@ -35,7 +37,7 @@ public class DataSetService(
             q = q.Where(f => f.Scope == s && f.ScopeId == scopeId);
 
         var files = await q.OrderBy(f => f.Name).ToListAsync(ct);
-        return files.Select(MapFile).ToList();
+        return files.Select(DataSetDtoMapper.MapFile).ToList();
     }
 
     public async Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(Guid setId, CancellationToken ct)
@@ -55,7 +57,7 @@ public class DataSetService(
             .OrderBy(f => f.Scope).ThenBy(f => f.Name)
             .ToListAsync(ct);
 
-        return files.Select(MapFile).ToList();
+        return files.Select(DataSetDtoMapper.MapFile).ToList();
     }
 
     public async Task<DataSetFileDto> UploadFileAsync(UploadFileInput input, CancellationToken ct)
@@ -63,7 +65,7 @@ public class DataSetService(
         if (!Enum.TryParse<CatalogScope>(input.Scope, out var scope))
             throw new ArgumentException("Неверный scope");
 
-        var format = DetectFormat(input.FileName)
+        var format = DataSetDtoMapper.DetectFormat(input.FileName)
             ?? throw new ArgumentException("Неподдерживаемый формат файла");
 
         Guid? scopeId = scope != CatalogScope.System && Guid.TryParse(input.ScopeId, out var sid) ? sid : null;
@@ -77,11 +79,11 @@ public class DataSetService(
 
         var dataSetFile = DataSetFile.Create(name, format, blobPath, scope, scopeId);
         foreach (var info in sourceInfos)
-            dataSetFile.AddSource(info.Name, info.SheetOrPath, SerializeSchema(info.Columns), info.RowCount);
+            dataSetFile.AddSource(info.Name, info.SheetOrPath, DataSetDtoMapper.SerializeSchema(info.Columns), info.RowCount);
 
         db.DataSetFiles.Add(dataSetFile);
         await db.SaveChangesAsync(ct);
-        return MapFile(dataSetFile);
+        return DataSetDtoMapper.MapFile(dataSetFile);
     }
 
     public async Task<DataSetFileDto?> ReplaceFileAsync(Guid id, ReplaceFileInput input, CancellationToken ct)
@@ -89,7 +91,7 @@ public class DataSetService(
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == id, ct);
         if (file == null) return null;
 
-        var format = DetectFormat(input.FileName)
+        var format = DataSetDtoMapper.DetectFormat(input.FileName)
             ?? throw new ArgumentException("Неподдерживаемый формат файла");
 
         try { await blob.DeleteAsync(file.BlobPath, ct); }
@@ -109,12 +111,12 @@ public class DataSetService(
                 ?? file.Sources.FirstOrDefault(s => s.Name == info.Name);
             if (existing != null)
             {
-                existing.UpdateCache(SerializeSchema(info.Columns), info.RowCount);
+                existing.UpdateCache(DataSetDtoMapper.SerializeSchema(info.Columns), info.RowCount);
                 updatedSourceIds.Add(existing.Id);
             }
             else
             {
-                var added = file.AddSource(info.Name, info.SheetOrPath, SerializeSchema(info.Columns), info.RowCount);
+                var added = file.AddSource(info.Name, info.SheetOrPath, DataSetDtoMapper.SerializeSchema(info.Columns), info.RowCount);
                 // file уже отслеживается — см. пояснение в CreateSourceAsync (иначе Modified вместо Added).
                 db.DataSetSources.Add(added);
                 updatedSourceIds.Add(added.Id);
@@ -132,7 +134,7 @@ public class DataSetService(
         if (!string.IsNullOrWhiteSpace(input.Name)) file.UpdateName(input.Name);
 
         await db.SaveChangesAsync(ct);
-        return MapFile(file);
+        return DataSetDtoMapper.MapFile(file);
     }
 
     public async Task<FileDownloadDto?> DownloadFileAsync(Guid id, CancellationToken ct)
@@ -181,7 +183,7 @@ public class DataSetService(
     public async Task<IReadOnlyList<DataSetSourceDto>> ListSourcesAsync(Guid fileId, CancellationToken ct)
     {
         var sources = await db.DataSetSources.Where(s => s.FileId == fileId).AsNoTracking().ToListAsync(ct);
-        return sources.Select(MapSource).ToList();
+        return sources.Select(DataSetDtoMapper.MapSource).ToList();
     }
 
     public async Task<SourcePreviewDto?> PreviewSourceAsync(Guid sourceId, int maxRows, CancellationToken ct)
@@ -222,17 +224,17 @@ public class DataSetService(
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
 
-        var columnExpressionsJson = SerializeColumnExpressions(input.ColumnExpressions);
+        var columnExpressionsJson = DataSetDtoMapper.SerializeColumnExpressions(input.ColumnExpressions);
         var (schema, rowCount) = await ParseForDefinitionAsync(file.BlobPath, file.Format, input.SheetOrPath, columnExpressionsJson, ct);
 
-        var source = file.AddSource(input.Name.Trim(), input.SheetOrPath.Trim(), SerializeSchema(schema), rowCount, columnExpressionsJson);
+        var source = file.AddSource(input.Name.Trim(), input.SheetOrPath.Trim(), DataSetDtoMapper.SerializeSchema(schema), rowCount, columnExpressionsJson);
         // file уже отслеживается (загружен из БД) — новый дочерний источник, добавленный в его
         // коллекцию навигации, EF не распознаёт как Added автоматически (Guid — клиентский ключ,
         // не default-значение), поэтому без явного Add() трекер помечает его Modified и
         // пытается сделать UPDATE несуществующей строки → DbUpdateConcurrencyException.
         db.DataSetSources.Add(source);
         await db.SaveChangesAsync(ct);
-        return MapSource(source);
+        return DataSetDtoMapper.MapSource(source);
     }
 
     public async Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct)
@@ -240,14 +242,14 @@ public class DataSetService(
         var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
-        var columnExpressionsJson = SerializeColumnExpressions(input.ColumnExpressions);
+        var columnExpressionsJson = DataSetDtoMapper.SerializeColumnExpressions(input.ColumnExpressions);
         var (schema, rowCount) = await ParseForDefinitionAsync(
             source.File.BlobPath, source.File.Format, input.SheetOrPath, columnExpressionsJson, ct);
 
         source.UpdateDefinition(input.Name.Trim(), input.SheetOrPath.Trim(), columnExpressionsJson);
-        source.UpdateCache(SerializeSchema(schema), rowCount);
+        source.UpdateCache(DataSetDtoMapper.SerializeSchema(schema), rowCount);
         await db.SaveChangesAsync(ct);
-        return MapSource(source);
+        return DataSetDtoMapper.MapSource(source);
     }
 
     public async Task<bool> DeleteSourceAsync(Guid sourceId, CancellationToken ct)
@@ -321,7 +323,7 @@ public class DataSetService(
         // file уже отслеживается — см. пояснение в CreateSourceAsync (иначе Modified вместо Added).
         db.DataSetSources.Add(copy);
         await db.SaveChangesAsync(ct);
-        return MapSource(copy);
+        return DataSetDtoMapper.MapSource(copy);
     }
 
     // Extraction для PDF не переиспользуемый XPath/JSONPath, а фиксированный профиль
@@ -353,7 +355,7 @@ public class DataSetService(
             db.DataSetSources.Add(header);
             db.DataSetSources.Add(lineItems);
             await db.SaveChangesAsync(ct);
-            return MapSource(header);
+            return DataSetDtoMapper.MapSource(header);
         }
 
         // Профиль "Основная надпись (ГОСТ Р 21.101-2020)" — тройка источников: обложка/титульный
@@ -371,7 +373,7 @@ public class DataSetService(
         db.DataSetSources.Add(titlePage);
         db.DataSetSources.Add(documents);
         await db.SaveChangesAsync(ct);
-        return MapSource(documents);
+        return DataSetDtoMapper.MapSource(documents);
     }
 
     public async Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, CancellationToken ct)
@@ -433,9 +435,9 @@ public class DataSetService(
             rows.Take(3).Select(r => r.TryGetValue(f.Path, out var v) ? v ?? "" : "").ToArray()
         )).ToArray();
 
-        source.UpdateCache(SerializeSchema(columns), rows.Count, JsonSerializer.Serialize(rows));
+        source.UpdateCache(DataSetDtoMapper.SerializeSchema(columns), rows.Count, JsonSerializer.Serialize(rows));
         await db.SaveChangesAsync(ct);
-        return MapSource(source);
+        return DataSetDtoMapper.MapSource(source);
     }
 
     /// <summary>
@@ -474,7 +476,7 @@ public class DataSetService(
         var headerColumns = InvoiceFields.HeaderFields
             .Select(f => new DataSetColumnInfo(f.Path, [headerRow.GetValueOrDefault(f.Path) ?? ""]))
             .ToArray();
-        header.UpdateCache(SerializeSchema(headerColumns), 1, JsonSerializer.Serialize(new[] { headerRow }));
+        header.UpdateCache(DataSetDtoMapper.SerializeSchema(headerColumns), 1, JsonSerializer.Serialize(new[] { headerRow }));
 
         // Сломанный/не-JSON ответ модели по товарам — InvoiceRecognitionSplitter молча вернёт []
         // (шапка уже распозналась независимо, та же философия, что и у постраничного профиля).
@@ -483,10 +485,10 @@ public class DataSetService(
             .Select(f => new DataSetColumnInfo(f.Path,
                 lineItemRows.Take(3).Select(r => r.GetValueOrDefault(f.Path) ?? "").ToArray()))
             .ToArray();
-        lineItems.UpdateCache(SerializeSchema(lineItemColumns), lineItemRows.Count, JsonSerializer.Serialize(lineItemRows));
+        lineItems.UpdateCache(DataSetDtoMapper.SerializeSchema(lineItemColumns), lineItemRows.Count, JsonSerializer.Serialize(lineItemRows));
 
         await db.SaveChangesAsync(ct);
-        return MapSource(requestedSourceId == header.Id ? header : lineItems);
+        return DataSetDtoMapper.MapSource(requestedSourceId == header.Id ? header : lineItems);
     }
 
     /// <summary>
@@ -554,8 +556,8 @@ public class DataSetService(
             columnPaths.Select(p => new DataSetColumnInfo(p,
                 data.Take(3).Select(r => r.TryGetValue(p, out var v) ? v ?? "" : "").ToArray())).ToArray();
 
-        cover.UpdateCache(SerializeSchema(BuildColumns(baseColumnPaths, grouping.Cover)), grouping.Cover.Count, JsonSerializer.Serialize(grouping.Cover));
-        titlePage.UpdateCache(SerializeSchema(BuildColumns(baseColumnPaths, grouping.TitlePage)), grouping.TitlePage.Count, JsonSerializer.Serialize(grouping.TitlePage));
+        cover.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(baseColumnPaths, grouping.Cover)), grouping.Cover.Count, JsonSerializer.Serialize(grouping.Cover));
+        titlePage.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(baseColumnPaths, grouping.TitlePage)), grouping.TitlePage.Count, JsonSerializer.Serialize(grouping.TitlePage));
 
         var documentRows = new List<Dictionary<string, string?>>();
         foreach (var group in grouping.Documents)
@@ -583,10 +585,10 @@ public class DataSetService(
         }
 
         var documentsColumnPaths = baseColumnPaths.Concat(["КоличествоЛистов", "ФайлПуть", "РазмерБайт"]).ToArray();
-        documents.UpdateCache(SerializeSchema(BuildColumns(documentsColumnPaths, documentRows)), documentRows.Count, JsonSerializer.Serialize(documentRows));
+        documents.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(documentsColumnPaths, documentRows)), documentRows.Count, JsonSerializer.Serialize(documentRows));
 
         await db.SaveChangesAsync(ct);
-        return MapSource(requestedSourceId == cover.Id ? cover : requestedSourceId == titlePage.Id ? titlePage : documents);
+        return DataSetDtoMapper.MapSource(requestedSourceId == cover.Id ? cover : requestedSourceId == titlePage.Id ? titlePage : documents);
     }
 
     private static string SanitizeFileName(string name)
@@ -656,20 +658,15 @@ public class DataSetService(
         return new ExpressionPreviewDto(rowCount, samples);
     }
 
-    private static string? SerializeColumnExpressions(IReadOnlyList<ColumnExprDto>? columnExpressions) =>
-        columnExpressions is { Count: > 0 }
-            ? JsonSerializer.Serialize(columnExpressions.Select(c => new { name = c.Name, expr = c.Expr }))
-            : null;
-
     public async Task<DataSetSourceDto?> SetSourceProcessingAsync(Guid sourceId, SetSourceProcessingInput input, CancellationToken ct)
     {
         var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
         source.SetProcessing(
-            SerializeJson(input.RowFilter), SerializeJson(input.ComputedColumns), SerializeJson(input.SortSpec));
+            DataSetDtoMapper.SerializeJson(input.RowFilter), DataSetDtoMapper.SerializeJson(input.ComputedColumns), DataSetDtoMapper.SerializeJson(input.SortSpec));
         await db.SaveChangesAsync(ct);
-        return MapSource(source);
+        return DataSetDtoMapper.MapSource(source);
     }
 
     public async Task<DataSetSourceDto?> ApplyProcessingTemplateAsync(Guid sourceId, Guid templateId, CancellationToken ct)
@@ -687,52 +684,28 @@ public class DataSetService(
             var (schema, rowCount) = await ParseForDefinitionAsync(
                 source.File.BlobPath, source.File.Format, template.SheetOrPath, template.ColumnExpressions, ct);
             source.UpdateDefinition(source.Name, template.SheetOrPath, template.ColumnExpressions);
-            source.UpdateCache(SerializeSchema(schema), rowCount);
+            source.UpdateCache(DataSetDtoMapper.SerializeSchema(schema), rowCount);
         }
         source.SetProcessing(template.RowFilter, template.ComputedColumns, template.SortSpec);
         await db.SaveChangesAsync(ct);
-        return MapSource(source);
+        return DataSetDtoMapper.MapSource(source);
     }
 
-    // ── Processing templates ───────────────────────────────────────────────────────
+    // ── Processing templates ─── delegated to DataSetProcessingTemplateService ────
 
-    public async Task<IReadOnlyList<DataSetProcessingTemplateDto>> ListProcessingTemplatesAsync(CancellationToken ct)
-    {
-        var templates = await db.DataSetProcessingTemplates.OrderBy(t => t.Name).AsNoTracking().ToListAsync(ct);
-        return templates.Select(MapProcessingTemplate).ToList();
-    }
+    public Task<IReadOnlyList<DataSetProcessingTemplateDto>> ListProcessingTemplatesAsync(CancellationToken ct) =>
+        processingTemplates.ListAsync(ct);
 
-    public async Task<DataSetProcessingTemplateDto> CreateProcessingTemplateAsync(
-        CreateProcessingTemplateInput input, CancellationToken ct)
-    {
-        var template = DataSetProcessingTemplate.Create(
-            input.Name, input.SheetOrPath, SerializeColumnExpressions(input.ColumnExpressions),
-            SerializeJson(input.RowFilter), SerializeJson(input.ComputedColumns), SerializeJson(input.SortSpec));
-        db.DataSetProcessingTemplates.Add(template);
-        await db.SaveChangesAsync(ct);
-        return MapProcessingTemplate(template);
-    }
+    public Task<DataSetProcessingTemplateDto> CreateProcessingTemplateAsync(
+        CreateProcessingTemplateInput input, CancellationToken ct) =>
+        processingTemplates.CreateAsync(input, ct);
 
-    public async Task<DataSetProcessingTemplateDto?> UpdateProcessingTemplateAsync(
-        Guid id, UpdateProcessingTemplateInput input, CancellationToken ct)
-    {
-        var template = await db.DataSetProcessingTemplates.FirstOrDefaultAsync(t => t.Id == id, ct);
-        if (template == null) return null;
+    public Task<DataSetProcessingTemplateDto?> UpdateProcessingTemplateAsync(
+        Guid id, UpdateProcessingTemplateInput input, CancellationToken ct) =>
+        processingTemplates.UpdateAsync(id, input, ct);
 
-        template.Update(input.Name, input.SheetOrPath, SerializeColumnExpressions(input.ColumnExpressions),
-            SerializeJson(input.RowFilter), SerializeJson(input.ComputedColumns), SerializeJson(input.SortSpec));
-        await db.SaveChangesAsync(ct);
-        return MapProcessingTemplate(template);
-    }
-
-    public async Task<bool> DeleteProcessingTemplateAsync(Guid id, CancellationToken ct)
-    {
-        var template = await db.DataSetProcessingTemplates.FirstOrDefaultAsync(t => t.Id == id, ct);
-        if (template == null) return false;
-        db.DataSetProcessingTemplates.Remove(template);
-        await db.SaveChangesAsync(ct);
-        return true;
-    }
+    public Task<bool> DeleteProcessingTemplateAsync(Guid id, CancellationToken ct) =>
+        processingTemplates.DeleteAsync(id, ct);
 
     // ── Bindings ────────────────────────────────────────────────────────────────
 
@@ -744,7 +717,7 @@ public class DataSetService(
                      || (commonDataEntryId != null && b.CommonDataEntryId == commonDataEntryId))
             .AsNoTracking()
             .ToListAsync(ct);
-        return bindings.Select(MapBinding).ToList();
+        return bindings.Select(DataSetDtoMapper.MapBinding).ToList();
     }
 
     public async Task<DataSetBindingDto?> CreateBindingAsync(CreateBindingInput input, CancellationToken ct)
@@ -757,14 +730,14 @@ public class DataSetService(
         if (source == null) return null;
 
         var binding = input.InstanceId is not null
-            ? DataSetBinding.ForInstance(input.InstanceId.Value, input.SourceId, input.TargetFieldKey, SerializeMapping(input.Mapping))
-            : DataSetBinding.ForCommonDataEntry(input.CommonDataEntryId!.Value, input.SourceId, input.TargetFieldKey, SerializeMapping(input.Mapping));
+            ? DataSetBinding.ForInstance(input.InstanceId.Value, input.SourceId, input.TargetFieldKey, DataSetDtoMapper.SerializeMapping(input.Mapping))
+            : DataSetBinding.ForCommonDataEntry(input.CommonDataEntryId!.Value, input.SourceId, input.TargetFieldKey, DataSetDtoMapper.SerializeMapping(input.Mapping));
         db.DataSetBindings.Add(binding);
         await db.SaveChangesAsync(ct);
 
         await db.Entry(binding).Reference(b => b.Source).LoadAsync(ct);
         await db.Entry(binding.Source).Reference(s => s.File).LoadAsync(ct);
-        return MapBinding(binding);
+        return DataSetDtoMapper.MapBinding(binding);
     }
 
     public async Task<DataSetBindingDto?> UpdateBindingAsync(Guid id, UpdateBindingInput input, CancellationToken ct)
@@ -773,9 +746,9 @@ public class DataSetService(
             .FirstOrDefaultAsync(b => b.Id == id, ct);
         if (binding == null) return null;
 
-        binding.Update(input.TargetFieldKey, SerializeMapping(input.Mapping));
+        binding.Update(input.TargetFieldKey, DataSetDtoMapper.SerializeMapping(input.Mapping));
         await db.SaveChangesAsync(ct);
-        return MapBinding(binding);
+        return DataSetDtoMapper.MapBinding(binding);
     }
 
     public async Task<bool> DeleteBindingAsync(Guid id, CancellationToken ct)
@@ -811,7 +784,7 @@ public class DataSetService(
                     var data = new Dictionary<string, object?>();
                     foreach (var (fieldKey, colName) in mapping)
                         if (!string.IsNullOrEmpty(colName))
-                            data[fieldKey] = PreviewCell(colName, row);
+                            data[fieldKey] = DataSetDtoMapper.PreviewCell(colName, row);
 
                     results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
                         "scalar", null, rows.Count, data, null));
@@ -823,7 +796,7 @@ public class DataSetService(
                         var obj = new Dictionary<string, object?>();
                         foreach (var (fieldKey, colName) in mapping)
                             if (!string.IsNullOrEmpty(colName))
-                                obj[fieldKey] = PreviewCell(colName, row);
+                                obj[fieldKey] = DataSetDtoMapper.PreviewCell(colName, row);
                         return obj;
                     }).ToList();
 
@@ -841,126 +814,19 @@ public class DataSetService(
         return results;
     }
 
-    // ── Binding templates ─────────────────────────────────────────────────────────
+    // ── Binding templates ─── delegated to DataSetBindingTemplateService ──────────
 
-    public async Task<IReadOnlyList<DataSetBindingTemplateDto>> ListTemplatesAsync(Guid docTypeId, CancellationToken ct)
-    {
-        var templates = await db.DataSetBindingTemplates
-            .Where(t => t.DocumentTypeId == docTypeId)
-            .OrderBy(t => t.SortOrder).ThenBy(t => t.Name)
-            .AsNoTracking()
-            .ToListAsync(ct);
-        return templates.Select(MapTemplate).ToList();
-    }
+    public Task<IReadOnlyList<DataSetBindingTemplateDto>> ListTemplatesAsync(Guid docTypeId, CancellationToken ct) =>
+        bindingTemplates.ListAsync(docTypeId, ct);
 
-    public async Task<DataSetBindingTemplateDto> CreateTemplateAsync(Guid docTypeId, CreateTemplateInput input, CancellationToken ct)
-    {
-        var maxOrder = await db.DataSetBindingTemplates
-            .Where(t => t.DocumentTypeId == docTypeId)
-            .MaxAsync(t => (int?)t.SortOrder, ct) ?? -1;
+    public Task<DataSetBindingTemplateDto> CreateTemplateAsync(Guid docTypeId, CreateTemplateInput input, CancellationToken ct) =>
+        bindingTemplates.CreateAsync(docTypeId, input, ct);
 
-        var template = DataSetBindingTemplate.Create(
-            docTypeId, input.Name, input.TargetFieldKey, SerializeMapping(input.ColumnMappings), maxOrder + 1);
+    public Task<DataSetBindingTemplateDto?> UpdateTemplateAsync(
+        Guid docTypeId, Guid id, UpdateTemplateInput input, CancellationToken ct) =>
+        bindingTemplates.UpdateAsync(docTypeId, id, input, ct);
 
-        db.DataSetBindingTemplates.Add(template);
-        await db.SaveChangesAsync(ct);
-        return MapTemplate(template);
-    }
+    public Task<bool> DeleteTemplateAsync(Guid docTypeId, Guid id, CancellationToken ct) =>
+        bindingTemplates.DeleteAsync(docTypeId, id, ct);
 
-    public async Task<DataSetBindingTemplateDto?> UpdateTemplateAsync(
-        Guid docTypeId, Guid id, UpdateTemplateInput input, CancellationToken ct)
-    {
-        var template = await db.DataSetBindingTemplates
-            .FirstOrDefaultAsync(t => t.Id == id && t.DocumentTypeId == docTypeId, ct);
-        if (template == null) return null;
-
-        template.Update(input.Name, input.TargetFieldKey, SerializeMapping(input.ColumnMappings),
-            input.SortOrder ?? template.SortOrder);
-        await db.SaveChangesAsync(ct);
-        return MapTemplate(template);
-    }
-
-    public async Task<bool> DeleteTemplateAsync(Guid docTypeId, Guid id, CancellationToken ct)
-    {
-        var template = await db.DataSetBindingTemplates
-            .FirstOrDefaultAsync(t => t.Id == id && t.DocumentTypeId == docTypeId, ct);
-        if (template == null) return false;
-        db.DataSetBindingTemplates.Remove(template);
-        await db.SaveChangesAsync(ct);
-        return true;
-    }
-
-    // ── Helpers ─────────────────────────────────────────────────────────────────
-
-    private static DataSetFormat? DetectFormat(string fileName) =>
-        Path.GetExtension(fileName).ToLowerInvariant() switch
-        {
-            ".csv" or ".txt"  => DataSetFormat.Csv,
-            ".xlsx"           => DataSetFormat.Xlsx,
-            ".xls"            => DataSetFormat.Xls,
-            ".xml"            => DataSetFormat.Xml,
-            ".json"           => DataSetFormat.Json,
-            ".zip" or ".gsfx" => DataSetFormat.Zip,
-            ".pdf"            => DataSetFormat.Pdf,
-            _                 => null,
-        };
-
-    private static string SerializeSchema(IReadOnlyList<DataSetColumnInfo> columns) =>
-        JsonSerializer.Serialize(columns.Select(c => new { name = c.Name, sampleValues = c.SampleValues }));
-
-    private static string SerializeMapping(Dictionary<string, string>? mapping) =>
-        JsonSerializer.Serialize(mapping ?? new Dictionary<string, string>());
-
-    // Значение ячейки для предпросмотра. Для ссылочного маппинга (@@ref) показываем
-    // искомое значение колонки с маркером — фактический резолвинг в каталог выполняется
-    // при генерации. Для файлового маппинга (@@file) — уже полноценный объект-вложение
-    // (используется напрямую и при синхронизации CommonDataEntry.Data, не только для показа).
-    private static object? PreviewCell(string mapVal, IReadOnlyDictionary<string, string?>? row)
-    {
-        var fileMap = DataSetMappingValue.ParseFile(mapVal);
-        if (fileMap is not null)
-            return row is null ? null : DataSetMappingValue.ResolveFileValue(fileMap, row);
-
-        var refMap = DataSetMappingValue.ParseRef(mapVal);
-        if (refMap is not null)
-        {
-            var v = row != null && row.TryGetValue(refMap.Column, out var lv) ? lv : null;
-            return string.IsNullOrWhiteSpace(v) ? null : $"🔗 {v}";
-        }
-        return row != null && row.TryGetValue(mapVal, out var val) ? val : null;
-    }
-
-    private static string? SerializeJson(object? value) =>
-        value is null ? null : JsonSerializer.Serialize(value);
-
-    private static object? DeserializeJson(string? json) =>
-        json is null ? null : JsonSerializer.Deserialize<object>(json);
-
-    private static DataSetFileDto MapFile(DataSetFile f) => new(
-        f.Id, f.Name, f.Format.ToString(), f.Scope.ToString(), f.ScopeId,
-        f.Sources.Select(MapSource).ToList(), f.CreatedAt);
-
-    private static DataSetSourceDto MapSource(DataSetSource s) => new(
-        s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, s.CachedSchema, s.CachedRowCount,
-        DeserializeJson(s.RowFilter), DeserializeJson(s.ComputedColumns), DeserializeJson(s.SortSpec),
-        s.Tags is null ? null : JsonSerializer.Deserialize<List<string>>(s.Tags));
-
-    private static DataSetBindingDto MapBinding(DataSetBinding b) => new(
-        b.Id, b.InstanceId, b.CommonDataEntryId, b.SourceId, b.TargetFieldKey,
-        JsonSerializer.Deserialize<Dictionary<string, string>>(b.Mapping) ?? [],
-        b.Source is null ? null : new BindingSourceDto(
-            b.Source.Id, b.Source.Name, b.Source.SheetOrPath, b.Source.CachedSchema, b.Source.CachedRowCount,
-            b.Source.File is null ? null : new BindingFileDto(
-                b.Source.File.Id, b.Source.File.Name, b.Source.File.Format.ToString(),
-                b.Source.File.Scope.ToString(), b.Source.File.ScopeId)));
-
-    private static DataSetBindingTemplateDto MapTemplate(DataSetBindingTemplate t) => new(
-        t.Id, t.DocumentTypeId, t.Name, t.TargetFieldKey,
-        JsonSerializer.Deserialize<Dictionary<string, string>>(t.ColumnMappings) ?? [],
-        t.SortOrder, t.CreatedAt, t.UpdatedAt);
-
-    private static DataSetProcessingTemplateDto MapProcessingTemplate(DataSetProcessingTemplate t) => new(
-        t.Id, t.Name, t.SheetOrPath, t.ColumnExpressions,
-        DeserializeJson(t.RowFilter), DeserializeJson(t.ComputedColumns), DeserializeJson(t.SortSpec),
-        t.CreatedAt, t.UpdatedAt);
 }

@@ -52,7 +52,12 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
                 document_types,
                 catalog_entities,
                 common_data_entries,
-                primitive_types
+                primitive_types,
+                dataset_bindings,
+                dataset_binding_templates,
+                dataset_processing_templates,
+                dataset_sources,
+                dataset_files
             RESTART IDENTITY CASCADE");
     }
 }
