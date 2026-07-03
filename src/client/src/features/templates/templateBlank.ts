@@ -29,7 +29,12 @@ export function buildBlankTypst(name: string, docType: DocumentType, allDocTypes
   const fields = flattenFields(topFields, allDocTypes);
   const scalarFields = fields.filter(f => f.type !== 'complex' && f.depth === 0);
   const fieldLines = fields
-    .map(f => `//   ${'  '.repeat(f.depth)}${f.path.padEnd(32 - f.depth * 2)}${f.title} (${f.type})`)
+    .map(f => {
+      // padEnd не гарантирует разделитель, если path уже длиннее целевой ширины
+      // (обычное дело для вложенных путей) — считаем ширину так, чтобы пробел был всегда.
+      const width = Math.max(32 - f.depth * 2, f.path.length + 1);
+      return `//   ${'  '.repeat(f.depth)}${f.path.padEnd(width)}${f.title} (${f.type})`;
+    })
     .join('\n');
   // First scalar field to use in the title example
   const firstField = scalarFields[0]?.path ?? 'Наименование';
