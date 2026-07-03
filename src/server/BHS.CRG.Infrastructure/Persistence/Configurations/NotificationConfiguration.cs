@@ -10,7 +10,7 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
     {
         b.ToTable("notifications");
         b.HasKey(e => e.Id);
-        b.Property(e => e.Severity).HasConversion<int>();
+        b.Property(e => e.Severity).HasConversion<string>().HasMaxLength(16);
         b.Property(e => e.Title).IsRequired();
         b.Property(e => e.Message).IsRequired();
         b.Property(e => e.Source);
