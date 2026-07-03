@@ -115,4 +115,52 @@ public class GostPageGrouperTests
         Assert.Equal("3", group.Fields["КоличествоЛистов"]);
         Assert.Equal("Пояснительная записка", group.Fields["НаименованиеДокумента"]);
     }
+
+    /// <summary>
+    /// Регрессия 2026-07-03: форма 3 (штамп чертежа) распознаётся хуже формы 5/6 — Шифр нередко
+    /// не читается вовсе (модель честно возвращает пустую строку, см. BuildTitleBlockPrompt).
+    /// При группировке ТОЛЬКО по Шифру это схлопывало РАЗНЫЕ чертежи в один "(без шифра)" файл.
+    /// Теперь при пустом Шифре ключом становится смена НаименованиеДокумента.
+    /// </summary>
+    [Fact]
+    public void DifferentNamedDocuments_WithBlankShifr_AreNotMergedIntoOneGroup()
+    {
+        var pages = new[]
+        {
+            Page("Документ", shifr: null, documentName: "Однолинейная схема"),
+            Page("Документ", shifr: null, documentName: "План размещения оборудования"),
+            Page("Документ", shifr: null, documentName: "План размещения оборудования"), // продолжение второго чертежа
+        };
+
+        var result = GostPageGrouper.Group(pages);
+
+        Assert.Equal(2, result.Documents.Count);
+        Assert.Equal([0], result.Documents[0].PageIndices);
+        Assert.Equal("Однолинейная схема", result.Documents[0].Fields["НаименованиеДокумента"]);
+        Assert.Equal([1, 2], result.Documents[1].PageIndices);
+        Assert.Equal("План размещения оборудования", result.Documents[1].Fields["НаименованиеДокумента"]);
+    }
+
+    /// <summary>
+    /// Группировка последовательная, не глобальный словарь: повторное появление того же Шифра
+    /// НЕ рядом с исходной группой — отдельный документ, а не "доклейка" к прежней группе (страницы
+    /// одного документа в реальном PDF всегда идут подряд).
+    /// </summary>
+    [Fact]
+    public void SameShifrReappearingNonAdjacently_DoesNotReattachToEarlierGroup()
+    {
+        var pages = new[]
+        {
+            Page("Документ", shifr: "01-ЭМ", documentName: "А"),
+            Page("Документ", shifr: "02-ЭМ", documentName: "Б"),
+            Page("Документ", shifr: "01-ЭМ", documentName: "А"),
+        };
+
+        var result = GostPageGrouper.Group(pages);
+
+        Assert.Equal(3, result.Documents.Count);
+        Assert.Equal([0], result.Documents[0].PageIndices);
+        Assert.Equal([1], result.Documents[1].PageIndices);
+        Assert.Equal([2], result.Documents[2].PageIndices);
+    }
 }
