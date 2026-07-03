@@ -16,7 +16,9 @@ public static class GenerationEndpoints
         g.MapPost("/{instanceId:guid}", async (
             Guid instanceId, GenerateRequest req, IMediator m, ClaimsPrincipal user) =>
         {
-            var format = req.Format.ToLower() == "docx" ? OutputFormat.Docx : OutputFormat.Pdf;
+            if (!string.Equals(req.Format, "pdf", StringComparison.OrdinalIgnoreCase))
+                return Results.BadRequest(new { error = $"Неизвестный формат генерации: «{req.Format}». Поддерживается только PDF." });
+            var format = OutputFormat.Pdf;
             var generatedBy = user.FindFirst("displayName")?.Value;
             var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
             Guid? userId = Guid.TryParse(userIdStr, out var uid) ? uid : null;
@@ -46,20 +48,17 @@ public static class GenerationEndpoints
         g.MapGet("/download/{instanceId:guid}/{format}", async (
             Guid instanceId, string format, IMediator m, IBlobStorage blob) =>
         {
-            var outputFormat = format.ToLower() == "docx" ? OutputFormat.Docx : OutputFormat.Pdf;
+            if (!string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase))
+                return Results.BadRequest(new { error = $"Неизвестный формат: «{format}». Поддерживается только PDF." });
+
             var inst = await m.Send(new GetDocumentInstanceQuery(instanceId));
             if (inst is null) return Results.NotFound();
 
-            var generatedFile = inst.GeneratedFiles.FirstOrDefault(f => f.Format == outputFormat);
+            var generatedFile = inst.GeneratedFiles.FirstOrDefault(f => f.Format == OutputFormat.Pdf);
             if (generatedFile is null) return Results.NotFound();
 
             var stream = await blob.DownloadAsync(generatedFile.BlobPath);
-            var contentType = outputFormat == OutputFormat.Pdf
-                ? "application/pdf"
-                : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-            var ext = outputFormat == OutputFormat.Pdf ? "pdf" : "docx";
-
-            return Results.File(stream, contentType, $"document.{ext}");
+            return Results.File(stream, "application/pdf", "document.pdf");
         });
 
         // Отладочный пакет: template.typ + data.json + typeblocks.typ + userlib.typ —

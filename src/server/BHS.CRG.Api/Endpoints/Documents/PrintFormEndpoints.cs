@@ -61,9 +61,9 @@ public static class PrintFormEndpoints
                 };
 
                 // Извлекаем метаданные из файла
-                var outputFormat = file.ContentType == "application/pdf" ? OutputFormat.Pdf : OutputFormat.Docx;
+                var isPdf = file.ContentType == "application/pdf";
                 var generatedBy = user.FindFirst("displayName")?.Value;
-                var meta = metadataExtractor.Extract(bytes, outputFormat, generatedBy);
+                var meta = metadataExtractor.Extract(bytes, isPdf, generatedBy);
 
                 // Находим все тегированные поля типа документа
                 var allDocTypes = await docTypeRepo.GetAllAsync(ct);

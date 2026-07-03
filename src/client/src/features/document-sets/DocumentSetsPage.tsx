@@ -89,7 +89,6 @@ function SetDetail() {
             <tbody>
               {set.instances.map(inst => {
                 const pdfFile = inst.generatedFiles.find(f => f.format === 'Pdf');
-                const docxFile = inst.generatedFiles.find(f => f.format === 'Docx');
                 return (
                   <tr key={inst.id} className="border-b border-muted last:border-0 hover:bg-base cursor-pointer group"
                     onClick={() => setEditInstance(inst)}>
@@ -112,24 +111,17 @@ function SetDetail() {
                       <div className="flex items-center gap-1">
                         {pdfFile && (
                           <>
-                            <button onClick={() => previewGeneratedFile(inst.id, 'pdf')}
+                            <button onClick={() => previewGeneratedFile(inst.id)}
                               className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors"
                               title="Открыть PDF">
                               <Eye size={11} /> PDF
                             </button>
-                            <button onClick={() => downloadGeneratedFile(inst.id, 'pdf')}
+                            <button onClick={() => downloadGeneratedFile(inst.id)}
                               className="p-1 text-fg4 hover:text-brand transition-colors"
                               title="Скачать PDF">
                               <Download size={12} />
                             </button>
                           </>
-                        )}
-                        {docxFile && (
-                          <button onClick={() => downloadGeneratedFile(inst.id, 'docx')}
-                            className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors"
-                            title="Скачать DOCX">
-                            <Download size={11} /> DOCX
-                          </button>
                         )}
                       </div>
                     </td>

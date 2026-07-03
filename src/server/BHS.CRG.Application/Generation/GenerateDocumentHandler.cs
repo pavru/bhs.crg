@@ -88,7 +88,7 @@ public class GenerateDocumentHandler(
                 var taggedFields = SchemaTags.TaggedFields(docType, allDocTypes);
                 if (taggedFields.Count > 0)
                 {
-                    var meta = metadataExtractor.Extract(bytes, cmd.Format, cmd.GeneratedBy);
+                    var meta = metadataExtractor.Extract(bytes, isPdf: cmd.Format == OutputFormat.Pdf, cmd.GeneratedBy);
                     var patchedRequisites = SchemaTags.PatchMetadata(instance.Requisites, taggedFields, meta);
                     instance.UpdateRequisites(patchedRequisites);
                 }

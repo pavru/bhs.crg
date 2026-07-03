@@ -135,7 +135,7 @@ export interface DocumentInstance {
 export interface GeneratedFile {
   id: string;
   documentInstanceId: string;
-  format: 'Pdf' | 'Docx';
+  format: 'Pdf';
   blobPath: string;
 }
 

@@ -286,10 +286,10 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
   const activeTemplates = templates.filter((t: Template) => t.isActive);
   const noTemplates = !templatesLoading && activeTemplates.length === 0;
 
-  async function handleGenerate(format: 'Pdf' | 'Docx') {
+  async function handleGenerate() {
     setError('');
     setDiagnostics(null);
-    try { await mutation.mutateAsync({ instanceId: instance.id, setId, format }); }
+    try { await mutation.mutateAsync({ instanceId: instance.id, setId }); }
     catch (err: unknown) {
       const diag = extractDiagnostics(err);
       if (diag) { setDiagnostics(diag); setError('Генерация прервана: ошибки разрешения ссылок'); }
@@ -319,7 +319,6 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
   }
 
   const pdfFile = instance.generatedFiles.find(f => f.format === 'Pdf');
-  const docxFile = instance.generatedFiles.find(f => f.format === 'Docx');
 
   return (
     <div className="space-y-5">
@@ -351,7 +350,7 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
       </div>
 
       <div className="flex gap-3">
-        <button onClick={() => handleGenerate('Pdf')} disabled={mutation.isPending || noTemplates}
+        <button onClick={() => handleGenerate()} disabled={mutation.isPending || noTemplates}
           className="flex items-center gap-2 px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors disabled:opacity-50">
           {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
           Сгенерировать PDF
@@ -372,28 +371,18 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
       {error && <p className="text-sm text-danger">{error}</p>}
 
       {diagnostics && <DiagnosticsPanel diagnostics={diagnostics} />}
-      {(pdfFile || docxFile) && (
+      {pdfFile && (
         <div className="space-y-2">
           <p className="text-xs font-medium text-fg2">Сгенерированные файлы</p>
           <div className="flex gap-2">
-            {pdfFile && (
-              <>
-                <button onClick={() => previewGeneratedFile(instance.id, 'pdf')}
-                  className="flex items-center gap-2 px-3 py-2 text-sm border border-stroke rounded-md hover:bg-base">
-                  <Eye size={14} className="text-brand" /> Открыть PDF
-                </button>
-                <button onClick={() => downloadGeneratedFile(instance.id, 'pdf')}
-                  className="flex items-center gap-2 px-3 py-2 text-sm border border-stroke rounded-md hover:bg-base">
-                  <Download size={14} className="text-brand" /> Скачать PDF
-                </button>
-              </>
-            )}
-            {docxFile && (
-              <button onClick={() => downloadGeneratedFile(instance.id, 'docx')}
-                className="flex items-center gap-2 px-3 py-2 text-sm border border-stroke rounded-md hover:bg-base">
-                <Download size={14} className="text-brand" /> Скачать DOCX
-              </button>
-            )}
+            <button onClick={() => previewGeneratedFile(instance.id)}
+              className="flex items-center gap-2 px-3 py-2 text-sm border border-stroke rounded-md hover:bg-base">
+              <Eye size={14} className="text-brand" /> Открыть PDF
+            </button>
+            <button onClick={() => downloadGeneratedFile(instance.id)}
+              className="flex items-center gap-2 px-3 py-2 text-sm border border-stroke rounded-md hover:bg-base">
+              <Download size={14} className="text-brand" /> Скачать PDF
+            </button>
           </div>
         </div>
       )}

@@ -14,4 +14,4 @@ public class GeneratedFile : Entity
         => new() { DocumentInstanceId = instanceId, Format = format, BlobPath = blobPath };
 }
 
-public enum OutputFormat { Pdf, Docx }
+public enum OutputFormat { Pdf }

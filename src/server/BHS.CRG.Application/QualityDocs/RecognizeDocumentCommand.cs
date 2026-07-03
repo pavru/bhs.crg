@@ -61,7 +61,7 @@ public class RecognizeDocumentHandler(
     {
         if (mimeType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
         {
-            var meta = metadataExtractor.Extract(bytes, OutputFormat.Pdf, null);
+            var meta = metadataExtractor.Extract(bytes, isPdf: true, null);
             return meta.TryGetValue(FunctionalTag.DocPageCount, out var v) && v is int n ? n : null;
         }
         return mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ? 1 : null;

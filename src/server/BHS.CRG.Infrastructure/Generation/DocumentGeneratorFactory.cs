@@ -8,7 +8,6 @@ public class DocumentGeneratorFactory(TypstGenerator typst) : IDocumentGenerator
     public IDocumentGenerator Create(OutputFormat format) => format switch
     {
         OutputFormat.Pdf => typst,
-        OutputFormat.Docx => throw new NotSupportedException("DOCX output is not supported. Only PDF (Typst) is available."),
         _ => throw new ArgumentOutOfRangeException(nameof(format)),
     };
 }

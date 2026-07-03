@@ -76,22 +76,22 @@ export function useSetDocumentTemplate() {
 export function useGenerateDocument() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ instanceId, format }: { instanceId: string; setId: string; format: 'Pdf' | 'Docx' }) =>
+    mutationFn: ({ instanceId }: { instanceId: string; setId: string }) =>
       apiClient
-        .post<{ id: string; blobPath: string; format: string }>(`/generate/${instanceId}`, { format })
+        .post<{ id: string; blobPath: string; format: string }>(`/generate/${instanceId}`, { format: 'Pdf' })
         .then((r) => r.data),
     onSuccess: (_d, { setId }) => qc.invalidateQueries({ queryKey: ['document-sets', setId] }),
   });
 }
 
-export async function downloadGeneratedFile(instanceId: string, format: 'pdf' | 'docx') {
-  const response = await apiClient.get(`/generate/download/${instanceId}/${format}`, {
+export async function downloadGeneratedFile(instanceId: string) {
+  const response = await apiClient.get(`/generate/download/${instanceId}/pdf`, {
     responseType: 'blob',
   });
   const url = URL.createObjectURL(response.data as Blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `document.${format}`;
+  a.download = 'document.pdf';
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -121,14 +121,14 @@ export async function downloadDebugBundle(instanceId: string) {
   URL.revokeObjectURL(url);
 }
 
-export async function previewGeneratedFile(instanceId: string, format: 'pdf' | 'docx') {
+export async function previewGeneratedFile(instanceId: string) {
   // Open window synchronously (in user-gesture context) to avoid popup blocker,
   // then navigate it to the blob URL once the download completes.
   const newWindow = window.open('', '_blank');
   if (!newWindow) return;
 
   try {
-    const response = await apiClient.get(`/generate/download/${instanceId}/${format}`, {
+    const response = await apiClient.get(`/generate/download/${instanceId}/pdf`, {
       responseType: 'blob',
     });
     const url = URL.createObjectURL(response.data as Blob);
