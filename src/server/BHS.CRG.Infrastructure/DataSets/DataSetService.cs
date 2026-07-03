@@ -357,8 +357,8 @@ public class DataSetService(
         }
 
         // Профиль "Основная надпись (ГОСТ Р 21.101-2020)" — тройка источников: обложка/титульный
-        // лист/документы (последний — сгруппированный по НаименованиюДокумента реестр, с
-        // разрезанием исходного PDF на под-файлы по группам, см. RecognizeGostSetAsync). Тэги —
+        // лист/документы (последний — сгруппированный по Шифру реестр, с разрезанием исходного
+        // PDF на под-файлы по группам, см. RecognizeGostSetAsync и GostPageGrouper). Тэги —
         // структурные метки (dataset.hasCover и т.п.), применимы ко всем трём.
         var tagsJson = input.Tags is { Count: > 0 } ? JsonSerializer.Serialize(input.Tags) : null;
         var cover = file.AddSource($"{name} — Обложка", PdfProfiles.GostCoverMarker, "[]", 0);
@@ -493,8 +493,10 @@ public class DataSetService(
     /// Профиль "gost-titleblock" (тройка) — тот же постраничный цикл распознавания, что и у
     /// legacy-реестра, но с классификатором ТипСтраницы (см. GostTitleBlockFields.AllWithPageType)
     /// и последующей маршрутизацией/группировкой (GostPageGrouper): обложка/титульный лист как
-    /// есть, документы — сгруппированы по НаименованиюДокумента с разрезанием исходного PDF на
-    /// под-файлы (PdfPageSplitter) для каждой группы.
+    /// есть, документы — сгруппированы по Шифру (не по НаименованиюДокумента — по ГОСТ Р
+    /// 21.101-2020 форма 6, последующие листы и чертежей, и текстовых документов, обычно не
+    /// повторяет наименование, но Шифр остаётся неизменным на всех листах документа) с
+    /// разрезанием исходного PDF на под-файлы (PdfPageSplitter) для каждой группы.
     /// </summary>
     private async Task<DataSetSourceDto?> RecognizeGostSetAsync(DataSetSource source, Guid requestedSourceId, CancellationToken ct)
     {
@@ -559,10 +561,14 @@ public class DataSetService(
         foreach (var group in grouping.Documents)
         {
             var row = new Dictionary<string, string?>(group.Fields);
+            // Имя файла — по названию документа, если распознано (обычно только на первом/титульном
+            // листе — форма 5/3), иначе по шифру (group.Code — присутствует и на форме 6, см. GostPageGrouper).
+            var displayName = row.GetValueOrDefault("НаименованиеДокумента");
+            var fileLabel = string.IsNullOrWhiteSpace(displayName) ? group.Code : displayName;
             try
             {
                 var splitBytes = PdfPageSplitter.ExtractPages(bytes, group.PageIndices);
-                var fileName = $"{SanitizeFileName(group.DocumentName)}.pdf";
+                var fileName = $"{SanitizeFileName(fileLabel)}.pdf";
                 using var splitStream = new MemoryStream(splitBytes);
                 row["ФайлПуть"] = await blob.UploadAsync(fileName, splitStream, "application/pdf", ct);
                 row["РазмерБайт"] = splitBytes.Length.ToString();
@@ -571,7 +577,7 @@ public class DataSetService(
             {
                 // Не удалось разрезать конкретную группу — строка реестра остаётся без файла,
                 // остальные группы и вся операция не падают (та же философия отказоустойчивости).
-                logger.LogWarning(ex, "Не удалось разрезать PDF для документа «{DocumentName}» источника {SourceId}", group.DocumentName, documents.Id);
+                logger.LogWarning(ex, "Не удалось разрезать PDF для документа «{DocumentLabel}» источника {SourceId}", fileLabel, documents.Id);
             }
             documentRows.Add(row);
         }

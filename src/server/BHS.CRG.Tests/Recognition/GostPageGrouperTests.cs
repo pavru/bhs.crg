@@ -4,18 +4,18 @@ namespace BHS.CRG.Tests.Recognition;
 
 public class GostPageGrouperTests
 {
-    private static Dictionary<string, string?> Page(string? pageType, string? documentName = null, string? shifr = null) =>
+    private static Dictionary<string, string?> Page(string? pageType, string? shifr = null, string? documentName = null) =>
         new()
         {
             [GostTitleBlockFields.PageTypePath] = pageType,
-            ["НаименованиеДокумента"] = documentName,
             ["Шифр"] = shifr,
+            ["НаименованиеДокумента"] = documentName,
         };
 
     [Fact]
     public void RoutesCoverAndTitlePagePages()
     {
-        var result = GostPageGrouper.Group([Page("Обложка"), Page("ТитульныйЛист"), Page("Документ", "Лист 1")]);
+        var result = GostPageGrouper.Group([Page("Обложка"), Page("ТитульныйЛист"), Page("Документ", "01-ЭМ")]);
 
         Assert.Single(result.Cover);
         Assert.Single(result.TitlePage);
@@ -25,49 +25,49 @@ public class GostPageGrouperTests
     [Fact]
     public void PageTypeKey_DoesNotLeakIntoOutputRows()
     {
-        var result = GostPageGrouper.Group([Page("Обложка"), Page("Документ", "Лист 1")]);
+        var result = GostPageGrouper.Group([Page("Обложка"), Page("Документ", "01-ЭМ")]);
 
         Assert.DoesNotContain(GostTitleBlockFields.PageTypePath, result.Cover[0].Keys);
         Assert.DoesNotContain(GostTitleBlockFields.PageTypePath, result.Documents[0].Fields.Keys);
     }
 
     [Fact]
-    public void GroupsMultiplePagesByDocumentName_WithPageCount()
+    public void GroupsMultiplePagesByShifr_WithPageCount()
     {
         var pages = new[]
         {
-            Page("Документ", "План этажа", shifr: "01-ЭМ"),
-            Page("Документ", "План этажа", shifr: "01-ЭМ"),
-            Page("Документ", "Разрез", shifr: "02-ЭМ"),
+            Page("Документ", "01-ЭМ", "План этажа"),
+            Page("Документ", "01-ЭМ", "План этажа"),
+            Page("Документ", "02-ЭМ", "Разрез"),
         };
 
         var result = GostPageGrouper.Group(pages);
 
         Assert.Equal(2, result.Documents.Count);
-        var planEtazha = result.Documents.Single(d => d.DocumentName == "План этажа");
+        var planEtazha = result.Documents.Single(d => d.Code == "01-ЭМ");
         Assert.Equal([0, 1], planEtazha.PageIndices);
         Assert.Equal("2", planEtazha.Fields["КоличествоЛистов"]);
-        Assert.Equal("01-ЭМ", planEtazha.Fields["Шифр"]);
+        Assert.Equal("План этажа", planEtazha.Fields["НаименованиеДокумента"]);
 
-        var razrez = result.Documents.Single(d => d.DocumentName == "Разрез");
+        var razrez = result.Documents.Single(d => d.Code == "02-ЭМ");
         Assert.Equal([2], razrez.PageIndices);
         Assert.Equal("1", razrez.Fields["КоличествоЛистов"]);
     }
 
     [Fact]
-    public void EmptyDocumentName_FallsIntoDefaultBucket()
+    public void EmptyShifr_FallsIntoDefaultBucket()
     {
-        var result = GostPageGrouper.Group([Page("Документ", documentName: null), Page("Документ", documentName: "")]);
+        var result = GostPageGrouper.Group([Page("Документ", shifr: null), Page("Документ", shifr: "")]);
 
         var group = Assert.Single(result.Documents);
-        Assert.Equal("(без названия)", group.DocumentName);
+        Assert.Equal("(без шифра)", group.Code);
         Assert.Equal("2", group.Fields["КоличествоЛистов"]);
     }
 
     [Fact]
     public void UnknownOrMissingPageType_TreatedAsDocument()
     {
-        var result = GostPageGrouper.Group([Page(pageType: null, documentName: "X"), Page(pageType: "что-то странное", documentName: "X")]);
+        var result = GostPageGrouper.Group([Page(pageType: null, shifr: "01-ЭМ"), Page(pageType: "что-то странное", shifr: "01-ЭМ")]);
 
         Assert.Empty(result.Cover);
         Assert.Empty(result.TitlePage);
@@ -80,13 +80,39 @@ public class GostPageGrouperTests
     {
         var pages = new[]
         {
-            Page("Документ", "Лист", shifr: null),
-            Page("Документ", "Лист", shifr: "05-АР"),
-            Page("Документ", "Лист", shifr: "ДРУГОЕ"),
+            Page("Документ", "01-ЭМ", documentName: null),
+            Page("Документ", "01-ЭМ", documentName: "План этажа"),
+            Page("Документ", "01-ЭМ", documentName: "ДРУГОЕ"),
         };
 
         var result = GostPageGrouper.Group(pages);
         var group = Assert.Single(result.Documents);
-        Assert.Equal("05-АР", group.Fields["Шифр"]);
+        Assert.Equal("План этажа", group.Fields["НаименованиеДокумента"]);
+    }
+
+    /// <summary>
+    /// Регрессионный сценарий ГОСТ Р 21.101-2020: форма 5 (первый/титульный лист текстового
+    /// документа) заполняет НаименованиеДокумента, форма 6 (последующие листы — как чертежей,
+    /// так и текстовых документов) обычно НЕ повторяет наименование, но Шифр (графа 1) остаётся
+    /// неизменным на всех листах. Группировка по Шифру должна корректно объединить такие страницы
+    /// в один документ, а не развести титульный лист и продолжение по разным группам.
+    /// </summary>
+    [Fact]
+    public void Form5FirstSheetAndForm6Continuation_GroupTogetherByMatchingShifr()
+    {
+        var pages = new[]
+        {
+            Page("Документ", shifr: "05-АР", documentName: "Пояснительная записка"), // форма 5
+            Page("Документ", shifr: "05-АР", documentName: null),                     // форма 6, продолжение
+            Page("Документ", shifr: "05-АР", documentName: null),                     // форма 6, продолжение
+        };
+
+        var result = GostPageGrouper.Group(pages);
+
+        var group = Assert.Single(result.Documents);
+        Assert.Equal("05-АР", group.Code);
+        Assert.Equal([0, 1, 2], group.PageIndices);
+        Assert.Equal("3", group.Fields["КоличествоЛистов"]);
+        Assert.Equal("Пояснительная записка", group.Fields["НаименованиеДокумента"]);
     }
 }

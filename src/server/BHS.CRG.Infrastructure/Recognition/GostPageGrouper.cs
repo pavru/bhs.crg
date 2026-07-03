@@ -1,8 +1,16 @@
 namespace BHS.CRG.Infrastructure.Recognition;
 
-/// <summary>Одна распознанная группа документа — несколько исходных страниц с общим НаименованиемДокумента.</summary>
+/// <summary>
+/// Одна распознанная группа документа — несколько исходных страниц с общим Шифром (графа 1).
+/// Группируем именно по Шифру, а не по НаименованиюДокумента (графа 5): по ГОСТ Р 21.101-2020
+/// форма 6 (последующие листы — как чертежей формы 3, так и текстовых документов формы 5) обычно
+/// НЕ повторяет наименование документа, но Шифр остаётся неизменным на всех листах одного
+/// документа, включая продолжения. НаименованиеДокумента при этом попадает в Fields как обычное
+/// поле (первое непустое значение в группе) — оно там, где реально заполнено (форма 5/титульный
+/// лист), просто не используется как ключ группировки.
+/// </summary>
 public record GostDocumentGroup(
-    string DocumentName, IReadOnlyList<int> PageIndices, IReadOnlyDictionary<string, string?> Fields);
+    string Code, IReadOnlyList<int> PageIndices, IReadOnlyDictionary<string, string?> Fields);
 
 /// <summary>Результат маршрутизации распознанных страниц по типу (см. GostTitleBlockFields.PageTypeField).</summary>
 public record GostPageGroupingResult(
@@ -18,17 +26,17 @@ public record GostPageGroupingResult(
 /// </summary>
 public static class GostPageGrouper
 {
-    private const string DefaultDocumentName = "(без названия)";
+    private const string DefaultCode = "(без шифра)";
 
     public static GostPageGroupingResult Group(IReadOnlyList<IReadOnlyDictionary<string, string?>> pages)
     {
         var cover = new List<IReadOnlyDictionary<string, string?>>();
         var titlePage = new List<IReadOnlyDictionary<string, string?>>();
 
-        // Порядок появления имён документов сохраняется (Dictionary в .NET сохраняет порядок вставки
+        // Порядок появления шифров сохраняется (Dictionary в .NET сохраняет порядок вставки
         // на практике, но полагаться на это не будем — ведём отдельный список порядка).
         var order = new List<string>();
-        var byName = new Dictionary<string, (List<int> Pages, Dictionary<string, string?> Fields)>();
+        var byCode = new Dictionary<string, (List<int> Pages, Dictionary<string, string?> Fields)>();
 
         for (var i = 0; i < pages.Count; i++)
         {
@@ -40,13 +48,13 @@ public static class GostPageGrouper
             if (pageType == "ТитульныйЛист") { titlePage.Add(withoutPageType); continue; }
 
             // "Документ", пусто или что-то неожиданное от модели — всё считаем документом.
-            var name = page.GetValueOrDefault("НаименованиеДокумента");
-            var key = string.IsNullOrWhiteSpace(name) ? DefaultDocumentName : name;
+            var shifr = page.GetValueOrDefault("Шифр");
+            var key = string.IsNullOrWhiteSpace(shifr) ? DefaultCode : shifr;
 
-            if (!byName.TryGetValue(key, out var group))
+            if (!byCode.TryGetValue(key, out var group))
             {
                 group = ([], []);
-                byName[key] = group;
+                byCode[key] = group;
                 order.Add(key);
             }
             group.Pages.Add(i);
@@ -55,11 +63,11 @@ public static class GostPageGrouper
                     group.Fields[k] = v;
         }
 
-        var documents = order.Select(name =>
+        var documents = order.Select(code =>
         {
-            var (pageIndices, fields) = byName[name];
+            var (pageIndices, fields) = byCode[code];
             fields["КоличествоЛистов"] = pageIndices.Count.ToString();
-            return new GostDocumentGroup(name, pageIndices, fields);
+            return new GostDocumentGroup(code, pageIndices, fields);
         }).ToList();
 
         return new GostPageGroupingResult(cover, titlePage, documents);
