@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
 import { Modal } from '@/shared/ui/Modal';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import {
   useListDocumentTypes,
   useCreateDocumentType,
@@ -609,6 +610,7 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
   const abstractMutation = useSetDocumentTypeAbstract();
   const groupMutation = useSetDocumentTypeGroup();
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const effectiveFields = resolveEffectiveFields(docType, allDocTypes);
   const ownFieldCount = parseSchemaFields(docType.schema).length;
@@ -627,8 +629,7 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
   function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
     if (hasChildren) { alert(`Тип «${docType.name}» является родительским — удаление невозможно.`); return; }
-    if (!confirm(`Удалить тип «${docType.name}»? Это действие необратимо.`)) return;
-    deleteMutation.mutate(docType.id);
+    setDeleteConfirmOpen(true);
   }
 
   const requiredCount = effectiveFields.filter(f => f.required).length;
@@ -716,6 +717,15 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
           onClose={() => setTemplatesOpen(false)}
         />
       )}
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title={`Удалить тип «${docType.name}»?`}
+        description={<p>Это повлияет на все документы и шаблоны, использующие этот тип. Действие необратимо.</p>}
+        confirmLabel={`Удалить тип «${docType.name}»`}
+        requireCheckbox="Понимаю, что это необратимо"
+        onConfirm={() => deleteMutation.mutate(docType.id)}
+      />
     </div>
   );
 }

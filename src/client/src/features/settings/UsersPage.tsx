@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, KeyRound, Trash2, ShieldCheck, User as UserIcon } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useAuth, type UserRole } from '@/shared/hooks/useAuth';
 import {
   useListUsers, useCreateUser, useChangeUserRole, useResetUserPassword, useDeleteUser,
@@ -20,6 +21,7 @@ export function UsersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [resetFor, setResetFor] = useState<AppUser | null>(null);
   const [rowError, setRowError] = useState<{ id: string; msg: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
 
   async function onRoleChange(u: AppUser, role: UserRole) {
     setRowError(null);
@@ -28,7 +30,6 @@ export function UsersPage() {
   }
 
   async function onDelete(u: AppUser) {
-    if (!confirm(`Удалить пользователя «${u.email}»? Действие необратимо.`)) return;
     setRowError(null);
     try { await del.mutateAsync(u.id); }
     catch (e) { setRowError({ id: u.id, msg: apiError(e) }); }
@@ -84,7 +85,7 @@ export function UsersPage() {
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => setResetFor(u)} title="Сбросить пароль"
                           className="p-1.5 text-fg4 hover:text-brand rounded"><KeyRound size={14} /></button>
-                        <button onClick={() => onDelete(u)} disabled={isSelf || del.isPending}
+                        <button onClick={() => setDeleteTarget(u)} disabled={isSelf || del.isPending}
                           title={isSelf ? 'Нельзя удалить себя' : 'Удалить'}
                           className="p-1.5 text-fg4 hover:text-danger rounded disabled:opacity-30 disabled:hover:text-fg4"><Trash2 size={14} /></button>
                       </div>
@@ -103,6 +104,14 @@ export function UsersPage() {
 
       <CreateUserModal open={createOpen} onClose={() => setCreateOpen(false)} />
       <ResetPasswordModal user={resetFor} onClose={() => setResetFor(null)} />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={o => { if (!o) setDeleteTarget(null); }}
+        title={`Удалить пользователя «${deleteTarget?.email ?? ''}»?`}
+        description={<p>Действие необратимо.</p>}
+        confirmLabel="Удалить пользователя"
+        onConfirm={() => { if (deleteTarget) onDelete(deleteTarget); }}
+      />
     </div>
   );
 }

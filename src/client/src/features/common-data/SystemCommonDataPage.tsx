@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Pencil, Trash2, Search, Link2, Unlink, ChevronDown, ChevronUp } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListCommonData, useCreateCommonDataEntry, useUpdateCommonDataEntry, useDeleteCommonDataEntry } from '@/shared/api/commonData';
 import type { CommonDataEntry, DocumentType } from '@/shared/api/types';
@@ -253,6 +254,7 @@ export function SystemCommonDataPage() {
   const [search, setSearch] = useState('');
   const [filterTypeId, setFilterTypeId] = useState('');
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<CommonDataEntry | null>(null);
 
   function toggleType(id: string) {
     setExpandedTypes(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -365,10 +367,7 @@ export function SystemCommonDataPage() {
                             <Pencil size={13} />
                           </button>
                           <button
-                            onClick={() => {
-                              if (!confirm(`Удалить «${entry.displayName}»?`)) return;
-                              deleteMutation.mutate(entry.id);
-                            }}
+                            onClick={() => setDeleteTarget(entry)}
                             disabled={deleteMutation.isPending}
                             className="p-1.5 text-fg4 hover:text-danger rounded transition-colors disabled:opacity-30" title="Удалить">
                             <Trash2 size={13} />
@@ -401,7 +400,7 @@ export function SystemCommonDataPage() {
                         <span className="flex-1 text-sm font-medium text-fg1">{entry.displayName}</span>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 shrink-0">
                           <button onClick={() => setEditEntry(entry)} className="p-1.5 text-fg4 hover:text-fg2 rounded"><Pencil size={13} /></button>
-                          <button onClick={() => { if (!confirm(`Удалить «${entry.displayName}»?`)) return; deleteMutation.mutate(entry.id); }} className="p-1.5 text-fg4 hover:text-danger rounded"><Trash2 size={13} /></button>
+                          <button onClick={() => setDeleteTarget(entry)} className="p-1.5 text-fg4 hover:text-danger rounded"><Trash2 size={13} /></button>
                         </div>
                       </div>
                     ))}
@@ -423,6 +422,13 @@ export function SystemCommonDataPage() {
           <EntryForm entry={editEntry} compositeTypes={compositeTypes} documentTypes={documentTypes} allDocTypes={allDocTypes} onClose={() => setEditEntry(null)} />
         )}
       </Modal>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={o => { if (!o) setDeleteTarget(null); }}
+        title={`Удалить «${deleteTarget?.displayName ?? ''}»?`}
+        confirmLabel="Удалить"
+        onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id); }}
+      />
     </div>
   );
 }

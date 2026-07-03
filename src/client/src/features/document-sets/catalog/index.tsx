@@ -4,6 +4,7 @@ import {
   DatabaseZap, RefreshCw,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import {
   useListCommonData, useCommonDataForSet, useCreateCommonDataEntry,
   useUpdateCommonDataEntry, useDeleteCommonDataEntry,
@@ -34,6 +35,7 @@ export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<CommonDataEntry | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CommonDataEntry | null>(null);
 
   const { data: entries = [], isLoading } = useListCommonData({
     scope, scopeId: scopeId ?? undefined, enabled: expanded,
@@ -66,7 +68,7 @@ export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
             <Pencil size={12} />
           </button>
           <button
-            onClick={() => { if (!confirm(`Удалить «${entry.displayName}»?`)) return; deleteMutation.mutate(entry.id); }}
+            onClick={() => setDeleteTarget(entry)}
             disabled={deleteMutation.isPending}
             className="p-1 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30">
             <Trash2 size={12} />
@@ -149,6 +151,13 @@ export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
             scope={scope} scopeId={scopeId} setId={setId} onClose={() => setEditEntry(null)} />
         )}
       </Modal>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={o => { if (!o) setDeleteTarget(null); }}
+        title={`Удалить «${deleteTarget?.displayName ?? ''}»?`}
+        confirmLabel="Удалить"
+        onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id); }}
+      />
     </div>
   );
 }

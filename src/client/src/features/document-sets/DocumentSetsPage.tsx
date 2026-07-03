@@ -4,6 +4,8 @@ import {
   Plus, Trash2, ChevronRight, Download, Pencil, ChevronDown, ChevronUp, FolderOpen, Eye,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
+import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import {
   useListConstructions, useGetConstruction, useCreateConstruction, useRenameConstruction,
@@ -34,6 +36,7 @@ function SetDetail() {
   const deleteMutation = useDeleteDocumentInstance();
   const [addTypeId, setAddTypeId] = useState('');
   const [addError, setAddError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<DocumentInstance | null>(null);
 
   if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
   if (!set) return <div className="p-6 text-sm text-danger">Комплект не найден</div>;
@@ -127,12 +130,7 @@ function SetDetail() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          if (!confirm(`Удалить документ «${inst.name || docTypeMap[inst.documentTypeId]?.name || inst.documentTypeId}»?`)) return;
-                          if (editInstance?.id === inst.id) setEditInstance(null);
-                          deleteMutation.mutate({ setId: set.id, instanceId: inst.id });
-                        }}
+                        onClick={e => { e.stopPropagation(); setDeleteTarget(inst); }}
                         disabled={deleteMutation.isPending}
                         className="p-1 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30"
                         title="Удалить документ">
@@ -191,6 +189,18 @@ function SetDetail() {
           </Modal>
         );
       })()}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={o => { if (!o) setDeleteTarget(null); }}
+        title={`Удалить документ «${deleteTarget ? (deleteTarget.name || docTypeMap[deleteTarget.documentTypeId]?.name || deleteTarget.documentTypeId) : ''}»?`}
+        confirmLabel="Удалить документ"
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          if (editInstance?.id === deleteTarget.id) setEditInstance(null);
+          deleteMutation.mutate({ setId: set.id, instanceId: deleteTarget.id });
+        }}
+      />
     </div>
   );
 }
@@ -212,6 +222,11 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
   const deleteSection = useDeleteSection();
   const renameSet = useRenameDocumentSet();
   const deleteSet = useDeleteDocumentSet();
+  const [deleteSectionConfirm, setDeleteSectionConfirm] = useState(false);
+  const [deleteSetTarget, setDeleteSetTarget] = useState<DocumentSet | null>(null);
+
+  const setsInSection = section.documentSets.length;
+  const docsInSection = section.documentSets.reduce((acc, ds) => acc + (ds.instances?.length ?? 0), 0);
 
   async function handleAddSet(e: React.FormEvent) {
     e.preventDefault();
@@ -243,13 +258,13 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
             <span className="text-sm font-medium text-fg1">{section.name}</span>
           )}
           <span className="text-xs text-fg4 ml-1">
-            {section.documentSets.length} комплект{section.documentSets.length !== 1 ? 'ов' : ''}
+            {ruCount(section.documentSets.length, 'комплект', 'комплекта', 'комплектов')}
           </span>
         </button>
         <button onClick={() => setEditName(true)} className="p-1 text-stroke-strong hover:text-fg2 transition-colors" title="Переименовать">
           <Pencil size={13} />
         </button>
-        <button onClick={() => { if (confirm(`Удалить раздел "${section.name}" со всеми комплектами?`)) deleteSection.mutate({ id: section.id, constructionId: construction.id }); }}
+        <button onClick={() => setDeleteSectionConfirm(true)}
           className="p-1 text-stroke-strong hover:text-danger transition-colors" title="Удалить раздел">
           <Trash2 size={13} />
         </button>
@@ -264,7 +279,7 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
             <DocumentSetRow key={ds.id} ds={ds} section={section} construction={construction}
               onOpen={() => navigate(`/document-sets/${construction.id}/sets/${ds.id}`)}
               onRename={(name) => renameSet.mutateAsync({ id: ds.id, name, constructionId: construction.id })}
-              onDelete={() => { if (confirm(`Удалить комплект "${ds.name}"?`)) deleteSet.mutate({ id: ds.id, constructionId: construction.id }); }}
+              onDelete={() => setDeleteSetTarget(ds)}
             />
           ))}
           <button onClick={() => setAddSetOpen(true)}
@@ -297,6 +312,39 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
           </form>
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={deleteSectionConfirm}
+        onOpenChange={setDeleteSectionConfirm}
+        title={`Удалить раздел «${section.name}»?`}
+        description={
+          setsInSection > 0 ? (
+            <>
+              <p>Вместе с ним будут безвозвратно удалены:</p>
+              <CascadeList items={[
+                ruCount(setsInSection, 'комплект', 'комплекта', 'комплектов'),
+                ...(docsInSection > 0 ? [`${ruCount(docsInSection, 'документ', 'документа', 'документов')} (и их сгенерированные PDF)`] : []),
+              ]} />
+            </>
+          ) : undefined
+        }
+        confirmLabel={`Удалить раздел «${section.name}»`}
+        requireCheckbox={setsInSection > 0 ? 'Понимаю, что это необратимо' : undefined}
+        onConfirm={() => deleteSection.mutate({ id: section.id, constructionId: construction.id })}
+      />
+
+      <ConfirmDialog
+        open={!!deleteSetTarget}
+        onOpenChange={o => { if (!o) setDeleteSetTarget(null); }}
+        title={`Удалить комплект «${deleteSetTarget?.name ?? ''}»?`}
+        description={
+          deleteSetTarget && deleteSetTarget.instances.length > 0
+            ? <CascadeList items={[`${ruCount(deleteSetTarget.instances.length, 'документ', 'документа', 'документов')} (и их сгенерированные PDF)`]} />
+            : undefined
+        }
+        confirmLabel="Удалить комплект"
+        onConfirm={() => { if (deleteSetTarget) deleteSet.mutate({ id: deleteSetTarget.id, constructionId: construction.id }); }}
+      />
     </div>
   );
 }
@@ -442,6 +490,7 @@ function ConstructionsList() {
   const renameMutation = useRenameConstruction();
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<Construction | null>(null);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -496,15 +545,15 @@ function ConstructionsList() {
                       className="p-1.5 text-fg4 hover:text-fg2 rounded transition-colors" title="Переименовать">
                       <Pencil size={13} />
                     </button>
-                    <button onClick={e => { e.stopPropagation(); if (confirm(`Удалить стройку "${c.name}"?`)) deleteMutation.mutate(c.id); }}
+                    <button onClick={e => { e.stopPropagation(); setDeleteTarget(c); }}
                       className="p-1.5 text-fg4 hover:text-danger rounded transition-colors" title="Удалить">
                       <Trash2 size={13} />
                     </button>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 text-xs text-fg4">
-                  <span>{c.sections.length} раздел{c.sections.length !== 1 ? 'ов' : ''}</span>
-                  <span>{setsCount} комплект{setsCount !== 1 ? 'ов' : ''}</span>
+                  <span>{ruCount(c.sections.length, 'раздел', 'раздела', 'разделов')}</span>
+                  <span>{ruCount(setsCount, 'комплект', 'комплекта', 'комплектов')}</span>
                 </div>
                 {c.sections.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
@@ -543,6 +592,32 @@ function ConstructionsList() {
           </form>
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={o => { if (!o) setDeleteTarget(null); }}
+        title={`Удалить стройку «${deleteTarget?.name ?? ''}»?`}
+        description={(() => {
+          if (!deleteTarget) return undefined;
+          const sectionsN = deleteTarget.sections.length;
+          const setsN = deleteTarget.sections.reduce((acc, s) => acc + s.documentSets.length, 0);
+          const docsN = deleteTarget.sections.reduce((acc, s) => acc + s.documentSets.reduce((a, ds) => a + (ds.instances?.length ?? 0), 0), 0);
+          if (sectionsN === 0) return undefined;
+          return (
+            <>
+              <p>Вместе с ней будут безвозвратно удалены:</p>
+              <CascadeList items={[
+                ruCount(sectionsN, 'раздел', 'раздела', 'разделов'),
+                ...(setsN > 0 ? [ruCount(setsN, 'комплект', 'комплекта', 'комплектов')] : []),
+                ...(docsN > 0 ? [`${ruCount(docsN, 'документ', 'документа', 'документов')} (и их сгенерированные PDF)`] : []),
+              ]} />
+            </>
+          );
+        })()}
+        confirmLabel={`Удалить стройку «${deleteTarget?.name ?? ''}»`}
+        requireCheckbox={deleteTarget && deleteTarget.sections.length > 0 ? 'Понимаю, что это необратимо' : undefined}
+        onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id); }}
+      />
     </div>
   );
 }

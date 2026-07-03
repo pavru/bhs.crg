@@ -2,6 +2,7 @@ import { useState, useMemo, Fragment } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2, ShieldCheck, FileText, Search, Globe, ExternalLink, Download, Loader2, ChevronRight, ChevronDown } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import {
@@ -44,6 +45,7 @@ export function QualityDocsPage() {
   const [scopeFilter, setScopeFilter] = useState<'all' | 'System'>('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<QualityDocument | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<QualityDocument | null>(null);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set()); // по умолчанию все свёрнуты
 
   // веб-поиск
@@ -222,7 +224,7 @@ export function QualityDocsPage() {
                             <button onClick={() => setEditDoc(d)} className="p-1.5 text-fg4 hover:text-fg2 rounded" title="Редактировать">
                               <Pencil size={14} />
                             </button>
-                            <button onClick={() => { if (confirm(`Удалить «${d.displayName}»? Связи с материалами также будут удалены.`)) del.mutate(d.id); }}
+                            <button onClick={() => setDeleteTarget(d)}
                               disabled={del.isPending}
                               className="p-1.5 text-fg4 hover:text-danger rounded disabled:opacity-40" title="Удалить">
                               <Trash2 size={14} />
@@ -253,6 +255,15 @@ export function QualityDocsPage() {
             onSaved={() => setEditDoc(null)} onCancel={() => setEditDoc(null)} />
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={o => { if (!o) setDeleteTarget(null); }}
+        title={`Удалить «${deleteTarget?.displayName ?? ''}»?`}
+        description={<p>Связи с материалами также будут удалены.</p>}
+        confirmLabel="Удалить"
+        onConfirm={() => { if (deleteTarget) del.mutate(deleteTarget.id); }}
+      />
     </div>
   );
 }

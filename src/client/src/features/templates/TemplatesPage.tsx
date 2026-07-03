@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Library } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
+import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListTemplates, useCreateTemplate, useDeleteTemplate, useDuplicateTemplate } from '@/shared/api/templates';
 import type { Template, DocumentType } from '@/shared/api/types';
@@ -72,6 +74,8 @@ export function TemplatesPage() {
   const [newModalOpen, setNewModalOpen] = useState(false);
   const [cleanupGroup, setCleanupGroup] = useState<TemplateGroup | null>(null);
   const [maxVersions] = useMaxTemplateVersions();
+  const [deleteTarget, setDeleteTarget] = useState<Template | null>(null);
+  const [deleteGroupTarget, setDeleteGroupTarget] = useState<TemplateGroup | null>(null);
 
   const { data: docTypes = [] } = useListDocumentTypes();
   const { data: templates = [], isLoading: templatesLoading } = useListTemplates(selectedTypeId || undefined);
@@ -98,16 +102,23 @@ export function TemplatesPage() {
   }
 
   function handleDelete(t: Template) {
-    if (!confirm(`Удалить версию v${t.version} шаблона «${t.name}»?`)) return;
-    if (selectedTemplate?.id === t.id) setSelectedTemplate(null);
-    deleteMutation.mutate({ id: t.id, documentTypeId: t.documentTypeId });
+    setDeleteTarget(t);
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    if (selectedTemplate?.id === deleteTarget.id) setSelectedTemplate(null);
+    deleteMutation.mutate({ id: deleteTarget.id, documentTypeId: deleteTarget.documentTypeId });
   }
 
   function handleDeleteGroup(group: TemplateGroup) {
-    const count = group.versions.length;
-    if (!confirm(`Удалить шаблон «${group.name}» и все ${count} ${count === 1 ? 'версию' : count < 5 ? 'версии' : 'версий'}?`)) return;
-    if (selectedTemplate?.name === group.name) setSelectedTemplate(null);
-    for (const t of group.versions) {
+    setDeleteGroupTarget(group);
+  }
+
+  function confirmDeleteGroup() {
+    if (!deleteGroupTarget) return;
+    if (selectedTemplate?.name === deleteGroupTarget.name) setSelectedTemplate(null);
+    for (const t of deleteGroupTarget.versions) {
       deleteMutation.mutate({ id: t.id, documentTypeId: t.documentTypeId });
     }
   }
@@ -220,6 +231,22 @@ export function TemplatesPage() {
           onDeleted={handleCleanupDeleted}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={o => { if (!o) setDeleteTarget(null); }}
+        title={`Удалить версию v${deleteTarget?.version ?? ''} шаблона «${deleteTarget?.name ?? ''}»?`}
+        confirmLabel="Удалить версию"
+        onConfirm={confirmDelete}
+      />
+      <ConfirmDialog
+        open={!!deleteGroupTarget}
+        onOpenChange={o => { if (!o) setDeleteGroupTarget(null); }}
+        title={`Удалить шаблон «${deleteGroupTarget?.name ?? ''}»?`}
+        description={deleteGroupTarget ? <CascadeList items={[ruCount(deleteGroupTarget.versions.length, 'версию', 'версии', 'версий')]} /> : undefined}
+        confirmLabel="Удалить шаблон"
+        onConfirm={confirmDeleteGroup}
+      />
     </div>
   );
 }
