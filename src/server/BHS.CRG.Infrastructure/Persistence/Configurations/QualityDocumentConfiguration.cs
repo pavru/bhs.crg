@@ -16,7 +16,7 @@ public class QualityDocumentConfiguration : IEntityTypeConfiguration<QualityDocu
         b.Property(e => e.ScanBlobPath).HasMaxLength(1024);
         b.Property(e => e.ScanFileName).HasMaxLength(512);
         b.Property(e => e.ScanMimeType).HasMaxLength(256);
-        b.Property(e => e.Source).HasConversion<int>().IsRequired();
+        b.Property(e => e.Source).HasConversion<string>().HasMaxLength(32).IsRequired();
         b.Property(e => e.SourceUrl).HasMaxLength(2048);
         b.Property(e => e.Scope).HasConversion<string>().HasMaxLength(32).IsRequired();
         b.HasIndex(e => new { e.Scope, e.ScopeId });
