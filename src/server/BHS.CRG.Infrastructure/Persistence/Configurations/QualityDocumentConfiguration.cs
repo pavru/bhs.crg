@@ -18,7 +18,7 @@ public class QualityDocumentConfiguration : IEntityTypeConfiguration<QualityDocu
         b.Property(e => e.ScanMimeType).HasMaxLength(256);
         b.Property(e => e.Source).HasConversion<int>().IsRequired();
         b.Property(e => e.SourceUrl).HasMaxLength(2048);
-        b.Property(e => e.Scope).HasConversion<int>().IsRequired();
+        b.Property(e => e.Scope).HasConversion<string>().HasMaxLength(32).IsRequired();
         b.HasIndex(e => new { e.Scope, e.ScopeId });
         b.HasIndex(e => e.DocumentTypeId);
     }
@@ -31,7 +31,7 @@ public class MaterialQualityLinkConfiguration : IEntityTypeConfiguration<Materia
         b.ToTable("material_quality_links");
         b.HasKey(e => e.Id);
         b.Property(e => e.MaterialKey).HasMaxLength(512).IsRequired();
-        b.Property(e => e.Scope).HasConversion<int>().IsRequired();
+        b.Property(e => e.Scope).HasConversion<string>().HasMaxLength(32).IsRequired();
         b.Property(e => e.QualityDocumentId).IsRequired();
         b.HasIndex(e => new { e.Scope, e.ScopeId, e.MaterialKey });
         b.HasIndex(e => e.QualityDocumentId);

@@ -13,7 +13,7 @@ public class DataSetFileConfiguration : IEntityTypeConfiguration<DataSetFile>
         b.Property(e => e.Name).HasMaxLength(512).IsRequired();
         b.Property(e => e.Format).HasConversion<int>().IsRequired();
         b.Property(e => e.BlobPath).HasMaxLength(1024).IsRequired();
-        b.Property(e => e.Scope).HasConversion<int>().IsRequired();
+        b.Property(e => e.Scope).HasConversion<string>().HasMaxLength(32).IsRequired();
         b.Property(e => e.ScopeId);
         b.HasMany(e => e.Sources)
          .WithOne(s => s.File)

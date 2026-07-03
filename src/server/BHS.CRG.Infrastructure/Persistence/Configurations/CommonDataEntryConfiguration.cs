@@ -14,7 +14,8 @@ public class CommonDataEntryConfiguration : IEntityTypeConfiguration<CommonDataE
         b.Property(e => e.CompositeTypeId).IsRequired();
         b.Property(e => e.Data).HasColumnType("jsonb").IsRequired();
         b.Property(e => e.Scope)
-            .HasConversion<int>()
+            .HasConversion<string>()
+            .HasMaxLength(32)
             .IsRequired();
         b.Property(e => e.ScopeId);
         b.HasIndex(e => new { e.Scope, e.ScopeId });
