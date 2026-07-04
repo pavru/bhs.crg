@@ -7,7 +7,9 @@ import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/data
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
   usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizePdfSource,
+  isManualGroupingConflict,
 } from '@/shared/api/datasets';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SourceEditorDialog } from './SourceEditorDialog';
 import { PdfSourceDialog } from './PdfSourceDialog';
 import { SourcePreviewDialog } from './SourcePreviewDialog';
@@ -195,6 +197,13 @@ export function SourcesExpander({
   const deleteMutation = useDeleteDataSetSource();
   const duplicateMutation = useDuplicateDataSetSource();
   const recognizeMutation = useRecognizePdfSource();
+  const [recognizeConflict, setRecognizeConflict] = useState<DataSetSource | null>(null);
+
+  function handleRecognize(src: DataSetSource) {
+    recognizeMutation.mutate({ id: src.id }, {
+      onError: (err) => { if (isManualGroupingConflict(err)) setRecognizeConflict(src); },
+    });
+  }
   const { data: templates = [] } = useListProcessingTemplates();
   const isPdf = file.format === 'Pdf';
   const canManageExtraction = file.format === 'Xml' || file.format === 'Zip' || file.format === 'Json' || isPdf;
@@ -260,7 +269,7 @@ export function SourcesExpander({
                       </span>
                     ) : isPdf && (
                       <button
-                        onClick={() => recognizeMutation.mutate({ id: src.id })}
+                        onClick={() => handleRecognize(src)}
                         disabled={recognizeMutation.isPending && recognizeMutation.variables?.id === src.id}
                         className="p-1 text-fg4 hover:text-brand disabled:opacity-50"
                         title={src.sheetOrPath === 'invoice-header'
@@ -312,6 +321,15 @@ export function SourcesExpander({
       {previewing && (
         <SourcePreviewDialog source={previewing} onClose={() => setPreviewing(null)} />
       )}
+
+      <ConfirmDialog
+        open={!!recognizeConflict}
+        onOpenChange={o => { if (!o) setRecognizeConflict(null); }}
+        title="Разбиение было скорректировано вручную"
+        description={<p>Повторное автораспознавание сотрёт ручные правки разбиения на документы. Продолжить?</p>}
+        confirmLabel="Распознать заново"
+        onConfirm={() => { if (recognizeConflict) recognizeMutation.mutate({ id: recognizeConflict.id, confirm: true }); }}
+      />
 
       {confirmDelete && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"

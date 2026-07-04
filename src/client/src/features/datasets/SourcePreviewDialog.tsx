@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Loader2, FileText, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Loader2, FileText, ExternalLink, LayoutGrid } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { usePreviewDataSetSource } from '@/shared/api/datasets';
 import { openAttachmentInNewTab, formatBytes } from '@/shared/api/attachments';
@@ -14,7 +15,8 @@ const MAX_ROWS = 200;
  * быть пустым, если разбиение конкретного документа не удалось (backend логирует предупреждение
  * и оставляет колонку пустой) — это ожидаемо, кнопка в этом случае просто неактивна.
  */
-function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
+function GostDocumentsPreview({ sourceId, sourceName, data }: { sourceId: string; sourceName: string; data: DataSetPreview }) {
+  const navigate = useNavigate();
   const nameIdx = data.columns.indexOf('НаименованиеДокумента');
   const pagesIdx = data.columns.indexOf('КоличествоЛистов');
   const sizeIdx = data.columns.indexOf('РазмерБайт');
@@ -29,6 +31,14 @@ function GostDocumentsPreview({ data }: { data: DataSetPreview }) {
 
   return (
     <div className="space-y-1.5">
+      <div className="flex justify-end mb-1">
+        <button
+          onClick={() => navigate(`/datasets/sources/${sourceId}/grouping`, { state: { sourceName } })}
+          className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-base transition-colors"
+          title="Перенести страницы между документами, разделить/объединить группы вручную">
+          <LayoutGrid size={12} /> Редактировать разбиение
+        </button>
+      </div>
       {data.rows.map((row, i) => {
         const name = nameIdx >= 0 ? row[nameIdx] : null;
         const pages = pagesIdx >= 0 ? row[pagesIdx] : null;
@@ -93,7 +103,7 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
       ) : !data || data.columns.length === 0 ? (
         <p className="text-sm text-fg4 py-4 text-center">Нет данных — либо строки не найдены, либо все отфильтрованы.</p>
       ) : isGostDocuments ? (
-        <GostDocumentsPreview data={data} />
+        <GostDocumentsPreview sourceId={source.id} sourceName={source.name} data={data} />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-stroke">
           <table className="text-xs w-full">

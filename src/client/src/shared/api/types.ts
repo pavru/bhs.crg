@@ -234,6 +234,20 @@ export interface DataSetSource {
   tags: string[] | null;
 }
 
+/** Группировка страниц источника «Документы» ГОСТ-профиля — для редактора ручной корректировки разбиения. */
+export interface GostGroupingDocument {
+  code: string;
+  name: string | null;
+  pageIndices: number[];
+}
+
+export interface GostGrouping {
+  documents: GostGroupingDocument[];
+  manuallyEdited: boolean;
+  /** Общее число страниц исходного PDF — включая не вошедшие ни в одну группу. */
+  pageCount: number;
+}
+
 export interface DataSetFile {
   id: string;
   name: string;

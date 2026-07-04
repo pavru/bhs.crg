@@ -3,6 +3,7 @@ import { apiClient } from './client';
 import type {
   CatalogScope, ColumnExprDef, DataSetBinding, DataSetBindingOwner, DataSetBindingPreviewResult, DataSetFile,
   DataSetPreview, DataSetProcessingTemplate, DataSetSource, RowFilterDef, ComputedColumn, SortSpec,
+  GostGrouping, GostGroupingDocument,
 } from './types';
 
 // ── Файлы ─────────────────────────────────────────────────────────────────────
@@ -164,12 +165,52 @@ export function useCreatePdfSource() {
   });
 }
 
-/** Распознаёт основную надпись каждой страницы PDF и кэширует результат — может быть небыстро. */
+/**
+ * Распознаёт основную надпись каждой страницы PDF и кэширует результат — может быть небыстро.
+ * confirm=true — подтверждение перезаписи ручной корректировки разбиения (см. useApplyGrouping);
+ * без него бэкенд вернёт 409, если источник уже правился вручную (см. isManualGroupingConflict).
+ */
 export function useRecognizePdfSource() {
   const qc = useQueryClient();
-  return useMutation<DataSetSource, Error, { id: string }>({
-    mutationFn: ({ id }) => apiClient.post(`/datasets/sources/${id}/recognize`).then(r => r.data),
+  return useMutation<DataSetSource, Error, { id: string; confirm?: boolean }>({
+    mutationFn: ({ id, confirm }) =>
+      apiClient.post(`/datasets/sources/${id}/recognize`, undefined, { params: confirm ? { confirm: true } : undefined }).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+  });
+}
+
+/** 409 от /recognize — источник уже правился вручную, нужно явное подтверждение перезаписи. */
+export function isManualGroupingConflict(err: unknown): boolean {
+  return (err as { response?: { status?: number } })?.response?.status === 409;
+}
+
+// ── Ручная корректировка разбиения PDF (источник «Документы» ГОСТ-профиля) ────────
+
+export function useSourcePages(sourceId: string | null) {
+  return useQuery<GostGrouping>({
+    queryKey: ['datasets', 'sources', sourceId, 'pages'],
+    queryFn: () => apiClient.get(`/datasets/sources/${sourceId}/pages`).then(r => r.data),
+    enabled: !!sourceId,
+  });
+}
+
+/** Миниатюра страницы (PNG) — низкое DPI, только чтобы узнать документ глазами, не OCR. */
+export async function loadPageThumbnailUrl(sourceId: string, pageIndex: number): Promise<string> {
+  const response = await apiClient.get(`/datasets/sources/${sourceId}/pages/${pageIndex}/thumbnail`, {
+    responseType: 'blob',
+  });
+  return URL.createObjectURL(response.data as Blob);
+}
+
+export function useApplyGrouping(sourceId: string) {
+  const qc = useQueryClient();
+  return useMutation<GostGrouping, Error, GostGroupingDocument[]>({
+    mutationFn: (documents) =>
+      apiClient.put(`/datasets/sources/${sourceId}/grouping`, { documents }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['datasets', 'sources', sourceId, 'pages'] });
+      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+    },
   });
 }
 

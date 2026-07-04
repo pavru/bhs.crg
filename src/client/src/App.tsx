@@ -13,6 +13,7 @@ import { SettingsPage } from '@/features/settings/SettingsPage';
 import { PrimitiveTypesPage } from '@/features/settings/PrimitiveTypesPage';
 import { UsersPage } from '@/features/settings/UsersPage';
 import { DataSetsPage } from '@/features/datasets/DataSetsPage';
+import { PdfGroupingEditor } from '@/features/datasets/PdfGroupingEditor';
 import { QualityDocsPage } from '@/features/quality-docs/QualityDocsPage';
 
 const queryClient = new QueryClient({
@@ -33,6 +34,7 @@ export default function App() {
                 <Route path="document-sets/*" element={<DocumentSetsPage />} />
                 <Route path="common-data" element={<SystemCommonDataPage />} />
                 <Route path="datasets" element={<DataSetsPage />} />
+                <Route path="datasets/sources/:sourceId/grouping" element={<PdfGroupingEditor />} />
                 <Route path="quality-docs" element={<QualityDocsPage />} />
                 <Route element={<AdminRoute />}>
                   <Route path="document-types/*" element={<DocumentTypesPage kind="Document" />} />
