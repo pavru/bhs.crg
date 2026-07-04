@@ -169,6 +169,7 @@ builder.Services.AddSingleton<IDataSetParser, PdfDataSetParser>();
 builder.Services.AddSingleton<DataSetParserFactory>();
 builder.Services.AddScoped<DataSetProcessingTemplateService>();
 builder.Services.AddScoped<DataSetBindingTemplateService>();
+builder.Services.AddScoped<DataSetPdfRecognitionService>();
 builder.Services.AddScoped<IDataSetService, DataSetService>();
 
 // ── MinIO ─────────────────────────────────────────────────────────────────────

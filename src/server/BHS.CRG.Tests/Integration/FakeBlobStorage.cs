@@ -36,4 +36,7 @@ public class FakeBlobStorage : IBlobStorage
         await content.CopyToAsync(ms, ct);
         _store[blobPath] = ms.ToArray();
     }
+
+    /// <summary>Для тестов best-effort очистки осиротевших blob'ов — проверить, что путь реально удалён/не существовал.</summary>
+    public bool Exists(string blobPath) => _store.ContainsKey(blobPath);
 }

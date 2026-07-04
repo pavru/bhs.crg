@@ -136,11 +136,47 @@ public static class DataSetEndpoints
             catch (KeyNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
         });
 
-        g.MapPost("/sources/{sourceId:guid}/recognize", async (Guid sourceId, IDataSetService svc, CancellationToken ct) =>
+        // confirm=true — подтверждение перезаписи ручной корректировки разбиения (см.
+        // ApplyGroupingAsync); без него, если источник уже правился вручную, — 409 Conflict.
+        g.MapPost("/sources/{sourceId:guid}/recognize", async (Guid sourceId, bool? confirm, IDataSetService svc, CancellationToken ct) =>
         {
             try
             {
-                var result = await svc.RecognizePdfSourceAsync(sourceId, ct);
+                var result = await svc.RecognizePdfSourceAsync(sourceId, confirm ?? false, ct);
+                return result is null ? Results.NotFound() : Results.Ok(result);
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+        });
+
+        // ── Ручная корректировка разбиения PDF (источник «Документы» ГОСТ-профиля) ─────
+
+        g.MapGet("/sources/{sourceId:guid}/pages", async (Guid sourceId, IDataSetService svc, CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await svc.GetPagesAsync(sourceId, ct);
+                return result is null ? Results.NotFound() : Results.Ok(result);
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+
+        g.MapGet("/sources/{sourceId:guid}/pages/{pageIndex:int}/thumbnail", async (Guid sourceId, int pageIndex, IDataSetService svc, CancellationToken ct) =>
+        {
+            try
+            {
+                var png = await svc.GetPageThumbnailAsync(sourceId, pageIndex, ct);
+                return png is null ? Results.NotFound() : Results.File(png, "image/png");
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+
+        g.MapPut("/sources/{sourceId:guid}/grouping", async (Guid sourceId, ApplyGroupingRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            try
+            {
+                var input = new ApplyGroupingInput(req.Documents.Select(d => new GostGroupingDocumentDto(d.Code, d.Name, d.PageIndices)).ToList());
+                var result = await svc.ApplyGroupingAsync(sourceId, input, ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
             catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
@@ -215,4 +251,6 @@ public static class DataSetEndpoints
         object? RowFilter, object? ComputedColumns, object? SortSpec);
     private record ExpressionPreviewRequest(string RowSelector, string? Expr);
     private record PdfSourceRequest(string Name, string[]? Tags, string? Profile);
+    private record ApplyGroupingRequest(ApplyGroupingDocumentRequest[] Documents);
+    private record ApplyGroupingDocumentRequest(string Code, string? Name, int[] PageIndices);
 }

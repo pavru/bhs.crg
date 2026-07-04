@@ -52,6 +52,16 @@ public record ExpressionPreviewDto(int MatchCount, IReadOnlyList<string> Samples
 /// <summary>Original blob stream + metadata for file download.</summary>
 public record FileDownloadDto(Stream Stream, string ContentType, string FileName);
 
+/// <summary>
+/// Текущая группировка страниц источника «Документы» ГОСТ-профиля — для ручного редактора
+/// разбиения. PageCount — общее число страниц исходного PDF (в т.ч. не вошедших ни в одну
+/// группу — страница может остаться без документа, это допустимо, см. GetPagesAsync).
+/// </summary>
+public record GostGroupingDto(IReadOnlyList<GostGroupingDocumentDto> Documents, bool ManuallyEdited, int PageCount);
+
+/// <summary>Одна группа страниц (документ) — Code/Name как в реестре, PageIndices — 0-based индексы исходного PDF.</summary>
+public record GostGroupingDocumentDto(string Code, string? Name, IReadOnlyList<int> PageIndices);
+
 // ── Input DTOs (assembled by the HTTP layer, free of ASP.NET types) ─────────────
 
 public record UploadFileInput(
@@ -75,6 +85,13 @@ public record UpdateSourceInput(string Name, string SheetOrPath, IReadOnlyList<C
 /// шапка+товары, см. PdfProfiles в Infrastructure).
 /// </summary>
 public record CreatePdfSourceInput(string Name, IReadOnlyList<string>? Tags, string? Profile = null);
+
+/// <summary>
+/// Новая группировка страниц источника «Документы» — целиком заменяет предыдущую (ручную или
+/// автоматическую). Пересекающиеся PageIndices между группами — ошибка (400); страница может не
+/// входить ни в одну группу (тогда выпадает из итогового реестра — допустимо, см. GostGroupingData).
+/// </summary>
+public record ApplyGroupingInput(IReadOnlyList<GostGroupingDocumentDto> Documents);
 
 /// <summary>Лёгкая правка обработки источника — не трогает файл/кэш схемы (в отличие от Update/CreateSourceInput).</summary>
 public record SetSourceProcessingInput(object? RowFilter, object? ComputedColumns, object? SortSpec);

@@ -16,6 +16,10 @@ public static class PdfRasterizer
     /// <summary>Предел числа страниц, чтобы не перегрузить модель (сертификаты обычно 1–3 стр.).</summary>
     public const int MaxPages = 10;
 
+    /// <summary>DPI миниатюр для ручного редактора разбиения — низкое, страница нужна только
+    /// чтобы визуально узнать документ, не для OCR.</summary>
+    public const int ThumbnailDpi = 96;
+
     /// <summary>Конвертирует PDF в список PNG-страниц (по порядку). Операция CPU-bound.</summary>
     public static IReadOnlyList<byte[]> ToPngPages(byte[] pdf, int dpi = DefaultDpi, int maxPages = MaxPages)
     {
@@ -29,5 +33,15 @@ public static class PdfRasterizer
                 pages.Add(data.ToArray());
         }
         return pages;
+    }
+
+    /// <summary>Рендерит ОДНУ страницу PDF в PNG — для миниатюр в редакторе разбиения
+    /// (дешевле, чем растрировать все страницы через ToPngPages, если нужна всего одна).</summary>
+    public static byte[] ToPngPage(byte[] pdf, int pageIndex, int dpi = ThumbnailDpi)
+    {
+        var options = new RenderOptions(Dpi: dpi);
+        using var bitmap = Conversion.ToImage(pdf, new Index(pageIndex), options: options);
+        using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
     }
 }

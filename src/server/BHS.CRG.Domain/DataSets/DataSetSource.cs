@@ -38,6 +38,14 @@ public class DataSetSource : Entity
     public string? ComputedColumns { get; private set; }
     public string? SortSpec { get; private set; }
 
+    /// <summary>
+    /// JSON-объект группировки страниц по документам для ГОСТ-профиля "Документы"
+    /// ({"documents":[{"code","name","pageIndices"}],"manuallyEdited"}) — задел под ручную
+    /// корректировку разбиения PDF после автораспознавания. Null — источник не из ГОСТ-профиля
+    /// или ещё не распознавался. См. GostGroupingData/DataSetPdfRecognitionService.
+    /// </summary>
+    public string? GostGrouping { get; private set; }
+
     public DataSetFile File { get; private set; } = null!;
     private readonly List<DataSetBinding> _bindings = [];
     public IReadOnlyList<DataSetBinding> Bindings => _bindings.AsReadOnly();
@@ -87,6 +95,14 @@ public class DataSetSource : Entity
         RowFilter = rowFilter;
         ComputedColumns = computedColumns;
         SortSpec = sortSpec;
+        TouchUpdatedAt();
+    }
+
+    /// <summary>Группировка страниц ГОСТ-профиля — задаётся автораспознаванием (manuallyEdited=false)
+    /// или ручной правкой пользователя (manuallyEdited=true).</summary>
+    public void SetGostGrouping(string? gostGroupingJson)
+    {
+        GostGrouping = gostGroupingJson;
         TouchUpdatedAt();
     }
 }

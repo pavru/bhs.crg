@@ -17,10 +17,10 @@ public class DataSetService(
     AppDbContext db,
     IBlobStorage blob,
     DataSetParserFactory parserFactory,
-    IDocumentRecognizer recognizer,
     ILogger<DataSetService> logger,
     DataSetProcessingTemplateService processingTemplates,
-    DataSetBindingTemplateService bindingTemplates
+    DataSetBindingTemplateService bindingTemplates,
+    DataSetPdfRecognitionService pdfRecognition
 ) : IDataSetService
 {
     private record CachedColumnInfo(string Name, string[] SampleValues);
@@ -326,277 +326,22 @@ public class DataSetService(
         return DataSetDtoMapper.MapSource(copy);
     }
 
-    // Extraction для PDF не переиспользуемый XPath/JSONPath, а фиксированный профиль
-    // (распознавание основной надписи каждой страницы) — SheetOrPath обязателен в домене,
-    // но для PDF не несёт смысла локатора, только метка формата.
-    private const string PdfRowSelector = "titleblock-registry";
+    // ── PDF-распознавание ─── делегировано DataSetPdfRecognitionService ───────────
 
-    // Комплект чертежей может быть большим (десятки листов) — выше, чем MaxPages=10 у
-    // PdfRasterizer (тот подобран под сертификаты/декларации, не трогаем).
-    private const int PdfRecognizeMaxPages = 100;
+    public Task<DataSetSourceDto> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct) =>
+        pdfRecognition.CreatePdfSourceAsync(fileId, input, ct);
 
-    public async Task<DataSetSourceDto> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct)
-    {
-        var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)
-            ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
-        if (file.Format != DataSetFormat.Pdf)
-            throw new ArgumentException("Файл не в формате PDF.");
+    public Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, bool confirm, CancellationToken ct) =>
+        pdfRecognition.RecognizePdfSourceAsync(sourceId, confirm, ct);
 
-        var name = input.Name.Trim();
+    public Task<GostGroupingDto?> GetPagesAsync(Guid sourceId, CancellationToken ct) =>
+        pdfRecognition.GetPagesAsync(sourceId, ct);
 
-        if (input.Profile == PdfProfiles.Invoice)
-        {
-            // Профиль "Счёт на оплату" — один документ, шапка + вложенная таблица товаров.
-            // Оба хранятся как отдельные DataSetSource под одним файлом (тот же паттерн, что и
-            // у JSON/XML — один файл может иметь несколько источников), связаны маркерами в
-            // SheetOrPath, не настоящей связью в БД — распознаётся и обновляется одним запросом.
-            var header = file.AddSource(name, PdfProfiles.InvoiceHeaderMarker, "[]", 0);
-            var lineItems = file.AddSource($"{name} — Товары", PdfProfiles.InvoiceLineItemsMarker, "[]", 0);
-            db.DataSetSources.Add(header);
-            db.DataSetSources.Add(lineItems);
-            await db.SaveChangesAsync(ct);
-            return DataSetDtoMapper.MapSource(header);
-        }
+    public Task<byte[]?> GetPageThumbnailAsync(Guid sourceId, int pageIndex, CancellationToken ct) =>
+        pdfRecognition.GetPageThumbnailAsync(sourceId, pageIndex, ct);
 
-        // Профиль "Основная надпись (ГОСТ Р 21.101-2020)" — тройка источников: обложка/титульный
-        // лист/документы (последний — сгруппированный по Шифру реестр, с разрезанием исходного
-        // PDF на под-файлы по группам, см. RecognizeGostSetAsync и GostPageGrouper). Тэги —
-        // структурные метки (dataset.hasCover и т.п.), применимы ко всем трём.
-        var tagsJson = input.Tags is { Count: > 0 } ? JsonSerializer.Serialize(input.Tags) : null;
-        var cover = file.AddSource($"{name} — Обложка", PdfProfiles.GostCoverMarker, "[]", 0);
-        var titlePage = file.AddSource($"{name} — Титульный лист", PdfProfiles.GostTitlePageMarker, "[]", 0);
-        var documents = file.AddSource($"{name} — Документы", PdfProfiles.GostDocumentsMarker, "[]", 0);
-        cover.SetTags(tagsJson);
-        titlePage.SetTags(tagsJson);
-        documents.SetTags(tagsJson);
-        db.DataSetSources.Add(cover);
-        db.DataSetSources.Add(titlePage);
-        db.DataSetSources.Add(documents);
-        await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(documents);
-    }
-
-    public async Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, CancellationToken ct)
-    {
-        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source == null) return null;
-        if (source.File.Format != DataSetFormat.Pdf)
-            throw new ArgumentException("Источник не относится к PDF-файлу.");
-
-        if (source.SheetOrPath is PdfProfiles.InvoiceHeaderMarker or PdfProfiles.InvoiceLineItemsMarker)
-            return await RecognizeInvoiceAsync(source, sourceId, ct);
-
-        if (source.SheetOrPath is PdfProfiles.GostCoverMarker or PdfProfiles.GostTitlePageMarker or PdfProfiles.GostDocumentsMarker)
-            return await RecognizeGostSetAsync(source, sourceId, ct);
-
-        // Дальше — legacy-путь для источников, созданных до тройки обложка/титул/документы
-        // (маркер PdfRowSelector = "titleblock-registry") — постраничный плоский реестр без
-        // группировки/разрезания, поведение не меняем.
-        await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
-        using var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct);
-        var bytes = ms.ToArray();
-
-        IReadOnlyList<byte[]> pages;
-        try
-        {
-            pages = await Task.Run(
-                () => PdfRasterizer.ToPngPages(bytes, PdfRasterizer.DefaultDpi, PdfRecognizeMaxPages), ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            throw new ArgumentException($"Не удалось подготовить страницы PDF: {ex.Message}");
-        }
-
-        var fields = GostTitleBlockFields.All;
-        var rows = new List<IReadOnlyDictionary<string, string?>>();
-        for (var i = 0; i < pages.Count; i++)
-        {
-            try
-            {
-                var result = await recognizer.RecognizeAsync(
-                    pages[i], "image/png", fields, RecognitionShared.BuildTitleBlockPrompt, ct: ct);
-                rows.Add(result.Values);
-            }
-            catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
-            {
-                // Первая же страница — вероятно, движки не настроены вообще: нет смысла повторять
-                // ту же ошибку ещё N-1 раз, сообщаем сразу. Дальше по комплекту — считаем
-                // страницо-специфичной проблемой (не роняем весь реестр, см. фикс невычислимых
-                // колонок XPath/JSONPath той же сессии), строка остаётся пустой.
-                if (i == 0)
-                    throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
-                logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, sourceId);
-                rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
-            }
-        }
-
-        var columns = fields.Select(f => new DataSetColumnInfo(f.Path,
-            rows.Take(3).Select(r => r.TryGetValue(f.Path, out var v) ? v ?? "" : "").ToArray()
-        )).ToArray();
-
-        source.UpdateCache(DataSetDtoMapper.SerializeSchema(columns), rows.Count, JsonSerializer.Serialize(rows));
-        await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(source);
-    }
-
-    /// <summary>
-    /// Профиль "Счёт на оплату" — один вызов распознавания на весь многостраничный PDF
-    /// (Gemini/Anthropic принимают application/pdf целиком без растеризации; Ollama растеризует
-    /// сама внутри движка) вместо цикла по страницам. Результат расщепляется на пару источников:
-    /// шапка (1 строка) и товары (N строк) — обе обновляются одним сохранением.
-    /// </summary>
-    private async Task<DataSetSourceDto?> RecognizeInvoiceAsync(DataSetSource source, Guid requestedSourceId, CancellationToken ct)
-    {
-        var header = source.SheetOrPath == PdfProfiles.InvoiceHeaderMarker
-            ? source
-            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.InvoiceHeaderMarker, ct);
-        var lineItems = source.SheetOrPath == PdfProfiles.InvoiceLineItemsMarker
-            ? source
-            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.InvoiceLineItemsMarker, ct);
-        if (header is null || lineItems is null)
-            throw new ArgumentException("Не найдена пара источников «Счёт на оплату» (шапка/товары).");
-
-        await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
-        using var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct);
-        var bytes = ms.ToArray();
-
-        RecognitionResult result;
-        try
-        {
-            result = await recognizer.RecognizeAsync(bytes, "application/pdf", InvoiceFields.All, RecognitionShared.BuildInvoicePrompt, ct: ct);
-        }
-        catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
-        {
-            throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
-        }
-
-        var headerRow = InvoiceRecognitionSplitter.SplitHeader(result.Values);
-        var headerColumns = InvoiceFields.HeaderFields
-            .Select(f => new DataSetColumnInfo(f.Path, [headerRow.GetValueOrDefault(f.Path) ?? ""]))
-            .ToArray();
-        header.UpdateCache(DataSetDtoMapper.SerializeSchema(headerColumns), 1, JsonSerializer.Serialize(new[] { headerRow }));
-
-        // Сломанный/не-JSON ответ модели по товарам — InvoiceRecognitionSplitter молча вернёт []
-        // (шапка уже распозналась независимо, та же философия, что и у постраничного профиля).
-        var lineItemRows = InvoiceRecognitionSplitter.SplitLineItems(result.Values);
-        var lineItemColumns = InvoiceFields.LineItemColumns
-            .Select(f => new DataSetColumnInfo(f.Path,
-                lineItemRows.Take(3).Select(r => r.GetValueOrDefault(f.Path) ?? "").ToArray()))
-            .ToArray();
-        lineItems.UpdateCache(DataSetDtoMapper.SerializeSchema(lineItemColumns), lineItemRows.Count, JsonSerializer.Serialize(lineItemRows));
-
-        await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(requestedSourceId == header.Id ? header : lineItems);
-    }
-
-    /// <summary>
-    /// Профиль "gost-titleblock" (тройка) — тот же постраничный цикл распознавания, что и у
-    /// legacy-реестра, но с классификатором ТипСтраницы (см. GostTitleBlockFields.AllWithPageType)
-    /// и последующей маршрутизацией/группировкой (GostPageGrouper): обложка/титульный лист как
-    /// есть, документы — сгруппированы по Шифру (не по НаименованиюДокумента — по ГОСТ Р
-    /// 21.101-2020 форма 6, последующие листы и чертежей, и текстовых документов, обычно не
-    /// повторяет наименование, но Шифр остаётся неизменным на всех листах документа) с
-    /// разрезанием исходного PDF на под-файлы (PdfPageSplitter) для каждой группы.
-    /// </summary>
-    private async Task<DataSetSourceDto?> RecognizeGostSetAsync(DataSetSource source, Guid requestedSourceId, CancellationToken ct)
-    {
-        var cover = source.SheetOrPath == PdfProfiles.GostCoverMarker
-            ? source
-            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostCoverMarker, ct);
-        var titlePage = source.SheetOrPath == PdfProfiles.GostTitlePageMarker
-            ? source
-            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostTitlePageMarker, ct);
-        var documents = source.SheetOrPath == PdfProfiles.GostDocumentsMarker
-            ? source
-            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostDocumentsMarker, ct);
-        if (cover is null || titlePage is null || documents is null)
-            throw new ArgumentException("Не найдена тройка источников «обложка/титульный лист/документы».");
-
-        await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
-        using var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct);
-        var bytes = ms.ToArray();
-
-        IReadOnlyList<byte[]> pngPages;
-        try
-        {
-            pngPages = await Task.Run(
-                () => PdfRasterizer.ToPngPages(bytes, PdfRasterizer.DefaultDpi, PdfRecognizeMaxPages), ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            throw new ArgumentException($"Не удалось подготовить страницы PDF: {ex.Message}");
-        }
-
-        var fields = GostTitleBlockFields.AllWithPageType;
-        var rows = new List<IReadOnlyDictionary<string, string?>>();
-        for (var i = 0; i < pngPages.Count; i++)
-        {
-            try
-            {
-                var result = await recognizer.RecognizeAsync(
-                    pngPages[i], "image/png", fields, RecognitionShared.BuildTitleBlockPrompt, ct: ct);
-                rows.Add(result.Values);
-            }
-            catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
-            {
-                if (i == 0)
-                    throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
-                logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, requestedSourceId);
-                rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
-            }
-        }
-
-        var grouping = GostPageGrouper.Group(rows);
-        var baseColumnPaths = GostTitleBlockFields.All.Select(f => f.Path).ToArray();
-
-        static DataSetColumnInfo[] BuildColumns(IReadOnlyList<string> columnPaths, IReadOnlyList<IReadOnlyDictionary<string, string?>> data) =>
-            columnPaths.Select(p => new DataSetColumnInfo(p,
-                data.Take(3).Select(r => r.TryGetValue(p, out var v) ? v ?? "" : "").ToArray())).ToArray();
-
-        cover.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(baseColumnPaths, grouping.Cover)), grouping.Cover.Count, JsonSerializer.Serialize(grouping.Cover));
-        titlePage.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(baseColumnPaths, grouping.TitlePage)), grouping.TitlePage.Count, JsonSerializer.Serialize(grouping.TitlePage));
-
-        var documentRows = new List<Dictionary<string, string?>>();
-        foreach (var group in grouping.Documents)
-        {
-            var row = new Dictionary<string, string?>(group.Fields);
-            // Имя файла — по названию документа, если распознано (обычно только на первом/титульном
-            // листе — форма 5/3), иначе по шифру (group.Code — присутствует и на форме 6, см. GostPageGrouper).
-            var displayName = row.GetValueOrDefault("НаименованиеДокумента");
-            var fileLabel = string.IsNullOrWhiteSpace(displayName) ? group.Code : displayName;
-            try
-            {
-                var splitBytes = PdfPageSplitter.ExtractPages(bytes, group.PageIndices);
-                var fileName = $"{SanitizeFileName(fileLabel)}.pdf";
-                using var splitStream = new MemoryStream(splitBytes);
-                row["ФайлПуть"] = await blob.UploadAsync(fileName, splitStream, "application/pdf", ct);
-                row["РазмерБайт"] = splitBytes.Length.ToString();
-            }
-            catch (Exception ex)
-            {
-                // Не удалось разрезать конкретную группу — строка реестра остаётся без файла,
-                // остальные группы и вся операция не падают (та же философия отказоустойчивости).
-                logger.LogWarning(ex, "Не удалось разрезать PDF для документа «{DocumentLabel}» источника {SourceId}", fileLabel, documents.Id);
-            }
-            documentRows.Add(row);
-        }
-
-        var documentsColumnPaths = baseColumnPaths.Concat(["КоличествоЛистов", "ФайлПуть", "РазмерБайт"]).ToArray();
-        documents.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(documentsColumnPaths, documentRows)), documentRows.Count, JsonSerializer.Serialize(documentRows));
-
-        await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(requestedSourceId == cover.Id ? cover : requestedSourceId == titlePage.Id ? titlePage : documents);
-    }
-
-    private static string SanitizeFileName(string name)
-    {
-        var invalid = Path.GetInvalidFileNameChars();
-        var sanitized = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
-        return string.IsNullOrWhiteSpace(sanitized) ? "документ" : sanitized;
-    }
+    public Task<GostGroupingDto?> ApplyGroupingAsync(Guid sourceId, ApplyGroupingInput input, CancellationToken ct) =>
+        pdfRecognition.ApplyGroupingAsync(sourceId, input, ct);
 
     // Скачивает файл и парсит указанное определение — используется для валидации и первичного
     // расчёта кэша при ручном создании/редактировании источника (в первую очередь для XML).

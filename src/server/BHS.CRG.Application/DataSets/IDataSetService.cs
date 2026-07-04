@@ -38,9 +38,30 @@ public interface IDataSetService
     /// Распознаёт основную надпись каждой страницы PDF (по одной странице за вызов, через
     /// существующий IDocumentRecognizer) и кэширует результат на источнике (DataSetSource.CachedData).
     /// Дорогая/небыстрая операция — запускается явным действием пользователя, не при каждом
-    /// preview/generation вызове.
+    /// preview/generation вызове. Для ГОСТ-профиля "Документы": если на источнике уже есть
+    /// ручная правка группировки (GostGrouping.ManuallyEdited=true) и <paramref name="confirm"/>
+    /// не передан — бросает <see cref="InvalidOperationException"/> (эндпоинт мапит в 409), чтобы
+    /// не затереть ручные правки без явного согласия пользователя.
     /// </summary>
-    Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, CancellationToken ct);
+    Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, bool confirm, CancellationToken ct);
+
+    /// <summary>
+    /// Текущая группировка страниц источника «Документы» ГОСТ-профиля — для ручного редактора
+    /// разбиения (миниатюры + перенос страниц между документами). Null, если источник не найден
+    /// или не относится к ГОСТ-профилю "Документы".
+    /// </summary>
+    Task<GostGroupingDto?> GetPagesAsync(Guid sourceId, CancellationToken ct);
+
+    /// <summary>Миниатюра одной страницы исходного PDF (PNG, низкое DPI — только для узнавания
+    /// документа глазами, не OCR) — рендер на лету через PdfRasterizer, без LLM.</summary>
+    Task<byte[]?> GetPageThumbnailAsync(Guid sourceId, int pageIndex, CancellationToken ct);
+
+    /// <summary>
+    /// Применяет ручную корректировку разбиения — заменяет группировку целиком, физически
+    /// разрезает PDF заново по новым группам, обновляет реестр (CachedData) и помечает
+    /// GostGrouping.ManuallyEdited=true. Осиротевшие blob'ы прежних под-PDF удаляются best-effort.
+    /// </summary>
+    Task<GostGroupingDto?> ApplyGroupingAsync(Guid sourceId, ApplyGroupingInput input, CancellationToken ct);
 
     /// <summary>Пути XML-записей внутри ZIP-файла — для выбора при ручном создании источника.</summary>
     Task<IReadOnlyList<string>> ListZipXmlEntriesAsync(Guid fileId, CancellationToken ct);
