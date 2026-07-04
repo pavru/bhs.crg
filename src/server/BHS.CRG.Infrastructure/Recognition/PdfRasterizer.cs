@@ -1,3 +1,4 @@
+using System.Drawing;
 using PDFtoImage;
 using SkiaSharp;
 
@@ -40,6 +41,21 @@ public static class PdfRasterizer
     public static byte[] ToPngPage(byte[] pdf, int pageIndex, int dpi = ThumbnailDpi)
     {
         var options = new RenderOptions(Dpi: dpi);
+        using var bitmap = Conversion.ToImage(pdf, new Index(pageIndex), options: options);
+        using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
+    }
+
+    /// <summary>
+    /// Рендерит ОБРЕЗАННЫЙ регион одной страницы PDF в PNG (DpiRelativeToBounds=true — <paramref
+    /// name="dpi"/> считается относительно региона, не всей страницы) — для второго прохода
+    /// распознавания штампа в высоком эффективном разрешении, см. GostTitleBlockRegion.
+    /// Координаты <paramref name="bounds"/> — визуальные (с учётом поворота страницы), как
+    /// PdfPig.Page.Width/Height, не сырой MediaBox.
+    /// </summary>
+    public static byte[] ToPngRegion(byte[] pdf, int pageIndex, RectangleF bounds, int dpi = DefaultDpi)
+    {
+        var options = new RenderOptions(Dpi: dpi, Bounds: bounds, DpiRelativeToBounds: true);
         using var bitmap = Conversion.ToImage(pdf, new Index(pageIndex), options: options);
         using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
         return data.ToArray();

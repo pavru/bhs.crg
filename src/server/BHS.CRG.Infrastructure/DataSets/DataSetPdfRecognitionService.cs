@@ -237,15 +237,51 @@ public class DataSetPdfRecognitionService(
             throw new ArgumentException($"Не удалось подготовить страницы PDF: {ex.Message}");
         }
 
+        // Постраничная проверка текстового слоя (бесплатно, PdfPig) — гейт для второго прохода
+        // распознавания: страницы форма 3 (чертёж) обычно НЕ имеют текстового слоя (CAD-экспорт
+        // рисует штамп как графику) и распознаются заметно менее надёжно, чем форма 5/6 с
+        // текстовым слоем — там, где текста нет, точность реально страдает, добавляем второй
+        // проход на обрезанном штампе в высоком эффективном разрешении. Там, где текст есть,
+        // распознавание уже надёжно — второй проход не даёт выигрыша, не делаем его (не удваиваем
+        // стоимость без оснований). См. память проекта project_pdf_gost_split_documents.md.
+        // По умолчанию — "текстовый слой есть" (второй проход НЕ включается), пока PdfPig не
+        // скажет обратное для конкретной страницы; если разбор целиком не удался (catch ниже),
+        // весь массив остаётся в этом безопасном состоянии — второй проход отключён везде.
+        var pageHasTextLayer = Enumerable.Repeat(true, pngPages.Count).ToArray();
+        var pageSizes = new System.Drawing.SizeF[pngPages.Count];
+        try
+        {
+            using var pdfDoc = PdfDocument.Open(bytes);
+            foreach (var pdfPage in pdfDoc.GetPages())
+            {
+                var i = pdfPage.Number - 1;
+                if (i < 0 || i >= pageHasTextLayer.Length) continue;
+                pageHasTextLayer[i] = pdfPage.Letters.Count > 0;
+                // PdfPig.Width/Height уже учитывают поворот (/Rotate) — та же "визуальная"
+                // система координат, что ожидает PDFtoImage.RenderOptions.Bounds (подтверждено
+                // экспериментально, см. GostTitleBlockRegion).
+                pageSizes[i] = new System.Drawing.SizeF((float)pdfPage.Width, (float)pdfPage.Height);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Не удалось разобрать PDF через PdfPig — считаем, что текстовый слой есть везде
+            // (второй проход не включаем нигде); растеризация через PdfRasterizer уже сработала
+            // выше, так что это НЕ повод падать всей операции.
+            logger.LogWarning(ex, "Не удалось проверить текстовый слой PDF источника {SourceId} — второй проход штампа отключён", requestedSourceId);
+        }
+
         var fields = GostTitleBlockFields.AllWithPageType;
+        var stampFields = GostTitleBlockFields.All;
         var rows = new List<IReadOnlyDictionary<string, string?>>();
         for (var i = 0; i < pngPages.Count; i++)
         {
+            Dictionary<string, string?> values;
             try
             {
                 var result = await recognizer.RecognizeAsync(
                     pngPages[i], "image/png", fields, RecognitionShared.BuildTitleBlockPrompt, ct: ct);
-                rows.Add(result.Values);
+                values = new Dictionary<string, string?>(result.Values);
             }
             catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
             {
@@ -253,7 +289,39 @@ public class DataSetPdfRecognitionService(
                     throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
                 logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, requestedSourceId);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
+                continue;
             }
+
+            if (!pageHasTextLayer[i])
+            {
+                try
+                {
+                    var pageSize = pageSizes[i];
+                    var region = GostTitleBlockRegion.ComputeBottomRightRegion(pageSize.Width, pageSize.Height);
+                    var cropPng = await Task.Run(() => PdfRasterizer.ToPngRegion(bytes, i, region), ct);
+                    var cropResult = await recognizer.RecognizeAsync(
+                        cropPng, "image/png", stampFields, RecognitionShared.BuildTitleBlockPrompt, ct: ct);
+
+                    // Детерминированное слияние: если обрезанный проход дал БОЛЬШЕ заполненных
+                    // полей — используем его значения (ТипСтраницы всегда из первого прохода —
+                    // штамп сам по себе не даёт контекста для классификации обложка/титул/документ).
+                    var filledInFull = fields.Count(f => f.Path != GostTitleBlockFields.PageTypePath && !string.IsNullOrWhiteSpace(values.GetValueOrDefault(f.Path)));
+                    var filledInCrop = stampFields.Count(f => !string.IsNullOrWhiteSpace(cropResult.Values.GetValueOrDefault(f.Path)));
+                    if (filledInCrop > filledInFull)
+                    {
+                        var pageType = values.GetValueOrDefault(GostTitleBlockFields.PageTypePath);
+                        values = new Dictionary<string, string?>(cropResult.Values) { [GostTitleBlockFields.PageTypePath] = pageType };
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Второй проход не обязателен — при любой ошибке (растеризация региона,
+                    // недоступность распознавателя) просто остаёмся на результате первого прохода.
+                    logger.LogWarning(ex, "Второй проход (штамп в высоком разрешении) для страницы {Page} источника {SourceId} не удался — используется результат обычного распознавания", i + 1, requestedSourceId);
+                }
+            }
+
+            rows.Add(values);
         }
 
         var grouping = GostPageGrouper.Group(rows);
