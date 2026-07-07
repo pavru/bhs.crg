@@ -115,4 +115,82 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var deleted = await svc.DeleteTemplateAsync(otherDocTypeId, created.Id, default);
         Assert.False(deleted);
     }
+
+    // ── Files / Sources / Bindings (EF-tracking-чувствительные пути) ────────────
+
+    private static readonly byte[] CsvBytes = System.Text.Encoding.UTF8.GetBytes("A,B\n1,2\n3,4\n");
+
+    private async Task<DataSetFileDto> UploadCsvAsync(IServiceScope scope) =>
+        await Svc(scope).UploadFileAsync(
+            new UploadFileInput(CsvBytes, "test.csv", "text/csv", "Тест", "System", null), default);
+
+    [Fact]
+    public async Task UploadCsv_DetectsSourceWithColumns()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var file = await UploadCsvAsync(scope);
+
+        Assert.Single(file.Sources);
+        var sources = await Svc(scope).ListSourcesAsync(file.Id, default);
+        Assert.Single(sources);
+        // Колонки — в кэше схемы (JSON [{name,sampleValues}]); имена A/B встречаются как значения "name".
+        Assert.Contains("\"A\"", sources[0].CachedSchema);
+        Assert.Contains("\"B\"", sources[0].CachedSchema);
+    }
+
+    [Fact]
+    public async Task DuplicateSource_PersistsAsNewSource()
+    {
+        // Прямая проверка хрупкого EF add-tracking (копия — новый дочерний источник на отслеживаемом файле).
+        using var scope = fixture.Services.CreateScope();
+        var file = await UploadCsvAsync(scope);
+        var srcId = file.Sources[0].Id;
+
+        var copy = await Svc(scope).DuplicateSourceAsync(srcId, default);
+        Assert.NotNull(copy);
+        Assert.NotEqual(srcId, copy!.Id);
+
+        using var scope2 = fixture.Services.CreateScope();
+        var sources = await Svc(scope2).ListSourcesAsync(file.Id, default); // перечитываем свежим контекстом
+        Assert.Equal(2, sources.Count);
+    }
+
+    [Fact]
+    public async Task DeleteSource_BlockedWhenBindingExists()
+    {
+        var typeId = await CreateDocumentTypeAsync();
+        Guid srcId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var file = await UploadCsvAsync(scope);
+            srcId = file.Sources[0].Id;
+            var entry = await scope.ServiceProvider.GetRequiredService<MediatR.IMediator>().Send(
+                new CreateCommonDataEntryCommand("Запись", typeId, JsonDocument.Parse("{}"),
+                    BHS.CRG.Domain.Catalog.CatalogScope.System, null));
+            await Svc(scope).CreateBindingAsync(
+                new CreateBindingInput(null, entry.Id, srcId, null, new() { ["Поле"] = "A" }), default);
+        }
+
+        using var scope2 = fixture.Services.CreateScope();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Svc(scope2).DeleteSourceAsync(srcId, default));
+    }
+
+    [Fact]
+    public async Task Binding_CreateAndList_RoundTrips()
+    {
+        var typeId = await CreateDocumentTypeAsync();
+        using var scope = fixture.Services.CreateScope();
+        var file = await UploadCsvAsync(scope);
+        var entry = await scope.ServiceProvider.GetRequiredService<MediatR.IMediator>().Send(
+            new CreateCommonDataEntryCommand("Запись", typeId, JsonDocument.Parse("{}"),
+                BHS.CRG.Domain.Catalog.CatalogScope.System, null));
+
+        var created = await Svc(scope).CreateBindingAsync(
+            new CreateBindingInput(null, entry.Id, file.Sources[0].Id, null, new() { ["Поле"] = "A" }), default);
+        Assert.NotNull(created);
+
+        var list = await Svc(scope).ListBindingsAsync(null, entry.Id, default);
+        Assert.Single(list);
+        Assert.Equal(file.Sources[0].Id, list[0].SourceId);
+    }
 }
