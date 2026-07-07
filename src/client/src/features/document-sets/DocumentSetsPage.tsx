@@ -114,7 +114,7 @@ function SetDetail() {
       <nav className="flex items-center gap-1 text-sm text-fg4 mb-5">
         <Link to="/document-sets" className="hover:text-fg2 transition-colors">Стройки</Link>
         <ChevronRight size={14} />
-        <Link to={`/document-sets/${constructionId}`} className="hover:text-fg2 transition-colors">Разделы и комплекты</Link>
+        <Link to={`/document-sets/${constructionId}`} className="hover:text-fg2 transition-colors">{construction?.name ?? 'Разделы и комплекты'}</Link>
         {sectionName && (
           <>
             <ChevronRight size={14} />
@@ -540,7 +540,9 @@ function ConstructionDetail() {
         </div>
       )}
 
-      <div className="mt-5 space-y-4">
+      {/* Блок уровня «Стройка» — визуально обособлен от списка разделов (иначе читается как ещё один раздел). */}
+      <div className="mt-6 pt-5 border-t border-stroke space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-fg4">Общие для стройки</h2>
         <ScopedCatalogPanel scope="Construction" scopeId={constructionId!} allDocTypes={docTypes} />
         <ScopedDataSetsPanel scope="Construction" scopeId={constructionId!} />
       </div>
