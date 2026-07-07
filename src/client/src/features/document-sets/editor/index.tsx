@@ -355,6 +355,9 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
   }
 
   const pdfFiles = instance.generatedFiles.filter(f => f.format === 'Pdf');
+  // Идёт генерация (файлы перезаписываются) — блокируем открытие/скачивание, чтобы не попасть на
+  // заменяемую/устаревшую версию (ссылка на «старый» файл → пустая страница до обновления).
+  const busy = mutation.isPending || instance.status === 'Generating';
 
   return (
     <div className="space-y-5">
@@ -454,12 +457,14 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
               return (
                 <div key={f.id} className="flex items-center gap-2">
                   <span className="text-xs text-fg2 flex-1 min-w-0 truncate" title={tpl?.name}>{tpl ? tpl.name : 'PDF'}</span>
-                  <button onClick={() => previewGeneratedFile(instance.id, f.templateId)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-stroke rounded-md hover:bg-base">
+                  {/* Во время генерации файл перезаписывается — блокируем открытие/скачивание, чтобы
+                      не открыть неактуальную/заменяемую версию (ссылка ведёт на старое состояние). */}
+                  <button onClick={() => previewGeneratedFile(instance.id, f.templateId)} disabled={busy}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-stroke rounded-md hover:bg-base disabled:opacity-40 disabled:pointer-events-none">
                     <Eye size={13} className="text-brand" /> Открыть
                   </button>
-                  <button onClick={() => downloadGeneratedFile(instance.id, f.templateId)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-stroke rounded-md hover:bg-base">
+                  <button onClick={() => downloadGeneratedFile(instance.id, f.templateId)} disabled={busy}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-stroke rounded-md hover:bg-base disabled:opacity-40 disabled:pointer-events-none">
                     <Download size={13} className="text-brand" /> Скачать
                   </button>
                 </div>

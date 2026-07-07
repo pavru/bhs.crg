@@ -226,6 +226,8 @@ export async function previewGeneratedFile(instanceId: string, templateId?: stri
   // then navigate it to the blob URL once the download completes.
   const newWindow = window.open('', '_blank');
   if (!newWindow) return;
+  // Плейсхолдер, пока грузится (и чтобы при ошибке не осталась «пустая страница»).
+  try { newWindow.document.write('<p style="font:14px sans-serif;color:#555;padding:16px">Загрузка PDF…</p>'); } catch { /* cross-origin — не критично */ }
 
   try {
     const path = templateId ? `/generate/download/${instanceId}/${templateId}/pdf` : `/generate/download/${instanceId}/pdf`;
@@ -236,6 +238,10 @@ export async function previewGeneratedFile(instanceId: string, templateId?: stri
     newWindow.location.href = url;
     // intentionally not revoking — browser needs the URL while the tab is open
   } catch {
-    newWindow.close();
+    // Не оставляем пустую вкладку — показываем понятное сообщение.
+    try {
+      newWindow.document.body.innerHTML =
+        '<p style="font:14px sans-serif;color:#b00;padding:16px">Не удалось открыть файл. Обновите страницу документа и попробуйте снова.</p>';
+    } catch { newWindow.close(); }
   }
 }
