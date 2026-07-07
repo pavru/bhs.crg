@@ -7,6 +7,7 @@ using BHS.CRG.Api.Endpoints.Catalog;
 using BHS.CRG.Api.Endpoints.DataSets;
 using BHS.CRG.Api.Endpoints.Documents;
 using BHS.CRG.Api.Endpoints.Email;
+using BHS.CRG.Api.Endpoints.Subscriptions;
 using BHS.CRG.Api.Endpoints.Generation;
 using BHS.CRG.Api.Endpoints.QualityDocs;
 using BHS.CRG.Api.Endpoints.Templates;
@@ -187,6 +188,7 @@ builder.Services.AddScoped<DataSetSourceService>();
 builder.Services.AddScoped<DataSetBindingService>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Generation.DocumentSetAssemblyService>();
 builder.Services.AddScoped<BHS.CRG.Application.Documents.IDocumentSearch, BHS.CRG.Infrastructure.Documents.DocumentSearchService>();
+builder.Services.AddScoped<BHS.CRG.Application.Subscriptions.ISubscriptionService, BHS.CRG.Infrastructure.Subscriptions.SubscriptionService>();
 builder.Services.AddScoped<IDataSetService, DataSetService>();
 
 // ── MinIO ─────────────────────────────────────────────────────────────────────
@@ -284,6 +286,7 @@ app.MapDataSetBindingTemplateEndpoints();
 app.MapQualityDocEndpoints();
 app.MapSettingsEndpoints();
 app.MapEmailEndpoints();
+app.MapSubscriptionEndpoints();
 app.MapNotificationsEndpoints();
 app.MapJobsEndpoints();
 app.MapTagsEndpoints();

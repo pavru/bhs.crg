@@ -60,3 +60,15 @@ public class DocumentSetOutputConfiguration : IEntityTypeConfiguration<DocumentS
         b.HasIndex(e => e.SetId).IsUnique(); // один собранный файл на комплект — замена при пересборке
     }
 }
+
+public class SubscriptionConfiguration : IEntityTypeConfiguration<Subscription>
+{
+    public void Configure(EntityTypeBuilder<Subscription> b)
+    {
+        b.ToTable("subscriptions");
+        b.HasKey(e => e.Id);
+        b.Property(e => e.Scope).HasConversion<string>().HasMaxLength(16);
+        b.HasIndex(e => new { e.UserId, e.Scope, e.ScopeId }).IsUnique(); // одна подписка на (пользователь, уровень, объект)
+        b.HasIndex(e => new { e.Scope, e.ScopeId });                     // резолв получателей по уровню
+    }
+}

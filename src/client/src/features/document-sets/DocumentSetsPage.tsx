@@ -23,6 +23,7 @@ import { STATUS_LABELS, STATUS_COLORS } from './fields';
 import { InstanceEditor } from './editor';
 import { ScopedCatalogPanel } from './catalog';
 import { ScopedDataSetsPanel } from '@/features/datasets/ScopedDataSetsPanel';
+import { SubscribersPanel } from './SubscribersPanel';
 
 // ─── Set detail (documents) ───────────────────────────────────────────────────
 
@@ -243,6 +244,7 @@ function SetDetail() {
         <div className="mt-6 space-y-4">
           <ScopedCatalogPanel scope="Set" scopeId={setId} allDocTypes={docTypes} setId={setId} />
           <ScopedDataSetsPanel scope="Set" scopeId={setId} />
+          <SubscribersPanel scope="Set" scopeId={setId} />
         </div>
       )}
 
@@ -382,6 +384,7 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
           </button>
           <ScopedCatalogPanel scope="Section" scopeId={section.id} allDocTypes={allDocTypes} />
           <ScopedDataSetsPanel scope="Section" scopeId={section.id} />
+          <SubscribersPanel scope="Section" scopeId={section.id} />
         </div>
       )}
 
@@ -545,6 +548,7 @@ function ConstructionDetail() {
         <h2 className="text-xs font-semibold uppercase tracking-wide text-fg4">Общие для стройки</h2>
         <ScopedCatalogPanel scope="Construction" scopeId={constructionId!} allDocTypes={docTypes} />
         <ScopedDataSetsPanel scope="Construction" scopeId={constructionId!} />
+        <SubscribersPanel scope="Construction" scopeId={constructionId!} />
       </div>
 
       <Modal open={addSectionOpen} onOpenChange={setAddSectionOpen} title="Новый раздел"
