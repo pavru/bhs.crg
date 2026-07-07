@@ -4,6 +4,7 @@ import {
   BookmarkPlus, ScanText, FileDown, Download, AlertTriangle,
 } from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
+import { useSourceRecognizing } from '@/shared/api/jobs';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
   usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizePdfSource,
@@ -95,6 +96,9 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
   const deleteMutation = useDeleteDataSetSource();
   const duplicateMutation = useDuplicateDataSetSource();
   const recognizeMutation = useRecognizePdfSource();
+  // Идёт ли уже распознавание по этому источнику (фоновая задача) — чтобы не запускать дубль:
+  // recognizeMutation.isPending живёт только до 202-ответа, поэтому этого мало.
+  const recognizing = useSourceRecognizing(src.id);
 
   const filterCount = countFilterConditions(src.rowFilter);
   const transformCount = src.computedColumns?.length ?? 0;
@@ -150,7 +154,7 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
       { key: 'export-csv', label: 'CSV', onSelect: () => void exportDataSetSource(src.id, 'csv') },
     ] },
     { key: 'duplicate', label: 'Создать копию', icon: <Copy size={13} />, onSelect: () => duplicateMutation.mutate({ id: src.id }), disabled: duplicateMutation.isPending },
-    ...(isPdf && !passiveLabel ? [{ key: 'recognize', label: 'Распознать', icon: <ScanText size={13} />, onSelect: handleRecognize, disabled: recognizeMutation.isPending }] : []),
+    ...(isPdf && !passiveLabel ? [{ key: 'recognize', label: recognizing ? 'Распознаётся…' : 'Распознать', icon: <ScanText size={13} />, onSelect: handleRecognize, disabled: recognizeMutation.isPending || recognizing }] : []),
     ...(canManageExtraction && !isPdf ? [{ key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => onEdit(src) }] : []),
     ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: <Trash2 size={13} />, danger: true, onSelect: () => { setDeleteError(null); setConfirmDelete(true); } }] : []),
   ];

@@ -154,6 +154,9 @@ public static class DataSetEndpoints
         {
             try
             {
+                // Защита от повторного запуска, пока по этому источнику уже идёт распознавание.
+                if (await jobs.HasActiveForTargetAsync(UserId(user), sourceId, ct))
+                    return Results.Conflict(new { error = "По этому источнику уже идёт распознавание." });
                 // Пред-валидация синхронно (формат, 409 ручной правки). GOST-набор (минуты) → фоновая
                 // задача, 202+jobId сразу (реквест не держится). Счёт/legacy (секунды) → синхронно.
                 var plan = await svc.PlanRecognitionAsync(sourceId, confirm ?? false, ct);
@@ -223,6 +226,8 @@ public static class DataSetEndpoints
         g.MapPost("/sources/{sourceId:guid}/recognize-table", async (
             Guid sourceId, RecognizeTableRequest req, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (await jobs.HasActiveForTargetAsync(UserId(user), sourceId, ct))
+                return Results.Conflict(new { error = "По этому источнику уже идёт распознавание." });
             var payload = JsonSerializer.Serialize(new { firstPageIndex = req.FirstPageIndex });
             var jobId = await jobs.EnqueueAsync(JobKind.RecognizeTable, UserId(user), sourceId, "Распознавание таблицы", payload, ct);
             return Results.Accepted($"/api/jobs/active", new { jobId });
@@ -232,6 +237,8 @@ public static class DataSetEndpoints
         g.MapPost("/sources/{sourceId:guid}/recognize-document", async (
             Guid sourceId, RecognizeTableRequest req, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (await jobs.HasActiveForTargetAsync(UserId(user), sourceId, ct))
+                return Results.Conflict(new { error = "По этому источнику уже идёт распознавание." });
             var payload = JsonSerializer.Serialize(new { firstPageIndex = req.FirstPageIndex });
             var jobId = await jobs.EnqueueAsync(JobKind.RecognizeDocument, UserId(user), sourceId, "Перераспознавание документа", payload, ct);
             return Results.Accepted($"/api/jobs/active", new { jobId });

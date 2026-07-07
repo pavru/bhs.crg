@@ -6,6 +6,7 @@ namespace BHS.CRG.Application.Jobs;
 public record JobDto(
     Guid Id,
     string Kind,
+    Guid TargetId,
     string Status,
     string Title,
     string? Progress,
@@ -23,6 +24,9 @@ public interface IJobService
 
     /// <summary>Активные (Queued/Running) задачи пользователя — источник данных индикатора.</summary>
     Task<IReadOnlyList<JobDto>> GetActiveForUserAsync(Guid userId, CancellationToken ct);
+
+    /// <summary>Есть ли у пользователя активная (Queued/Running) задача по данной цели — защита от дубля.</summary>
+    Task<bool> HasActiveForTargetAsync(Guid userId, Guid targetId, CancellationToken ct);
 
     /// <summary>Отменить свою задачу — ТОЛЬКО пока она в очереди (Queued). true — отменена; false —
     /// нельзя (уже выполняется/завершена/не найдена/чужая). Выполняемые добегают до конца.</summary>
