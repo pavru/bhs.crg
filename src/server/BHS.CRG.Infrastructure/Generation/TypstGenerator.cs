@@ -1,14 +1,17 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
 
 namespace BHS.CRG.Infrastructure.Generation;
 
-public class TypstGenerator : IDocumentGenerator
+public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
 {
     public const string TypeBlocksFileName = "typeblocks.typ";
     public const string UserLibFileName = "userlib.typ";
+    public const string AssetsSubdir = "assets";
 
     private static readonly string TypstPath =
         Environment.GetEnvironmentVariable("TYPST_PATH") ?? "typst";
@@ -27,6 +30,21 @@ public class TypstGenerator : IDocumentGenerator
             // чтобы шаблон мог обращаться к ним через image(it.Поле).
             var dataJson = TypstImageMaterializer.Materialize(request.Context.Data, tmpDir,
                 imageOptions: request.ImageOptions);
+
+            // Поля-вложения ({$type:"file"}) скачиваем из blob-хранилища в assets/ и подставляем путь+
+            // pageCount, чтобы шаблон вставлял их через image(it.Поле.src[, page: n]) — в т.ч. страницы PDF.
+            var node = JsonNode.Parse(dataJson) ?? new JsonObject();
+            var assetsDir = Path.Combine(tmpDir, AssetsSubdir);
+            var attCount = 0;
+            await new TypstFileMaterializer(blob).MaterializeAsync(node, (bytes, ext) =>
+            {
+                Directory.CreateDirectory(assetsDir);
+                var name = $"att_{attCount++}.{ext}";
+                File.WriteAllBytes(Path.Combine(assetsDir, name), bytes);
+                return $"{AssetsSubdir}/{name}";
+            }, ct);
+            dataJson = node.ToJsonString();
+
             await File.WriteAllTextAsync(Path.Combine(tmpDir, "data.json"), dataJson, ct);
 
             await File.WriteAllTextAsync(

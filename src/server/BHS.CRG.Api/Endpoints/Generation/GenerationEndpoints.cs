@@ -80,7 +80,8 @@ public static class GenerationEndpoints
 
         // Отладочный пакет: template.typ + data.json + typeblocks.typ + userlib.typ —
         // ровно те файлы, что генератор кладёт в tmpDir. Распаковал → typst compile template.typ.
-        g.MapGet("/debug-bundle/{instanceId:guid}", async (Guid instanceId, IMediator m, CancellationToken ct) =>
+        g.MapGet("/debug-bundle/{instanceId:guid}", async (Guid instanceId, IMediator m,
+            BHS.CRG.Application.Common.IBlobStorage blob, CancellationToken ct) =>
         {
             var bundle = await m.Send(new GetGenerationDebugBundleQuery(instanceId), ct);
             if (bundle is null) return Results.NotFound();
@@ -105,6 +106,20 @@ public static class GenerationEndpoints
                 };
                 dataJson = BHS.CRG.Infrastructure.Generation.TypstImageMaterializer
                     .MaterializeJson(bundle.DataJson, tmpDir, "assets", prettyOpts, bundle.ImageOptions);
+
+                // Вложения ({$type:"file"}) скачиваем в те же assets/ (att_N) — bundle воспроизводит ВХОД
+                // для внешнего `typst compile`. blob-доступ на сервере есть; так внешний Typst найдёт файлы.
+                var assetsDirDbg = Path.Combine(tmpDir, "assets");
+                var attCountDbg = 0;
+                var dataNode = System.Text.Json.Nodes.JsonNode.Parse(dataJson) ?? new System.Text.Json.Nodes.JsonObject();
+                await new BHS.CRG.Infrastructure.Generation.TypstFileMaterializer(blob).MaterializeAsync(dataNode, (bytes, ext) =>
+                {
+                    Directory.CreateDirectory(assetsDirDbg);
+                    var name = $"att_{attCountDbg++}.{ext}";
+                    File.WriteAllBytes(Path.Combine(assetsDirDbg, name), bytes);
+                    return $"assets/{name}";
+                }, ct);
+                dataJson = dataNode.ToJsonString(prettyOpts);
 
                 using var ms = new MemoryStream();
                 using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
