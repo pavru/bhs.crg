@@ -51,6 +51,16 @@ export function useDeleteUser() {
   });
 }
 
+export interface SendEmailResult { ok: boolean; sent?: number; skipped?: string[]; error?: string; }
+
+/** Отправка сообщения выбранным пользователям (адреса в Bcc). */
+export function useSendEmail() {
+  return useMutation({
+    mutationFn: (dto: { userIds: string[]; subject: string; body: string }) =>
+      apiClient.post<SendEmailResult>('/email/send', dto).then(r => r.data),
+  });
+}
+
 export function useChangeMyPassword() {
   return useMutation({
     mutationFn: (dto: { currentPassword: string; newPassword: string }) =>

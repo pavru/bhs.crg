@@ -17,13 +17,19 @@ public class MailKitEmailSender(IIntegrationSettings settings) : IEmailSender
         var smtp = (await settings.GetEffectiveAsync(ct)).Smtp;
         if (!smtp.Enabled || string.IsNullOrWhiteSpace(smtp.Host) || string.IsNullOrWhiteSpace(smtp.From))
             throw new EmailNotConfiguredException("SMTP не настроен или выключен (Настройки → Почта).");
-        if (message.To.Count == 0)
+        var bcc = message.Bcc ?? [];
+        if (message.To.Count == 0 && bcc.Count == 0)
             throw new ArgumentException("Не указан ни один получатель.");
 
         var mime = new MimeMessage();
         mime.From.Add(new MailboxAddress(smtp.FromName ?? smtp.From, smtp.From));
         foreach (var to in message.To)
             mime.To.Add(MailboxAddress.Parse(to));
+        foreach (var b in bcc)
+            mime.Bcc.Add(MailboxAddress.Parse(b));
+        // Рассылка (только Bcc) — ставим отправителя в To, чтобы был валидный заголовок, адреса скрыты.
+        if (message.To.Count == 0)
+            mime.To.Add(new MailboxAddress(smtp.FromName ?? smtp.From, smtp.From));
         mime.Subject = message.Subject;
 
         var builder = new BodyBuilder { TextBody = message.Body };

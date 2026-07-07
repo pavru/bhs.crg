@@ -69,7 +69,7 @@ public static class SettingsEndpoints
             {
                 displayName = u.DisplayName,
                 email = u.Email,
-                valid = IsValidEmail(u.Email),
+                valid = EmailValidation.IsValid(u.Email),
             }));
         });
 
@@ -140,9 +140,6 @@ public static class SettingsEndpoints
         fromName = s.FromName,
         useSsl = s.UseSsl,
     };
-
-    private static bool IsValidEmail(string? email) =>
-        !string.IsNullOrWhiteSpace(email) && System.Text.RegularExpressions.Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
 
     private record EmailTestRequest(string? To);
 }

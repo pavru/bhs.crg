@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Plus, KeyRound, Trash2, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { Plus, KeyRound, Trash2, ShieldCheck, User as UserIcon, Mail } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { SendMessageDialog } from '@/shared/ui/SendMessageDialog';
 import { useAuth, type UserRole } from '@/shared/hooks/useAuth';
 import {
   useListUsers, useCreateUser, useChangeUserRole, useResetUserPassword, useDeleteUser,
@@ -22,6 +23,7 @@ export function UsersPage() {
   const [resetFor, setResetFor] = useState<AppUser | null>(null);
   const [rowError, setRowError] = useState<{ id: string; msg: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
+  const [sendOpen, setSendOpen] = useState(false);
 
   async function onRoleChange(u: AppUser, role: UserRole) {
     setRowError(null);
@@ -39,11 +41,20 @@ export function UsersPage() {
     <div className="px-6 py-4 max-w-4xl">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold text-fg1">Пользователи</h1>
-        <button onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
-          <Plus size={16} /> Добавить пользователя
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setSendOpen(true)}
+            className="flex items-center gap-2 border border-stroke hover:bg-base text-fg2 text-sm font-medium px-3 py-2 rounded-md transition-colors">
+            <Mail size={15} className="text-brand" /> Отправить сообщение
+          </button>
+          <button onClick={() => setCreateOpen(true)}
+            className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
+            <Plus size={16} /> Добавить пользователя
+          </button>
+        </div>
       </div>
+
+      <SendMessageDialog open={sendOpen} onClose={() => setSendOpen(false)}
+        candidates={users.map(u => ({ id: u.id, displayName: u.displayName, email: u.email }))} />
 
       {isLoading ? (
         <div className="text-center text-fg4 text-sm py-10">Загрузка...</div>
