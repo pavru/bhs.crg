@@ -22,6 +22,11 @@ public class DocumentInstance : Entity
     /// <summary>Явно выбранный шаблон. Null — использовать шаблон по умолчанию для типа.</summary>
     public Guid? TemplateId { get; private set; }
 
+    /// <summary>Переопределённые значения параметров шаблона (JSON-объект {имя:значение} или null).
+    /// Дефолты берутся из <see cref="Templates.Template.Parameters"/>; здесь — только переопределения
+    /// на уровне конкретного документа. Подмешиваются в контекст генерации под ключ «params».</summary>
+    public string? TemplateParams { get; private set; }
+
     private readonly List<GeneratedFile> _generatedFiles = [];
     public IReadOnlyList<GeneratedFile> GeneratedFiles => _generatedFiles.AsReadOnly();
 
@@ -68,6 +73,7 @@ public class DocumentInstance : Entity
 
     public void Rename(string? name) { Name = string.IsNullOrWhiteSpace(name) ? null : name.Trim(); TouchUpdatedAt(); }
     public void SetTemplate(Guid? templateId) { TemplateId = templateId; TouchUpdatedAt(); }
+    public void SetTemplateParams(string? paramsJson) { TemplateParams = paramsJson; TouchUpdatedAt(); }
     public void MarkGenerating() { Status = DocumentStatus.Generating; TouchUpdatedAt(); }
     public void MarkFailed() { Status = DocumentStatus.Failed; TouchUpdatedAt(); }
 }

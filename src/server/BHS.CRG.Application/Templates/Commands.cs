@@ -21,3 +21,6 @@ public record UpdateTemplateSettingsCommand(
 ) : IRequest<Template>;
 
 public record SetTemplateDefaultCommand(Guid Id) : IRequest<Template>;
+
+/// <summary>Объявление параметров шаблона (JSON-массив [{name,label,type,default}] или null).</summary>
+public record UpdateTemplateParametersCommand(Guid Id, string? Parameters) : IRequest<Template>;

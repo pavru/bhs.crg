@@ -22,4 +22,21 @@ public static class PdfProfiles
     public const string GostCoverMarker = "gost-cover";
     public const string GostTitlePageMarker = "gost-titlepage";
     public const string GostDocumentsMarker = "gost-documents";
+
+    /// <summary>Префикс маркера динамического табличного источника документа (спецификация/кабельный
+    /// журнал): <c>gost-table:{каноническая первая страница документа}</c>. Это детерминированная
+    /// ПРОЕКЦИЯ группы-документа — инвалидируется при ре-группировке (см. ReprojectTableSourcesAsync).</summary>
+    public const string GostTableMarkerPrefix = "gost-table:";
+
+    /// <summary>Legacy-маркер плоского постраничного реестра (до тройки обложка/титул/документы).</summary>
+    public const string LegacyTitleBlockRegistryMarker = "titleblock-registry";
+
+    /// <summary>Источник, наполняемый распознаванием (vision-LLM), а не детерминированным парсером:
+    /// <see cref="PdfDataSetParser"/> такие НЕ детектит. При замене файла их нельзя удалять как
+    /// «отсутствующие в файле» — данные приходят из распознавания, а не из структуры файла.</summary>
+    public static bool IsRecognitionMarker(string sheetOrPath) =>
+        sheetOrPath is InvoiceHeaderMarker or InvoiceLineItemsMarker
+            or GostCoverMarker or GostTitlePageMarker or GostDocumentsMarker
+            or LegacyTitleBlockRegistryMarker
+        || sheetOrPath.StartsWith(GostTableMarkerPrefix, StringComparison.Ordinal);
 }

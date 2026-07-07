@@ -19,6 +19,8 @@ public interface IDataSetService
     // ── Sources ─────────────────────────────────────────────────────────────────
     Task<IReadOnlyList<DataSetSourceDto>> ListSourcesAsync(Guid fileId, CancellationToken ct);
     Task<SourcePreviewDto?> PreviewSourceAsync(Guid sourceId, int maxRows, CancellationToken ct);
+    /// <summary>Выгрузка ВСЕХ строк источника (после обработки) в CSV/XLS/XLSX. format: "csv"/"xls"/"xlsx" (по умолчанию xlsx).</summary>
+    Task<SourceExportDto?> ExportSourceAsync(Guid sourceId, string? format, CancellationToken ct);
     Task<Dictionary<string, string>?> AutoMapAsync(Guid sourceId, IReadOnlyList<FieldInfo> fields, CancellationToken ct);
 
     /// <summary>Ручное создание источника (для XML — единственный способ, авто-детект не используется).</summary>
@@ -45,6 +47,12 @@ public interface IDataSetService
     /// </summary>
     Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, bool confirm, CancellationToken ct);
 
+    /// <summary>Синхронная пред-валидация распознавания ДО постановки в фон: проверяет формат/наличие
+    /// и (для GOST) конфликт ручной правки (409 при ManuallyEdited без confirm). Возвращает план —
+    /// долгую ли операцию ставить в фоновую задачу (GOST-набор) или выполнить синхронно (счёт/legacy).
+    /// null — источник не найден.</summary>
+    Task<RecognizePlan?> PlanRecognitionAsync(Guid sourceId, bool confirm, CancellationToken ct);
+
     /// <summary>
     /// Текущая группировка страниц источника «Документы» ГОСТ-профиля — для ручного редактора
     /// разбиения (миниатюры + перенос страниц между документами). Null, если источник не найден
@@ -54,7 +62,7 @@ public interface IDataSetService
 
     /// <summary>Миниатюра одной страницы исходного PDF (PNG, низкое DPI — только для узнавания
     /// документа глазами, не OCR) — рендер на лету через PdfRasterizer, без LLM.</summary>
-    Task<byte[]?> GetPageThumbnailAsync(Guid sourceId, int pageIndex, CancellationToken ct);
+    Task<byte[]?> GetPageThumbnailAsync(Guid sourceId, int pageIndex, CancellationToken ct, int dpi = 96);
 
     /// <summary>
     /// Применяет ручную корректировку разбиения — заменяет группировку целиком, физически
@@ -62,6 +70,11 @@ public interface IDataSetService
     /// GostGrouping.ManuallyEdited=true. Осиротевшие blob'ы прежних под-PDF удаляются best-effort.
     /// </summary>
     Task<GostGroupingDto?> ApplyGroupingAsync(Guid sourceId, ApplyGroupingInput input, CancellationToken ct);
+    /// <summary>Лёгкая установка тэгов документа (тип таблицы) без пересборки разбиения.</summary>
+    Task<GostGroupingDto?> SetDocumentTagsAsync(Guid documentsSourceId, int firstPageIndex, IReadOnlyList<string> tags, CancellationToken ct);
+    /// <summary>Распознать таблицу помеченного документа ГОСТ-профиля (спецификация/кабельный журнал)
+    /// и создать/обновить отдельный табличный источник. firstPageIndex — любая страница документа.</summary>
+    Task<DataSetSourceDto?> RecognizeDocumentTableAsync(Guid documentsSourceId, int firstPageIndex, CancellationToken ct);
 
     /// <summary>Пути XML-записей внутри ZIP-файла — для выбора при ручном создании источника.</summary>
     Task<IReadOnlyList<string>> ListZipXmlEntriesAsync(Guid fileId, CancellationToken ct);

@@ -5,6 +5,7 @@ import { BookOpen, Settings, Save, Star, ChevronDown, ChevronUp, CheckCircle } f
 import type { Template, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields } from '@/shared/api/schema';
 import { useUpdateTemplate, useUpdateTemplateSettings, useSetTemplateDefault } from '@/shared/api/templates';
+import { TemplateParamsPanel } from './TemplateParamsPanel';
 import { flattenFields } from './templateBlank';
 import type * as monacoEditor from 'monaco-editor';
 
@@ -355,6 +356,8 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
 
       {/* Page settings */}
       <PageSettingsPanel template={template} onSaved={onSaved} />
+      {/* Параметры шаблона (key — чтобы стейт переинициализировался при смене шаблона) */}
+      <TemplateParamsPanel key={template.id} template={template} onSaved={onSaved} />
     </div>
   );
 }

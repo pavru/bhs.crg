@@ -6,7 +6,7 @@ public record DataSetSourceDto(
     Guid Id, Guid FileId, string Name, string SheetOrPath, string? ColumnExpressions,
     string CachedSchema, int CachedRowCount,
     object? RowFilter, object? ComputedColumns, object? SortSpec,
-    IReadOnlyList<string>? Tags);
+    IReadOnlyList<string>? Tags, bool RecognitionStale = false);
 
 public record DataSetFileDto(
     Guid Id, string Name, string Format, string Scope, Guid? ScopeId,
@@ -42,6 +42,9 @@ public record BindingPreviewDto(
 public record SourcePreviewDto(
     IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<string?>> Rows, int TotalRows);
 
+/// <summary>Готовый файл выгрузки табличного источника (CSV/XLS/XLSX) — байты + имя + content-type.</summary>
+public record SourceExportDto(byte[] Content, string FileName, string ContentType);
+
 /// <summary>
 /// Предпросмотр XPath/JSONPath-выражения (row-selector или колонки) в builder'е — без сохранения
 /// источника. rowSelector — куда встать (context); expr — что вычислить относительно найденных
@@ -52,15 +55,27 @@ public record ExpressionPreviewDto(int MatchCount, IReadOnlyList<string> Samples
 /// <summary>Original blob stream + metadata for file download.</summary>
 public record FileDownloadDto(Stream Stream, string ContentType, string FileName);
 
-/// <summary>
-/// Текущая группировка страниц источника «Документы» ГОСТ-профиля — для ручного редактора
-/// разбиения. PageCount — общее число страниц исходного PDF (в т.ч. не вошедших ни в одну
-/// группу — страница может остаться без документа, это допустимо, см. GetPagesAsync).
-/// </summary>
-public record GostGroupingDto(IReadOnlyList<GostGroupingDocumentDto> Documents, bool ManuallyEdited, int PageCount);
+/// <summary>Вид группы в единой постраничной группировке ГОСТ-профиля (Document=0 — обязателен для
+/// толерантной миграции старого формата, см. Infrastructure GostGroupingData).</summary>
+public enum GostGroupKind
+{
+    Document = 0,
+    Cover = 1,
+    TitlePage = 2,
+}
 
-/// <summary>Одна группа страниц (документ) — Code/Name как в реестре, PageIndices — 0-based индексы исходного PDF.</summary>
-public record GostGroupingDocumentDto(string Code, string? Name, IReadOnlyList<int> PageIndices);
+/// <summary>
+/// Текущая группировка ВСЕХ страниц источника ГОСТ-профиля — для ручного редактора разбиения:
+/// обложка/титул/документы как группы с <see cref="GostGroupKind"/>. PageCount — общее число
+/// страниц исходного PDF (в т.ч. не вошедших ни в одну группу — допустимо, см. GetPagesAsync).
+/// </summary>
+public record GostGroupingDto(IReadOnlyList<GostGroupingGroupDto> Groups, bool ManuallyEdited, int PageCount);
+
+/// <summary>Одна группа страниц. Для документа Code/Name как в реестре; для обложки/титула — null.
+/// PageIndices — 0-based индексы исходного PDF. Tags — функциональные тэги документа (тип таблицы).</summary>
+public record GostGroupingGroupDto(
+    GostGroupKind Kind, string? Code, string? Name, IReadOnlyList<int> PageIndices,
+    IReadOnlyList<string>? Tags = null);
 
 // ── Input DTOs (assembled by the HTTP layer, free of ASP.NET types) ─────────────
 
@@ -86,12 +101,17 @@ public record UpdateSourceInput(string Name, string SheetOrPath, IReadOnlyList<C
 /// </summary>
 public record CreatePdfSourceInput(string Name, IReadOnlyList<string>? Tags, string? Profile = null);
 
+/// <summary>План распознавания источника: Background=true — операция долгая (GOST-набор), её ставят в
+/// фоновую задачу; false — короткая (счёт/legacy), выполняется синхронно. Title — заголовок для
+/// индикатора задач. null-результат метода = источник не найден. Кидает 409/400 при пред-валидации.</summary>
+public record RecognizePlan(bool Background, string Title);
+
 /// <summary>
-/// Новая группировка страниц источника «Документы» — целиком заменяет предыдущую (ручную или
-/// автоматическую). Пересекающиеся PageIndices между группами — ошибка (400); страница может не
-/// входить ни в одну группу (тогда выпадает из итогового реестра — допустимо, см. GostGroupingData).
+/// Новая группировка ВСЕХ страниц — целиком заменяет предыдущую (ручную или автоматическую).
+/// Группы всех видов (обложка/титул/документы). Пересекающиеся PageIndices между группами — ошибка
+/// (400); страница может не входить ни в одну группу (тогда выпадает из реестров — допустимо).
 /// </summary>
-public record ApplyGroupingInput(IReadOnlyList<GostGroupingDocumentDto> Documents);
+public record ApplyGroupingInput(IReadOnlyList<GostGroupingGroupDto> Groups);
 
 /// <summary>Лёгкая правка обработки источника — не трогает файл/кэш схемы (в отличие от Update/CreateSourceInput).</summary>
 public record SetSourceProcessingInput(object? RowFilter, object? ComputedColumns, object? SortSpec);

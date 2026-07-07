@@ -1,29 +1,52 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, Save } from 'lucide-react';
-import { useSourcePages, useApplyGrouping, loadPageThumbnailUrl } from '@/shared/api/datasets';
-import type { GostGroupingDocument } from '@/shared/api/types';
+import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, Save, ZoomIn } from 'lucide-react';
+import { useSourcePages, useApplyGrouping, loadPageThumbnailUrl, loadPageImageUrl } from '@/shared/api/datasets';
+import type { GostGroupingGroup, GostGroupKind } from '@/shared/api/types';
+import { Modal } from '@/shared/ui/Modal';
 
 const DEFAULT_CODE = '(без шифра)';
+const KIND_LABEL: Record<Exclude<GostGroupKind, 'Document'>, string> = {
+  Cover: 'Обложка',
+  TitlePage: 'Титульный лист',
+};
 
 interface EditableGroup {
   id: string;
+  kind: GostGroupKind;
   code: string;
   name: string | null;
   pageIndices: number[];
+  tags: string[];
 }
 
-function isSuspicious(g: Pick<EditableGroup, 'code' | 'name'>): boolean {
-  return !g.code || g.code === DEFAULT_CODE || !g.name;
+/** Подпись группы для меню переноса и заголовка. */
+function groupLabel(g: Pick<EditableGroup, 'kind' | 'code' | 'name'>): string {
+  if (g.kind !== 'Document') return KIND_LABEL[g.kind];
+  return g.name ?? g.code;
 }
 
-function makeGroups(documents: GostGroupingDocument[]): EditableGroup[] {
-  return documents.map(d => ({
+/** Подозрительны только группы-документы без шифра/имени; обложка/титул — никогда. */
+function isSuspicious(g: Pick<EditableGroup, 'kind' | 'code' | 'name'>): boolean {
+  return g.kind === 'Document' && (!g.code || g.code === DEFAULT_CODE || !g.name);
+}
+
+function makeGroups(groups: GostGroupingGroup[]): EditableGroup[] {
+  const mapped = groups.map(g => ({
     id: crypto.randomUUID(),
-    code: d.code,
-    name: d.name,
-    pageIndices: [...d.pageIndices].sort((a, b) => a - b),
+    kind: g.kind,
+    code: g.code ?? DEFAULT_CODE,
+    name: g.name,
+    pageIndices: [...g.pageIndices].sort((a, b) => a - b),
+    tags: g.tags ?? [],
   }));
+  // Обложка и титульный лист всегда присутствуют как группы (пустые — как цель для переноса).
+  const ensure = (kind: Exclude<GostGroupKind, 'Document'>): EditableGroup[] =>
+    mapped.some(g => g.kind === kind) ? [] : [{ id: crypto.randomUUID(), kind, code: DEFAULT_CODE, name: null, pageIndices: [], tags: [] }];
+  const cover = mapped.filter(g => g.kind === 'Cover');
+  const title = mapped.filter(g => g.kind === 'TitlePage');
+  const docs = mapped.filter(g => g.kind === 'Document');
+  return [...cover, ...ensure('Cover'), ...title, ...ensure('TitlePage'), ...docs];
 }
 
 // ─── Миниатюра страницы (ленивая загрузка, без OCR — только чтобы узнать документ глазами) ────
@@ -58,26 +81,74 @@ function PageThumbnail({ sourceId, pageIndex }: { sourceId: string; pageIndex: n
 }
 
 // ─── Одна миниатюра-страница со статусом выделения/подозрительности ────────────────────────────
+// Внешний контейнер — div (не button): внутри лежит кнопка «просмотреть лист», а button-в-button
+// — невалидный HTML. Клик по плитке переключает выделение, клик по лупе (stopPropagation) — открывает
+// крупный просмотр листа.
 
 function PageTile({
-  sourceId, pageIndex, selected, suspicious, onToggle,
+  sourceId, pageIndex, selected, suspicious, onToggle, onView,
 }: {
   sourceId: string; pageIndex: number; selected: boolean; suspicious: boolean;
   onToggle: (pageIndex: number, e: React.MouseEvent) => void;
+  onView: (pageIndex: number) => void;
 }) {
   return (
-    <button
+    <div
       onClick={e => onToggle(pageIndex, e)}
-      className={`relative rounded-md p-1 border-2 transition-colors text-left ${
+      className={`group/tile relative rounded-md p-1 border-2 transition-colors text-left cursor-pointer ${
         selected ? 'border-brand bg-brand-subtle' : 'border-transparent hover:border-stroke'
       }`}
       title={`Страница ${pageIndex + 1}`}>
       <PageThumbnail sourceId={sourceId} pageIndex={pageIndex} />
+      <button
+        onClick={e => { e.stopPropagation(); onView(pageIndex); }}
+        title="Просмотреть лист крупно"
+        className="absolute top-1.5 right-1.5 p-1 rounded bg-surface/90 border border-stroke text-fg3 opacity-70 hover:text-brand hover:opacity-100 transition-opacity">
+        <ZoomIn size={12} />
+      </button>
       <div className="flex items-center justify-between mt-1 px-0.5">
         <span className="text-[10px] text-fg4">{pageIndex + 1}</span>
         {suspicious && <AlertTriangle size={10} className="text-warning" />}
       </div>
-    </button>
+    </div>
+  );
+}
+
+// ─── Крупный просмотр одного листа (высокое DPI, клик — вписать ↔ 100%) ──────────────────────────
+
+function PageViewer({ sourceId, pageIndex, onClose }: { sourceId: string; pageIndex: number; onClose: () => void }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setUrl(null); setFailed(false); setZoomed(false);
+    loadPageImageUrl(sourceId, pageIndex)
+      .then(u => { if (!cancelled) { objectUrl = u; setUrl(u); } })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [sourceId, pageIndex]);
+
+  return (
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Лист ${pageIndex + 1}`} extraWide>
+      {failed ? (
+        <p className="text-sm text-danger py-10 text-center">Не удалось загрузить изображение листа.</p>
+      ) : !url ? (
+        <div className="flex items-center justify-center py-16 text-fg4"><Loader2 size={20} className="animate-spin" /></div>
+      ) : (
+        <>
+          <div className="overflow-auto max-h-[78vh] rounded border border-stroke bg-base flex justify-center">
+            <img src={url} alt={`Лист ${pageIndex + 1}`}
+              onClick={() => setZoomed(z => !z)}
+              className={zoomed ? 'max-w-none cursor-zoom-out' : 'max-w-full object-contain cursor-zoom-in'}
+              style={{ maxHeight: zoomed ? undefined : '78vh' }} />
+          </div>
+          <p className="text-xs text-fg4 mt-2 text-center">Клик по изображению — переключить масштаб (вписать ↔ 100%).</p>
+        </>
+      )}
+    </Modal>
   );
 }
 
@@ -97,7 +168,7 @@ function SelectionActionBar({
       <span className="text-xs text-fg4">Выделено страниц: {count}</span>
       <button onClick={onSplitSelected}
         className="px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-base">
-        Отделить в новую группу
+        Отделить в новый документ
       </button>
       <div className="relative">
         <button onClick={() => setMenuOpen(o => !o)}
@@ -105,19 +176,19 @@ function SelectionActionBar({
           Перенести в группу <ChevronDown size={11} />
         </button>
         {menuOpen && (
-          <div className="absolute z-10 mt-1 w-48 rounded-md border border-stroke bg-surface shadow-lg py-1">
+          <div className="absolute z-10 mt-1 w-52 rounded-md border border-stroke bg-surface shadow-lg py-1">
             {candidateGroups.length === 0 && (
               <p className="px-3 py-1.5 text-xs text-fg4">Нет других групп</p>
             )}
             {candidateGroups.map(g => (
               <button key={g.id} onClick={() => { onMoveSelected(g.id); setMenuOpen(false); }}
                 className="block w-full text-left px-3 py-1.5 text-xs hover:bg-base truncate">
-                {g.name ?? g.code}
+                {groupLabel(g)}
               </button>
             ))}
             <button onClick={() => { onMoveSelected('new'); setMenuOpen(false); }}
               className="block w-full text-left px-3 py-1.5 text-xs hover:bg-base text-brand">
-              + Новая группа
+              + Новый документ
             </button>
           </div>
         )}
@@ -126,11 +197,11 @@ function SelectionActionBar({
   );
 }
 
-// ─── Группа документа ──────────────────────────────────────────────────────────────────────────
+// ─── Группа (документ / обложка / титульный лист) ────────────────────────────────────────────────
 
 function GroupSection({
   sourceId, group, otherGroups, selected, suspiciousOnly,
-  onToggle, onRename, onMoveSelected, onSplitSelected, onDisband,
+  onToggle, onRename, onMoveSelected, onSplitSelected, onDisband, onView,
 }: {
   sourceId: string;
   group: EditableGroup;
@@ -142,15 +213,17 @@ function GroupSection({
   onMoveSelected: (targetGroupId: string | 'new') => void;
   onSplitSelected: () => void;
   onDisband: (groupId: string) => void;
+  onView: (pageIndex: number) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [codeVal, setCodeVal] = useState(group.code);
   const [nameVal, setNameVal] = useState(group.name ?? '');
+  const isSpecial = group.kind !== 'Document';
   const suspicious = isSuspicious(group);
   const hasSelectionHere = group.pageIndices.some(p => selected.has(p));
 
-  const pagesToShow = suspiciousOnly ? group.pageIndices.filter(() => suspicious) : group.pageIndices;
-  if (suspiciousOnly && pagesToShow.length === 0) return null;
+  // В режиме «только подозрительные» скрываем обложку/титул и полностью корректные документы.
+  if (suspiciousOnly && (isSpecial || !suspicious)) return null;
 
   function commit() {
     onRename(group.id, codeVal.trim() || DEFAULT_CODE, nameVal.trim() || null);
@@ -158,15 +231,21 @@ function GroupSection({
   }
 
   return (
-    <div className="rounded-lg border border-stroke bg-surface p-3">
+    <div className={`rounded-lg border p-3 ${isSpecial ? 'border-stroke bg-base' : 'border-stroke bg-surface'}`}>
       <div className="flex items-center justify-between gap-2 mb-2">
-        {editing ? (
-          <div className="flex items-center gap-2 flex-1">
+        {isSpecial ? (
+          <span className="text-sm font-medium text-fg2">{groupLabel(group)}</span>
+        ) : editing ? (
+          // onBlur вешаем на контейнер и коммитим только когда фокус уходит ИЗ обоих полей
+          // (relatedTarget вне контейнера). Иначе переход фокуса Шифр→Наименование закрывал бы
+          // редактор до того, как фокус попадёт во второе поле — из-за этого имя было не отредактировать.
+          <div className="flex items-center gap-2 flex-1"
+            onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) commit(); }}>
             <input value={codeVal} onChange={e => setCodeVal(e.target.value)} placeholder="Шифр"
-              autoFocus onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
+              autoFocus onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
               className="text-sm font-medium border-b border-brand bg-transparent outline-none w-32" />
             <input value={nameVal} onChange={e => setNameVal(e.target.value)} placeholder="Наименование документа"
-              onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
+              onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
               className="text-sm border-b border-brand bg-transparent outline-none flex-1" />
           </div>
         ) : (
@@ -180,18 +259,24 @@ function GroupSection({
           </button>
         )}
         <span className="text-xs text-fg4 shrink-0">{group.pageIndices.length} л.</span>
-        <button onClick={() => onDisband(group.id)} title="Расформировать (страницы станут без группы)"
-          className="p-1 text-stroke-strong hover:text-danger shrink-0">
-          <Trash2 size={13} />
-        </button>
+        {!isSpecial && (
+          <button onClick={() => onDisband(group.id)} title="Расформировать (страницы станут без группы)"
+            className="p-1 text-stroke-strong hover:text-danger shrink-0">
+            <Trash2 size={13} />
+          </button>
+        )}
       </div>
 
-      <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))' }}>
-        {pagesToShow.map(p => (
-          <PageTile key={p} sourceId={sourceId} pageIndex={p} selected={selected.has(p)} suspicious={suspicious}
-            onToggle={onToggle} />
-        ))}
-      </div>
+      {group.pageIndices.length === 0 ? (
+        <p className="text-xs text-fg4 italic">Нет страниц — перенесите сюда выделенные из других групп.</p>
+      ) : (
+        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))' }}>
+          {group.pageIndices.map(p => (
+            <PageTile key={p} sourceId={sourceId} pageIndex={p} selected={selected.has(p)} suspicious={suspicious}
+              onToggle={onToggle} onView={onView} />
+          ))}
+        </div>
+      )}
 
       {hasSelectionHere && (
         <SelectionActionBar
@@ -218,15 +303,17 @@ export function PdfGroupingEditor() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [suspiciousOnly, setSuspiciousOnly] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [viewerPage, setViewerPage] = useState<number | null>(null);
   const lastClickedRef = useRef<number | null>(null);
 
   // Инициализируем локальное редактируемое состояние из ответа сервера — только один раз при
   // загрузке (и после успешного сохранения, когда сервер возвращает свежую группировку).
   useEffect(() => {
-    if (data && !dirty) setGroups(makeGroups(data.documents));
+    if (data && !dirty) setGroups(makeGroups(data.groups));
   }, [data, dirty]);
 
   const pageCount = data?.pageCount ?? 0;
+  const documentCount = useMemo(() => (groups ?? []).filter(g => g.kind === 'Document').length, [groups]);
   const assignedPages = useMemo(() => new Set(groups?.flatMap(g => g.pageIndices) ?? []), [groups]);
   const unassignedPages = useMemo(
     () => Array.from({ length: pageCount }, (_, i) => i).filter(i => !assignedPages.has(i)),
@@ -269,7 +356,7 @@ export function PdfGroupingEditor() {
     mutateGroups(prev => {
       const cleared = removeFromAllGroups(prev, selected);
       if (targetGroupId === 'new') {
-        return [...cleared, { id: crypto.randomUUID(), code: DEFAULT_CODE, name: null, pageIndices: [...selected].sort((a, b) => a - b) }];
+        return [...cleared, { id: crypto.randomUUID(), kind: 'Document', code: DEFAULT_CODE, name: null, pageIndices: [...selected].sort((a, b) => a - b), tags: [] }];
       }
       return cleared.map(g => g.id === targetGroupId
         ? { ...g, pageIndices: [...g.pageIndices, ...selected].sort((a, b) => a - b) }
@@ -283,6 +370,7 @@ export function PdfGroupingEditor() {
   }
 
   function handleDisband(groupId: string) {
+    // Только документы можно расформировать; обложку/титул убираем из вида, оставляя пустыми.
     mutateGroups(prev => prev.filter(g => g.id !== groupId));
   }
 
@@ -292,10 +380,16 @@ export function PdfGroupingEditor() {
 
   async function handleSave() {
     if (!groups) return;
-    const documents: GostGroupingDocument[] = groups
+    const payload: GostGroupingGroup[] = groups
       .filter(g => g.pageIndices.length > 0)
-      .map(g => ({ code: g.code, name: g.name, pageIndices: g.pageIndices }));
-    await applyMutation.mutateAsync(documents);
+      .map(g => ({
+        kind: g.kind,
+        code: g.kind === 'Document' ? g.code : null,
+        name: g.kind === 'Document' ? g.name : null,
+        pageIndices: g.pageIndices,
+        tags: g.kind === 'Document' ? g.tags : [],
+      }));
+    await applyMutation.mutateAsync(payload);
     setDirty(false);
   }
 
@@ -318,7 +412,7 @@ export function PdfGroupingEditor() {
             <h1 className="text-lg font-semibold text-fg1">
               Разбиение{location.state?.sourceName ? ` — ${location.state.sourceName}` : ''}
             </h1>
-            <p className="text-xs text-fg4">{pageCount} стр. · {groups.length} документ{groups.length === 1 ? '' : 'ов'}</p>
+            <p className="text-xs text-fg4">{pageCount} стр. · {documentCount} документ{documentCount === 1 ? '' : 'ов'}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -350,7 +444,7 @@ export function PdfGroupingEditor() {
             key={g.id} sourceId={sourceId} group={g} otherGroups={groups.filter(o => o.id !== g.id)}
             selected={selected} suspiciousOnly={suspiciousOnly}
             onToggle={toggle} onRename={handleRename} onMoveSelected={handleMoveSelected}
-            onSplitSelected={handleSplitSelected} onDisband={handleDisband}
+            onSplitSelected={handleSplitSelected} onDisband={handleDisband} onView={setViewerPage}
           />
         ))}
 
@@ -363,7 +457,7 @@ export function PdfGroupingEditor() {
             <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))' }}>
               {unassignedPages.map(p => (
                 <PageTile key={p} sourceId={sourceId} pageIndex={p} selected={selected.has(p)} suspicious={false}
-                  onToggle={toggle} />
+                  onToggle={toggle} onView={setViewerPage} />
               ))}
             </div>
             {unassignedPages.some(p => selected.has(p)) && (
@@ -377,6 +471,10 @@ export function PdfGroupingEditor() {
           </div>
         )}
       </div>
+
+      {viewerPage !== null && (
+        <PageViewer sourceId={sourceId} pageIndex={viewerPage} onClose={() => setViewerPage(null)} />
+      )}
     </div>
   );
 }

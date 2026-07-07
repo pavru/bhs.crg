@@ -31,16 +31,24 @@ public class GostTitleBlockFieldsTests
     }
 
     [Fact]
-    public void AllWithPageType_AppendsPageTypeFieldOnce()
+    public void AllWithClassifiers_AppendsBothClassifierFieldsOnce()
     {
-        Assert.Equal(GostTitleBlockFields.All.Count + 1, GostTitleBlockFields.AllWithPageType.Count);
-        Assert.Contains(GostTitleBlockFields.AllWithPageType, f => f.Path == GostTitleBlockFields.PageTypePath);
+        Assert.Equal(GostTitleBlockFields.All.Count + 2, GostTitleBlockFields.AllWithClassifiers.Count);
+        Assert.Contains(GostTitleBlockFields.AllWithClassifiers, f => f.Path == GostTitleBlockFields.PageTypePath);
+        Assert.Contains(GostTitleBlockFields.AllWithClassifiers, f => f.Path == GostTitleBlockFields.StampFormPath);
         Assert.DoesNotContain(GostTitleBlockFields.All, f => f.Path == GostTitleBlockFields.PageTypePath);
+        Assert.DoesNotContain(GostTitleBlockFields.All, f => f.Path == GostTitleBlockFields.StampFormPath);
     }
 
     [Fact]
     public void PageTypeField_HasThreeOptions()
     {
         Assert.Equal(["Обложка", "ТитульныйЛист", "Документ"], GostTitleBlockFields.PageTypeField.Options);
+    }
+
+    [Fact]
+    public void StampFormField_HasFourOptions()
+    {
+        Assert.Equal(["Форма3", "Форма4", "Форма5", "Форма6"], GostTitleBlockFields.StampFormField.Options);
     }
 }

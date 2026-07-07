@@ -43,6 +43,9 @@ public record UpdatePluginDataCommand(Guid InstanceId, JsonDocument PluginData) 
 public record GetDocumentInstanceQuery(Guid Id) : IRequest<DocumentInstance?>;
 public record SetDocumentTemplateCommand(Guid InstanceId, Guid? TemplateId) : IRequest<DocumentInstance>;
 
+/// <summary>Переопределения значений параметров шаблона на документе (JSON-объект {имя:значение} или null).</summary>
+public record SetDocumentTemplateParamsCommand(Guid InstanceId, string? Params) : IRequest<DocumentInstance>;
+
 // --- CommonDataEntry ---
 public record CreateCommonDataEntryCommand(
     string DisplayName, Guid CompositeTypeId, JsonDocument Data,

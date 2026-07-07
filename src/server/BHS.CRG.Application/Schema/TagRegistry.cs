@@ -2,7 +2,7 @@ using BHS.CRG.Domain.Schema;
 
 namespace BHS.CRG.Application.Schema;
 
-public enum TagScope { Field, Type, Dataset }
+public enum TagScope { Field, Type, Dataset, GostDocument }
 
 /// <summary>
 /// Описание функционального тэга для UI и валидации.
@@ -72,6 +72,14 @@ public static class TagRegistry
         new(FunctionalTag.DatasetHasTitleBlock, "Имеет основную надпись",
             "Каждая страница PDF содержит основную надпись (штамп) по ГОСТ Р 21.101-2020 — распознаётся построчно в реестр листов.",
             TagScope.Dataset, [], Multiple: false),
+
+        // ── GostDocument: тип таблицы внутри распознанного документа ГОСТ-профиля ──
+        new(FunctionalTag.GostDocSpecification, "Спецификация / ведомость",
+            "Документ — спецификация или ведомость материалов и/или оборудования. Таблица распознаётся и доступна к выгрузке (CSV/XLS/XLSX).",
+            TagScope.GostDocument, [], Multiple: false),
+        new(FunctionalTag.GostDocCableJournal, "Кабельный журнал",
+            "Документ — кабельный журнал. Таблица распознаётся и доступна к выгрузке (CSV/XLS/XLSX).",
+            TagScope.GostDocument, [], Multiple: false),
     ];
 
     public static TagDefinition? Find(string code) => All.FirstOrDefault(t => t.Code == code);

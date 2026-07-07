@@ -46,6 +46,15 @@ public class DataSetSource : Entity
     /// </summary>
     public string? GostGrouping { get; private set; }
 
+    /// <summary>
+    /// true — исходный файл заменён (<see cref="DataSetFile"/>.ReplaceFileAsync) ПОСЛЕ последнего
+    /// распознавания: кэш/группировка относятся к прежнему содержимому файла и устарели. Только для
+    /// распознаваемых PDF-источников (парсер их не детектит — при замене не удаляются, а помечаются).
+    /// Сбрасывается при следующем распознавании (свежий <see cref="UpdateCache"/>). Пока true —
+    /// генерация опирается на устаревшие данные, пользователю показывается «перераспознать».
+    /// </summary>
+    public bool RecognitionStale { get; private set; }
+
     public DataSetFile File { get; private set; } = null!;
     private readonly List<DataSetBinding> _bindings = [];
     public IReadOnlyList<DataSetBinding> Bindings => _bindings.AsReadOnly();
@@ -70,6 +79,16 @@ public class DataSetSource : Entity
         CachedSchema = cachedSchema;
         CachedRowCount = cachedRowCount;
         CachedData = cachedData;
+        RecognitionStale = false; // свежий кэш соответствует текущему файлу
+        TouchUpdatedAt();
+    }
+
+    /// <summary>Пометить распознанный PDF-источник устаревшим — исходный файл заменён после
+    /// распознавания (см. <see cref="RecognitionStale"/>). Данные не трогаем, чтобы не терять их до
+    /// перераспознавания.</summary>
+    public void MarkRecognitionStale()
+    {
+        RecognitionStale = true;
         TouchUpdatedAt();
     }
 

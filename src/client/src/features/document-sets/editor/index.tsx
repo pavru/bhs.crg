@@ -20,6 +20,8 @@ import {
 } from '../fields';
 import { DataSetsTab } from './DataSetsTab';
 import { QualityLinksTab } from './QualityLinksTab';
+import { DocumentTemplateParams } from './DocumentTemplateParams';
+import { Modal } from '@/shared/ui/Modal';
 
 type SaveRef = { current: (() => Promise<boolean>) | null };
 
@@ -285,6 +287,10 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
   const { data: templates = [], isLoading: templatesLoading } = useListTemplates(instance.documentTypeId);
   const activeTemplates = templates.filter((t: Template) => t.isActive);
   const noTemplates = !templatesLoading && activeTemplates.length === 0;
+  // Эффективный шаблон (как выбирает бэкенд): явно выбранный → по умолчанию → первый активный.
+  const effectiveTemplate = activeTemplates.find((t: Template) => t.id === instance.templateId)
+    ?? activeTemplates.find((t: Template) => t.isDefault)
+    ?? activeTemplates[0];
 
   async function handleGenerate() {
     setError('');
@@ -349,6 +355,10 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
         )}
       </div>
 
+      {effectiveTemplate && (
+        <DocumentTemplateParams setId={setId} instance={instance} template={effectiveTemplate} />
+      )}
+
       <div className="flex gap-3">
         <button onClick={() => handleGenerate()} disabled={mutation.isPending || noTemplates}
           className="flex items-center gap-2 px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors disabled:opacity-50">
@@ -368,6 +378,12 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
           Отладочный пакет
         </button>
       </div>
+      {(mutation.isPending || instance.status === 'Generating') && (
+        <p className="flex items-center gap-2 text-xs text-fg4">
+          <Loader2 size={12} className="animate-spin shrink-0" />
+          Генерация PDF может занять несколько секунд — идёт сбор данных и компиляция Typst.
+        </p>
+      )}
       {error && <p className="text-sm text-danger">{error}</p>}
 
       {diagnostics && <DiagnosticsPanel diagnostics={diagnostics} />}
@@ -570,13 +586,11 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
       </div>
 
       {pendingTab && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div className="rounded-xl p-5 w-full max-w-sm bg-surface border border-stroke shadow-2xl">
-            <p className="text-sm font-semibold mb-1 text-fg1">Документ не сохранён</p>
-            <p className="text-xs mb-4 text-fg3">
-              На текущей вкладке есть несохранённые изменения. Сохранить перед переходом?
-              Иначе они будут потеряны.
-            </p>
+        <Modal
+          open
+          onOpenChange={o => { if (!o && !switching) setPendingTab(null); }}
+          title="Документ не сохранён"
+          footer={
             <div className="flex gap-2 justify-end flex-wrap">
               <button onClick={() => setPendingTab(null)} disabled={switching}
                 className="px-3 py-1.5 text-sm rounded-md border border-stroke text-fg2 hover:bg-muted transition-colors disabled:opacity-50">
@@ -591,8 +605,12 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
                 {switching ? 'Сохранение...' : 'Сохранить'}
               </button>
             </div>
-          </div>
-        </div>
+          }>
+          <p className="text-xs text-fg3">
+            На текущей вкладке есть несохранённые изменения. Сохранить перед переходом?
+            Иначе они будут потеряны.
+          </p>
+        </Modal>
       )}
     </div>
   );

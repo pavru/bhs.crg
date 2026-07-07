@@ -20,7 +20,11 @@ using BHS.CRG.Api.Endpoints.Settings;
 using BHS.CRG.Api.Endpoints.Users;
 using BHS.CRG.Api.Endpoints.Schema;
 using BHS.CRG.Api.Endpoints.Notifications;
+using BHS.CRG.Api.Endpoints.Jobs;
 using BHS.CRG.Api.Notifications;
+using BHS.CRG.Application.Jobs;
+using BHS.CRG.Domain.Jobs;
+using BHS.CRG.Infrastructure.Jobs;
 using BHS.CRG.Infrastructure.Notifications;
 using BHS.CRG.Infrastructure.Recognition;
 using BHS.CRG.Infrastructure.Search;
@@ -138,6 +142,11 @@ builder.Services.AddScoped<IDocumentRecognizer, ChainDocumentRecognizer>();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IIntegrationSettings, IntegrationSettingsService>();
 
+// ── Фоновые задачи (долгие операции: распознавание набора/таблицы) ──────────────
+builder.Services.AddSingleton<JobQueue>();
+builder.Services.AddScoped<IJobService, JobService>();
+builder.Services.AddHostedService<JobBackgroundService>();
+
 // ── Notifications + health monitoring ───────────────────────────────────────────
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddSingleton<HealthMonitorService>();
@@ -204,6 +213,12 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
 
+    // Зависшие фоновые задачи (in-process очередь потеряна при рестарте) — помечаем Failed, чтобы
+    // индикатор не «висел» вечно (тот же приём восстановления, что и сид ролей ниже).
+    var stuckJobs = await db.Jobs.Where(j => j.Status == JobStatus.Queued || j.Status == JobStatus.Running).ToListAsync();
+    foreach (var job in stuckJobs) job.MarkAbandoned();
+    if (stuckJobs.Count > 0) await db.SaveChangesAsync();
+
     // ── Роли + миграция существующих пользователей ──────────────────────────────
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
     foreach (var role in new[] { "Admin", "User" })
@@ -258,6 +273,7 @@ app.MapDataSetBindingTemplateEndpoints();
 app.MapQualityDocEndpoints();
 app.MapSettingsEndpoints();
 app.MapNotificationsEndpoints();
+app.MapJobsEndpoints();
 app.MapTagsEndpoints();
 app.MapHub<GenerationHub>("/hubs/generation");
 

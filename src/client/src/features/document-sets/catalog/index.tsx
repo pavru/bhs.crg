@@ -80,9 +80,12 @@ export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
 
   return (
     <div className="border border-stroke rounded-xl overflow-hidden">
-      <button onClick={() => setExpanded(v => !v)}
+      <button onClick={() => setExpanded(v => !v)} aria-expanded={expanded}
         className="w-full flex items-center gap-3 px-4 py-3 bg-surface hover:bg-base transition-colors text-left">
         <Database size={16} className="text-fg4" />
+        <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${SCOPE_COLORS[scope]}`}>
+          {SCOPE_LABELS[scope]}
+        </span>
         <span className="text-sm font-medium text-fg2">Каталог общих данных</span>
         {!expanded && entries.length > 0 && (
           <span className="text-xs text-fg4">{entries.length} записей</span>

@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import {
   ChevronDown, ChevronRight, Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
-  BookmarkPlus, ScanText,
+  BookmarkPlus, ScanText, FileDown, Download, AlertTriangle,
 } from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
   usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizePdfSource,
-  isManualGroupingConflict,
+  isManualGroupingConflict, exportDataSetSource,
 } from '@/shared/api/datasets';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { Modal } from '@/shared/ui/Modal';
+import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
 import { SourceEditorDialog } from './SourceEditorDialog';
 import { PdfSourceDialog } from './PdfSourceDialog';
 import { SourcePreviewDialog } from './SourcePreviewDialog';
@@ -20,168 +22,214 @@ import type {
   DataSetFile, DataSetProcessingTemplate, DataSetSource, RowFilterDef, ComputedColumn, SortSpec, ColumnExprDef,
 } from '@/shared/api/types';
 
-/**
- * Обработка (Filter/Transformation/Sort) одного источника — доступна для любого формата
- * (не только XML). Своя, независимая настройка; шаблон обработки — только источник значений
- * для разового применения (копирование, как и шаблон маппинга), не живая ссылка: применили —
- * дальше можно свободно корректировать под конкретный источник.
- */
-function SourceProcessingControls({ source, templates }: {
-  source: DataSetSource; templates: DataSetProcessingTemplate[];
-}) {
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [transformsOpen, setTransformsOpen] = useState(false);
-  const [sortOpen, setSortOpen] = useState(false);
-  const [savingTemplate, setSavingTemplate] = useState(false);
-  const setProcessing = useSetDataSetSourceProcessing();
-  const createTemplate = useCreateProcessingTemplate();
-  const applyTemplateMutation = useApplyProcessingTemplate();
-
-  const filterCount = countFilterConditions(source.rowFilter);
-  const transformCount = source.computedColumns?.length ?? 0;
-  const sortCount = source.sortSpec?.length ?? 0;
-  // Filter/Sort работают уже ПОСЛЕ Transformation в пайплайне (см. DataSetBindingProcessor) —
-  // их список колонок должен включать и вычисляемые (иначе в UI недоступны, хотя backend их
-  // уже поддерживает и в фильтре, и в сортировке).
-  const computedAliases = (source.computedColumns ?? []).map(c => c.alias).filter(Boolean);
-  const columns = [...new Set([...parseSourceColumnNames(source.cachedSchema), ...computedAliases])];
-
-  function save(patch: {
-    rowFilter?: RowFilterDef | null; computedColumns?: ComputedColumn[] | null; sortSpec?: SortSpec | null;
-  }) {
-    setProcessing.mutate({
-      id: source.id,
-      rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec,
-      ...patch,
-    });
-  }
-
-  // Применение шаблона копирует его значения (Extraction, если задана, + Filter/Transformation/
-  // Sort) в источник ОДИН РАЗ (как и шаблон маппинга) — дальше это обычная своя настройка,
-  // дальнейшая правка шаблона на источник не влияет. Extraction триггерит пере-парсинг файла
-  // на backend, поэтому это отдельный эндпоинт, а не save() с локальными значениями.
-  function applyTemplate(templateId: string) {
-    if (!templateId) return;
-    applyTemplateMutation.mutate({ sourceId: source.id, templateId });
-  }
-
-  async function saveAsTemplate(name: string) {
-    let columnExpressions: ColumnExprDef[] | null = null;
-    try { columnExpressions = source.columnExpressions ? JSON.parse(source.columnExpressions) : null; }
-    catch { columnExpressions = null; }
-
-    await createTemplate.mutateAsync({
-      name, sheetOrPath: source.sheetOrPath, columnExpressions,
-      rowFilter: source.rowFilter, computedColumns: source.computedColumns, sortSpec: source.sortSpec,
-    });
-    setSavingTemplate(false);
-  }
-
-  const iconCls = (count: number) => `p-1 rounded ${count > 0 ? 'text-brand' : 'text-fg4'} disabled:opacity-40`;
-
-  return (
-    <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-      <select value="" onChange={e => applyTemplate(e.target.value)} disabled={applyTemplateMutation.isPending}
-        title="Применить шаблон (Extraction, если задана, + Filter/Transformation/Sort) — копирует значения, не живая ссылка"
-        className="text-[11px] border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[110px] disabled:opacity-50">
-        <option value="">применить шаблон…</option>
-        {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-      </select>
-      <button onClick={() => setFilterOpen(true)} className={iconCls(filterCount)} title="Фильтрация строк">
-        <Filter size={12} />
-      </button>
-      <button onClick={() => setTransformsOpen(true)} className={iconCls(transformCount)} title="Вычисляемые колонки">
-        <FunctionSquare size={12} />
-      </button>
-      <button onClick={() => setSortOpen(true)} className={iconCls(sortCount)} title="Сортировка строк">
-        <ArrowUpDown size={12} />
-      </button>
-      <button onClick={() => setSavingTemplate(true)} className="p-1 rounded text-fg4 hover:text-brand"
-        title="Сохранить Extraction (row-selector/колонки) + текущую обработку как шаблон">
-        <BookmarkPlus size={12} />
-      </button>
-
-      {filterOpen && (
-        <RowFilterDialog columns={columns} initial={source.rowFilter}
-          onSave={f => save({ rowFilter: f })} onClose={() => setFilterOpen(false)} />
-      )}
-      {transformsOpen && (
-        <ComputedColumnsDialog initial={source.computedColumns}
-          onSave={c => save({ computedColumns: c })} onClose={() => setTransformsOpen(false)} />
-      )}
-      {sortOpen && (
-        <SortSpecDialog columns={columns} initial={source.sortSpec}
-          onSave={s => save({ sortSpec: s })} onClose={() => setSortOpen(false)} />
-      )}
-      {savingTemplate && (
-        <SaveAsTemplateDialog
-          defaultName={source.name} isPending={createTemplate.isPending}
-          onSave={saveAsTemplate} onClose={() => setSavingTemplate(false)}
-        />
-      )}
-    </div>
-  );
-}
-
 /** Мини-диалог: только имя нового шаблона — сама Extraction + обработка уже известны (текущие источника). */
 function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
   defaultName: string; isPending: boolean;
   onSave: (name: string) => void; onClose: () => void;
 }) {
   const [name, setName] = useState(defaultName);
+  const canSave = !isPending && !!name.trim();
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="rounded-xl p-5 w-full max-w-sm bg-surface border border-stroke shadow-2xl" onClick={e => e.stopPropagation()}>
-        <p className="text-sm font-semibold mb-1 text-fg1">Сохранить как шаблон</p>
-        <p className="text-xs mb-3 text-fg3">
-          Row-selector/колонки (Extraction) и текущие Filter/Transformation/Sort источника
-          станут переиспользуемым шаблоном — копия, не живая ссылка.
-        </p>
-        <input value={name} onChange={e => setName(e.target.value)} autoFocus
-          placeholder="Название шаблона"
-          className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-base text-sm mb-4" />
+    <Modal
+      open
+      onOpenChange={o => { if (!o && !isPending) onClose(); }}
+      title="Сохранить как шаблон"
+      footer={
         <div className="flex gap-2 justify-end">
-          <button onClick={onClose} className="px-3 py-1.5 text-sm rounded-md border border-stroke text-fg2 hover:bg-muted">
+          <button onClick={onClose} disabled={isPending}
+            className="px-3 py-1.5 text-sm rounded-md border border-stroke text-fg2 hover:bg-muted disabled:opacity-50">
             Отмена
           </button>
-          <button
-            onClick={() => name.trim() && onSave(name.trim())}
-            disabled={isPending || !name.trim()}
+          <button onClick={() => canSave && onSave(name.trim())} disabled={!canSave}
             className="px-3 py-1.5 text-sm rounded-md bg-brand text-white disabled:opacity-50">
             {isPending ? 'Сохранение…' : 'Сохранить'}
           </button>
         </div>
-      </div>
-    </div>
+      }>
+      <p className="text-xs mb-3 text-fg3">
+        Row-selector/колонки (Extraction) и текущие Filter/Transformation/Sort источника
+        станут переиспользуемым шаблоном — копия, не живая ссылка.
+      </p>
+      <input value={name} onChange={e => setName(e.target.value)} autoFocus
+        onKeyDown={e => { if (e.key === 'Enter' && canSave) onSave(name.trim()); }}
+        placeholder="Название шаблона"
+        className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-base text-sm" />
+    </Modal>
   );
 }
 
 /**
  * Число строк ПОСЛЕ полного пайплайна (Extraction → Filter → Transformation → Sort) — не
  * cachedRowCount источника (тот считается на Extraction, до Filter/Transformation, и может
- * сильно расходиться с реальным результатом маппинга). Живой запрос — тот же путь, что и
- * SourcePreviewDialog, maxRows=1 просто чтобы не тянуть лишние данные строк.
+ * сильно расходиться с реальным результатом маппинга).
  */
 function SourceRowCountBadge({ sourceId }: { sourceId: string }) {
-  // isFetching — true и при фоновом рефетче (после инвалидации списка файлов любым источником
-  // того же файла), не только при первой загрузке — спиннер только пока данных ещё вообще нет,
-  // иначе бейдж каждого источника мигал бы при правке ЛЮБОГО другого источника того же файла.
   const { data, isFetching } = usePreviewDataSetSource(sourceId, 1);
   if (isFetching && data === undefined) return <Loader2 size={11} className="inline-block ml-2 animate-spin text-fg4" />;
   return <span className="ml-2 font-normal text-fg4">{data?.totalRows ?? 0} строк</span>;
 }
 
 /**
+ * Одна строка источника. Все действия (обработка/копия/распознавание/редактирование/удаление)
+ * свёрнуты в меню «три точки» (см. RowActionsMenu) — их больше трёх; видимым остаётся только
+ * Просмотр (основное действие чтения). Удаление — пунктом меню через ConfirmDialog, не hover-only
+ * красная иконка (см. feedback_delete_ui_safety). Точка на «трёх точках» — активная обработка.
+ */
+function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onEdit }: {
+  src: DataSetSource; isPdf: boolean; canManageExtraction: boolean;
+  templates: DataSetProcessingTemplate[]; maxColumns: number; onEdit: (src: DataSetSource) => void;
+}) {
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [transformsOpen, setTransformsOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [recognizeConflict, setRecognizeConflict] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const setProcessing = useSetDataSetSourceProcessing();
+  const createTemplate = useCreateProcessingTemplate();
+  const applyTemplateMutation = useApplyProcessingTemplate();
+  const deleteMutation = useDeleteDataSetSource();
+  const duplicateMutation = useDuplicateDataSetSource();
+  const recognizeMutation = useRecognizePdfSource();
+
+  const filterCount = countFilterConditions(src.rowFilter);
+  const transformCount = src.computedColumns?.length ?? 0;
+  const sortCount = src.sortSpec?.length ?? 0;
+  const hasActiveProcessing = filterCount > 0 || transformCount > 0 || sortCount > 0;
+
+  const computedAliases = (src.computedColumns ?? []).map(c => c.alias).filter(Boolean);
+  const columns = [...new Set([...parseSourceColumnNames(src.cachedSchema), ...computedAliases])];
+  const cols = parseSourceColumnNames(src.cachedSchema);
+
+  function save(patch: { rowFilter?: RowFilterDef | null; computedColumns?: ComputedColumn[] | null; sortSpec?: SortSpec | null }) {
+    setProcessing.mutate({
+      id: src.id, rowFilter: src.rowFilter, computedColumns: src.computedColumns, sortSpec: src.sortSpec, ...patch,
+    });
+  }
+  function applyTemplate(templateId: string) {
+    applyTemplateMutation.mutate({ sourceId: src.id, templateId });
+  }
+  async function saveAsTemplate(name: string) {
+    let columnExpressions: ColumnExprDef[] | null = null;
+    try { columnExpressions = src.columnExpressions ? JSON.parse(src.columnExpressions) : null; } catch { columnExpressions = null; }
+    await createTemplate.mutateAsync({
+      name, sheetOrPath: src.sheetOrPath, columnExpressions,
+      rowFilter: src.rowFilter, computedColumns: src.computedColumns, sortSpec: src.sortSpec,
+    });
+    setSavingTemplate(false);
+  }
+  function handleRecognize() {
+    recognizeMutation.mutate({ id: src.id }, {
+      onError: err => { if (isManualGroupingConflict(err)) setRecognizeConflict(true); },
+    });
+  }
+
+  // Пассивные PDF-подисточники (обложка/титул/товары) заполняются вместе с главным — их не
+  // распознают напрямую; показываем подпись-подсказку, но остальные действия доступны.
+  const passiveLabel =
+    isPdf && src.sheetOrPath === 'invoice-lineitems' ? 'товары'
+      : isPdf && src.sheetOrPath === 'gost-cover' ? 'обложка'
+      : isPdf && src.sheetOrPath === 'gost-titlepage' ? 'титул'
+      : null;
+
+  const badge = (n: number) => (n > 0 ? String(n) : undefined);
+  const actions: RowAction[] = [
+    { key: 'filter', label: 'Фильтрация строк', icon: <Filter size={13} />, onSelect: () => setFilterOpen(true), active: filterCount > 0, badge: badge(filterCount) },
+    { key: 'transform', label: 'Вычисляемые колонки', icon: <FunctionSquare size={13} />, onSelect: () => setTransformsOpen(true), active: transformCount > 0, badge: badge(transformCount) },
+    { key: 'sort', label: 'Сортировка строк', icon: <ArrowUpDown size={13} />, onSelect: () => setSortOpen(true), active: sortCount > 0, badge: badge(sortCount) },
+    { key: 'apply-tpl', label: 'Применить шаблон', icon: <FileDown size={13} />, disabled: templates.length === 0 || applyTemplateMutation.isPending,
+      submenu: templates.map(t => ({ key: t.id, label: t.name, onSelect: () => applyTemplate(t.id) })) },
+    { key: 'save-tpl', label: 'Сохранить как шаблон…', icon: <BookmarkPlus size={13} />, onSelect: () => setSavingTemplate(true) },
+    { key: 'export', label: 'Экспорт', icon: <Download size={13} />, submenu: [
+      { key: 'export-xlsx', label: 'XLSX', onSelect: () => void exportDataSetSource(src.id, 'xlsx') },
+      { key: 'export-xls', label: 'XLS', onSelect: () => void exportDataSetSource(src.id, 'xls') },
+      { key: 'export-csv', label: 'CSV', onSelect: () => void exportDataSetSource(src.id, 'csv') },
+    ] },
+    { key: 'duplicate', label: 'Создать копию', icon: <Copy size={13} />, onSelect: () => duplicateMutation.mutate({ id: src.id }), disabled: duplicateMutation.isPending },
+    ...(isPdf && !passiveLabel ? [{ key: 'recognize', label: 'Распознать', icon: <ScanText size={13} />, onSelect: handleRecognize, disabled: recognizeMutation.isPending }] : []),
+    ...(canManageExtraction && !isPdf ? [{ key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => onEdit(src) }] : []),
+    ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: <Trash2 size={13} />, danger: true, onSelect: () => { setDeleteError(null); setConfirmDelete(true); } }] : []),
+  ];
+
+  return (
+    <div className="text-xs rounded-md p-2 bg-muted">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-medium text-fg1">
+            {src.name}
+            {src.recognitionStale && (
+              <span title="Файл заменён после распознавания — данные относятся к прежнему файлу. Нажмите «Распознать»."
+                className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning-subtle text-warning align-middle">
+                <AlertTriangle size={10} /> устарело
+              </span>
+            )}
+            <SourceRowCountBadge sourceId={src.id} />
+          </div>
+          <div className="font-mono text-fg4 mt-0.5">{src.sheetOrPath}</div>
+          {cols.length > 0 && (
+            <div className="text-fg3 mt-0.5">
+              {cols.slice(0, maxColumns).join(', ')}{cols.length > maxColumns ? ` +${cols.length - maxColumns}` : ''}
+            </div>
+          )}
+          {deleteError && <div className="text-danger mt-1">{deleteError}</div>}
+        </div>
+        <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+          {passiveLabel && <span className="text-fg4 italic" title="Заполняется вместе с главным источником той же тройки/пары">{passiveLabel}</span>}
+          <button onClick={() => setPreviewing(true)} className="p-1 text-fg4 hover:text-brand" title="Просмотреть результат обработки">
+            <Eye size={13} />
+          </button>
+          <RowActionsMenu actions={actions} ariaLabel="Действия над источником" hasActive={hasActiveProcessing} />
+        </div>
+      </div>
+
+      {filterOpen && (
+        <RowFilterDialog columns={columns} initial={src.rowFilter}
+          onSave={f => save({ rowFilter: f })} onClose={() => setFilterOpen(false)} />
+      )}
+      {transformsOpen && (
+        <ComputedColumnsDialog initial={src.computedColumns}
+          onSave={c => save({ computedColumns: c })} onClose={() => setTransformsOpen(false)} />
+      )}
+      {sortOpen && (
+        <SortSpecDialog columns={columns} initial={src.sortSpec}
+          onSave={s => save({ sortSpec: s })} onClose={() => setSortOpen(false)} />
+      )}
+      {savingTemplate && (
+        <SaveAsTemplateDialog defaultName={src.name} isPending={createTemplate.isPending}
+          onSave={saveAsTemplate} onClose={() => setSavingTemplate(false)} />
+      )}
+      {previewing && <SourcePreviewDialog source={src} onClose={() => setPreviewing(false)} />}
+
+      <ConfirmDialog
+        open={recognizeConflict}
+        onOpenChange={o => { if (!o) setRecognizeConflict(false); }}
+        title="Разбиение было скорректировано вручную"
+        description={<p>Повторное автораспознавание сотрёт ручные правки разбиения на документы. Продолжить?</p>}
+        confirmLabel="Распознать заново"
+        onConfirm={() => recognizeMutation.mutate({ id: src.id, confirm: true })}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={o => { if (!o) setConfirmDelete(false); }}
+        title={`Удалить источник «${src.name}»?`}
+        description={<p>Если источник используется в привязках документов — удаление будет отклонено.</p>}
+        confirmLabel="Удалить источник"
+        onConfirm={() => deleteMutation.mutateAsync({ id: src.id }).catch((err: { response?: { data?: string } }) =>
+          setDeleteError(err?.response?.data ?? 'Не удалось удалить — возможно, источник используется в привязках.'))}
+      />
+    </div>
+  );
+}
+
+/**
  * Collapsible list of a file's data sources with a preview of their column names.
- * Для XML (и XML внутри ZIP) источники управляются только вручную (создание/редактирование/
- * удаление) — авто-детект по top-level элементам для XML не используется. Для JSON — авто-детект
- * top-level массивов/объектов создаёт исходные источники, но также доступно ручное управление
- * (например, чтобы задать вложенный/фильтрующий JSONPath, недоступный авто-детекту). Для PDF —
- * тоже только вручную (PdfSourceDialog: имя + структурные тэги, без row-selector), Extraction —
- * распознавание (кнопка ScanText «Распознать»), не builder; редактирование существующего PDF-
- * источника пока не поддержано (только пересоздание).
- * Обработка (Filter/Transformation/Sort) доступна для источников любого формата.
+ * Обработка (Filter/Transformation/Sort) доступна для источников любого формата; для PDF Extraction —
+ * распознавание (не builder). Все действия строки свёрнуты в меню «три точки» (см. SourceRow).
  */
 export function SourcesExpander({
   file,
@@ -192,18 +240,6 @@ export function SourcesExpander({
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<DataSetSource | 'new' | null>(null);
-  const [previewing, setPreviewing] = useState<DataSetSource | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<DataSetSource | null>(null);
-  const deleteMutation = useDeleteDataSetSource();
-  const duplicateMutation = useDuplicateDataSetSource();
-  const recognizeMutation = useRecognizePdfSource();
-  const [recognizeConflict, setRecognizeConflict] = useState<DataSetSource | null>(null);
-
-  function handleRecognize(src: DataSetSource) {
-    recognizeMutation.mutate({ id: src.id }, {
-      onError: (err) => { if (isManualGroupingConflict(err)) setRecognizeConflict(src); },
-    });
-  }
   const { data: templates = [] } = useListProcessingTemplates();
   const isPdf = file.format === 'Pdf';
   const canManageExtraction = file.format === 'Xml' || file.format === 'Zip' || file.format === 'Json' || isPdf;
@@ -215,7 +251,7 @@ export function SourcesExpander({
   return (
     <div>
       <div className="flex items-center gap-2">
-        <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1 text-xs text-brand">
+        <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="flex items-center gap-1 text-xs text-brand">
           {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           {sources.length > 0
             ? `${sources.length} ${sources.length === 1 ? 'источник' : 'источника(-ов)'}`
@@ -230,77 +266,10 @@ export function SourcesExpander({
       </div>
       {open && (
         <div className="mt-2 space-y-2 pl-3">
-          {sources.map(src => {
-            const cols = parseSourceColumnNames(src.cachedSchema);
-            return (
-              <div key={src.id} className="text-xs rounded-md p-2 bg-muted">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="font-medium text-fg1">
-                      {src.name}
-                      <SourceRowCountBadge sourceId={src.id} />
-                    </div>
-                    <div className="font-mono text-fg4 mt-0.5">{src.sheetOrPath}</div>
-                    {cols.length > 0 && (
-                      <div className="text-fg3 mt-0.5">
-                        {cols.slice(0, maxColumns).join(', ')}{cols.length > maxColumns ? ` +${cols.length - maxColumns}` : ''}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <SourceProcessingControls source={src} templates={templates} />
-                    <button onClick={() => setPreviewing(src)} className="p-1 text-fg4 hover:text-brand"
-                      title="Просмотреть результат обработки">
-                      <Eye size={12} />
-                    </button>
-                    <button
-                      onClick={() => duplicateMutation.mutate({ id: src.id })}
-                      disabled={duplicateMutation.isPending && duplicateMutation.variables?.id === src.id}
-                      className="p-1 text-fg4 hover:text-brand disabled:opacity-50" title="Создать копию">
-                      <Copy size={12} />
-                    </button>
-                    {isPdf && src.sheetOrPath === 'invoice-lineitems' ? (
-                      <span className="text-fg4 italic" title="Заполняется вместе с источником-шапкой того же счёта">
-                        товары
-                      </span>
-                    ) : isPdf && (src.sheetOrPath === 'gost-cover' || src.sheetOrPath === 'gost-titlepage') ? (
-                      <span className="text-fg4 italic" title="Заполняется вместе с источником «Документы» той же тройки">
-                        {src.sheetOrPath === 'gost-cover' ? 'обложка' : 'титул'}
-                      </span>
-                    ) : isPdf && (
-                      <button
-                        onClick={() => handleRecognize(src)}
-                        disabled={recognizeMutation.isPending && recognizeMutation.variables?.id === src.id}
-                        className="p-1 text-fg4 hover:text-brand disabled:opacity-50"
-                        title={src.sheetOrPath === 'invoice-header'
-                          ? 'Распознать счёт целиком: реквизиты шапки + таблицу товаров (один вызов, может занять время)'
-                          : src.sheetOrPath === 'gost-documents'
-                          ? 'Распознать: обложка/титульный лист/документы (постранично, может занять время)'
-                          : 'Распознать основную надпись каждой страницы (может занять время)'}>
-                        {recognizeMutation.isPending && recognizeMutation.variables?.id === src.id
-                          ? <Loader2 size={12} className="animate-spin" />
-                          : <ScanText size={12} />}
-                      </button>
-                    )}
-                    {canManageExtraction && (
-                      <>
-                        {/* PDF пока без редактирования (нет способа поменять только имя/тэги
-                            без пере-парсинга) — переименовать можно копией+удалением. */}
-                        {!isPdf && (
-                          <button onClick={() => setEditing(src)} className="p-1 text-fg4 hover:text-brand" title="Редактировать">
-                            <Pencil size={12} />
-                          </button>
-                        )}
-                        <button onClick={() => setConfirmDelete(src)} className="p-1 text-fg4 hover:text-danger" title="Удалить">
-                          <Trash2 size={12} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {sources.map(src => (
+            <SourceRow key={src.id} src={src} isPdf={isPdf} canManageExtraction={canManageExtraction}
+              templates={templates} maxColumns={maxColumns} onEdit={setEditing} />
+          ))}
         </div>
       )}
 
@@ -316,51 +285,6 @@ export function SourcesExpander({
             onClose={() => setEditing(null)}
           />
         )
-      )}
-
-      {previewing && (
-        <SourcePreviewDialog source={previewing} onClose={() => setPreviewing(null)} />
-      )}
-
-      <ConfirmDialog
-        open={!!recognizeConflict}
-        onOpenChange={o => { if (!o) setRecognizeConflict(null); }}
-        title="Разбиение было скорректировано вручную"
-        description={<p>Повторное автораспознавание сотрёт ручные правки разбиения на документы. Продолжить?</p>}
-        confirmLabel="Распознать заново"
-        onConfirm={() => { if (recognizeConflict) recognizeMutation.mutate({ id: recognizeConflict.id, confirm: true }); }}
-      />
-
-      {confirmDelete && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setConfirmDelete(null)}>
-          <div className="rounded-xl p-5 w-full max-w-sm bg-surface border border-stroke shadow-2xl" onClick={e => e.stopPropagation()}>
-            <p className="text-sm font-semibold mb-1 text-fg1">Удалить источник «{confirmDelete.name}»?</p>
-            <p className="text-xs mb-4 text-fg3">
-              Если он используется в привязках документов — удаление будет отклонено.
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setConfirmDelete(null)}
-                className="px-3 py-1.5 text-sm rounded-md border border-stroke text-fg2 hover:bg-muted">
-                Отмена
-              </button>
-              <button
-                onClick={() => deleteMutation.mutateAsync({ id: confirmDelete.id })
-                  .then(() => setConfirmDelete(null))
-                  .catch(() => {})}
-                disabled={deleteMutation.isPending}
-                className="px-3 py-1.5 text-sm rounded-md bg-danger text-white disabled:opacity-50">
-                Удалить
-              </button>
-            </div>
-            {deleteMutation.isError && (
-              <p className="text-xs text-danger mt-2">
-                {(deleteMutation.error as { response?: { data?: string } })?.response?.data
-                  ?? 'Не удалось удалить — возможно, источник используется в привязках.'}
-              </p>
-            )}
-          </div>
-        </div>
       )}
     </div>
   );

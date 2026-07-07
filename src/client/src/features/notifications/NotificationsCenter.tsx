@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import * as Popover from '@radix-ui/react-popover';
 import {
-  Bell, Info, AlertTriangle, AlertCircle, X, CheckCheck, Trash2, Activity, Download,
+  Bell, Info, AlertTriangle, AlertCircle, X, Check, CheckCheck, Trash2, Activity, Download,
 } from 'lucide-react';
 import {
   useNotifications, useHealth,
@@ -9,14 +9,14 @@ import {
   type NotificationSeverity, type NotificationDto,
 } from '@/shared/api/notifications';
 import { apiClient } from '@/shared/api/client';
+import { filenameFromContentDisposition } from '@/shared/api/attachments';
 
 // Прямой доступ к результату job: скачиваем через apiClient (с JWT), сохраняем файл.
 async function openResult(linkUrl: string) {
   const path = linkUrl.replace(/^\/api/, '');
   const resp = await apiClient.get(path, { responseType: 'blob' });
   const cd = resp.headers['content-disposition'] as string | undefined;
-  const match = cd?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
-  const filename = match ? decodeURIComponent(match[1]) : 'document';
+  const filename = filenameFromContentDisposition(cd, 'document');
   const url = URL.createObjectURL(resp.data as Blob);
   const a = document.createElement('a');
   a.href = url;
@@ -28,9 +28,9 @@ async function openResult(linkUrl: string) {
 }
 
 const SEVERITY: Record<NotificationSeverity, { icon: typeof Info; color: string; bg: string; label: string }> = {
-  Info:    { icon: Info,          color: 'text-blue-500',  bg: 'bg-blue-500/10',  label: 'Информация' },
-  Warning: { icon: AlertTriangle, color: 'text-amber-500', bg: 'bg-amber-500/10', label: 'Предупреждение' },
-  Error:   { icon: AlertCircle,   color: 'text-red-500',   bg: 'bg-red-500/10',   label: 'Ошибка' },
+  Info:    { icon: Info,          color: 'text-brand',   bg: 'bg-brand-subtle',   label: 'Информация' },
+  Warning: { icon: AlertTriangle, color: 'text-warning', bg: 'bg-warning-subtle', label: 'Предупреждение' },
+  Error:   { icon: AlertCircle,   color: 'text-danger',  bg: 'bg-danger-subtle',  label: 'Ошибка' },
 };
 
 function relTime(iso: string): string {
@@ -50,7 +50,6 @@ function NotificationRow({ n }: { n: NotificationDto }) {
   return (
     <div
       className={`group flex gap-3 px-4 py-3 border-b border-stroke last:border-b-0 ${n.isRead ? 'opacity-65' : ''}`}
-      onMouseEnter={() => { if (!n.isRead) markRead.mutate(n.id); }}
     >
       <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${meta.bg}`}>
         <Icon size={15} className={meta.color} />
@@ -75,14 +74,26 @@ function NotificationRow({ n }: { n: NotificationDto }) {
           <span>{relTime(n.createdAt)}</span>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={() => dismiss.mutate(n.id)}
-        title="Удалить"
-        className="shrink-0 self-start text-fg4 hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <X size={14} />
-      </button>
+      <div className="shrink-0 self-start flex flex-col items-center gap-1.5">
+        {!n.isRead && (
+          <button
+            type="button"
+            onClick={() => markRead.mutate(n.id)}
+            title="Отметить прочитанным"
+            className="text-fg4 hover:text-brand transition-colors"
+          >
+            <Check size={14} />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => dismiss.mutate(n.id)}
+          title="Удалить"
+          className="text-fg4 hover:text-danger opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+        >
+          <X size={14} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -98,9 +109,9 @@ function HealthSection() {
       <div className="space-y-1.5">
         {health.map(c => (
           <div key={c.name} className="flex items-center gap-2 text-xs">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${c.healthy ? 'bg-emerald-500' : 'bg-red-500'}`} />
+            <span className={`w-2 h-2 rounded-full shrink-0 ${c.healthy ? 'bg-success' : 'bg-danger'}`} />
             <span className="text-fg2 flex-1">{c.name}</span>
-            <span className={c.healthy ? 'text-fg4' : 'text-red-500'}>
+            <span className={c.healthy ? 'text-fg4' : 'text-danger'}>
               {c.healthy ? 'в норме' : (c.detail ? 'сбой' : 'недоступен')}
             </span>
           </div>
@@ -111,8 +122,6 @@ function HealthSection() {
 }
 
 export function NotificationsCenter() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
   const { data } = useNotifications();
   const markAll = useMarkAllNotificationsRead();
   const clearAll = useClearNotifications();
@@ -121,38 +130,31 @@ export function NotificationsCenter() {
   const unread = data?.unreadCount ?? 0;
   const hasError = items.some(n => !n.isRead && n.severity === 'Error');
 
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [open]);
-
   return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        title="Уведомления"
-        className={`relative flex items-center justify-center w-9 h-9 rounded-md transition-colors ${
-          open ? 'bg-base text-fg1' : 'text-fg3 hover:text-fg1 hover:bg-base'
-        }`}
-      >
-        <Bell size={18} />
-        {unread > 0 && (
-          <span
-            className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold
-              flex items-center justify-center text-white ${hasError ? 'bg-red-500' : 'bg-brand'}`}
-          >
-            {unread > 99 ? '99+' : unread}
-          </span>
-        )}
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-full mt-2 w-96 max-h-[75vh] flex flex-col rounded-xl border border-stroke bg-surface shadow-lg z-50 overflow-hidden">
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          title="Уведомления"
+          className="relative flex items-center justify-center w-9 h-9 rounded-md transition-colors text-fg3 hover:text-fg1 hover:bg-base data-[state=open]:bg-base data-[state=open]:text-fg1"
+        >
+          <Bell size={18} />
+          {unread > 0 && (
+            <span
+              className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold
+                flex items-center justify-center text-white ${hasError ? 'bg-danger' : 'bg-brand'}`}
+            >
+              {unread > 99 ? '99+' : unread}
+            </span>
+          )}
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          align="end"
+          sideOffset={8}
+          className="w-96 max-h-[75vh] flex flex-col rounded-xl border border-stroke bg-surface shadow-lg z-50 overflow-hidden focus:outline-none"
+        >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-stroke shrink-0">
             <span className="text-sm font-semibold text-fg1">Уведомления</span>
@@ -190,8 +192,8 @@ export function NotificationsCenter() {
               items.map(n => <NotificationRow key={n.id} n={n} />)
             )}
           </div>
-        </div>
-      )}
-    </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

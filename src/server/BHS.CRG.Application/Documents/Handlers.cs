@@ -209,7 +209,8 @@ public class DocumentSetHandlers(
     IRequestHandler<UpdateRequisitesCommand, DocumentInstance>,
     IRequestHandler<UpdatePluginDataCommand, DocumentInstance>,
     IRequestHandler<GetDocumentInstanceQuery, DocumentInstance?>,
-    IRequestHandler<SetDocumentTemplateCommand, DocumentInstance>
+    IRequestHandler<SetDocumentTemplateCommand, DocumentInstance>,
+    IRequestHandler<SetDocumentTemplateParamsCommand, DocumentInstance>
 {
     public async Task<DocumentSet> Handle(CreateDocumentSetCommand cmd, CancellationToken ct)
     {
@@ -312,6 +313,17 @@ public class DocumentSetHandlers(
         var inst = await instRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
         var blobs = inst.ResetToDraft();
         inst.SetTemplate(cmd.TemplateId);
+        instRepo.Update(inst);
+        await instRepo.SaveChangesAsync(ct);
+        foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
+        return inst;
+    }
+
+    public async Task<DocumentInstance> Handle(SetDocumentTemplateParamsCommand cmd, CancellationToken ct)
+    {
+        var inst = await instRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
+        var blobs = inst.ResetToDraft(); // параметры влияют на вывод — сбрасываем в черновик
+        inst.SetTemplateParams(cmd.Params);
         instRepo.Update(inst);
         await instRepo.SaveChangesAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);

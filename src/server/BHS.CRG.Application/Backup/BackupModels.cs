@@ -27,7 +27,7 @@ public record BackupTemplate(
     bool IsActive, bool IsDefault,
     string PageSize, string PageOrientation,
     int MarginTop, int MarginRight, int MarginBottom, int MarginLeft,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string? Parameters = null);
 
 public record BackupCatalogEntity(
     Guid Id, string EntityType, string DisplayName, JsonElement Data, Guid? OwnerId,

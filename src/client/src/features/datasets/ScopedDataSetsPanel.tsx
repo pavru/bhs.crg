@@ -5,13 +5,15 @@ import {
   useUploadDataSetFile,
 } from '@/shared/api/datasets';
 import type { CatalogScope, DataSetFile } from '@/shared/api/types';
-import { DATA_SET_FORMAT_LABELS } from '@/shared/api/types';
+import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
+import { SCOPE_COLORS } from '@/features/document-sets/fields/constants';
 import { SourcesExpander } from './SourcesExpander';
 import { useDataSetFileActions } from './useDataSetFileActions';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 
 function FileRow({ file, scope, scopeId }: { file: DataSetFile; scope: CatalogScope; scopeId?: string }) {
   const {
-    del, update, confirming, setConfirming, downloading,
+    update, confirming, setConfirming, downloading,
     updateInputRef, handleReplace, handleDownload, handleDelete,
   } = useDataSetFileActions(file, scope, scopeId);
 
@@ -40,32 +42,25 @@ function FileRow({ file, scope, scopeId }: { file: DataSetFile; scope: CatalogSc
         >
           <RefreshCw size={13} className={update.isPending ? 'animate-spin' : ''} />
         </button>
-        {!confirming ? (
-          <button
-            onClick={() => setConfirming(true)}
-            className="p-1 rounded transition-colors text-fg4 hover:text-danger"
-            title="Удалить"
-          >
-            <Trash2 size={13} />
-          </button>
-        ) : (
-          <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-fg3">Удалить?</span>
-            <button onClick={handleDelete}
-              disabled={del.isPending}
-              className="px-2 py-0.5 rounded text-white bg-danger" style={{ fontSize: '11px' }}>
-              Да
-            </button>
-            <button onClick={() => setConfirming(false)}
-              className="px-2 py-0.5 rounded bg-muted text-fg2" style={{ fontSize: '11px' }}>
-              Нет
-            </button>
-          </div>
-        )}
+        <button
+          onClick={() => setConfirming(true)}
+          className="p-1 rounded transition-colors text-fg4 hover:text-danger"
+          title="Удалить"
+        >
+          <Trash2 size={13} />
+        </button>
       </div>
       <div className="pl-5">
         <SourcesExpander file={file} maxColumns={6} />
       </div>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={o => { if (!o) setConfirming(false); }}
+        title={`Удалить файл «${file.name}»?`}
+        description={<p>Файл и все его источники будут удалены. Привязки, ссылающиеся на него, перестанут работать.</p>}
+        confirmLabel="Удалить файл"
+        onConfirm={() => { void handleDelete(); }}
+      />
     </div>
   );
 }
@@ -100,10 +95,17 @@ export function ScopedDataSetsPanel({ scope, scopeId }: { scope: CatalogScope; s
     <div className="mt-3 rounded-xl overflow-hidden border border-stroke">
       {/* Header */}
       <div
+        role="button"
+        aria-expanded={expanded}
+        tabIndex={0}
         className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none bg-base"
         onClick={() => setExpanded(o => !o)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(o => !o); } }}
       >
         <Database size={13} className="text-brand" />
+        <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${SCOPE_COLORS[scope]}`}>
+          {SCOPE_LABELS[scope]}
+        </span>
         <span className="text-xs font-medium flex-1 text-fg2">
           Наборы данных
           {count > 0 && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-brand-subtle text-brand">{count}</span>}

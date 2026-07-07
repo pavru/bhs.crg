@@ -1,4 +1,8 @@
+using System.Security.Claims;
+using System.Text.Json;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.Jobs;
+using BHS.CRG.Domain.Jobs;
 
 namespace BHS.CRG.Api.Endpoints.DataSets;
 
@@ -67,6 +71,14 @@ public static class DataSetEndpoints
         {
             var preview = await svc.PreviewSourceAsync(sourceId, maxRows, ct);
             return preview is null ? Results.NotFound() : Results.Ok(preview);
+        });
+
+        // Выгрузка ВСЕХ строк источника (после обработки) в CSV/XLS/XLSX. format=xlsx по умолчанию.
+        g.MapGet("/sources/{sourceId:guid}/export", async (
+            Guid sourceId, string? format, IDataSetService svc, CancellationToken ct) =>
+        {
+            var result = await svc.ExportSourceAsync(sourceId, format, ct);
+            return result is null ? Results.NotFound() : Results.File(result.Content, result.ContentType, result.FileName);
         });
 
         g.MapPost("/sources/{sourceId:guid}/auto-map", async (
@@ -138,10 +150,19 @@ public static class DataSetEndpoints
 
         // confirm=true — подтверждение перезаписи ручной корректировки разбиения (см.
         // ApplyGroupingAsync); без него, если источник уже правился вручную, — 409 Conflict.
-        g.MapPost("/sources/{sourceId:guid}/recognize", async (Guid sourceId, bool? confirm, IDataSetService svc, CancellationToken ct) =>
+        g.MapPost("/sources/{sourceId:guid}/recognize", async (Guid sourceId, bool? confirm, IDataSetService svc, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
         {
             try
             {
+                // Пред-валидация синхронно (формат, 409 ручной правки). GOST-набор (минуты) → фоновая
+                // задача, 202+jobId сразу (реквест не держится). Счёт/legacy (секунды) → синхронно.
+                var plan = await svc.PlanRecognitionAsync(sourceId, confirm ?? false, ct);
+                if (plan is null) return Results.NotFound();
+                if (plan.Background)
+                {
+                    var jobId = await jobs.EnqueueAsync(JobKind.RecognizeGostSet, UserId(user), sourceId, plan.Title, null, ct);
+                    return Results.Accepted($"/api/jobs/active", new { jobId });
+                }
                 var result = await svc.RecognizePdfSourceAsync(sourceId, confirm ?? false, ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
@@ -161,11 +182,14 @@ public static class DataSetEndpoints
             catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
-        g.MapGet("/sources/{sourceId:guid}/pages/{pageIndex:int}/thumbnail", async (Guid sourceId, int pageIndex, IDataSetService svc, CancellationToken ct) =>
+        g.MapGet("/sources/{sourceId:guid}/pages/{pageIndex:int}/thumbnail", async (Guid sourceId, int pageIndex, int? dpi, IDataSetService svc, CancellationToken ct) =>
         {
             try
             {
-                var png = await svc.GetPageThumbnailAsync(sourceId, pageIndex, ct);
+                // dpi: 96 (миниатюра по умолчанию) … 200 (крупный просмотр листа глазами). Ограничиваем, чтобы
+                // растр не разрастался до неподъёмного размера на больших форматах (А1/А0).
+                var effectiveDpi = Math.Clamp(dpi ?? 96, 96, 200);
+                var png = await svc.GetPageThumbnailAsync(sourceId, pageIndex, ct, effectiveDpi);
                 return png is null ? Results.NotFound() : Results.File(png, "image/png");
             }
             catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
@@ -175,11 +199,42 @@ public static class DataSetEndpoints
         {
             try
             {
-                var input = new ApplyGroupingInput(req.Documents.Select(d => new GostGroupingDocumentDto(d.Code, d.Name, d.PageIndices)).ToList());
+                var input = new ApplyGroupingInput(req.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.PageIndices, g.Tags)).ToList());
                 var result = await svc.ApplyGroupingAsync(sourceId, input, ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
             catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+
+        // Лёгкая установка тэгов документа (тип таблицы) — без пересборки разбиения.
+        g.MapPut("/sources/{sourceId:guid}/document-tags", async (
+            Guid sourceId, SetDocumentTagsRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await svc.SetDocumentTagsAsync(sourceId, req.FirstPageIndex, req.Tags ?? [], ct);
+                return result is null ? Results.NotFound() : Results.Ok(result);
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+
+        // Распознать таблицу помеченного документа (спецификация/кабельный журнал) → отдельный табличный
+        // источник. Vision-вызов (минуты на большом документе) → фоновая задача, 202+jobId сразу.
+        g.MapPost("/sources/{sourceId:guid}/recognize-table", async (
+            Guid sourceId, RecognizeTableRequest req, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
+        {
+            var payload = JsonSerializer.Serialize(new { firstPageIndex = req.FirstPageIndex });
+            var jobId = await jobs.EnqueueAsync(JobKind.RecognizeTable, UserId(user), sourceId, "Распознавание таблицы", payload, ct);
+            return Results.Accepted($"/api/jobs/active", new { jobId });
+        });
+
+        // Точечное перераспознавание ОДНОГО документа набора (не всего альбома, P6) → фоновая задача.
+        g.MapPost("/sources/{sourceId:guid}/recognize-document", async (
+            Guid sourceId, RecognizeTableRequest req, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
+        {
+            var payload = JsonSerializer.Serialize(new { firstPageIndex = req.FirstPageIndex });
+            var jobId = await jobs.EnqueueAsync(JobKind.RecognizeDocument, UserId(user), sourceId, "Перераспознавание документа", payload, ct);
+            return Results.Accepted($"/api/jobs/active", new { jobId });
         });
 
         // Обработка (Filter/Transformation/Sort) — лёгкая правка, не трогает файл/кэш схемы.
@@ -251,6 +306,11 @@ public static class DataSetEndpoints
         object? RowFilter, object? ComputedColumns, object? SortSpec);
     private record ExpressionPreviewRequest(string RowSelector, string? Expr);
     private record PdfSourceRequest(string Name, string[]? Tags, string? Profile);
-    private record ApplyGroupingRequest(ApplyGroupingDocumentRequest[] Documents);
-    private record ApplyGroupingDocumentRequest(string Code, string? Name, int[] PageIndices);
+    private record ApplyGroupingRequest(ApplyGroupingGroupRequest[] Groups);
+    private record ApplyGroupingGroupRequest(GostGroupKind Kind, string? Code, string? Name, int[] PageIndices, string[]? Tags);
+    private record SetDocumentTagsRequest(int FirstPageIndex, string[]? Tags);
+    private record RecognizeTableRequest(int FirstPageIndex);
+
+    private static Guid UserId(ClaimsPrincipal user)
+        => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub")!);
 }

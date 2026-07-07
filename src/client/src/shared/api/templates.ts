@@ -66,6 +66,16 @@ export function useUpdateTemplateSettings() {
   });
 }
 
+/** Объявление параметров шаблона — parameters = JSON-текст TemplateParam[] или null. */
+export function useUpdateTemplateParameters() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (p: { id: string; parameters: string | null }) =>
+      apiClient.put<Template>(`/templates/${p.id}/parameters`, { parameters: p.parameters }).then((r) => r.data),
+    onSuccess: (t) => qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] }),
+  });
+}
+
 export function useSetTemplateDefault() {
   const qc = useQueryClient();
   return useMutation({

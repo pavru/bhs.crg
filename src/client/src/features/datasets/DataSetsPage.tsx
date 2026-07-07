@@ -6,10 +6,11 @@ import { DATA_SET_FORMAT_LABELS } from '@/shared/api/types';
 import { SourcesExpander } from './SourcesExpander';
 import { useDataSetFileActions } from './useDataSetFileActions';
 import { ProcessingTemplatesDialog } from './ProcessingTemplatesDialog';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 
 function FileRow({ file }: { file: DataSetFile }) {
   const {
-    del, update, confirming, setConfirming, downloading,
+    update, confirming, setConfirming, downloading,
     updateInputRef, handleReplace, handleDownload, handleDelete,
   } = useDataSetFileActions(file, 'System');
 
@@ -38,36 +39,25 @@ function FileRow({ file }: { file: DataSetFile }) {
         >
           <RefreshCw size={14} className={update.isPending ? 'animate-spin' : ''} />
         </button>
-        {!confirming ? (
-          <button
-            onClick={() => setConfirming(true)}
-            className="p-1.5 rounded transition-colors text-fg4 hover:text-danger"
-            title="Удалить"
-          >
-            <Trash2 size={14} />
-          </button>
-        ) : (
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-fg3">Удалить?</span>
-            <button
-              onClick={handleDelete}
-              disabled={del.isPending}
-              className="px-2 py-1 rounded text-white text-xs font-medium bg-danger"
-            >
-              Да
-            </button>
-            <button
-              onClick={() => setConfirming(false)}
-              className="px-2 py-1 rounded text-xs font-medium bg-muted text-fg2"
-            >
-              Нет
-            </button>
-          </div>
-        )}
+        <button
+          onClick={() => setConfirming(true)}
+          className="p-1.5 rounded transition-colors text-fg4 hover:text-danger"
+          title="Удалить"
+        >
+          <Trash2 size={14} />
+        </button>
       </div>
       <div className="pl-7">
         <SourcesExpander file={file} />
       </div>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={o => { if (!o) setConfirming(false); }}
+        title={`Удалить файл «${file.name}»?`}
+        description={<p>Файл и все его источники будут удалены. Привязки, ссылающиеся на него, перестанут работать.</p>}
+        confirmLabel="Удалить файл"
+        onConfirm={() => { void handleDelete(); }}
+      />
     </div>
   );
 }

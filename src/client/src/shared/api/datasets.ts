@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { filenameFromContentDisposition } from './attachments';
 import type {
   CatalogScope, ColumnExprDef, DataSetBinding, DataSetBindingOwner, DataSetBindingPreviewResult, DataSetFile,
   DataSetPreview, DataSetProcessingTemplate, DataSetSource, RowFilterDef, ComputedColumn, SortSpec,
-  GostGrouping, GostGroupingDocument,
+  GostGrouping, GostGroupingGroup,
 } from './types';
 
 // ── Файлы ─────────────────────────────────────────────────────────────────────
@@ -172,10 +173,16 @@ export function useCreatePdfSource() {
  */
 export function useRecognizePdfSource() {
   const qc = useQueryClient();
-  return useMutation<DataSetSource, Error, { id: string; confirm?: boolean }>({
+  // Возвращает 202 + { jobId } (GOST-набор — фоновая задача) ЛИБО обновлённый источник (счёт/legacy —
+  // синхронно). Данные подтягивает useActiveJobs при завершении задачи; здесь лишь мгновенно показываем
+  // пилюлю (инвалидация активных задач) и обновляем источники для синхронной ветки.
+  return useMutation<{ jobId?: string }, Error, { id: string; confirm?: boolean }>({
     mutationFn: ({ id, confirm }) =>
       apiClient.post(`/datasets/sources/${id}/recognize`, undefined, { params: confirm ? { confirm: true } : undefined }).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['jobs', 'active'] });
+      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+    },
   });
 }
 
@@ -202,15 +209,56 @@ export async function loadPageThumbnailUrl(sourceId: string, pageIndex: number):
   return URL.createObjectURL(response.data as Blob);
 }
 
+/** Крупный просмотр листа (PNG повышенного DPI) — чтобы прочитать штамп/содержимое глазами. */
+export async function loadPageImageUrl(sourceId: string, pageIndex: number, dpi = 200): Promise<string> {
+  const response = await apiClient.get(`/datasets/sources/${sourceId}/pages/${pageIndex}/thumbnail`, {
+    params: { dpi },
+    responseType: 'blob',
+  });
+  return URL.createObjectURL(response.data as Blob);
+}
+
 export function useApplyGrouping(sourceId: string) {
   const qc = useQueryClient();
-  return useMutation<GostGrouping, Error, GostGroupingDocument[]>({
-    mutationFn: (documents) =>
-      apiClient.put(`/datasets/sources/${sourceId}/grouping`, { documents }).then(r => r.data),
+  return useMutation<GostGrouping, Error, GostGroupingGroup[]>({
+    mutationFn: (groups) =>
+      apiClient.put(`/datasets/sources/${sourceId}/grouping`, { groups }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['datasets', 'sources', sourceId, 'pages'] });
       qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
     },
+  });
+}
+
+/** Лёгкая установка тэгов документа (тип таблицы) — без пересборки разбиения. */
+export function useSetDocumentTags(documentsSourceId: string) {
+  const qc = useQueryClient();
+  return useMutation<GostGrouping, unknown, { firstPageIndex: number; tags: string[] }>({
+    mutationFn: ({ firstPageIndex, tags }) =>
+      apiClient.put(`/datasets/sources/${documentsSourceId}/document-tags`, { firstPageIndex, tags }).then(r => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['datasets', 'sources', documentsSourceId, 'pages'] }); },
+  });
+}
+
+/** Распознать таблицу помеченного документа (спецификация/кабельный журнал) → отдельный табличный источник. */
+/** Точечное перераспознавание ОДНОГО документа (не всего альбома) — фоновая задача, 202+jobId. */
+export function useRecognizeDocument(documentsSourceId: string) {
+  const qc = useQueryClient();
+  return useMutation<{ jobId?: string }, unknown, number>({
+    mutationFn: (firstPageIndex) =>
+      apiClient.post(`/datasets/sources/${documentsSourceId}/recognize-document`, { firstPageIndex }).then(r => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['jobs', 'active'] }); },
+  });
+}
+
+export function useRecognizeDocumentTable(documentsSourceId: string) {
+  const qc = useQueryClient();
+  // 202 + { jobId } — распознавание таблицы идёт фоновой задачей; результат (новый табличный источник)
+  // подтянет useActiveJobs при завершении, итог всплывёт в колокольчике. Здесь — мгновенный показ пилюли.
+  return useMutation<{ jobId?: string }, unknown, number>({
+    mutationFn: (firstPageIndex) =>
+      apiClient.post(`/datasets/sources/${documentsSourceId}/recognize-table`, { firstPageIndex }).then(r => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['jobs', 'active'] }); },
   });
 }
 
@@ -296,11 +344,24 @@ export function useApplyProcessingTemplate() {
 export async function downloadDataSetFile(id: string, name: string) {
   const response = await apiClient.get(`/datasets/files/${id}/download`, { responseType: 'blob' });
   const contentDisposition = response.headers['content-disposition'] as string | undefined;
-  let filename = name;
-  if (contentDisposition) {
-    const match = /filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?/.exec(contentDisposition);
-    if (match?.[1]) filename = decodeURIComponent(match[1].trim());
-  }
+  const filename = filenameFromContentDisposition(contentDisposition, name);
+  const url = URL.createObjectURL(response.data as Blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/** Выгрузка ВСЕХ строк источника (после обработки) в spreadsheet и скачивание в браузере. */
+export async function exportDataSetSource(sourceId: string, format: 'xlsx' | 'xls' | 'csv') {
+  const response = await apiClient.get(`/datasets/sources/${sourceId}/export`, {
+    params: { format }, responseType: 'blob',
+  });
+  const contentDisposition = response.headers['content-disposition'] as string | undefined;
+  const filename = filenameFromContentDisposition(contentDisposition, `export.${format}`);
   const url = URL.createObjectURL(response.data as Blob);
   const a = document.createElement('a');
   a.href = url;

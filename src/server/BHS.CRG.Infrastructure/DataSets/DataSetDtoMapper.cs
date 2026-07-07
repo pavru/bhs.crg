@@ -12,6 +12,14 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// </summary>
 public static class DataSetDtoMapper
 {
+    /// <summary>Имя файла без запрещённых символов (для скачиваемых выгрузок/разрезанных PDF).</summary>
+    public static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var sanitized = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
+        return string.IsNullOrWhiteSpace(sanitized) ? "данные" : sanitized;
+    }
+
     public static DataSetFormat? DetectFormat(string fileName) =>
         Path.GetExtension(fileName).ToLowerInvariant() switch
         {
@@ -68,7 +76,7 @@ public static class DataSetDtoMapper
     public static DataSetSourceDto MapSource(DataSetSource s) => new(
         s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, s.CachedSchema, s.CachedRowCount,
         DeserializeJson(s.RowFilter), DeserializeJson(s.ComputedColumns), DeserializeJson(s.SortSpec),
-        s.Tags is null ? null : JsonSerializer.Deserialize<List<string>>(s.Tags));
+        s.Tags is null ? null : JsonSerializer.Deserialize<List<string>>(s.Tags), s.RecognitionStale);
 
     public static DataSetBindingDto MapBinding(DataSetBinding b) => new(
         b.Id, b.InstanceId, b.CommonDataEntryId, b.SourceId, b.TargetFieldKey,

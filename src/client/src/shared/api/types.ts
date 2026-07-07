@@ -73,11 +73,21 @@ export interface DocumentType {
   updatedAt: string;
 }
 
+/** Объявленный параметр шаблона (значение по умолчанию + переопределение на документе). */
+export interface TemplateParam {
+  name: string;
+  label: string;
+  type: 'string' | 'number' | 'boolean';
+  default: string | number | boolean | null;
+}
+
 export interface Template {
   id: string;
   documentTypeId: string;
   name: string;
   content: string;
+  /** JSON-текст массива TemplateParam[] (jsonb-строка) или null. Парсить на клиенте. */
+  parameters: string | null;
   version: number;
   isActive: boolean;
   isDefault: boolean;
@@ -126,6 +136,8 @@ export interface DocumentInstance {
   templateId: string | null;
   requisites: Record<string, unknown>;
   pluginData: Record<string, unknown>;
+  /** JSON-текст объекта {имя:значение} переопределений параметров шаблона (jsonb-строка) или null. */
+  templateParams: string | null;
   status: 'Draft' | 'Generating' | 'Generated' | 'Failed';
   generatedFiles: GeneratedFile[];
   createdAt: string;
@@ -232,17 +244,26 @@ export interface DataSetSource {
   sortSpec: SortSpec | null;
   /** Коды функциональных тэгов источника (scope Dataset) — только для PDF. */
   tags: string[] | null;
+  /** Распознанный PDF-источник устарел: файл заменён после распознавания — нужно перераспознать. */
+  recognitionStale: boolean;
 }
 
-/** Группировка страниц источника «Документы» ГОСТ-профиля — для редактора ручной корректировки разбиения. */
-export interface GostGroupingDocument {
-  code: string;
+/** Группировка страниц ГОСТ-профиля — для редактора ручной корректировки разбиения. */
+export type GostGroupKind = 'Document' | 'Cover' | 'TitlePage';
+
+export interface GostGroupingGroup {
+  kind: GostGroupKind;
+  /** Шифр — только для документа; для обложки/титула null. */
+  code: string | null;
+  /** Наименование — только для документа; для обложки/титула null. */
   name: string | null;
   pageIndices: number[];
+  /** Функциональные тэги документа (тип таблицы — спецификация/кабельный журнал). */
+  tags?: string[] | null;
 }
 
 export interface GostGrouping {
-  documents: GostGroupingDocument[];
+  groups: GostGroupingGroup[];
   manuallyEdited: boolean;
   /** Общее число страниц исходного PDF — включая не вошедшие ни в одну группу. */
   pageCount: number;

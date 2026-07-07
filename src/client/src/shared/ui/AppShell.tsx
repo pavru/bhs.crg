@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useTheme, type Theme } from '@/shared/ui/ThemeProvider';
 import { NotificationsCenter } from '@/features/notifications/NotificationsCenter';
+import { ActiveJobsIndicator } from '@/features/jobs/ActiveJobsIndicator';
 import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
 import {
   FolderOpen, BookOpen, FileText, Settings, LogOut,
@@ -147,7 +148,8 @@ export function AppShell() {
 
       {/* Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-12 shrink-0 border-b border-stroke bg-surface flex items-center justify-end px-4">
+        <header className="h-12 shrink-0 border-b border-stroke bg-surface flex items-center justify-end gap-1 px-4">
+          <ActiveJobsIndicator />
           <NotificationsCenter />
         </header>
         <div className="flex-1 overflow-auto">

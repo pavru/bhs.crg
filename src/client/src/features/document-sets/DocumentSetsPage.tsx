@@ -27,6 +27,7 @@ import { ScopedDataSetsPanel } from '@/features/datasets/ScopedDataSetsPanel';
 function SetDetail() {
   const { constructionId, setId } = useParams<{ constructionId: string; setId: string }>();
   const { data: set, isLoading } = useGetDocumentSet(setId);
+  const { data: construction } = useGetConstruction(constructionId!);
   const { data: availableInstances = [] } = useGetAvailableInstances(setId);
   const { data: docTypes = [] } = useListDocumentTypes();
   const [addDocOpen, setAddDocOpen] = useState(false);
@@ -57,6 +58,7 @@ function SetDetail() {
   const otherInstances = editInstance
     ? availableInstances.filter(i => i.id !== editInstance.id)
     : availableInstances;
+  const sectionName = construction?.sections.find(s => s.id === set.sectionId)?.name;
 
   return (
     <div className="p-6">
@@ -64,6 +66,12 @@ function SetDetail() {
         <Link to="/document-sets" className="hover:text-fg2 transition-colors">Стройки</Link>
         <ChevronRight size={14} />
         <Link to={`/document-sets/${constructionId}`} className="hover:text-fg2 transition-colors">Разделы и комплекты</Link>
+        {sectionName && (
+          <>
+            <ChevronRight size={14} />
+            <span className="text-fg4">{sectionName}</span>
+          </>
+        )}
         <ChevronRight size={14} />
         <span className="text-fg2 font-medium">{set.name}</span>
       </nav>

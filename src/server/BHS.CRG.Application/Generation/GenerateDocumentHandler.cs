@@ -73,6 +73,10 @@ public class GenerateDocumentHandler(
                     userLibContent = lib.Content;
             }
 
+            // Параметры шаблона: дефолты объявления + переопределения документа → в контекст под «params»
+            // (в Typst доступны как data.params.имя). Позволяет одним шаблоном покрыть варианты без дублей.
+            context.Set("params", TemplateParams.Effective(template.Parameters, instance.TemplateParams));
+
             var generator = generatorFactory.Create(cmd.Format);
             var request = new GenerationRequest(instance, template.Content, cmd.Format, context,
                 template.PageSize, template.PageOrientation,

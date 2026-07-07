@@ -49,4 +49,10 @@ public static class FunctionalTag
     public const string DatasetHasTitlePage = "dataset.hasTitlePage";
     /// <summary>Каждая страница PDF содержит основную надпись — распознаётся построчно (реестр листов).</summary>
     public const string DatasetHasTitleBlock = "dataset.hasTitleBlock";
+
+    // ── Тэги документа ГОСТ-профиля (тип таблицы внутри распознанного документа) ──
+    /// <summary>Документ — спецификация/ведомость материалов и/или оборудования (таблица, распознаётся и выгружается).</summary>
+    public const string GostDocSpecification = "gostDoc.specification";
+    /// <summary>Документ — кабельный журнал (таблица, распознаётся и выгружается).</summary>
+    public const string GostDocCableJournal = "gostDoc.cableJournal";
 }

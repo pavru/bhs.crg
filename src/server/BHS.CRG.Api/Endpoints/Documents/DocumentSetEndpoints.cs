@@ -106,6 +106,12 @@ public static class DocumentSetEndpoints
             async (Guid id, SetTemplateRequest req, IMediator m)
                 => Results.Ok(await m.Send(new SetDocumentTemplateCommand(id, req.TemplateId))));
 
+        // Переопределения значений параметров шаблона на документе (JSON-объект {имя:значение} или null).
+        g.MapPut("/{setId:guid}/documents/{id:guid}/template-params",
+            async (Guid id, JsonElement body, IMediator m)
+                => Results.Ok(await m.Send(new SetDocumentTemplateParamsCommand(
+                    id, body.ValueKind == JsonValueKind.Null ? null : body.GetRawText()))));
+
         g.MapDelete("/{setId:guid}/documents/{id:guid}", async (Guid id, IMediator m) =>
         {
             await m.Send(new DeleteDocumentInstanceCommand(id));

@@ -12,6 +12,7 @@ public class TemplateHandlers(IRepository<Template> repo) :
     IRequestHandler<GetActiveTemplateQuery, Template?>,
     IRequestHandler<ListTemplatesQuery, IReadOnlyList<Template>>,
     IRequestHandler<UpdateTemplateSettingsCommand, Template>,
+    IRequestHandler<UpdateTemplateParametersCommand, Template>,
     IRequestHandler<SetTemplateDefaultCommand, Template>
 {
     public async Task<Template> Handle(CreateTemplateCommand cmd, CancellationToken ct)
@@ -65,6 +66,16 @@ public class TemplateHandlers(IRepository<Template> repo) :
         var template = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new KeyNotFoundException($"Template {cmd.Id} not found");
         template.SetPageSettings(cmd.PageSize, cmd.PageOrientation, cmd.MarginTop, cmd.MarginRight, cmd.MarginBottom, cmd.MarginLeft);
+        repo.Update(template);
+        await repo.SaveChangesAsync(ct);
+        return template;
+    }
+
+    public async Task<Template> Handle(UpdateTemplateParametersCommand cmd, CancellationToken ct)
+    {
+        var template = await repo.GetByIdAsync(cmd.Id, ct)
+            ?? throw new KeyNotFoundException($"Template {cmd.Id} not found");
+        template.SetParameters(cmd.Parameters);
         repo.Update(template);
         await repo.SaveChangesAsync(ct);
         return template;

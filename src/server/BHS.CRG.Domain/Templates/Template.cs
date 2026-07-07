@@ -11,6 +11,14 @@ public class Template : Entity
     /// <summary>Typst-исходник шаблона.</summary>
     public string Content { get; private set; } = default!;
 
+    /// <summary>
+    /// Объявленные параметры шаблона (JSON-массив [{name,label,type,default}]) — чтобы не плодить
+    /// почти одинаковые шаблоны. Значения по умолчанию задаются здесь, переопределяются на документе
+    /// (<see cref="Documents.DocumentInstance.TemplateParams"/>). Эффективные значения подмешиваются
+    /// в контекст генерации под ключ «params» (доступ в Typst: data.params.имя). Null/пусто — без параметров.
+    /// </summary>
+    public string? Parameters { get; private set; }
+
     public bool IsActive { get; private set; }
 
     /// <summary>Шаблон по умолчанию для данного типа документа.</summary>
@@ -37,13 +45,13 @@ public class Template : Entity
         Guid id, Guid documentTypeId, string name, string content, int version,
         bool isActive, bool isDefault, string pageSize, string pageOrientation,
         int marginTop, int marginRight, int marginBottom, int marginLeft,
-        DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        DateTimeOffset createdAt, DateTimeOffset updatedAt, string? parameters = null)
         => new()
         {
             Id = id, DocumentTypeId = documentTypeId, Name = name, Content = content, Version = version,
             IsActive = isActive, IsDefault = isDefault, PageSize = pageSize, PageOrientation = pageOrientation,
             MarginTop = marginTop, MarginRight = marginRight, MarginBottom = marginBottom, MarginLeft = marginLeft,
-            CreatedAt = createdAt, UpdatedAt = updatedAt,
+            Parameters = parameters, CreatedAt = createdAt, UpdatedAt = updatedAt,
         };
 
     public Template CreateNewVersion(string content)
@@ -60,6 +68,7 @@ public class Template : Entity
             Version = Version + 1,
             IsActive = true,
             IsDefault = wasDefault,
+            Parameters = Parameters,
             PageSize = PageSize,
             PageOrientation = PageOrientation,
             MarginTop = MarginTop,
@@ -82,6 +91,7 @@ public class Template : Entity
             Version = 1,
             IsActive = true,
             IsDefault = false,
+            Parameters = Parameters,
             PageSize = PageSize,
             PageOrientation = PageOrientation,
             MarginTop = MarginTop,
@@ -104,6 +114,13 @@ public class Template : Entity
     public void SetDefault(bool isDefault)
     {
         IsDefault = isDefault;
+        TouchUpdatedAt();
+    }
+
+    /// <summary>Объявление параметров шаблона (JSON-массив [{name,label,type,default}] или null).</summary>
+    public void SetParameters(string? parametersJson)
+    {
+        Parameters = parametersJson;
         TouchUpdatedAt();
     }
 }

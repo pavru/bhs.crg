@@ -12,6 +12,7 @@ public class TemplateConfiguration : IEntityTypeConfiguration<Template>
         b.HasKey(e => e.Id);
         b.Property(e => e.Name).HasMaxLength(256).IsRequired();
         b.Property(e => e.Content).IsRequired();
+        b.Property(e => e.Parameters).HasColumnType("jsonb");
         b.Property(e => e.Version).IsRequired();
         b.Property(e => e.IsActive).IsRequired();
         b.Property(e => e.IsDefault).IsRequired();

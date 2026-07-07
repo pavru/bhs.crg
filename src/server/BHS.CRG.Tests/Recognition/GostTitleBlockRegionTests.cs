@@ -24,13 +24,18 @@ public class GostTitleBlockRegionTests
         Assert.Equal(height, region.Bottom, precision: 3);
     }
 
-    [Fact]
-    public void Region_HasExpectedSizeWithMargin_WhenPageIsLargeEnough()
+    [Theory]
+    [InlineData(null, 55f)] // форма не распознана — безопасный по умолчанию, крупнее остальных
+    [InlineData("Форма3", 55f)]
+    [InlineData("Форма4", 55f)]
+    [InlineData("Форма5", 40f)]
+    [InlineData("Форма6", 15f)]
+    public void Region_HasExpectedSizeWithMargin_WhenPageIsLargeEnough(string? form, float expectedHeightMm)
     {
-        var region = GostTitleBlockRegion.ComputeBottomRightRegion(2384f, 1684f);
+        var region = GostTitleBlockRegion.ComputeBottomRightRegion(2384f, 1684f, form);
 
         var expectedWidth = (185f + 15f) * PointsPerMm;
-        var expectedHeight = (55f + 15f) * PointsPerMm;
+        var expectedHeight = (expectedHeightMm + 15f) * PointsPerMm;
         Assert.Equal(expectedWidth, region.Width, precision: 3);
         Assert.Equal(expectedHeight, region.Height, precision: 3);
     }

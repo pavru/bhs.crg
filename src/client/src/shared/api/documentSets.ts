@@ -73,6 +73,18 @@ export function useSetDocumentTemplate() {
   });
 }
 
+/** Переопределения значений параметров шаблона на документе — params = объект {имя:значение} или null. */
+export function useSetDocumentTemplateParams() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ setId, instanceId, params }: { setId: string; instanceId: string; params: Record<string, unknown> | null }) =>
+      apiClient
+        .put<DocumentInstance>(`/document-sets/${setId}/documents/${instanceId}/template-params`, params)
+        .then((r) => r.data),
+    onSuccess: (_d, { setId }) => qc.invalidateQueries({ queryKey: ['document-sets', setId] }),
+  });
+}
+
 export function useGenerateDocument() {
   const qc = useQueryClient();
   return useMutation({

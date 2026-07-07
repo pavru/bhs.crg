@@ -1,5 +1,21 @@
 import { apiClient } from './client';
 
+/**
+ * Имя файла из заголовка Content-Disposition. ПРЕДПОЧИТАЕМ RFC 5987 `filename*=UTF-8''<pct>`
+ * (корректная кириллица) — ASCII-фолбэк `filename=` заменяет не-ASCII символы подчёркиваниями,
+ * поэтому его берём только если звёздочного варианта нет. Без CD — <paramref>fallback</paramref>.
+ */
+export function filenameFromContentDisposition(cd: string | undefined, fallback: string): string {
+  if (!cd) return fallback;
+  const star = /filename\*=\s*(?:UTF-8'')?([^;\r\n]+)/i.exec(cd);
+  if (star?.[1]) {
+    try { return decodeURIComponent(star[1].trim().replace(/^["']|["']$/g, '')); }
+    catch { /* повреждённое кодирование — падаем в ASCII-фолбэк ниже */ }
+  }
+  const plain = /filename=\s*"?([^";\r\n]+?)"?\s*(?:;|$)/i.exec(cd);
+  return plain?.[1]?.trim() || fallback;
+}
+
 export interface FileAttachment {
   $type: 'file';
   blobPath: string;

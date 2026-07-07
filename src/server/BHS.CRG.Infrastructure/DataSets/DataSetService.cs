@@ -2,8 +2,10 @@ using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
@@ -20,7 +22,8 @@ public class DataSetService(
     ILogger<DataSetService> logger,
     DataSetProcessingTemplateService processingTemplates,
     DataSetBindingTemplateService bindingTemplates,
-    DataSetPdfRecognitionService pdfRecognition
+    DataSetPdfRecognitionService pdfRecognition,
+    INotificationService notifications
 ) : IDataSetService
 {
     private record CachedColumnInfo(string Name, string[] SampleValues);
@@ -124,8 +127,19 @@ public class DataSetService(
         }
 
         // Drop sources no longer present in the file, unless they still have bindings.
+        // Распознаваемые PDF-источники (gost-*/invoice-*/gost-table:*) парсер НЕ детектит — их нельзя
+        // трактовать как «исчезнувшие из файла»: данные приходят из распознавания, не из структуры.
+        // Их сохраняем и помечаем устаревшими (файл заменён после распознавания) — vision-перераспознавание
+        // запускается только явным действием пользователя, не автоматически при замене файла.
+        var staleRecognitionSources = 0;
         foreach (var src in file.Sources.Where(s => !updatedSourceIds.Contains(s.Id)).ToList())
         {
+            if (PdfProfiles.IsRecognitionMarker(src.SheetOrPath))
+            {
+                src.MarkRecognitionStale();
+                staleRecognitionSources++;
+                continue;
+            }
             var hasBindings = await db.DataSetBindings.AnyAsync(b => b.SourceId == src.Id, ct);
             if (!hasBindings) db.DataSetSources.Remove(src);
         }
@@ -134,6 +148,14 @@ public class DataSetService(
         if (!string.IsNullOrWhiteSpace(input.Name)) file.UpdateName(input.Name);
 
         await db.SaveChangesAsync(ct);
+
+        if (staleRecognitionSources > 0)
+            await notifications.PublishAsync(NotificationSeverity.Warning,
+                "Файл набора обновлён — нужно перераспознать",
+                $"Файл «{file.Name}» заменён. Распознанные PDF-источники ({staleRecognitionSources}) помечены устаревшими: " +
+                "данные относятся к прежнему файлу. Перераспознайте их вручную (кнопка «Распознать»).",
+                "Наборы данных", ct: ct);
+
         return DataSetDtoMapper.MapFile(file);
     }
 
@@ -207,6 +229,28 @@ public class DataSetService(
             .Select(r => (IReadOnlyList<string?>)columns.Select(c => r.TryGetValue(c, out var v) ? v : null).ToList())
             .ToList();
         return new SourcePreviewDto(columns, previewRows, rows.Count);
+    }
+
+    public async Task<SourceExportDto?> ExportSourceAsync(Guid sourceId, string? format, CancellationToken ct)
+    {
+        var source = await db.DataSetSources.Include(s => s.File).AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        if (source == null) return null;
+
+        // Все строки после обработки (Filter/Transformation/Sort) — тот же путь, что и превью, без лимита.
+        var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
+        var baseColumns = JsonSerializer.Deserialize<CachedColumnInfo[]>(source.CachedSchema, CachedSchemaJson) ?? [];
+        var columns = baseColumns.Select(c => c.Name).ToList();
+        columns.AddRange(rows.SelectMany(r => r.Keys).Distinct().Except(columns));
+
+        var exportRows = rows
+            .Select(r => (IReadOnlyList<string?>)columns.Select(c => r.TryGetValue(c, out var v) ? v : null).ToList())
+            .ToList();
+
+        var (bytes, ext, contentType) = SpreadsheetExporter.Export(
+            SpreadsheetExporter.ParseFormat(format), columns, exportRows, sheetName: source.Name);
+        var fileName = $"{DataSetDtoMapper.SanitizeFileName(source.Name)}.{ext}";
+        return new SourceExportDto(bytes, fileName, contentType);
     }
 
     public async Task<Dictionary<string, string>?> AutoMapAsync(
@@ -334,14 +378,23 @@ public class DataSetService(
     public Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, bool confirm, CancellationToken ct) =>
         pdfRecognition.RecognizePdfSourceAsync(sourceId, confirm, ct);
 
+    public Task<RecognizePlan?> PlanRecognitionAsync(Guid sourceId, bool confirm, CancellationToken ct) =>
+        pdfRecognition.PlanRecognitionAsync(sourceId, confirm, ct);
+
     public Task<GostGroupingDto?> GetPagesAsync(Guid sourceId, CancellationToken ct) =>
         pdfRecognition.GetPagesAsync(sourceId, ct);
 
-    public Task<byte[]?> GetPageThumbnailAsync(Guid sourceId, int pageIndex, CancellationToken ct) =>
-        pdfRecognition.GetPageThumbnailAsync(sourceId, pageIndex, ct);
+    public Task<byte[]?> GetPageThumbnailAsync(Guid sourceId, int pageIndex, CancellationToken ct, int dpi = 96) =>
+        pdfRecognition.GetPageThumbnailAsync(sourceId, pageIndex, ct, dpi);
 
     public Task<GostGroupingDto?> ApplyGroupingAsync(Guid sourceId, ApplyGroupingInput input, CancellationToken ct) =>
         pdfRecognition.ApplyGroupingAsync(sourceId, input, ct);
+
+    public Task<GostGroupingDto?> SetDocumentTagsAsync(Guid documentsSourceId, int firstPageIndex, IReadOnlyList<string> tags, CancellationToken ct) =>
+        pdfRecognition.SetDocumentTagsAsync(documentsSourceId, firstPageIndex, tags, ct);
+
+    public Task<DataSetSourceDto?> RecognizeDocumentTableAsync(Guid documentsSourceId, int firstPageIndex, CancellationToken ct) =>
+        pdfRecognition.RecognizeDocumentTableAsync(documentsSourceId, firstPageIndex, ct);
 
     // Скачивает файл и парсит указанное определение — используется для валидации и первичного
     // расчёта кэша при ручном создании/редактировании источника (в первую очередь для XML).

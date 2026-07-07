@@ -42,10 +42,15 @@ public static class TemplateEndpoints
 
         admin.MapPut("/{id:guid}/set-default", async (Guid id, IMediator m)
             => Results.Ok(await m.Send(new SetTemplateDefaultCommand(id))));
+
+        // Объявление параметров шаблона (JSON-массив [{name,label,type,default}] или null).
+        admin.MapPut("/{id:guid}/parameters", async (Guid id, UpdateParametersRequest req, IMediator m)
+            => Results.Ok(await m.Send(new UpdateTemplateParametersCommand(id, req.Parameters))));
     }
 
     record CreateTemplateRequest(Guid DocumentTypeId, string Name, string Content);
     record UpdateTemplateRequest(string Content);
     record DuplicateTemplateRequest(string? Name);
     record UpdateSettingsRequest(string PageSize, string PageOrientation, int MarginTop, int MarginRight, int MarginBottom, int MarginLeft);
+    record UpdateParametersRequest(string? Parameters);
 }
