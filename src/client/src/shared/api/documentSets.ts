@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type { DocumentSet, DocumentInstance, DocumentSearchResult } from './types';
+import { filenameFromContentDisposition } from './attachments';
 
 /** Поиск документов по всем комплектам (имя документа/типа + текст реквизитов). Пустой q → без запроса. */
 export function useSearchDocuments(q: string, constructionId?: string) {
@@ -185,10 +186,12 @@ export async function downloadGeneratedFile(instanceId: string, templateId?: str
   const response = await apiClient.get(path, {
     responseType: 'blob',
   });
+  // Имя формирует бэкенд (имя документа + суффикс-шаблон, спецсимволы → _), достаём из Content-Disposition.
+  const filename = filenameFromContentDisposition(response.headers['content-disposition'], 'document.pdf');
   const url = URL.createObjectURL(response.data as Blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'document.pdf';
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 }

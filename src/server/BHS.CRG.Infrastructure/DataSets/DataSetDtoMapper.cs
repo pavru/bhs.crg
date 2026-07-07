@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.DataSets;
 
@@ -13,12 +14,7 @@ namespace BHS.CRG.Infrastructure.DataSets;
 public static class DataSetDtoMapper
 {
     /// <summary>Имя файла без запрещённых символов (для скачиваемых выгрузок/разрезанных PDF).</summary>
-    public static string SanitizeFileName(string name)
-    {
-        var invalid = Path.GetInvalidFileNameChars();
-        var sanitized = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
-        return string.IsNullOrWhiteSpace(sanitized) ? "данные" : sanitized;
-    }
+    public static string SanitizeFileName(string name) => FileNames.Sanitize(name, "данные");
 
     public static DataSetFormat? DetectFormat(string fileName) =>
         Path.GetExtension(fileName).ToLowerInvariant() switch
