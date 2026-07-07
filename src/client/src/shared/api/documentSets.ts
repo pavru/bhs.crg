@@ -127,6 +127,14 @@ export function useEmailSetToSubscribers() {
   });
 }
 
+/** Отправка отдельного документа (его сгенерированных PDF) подписчикам (фоновая задача). */
+export function useEmailDocumentToSubscribers() {
+  return useMutation({
+    mutationFn: ({ setId, instanceId, subject, body }: { setId: string; instanceId: string; subject?: string; body?: string }) =>
+      apiClient.post<{ jobId: string }>(`/document-sets/${setId}/documents/${instanceId}/email-to-subscribers`, { subject, body }).then(r => r.data),
+  });
+}
+
 /** Запускает сборку комплекта в один PDF (фоновая задача). instanceIds — подмножество или пусто (весь). */
 export function useAssembleSet() {
   return useMutation({

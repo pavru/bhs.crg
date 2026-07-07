@@ -159,9 +159,21 @@ public static class DocumentSetEndpoints
         {
             var set = await m.Send(new GetDocumentSetQuery(setId), ct);
             if (set is null) return Results.NotFound();
-            var payload = JsonSerializer.Serialize(new { subject = req?.Subject, body = req?.Body });
+            var payload = JsonSerializer.Serialize(new { subject = req?.Subject, body = req?.Body, kind = "set" });
             var jobId = await jobs.EnqueueAsync(JobKind.SendEmail, GetUserId(user), setId,
                 $"Отправка комплекта «{set.Name}» подписчикам", payload, ct);
+            return Results.Accepted("/api/jobs/active", new { jobId });
+        }).RequireAuthorization("Admin");
+
+        // Отправка отдельного документа (его сгенерированных PDF) подписчикам — фоновая задача.
+        g.MapPost("/{setId:guid}/documents/{id:guid}/email-to-subscribers", async (
+            Guid id, EmailToSubscribersRequest? req, IMediator m, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
+        {
+            var inst = await m.Send(new GetDocumentInstanceQuery(id), ct);
+            if (inst is null) return Results.NotFound();
+            var payload = JsonSerializer.Serialize(new { subject = req?.Subject, body = req?.Body, kind = "document" });
+            var jobId = await jobs.EnqueueAsync(JobKind.SendEmail, GetUserId(user), id,
+                $"Отправка документа «{inst.Name ?? "документ"}» подписчикам", payload, ct);
             return Results.Accepted("/api/jobs/active", new { jobId });
         }).RequireAuthorization("Admin");
 

@@ -86,9 +86,12 @@ public class JobBackgroundService(
                     break;
 
                 case JobKind.SendEmail:
-                    var (subj, body) = ParseEmailPayload(payload);
-                    await scope.ServiceProvider.GetRequiredService<BHS.CRG.Infrastructure.Email.DocumentSetEmailService>()
-                        .SendToSubscribersAsync(targetId, subj, body, userId, ct);
+                    var (subj, body, emailKind) = ParseEmailPayload(payload);
+                    var emailSvc = scope.ServiceProvider.GetRequiredService<BHS.CRG.Infrastructure.Email.DocumentSetEmailService>();
+                    if (emailKind == "document")
+                        await emailSvc.SendDocumentToSubscribersAsync(targetId, subj, body, userId, ct);
+                    else
+                        await emailSvc.SendSetToSubscribersAsync(targetId, subj, body, userId, ct);
                     break;
 
                 default:
@@ -134,13 +137,13 @@ public class JobBackgroundService(
         return doc.RootElement.TryGetProperty("firstPageIndex", out var v) ? v.GetInt32() : 0;
     }
 
-    // Тема/текст письма для отправки комплекта — {"subject":..,"body":..}; отсутствуют → дефолты в сервисе.
-    private static (string? subject, string? body) ParseEmailPayload(string? payload)
+    // Письмо: {"subject":..,"body":..,"kind":"set"|"document"}; targetId — setId (set) или instanceId (document).
+    private static (string? subject, string? body, string kind) ParseEmailPayload(string? payload)
     {
-        if (string.IsNullOrEmpty(payload)) return (null, null);
+        if (string.IsNullOrEmpty(payload)) return (null, null, "set");
         using var doc = JsonDocument.Parse(payload);
         string? Get(string k) => doc.RootElement.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
-        return (Get("subject"), Get("body"));
+        return (Get("subject"), Get("body"), Get("kind") ?? "set");
     }
 
     // Подмножество документов для сборки комплекта — {"instanceIds":[...]}; отсутствует/пусто → весь комплект.

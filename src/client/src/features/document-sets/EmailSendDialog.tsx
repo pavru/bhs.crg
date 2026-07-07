@@ -2,50 +2,52 @@ import { useState } from 'react';
 import { Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { useRecipients } from '@/shared/api/subscriptions';
-import { useDocumentSetOutput, useEmailSetToSubscribers } from '@/shared/api/documentSets';
 
 /**
- * Отправка собранного комплекта подписчикам (с учётом наследования). Требует собранного комплекта
- * (DocumentSetOutput). Файл вкладывается, если некрупный; иначе получателям придёт пометка скачать
- * в системе. Сама отправка — фоновая задача.
+ * Отправка сгенерированных PDF подписчикам (с учётом наследования). Универсально для комплекта
+ * (собранный файл) и отдельного документа (его PDF): получатели резолвятся по комплекту, готовность
+ * и сама отправка задаются пропсами. Отправка — фоновая задача.
  */
-export function EmailKitDialog({ open, onClose, setId, setName }: {
-  open: boolean; onClose: () => void; setId: string; setName: string;
+export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubjectHint, defaultBodyHint, ready, notReadyHint, onSend }: {
+  open: boolean; onClose: () => void;
+  setId: string;                       // комплект — для резолва получателей (документ передаёт свой documentSetId)
+  itemName: string;                    // «Комплект …» / «Документ …» — для заголовка placeholder
+  defaultSubjectHint: string; defaultBodyHint: string;
+  ready: boolean; notReadyHint: string;
+  onSend: (subject?: string, body?: string) => Promise<unknown>;
 }) {
   const { data: recipients = [] } = useRecipients('Set', setId, open);
-  const { data: output } = useDocumentSetOutput(setId);
-  const send = useEmailSetToSubscribers();
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [sending, setSending] = useState(false);
   const [queued, setQueued] = useState(false);
 
   const valid = recipients.filter(r => r.validEmail);
-  const noOutput = !output;
 
   async function handleSend() {
-    await send.mutateAsync({ setId, subject: subject.trim() || undefined, body: body.trim() || undefined });
-    setQueued(true);
+    setSending(true);
+    try { await onSend(subject.trim() || undefined, body.trim() || undefined); setQueued(true); }
+    finally { setSending(false); }
   }
 
   const field = "w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface";
 
   return (
-    <Modal open={open} onOpenChange={o => { if (!o) { onClose(); setQueued(false); } }} title="Отправить комплект подписчикам"
+    <Modal open={open} onOpenChange={o => { if (!o) { onClose(); setQueued(false); } }} title={`Отправить: ${itemName}`}
       footer={
         <div className="flex justify-end gap-3">
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Закрыть</button>
-          <button type="button" onClick={handleSend} disabled={send.isPending || queued || noOutput || valid.length === 0}
+          <button type="button" onClick={handleSend} disabled={sending || queued || !ready || valid.length === 0}
             className="flex items-center gap-2 px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-            {send.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+            {sending ? <Loader2 size={14} className="animate-spin" /> : null}
             Отправить ({valid.length})
           </button>
         </div>
       }>
       <div className="space-y-4">
-        {noOutput && (
+        {!ready && (
           <p className="flex items-start gap-2 text-sm text-warning bg-warning-subtle rounded-md p-3">
-            <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-            Комплект ещё не собран. Сначала соберите его («Собрать комплект»), затем отправляйте.
+            <AlertTriangle size={16} className="shrink-0 mt-0.5" /> {notReadyHint}
           </p>
         )}
 
@@ -71,13 +73,11 @@ export function EmailKitDialog({ open, onClose, setId, setName }: {
 
         <div>
           <label className="block text-xs font-medium text-fg2 mb-1">Тема (необязательно)</label>
-          <input className={field} value={subject} onChange={e => setSubject(e.target.value)}
-            placeholder={`Исполнительная документация — ${setName}`} />
+          <input className={field} value={subject} onChange={e => setSubject(e.target.value)} placeholder={defaultSubjectHint} />
         </div>
         <div>
           <label className="block text-xs font-medium text-fg2 mb-1">Текст (необязательно)</label>
-          <textarea className={field + ' min-h-24 resize-y'} value={body} onChange={e => setBody(e.target.value)}
-            placeholder={`Направляем собранный комплект исполнительной документации «${setName}».`} />
+          <textarea className={field + ' min-h-24 resize-y'} value={body} onChange={e => setBody(e.target.value)} placeholder={defaultBodyHint} />
         </div>
 
         {queued && (
