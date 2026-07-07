@@ -11,6 +11,8 @@ public enum JobKind
     RecognizeDocument = 2,
     /// <summary>Сборка всего комплекта в один PDF (генерация недостающих + склейка по порядку).</summary>
     AssembleDocumentSet = 3,
+    /// <summary>Отправка собранного комплекта подписчикам по email (вложение/ссылка).</summary>
+    SendEmail = 4,
 }
 
 /// <summary>Статус фоновой задачи. Активные (для индикатора) — Queued/Running.</summary>

@@ -187,6 +187,7 @@ builder.Services.AddScoped<DataSetFileService>();
 builder.Services.AddScoped<DataSetSourceService>();
 builder.Services.AddScoped<DataSetBindingService>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Generation.DocumentSetAssemblyService>();
+builder.Services.AddScoped<BHS.CRG.Infrastructure.Email.DocumentSetEmailService>();
 builder.Services.AddScoped<BHS.CRG.Application.Documents.IDocumentSearch, BHS.CRG.Infrastructure.Documents.DocumentSearchService>();
 builder.Services.AddScoped<BHS.CRG.Application.Subscriptions.ISubscriptionService, BHS.CRG.Infrastructure.Subscriptions.SubscriptionService>();
 builder.Services.AddScoped<IDataSetService, DataSetService>();

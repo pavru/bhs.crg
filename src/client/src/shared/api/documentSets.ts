@@ -119,6 +119,14 @@ export function useReorderInstances() {
   });
 }
 
+/** Отправка собранного комплекта подписчикам (фоновая задача). */
+export function useEmailSetToSubscribers() {
+  return useMutation({
+    mutationFn: ({ setId, subject, body }: { setId: string; subject?: string; body?: string }) =>
+      apiClient.post<{ jobId: string }>(`/document-sets/${setId}/email-to-subscribers`, { subject, body }).then(r => r.data),
+  });
+}
+
 /** Запускает сборку комплекта в один PDF (фоновая задача). instanceIds — подмножество или пусто (весь). */
 export function useAssembleSet() {
   return useMutation({

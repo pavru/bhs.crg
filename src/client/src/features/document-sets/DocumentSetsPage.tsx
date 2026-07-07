@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import {
   Plus, Trash2, ChevronRight, Download, Pencil, ChevronDown, ChevronUp, FolderOpen, Eye,
-  ArrowUp, ArrowDown, Layers, Loader2, Search, X,
+  ArrowUp, ArrowDown, Layers, Loader2, Search, X, Mail,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
@@ -24,6 +24,8 @@ import { InstanceEditor } from './editor';
 import { ScopedCatalogPanel } from './catalog';
 import { ScopedDataSetsPanel } from '@/features/datasets/ScopedDataSetsPanel';
 import { SubscribersPanel } from './SubscribersPanel';
+import { EmailKitDialog } from './EmailKitDialog';
+import { useAuth } from '@/shared/hooks/useAuth';
 
 // ─── Set detail (documents) ───────────────────────────────────────────────────
 
@@ -46,8 +48,11 @@ function SetDetail() {
   // Слежение за сборкой: пока идёт задача — опрашиваем вывод; останавливаемся, когда generatedAt изменится.
   const [watching, setWatching] = useState(false);
   const [assembleMsg, setAssembleMsg] = useState('');
+  const [emailKitOpen, setEmailKitOpen] = useState(false);
   const watchStartRef = useRef<string | undefined>(undefined);
   const { data: output } = useDocumentSetOutput(setId, watching ? 2500 : false);
+  const { user: me } = useAuth();
+  const isAdmin = me?.role === 'Admin';
 
   useEffect(() => {
     if (watching && output && output.generatedAt !== watchStartRef.current) {
@@ -134,6 +139,13 @@ function SetDetail() {
               className="flex items-center gap-2 border border-stroke hover:bg-base text-fg2 text-sm font-medium px-3 py-2 rounded-md transition-colors"
               title={`Собран ${new Date(output.generatedAt).toLocaleString('ru-RU')}`}>
               <Download size={15} className="text-brand" /> Скачать комплект
+            </button>
+          )}
+          {isAdmin && output && (
+            <button onClick={() => setEmailKitOpen(true)}
+              className="flex items-center gap-2 border border-stroke hover:bg-base text-fg2 text-sm font-medium px-3 py-2 rounded-md transition-colors"
+              title="Отправить собранный комплект подписчикам">
+              <Mail size={15} className="text-brand" /> Отправить подписчикам
             </button>
           )}
           <button onClick={handleAssemble} disabled={assembleMutation.isPending || watching || set.instances.length === 0}
@@ -247,6 +259,8 @@ function SetDetail() {
           <SubscribersPanel scope="Set" scopeId={setId} />
         </div>
       )}
+
+      {isAdmin && <EmailKitDialog open={emailKitOpen} onClose={() => setEmailKitOpen(false)} setId={set.id} setName={set.name} />}
 
       <Modal open={addDocOpen} onOpenChange={setAddDocOpen} title="Добавить документ"
         footer={

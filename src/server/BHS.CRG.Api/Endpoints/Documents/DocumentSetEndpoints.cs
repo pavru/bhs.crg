@@ -153,6 +153,18 @@ public static class DocumentSetEndpoints
             return Results.Accepted("/api/jobs/active", new { jobId });
         });
 
+        // Отправка собранного комплекта подписчикам (с учётом наследования) — фоновая задача.
+        g.MapPost("/{setId:guid}/email-to-subscribers", async (
+            Guid setId, EmailToSubscribersRequest? req, IMediator m, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
+        {
+            var set = await m.Send(new GetDocumentSetQuery(setId), ct);
+            if (set is null) return Results.NotFound();
+            var payload = JsonSerializer.Serialize(new { subject = req?.Subject, body = req?.Body });
+            var jobId = await jobs.EnqueueAsync(JobKind.SendEmail, GetUserId(user), setId,
+                $"Отправка комплекта «{set.Name}» подписчикам", payload, ct);
+            return Results.Accepted("/api/jobs/active", new { jobId });
+        }).RequireAuthorization("Admin");
+
         // Метаданные собранного комплекта (для показа кнопки скачивания) — 404, если ещё не собран.
         g.MapGet("/{setId:guid}/output", async (Guid setId, IRepository<DocumentSetOutput> outputRepo, CancellationToken ct) =>
         {
@@ -185,4 +197,5 @@ public static class DocumentSetEndpoints
     record RenameDocumentInstanceRequest(string? Name);
     record SetTemplateRequest(Guid? TemplateId);
     record AssembleSetRequest(Guid[]? InstanceIds);
+    record EmailToSubscribersRequest(string? Subject, string? Body);
 }

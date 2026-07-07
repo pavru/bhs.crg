@@ -85,6 +85,12 @@ public class JobBackgroundService(
                         .AssembleAsync(targetId, ParseInstanceIds(payload), userId, ct, (c, t) => report("документов", c, t));
                     break;
 
+                case JobKind.SendEmail:
+                    var (subj, body) = ParseEmailPayload(payload);
+                    await scope.ServiceProvider.GetRequiredService<BHS.CRG.Infrastructure.Email.DocumentSetEmailService>()
+                        .SendToSubscribersAsync(targetId, subj, body, userId, ct);
+                    break;
+
                 default:
                     throw new InvalidOperationException($"Неизвестный вид задачи: {kind}");
             }
@@ -126,6 +132,15 @@ public class JobBackgroundService(
         if (string.IsNullOrEmpty(payload)) return 0;
         using var doc = JsonDocument.Parse(payload);
         return doc.RootElement.TryGetProperty("firstPageIndex", out var v) ? v.GetInt32() : 0;
+    }
+
+    // Тема/текст письма для отправки комплекта — {"subject":..,"body":..}; отсутствуют → дефолты в сервисе.
+    private static (string? subject, string? body) ParseEmailPayload(string? payload)
+    {
+        if (string.IsNullOrEmpty(payload)) return (null, null);
+        using var doc = JsonDocument.Parse(payload);
+        string? Get(string k) => doc.RootElement.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+        return (Get("subject"), Get("body"));
     }
 
     // Подмножество документов для сборки комплекта — {"instanceIds":[...]}; отсутствует/пусто → весь комплект.
