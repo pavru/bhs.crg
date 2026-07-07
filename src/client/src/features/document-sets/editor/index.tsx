@@ -443,8 +443,8 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
             {isAdmin && (
               <button onClick={() => setEmailOpen(true)}
                 className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-stroke rounded-md hover:bg-base transition-colors"
-                title="Отправить сгенерированные PDF документа подписчикам">
-                <Mail size={13} className="text-brand" /> Отправить подписчикам
+                title="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)">
+                <Mail size={13} className="text-brand" /> Отправить по почте
               </button>
             )}
           </div>

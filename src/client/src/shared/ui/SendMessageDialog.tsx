@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { Modal } from './Modal';
 import { useSendEmail } from '@/shared/api/users';
+import { apiError } from '@/shared/utils/apiError';
 
 export interface MessageCandidate { id: string; displayName: string; email: string | null; }
 
@@ -32,7 +33,8 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
 
   async function handleSend() {
     setResult(null);
-    setResult(await sendEmail.mutateAsync({ userIds: [...selected], subject: subject.trim(), body: body.trim() }));
+    try { setResult(await sendEmail.mutateAsync({ userIds: [...selected], subject: subject.trim(), body: body.trim() })); }
+    catch (e) { setResult({ ok: false, error: apiError(e, 'Не удалось отправить.') }); }
   }
 
   const canSend = selected.size > 0 && subject.trim() && body.trim() && !sendEmail.isPending;

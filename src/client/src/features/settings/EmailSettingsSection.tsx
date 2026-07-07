@@ -5,6 +5,7 @@ import {
   type SmtpUpdate,
 } from '@/shared/api/integrationSettings';
 import { CollapsibleSection } from './CollapsibleSection';
+import { apiError } from '@/shared/utils/apiError';
 
 const EMPTY: SmtpUpdate = { enabled: false, host: '', port: 587, user: '', password: '', from: '', fromName: '', useSsl: true };
 
@@ -19,6 +20,7 @@ export function EmailSettingsSection() {
   const [form, setForm] = useState<SmtpUpdate>(EMPTY);
   const [hasPassword, setHasPassword] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [testTo, setTestTo] = useState('');
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null);
 
@@ -41,18 +43,23 @@ export function EmailSettingsSection() {
 
   async function handleTestConnection() {
     setConnResult(null);
-    setConnResult(await testConn.mutateAsync({ ...form, password: form.password || undefined }));
+    try { setConnResult(await testConn.mutateAsync({ ...form, password: form.password || undefined })); }
+    catch (e) { setConnResult({ ok: false, error: apiError(e, 'Не удалось проверить подключение.') }); }
   }
 
   async function handleSave() {
-    await saveSmtp.mutateAsync({ ...form, password: form.password || undefined });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setSaveError('');
+    try {
+      await saveSmtp.mutateAsync({ ...form, password: form.password || undefined });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) { setSaveError(apiError(e, 'Не удалось сохранить.')); }
   }
 
   async function handleTest() {
     setTestResult(null);
-    setTestResult(await testEmail.mutateAsync(testTo.trim()));
+    try { setTestResult(await testEmail.mutateAsync(testTo.trim())); }
+    catch (e) { setTestResult({ ok: false, error: apiError(e, 'Не удалось отправить.') }); }
   }
 
   const fieldCls = "w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface";
@@ -113,6 +120,7 @@ export function EmailSettingsSection() {
           {testConn.isPending ? 'Проверка...' : 'Проверить подключение'}
         </button>
         {saved && <span className="text-sm text-success">Сохранено</span>}
+        {saveError && <span className="text-sm text-danger flex items-center gap-1"><XCircle size={14} /> {saveError}</span>}
         {connResult && (connResult.ok
           ? <span className="text-sm text-success flex items-center gap-1"><CheckCircle size={14} /> Подключение успешно</span>
           : <span className="text-sm text-danger flex items-center gap-1"><XCircle size={14} /> {connResult.error}</span>

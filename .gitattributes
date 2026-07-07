@@ -1,0 +1,21 @@
+# Нормализация переводов строк: текстовые файлы — LF в репозитории и рабочем дереве
+# (кросс-платформенно; убирает CRLF-предупреждения на Windows от core.autocrlf).
+# Бинарные — git определяет сам (text=auto), плюс явные исключения ниже.
+* text=auto eol=lf
+
+# Явно бинарные — не нормализовать.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.svg  text eol=lf
+*.pdf  binary
+*.xlsx binary
+*.xls  binary
+*.docx binary
+*.zip  binary
+*.woff  binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary

@@ -146,8 +146,8 @@ function SetDetail() {
           {isAdmin && output && (
             <button onClick={() => setEmailKitOpen(true)}
               className="flex items-center gap-2 border border-stroke hover:bg-base text-fg2 text-sm font-medium px-3 py-2 rounded-md transition-colors"
-              title="Отправить собранный комплект подписчикам">
-              <Mail size={15} className="text-brand" /> Отправить подписчикам
+              title="Отправить собранный комплект по почте (подписчикам и/или на внешние адреса)">
+              <Mail size={15} className="text-brand" /> Отправить по почте
             </button>
           )}
           <button onClick={handleAssemble} disabled={assembleMutation.isPending || watching || set.instances.length === 0}

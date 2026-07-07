@@ -93,6 +93,8 @@ services:
       Gemini__ApiKey: ${GEMINI_API_KEY:-}
       WebSearch__ApiKey: ${SERPER_API_KEY:-}
       AllowedOrigins: ${ALLOWED_ORIGINS:-http://localhost:${WEB_PORT:-8080}}
+      # Публичный адрес системы — для ссылки в письме, когда документ/комплект слишком велик для вложения.
+      App__PublicUrl: ${APP_PUBLIC_URL:-}
     restart: unless-stopped
 
   web:

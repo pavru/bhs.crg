@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { useRecipients } from '@/shared/api/subscriptions';
+import { apiError } from '@/shared/utils/apiError';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -53,6 +54,7 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
     if (to.length === 0) { setError('Не выбран ни один получатель.'); return; }
     setSending(true);
     try { await onSend(to, subject.trim() || undefined, body.trim() || undefined); setQueued(true); }
+    catch (e) { setError(apiError(e, 'Не удалось запустить отправку.')); }
     finally { setSending(false); }
   }
 
