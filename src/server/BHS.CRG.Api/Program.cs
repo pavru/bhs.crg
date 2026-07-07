@@ -233,6 +233,9 @@ using (var scope = app.Services.CreateScope())
     foreach (var u in userManager.Users.ToList())
         if ((await userManager.GetRolesAsync(u)).Count == 0)
             await userManager.AddToRoleAsync(u, "Admin");
+
+    // Прогрев плагинов: HTTP-плагины отдают схемы только по запросу (GET /schemas) — best-effort.
+    await scope.ServiceProvider.GetRequiredService<IPluginHost>().WarmUpAsync();
 }
 
 if (app.Environment.IsDevelopment())

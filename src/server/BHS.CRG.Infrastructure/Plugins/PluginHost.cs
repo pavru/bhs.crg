@@ -10,14 +10,20 @@ public interface IPluginHost
 {
     IReadOnlyList<IDataSourcePlugin> Plugins { get; }
     IDataSourcePlugin? GetById(string id);
+
+    /// <summary>Однократный прогрев при старте: запрашивает схемы у HTTP-плагинов (GET /schemas),
+    /// т.к. их <see cref="IDataSourcePlugin.ProvidedSchemas"/> синхронны и на момент конструирования пусты.</summary>
+    Task WarmUpAsync(CancellationToken ct = default);
 }
 
 public class PluginHost : IPluginHost
 {
     private readonly List<IDataSourcePlugin> _plugins = [];
+    private readonly ILogger<PluginHost> _logger;
 
     public PluginHost(PluginHostOptions options, ILogger<PluginHost> logger)
     {
+        _logger = logger;
         // Загружаем .NET-плагины из папки
         foreach (var dir in options.PluginDirectories)
         {
@@ -54,6 +60,12 @@ public class PluginHost : IPluginHost
 
     public IReadOnlyList<IDataSourcePlugin> Plugins => _plugins.AsReadOnly();
     public IDataSourcePlugin? GetById(string id) => _plugins.FirstOrDefault(p => p.Id == id);
+
+    public async Task WarmUpAsync(CancellationToken ct = default)
+    {
+        foreach (var http in _plugins.OfType<HttpDataSourcePlugin>())
+            await http.FetchSchemasAsync(_logger, ct);
+    }
 }
 
 public class PluginHostOptions
@@ -69,14 +81,40 @@ public class HttpPluginConfig
     public string BaseUrl { get; set; } = default!;
 }
 
-/// <summary>Адаптер для HTTP-плагинов, реализующих REST-контракт IDataSourcePlugin.</summary>
-internal class HttpDataSourcePlugin(HttpPluginConfig config) : IDataSourcePlugin
+/// <summary>Адаптер для HTTP-плагинов, реализующих REST-контракт IDataSourcePlugin (/search, /fetch, /schemas).</summary>
+public class HttpDataSourcePlugin : IDataSourcePlugin
 {
-    private readonly HttpClient _http = new() { BaseAddress = new Uri(config.BaseUrl) };
+    private readonly HttpPluginConfig _config;
+    private readonly HttpClient _http;
 
-    public string Id => config.Id;
-    public string DisplayName => config.DisplayName;
+    public HttpDataSourcePlugin(HttpPluginConfig config)
+        : this(config, new HttpClient { BaseAddress = new Uri(config.BaseUrl) }) { }
+
+    /// <summary>Тестовый конструктор — инъекция HttpClient (с мок-хендлером).</summary>
+    public HttpDataSourcePlugin(HttpPluginConfig config, HttpClient http)
+    {
+        _config = config;
+        _http = http;
+    }
+
+    public string Id => _config.Id;
+    public string DisplayName => _config.DisplayName;
     public EntitySchema[] ProvidedSchemas { get; private set; } = [];
+
+    /// <summary>Однократный запрос схем плагина (GET /schemas). Best-effort: плагин недоступен →
+    /// ProvidedSchemas остаётся пустым, генерацию/старт не роняем (тот же стиль, что best-effort blob-операции).</summary>
+    public async Task FetchSchemasAsync(ILogger logger, CancellationToken ct = default)
+    {
+        try
+        {
+            var schemas = await _http.GetFromJsonAsync<EntitySchema[]>("/schemas", ct);
+            if (schemas is not null) ProvidedSchemas = schemas;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "HTTP-плагин {Id}: не удалось получить схемы (GET /schemas)", _config.Id);
+        }
+    }
 
     public async Task<SearchResult> SearchAsync(string entityType, string query, CancellationToken ct = default)
     {

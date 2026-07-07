@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FileCheck2 } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
 
 export function LoginPage() {
@@ -30,9 +31,15 @@ export function LoginPage() {
         className="w-full max-w-sm rounded-lg p-8 bg-surface border border-stroke"
         style={{ boxShadow: 'var(--f-shadow16)' }}
       >
-        <h1 className="text-2xl font-semibold mb-1 text-brand">
-          BHS.CRG
-        </h1>
+        <div className="flex items-center gap-3 mb-1">
+          <div className="flex items-center justify-center w-11 h-11 rounded-lg bg-brand text-white shrink-0"
+            style={{ boxShadow: 'var(--f-shadow4)' }}>
+            <FileCheck2 size={24} />
+          </div>
+          <h1 className="text-2xl font-semibold text-brand leading-none">
+            BHS.CRG
+          </h1>
+        </div>
         <p className="text-sm mb-6 text-fg3">
           Исполнительная документация
         </p>

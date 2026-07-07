@@ -8,6 +8,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Infrastructure.Persistence;
 
+// Identity (AspNetUsers/Roles) и доменные агрегаты намеренно в одном DbContext / одной истории
+// миграций. Разделять только при появлении конкретной причины: раздельное масштабирование,
+// независимое версионирование Identity или явная мультитенантность — сейчас (один Postgres, один
+// API-контейнер) разделение добавило бы сложность (два набора миграций, транзакции через границу)
+// без требования. См. память project_data_access_convention.
 public class AppDbContext(DbContextOptions<AppDbContext> options)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
