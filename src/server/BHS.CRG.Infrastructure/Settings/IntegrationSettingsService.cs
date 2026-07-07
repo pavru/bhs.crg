@@ -33,7 +33,20 @@ public class IntegrationSettingsService(AppDbContext db, IConfiguration config, 
         raw.ManufacturerDomains = update.ManufacturerDomains;
         MergeEngines(raw.Recognition, update.Recognition);
         MergeEngines(raw.WebSearch, update.WebSearch);
+        // Smtp у SaveAsync НЕ трогаем — им управляет отдельный SaveSmtpAsync (иначе форма распознавания
+        // без секции SMTP затирала бы её дефолтом). Сохраняем прежнее значение.
+        await PersistRawAsync(raw, ct);
+    }
 
+    public async Task SaveSmtpAsync(SmtpSettings smtp, CancellationToken ct = default)
+    {
+        var raw = await LoadRawAsync(ct);
+        raw.Smtp = MergeSmtp(raw.Smtp, smtp);
+        await PersistRawAsync(raw, ct);
+    }
+
+    private async Task PersistRawAsync(IntegrationSettingsModel raw, CancellationToken ct)
+    {
         var json = JsonDocument.Parse(JsonSerializer.Serialize(raw));
         var row = await db.IntegrationSettings.FirstOrDefaultAsync(ct);
         if (row is null) { row = IntegrationSettingsEntity.Create(json); await db.IntegrationSettings.AddAsync(row, ct); }
@@ -43,6 +56,19 @@ public class IntegrationSettingsService(AppDbContext db, IConfiguration config, 
     }
 
     public void Invalidate() => cache.Remove(CacheKey);
+
+    // Пароль SMTP перезаписываем только при непустом новом значении (UI не присылает существующий, как и ключи).
+    private static SmtpSettings MergeSmtp(SmtpSettings existing, SmtpSettings update) => new()
+    {
+        Enabled = update.Enabled,
+        Host = update.Host,
+        Port = update.Port,
+        User = update.User,
+        From = update.From,
+        FromName = update.FromName,
+        UseSsl = update.UseSsl,
+        Password = string.IsNullOrWhiteSpace(update.Password) ? existing.Password : update.Password,
+    };
 
     // Ключи перезаписываем только при непустом новом значении (UI не присылает существующие ключи).
     private static void MergeEngines(Dictionary<string, IntegrationEngine> target, Dictionary<string, IntegrationEngine> update)
@@ -78,6 +104,7 @@ public class IntegrationSettingsService(AppDbContext db, IConfiguration config, 
                 : (config.GetSection("Recognition:Order").Get<string[]>() ?? ["Gemini", "Anthropic", "Ollama"]).ToList(),
             FgisDomains = raw.FgisDomains.Count > 0 ? raw.FgisDomains : (config.GetSection("WebSearch:FgisDomains").Get<string[]>() ?? ["pub.fsa.gov.ru", "fsa.gov.ru"]).ToList(),
             ManufacturerDomains = raw.ManufacturerDomains.Count > 0 ? raw.ManufacturerDomains : (config.GetSection("WebSearch:ManufacturerDomains").Get<string[]>() ?? []).ToList(),
+            Smtp = raw.Smtp, // SMTP настраивается из UI; config-fallback пока не требуется
         };
 
         foreach (var name in RecNames) m.Recognition[name] = EffRec(name, raw);

@@ -142,6 +142,7 @@ builder.Services.AddScoped<IRecognizerEngine>(sp => sp.GetRequiredService<Ollama
 builder.Services.AddScoped<IDocumentRecognizer, ChainDocumentRecognizer>();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IIntegrationSettings, IntegrationSettingsService>();
+builder.Services.AddScoped<BHS.CRG.Application.Email.IEmailSender, BHS.CRG.Infrastructure.Email.MailKitEmailSender>();
 
 // ── Фоновые задачи (долгие операции: распознавание набора/таблицы) ──────────────
 builder.Services.AddSingleton<JobQueue>();

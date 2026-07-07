@@ -10,12 +10,42 @@ export interface EngineDto {
   host?: string | null;
 }
 
+export interface SmtpDto {
+  enabled: boolean;
+  host?: string | null;
+  port: number;
+  user?: string | null;
+  hasPassword: boolean;
+  from?: string | null;
+  fromName?: string | null;
+  useSsl: boolean;
+}
+
 export interface IntegrationSettingsDto {
   recognitionOrder: string[];
   recognition: Record<string, EngineDto>;
   webSearch: Record<string, EngineDto>;
   fgisDomains: string[];
   manufacturerDomains: string[];
+  smtp: SmtpDto;
+}
+
+/** Обновление SMTP (пустой password = оставить прежний). */
+export interface SmtpUpdate {
+  enabled: boolean;
+  host?: string | null;
+  port: number;
+  user?: string | null;
+  password?: string;
+  from?: string | null;
+  fromName?: string | null;
+  useSsl: boolean;
+}
+
+export interface UserEmailStatus {
+  displayName: string;
+  email: string | null;
+  valid: boolean;
 }
 
 export interface EngineUpdate {
@@ -62,5 +92,31 @@ export function useSaveIntegrationSettings() {
     mutationFn: (update: IntegrationSettingsUpdate) =>
       apiClient.put('/settings/integrations', update).then(() => undefined),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['integration-settings'] }),
+  });
+}
+
+/** Сохранение только SMTP-секции (не затирает распознавание/поиск). */
+export function useSaveSmtp() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (update: SmtpUpdate) =>
+      apiClient.put('/settings/integrations/email', update).then(() => undefined),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['integration-settings'] }),
+  });
+}
+
+/** Тест-отправка на указанный адрес. Возвращает {ok} или {ok:false, error}. */
+export function useTestEmail() {
+  return useMutation({
+    mutationFn: (to: string) =>
+      apiClient.post<{ ok: boolean; error?: string }>('/settings/integrations/email/test', { to }).then(r => r.data),
+  });
+}
+
+/** Статус email пользователей (у кого задан/валиден адрес). */
+export function useEmailUserStatus() {
+  return useQuery({
+    queryKey: ['email-user-status'],
+    queryFn: () => apiClient.get<UserEmailStatus[]>('/settings/integrations/email/user-status').then(r => r.data),
   });
 }

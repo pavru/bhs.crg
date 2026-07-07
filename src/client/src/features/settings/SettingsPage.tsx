@@ -7,6 +7,7 @@ import {
   useLocale, LOCALE_OPTIONS, SYSTEM_LOCALE, resolveLocale, formatDate, formatNumber,
 } from '@/shared/hooks/useLocale';
 import { IntegrationSettingsSection } from './IntegrationSettingsSection';
+import { EmailSettingsSection } from './EmailSettingsSection';
 import { CollapsibleSection } from './CollapsibleSection';
 
 // ─── Settings hook (re-exported for use by other pages) ───────────────────────
@@ -375,6 +376,9 @@ export function SettingsPage() {
 
       {/* ── Поиск и распознавание (интеграции) ─────────────────────────────── */}
       <IntegrationSettingsSection />
+
+      {/* ── Почта (SMTP) ───────────────────────────────────────────────────── */}
+      <EmailSettingsSection />
 
       {/* ── Backup & Restore ───────────────────────────────────────────────── */}
       <CollapsibleSection title="Резервное копирование" storageKey="backup" defaultOpen={false}>
