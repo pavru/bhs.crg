@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { FileText } from 'lucide-react';
+import { FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { useCommonDataForSet, useListCommonData } from '@/shared/api/commonData';
 import type {
-  CommonDataEntry, CommonDataEntryWithScope, DocumentInstance, DocumentType, FieldRef, CatalogScope,
+  CommonDataEntry, DocumentInstance, DocumentType, FieldRef, CatalogScope,
 } from '@/shared/api/types';
 import { SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, isSubtypeOf, type SchemaField } from '@/shared/api/schema';
@@ -49,6 +49,22 @@ export function RefPickerModal({
     return e.displayName.toLowerCase().includes(search.toLowerCase());
   });
 
+  // Группировка по scope: ближайший уровень (Комплект) вверху, дальние — ниже. Пустые группы скрыты.
+  const SCOPE_ORDER: CatalogScope[] = ['Set', 'Section', 'Construction', 'System'];
+  const groups = SCOPE_ORDER
+    .map(s => ({ scope: s, entries: filtered.filter(e => e.scope === s) }))
+    .filter(g => g.entries.length > 0);
+
+  const searching = search.trim().length > 0;
+  const firstScope = groups[0]?.scope; // ближайшая НЕпустая группа — раскрыта по умолчанию
+  // Ручные переопределения сворачивания (действуют, когда поиск пуст). При поиске все группы с
+  // совпадениями раскрыты (иначе матч спрятался бы за свёрнутой группой).
+  const [collapseOverride, setCollapseOverride] = useState<Partial<Record<CatalogScope, boolean>>>({});
+  const isExpanded = (scope: CatalogScope) =>
+    searching ? true : (collapseOverride[scope] ?? scope === firstScope);
+  const toggleGroup = (scope: CatalogScope) =>
+    setCollapseOverride(o => ({ ...o, [scope]: !isExpanded(scope) }));
+
   const docSources = compositeType && setId
     ? otherInstances.flatMap(inst => {
         const dt = allDocTypes.find(t => t.id === inst.documentTypeId);
@@ -90,24 +106,38 @@ export function RefPickerModal({
           autoFocus
         />
 
-        {filtered.length > 0 && (
+        {groups.length > 0 && (
           <div>
             <p className="text-xs font-medium text-fg3 uppercase tracking-wide mb-2">
               Каталог общих данных
             </p>
             <div className="space-y-1 max-h-64 overflow-y-auto">
-              {filtered.map(entry => (
-                <button key={entry.id} onClick={() => selectCatalog(entry)}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md hover:bg-brand-subtle transition-colors">
-                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${SCOPE_COLORS[entry.scope]}`}>
-                    {SCOPE_LABELS[entry.scope]}
-                  </span>
-                  <span className="flex-1 font-medium text-fg1 truncate">{entry.displayName}</span>
-                  {'priority' in entry && (
-                    <span className="text-xs text-fg4 shrink-0">приоритет {(entry as CommonDataEntryWithScope).priority}</span>
-                  )}
-                </button>
-              ))}
+              {groups.map(g => {
+                const expanded = isExpanded(g.scope);
+                return (
+                  <div key={g.scope}>
+                    {/* Заголовок группы = scope-бейдж + счётчик; сворачиваемая секция (a11y-кнопка). */}
+                    <button type="button" onClick={() => toggleGroup(g.scope)} aria-expanded={expanded}
+                      className="w-full flex items-center gap-2 px-1 py-1.5 text-left rounded-md hover:bg-base transition-colors">
+                      {expanded ? <ChevronDown size={13} className="text-fg4 shrink-0" /> : <ChevronRight size={13} className="text-fg4 shrink-0" />}
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${SCOPE_COLORS[g.scope]}`}>
+                        {SCOPE_LABELS[g.scope]}
+                      </span>
+                      <span className="text-xs text-fg4">{g.entries.length}</span>
+                    </button>
+                    {expanded && (
+                      <div className="space-y-0.5 pl-1.5">
+                        {g.entries.map(entry => (
+                          <button key={entry.id} onClick={() => selectCatalog(entry)}
+                            className="w-full flex items-center px-3 py-2 text-sm text-left rounded-md hover:bg-brand-subtle transition-colors">
+                            <span className="flex-1 font-medium text-fg1 truncate">{entry.displayName}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
