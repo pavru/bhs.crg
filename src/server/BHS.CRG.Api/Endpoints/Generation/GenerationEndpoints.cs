@@ -3,6 +3,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Templates;
 using MediatR;
 
 namespace BHS.CRG.Api.Endpoints.Generation;
@@ -46,36 +47,40 @@ public static class GenerationEndpoints
         });
 
         g.MapGet("/download/{instanceId:guid}/{format}", async (
-            Guid instanceId, string format, IMediator m, IBlobStorage blob) =>
+            Guid instanceId, string format, IMediator m, IBlobStorage blob,
+            IRepository<DocumentType> docTypes, IRepository<Template> templates, CancellationToken ct) =>
         {
             if (!string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase))
                 return Results.BadRequest(new { error = $"Неизвестный формат: «{format}». Поддерживается только PDF." });
 
-            var inst = await m.Send(new GetDocumentInstanceQuery(instanceId));
+            var inst = await m.Send(new GetDocumentInstanceQuery(instanceId), ct);
             if (inst is null) return Results.NotFound();
 
             var generatedFile = inst.GeneratedFiles.FirstOrDefault(f => f.Format == OutputFormat.Pdf);
             if (generatedFile is null) return Results.NotFound();
 
-            var stream = await blob.DownloadAsync(generatedFile.BlobPath);
-            return Results.File(stream, "application/pdf", "document.pdf");
+            var name = await BuildDownloadNameAsync(inst, generatedFile.TemplateId, docTypes, templates, ct);
+            var stream = await blob.DownloadAsync(generatedFile.BlobPath, ct);
+            return Results.File(stream, "application/pdf", name);
         });
 
         // Скачивание файла конкретного шаблона (мульти-шаблонная генерация — файлов может быть несколько).
         g.MapGet("/download/{instanceId:guid}/{templateId:guid}/{format}", async (
-            Guid instanceId, Guid templateId, string format, IMediator m, IBlobStorage blob) =>
+            Guid instanceId, Guid templateId, string format, IMediator m, IBlobStorage blob,
+            IRepository<DocumentType> docTypes, IRepository<Template> templates, CancellationToken ct) =>
         {
             if (!string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase))
                 return Results.BadRequest(new { error = $"Неизвестный формат: «{format}». Поддерживается только PDF." });
 
-            var inst = await m.Send(new GetDocumentInstanceQuery(instanceId));
+            var inst = await m.Send(new GetDocumentInstanceQuery(instanceId), ct);
             if (inst is null) return Results.NotFound();
 
             var generatedFile = inst.GeneratedFiles.FirstOrDefault(f => f.Format == OutputFormat.Pdf && f.TemplateId == templateId);
             if (generatedFile is null) return Results.NotFound();
 
-            var stream = await blob.DownloadAsync(generatedFile.BlobPath);
-            return Results.File(stream, "application/pdf", "document.pdf");
+            var name = await BuildDownloadNameAsync(inst, templateId, docTypes, templates, ct);
+            var stream = await blob.DownloadAsync(generatedFile.BlobPath, ct);
+            return Results.File(stream, "application/pdf", name);
         });
 
         // Отладочный пакет: template.typ + data.json + typeblocks.typ + userlib.typ —
@@ -171,6 +176,25 @@ public static class GenerationEndpoints
             var data = await plugin.FetchAsync(req.EntityType, req.ExternalId);
             return Results.Ok(data);
         });
+    }
+
+    // Имя скачиваемого файла: «Имя документа - Имя шаблона.pdf» (спецсимволы → '_'). Имя документа —
+    // из instance.Name, иначе имя типа; суффикс-шаблон — если файл сгенерирован конкретным шаблоном.
+    static async Task<string> BuildDownloadNameAsync(DocumentInstance inst, Guid? templateId,
+        IRepository<DocumentType> docTypes, IRepository<Template> templates, CancellationToken ct)
+    {
+        var docName = inst.Name;
+        if (string.IsNullOrWhiteSpace(docName))
+            docName = (await docTypes.GetByIdAsync(inst.DocumentTypeId, ct))?.Name ?? "Документ";
+
+        var name = FileNames.Sanitize(docName, "документ");
+        if (templateId is { } tid)
+        {
+            var tpl = await templates.GetByIdAsync(tid, ct);
+            if (tpl is not null && !string.IsNullOrWhiteSpace(tpl.Name))
+                name += " - " + FileNames.Sanitize(tpl.Name, "шаблон");
+        }
+        return name + ".pdf";
     }
 
     static object ToDto(ResolutionDiagnostic d) => new
