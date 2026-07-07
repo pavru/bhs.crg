@@ -113,6 +113,14 @@ export function useTestEmail() {
   });
 }
 
+/** Проверка подключения по значениям формы (соединение+аутентификация, без отправки письма). */
+export function useTestSmtpConnection() {
+  return useMutation({
+    mutationFn: (smtp: SmtpUpdate) =>
+      apiClient.post<{ ok: boolean; error?: string }>('/settings/integrations/email/test-connection', smtp).then(r => r.data),
+  });
+}
+
 /** Статус email пользователей (у кого задан/валиден адрес). */
 export function useEmailUserStatus() {
   return useQuery({

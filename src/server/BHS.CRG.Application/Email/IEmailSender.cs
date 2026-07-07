@@ -18,4 +18,8 @@ public interface IEmailSender
     /// <summary>Отправляет письмо через настроенный SMTP. Бросает <see cref="EmailNotConfiguredException"/>,
     /// если SMTP не настроен, или иное исключение при ошибке соединения/отправки.</summary>
     Task SendAsync(EmailMessage message, CancellationToken ct = default);
+
+    /// <summary>Проверяет ЗАДАННЫЕ настройки (соединение + аутентификация), НЕ отправляя письмо. Для
+    /// проверки формы до сохранения. Бросает при ошибке подключения/аутентификации.</summary>
+    Task TestConnectionAsync(Settings.SmtpSettings smtp, CancellationToken ct = default);
 }

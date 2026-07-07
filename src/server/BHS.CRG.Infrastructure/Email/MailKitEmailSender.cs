@@ -39,14 +39,28 @@ public class MailKitEmailSender(IIntegrationSettings settings) : IEmailSender
         mime.Body = builder.ToMessageBody();
 
         using var client = new SmtpClient();
-        // UseSsl: STARTTLS/автовыбор при 587, неявный SSL при 465; иначе — без шифрования.
+        await ConnectAndAuthAsync(client, smtp, ct);
+        await client.SendAsync(mime, ct);
+        await client.DisconnectAsync(true, ct);
+    }
+
+    public async Task TestConnectionAsync(SmtpSettings smtp, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(smtp.Host))
+            throw new EmailNotConfiguredException("Не задан SMTP-сервер (host).");
+        using var client = new SmtpClient();
+        await ConnectAndAuthAsync(client, smtp, ct);
+        await client.DisconnectAsync(true, ct); // соединение+аутентификация прошли — письмо не шлём
+    }
+
+    private static async Task ConnectAndAuthAsync(SmtpClient client, SmtpSettings smtp, CancellationToken ct)
+    {
+        // UseSsl: STARTTLS при 587, неявный SSL при 465; иначе — без шифрования.
         var security = smtp.UseSsl
             ? (smtp.Port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls)
             : SecureSocketOptions.None;
         await client.ConnectAsync(smtp.Host, smtp.Port, security, ct);
         if (!string.IsNullOrWhiteSpace(smtp.User))
             await client.AuthenticateAsync(smtp.User, smtp.Password, ct);
-        await client.SendAsync(mime, ct);
-        await client.DisconnectAsync(true, ct);
     }
 }

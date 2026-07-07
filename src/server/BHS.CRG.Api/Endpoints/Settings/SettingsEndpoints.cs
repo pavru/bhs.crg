@@ -60,6 +60,23 @@ public static class SettingsEndpoints
             }
         });
 
+        // Проверка подключения: соединение + аутентификация по значениям ФОРМЫ (без отправки письма и
+        // без сохранения). Пустой пароль = взять сохранённый (форма не присылает существующий).
+        g.MapPost("/email/test-connection", async (SmtpSettings smtp, IIntegrationSettings settings, IEmailSender email, CancellationToken ct) =>
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(smtp.Password))
+                    smtp.Password = (await settings.GetEffectiveAsync(ct)).Smtp.Password;
+                await email.TestConnectionAsync(smtp, ct);
+                return Results.Ok(new { ok = true });
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new { ok = false, error = ex.Message });
+            }
+        });
+
         // Проверка email пользователей: у кого задан/валиден адрес (для рассылок/подписок).
         g.MapGet("/email/user-status", async (AppDbContext db, CancellationToken ct) =>
         {
