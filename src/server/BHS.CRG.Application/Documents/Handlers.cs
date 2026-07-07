@@ -210,6 +210,7 @@ public class DocumentSetHandlers(
     IRequestHandler<UpdatePluginDataCommand, DocumentInstance>,
     IRequestHandler<GetDocumentInstanceQuery, DocumentInstance?>,
     IRequestHandler<SetDocumentTemplateCommand, DocumentInstance>,
+    IRequestHandler<SetDocumentTemplatesCommand, DocumentInstance>,
     IRequestHandler<SetDocumentTemplateParamsCommand, DocumentInstance>
 {
     public async Task<DocumentSet> Handle(CreateDocumentSetCommand cmd, CancellationToken ct)
@@ -313,6 +314,17 @@ public class DocumentSetHandlers(
         var inst = await instRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
         var blobs = inst.ResetToDraft();
         inst.SetTemplate(cmd.TemplateId);
+        instRepo.Update(inst);
+        await instRepo.SaveChangesAsync(ct);
+        foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
+        return inst;
+    }
+
+    public async Task<DocumentInstance> Handle(SetDocumentTemplatesCommand cmd, CancellationToken ct)
+    {
+        var inst = await instRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
+        var blobs = inst.ResetToDraft(); // смена набора шаблонов меняет вывод — в черновик
+        inst.SetTemplateIds(cmd.TemplateIds);
         instRepo.Update(inst);
         await instRepo.SaveChangesAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);

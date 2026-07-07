@@ -19,8 +19,12 @@ public class DocumentInstance : Entity
 
     public DocumentStatus Status { get; private set; } = DocumentStatus.Draft;
 
-    /// <summary>Явно выбранный шаблон. Null — использовать шаблон по умолчанию для типа.</summary>
+    /// <summary>Явно выбранный шаблон (одиночная генерация / первый для параметров). Null — по умолчанию.</summary>
     public Guid? TemplateId { get; private set; }
+
+    /// <summary>Набор выбранных шаблонов для мульти-генерации (JSON-массив Guid или null). Непусто —
+    /// «Сгенерировать» создаёт по PDF на каждый; пусто — один PDF по <see cref="TemplateId"/>/дефолту.</summary>
+    public string? TemplateIds { get; private set; }
 
     /// <summary>Переопределённые значения параметров шаблона (JSON-объект {имя:значение} или null).
     /// Дефолты берутся из <see cref="Templates.Template.Parameters"/>; здесь — только переопределения
@@ -47,10 +51,12 @@ public class DocumentInstance : Entity
         TouchUpdatedAt();
     }
 
-    public GeneratedFile AddGeneratedFile(OutputFormat format, string blobPath)
+    public GeneratedFile AddGeneratedFile(OutputFormat format, string blobPath, Guid? templateId = null)
     {
-        var file = GeneratedFile.Create(Id, format, blobPath);
-        _generatedFiles.RemoveAll(f => f.Format == format);
+        var file = GeneratedFile.Create(Id, format, blobPath, templateId);
+        // Один файл на пару (формат, шаблон) — при мульти-шаблонной генерации файлы разных шаблонов
+        // сосуществуют; повторная генерация тем же шаблоном заменяет его файл.
+        _generatedFiles.RemoveAll(f => f.Format == format && f.TemplateId == templateId);
         _generatedFiles.Add(file);
         Status = DocumentStatus.Generated;
         TouchUpdatedAt();
@@ -73,6 +79,7 @@ public class DocumentInstance : Entity
 
     public void Rename(string? name) { Name = string.IsNullOrWhiteSpace(name) ? null : name.Trim(); TouchUpdatedAt(); }
     public void SetTemplate(Guid? templateId) { TemplateId = templateId; TouchUpdatedAt(); }
+    public void SetTemplateIds(string? templateIdsJson) { TemplateIds = templateIdsJson; TouchUpdatedAt(); }
     public void SetTemplateParams(string? paramsJson) { TemplateParams = paramsJson; TouchUpdatedAt(); }
     public void MarkGenerating() { Status = DocumentStatus.Generating; TouchUpdatedAt(); }
     public void MarkFailed() { Status = DocumentStatus.Failed; TouchUpdatedAt(); }

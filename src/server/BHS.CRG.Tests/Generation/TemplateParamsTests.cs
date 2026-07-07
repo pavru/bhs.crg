@@ -48,4 +48,39 @@ public class TemplateParamsTests
         var eff = TemplateParams.Effective(template, "{ broken");
         Assert.Equal("д", eff["a"]);
     }
+
+    [Fact]
+    public void OverridesForTemplate_ExtractsPerTemplateEntry()
+    {
+        var g1 = Guid.NewGuid();
+        var g2 = Guid.NewGuid();
+        var json = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, Dictionary<string, string>>
+        {
+            [g1.ToString()] = new() { ["title"] = "A" },
+            [g2.ToString()] = new() { ["title"] = "B" },
+        });
+
+        Assert.Contains("\"title\":\"A\"", TemplateParams.OverridesForTemplate(json, g1));
+        Assert.Contains("\"title\":\"B\"", TemplateParams.OverridesForTemplate(json, g2));
+        Assert.Null(TemplateParams.OverridesForTemplate(json, Guid.NewGuid())); // нет записи для шаблона
+        Assert.Null(TemplateParams.OverridesForTemplate(null, g1));
+    }
+
+    [Fact]
+    public void PerTemplateOverrides_AppliedIndividually()
+    {
+        var g1 = Guid.NewGuid();
+        const string template = """[{"name":"title","type":"string","default":"деф"}]""";
+        var instanceParams = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, Dictionary<string, string>>
+        {
+            [g1.ToString()] = new() { ["title"] = "переопределено" },
+        });
+
+        var eff = TemplateParams.Effective(template, TemplateParams.OverridesForTemplate(instanceParams, g1));
+        Assert.Equal("переопределено", eff["title"]);
+
+        // Для другого шаблона переопределений нет → дефолт.
+        var other = TemplateParams.Effective(template, TemplateParams.OverridesForTemplate(instanceParams, Guid.NewGuid()));
+        Assert.Equal("деф", other["title"]);
+    }
 }

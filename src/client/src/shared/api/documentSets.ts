@@ -73,6 +73,18 @@ export function useSetDocumentTemplate() {
   });
 }
 
+/** Набор выбранных шаблонов для мульти-генерации — templateIds = массив id (пусто → один дефолт). */
+export function useSetDocumentTemplates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ setId, instanceId, templateIds }: { setId: string; instanceId: string; templateIds: string[] }) =>
+      apiClient
+        .put<DocumentInstance>(`/document-sets/${setId}/documents/${instanceId}/templates`, templateIds.length ? templateIds : null)
+        .then((r) => r.data),
+    onSuccess: (_d, { setId }) => qc.invalidateQueries({ queryKey: ['document-sets', setId] }),
+  });
+}
+
 /** Переопределения значений параметров шаблона на документе — params = объект {имя:значение} или null. */
 export function useSetDocumentTemplateParams() {
   const qc = useQueryClient();
@@ -96,8 +108,9 @@ export function useGenerateDocument() {
   });
 }
 
-export async function downloadGeneratedFile(instanceId: string) {
-  const response = await apiClient.get(`/generate/download/${instanceId}/pdf`, {
+export async function downloadGeneratedFile(instanceId: string, templateId?: string | null) {
+  const path = templateId ? `/generate/download/${instanceId}/${templateId}/pdf` : `/generate/download/${instanceId}/pdf`;
+  const response = await apiClient.get(path, {
     responseType: 'blob',
   });
   const url = URL.createObjectURL(response.data as Blob);
@@ -133,14 +146,15 @@ export async function downloadDebugBundle(instanceId: string) {
   URL.revokeObjectURL(url);
 }
 
-export async function previewGeneratedFile(instanceId: string) {
+export async function previewGeneratedFile(instanceId: string, templateId?: string | null) {
   // Open window synchronously (in user-gesture context) to avoid popup blocker,
   // then navigate it to the blob URL once the download completes.
   const newWindow = window.open('', '_blank');
   if (!newWindow) return;
 
   try {
-    const response = await apiClient.get(`/generate/download/${instanceId}/pdf`, {
+    const path = templateId ? `/generate/download/${instanceId}/${templateId}/pdf` : `/generate/download/${instanceId}/pdf`;
+    const response = await apiClient.get(path, {
       responseType: 'blob',
     });
     const url = URL.createObjectURL(response.data as Blob);

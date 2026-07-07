@@ -60,7 +60,8 @@ public class GetGenerationDebugBundleHandler(
         await qualityLinkResolver.InjectAsync(context, instance, ct);
         // Тот же второй проход, что и при генерации — разрешаем $ref, добавленные наборами данных.
         await entityResolver.ResolveContextRefsAsync(context, instance.DocumentSetId, ct);
-        context.Set("params", TemplateParams.Effective(template.Parameters, instance.TemplateParams));
+        context.Set("params", TemplateParams.Effective(template.Parameters,
+            TemplateParams.OverridesForTemplate(instance.TemplateParams, template.Id)));
 
         var dataJson = JsonSerializer.Serialize(context.Data, JsonOpts);
         var typeBlocks = TypstPreambleBuilder.Build(allDocTypes);

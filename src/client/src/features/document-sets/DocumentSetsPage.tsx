@@ -99,7 +99,7 @@ function SetDetail() {
             </thead>
             <tbody>
               {set.instances.map(inst => {
-                const pdfFile = inst.generatedFiles.find(f => f.format === 'Pdf');
+                const pdfFiles = inst.generatedFiles.filter(f => f.format === 'Pdf');
                 return (
                   <tr key={inst.id} className="border-b border-muted last:border-0 hover:bg-base cursor-pointer group"
                     onClick={() => setEditInstance(inst)}>
@@ -120,19 +120,26 @@ function SetDetail() {
                     </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
-                        {pdfFile && (
+                        {pdfFiles.length === 1 && (
                           <>
-                            <button onClick={() => previewGeneratedFile(inst.id)}
+                            <button onClick={() => previewGeneratedFile(inst.id, pdfFiles[0].templateId)}
                               className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors"
                               title="Открыть PDF">
                               <Eye size={11} /> PDF
                             </button>
-                            <button onClick={() => downloadGeneratedFile(inst.id)}
+                            <button onClick={() => downloadGeneratedFile(inst.id, pdfFiles[0].templateId)}
                               className="p-1 text-fg4 hover:text-brand transition-colors"
                               title="Скачать PDF">
                               <Download size={12} />
                             </button>
                           </>
+                        )}
+                        {pdfFiles.length > 1 && (
+                          <button onClick={() => setEditInstance(inst)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors"
+                            title="Несколько PDF — открыть документ для выбора">
+                            <Eye size={11} /> {pdfFiles.length} PDF
+                          </button>
                         )}
                       </div>
                     </td>

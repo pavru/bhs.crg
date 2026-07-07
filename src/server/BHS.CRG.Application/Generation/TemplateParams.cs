@@ -12,6 +12,24 @@ namespace BHS.CRG.Application.Generation;
 /// </summary>
 public static class TemplateParams
 {
+    /// <summary>Переопределения документа хранятся ПО ШАБЛОНУ (<c>{templateId:{name:value}}</c>) —
+    /// у каждого шаблона свой набор параметров. Возвращает JSON-объект переопределений для указанного
+    /// шаблона (или null). Старый плоский формат {name:value} игнорируется (фича новая, не в проде).</summary>
+    public static string? OverridesForTemplate(string? instanceParamsJson, Guid templateId)
+    {
+        if (string.IsNullOrWhiteSpace(instanceParamsJson)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(instanceParamsJson);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty(templateId.ToString(), out var forTemplate)
+                && forTemplate.ValueKind == JsonValueKind.Object)
+                return forTemplate.GetRawText();
+        }
+        catch { /* битый JSON — без переопределений */ }
+        return null;
+    }
+
     public static Dictionary<string, object?> Effective(string? templateParametersJson, string? instanceOverridesJson)
     {
         var result = new Dictionary<string, object?>();

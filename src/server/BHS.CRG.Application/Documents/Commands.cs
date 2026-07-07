@@ -43,6 +43,9 @@ public record UpdatePluginDataCommand(Guid InstanceId, JsonDocument PluginData) 
 public record GetDocumentInstanceQuery(Guid Id) : IRequest<DocumentInstance?>;
 public record SetDocumentTemplateCommand(Guid InstanceId, Guid? TemplateId) : IRequest<DocumentInstance>;
 
+/// <summary>Набор выбранных шаблонов для мульти-генерации (JSON-массив Guid или null — тогда один дефолт).</summary>
+public record SetDocumentTemplatesCommand(Guid InstanceId, string? TemplateIds) : IRequest<DocumentInstance>;
+
 /// <summary>Переопределения значений параметров шаблона на документе (JSON-объект {имя:значение} или null).</summary>
 public record SetDocumentTemplateParamsCommand(Guid InstanceId, string? Params) : IRequest<DocumentInstance>;
 

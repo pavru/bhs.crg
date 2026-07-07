@@ -23,9 +23,15 @@ public class GenerateDocumentHandler(
     IBlobStorage blobStorage,
     IMetadataExtractor metadataExtractor,
     INotificationService notifications
-) : IRequestHandler<GenerateDocumentCommand, GeneratedFile>
+) : IRequestHandler<GenerateDocumentCommand, IReadOnlyList<GeneratedFile>>
 {
-    public async Task<GeneratedFile> Handle(GenerateDocumentCommand cmd, CancellationToken ct)
+    private static List<Guid> ParseGuidList(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        try { return JsonSerializer.Deserialize<List<Guid>>(json) ?? []; } catch { return []; }
+    }
+
+    public async Task<IReadOnlyList<GeneratedFile>> Handle(GenerateDocumentCommand cmd, CancellationToken ct)
     {
         var instance = await instanceRepo.GetByIdAsync(cmd.InstanceId, ct)
             ?? throw new KeyNotFoundException($"DocumentInstance {cmd.InstanceId} not found");
@@ -36,13 +42,26 @@ public class GenerateDocumentHandler(
 
         try
         {
-            var candidates = await templateRepo.FindAsync(t => t.DocumentTypeId == instance.DocumentTypeId, ct);
-            Template? template = null;
-            if (instance.TemplateId.HasValue)
-                template = await templateRepo.GetByIdAsync(instance.TemplateId.Value, ct);
-            template ??= candidates.FirstOrDefault(t => t.IsDefault && t.IsActive)
-                ?? candidates.FirstOrDefault(t => t.IsActive)
-                ?? throw new InvalidOperationException($"No active template for DocumentType {instance.DocumentTypeId}");
+            var candidates = (await templateRepo.FindAsync(t => t.DocumentTypeId == instance.DocumentTypeId, ct)).ToList();
+
+            // Список шаблонов для генерации: выбранный НАБОР (мульти-шаблоны) или один эффективный
+            // (явно выбранный → по умолчанию → первый активный) — как раньше при пустом наборе.
+            var selectedIds = ParseGuidList(instance.TemplateIds);
+            List<Template> templates;
+            if (selectedIds.Count > 0)
+            {
+                templates = candidates.Where(t => selectedIds.Contains(t.Id) && t.IsActive).ToList();
+                if (templates.Count == 0)
+                    throw new InvalidOperationException("Ни один из выбранных шаблонов не активен.");
+            }
+            else
+            {
+                var single = (instance.TemplateId.HasValue ? candidates.FirstOrDefault(t => t.Id == instance.TemplateId.Value) : null)
+                    ?? candidates.FirstOrDefault(t => t.IsDefault && t.IsActive)
+                    ?? candidates.FirstOrDefault(t => t.IsActive)
+                    ?? throw new InvalidOperationException($"No active template for DocumentType {instance.DocumentTypeId}");
+                templates = [single];
+            }
 
             var allDocTypes = await docTypeRepo.GetAllAsync(ct);
             var diagnostics = new List<ResolutionDiagnostic>();
@@ -67,58 +86,63 @@ public class GenerateDocumentHandler(
                 if (!string.IsNullOrEmpty(preamble))
                     typeBlocksContent = preamble;
 
-                var allLibs = await userLibRepo.GetAllAsync(ct);
-                var lib = allLibs.FirstOrDefault();
+                var lib = (await userLibRepo.GetAllAsync(ct)).FirstOrDefault();
                 if (lib is not null && !string.IsNullOrWhiteSpace(lib.Content))
                     userLibContent = lib.Content;
-            }
-
-            // Параметры шаблона: дефолты объявления + переопределения документа → в контекст под «params»
-            // (в Typst доступны как data.params.имя). Позволяет одним шаблоном покрыть варианты без дублей.
-            context.Set("params", TemplateParams.Effective(template.Parameters, instance.TemplateParams));
-
-            var generator = generatorFactory.Create(cmd.Format);
-            var request = new GenerationRequest(instance, template.Content, cmd.Format, context,
-                template.PageSize, template.PageOrientation,
-                template.MarginTop, template.MarginRight, template.MarginBottom, template.MarginLeft,
-                TypeBlocksContent: typeBlocksContent, UserLibContent: userLibContent,
-                ImageOptions: SchemaImageOptions.Collect(allDocTypes));
-            var bytes = await generator.GenerateAsync(request, ct);
-
-            // ── Обратная запись метаданных в реквизиты ───────────────────────
-            var docType = allDocTypes.FirstOrDefault(dt => dt.Id == instance.DocumentTypeId);
-            if (docType is not null)
-            {
-                var taggedFields = SchemaTags.TaggedFields(docType, allDocTypes);
-                if (taggedFields.Count > 0)
-                {
-                    var meta = metadataExtractor.Extract(bytes, isPdf: cmd.Format == OutputFormat.Pdf, cmd.GeneratedBy);
-                    var patchedRequisites = SchemaTags.PatchMetadata(instance.Requisites, taggedFields, meta);
-                    instance.UpdateRequisites(patchedRequisites);
-                }
             }
 
             var ext = cmd.Format == OutputFormat.Pdf ? "pdf" : "docx";
             var contentType = cmd.Format == OutputFormat.Pdf
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            var imageOptions = SchemaImageOptions.Collect(allDocTypes);
+            var docType = allDocTypes.FirstOrDefault(dt => dt.Id == instance.DocumentTypeId);
 
-            await using var ms = new MemoryStream(bytes);
-            var blobPath = await blobStorage.UploadAsync($"{instance.Id}.{ext}", ms, contentType, ct);
+            // По PDF на каждый выбранный шаблон. Контекст (реквизиты/наборы/каталог) общий — строится
+            // один раз выше; на шаблон меняются только params, содержимое и настройки страницы.
+            var generated = new List<GeneratedFile>();
+            foreach (var template in templates)
+            {
+                context.Set("params", TemplateParams.Effective(template.Parameters,
+                    TemplateParams.OverridesForTemplate(instance.TemplateParams, template.Id)));
 
-            var generatedFile = instance.AddGeneratedFile(cmd.Format, blobPath);
-            await fileRepo.AddAsync(generatedFile, ct);
+                var generator = generatorFactory.Create(cmd.Format);
+                var request = new GenerationRequest(instance, template.Content, cmd.Format, context,
+                    template.PageSize, template.PageOrientation,
+                    template.MarginTop, template.MarginRight, template.MarginBottom, template.MarginLeft,
+                    TypeBlocksContent: typeBlocksContent, UserLibContent: userLibContent,
+                    ImageOptions: imageOptions);
+                var bytes = await generator.GenerateAsync(request, ct);
+
+                // Обратная запись метаданных — только с ПЕРВОГО файла (репрезентативно: число листов и т.п.).
+                if (generated.Count == 0 && docType is not null)
+                {
+                    var taggedFields = SchemaTags.TaggedFields(docType, allDocTypes);
+                    if (taggedFields.Count > 0)
+                    {
+                        var meta = metadataExtractor.Extract(bytes, isPdf: cmd.Format == OutputFormat.Pdf, cmd.GeneratedBy);
+                        instance.UpdateRequisites(SchemaTags.PatchMetadata(instance.Requisites, taggedFields, meta));
+                    }
+                }
+
+                await using var ms = new MemoryStream(bytes);
+                var blobPath = await blobStorage.UploadAsync($"{instance.Id}-{template.Id}.{ext}", ms, contentType, ct);
+                var gf = instance.AddGeneratedFile(cmd.Format, blobPath, template.Id);
+                await fileRepo.AddAsync(gf, ct);
+                generated.Add(gf);
+            }
+
             await instanceRepo.SaveChangesAsync(ct);
 
-            var ext2 = cmd.Format == OutputFormat.Pdf ? "pdf" : "docx";
+            var first = generated[0];
             await notifications.PublishAsync(NotificationSeverity.Info, "Документ сгенерирован",
-                $"«{instance.Name}» — {cmd.Format}.", "Генерация",
-                userId: cmd.UserId,
-                linkUrl: $"/api/generate/download/{instance.Id}/{ext2}",
-                linkLabel: $"Скачать {ext2.ToUpperInvariant()}",
+                generated.Count == 1 ? $"«{instance.Name}» — {cmd.Format}." : $"«{instance.Name}» — сгенерировано файлов: {generated.Count}.",
+                "Генерация", userId: cmd.UserId,
+                linkUrl: $"/api/generate/download/{instance.Id}/{first.TemplateId}/{ext}",
+                linkLabel: generated.Count == 1 ? $"Скачать {ext.ToUpperInvariant()}" : "Открыть",
                 ct: ct);
 
-            return generatedFile;
+            return generated;
         }
         catch (Exception ex)
         {

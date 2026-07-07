@@ -29,6 +29,7 @@ public class DocumentInstanceConfiguration : IEntityTypeConfiguration<DocumentIn
         b.Property(e => e.Requisites).HasColumnType("jsonb");
         b.Property(e => e.PluginData).HasColumnType("jsonb");
         b.Property(e => e.TemplateParams).HasColumnType("jsonb");
+        b.Property(e => e.TemplateIds).HasColumnType("jsonb");
         b.Property(e => e.Status).HasConversion<string>().HasMaxLength(32);
         b.HasMany(e => e.GeneratedFiles)
          .WithOne()

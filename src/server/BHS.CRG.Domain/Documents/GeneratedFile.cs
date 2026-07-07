@@ -8,10 +8,14 @@ public class GeneratedFile : Entity
     public OutputFormat Format { get; private set; }
     public string BlobPath { get; private set; } = default!;
 
+    /// <summary>Шаблон, которым сгенерирован файл (мульти-шаблонная генерация — один файл на шаблон).
+    /// Null — сгенерировано до фичи мульти-шаблонов или без явного выбора (дефолт-шаблон типа).</summary>
+    public Guid? TemplateId { get; private set; }
+
     private GeneratedFile() { }
 
-    internal static GeneratedFile Create(Guid instanceId, OutputFormat format, string blobPath)
-        => new() { DocumentInstanceId = instanceId, Format = format, BlobPath = blobPath };
+    internal static GeneratedFile Create(Guid instanceId, OutputFormat format, string blobPath, Guid? templateId)
+        => new() { DocumentInstanceId = instanceId, Format = format, BlobPath = blobPath, TemplateId = templateId };
 }
 
 public enum OutputFormat { Pdf }

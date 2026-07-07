@@ -134,6 +134,8 @@ export interface DocumentInstance {
   documentTypeId: string;
   name: string | null;
   templateId: string | null;
+  /** JSON-текст массива Guid выбранных шаблонов для мульти-генерации (jsonb-строка) или null. */
+  templateIds: string | null;
   requisites: Record<string, unknown>;
   pluginData: Record<string, unknown>;
   /** JSON-текст объекта {имя:значение} переопределений параметров шаблона (jsonb-строка) или null. */
@@ -149,6 +151,8 @@ export interface GeneratedFile {
   documentInstanceId: string;
   format: 'Pdf';
   blobPath: string;
+  /** Шаблон, которым сгенерирован файл (мульти-шаблоны — один файл на шаблон). Null — legacy/дефолт. */
+  templateId: string | null;
 }
 
 // ─── Primitive Types ─────────────────────────────────────────────────────────

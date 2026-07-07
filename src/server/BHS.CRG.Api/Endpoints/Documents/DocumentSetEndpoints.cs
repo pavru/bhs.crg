@@ -106,6 +106,12 @@ public static class DocumentSetEndpoints
             async (Guid id, SetTemplateRequest req, IMediator m)
                 => Results.Ok(await m.Send(new SetDocumentTemplateCommand(id, req.TemplateId))));
 
+        // Набор выбранных шаблонов для мульти-генерации (JSON-массив Guid в теле или null).
+        g.MapPut("/{setId:guid}/documents/{id:guid}/templates",
+            async (Guid id, JsonElement body, IMediator m)
+                => Results.Ok(await m.Send(new SetDocumentTemplatesCommand(
+                    id, body.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined ? null : body.GetRawText()))));
+
         // Переопределения значений параметров шаблона на документе (JSON-объект {имя:значение} или null).
         g.MapPut("/{setId:guid}/documents/{id:guid}/template-params",
             async (Guid id, JsonElement body, IMediator m)

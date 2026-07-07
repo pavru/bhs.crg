@@ -24,8 +24,8 @@ public static class GenerationEndpoints
             Guid? userId = Guid.TryParse(userIdStr, out var uid) ? uid : null;
             try
             {
-                var file = await m.Send(new GenerateDocumentCommand(instanceId, format, generatedBy, userId));
-                return Results.Ok(new { file.Id, file.BlobPath, Format = file.Format.ToString() });
+                var files = await m.Send(new GenerateDocumentCommand(instanceId, format, generatedBy, userId));
+                return Results.Ok(files.Select(f => new { f.Id, f.BlobPath, Format = f.Format.ToString(), f.TemplateId }));
             }
             catch (ResolutionValidationException ex)
             {
@@ -55,6 +55,23 @@ public static class GenerationEndpoints
             if (inst is null) return Results.NotFound();
 
             var generatedFile = inst.GeneratedFiles.FirstOrDefault(f => f.Format == OutputFormat.Pdf);
+            if (generatedFile is null) return Results.NotFound();
+
+            var stream = await blob.DownloadAsync(generatedFile.BlobPath);
+            return Results.File(stream, "application/pdf", "document.pdf");
+        });
+
+        // Скачивание файла конкретного шаблона (мульти-шаблонная генерация — файлов может быть несколько).
+        g.MapGet("/download/{instanceId:guid}/{templateId:guid}/{format}", async (
+            Guid instanceId, Guid templateId, string format, IMediator m, IBlobStorage blob) =>
+        {
+            if (!string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase))
+                return Results.BadRequest(new { error = $"Неизвестный формат: «{format}». Поддерживается только PDF." });
+
+            var inst = await m.Send(new GetDocumentInstanceQuery(instanceId));
+            if (inst is null) return Results.NotFound();
+
+            var generatedFile = inst.GeneratedFiles.FirstOrDefault(f => f.Format == OutputFormat.Pdf && f.TemplateId == templateId);
             if (generatedFile is null) return Results.NotFound();
 
             var stream = await blob.DownloadAsync(generatedFile.BlobPath);

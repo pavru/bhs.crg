@@ -42,9 +42,15 @@ public static class ResolutionScanner
                     var target = el.TryGetProperty("entryId", out var eid) ? eid.GetString()
                         : el.TryGetProperty("instanceId", out var iid) ? iid.GetString()
                         : null;
+                    var kindHuman = kind switch
+                    {
+                        "document" or "instance" => "документ",
+                        "catalog" => "запись каталога",
+                        _ => $"объект типа «{kind}»",
+                    };
                     diagnostics.Add(new ResolutionDiagnostic(
                         DiagnosticSeverity.Error, path,
-                        $"Неразрешённая ссылка (тип «{kind}»{(target is null ? "" : $", цель {target}")}) — запись не найдена или удалена."));
+                        $"Ссылка на {kindHuman}{(target is null ? "" : $" (id {target})")} не разрешена — целевая запись не найдена или удалена."));
                     return; // глубже не идём — внутренность ссылки не данные
                 }
                 foreach (var p in el.EnumerateObject())

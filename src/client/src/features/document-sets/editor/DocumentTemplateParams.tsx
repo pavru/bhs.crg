@@ -4,46 +4,61 @@ import { parseTemplateParams } from '@/features/templates/TemplateParamsPanel';
 import type { DocumentInstance, Template, TemplateParam } from '@/shared/api/types';
 
 /**
- * Значения параметров шаблона на конкретном документе: показывает объявленные шаблоном параметры с их
- * эффективным значением (переопределение документа, иначе дефолт шаблона), позволяет переопределить и
- * сбросить. Изменение сбрасывает документ в черновик (влияет на вывод). Ничего не рендерит, если у
- * активного шаблона параметров нет.
+ * Значения параметров шаблонов на документе. Параметры ИНДИВИДУАЛЬНЫ для шаблона — переопределения
+ * хранятся вложенно {templateId:{name:value}}. Для каждого переданного шаблона (обычно — выбранных
+ * для генерации), у которого объявлены параметры, показывается своя секция с эффективными значениями
+ * (переопределение документа, иначе дефолт шаблона), возможностью переопределить и сбросить.
+ * Изменение сбрасывает документ в черновик (влияет на вывод).
  */
-export function DocumentTemplateParams({ setId, instance, template }: {
-  setId: string; instance: DocumentInstance; template: Template;
+export function DocumentTemplateParams({ setId, instance, templates }: {
+  setId: string; instance: DocumentInstance; templates: Template[];
 }) {
-  const declared = useMemo(() => parseTemplateParams(template.parameters), [template.parameters]);
-  const overrides = useMemo<Record<string, unknown>>(() => {
+  const setParams = useSetDocumentTemplateParams();
+  const allOverrides = useMemo<Record<string, Record<string, unknown>>>(() => {
     try { return instance.templateParams ? JSON.parse(instance.templateParams) : {}; } catch { return {}; }
   }, [instance.templateParams]);
-  const setParams = useSetDocumentTemplateParams();
 
-  if (declared.length === 0) return null;
+  const withParams = templates
+    .map(t => ({ t, declared: parseTemplateParams(t.parameters) }))
+    .filter(x => x.declared.length > 0);
+  if (withParams.length === 0) return null;
 
-  function commit(next: Record<string, unknown>) {
-    setParams.mutate({ setId, instanceId: instance.id, params: Object.keys(next).length ? next : null });
+  function commit(next: Record<string, Record<string, unknown>>) {
+    // Убираем пустые под-объекты шаблонов, а если ничего не осталось — null.
+    const clean = Object.fromEntries(Object.entries(next).filter(([, v]) => Object.keys(v).length > 0));
+    setParams.mutate({ setId, instanceId: instance.id, params: Object.keys(clean).length ? clean : null });
   }
 
+  const multi = withParams.length > 1;
+
   return (
-    <div className="space-y-1.5">
-      <label className="block text-xs font-medium text-fg2">Параметры шаблона</label>
-      <div className="space-y-1.5 rounded-md border border-stroke p-2.5">
-        {declared.map(p => {
-          const overridden = Object.prototype.hasOwnProperty.call(overrides, p.name);
-          const value = overridden ? overrides[p.name] : p.default;
+    <div className="space-y-2">
+      <label className="block text-xs font-medium text-fg2">Параметры шаблон{multi ? 'ов' : 'а'}</label>
+      <div className="space-y-2">
+        {withParams.map(({ t, declared }) => {
+          const overrides = allOverrides[t.id] ?? {};
           return (
-            <div key={p.name} className="flex items-center gap-2">
-              <span className="text-xs text-fg2 flex-1 min-w-0 truncate" title={p.name}>{p.label || p.name}</span>
-              <ParamValueInput type={p.type} value={value}
-                onChange={v => commit({ ...overrides, [p.name]: v })} />
-              {overridden ? (
-                <button onClick={() => { const n = { ...overrides }; delete n[p.name]; commit(n); }}
-                  title="Сбросить к значению по умолчанию" className="text-[10px] text-fg4 hover:text-brand shrink-0">
-                  сброс
-                </button>
-              ) : (
-                <span className="text-[10px] text-fg4 shrink-0" title="Используется значение по умолчанию шаблона">по умолч.</span>
-              )}
+            <div key={t.id} className="rounded-md border border-stroke p-2.5 space-y-1.5">
+              {multi && <div className="text-[11px] font-medium text-fg3">{t.name}</div>}
+              {declared.map(p => {
+                const overridden = Object.prototype.hasOwnProperty.call(overrides, p.name);
+                const value = overridden ? overrides[p.name] : p.default;
+                return (
+                  <div key={p.name} className="flex items-center gap-2">
+                    <span className="text-xs text-fg2 flex-1 min-w-0 truncate" title={p.name}>{p.label || p.name}</span>
+                    <ParamValueInput type={p.type} value={value}
+                      onChange={v => commit({ ...allOverrides, [t.id]: { ...overrides, [p.name]: v } })} />
+                    {overridden ? (
+                      <button onClick={() => { const n = { ...overrides }; delete n[p.name]; commit({ ...allOverrides, [t.id]: n }); }}
+                        title="Сбросить к значению по умолчанию" className="text-[10px] text-fg4 hover:text-brand shrink-0">
+                        сброс
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-fg4 shrink-0" title="Используется значение по умолчанию шаблона">по умолч.</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           );
         })}

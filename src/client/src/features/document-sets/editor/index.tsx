@@ -3,7 +3,7 @@ import { Loader2, FileText, Download, Eye, Pencil, ChevronDown, ChevronUp, Bug, 
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import {
   useUpdateRequisites, useGenerateDocument,
-  useSetDocumentTemplate, useRenameDocumentInstance,
+  useSetDocumentTemplates, useRenameDocumentInstance,
   downloadGeneratedFile, previewGeneratedFile, downloadDebugBundle,
   validateResolution, type ResolutionDiagnostic,
 } from '@/shared/api/documentSets';
@@ -24,6 +24,12 @@ import { DocumentTemplateParams } from './DocumentTemplateParams';
 import { Modal } from '@/shared/ui/Modal';
 
 type SaveRef = { current: (() => Promise<boolean>) | null };
+
+/** Парсит JSON-строку массива id (templateIds) в массив; безопасно к битому/пустому значению. */
+function parseIdArray(json: string | null): string[] {
+  if (!json) return [];
+  try { const a = JSON.parse(json); return Array.isArray(a) ? a as string[] : []; } catch { return []; }
+}
 
 function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, otherInstances, onDirty, saveRef }: {
   instance: DocumentInstance; setId: string; schemaFields: SchemaField[];
@@ -240,7 +246,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
 
 // ─── Generation tab ───────────────────────────────────────────────────────────
 
-function DiagnosticsPanel({ diagnostics }: { diagnostics: ResolutionDiagnostic[] }) {
+function DiagnosticsPanel({ diagnostics, objectName }: { diagnostics: ResolutionDiagnostic[]; objectName: string }) {
   if (diagnostics.length === 0) {
     return (
       <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-success-subtle text-success">
@@ -253,7 +259,7 @@ function DiagnosticsPanel({ diagnostics }: { diagnostics: ResolutionDiagnostic[]
   return (
     <div className="rounded-md border border-stroke overflow-hidden">
       <div className="px-3 py-2 text-xs font-medium bg-base text-fg2">
-        Диагностика ссылок: {errors.length} ошиб., {warnings.length} предупр.
+        Диагностика ссылок — объект «{objectName}»: {errors.length} ошиб., {warnings.length} предупр.
       </div>
       <div className="divide-y divide-muted max-h-72 overflow-y-auto">
         {[...errors, ...warnings].map((d, i) => (
@@ -262,7 +268,7 @@ function DiagnosticsPanel({ diagnostics }: { diagnostics: ResolutionDiagnostic[]
               ? <AlertCircle size={14} className="text-danger shrink-0 mt-0.5" />
               : <AlertTriangle size={14} className="text-warning shrink-0 mt-0.5" />}
             <div className="min-w-0">
-              <code className="text-fg3">{d.path}</code>
+              <div className="text-fg3">Реквизит: <code className="text-fg2">{d.path}</code></div>
               <p className={d.severity === 'error' ? 'text-danger' : 'text-fg2'}>{d.message}</p>
             </div>
           </div>
@@ -283,12 +289,17 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
   const [validating, setValidating] = useState(false);
   const [diagnostics, setDiagnostics] = useState<ResolutionDiagnostic[] | null>(null);
   const mutation = useGenerateDocument();
-  const setTemplateMutation = useSetDocumentTemplate();
+  const setTemplatesMutation = useSetDocumentTemplates();
   const { data: templates = [], isLoading: templatesLoading } = useListTemplates(instance.documentTypeId);
   const activeTemplates = templates.filter((t: Template) => t.isActive);
   const noTemplates = !templatesLoading && activeTemplates.length === 0;
-  // Эффективный шаблон (как выбирает бэкенд): явно выбранный → по умолчанию → первый активный.
-  const effectiveTemplate = activeTemplates.find((t: Template) => t.id === instance.templateId)
+  // Локальный стейт выбора (оптимистичный): функциональный апдейтер копит выбор из ПОСЛЕДНЕГО значения,
+  // а не из отрендеренного (иначе быстрый второй клик до рефетча затирал первый — «выбор не сохранялся»).
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>(() => parseIdArray(instance.templateIds));
+  useEffect(() => { setSelectedTemplateIds(parseIdArray(instance.templateIds)); }, [instance.templateIds]);
+  // Эффективный шаблон для параметров/дефолт-скачивания: первый выбранный → по умолчанию → первый активный.
+  const effectiveTemplate = activeTemplates.find((t: Template) => t.id === selectedTemplateIds[0])
+    ?? activeTemplates.find((t: Template) => t.id === instance.templateId)
     ?? activeTemplates.find((t: Template) => t.isDefault)
     ?? activeTemplates[0];
 
@@ -319,12 +330,15 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
     finally { setDebugBusy(false); }
   }
 
-  function handleTemplateChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const val = e.target.value;
-    setTemplateMutation.mutate({ setId, instanceId: instance.id, templateId: val === '' ? null : val });
+  function toggleTemplate(id: string, on: boolean) {
+    setSelectedTemplateIds(prev => {
+      const next = on ? [...new Set([...prev, id])] : prev.filter(x => x !== id);
+      setTemplatesMutation.mutate({ setId, instanceId: instance.id, templateIds: next });
+      return next;
+    });
   }
 
-  const pdfFile = instance.generatedFiles.find(f => f.format === 'Pdf');
+  const pdfFiles = instance.generatedFiles.filter(f => f.format === 'Pdf');
 
   return (
     <div className="space-y-5">
@@ -334,30 +348,33 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
       </div>
 
       <div className="space-y-1">
-        <label className="block text-xs font-medium text-fg2">Шаблон</label>
-        <select
-          value={instance.templateId ?? ''}
-          onChange={handleTemplateChange}
-          disabled={setTemplateMutation.isPending}
-          className="w-full px-3 py-2 text-sm border border-stroke-strong rounded-md bg-surface text-fg1 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand disabled:opacity-50"
-        >
-          <option value="">По умолчанию (шаблон типа документа)</option>
-          {activeTemplates.map((t: Template) => (
-            <option key={t.id} value={t.id}>
-              {t.isDefault ? '★ ' : ''}{t.name} (v{t.version})
-            </option>
-          ))}
-        </select>
-        {noTemplates && (
-          <p className="text-xs text-warning mt-1">
+        <label className="block text-xs font-medium text-fg2">Шаблоны <span className="text-fg4 font-normal">(можно несколько — по PDF на каждый)</span></label>
+        {noTemplates ? (
+          <p className="text-xs text-warning">
             Для этого типа документа нет шаблонов. Создайте шаблон в разделе «Шаблоны».
           </p>
+        ) : (
+          <>
+            <div className="rounded-md border border-stroke-strong divide-y divide-stroke overflow-hidden">
+              {activeTemplates.map((t: Template) => (
+                <label key={t.id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm cursor-pointer hover:bg-base transition-colors">
+                  <input type="checkbox" checked={selectedTemplateIds.includes(t.id)} disabled={setTemplatesMutation.isPending}
+                    onChange={e => toggleTemplate(t.id, e.target.checked)} />
+                  <span className="flex-1 text-fg1">{t.isDefault ? '★ ' : ''}{t.name} <span className="text-fg4">(v{t.version})</span></span>
+                </label>
+              ))}
+            </div>
+            {selectedTemplateIds.length === 0 && (
+              <p className="text-[11px] text-fg4">Ничего не выбрано — будет один PDF по шаблону по умолчанию.</p>
+            )}
+          </>
         )}
       </div>
 
-      {effectiveTemplate && (
-        <DocumentTemplateParams setId={setId} instance={instance} template={effectiveTemplate} />
-      )}
+      <DocumentTemplateParams setId={setId} instance={instance}
+        templates={selectedTemplateIds.length > 0
+          ? activeTemplates.filter((t: Template) => selectedTemplateIds.includes(t.id))
+          : effectiveTemplate ? [effectiveTemplate] : []} />
 
       <div className="flex gap-3">
         <button onClick={() => handleGenerate()} disabled={mutation.isPending || noTemplates}
@@ -386,19 +403,27 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
       )}
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      {diagnostics && <DiagnosticsPanel diagnostics={diagnostics} />}
-      {pdfFile && (
+      {diagnostics && <DiagnosticsPanel diagnostics={diagnostics} objectName={instance.name || 'без названия'} />}
+      {pdfFiles.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-medium text-fg2">Сгенерированные файлы</p>
-          <div className="flex gap-2">
-            <button onClick={() => previewGeneratedFile(instance.id)}
-              className="flex items-center gap-2 px-3 py-2 text-sm border border-stroke rounded-md hover:bg-base">
-              <Eye size={14} className="text-brand" /> Открыть PDF
-            </button>
-            <button onClick={() => downloadGeneratedFile(instance.id)}
-              className="flex items-center gap-2 px-3 py-2 text-sm border border-stroke rounded-md hover:bg-base">
-              <Download size={14} className="text-brand" /> Скачать PDF
-            </button>
+          <div className="space-y-1.5">
+            {pdfFiles.map(f => {
+              const tpl = templates.find((t: Template) => t.id === f.templateId);
+              return (
+                <div key={f.id} className="flex items-center gap-2">
+                  <span className="text-xs text-fg2 flex-1 min-w-0 truncate" title={tpl?.name}>{tpl ? tpl.name : 'PDF'}</span>
+                  <button onClick={() => previewGeneratedFile(instance.id, f.templateId)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-stroke rounded-md hover:bg-base">
+                    <Eye size={13} className="text-brand" /> Открыть
+                  </button>
+                  <button onClick={() => downloadGeneratedFile(instance.id, f.templateId)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-stroke rounded-md hover:bg-base">
+                    <Download size={13} className="text-brand" /> Скачать
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
