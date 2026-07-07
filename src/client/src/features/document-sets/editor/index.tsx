@@ -302,6 +302,15 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
     ?? activeTemplates.find((t: Template) => t.id === instance.templateId)
     ?? activeTemplates.find((t: Template) => t.isDefault)
     ?? activeTemplates[0];
+  // Фокус — какой шаблон сейчас «раскрыт» в блоке параметров (ортогонально членству в генерации).
+  // По умолчанию — эффективный; держим фокус при переключении галок, если он ещё валиден.
+  const [focusedTemplateId, setFocusedTemplateId] = useState<string | null>(null);
+  useEffect(() => {
+    if (activeTemplates.length === 0) return;
+    setFocusedTemplateId(prev =>
+      prev && activeTemplates.some((t: Template) => t.id === prev) ? prev : (effectiveTemplate?.id ?? null));
+  }, [templates, effectiveTemplate?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const focusedTemplate = activeTemplates.find((t: Template) => t.id === focusedTemplateId) ?? effectiveTemplate;
 
   async function handleGenerate() {
     setError('');
@@ -355,14 +364,30 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
           </p>
         ) : (
           <>
+            {/* Чекбокс = участие в генерации; клик по строке = фокус (показ параметров ниже). Это две
+                разные оси: строка подсвечивается языком активной строки, галочка отвечает только за то,
+                какие шаблоны дадут PDF. Обёртка не <label> — иначе клик по строке попадал бы в чекбокс. */}
             <div className="rounded-md border border-stroke-strong divide-y divide-stroke overflow-hidden">
-              {activeTemplates.map((t: Template) => (
-                <label key={t.id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm cursor-pointer hover:bg-base transition-colors">
-                  <input type="checkbox" checked={selectedTemplateIds.includes(t.id)} disabled={setTemplatesMutation.isPending}
-                    onChange={e => toggleTemplate(t.id, e.target.checked)} />
-                  <span className="flex-1 text-fg1">{t.isDefault ? '★ ' : ''}{t.name} <span className="text-fg4">(v{t.version})</span></span>
-                </label>
-              ))}
+              {activeTemplates.map((t: Template) => {
+                const selected = selectedTemplateIds.includes(t.id);
+                const focused = focusedTemplate?.id === t.id;
+                return (
+                  <div key={t.id}
+                    className={`flex items-center gap-2 pr-2.5 text-sm border-l-2 transition-colors ${focused ? 'bg-brand-subtle border-brand' : 'border-transparent hover:bg-base'}`}>
+                    <input type="checkbox" checked={selected} disabled={setTemplatesMutation.isPending}
+                      onChange={e => toggleTemplate(t.id, e.target.checked)}
+                      aria-label={`Использовать шаблон «${t.name}» для генерации`}
+                      className="ml-2.5 shrink-0" />
+                    <button type="button" onClick={() => setFocusedTemplateId(t.id)} aria-pressed={focused}
+                      title="Показать параметры этого шаблона"
+                      className="flex-1 min-w-0 text-left py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-brand rounded">
+                      <span className={`truncate ${focused ? 'text-brand-hover font-medium' : 'text-fg1'}`}>
+                        {t.isDefault ? '★ ' : ''}{t.name} <span className="text-fg4 font-normal">(v{t.version})</span>
+                      </span>
+                    </button>
+                  </div>
+                );
+              })}
             </div>
             {selectedTemplateIds.length === 0 && (
               <p className="text-[11px] text-fg4">Ничего не выбрано — будет один PDF по шаблону по умолчанию.</p>
@@ -371,10 +396,10 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
         )}
       </div>
 
-      <DocumentTemplateParams setId={setId} instance={instance}
-        templates={selectedTemplateIds.length > 0
-          ? activeTemplates.filter((t: Template) => selectedTemplateIds.includes(t.id))
-          : effectiveTemplate ? [effectiveTemplate] : []} />
+      {focusedTemplate && (
+        <DocumentTemplateParams setId={setId} instance={instance} template={focusedTemplate}
+          participating={selectedTemplateIds.length === 0 || selectedTemplateIds.includes(focusedTemplate.id)} />
+      )}
 
       <div className="flex gap-3">
         <button onClick={() => handleGenerate()} disabled={mutation.isPending || noTemplates}
