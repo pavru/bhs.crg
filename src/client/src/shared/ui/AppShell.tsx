@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/shared/hooks/useAuth';
+import { useAppVersion } from '@/shared/api/version';
 import { useTheme, type Theme } from '@/shared/ui/ThemeProvider';
 import { NotificationsCenter } from '@/features/notifications/NotificationsCenter';
 import { ActiveJobsIndicator } from '@/features/jobs/ActiveJobsIndicator';
@@ -142,6 +143,7 @@ export function AppShell() {
           >
             <LogOut size={14} /> Выйти
           </button>
+          <VersionLabel />
         </div>
       </aside>
       <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
@@ -156,6 +158,22 @@ export function AppShell() {
           <Outlet />
         </div>
       </main>
+    </div>
+  );
+}
+
+// Версия приложения (низ сайдбара). Подробности (сборка/дата) — в подсказке при наведении.
+function VersionLabel() {
+  const { data } = useAppVersion();
+  if (!data) return null;
+  const title = [
+    `Версия ${data.version}`,
+    data.commit && `сборка ${data.commit}`,
+    data.buildDate && new Date(data.buildDate).toLocaleString('ru-RU'),
+  ].filter(Boolean).join(' · ');
+  return (
+    <div className="text-[10px] text-fg4 truncate pt-1" title={title}>
+      v{data.version}{data.commit ? ` · ${data.commit}` : ''}
     </div>
   );
 }

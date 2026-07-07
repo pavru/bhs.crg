@@ -1,0 +1,18 @@
+<Project>
+  <!-- Единая версия продукта (SemVer, префикс-ноль до первого боевого релиза). Bump MINOR — набор
+       функциональности, PATCH — фиксы; 1.0.0 — первый релиз. К InformationalVersion SDK добавляет
+       +<git-sha> (см. target ниже) для трассировки сборок на внутреннем тестировании. -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <!-- Проставляем короткий git-хеш в SourceRevisionId, если он ещё не задан — SDK допишет его в
+       InformationalVersion как "0.1.0+<sha>". ContinueOnError — сборка вне git-репозитория не падает. -->
+  <Target Name="SetGitCommitId" BeforeTargets="AddSourceRevisionToInformationalVersion"
+          Condition="'$(SourceRevisionId)' == ''">
+    <Exec Command="git rev-parse --short HEAD" ConsoleToMSBuild="true" ContinueOnError="true"
+          WorkingDirectory="$(MSBuildThisFileDirectory)" StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="SourceRevisionId" />
+    </Exec>
+  </Target>
+</Project>

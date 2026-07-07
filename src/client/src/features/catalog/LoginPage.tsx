@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileCheck2 } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
+import { useAppVersion } from '@/shared/api/version';
 
 export function LoginPage() {
   const { login } = useAuth();
+  const { data: version } = useAppVersion();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -77,6 +79,12 @@ export function LoginPage() {
             {loading ? 'Вход...' : 'Войти'}
           </button>
         </form>
+        {version && (
+          <p className="mt-6 text-center text-[11px] text-fg4"
+            title={version.buildDate ? new Date(version.buildDate).toLocaleString('ru-RU') : undefined}>
+            v{version.version}{version.commit ? ` · ${version.commit}` : ''}
+          </p>
+        )}
       </div>
     </div>
   );

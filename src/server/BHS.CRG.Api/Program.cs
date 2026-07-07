@@ -288,6 +288,19 @@ app.MapQualityDocEndpoints();
 app.MapSettingsEndpoints();
 app.MapEmailEndpoints();
 app.MapSubscriptionEndpoints();
+
+// Версия приложения (для отображения в UI и трассировки сборок). Анонимно — виден и на странице входа.
+app.MapGet("/api/version", () =>
+{
+    var asm = System.Reflection.Assembly.GetEntryAssembly()!;
+    var info = asm.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+        .Cast<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion ?? "0.0.0";
+    var parts = info.Split('+', 2); // "0.1.0+<sha>"
+    var commit = parts.Length > 1 ? parts[1][..Math.Min(7, parts[1].Length)] : ""; // короткий sha для показа
+    DateTimeOffset? buildDate = null;
+    try { buildDate = File.GetLastWriteTimeUtc(asm.Location); } catch { /* single-file/unknown */ }
+    return Results.Ok(new { version = parts[0], commit, buildDate });
+}).AllowAnonymous();
 app.MapNotificationsEndpoints();
 app.MapJobsEndpoints();
 app.MapTagsEndpoints();
