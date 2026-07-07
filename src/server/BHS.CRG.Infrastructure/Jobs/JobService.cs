@@ -27,8 +27,12 @@ public class JobService(AppDbContext db, JobQueue queue) : IJobService
             .OrderBy(j => j.CreatedAt)
             .ToListAsync(ct);
         return jobs.Select(j => new JobDto(
-            j.Id, j.Kind.ToString(), j.Status.ToString(), j.Title, j.Progress, j.CreatedAt, j.StartedAt)).ToList();
+            j.Id, j.Kind.ToString(), j.TargetId, j.Status.ToString(), j.Title, j.Progress, j.CreatedAt, j.StartedAt)).ToList();
     }
+
+    public Task<bool> HasActiveForTargetAsync(Guid userId, Guid targetId, CancellationToken ct)
+        => db.Jobs.AsNoTracking().AnyAsync(j => j.UserId == userId && j.TargetId == targetId
+            && (j.Status == JobStatus.Queued || j.Status == JobStatus.Running), ct);
 
     public async Task<bool> CancelAsync(Guid jobId, Guid userId, CancellationToken ct)
     {

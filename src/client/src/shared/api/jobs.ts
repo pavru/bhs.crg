@@ -6,12 +6,17 @@ import { apiClient } from './client';
 export interface ActiveJob {
   id: string;
   kind: string;
+  /** Цель задачи — для распознавания это id источника (sourceId). */
+  targetId: string;
   status: 'Queued' | 'Running';
   title: string;
   progress: string | null;
   createdAt: string;
   startedAt: string | null;
 }
+
+/** Виды задач распознавания PDF-источника (для блокировки повторного запуска по этому источнику). */
+const RECOGNITION_KINDS = ['RecognizeGostSet', 'RecognizeDocument', 'RecognizeTable'];
 
 /**
  * Активные фоновые задачи пользователя (источник данных индикатора). Поллит `/jobs/active`: часто, пока
@@ -44,6 +49,20 @@ export function useActiveJobs(): ActiveJob[] {
   }, [jobs, qc]);
 
   return jobs ?? [];
+}
+
+/**
+ * Идёт ли по данному источнику активная задача распознавания — для блокировки повторного запуска
+ * (кнопка «Распознать»). Читает тот же кэш `['jobs','active']`, что и индикатор (общий поллинг), без
+ * side-эффектов инвалидции (они живут в единственном useActiveJobs в AppShell).
+ */
+export function useSourceRecognizing(sourceId: string): boolean {
+  const { data } = useQuery<ActiveJob[]>({
+    queryKey: ['jobs', 'active'],
+    queryFn: () => apiClient.get('/jobs/active').then(r => r.data as ActiveJob[]),
+    refetchInterval: q => ((q.state.data?.length ?? 0) > 0 ? 2000 : 10000),
+  });
+  return (data ?? []).some(j => j.targetId === sourceId && RECOGNITION_KINDS.includes(j.kind));
 }
 
 /** Отмена задачи из очереди (только Queued — 409 для выполняемых). После — обновляем список активных. */
