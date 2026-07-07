@@ -36,6 +36,7 @@ public record ListAvailableInstancesQuery(Guid SetId) : IRequest<IReadOnlyList<D
 
 // --- DocumentInstance ---
 public record AddDocumentToSetCommand(Guid DocumentSetId, Guid DocumentTypeId) : IRequest<DocumentInstance>;
+public record ReorderDocumentInstancesCommand(Guid SetId, IReadOnlyList<Guid> OrderedInstanceIds) : IRequest<DocumentSet>;
 public record RenameDocumentInstanceCommand(Guid Id, string? Name) : IRequest<DocumentInstance>;
 public record DeleteDocumentInstanceCommand(Guid Id) : IRequest;
 public record UpdateRequisitesCommand(Guid InstanceId, JsonDocument Requisites) : IRequest<DocumentInstance>;

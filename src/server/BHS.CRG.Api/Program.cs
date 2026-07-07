@@ -120,6 +120,7 @@ builder.Services.AddScoped<IRepository<DocumentInstance>, DocumentInstanceReposi
 builder.Services.AddScoped<IRepository<Template>, Repository<Template>>();
 builder.Services.AddScoped<IRepository<CommonDataEntry>, Repository<CommonDataEntry>>();
 builder.Services.AddScoped<IRepository<GeneratedFile>, Repository<GeneratedFile>>();
+builder.Services.AddScoped<IRepository<DocumentSetOutput>, Repository<DocumentSetOutput>>();
 builder.Services.AddScoped<IRepository<TypstUserLib>, Repository<TypstUserLib>>();
 builder.Services.AddScoped<IRepository<QualityDocument>, Repository<QualityDocument>>();
 builder.Services.AddScoped<IRepository<MaterialQualityLink>, Repository<MaterialQualityLink>>();
@@ -179,6 +180,7 @@ builder.Services.AddSingleton<DataSetParserFactory>();
 builder.Services.AddScoped<DataSetProcessingTemplateService>();
 builder.Services.AddScoped<DataSetBindingTemplateService>();
 builder.Services.AddScoped<DataSetPdfRecognitionService>();
+builder.Services.AddScoped<BHS.CRG.Infrastructure.Generation.DocumentSetAssemblyService>();
 builder.Services.AddScoped<IDataSetService, DataSetService>();
 
 // ── MinIO ─────────────────────────────────────────────────────────────────────

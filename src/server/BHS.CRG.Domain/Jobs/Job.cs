@@ -9,6 +9,8 @@ public enum JobKind
     RecognizeTable = 1,
     /// <summary>Точечное перераспознавание одного документа набора (не всего альбома).</summary>
     RecognizeDocument = 2,
+    /// <summary>Сборка всего комплекта в один PDF (генерация недостающих + склейка по порядку).</summary>
+    AssembleDocumentSet = 3,
 }
 
 /// <summary>Статус фоновой задачи. Активные (для индикатора) — Queued/Running.</summary>

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, Link } from 'react-router-dom';
 import {
   Plus, Trash2, ChevronRight, Download, Pencil, ChevronDown, ChevronUp, FolderOpen, Eye,
+  ArrowUp, ArrowDown, Layers, Loader2,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
@@ -14,6 +15,7 @@ import {
 } from '@/shared/api/constructions';
 import {
   useGetDocumentSet, useGetAvailableInstances, useAddDocumentToSet, useDeleteDocumentInstance,
+  useReorderInstances, useAssembleSet, useDocumentSetOutput, downloadSetOutput,
   downloadGeneratedFile, previewGeneratedFile,
 } from '@/shared/api/documentSets';
 import type { Construction, Section, DocumentSet, DocumentInstance, DocumentType } from '@/shared/api/types';
@@ -35,12 +37,47 @@ function SetDetail() {
   const [editDirty, setEditDirty] = useState(false);
   const addMutation = useAddDocumentToSet();
   const deleteMutation = useDeleteDocumentInstance();
+  const reorderMutation = useReorderInstances();
+  const assembleMutation = useAssembleSet();
   const [addTypeId, setAddTypeId] = useState('');
   const [addError, setAddError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DocumentInstance | null>(null);
+  // Слежение за сборкой: пока идёт задача — опрашиваем вывод; останавливаемся, когда generatedAt изменится.
+  const [watching, setWatching] = useState(false);
+  const [assembleMsg, setAssembleMsg] = useState('');
+  const watchStartRef = useRef<string | undefined>(undefined);
+  const { data: output } = useDocumentSetOutput(setId, watching ? 2500 : false);
+
+  useEffect(() => {
+    if (watching && output && output.generatedAt !== watchStartRef.current) {
+      setWatching(false);
+      setAssembleMsg('Комплект собран — можно скачать.');
+    }
+  }, [watching, output]);
 
   if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
   if (!set) return <div className="p-6 text-sm text-danger">Комплект не найден</div>;
+
+  async function handleAssemble() {
+    setAssembleMsg('');
+    watchStartRef.current = output?.generatedAt;
+    try {
+      await assembleMutation.mutateAsync({ setId: set!.id });
+      setWatching(true);
+      setAssembleMsg('Сборка запущена — прогресс в индикаторе задач слева от колокольчика.');
+      setTimeout(() => setWatching(false), 5 * 60 * 1000); // страховка: не опрашивать вечно
+    } catch (err: unknown) {
+      setAssembleMsg(err instanceof Error ? err.message : 'Ошибка запуска сборки');
+    }
+  }
+
+  function moveDoc(index: number, dir: -1 | 1) {
+    const ids = set!.instances.map(i => i.id);
+    const j = index + dir;
+    if (j < 0 || j >= ids.length) return;
+    [ids[index], ids[j]] = [ids[j], ids[index]];
+    reorderMutation.mutate({ setId: set!.id, orderedIds: ids });
+  }
 
   async function handleAddDoc(e: React.FormEvent) {
     e.preventDefault();
@@ -76,13 +113,30 @@ function SetDetail() {
         <span className="text-fg2 font-medium">{set.name}</span>
       </nav>
 
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-1 gap-3 flex-wrap">
         <h1 className="text-xl font-semibold text-fg1">{set.name}</h1>
-        <button onClick={() => setAddDocOpen(true)}
-          className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
-          <Plus size={16} /> Добавить документ
-        </button>
+        <div className="flex items-center gap-2">
+          {output && (
+            <button onClick={() => downloadSetOutput(set.id, set.name)}
+              className="flex items-center gap-2 border border-stroke hover:bg-base text-fg2 text-sm font-medium px-3 py-2 rounded-md transition-colors"
+              title={`Собран ${new Date(output.generatedAt).toLocaleString('ru-RU')}`}>
+              <Download size={15} className="text-brand" /> Скачать комплект
+            </button>
+          )}
+          <button onClick={handleAssemble} disabled={assembleMutation.isPending || watching || set.instances.length === 0}
+            className="flex items-center gap-2 border border-brand text-brand-hover hover:bg-brand-subtle text-sm font-medium px-3 py-2 rounded-md transition-colors disabled:opacity-50"
+            title="Собрать все документы комплекта в один PDF в заданном порядке">
+            {assembleMutation.isPending || watching ? <Loader2 size={15} className="animate-spin" /> : <Layers size={15} />}
+            Собрать комплект
+          </button>
+          <button onClick={() => setAddDocOpen(true)}
+            className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
+            <Plus size={16} /> Добавить документ
+          </button>
+        </div>
       </div>
+      {assembleMsg && <p className="text-xs text-fg4 mb-3">{assembleMsg}</p>}
+      {!assembleMsg && <div className="mb-3" />}
 
       <div className="bg-surface border border-stroke rounded-xl overflow-hidden">
         {set.instances.length === 0 ? (
@@ -91,6 +145,7 @@ function SetDetail() {
           <table className="w-full text-sm">
             <thead className="bg-base border-b border-stroke">
               <tr>
+                <th className="px-2 py-3 w-12" title="Порядок в собранном комплекте" />
                 <th className="text-left px-4 py-3 font-medium text-fg2">Документ</th>
                 <th className="text-left px-4 py-3 font-medium text-fg2 w-32">Статус</th>
                 <th className="px-4 py-3 w-36" />
@@ -98,11 +153,23 @@ function SetDetail() {
               </tr>
             </thead>
             <tbody>
-              {set.instances.map(inst => {
+              {set.instances.map((inst, index) => {
                 const pdfFiles = inst.generatedFiles.filter(f => f.format === 'Pdf');
                 return (
                   <tr key={inst.id} className="border-b border-muted last:border-0 hover:bg-base cursor-pointer group"
                     onClick={() => setEditInstance(inst)}>
+                    <td className="px-2 py-3" onClick={e => e.stopPropagation()}>
+                      <div className="flex flex-col items-center -my-1">
+                        <button onClick={() => moveDoc(index, -1)} disabled={index === 0 || reorderMutation.isPending}
+                          className="p-0.5 text-fg4 hover:text-brand disabled:opacity-25 disabled:hover:text-fg4 transition-colors" title="Выше">
+                          <ArrowUp size={13} />
+                        </button>
+                        <button onClick={() => moveDoc(index, 1)} disabled={index === set.instances.length - 1 || reorderMutation.isPending}
+                          className="p-0.5 text-fg4 hover:text-brand disabled:opacity-25 disabled:hover:text-fg4 transition-colors" title="Ниже">
+                          <ArrowDown size={13} />
+                        </button>
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-fg1">
                         {inst.name || docTypeMap[inst.documentTypeId]?.name || inst.documentTypeId}

@@ -21,6 +21,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DocumentSet> DocumentSets => Set<DocumentSet>();
     public DbSet<DocumentInstance> DocumentInstances => Set<DocumentInstance>();
     public DbSet<GeneratedFile> GeneratedFiles => Set<GeneratedFile>();
+    public DbSet<DocumentSetOutput> DocumentSetOutputs => Set<DocumentSetOutput>();
     public DbSet<TypstUserLib> TypstUserLibs => Set<TypstUserLib>();
     public DbSet<DataSetFile> DataSetFiles => Set<DataSetFile>();
     public DbSet<DataSetSource> DataSetSources => Set<DataSetSource>();

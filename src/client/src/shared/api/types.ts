@@ -142,6 +142,8 @@ export interface DocumentInstance {
   templateParams: string | null;
   status: 'Draft' | 'Generating' | 'Generated' | 'Failed';
   generatedFiles: GeneratedFile[];
+  /** Порядок документа в комплекте (для сборки в один файл). */
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 }

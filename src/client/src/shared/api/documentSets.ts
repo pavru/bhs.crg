@@ -97,6 +97,50 @@ export function useSetDocumentTemplateParams() {
   });
 }
 
+/** Задаёт порядок документов в комплекте (для сборки) — orderedIds в нужном порядке. */
+export function useReorderInstances() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ setId, orderedIds }: { setId: string; orderedIds: string[] }) =>
+      apiClient.put<DocumentSet>(`/document-sets/${setId}/documents/order`, orderedIds).then(r => r.data),
+    onSuccess: (_d, { setId }) => qc.invalidateQueries({ queryKey: ['document-sets', setId] }),
+  });
+}
+
+/** Запускает сборку комплекта в один PDF (фоновая задача). instanceIds — подмножество или пусто (весь). */
+export function useAssembleSet() {
+  return useMutation({
+    mutationFn: ({ setId, instanceIds }: { setId: string; instanceIds?: string[] }) =>
+      apiClient.post<{ jobId: string }>(`/document-sets/${setId}/assemble`,
+        { instanceIds: instanceIds && instanceIds.length ? instanceIds : null }).then(r => r.data),
+  });
+}
+
+export interface DocumentSetOutputInfo { generatedAt: string; format: string; }
+
+/** Метаданные собранного комплекта (null, если ещё не собран). refetchInterval — для слежения во время сборки. */
+export function useDocumentSetOutput(setId: string | undefined, refetchInterval: number | false = false) {
+  return useQuery({
+    queryKey: ['document-sets', setId, 'output'],
+    queryFn: () =>
+      apiClient.get<DocumentSetOutputInfo>(`/document-sets/${setId}/output`)
+        .then(r => r.data)
+        .catch(err => { if (err?.response?.status === 404) return null; throw err; }),
+    enabled: !!setId,
+    refetchInterval,
+  });
+}
+
+export async function downloadSetOutput(setId: string, fallbackName = 'Комплект') {
+  const response = await apiClient.get(`/document-sets/${setId}/output/download`, { responseType: 'blob' });
+  const url = URL.createObjectURL(response.data as Blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${fallbackName}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function useGenerateDocument() {
   const qc = useQueryClient();
   return useMutation({

@@ -204,6 +204,7 @@ public class DocumentSetHandlers(
     IRequestHandler<GetDocumentSetQuery, DocumentSet?>,
     IRequestHandler<ListAvailableInstancesQuery, IReadOnlyList<DocumentInstance>>,
     IRequestHandler<AddDocumentToSetCommand, DocumentInstance>,
+    IRequestHandler<ReorderDocumentInstancesCommand, DocumentSet>,
     IRequestHandler<RenameDocumentInstanceCommand, DocumentInstance>,
     IRequestHandler<DeleteDocumentInstanceCommand>,
     IRequestHandler<UpdateRequisitesCommand, DocumentInstance>,
@@ -262,10 +263,26 @@ public class DocumentSetHandlers(
         var set = await setRepo.GetByIdAsync(cmd.DocumentSetId, ct)
             ?? throw new KeyNotFoundException();
         var inst = DocumentInstance.Create(cmd.DocumentSetId, cmd.DocumentTypeId);
+        // Новый документ — в конец комплекта (порядок сборки задаётся SortOrder).
+        var maxOrder = set.Instances.Count == 0 ? -1 : set.Instances.Max(i => i.SortOrder);
+        inst.SetSortOrder(maxOrder + 1);
         set.TouchUpdatedAt();
         await instRepo.AddAsync(inst, ct);
         await instRepo.SaveChangesAsync(ct);
         return inst;
+    }
+
+    public async Task<DocumentSet> Handle(ReorderDocumentInstancesCommand cmd, CancellationToken ct)
+    {
+        var set = await setRepo.GetByIdAsync(cmd.SetId, ct) ?? throw new KeyNotFoundException();
+        // Присваиваем SortOrder по позиции в переданном списке; отсутствующие в списке документы
+        // (напр. добавленные параллельно) — в конец, сохраняя их относительный порядок.
+        var order = cmd.OrderedInstanceIds.Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
+        var next = cmd.OrderedInstanceIds.Count;
+        foreach (var inst in set.Instances.OrderBy(i => i.SortOrder))
+            inst.SetSortOrder(order.TryGetValue(inst.Id, out var pos) ? pos : next++);
+        await setRepo.SaveChangesAsync(ct);
+        return set;
     }
 
     public async Task<DocumentInstance> Handle(RenameDocumentInstanceCommand cmd, CancellationToken ct)

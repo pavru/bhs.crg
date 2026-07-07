@@ -3,6 +3,7 @@ using BHS.CRG.Application.Notifications;
 using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Infrastructure.DataSets;
+using BHS.CRG.Infrastructure.Generation;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,29 +53,36 @@ public class JobBackgroundService(
         try
         {
             using var scope = scopeFactory.CreateScope();
-            var pdfRecognition = scope.ServiceProvider.GetRequiredService<DataSetPdfRecognitionService>();
 
             var lastProgress = DateTimeOffset.MinValue;
-            Func<int, int, Task> reportPages = async (cur, total) =>
+            Func<string, int, int, Task> report = async (unit, cur, total) =>
             {
                 var now = DateTimeOffset.UtcNow;
                 if (cur != total && now - lastProgress < TimeSpan.FromSeconds(1.5)) return;
                 lastProgress = now;
-                await UpdateJobAsync(jobId, j => j.ReportProgress($"{cur} из {total} листов"), ct);
+                await UpdateJobAsync(jobId, j => j.ReportProgress($"{cur} из {total} {unit}"), ct);
             };
 
             switch (kind)
             {
                 case JobKind.RecognizeGostSet:
-                    await pdfRecognition.RecognizePdfSourceAsync(targetId, confirm: true, ct, reportPages);
+                    await scope.ServiceProvider.GetRequiredService<DataSetPdfRecognitionService>()
+                        .RecognizePdfSourceAsync(targetId, confirm: true, ct, (c, t) => report("листов", c, t));
                     break;
 
                 case JobKind.RecognizeDocument:
-                    await pdfRecognition.RecognizeDocumentAsync(targetId, ParseFirstPageIndex(payload), ct, reportPages);
+                    await scope.ServiceProvider.GetRequiredService<DataSetPdfRecognitionService>()
+                        .RecognizeDocumentAsync(targetId, ParseFirstPageIndex(payload), ct, (c, t) => report("листов", c, t));
                     break;
 
                 case JobKind.RecognizeTable:
-                    await pdfRecognition.RecognizeDocumentTableAsync(targetId, ParseFirstPageIndex(payload), ct);
+                    await scope.ServiceProvider.GetRequiredService<DataSetPdfRecognitionService>()
+                        .RecognizeDocumentTableAsync(targetId, ParseFirstPageIndex(payload), ct);
+                    break;
+
+                case JobKind.AssembleDocumentSet:
+                    await scope.ServiceProvider.GetRequiredService<DocumentSetAssemblyService>()
+                        .AssembleAsync(targetId, ParseInstanceIds(payload), userId, ct, (c, t) => report("документов", c, t));
                     break;
 
                 default:
@@ -118,5 +126,16 @@ public class JobBackgroundService(
         if (string.IsNullOrEmpty(payload)) return 0;
         using var doc = JsonDocument.Parse(payload);
         return doc.RootElement.TryGetProperty("firstPageIndex", out var v) ? v.GetInt32() : 0;
+    }
+
+    // Подмножество документов для сборки комплекта — {"instanceIds":[...]}; отсутствует/пусто → весь комплект.
+    private static IReadOnlyList<Guid>? ParseInstanceIds(string? payload)
+    {
+        if (string.IsNullOrEmpty(payload)) return null;
+        using var doc = JsonDocument.Parse(payload);
+        if (!doc.RootElement.TryGetProperty("instanceIds", out var arr) || arr.ValueKind != JsonValueKind.Array)
+            return null;
+        var ids = arr.EnumerateArray().Where(e => e.TryGetGuid(out _)).Select(e => e.GetGuid()).ToList();
+        return ids.Count > 0 ? ids : null;
     }
 }

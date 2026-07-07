@@ -1,6 +1,10 @@
 using System.Security.Claims;
 using System.Text.Json;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.Jobs;
+using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Jobs;
 using MediatR;
 
 namespace BHS.CRG.Api.Endpoints.Documents;
@@ -123,6 +127,46 @@ public static class DocumentSetEndpoints
             await m.Send(new DeleteDocumentInstanceCommand(id));
             return Results.NoContent();
         });
+
+        // ── Сборка комплекта ───────────────────────────────────────────────────
+        // Порядок документов в собранном файле (тела — массив id в нужном порядке).
+        g.MapPut("/{setId:guid}/documents/order", async (Guid setId, Guid[] orderedIds, IMediator m)
+            => Results.Ok(await m.Send(new ReorderDocumentInstancesCommand(setId, orderedIds))));
+
+        // Запуск сборки всего комплекта (или подмножества) в один PDF — фоновая задача (генерация
+        // недостающих + склейка могут занять десятки секунд). 202 + jobId, прогресс в индикаторе.
+        g.MapPost("/{setId:guid}/assemble", async (
+            Guid setId, AssembleSetRequest? req, IMediator m, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
+        {
+            var set = await m.Send(new GetDocumentSetQuery(setId), ct);
+            if (set is null) return Results.NotFound();
+            var payload = req?.InstanceIds is { Length: > 0 } ids
+                ? JsonSerializer.Serialize(new { instanceIds = ids })
+                : null;
+            var jobId = await jobs.EnqueueAsync(JobKind.AssembleDocumentSet, GetUserId(user), setId,
+                $"Сборка комплекта «{set.Name}»", payload, ct);
+            return Results.Accepted("/api/jobs/active", new { jobId });
+        });
+
+        // Метаданные собранного комплекта (для показа кнопки скачивания) — 404, если ещё не собран.
+        g.MapGet("/{setId:guid}/output", async (Guid setId, IRepository<DocumentSetOutput> outputRepo, CancellationToken ct) =>
+        {
+            var output = (await outputRepo.FindAsync(o => o.SetId == setId, ct)).FirstOrDefault();
+            return output is null
+                ? Results.NotFound()
+                : Results.Ok(new { output.GeneratedAt, format = output.Format.ToString() });
+        });
+
+        // Скачивание собранного комплекта.
+        g.MapGet("/{setId:guid}/output/download", async (
+            Guid setId, IMediator m, IRepository<DocumentSetOutput> outputRepo, IBlobStorage blob, CancellationToken ct) =>
+        {
+            var output = (await outputRepo.FindAsync(o => o.SetId == setId, ct)).FirstOrDefault();
+            if (output is null) return Results.NotFound();
+            var set = await m.Send(new GetDocumentSetQuery(setId), ct);
+            var stream = await blob.DownloadAsync(output.BlobPath, ct);
+            return Results.File(stream, "application/pdf", $"{set?.Name ?? "Комплект"}.pdf");
+        });
     }
 
     static Guid GetUserId(ClaimsPrincipal user)
@@ -135,4 +179,5 @@ public static class DocumentSetEndpoints
     record AddDocumentRequest(Guid DocumentTypeId);
     record RenameDocumentInstanceRequest(string? Name);
     record SetTemplateRequest(Guid? TemplateId);
+    record AssembleSetRequest(Guid[]? InstanceIds);
 }

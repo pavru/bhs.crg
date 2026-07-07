@@ -19,6 +19,11 @@ public class DocumentInstance : Entity
 
     public DocumentStatus Status { get; private set; } = DocumentStatus.Draft;
 
+    /// <summary>Порядок документа в комплекте (для сборки комплекта в один файл). Назначается при
+    /// добавлении (maxOrder+1); меняется reorder-эндпоинтом. Порядок единиц внутри документа при
+    /// мульти-шаблонной генерации задаётся порядком <see cref="TemplateIds"/>.</summary>
+    public int SortOrder { get; private set; }
+
     /// <summary>Явно выбранный шаблон (одиночная генерация / первый для параметров). Null — по умолчанию.</summary>
     public Guid? TemplateId { get; private set; }
 
@@ -77,6 +82,7 @@ public class DocumentInstance : Entity
         return paths;
     }
 
+    public void SetSortOrder(int order) { SortOrder = order; TouchUpdatedAt(); }
     public void Rename(string? name) { Name = string.IsNullOrWhiteSpace(name) ? null : name.Trim(); TouchUpdatedAt(); }
     public void SetTemplate(Guid? templateId) { TemplateId = templateId; TouchUpdatedAt(); }
     public void SetTemplateIds(string? templateIdsJson) { TemplateIds = templateIdsJson; TouchUpdatedAt(); }

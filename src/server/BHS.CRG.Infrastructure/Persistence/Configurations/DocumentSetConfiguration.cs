@@ -48,3 +48,15 @@ public class GeneratedFileConfiguration : IEntityTypeConfiguration<GeneratedFile
         b.Property(e => e.Format).HasConversion<string>().HasMaxLength(16);
     }
 }
+
+public class DocumentSetOutputConfiguration : IEntityTypeConfiguration<DocumentSetOutput>
+{
+    public void Configure(EntityTypeBuilder<DocumentSetOutput> b)
+    {
+        b.ToTable("document_set_outputs");
+        b.HasKey(e => e.Id);
+        b.Property(e => e.BlobPath).HasMaxLength(1024).IsRequired();
+        b.Property(e => e.Format).HasConversion<string>().HasMaxLength(16);
+        b.HasIndex(e => e.SetId).IsUnique(); // один собранный файл на комплект — замена при пересборке
+    }
+}
