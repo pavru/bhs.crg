@@ -59,9 +59,9 @@ export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
       const isDocKind = documentTypes.some(dt => dt.id === entry.compositeTypeId);
       return (
         <div key={entry.id}
-          className={`flex items-center gap-3 pl-6 pr-3 py-2 group hover:bg-muted transition-colors ${idx > 0 ? 'border-t border-stroke' : ''}`}>
+          className={`flex items-center gap-3 pl-3 pr-3 py-2 group hover:bg-muted transition-colors ${idx > 0 ? 'border-t border-stroke' : ''}`}>
           {isDocKind && <FileText size={12} className="text-warning shrink-0" />}
-          <span className="flex-1 text-sm font-medium text-fg1 truncate">{entry.displayName}</span>
+          <span className="flex-1 text-sm text-fg1 truncate">{entry.displayName}</span>
           {isDocKind && <span className="text-xs px-1.5 py-0.5 rounded bg-warning-subtle text-warning font-medium shrink-0">внеш. документ</span>}
           <button onClick={() => setEditEntry(entry)}
             className="p-1 text-stroke-strong hover:text-fg2 opacity-0 group-hover:opacity-100 transition-all">
@@ -76,6 +76,30 @@ export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
         </div>
       );
     });
+  }
+
+  // Группа типа: uppercase-микрозаголовок на заливке bg-base (сильный «заголовочный» сигнал),
+  // записи — плоские, на bg-surface, с левым рейлом-коннектором. Три канала различия уровней
+  // (типографика + заливка + рейл) — issue #8, слабая визуальная иерархия.
+  function renderGroup(key: string, label: string, items: CommonDataEntry[], muted = false) {
+    const isOpen = expandedTypes.has(key);
+    return (
+      <div key={key} className="border border-stroke rounded-lg overflow-hidden bg-surface">
+        <button onClick={() => toggleType(key)} aria-expanded={isOpen}
+          className="w-full flex items-center gap-2 px-3 py-1.5 bg-base hover:bg-muted transition-colors text-left">
+          {isOpen
+            ? <ChevronUp size={12} className="text-fg4 shrink-0" />
+            : <ChevronDown size={12} className="text-fg4 shrink-0" />}
+          <span className={`flex-1 text-xs font-semibold uppercase tracking-wide ${muted ? 'text-fg4' : 'text-fg2'}`}>{label}</span>
+          <span className="text-xs text-fg4">{items.length}</span>
+        </button>
+        {isOpen && (
+          <div className="bg-surface">
+            <div className="ml-3 border-l border-stroke">{renderEntries(items)}</div>
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -102,38 +126,8 @@ export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
             <p className="text-sm text-fg4 text-center py-2">Записей нет</p>
           ) : (
             <div className="space-y-1">
-              {grouped.map(({ ct, items }) => {
-                const isOpen = expandedTypes.has(ct.id);
-                return (
-                  <div key={ct.id} className="border border-stroke rounded-lg overflow-hidden bg-surface">
-                    <button onClick={() => toggleType(ct.id)}
-                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-base transition-colors text-left">
-                      {isOpen
-                        ? <ChevronUp size={12} className="text-fg4 shrink-0" />
-                        : <ChevronDown size={12} className="text-fg4 shrink-0" />}
-                      <span className="flex-1 text-sm font-medium text-fg2">{ct.name}</span>
-                      <span className="text-xs text-fg4">{items.length}</span>
-                    </button>
-                    {isOpen && <div className="border-t border-stroke">{renderEntries(items)}</div>}
-                  </div>
-                );
-              })}
-              {noType.length > 0 && (() => {
-                const isOpen = expandedTypes.has('__no_type__');
-                return (
-                  <div className="border border-stroke rounded-lg overflow-hidden bg-surface">
-                    <button onClick={() => toggleType('__no_type__')}
-                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-base transition-colors text-left">
-                      {isOpen
-                        ? <ChevronUp size={12} className="text-fg4 shrink-0" />
-                        : <ChevronDown size={12} className="text-fg4 shrink-0" />}
-                      <span className="flex-1 text-sm font-medium text-fg3 italic">Без типа</span>
-                      <span className="text-xs text-fg4">{noType.length}</span>
-                    </button>
-                    {isOpen && <div className="border-t border-stroke">{renderEntries(noType)}</div>}
-                  </div>
-                );
-              })()}
+              {grouped.map(({ ct, items }) => renderGroup(ct.id, ct.name, items))}
+              {noType.length > 0 && renderGroup('__no_type__', 'Без типа', noType, true)}
             </div>
           )}
           <button onClick={() => setAddOpen(true)}
