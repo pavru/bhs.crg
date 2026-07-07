@@ -64,6 +64,11 @@ public static class DocumentSetEndpoints
 
         var g = app.MapGroup("/api/document-sets").RequireAuthorization();
 
+        // Поиск документов по всем комплектам (имя документа/типа + текст реквизитов). ?q= обязателен,
+        // ?constructionId= — необязательный фильтр по стройке.
+        g.MapGet("/search", async (string? q, Guid? constructionId, IDocumentSearch search, CancellationToken ct)
+            => Results.Ok(await search.SearchAsync(q ?? "", constructionId, ct)));
+
         g.MapGet("/{id:guid}", async (Guid id, IMediator m) =>
         {
             var set = await m.Send(new GetDocumentSetQuery(id));

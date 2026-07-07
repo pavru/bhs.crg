@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Routes, Route, useNavigate, useParams, Link } from 'react-router-dom';
+import { Routes, Route, useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import {
   Plus, Trash2, ChevronRight, Download, Pencil, ChevronDown, ChevronUp, FolderOpen, Eye,
-  ArrowUp, ArrowDown, Layers, Loader2,
+  ArrowUp, ArrowDown, Layers, Loader2, Search, X,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
@@ -16,7 +16,7 @@ import {
 import {
   useGetDocumentSet, useGetAvailableInstances, useAddDocumentToSet, useDeleteDocumentInstance,
   useReorderInstances, useAssembleSet, useDocumentSetOutput, downloadSetOutput,
-  downloadGeneratedFile, previewGeneratedFile,
+  useSearchDocuments, downloadGeneratedFile, previewGeneratedFile,
 } from '@/shared/api/documentSets';
 import type { Construction, Section, DocumentSet, DocumentInstance, DocumentType } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from './fields';
@@ -54,6 +54,18 @@ function SetDetail() {
       setAssembleMsg('Комплект собран — можно скачать.');
     }
   }, [watching, output]);
+
+  // Deep-link из результатов поиска: ?doc={instanceId} авто-открывает документ (один раз, затем чистим).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const docParam = searchParams.get('doc');
+  useEffect(() => {
+    if (!docParam || !set) return;
+    const found = set.instances.find(i => i.id === docParam);
+    if (found) {
+      setEditInstance(found);
+      setSearchParams(prev => { prev.delete('doc'); return prev; }, { replace: true });
+    }
+  }, [docParam, set, setSearchParams]);
 
   if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
   if (!set) return <div className="p-6 text-sm text-danger">Комплект не найден</div>;
@@ -558,6 +570,63 @@ function ConstructionDetail() {
   );
 }
 
+// ─── Document search (across kits) ─────────────────────────────────────────────
+
+function DocumentSearchPanel() {
+  const navigate = useNavigate();
+  const [text, setText] = useState('');
+  const [q, setQ] = useState('');
+  useEffect(() => { const t = setTimeout(() => setQ(text), 300); return () => clearTimeout(t); }, [text]);
+  const { data: results = [], isFetching } = useSearchDocuments(q);
+  const active = q.trim().length > 0;
+
+  return (
+    <div className="mb-5">
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
+        <input value={text} onChange={e => setText(e.target.value)}
+          placeholder="Найти документ по всем комплектам (имя, тип, реквизиты)…"
+          className="w-full pl-9 pr-8 py-2 text-sm border border-stroke-strong rounded-md bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
+        {text && (
+          <button onClick={() => setText('')} title="Очистить"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-fg4 hover:text-fg2 transition-colors">
+            <X size={14} />
+          </button>
+        )}
+      </div>
+      {active && (
+        <div className="mt-2 border border-stroke rounded-lg overflow-hidden bg-surface">
+          {isFetching && results.length === 0 ? (
+            <div className="px-3 py-3 text-xs text-fg4">Поиск…</div>
+          ) : results.length === 0 ? (
+            <div className="px-3 py-3 text-xs text-fg4">Ничего не найдено по «{q.trim()}»</div>
+          ) : (
+            <ul className="divide-y divide-muted max-h-96 overflow-y-auto">
+              {results.map(r => (
+                <li key={r.instanceId}>
+                  <button onClick={() => navigate(`/document-sets/${r.constructionId}/sets/${r.setId}?doc=${r.instanceId}`)}
+                    className="w-full text-left px-3 py-2 hover:bg-base transition-colors flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm text-fg1 truncate">{r.name || r.typeName}</div>
+                      <div className="text-xs text-fg4 truncate">
+                        {r.constructionName} › {r.sectionName} › {r.setName}
+                        {r.name && <span> · {r.typeName}</span>}
+                      </div>
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[r.status] ?? 'bg-muted text-fg2'}`}>
+                      {STATUS_LABELS[r.status] ?? r.status}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Constructions list ───────────────────────────────────────────────────────
 
 function ConstructionsList() {
@@ -600,6 +669,8 @@ function ConstructionsList() {
           <Plus size={16} /> Новая стройка
         </button>
       </div>
+
+      <DocumentSearchPanel />
 
       {isLoading ? (
         <div className="text-center py-10 text-fg4 text-sm">Загрузка...</div>

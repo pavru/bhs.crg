@@ -181,6 +181,7 @@ builder.Services.AddScoped<DataSetProcessingTemplateService>();
 builder.Services.AddScoped<DataSetBindingTemplateService>();
 builder.Services.AddScoped<DataSetPdfRecognitionService>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Generation.DocumentSetAssemblyService>();
+builder.Services.AddScoped<BHS.CRG.Application.Documents.IDocumentSearch, BHS.CRG.Infrastructure.Documents.DocumentSearchService>();
 builder.Services.AddScoped<IDataSetService, DataSetService>();
 
 // ── MinIO ─────────────────────────────────────────────────────────────────────

@@ -148,6 +148,19 @@ export interface DocumentInstance {
   updatedAt: string;
 }
 
+export interface DocumentSearchResult {
+  instanceId: string;
+  name: string | null;
+  typeName: string;
+  status: DocumentInstance['status'];
+  hasPdf: boolean;
+  constructionId: string;
+  constructionName: string;
+  sectionName: string;
+  setId: string;
+  setName: string;
+}
+
 export interface GeneratedFile {
   id: string;
   documentInstanceId: string;

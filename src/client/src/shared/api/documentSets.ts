@@ -1,6 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { DocumentSet, DocumentInstance } from './types';
+import type { DocumentSet, DocumentInstance, DocumentSearchResult } from './types';
+
+/** Поиск документов по всем комплектам (имя документа/типа + текст реквизитов). Пустой q → без запроса. */
+export function useSearchDocuments(q: string, constructionId?: string) {
+  return useQuery({
+    queryKey: ['document-search', q.trim(), constructionId ?? null],
+    queryFn: () =>
+      apiClient.get<DocumentSearchResult[]>('/document-sets/search', {
+        params: { q: q.trim(), ...(constructionId ? { constructionId } : {}) },
+      }).then(r => r.data),
+    enabled: q.trim().length > 0,
+  });
+}
 
 export function useGetAvailableInstances(setId: string | undefined) {
   return useQuery({
