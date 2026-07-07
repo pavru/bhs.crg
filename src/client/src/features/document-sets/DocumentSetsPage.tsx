@@ -25,7 +25,7 @@ import { ScopedCatalogPanel } from './catalog';
 import { ScopedDataSetsPanel } from '@/features/datasets/ScopedDataSetsPanel';
 import { SubscribersPanel } from './SubscribersPanel';
 import { EmailSendDialog } from './EmailSendDialog';
-import { useEmailSetToSubscribers } from '@/shared/api/documentSets';
+import { useEmailSet } from '@/shared/api/documentSets';
 import { useAuth } from '@/shared/hooks/useAuth';
 
 // ─── Set detail (documents) ───────────────────────────────────────────────────
@@ -54,7 +54,7 @@ function SetDetail() {
   const { data: output } = useDocumentSetOutput(setId, watching ? 2500 : false);
   const { user: me } = useAuth();
   const isAdmin = me?.role === 'Admin';
-  const emailSet = useEmailSetToSubscribers();
+  const emailSet = useEmailSet();
 
   useEffect(() => {
     if (watching && output && output.generatedAt !== watchStartRef.current) {
@@ -268,7 +268,7 @@ function SetDetail() {
           defaultSubjectHint={`Исполнительная документация — ${set.name}`}
           defaultBodyHint={`Направляем собранный комплект исполнительной документации «${set.name}».`}
           ready={!!output} notReadyHint="Комплект ещё не собран. Сначала соберите его («Собрать комплект»), затем отправляйте."
-          onSend={(subject, body) => emailSet.mutateAsync({ setId: set.id, subject, body })} />
+          onSend={(to, subject, body) => emailSet.mutateAsync({ setId: set.id, to, subject, body })} />
       )}
 
       <Modal open={addDocOpen} onOpenChange={setAddDocOpen} title="Добавить документ"

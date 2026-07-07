@@ -86,12 +86,12 @@ public class JobBackgroundService(
                     break;
 
                 case JobKind.SendEmail:
-                    var (subj, body, emailKind) = ParseEmailPayload(payload);
+                    var (subj, body, emailKind, to) = ParseEmailPayload(payload);
                     var emailSvc = scope.ServiceProvider.GetRequiredService<BHS.CRG.Infrastructure.Email.DocumentSetEmailService>();
                     if (emailKind == "document")
-                        await emailSvc.SendDocumentToSubscribersAsync(targetId, subj, body, userId, ct);
+                        await emailSvc.SendDocumentAsync(targetId, to, subj, body, userId, ct);
                     else
-                        await emailSvc.SendSetToSubscribersAsync(targetId, subj, body, userId, ct);
+                        await emailSvc.SendSetAsync(targetId, to, subj, body, userId, ct);
                     break;
 
                 default:
@@ -137,13 +137,16 @@ public class JobBackgroundService(
         return doc.RootElement.TryGetProperty("firstPageIndex", out var v) ? v.GetInt32() : 0;
     }
 
-    // Письмо: {"subject":..,"body":..,"kind":"set"|"document"}; targetId — setId (set) или instanceId (document).
-    private static (string? subject, string? body, string kind) ParseEmailPayload(string? payload)
+    // Письмо: {"subject":..,"body":..,"kind":"set"|"document","to":[...]}; targetId — setId (set) или instanceId (document).
+    private static (string? subject, string? body, string kind, IReadOnlyList<string> to) ParseEmailPayload(string? payload)
     {
-        if (string.IsNullOrEmpty(payload)) return (null, null, "set");
+        if (string.IsNullOrEmpty(payload)) return (null, null, "set", []);
         using var doc = JsonDocument.Parse(payload);
         string? Get(string k) => doc.RootElement.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
-        return (Get("subject"), Get("body"), Get("kind") ?? "set");
+        var to = doc.RootElement.TryGetProperty("to", out var arr) && arr.ValueKind == JsonValueKind.Array
+            ? arr.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!).ToList()
+            : [];
+        return (Get("subject"), Get("body"), Get("kind") ?? "set", to);
     }
 
     // Подмножество документов для сборки комплекта — {"instanceIds":[...]}; отсутствует/пусто → весь комплект.

@@ -119,19 +119,19 @@ export function useReorderInstances() {
   });
 }
 
-/** Отправка собранного комплекта подписчикам (фоновая задача). */
-export function useEmailSetToSubscribers() {
+/** Отправка собранного комплекта на заданные адреса (подписчики + произвольные), фоновая задача. */
+export function useEmailSet() {
   return useMutation({
-    mutationFn: ({ setId, subject, body }: { setId: string; subject?: string; body?: string }) =>
-      apiClient.post<{ jobId: string }>(`/document-sets/${setId}/email-to-subscribers`, { subject, body }).then(r => r.data),
+    mutationFn: ({ setId, to, subject, body }: { setId: string; to: string[]; subject?: string; body?: string }) =>
+      apiClient.post<{ jobId: string }>(`/document-sets/${setId}/email`, { to, subject, body }).then(r => r.data),
   });
 }
 
-/** Отправка отдельного документа (его сгенерированных PDF) подписчикам (фоновая задача). */
-export function useEmailDocumentToSubscribers() {
+/** Отправка отдельного документа (его сгенерированных PDF) на заданные адреса, фоновая задача. */
+export function useEmailDocument() {
   return useMutation({
-    mutationFn: ({ setId, instanceId, subject, body }: { setId: string; instanceId: string; subject?: string; body?: string }) =>
-      apiClient.post<{ jobId: string }>(`/document-sets/${setId}/documents/${instanceId}/email-to-subscribers`, { subject, body }).then(r => r.data),
+    mutationFn: ({ setId, instanceId, to, subject, body }: { setId: string; instanceId: string; to: string[]; subject?: string; body?: string }) =>
+      apiClient.post<{ jobId: string }>(`/document-sets/${setId}/documents/${instanceId}/email`, { to, subject, body }).then(r => r.data),
   });
 }
 

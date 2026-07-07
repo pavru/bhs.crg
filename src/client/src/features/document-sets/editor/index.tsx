@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Loader2, FileText, Download, Eye, Pencil, ChevronDown, ChevronUp, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
-import { useEmailDocumentToSubscribers } from '@/shared/api/documentSets';
+import { useEmailDocument } from '@/shared/api/documentSets';
 import { EmailSendDialog } from '../EmailSendDialog';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import {
@@ -290,7 +290,7 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
   const { user } = useAuth();
   const isAdmin = user?.role === 'Admin';
   const [emailOpen, setEmailOpen] = useState(false);
-  const emailDoc = useEmailDocumentToSubscribers();
+  const emailDoc = useEmailDocument();
   const [error, setError] = useState('');
   const [debugBusy, setDebugBusy] = useState(false);
   const [validating, setValidating] = useState(false);
@@ -475,7 +475,7 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
           defaultSubjectHint={`Исполнительная документация — ${instance.name || 'документ'}`}
           defaultBodyHint={`Направляем документ «${instance.name || 'документ'}» исполнительной документации.`}
           ready={pdfFiles.length > 0} notReadyHint="У документа нет сгенерированных PDF — сначала сгенерируйте."
-          onSend={(subject, body) => emailDoc.mutateAsync({ setId, instanceId: instance.id, subject, body })} />
+          onSend={(to, subject, body) => emailDoc.mutateAsync({ setId, instanceId: instance.id, to, subject, body })} />
       )}
     </div>
   );

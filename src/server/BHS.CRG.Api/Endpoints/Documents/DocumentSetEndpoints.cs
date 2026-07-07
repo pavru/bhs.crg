@@ -153,27 +153,29 @@ public static class DocumentSetEndpoints
             return Results.Accepted("/api/jobs/active", new { jobId });
         });
 
-        // Отправка собранного комплекта подписчикам (с учётом наследования) — фоновая задача.
-        g.MapPost("/{setId:guid}/email-to-subscribers", async (
-            Guid setId, EmailToSubscribersRequest? req, IMediator m, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
+        // Отправка собранного комплекта на заданные адреса (подписчики + произвольные) — фоновая задача.
+        g.MapPost("/{setId:guid}/email", async (
+            Guid setId, EmailSendRequest? req, IMediator m, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (req?.To is not { Length: > 0 }) return Results.BadRequest(new { error = "Не указан ни один получатель." });
             var set = await m.Send(new GetDocumentSetQuery(setId), ct);
             if (set is null) return Results.NotFound();
-            var payload = JsonSerializer.Serialize(new { subject = req?.Subject, body = req?.Body, kind = "set" });
+            var payload = JsonSerializer.Serialize(new { subject = req.Subject, body = req.Body, kind = "set", to = req.To });
             var jobId = await jobs.EnqueueAsync(JobKind.SendEmail, GetUserId(user), setId,
-                $"Отправка комплекта «{set.Name}» подписчикам", payload, ct);
+                $"Отправка комплекта «{set.Name}»", payload, ct);
             return Results.Accepted("/api/jobs/active", new { jobId });
         }).RequireAuthorization("Admin");
 
-        // Отправка отдельного документа (его сгенерированных PDF) подписчикам — фоновая задача.
-        g.MapPost("/{setId:guid}/documents/{id:guid}/email-to-subscribers", async (
-            Guid id, EmailToSubscribersRequest? req, IMediator m, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
+        // Отправка отдельного документа (его сгенерированных PDF) на заданные адреса — фоновая задача.
+        g.MapPost("/{setId:guid}/documents/{id:guid}/email", async (
+            Guid id, EmailSendRequest? req, IMediator m, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (req?.To is not { Length: > 0 }) return Results.BadRequest(new { error = "Не указан ни один получатель." });
             var inst = await m.Send(new GetDocumentInstanceQuery(id), ct);
             if (inst is null) return Results.NotFound();
-            var payload = JsonSerializer.Serialize(new { subject = req?.Subject, body = req?.Body, kind = "document" });
+            var payload = JsonSerializer.Serialize(new { subject = req.Subject, body = req.Body, kind = "document", to = req.To });
             var jobId = await jobs.EnqueueAsync(JobKind.SendEmail, GetUserId(user), id,
-                $"Отправка документа «{inst.Name ?? "документ"}» подписчикам", payload, ct);
+                $"Отправка документа «{inst.Name ?? "документ"}»", payload, ct);
             return Results.Accepted("/api/jobs/active", new { jobId });
         }).RequireAuthorization("Admin");
 
@@ -209,5 +211,5 @@ public static class DocumentSetEndpoints
     record RenameDocumentInstanceRequest(string? Name);
     record SetTemplateRequest(Guid? TemplateId);
     record AssembleSetRequest(Guid[]? InstanceIds);
-    record EmailToSubscribersRequest(string? Subject, string? Body);
+    record EmailSendRequest(string[]? To, string? Subject, string? Body);
 }
