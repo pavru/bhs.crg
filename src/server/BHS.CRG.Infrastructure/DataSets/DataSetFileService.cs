@@ -66,12 +66,10 @@ public class DataSetFileService(
         await using var uploadStream = new MemoryStream(input.Bytes);
         var blobPath = await blob.UploadAsync(input.FileName, uploadStream, input.ContentType ?? "application/octet-stream", ct);
 
-        var parser = parserFactory.GetParser(format);
-        var sourceInfos = await parser.DetectSourcesAsync(input.Bytes, ct);
-
+        // Набор = только сырьё; источники создаются пользователем ЯВНО (см. issue #20 и философию
+        // наборов данных). При загрузке источники НЕ авто-создаются — диалог создания источника
+        // предлагает детект как подсказки (GET /files/{id}/source-candidates).
         var dataSetFile = DataSetFile.Create(name, format, blobPath, scope, scopeId);
-        foreach (var info in sourceInfos)
-            dataSetFile.AddSource(info.Name, info.SheetOrPath, DataSetDtoMapper.SerializeSchema(info.Columns), info.RowCount);
 
         db.DataSetFiles.Add(dataSetFile);
         await db.SaveChangesAsync(ct);
@@ -93,44 +91,34 @@ public class DataSetFileService(
         var newBlobPath = await blob.UploadAsync(input.FileName, uploadStream, input.ContentType ?? "application/octet-stream", ct);
 
         var parser = parserFactory.GetParser(format);
-        var sourceInfos = await parser.DetectSourcesAsync(input.Bytes, ct);
 
-        // Match existing sources by sheetOrPath (then name) to preserve bindings.
-        var updatedSourceIds = new HashSet<Guid>();
-        foreach (var info in sourceInfos)
+        // Источники управляются пользователем ЯВНО (issue #20): при замене файла НЕ авто-создаём и
+        // НЕ авто-удаляем источники — только пере-разбираем СУЩЕСТВУЮЩИЕ против нового блоба.
+        var staleSources = 0;
+        foreach (var src in file.Sources.ToList())
         {
-            var existing = file.Sources.FirstOrDefault(s => s.SheetOrPath == info.SheetOrPath)
-                ?? file.Sources.FirstOrDefault(s => s.Name == info.Name);
-            if (existing != null)
-            {
-                existing.UpdateCache(DataSetDtoMapper.SerializeSchema(info.Columns), info.RowCount);
-                updatedSourceIds.Add(existing.Id);
-            }
-            else
-            {
-                var added = file.AddSource(info.Name, info.SheetOrPath, DataSetDtoMapper.SerializeSchema(info.Columns), info.RowCount);
-                // file уже отслеживается — см. пояснение в DataSetSourceService.CreateSourceAsync (иначе Modified вместо Added).
-                db.DataSetSources.Add(added);
-                updatedSourceIds.Add(added.Id);
-            }
-        }
-
-        // Drop sources no longer present in the file, unless they still have bindings.
-        // Распознаваемые PDF-источники (gost-*/invoice-*/gost-table:*) парсер НЕ детектит — их нельзя
-        // трактовать как «исчезнувшие из файла»: данные приходят из распознавания, не из структуры.
-        // Их сохраняем и помечаем устаревшими (файл заменён после распознавания) — vision-перераспознавание
-        // запускается только явным действием пользователя, не автоматически при замене файла.
-        var staleRecognitionSources = 0;
-        foreach (var src in file.Sources.Where(s => !updatedSourceIds.Contains(s.Id)).ToList())
-        {
+            // Распознанные PDF-источники (gost-*/invoice-*/gost-table:*) не переразбираем структурно —
+            // данные приходят из vision-распознавания, не из структуры файла. Помечаем устаревшими;
+            // пере-распознавание — только явным действием пользователя.
             if (PdfProfiles.IsRecognitionMarker(src.SheetOrPath))
             {
                 src.MarkRecognitionStale();
-                staleRecognitionSources++;
+                staleSources++;
                 continue;
             }
-            var hasBindings = await db.DataSetBindings.AnyAsync(b => b.SourceId == src.Id, ct);
-            if (!hasBindings) db.DataSetSources.Remove(src);
+            try
+            {
+                var parsed = await parser.ParseAsync(input.Bytes, src.SheetOrPath, src.ColumnExpressions, ct);
+                src.UpdateCache(DataSetDtoMapper.SerializeSchema(parsed.Columns), parsed.Rows.Count);
+            }
+            catch (Exception ex)
+            {
+                // Источник не разбирается против нового файла (лист/путь исчез или сменился формат) —
+                // помечаем устаревшим, но НЕ удаляем (источник создан пользователем явно).
+                logger.LogWarning(ex, "Источник {SourceId} не разобран при замене файла {FileId}", src.Id, id);
+                src.MarkRecognitionStale();
+                staleSources++;
+            }
         }
 
         file.UpdateBlobPath(newBlobPath, format);
@@ -138,11 +126,11 @@ public class DataSetFileService(
 
         await db.SaveChangesAsync(ct);
 
-        if (staleRecognitionSources > 0)
+        if (staleSources > 0)
             await notifications.PublishAsync(NotificationSeverity.Warning,
-                "Файл набора обновлён — нужно перераспознать",
-                $"Файл «{file.Name}» заменён. Распознанные PDF-источники ({staleRecognitionSources}) помечены устаревшими: " +
-                "данные относятся к прежнему файлу. Перераспознайте их вручную (кнопка «Распознать»).",
+                "Файл набора обновлён — проверьте источники",
+                $"Файл «{file.Name}» заменён. Источников, требующих внимания: {staleSources} " +
+                "(PDF-распознавание — перераспознайте вручную; прочие — проверьте определение источника, если данные не совпали).",
                 "Наборы данных", ct: ct);
 
         return DataSetDtoMapper.MapFile(file);

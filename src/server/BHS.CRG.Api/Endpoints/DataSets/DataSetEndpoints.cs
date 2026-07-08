@@ -66,6 +66,20 @@ public static class DataSetEndpoints
         g.MapGet("/files/{fileId:guid}/sources", async (Guid fileId, IDataSetService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListSourcesAsync(fileId, ct)));
 
+        // Кандидаты на источник в сыром файле (листы/массивы/«весь файл») — без персиста, для
+        // подсказок в диалоге создания источника. Пусто для XML (строится вручную builder'ом).
+        g.MapGet("/files/{fileId:guid}/source-candidates", async (Guid fileId, IDataSetService svc, CancellationToken ct) =>
+        {
+            var candidates = await svc.DetectSourceCandidatesAsync(fileId, ct);
+            return Results.Ok(candidates.Select(c => new
+            {
+                name = c.Name,
+                sheetOrPath = c.SheetOrPath,
+                columns = c.Columns.Select(col => col.Name).ToList(),
+                rowCount = c.RowCount,
+            }));
+        });
+
         g.MapGet("/sources/{sourceId:guid}/preview", async (
             Guid sourceId, int maxRows, IDataSetService svc, CancellationToken ct) =>
         {

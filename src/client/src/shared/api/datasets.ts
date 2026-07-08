@@ -110,6 +110,23 @@ export function useListZipXmlEntries(fileId: string | undefined) {
   });
 }
 
+/** Кандидат на источник в сыром файле (лист XLSX, top-level массив JSON, «весь файл» CSV) — подсказка. */
+export interface SourceCandidate {
+  name: string;
+  sheetOrPath: string;
+  columns: string[];
+  rowCount: number;
+}
+
+/** Детект кандидатов на источник (без персиста) — подсказки в один клик в диалоге создания. */
+export function useSourceCandidates(fileId: string | undefined) {
+  return useQuery<SourceCandidate[]>({
+    queryKey: ['datasets', 'source-candidates', fileId],
+    queryFn: () => apiClient.get(`/datasets/files/${fileId}/source-candidates`).then(r => r.data),
+    enabled: !!fileId,
+  });
+}
+
 export interface ExpressionPreviewSpec {
   fileId: string;
   /** Полный row-selector (с учётом "entry::" для ZIP) — контекст, либо сам предпросматриваемый путь. */

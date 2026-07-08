@@ -29,6 +29,24 @@ public class DataSetSourceService(
         return sources.Select(DataSetDtoMapper.MapSource).ToList();
     }
 
+    /// <summary>
+    /// Детект «кандидатов» на источник в сыром файле (листы XLSX, top-level массивы JSON, «весь файл»
+    /// для CSV) — БЕЗ персиста. Используется диалогом создания источника как подсказки в один клик.
+    /// Для XML парсер кандидатов не даёт (пусто) — источник строится вручную через XPath-builder.
+    /// </summary>
+    public async Task<IReadOnlyList<DataSetSourceInfo>> DetectSourceCandidatesAsync(Guid fileId, CancellationToken ct)
+    {
+        var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct)
+            ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
+
+        await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+
+        var parser = parserFactory.GetParser(file.Format);
+        return await parser.DetectSourcesAsync(ms.ToArray(), ct);
+    }
+
     public async Task<SourcePreviewDto?> PreviewSourceAsync(Guid sourceId, int maxRows, CancellationToken ct)
     {
         var source = await db.DataSetSources.Include(s => s.File).AsNoTracking()
