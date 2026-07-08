@@ -246,7 +246,10 @@ export function SourcesExpander({
   const [editing, setEditing] = useState<DataSetSource | 'new' | null>(null);
   const { data: templates = [] } = useListProcessingTemplates();
   const isPdf = file.format === 'Pdf';
-  const canManageExtraction = file.format === 'Xml' || file.format === 'Zip' || file.format === 'Json' || isPdf;
+  // Управление источниками (создать/удалить) — для всех форматов (issue #20). PDF создаёт источники
+  // через распознавание (PdfSourceDialog) и не редактируется вручную (см. гейт `!isPdf` у «Редактировать»);
+  // прочие форматы — полное создание/редактирование/переименование/удаление.
+  const canManageExtraction = true;
   const sources = file.sources;
 
   if (sources.length === 0 && !canManageExtraction)
@@ -283,8 +286,7 @@ export function SourcesExpander({
         ) : (
           <SourceEditorDialog
             fileId={file.id}
-            isZip={file.format === 'Zip'}
-            format={file.format === 'Json' ? 'Json' : 'Xml'}
+            format={file.format}
             initial={editing === 'new' ? undefined : editing}
             onClose={() => setEditing(null)}
           />

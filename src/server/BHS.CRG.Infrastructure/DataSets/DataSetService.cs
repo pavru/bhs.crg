@@ -35,6 +35,8 @@ public class DataSetService(
     // ── Sources ───────────────────────────────────────────────────────────────
     public Task<IReadOnlyList<DataSetSourceDto>> ListSourcesAsync(Guid fileId, CancellationToken ct) =>
         sources.ListSourcesAsync(fileId, ct);
+    public Task<IReadOnlyList<DataSetSourceInfo>> DetectSourceCandidatesAsync(Guid fileId, CancellationToken ct) =>
+        sources.DetectSourceCandidatesAsync(fileId, ct);
     public Task<SourcePreviewDto?> PreviewSourceAsync(Guid sourceId, int maxRows, CancellationToken ct) =>
         sources.PreviewSourceAsync(sourceId, maxRows, ct);
     public Task<SourceExportDto?> ExportSourceAsync(Guid sourceId, string? format, CancellationToken ct) =>
