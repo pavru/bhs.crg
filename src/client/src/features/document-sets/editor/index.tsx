@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Loader2, FileText, Download, Eye, Pencil, ChevronDown, ChevronUp, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Loader2, FileText, Download, Eye, Pencil, ChevronDown, ChevronUp, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail, Database } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useEmailDocument } from '@/shared/api/documentSets';
 import { EmailSendDialog } from '../EmailSendDialog';
@@ -22,6 +22,7 @@ import {
   DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup,
 } from '../fields';
 import { DataSetsTab } from './DataSetsTab';
+import { useListDataSetBindings } from '@/shared/api/datasets';
 import { QualityLinksTab } from './QualityLinksTab';
 import { DocumentTemplateParams } from './DocumentTemplateParams';
 import { Modal } from '@/shared/ui/Modal';
@@ -32,6 +33,20 @@ type SaveRef = { current: (() => Promise<boolean>) | null };
 function parseIdArray(json: string | null): string[] {
   if (!json) return [];
   try { const a = JSON.parse(json); return Array.isArray(a) ? a as string[] : []; } catch { return []; }
+}
+
+/// Плашка для doc-ref/doc-array поля, которое заполняется привязанным источником данных:
+/// ручные ссылки скрываем, т.к. при генерации источник перезаписывает поле целиком
+/// (см. issue #17 — «источник ИЛИ ссылки», взаимоисключающе).
+function SourceBoundDocField() {
+  return (
+    <div className="flex items-center gap-2 border border-brand/40 rounded-lg px-3 py-2 bg-brand/5">
+      <Database size={14} className="text-brand shrink-0" />
+      <span className="text-xs text-fg3">
+        Заполняется из привязанного источника данных — правьте связку на вкладке «Данные».
+      </span>
+    </div>
+  );
 }
 
 function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, otherInstances, onDirty, saveRef }: {
@@ -47,6 +62,14 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   const [showValidation, setShowValidation] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const mutation = useUpdateRequisites();
+
+  // Поля-ссылки на документы, заполняемые табличной связкой источника (issue #17):
+  // источник перезаписывает поле при генерации, поэтому ручной ввод для них отключаем.
+  const { data: dsBindings = [] } = useListDataSetBindings({ instanceId: instance.id });
+  const sourceBoundFields = useMemo(
+    () => new Set(dsBindings.filter(b => b.targetFieldKey).map(b => b.targetFieldKey!)),
+    [dsBindings],
+  );
 
   function getPrimitiveDef(field: SchemaField): PrimitiveTypeDef | undefined {
     if (field.type !== 'primitive') return undefined;
@@ -157,11 +180,15 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                     onChange={v => setValue(field.key, v)} showValidation={showValidation}
                     setId={setId} otherInstances={otherInstances} docRefMode="instance" />
                 ) : field.type === 'doc-ref' ? (
-                  <DocRefField field={field} allDocTypes={allDocTypes} value={raw}
-                    onChange={v => setValue(field.key, v)} otherInstances={otherInstances} setId={setId} />
+                  sourceBoundFields.has(field.key) ? <SourceBoundDocField /> : (
+                    <DocRefField field={field} allDocTypes={allDocTypes} value={raw}
+                      onChange={v => setValue(field.key, v)} otherInstances={otherInstances} setId={setId} />
+                  )
                 ) : field.type === 'doc-array' ? (
-                  <DocArrayField field={field} allDocTypes={allDocTypes} value={raw}
-                    onChange={v => setValue(field.key, v)} otherInstances={otherInstances} setId={setId} />
+                  sourceBoundFields.has(field.key) ? <SourceBoundDocField /> : (
+                    <DocArrayField field={field} allDocTypes={allDocTypes} value={raw}
+                      onChange={v => setValue(field.key, v)} otherInstances={otherInstances} setId={setId} />
+                  )
                 ) : field.type === 'image' ? (
                   <ImageField value={raw} onChange={v => setValue(field.key, v)} />
                 ) : field.type === 'file' ? (

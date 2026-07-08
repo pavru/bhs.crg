@@ -39,7 +39,7 @@ function AddEntryBindingPanel({
   const create = useCreateDataSetBinding();
 
   const selectedSource = allSources.find(s => s.id === sourceId);
-  const arrayFields = schemaFields.filter(f => f.type === 'array');
+  const tabularFields = schemaFields.filter(f => f.type === 'array' || f.type === 'doc-array');
   const scalarFields = schemaFields.filter(f => isScalarField(f) && f.type !== 'file');
 
   async function handleSourceChange(id: string) {
@@ -97,7 +97,7 @@ function AddEntryBindingPanel({
         <MappingEditor
           source={selectedSource}
           schemaFields={schemaFields}
-          arrayFields={arrayFields}
+          tabularFields={tabularFields}
           allDocTypes={allDocTypes}
           mapping={mapping}
           targetFieldKey={targetFieldKey}
@@ -139,7 +139,7 @@ function EntryBindingRow({
 
   const source = binding.source;
   const file = source?.file;
-  const arrayFields = schemaFields.filter(f => f.type === 'array');
+  const tabularFields = schemaFields.filter(f => f.type === 'array' || f.type === 'doc-array');
   const mappedCount = Object.keys(mapping).filter(k => mapping[k]).length;
 
   async function handleSave() {
@@ -181,7 +181,7 @@ function EntryBindingRow({
           <MappingEditor
             source={source}
             schemaFields={schemaFields}
-            arrayFields={arrayFields}
+            tabularFields={tabularFields}
             allDocTypes={allDocTypes}
             mapping={mapping}
             targetFieldKey={targetFieldKey}

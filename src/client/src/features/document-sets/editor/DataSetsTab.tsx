@@ -14,7 +14,7 @@ import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 export function MappingEditor({
   source,
   schemaFields,
-  arrayFields,
+  tabularFields,
   allDocTypes,
   mapping,
   targetFieldKey,
@@ -22,7 +22,7 @@ export function MappingEditor({
 }: {
   source: DataSetSource;
   schemaFields: SchemaField[];
-  arrayFields: SchemaField[];
+  tabularFields: SchemaField[];
   allDocTypes: DocumentType[];
   mapping: Record<string, string>;
   targetFieldKey: string | null;
@@ -31,15 +31,17 @@ export function MappingEditor({
   const columnNames = useMemo(() => parseSourceColumnNames(source.cachedSchema), [source.cachedSchema]);
 
   // Поля, доступные для маппинга: для скалярного режима — поля документа,
-  // для табличного — поля составного типа элемента массива.
+  // для табличного — поля типа элемента (составной тип для `array`;
+  // тип-документ, на который ссылается `doc-array`, — строки источника
+  // разворачиваются в объекты его формы, см. DataSetResolver).
   const effectiveFields = useMemo(() => {
     if (targetFieldKey === null) return schemaFields;
-    const arrayField = arrayFields.find(f => f.key === targetFieldKey);
-    if (!arrayField?.typeId) return [];
-    const compositeType = allDocTypes.find(dt => dt.id === arrayField.typeId);
-    if (!compositeType) return [];
-    return resolveEffectiveFields(compositeType, allDocTypes);
-  }, [targetFieldKey, arrayFields, allDocTypes, schemaFields]);
+    const tabularField = tabularFields.find(f => f.key === targetFieldKey);
+    if (!tabularField?.typeId) return [];
+    const elementType = allDocTypes.find(dt => dt.id === tabularField.typeId);
+    if (!elementType) return [];
+    return resolveEffectiveFields(elementType, allDocTypes);
+  }, [targetFieldKey, tabularFields, allDocTypes, schemaFields]);
 
   const scalarMappable = effectiveFields.filter(f => isScalarField(f) && f.type !== 'file');
   // Составные поля заполняются ссылкой на запись каталога (по значению колонки).
@@ -88,8 +90,10 @@ export function MappingEditor({
           className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
         >
           <option value="">Скалярный — первая строка заполняет отдельные поля</option>
-          {arrayFields.map(f => (
-            <option key={f.key} value={f.key}>Табличный → {f.title} ({f.key})</option>
+          {tabularFields.map(f => (
+            <option key={f.key} value={f.key}>
+              Табличный → {f.title} ({f.key}){f.type === 'doc-array' ? ' — документы' : ''}
+            </option>
           ))}
         </select>
       </div>
@@ -97,7 +101,7 @@ export function MappingEditor({
       <div>
         <label className="block text-xs font-medium mb-1 text-fg3">
           Маппинг колонок файла → поля
-          {targetFieldKey && <span className="ml-1 font-normal text-fg4">(поля «{arrayFields.find(f => f.key === targetFieldKey)?.title ?? targetFieldKey}»)</span>}
+          {targetFieldKey && <span className="ml-1 font-normal text-fg4">(поля «{tabularFields.find(f => f.key === targetFieldKey)?.title ?? targetFieldKey}»)</span>}
         </label>
         <div className="space-y-1.5">
           {scalarMappable.map(f => (
@@ -211,7 +215,9 @@ function AddBindingPanel({
   const create = useCreateDataSetBinding();
 
   const selectedSource = allSources.find(s => s.id === sourceId);
-  const arrayFields = schemaFields.filter(f => f.type === 'array');
+  // Цели табличного режима: inline-массив (`array`) и список ссылок на документы
+  // (`doc-array`) — строки источника разворачиваются в объекты формы элемента-типа.
+  const tabularFields = schemaFields.filter(f => f.type === 'array' || f.type === 'doc-array');
   const scalarFields = schemaFields.filter(f => isScalarField(f) && f.type !== 'file');
 
   async function handleSourceChange(id: string) {
@@ -273,7 +279,7 @@ function AddBindingPanel({
         <MappingEditor
           source={selectedSource}
           schemaFields={schemaFields}
-          arrayFields={arrayFields}
+          tabularFields={tabularFields}
           allDocTypes={allDocTypes}
           mapping={mapping}
           targetFieldKey={targetFieldKey}
@@ -324,7 +330,9 @@ function BindingRow({
 
   const source = binding.source;
   const file = source?.file;
-  const arrayFields = schemaFields.filter(f => f.type === 'array');
+  // Цели табличного режима: inline-массив (`array`) и список ссылок на документы
+  // (`doc-array`) — строки источника разворачиваются в объекты формы элемента-типа.
+  const tabularFields = schemaFields.filter(f => f.type === 'array' || f.type === 'doc-array');
   const scalarFields = schemaFields.filter(f => isScalarField(f) && f.type !== 'file');
 
   async function handleAutoRemap() {
@@ -396,7 +404,7 @@ function BindingRow({
           <MappingEditor
             source={source}
             schemaFields={schemaFields}
-            arrayFields={arrayFields}
+            tabularFields={tabularFields}
             allDocTypes={allDocTypes}
             mapping={mapping}
             targetFieldKey={targetFieldKey}
