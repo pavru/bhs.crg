@@ -153,6 +153,22 @@ public static class DataSetEndpoints
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
 
+        // Материализация источника в тип (issue #19): typeId + маппинг колонок → поля типа. typeId=null снимает.
+        g.MapPut("/sources/{sourceId:guid}/materialization", async (
+            Guid sourceId, MaterializationRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            var result = await svc.SetMaterializationAsync(sourceId, req.TypeId, req.Mapping, ct);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        });
+
+        // Предпросмотр материализации: строки источника → объекты формы типа (без резолва каталога).
+        g.MapGet("/sources/{sourceId:guid}/materialization/preview", async (
+            Guid sourceId, int? maxRows, IDataSetService svc, CancellationToken ct) =>
+        {
+            var result = await svc.MaterializePreviewAsync(sourceId, maxRows ?? 50, ct);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        });
+
         // PDF — Extraction через распознавание (vision-LLM), не XPath/JSONPath-builder.
         g.MapPost("/files/{fileId:guid}/pdf-sources", async (
             Guid fileId, PdfSourceRequest req, IDataSetService svc, CancellationToken ct) =>
@@ -321,6 +337,7 @@ public static class DataSetEndpoints
     private record AutoMapRequest(AutoMapFieldDto[] Fields);
     private record AutoMapFieldDto(string Key, string Title);
     private record SourceRequest(string Name, string SheetOrPath, ColumnExprDto[]? ColumnExpressions);
+    private record MaterializationRequest(Guid? TypeId, Dictionary<string, string>? Mapping);
     private record ProcessingRequest(object? RowFilter, object? ComputedColumns, object? SortSpec);
     private record ProcessingTemplateRequest(
         string Name, string? SheetOrPath, ColumnExprDto[]? ColumnExpressions,

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   ChevronDown, ChevronRight, Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
-  BookmarkPlus, ScanText, FileDown, Download, AlertTriangle,
+  BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes,
 } from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
 import { useSourceRecognizing } from '@/shared/api/jobs';
@@ -14,6 +14,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
 import { SourceEditorDialog } from './SourceEditorDialog';
+import { MaterializationDialog } from './MaterializationDialog';
 import { PdfSourceDialog } from './PdfSourceDialog';
 import { SourcePreviewDialog } from './SourcePreviewDialog';
 import { RowFilterDialog } from './RowFilterDialog';
@@ -86,6 +87,7 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
   const [sortOpen, setSortOpen] = useState(false);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [materializing, setMaterializing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [recognizeConflict, setRecognizeConflict] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -154,6 +156,7 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
       { key: 'export-csv', label: 'CSV', onSelect: () => void exportDataSetSource(src.id, 'csv') },
     ] },
     { key: 'duplicate', label: 'Создать копию', icon: <Copy size={13} />, onSelect: () => duplicateMutation.mutate({ id: src.id }), disabled: duplicateMutation.isPending },
+    { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: <Boxes size={13} />, onSelect: () => setMaterializing(true) },
     ...(isPdf && !passiveLabel ? [{ key: 'recognize', label: recognizing ? 'Распознаётся…' : 'Распознать', icon: <ScanText size={13} />, onSelect: handleRecognize, disabled: recognizeMutation.isPending || recognizing }] : []),
     ...(canManageExtraction && !isPdf ? [{ key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => onEdit(src) }] : []),
     ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: <Trash2 size={13} />, danger: true, onSelect: () => { setDeleteError(null); setConfirmDelete(true); } }] : []),
@@ -169,6 +172,12 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
               <span title="Файл заменён после распознавания — данные относятся к прежнему файлу. Нажмите «Распознать»."
                 className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning-subtle text-warning align-middle">
                 <AlertTriangle size={10} /> устарело
+              </span>
+            )}
+            {src.materializeTypeId && (
+              <span title="Источник материализуется в тип — маппинг задан на источнике (issue #19)."
+                className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand/10 text-brand align-middle">
+                <Boxes size={10} /> материализация
               </span>
             )}
             <SourceRowCountBadge sourceId={src.id} />
@@ -207,6 +216,7 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
           onSave={saveAsTemplate} onClose={() => setSavingTemplate(false)} />
       )}
       {previewing && <SourcePreviewDialog source={src} onClose={() => setPreviewing(false)} />}
+      {materializing && <MaterializationDialog source={src} onClose={() => setMaterializing(false)} />}
 
       <ConfirmDialog
         open={recognizeConflict}

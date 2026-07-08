@@ -102,6 +102,55 @@ public class DataSetSourceService(
         return DataSetAutoMapper.AutoMap(columns.Select(c => c.Name).ToList(), fields);
     }
 
+    /// <summary>Настроить/снять материализацию источника в тип (issue #19): typeId=null снимает.</summary>
+    public async Task<DataSetSourceDto?> SetMaterializationAsync(Guid sourceId, Guid? typeId, Dictionary<string, string>? mapping, CancellationToken ct)
+    {
+        var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        if (source == null) return null;
+
+        var mappingJson = typeId is null ? null : JsonSerializer.Serialize(mapping ?? new Dictionary<string, string>());
+        source.SetMaterialization(typeId, mappingJson);
+        await db.SaveChangesAsync(ct);
+        return DataSetDtoMapper.MapSource(source);
+    }
+
+    /// <summary>
+    /// Предпросмотр материализации: строки источника (после всех обработок) → объекты формы типа по
+    /// MaterializeMapping. Ссылочный (@@ref) показывается маркером, файловый (@@file) — объектом-вложением
+    /// (тот же рендер, что у превью привязки — см. DataSetDtoMapper.PreviewCell). Без резолва каталога.
+    /// </summary>
+    public async Task<MaterializePreviewDto?> MaterializePreviewAsync(Guid sourceId, int maxRows, CancellationToken ct)
+    {
+        var source = await db.DataSetSources.Include(s => s.File).AsNoTracking().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        if (source == null) return null;
+        if (source.MaterializeTypeId is null)
+            return new MaterializePreviewDto(null, 0, [], "Материализация не настроена");
+
+        try
+        {
+            var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
+            var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(source.MaterializeMapping ?? "{}") ?? new();
+            var take = maxRows <= 0 ? 50 : maxRows;
+
+            var mapped = rows.Take(take).Select(row =>
+            {
+                var obj = new Dictionary<string, object?>();
+                foreach (var (fieldKey, mapVal) in mapping)
+                {
+                    var v = DataSetDtoMapper.PreviewCell(mapVal, row);
+                    if (v is not null) obj[fieldKey] = v;
+                }
+                return obj;
+            }).ToList();
+
+            return new MaterializePreviewDto(source.MaterializeTypeId, rows.Count, mapped, null);
+        }
+        catch (Exception ex)
+        {
+            return new MaterializePreviewDto(source.MaterializeTypeId, 0, [], ex.Message);
+        }
+    }
+
     public async Task<DataSetSourceDto> CreateSourceAsync(Guid fileId, CreateSourceInput input, CancellationToken ct)
     {
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)

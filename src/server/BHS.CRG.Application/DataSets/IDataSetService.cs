@@ -27,6 +27,10 @@ public interface IDataSetService
 
     /// <summary>Ручное создание источника (для XML — единственный способ, авто-детект не используется).</summary>
     Task<DataSetSourceDto> CreateSourceAsync(Guid fileId, CreateSourceInput input, CancellationToken ct);
+    /// <summary>Настроить/снять материализацию источника в тип (issue #19). typeId=null снимает.</summary>
+    Task<DataSetSourceDto?> SetMaterializationAsync(Guid sourceId, Guid? typeId, Dictionary<string, string>? mapping, CancellationToken ct);
+    /// <summary>Предпросмотр материализации источника (строки → объекты формы типа).</summary>
+    Task<MaterializePreviewDto?> MaterializePreviewAsync(Guid sourceId, int maxRows, CancellationToken ct);
     Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct);
     Task<bool> DeleteSourceAsync(Guid sourceId, CancellationToken ct);
 
