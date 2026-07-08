@@ -124,18 +124,36 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         await Svc(scope).UploadFileAsync(
             new UploadFileInput(CsvBytes, "test.csv", "text/csv", "Тест", "System", null), default);
 
+    // Источники создаются ЯВНО (issue #20): загрузить CSV + создать источник «весь файл» из кандидата.
+    private async Task<(DataSetFileDto File, DataSetSourceDto Source)> UploadCsvWithSourceAsync(IServiceScope scope)
+    {
+        var file = await UploadCsvAsync(scope);
+        var candidate = (await Svc(scope).DetectSourceCandidatesAsync(file.Id, default)).Single();
+        var source = await Svc(scope).CreateSourceAsync(
+            file.Id, new CreateSourceInput("Данные", candidate.SheetOrPath, null), default);
+        return (file, source);
+    }
+
     [Fact]
-    public async Task UploadCsv_DetectsSourceWithColumns()
+    public async Task UploadCsv_NoAutoSources_CandidatesDetectColumns()
     {
         using var scope = fixture.Services.CreateScope();
         var file = await UploadCsvAsync(scope);
 
-        Assert.Single(file.Sources);
-        var sources = await Svc(scope).ListSourcesAsync(file.Id, default);
-        Assert.Single(sources);
-        // Колонки — в кэше схемы (JSON [{name,sampleValues}]); имена A/B встречаются как значения "name".
-        Assert.Contains("\"A\"", sources[0].CachedSchema);
-        Assert.Contains("\"B\"", sources[0].CachedSchema);
+        // Набор = сырьё: источники НЕ авто-создаются при загрузке (issue #20).
+        Assert.Empty(file.Sources);
+
+        // Детект-кандидаты предлагают «весь файл» с колонками A/B — подсказка для явного создания.
+        var candidates = await Svc(scope).DetectSourceCandidatesAsync(file.Id, default);
+        Assert.Single(candidates);
+        Assert.Contains(candidates[0].Columns, c => c.Name == "A");
+        Assert.Contains(candidates[0].Columns, c => c.Name == "B");
+
+        // Явное создание источника из кандидата кэширует те же колонки.
+        var source = await Svc(scope).CreateSourceAsync(
+            file.Id, new CreateSourceInput("Данные", candidates[0].SheetOrPath, null), default);
+        Assert.Contains("\"A\"", source.CachedSchema);
+        Assert.Contains("\"B\"", source.CachedSchema);
     }
 
     [Fact]
@@ -143,8 +161,8 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
     {
         // Прямая проверка хрупкого EF add-tracking (копия — новый дочерний источник на отслеживаемом файле).
         using var scope = fixture.Services.CreateScope();
-        var file = await UploadCsvAsync(scope);
-        var srcId = file.Sources[0].Id;
+        var (file, src) = await UploadCsvWithSourceAsync(scope);
+        var srcId = src.Id;
 
         var copy = await Svc(scope).DuplicateSourceAsync(srcId, default);
         Assert.NotNull(copy);
@@ -162,8 +180,8 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         Guid srcId;
         using (var scope = fixture.Services.CreateScope())
         {
-            var file = await UploadCsvAsync(scope);
-            srcId = file.Sources[0].Id;
+            var (_, src) = await UploadCsvWithSourceAsync(scope);
+            srcId = src.Id;
             var entry = await scope.ServiceProvider.GetRequiredService<MediatR.IMediator>().Send(
                 new CreateCommonDataEntryCommand("Запись", typeId, JsonDocument.Parse("{}"),
                     BHS.CRG.Domain.Catalog.CatalogScope.System, null));
@@ -180,17 +198,17 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
     {
         var typeId = await CreateDocumentTypeAsync();
         using var scope = fixture.Services.CreateScope();
-        var file = await UploadCsvAsync(scope);
+        var (_, src) = await UploadCsvWithSourceAsync(scope);
         var entry = await scope.ServiceProvider.GetRequiredService<MediatR.IMediator>().Send(
             new CreateCommonDataEntryCommand("Запись", typeId, JsonDocument.Parse("{}"),
                 BHS.CRG.Domain.Catalog.CatalogScope.System, null));
 
         var created = await Svc(scope).CreateBindingAsync(
-            new CreateBindingInput(null, entry.Id, file.Sources[0].Id, null, new() { ["Поле"] = "A" }), default);
+            new CreateBindingInput(null, entry.Id, src.Id, null, new() { ["Поле"] = "A" }), default);
         Assert.NotNull(created);
 
         var list = await Svc(scope).ListBindingsAsync(null, entry.Id, default);
         Assert.Single(list);
-        Assert.Equal(file.Sources[0].Id, list[0].SourceId);
+        Assert.Equal(src.Id, list[0].SourceId);
     }
 }

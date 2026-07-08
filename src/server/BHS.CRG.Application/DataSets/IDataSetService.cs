@@ -18,6 +18,8 @@ public interface IDataSetService
 
     // ── Sources ─────────────────────────────────────────────────────────────────
     Task<IReadOnlyList<DataSetSourceDto>> ListSourcesAsync(Guid fileId, CancellationToken ct);
+    /// <summary>Детект кандидатов на источник в сыром файле (без персиста) — подсказки для диалога создания.</summary>
+    Task<IReadOnlyList<DataSetSourceInfo>> DetectSourceCandidatesAsync(Guid fileId, CancellationToken ct);
     Task<SourcePreviewDto?> PreviewSourceAsync(Guid sourceId, int maxRows, CancellationToken ct);
     /// <summary>Выгрузка ВСЕХ строк источника (после обработки) в CSV/XLS/XLSX. format: "csv"/"xls"/"xlsx" (по умолчанию xlsx).</summary>
     Task<SourceExportDto?> ExportSourceAsync(Guid sourceId, string? format, CancellationToken ct);
