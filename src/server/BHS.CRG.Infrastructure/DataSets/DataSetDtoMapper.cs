@@ -72,7 +72,9 @@ public static class DataSetDtoMapper
     public static DataSetSourceDto MapSource(DataSetSource s) => new(
         s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, s.CachedSchema, s.CachedRowCount,
         DeserializeJson(s.RowFilter), DeserializeJson(s.ComputedColumns), DeserializeJson(s.SortSpec),
-        s.Tags is null ? null : JsonSerializer.Deserialize<List<string>>(s.Tags), s.RecognitionStale);
+        s.Tags is null ? null : JsonSerializer.Deserialize<List<string>>(s.Tags), s.RecognitionStale,
+        s.MaterializeTypeId,
+        s.MaterializeMapping is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(s.MaterializeMapping));
 
     public static DataSetBindingDto MapBinding(DataSetBinding b) => new(
         b.Id, b.InstanceId, b.CommonDataEntryId, b.SourceId, b.TargetFieldKey,

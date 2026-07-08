@@ -101,6 +101,32 @@ export function useUpdateDataSetSource() {
   });
 }
 
+/** Настроить/снять материализацию источника в тип (issue #19). typeId=null снимает. */
+export function useSetMaterialization() {
+  const qc = useQueryClient();
+  return useMutation<DataSetSource, Error, { sourceId: string; typeId: string | null; mapping: Record<string, string> | null }>({
+    mutationFn: ({ sourceId, typeId, mapping }) =>
+      apiClient.put(`/datasets/sources/${sourceId}/materialization`, { typeId, mapping }).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+  });
+}
+
+export interface MaterializePreview {
+  typeId: string | null;
+  totalRows: number;
+  rows: Record<string, unknown>[];
+  error: string | null;
+}
+
+/** Предпросмотр материализации источника (строки → объекты формы типа). enabled — управляет запросом. */
+export function useMaterializePreview(sourceId: string | undefined, enabled: boolean) {
+  return useQuery<MaterializePreview>({
+    queryKey: ['datasets', 'materialize-preview', sourceId],
+    queryFn: () => apiClient.get(`/datasets/sources/${sourceId}/materialization/preview`).then(r => r.data),
+    enabled: !!sourceId && enabled,
+  });
+}
+
 /** Пути XML-записей внутри ZIP-файла — для выбора при ручном создании источника. */
 export function useListZipXmlEntries(fileId: string | undefined) {
   return useQuery<string[]>({

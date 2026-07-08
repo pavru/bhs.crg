@@ -6,7 +6,11 @@ public record DataSetSourceDto(
     Guid Id, Guid FileId, string Name, string SheetOrPath, string? ColumnExpressions,
     string CachedSchema, int CachedRowCount,
     object? RowFilter, object? ComputedColumns, object? SortSpec,
-    IReadOnlyList<string>? Tags, bool RecognitionStale = false);
+    IReadOnlyList<string>? Tags, bool RecognitionStale = false,
+    Guid? MaterializeTypeId = null, Dictionary<string, string>? MaterializeMapping = null);
+
+/// <summary>Материализованный предпросмотр источника: строки, развёрнутые в объекты формы типа (issue #19).</summary>
+public record MaterializePreviewDto(Guid? TypeId, int TotalRows, IReadOnlyList<Dictionary<string, object?>> Rows, string? Error);
 
 public record DataSetFileDto(
     Guid Id, string Name, string Format, string Scope, Guid? ScopeId,

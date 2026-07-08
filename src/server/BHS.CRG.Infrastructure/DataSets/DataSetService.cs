@@ -45,6 +45,10 @@ public class DataSetService(
         sources.AutoMapAsync(sourceId, fields, ct);
     public Task<DataSetSourceDto> CreateSourceAsync(Guid fileId, CreateSourceInput input, CancellationToken ct) =>
         sources.CreateSourceAsync(fileId, input, ct);
+    public Task<DataSetSourceDto?> SetMaterializationAsync(Guid sourceId, Guid? typeId, Dictionary<string, string>? mapping, CancellationToken ct) =>
+        sources.SetMaterializationAsync(sourceId, typeId, mapping, ct);
+    public Task<MaterializePreviewDto?> MaterializePreviewAsync(Guid sourceId, int maxRows, CancellationToken ct) =>
+        sources.MaterializePreviewAsync(sourceId, maxRows, ct);
     public Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct) =>
         sources.UpdateSourceAsync(sourceId, input, ct);
     public Task<bool> DeleteSourceAsync(Guid sourceId, CancellationToken ct) =>

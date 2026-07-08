@@ -55,6 +55,21 @@ public class DataSetSource : Entity
     /// </summary>
     public bool RecognitionStale { get; private set; }
 
+    /// <summary>
+    /// Материализация (issue #19): ID типа документа (Composite или Document, различаем по Kind),
+    /// в сущности которого источник разворачивает свои строки. Null — материализация не настроена
+    /// (источник используется по-старому: маппинг на привязке). Строки материализуются ПОСЛЕ всех
+    /// обработок (Filter/Transformation/Sort) — одна сущность типа на строку.
+    /// </summary>
+    public Guid? MaterializeTypeId { get; private set; }
+
+    /// <summary>
+    /// Маппинг колонок → поля материализуемого типа: JSON { "ключПоля": "Колонка" | "@@ref:…" | "@@file:…" }
+    /// (та же форма и кодирование, что у <see cref="DataSetBinding.Mapping"/>). Значим только вместе с
+    /// <see cref="MaterializeTypeId"/>.
+    /// </summary>
+    public string? MaterializeMapping { get; private set; }
+
     public DataSetFile File { get; private set; } = null!;
     private readonly List<DataSetBinding> _bindings = [];
     public IReadOnlyList<DataSetBinding> Bindings => _bindings.AsReadOnly();
@@ -122,6 +137,14 @@ public class DataSetSource : Entity
     public void SetGostGrouping(string? gostGroupingJson)
     {
         GostGrouping = gostGroupingJson;
+        TouchUpdatedAt();
+    }
+
+    /// <summary>Настроить/снять материализацию источника в тип (issue #19). typeId=null снимает.</summary>
+    public void SetMaterialization(Guid? typeId, string? mappingJson)
+    {
+        MaterializeTypeId = typeId;
+        MaterializeMapping = typeId is null ? null : (mappingJson ?? "{}");
         TouchUpdatedAt();
     }
 }

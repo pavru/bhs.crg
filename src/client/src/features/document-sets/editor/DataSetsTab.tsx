@@ -11,6 +11,20 @@ import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
 import { parseSourceColumnNames, parseRefMapping, buildRefMapping, parseFileMapping, buildFileMapping } from '@/shared/api/datasetHelpers';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
+/** Совместимость по наследованию: childId == ancestorId либо childId — потомок ancestorId по parentId. */
+function isSameOrDescendant(childId: string, ancestorId: string, allDocTypes: DocumentType[]): boolean {
+  let cur: string | null = childId;
+  let guard = 0;
+  while (cur && guard++ < 32) {
+    if (cur === ancestorId) return true;
+    cur = allDocTypes.find(t => t.id === cur)?.parentId ?? null;
+  }
+  return false;
+}
+
+/** Типы полей, куда можно направить материализованный источник (составная сущность/массив/ссылка). */
+const MATERIALIZABLE_FIELD_TYPES: readonly string[] = ['array', 'doc-array', 'complex', 'doc-ref'];
+
 export function MappingEditor({
   source,
   schemaFields,
@@ -19,6 +33,7 @@ export function MappingEditor({
   mapping,
   targetFieldKey,
   onChange,
+  hideModeSelector = false,
 }: {
   source: DataSetSource;
   schemaFields: SchemaField[];
@@ -27,6 +42,8 @@ export function MappingEditor({
   mapping: Record<string, string>;
   targetFieldKey: string | null;
   onChange: (m: Record<string, string>, t: string | null) => void;
+  /** Скрыть селектор «Режим использования» (для материализации на источнике — режима нет). */
+  hideModeSelector?: boolean;
 }) {
   const columnNames = useMemo(() => parseSourceColumnNames(source.cachedSchema), [source.cachedSchema]);
 
@@ -80,23 +97,25 @@ export function MappingEditor({
 
   return (
     <div className="space-y-3 text-sm">
-      <div>
-        <label className="block text-xs font-medium mb-1 text-fg3">
-          Режим использования
-        </label>
-        <select
-          value={targetFieldKey ?? ''}
-          onChange={e => setTarget(e.target.value)}
-          className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
-        >
-          <option value="">Скалярный — первая строка заполняет отдельные поля</option>
-          {tabularFields.map(f => (
-            <option key={f.key} value={f.key}>
-              Табличный → {f.title} ({f.key}){f.type === 'doc-array' ? ' — документы' : ''}
-            </option>
-          ))}
-        </select>
-      </div>
+      {!hideModeSelector && (
+        <div>
+          <label className="block text-xs font-medium mb-1 text-fg3">
+            Режим использования
+          </label>
+          <select
+            value={targetFieldKey ?? ''}
+            onChange={e => setTarget(e.target.value)}
+            className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
+          >
+            <option value="">Скалярный — первая строка заполняет отдельные поля</option>
+            {tabularFields.map(f => (
+              <option key={f.key} value={f.key}>
+                Табличный → {f.title} ({f.key}){f.type === 'doc-array' ? ' — документы' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div>
         <label className="block text-xs font-medium mb-1 text-fg3">
@@ -220,11 +239,23 @@ function AddBindingPanel({
   const tabularFields = schemaFields.filter(f => f.type === 'array' || f.type === 'doc-array');
   const scalarFields = schemaFields.filter(f => isScalarField(f) && f.type !== 'file');
 
+  // Материализованный источник (issue #19): привязка — типизированный указатель без маппинга.
+  // Поля-цели — те, чей тип совместим (тип источника == тип поля или его потомок).
+  const materializeTypeId = selectedSource?.materializeTypeId ?? null;
+  const compatibleFields = useMemo(() =>
+    materializeTypeId
+      ? schemaFields.filter(f => f.typeId && MATERIALIZABLE_FIELD_TYPES.includes(f.type)
+          && isSameOrDescendant(materializeTypeId, f.typeId, allDocTypes))
+      : [],
+    [materializeTypeId, schemaFields, allDocTypes]);
+
   async function handleSourceChange(id: string) {
     setSourceId(id);
     setMappingState({});
     setTargetFieldKey(null);
     if (!id) return;
+    // Материализованный источник маппинга не требует (тип↔тип) — авто-маппинг пропускаем.
+    if (allSources.find(s => s.id === id)?.materializeTypeId) return;
     try {
       const { mapping: m } = await autoMap.mutateAsync({
         sourceId: id,
@@ -236,9 +267,11 @@ function AddBindingPanel({
 
   async function handleSave() {
     if (!sourceId) { setError('Выберите источник'); return; }
+    if (materializeTypeId && !targetFieldKey) { setError('Выберите поле-цель'); return; }
     setError('');
     try {
-      await create.mutateAsync({ instanceId, sourceId, targetFieldKey, mapping });
+      // Материализованный источник — маппинг пустой (резолвер берёт маппинг с источника).
+      await create.mutateAsync({ instanceId, sourceId, targetFieldKey, mapping: materializeTypeId ? {} : mapping });
       onDone();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка');
@@ -276,15 +309,37 @@ function AddBindingPanel({
       </div>
 
       {selectedSource && (
-        <MappingEditor
-          source={selectedSource}
-          schemaFields={schemaFields}
-          tabularFields={tabularFields}
-          allDocTypes={allDocTypes}
-          mapping={mapping}
-          targetFieldKey={targetFieldKey}
-          onChange={(m, t) => { setMappingState(m); setTargetFieldKey(t); }}
-        />
+        materializeTypeId ? (
+          <div className="rounded-lg border border-brand/40 bg-brand/5 p-3 space-y-2">
+            <p className="text-xs text-fg3">
+              Источник материализуется в тип <b>{allDocTypes.find(t => t.id === materializeTypeId)?.name ?? '—'}</b>.
+              Маппинг задан на источнике — выберите только поле-цель совместимого типа.
+            </p>
+            <select
+              value={targetFieldKey ?? ''}
+              onChange={e => setTargetFieldKey(e.target.value || null)}
+              className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
+            >
+              <option value="">— выберите поле —</option>
+              {compatibleFields.map(f => (
+                <option key={f.key} value={f.key}>{f.title} ({f.key})</option>
+              ))}
+            </select>
+            {compatibleFields.length === 0 && (
+              <p className="text-xs text-warning">Нет полей документа, совместимых с типом источника.</p>
+            )}
+          </div>
+        ) : (
+          <MappingEditor
+            source={selectedSource}
+            schemaFields={schemaFields}
+            tabularFields={tabularFields}
+            allDocTypes={allDocTypes}
+            mapping={mapping}
+            targetFieldKey={targetFieldKey}
+            onChange={(m, t) => { setMappingState(m); setTargetFieldKey(t); }}
+          />
+        )
       )}
 
       {error && <p className="text-xs text-danger">{error}</p>}

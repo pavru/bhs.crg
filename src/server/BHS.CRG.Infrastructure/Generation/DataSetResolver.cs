@@ -2,6 +2,7 @@ using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.DataSets;
@@ -35,6 +36,11 @@ public class DataSetResolver(
         Task<ScopeChain> ChainAsync() => scopeChainTask ??= LoadScopeChainAsync(instance, ct);
         var entryCache = new Dictionary<Guid, List<CommonDataEntry>>();
 
+        // Схема типов (для кардинальности целевого поля материализации/табличной связки) — лениво, один раз.
+        Dictionary<Guid, DocumentType>? typesById = null;
+        async Task<Dictionary<Guid, DocumentType>> TypesAsync() =>
+            typesById ??= await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+
         foreach (var binding in bindings)
         {
             try
@@ -42,8 +48,12 @@ public class DataSetResolver(
                 // Download → parse → transformation → filter → sort (shared with preview via DataSetBindingProcessor).
                 var rows = await DataSetBindingProcessor.LoadRowsAsync(blobStorage, parserFactory, binding.Source, ct);
 
-                var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(binding.Mapping)
-                    ?? [];
+                // Материализация на источнике (issue #19): если источник настроен на материализацию, а
+                // привязка не несёт собственного маппинга — маппинг берётся с источника (тип↔тип), а
+                // привязка играет роль типизированного указателя. Иначе — легаси-маппинг привязки.
+                var useMaterialization = binding.Source.MaterializeTypeId is not null && IsEmptyMapping(binding.Mapping);
+                var mappingJson = useMaterialization ? (binding.Source.MaterializeMapping ?? "{}") : binding.Mapping;
+                var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson) ?? [];
 
                 if (binding.TargetFieldKey is null)
                 {
@@ -61,9 +71,8 @@ public class DataSetResolver(
                 }
                 else
                 {
-                    // Табличный: все строки → массив объектов в array-поле.
-                    // Храним как JsonElement, чтобы повторный проход EntityResolver
-                    // разрешил добавленные ссылки $ref на каталог.
+                    // Все строки → объекты формы целевого типа. Храним как JsonElement, чтобы повторный
+                    // проход EntityResolver разрешил добавленные ссылки $ref на каталог.
                     var mapped = new List<Dictionary<string, object?>>();
                     var rowIndex = 0;
                     foreach (var row in rows)
@@ -79,7 +88,19 @@ public class DataSetResolver(
                         mapped.Add(obj);
                         rowIndex++;
                     }
-                    ctx.Set(binding.TargetFieldKey, JsonSerializer.SerializeToElement(mapped));
+
+                    // Кардинальность решает ТИП целевого поля: complex/doc-ref ← первая сущность;
+                    // array/doc-array (и всё прочее) ← весь поток.
+                    var field = DocumentTypeSchemaReader.Field(instance.DocumentTypeId, binding.TargetFieldKey, await TypesAsync());
+                    if (field is not null && DocumentTypeSchemaReader.IsSingleComposite(field.Type))
+                    {
+                        if (mapped.Count > 0)
+                            ctx.Set(binding.TargetFieldKey, JsonSerializer.SerializeToElement(mapped[0]));
+                    }
+                    else
+                    {
+                        ctx.Set(binding.TargetFieldKey, JsonSerializer.SerializeToElement(mapped));
+                    }
                 }
             }
             catch (Exception ex)
@@ -171,6 +192,15 @@ public class DataSetResolver(
                 return entry.Id;
         }
         return null;
+    }
+
+    // Маппинг привязки считается «пустым» (значит, берём материализацию источника), если он null,
+    // пустой объект или все значения пусты.
+    private static bool IsEmptyMapping(string? mappingJson)
+    {
+        if (string.IsNullOrWhiteSpace(mappingJson)) return true;
+        var m = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson);
+        return m is null || m.Count == 0 || m.Values.All(string.IsNullOrEmpty);
     }
 
     // Нормализация для сопоставления: регистр, окружающие пробелы и завершающие
