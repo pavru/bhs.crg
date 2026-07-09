@@ -434,7 +434,9 @@ public class DataSetPdfRecognitionService(
         // проекции) не осиротели.
         var routed = GostPageGrouper.Group(rows);
         var existingGrouping = ParseGrouping(file.Grouping);
-        var unified = GostStableIds.Assign(GostUnifiedGroupingBuilder.Build(routed, rows, manuallyEdited: false), existingGrouping);
+        // carryUserData: полное ре-распознавание переносит тэги/табличное сырьё с прежних групп по
+        // стабильному id (свежие группы приходят без тэгов — иначе пользовательская разметка потерялась бы).
+        var unified = GostStableIds.Assign(GostUnifiedGroupingBuilder.Build(routed, rows, manuallyEdited: false), existingGrouping, carryUserData: true);
 
         // Материализация СЫРЬЯ на наборе: режем под-PDF в группы (BlobPath в Grouping), пишем Grouping,
         // переспроецируем существующие источники-проекции, чистим осиротевшие блобы. Источников НЕ создаём.
@@ -598,18 +600,28 @@ public class DataSetPdfRecognitionService(
         if (tableSources.Count == 0) return 0;
 
         // Стабильные id текущих документов, всё ещё помеченных табличным тэгом (issue #28).
-        var validGroupIds = unified.Groups
+        var validGroups = unified.Groups
             .Where(g => g.Kind == GostGroupKind.Document && g.Pages.Count > 0
                         && (g.Tags ?? []).Any(t => GostTableFields.ColumnsForTag(t) is not null))
-            .Select(g => g.Id)
-            .ToHashSet();
+            .ToDictionary(g => g.Id);
 
         var removed = 0;
         foreach (var ts in tableSources)
         {
             var idStr = ts.SheetOrPath[PdfProfiles.GostTableMarkerPrefix.Length..];
-            if (Guid.TryParse(idStr, out var gid) && validGroupIds.Contains(gid))
-                continue; // документ сохранился (id совпал) — оставляем табличный источник как есть
+            if (Guid.TryParse(idStr, out var gid) && validGroups.TryGetValue(gid, out var g))
+            {
+                // Документ сохранился (id совпал) — РЕ-ПРОЕЦИРУЕМ источник из нового табличного сырья группы
+                // (issue #42). TableData перенесено GostStableIds.Assign; при смене состава страниц оно
+                // помечено stale — пробрасываем на источник (пользователь перераспознает таблицу).
+                if (!string.IsNullOrEmpty(g.TableData))
+                {
+                    var rowCount = JsonSerializer.Deserialize<List<Dictionary<string, string?>>>(g.TableData)?.Count ?? 0;
+                    ts.UpdateCache(g.TableColumns ?? "[]", rowCount, g.TableData);
+                    if (g.TableStale) ts.MarkRecognitionStale();
+                }
+                continue;
+            }
 
             var boundCount = await db.DataSetBindings.CountAsync(b => b.SourceId == ts.Id, ct);
             if (boundCount > 0)
@@ -699,7 +711,7 @@ public class DataSetPdfRecognitionService(
             grouping.ManuallyEdited, pageCount);
     }
 
-    public async Task<DataSetSourceDto?> RecognizeDocumentTableAsync(Guid fileId, int firstPageIndex, CancellationToken ct)
+    public async Task<GostGroupingDto?> RecognizeDocumentTableAsync(Guid fileId, int firstPageIndex, CancellationToken ct)
     {
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct);
         if (file == null) return null;
@@ -741,15 +753,25 @@ public class DataSetPdfRecognitionService(
             columns = GostTableFields.ColumnsForTag(tag)!;
         }
 
-        await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
-        using var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct);
-        var bytes = ms.ToArray();
-
-        var pageIndices = group.Pages.Select(p => p.PageIndex).OrderBy(i => i).ToList();
+        // Под-PDF документа для vision: переиспользуем уже вырезанный при распознавании блок (group.BlobPath,
+        // issue #38) — не режем заново. Fallback — вырезать из полного PDF (старые наборы без BlobPath).
         byte[] subPdf;
-        try { subPdf = PdfPageSplitter.ExtractPages(bytes, pageIndices); }
-        catch (Exception ex) { throw new ArgumentException($"Не удалось выделить страницы документа: {ex.Message}"); }
+        if (!string.IsNullOrEmpty(group.BlobPath))
+        {
+            await using var s = await blob.DownloadAsync(group.BlobPath, ct);
+            using var m = new MemoryStream();
+            await s.CopyToAsync(m, ct);
+            subPdf = m.ToArray();
+        }
+        else
+        {
+            await using var s = await blob.DownloadAsync(file.BlobPath, ct);
+            using var m = new MemoryStream();
+            await s.CopyToAsync(m, ct);
+            var pageIndices = group.Pages.Select(p => p.PageIndex).OrderBy(i => i).ToList();
+            try { subPdf = PdfPageSplitter.ExtractPages(m.ToArray(), pageIndices); }
+            catch (Exception ex) { throw new ArgumentException($"Не удалось выделить страницы документа: {ex.Message}"); }
+        }
 
         RecognitionResult result;
         try
@@ -768,34 +790,31 @@ public class DataSetPdfRecognitionService(
             .ToArray();
         var schemaJson = DataSetDtoMapper.SerializeSchema(schema);
         var dataJson = JsonSerializer.Serialize(rows);
-        // Ключ и имя — по КАНОНИЧЕСКОЙ первой странице документа (минимум страниц группы), а не по
-        // входному firstPageIndex: иначе два вызова с разными страницами одного документа создали бы
-        // два источника-дубля. firstPageIndex — лишь «указатель на документ», не идентичность таблицы.
-        var canonicalFirstPage = pageIndices[0];
-        var sourceName = string.IsNullOrWhiteSpace(group.Name) ? $"Таблица (стр. {canonicalFirstPage + 1})" : group.Name!;
+        var tableName = string.IsNullOrWhiteSpace(group.Name) ? "Таблица" : $"Таблица — {group.Name}";
 
-        // Идемпотентно: один табличный источник на документ. Ключ — СТАБИЛЬНЫЙ id группы (issue #28),
-        // а не firstPageIndex: переживает перераспознавание/сдвиг страниц — источник не осиротеет (P1).
-        var marker = $"{PdfProfiles.GostTableMarkerPrefix}{group.Id}";
-        var tableSource = file.Sources.FirstOrDefault(s => s.SheetOrPath == marker);
-        if (tableSource is null)
+        // issue #42: распознанная таблица — СЫРЬЁ набора, живёт на группе (в Grouping), а НЕ авто-источник.
+        // Кандидат «Таблица …» проецирует её в источник по запросу пользователя (CreatePdfProjectionSource).
+        var updated = grouping with
         {
-            tableSource = file.AddSource(sourceName, marker, schemaJson, rows.Count);
-            // Тип таблицы (спецификация/кабельный журнал) НЕ дублируем в DataSetSource.Tags: тэг живёт
-            // на группе-документе (GostGrouping, scope GostDocument), а тип источника уже неявно задан
-            // фиксированными колонками GostTableFields. Ранее сюда клался документный тэг в поле под
-            // Dataset-scope тэги источника — семантическое смешение, ничего его не читало (P7).
-            db.DataSetSources.Add(tableSource);
-        }
-        tableSource.UpdateCache(schemaJson, rows.Count, dataJson);
-        // Сходимость с #19 (issue #29): тэг разрешился в тип → источник-таблица материализуется в него.
-        // Маппинг идентичный (ключ→колонка) — распознавали прямо в ключи полей типа.
-        if (targetType is not null)
-            tableSource.SetMaterialization(targetType.Id, JsonSerializer.Serialize(typeFields.ToDictionary(f => f.Key, f => f.Key)));
+            Groups = grouping.Groups
+                .Select(gg => gg.Id == group.Id
+                    ? gg with { TableData = dataJson, TableColumns = schemaJson, TableStale = false }
+                    : gg)
+                .ToList(),
+        };
+        file.SetGrouping(JsonSerializer.Serialize(updated));
+        // Если пользователь УЖЕ создал источник-проекцию этой таблицы — обновляем его кэш (ре-распознавание).
+        file.Sources.FirstOrDefault(s => s.SheetOrPath == $"{PdfProfiles.GostTableMarkerPrefix}{group.Id}")
+            ?.UpdateCache(schemaJson, rows.Count, dataJson);
         await db.SaveChangesAsync(ct);
+
         await notifications.PublishAsync(NotificationSeverity.Info, "Таблица распознана",
-            $"«{sourceName}» — строк: {rows.Count}. Доступна как отдельный источник (выгрузка XLSX/CSV).", "Распознавание PDF", ct: ct);
-        return DataSetDtoMapper.MapSource(tableSource);
+            $"«{tableName}» — строк: {rows.Count}. Доступна как кандидат — создайте из него источник в наборе.", "Распознавание PDF", ct: ct);
+
+        var pageCount = await GetPdfPageCountAsync(file.BlobPath, ct);
+        return new GostGroupingDto(
+            updated.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags)).ToList(),
+            updated.ManuallyEdited, pageCount);
     }
 
     /// <summary>Точечное перераспознавание ОДНОГО документа (P6): заново распознаёт только страницы его

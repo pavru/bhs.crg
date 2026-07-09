@@ -34,10 +34,17 @@ public record GostGroupingData(IReadOnlyList<GostGroupingGroup> Groups, bool Man
 /// источник-проекция «Документы» несли ФайлПуть без предварительного анкер-источника. Null — обложка/
 /// титул или сбой разрезания.</param>
 /// <param name="BlobSize">Размер вырезанного под-PDF в байтах (колонка РазмерБайт). Null — блоба нет.</param>
+/// <param name="TableData">Распознанные строки таблицы документа (JSON-массив) — СЫРЬЁ (issue #42):
+/// формируется при распознавании таблицы помеченной тэгом группы, живёт ЗДЕСЬ (на наборе), кандидат
+/// «Таблица …» проецирует его в источник по запросу пользователя. Null — таблица не распознана.</param>
+/// <param name="TableColumns">Схема строк таблицы (JSON [{name,sampleValues}]) — для кандидата/проекции.</param>
+/// <param name="TableStale">true — состав страниц группы изменился после распознавания таблицы: строки
+/// относятся к прежним границам, нужно перераспознать. Тэги переносятся всегда, TableData — с этим флагом.</param>
 public record GostGroupingGroup(
     GostGroupKind Kind, string? Code, string? Name, IReadOnlyList<GostGroupingPage> Pages,
     IReadOnlyList<string>? Tags = null, Guid Id = default,
-    string? BlobPath = null, long? BlobSize = null);
+    string? BlobPath = null, long? BlobSize = null,
+    string? TableData = null, string? TableColumns = null, bool TableStale = false);
 
 /// <param name="PageIndex">Индекс страницы исходного PDF (0-based).</param>
 /// <param name="Fields">Распознанные поля штампа этой страницы (без служебных ТипСтраницы/Форма).</param>
