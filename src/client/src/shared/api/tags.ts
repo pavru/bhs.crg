@@ -17,7 +17,7 @@ export const FUNCTIONAL_TAG = {
   datasetHasTitleBlock: 'dataset.hasTitleBlock',
 } as const;
 
-export type TagScope = 'Field' | 'Type' | 'Dataset';
+export type TagScope = 'Field' | 'Type' | 'Dataset' | 'GostDocument';
 
 export interface TagDefinition {
   code: string;
@@ -42,7 +42,10 @@ export function fieldTags(all: TagDefinition[] | undefined, fieldType: string): 
 }
 
 export function typeTags(all: TagDefinition[] | undefined, kind: string): TagDefinition[] {
-  return (all ?? []).filter(t => t.scope === 'Type' && (t.appliesTo.length === 0 || t.appliesTo.includes(kind)));
+  // Type-тэги + GostDocument-тэги (issue #29): пометив тип тэгом таблицы (Спецификация/Кабельный
+  // журнал), админ объявляет его целевым типом материализации для таких таблиц ГОСТ-документов.
+  return (all ?? []).filter(t => (t.scope === 'Type' || t.scope === 'GostDocument')
+    && (t.appliesTo.length === 0 || t.appliesTo.includes(kind)));
 }
 
 export function datasetTags(all: TagDefinition[] | undefined): TagDefinition[] {

@@ -3,6 +3,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.QualityDocs;
+using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Infrastructure.Persistence;
@@ -478,6 +479,14 @@ public class DataSetPdfRecognitionService(
             "Распознавание групп листов PDF завершено", msg, "Распознавание PDF", ct: ct);
     }
 
+    // Тип поля схемы → тип поля распознавания (консервативно: число/дата, остальное — строка).
+    private static string MapRecognitionType(string schemaType) => schemaType switch
+    {
+        "number" => "number",
+        "date" => "date",
+        _ => "string",
+    };
+
     private static string SanitizeFileName(string name)
     {
         var invalid = Path.GetInvalidFileNameChars();
@@ -726,10 +735,34 @@ public class DataSetPdfRecognitionService(
         if (group is null)
             throw new ArgumentException("Документ с указанной страницей не найден в группировке.");
 
+        // Тэг таблицы документа → целевой ТИП, объявивший этот тэг (issue #29, «тип объявляет тэг»):
+        // таблица распознаётся в поля типа и материализуется в него (#19). Fallback — легаси
+        // хардкод-колонки GostTableFields, пока целевой тип не объявлен (переходный период).
         var tag = (group.Tags ?? []).FirstOrDefault(t => GostTableFields.ColumnsForTag(t) is not null);
-        var columns = tag is null ? null : GostTableFields.ColumnsForTag(tag);
-        if (columns is null)
+        if (tag is null)
             throw new ArgumentException("У документа не задан тип таблицы (спецификация/кабельный журнал).");
+
+        var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
+        var targetType = allTypes.FirstOrDefault(t => SchemaTags.TypeHasTag(t, allTypes, tag));
+
+        IReadOnlyList<RecognitionField> columns;
+        List<SchemaFieldInfo> typeFields = [];
+        if (targetType is not null)
+        {
+            var typesById = allTypes.ToDictionary(t => t.Id);
+            typeFields = DocumentTypeSchemaReader.EffectiveFields(targetType.Id, typesById)
+                .Where(f => SchemaFieldKinds.IsScalar(f.Type))
+                .ToList();
+            if (typeFields.Count == 0)
+                throw new ArgumentException($"У типа «{targetType.Name}» нет скалярных полей для распознавания таблицы.");
+            columns = typeFields
+                .Select(f => new RecognitionField(f.Key, f.Title ?? f.Key, MapRecognitionType(f.Type)))
+                .ToList();
+        }
+        else
+        {
+            columns = GostTableFields.ColumnsForTag(tag)!;
+        }
 
         await using var stream = await blob.DownloadAsync(documents.File.BlobPath, ct);
         using var ms = new MemoryStream();
@@ -780,6 +813,10 @@ public class DataSetPdfRecognitionService(
             db.DataSetSources.Add(tableSource);
         }
         tableSource.UpdateCache(schemaJson, rows.Count, dataJson);
+        // Сходимость с #19 (issue #29): тэг разрешился в тип → источник-таблица материализуется в него.
+        // Маппинг идентичный (ключ→колонка) — распознавали прямо в ключи полей типа.
+        if (targetType is not null)
+            tableSource.SetMaterialization(targetType.Id, JsonSerializer.Serialize(typeFields.ToDictionary(f => f.Key, f => f.Key)));
         await db.SaveChangesAsync(ct);
         await notifications.PublishAsync(NotificationSeverity.Info, "Таблица распознана",
             $"«{sourceName}» — строк: {rows.Count}. Доступна как отдельный источник (выгрузка XLSX/CSV).", "Распознавание PDF", ct: ct);

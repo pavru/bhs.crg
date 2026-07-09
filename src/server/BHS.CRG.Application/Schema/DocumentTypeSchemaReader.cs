@@ -3,8 +3,15 @@ using BHS.CRG.Domain.Documents;
 
 namespace BHS.CRG.Application.Schema;
 
-/// <summary>Поле эффективной схемы типа: ключ, тип (string/complex/array/doc-ref/doc-array/…), typeId (для составных/массивов/ссылок).</summary>
-public record SchemaFieldInfo(string Key, string Type, Guid? TypeId);
+/// <summary>Поле эффективной схемы типа: ключ, тип (string/complex/array/doc-ref/doc-array/…), typeId (для составных/массивов/ссылок), заголовок.</summary>
+public record SchemaFieldInfo(string Key, string Type, Guid? TypeId, string? Title = null);
+
+/// <summary>Скалярное ли поле (пригодное для табличного распознавания/материализации из плоских колонок).</summary>
+public static class SchemaFieldKinds
+{
+    private static readonly HashSet<string> NonScalar = ["complex", "array", "doc-ref", "doc-array", "file", "image"];
+    public static bool IsScalar(string type) => !NonScalar.Contains(type);
+}
 
 /// <summary>
 /// Backend-чтение эффективной схемы типа документа (с учётом наследования по ParentId) — аналог
@@ -85,7 +92,8 @@ public static class DocumentTypeSchemaReader
                 var type = f.TryGetProperty("type", out var ty) && ty.ValueKind == JsonValueKind.String ? ty.GetString()! : "string";
                 Guid? typeId = f.TryGetProperty("typeId", out var ti) && ti.ValueKind == JsonValueKind.String
                     && Guid.TryParse(ti.GetString(), out var g) ? g : null;
-                fields.Add(new SchemaFieldInfo(key, type, typeId));
+                var title = f.TryGetProperty("title", out var tl) && tl.ValueKind == JsonValueKind.String ? tl.GetString() : null;
+                fields.Add(new SchemaFieldInfo(key, type, typeId, title));
             }
 
         if (root.TryGetProperty("excludedFields", out var ex) && ex.ValueKind == JsonValueKind.Array)
