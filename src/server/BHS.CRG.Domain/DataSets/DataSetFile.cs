@@ -16,6 +16,25 @@ public class DataSetFile : Entity
     private readonly List<DataSetSource> _sources = [];
     public IReadOnlyList<DataSetSource> Sources => _sources.AsReadOnly();
 
+    /// <summary>
+    /// Препроцессинг (issue #27/#28): хардкод-профиль распознавания, породивший структуру набора
+    /// (для PDF — «Gost»/«Invoice»). Null — препроцессинга нет (CSV/XLSX/XML/JSON — уже структурны).
+    /// </summary>
+    public string? PreprocessingProfile { get; private set; }
+
+    /// <summary>
+    /// Авторитетная группировка страниц набора (JSONB, <see cref="GostGroupingData"/> с id групп) —
+    /// источник истины препроцессинга. Проекции (обложка/титул/документы/таблицы) — производные
+    /// источники, пересчитываемые отсюда в одной точке. Ранее жила на источнике gost-documents.
+    /// </summary>
+    public string? Grouping { get; private set; }
+
+    /// <summary>
+    /// true — блоб заменён ПОСЛЕ распознавания: группировка/проекции относятся к прежнему содержимому.
+    /// Сбрасывается при следующем распознавании. Ранее <see cref="DataSetSource.RecognitionStale"/>.
+    /// </summary>
+    public bool RecognitionStale { get; private set; }
+
     private DataSetFile() { }
 
     public static DataSetFile Create(string name, DataSetFormat format, string blobPath,
@@ -44,6 +63,28 @@ public class DataSetFile : Entity
     {
         BlobPath = newBlobPath;
         Format = newFormat;
+        TouchUpdatedAt();
+    }
+
+    /// <summary>Задать профиль препроцессинга набора (issue #28). Null — снять.</summary>
+    public void SetPreprocessingProfile(string? profile)
+    {
+        PreprocessingProfile = string.IsNullOrWhiteSpace(profile) ? null : profile.Trim();
+        TouchUpdatedAt();
+    }
+
+    /// <summary>Задать/обновить авторитетную группировку набора (JSON GostGroupingData) и снять stale.</summary>
+    public void SetGrouping(string? groupingJson)
+    {
+        Grouping = groupingJson;
+        RecognitionStale = false;
+        TouchUpdatedAt();
+    }
+
+    /// <summary>Пометить набор устаревшим — блоб заменён после распознавания (данные к прежнему файлу).</summary>
+    public void MarkRecognitionStale()
+    {
+        RecognitionStale = true;
         TouchUpdatedAt();
     }
 }

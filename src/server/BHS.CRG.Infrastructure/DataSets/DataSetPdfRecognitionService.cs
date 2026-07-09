@@ -95,10 +95,8 @@ public class DataSetPdfRecognitionService(
         if (isGost)
         {
             // 409-проверка ручной правки — ДО постановки в фон (чтобы диалог подтверждения был интерактивным).
-            var documentsSource = source.SheetOrPath == PdfProfiles.GostDocumentsMarker
-                ? source
-                : await db.DataSetSources.AsNoTracking().FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostDocumentsMarker, ct);
-            var existingGrouping = ParseGrouping(documentsSource?.GostGrouping);
+            // Группировка живёт на НАБОРЕ (issue #28), не на источнике.
+            var existingGrouping = ParseGrouping(source.File.Grouping);
             if (existingGrouping is { ManuallyEdited: true } && !confirm)
                 throw new InvalidOperationException(
                     "Разбиение этого источника было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
@@ -123,10 +121,8 @@ public class DataSetPdfRecognitionService(
         {
             // Ручная правка группировки — дороже автораспознавания LLM-вызовов (пользователь
             // руками разбирал документы) — не затираем без явного согласия.
-            var documentsSource = source.SheetOrPath == PdfProfiles.GostDocumentsMarker
-                ? source
-                : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostDocumentsMarker, ct);
-            var existingGrouping = ParseGrouping(documentsSource?.GostGrouping);
+            // Группировка живёт на НАБОРЕ (issue #28).
+            var existingGrouping = ParseGrouping(source.File.Grouping);
             if (existingGrouping is { ManuallyEdited: true } && !confirm)
                 throw new InvalidOperationException(
                     "Разбиение этого источника было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
@@ -424,7 +420,10 @@ public class DataSetPdfRecognitionService(
         // Единая постраничная группировка (обложка/титул/документы как группы) — источник истины,
         // из которого проекцией получаем строки трёх источников. Одна точка агрегации полей.
         var routed = GostPageGrouper.Group(rows);
-        var unified = GostUnifiedGroupingBuilder.Build(routed, rows, manuallyEdited: false);
+        // Стабильные id групп (issue #28) — переносим из предыдущей группировки НАБОРА при перераспознавании,
+        // чтобы производные табличные источники (gost-table:{id}) не осиротели (P1).
+        var existingGrouping = ParseGrouping(source.File.Grouping);
+        var unified = GostStableIds.Assign(GostUnifiedGroupingBuilder.Build(routed, rows, manuallyEdited: false), existingGrouping);
         var projected = GostGroupingProjection.Project(unified);
         var baseColumnPaths = GostTitleBlockFields.All.Select(f => f.Path).ToArray();
         // Обложка/титул распознаются своим набором полей — и колонки их источников из него же,
@@ -448,7 +447,7 @@ public class DataSetPdfRecognitionService(
         // Автораспознавание всегда перезаписывает предыдущую (в т.ч. ручную) группировку —
         // ManuallyEdited=false; предупреждение о потере ручных правок показывает фронт ПЕРЕД вызовом
         // (см. 409 Conflict в RecognizePdfSourceAsync, когда ManuallyEdited уже true и без confirm).
-        documents.SetGostGrouping(JsonSerializer.Serialize(unified));
+        source.File.SetGrouping(JsonSerializer.Serialize(unified));
         var invalidatedTables = await ReprojectTableSourcesAsync(documents.FileId, unified, ct);
 
         await db.SaveChangesAsync(ct);
@@ -491,7 +490,13 @@ public class DataSetPdfRecognitionService(
     /// маппится в группы Kind=Document с пустыми полями страниц (перераспознавание восстановит поля).</summary>
     // Толерантный разбор группировки вынесен в тестируемый GostGroupingSerialization; тонкий
     // делегат сохраняет прежние call-sites внутри сервиса.
-    private static GostGroupingData? ParseGrouping(string? json) => GostGroupingSerialization.Parse(json);
+    private static GostGroupingData? ParseGrouping(string? json)
+    {
+        var data = GostGroupingSerialization.Parse(json);
+        // Гарантируем стабильные id (issue #28): свежая группировка их уже несёт (GostStableIds.Assign);
+        // это подстраховка для группировок, прочитанных без id.
+        return data is null ? null : GostStableIds.EnsureIds(data);
+    }
 
     // ФайлПуть каждой строки прежнего реестра "Документы" — CachedData: JSON-массив объектов
     // {..., "ФайлПуть": "...", ...} (та же форма, что пишет UpdateCache выше).
@@ -574,19 +579,19 @@ public class DataSetPdfRecognitionService(
             .ToList();
         if (tableSources.Count == 0) return 0;
 
-        // Канонические первые страницы текущих документов, всё ещё помеченных табличным тэгом.
-        var validFirstPages = unified.Groups
+        // Стабильные id текущих документов, всё ещё помеченных табличным тэгом (issue #28).
+        var validGroupIds = unified.Groups
             .Where(g => g.Kind == GostGroupKind.Document && g.Pages.Count > 0
                         && (g.Tags ?? []).Any(t => GostTableFields.ColumnsForTag(t) is not null))
-            .Select(g => g.Pages.Min(p => p.PageIndex))
+            .Select(g => g.Id)
             .ToHashSet();
 
         var removed = 0;
         foreach (var ts in tableSources)
         {
-            var pageStr = ts.SheetOrPath[PdfProfiles.GostTableMarkerPrefix.Length..];
-            if (int.TryParse(pageStr, out var p) && validFirstPages.Contains(p))
-                continue; // документ сохранился — оставляем табличный источник как есть
+            var idStr = ts.SheetOrPath[PdfProfiles.GostTableMarkerPrefix.Length..];
+            if (Guid.TryParse(idStr, out var gid) && validGroupIds.Contains(gid))
+                continue; // документ сохранился (id совпал) — оставляем табличный источник как есть
 
             var boundCount = await db.DataSetBindings.CountAsync(b => b.SourceId == ts.Id, ct);
             if (boundCount > 0)
@@ -621,7 +626,7 @@ public class DataSetPdfRecognitionService(
         var documentRows = await SplitAndUploadDocumentsAsync(bytes, projected.Documents, overrideIdentityFromGroup: true, source.Id, ct);
 
         source.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(documentsColumnPaths, documentRows)), documentRows.Count, JsonSerializer.Serialize(documentRows));
-        source.SetGostGrouping(JsonSerializer.Serialize(unified));
+        source.File.SetGrouping(JsonSerializer.Serialize(unified));
 
         var cover = await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostCoverMarker, ct);
         var titlePage = await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostTitlePageMarker, ct);
@@ -643,7 +648,7 @@ public class DataSetPdfRecognitionService(
             throw new ArgumentException("Ручная корректировка разбиения доступна только для источника «Документы» ГОСТ-профиля.");
 
         var pageCount = await GetPdfPageCountAsync(source.File.BlobPath, ct);
-        var grouping = ParseGrouping(source.GostGrouping);
+        var grouping = ParseGrouping(source.File.Grouping);
         var groups = (grouping?.Groups ?? [])
             .Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags))
             .ToList();
@@ -689,7 +694,7 @@ public class DataSetPdfRecognitionService(
         if (documents.SheetOrPath != PdfProfiles.GostDocumentsMarker)
             throw new ArgumentException("Тэги документа доступны только для источника «Документы» ГОСТ-профиля.");
 
-        var grouping = ParseGrouping(documents.GostGrouping);
+        var grouping = ParseGrouping(documents.File.Grouping);
         if (grouping is null)
             throw new ArgumentException("Группировка ещё не распознана.");
         // Оставляем только известные тэги типа таблицы (не даём проставить произвольные).
@@ -699,7 +704,7 @@ public class DataSetPdfRecognitionService(
                 ? g with { Tags = clean.Count > 0 ? clean : null }
                 : g)
             .ToList();
-        documents.SetGostGrouping(JsonSerializer.Serialize(new GostGroupingData(updated, grouping.ManuallyEdited)));
+        documents.File.SetGrouping(JsonSerializer.Serialize(new GostGroupingData(updated, grouping.ManuallyEdited)));
         await db.SaveChangesAsync(ct);
 
         var pageCount = await GetPdfPageCountAsync(documents.File.BlobPath, ct);
@@ -715,7 +720,7 @@ public class DataSetPdfRecognitionService(
         if (documents.SheetOrPath != PdfProfiles.GostDocumentsMarker)
             throw new ArgumentException("Распознавание таблицы доступно только для источника «Документы» ГОСТ-профиля.");
 
-        var grouping = ParseGrouping(documents.GostGrouping);
+        var grouping = ParseGrouping(documents.File.Grouping);
         var group = grouping?.Groups.FirstOrDefault(
             g => g.Kind == GostGroupKind.Document && g.Pages.Any(p => p.PageIndex == firstPageIndex));
         if (group is null)
@@ -759,8 +764,9 @@ public class DataSetPdfRecognitionService(
         var canonicalFirstPage = pageIndices[0];
         var sourceName = string.IsNullOrWhiteSpace(group.Name) ? $"Таблица (стр. {canonicalFirstPage + 1})" : group.Name!;
 
-        // Идемпотентно: один табличный источник на документ (ключ — каноническая первая страница документа).
-        var marker = $"{PdfProfiles.GostTableMarkerPrefix}{canonicalFirstPage}";
+        // Идемпотентно: один табличный источник на документ. Ключ — СТАБИЛЬНЫЙ id группы (issue #28),
+        // а не firstPageIndex: переживает перераспознавание/сдвиг страниц — источник не осиротеет (P1).
+        var marker = $"{PdfProfiles.GostTableMarkerPrefix}{group.Id}";
         var tableSource = await db.DataSetSources.FirstOrDefaultAsync(
             s => s.FileId == documents.FileId && s.SheetOrPath == marker, ct);
         if (tableSource is null)
@@ -793,7 +799,7 @@ public class DataSetPdfRecognitionService(
         if (source.SheetOrPath != PdfProfiles.GostDocumentsMarker)
             throw new ArgumentException("Перераспознавание документа доступно только для источника «Документы» ГОСТ-профиля.");
 
-        var grouping = ParseGrouping(source.GostGrouping);
+        var grouping = ParseGrouping(source.File.Grouping);
         var groups = grouping?.Groups.ToList();
         var targetIdx = groups?.FindIndex(g => g.Kind == GostGroupKind.Document && g.Pages.Any(p => p.PageIndex == firstPageIndex)) ?? -1;
         if (grouping is null || groups is null || targetIdx < 0)
@@ -884,10 +890,13 @@ public class DataSetPdfRecognitionService(
             .ToList();
         var freshName = newPages.Select(pg => pg.Fields.GetValueOrDefault("НаименованиеДокумента")).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
         var freshShifr = newPages.Select(pg => pg.Fields.GetValueOrDefault("Шифр")).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
-        groups[targetIdx] = new GostGroupingGroup(GostGroupKind.Document,
-            string.IsNullOrWhiteSpace(freshShifr) ? target.Code : freshShifr,
-            string.IsNullOrWhiteSpace(freshName) ? target.Name : freshName,
-            newPages, target.Tags);
+        // Сохраняем стабильный Id и тэги документа (issue #28) — только поля/шифр/имя/страницы свежие.
+        groups[targetIdx] = target with
+        {
+            Code = string.IsNullOrWhiteSpace(freshShifr) ? target.Code : freshShifr,
+            Name = string.IsNullOrWhiteSpace(freshName) ? target.Name : freshName,
+            Pages = newPages,
+        };
         var unified = new GostGroupingData(groups, grouping.ManuallyEdited);
 
         await MaterializeGroupingAsync(source, unified, bytes, ct);
@@ -922,7 +931,7 @@ public class DataSetPdfRecognitionService(
 
         // Существующая единая группировка: поля страниц (для проекции без потерь при переносе
         // страницы в другую группу — сохраняет её реальные распознанные поля).
-        var existing = ParseGrouping(source.GostGrouping);
+        var existing = ParseGrouping(source.File.Grouping);
         var pageFields = new Dictionary<int, IReadOnlyDictionary<string, string?>>();
         if (existing is not null)
             foreach (var g in existing.Groups)
@@ -940,6 +949,8 @@ public class DataSetPdfRecognitionService(
                     g.Tags))
                 .ToList(),
             ManuallyEdited: true);
+        // Стабильные id (issue #28): переносим из существующей группировки по пересечению страниц.
+        unified = GostStableIds.Assign(unified, existing);
 
         await MaterializeGroupingAsync(source, unified, bytes, ct);
 

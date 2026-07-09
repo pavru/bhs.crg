@@ -49,7 +49,7 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
         var file = DataSetFile.Create("Test GOST file", DataSetFormat.Pdf, blobPath, CatalogScope.System, null);
         var source = file.AddSource("Документы", PdfProfiles.GostDocumentsMarker, "[]", 0);
         if (grouping is not null)
-            source.SetGostGrouping(JsonSerializer.Serialize(grouping));
+            file.SetGrouping(JsonSerializer.Serialize(grouping));
 
         db.DataSetFiles.Add(file);
         db.DataSetSources.Add(source);
@@ -257,35 +257,39 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
 
     // ── ApplyGroupingAsync: инвалидация осиротевших табличных источников gost-table:* (P1b/c) ──
 
+    // Стабильный id документа-группы (issue #28) — ключ производного табличного источника gost-table:{id}.
+    private static readonly Guid SpecDocId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
     private static GostGroupingData SpecGrouping() => new(
         [new GostGroupingGroup(GostGroupKind.Document, "01-ЭМ", "Спецификация",
             [new GostGroupingPage(0, new Dictionary<string, string?>()), new GostGroupingPage(1, new Dictionary<string, string?>())],
-            ["gostDoc.specification"])],
+            ["gostDoc.specification"], SpecDocId)],
         ManuallyEdited: false);
 
-    private static async Task<Guid> AddTableSourceAsync(AppDbContext db, Guid documentsSourceId, int canonicalFirstPage)
+    private static async Task<Guid> AddTableSourceAsync(AppDbContext db, Guid documentsSourceId, Guid groupId)
     {
         var documents = await db.DataSetSources.FirstAsync(s => s.Id == documentsSourceId);
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstAsync(f => f.Id == documents.FileId);
-        var table = file.AddSource("Таблица", PdfProfiles.GostTableMarkerPrefix + canonicalFirstPage, "[]", 0);
+        var table = file.AddSource("Таблица", PdfProfiles.GostTableMarkerPrefix + groupId, "[]", 0);
         db.DataSetSources.Add(table);
         await db.SaveChangesAsync();
         return table.Id;
     }
 
     [Fact]
-    public async Task ApplyGroupingAsync_OrphanedTableSource_RemovedWhenDocumentStartMoves()
+    public async Task ApplyGroupingAsync_OrphanedTableSource_RemovedWhenDocumentUntagged()
     {
         var (sourceId, scope) = await SeedGostDocumentsSourceAsync(3, SpecGrouping());
         using (scope)
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var tableId = await AddTableSourceAsync(db, sourceId, 0);
+            var tableId = await AddTableSourceAsync(db, sourceId, SpecDocId);
 
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
-            // Документ теперь начинается со стр.1 — gost-table:0 указывает в никуда, удаляется.
+            // С документа снят тэг таблицы → его gost-table-источник больше не валиден и удаляется
+            // (issue #28: инвалидация проекций по стабильному id группы, а не по firstPageIndex).
             await svc.ApplyGroupingAsync(sourceId, new ApplyGroupingInput(
-                [new GostGroupingGroupDto(GostGroupKind.Document, "01-ЭМ", "Спецификация", [1, 2], ["gostDoc.specification"])]), default);
+                [new GostGroupingGroupDto(GostGroupKind.Document, "01-ЭМ", "Спецификация", [0, 1], null)]), default);
 
             Assert.Null(await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == tableId));
         }
@@ -312,18 +316,19 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
     }
 
     [Fact]
-    public async Task ApplyGroupingAsync_ValidTableSource_KeptWhenDocumentStartUnchanged()
+    public async Task ApplyGroupingAsync_TableSource_KeptAcrossStartShift_ViaStableGroupId()
     {
         var (sourceId, scope) = await SeedGostDocumentsSourceAsync(3, SpecGrouping());
         using (scope)
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var tableId = await AddTableSourceAsync(db, sourceId, 0);
+            var tableId = await AddTableSourceAsync(db, sourceId, SpecDocId);
 
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
-            // Документ по-прежнему начинается со стр.0 и помечен спецификацией → таблица сохраняется.
+            // Документ сдвинул начало (стр.0→1), но остаётся тем же (пересечение страниц) и помечен
+            // спецификацией → стабильный id группы переносится, таблица НЕ осиротеет (issue #28, фикс P1).
             await svc.ApplyGroupingAsync(sourceId, new ApplyGroupingInput(
-                [new GostGroupingGroupDto(GostGroupKind.Document, "01-ЭМ", "Спецификация", [0, 1], ["gostDoc.specification"])]), default);
+                [new GostGroupingGroupDto(GostGroupKind.Document, "01-ЭМ", "Спецификация", [1, 2], ["gostDoc.specification"])]), default);
 
             Assert.NotNull(await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == tableId));
         }

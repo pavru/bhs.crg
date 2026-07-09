@@ -9,6 +9,9 @@ public class DataSetFileConfiguration : IEntityTypeConfiguration<DataSetFile>
     public void Configure(EntityTypeBuilder<DataSetFile> b)
     {
         b.ToTable("dataset_files");
+        b.Property(e => e.PreprocessingProfile).HasMaxLength(64);
+        b.Property(e => e.Grouping).HasColumnType("jsonb");
+        b.Property(e => e.RecognitionStale).HasDefaultValue(false);
         b.HasKey(e => e.Id);
         b.Property(e => e.Name).HasMaxLength(512).IsRequired();
         b.Property(e => e.Format).HasConversion<string>().HasMaxLength(16).IsRequired();
@@ -39,7 +42,6 @@ public class DataSetSourceConfiguration : IEntityTypeConfiguration<DataSetSource
         b.Property(e => e.SortSpec).HasColumnType("jsonb");
         b.Property(e => e.CachedData).HasColumnType("jsonb");
         b.Property(e => e.Tags).HasColumnType("jsonb");
-        b.Property(e => e.GostGrouping).HasColumnType("jsonb");
         b.Property(e => e.MaterializeTypeId);
         b.Property(e => e.MaterializeMapping).HasColumnType("jsonb");
         b.HasMany(e => e.Bindings)
