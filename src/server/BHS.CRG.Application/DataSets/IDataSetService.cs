@@ -40,7 +40,17 @@ public interface IDataSetService
     /// <summary>
     /// Ручное создание PDF-источника (без Extraction через builder — см. RecognizePdfSourceAsync).
     /// </summary>
-    Task<DataSetSourceDto> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct);
+    /// <summary>Выбор профиля препроцессинга PDF-набора. ГОСТ (issue #38) ставит профиль на НАБОР и
+    /// возвращает null (источников не создаёт — они кандидаты после распознавания); «Счёт» создаёт
+    /// пару источников и возвращает шапку.</summary>
+    Task<DataSetSourceDto?> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct);
+
+    /// <summary>Планирование распознавания ГОСТ-набора по fileId (409 при неподтверждённой ручной правке).</summary>
+    Task<RecognizePlan?> PlanFileRecognitionAsync(Guid fileId, bool confirm, CancellationToken ct);
+
+    /// <summary>Распознавание ГОСТ-комплекта по НАБОРУ (issue #38): пишет Grouping (сырьё), источников
+    /// не создаёт. Штатно через фоновую задачу (Job.TargetId=fileId).</summary>
+    Task RecognizeFileAsync(Guid fileId, bool confirm, CancellationToken ct);
 
     /// <summary>
     /// Распознаёт основную надпись каждой страницы PDF (по одной странице за вызов, через
@@ -64,23 +74,23 @@ public interface IDataSetService
     /// разбиения (миниатюры + перенос страниц между документами). Null, если источник не найден
     /// или не относится к ГОСТ-профилю "Документы".
     /// </summary>
-    Task<GostGroupingDto?> GetPagesAsync(Guid sourceId, CancellationToken ct);
+    Task<GostGroupingDto?> GetPagesAsync(Guid fileId, CancellationToken ct);
 
     /// <summary>Миниатюра одной страницы исходного PDF (PNG, низкое DPI — только для узнавания
     /// документа глазами, не OCR) — рендер на лету через PdfRasterizer, без LLM.</summary>
-    Task<byte[]?> GetPageThumbnailAsync(Guid sourceId, int pageIndex, CancellationToken ct, int dpi = 96);
+    Task<byte[]?> GetPageThumbnailAsync(Guid fileId, int pageIndex, CancellationToken ct, int dpi = 96);
 
     /// <summary>
     /// Применяет ручную корректировку разбиения — заменяет группировку целиком, физически
     /// разрезает PDF заново по новым группам, обновляет реестр (CachedData) и помечает
     /// GostGrouping.ManuallyEdited=true. Осиротевшие blob'ы прежних под-PDF удаляются best-effort.
     /// </summary>
-    Task<GostGroupingDto?> ApplyGroupingAsync(Guid sourceId, ApplyGroupingInput input, CancellationToken ct);
+    Task<GostGroupingDto?> ApplyGroupingAsync(Guid fileId, ApplyGroupingInput input, CancellationToken ct);
     /// <summary>Лёгкая установка тэгов документа (тип таблицы) без пересборки разбиения.</summary>
-    Task<GostGroupingDto?> SetDocumentTagsAsync(Guid documentsSourceId, int firstPageIndex, IReadOnlyList<string> tags, CancellationToken ct);
+    Task<GostGroupingDto?> SetDocumentTagsAsync(Guid fileId, int firstPageIndex, IReadOnlyList<string> tags, CancellationToken ct);
     /// <summary>Распознать таблицу помеченного документа ГОСТ-профиля (спецификация/кабельный журнал)
     /// и создать/обновить отдельный табличный источник. firstPageIndex — любая страница документа.</summary>
-    Task<DataSetSourceDto?> RecognizeDocumentTableAsync(Guid documentsSourceId, int firstPageIndex, CancellationToken ct);
+    Task<DataSetSourceDto?> RecognizeDocumentTableAsync(Guid fileId, int firstPageIndex, CancellationToken ct);
 
     /// <summary>Пути XML-записей внутри ZIP-файла — для выбора при ручном создании источника.</summary>
     Task<IReadOnlyList<string>> ListZipXmlEntriesAsync(Guid fileId, CancellationToken ct);

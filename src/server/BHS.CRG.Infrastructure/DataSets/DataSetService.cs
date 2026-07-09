@@ -65,22 +65,26 @@ public class DataSetService(
         sources.ApplyProcessingTemplateAsync(sourceId, templateId, ct);
 
     // ── PDF-распознавание ───────────────────────────────────────────────────────
-    public Task<DataSetSourceDto> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct) =>
+    public Task<DataSetSourceDto?> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct) =>
         pdfRecognition.CreatePdfSourceAsync(fileId, input, ct);
     public Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, bool confirm, CancellationToken ct) =>
         pdfRecognition.RecognizePdfSourceAsync(sourceId, confirm, ct);
     public Task<RecognizePlan?> PlanRecognitionAsync(Guid sourceId, bool confirm, CancellationToken ct) =>
         pdfRecognition.PlanRecognitionAsync(sourceId, confirm, ct);
-    public Task<GostGroupingDto?> GetPagesAsync(Guid sourceId, CancellationToken ct) =>
-        pdfRecognition.GetPagesAsync(sourceId, ct);
-    public Task<byte[]?> GetPageThumbnailAsync(Guid sourceId, int pageIndex, CancellationToken ct, int dpi = 96) =>
-        pdfRecognition.GetPageThumbnailAsync(sourceId, pageIndex, ct, dpi);
-    public Task<GostGroupingDto?> ApplyGroupingAsync(Guid sourceId, ApplyGroupingInput input, CancellationToken ct) =>
-        pdfRecognition.ApplyGroupingAsync(sourceId, input, ct);
-    public Task<GostGroupingDto?> SetDocumentTagsAsync(Guid documentsSourceId, int firstPageIndex, IReadOnlyList<string> tags, CancellationToken ct) =>
-        pdfRecognition.SetDocumentTagsAsync(documentsSourceId, firstPageIndex, tags, ct);
-    public Task<DataSetSourceDto?> RecognizeDocumentTableAsync(Guid documentsSourceId, int firstPageIndex, CancellationToken ct) =>
-        pdfRecognition.RecognizeDocumentTableAsync(documentsSourceId, firstPageIndex, ct);
+    public Task<RecognizePlan?> PlanFileRecognitionAsync(Guid fileId, bool confirm, CancellationToken ct) =>
+        pdfRecognition.PlanFileRecognitionAsync(fileId, confirm, ct);
+    public Task RecognizeFileAsync(Guid fileId, bool confirm, CancellationToken ct) =>
+        pdfRecognition.RecognizeFileAsync(fileId, confirm, ct);
+    public Task<GostGroupingDto?> GetPagesAsync(Guid fileId, CancellationToken ct) =>
+        pdfRecognition.GetPagesAsync(fileId, ct);
+    public Task<byte[]?> GetPageThumbnailAsync(Guid fileId, int pageIndex, CancellationToken ct, int dpi = 96) =>
+        pdfRecognition.GetPageThumbnailAsync(fileId, pageIndex, ct, dpi);
+    public Task<GostGroupingDto?> ApplyGroupingAsync(Guid fileId, ApplyGroupingInput input, CancellationToken ct) =>
+        pdfRecognition.ApplyGroupingAsync(fileId, input, ct);
+    public Task<GostGroupingDto?> SetDocumentTagsAsync(Guid fileId, int firstPageIndex, IReadOnlyList<string> tags, CancellationToken ct) =>
+        pdfRecognition.SetDocumentTagsAsync(fileId, firstPageIndex, tags, ct);
+    public Task<DataSetSourceDto?> RecognizeDocumentTableAsync(Guid fileId, int firstPageIndex, CancellationToken ct) =>
+        pdfRecognition.RecognizeDocumentTableAsync(fileId, firstPageIndex, ct);
 
     // ── Processing templates ────────────────────────────────────────────────────
     public Task<IReadOnlyList<DataSetProcessingTemplateDto>> ListProcessingTemplatesAsync(CancellationToken ct) =>
