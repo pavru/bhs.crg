@@ -40,6 +40,10 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
 }) {
   const tabular = isTabularFormat(format);
   const isZip = format === 'Zip';
+  const isPdf = format === 'Pdf';
+  // PDF-источник — проекция из СЫРЬЯ распознанного набора (issue #40): выбор кандидата
+  // (Обложка/Титул/Документы), как выбор листа в Excel. Никаких XPath/колонок.
+  const usesCandidates = tabular || isPdf;
   const needsSheet = format === 'Xls' || format === 'Xlsx';
   const pathFormat: PathFormat = format === 'Json' ? 'Json' : 'Xml';
   const PathBuilder = pathFormat === 'Json' ? JsonPathBuilder : XPathBuilder;
@@ -57,17 +61,18 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
 
   const { data: zipEntries = [] } = useListZipXmlEntries(isZip ? fileId : undefined);
   // Кандидаты (листы/«весь файл») — подсказки для табличных форматов в режиме создания.
-  const { data: candidates = [] } = useSourceCandidates(tabular ? fileId : undefined);
+  const { data: candidates = [] } = useSourceCandidates(usesCandidates ? fileId : undefined);
   const create = useCreateDataSetSource();
   const update = useUpdateDataSetSource();
   const isPending = create.isPending || update.isPending;
 
-  // Новый табличный источник: как только приедут кандидаты — подставить первый лист/«весь файл» и имя.
+  // Новый источник из кандидата (лист/«весь файл»/PDF-проекция): как только приедут кандидаты —
+  // подставить первый и его имя.
   useEffect(() => {
-    if (initial || !tabular || candidates.length === 0) return;
+    if (initial || !usesCandidates || candidates.length === 0) return;
     setSheetOrPath(prev => prev || candidates[0].sheetOrPath);
     setName(prev => prev || candidates[0].name);
-  }, [initial, tabular, candidates]);
+  }, [initial, usesCandidates, candidates]);
 
   // Текущее значение может отсутствовать в списке (архив обновился) — не терять его молча.
   const entryOptions = entryPath && !zipEntries.includes(entryPath) ? [entryPath, ...zipEntries] : zipEntries;
@@ -98,7 +103,11 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
     let finalSheetOrPath: string;
     let finalColumns: ColumnExprDef[] | null;
 
-    if (tabular) {
+    if (isPdf) {
+      if (!sheetOrPath.trim()) { setError('Выберите данные набора для источника'); return; }
+      finalSheetOrPath = sheetOrPath.trim(); // маркер кандидата (gost-cover/gost-titlepage/gost-documents)
+      finalColumns = null;                    // проекция из группировки, колонки готовы
+    } else if (tabular) {
       if (needsSheet && !sheetOrPath.trim()) { setError('Выберите лист'); return; }
       // CSV — весь файл: extraction тривиальна, sheetOrPath из кандидата (обычно "default").
       finalSheetOrPath = sheetOrPath.trim() || candidates[0]?.sheetOrPath || 'default';
@@ -150,7 +159,24 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
             className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm" />
         </div>
 
-        {tabular ? (
+        {isPdf ? (
+          <div>
+            <label className="block text-sm font-medium text-fg1 mb-1">Данные набора</label>
+            <select value={sheetOrPath} onChange={e => { setSheetOrPath(e.target.value); const c = candidates.find(x => x.sheetOrPath === e.target.value); if (c) setName(prev => prev || c.name); }}
+              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm">
+              <option value="">— выберите —</option>
+              {candidates.map(c => (
+                <option key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</option>
+              ))}
+            </select>
+            {candidates.length === 0 && (
+              <p className="text-xs text-fg4 mt-1">Набор ещё не распознан — сначала запустите «Распознать».</p>
+            )}
+            {selectedCandidate && selectedCandidate.columns.length > 0 && (
+              <p className="text-xs text-fg4 mt-1">Колонки: {selectedCandidate.columns.join(', ')}</p>
+            )}
+          </div>
+        ) : tabular ? (
           needsSheet ? (
             <div>
               <label className="block text-sm font-medium text-fg1 mb-1">Лист</label>

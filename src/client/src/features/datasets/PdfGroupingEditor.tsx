@@ -1,11 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, Save, ZoomIn } from 'lucide-react';
-import { useFilePages, useApplyGrouping, loadPageThumbnailUrl, loadPageImageUrl } from '@/shared/api/datasets';
+import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, Save, ZoomIn, Table2, RefreshCw } from 'lucide-react';
+import {
+  useFilePages, useApplyGrouping, useRecognizeDocumentTable, useRecognizeDocument,
+  loadPageThumbnailUrl, loadPageImageUrl,
+} from '@/shared/api/datasets';
 import type { GostGroupingGroup, GostGroupKind } from '@/shared/api/types';
 import { Modal } from '@/shared/ui/Modal';
 
 const DEFAULT_CODE = '(без шифра)';
+/** Тэги типа таблицы документа (спецификация / кабельный журнал) — распознаются и выгружаются. */
+const TABLE_TAGS: { code: string; label: string }[] = [
+  { code: 'gostDoc.specification', label: 'Спецификация / ведомость' },
+  { code: 'gostDoc.cableJournal', label: 'Кабельный журнал' },
+];
 const KIND_LABEL: Record<Exclude<GostGroupKind, 'Document'>, string> = {
   Cover: 'Обложка',
   TitlePage: 'Титульный лист',
@@ -200,20 +208,27 @@ function SelectionActionBar({
 // ─── Группа (документ / обложка / титульный лист) ────────────────────────────────────────────────
 
 function GroupSection({
-  fileId, group, otherGroups, selected, suspiciousOnly,
-  onToggle, onRename, onMoveSelected, onSplitSelected, onDisband, onView,
+  fileId, group, otherGroups, selected, suspiciousOnly, dirty,
+  onToggle, onRename, onMoveSelected, onSplitSelected, onDisband, onView, onSetTag,
+  onRecognizeTable, onRecognizeDoc, tableBusyPage, docBusyPage,
 }: {
   fileId: string;
   group: EditableGroup;
   otherGroups: EditableGroup[];
   selected: Set<number>;
   suspiciousOnly: boolean;
+  dirty: boolean;
   onToggle: (pageIndex: number, e: React.MouseEvent) => void;
   onRename: (groupId: string, code: string, name: string | null) => void;
   onMoveSelected: (targetGroupId: string | 'new') => void;
   onSplitSelected: () => void;
   onDisband: (groupId: string) => void;
   onView: (pageIndex: number) => void;
+  onSetTag: (groupId: string, tag: string) => void;
+  onRecognizeTable: (firstPageIndex: number) => void;
+  onRecognizeDoc: (firstPageIndex: number) => void;
+  tableBusyPage: number | null;
+  docBusyPage: number | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [codeVal, setCodeVal] = useState(group.code);
@@ -221,6 +236,8 @@ function GroupSection({
   const isSpecial = group.kind !== 'Document';
   const suspicious = isSuspicious(group);
   const hasSelectionHere = group.pageIndices.some(p => selected.has(p));
+  const firstPage = group.pageIndices[0];
+  const currentTag = group.tags.find(t => TABLE_TAGS.some(x => x.code === t)) ?? '';
 
   // В режиме «только подозрительные» скрываем обложку/титул и полностью корректные документы.
   if (suspiciousOnly && (isSpecial || !suspicious)) return null;
@@ -267,6 +284,34 @@ function GroupSection({
         )}
       </div>
 
+      {/* Тэг типа таблицы + распознавание таблицы/документа — препроцессинг на уровне набора (issue #40).
+          Таблица/перераспознавание работают по СОХРАНЁННОЙ группировке (первая страница), поэтому при
+          несохранённых правках заблокированы с подсказкой. */}
+      {!isSpecial && firstPage !== undefined && (
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <select value={currentTag} onChange={e => onSetTag(group.id, e.target.value)}
+            title="Тип таблицы документа — распознаётся и выгружается (XLSX/CSV)"
+            className="text-[11px] border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[170px] disabled:opacity-50">
+            <option value="">— тип таблицы</option>
+            {TABLE_TAGS.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
+          </select>
+          {currentTag && (
+            <button onClick={() => onRecognizeTable(firstPage)} disabled={dirty || tableBusyPage === firstPage}
+              title={dirty ? 'Сначала сохраните разбиение' : 'Распознать таблицу этого документа как отдельный источник данных'}
+              className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-base disabled:opacity-50">
+              {tableBusyPage === firstPage ? <Loader2 size={12} className="animate-spin" /> : <Table2 size={12} />}
+              Таблица
+            </button>
+          )}
+          <button onClick={() => onRecognizeDoc(firstPage)} disabled={dirty || docBusyPage === firstPage}
+            title={dirty ? 'Сначала сохраните разбиение' : 'Перераспознать только этот документ (не весь набор)'}
+            className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-base disabled:opacity-50">
+            {docBusyPage === firstPage ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            Перераспознать
+          </button>
+        </div>
+      )}
+
       {group.pageIndices.length === 0 ? (
         <p className="text-xs text-fg4 italic">Нет страниц — перенесите сюда выделенные из других групп.</p>
       ) : (
@@ -298,6 +343,8 @@ export function PdfGroupingEditor() {
   const navigate = useNavigate();
   const { data, isLoading, error } = useFilePages(fileId ?? null);
   const applyMutation = useApplyGrouping(fileId!);
+  const recognizeTable = useRecognizeDocumentTable(fileId!);
+  const recognizeDoc = useRecognizeDocument(fileId!);
 
   const [groups, setGroups] = useState<EditableGroup[] | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -378,6 +425,11 @@ export function PdfGroupingEditor() {
     mutateGroups(prev => prev.map(g => g.id === groupId ? { ...g, code, name } : g));
   }
 
+  // Тип таблицы документа — локальная правка, сохраняется вместе с разбиением («Сохранить»).
+  function handleSetTag(groupId: string, tag: string) {
+    mutateGroups(prev => prev.map(g => g.id === groupId ? { ...g, tags: tag ? [tag] : [] } : g));
+  }
+
   async function handleSave() {
     if (!groups) return;
     const payload: GostGroupingGroup[] = groups
@@ -442,9 +494,14 @@ export function PdfGroupingEditor() {
         {groups.map(g => (
           <GroupSection
             key={g.id} fileId={fileId} group={g} otherGroups={groups.filter(o => o.id !== g.id)}
-            selected={selected} suspiciousOnly={suspiciousOnly}
+            selected={selected} suspiciousOnly={suspiciousOnly} dirty={dirty}
             onToggle={toggle} onRename={handleRename} onMoveSelected={handleMoveSelected}
             onSplitSelected={handleSplitSelected} onDisband={handleDisband} onView={setViewerPage}
+            onSetTag={handleSetTag}
+            onRecognizeTable={p => recognizeTable.mutate(p)}
+            onRecognizeDoc={p => recognizeDoc.mutate(p)}
+            tableBusyPage={recognizeTable.isPending ? (recognizeTable.variables ?? null) : null}
+            docBusyPage={recognizeDoc.isPending ? (recognizeDoc.variables ?? null) : null}
           />
         ))}
 
