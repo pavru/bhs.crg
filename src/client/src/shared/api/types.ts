@@ -300,10 +300,6 @@ export interface DataSetFile {
   scopeId: string | null;
   sources: DataSetSource[];
   createdAt: string;
-  /** Происхождение (issue #38): 'Uploaded' — исходный комплект; 'DerivedFromRecognition' — вырезанный распознаванием. */
-  origin: 'Uploaded' | 'DerivedFromRecognition';
-  /** Для derived-набора — исходный набор-комплект. */
-  parentFileId: string | null;
 }
 
 /** Привязка набора данных к документу или записи каталога — только Mapping.

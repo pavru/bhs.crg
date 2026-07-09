@@ -67,8 +67,7 @@ public static class DataSetDtoMapper
 
     public static DataSetFileDto MapFile(DataSetFile f) => new(
         f.Id, f.Name, f.Format.ToString(), f.Scope.ToString(), f.ScopeId,
-        f.Sources.Select(MapSource).ToList(), f.CreatedAt,
-        f.Origin.ToString(), f.ParentFileId);
+        f.Sources.Select(MapSource).ToList(), f.CreatedAt);
 
     public static DataSetSourceDto MapSource(DataSetSource s) => new(
         s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, s.CachedSchema, s.CachedRowCount,

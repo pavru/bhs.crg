@@ -39,10 +39,6 @@ public class DataSetSourceService(
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
 
-        // Derived-набор (issue #38): один кандидат — сам набор (несомые распознанные строки).
-        if (file.Origin == Domain.DataSets.DataSetFileOrigin.DerivedFromRecognition)
-            return DerivedCandidates(file);
-
         // PDF (issue #30): кандидаты — логические таблицы распознанной группировки набора (Обложка/
         // Титульный лист), которых ещё нет как источников. «Документы» авто-создаётся при выборе профиля.
         if (file.Format == DataSetFormat.Pdf)
@@ -76,17 +72,6 @@ public class DataSetSourceService(
         var names = rows.SelectMany(r => r.Keys).Distinct().ToList();
         return names.Select(n => new DataSetColumnInfo(n,
             rows.Take(3).Select(r => r.GetValueOrDefault(n) ?? "").ToArray())).ToList();
-    }
-
-    // Derived-набор (issue #38) — один кандидат: сам набор с несомыми распознанными строками.
-    private static IReadOnlyList<DataSetSourceInfo> DerivedCandidates(Domain.DataSets.DataSetFile file)
-    {
-        if (string.IsNullOrWhiteSpace(file.RecognizedData)) return [];
-        var rowCount = 0;
-        try { rowCount = JsonSerializer.Deserialize<List<Dictionary<string, string?>>>(file.RecognizedData)?.Count ?? 0; } catch { /* пусто */ }
-        var cols = JsonSerializer.Deserialize<CachedColumnInfo[]>(file.RecognizedSchema ?? "[]", CachedSchemaJson) ?? [];
-        var columns = cols.Select(c => new DataSetColumnInfo(c.Name, c.SampleValues)).ToList();
-        return [new DataSetSourceInfo(file.Name, "recognized", columns, rowCount)];
     }
 
     public async Task<SourcePreviewDto?> PreviewSourceAsync(Guid sourceId, int maxRows, CancellationToken ct)
@@ -197,19 +182,6 @@ public class DataSetSourceService(
     {
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
-
-        // Derived-набор (issue #38): источник проецирует несомые распознанные строки набора в CachedData.
-        if (file.Origin == Domain.DataSets.DataSetFileOrigin.DerivedFromRecognition)
-        {
-            var derivedRows = file.RecognizedData ?? "[]";
-            var derivedSchema = file.RecognizedSchema ?? "[]";
-            var derivedCount = 0;
-            try { derivedCount = JsonSerializer.Deserialize<List<Dictionary<string, string?>>>(derivedRows)?.Count ?? 0; } catch { /* пусто */ }
-            var derivedSource = file.AddSource(input.Name.Trim(), "recognized", derivedSchema, derivedCount, null, derivedRows);
-            db.DataSetSources.Add(derivedSource);
-            await db.SaveChangesAsync(ct);
-            return DataSetDtoMapper.MapSource(derivedSource);
-        }
 
         // PDF (issue #30): источник-проекция (Обложка/Титул) создаётся из распознанной группировки
         // набора — не парсингом блоба. Строки проецируются и кэшируются в CachedData.

@@ -234,10 +234,7 @@ export function SourcesExpander({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<DataSetSource | 'new' | null>(null);
   const { data: templates = [] } = useListProcessingTemplates();
-  // Derived-набор (issue #38): вырезан распознаванием, несёт готовые данные — не комплект-для-распознавания.
-  // Ведёт себя как обычный данные-набор: источник создаётся из кандидата «весь набор», без «Распознать».
-  const derived = file.origin === 'DerivedFromRecognition';
-  const isPdf = file.format === 'Pdf' && !derived;
+  const isPdf = file.format === 'Pdf';
   // Управление источниками (создать/удалить) — для всех форматов (issue #20). PDF создаёт источники
   // через распознавание (PdfSourceDialog) и не редактируется вручную (см. гейт `!isPdf` у «Редактировать»);
   // прочие форматы — полное создание/редактирование/переименование/удаление.
@@ -279,22 +276,19 @@ export function SourcesExpander({
             ? `${sources.length} ${sources.length === 1 ? 'источник' : 'источника(-ов)'}`
             : 'Нет источников'}
         </button>
-        {/* PDF-набор: «Распознать» (уровень набора, issue #36) — распознаёт комплект и вырезает
-            сырые derived-наборы (issue #38). «Добавить источник» остаётся рядом (создать источник
-            вручную). Derived-набор — ни то, ни другое: источник создаётся из кандидата «весь набор». */}
+        {/* PDF-набор: «Распознать» (уровень набора, issue #36) + «Добавить источник» рядом (issue #38). */}
         {isPdf && (
           <button onClick={() => handleRecognizeDataset()} disabled={recognize.isPending || recognizing}
             className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover disabled:opacity-50">
             <ScanText size={11} /> {recognizing ? 'Распознаётся…' : primarySource ? 'Распознать заново' : 'Распознать'}
           </button>
         )}
-        {canManageExtraction && !derived && (
+        {canManageExtraction && (
           <button onClick={() => { setEditing('new'); setOpen(true); }}
             className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
             <Plus size={11} /> Добавить источник
           </button>
         )}
-        {derived && <span className="text-[10px] text-fg4 italic">вырезано распознаванием</span>}
       </div>
       {open && (
         <div className="mt-2 space-y-2 pl-3">

@@ -444,9 +444,6 @@ public class DataSetPdfRecognitionService(
 
         var documentsColumnPaths = baseColumnPaths.Concat(["КоличествоЛистов", "ФайлПуть", "РазмерБайт"]).ToArray();
         documents.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(documentsColumnPaths, documentRows)), documentRows.Count, JsonSerializer.Serialize(documentRows));
-        // issue #38 (Фаза A): вырезанный derived-набор «Документы» (реестр как самостоятельный сырой
-        // набор, несёт распознанные строки). Аддитивно к проекции-источнику «Документы» — обратимо.
-        await UpsertDerivedDocumentsDatasetAsync(source.File, bytes, projected.Documents, documentRows, documentsColumnPaths, ct);
         // Автораспознавание всегда перезаписывает предыдущую (в т.ч. ручную) группировку —
         // ManuallyEdited=false; предупреждение о потере ручных правок показывает фронт ПЕРЕД вызовом
         // (см. 409 Conflict в RecognizePdfSourceAsync, когда ManuallyEdited уже true и без confirm).
@@ -459,41 +456,6 @@ public class DataSetPdfRecognitionService(
         var failedSplits = documentRows.Count(r => string.IsNullOrEmpty(r.GetValueOrDefault("ФайлПуть")));
         await PublishGostRecognitionResultAsync(projected.Documents.Count, rows.Count, failedPages, failedSplits, invalidatedTables, ct);
         return DataSetDtoMapper.MapSource(requestedSourceId == cover?.Id ? cover : requestedSourceId == titlePage?.Id ? titlePage! : documents);
-    }
-
-    // issue #38 (Фаза A): создаёт/обновляет вырезанный derived-набор «Документы» (реестр) — самостоятельный
-    // сырой набор, несущий распознанные строки (источники их проецируют, повторно не распознают).
-    // Upsert по (Parent, OriginKey="documents"). Блоб — вырезанные страницы всех документов (провенанс).
-    private async Task UpsertDerivedDocumentsDatasetAsync(
-        DataSetFile parent, byte[] bytes, IReadOnlyList<ProjectedDocument> projectedDocs,
-        IReadOnlyList<Dictionary<string, string?>> documentRows, IReadOnlyList<string> columnPaths, CancellationToken ct)
-    {
-        const string originKey = "documents";
-        var schema = columnPaths
-            .Select(p => new DataSetColumnInfo(p, documentRows.Take(3).Select(r => r.GetValueOrDefault(p) ?? "").ToArray()))
-            .ToArray();
-        var schemaJson = DataSetDtoMapper.SerializeSchema(schema);
-        var dataJson = JsonSerializer.Serialize(documentRows);
-        var name = $"{parent.Name} — Документы";
-
-        var allPages = projectedDocs.SelectMany(d => d.PageIndices).Distinct().OrderBy(i => i).ToList();
-        string blobPath = parent.BlobPath;
-        if (allPages.Count > 0)
-        {
-            try
-            {
-                var sub = PdfPageSplitter.ExtractPages(bytes, allPages);
-                using var ms = new MemoryStream(sub);
-                blobPath = await blob.UploadAsync($"{SanitizeFileName(parent.Name)}-документы.pdf", ms, "application/pdf", ct);
-            }
-            catch (Exception ex) { logger.LogWarning(ex, "Не удалось вырезать блоб реестра документов набора {FileId}", parent.Id); }
-        }
-
-        var existing = await db.DataSetFiles.FirstOrDefaultAsync(f => f.ParentFileId == parent.Id && f.OriginKey == originKey, ct);
-        if (existing is null)
-            db.DataSetFiles.Add(DataSetFile.CreateDerived(name, blobPath, parent, originKey, dataJson, schemaJson, documentRows.Count));
-        else
-            existing.UpdateRecognizedData(name, blobPath, dataJson, schemaJson);
     }
 
     // Итоговое уведомление о распознавании групп листов PDF: Info при чистом успехе, Warning при

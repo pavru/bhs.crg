@@ -261,20 +261,6 @@ namespace BHS.CRG.Infrastructure.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
 
-                    b.Property<string>("Origin")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasDefaultValue("Uploaded");
-
-                    b.Property<string>("OriginKey")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<Guid?>("ParentFileId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("PreprocessingProfile")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -283,12 +269,6 @@ namespace BHS.CRG.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
-
-                    b.Property<string>("RecognizedData")
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("RecognizedSchema")
-                        .HasColumnType("jsonb");
 
                     b.Property<string>("Scope")
                         .IsRequired()
@@ -302,8 +282,6 @@ namespace BHS.CRG.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ParentFileId");
 
                     b.HasIndex("Scope", "ScopeId");
 
