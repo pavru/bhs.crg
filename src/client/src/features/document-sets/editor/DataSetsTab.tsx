@@ -420,7 +420,9 @@ function BindingRow({
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="text-xs text-fg4">
-              {file?.name} · {mappedCount} пол{mappedCount === 1 ? 'е' : 'я'} привязано
+              {file?.name} · {source?.materializeTypeId
+                ? `материализация → ${allDocTypes.find(t => t.id === source.materializeTypeId)?.name ?? 'тип'}`
+                : `${mappedCount} пол${mappedCount === 1 ? 'е' : 'я'} привязано`}
               {targetFieldKey && ` · таблица: ${targetFieldKey}`}
             </span>
           </div>

@@ -85,7 +85,12 @@ public class DataSetBindingService(
             {
                 var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, binding.Source, ct);
 
-                var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(binding.Mapping) ?? [];
+                // Материализованный источник (issue #19/#23): привязка без своего маппинга берёт маппинг
+                // с источника — как и резолвер генерации. Иначе превью пустое и материалы/сертификаты не
+                // извлекаются на вкладке «Документы качества».
+                var mappingJson = DataSetMappingValue.EffectiveMappingJson(
+                    binding.Mapping, binding.Source.MaterializeTypeId, binding.Source.MaterializeMapping);
+                var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson) ?? [];
 
                 if (binding.TargetFieldKey is null)
                 {
