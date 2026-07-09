@@ -72,14 +72,11 @@ public class DataSetPdfRecognitionService(
             throw new ArgumentException("На этом файле уже есть профиль «Основная надпись (ГОСТ)».");
 
         var tagsJson = input.Tags is { Count: > 0 } ? JsonSerializer.Serialize(input.Tags) : null;
-        var cover = file.AddSource($"{name} — Обложка", PdfProfiles.GostCoverMarker, "[]", 0);
-        var titlePage = file.AddSource($"{name} — Титульный лист", PdfProfiles.GostTitlePageMarker, "[]", 0);
+        // Явные источники (issue #30, унификация с #20): авто-создаём только первичный «Документы».
+        // Обложка/Титульный лист — КАНДИДАТЫ (source-candidates), пользователь создаёт их явно из
+        // распознанной группировки набора. Распознавание кэширует их, только если они уже созданы.
         var documents = file.AddSource($"{name} — Документы", PdfProfiles.GostDocumentsMarker, "[]", 0);
-        cover.SetTags(tagsJson);
-        titlePage.SetTags(tagsJson);
         documents.SetTags(tagsJson);
-        db.DataSetSources.Add(cover);
-        db.DataSetSources.Add(titlePage);
         db.DataSetSources.Add(documents);
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(documents);
@@ -257,8 +254,10 @@ public class DataSetPdfRecognitionService(
         var documents = source.SheetOrPath == PdfProfiles.GostDocumentsMarker
             ? source
             : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostDocumentsMarker, ct);
-        if (cover is null || titlePage is null || documents is null)
-            throw new ArgumentException("Не найдена тройка источников «обложка/титульный лист/документы».");
+        // Обложка/титул опциональны (issue #30) — они кандидаты, могут ещё не быть созданы; кэшируем
+        // их только если созданы. Обязателен лишь «Документы».
+        if (documents is null)
+            throw new ArgumentException("Не найден источник «Документы» ГОСТ-профиля.");
 
         await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
         using var ms = new MemoryStream();
@@ -435,8 +434,8 @@ public class DataSetPdfRecognitionService(
             columnPaths.Select(p => new DataSetColumnInfo(p,
                 data.Take(3).Select(r => r.TryGetValue(p, out var v) ? v ?? "" : "").ToArray())).ToArray();
 
-        cover.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(coverColumnPaths, projected.Cover)), projected.Cover.Count, JsonSerializer.Serialize(projected.Cover));
-        titlePage.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(coverColumnPaths, projected.TitlePage)), projected.TitlePage.Count, JsonSerializer.Serialize(projected.TitlePage));
+        cover?.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(coverColumnPaths, projected.Cover)), projected.Cover.Count, JsonSerializer.Serialize(projected.Cover));
+        titlePage?.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(coverColumnPaths, projected.TitlePage)), projected.TitlePage.Count, JsonSerializer.Serialize(projected.TitlePage));
 
         // Осиротевшие под-PDF прежнего разбиения читаем из ещё не перезаписанного CachedData — чтобы
         // удалить после успешного сохранения (иначе повторное авто-распознавание копило бы их в blob — P2).
@@ -456,7 +455,7 @@ public class DataSetPdfRecognitionService(
 
         var failedSplits = documentRows.Count(r => string.IsNullOrEmpty(r.GetValueOrDefault("ФайлПуть")));
         await PublishGostRecognitionResultAsync(projected.Documents.Count, rows.Count, failedPages, failedSplits, invalidatedTables, ct);
-        return DataSetDtoMapper.MapSource(requestedSourceId == cover.Id ? cover : requestedSourceId == titlePage.Id ? titlePage : documents);
+        return DataSetDtoMapper.MapSource(requestedSourceId == cover?.Id ? cover : requestedSourceId == titlePage?.Id ? titlePage! : documents);
     }
 
     // Итоговое уведомление о распознавании групп листов PDF: Info при чистом успехе, Warning при
