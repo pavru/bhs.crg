@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, FileText, ExternalLink, LayoutGrid, Table2, RefreshCw } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import {
-  usePreviewDataSetSource, useSourcePages, useSetDocumentTags, useRecognizeDocumentTable, useRecognizeDocument,
+  usePreviewDataSetSource, useFilePages, useSetDocumentTags, useRecognizeDocumentTable, useRecognizeDocument,
 } from '@/shared/api/datasets';
 import { openAttachmentInNewTab, formatBytes } from '@/shared/api/attachments';
 import type { DataSetPreview, DataSetSource } from '@/shared/api/types';
@@ -23,12 +23,12 @@ const TABLE_TAGS: { code: string; label: string }[] = [
  * быть пустым, если разбиение конкретного документа не удалось (backend логирует предупреждение
  * и оставляет колонку пустой) — это ожидаемо, кнопка в этом случае просто неактивна.
  */
-function GostDocumentsPreview({ sourceId, sourceName, data }: { sourceId: string; sourceName: string; data: DataSetPreview }) {
+function GostDocumentsPreview({ fileId, sourceName, data }: { fileId: string; sourceName: string; data: DataSetPreview }) {
   const navigate = useNavigate();
-  const { data: grouping } = useSourcePages(sourceId);
-  const setTags = useSetDocumentTags(sourceId);
-  const recognizeTable = useRecognizeDocumentTable(sourceId);
-  const recognizeDoc = useRecognizeDocument(sourceId);
+  const { data: grouping } = useFilePages(fileId);
+  const setTags = useSetDocumentTags(fileId);
+  const recognizeTable = useRecognizeDocumentTable(fileId);
+  const recognizeDoc = useRecognizeDocument(fileId);
   const docGroups = (grouping?.groups ?? []).filter(g => g.kind === 'Document');
   const nameIdx = data.columns.indexOf('НаименованиеДокумента');
   const pagesIdx = data.columns.indexOf('КоличествоЛистов');
@@ -46,7 +46,7 @@ function GostDocumentsPreview({ sourceId, sourceName, data }: { sourceId: string
     <div className="space-y-1.5">
       <div className="flex justify-end mb-1">
         <button
-          onClick={() => navigate(`/datasets/sources/${sourceId}/grouping`, { state: { sourceName } })}
+          onClick={() => navigate(`/datasets/files/${fileId}/grouping`, { state: { sourceName } })}
           className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-base transition-colors"
           title="Перенести страницы между документами, разделить/объединить группы вручную">
           <LayoutGrid size={12} /> Редактировать разбиение
@@ -161,7 +161,7 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
       ) : !data || data.columns.length === 0 ? (
         <p className="text-sm text-fg4 py-4 text-center">Нет данных — либо строки не найдены, либо все отфильтрованы.</p>
       ) : isGostDocuments ? (
-        <GostDocumentsPreview sourceId={source.id} sourceName={source.name} data={data} />
+        <GostDocumentsPreview fileId={source.fileId} sourceName={source.name} data={data} />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-stroke">
           <table className="text-xs w-full">

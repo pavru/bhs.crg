@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
-import { useCreatePdfSource } from '@/shared/api/datasets';
+import { useCreatePdfSource, useRecognizePdfSource, useRecognizeFile } from '@/shared/api/datasets';
 import { useTagRegistry, datasetTags } from '@/shared/api/tags';
 
 /**
- * Ручное создание PDF-источника: имя + структурные тэги (функциональные тэги scope Dataset —
- * см. TagRegistry). В отличие от SourceEditorDialog (XML/JSON) — без row-selector/колонок:
- * Extraction для PDF — распознавание (кнопка «Распознать» после создания), не XPath/JSONPath.
+ * Выбор профиля препроцессинга PDF-набора (issue #38). ГОСТ — набор-centric: ставит профиль на НАБОР
+ * и сразу запускает распознавание (источников не создаёт — они кандидаты). «Счёт» — создаёт пару
+ * источников и распознаёт шапку. Распознавание больше не прячется в меню источника.
  */
 export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: () => void }) {
   const [name, setName] = useState('');
@@ -15,6 +15,8 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
   const [error, setError] = useState('');
   const { data: allTags = [] } = useTagRegistry();
   const create = useCreatePdfSource();
+  const recognizeSource = useRecognizePdfSource();
+  const recognizeFile = useRecognizeFile();
 
   function toggleTag(code: string) {
     setTags(prev => prev.includes(code) ? prev.filter(t => t !== code) : [...prev, code]);
@@ -24,10 +26,13 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
     if (!name.trim()) { setError('Укажите название'); return; }
     setError('');
     try {
-      await create.mutateAsync({
+      const created = await create.mutateAsync({
         fileId, name: name.trim(), profile,
         tags: profile === 'gost-titleblock' && tags.length ? tags : null,
       });
+      // Профиль выбран → сразу распознаём. ГОСТ (created==null) — по НАБОРУ; «Счёт» — по шапке-источнику.
+      if (created) recognizeSource.mutate({ id: created.id });
+      else recognizeFile.mutate({ fileId });
       onClose();
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -36,7 +41,7 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
   }
 
   return (
-    <Modal open onOpenChange={open => { if (!open) onClose(); }} title="Новый источник (PDF)"
+    <Modal open onOpenChange={open => { if (!open) onClose(); }} title="Распознать PDF (профиль)"
       footer={
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose}
@@ -45,7 +50,7 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
           </button>
           <button type="button" onClick={handleSave} disabled={create.isPending}
             className="px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-50">
-            {create.isPending ? 'Сохранение…' : 'Сохранить'}
+            {create.isPending ? 'Создание…' : 'Создать и распознать'}
           </button>
         </div>
       }>

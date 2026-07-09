@@ -59,7 +59,13 @@ public class DataSetSourceService(
         var projected = GostGroupingProjection.Project(grouping);
         var existing = await db.DataSetSources.Where(s => s.FileId == file.Id).Select(s => s.SheetOrPath).ToListAsync(ct);
 
+        // Кандидаты набора-СЫРЬЯ (issue #38): все проецируются из группировки, создаются пользователем.
         var candidates = new List<DataSetSourceInfo>();
+        if (projected.Documents.Count > 0 && !existing.Contains(PdfProfiles.GostDocumentsMarker))
+        {
+            var docRows = projected.Documents.Select(d => d.Fields).ToList();
+            candidates.Add(new DataSetSourceInfo("Документы", PdfProfiles.GostDocumentsMarker, ColumnsFromRows(docRows), docRows.Count));
+        }
         if (projected.Cover.Count > 0 && !existing.Contains(PdfProfiles.GostCoverMarker))
             candidates.Add(new DataSetSourceInfo("Обложка", PdfProfiles.GostCoverMarker, ColumnsFromRows(projected.Cover), projected.Cover.Count));
         if (projected.TitlePage.Count > 0 && !existing.Contains(PdfProfiles.GostTitlePageMarker))
@@ -210,9 +216,12 @@ public class DataSetSourceService(
         var grouping = GostGroupingSerialization.Parse(file.Grouping)
             ?? throw new ArgumentException("Набор ещё не распознан — сначала запустите распознавание.");
         var projected = GostGroupingProjection.Project(grouping);
+        // Проекция-источник из СЫРЬЯ набора (issue #38): обложка/титул/документы проецируются из
+        // группировки. «Документы» несут ФайлПуть/РазмерБайт (под-PDF вырезаны при распознавании).
         var rows = marker == PdfProfiles.GostCoverMarker ? projected.Cover
             : marker == PdfProfiles.GostTitlePageMarker ? projected.TitlePage
-            : throw new ArgumentException("Для PDF источник создаётся из кандидата обложки/титульного листа.");
+            : marker == PdfProfiles.GostDocumentsMarker ? projected.Documents.Select(d => d.Fields).ToList()
+            : throw new ArgumentException("Для PDF источник создаётся из кандидата обложки/титула/документов.");
 
         var columns = ColumnsFromRows(rows);
         var source = file.AddSource(name, marker, DataSetDtoMapper.SerializeSchema(columns), rows.Count, null, JsonSerializer.Serialize(rows));

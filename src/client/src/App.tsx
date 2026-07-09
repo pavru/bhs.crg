@@ -34,7 +34,7 @@ export default function App() {
                 <Route path="document-sets/*" element={<DocumentSetsPage />} />
                 <Route path="common-data" element={<SystemCommonDataPage />} />
                 <Route path="datasets" element={<DataSetsPage />} />
-                <Route path="datasets/sources/:sourceId/grouping" element={<PdfGroupingEditor />} />
+                <Route path="datasets/files/:fileId/grouping" element={<PdfGroupingEditor />} />
                 <Route path="quality-docs" element={<QualityDocsPage />} />
                 <Route element={<AdminRoute />}>
                   <Route path="document-types/*" element={<DocumentTypesPage kind="Document" />} />

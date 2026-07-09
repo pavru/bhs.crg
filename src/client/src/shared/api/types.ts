@@ -300,6 +300,8 @@ export interface DataSetFile {
   scopeId: string | null;
   sources: DataSetSource[];
   createdAt: string;
+  /** Профиль препроцессинга PDF (issue #38): 'gost-titleblock' | 'invoice' | null (ещё не выбран). */
+  preprocessingProfile?: string | null;
 }
 
 /** Привязка набора данных к документу или записи каталога — только Mapping.

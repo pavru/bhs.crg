@@ -36,7 +36,7 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
         new(GostGroupKind.Document, code, name,
             pageIndices.Select(i => new GostGroupingPage(i, new Dictionary<string, string?>())).ToList());
 
-    private async Task<(Guid sourceId, IServiceScope scope)> SeedGostDocumentsSourceAsync(int pageCount, GostGroupingData? grouping = null)
+    private async Task<(Guid fileId, Guid sourceId, IServiceScope scope)> SeedGostDocumentsSourceAsync(int pageCount, GostGroupingData? grouping = null)
     {
         var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -55,7 +55,7 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
         db.DataSetSources.Add(source);
         await db.SaveChangesAsync();
 
-        return (source.Id, scope);
+        return (file.Id, source.Id, scope);
     }
 
     // ── GetPagesAsync ──────────────────────────────────────────────────────────
@@ -63,11 +63,11 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
     [Fact]
     public async Task GetPagesAsync_NoGroupingYet_ReturnsEmptyDocumentsWithCorrectPageCount()
     {
-        var (sourceId, scope) = await SeedGostDocumentsSourceAsync(4);
+        var (fileId, sourceId, scope) = await SeedGostDocumentsSourceAsync(4);
         using (scope)
         {
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
-            var result = await svc.GetPagesAsync(sourceId, default);
+            var result = await svc.GetPagesAsync(fileId, default);
 
             Assert.NotNull(result);
             Assert.Equal(4, result!.PageCount);
@@ -82,11 +82,11 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
         var grouping = new GostGroupingData(
             [Doc("01-ЭМ", "План этажа", 0, 1), Doc("02-ЭМ", null, 2)],
             ManuallyEdited: false);
-        var (sourceId, scope) = await SeedGostDocumentsSourceAsync(3, grouping);
+        var (fileId, sourceId, scope) = await SeedGostDocumentsSourceAsync(3, grouping);
         using (scope)
         {
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
-            var result = await svc.GetPagesAsync(sourceId, default);
+            var result = await svc.GetPagesAsync(fileId, default);
 
             Assert.NotNull(result);
             Assert.Equal(2, result!.Groups.Count);
@@ -96,18 +96,17 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
     }
 
     [Fact]
-    public async Task GetPagesAsync_WrongSourceType_Throws()
+    public async Task GetPagesAsync_NonPdfFile_Throws()
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var file = DataSetFile.Create("f", DataSetFormat.Pdf, "irrelevant", CatalogScope.System, null);
-        var source = file.AddSource("Обложка", PdfProfiles.GostCoverMarker, "[]", 0);
+        var file = DataSetFile.Create("f", DataSetFormat.Csv, "irrelevant", CatalogScope.System, null);
         db.DataSetFiles.Add(file);
-        db.DataSetSources.Add(source);
         await db.SaveChangesAsync();
 
         var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.GetPagesAsync(source.Id, default));
+        // Разбиение — только для PDF-набора (issue #38, редактор на уровне набора).
+        await Assert.ThrowsAsync<ArgumentException>(() => svc.GetPagesAsync(file.Id, default));
     }
 
     // ── GetPageThumbnailAsync ──────────────────────────────────────────────────
@@ -115,11 +114,11 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
     [Fact]
     public async Task GetPageThumbnailAsync_ReturnsValidPng()
     {
-        var (sourceId, scope) = await SeedGostDocumentsSourceAsync(2);
+        var (fileId, sourceId, scope) = await SeedGostDocumentsSourceAsync(2);
         using (scope)
         {
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
-            var png = await svc.GetPageThumbnailAsync(sourceId, 0, default);
+            var png = await svc.GetPageThumbnailAsync(fileId, 0, default);
 
             Assert.NotNull(png);
             // PNG signature: 89 50 4E 47
@@ -135,7 +134,7 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
     [Fact]
     public async Task ApplyGroupingAsync_OverlappingPages_Throws()
     {
-        var (sourceId, scope) = await SeedGostDocumentsSourceAsync(3);
+        var (fileId, sourceId, scope) = await SeedGostDocumentsSourceAsync(3);
         using (scope)
         {
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
@@ -144,14 +143,14 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
                 new GostGroupingGroupDto(GostGroupKind.Document, "B", "Doc B", [1, 2]), // страница 1 — в обеих группах
             ]);
 
-            await Assert.ThrowsAsync<ArgumentException>(() => svc.ApplyGroupingAsync(sourceId, input, default));
+            await Assert.ThrowsAsync<ArgumentException>(() => svc.ApplyGroupingAsync(fileId, input, default));
         }
     }
 
     [Fact]
     public async Task ApplyGroupingAsync_HappyPath_SplitsAndMarksManuallyEdited()
     {
-        var (sourceId, scope) = await SeedGostDocumentsSourceAsync(4);
+        var (fileId, sourceId, scope) = await SeedGostDocumentsSourceAsync(4);
         using (scope)
         {
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
@@ -160,7 +159,7 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
                 new GostGroupingGroupDto(GostGroupKind.Document, "02-ЭМ", "Документ 2", [2, 3]),
             ]);
 
-            var result = await svc.ApplyGroupingAsync(sourceId, input, default);
+            var result = await svc.ApplyGroupingAsync(fileId, input, default);
 
             Assert.NotNull(result);
             Assert.True(result!.ManuallyEdited);
@@ -179,14 +178,14 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
     [Fact]
     public async Task ApplyGroupingAsync_PageWithNoGroup_IsExcludedFromRegistry()
     {
-        var (sourceId, scope) = await SeedGostDocumentsSourceAsync(3);
+        var (fileId, sourceId, scope) = await SeedGostDocumentsSourceAsync(3);
         using (scope)
         {
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
             // Страница 2 не входит ни в одну группу — допустимо, просто выпадает из реестра.
             var input = new ApplyGroupingInput([new GostGroupingGroupDto(GostGroupKind.Document, "01-ЭМ", "Документ", [0, 1])]);
 
-            var result = await svc.ApplyGroupingAsync(sourceId, input, default);
+            var result = await svc.ApplyGroupingAsync(fileId, input, default);
 
             Assert.Single(result!.Groups);
             Assert.Equal([0, 1], result.Groups[0].PageIndices);
@@ -196,20 +195,20 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
     [Fact]
     public async Task ApplyGroupingAsync_ReappliedGrouping_CleansUpOrphanedBlobs()
     {
-        var (sourceId, scope) = await SeedGostDocumentsSourceAsync(4);
+        var (fileId, sourceId, scope) = await SeedGostDocumentsSourceAsync(4);
         using (scope)
         {
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
             var blobStorage = (FakeBlobStorage)scope.ServiceProvider.GetRequiredService<IBlobStorage>();
 
-            var first = await svc.ApplyGroupingAsync(sourceId,
+            var first = await svc.ApplyGroupingAsync(fileId,
                 new ApplyGroupingInput([new GostGroupingGroupDto(GostGroupKind.Document, "01-ЭМ", "A", [0, 1, 2, 3])]), default);
             var preview1 = await svc.PreviewSourceAsync(sourceId, 50, default);
             var firstBlobPath = preview1!.Rows[0][preview1.Columns.ToList().IndexOf("ФайлПуть")];
             Assert.True(blobStorage.Exists(firstBlobPath!));
 
             // Перегруппировываем на 2 документа — старый общий blob должен быть удалён.
-            await svc.ApplyGroupingAsync(sourceId, new ApplyGroupingInput([
+            await svc.ApplyGroupingAsync(fileId, new ApplyGroupingInput([
                 new GostGroupingGroupDto(GostGroupKind.Document, "01-ЭМ", "A", [0, 1]),
                 new GostGroupingGroupDto(GostGroupKind.Document, "02-ЭМ", "B", [2, 3]),
             ]), default);
@@ -228,7 +227,7 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
     public async Task RecognizePdfSourceAsync_ManuallyEditedWithoutConfirm_ThrowsInvalidOperation()
     {
         var grouping = new GostGroupingData([Doc("01-ЭМ", "Документ", 0, 1)], ManuallyEdited: true);
-        var (sourceId, scope) = await SeedGostDocumentsSourceAsync(2, grouping);
+        var (fileId, sourceId, scope) = await SeedGostDocumentsSourceAsync(2, grouping);
         using (scope)
         {
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
@@ -236,10 +235,10 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
         }
     }
 
-    // ── CreatePdfSourceAsync guard (маркеры профиля уникальны под файлом) ────────
+    // ── CreatePdfSourceAsync: ГОСТ-профиль ставит профиль на набор, источников НЕ создаёт (issue #38) ──
 
     [Fact]
-    public async Task CreatePdfSourceAsync_SecondGostProfileOnSameFile_ThrowsArgument()
+    public async Task CreatePdfSourceAsync_GostProfile_SetsProfileAndCreatesNoSource()
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -248,11 +247,13 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
         await db.SaveChangesAsync();
 
         var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
-        // Первый ГОСТ-профиль — ок (создаёт тройку обложка/титул/документы).
-        await svc.CreatePdfSourceAsync(file.Id, new CreatePdfSourceInput("Проект", null, PdfProfiles.GostTitleBlock), default);
-        // Второй ГОСТ-профиль на том же файле — запрещён (иначе маркер gost-documents перестанет быть уникальным).
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => svc.CreatePdfSourceAsync(file.Id, new CreatePdfSourceInput("Проект 2", null, PdfProfiles.GostTitleBlock), default));
+        // ГОСТ-профиль (набор-centric): ставит PreprocessingProfile на НАБОР, источников не создаёт (null).
+        var result = await svc.CreatePdfSourceAsync(file.Id, new CreatePdfSourceInput("Проект", null, PdfProfiles.GostTitleBlock), default);
+        Assert.Null(result);
+
+        var reloaded = await db.DataSetFiles.Include(f => f.Sources).FirstAsync(f => f.Id == file.Id);
+        Assert.Equal(PdfProfiles.GostTitleBlock, reloaded.PreprocessingProfile);
+        Assert.Empty(reloaded.Sources);
     }
 
     // ── ApplyGroupingAsync: инвалидация осиротевших табличных источников gost-table:* (P1b/c) ──
@@ -266,10 +267,9 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
             ["gostDoc.specification"], SpecDocId)],
         ManuallyEdited: false);
 
-    private static async Task<Guid> AddTableSourceAsync(AppDbContext db, Guid documentsSourceId, Guid groupId)
+    private static async Task<Guid> AddTableSourceAsync(AppDbContext db, Guid fileId, Guid groupId)
     {
-        var documents = await db.DataSetSources.FirstAsync(s => s.Id == documentsSourceId);
-        var file = await db.DataSetFiles.Include(f => f.Sources).FirstAsync(f => f.Id == documents.FileId);
+        var file = await db.DataSetFiles.Include(f => f.Sources).FirstAsync(f => f.Id == fileId);
         var table = file.AddSource("Таблица", PdfProfiles.GostTableMarkerPrefix + groupId, "[]", 0);
         db.DataSetSources.Add(table);
         await db.SaveChangesAsync();
@@ -279,16 +279,16 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
     [Fact]
     public async Task ApplyGroupingAsync_OrphanedTableSource_RemovedWhenDocumentUntagged()
     {
-        var (sourceId, scope) = await SeedGostDocumentsSourceAsync(3, SpecGrouping());
+        var (fileId, sourceId, scope) = await SeedGostDocumentsSourceAsync(3, SpecGrouping());
         using (scope)
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var tableId = await AddTableSourceAsync(db, sourceId, SpecDocId);
+            var tableId = await AddTableSourceAsync(db, fileId, SpecDocId);
 
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
             // С документа снят тэг таблицы → его gost-table-источник больше не валиден и удаляется
             // (issue #28: инвалидация проекций по стабильному id группы, а не по firstPageIndex).
-            await svc.ApplyGroupingAsync(sourceId, new ApplyGroupingInput(
+            await svc.ApplyGroupingAsync(fileId, new ApplyGroupingInput(
                 [new GostGroupingGroupDto(GostGroupKind.Document, "01-ЭМ", "Спецификация", [0, 1], null)]), default);
 
             Assert.Null(await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == tableId));
@@ -298,11 +298,10 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
     [Fact]
     public async Task ReplaceFileAsync_PreservesGostSources_AndMarksStale()
     {
-        var (sourceId, scope) = await SeedGostDocumentsSourceAsync(3);
+        var (fileId, sourceId, scope) = await SeedGostDocumentsSourceAsync(3);
         using (scope)
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var fileId = (await db.DataSetSources.FirstAsync(s => s.Id == sourceId)).FileId;
 
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
             // Парсер PDF возвращает [] источников — под старым поведением несвязанный gost-источник
@@ -318,16 +317,16 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
     [Fact]
     public async Task ApplyGroupingAsync_TableSource_KeptAcrossStartShift_ViaStableGroupId()
     {
-        var (sourceId, scope) = await SeedGostDocumentsSourceAsync(3, SpecGrouping());
+        var (fileId, sourceId, scope) = await SeedGostDocumentsSourceAsync(3, SpecGrouping());
         using (scope)
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var tableId = await AddTableSourceAsync(db, sourceId, SpecDocId);
+            var tableId = await AddTableSourceAsync(db, fileId, SpecDocId);
 
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
             // Документ сдвинул начало (стр.0→1), но остаётся тем же (пересечение страниц) и помечен
             // спецификацией → стабильный id группы переносится, таблица НЕ осиротеет (issue #28, фикс P1).
-            await svc.ApplyGroupingAsync(sourceId, new ApplyGroupingInput(
+            await svc.ApplyGroupingAsync(fileId, new ApplyGroupingInput(
                 [new GostGroupingGroupDto(GostGroupKind.Document, "01-ЭМ", "Спецификация", [1, 2], ["gostDoc.specification"])]), default);
 
             Assert.NotNull(await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == tableId));

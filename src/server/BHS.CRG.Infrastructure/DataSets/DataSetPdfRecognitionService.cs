@@ -34,7 +34,11 @@ public class DataSetPdfRecognitionService(
     // PdfRasterizer (тот подобран под сертификаты/декларации, не трогаем).
     private const int PdfRecognizeMaxPages = 100;
 
-    public async Task<DataSetSourceDto> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct)
+    /// <summary>Выбор профиля препроцессинга PDF-набора (issue #38). ГОСТ — набор-centric: ставит
+    /// PreprocessingProfile на НАБОР, источников НЕ создаёт (их даёт распознавание как кандидатов),
+    /// возвращает null. «Счёт на оплату» — осознанное source-centric исключение (нет кандидатной
+    /// структуры): создаёт пару источников шапка+товары и возвращает шапку.</summary>
+    public async Task<DataSetSourceDto?> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct)
     {
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
@@ -42,44 +46,61 @@ public class DataSetPdfRecognitionService(
             throw new ArgumentException("Файл не в формате PDF.");
 
         var name = input.Name.Trim();
-
-        // Профильные маркеры (gost-documents / invoice-header) обязаны быть уникальны под файлом —
-        // иначе FirstOrDefaultAsync(by marker) в распознавании вернёт произвольный из дублей. Второй
-        // профиль того же типа на одном файле запрещаем.
         bool HasMarker(string marker) => file.Sources.Any(s => s.SheetOrPath == marker);
 
         if (input.Profile == PdfProfiles.Invoice)
         {
             if (HasMarker(PdfProfiles.InvoiceHeaderMarker))
                 throw new ArgumentException("На этом файле уже есть профиль «Счёт на оплату».");
-            // Профиль "Счёт на оплату" — один документ, шапка + вложенная таблица товаров.
-            // Оба хранятся как отдельные DataSetSource под одним файлом (тот же паттерн, что и
-            // у JSON/XML — один файл может иметь несколько источников), связаны маркерами в
-            // SheetOrPath, не настоящей связью в БД — распознаётся и обновляется одним запросом.
+            // Профиль "Счёт на оплату" — source-centric исключение: шапка + вложенная таблица товаров
+            // как пара источников под одним файлом (у счёта нет кандидатной структуры страниц).
             var header = file.AddSource(name, PdfProfiles.InvoiceHeaderMarker, "[]", 0);
             var lineItems = file.AddSource($"{name} — Товары", PdfProfiles.InvoiceLineItemsMarker, "[]", 0);
             db.DataSetSources.Add(header);
             db.DataSetSources.Add(lineItems);
+            file.SetPreprocessingProfile(PdfProfiles.Invoice);
             await db.SaveChangesAsync(ct);
             return DataSetDtoMapper.MapSource(header);
         }
 
-        // Профиль "Основная надпись (ГОСТ Р 21.101-2020)" — тройка источников: обложка/титульный
-        // лист/документы (последний — сгруппированный по Шифру реестр, с разрезанием исходного
-        // PDF на под-файлы по группам, см. RecognizeGostSetAsync и GostPageGrouper). Тэги —
-        // структурные метки (dataset.hasCover и т.п.), применимы ко всем трём.
-        if (HasMarker(PdfProfiles.GostDocumentsMarker))
-            throw new ArgumentException("На этом файле уже есть профиль «Основная надпись (ГОСТ)».");
-
-        var tagsJson = input.Tags is { Count: > 0 } ? JsonSerializer.Serialize(input.Tags) : null;
-        // Явные источники (issue #30, унификация с #20): авто-создаём только первичный «Документы».
-        // Обложка/Титульный лист — КАНДИДАТЫ (source-candidates), пользователь создаёт их явно из
-        // распознанной группировки набора. Распознавание кэширует их, только если они уже созданы.
-        var documents = file.AddSource($"{name} — Документы", PdfProfiles.GostDocumentsMarker, "[]", 0);
-        documents.SetTags(tagsJson);
-        db.DataSetSources.Add(documents);
+        // Профиль "Основная надпись (ГОСТ Р 21.101-2020)" — набор-centric (issue #38): ставим профиль на
+        // НАБОР, источников не создаём. Распознавание пишет Grouping (сырьё), обложка/титул/документы/
+        // таблицы становятся кандидатами, пользователь создаёт источники из них.
+        file.SetPreprocessingProfile(PdfProfiles.GostTitleBlock);
         await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(documents);
+        return null;
+    }
+
+    // ── Набор-centric распознавание ГОСТ (issue #38): всё по fileId, источников не создаёт ──
+
+    /// <summary>Планирование распознавания ГОСТ-набора по fileId (409-проверка ручной правки разбиения).</summary>
+    public async Task<RecognizePlan?> PlanFileRecognitionAsync(Guid fileId, bool confirm, CancellationToken ct)
+    {
+        var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file is null) return null;
+        if (file.Format != DataSetFormat.Pdf)
+            throw new ArgumentException("Набор не в формате PDF.");
+        var existingGrouping = ParseGrouping(file.Grouping);
+        if (existingGrouping is { ManuallyEdited: true } && !confirm)
+            throw new InvalidOperationException(
+                "Разбиение набора было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
+        return new RecognizePlan(Background: true, Title: "Распознавание листов PDF");
+    }
+
+    /// <summary>Распознавание ГОСТ-комплекта по НАБОРУ: пишет Grouping (с вырезанными под-PDF), источников
+    /// НЕ создаёт. Существующие источники-проекции переспроецируются. Кидает 409 при неподтверждённой
+    /// ручной правке. Штатно идёт через фоновую задачу (Job.TargetId=fileId).</summary>
+    public async Task RecognizeFileAsync(Guid fileId, bool confirm, CancellationToken ct, Func<int, int, Task>? onProgress = null)
+    {
+        var file = await db.DataSetFiles.FirstOrDefaultAsync(f => f.Id == fileId, ct)
+            ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
+        if (file.Format != DataSetFormat.Pdf)
+            throw new ArgumentException("Набор не в формате PDF.");
+        var existingGrouping = ParseGrouping(file.Grouping);
+        if (existingGrouping is { ManuallyEdited: true } && !confirm)
+            throw new InvalidOperationException(
+                "Разбиение набора было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
+        await RecognizeGostFileAsync(file, ct, onProgress);
     }
 
     public async Task<RecognizePlan?> PlanRecognitionAsync(Guid sourceId, bool confirm, CancellationToken ct)
@@ -125,10 +146,10 @@ public class DataSetPdfRecognitionService(
                 throw new InvalidOperationException(
                     "Разбиение этого источника было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
 
-            // Ошибку распознавания в фоновом режиме публикует JobBackgroundService (единообразно для
-            // всех задач). GOST-набор всегда идёт через задачу (см. PlanRecognitionAsync) — прямой
-            // синхронный вызов сюда штатно не приходит.
-            return await RecognizeGostSetAsync(source, sourceId, ct, onProgress);
+            // Мост для legacy source-centric вызова: делегируем в набор-centric распознавание (issue #38).
+            // Новый штатный путь — RecognizeFileAsync(fileId); этот сохранён для существующих call-sites.
+            await RecognizeGostFileAsync(source.File, ct, onProgress);
+            return DataSetDtoMapper.MapSource(source);
         }
 
         // Дальше — legacy-путь для источников, созданных до тройки обложка/титул/документы
@@ -242,24 +263,14 @@ public class DataSetPdfRecognitionService(
     /// повторяет наименование, но Шифр остаётся неизменным на всех листах документа) с
     /// разрезанием исходного PDF на под-файлы (PdfPageSplitter) для каждой группы.
     /// </summary>
-    private async Task<DataSetSourceDto?> RecognizeGostSetAsync(DataSetSource source, Guid requestedSourceId, CancellationToken ct,
+    // Распознавание ГОСТ-комплекта на УРОВНЕ НАБОРА (issue #38): пишет только Grouping (с вырезанными
+    // под-PDF в группах), источников НЕ создаёт. Существующие источники-проекции (обложка/титул/
+    // документы/таблицы) переспроецируются из новой группировки. Кандидаты (см. PdfCandidatesAsync)
+    // и создание источников — по запросу пользователя.
+    private async Task RecognizeGostFileAsync(DataSetFile file, CancellationToken ct,
         Func<int, int, Task>? onProgress = null)
     {
-        var cover = source.SheetOrPath == PdfProfiles.GostCoverMarker
-            ? source
-            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostCoverMarker, ct);
-        var titlePage = source.SheetOrPath == PdfProfiles.GostTitlePageMarker
-            ? source
-            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostTitlePageMarker, ct);
-        var documents = source.SheetOrPath == PdfProfiles.GostDocumentsMarker
-            ? source
-            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostDocumentsMarker, ct);
-        // Обложка/титул опциональны (issue #30) — они кандидаты, могут ещё не быть созданы; кэшируем
-        // их только если созданы. Обязателен лишь «Документы».
-        if (documents is null)
-            throw new ArgumentException("Не найден источник «Документы» ГОСТ-профиля.");
-
-        await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
+        await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms, ct);
         var bytes = ms.ToArray();
@@ -314,7 +325,7 @@ public class DataSetPdfRecognitionService(
             // Не удалось разобрать PDF через PdfPig — считаем, что текстовый слой есть везде
             // (второй проход не включаем нигде); растеризация через PdfRasterizer уже сработала
             // выше, так что это НЕ повод падать всей операции.
-            logger.LogWarning(ex, "Не удалось проверить текстовый слой PDF источника {SourceId} — второй проход штампа отключён", requestedSourceId);
+            logger.LogWarning(ex, "Не удалось проверить текстовый слой PDF источника {SourceId} — второй проход штампа отключён", file.Id);
         }
 
         var fields = GostTitleBlockFields.AllWithClassifiers;
@@ -342,7 +353,7 @@ public class DataSetPdfRecognitionService(
             {
                 if (i == 0)
                     throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
-                logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, requestedSourceId);
+                logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, file.Id);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
                 failedPages++;
                 continue;
@@ -352,7 +363,7 @@ public class DataSetPdfRecognitionService(
                 // Таймаут vision-движка на ОДНОЙ странице (HttpClient.Timeout истёк, ct задачи НЕ отменён) —
                 // не роняем весь альбом: строка остаётся пустой, пользователь при желании перераспознает этот
                 // документ точечно («Перераспознать»). Та же философия отказоустойчивости по странице.
-                logger.LogWarning("Таймаут распознавания страницы {Page} источника {SourceId} — строка останется пустой", i + 1, requestedSourceId);
+                logger.LogWarning("Таймаут распознавания страницы {Page} источника {SourceId} — строка останется пустой", i + 1, file.Id);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
                 failedPages++;
                 continue;
@@ -382,7 +393,7 @@ public class DataSetPdfRecognitionService(
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    logger.LogWarning(ex, "Распознавание заглавного листа (обложка/титул) стр. {Page} источника {SourceId} не удалось — поля останутся пустыми", i + 1, requestedSourceId);
+                    logger.LogWarning(ex, "Распознавание заглавного листа (обложка/титул) стр. {Page} источника {SourceId} не удалось — поля останутся пустыми", i + 1, file.Id);
                 }
                 rows.Add(values);
                 continue;
@@ -410,52 +421,116 @@ public class DataSetPdfRecognitionService(
                 {
                     // Второй проход не обязателен — при любой ошибке (растеризация региона,
                     // недоступность распознавателя) просто остаёмся на результате первого прохода.
-                    logger.LogWarning(ex, "Второй проход (штамп в высоком разрешении) для страницы {Page} источника {SourceId} не удался — используется результат обычного распознавания", i + 1, requestedSourceId);
+                    logger.LogWarning(ex, "Второй проход (штамп в высоком разрешении) для страницы {Page} источника {SourceId} не удался — используется результат обычного распознавания", i + 1, file.Id);
                 }
             }
 
             rows.Add(values);
         }
 
-        // Единая постраничная группировка (обложка/титул/документы как группы) — источник истины,
-        // из которого проекцией получаем строки трёх источников. Одна точка агрегации полей.
+        // Единая постраничная группировка (обложка/титул/документы как группы) — источник истины СЫРЬЯ
+        // набора. Одна точка агрегации полей. Стабильные id групп (issue #28) переносим из предыдущей
+        // группировки НАБОРА при перераспознавании, чтобы производные источники (gost-table:{id},
+        // проекции) не осиротели.
         var routed = GostPageGrouper.Group(rows);
-        // Стабильные id групп (issue #28) — переносим из предыдущей группировки НАБОРА при перераспознавании,
-        // чтобы производные табличные источники (gost-table:{id}) не осиротели (P1).
-        var existingGrouping = ParseGrouping(source.File.Grouping);
+        var existingGrouping = ParseGrouping(file.Grouping);
         var unified = GostStableIds.Assign(GostUnifiedGroupingBuilder.Build(routed, rows, manuallyEdited: false), existingGrouping);
-        var projected = GostGroupingProjection.Project(unified);
-        var baseColumnPaths = GostTitleBlockFields.All.Select(f => f.Path).ToArray();
-        // Обложка/титул распознаются своим набором полей — и колонки их источников из него же,
-        // а не из граф штампа (иначе колонки штампа были бы пустыми, см. GostCoverTitleFields).
-        var coverColumnPaths = GostCoverTitleFields.All.Select(f => f.Path).ToArray();
 
-        static DataSetColumnInfo[] BuildColumns(IReadOnlyList<string> columnPaths, IReadOnlyList<IReadOnlyDictionary<string, string?>> data) =>
-            columnPaths.Select(p => new DataSetColumnInfo(p,
-                data.Take(3).Select(r => r.TryGetValue(p, out var v) ? v ?? "" : "").ToArray())).ToArray();
+        // Материализация СЫРЬЯ на наборе: режем под-PDF в группы (BlobPath в Grouping), пишем Grouping,
+        // переспроецируем существующие источники-проекции, чистим осиротевшие блобы. Источников НЕ создаём.
+        var matResult = await MaterializeFileGroupingAsync(file, unified, bytes, ct);
+        await PublishGostRecognitionResultAsync(matResult.DocumentCount, rows.Count, failedPages, matResult.FailedSplits, matResult.InvalidatedTables, ct);
+    }
 
-        cover?.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(coverColumnPaths, projected.Cover)), projected.Cover.Count, JsonSerializer.Serialize(projected.Cover));
-        titlePage?.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(coverColumnPaths, projected.TitlePage)), projected.TitlePage.Count, JsonSerializer.Serialize(projected.TitlePage));
+    private record GostMaterializeResult(int DocumentCount, int FailedSplits, int InvalidatedTables);
 
-        // Осиротевшие под-PDF прежнего разбиения читаем из ещё не перезаписанного CachedData — чтобы
-        // удалить после успешного сохранения (иначе повторное авто-распознавание копило бы их в blob — P2).
-        var previousDocBlobPaths = ExtractBlobPaths(documents.CachedData);
-        var documentRows = await SplitAndUploadDocumentsAsync(bytes, projected.Documents, overrideIdentityFromGroup: false, documents.Id, ct);
+    // Материализация СЫРЬЯ ГОСТ-набора (issue #38, набор-centric): режет под-PDF каждой группы-документа
+    // в BlobPath группы (внутри Grouping), пишет Grouping на набор, переспроецирует СУЩЕСТВУЮЩИЕ источники-
+    // проекции (обложка/титул/документы/таблицы) из новой группировки, чистит осиротевшие блобы.
+    // Источников НЕ создаёт — они кандидаты, создаются пользователем. Общая точка для автораспознавания
+    // и ручной правки разбиения (ApplyGrouping).
+    private async Task<GostMaterializeResult> MaterializeFileGroupingAsync(
+        DataSetFile file, GostGroupingData unified, byte[] bytes, CancellationToken ct)
+    {
+        var previousBlobs = ExtractGroupBlobPaths(ParseGrouping(file.Grouping));
+        var withBlobs = await SplitDocumentsIntoGroupingAsync(bytes, unified, file.Id, ct);
+        file.SetGrouping(JsonSerializer.Serialize(withBlobs));
 
-        var documentsColumnPaths = baseColumnPaths.Concat(["КоличествоЛистов", "ФайлПуть", "РазмерБайт"]).ToArray();
-        documents.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(documentsColumnPaths, documentRows)), documentRows.Count, JsonSerializer.Serialize(documentRows));
-        // Автораспознавание всегда перезаписывает предыдущую (в т.ч. ручную) группировку —
-        // ManuallyEdited=false; предупреждение о потере ручных правок показывает фронт ПЕРЕД вызовом
-        // (см. 409 Conflict в RecognizePdfSourceAsync, когда ManuallyEdited уже true и без confirm).
-        source.File.SetGrouping(JsonSerializer.Serialize(unified));
-        var invalidatedTables = await ReprojectTableSourcesAsync(documents.FileId, unified, ct);
+        var projected = GostGroupingProjection.Project(withBlobs);
+        await RefreshProjectionSourcesAsync(file.Id, projected, ct);
+        var invalidatedTables = await ReprojectTableSourcesAsync(file.Id, withBlobs, ct);
 
         await db.SaveChangesAsync(ct);
-        await DeleteOrphanBlobsAsync(previousDocBlobPaths, documentRows, documents.Id, ct);
 
-        var failedSplits = documentRows.Count(r => string.IsNullOrEmpty(r.GetValueOrDefault("ФайлПуть")));
-        await PublishGostRecognitionResultAsync(projected.Documents.Count, rows.Count, failedPages, failedSplits, invalidatedTables, ct);
-        return DataSetDtoMapper.MapSource(requestedSourceId == cover?.Id ? cover : requestedSourceId == titlePage?.Id ? titlePage! : documents);
+        var newBlobs = withBlobs.Groups.Select(g => g.BlobPath).Where(p => !string.IsNullOrEmpty(p)).ToHashSet()!;
+        await DeleteOrphanGroupBlobsAsync(previousBlobs, newBlobs, file.Id, ct);
+
+        var failedSplits = withBlobs.Groups.Count(g => g.Kind == GostGroupKind.Document && g.Pages.Count > 0 && string.IsNullOrEmpty(g.BlobPath));
+        return new GostMaterializeResult(projected.Documents.Count, failedSplits, invalidatedTables);
+    }
+
+    // Режет под-PDF каждой группы-документа и возвращает НОВУЮ группировку с BlobPath/BlobSize в группах
+    // (сырьё живёт в Grouping). Отказоустойчиво: сбой одной группы оставляет её без блоба, не роняя остальные.
+    private async Task<GostGroupingData> SplitDocumentsIntoGroupingAsync(
+        byte[] bytes, GostGroupingData unified, Guid fileIdForLog, CancellationToken ct)
+    {
+        var groups = new List<GostGroupingGroup>(unified.Groups.Count);
+        foreach (var g in unified.Groups)
+        {
+            if (g.Kind != GostGroupKind.Document || g.Pages.Count == 0) { groups.Add(g with { BlobPath = null, BlobSize = null }); continue; }
+            var label = !string.IsNullOrWhiteSpace(g.Name) ? g.Name! : (g.Code ?? "документ");
+            try
+            {
+                var pageIndices = g.Pages.Select(p => p.PageIndex).ToList();
+                var splitBytes = PdfPageSplitter.ExtractPages(bytes, pageIndices);
+                using var splitStream = new MemoryStream(splitBytes);
+                var blobPath = await blob.UploadAsync($"{SanitizeFileName(label)}.pdf", splitStream, "application/pdf", ct);
+                groups.Add(g with { BlobPath = blobPath, BlobSize = splitBytes.Length });
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Не удалось разрезать PDF для документа «{DocumentLabel}» набора {FileId}", label, fileIdForLog);
+                groups.Add(g with { BlobPath = null, BlobSize = null });
+            }
+        }
+        return unified with { Groups = groups };
+    }
+
+    // Переспроецирует СУЩЕСТВУЮЩИЕ источники-проекции набора (обложка/титул/документы) из новой группировки.
+    // Таблицы — отдельно (ReprojectTableSourcesAsync). Источники, которых нет — не создаёт (кандидаты).
+    private async Task RefreshProjectionSourcesAsync(Guid fileId, ProjectedRows projected, CancellationToken ct)
+    {
+        var coverColumnPaths = GostCoverTitleFields.All.Select(f => f.Path).ToArray();
+        var documentsColumnPaths = GostTitleBlockFields.All.Select(f => f.Path)
+            .Concat(["КоличествоЛистов", "ФайлПуть", "РазмерБайт"]).ToArray();
+
+        static DataSetColumnInfo[] Cols(IReadOnlyList<string> paths, IReadOnlyList<IReadOnlyDictionary<string, string?>> data) =>
+            paths.Select(p => new DataSetColumnInfo(p, data.Take(3).Select(r => r.TryGetValue(p, out var v) ? v ?? "" : "").ToArray())).ToArray();
+
+        var sources = await db.DataSetSources.Where(s => s.FileId == fileId).ToListAsync(ct);
+        var cover = sources.FirstOrDefault(s => s.SheetOrPath == PdfProfiles.GostCoverMarker);
+        var title = sources.FirstOrDefault(s => s.SheetOrPath == PdfProfiles.GostTitlePageMarker);
+        var documents = sources.FirstOrDefault(s => s.SheetOrPath == PdfProfiles.GostDocumentsMarker);
+
+        cover?.UpdateCache(DataSetDtoMapper.SerializeSchema(Cols(coverColumnPaths, projected.Cover)), projected.Cover.Count, JsonSerializer.Serialize(projected.Cover));
+        title?.UpdateCache(DataSetDtoMapper.SerializeSchema(Cols(coverColumnPaths, projected.TitlePage)), projected.TitlePage.Count, JsonSerializer.Serialize(projected.TitlePage));
+        if (documents is not null)
+        {
+            var docRows = projected.Documents.Select(d => (IReadOnlyDictionary<string, string?>)d.Fields).ToList();
+            documents.UpdateCache(DataSetDtoMapper.SerializeSchema(Cols(documentsColumnPaths, docRows)), docRows.Count, JsonSerializer.Serialize(docRows));
+        }
+    }
+
+    private static HashSet<string> ExtractGroupBlobPaths(GostGroupingData? grouping) =>
+        grouping is null ? [] : grouping.Groups.Select(g => g.BlobPath).Where(p => !string.IsNullOrEmpty(p)).ToHashSet()!;
+
+    private async Task DeleteOrphanGroupBlobsAsync(HashSet<string> previous, HashSet<string> current, Guid fileIdForLog, CancellationToken ct)
+    {
+        foreach (var oldPath in previous.Except(current))
+        {
+            try { await blob.DeleteAsync(oldPath, ct); }
+            catch (Exception ex) { logger.LogWarning(ex, "Не удалось удалить осиротевший blob {BlobPath} набора {FileId}", oldPath, fileIdForLog); }
+        }
     }
 
     // Итоговое уведомление о распознавании групп листов PDF: Info при чистом успехе, Warning при
@@ -506,71 +581,6 @@ public class DataSetPdfRecognitionService(
         return data is null ? null : GostStableIds.EnsureIds(data);
     }
 
-    // ФайлПуть каждой строки прежнего реестра "Документы" — CachedData: JSON-массив объектов
-    // {..., "ФайлПуть": "...", ...} (та же форма, что пишет UpdateCache выше).
-    private static HashSet<string> ExtractBlobPaths(string? cachedDataJson)
-    {
-        if (cachedDataJson is null) return [];
-        var rows = JsonSerializer.Deserialize<List<Dictionary<string, string?>>>(cachedDataJson) ?? [];
-        return rows.Select(r => r.GetValueOrDefault("ФайлПуть")).Where(p => !string.IsNullOrEmpty(p)).ToHashSet()!;
-    }
-
-    // Разрезает исходный PDF по группам-документам проекции, заливает под-PDF в blob и добавляет в
-    // строку реестра ФайлПуть/РазмерБайт. Отказоустойчиво: сбой разрезания одной группы оставляет её
-    // строку без файла, не роняя остальные. ОБЩИЙ цикл материализации и для авто-распознавания, и для
-    // ручной правки (ранее дублировался и разъехался поведением — см. отчёт Архитектора P2/P4).
-    // overrideIdentityFromGroup: true — Шифр/Наименование берём из группы (пользователь авторитетен при
-    // ручной правке); false — оставляем агрегированные проекцией поля (авто-распознавание).
-    private async Task<List<Dictionary<string, string?>>> SplitAndUploadDocumentsAsync(
-        byte[] bytes, IReadOnlyList<ProjectedDocument> documents, bool overrideIdentityFromGroup,
-        Guid sourceIdForLog, CancellationToken ct)
-    {
-        var rows = new List<Dictionary<string, string?>>();
-        foreach (var doc in documents)
-        {
-            var row = doc.Fields;
-            if (overrideIdentityFromGroup)
-            {
-                // Пользовательские Шифр/Наименование авторитетны (перекрывают агрегат по страницам).
-                row["Шифр"] = doc.Code;
-                row["НаименованиеДокумента"] = doc.Name;
-            }
-            // Имя файла — по наименованию документа, если есть, иначе по шифру.
-            var name = row.GetValueOrDefault("НаименованиеДокумента");
-            var fileLabel = string.IsNullOrWhiteSpace(name) ? doc.Code : name!;
-            try
-            {
-                var splitBytes = PdfPageSplitter.ExtractPages(bytes, doc.PageIndices);
-                var fileName = $"{SanitizeFileName(fileLabel)}.pdf";
-                using var splitStream = new MemoryStream(splitBytes);
-                row["ФайлПуть"] = await blob.UploadAsync(fileName, splitStream, "application/pdf", ct);
-                row["РазмерБайт"] = splitBytes.Length.ToString();
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Не удалось разрезать PDF для документа «{DocumentLabel}» источника {SourceId}", fileLabel, sourceIdForLog);
-            }
-            rows.Add(row);
-        }
-        return rows;
-    }
-
-    // Best-effort удаление осиротевших под-PDF прежнего разбиения (пути, которых больше нет среди новых
-    // ФайлПуть). Вызывать ПОСЛЕ успешного SaveChangesAsync — недоступность/отсутствие старого файла не
-    // роняет операцию. Симметрично для авто-распознавания и ручной правки (ранее чистила только правка,
-    // из-за чего повторное авто-распознавание оставляло полный комплект осиротевших под-PDF — P2).
-    private async Task DeleteOrphanBlobsAsync(
-        HashSet<string> previousBlobPaths, IEnumerable<Dictionary<string, string?>> newRows,
-        Guid sourceIdForLog, CancellationToken ct)
-    {
-        var newBlobPaths = newRows.Select(r => r.GetValueOrDefault("ФайлПуть")).Where(p => !string.IsNullOrEmpty(p)).ToHashSet();
-        foreach (var oldPath in previousBlobPaths.Except(newBlobPaths!))
-        {
-            try { await blob.DeleteAsync(oldPath!, ct); }
-            catch (Exception ex) { logger.LogWarning(ex, "Не удалось удалить осиротевший blob {BlobPath} источника {SourceId}", oldPath, sourceIdForLog); }
-        }
-    }
-
     // gost-table:* — детерминированная ПРОЕКЦИЯ группы-документа, не независимый источник. При ре-
     // группировке/ре-распознавании границы документов смещаются: табличный источник остаётся валидным,
     // только если его каноническая первая страница ВСЁ ЕЩЁ начинает документ, помеченный табличным тэгом
@@ -614,63 +624,31 @@ public class DataSetPdfRecognitionService(
         return removed;
     }
 
-    // Общий хвост материализации единой группировки в источники: проекция → разрезание всех документов
-    // (blob+строки) → каши трёх источников (документы/обложка/титул) → инвалидация табличных → SaveChanges
-    // → cleanup осиротевших blob. Переиспользуется ApplyGroupingAsync (ручная правка) и RecognizeDocumentAsync
-    // (точечное перераспознавание) — оба уже держат новую unified и байты PDF. Шифр/Наименование берём из
-    // групп (overrideIdentityFromGroup: true — авторитетны).
-    private async Task MaterializeGroupingAsync(DataSetSource source, GostGroupingData unified, byte[] bytes, CancellationToken ct)
+    // ── Редактор разбиения — на уровне НАБОРА (issue #38, fileId) ──────────────────
+
+    public async Task<GostGroupingDto?> GetPagesAsync(Guid fileId, CancellationToken ct)
     {
-        var previousBlobPaths = ExtractBlobPaths(source.CachedData);
-        var baseColumnPaths = GostTitleBlockFields.All.Select(f => f.Path).ToArray();
-        var coverColumnPaths = GostCoverTitleFields.All.Select(f => f.Path).ToArray();
-        var documentsColumnPaths = baseColumnPaths.Concat(["КоличествоЛистов", "ФайлПуть", "РазмерБайт"]).ToArray();
+        var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file == null) return null;
+        if (file.Format != DataSetFormat.Pdf)
+            throw new ArgumentException("Разбиение доступно только для PDF-набора.");
 
-        static DataSetColumnInfo[] BuildColumns(IReadOnlyList<string> columnPaths, IReadOnlyList<Dictionary<string, string?>> data) =>
-            columnPaths.Select(p => new DataSetColumnInfo(p,
-                data.Take(3).Select(r => r.GetValueOrDefault(p) ?? "").ToArray())).ToArray();
-
-        var projected = GostGroupingProjection.Project(unified);
-        var documentRows = await SplitAndUploadDocumentsAsync(bytes, projected.Documents, overrideIdentityFromGroup: true, source.Id, ct);
-
-        source.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(documentsColumnPaths, documentRows)), documentRows.Count, JsonSerializer.Serialize(documentRows));
-        source.File.SetGrouping(JsonSerializer.Serialize(unified));
-
-        var cover = await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostCoverMarker, ct);
-        var titlePage = await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.GostTitlePageMarker, ct);
-        cover?.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(coverColumnPaths, projected.Cover)), projected.Cover.Count, JsonSerializer.Serialize(projected.Cover));
-        titlePage?.UpdateCache(DataSetDtoMapper.SerializeSchema(BuildColumns(coverColumnPaths, projected.TitlePage)), projected.TitlePage.Count, JsonSerializer.Serialize(projected.TitlePage));
-        await ReprojectTableSourcesAsync(source.FileId, unified, ct);
-
-        await db.SaveChangesAsync(ct);
-        await DeleteOrphanBlobsAsync(previousBlobPaths, documentRows, source.Id, ct);
-    }
-
-    // ── Ручная корректировка разбиения ────────────────────────────────────────
-
-    public async Task<GostGroupingDto?> GetPagesAsync(Guid sourceId, CancellationToken ct)
-    {
-        var source = await db.DataSetSources.Include(s => s.File).AsNoTracking().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source == null) return null;
-        if (source.SheetOrPath != PdfProfiles.GostDocumentsMarker)
-            throw new ArgumentException("Ручная корректировка разбиения доступна только для источника «Документы» ГОСТ-профиля.");
-
-        var pageCount = await GetPdfPageCountAsync(source.File.BlobPath, ct);
-        var grouping = ParseGrouping(source.File.Grouping);
+        var pageCount = await GetPdfPageCountAsync(file.BlobPath, ct);
+        var grouping = ParseGrouping(file.Grouping);
         var groups = (grouping?.Groups ?? [])
             .Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags))
             .ToList();
         return new GostGroupingDto(groups, grouping?.ManuallyEdited ?? false, pageCount);
     }
 
-    public async Task<byte[]?> GetPageThumbnailAsync(Guid sourceId, int pageIndex, CancellationToken ct, int dpi = 96)
+    public async Task<byte[]?> GetPageThumbnailAsync(Guid fileId, int pageIndex, CancellationToken ct, int dpi = 96)
     {
-        var source = await db.DataSetSources.Include(s => s.File).AsNoTracking().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source == null) return null;
-        if (source.SheetOrPath != PdfProfiles.GostDocumentsMarker)
-            throw new ArgumentException("Миниатюры доступны только для источника «Документы» ГОСТ-профиля.");
+        var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file == null) return null;
+        if (file.Format != DataSetFormat.Pdf)
+            throw new ArgumentException("Миниатюры доступны только для PDF-набора.");
 
-        await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
+        await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms, ct);
         var bytes = ms.ToArray();
@@ -695,14 +673,14 @@ public class DataSetPdfRecognitionService(
     /// <summary>Лёгкая установка функциональных тэгов документа (тип таблицы) в единой группировке —
     /// без пересборки/разрезания PDF и без сброса ManuallyEdited (в отличие от ApplyGroupingAsync).
     /// firstPageIndex — любая страница документа.</summary>
-    public async Task<GostGroupingDto?> SetDocumentTagsAsync(Guid documentsSourceId, int firstPageIndex, IReadOnlyList<string> tags, CancellationToken ct)
+    public async Task<GostGroupingDto?> SetDocumentTagsAsync(Guid fileId, int firstPageIndex, IReadOnlyList<string> tags, CancellationToken ct)
     {
-        var documents = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == documentsSourceId, ct);
-        if (documents == null) return null;
-        if (documents.SheetOrPath != PdfProfiles.GostDocumentsMarker)
-            throw new ArgumentException("Тэги документа доступны только для источника «Документы» ГОСТ-профиля.");
+        var file = await db.DataSetFiles.FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file == null) return null;
+        if (file.Format != DataSetFormat.Pdf)
+            throw new ArgumentException("Тэги документа доступны только для PDF-набора.");
 
-        var grouping = ParseGrouping(documents.File.Grouping);
+        var grouping = ParseGrouping(file.Grouping);
         if (grouping is null)
             throw new ArgumentException("Группировка ещё не распознана.");
         // Оставляем только известные тэги типа таблицы (не даём проставить произвольные).
@@ -712,23 +690,23 @@ public class DataSetPdfRecognitionService(
                 ? g with { Tags = clean.Count > 0 ? clean : null }
                 : g)
             .ToList();
-        documents.File.SetGrouping(JsonSerializer.Serialize(new GostGroupingData(updated, grouping.ManuallyEdited)));
+        file.SetGrouping(JsonSerializer.Serialize(new GostGroupingData(updated, grouping.ManuallyEdited)));
         await db.SaveChangesAsync(ct);
 
-        var pageCount = await GetPdfPageCountAsync(documents.File.BlobPath, ct);
+        var pageCount = await GetPdfPageCountAsync(file.BlobPath, ct);
         return new GostGroupingDto(
             updated.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags)).ToList(),
             grouping.ManuallyEdited, pageCount);
     }
 
-    public async Task<DataSetSourceDto?> RecognizeDocumentTableAsync(Guid documentsSourceId, int firstPageIndex, CancellationToken ct)
+    public async Task<DataSetSourceDto?> RecognizeDocumentTableAsync(Guid fileId, int firstPageIndex, CancellationToken ct)
     {
-        var documents = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == documentsSourceId, ct);
-        if (documents == null) return null;
-        if (documents.SheetOrPath != PdfProfiles.GostDocumentsMarker)
-            throw new ArgumentException("Распознавание таблицы доступно только для источника «Документы» ГОСТ-профиля.");
+        var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file == null) return null;
+        if (file.Format != DataSetFormat.Pdf)
+            throw new ArgumentException("Распознавание таблицы доступно только для PDF-набора.");
 
-        var grouping = ParseGrouping(documents.File.Grouping);
+        var grouping = ParseGrouping(file.Grouping);
         var group = grouping?.Groups.FirstOrDefault(
             g => g.Kind == GostGroupKind.Document && g.Pages.Any(p => p.PageIndex == firstPageIndex));
         if (group is null)
@@ -763,7 +741,7 @@ public class DataSetPdfRecognitionService(
             columns = GostTableFields.ColumnsForTag(tag)!;
         }
 
-        await using var stream = await blob.DownloadAsync(documents.File.BlobPath, ct);
+        await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms, ct);
         var bytes = ms.ToArray();
@@ -799,11 +777,9 @@ public class DataSetPdfRecognitionService(
         // Идемпотентно: один табличный источник на документ. Ключ — СТАБИЛЬНЫЙ id группы (issue #28),
         // а не firstPageIndex: переживает перераспознавание/сдвиг страниц — источник не осиротеет (P1).
         var marker = $"{PdfProfiles.GostTableMarkerPrefix}{group.Id}";
-        var tableSource = await db.DataSetSources.FirstOrDefaultAsync(
-            s => s.FileId == documents.FileId && s.SheetOrPath == marker, ct);
+        var tableSource = file.Sources.FirstOrDefault(s => s.SheetOrPath == marker);
         if (tableSource is null)
         {
-            var file = await db.DataSetFiles.Include(f => f.Sources).FirstAsync(f => f.Id == documents.FileId, ct);
             tableSource = file.AddSource(sourceName, marker, schemaJson, rows.Count);
             // Тип таблицы (спецификация/кабельный журнал) НЕ дублируем в DataSetSource.Tags: тэг живёт
             // на группе-документе (GostGrouping, scope GostDocument), а тип источника уже неявно задан
@@ -827,22 +803,22 @@ public class DataSetPdfRecognitionService(
     /// наименование в единой группировке, СОХРАНЯЯ структуру (границы страниц) и тэги документа. Прочие
     /// группы (обложка/титул/другие документы) не трогаются. Дальше — общий хвост материализации
     /// (проекция → разрезание → каши источников → инвалидация табличных → cleanup), как у ApplyGrouping.</summary>
-    public async Task<GostGroupingDto?> RecognizeDocumentAsync(Guid documentsSourceId, int firstPageIndex, CancellationToken ct,
+    public async Task<GostGroupingDto?> RecognizeDocumentAsync(Guid fileId, int firstPageIndex, CancellationToken ct,
         Func<int, int, Task>? onProgress = null)
     {
-        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == documentsSourceId, ct);
-        if (source is null) return null;
-        if (source.SheetOrPath != PdfProfiles.GostDocumentsMarker)
-            throw new ArgumentException("Перераспознавание документа доступно только для источника «Документы» ГОСТ-профиля.");
+        var file = await db.DataSetFiles.FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file is null) return null;
+        if (file.Format != DataSetFormat.Pdf)
+            throw new ArgumentException("Перераспознавание документа доступно только для PDF-набора.");
 
-        var grouping = ParseGrouping(source.File.Grouping);
+        var grouping = ParseGrouping(file.Grouping);
         var groups = grouping?.Groups.ToList();
         var targetIdx = groups?.FindIndex(g => g.Kind == GostGroupKind.Document && g.Pages.Any(p => p.PageIndex == firstPageIndex)) ?? -1;
         if (grouping is null || groups is null || targetIdx < 0)
             throw new ArgumentException("Документ с указанной страницей не найден в группировке.");
         var target = groups[targetIdx];
 
-        await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
+        await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms, ct);
         var bytes = ms.ToArray();
@@ -866,7 +842,7 @@ public class DataSetPdfRecognitionService(
                 pageStampText[idx] = GostStampTextExtractor.Extract(page, GostTitleBlockRegion.ComputeBottomRightRegion(size.Width, size.Height));
             }
         }
-        catch (Exception ex) { logger.LogWarning(ex, "Не удалось проверить текстовый слой при перераспознавании документа {SourceId}", documentsSourceId); }
+        catch (Exception ex) { logger.LogWarning(ex, "Не удалось проверить текстовый слой при перераспознавании документа {FileId}", file.Id); }
 
         // Перераспознаём страницы документа (пасс-1 grounding + пасс-2 кроп штампа — тот же путь, что для
         // листов-документов в RecognizeGostSetAsync).
@@ -895,7 +871,7 @@ public class DataSetPdfRecognitionService(
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
                 // Таймаут vision-движка на странице — оставляем её поля пустыми, не роняя перераспознавание.
-                logger.LogWarning("Таймаут распознавания стр. {Page} при перераспознавании документа {SourceId}", idx + 1, documentsSourceId);
+                logger.LogWarning("Таймаут распознавания стр. {Page} при перераспознавании документа {FileId}", idx + 1, file.Id);
                 values = fields.ToDictionary(f => f.Path, string? (f) => null);
             }
 
@@ -913,7 +889,7 @@ public class DataSetPdfRecognitionService(
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    logger.LogWarning(ex, "Второй проход штампа при перераспознавании стр. {Page} источника {SourceId} не удался", idx + 1, documentsSourceId);
+                    logger.LogWarning(ex, "Второй проход штампа при перераспознавании стр. {Page} набора {FileId} не удался", idx + 1, file.Id);
                 }
             }
             freshRows[idx] = values;
@@ -935,7 +911,7 @@ public class DataSetPdfRecognitionService(
         };
         var unified = new GostGroupingData(groups, grouping.ManuallyEdited);
 
-        await MaterializeGroupingAsync(source, unified, bytes, ct);
+        await MaterializeFileGroupingAsync(file, unified, bytes, ct);
 
         var pageCount = GetPdfPageCount(bytes);
         await notifications.PublishAsync(NotificationSeverity.Info, "Документ перераспознан",
@@ -945,12 +921,12 @@ public class DataSetPdfRecognitionService(
             unified.ManuallyEdited, pageCount);
     }
 
-    public async Task<GostGroupingDto?> ApplyGroupingAsync(Guid sourceId, ApplyGroupingInput input, CancellationToken ct)
+    public async Task<GostGroupingDto?> ApplyGroupingAsync(Guid fileId, ApplyGroupingInput input, CancellationToken ct)
     {
-        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source == null) return null;
-        if (source.SheetOrPath != PdfProfiles.GostDocumentsMarker)
-            throw new ArgumentException("Ручная корректировка разбиения доступна только для источника «Документы» ГОСТ-профиля.");
+        var file = await db.DataSetFiles.FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file == null) return null;
+        if (file.Format != DataSetFormat.Pdf)
+            throw new ArgumentException("Ручная корректировка разбиения доступна только для PDF-набора.");
 
         // Страница может не входить ни в одну группу (выпадает из реестров — допустимо), но
         // не может входить сразу в НЕСКОЛЬКО — иначе непонятно, какой группе она принадлежит.
@@ -960,14 +936,14 @@ public class DataSetPdfRecognitionService(
                 if (!seenPages.Add(p))
                     throw new ArgumentException($"Страница {p + 1} назначена сразу нескольким группам.");
 
-        await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
+        await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms, ct);
         var bytes = ms.ToArray();
 
         // Существующая единая группировка: поля страниц (для проекции без потерь при переносе
         // страницы в другую группу — сохраняет её реальные распознанные поля).
-        var existing = ParseGrouping(source.File.Grouping);
+        var existing = ParseGrouping(file.Grouping);
         var pageFields = new Dictionary<int, IReadOnlyDictionary<string, string?>>();
         if (existing is not null)
             foreach (var g in existing.Groups)
@@ -988,7 +964,7 @@ public class DataSetPdfRecognitionService(
         // Стабильные id (issue #28): переносим из существующей группировки по пересечению страниц.
         unified = GostStableIds.Assign(unified, existing);
 
-        await MaterializeGroupingAsync(source, unified, bytes, ct);
+        await MaterializeFileGroupingAsync(file, unified, bytes, ct);
 
         var pageCount = GetPdfPageCount(bytes);
         return new GostGroupingDto(

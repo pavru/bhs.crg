@@ -199,26 +199,38 @@ export function useDuplicateDataSetSource() {
 
 export function useCreatePdfSource() {
   const qc = useQueryClient();
-  return useMutation<DataSetSource, Error, {
+  // ГОСТ-профиль (issue #38) ставит профиль на набор и возвращает 204 (null — источников не создаёт,
+  // они кандидаты после распознавания); «Счёт» — 200 + источник-шапка.
+  return useMutation<DataSetSource | null, Error, {
     fileId: string; name: string; tags?: string[] | null;
     profile?: 'gost-titleblock' | 'invoice';
   }>({
     mutationFn: ({ fileId, ...data }) =>
-      apiClient.post(`/datasets/files/${fileId}/pdf-sources`, data).then(r => r.data),
+      apiClient.post(`/datasets/files/${fileId}/pdf-sources`, data).then(r => r.data ?? null),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
   });
 }
 
 /**
- * Распознаёт основную надпись каждой страницы PDF и кэширует результат — может быть небыстро.
- * confirm=true — подтверждение перезаписи ручной корректировки разбиения (см. useApplyGrouping);
- * без него бэкенд вернёт 409, если источник уже правился вручную (см. isManualGroupingConflict).
+ * Распознавание ГОСТ-комплекта на уровне НАБОРА (issue #38): пишет сырьё (Grouping), источников не
+ * создаёт. confirm=true — подтверждение перезаписи ручной корректировки разбиения (без него 409).
+ * Возвращает 202 + { jobId } (фоновая задача). Результат подтянет useActiveJobs при завершении.
  */
+export function useRecognizeFile() {
+  const qc = useQueryClient();
+  return useMutation<{ jobId?: string }, Error, { fileId: string; confirm?: boolean }>({
+    mutationFn: ({ fileId, confirm }) =>
+      apiClient.post(`/datasets/files/${fileId}/recognize`, undefined, { params: confirm ? { confirm: true } : undefined }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['jobs', 'active'] });
+      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+    },
+  });
+}
+
+/** Распознавание источника «Счёт на оплату» (source-centric исключение) — по sourceId. */
 export function useRecognizePdfSource() {
   const qc = useQueryClient();
-  // Возвращает 202 + { jobId } (GOST-набор — фоновая задача) ЛИБО обновлённый источник (счёт/legacy —
-  // синхронно). Данные подтягивает useActiveJobs при завершении задачи; здесь лишь мгновенно показываем
-  // пилюлю (инвалидация активных задач) и обновляем источники для синхронной ветки.
   return useMutation<{ jobId?: string }, Error, { id: string; confirm?: boolean }>({
     mutationFn: ({ id, confirm }) =>
       apiClient.post(`/datasets/sources/${id}/recognize`, undefined, { params: confirm ? { confirm: true } : undefined }).then(r => r.data),
@@ -229,78 +241,76 @@ export function useRecognizePdfSource() {
   });
 }
 
-/** 409 от /recognize — источник уже правился вручную, нужно явное подтверждение перезаписи. */
+/** 409 от /recognize — набор уже правился вручную, нужно явное подтверждение перезаписи. */
 export function isManualGroupingConflict(err: unknown): boolean {
   return (err as { response?: { status?: number } })?.response?.status === 409;
 }
 
-// ── Ручная корректировка разбиения PDF (источник «Документы» ГОСТ-профиля) ────────
+// ── Редактор разбиения PDF — на уровне НАБОРА (issue #38, fileId) ────────
 
-export function useSourcePages(sourceId: string | null) {
+export function useFilePages(fileId: string | null) {
   return useQuery<GostGrouping>({
-    queryKey: ['datasets', 'sources', sourceId, 'pages'],
-    queryFn: () => apiClient.get(`/datasets/sources/${sourceId}/pages`).then(r => r.data),
-    enabled: !!sourceId,
+    queryKey: ['datasets', 'files', fileId, 'pages'],
+    queryFn: () => apiClient.get(`/datasets/files/${fileId}/pages`).then(r => r.data),
+    enabled: !!fileId,
   });
 }
 
 /** Миниатюра страницы (PNG) — низкое DPI, только чтобы узнать документ глазами, не OCR. */
-export async function loadPageThumbnailUrl(sourceId: string, pageIndex: number): Promise<string> {
-  const response = await apiClient.get(`/datasets/sources/${sourceId}/pages/${pageIndex}/thumbnail`, {
+export async function loadPageThumbnailUrl(fileId: string, pageIndex: number): Promise<string> {
+  const response = await apiClient.get(`/datasets/files/${fileId}/pages/${pageIndex}/thumbnail`, {
     responseType: 'blob',
   });
   return URL.createObjectURL(response.data as Blob);
 }
 
 /** Крупный просмотр листа (PNG повышенного DPI) — чтобы прочитать штамп/содержимое глазами. */
-export async function loadPageImageUrl(sourceId: string, pageIndex: number, dpi = 200): Promise<string> {
-  const response = await apiClient.get(`/datasets/sources/${sourceId}/pages/${pageIndex}/thumbnail`, {
+export async function loadPageImageUrl(fileId: string, pageIndex: number, dpi = 200): Promise<string> {
+  const response = await apiClient.get(`/datasets/files/${fileId}/pages/${pageIndex}/thumbnail`, {
     params: { dpi },
     responseType: 'blob',
   });
   return URL.createObjectURL(response.data as Blob);
 }
 
-export function useApplyGrouping(sourceId: string) {
+export function useApplyGrouping(fileId: string) {
   const qc = useQueryClient();
   return useMutation<GostGrouping, Error, GostGroupingGroup[]>({
     mutationFn: (groups) =>
-      apiClient.put(`/datasets/sources/${sourceId}/grouping`, { groups }).then(r => r.data),
+      apiClient.put(`/datasets/files/${fileId}/grouping`, { groups }).then(r => r.data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'sources', sourceId, 'pages'] });
+      qc.invalidateQueries({ queryKey: ['datasets', 'files', fileId, 'pages'] });
       qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
     },
   });
 }
 
 /** Лёгкая установка тэгов документа (тип таблицы) — без пересборки разбиения. */
-export function useSetDocumentTags(documentsSourceId: string) {
+export function useSetDocumentTags(fileId: string) {
   const qc = useQueryClient();
   return useMutation<GostGrouping, unknown, { firstPageIndex: number; tags: string[] }>({
     mutationFn: ({ firstPageIndex, tags }) =>
-      apiClient.put(`/datasets/sources/${documentsSourceId}/document-tags`, { firstPageIndex, tags }).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['datasets', 'sources', documentsSourceId, 'pages'] }); },
+      apiClient.put(`/datasets/files/${fileId}/document-tags`, { firstPageIndex, tags }).then(r => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['datasets', 'files', fileId, 'pages'] }); },
   });
 }
 
-/** Распознать таблицу помеченного документа (спецификация/кабельный журнал) → отдельный табличный источник. */
 /** Точечное перераспознавание ОДНОГО документа (не всего альбома) — фоновая задача, 202+jobId. */
-export function useRecognizeDocument(documentsSourceId: string) {
+export function useRecognizeDocument(fileId: string) {
   const qc = useQueryClient();
   return useMutation<{ jobId?: string }, unknown, number>({
     mutationFn: (firstPageIndex) =>
-      apiClient.post(`/datasets/sources/${documentsSourceId}/recognize-document`, { firstPageIndex }).then(r => r.data),
+      apiClient.post(`/datasets/files/${fileId}/recognize-document`, { firstPageIndex }).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['jobs', 'active'] }); },
   });
 }
 
-export function useRecognizeDocumentTable(documentsSourceId: string) {
+/** Распознать таблицу помеченного документа (спецификация/кабельный журнал) → отдельный табличный источник. */
+export function useRecognizeDocumentTable(fileId: string) {
   const qc = useQueryClient();
-  // 202 + { jobId } — распознавание таблицы идёт фоновой задачей; результат (новый табличный источник)
-  // подтянет useActiveJobs при завершении, итог всплывёт в колокольчике. Здесь — мгновенный показ пилюли.
   return useMutation<{ jobId?: string }, unknown, number>({
     mutationFn: (firstPageIndex) =>
-      apiClient.post(`/datasets/sources/${documentsSourceId}/recognize-table`, { firstPageIndex }).then(r => r.data),
+      apiClient.post(`/datasets/files/${fileId}/recognize-table`, { firstPageIndex }).then(r => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['jobs', 'active'] }); },
   });
 }

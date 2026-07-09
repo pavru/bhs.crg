@@ -7,7 +7,7 @@ import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/data
 import { useSourceRecognizing } from '@/shared/api/jobs';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
-  usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizePdfSource,
+  usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizePdfSource, useRecognizeFile,
   isManualGroupingConflict, exportDataSetSource, useSourceCandidates, useCreateDataSetSource,
 } from '@/shared/api/datasets';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -89,7 +89,6 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
   const [previewing, setPreviewing] = useState(false);
   const [materializing, setMaterializing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [recognizeConflict, setRecognizeConflict] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const setProcessing = useSetDataSetSourceProcessing();
@@ -97,10 +96,6 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
   const applyTemplateMutation = useApplyProcessingTemplate();
   const deleteMutation = useDeleteDataSetSource();
   const duplicateMutation = useDuplicateDataSetSource();
-  const recognizeMutation = useRecognizePdfSource();
-  // Идёт ли уже распознавание по этому источнику (фоновая задача) — чтобы не запускать дубль:
-  // recognizeMutation.isPending живёт только до 202-ответа, поэтому этого мало.
-  const recognizing = useSourceRecognizing(src.id);
 
   const filterCount = countFilterConditions(src.rowFilter);
   const transformCount = src.computedColumns?.length ?? 0;
@@ -128,12 +123,6 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
     });
     setSavingTemplate(false);
   }
-  function handleRecognize() {
-    recognizeMutation.mutate({ id: src.id }, {
-      onError: err => { if (isManualGroupingConflict(err)) setRecognizeConflict(true); },
-    });
-  }
-
   // Пассивные PDF-подисточники (обложка/титул/товары) заполняются вместе с главным — их не
   // распознают напрямую; показываем подпись-подсказку, но остальные действия доступны.
   const passiveLabel =
@@ -157,7 +146,6 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
     ] },
     { key: 'duplicate', label: 'Создать копию', icon: <Copy size={13} />, onSelect: () => duplicateMutation.mutate({ id: src.id }), disabled: duplicateMutation.isPending },
     { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: <Boxes size={13} />, onSelect: () => setMaterializing(true) },
-    ...(isPdf && !passiveLabel ? [{ key: 'recognize', label: recognizing ? 'Распознаётся…' : 'Распознать', icon: <ScanText size={13} />, onSelect: handleRecognize, disabled: recognizeMutation.isPending || recognizing }] : []),
     ...(canManageExtraction && !isPdf ? [{ key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => onEdit(src) }] : []),
     ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: <Trash2 size={13} />, danger: true, onSelect: () => { setDeleteError(null); setConfirmDelete(true); } }] : []),
   ];
@@ -169,7 +157,7 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
           <div className="font-medium text-fg1">
             {src.name}
             {src.recognitionStale && (
-              <span title="Файл заменён после распознавания — данные относятся к прежнему файлу. Нажмите «Распознать»."
+              <span title="Файл заменён после распознавания — данные относятся к прежнему файлу. Распознайте набор заново."
                 className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning-subtle text-warning align-middle">
                 <AlertTriangle size={10} /> устарело
               </span>
@@ -219,15 +207,6 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
       {materializing && <MaterializationDialog source={src} onClose={() => setMaterializing(false)} />}
 
       <ConfirmDialog
-        open={recognizeConflict}
-        onOpenChange={o => { if (!o) setRecognizeConflict(false); }}
-        title="Разбиение было скорректировано вручную"
-        description={<p>Повторное автораспознавание сотрёт ручные правки разбиения на документы. Продолжить?</p>}
-        confirmLabel="Распознать заново"
-        onConfirm={() => recognizeMutation.mutate({ id: src.id, confirm: true })}
-      />
-
-      <ConfirmDialog
         open={confirmDelete}
         onOpenChange={o => { if (!o) setConfirmDelete(false); }}
         title={`Удалить источник «${src.name}»?`}
@@ -268,6 +247,31 @@ export function SourcesExpander({
   const createSource = useCreateDataSetSource();
   const availableCandidates = candidates.filter(c => !sources.some(s => s.sheetOrPath === c.sheetOrPath));
 
+  // Распознавание — команда УРОВНЯ НАБОРА (issue #38): пишет сырьё (Grouping), источников не создаёт.
+  // ГОСТ — по fileId; «Счёт» — по источнику-шапке (source-centric исключение). Профиль ещё не выбран
+  // → диалог профиля (ставит профиль + распознаёт).
+  const recognizeFile = useRecognizeFile();
+  const recognizeSource = useRecognizePdfSource();
+  const [recognizeConflict, setRecognizeConflict] = useState(false);
+  const profile = file.preprocessingProfile;
+  const invoiceHeader = sources.find(s => s.sheetOrPath === 'invoice-header');
+  const gostRecognizing = useSourceRecognizing(file.id);
+  const invoiceRecognizing = useSourceRecognizing(invoiceHeader?.id ?? '');
+  const recognizing = gostRecognizing || invoiceRecognizing;
+  const recognizeBusy = recognizeFile.isPending || recognizeSource.isPending;
+
+  function handleRecognizeDataset(confirm = false) {
+    if (profile === 'gost-titleblock' || (profile == null && candidates.length > 0)) {
+      recognizeFile.mutate({ fileId: file.id, confirm }, {
+        onError: (err: unknown) => { if (isManualGroupingConflict(err)) setRecognizeConflict(true); },
+      });
+    } else if (profile === 'invoice' && invoiceHeader) {
+      recognizeSource.mutate({ id: invoiceHeader.id, confirm });
+    } else {
+      setEditing('new'); setOpen(true); // профиль не выбран → диалог профиля (ставит профиль + распознаёт)
+    }
+  }
+
   if (sources.length === 0 && !canManageExtraction)
     return <span className="text-xs text-fg4">Нет источников</span>;
 
@@ -280,6 +284,13 @@ export function SourcesExpander({
             ? `${sources.length} ${sources.length === 1 ? 'источник' : 'источника(-ов)'}`
             : 'Нет источников'}
         </button>
+        {/* PDF-набор: «Распознать» (уровень набора, issue #38) + «Добавить источник» рядом. */}
+        {isPdf && (
+          <button onClick={() => handleRecognizeDataset()} disabled={recognizeBusy || recognizing}
+            className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover disabled:opacity-50">
+            <ScanText size={11} /> {recognizing ? 'Распознаётся…' : profile ? 'Распознать заново' : 'Распознать'}
+          </button>
+        )}
         {canManageExtraction && (
           <button onClick={() => { setEditing('new'); setOpen(true); }}
             className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
@@ -323,6 +334,15 @@ export function SourcesExpander({
           />
         )
       )}
+
+      <ConfirmDialog
+        open={recognizeConflict}
+        onOpenChange={o => { if (!o) setRecognizeConflict(false); }}
+        title="Разбиение было скорректировано вручную"
+        description={<p>Повторное автораспознавание сотрёт ручные правки разбиения на документы. Продолжить?</p>}
+        confirmLabel="Распознать заново"
+        onConfirm={() => recognizeFile.mutate({ fileId: file.id, confirm: true })}
+      />
     </div>
   );
 }

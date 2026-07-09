@@ -227,7 +227,7 @@ public class DataSetGostRecognitionTests(IntegrationTestFixture fixture) : IAsyn
         var svc2 = new DataSetPdfRecognitionService(db, blob,
             new ScriptedRecognizer([P("Документ", "Форма3", "01-ЭМ", "Схема 1 (испр.)")]),
             new RecordingNotificationService(), NullLogger<DataSetPdfRecognitionService>.Instance);
-        await svc2.RecognizeDocumentAsync(documents.Id, firstPageIndex: 2, default);
+        await svc2.RecognizeDocumentAsync(file.Id, firstPageIndex: 2, default);
 
         var grouping = JsonSerializer.Deserialize<GostGroupingData>(db.DataSetFiles.Find(documents.FileId)!.Grouping!)!;
         var docs = Docs(grouping);
