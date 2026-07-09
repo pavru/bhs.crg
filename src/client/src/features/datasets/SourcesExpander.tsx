@@ -261,10 +261,12 @@ export function SourcesExpander({
   // прочие форматы — полное создание/редактирование/переименование/удаление.
   const canManageExtraction = true;
   const sources = file.sources;
-  // PDF (issue #30): логические таблицы распознанного набора (Обложка/Титул), которых ещё нет
-  // как источников — создаются явно в один клик. «Документы» авто-создаётся при выборе профиля.
-  const { data: pdfCandidates = [] } = useSourceCandidates(open && isPdf ? file.id : undefined);
+  // Кандидаты на источник (issue #30/#34): для всех форматов — логические таблицы/листы набора,
+  // которых ещё нет как источников, создаются в один клик. PDF — Обложка/Титул из распознанной
+  // группировки; XLSX — листы; CSV — «весь файл»; JSON — верхнеуровневые массивы.
+  const { data: candidates = [] } = useSourceCandidates(open ? file.id : undefined);
   const createSource = useCreateDataSetSource();
+  const availableCandidates = candidates.filter(c => !sources.some(s => s.sheetOrPath === c.sheetOrPath));
 
   if (sources.length === 0 && !canManageExtraction)
     return <span className="text-xs text-fg4">Нет источников</span>;
@@ -291,10 +293,10 @@ export function SourcesExpander({
             <SourceRow key={src.id} src={src} isPdf={isPdf} canManageExtraction={canManageExtraction}
               templates={templates} maxColumns={maxColumns} onEdit={setEditing} />
           ))}
-          {isPdf && pdfCandidates.length > 0 && (
+          {availableCandidates.length > 0 && (
             <div className="border-t border-stroke pt-2 mt-1 space-y-1">
-              <p className="text-[11px] text-fg4">Доступно из распознанного набора:</p>
-              {pdfCandidates.map(c => (
+              <p className="text-[11px] text-fg4">{isPdf ? 'Доступно из распознанного набора:' : 'Доступно из набора:'}</p>
+              {availableCandidates.map(c => (
                 <div key={c.sheetOrPath} className="flex items-center gap-2 text-xs">
                   <span className="text-fg2">{c.name} <span className="text-fg4">· {c.rowCount} строк</span></span>
                   <button type="button" disabled={createSource.isPending}
