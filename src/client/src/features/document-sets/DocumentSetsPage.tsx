@@ -126,7 +126,7 @@ function SetDetail() {
         {sectionName && (
           <>
             <ChevronRight size={14} />
-            <span className="text-fg4">{sectionName}</span>
+            <Link to={`/document-sets/${constructionId}?section=${set.sectionId}`} className="hover:text-fg2 transition-colors">{sectionName}</Link>
           </>
         )}
         <ChevronRight size={14} />
@@ -364,7 +364,7 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
   }
 
   return (
-    <div className="border border-stroke rounded-xl overflow-hidden">
+    <div id={`section-${section.id}`} className="border border-stroke rounded-xl overflow-hidden scroll-mt-4">
       <div className="flex items-center bg-surface px-4 py-3 gap-2">
         <button onClick={onToggle} className="flex-1 flex items-center gap-3 text-left">
           {expanded ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
@@ -510,11 +510,22 @@ function ConstructionDetail() {
   const { constructionId } = useParams<{ constructionId: string }>();
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
   const { data: docTypes = [] } = useListDocumentTypes();
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [searchParams] = useSearchParams();
+  const focusSectionId = searchParams.get('section');
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    () => focusSectionId ? new Set([focusSectionId]) : new Set());
   const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
   const [sectionError, setSectionError] = useState('');
   const createSection = useCreateSection();
+
+  // Переход из хлебных крошек по ?section= — раскрыть этот раздел и подскроллить к нему.
+  useEffect(() => {
+    if (!focusSectionId || !construction) return;
+    setExpandedSections(prev => new Set([...prev, focusSectionId]));
+    const el = document.getElementById(`section-${focusSectionId}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [focusSectionId, construction]);
 
   function toggleSection(id: string) {
     setExpandedSections(prev => {
