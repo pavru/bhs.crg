@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ChevronDown, ChevronRight, Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
-  BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes,
+  BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, LayoutGrid,
 } from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
 import { useSourceRecognizing } from '@/shared/api/jobs';
@@ -253,7 +254,12 @@ export function SourcesExpander({
   const recognizeFile = useRecognizeFile();
   const recognizeSource = useRecognizePdfSource();
   const [recognizeConflict, setRecognizeConflict] = useState(false);
+  const navigate = useNavigate();
   const profile = file.preprocessingProfile;
+  // ГОСТ-набор: профиль gost ИЛИ есть проекции/таблицы из его группировки (legacy-наборы без профиля).
+  const isGostDataset = profile === 'gost-titleblock'
+    || sources.some(s => s.sheetOrPath === 'gost-documents' || s.sheetOrPath === 'gost-cover'
+      || s.sheetOrPath === 'gost-titlepage' || s.sheetOrPath.startsWith('gost-table:'));
   const invoiceHeader = sources.find(s => s.sheetOrPath === 'invoice-header');
   const gostRecognizing = useSourceRecognizing(file.id);
   const invoiceRecognizing = useSourceRecognizing(invoiceHeader?.id ?? '');
@@ -289,6 +295,14 @@ export function SourcesExpander({
           <button onClick={() => handleRecognizeDataset()} disabled={recognizeBusy || recognizing}
             className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover disabled:opacity-50">
             <ScanText size={11} /> {recognizing ? 'Распознаётся…' : profile ? 'Распознать заново' : 'Распознать'}
+          </button>
+        )}
+        {/* Редактор разбиения — на уровне НАБОРА (issue #40): доступен без создания источника «Документы». */}
+        {isPdf && isGostDataset && (
+          <button onClick={() => navigate(`/datasets/files/${file.id}/grouping`, { state: { sourceName: file.name } })}
+            className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover"
+            title="Перенести страницы между документами, задать тип таблицы, распознать таблицу — на уровне набора">
+            <LayoutGrid size={11} /> Разбиение
           </button>
         )}
         {canManageExtraction && (
