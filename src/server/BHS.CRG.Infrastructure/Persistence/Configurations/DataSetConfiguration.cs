@@ -42,7 +42,6 @@ public class DataSetSourceConfiguration : IEntityTypeConfiguration<DataSetSource
         b.Property(e => e.SortSpec).HasColumnType("jsonb");
         b.Property(e => e.CachedData).HasColumnType("jsonb");
         b.Property(e => e.Tags).HasColumnType("jsonb");
-        b.Property(e => e.GostGrouping).HasColumnType("jsonb");
         b.Property(e => e.MaterializeTypeId);
         b.Property(e => e.MaterializeMapping).HasColumnType("jsonb");
         b.HasMany(e => e.Bindings)

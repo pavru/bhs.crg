@@ -128,7 +128,7 @@ public class DataSetGostRecognitionTests(IntegrationTestFixture fixture) : IAsyn
             n => n.Severity == NotificationSeverity.Info && n.Title == "Распознавание групп листов PDF завершено");
 
         // Обложка и титул — как группы в единой группировке.
-        var grouping = JsonSerializer.Deserialize<GostGroupingData>(documents.GostGrouping!)!;
+        var grouping = JsonSerializer.Deserialize<GostGroupingData>(db.DataSetFiles.Find(documents.FileId)!.Grouping!)!;
         Assert.False(grouping.ManuallyEdited);
         Assert.Contains(grouping.Groups, g => g.Kind == GostGroupKind.Cover);
         Assert.Contains(grouping.Groups, g => g.Kind == GostGroupKind.TitlePage);
@@ -188,7 +188,7 @@ public class DataSetGostRecognitionTests(IntegrationTestFixture fixture) : IAsyn
             db, blob, new ScriptedRecognizer(script), new RecordingNotificationService(), NullLogger<DataSetPdfRecognitionService>.Instance);
         await svc.RecognizePdfSourceAsync(documents.Id, confirm: true, default);
 
-        var grouping = JsonSerializer.Deserialize<GostGroupingData>(documents.GostGrouping!)!;
+        var grouping = JsonSerializer.Deserialize<GostGroupingData>(db.DataSetFiles.Find(documents.FileId)!.Grouping!)!;
         var group = Assert.Single(Docs(grouping));
         Assert.Equal([0, 1], Idx(group));
         Assert.Equal("DP-ЕЦДМ-ЭМ", group.Code); // код с первого листа, не с зашумлённого продолжения
@@ -229,7 +229,7 @@ public class DataSetGostRecognitionTests(IntegrationTestFixture fixture) : IAsyn
             new RecordingNotificationService(), NullLogger<DataSetPdfRecognitionService>.Instance);
         await svc2.RecognizeDocumentAsync(documents.Id, firstPageIndex: 2, default);
 
-        var grouping = JsonSerializer.Deserialize<GostGroupingData>(documents.GostGrouping!)!;
+        var grouping = JsonSerializer.Deserialize<GostGroupingData>(db.DataSetFiles.Find(documents.FileId)!.Grouping!)!;
         var docs = Docs(grouping);
         Assert.Equal("Схема 1 (испр.)", docs.Single(d => d.Pages[0].PageIndex == 2).Name); // целевой обновлён
         Assert.Equal("Спецификация", docs.Single(d => d.Pages[0].PageIndex == 3).Name);    // соседний не тронут
