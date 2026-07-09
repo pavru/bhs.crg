@@ -14,7 +14,8 @@ public record MaterializePreviewDto(Guid? TypeId, int TotalRows, IReadOnlyList<D
 
 public record DataSetFileDto(
     Guid Id, string Name, string Format, string Scope, Guid? ScopeId,
-    IReadOnlyList<DataSetSourceDto> Sources, DateTimeOffset CreatedAt);
+    IReadOnlyList<DataSetSourceDto> Sources, DateTimeOffset CreatedAt,
+    string Origin = "Uploaded", Guid? ParentFileId = null);
 
 public record BindingFileDto(Guid Id, string Name, string Format, string Scope, Guid? ScopeId);
 
