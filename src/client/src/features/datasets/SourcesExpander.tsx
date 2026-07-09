@@ -254,6 +254,7 @@ export function SourcesExpander({
   const recognizeFile = useRecognizeFile();
   const recognizeSource = useRecognizePdfSource();
   const [recognizeConflict, setRecognizeConflict] = useState(false);
+  const [profileDialog, setProfileDialog] = useState(false); // диалог выбора профиля PDF (только для «Распознать»)
   const navigate = useNavigate();
   const profile = file.preprocessingProfile;
   // ГОСТ-набор: профиль gost ИЛИ есть проекции/таблицы из его группировки (legacy-наборы без профиля).
@@ -274,7 +275,7 @@ export function SourcesExpander({
     } else if (profile === 'invoice' && invoiceHeader) {
       recognizeSource.mutate({ id: invoiceHeader.id, confirm });
     } else {
-      setEditing('new'); setOpen(true); // профиль не выбран → диалог профиля (ставит профиль + распознаёт)
+      setProfileDialog(true); // профиль не выбран → диалог выбора профиля (ставит профиль + распознаёт)
     }
   }
 
@@ -336,18 +337,17 @@ export function SourcesExpander({
         </div>
       )}
 
+      {/* «Добавить источник» — обычный диалог создания источника для ВСЕХ форматов, включая PDF
+          (выбор кандидата-проекции, как лист Excel). Диалог выбора профиля — только у «Распознать». */}
       {editing && (
-        isPdf ? (
-          <PdfSourceDialog fileId={file.id} onClose={() => setEditing(null)} />
-        ) : (
-          <SourceEditorDialog
-            fileId={file.id}
-            format={file.format}
-            initial={editing === 'new' ? undefined : editing}
-            onClose={() => setEditing(null)}
-          />
-        )
+        <SourceEditorDialog
+          fileId={file.id}
+          format={file.format}
+          initial={editing === 'new' ? undefined : editing}
+          onClose={() => setEditing(null)}
+        />
       )}
+      {profileDialog && <PdfSourceDialog fileId={file.id} onClose={() => setProfileDialog(false)} />}
 
       <ConfirmDialog
         open={recognizeConflict}
