@@ -2,8 +2,10 @@ using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Infrastructure.Recognition;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Infrastructure.DataSets;
@@ -70,6 +72,19 @@ public class DataSetSourceService(
             candidates.Add(new DataSetSourceInfo("Обложка", PdfProfiles.GostCoverMarker, ColumnsFromRows(projected.Cover), projected.Cover.Count));
         if (projected.TitlePage.Count > 0 && !existing.Contains(PdfProfiles.GostTitlePageMarker))
             candidates.Add(new DataSetSourceInfo("Титульный лист", PdfProfiles.GostTitlePageMarker, ColumnsFromRows(projected.TitlePage), projected.TitlePage.Count));
+
+        // Таблицы (issue #42): группа-документ с табличным тэгом и распознанным СЫРЬЁМ таблицы (TableData)
+        // → кандидат «Таблица …». Источник-проекцию создаёт пользователь (ключ gost-table:{стабильный id}).
+        foreach (var g in grouping.Groups)
+        {
+            if (g.Kind != GostGroupKind.Document || g.Id == Guid.Empty) continue;
+            var hasTableTag = (g.Tags ?? []).Any(t => GostTableFields.ColumnsForTag(t) is not null);
+            if (!hasTableTag || string.IsNullOrEmpty(g.TableData)) continue;
+            var marker = $"{PdfProfiles.GostTableMarkerPrefix}{g.Id}";
+            if (existing.Contains(marker)) continue;
+            var name = string.IsNullOrWhiteSpace(g.Name) ? "Таблица" : $"Таблица — {g.Name}";
+            candidates.Add(new DataSetSourceInfo(name, marker, ColumnsFromSchemaJson(g.TableColumns), RowCountOf(g.TableData)));
+        }
         return candidates;
     }
 
@@ -78,6 +93,18 @@ public class DataSetSourceService(
         var names = rows.SelectMany(r => r.Keys).Distinct().ToList();
         return names.Select(n => new DataSetColumnInfo(n,
             rows.Take(3).Select(r => r.GetValueOrDefault(n) ?? "").ToArray())).ToList();
+    }
+
+    private static IReadOnlyList<DataSetColumnInfo> ColumnsFromSchemaJson(string? schemaJson)
+    {
+        var cols = JsonSerializer.Deserialize<CachedColumnInfo[]>(schemaJson ?? "[]", CachedSchemaJson) ?? [];
+        return cols.Select(c => new DataSetColumnInfo(c.Name, c.SampleValues)).ToList();
+    }
+
+    private static int RowCountOf(string? dataJson)
+    {
+        try { return JsonSerializer.Deserialize<List<Dictionary<string, string?>>>(dataJson ?? "[]")?.Count ?? 0; }
+        catch { return 0; }
     }
 
     public async Task<SourcePreviewDto?> PreviewSourceAsync(Guid sourceId, int maxRows, CancellationToken ct)
@@ -207,24 +234,59 @@ public class DataSetSourceService(
         return DataSetDtoMapper.MapSource(source);
     }
 
-    // Источник-проекция PDF (issue #30): Обложка/Титул проецируются из группировки набора и кэшируются
-    // в CachedData (LoadRowsAsync читает PDF-строки из кэша). «Документы» и gost-table создаются
-    // распознаванием/тэгом, здесь не обрабатываются.
+    // Источник-проекция PDF (issue #30/#38/#42): обложка/титул/документы/таблица проецируются из СЫРЬЯ
+    // набора (группировка) и кэшируются в CachedData (LoadRowsAsync читает из кэша).
     private async Task<DataSetSourceDto> CreatePdfProjectionSourceAsync(
         Domain.DataSets.DataSetFile file, string name, string marker, CancellationToken ct)
     {
         var grouping = GostGroupingSerialization.Parse(file.Grouping)
             ?? throw new ArgumentException("Набор ещё не распознан — сначала запустите распознавание.");
+
+        // Таблица (issue #42): проекция распознанного СЫРЬЯ таблицы группы (TableData) + материализация
+        // в целевой тип по табличному тэгу. Ключ — стабильный id группы (gost-table:{id}).
+        if (marker.StartsWith(PdfProfiles.GostTableMarkerPrefix, StringComparison.Ordinal))
+            return await CreateTableProjectionSourceAsync(file, name, marker, grouping, ct);
+
         var projected = GostGroupingProjection.Project(grouping);
         // Проекция-источник из СЫРЬЯ набора (issue #38): обложка/титул/документы проецируются из
         // группировки. «Документы» несут ФайлПуть/РазмерБайт (под-PDF вырезаны при распознавании).
         var rows = marker == PdfProfiles.GostCoverMarker ? projected.Cover
             : marker == PdfProfiles.GostTitlePageMarker ? projected.TitlePage
             : marker == PdfProfiles.GostDocumentsMarker ? projected.Documents.Select(d => d.Fields).ToList()
-            : throw new ArgumentException("Для PDF источник создаётся из кандидата обложки/титула/документов.");
+            : throw new ArgumentException("Для PDF источник создаётся из кандидата обложки/титула/документов/таблицы.");
 
         var columns = ColumnsFromRows(rows);
         var source = file.AddSource(name, marker, DataSetDtoMapper.SerializeSchema(columns), rows.Count, null, JsonSerializer.Serialize(rows));
+        db.DataSetSources.Add(source);
+        await db.SaveChangesAsync(ct);
+        return DataSetDtoMapper.MapSource(source);
+    }
+
+    private async Task<DataSetSourceDto> CreateTableProjectionSourceAsync(
+        Domain.DataSets.DataSetFile file, string name, string marker, GostGroupingData grouping, CancellationToken ct)
+    {
+        var idStr = marker[PdfProfiles.GostTableMarkerPrefix.Length..];
+        if (!Guid.TryParse(idStr, out var gid))
+            throw new ArgumentException("Некорректный маркер таблицы.");
+        var group = grouping.Groups.FirstOrDefault(g => g.Id == gid && g.Kind == GostGroupKind.Document)
+            ?? throw new ArgumentException("Документ таблицы не найден в группировке.");
+        if (string.IsNullOrEmpty(group.TableData))
+            throw new ArgumentException("Таблица ещё не распознана — распознайте её в редакторе разбиения.");
+
+        var source = file.AddSource(name, marker, group.TableColumns ?? "[]", RowCountOf(group.TableData), null, group.TableData);
+        // Материализация в целевой тип по табличному тэгу (issue #29/#19): строки распознаны прямо в ключи
+        // полей типа, поэтому маппинг тождественный (колонка→одноимённое поле).
+        var tag = (group.Tags ?? []).FirstOrDefault(t => GostTableFields.ColumnsForTag(t) is not null);
+        if (tag is not null)
+        {
+            var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
+            var targetType = allTypes.FirstOrDefault(t => SchemaTags.TypeHasTag(t, allTypes, tag));
+            if (targetType is not null)
+            {
+                var cols = JsonSerializer.Deserialize<CachedColumnInfo[]>(group.TableColumns ?? "[]", CachedSchemaJson) ?? [];
+                source.SetMaterialization(targetType.Id, JsonSerializer.Serialize(cols.ToDictionary(c => c.Name, c => c.Name)));
+            }
+        }
         db.DataSetSources.Add(source);
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(source);

@@ -88,9 +88,10 @@ public interface IDataSetService
     Task<GostGroupingDto?> ApplyGroupingAsync(Guid fileId, ApplyGroupingInput input, CancellationToken ct);
     /// <summary>Лёгкая установка тэгов документа (тип таблицы) без пересборки разбиения.</summary>
     Task<GostGroupingDto?> SetDocumentTagsAsync(Guid fileId, int firstPageIndex, IReadOnlyList<string> tags, CancellationToken ct);
-    /// <summary>Распознать таблицу помеченного документа ГОСТ-профиля (спецификация/кабельный журнал)
-    /// и создать/обновить отдельный табличный источник. firstPageIndex — любая страница документа.</summary>
-    Task<DataSetSourceDto?> RecognizeDocumentTableAsync(Guid fileId, int firstPageIndex, CancellationToken ct);
+    /// <summary>Распознать таблицу помеченного документа ГОСТ-профиля (спецификация/кабельный журнал):
+    /// пишет строки как СЫРЬЁ на группу (Grouping) — доступна как кандидат «Таблица …», источник создаёт
+    /// пользователь (issue #42). Источника НЕ создаёт. firstPageIndex — любая страница документа.</summary>
+    Task<GostGroupingDto?> RecognizeDocumentTableAsync(Guid fileId, int firstPageIndex, CancellationToken ct);
 
     /// <summary>Пути XML-записей внутри ZIP-файла — для выбора при ручном создании источника.</summary>
     Task<IReadOnlyList<string>> ListZipXmlEntriesAsync(Guid fileId, CancellationToken ct);

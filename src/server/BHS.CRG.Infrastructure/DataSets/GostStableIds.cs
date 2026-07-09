@@ -11,7 +11,11 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// </summary>
 public static class GostStableIds
 {
-    public static GostGroupingData Assign(GostGroupingData fresh, GostGroupingData? existing)
+    /// <param name="carryUserData">true — переносить пользовательскую разметку (тэги + табличное сырьё)
+    /// с прежних групп по стабильному id: нужно при полном РЕ-РАСПОЗНАВАНИИ (свежие группы приходят без
+    /// тэгов, иначе они бы потерялись). false (ручная правка ApplyGrouping) — тэги во fresh авторитетны
+    /// (в т.ч. снятие тэга), переносим только Id.</param>
+    public static GostGroupingData Assign(GostGroupingData fresh, GostGroupingData? existing, bool carryUserData = false)
     {
         var existingGroups = existing?.Groups?.ToList() ?? [];
         var claimed = new HashSet<Guid>();
@@ -20,12 +24,13 @@ public static class GostStableIds
         foreach (var g in fresh.Groups)
         {
             var id = Guid.Empty;
+            GostGroupingGroup? matched = null;
 
             if (g.Kind is GostGroupKind.Cover or GostGroupKind.TitlePage)
             {
                 var m = existingGroups.FirstOrDefault(e =>
                     e.Kind == g.Kind && e.Id != Guid.Empty && !claimed.Contains(e.Id));
-                if (m is not null) id = m.Id;
+                if (m is not null) { id = m.Id; matched = m; }
             }
             else
             {
@@ -38,13 +43,30 @@ public static class GostStableIds
                     var overlap = e.Pages.Count(p => pages.Contains(p.PageIndex));
                     if (overlap > bestOverlap) { bestOverlap = overlap; best = e; }
                 }
-                if (best is not null && bestOverlap > 0) id = best.Id;
+                if (best is not null && bestOverlap > 0) { id = best.Id; matched = best; }
             }
 
             if (id == Guid.Empty) id = Guid.NewGuid();
             else claimed.Add(id);
 
-            result.Add(g with { Id = id });
+            // Перенос пользовательской разметки/сырья по стабильному id (issue #42) — только при полном
+            // ре-распознавании (carryUserData): тэги переносим (ручной выбор типа таблицы не теряется),
+            // табличное сырьё (TableData/Columns) тоже, но если состав страниц изменился — помечаем stale.
+            // Порог доминирования: сырьё переносим только при существенном пересечении (иначе чужая группа
+            // унаследовала бы таблицу). При ручной правке (carryUserData=false) тэги во fresh авторитетны.
+            var carried = g with { Id = id };
+            if (matched is not null && carryUserData)
+            {
+                var freshPages = g.Pages.Select(p => p.PageIndex).ToHashSet();
+                var existPages = matched.Pages.Select(p => p.PageIndex).ToHashSet();
+                var samePages = freshPages.SetEquals(existPages);
+                var overlap = freshPages.Count(existPages.Contains);
+                var dominant = overlap * 2 >= Math.Max(freshPages.Count, existPages.Count); // ≥половины большей группы
+                carried = carried with { Tags = matched.Tags ?? g.Tags };
+                if (dominant && !string.IsNullOrEmpty(matched.TableData))
+                    carried = carried with { TableData = matched.TableData, TableColumns = matched.TableColumns, TableStale = matched.TableStale || !samePages };
+            }
+            result.Add(carried);
         }
 
         return fresh with { Groups = result };

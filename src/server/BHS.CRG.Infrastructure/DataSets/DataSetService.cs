@@ -83,7 +83,7 @@ public class DataSetService(
         pdfRecognition.ApplyGroupingAsync(fileId, input, ct);
     public Task<GostGroupingDto?> SetDocumentTagsAsync(Guid fileId, int firstPageIndex, IReadOnlyList<string> tags, CancellationToken ct) =>
         pdfRecognition.SetDocumentTagsAsync(fileId, firstPageIndex, tags, ct);
-    public Task<DataSetSourceDto?> RecognizeDocumentTableAsync(Guid fileId, int firstPageIndex, CancellationToken ct) =>
+    public Task<GostGroupingDto?> RecognizeDocumentTableAsync(Guid fileId, int firstPageIndex, CancellationToken ct) =>
         pdfRecognition.RecognizeDocumentTableAsync(fileId, firstPageIndex, ct);
 
     // ── Processing templates ────────────────────────────────────────────────────
