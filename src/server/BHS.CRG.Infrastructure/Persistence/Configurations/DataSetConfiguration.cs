@@ -12,6 +12,12 @@ public class DataSetFileConfiguration : IEntityTypeConfiguration<DataSetFile>
         b.Property(e => e.PreprocessingProfile).HasMaxLength(64);
         b.Property(e => e.Grouping).HasColumnType("jsonb");
         b.Property(e => e.RecognitionStale).HasDefaultValue(false);
+        b.Property(e => e.Origin).HasConversion<string>().HasMaxLength(32).HasDefaultValue(Domain.DataSets.DataSetFileOrigin.Uploaded);
+        b.Property(e => e.ParentFileId);
+        b.Property(e => e.OriginKey).HasMaxLength(128);
+        b.Property(e => e.RecognizedData).HasColumnType("jsonb");
+        b.Property(e => e.RecognizedSchema).HasColumnType("jsonb");
+        b.HasIndex(e => e.ParentFileId);
         b.HasKey(e => e.Id);
         b.Property(e => e.Name).HasMaxLength(512).IsRequired();
         b.Property(e => e.Format).HasConversion<string>().HasMaxLength(16).IsRequired();
