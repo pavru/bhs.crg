@@ -39,12 +39,39 @@ public class DataSetSourceService(
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
 
+        // PDF (issue #30): кандидаты — логические таблицы распознанной группировки набора (Обложка/
+        // Титульный лист), которых ещё нет как источников. «Документы» авто-создаётся при выборе профиля.
+        if (file.Format == DataSetFormat.Pdf)
+            return await PdfCandidatesAsync(file, ct);
+
         await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms, ct);
 
         var parser = parserFactory.GetParser(file.Format);
         return await parser.DetectSourcesAsync(ms.ToArray(), ct);
+    }
+
+    private async Task<IReadOnlyList<DataSetSourceInfo>> PdfCandidatesAsync(Domain.DataSets.DataSetFile file, CancellationToken ct)
+    {
+        var grouping = GostGroupingSerialization.Parse(file.Grouping);
+        if (grouping is null) return [];
+        var projected = GostGroupingProjection.Project(grouping);
+        var existing = await db.DataSetSources.Where(s => s.FileId == file.Id).Select(s => s.SheetOrPath).ToListAsync(ct);
+
+        var candidates = new List<DataSetSourceInfo>();
+        if (projected.Cover.Count > 0 && !existing.Contains(PdfProfiles.GostCoverMarker))
+            candidates.Add(new DataSetSourceInfo("Обложка", PdfProfiles.GostCoverMarker, ColumnsFromRows(projected.Cover), projected.Cover.Count));
+        if (projected.TitlePage.Count > 0 && !existing.Contains(PdfProfiles.GostTitlePageMarker))
+            candidates.Add(new DataSetSourceInfo("Титульный лист", PdfProfiles.GostTitlePageMarker, ColumnsFromRows(projected.TitlePage), projected.TitlePage.Count));
+        return candidates;
+    }
+
+    private static IReadOnlyList<DataSetColumnInfo> ColumnsFromRows(IReadOnlyList<Dictionary<string, string?>> rows)
+    {
+        var names = rows.SelectMany(r => r.Keys).Distinct().ToList();
+        return names.Select(n => new DataSetColumnInfo(n,
+            rows.Take(3).Select(r => r.GetValueOrDefault(n) ?? "").ToArray())).ToList();
     }
 
     public async Task<SourcePreviewDto?> PreviewSourceAsync(Guid sourceId, int maxRows, CancellationToken ct)
@@ -156,6 +183,11 @@ public class DataSetSourceService(
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
 
+        // PDF (issue #30): источник-проекция (Обложка/Титул) создаётся из распознанной группировки
+        // набора — не парсингом блоба. Строки проецируются и кэшируются в CachedData.
+        if (file.Format == Domain.DataSets.DataSetFormat.Pdf)
+            return await CreatePdfProjectionSourceAsync(file, input.Name.Trim(), input.SheetOrPath.Trim(), ct);
+
         var columnExpressionsJson = DataSetDtoMapper.SerializeColumnExpressions(input.ColumnExpressions);
         var (schema, rowCount) = await ParseForDefinitionAsync(file.BlobPath, file.Format, input.SheetOrPath, columnExpressionsJson, ct);
 
@@ -164,6 +196,26 @@ public class DataSetSourceService(
         // коллекцию навигации, EF не распознаёт как Added автоматически (Guid — клиентский ключ,
         // не default-значение), поэтому без явного Add() трекер помечает его Modified и
         // пытается сделать UPDATE несуществующей строки → DbUpdateConcurrencyException.
+        db.DataSetSources.Add(source);
+        await db.SaveChangesAsync(ct);
+        return DataSetDtoMapper.MapSource(source);
+    }
+
+    // Источник-проекция PDF (issue #30): Обложка/Титул проецируются из группировки набора и кэшируются
+    // в CachedData (LoadRowsAsync читает PDF-строки из кэша). «Документы» и gost-table создаются
+    // распознаванием/тэгом, здесь не обрабатываются.
+    private async Task<DataSetSourceDto> CreatePdfProjectionSourceAsync(
+        Domain.DataSets.DataSetFile file, string name, string marker, CancellationToken ct)
+    {
+        var grouping = GostGroupingSerialization.Parse(file.Grouping)
+            ?? throw new ArgumentException("Набор ещё не распознан — сначала запустите распознавание.");
+        var projected = GostGroupingProjection.Project(grouping);
+        var rows = marker == PdfProfiles.GostCoverMarker ? projected.Cover
+            : marker == PdfProfiles.GostTitlePageMarker ? projected.TitlePage
+            : throw new ArgumentException("Для PDF источник создаётся из кандидата обложки/титульного листа.");
+
+        var columns = ColumnsFromRows(rows);
+        var source = file.AddSource(name, marker, DataSetDtoMapper.SerializeSchema(columns), rows.Count, null, JsonSerializer.Serialize(rows));
         db.DataSetSources.Add(source);
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(source);

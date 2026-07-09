@@ -8,7 +8,7 @@ import { useSourceRecognizing } from '@/shared/api/jobs';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
   usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizePdfSource,
-  isManualGroupingConflict, exportDataSetSource,
+  isManualGroupingConflict, exportDataSetSource, useSourceCandidates, useCreateDataSetSource,
 } from '@/shared/api/datasets';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
@@ -261,6 +261,10 @@ export function SourcesExpander({
   // прочие форматы — полное создание/редактирование/переименование/удаление.
   const canManageExtraction = true;
   const sources = file.sources;
+  // PDF (issue #30): логические таблицы распознанного набора (Обложка/Титул), которых ещё нет
+  // как источников — создаются явно в один клик. «Документы» авто-создаётся при выборе профиля.
+  const { data: pdfCandidates = [] } = useSourceCandidates(open && isPdf ? file.id : undefined);
+  const createSource = useCreateDataSetSource();
 
   if (sources.length === 0 && !canManageExtraction)
     return <span className="text-xs text-fg4">Нет источников</span>;
@@ -287,6 +291,21 @@ export function SourcesExpander({
             <SourceRow key={src.id} src={src} isPdf={isPdf} canManageExtraction={canManageExtraction}
               templates={templates} maxColumns={maxColumns} onEdit={setEditing} />
           ))}
+          {isPdf && pdfCandidates.length > 0 && (
+            <div className="border-t border-stroke pt-2 mt-1 space-y-1">
+              <p className="text-[11px] text-fg4">Доступно из распознанного набора:</p>
+              {pdfCandidates.map(c => (
+                <div key={c.sheetOrPath} className="flex items-center gap-2 text-xs">
+                  <span className="text-fg2">{c.name} <span className="text-fg4">· {c.rowCount} строк</span></span>
+                  <button type="button" disabled={createSource.isPending}
+                    onClick={() => createSource.mutate({ fileId: file.id, name: c.name, sheetOrPath: c.sheetOrPath })}
+                    className="flex items-center gap-0.5 text-brand hover:text-brand-hover disabled:opacity-50">
+                    <Plus size={11} /> Создать
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
