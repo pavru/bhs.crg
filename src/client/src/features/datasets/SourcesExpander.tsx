@@ -89,7 +89,6 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
   const [previewing, setPreviewing] = useState(false);
   const [materializing, setMaterializing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [recognizeConflict, setRecognizeConflict] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const setProcessing = useSetDataSetSourceProcessing();
@@ -97,10 +96,6 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
   const applyTemplateMutation = useApplyProcessingTemplate();
   const deleteMutation = useDeleteDataSetSource();
   const duplicateMutation = useDuplicateDataSetSource();
-  const recognizeMutation = useRecognizePdfSource();
-  // Идёт ли уже распознавание по этому источнику (фоновая задача) — чтобы не запускать дубль:
-  // recognizeMutation.isPending живёт только до 202-ответа, поэтому этого мало.
-  const recognizing = useSourceRecognizing(src.id);
 
   const filterCount = countFilterConditions(src.rowFilter);
   const transformCount = src.computedColumns?.length ?? 0;
@@ -128,12 +123,6 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
     });
     setSavingTemplate(false);
   }
-  function handleRecognize() {
-    recognizeMutation.mutate({ id: src.id }, {
-      onError: err => { if (isManualGroupingConflict(err)) setRecognizeConflict(true); },
-    });
-  }
-
   // Пассивные PDF-подисточники (обложка/титул/товары) заполняются вместе с главным — их не
   // распознают напрямую; показываем подпись-подсказку, но остальные действия доступны.
   const passiveLabel =
@@ -157,7 +146,6 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
     ] },
     { key: 'duplicate', label: 'Создать копию', icon: <Copy size={13} />, onSelect: () => duplicateMutation.mutate({ id: src.id }), disabled: duplicateMutation.isPending },
     { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: <Boxes size={13} />, onSelect: () => setMaterializing(true) },
-    ...(isPdf && !passiveLabel ? [{ key: 'recognize', label: recognizing ? 'Распознаётся…' : 'Распознать', icon: <ScanText size={13} />, onSelect: handleRecognize, disabled: recognizeMutation.isPending || recognizing }] : []),
     ...(canManageExtraction && !isPdf ? [{ key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => onEdit(src) }] : []),
     ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: <Trash2 size={13} />, danger: true, onSelect: () => { setDeleteError(null); setConfirmDelete(true); } }] : []),
   ];
@@ -169,7 +157,7 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
           <div className="font-medium text-fg1">
             {src.name}
             {src.recognitionStale && (
-              <span title="Файл заменён после распознавания — данные относятся к прежнему файлу. Нажмите «Распознать»."
+              <span title="Файл заменён после распознавания — данные относятся к прежнему файлу. Распознайте набор заново."
                 className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning-subtle text-warning align-middle">
                 <AlertTriangle size={10} /> устарело
               </span>
@@ -219,15 +207,6 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
       {materializing && <MaterializationDialog source={src} onClose={() => setMaterializing(false)} />}
 
       <ConfirmDialog
-        open={recognizeConflict}
-        onOpenChange={o => { if (!o) setRecognizeConflict(false); }}
-        title="Разбиение было скорректировано вручную"
-        description={<p>Повторное автораспознавание сотрёт ручные правки разбиения на документы. Продолжить?</p>}
-        confirmLabel="Распознать заново"
-        onConfirm={() => recognizeMutation.mutate({ id: src.id, confirm: true })}
-      />
-
-      <ConfirmDialog
         open={confirmDelete}
         onOpenChange={o => { if (!o) setConfirmDelete(false); }}
         title={`Удалить источник «${src.name}»?`}
@@ -268,6 +247,23 @@ export function SourcesExpander({
   const createSource = useCreateDataSetSource();
   const availableCandidates = candidates.filter(c => !sources.some(s => s.sheetOrPath === c.sheetOrPath));
 
+  // Распознавание — команда УРОВНЯ НАБОРА (issue #36), не прячется в меню источника. Работает и когда
+  // источников ещё нет: открывает диалог профиля (создаёт первичный источник и сразу распознаёт).
+  const recognize = useRecognizePdfSource();
+  const [recognizeConflict, setRecognizeConflict] = useState(false);
+  const primarySource = sources.find(s => s.sheetOrPath === 'gost-documents' || s.sheetOrPath === 'invoice-header');
+  const recognizing = useSourceRecognizing(primarySource?.id ?? '');
+
+  function handleRecognizeDataset(confirm = false) {
+    if (primarySource) {
+      recognize.mutate({ id: primarySource.id, confirm }, {
+        onError: err => { if (isManualGroupingConflict(err)) setRecognizeConflict(true); },
+      });
+    } else {
+      setEditing('new'); setOpen(true); // нет первичного источника → диалог профиля (создаёт + распознаёт)
+    }
+  }
+
   if (sources.length === 0 && !canManageExtraction)
     return <span className="text-xs text-fg4">Нет источников</span>;
 
@@ -280,7 +276,12 @@ export function SourcesExpander({
             ? `${sources.length} ${sources.length === 1 ? 'источник' : 'источника(-ов)'}`
             : 'Нет источников'}
         </button>
-        {canManageExtraction && (
+        {isPdf ? (
+          <button onClick={() => handleRecognizeDataset()} disabled={recognize.isPending || recognizing}
+            className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover disabled:opacity-50">
+            <ScanText size={11} /> {recognizing ? 'Распознаётся…' : primarySource ? 'Распознать заново' : 'Распознать'}
+          </button>
+        ) : canManageExtraction && (
           <button onClick={() => { setEditing('new'); setOpen(true); }}
             className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
             <Plus size={11} /> Добавить источник
@@ -323,6 +324,15 @@ export function SourcesExpander({
           />
         )
       )}
+
+      <ConfirmDialog
+        open={recognizeConflict}
+        onOpenChange={o => { if (!o) setRecognizeConflict(false); }}
+        title="Разбиение было скорректировано вручную"
+        description={<p>Повторное автораспознавание сотрёт ручные правки разбиения на документы. Продолжить?</p>}
+        confirmLabel="Распознать заново"
+        onConfirm={() => primarySource && recognize.mutate({ id: primarySource.id, confirm: true })}
+      />
     </div>
   );
 }
