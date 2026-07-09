@@ -2,10 +2,11 @@ using BHS.CRG.Application.DataSets;
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
-/// <summary>Строки одного документа-проекции: код/имя/страницы + агрегированные поля (без ФайлПуть/
-/// РазмерБайт — они добавляются снаружи после физического разрезания PDF, это уже не чистая логика).</summary>
+/// <summary>Строки одного документа-проекции: стабильный id + код/имя/страницы + агрегированные поля.
+/// Fields несёт ФайлПуть/РазмерБайт, если у группы уже вырезан под-PDF (issue #38 — блоб режется при
+/// распознавании и лежит в Grouping). Id — стабильный ключ группы (для источника-таблицы gost-table:{id}).</summary>
 public record ProjectedDocument(
-    string Code, string? Name, IReadOnlyList<int> PageIndices, Dictionary<string, string?> Fields);
+    Guid Id, string Code, string? Name, IReadOnlyList<int> PageIndices, Dictionary<string, string?> Fields);
 
 /// <summary>Результат проекции единой группировки в строки трёх источников ГОСТ-профиля.</summary>
 public record ProjectedRows(
@@ -46,8 +47,15 @@ public static class GostGroupingProjection
                     // «Некорректная форма 6», у которого страница формы 6 без своего наименования).
                     if (!string.IsNullOrEmpty(group.Name) && string.IsNullOrEmpty(fields.GetValueOrDefault("НаименованиеДокумента")))
                         fields["НаименованиеДокумента"] = group.Name;
+                    // ФайлПуть/РазмерБайт — из вырезанного при распознавании под-PDF группы (issue #38);
+                    // раньше добавлялись снаружи в кэш источника, теперь несёт сама группировка.
+                    if (!string.IsNullOrEmpty(group.BlobPath))
+                    {
+                        fields["ФайлПуть"] = group.BlobPath;
+                        fields["РазмерБайт"] = group.BlobSize?.ToString() ?? "";
+                    }
                     documents.Add(new ProjectedDocument(
-                        group.Code ?? "", group.Name, group.Pages.Select(p => p.PageIndex).ToList(), fields));
+                        group.Id, group.Code ?? "", group.Name, group.Pages.Select(p => p.PageIndex).ToList(), fields));
                     break;
             }
         }

@@ -29,9 +29,15 @@ public record GostGroupingData(IReadOnlyList<GostGroupingGroup> Groups, bool Man
 /// <param name="Id">Стабильный идентификатор группы (issue #28) — переживает перераспознавание и
 /// ручную правку, служит ключом производных источников-таблиц (вместо дрейфующего firstPageIndex).
 /// default (Guid.Empty) — ещё не присвоен (старый формат/новая группа); присваивается при сборке.</param>
+/// <param name="BlobPath">Вырезанный под-PDF документа-группы (issue #38, набор-centric): режется ПРИ
+/// распознавании и хранится ЗДЕСЬ (на наборе, в Grouping), а не в кэше источника — чтобы кандидат и
+/// источник-проекция «Документы» несли ФайлПуть без предварительного анкер-источника. Null — обложка/
+/// титул или сбой разрезания.</param>
+/// <param name="BlobSize">Размер вырезанного под-PDF в байтах (колонка РазмерБайт). Null — блоба нет.</param>
 public record GostGroupingGroup(
     GostGroupKind Kind, string? Code, string? Name, IReadOnlyList<GostGroupingPage> Pages,
-    IReadOnlyList<string>? Tags = null, Guid Id = default);
+    IReadOnlyList<string>? Tags = null, Guid Id = default,
+    string? BlobPath = null, long? BlobSize = null);
 
 /// <param name="PageIndex">Индекс страницы исходного PDF (0-based).</param>
 /// <param name="Fields">Распознанные поля штампа этой страницы (без служебных ТипСтраницы/Форма).</param>
