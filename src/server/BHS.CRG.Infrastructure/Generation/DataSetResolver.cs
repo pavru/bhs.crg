@@ -51,8 +51,8 @@ public class DataSetResolver(
                 // Материализация на источнике (issue #19): если источник настроен на материализацию, а
                 // привязка не несёт собственного маппинга — маппинг берётся с источника (тип↔тип), а
                 // привязка играет роль типизированного указателя. Иначе — легаси-маппинг привязки.
-                var useMaterialization = binding.Source.MaterializeTypeId is not null && IsEmptyMapping(binding.Mapping);
-                var mappingJson = useMaterialization ? (binding.Source.MaterializeMapping ?? "{}") : binding.Mapping;
+                var mappingJson = DataSetMappingValue.EffectiveMappingJson(
+                    binding.Mapping, binding.Source.MaterializeTypeId, binding.Source.MaterializeMapping);
                 var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson) ?? [];
 
                 if (binding.TargetFieldKey is null)
@@ -192,15 +192,6 @@ public class DataSetResolver(
                 return entry.Id;
         }
         return null;
-    }
-
-    // Маппинг привязки считается «пустым» (значит, берём материализацию источника), если он null,
-    // пустой объект или все значения пусты.
-    private static bool IsEmptyMapping(string? mappingJson)
-    {
-        if (string.IsNullOrWhiteSpace(mappingJson)) return true;
-        var m = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson);
-        return m is null || m.Count == 0 || m.Values.All(string.IsNullOrEmpty);
     }
 
     // Нормализация для сопоставления: регистр, окружающие пробелы и завершающие

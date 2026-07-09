@@ -110,4 +110,23 @@ public static class DataSetMappingValue
             ["size"] = size,
         };
     }
+
+    // ── Материализация: эффективный маппинг привязки (issue #19/#23) ──────────────
+
+    /// <summary>Маппинг «пустой» (значит, берём материализацию источника): null/пустой объект/все значения пусты.</summary>
+    public static bool IsEmptyMapping(string? mappingJson)
+    {
+        if (string.IsNullOrWhiteSpace(mappingJson)) return true;
+        var m = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson);
+        return m is null || m.Count == 0 || m.Values.All(string.IsNullOrEmpty);
+    }
+
+    /// <summary>
+    /// Эффективный маппинг привязки: если у привязки нет своего маппинга, а источник материализован —
+    /// берём маппинг с источника (тип↔тип). Единый источник истины для резолвера (генерация) и превью.
+    /// </summary>
+    public static string EffectiveMappingJson(string bindingMapping, Guid? sourceMaterializeTypeId, string? sourceMaterializeMapping)
+        => sourceMaterializeTypeId is not null && IsEmptyMapping(bindingMapping)
+            ? (sourceMaterializeMapping ?? "{}")
+            : bindingMapping;
 }

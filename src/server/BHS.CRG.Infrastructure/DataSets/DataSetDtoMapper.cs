@@ -83,7 +83,8 @@ public static class DataSetDtoMapper
             b.Source.Id, b.Source.Name, b.Source.SheetOrPath, b.Source.CachedSchema, b.Source.CachedRowCount,
             b.Source.File is null ? null : new BindingFileDto(
                 b.Source.File.Id, b.Source.File.Name, b.Source.File.Format.ToString(),
-                b.Source.File.Scope.ToString(), b.Source.File.ScopeId)));
+                b.Source.File.Scope.ToString(), b.Source.File.ScopeId),
+            b.Source.MaterializeTypeId));
 
     public static DataSetBindingTemplateDto MapTemplate(DataSetBindingTemplate t) => new(
         t.Id, t.DocumentTypeId, t.Name, t.TargetFieldKey,

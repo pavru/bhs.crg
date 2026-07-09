@@ -157,7 +157,9 @@ function EntryBindingRow({
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium truncate text-fg1">{source?.name ?? '—'}</div>
           <div className="text-xs text-fg4 mt-0.5">
-            {file?.name} · {mappedCount} пол{mappedCount === 1 ? 'е' : 'я'} привязано
+            {file?.name} · {source?.materializeTypeId
+              ? `материализация → ${allDocTypes.find(t => t.id === source.materializeTypeId)?.name ?? 'тип'}`
+              : `${mappedCount} пол${mappedCount === 1 ? 'е' : 'я'} привязано`}
             {targetFieldKey && ` · таблица: ${targetFieldKey}`}
           </div>
         </div>
