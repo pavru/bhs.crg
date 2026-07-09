@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
-import { useCreatePdfSource, useRecognizePdfSource } from '@/shared/api/datasets';
+import { useCreatePdfSource, useRecognizePdfSource, useRecognizeFile } from '@/shared/api/datasets';
 import { useTagRegistry, datasetTags } from '@/shared/api/tags';
 
 /**
- * Набор-уровневая настройка распознавания PDF (issue #36): выбор профиля + структурных тэгов
- * (scope Dataset). Создаёт первичный источник («Документы»/«шапка») и СРАЗУ запускает распознавание —
- * распознавание больше не прячется в меню источника.
+ * Выбор профиля препроцессинга PDF-набора (issue #38). ГОСТ — набор-centric: ставит профиль на НАБОР
+ * и сразу запускает распознавание (источников не создаёт — они кандидаты). «Счёт» — создаёт пару
+ * источников и распознаёт шапку. Распознавание больше не прячется в меню источника.
  */
 export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: () => void }) {
   const [name, setName] = useState('');
@@ -15,7 +15,8 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
   const [error, setError] = useState('');
   const { data: allTags = [] } = useTagRegistry();
   const create = useCreatePdfSource();
-  const recognize = useRecognizePdfSource();
+  const recognizeSource = useRecognizePdfSource();
+  const recognizeFile = useRecognizeFile();
 
   function toggleTag(code: string) {
     setTags(prev => prev.includes(code) ? prev.filter(t => t !== code) : [...prev, code]);
@@ -29,8 +30,9 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
         fileId, name: name.trim(), profile,
         tags: profile === 'gost-titleblock' && tags.length ? tags : null,
       });
-      // Сразу запускаем распознавание (набор-уровневый флоу): профиль + распознать одним действием.
-      recognize.mutate({ id: created.id });
+      // Профиль выбран → сразу распознаём. ГОСТ (created==null) — по НАБОРУ; «Счёт» — по шапке-источнику.
+      if (created) recognizeSource.mutate({ id: created.id });
+      else recognizeFile.mutate({ fileId });
       onClose();
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;

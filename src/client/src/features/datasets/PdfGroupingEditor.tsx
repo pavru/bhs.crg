@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, Save, ZoomIn } from 'lucide-react';
-import { useSourcePages, useApplyGrouping, loadPageThumbnailUrl, loadPageImageUrl } from '@/shared/api/datasets';
+import { useFilePages, useApplyGrouping, loadPageThumbnailUrl, loadPageImageUrl } from '@/shared/api/datasets';
 import type { GostGroupingGroup, GostGroupKind } from '@/shared/api/types';
 import { Modal } from '@/shared/ui/Modal';
 
@@ -51,21 +51,21 @@ function makeGroups(groups: GostGroupingGroup[]): EditableGroup[] {
 
 // ─── Миниатюра страницы (ленивая загрузка, без OCR — только чтобы узнать документ глазами) ────
 
-function PageThumbnail({ sourceId, pageIndex }: { sourceId: string; pageIndex: number }) {
+function PageThumbnail({ fileId, pageIndex }: { fileId: string; pageIndex: number }) {
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
-    loadPageThumbnailUrl(sourceId, pageIndex)
+    loadPageThumbnailUrl(fileId, pageIndex)
       .then(u => { if (!cancelled) { objectUrl = u; setUrl(u); } })
       .catch(() => { if (!cancelled) setFailed(true); });
     return () => {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [sourceId, pageIndex]);
+  }, [fileId, pageIndex]);
 
   return (
     <div className="w-full aspect-[210/297] rounded bg-base border border-stroke flex items-center justify-center overflow-hidden">
@@ -86,9 +86,9 @@ function PageThumbnail({ sourceId, pageIndex }: { sourceId: string; pageIndex: n
 // крупный просмотр листа.
 
 function PageTile({
-  sourceId, pageIndex, selected, suspicious, onToggle, onView,
+  fileId, pageIndex, selected, suspicious, onToggle, onView,
 }: {
-  sourceId: string; pageIndex: number; selected: boolean; suspicious: boolean;
+  fileId: string; pageIndex: number; selected: boolean; suspicious: boolean;
   onToggle: (pageIndex: number, e: React.MouseEvent) => void;
   onView: (pageIndex: number) => void;
 }) {
@@ -99,7 +99,7 @@ function PageTile({
         selected ? 'border-brand bg-brand-subtle' : 'border-transparent hover:border-stroke'
       }`}
       title={`Страница ${pageIndex + 1}`}>
-      <PageThumbnail sourceId={sourceId} pageIndex={pageIndex} />
+      <PageThumbnail fileId={fileId} pageIndex={pageIndex} />
       <button
         onClick={e => { e.stopPropagation(); onView(pageIndex); }}
         title="Просмотреть лист крупно"
@@ -116,7 +116,7 @@ function PageTile({
 
 // ─── Крупный просмотр одного листа (высокое DPI, клик — вписать ↔ 100%) ──────────────────────────
 
-function PageViewer({ sourceId, pageIndex, onClose }: { sourceId: string; pageIndex: number; onClose: () => void }) {
+function PageViewer({ fileId, pageIndex, onClose }: { fileId: string; pageIndex: number; onClose: () => void }) {
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [zoomed, setZoomed] = useState(false);
@@ -125,11 +125,11 @@ function PageViewer({ sourceId, pageIndex, onClose }: { sourceId: string; pageIn
     let cancelled = false;
     let objectUrl: string | null = null;
     setUrl(null); setFailed(false); setZoomed(false);
-    loadPageImageUrl(sourceId, pageIndex)
+    loadPageImageUrl(fileId, pageIndex)
       .then(u => { if (!cancelled) { objectUrl = u; setUrl(u); } })
       .catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [sourceId, pageIndex]);
+  }, [fileId, pageIndex]);
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Лист ${pageIndex + 1}`} extraWide>
@@ -200,10 +200,10 @@ function SelectionActionBar({
 // ─── Группа (документ / обложка / титульный лист) ────────────────────────────────────────────────
 
 function GroupSection({
-  sourceId, group, otherGroups, selected, suspiciousOnly,
+  fileId, group, otherGroups, selected, suspiciousOnly,
   onToggle, onRename, onMoveSelected, onSplitSelected, onDisband, onView,
 }: {
-  sourceId: string;
+  fileId: string;
   group: EditableGroup;
   otherGroups: EditableGroup[];
   selected: Set<number>;
@@ -272,7 +272,7 @@ function GroupSection({
       ) : (
         <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))' }}>
           {group.pageIndices.map(p => (
-            <PageTile key={p} sourceId={sourceId} pageIndex={p} selected={selected.has(p)} suspicious={suspicious}
+            <PageTile key={p} fileId={fileId} pageIndex={p} selected={selected.has(p)} suspicious={suspicious}
               onToggle={onToggle} onView={onView} />
           ))}
         </div>
@@ -293,11 +293,11 @@ function GroupSection({
 // ─── Страница-редактор ──────────────────────────────────────────────────────────────────────────
 
 export function PdfGroupingEditor() {
-  const { sourceId } = useParams<{ sourceId: string }>();
+  const { fileId } = useParams<{ fileId: string }>();
   const location = useLocation() as { state?: { sourceName?: string } };
   const navigate = useNavigate();
-  const { data, isLoading, error } = useSourcePages(sourceId ?? null);
-  const applyMutation = useApplyGrouping(sourceId!);
+  const { data, isLoading, error } = useFilePages(fileId ?? null);
+  const applyMutation = useApplyGrouping(fileId!);
 
   const [groups, setGroups] = useState<EditableGroup[] | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -393,7 +393,7 @@ export function PdfGroupingEditor() {
     setDirty(false);
   }
 
-  if (!sourceId) return null;
+  if (!fileId) return null;
   if (isLoading || !groups) {
     return <div className="p-6 flex items-center gap-2 text-sm text-fg4"><Loader2 size={16} className="animate-spin" /> Загрузка...</div>;
   }
@@ -441,7 +441,7 @@ export function PdfGroupingEditor() {
       <div className="flex-1 overflow-auto space-y-3 pb-4">
         {groups.map(g => (
           <GroupSection
-            key={g.id} sourceId={sourceId} group={g} otherGroups={groups.filter(o => o.id !== g.id)}
+            key={g.id} fileId={fileId} group={g} otherGroups={groups.filter(o => o.id !== g.id)}
             selected={selected} suspiciousOnly={suspiciousOnly}
             onToggle={toggle} onRename={handleRename} onMoveSelected={handleMoveSelected}
             onSplitSelected={handleSplitSelected} onDisband={handleDisband} onView={setViewerPage}
@@ -456,7 +456,7 @@ export function PdfGroupingEditor() {
             </div>
             <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))' }}>
               {unassignedPages.map(p => (
-                <PageTile key={p} sourceId={sourceId} pageIndex={p} selected={selected.has(p)} suspicious={false}
+                <PageTile key={p} fileId={fileId} pageIndex={p} selected={selected.has(p)} suspicious={false}
                   onToggle={toggle} onView={setViewerPage} />
               ))}
             </div>
@@ -473,7 +473,7 @@ export function PdfGroupingEditor() {
       </div>
 
       {viewerPage !== null && (
-        <PageViewer sourceId={sourceId} pageIndex={viewerPage} onClose={() => setViewerPage(null)} />
+        <PageViewer fileId={fileId} pageIndex={viewerPage} onClose={() => setViewerPage(null)} />
       )}
     </div>
   );

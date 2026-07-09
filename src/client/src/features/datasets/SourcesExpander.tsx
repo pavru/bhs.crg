@@ -7,7 +7,7 @@ import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/data
 import { useSourceRecognizing } from '@/shared/api/jobs';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
-  usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizePdfSource,
+  usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizePdfSource, useRecognizeFile,
   isManualGroupingConflict, exportDataSetSource, useSourceCandidates, useCreateDataSetSource,
 } from '@/shared/api/datasets';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -247,20 +247,28 @@ export function SourcesExpander({
   const createSource = useCreateDataSetSource();
   const availableCandidates = candidates.filter(c => !sources.some(s => s.sheetOrPath === c.sheetOrPath));
 
-  // Распознавание — команда УРОВНЯ НАБОРА (issue #36), не прячется в меню источника. Работает и когда
-  // источников ещё нет: открывает диалог профиля (создаёт первичный источник и сразу распознаёт).
-  const recognize = useRecognizePdfSource();
+  // Распознавание — команда УРОВНЯ НАБОРА (issue #38): пишет сырьё (Grouping), источников не создаёт.
+  // ГОСТ — по fileId; «Счёт» — по источнику-шапке (source-centric исключение). Профиль ещё не выбран
+  // → диалог профиля (ставит профиль + распознаёт).
+  const recognizeFile = useRecognizeFile();
+  const recognizeSource = useRecognizePdfSource();
   const [recognizeConflict, setRecognizeConflict] = useState(false);
-  const primarySource = sources.find(s => s.sheetOrPath === 'gost-documents' || s.sheetOrPath === 'invoice-header');
-  const recognizing = useSourceRecognizing(primarySource?.id ?? '');
+  const profile = file.preprocessingProfile;
+  const invoiceHeader = sources.find(s => s.sheetOrPath === 'invoice-header');
+  const gostRecognizing = useSourceRecognizing(file.id);
+  const invoiceRecognizing = useSourceRecognizing(invoiceHeader?.id ?? '');
+  const recognizing = gostRecognizing || invoiceRecognizing;
+  const recognizeBusy = recognizeFile.isPending || recognizeSource.isPending;
 
   function handleRecognizeDataset(confirm = false) {
-    if (primarySource) {
-      recognize.mutate({ id: primarySource.id, confirm }, {
-        onError: err => { if (isManualGroupingConflict(err)) setRecognizeConflict(true); },
+    if (profile === 'gost-titleblock' || (profile == null && candidates.length > 0)) {
+      recognizeFile.mutate({ fileId: file.id, confirm }, {
+        onError: (err: unknown) => { if (isManualGroupingConflict(err)) setRecognizeConflict(true); },
       });
+    } else if (profile === 'invoice' && invoiceHeader) {
+      recognizeSource.mutate({ id: invoiceHeader.id, confirm });
     } else {
-      setEditing('new'); setOpen(true); // нет первичного источника → диалог профиля (создаёт + распознаёт)
+      setEditing('new'); setOpen(true); // профиль не выбран → диалог профиля (ставит профиль + распознаёт)
     }
   }
 
@@ -276,11 +284,11 @@ export function SourcesExpander({
             ? `${sources.length} ${sources.length === 1 ? 'источник' : 'источника(-ов)'}`
             : 'Нет источников'}
         </button>
-        {/* PDF-набор: «Распознать» (уровень набора, issue #36) + «Добавить источник» рядом (issue #38). */}
+        {/* PDF-набор: «Распознать» (уровень набора, issue #38) + «Добавить источник» рядом. */}
         {isPdf && (
-          <button onClick={() => handleRecognizeDataset()} disabled={recognize.isPending || recognizing}
+          <button onClick={() => handleRecognizeDataset()} disabled={recognizeBusy || recognizing}
             className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover disabled:opacity-50">
-            <ScanText size={11} /> {recognizing ? 'Распознаётся…' : primarySource ? 'Распознать заново' : 'Распознать'}
+            <ScanText size={11} /> {recognizing ? 'Распознаётся…' : profile ? 'Распознать заново' : 'Распознать'}
           </button>
         )}
         {canManageExtraction && (
@@ -333,7 +341,7 @@ export function SourcesExpander({
         title="Разбиение было скорректировано вручную"
         description={<p>Повторное автораспознавание сотрёт ручные правки разбиения на документы. Продолжить?</p>}
         confirmLabel="Распознать заново"
-        onConfirm={() => primarySource && recognize.mutate({ id: primarySource.id, confirm: true })}
+        onConfirm={() => recognizeFile.mutate({ fileId: file.id, confirm: true })}
       />
     </div>
   );
