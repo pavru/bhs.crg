@@ -26,9 +26,12 @@ public record GostGroupingData(IReadOnlyList<GostGroupingGroup> Groups, bool Man
 /// <param name="Pages">Страницы группы с их распознанными полями, в порядке следования.</param>
 /// <param name="Tags">Функциональные тэги документа (тип таблицы — спецификация/кабельный журнал,
 /// см. FunctionalTag.GostDoc*). Авто-подсказка по НаименованиеДокумента, правится пользователем.</param>
+/// <param name="Id">Стабильный идентификатор группы (issue #28) — переживает перераспознавание и
+/// ручную правку, служит ключом производных источников-таблиц (вместо дрейфующего firstPageIndex).
+/// default (Guid.Empty) — ещё не присвоен (старый формат/новая группа); присваивается при сборке.</param>
 public record GostGroupingGroup(
     GostGroupKind Kind, string? Code, string? Name, IReadOnlyList<GostGroupingPage> Pages,
-    IReadOnlyList<string>? Tags = null);
+    IReadOnlyList<string>? Tags = null, Guid Id = default);
 
 /// <param name="PageIndex">Индекс страницы исходного PDF (0-based).</param>
 /// <param name="Fields">Распознанные поля штампа этой страницы (без служебных ТипСтраницы/Форма).</param>
