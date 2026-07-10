@@ -11,6 +11,7 @@ public class DataSetFileConfiguration : IEntityTypeConfiguration<DataSetFile>
         b.ToTable("dataset_files");
         b.Property(e => e.PreprocessingProfile).HasMaxLength(64);
         b.Property(e => e.Grouping).HasColumnType("jsonb");
+        b.Property(e => e.InvoiceRawData).HasColumnType("jsonb");
         b.Property(e => e.RecognitionStale).HasDefaultValue(false);
         b.HasKey(e => e.Id);
         b.Property(e => e.Name).HasMaxLength(512).IsRequired();

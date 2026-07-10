@@ -41,10 +41,14 @@ public class DataSetSourceService(
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
 
-        // PDF (issue #30): кандидаты — логические таблицы распознанной группировки набора (Обложка/
-        // Титульный лист), которых ещё нет как источников. «Документы» авто-создаётся при выборе профиля.
+        // PDF (issue #30/#38/#44): кандидаты из СЫРЬЯ набора, дискриминатор — профиль (issue #44).
         if (file.Format == DataSetFormat.Pdf)
-            return await PdfCandidatesAsync(file, ct);
+        {
+            var descriptor = PdfProfileRegistry.ByProfileMarker(file.PreprocessingProfile);
+            return descriptor?.Kind == PdfProfileKind.InvoiceFixedSlices
+                ? await InvoiceCandidatesAsync(file, ct)
+                : await PdfCandidatesAsync(file, ct);
+        }
 
         await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
         using var ms = new MemoryStream();
@@ -85,6 +89,23 @@ public class DataSetSourceService(
             var name = string.IsNullOrWhiteSpace(g.Name) ? "Таблица" : $"Таблица — {g.Name}";
             candidates.Add(new DataSetSourceInfo(name, marker, ColumnsFromSchemaJson(g.TableColumns), RowCountOf(g.TableData)));
         }
+        return candidates;
+    }
+
+    // Кандидаты профиля «Счёт на оплату» (issue #44) — из СЫРЬЯ набора (InvoiceRawData), тем же
+    // паттерном, что и ГОСТ: источники создаёт пользователь, распознавание их не создаёт.
+    private async Task<IReadOnlyList<DataSetSourceInfo>> InvoiceCandidatesAsync(Domain.DataSets.DataSetFile file, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(file.InvoiceRawData)) return [];
+        var raw = JsonSerializer.Deserialize<InvoiceRawData>(file.InvoiceRawData);
+        if (raw is null) return [];
+        var existing = await db.DataSetSources.Where(s => s.FileId == file.Id).Select(s => s.SheetOrPath).ToListAsync(ct);
+
+        var candidates = new List<DataSetSourceInfo>();
+        if (!existing.Contains(PdfProfiles.InvoiceHeaderMarker))
+            candidates.Add(new DataSetSourceInfo("Шапка", PdfProfiles.InvoiceHeaderMarker, ColumnsFromRows([raw.Header]), 1));
+        if (raw.LineItems.Count > 0 && !existing.Contains(PdfProfiles.InvoiceLineItemsMarker))
+            candidates.Add(new DataSetSourceInfo("Товары", PdfProfiles.InvoiceLineItemsMarker, ColumnsFromRows(raw.LineItems), raw.LineItems.Count));
         return candidates;
     }
 
@@ -234,11 +255,15 @@ public class DataSetSourceService(
         return DataSetDtoMapper.MapSource(source);
     }
 
-    // Источник-проекция PDF (issue #30/#38/#42): обложка/титул/документы/таблица проецируются из СЫРЬЯ
-    // набора (группировка) и кэшируются в CachedData (LoadRowsAsync читает из кэша).
+    // Источник-проекция PDF (issue #30/#38/#42/#44): обложка/титул/документы/таблица/шапка-счёта/товары-
+    // счёта проецируются из СЫРЬЯ набора и кэшируются в CachedData (LoadRowsAsync читает из кэша).
     private async Task<DataSetSourceDto> CreatePdfProjectionSourceAsync(
         Domain.DataSets.DataSetFile file, string name, string marker, CancellationToken ct)
     {
+        // Счёт (issue #44): сырьё — InvoiceRawData, не Grouping (ГОСТ-специфичный, непостраничная форма).
+        if (marker is PdfProfiles.InvoiceHeaderMarker or PdfProfiles.InvoiceLineItemsMarker)
+            return await CreateInvoiceProjectionSourceAsync(file, name, marker, ct);
+
         var grouping = GostGroupingSerialization.Parse(file.Grouping)
             ?? throw new ArgumentException("Набор ещё не распознан — сначала запустите распознавание.");
 
@@ -287,6 +312,27 @@ public class DataSetSourceService(
                 source.SetMaterialization(targetType.Id, JsonSerializer.Serialize(cols.ToDictionary(c => c.Name, c => c.Name)));
             }
         }
+        db.DataSetSources.Add(source);
+        await db.SaveChangesAsync(ct);
+        return DataSetDtoMapper.MapSource(source);
+    }
+
+    // Источник-проекция «Шапка»/«Товары» профиля «Счёт на оплату» (issue #44) — из СЫРЬЯ набора
+    // (InvoiceRawData), тем же паттерном, что Обложка/Титул у ГОСТ.
+    private async Task<DataSetSourceDto> CreateInvoiceProjectionSourceAsync(
+        Domain.DataSets.DataSetFile file, string name, string marker, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(file.InvoiceRawData))
+            throw new ArgumentException("Набор ещё не распознан — сначала запустите распознавание.");
+        var raw = JsonSerializer.Deserialize<InvoiceRawData>(file.InvoiceRawData)
+            ?? throw new ArgumentException("Не удалось прочитать распознанные данные счёта.");
+
+        IReadOnlyList<Dictionary<string, string?>> rows = marker == PdfProfiles.InvoiceHeaderMarker
+            ? [raw.Header]
+            : raw.LineItems;
+
+        var columns = ColumnsFromRows(rows);
+        var source = file.AddSource(name, marker, DataSetDtoMapper.SerializeSchema(columns), rows.Count, null, JsonSerializer.Serialize(rows));
         db.DataSetSources.Add(source);
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(source);
