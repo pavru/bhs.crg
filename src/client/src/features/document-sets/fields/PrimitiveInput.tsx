@@ -40,18 +40,18 @@ export function validateConstraint(value: unknown, def: PrimitiveTypeDef): strin
   return null;
 }
 
-export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeDef }: {
+export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeDef, readOnly }: {
   field: SchemaField; value: unknown; onChange: (val: unknown) => void; invalid: boolean;
-  primitiveTypeDef?: PrimitiveTypeDef;
+  primitiveTypeDef?: PrimitiveTypeDef; readOnly?: boolean;
 }) {
   const strVal = value == null ? '' : String(value);
-  const cls = fieldInputClass(invalid);
+  const cls = fieldInputClass(invalid, readOnly);
   if (field.type === 'text')
-    return <textarea value={strVal} onChange={e => onChange(e.target.value)} rows={3} className={cls + ' resize-y'} />;
+    return <textarea value={strVal} onChange={e => onChange(e.target.value)} rows={3} readOnly={readOnly} className={cls + ' resize-y'} />;
   if (field.type === 'boolean')
     return (
       <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" checked={!!value} onChange={e => onChange(e.target.checked)} className="w-4 h-4 rounded border-stroke-strong text-brand" />
+        <input type="checkbox" checked={!!value} onChange={e => onChange(e.target.checked)} disabled={readOnly} className="w-4 h-4 rounded border-stroke-strong text-brand" />
         <span className="text-sm text-fg2">{field.title}</span>
       </label>
     );
@@ -60,7 +60,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
     if (opts.length === 0)
       return <p className="text-xs text-fg4 italic py-1">Нет вариантов — добавьте их в схеме типа документа</p>;
     return (
-      <select value={strVal} onChange={e => onChange(e.target.value)} className={cls}>
+      <select value={strVal} onChange={e => onChange(e.target.value)} disabled={readOnly} className={cls}>
         <option value="">— выберите —</option>
         {opts.map(opt => <option key={opt} value={opt}>{opt}</option>)}
       </select>
@@ -69,7 +69,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
   if (field.type === 'primitive' && primitiveTypeDef) {
     const bt = primitiveTypeDef.baseType;
     if (bt === 'date') {
-      return <DateInput value={strVal} onChange={v => onChange(v)} className={cls} />;
+      return <DateInput value={strVal} onChange={v => onChange(v)} className={cls} disabled={readOnly} />;
     }
     const step = bt === 'number' && primitiveTypeDef.constraints.integer ? 1 : undefined;
     return (
@@ -78,6 +78,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
         step={step}
         placeholder={primitiveTypeDef.description}
         value={strVal}
+        readOnly={readOnly}
         onChange={e => {
           const v = e.target.value;
           onChange(bt === 'number' ? (v === '' ? '' : Number(v)) : v);
@@ -87,12 +88,13 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
     );
   }
   if (field.type === 'date') {
-    return <DateInput value={strVal} onChange={v => onChange(v)} className={cls} />;
+    return <DateInput value={strVal} onChange={v => onChange(v)} className={cls} disabled={readOnly} />;
   }
   return (
     <input
       type={field.type === 'number' ? 'number' : 'text'}
       value={strVal}
+      readOnly={readOnly}
       onChange={e => {
         const v = e.target.value;
         onChange(field.type === 'number' ? (v === '' ? '' : Number(v)) : v);

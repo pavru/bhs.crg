@@ -49,11 +49,24 @@ function SourceBoundDocField() {
   );
 }
 
-function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, otherInstances, onDirty, saveRef }: {
+/// Компактный индикатор для скалярного поля, заполняемого привязкой (issue #55): иконка в строке
+/// лейбла (тот же слот, что занимает тип-хинт) вместо полноразмерной плашки — иначе при «один
+/// биндинг → много полей» форма превращается в стену одинаковых боксов.
+function SourceBoundBadge({ onGoToDataTab }: { onGoToDataTab: () => void }) {
+  return (
+    <button type="button" onClick={onGoToDataTab}
+      title="Заполняется из привязанного источника данных — открыть вкладку «Данные»"
+      className="ml-1 inline-flex align-middle text-brand hover:text-brand-hover">
+      <Database size={11} />
+    </button>
+  );
+}
+
+function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, otherInstances, onDirty, saveRef, onGoToDataTab }: {
   instance: DocumentInstance; setId: string; schemaFields: SchemaField[];
   allDocTypes: DocumentType[]; docType: DocumentType | undefined;
   otherInstances: DocumentInstance[]; onClose: () => void;
-  onDirty: (dirty: boolean) => void; saveRef: SaveRef;
+  onDirty: (dirty: boolean) => void; saveRef: SaveRef; onGoToDataTab: () => void;
 }) {
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const [values, setValues] = useState<Record<string, unknown>>(() => ({ ...instance.requisites }));
@@ -63,13 +76,24 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const mutation = useUpdateRequisites();
 
-  // Поля-ссылки на документы, заполняемые табличной связкой источника (issue #17):
-  // источник перезаписывает поле при генерации, поэтому ручной ввод для них отключаем.
+  // Поля, заполняемые привязкой к набору данных при генерации — источник перезаписывает их,
+  // поэтому ручной ввод отключаем и не требуем от формы реквизитов (issue #55):
+  // табличные (targetFieldKey, issue #17) + скалярные (ключи мэппинга, issue #55). Для скалярной
+  // привязки эффективный маппинг — собственный (binding.mapping), а если он пуст — с материализации
+  // источника (binding.source.materializeMapping, issue #19), см. DataSetMappingValue.EffectiveMappingJson.
   const { data: dsBindings = [] } = useListDataSetBindings({ instanceId: instance.id });
-  const sourceBoundFields = useMemo(
-    () => new Set(dsBindings.filter(b => b.targetFieldKey).map(b => b.targetFieldKey!)),
-    [dsBindings],
-  );
+  const sourceBoundFields = useMemo(() => {
+    const s = new Set<string>();
+    for (const b of dsBindings) {
+      if (b.targetFieldKey) { s.add(b.targetFieldKey); continue; }
+      const effectiveMapping = Object.keys(b.mapping).length > 0 ? b.mapping : (b.source?.materializeMapping ?? {});
+      for (const key of Object.keys(effectiveMapping)) s.add(key);
+    }
+    return s;
+  }, [dsBindings]);
+  // Обязательное поле, покрытое активной привязкой, не блокирует сохранение реквизитов —
+  // значение подставится при генерации (DataSetResolver.InjectAsync), форма его не хранит.
+  const isFieldMissing = (f: SchemaField, val: unknown) => isMissing(f, val) && !sourceBoundFields.has(f.key);
 
   function getPrimitiveDef(field: SchemaField): PrimitiveTypeDef | undefined {
     if (field.type !== 'primitive') return undefined;
@@ -100,7 +124,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   // Сохраняет реквизиты. Возвращает true при успехе. НЕ закрывает редактор.
   async function handleSaveCore(): Promise<boolean> {
     setError('');
-    const missingRequired = schemaFields.filter(f => isMissing(f, values[f.key]));
+    const missingRequired = schemaFields.filter(f => isFieldMissing(f, values[f.key]));
     if (missingRequired.length > 0) {
       setShowValidation(true);
       setError(`Заполните обязательные поля: ${missingRequired.map(f => f.title).join(', ')}`);
@@ -147,7 +171,8 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
       <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
         {fields.map(field => {
           const raw = values[field.key];
-          const missing = showValidation && isMissing(field, raw);
+          const missing = showValidation && isFieldMissing(field, raw);
+          const bound = sourceBoundFields.has(field.key);
           const primitiveDef = getPrimitiveDef(field);
           const constraintError = constraintErrors[field.key];
           const hasError = missing || !!constraintError;
@@ -161,6 +186,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                     {field.title}
                     {field.required && <span className="ml-0.5 text-danger">*</span>}
                     {!field.required && <span className="ml-1 text-[10px] text-fg4 font-normal">опц.</span>}
+                    {bound && <SourceBoundBadge onGoToDataTab={onGoToDataTab} />}
                   </label>
                 )}
                 {field.type === 'complex' ? (
@@ -202,7 +228,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                 ) : (
                   <PrimitiveInput field={field} value={raw}
                     onChange={v => setValue(field.key, v, primitiveDef)}
-                    invalid={hasError} primitiveTypeDef={primitiveDef} />
+                    invalid={hasError} primitiveTypeDef={primitiveDef} readOnly={bound} />
                 )}
                 {missing && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
                 {!missing && constraintError && <p className="text-xs text-danger mt-1">{constraintError}</p>}
@@ -219,10 +245,11 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                 {primitiveDef && (
                   <span className="ml-1 text-[10px] text-fg4 font-normal">· {primitiveDef.name}</span>
                 )}
+                {bound && <SourceBoundBadge onGoToDataTab={onGoToDataTab} />}
               </label>
               <PrimitiveInput field={field} value={raw}
                 onChange={v => setValue(field.key, v, primitiveDef)}
-                invalid={hasError} primitiveTypeDef={primitiveDef} />
+                invalid={hasError} primitiveTypeDef={primitiveDef} readOnly={bound} />
               {missing && <p className="text-[11px] text-danger mt-0.5">Обязательное поле</p>}
               {!missing && constraintError && <p className="text-[11px] text-danger mt-0.5">{constraintError}</p>}
             </div>
@@ -241,7 +268,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
           return <div key={section.key}>{renderFields(section.fields)}</div>;
         }
         const isExpanded = expandedGroups.has(section.key);
-        const hasMissing = showValidation && section.fields.some(f => isMissing(f, values[f.key]));
+        const hasMissing = showValidation && section.fields.some(f => isFieldMissing(f, values[f.key]));
         return (
           <div key={section.key} className="border border-stroke rounded-lg overflow-hidden">
             <button type="button"
@@ -651,7 +678,8 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
       {tab === 'requisites' && (
         <RequisitesTab instance={instance} setId={setId} schemaFields={schemaFields}
           allDocTypes={allDocTypes} docType={docType} otherInstances={otherInstances}
-          onClose={onClose} onDirty={setDirty} saveRef={saveRef} />
+          onClose={onClose} onDirty={setDirty} saveRef={saveRef}
+          onGoToDataTab={() => requestTab('datasets')} />
       )}
       {tab === 'datasets' && (
         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">

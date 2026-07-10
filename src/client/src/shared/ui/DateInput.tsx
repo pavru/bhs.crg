@@ -7,9 +7,10 @@ interface DateInputProps {
   onChange: (iso: string) => void;
   /** Applied to the outer container div (border, bg, padding, focus-within:ring, width) */
   className?: string;
+  disabled?: boolean;
 }
 
-export function DateInput({ value, onChange, className = '' }: DateInputProps) {
+export function DateInput({ value, onChange, className = '', disabled = false }: DateInputProps) {
   const [d, setD] = useState('');
   const [m, setM] = useState('');
   const [y, setY] = useState('');
@@ -110,7 +111,8 @@ export function DateInput({ value, onChange, className = '' }: DateInputProps) {
 
   const seg = [
     'border-0 outline-none bg-transparent text-center min-w-0 p-0',
-    'focus:bg-brand-subtle rounded-sm tabular-nums',
+    disabled ? 'cursor-not-allowed' : 'focus:bg-brand-subtle',
+    'rounded-sm tabular-nums',
   ].join(' ');
 
   return (
@@ -120,6 +122,7 @@ export function DateInput({ value, onChange, className = '' }: DateInputProps) {
         placeholder="ДД" maxLength={2}
         style={{ width: '2.2ch' }}
         value={d}
+        disabled={disabled}
         onChange={e => handleD(e.target.value)}
         onKeyDown={onDayKey}
         onFocus={onFocus}
@@ -132,6 +135,7 @@ export function DateInput({ value, onChange, className = '' }: DateInputProps) {
         placeholder="ММ" maxLength={2}
         style={{ width: '2.2ch' }}
         value={m}
+        disabled={disabled}
         onChange={e => handleM(e.target.value)}
         onKeyDown={onMonKey}
         onFocus={onFocus}
@@ -144,6 +148,7 @@ export function DateInput({ value, onChange, className = '' }: DateInputProps) {
         placeholder="ГГГГ" maxLength={4}
         style={{ width: '4ch' }}
         value={y}
+        disabled={disabled}
         onChange={e => handleY(e.target.value)}
         onKeyDown={onYrKey}
         onFocus={onFocus}
