@@ -8,7 +8,7 @@ import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/data
 import { useSourceRecognizing } from '@/shared/api/jobs';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
-  usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizePdfSource, useRecognizeFile,
+  usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizeFile,
   isManualGroupingConflict, exportDataSetSource, useSourceCandidates, useCreateDataSetSource, useRenameSource,
 } from '@/shared/api/datasets';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -274,11 +274,11 @@ export function SourcesExpander({
   const createSource = useCreateDataSetSource();
   const availableCandidates = candidates.filter(c => !sources.some(s => s.sheetOrPath === c.sheetOrPath));
 
-  // Распознавание — команда УРОВНЯ НАБОРА (issue #38): пишет сырьё (Grouping), источников не создаёт.
-  // ГОСТ — по fileId; «Счёт» — по источнику-шапке (source-centric исключение). Профиль ещё не выбран
-  // → диалог профиля (ставит профиль + распознаёт).
+  // Распознавание — команда УРОВНЯ НАБОРА, единая для ВСЕХ профилей PDF (issue #38/#44: унифицирован
+  // VERB вызова — раньше «Счёт» шёл по source-centric пути, теперь оба профиля через fileId). ГОСТ
+  // пишет сырьё (Grouping), источников не создаёт; «Счёт» распознаёт и обновляет уже созданную пару
+  // источников. Профиль ещё не выбран → диалог профиля (ставит профиль + распознаёт).
   const recognizeFile = useRecognizeFile();
-  const recognizeSource = useRecognizePdfSource();
   const [recognizeConflict, setRecognizeConflict] = useState(false);
   const [profileDialog, setProfileDialog] = useState(false); // диалог выбора профиля PDF (только для «Распознать»)
   const navigate = useNavigate();
@@ -287,19 +287,14 @@ export function SourcesExpander({
   const isGostDataset = profile === 'gost-titleblock'
     || sources.some(s => s.sheetOrPath === 'gost-documents' || s.sheetOrPath === 'gost-cover'
       || s.sheetOrPath === 'gost-titlepage' || s.sheetOrPath.startsWith('gost-table:'));
-  const invoiceHeader = sources.find(s => s.sheetOrPath === 'invoice-header');
-  const gostRecognizing = useSourceRecognizing(file.id);
-  const invoiceRecognizing = useSourceRecognizing(invoiceHeader?.id ?? '');
-  const recognizing = gostRecognizing || invoiceRecognizing;
-  const recognizeBusy = recognizeFile.isPending || recognizeSource.isPending;
+  const recognizing = useSourceRecognizing(file.id); // Job-based (ГОСТ); «Счёт» — recognizeFile.isPending покрывает
+  const recognizeBusy = recognizeFile.isPending;
 
   function handleRecognizeDataset(confirm = false) {
-    if (profile === 'gost-titleblock' || (profile == null && candidates.length > 0)) {
+    if (profile || candidates.length > 0) {
       recognizeFile.mutate({ fileId: file.id, confirm }, {
         onError: (err: unknown) => { if (isManualGroupingConflict(err)) setRecognizeConflict(true); },
       });
-    } else if (profile === 'invoice' && invoiceHeader) {
-      recognizeSource.mutate({ id: invoiceHeader.id, confirm });
     } else {
       setProfileDialog(true); // профиль не выбран → диалог выбора профиля (ставит профиль + распознаёт)
     }

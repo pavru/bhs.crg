@@ -238,19 +238,6 @@ export function useRecognizeFile() {
   });
 }
 
-/** Распознавание источника «Счёт на оплату» (source-centric исключение) — по sourceId. */
-export function useRecognizePdfSource() {
-  const qc = useQueryClient();
-  return useMutation<{ jobId?: string }, Error, { id: string; confirm?: boolean }>({
-    mutationFn: ({ id, confirm }) =>
-      apiClient.post(`/datasets/sources/${id}/recognize`, undefined, { params: confirm ? { confirm: true } : undefined }).then(r => r.data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['jobs', 'active'] });
-      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
-    },
-  });
-}
-
 /** 409 от /recognize — набор уже правился вручную, нужно явное подтверждение перезаписи. */
 export function isManualGroupingConflict(err: unknown): boolean {
   return (err as { response?: { status?: number } })?.response?.status === 409;

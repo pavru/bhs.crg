@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
-import { useCreatePdfSource, useRecognizePdfSource, useRecognizeFile } from '@/shared/api/datasets';
+import { useCreatePdfSource, useRecognizeFile } from '@/shared/api/datasets';
 import { useTagRegistry, datasetTags } from '@/shared/api/tags';
 
 /**
- * Выбор профиля препроцессинга PDF-набора (issue #38). ГОСТ — набор-centric: ставит профиль на НАБОР
- * и сразу запускает распознавание (источников не создаёт — они кандидаты). «Счёт» — создаёт пару
- * источников и распознаёт шапку. Распознавание больше не прячется в меню источника.
+ * Выбор профиля препроцессинга PDF-набора (issue #38/#44). Ставит профиль на НАБОР и сразу запускает
+ * распознавание — единым вызовом по fileId для ОБОИХ профилей (backend дискриминирует по
+ * DataSetFile.PreprocessingProfile, см. PdfProfileRegistry). ГОСТ источников не создаёт (они
+ * кандидаты); «Счёт» создаёт пару источников (шапка/товары) сразу — это законно другая, известная
+ * заранее форма, не кандидатная модель. Распознавание больше не прячется в меню источника.
  */
 export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: () => void }) {
   const [name, setName] = useState('');
@@ -15,7 +17,6 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
   const [error, setError] = useState('');
   const { data: allTags = [] } = useTagRegistry();
   const create = useCreatePdfSource();
-  const recognizeSource = useRecognizePdfSource();
   const recognizeFile = useRecognizeFile();
 
   function toggleTag(code: string) {
@@ -26,13 +27,12 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
     if (!name.trim()) { setError('Укажите название'); return; }
     setError('');
     try {
-      const created = await create.mutateAsync({
+      await create.mutateAsync({
         fileId, name: name.trim(), profile,
         tags: profile === 'gost-titleblock' && tags.length ? tags : null,
       });
-      // Профиль выбран → сразу распознаём. ГОСТ (created==null) — по НАБОРУ; «Счёт» — по шапке-источнику.
-      if (created) recognizeSource.mutate({ id: created.id });
-      else recognizeFile.mutate({ fileId });
+      // Профиль выбран → сразу распознаём, единым вызовом по НАБОРУ для любого профиля.
+      recognizeFile.mutate({ fileId });
       onClose();
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
