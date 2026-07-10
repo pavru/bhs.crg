@@ -67,6 +67,9 @@ public class GenerateDocumentHandler(
             var diagnostics = new List<ResolutionDiagnostic>();
             var context = await entityResolver.ResolveAsync(instance, ct);
             await dataSetResolver.InjectAsync(context, instance, diagnostics, ct);
+            // Значения по умолчанию из схемы типа (issue #53) — для полей, оставшихся без значения
+            // после реквизитов инстанса и биндингов (самый низкий приоритет).
+            await entityResolver.ApplyDefaultsAsync(context, instance, ct);
             // Подмешиваем документы качества по идентичности материала (артикул/наименование).
             await qualityLinkResolver.InjectAsync(context, instance, ct);
             // Наборы данных могли добавить ссылки на каталог ($ref) в составные поля —

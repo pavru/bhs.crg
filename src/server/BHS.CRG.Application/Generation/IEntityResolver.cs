@@ -18,4 +18,13 @@ public interface IEntityResolver
     /// разрешённых данных.
     /// </summary>
     Task ResolveContextRefsAsync(GenerationContext ctx, Guid documentSetId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Заполняет defaultValue из схемы типа документа (issue #53) для полей, у которых ещё НЕТ значения
+    /// в контексте — ни из реквизитов инстанса, ни после инъекции наборов данных (привязок). Приоритет:
+    /// значение инстанса > значение биндинга > defaultValue схемы > пусто. Вызывать ПОСЛЕ
+    /// IDataSetResolver.InjectAsync (иначе биндинг не успеет "победить"). Только скалярные поля —
+    /// составные/табличные (complex/array/doc-ref/doc-array/file/image) не трогает.
+    /// </summary>
+    Task ApplyDefaultsAsync(GenerationContext ctx, DocumentInstance instance, CancellationToken ct = default);
 }
