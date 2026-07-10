@@ -57,6 +57,7 @@ public class GetGenerationDebugBundleHandler(
         var allDocTypes = await docTypeRepo.GetAllAsync(ct);
         var context = await entityResolver.ResolveAsync(instance, ct);
         await dataSetResolver.InjectAsync(context, instance, null, ct);
+        await entityResolver.ApplyDefaultsAsync(context, instance, ct);
         await qualityLinkResolver.InjectAsync(context, instance, ct);
         // Тот же второй проход, что и при генерации — разрешаем $ref, добавленные наборами данных.
         await entityResolver.ResolveContextRefsAsync(context, instance.DocumentSetId, ct);

@@ -4,7 +4,11 @@ using BHS.CRG.Domain.Documents;
 namespace BHS.CRG.Application.Schema;
 
 /// <summary>Поле эффективной схемы типа: ключ, тип (string/complex/array/doc-ref/doc-array/…), typeId (для составных/массивов/ссылок), заголовок.</summary>
-public record SchemaFieldInfo(string Key, string Type, Guid? TypeId, string? Title = null);
+/// <param name="DefaultValue">Значение по умолчанию (issue #53) — из собственного объявления поля, либо
+/// переопределено производным типом через fieldOverrides (для унаследованных полей). Null — не задано.
+/// Применяется резолвером генерации, только если поле НЕ определено ни в реквизитах инстанса, ни через
+/// привязку набора данных (см. EntityResolver.ApplyDefaultsAsync).</param>
+public record SchemaFieldInfo(string Key, string Type, Guid? TypeId, string? Title = null, JsonElement? DefaultValue = null);
 
 /// <summary>Скалярное ли поле (пригодное для табличного распознавания/материализации из плоских колонок).</summary>
 public static class SchemaFieldKinds
@@ -40,9 +44,17 @@ public static class DocumentTypeSchemaReader
         var order = new List<string>();
         foreach (var t in chain)
         {
-            var (fields, excluded) = ParseSchema(t.Schema);
+            var (fields, excluded, overrides) = ParseSchema(t.Schema);
             foreach (var ex in excluded)
                 if (acc.Remove(ex)) order.Remove(ex);
+
+            // Переопределение defaultValue унаследованного поля (issue #53, fieldOverrides) — ДО добавления
+            // собственных полей этого типа: переопределения относятся к полям, унаследованным от предков,
+            // не к собственным полям типа (те несут свой defaultValue напрямую в объявлении).
+            foreach (var (key, dv) in overrides)
+                if (acc.TryGetValue(key, out var existing))
+                    acc[key] = existing with { DefaultValue = dv };
+
             foreach (var f in fields)
             {
                 if (!acc.ContainsKey(f.Key)) order.Add(f.Key);
@@ -76,12 +88,13 @@ public static class DocumentTypeSchemaReader
     /// <summary>Поле-одиночная составная сущность/ссылка: complex / doc-ref.</summary>
     public static bool IsSingleComposite(string fieldType) => fieldType is "complex" or "doc-ref";
 
-    private static (List<SchemaFieldInfo> Fields, List<string> Excluded) ParseSchema(JsonDocument schema)
+    private static (List<SchemaFieldInfo> Fields, List<string> Excluded, Dictionary<string, JsonElement> Overrides) ParseSchema(JsonDocument schema)
     {
         var fields = new List<SchemaFieldInfo>();
         var excluded = new List<string>();
+        var overrides = new Dictionary<string, JsonElement>();
         var root = schema.RootElement;
-        if (root.ValueKind != JsonValueKind.Object) return (fields, excluded);
+        if (root.ValueKind != JsonValueKind.Object) return (fields, excluded, overrides);
 
         if (root.TryGetProperty("fields", out var fs) && fs.ValueKind == JsonValueKind.Array)
             foreach (var f in fs.EnumerateArray())
@@ -93,13 +106,26 @@ public static class DocumentTypeSchemaReader
                 Guid? typeId = f.TryGetProperty("typeId", out var ti) && ti.ValueKind == JsonValueKind.String
                     && Guid.TryParse(ti.GetString(), out var g) ? g : null;
                 var title = f.TryGetProperty("title", out var tl) && tl.ValueKind == JsonValueKind.String ? tl.GetString() : null;
-                fields.Add(new SchemaFieldInfo(key, type, typeId, title));
+                // defaultValue (issue #53) — Clone(), т.к. JsonElement иначе привязан к времени жизни
+                // ЭТОГО JsonDocument (schema — параметр метода, может быть освобождён вызывающим).
+                JsonElement? defaultValue = f.TryGetProperty("defaultValue", out var dv) && dv.ValueKind != JsonValueKind.Undefined
+                    ? dv.Clone() : null;
+                fields.Add(new SchemaFieldInfo(key, type, typeId, title, defaultValue));
             }
 
         if (root.TryGetProperty("excludedFields", out var ex) && ex.ValueKind == JsonValueKind.Array)
             foreach (var e in ex.EnumerateArray())
                 if (e.ValueKind == JsonValueKind.String) excluded.Add(e.GetString()!);
 
-        return (fields, excluded);
+        // fieldOverrides (issue #53) — переопределение defaultValue УНАСЛЕДОВАННОГО поля производным
+        // типом (см. resolveEffectiveFields на фронте — тот же паттерн). required-override здесь
+        // намеренно не читаем — это отдельная (не запрошенная) забота валидации, не резолва значений.
+        if (root.TryGetProperty("fieldOverrides", out var ovs) && ovs.ValueKind == JsonValueKind.Object)
+            foreach (var prop in ovs.EnumerateObject())
+                if (prop.Value.ValueKind == JsonValueKind.Object
+                    && prop.Value.TryGetProperty("defaultValue", out var odv) && odv.ValueKind != JsonValueKind.Undefined)
+                    overrides[prop.Name] = odv.Clone();
+
+        return (fields, excluded, overrides);
     }
 }

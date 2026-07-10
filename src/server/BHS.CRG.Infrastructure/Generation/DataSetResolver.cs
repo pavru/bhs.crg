@@ -71,6 +71,26 @@ public class DataSetResolver(
                 }
                 else
                 {
+                    // Кардинальность решает ТИП целевого поля: complex/doc-ref ← первая сущность;
+                    // array/doc-array (и всё прочее) ← весь поток. Вычисляем ДО построения строк —
+                    // нужен и для кардинальности, и для defaultValue (issue #53, часть 2).
+                    var field = DocumentTypeSchemaReader.Field(instance.DocumentTypeId, binding.TargetFieldKey, await TypesAsync());
+
+                    // defaultValue незамапленных полей ТИПА СТРОКИ (issue #53, часть 2): для табличных
+                    // биндингов маппинг покрывает только явно перечисленные ключи (свои — binding.Mapping,
+                    // либо MaterializeMapping источника) — поля целевого типа, не попавшие в маппинг (но
+                    // имеющие defaultValue схемы, напр. через fieldOverrides унаследованного поля), иначе
+                    // никогда не появляются в результате. Тип строки — MaterializeTypeId источника, если
+                    // маппинг взят оттуда (см. EffectiveMappingJson), иначе — типId самого целевого поля.
+                    var usingMaterializeMapping = binding.Source.MaterializeTypeId is not null
+                        && DataSetMappingValue.IsEmptyMapping(binding.Mapping);
+                    var rowTypeId = usingMaterializeMapping ? binding.Source.MaterializeTypeId : field?.TypeId;
+                    var rowDefaults = rowTypeId is { } rtid
+                        ? DocumentTypeSchemaReader.EffectiveFields(rtid, await TypesAsync())
+                            .Where(f => f.DefaultValue is not null && SchemaFieldKinds.IsScalar(f.Type))
+                            .ToList()
+                        : [];
+
                     // Все строки → объекты формы целевого типа. Храним как JsonElement, чтобы повторный
                     // проход EntityResolver разрешил добавленные ссылки $ref на каталог.
                     var mapped = new List<Dictionary<string, object?>>();
@@ -85,13 +105,14 @@ public class DataSetResolver(
                             if (value is not null)
                                 obj[fieldKey] = value;
                         }
+                        // Приоритет ниже маппинга: значение из строки (уже в obj) > defaultValue схемы.
+                        foreach (var f in rowDefaults)
+                            if (!obj.ContainsKey(f.Key))
+                                obj[f.Key] = f.DefaultValue!.Value;
                         mapped.Add(obj);
                         rowIndex++;
                     }
 
-                    // Кардинальность решает ТИП целевого поля: complex/doc-ref ← первая сущность;
-                    // array/doc-array (и всё прочее) ← весь поток.
-                    var field = DocumentTypeSchemaReader.Field(instance.DocumentTypeId, binding.TargetFieldKey, await TypesAsync());
                     if (field is not null && DocumentTypeSchemaReader.IsSingleComposite(field.Type))
                     {
                         if (mapped.Count > 0)

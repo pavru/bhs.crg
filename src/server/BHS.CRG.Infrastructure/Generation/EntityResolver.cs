@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -29,6 +30,19 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         {
             if (ctx.Data[key] is not JsonElement el) continue;
             ctx.Set(key, await ResolveNode(el, documentSetId, depth: 0, allowInstanceRefs: true, ct));
+        }
+    }
+
+    public async Task ApplyDefaultsAsync(GenerationContext ctx, DocumentInstance instance, CancellationToken ct = default)
+    {
+        var allDocTypes = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+        var fields = DocumentTypeSchemaReader.EffectiveFields(instance.DocumentTypeId, allDocTypes);
+        foreach (var f in fields)
+        {
+            if (f.DefaultValue is null) continue;
+            if (!SchemaFieldKinds.IsScalar(f.Type)) continue; // complex/array/doc-ref/doc-array/file/image — не трогаем
+            if (ctx.Data.ContainsKey(f.Key)) continue; // уже задано инстансом или биндингом — не перезаписываем
+            ctx.Set(f.Key, f.DefaultValue.Value);
         }
     }
 
