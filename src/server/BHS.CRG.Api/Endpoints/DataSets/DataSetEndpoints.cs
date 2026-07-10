@@ -140,6 +140,19 @@ public static class DataSetEndpoints
             catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
+        // Лёгкое переименование источника (issue #43) — только имя, без extraction/кэша; для любого
+        // источника, включая PDF-проекции (у них полный PUT /sources/{id} неприменим).
+        g.MapPut("/sources/{sourceId:guid}/name", async (
+            Guid sourceId, RenameSourceRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await svc.RenameSourceAsync(sourceId, req.Name, ct);
+                return result is null ? Results.NotFound() : Results.Ok(result);
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+
         g.MapDelete("/sources/{sourceId:guid}", async (Guid sourceId, IDataSetService svc, CancellationToken ct) =>
         {
             try { return await svc.DeleteSourceAsync(sourceId, ct) ? Results.NoContent() : Results.NotFound(); }
@@ -360,6 +373,7 @@ public static class DataSetEndpoints
     private record AutoMapRequest(AutoMapFieldDto[] Fields);
     private record AutoMapFieldDto(string Key, string Title);
     private record SourceRequest(string Name, string SheetOrPath, ColumnExprDto[]? ColumnExpressions);
+    private record RenameSourceRequest(string Name);
     private record MaterializationRequest(Guid? TypeId, Dictionary<string, string>? Mapping);
     private record ProcessingRequest(object? RowFilter, object? ComputedColumns, object? SortSpec);
     private record ProcessingTemplateRequest(

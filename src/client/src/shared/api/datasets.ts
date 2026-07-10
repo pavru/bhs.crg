@@ -101,6 +101,16 @@ export function useUpdateDataSetSource() {
   });
 }
 
+/** Лёгкое переименование источника (issue #43) — только имя, для любого источника (в т.ч. PDF-проекций). */
+export function useRenameSource() {
+  const qc = useQueryClient();
+  return useMutation<DataSetSource, Error, { id: string; name: string }>({
+    mutationFn: ({ id, name }) =>
+      apiClient.put(`/datasets/sources/${id}/name`, { name }).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+  });
+}
+
 /** Настроить/снять материализацию источника в тип (issue #19). typeId=null снимает. */
 export function useSetMaterialization() {
   const qc = useQueryClient();

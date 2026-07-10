@@ -51,6 +51,8 @@ public class DataSetService(
         sources.MaterializePreviewAsync(sourceId, maxRows, ct);
     public Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct) =>
         sources.UpdateSourceAsync(sourceId, input, ct);
+    public Task<DataSetSourceDto?> RenameSourceAsync(Guid sourceId, string name, CancellationToken ct) =>
+        sources.RenameSourceAsync(sourceId, name, ct);
     public Task<bool> DeleteSourceAsync(Guid sourceId, CancellationToken ct) =>
         sources.DeleteSourceAsync(sourceId, ct);
     public Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, CancellationToken ct) =>
