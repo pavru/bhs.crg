@@ -16,9 +16,14 @@ function ColumnMatchPreview({
   template: DataSetBindingTemplate;
   source: DataSetSource;
 }) {
+  // Вычисляемые колонки (Transformation) не персистятся в cachedSchema — без их алиасов шаблон,
+  // ссылающийся на такую колонку, ложно считался бы «не совпадающим» (issue #49).
   const availableColumns = useMemo<Set<string>>(
-    () => new Set(parseSourceColumnNames(source.cachedSchema)),
-    [source.cachedSchema],
+    () => {
+      const computedAliases = (source.computedColumns ?? []).map(c => c.alias).filter(Boolean);
+      return new Set([...parseSourceColumnNames(source.cachedSchema), ...computedAliases]);
+    },
+    [source.cachedSchema, source.computedColumns],
   );
 
   const entries = Object.entries(template.columnMappings).filter(([, col]) => col);

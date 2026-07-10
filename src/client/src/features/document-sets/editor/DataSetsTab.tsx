@@ -45,7 +45,12 @@ export function MappingEditor({
   /** Скрыть селектор «Режим использования» (для материализации на источнике — режима нет). */
   hideModeSelector?: boolean;
 }) {
-  const columnNames = useMemo(() => parseSourceColumnNames(source.cachedSchema), [source.cachedSchema]);
+  // Вычисляемые колонки (Transformation) не персистятся в cachedSchema — доступны для маппинга только
+  // если их алиасы явно домешать (issue #49; тот же паттерн, что в SourcesExpander.tsx).
+  const columnNames = useMemo(() => {
+    const computedAliases = (source.computedColumns ?? []).map(c => c.alias).filter(Boolean);
+    return [...new Set([...parseSourceColumnNames(source.cachedSchema), ...computedAliases])];
+  }, [source.cachedSchema, source.computedColumns]);
 
   // Поля, доступные для маппинга: для скалярного режима — поля документа,
   // для табличного — поля типа элемента (составной тип для `array`;
