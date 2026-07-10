@@ -38,71 +38,81 @@ public class DataSetPdfRecognitionService(
     /// PreprocessingProfile на НАБОР, источников НЕ создаёт (их даёт распознавание как кандидатов),
     /// возвращает null. «Счёт на оплату» — осознанное source-centric исключение (нет кандидатной
     /// структуры): создаёт пару источников шапка+товары и возвращает шапку.</summary>
+    /// <summary>Выбор профиля препроцессинга PDF-набора (issue #38/#44). Оба профиля — набор-centric:
+    /// ставим PreprocessingProfile на НАБОР, источников НЕ создаём. Распознавание пишет сырьё (Grouping
+    /// для ГОСТ, InvoiceRawData для Счёта); кандидаты (обложка/титул/документы/таблицы либо шапка/
+    /// товары) создаёт пользователь. Всегда возвращает null (источника нет).</summary>
     public async Task<DataSetSourceDto?> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct)
     {
-        var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)
+        var file = await db.DataSetFiles.FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
         if (file.Format != DataSetFormat.Pdf)
             throw new ArgumentException("Файл не в формате PDF.");
 
-        var name = input.Name.Trim();
-        bool HasMarker(string marker) => file.Sources.Any(s => s.SheetOrPath == marker);
-
-        if (input.Profile == PdfProfiles.Invoice)
-        {
-            if (HasMarker(PdfProfiles.InvoiceHeaderMarker))
-                throw new ArgumentException("На этом файле уже есть профиль «Счёт на оплату».");
-            // Профиль "Счёт на оплату" — source-centric исключение: шапка + вложенная таблица товаров
-            // как пара источников под одним файлом (у счёта нет кандидатной структуры страниц).
-            var header = file.AddSource(name, PdfProfiles.InvoiceHeaderMarker, "[]", 0);
-            var lineItems = file.AddSource($"{name} — Товары", PdfProfiles.InvoiceLineItemsMarker, "[]", 0);
-            db.DataSetSources.Add(header);
-            db.DataSetSources.Add(lineItems);
-            file.SetPreprocessingProfile(PdfProfiles.Invoice);
-            await db.SaveChangesAsync(ct);
-            return DataSetDtoMapper.MapSource(header);
-        }
-
-        // Профиль "Основная надпись (ГОСТ Р 21.101-2020)" — набор-centric (issue #38): ставим профиль на
-        // НАБОР, источников не создаём. Распознавание пишет Grouping (сырьё), обложка/титул/документы/
-        // таблицы становятся кандидатами, пользователь создаёт источники из них.
-        file.SetPreprocessingProfile(PdfProfiles.GostTitleBlock);
+        file.SetPreprocessingProfile(input.Profile == PdfProfiles.Invoice ? PdfProfiles.Invoice : PdfProfiles.GostTitleBlock);
         await db.SaveChangesAsync(ct);
         return null;
     }
 
     // ── Набор-centric распознавание ГОСТ (issue #38): всё по fileId, источников не создаёт ──
 
-    /// <summary>Планирование распознавания ГОСТ-набора по fileId (409-проверка ручной правки разбиения).</summary>
+    /// <summary>Определяет профиль набора (issue #44) — по PreprocessingProfile, либо (обратная
+    /// совместимость) по маркерам уже существующих источников для наборов, созданных до появления
+    /// этого поля. Требует file.Sources загруженным.</summary>
+    private static PdfProfileDescriptor ResolveDescriptor(Domain.DataSets.DataSetFile file) =>
+        PdfProfileRegistry.ByProfileMarker(file.PreprocessingProfile)
+        ?? file.Sources.Select(s => PdfProfileRegistry.BySourceMarker(s.SheetOrPath)).FirstOrDefault(d => d is not null)
+        ?? throw new ArgumentException("У набора не выбран профиль распознавания PDF.");
+
+    /// <summary>Планирование распознавания PDF-набора по fileId (issue #44: дискриминатор — профиль
+    /// набора, не формат-специфичный код). ГОСТ — 409-проверка ручной правки разбиения + фон; Счёт —
+    /// синхронно.</summary>
     public async Task<RecognizePlan?> PlanFileRecognitionAsync(Guid fileId, bool confirm, CancellationToken ct)
     {
-        var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        var file = await db.DataSetFiles.Include(f => f.Sources).AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
         if (file is null) return null;
         if (file.Format != DataSetFormat.Pdf)
             throw new ArgumentException("Набор не в формате PDF.");
-        var existingGrouping = ParseGrouping(file.Grouping);
-        if (existingGrouping is { ManuallyEdited: true } && !confirm)
-            throw new InvalidOperationException(
-                "Разбиение набора было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
-        return new RecognizePlan(Background: true, Title: "Распознавание листов PDF");
+        var descriptor = ResolveDescriptor(file);
+        if (descriptor.Kind == PdfProfileKind.Gost)
+        {
+            var existingGrouping = ParseGrouping(file.Grouping);
+            if (existingGrouping is { ManuallyEdited: true } && !confirm)
+                throw new InvalidOperationException(
+                    "Разбиение набора было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
+        }
+        return new RecognizePlan(descriptor.Background,
+            descriptor.Kind == PdfProfileKind.Gost ? "Распознавание листов PDF" : "Распознавание PDF");
     }
 
-    /// <summary>Распознавание ГОСТ-комплекта по НАБОРУ: пишет Grouping (с вырезанными под-PDF), источников
-    /// НЕ создаёт. Существующие источники-проекции переспроецируются. Кидает 409 при неподтверждённой
-    /// ручной правке. Штатно идёт через фоновую задачу (Job.TargetId=fileId).</summary>
+    /// <summary>Распознавание PDF-набора по НАБОРУ (issue #38/#44) — единая точка входа для всех профилей
+    /// (unifies VERB вызова: раньше «Счёт» шёл через RecognizePdfSourceAsync(sourceId), теперь оба
+    /// профиля — через fileId). ГОСТ пишет Grouping, источников не создаёт; Счёт — распознаёт и сразу
+    /// обновляет уже созданную пару источников (шапка/товары — законно другая, не кандидатная модель).
+    /// Кидает 409 при неподтверждённой ручной правке (только ГОСТ).</summary>
     public async Task RecognizeFileAsync(Guid fileId, bool confirm, CancellationToken ct, Func<int, int, Task>? onProgress = null)
     {
-        var file = await db.DataSetFiles.FirstOrDefaultAsync(f => f.Id == fileId, ct)
+        var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
         if (file.Format != DataSetFormat.Pdf)
             throw new ArgumentException("Набор не в формате PDF.");
-        var existingGrouping = ParseGrouping(file.Grouping);
-        if (existingGrouping is { ManuallyEdited: true } && !confirm)
-            throw new InvalidOperationException(
-                "Разбиение набора было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
-        await RecognizeGostFileAsync(file, ct, onProgress);
+        var descriptor = ResolveDescriptor(file);
+
+        if (descriptor.Kind == PdfProfileKind.Gost)
+        {
+            var existingGrouping = ParseGrouping(file.Grouping);
+            if (existingGrouping is { ManuallyEdited: true } && !confirm)
+                throw new InvalidOperationException(
+                    "Разбиение набора было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
+            await RecognizeGostFileAsync(file, ct, onProgress);
+            return;
+        }
+        await RecognizeInvoiceFileAsync(file, ct);
     }
 
+    /// <summary>Legacy source-centric планирование (issue #44: дискриминатор через дескриптор по
+    /// маркеру источника). Новый штатный путь — PlanFileRecognitionAsync(fileId); сохранён для
+    /// существующих call-sites (эндпоинт POST /sources/{id}/recognize).</summary>
     public async Task<RecognizePlan?> PlanRecognitionAsync(Guid sourceId, bool confirm, CancellationToken ct)
     {
         var source = await db.DataSetSources.Include(s => s.File).AsNoTracking().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
@@ -110,8 +120,8 @@ public class DataSetPdfRecognitionService(
         if (source.File.Format != DataSetFormat.Pdf)
             throw new ArgumentException("Источник не относится к PDF-файлу.");
 
-        var isGost = source.SheetOrPath is PdfProfiles.GostCoverMarker or PdfProfiles.GostTitlePageMarker or PdfProfiles.GostDocumentsMarker;
-        if (isGost)
+        var descriptor = PdfProfileRegistry.BySourceMarker(source.SheetOrPath);
+        if (descriptor?.Kind == PdfProfileKind.Gost)
         {
             // 409-проверка ручной правки — ДО постановки в фон (чтобы диалог подтверждения был интерактивным).
             // Группировка живёт на НАБОРЕ (issue #28), не на источнике.
@@ -119,24 +129,33 @@ public class DataSetPdfRecognitionService(
             if (existingGrouping is { ManuallyEdited: true } && !confirm)
                 throw new InvalidOperationException(
                     "Разбиение этого источника было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
-            return new RecognizePlan(Background: true, Title: "Распознавание листов PDF");
+            return new RecognizePlan(descriptor.Background, Title: "Распознавание листов PDF");
         }
         // Счёт/legacy — короткие, синхронно.
         return new RecognizePlan(Background: false, Title: "Распознавание PDF");
     }
 
+    /// <summary>Legacy source-centric распознавание (issue #44: дискриминатор через дескриптор). Новый
+    /// штатный путь для обоих профилей — RecognizeFileAsync(fileId) (unifies VERB вызова); сохранён для
+    /// существующих call-sites.</summary>
     public async Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, bool confirm, CancellationToken ct,
         Func<int, int, Task>? onProgress = null)
     {
-        var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        var source = await db.DataSetSources.Include(s => s.File).ThenInclude(f => f.Sources)
+            .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
         if (source.File.Format != DataSetFormat.Pdf)
             throw new ArgumentException("Источник не относится к PDF-файлу.");
 
-        if (source.SheetOrPath is PdfProfiles.InvoiceHeaderMarker or PdfProfiles.InvoiceLineItemsMarker)
-            return await RecognizeInvoiceAsync(source, sourceId, ct);
+        var descriptor = PdfProfileRegistry.BySourceMarker(source.SheetOrPath);
 
-        if (source.SheetOrPath is PdfProfiles.GostCoverMarker or PdfProfiles.GostTitlePageMarker or PdfProfiles.GostDocumentsMarker)
+        if (descriptor?.Kind == PdfProfileKind.InvoiceFixedSlices)
+        {
+            await RecognizeInvoiceFileAsync(source.File, ct);
+            return DataSetDtoMapper.MapSource(source);
+        }
+
+        if (descriptor?.Kind == PdfProfileKind.Gost)
         {
             // Ручная правка группировки — дороже автораспознавания LLM-вызовов (пользователь
             // руками разбирал документы) — не затираем без явного согласия.
@@ -204,23 +223,18 @@ public class DataSetPdfRecognitionService(
     }
 
     /// <summary>
-    /// Профиль "Счёт на оплату" — один вызов распознавания на весь многостраничный PDF
-    /// (Gemini/Anthropic принимают application/pdf целиком без растеризации; Ollama растеризует
-    /// сама внутри движка) вместо цикла по страницам. Результат расщепляется на пару источников:
-    /// шапка (1 строка) и товары (N строк) — обе обновляются одним сохранением.
+    /// Профиль "Счёт на оплату" (issue #44: набор-centric — сырьё на набор, БЕЗ авто-создания источников,
+    /// как у ГОСТ) — один вызов распознавания на весь многостраничный PDF (Gemini/Anthropic принимают
+    /// application/pdf целиком без растеризации; Ollama растеризует сама внутри движка) вместо цикла по
+    /// страницам. Результат пишется как СЫРЬЁ в DataSetFile.InvoiceRawData — кандидаты «Шапка»/«Товары»
+    /// проецируются пользователем (см. DataSetSourceService.InvoiceCandidatesAsync/
+    /// CreateInvoiceProjectionSourceAsync). Если пользователь УЖЕ создал источник-проекцию — обновляем
+    /// его кэш (ре-распознавание), тем же паттерном, что RefreshProjectionSourcesAsync у ГОСТ.
+    /// Требует file.Sources загруженным.
     /// </summary>
-    private async Task<DataSetSourceDto?> RecognizeInvoiceAsync(DataSetSource source, Guid requestedSourceId, CancellationToken ct)
+    private async Task RecognizeInvoiceFileAsync(Domain.DataSets.DataSetFile file, CancellationToken ct)
     {
-        var header = source.SheetOrPath == PdfProfiles.InvoiceHeaderMarker
-            ? source
-            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.InvoiceHeaderMarker, ct);
-        var lineItems = source.SheetOrPath == PdfProfiles.InvoiceLineItemsMarker
-            ? source
-            : await db.DataSetSources.FirstOrDefaultAsync(s => s.FileId == source.FileId && s.SheetOrPath == PdfProfiles.InvoiceLineItemsMarker, ct);
-        if (header is null || lineItems is null)
-            throw new ArgumentException("Не найдена пара источников «Счёт на оплату» (шапка/товары).");
-
-        await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
+        await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms, ct);
         var bytes = ms.ToArray();
@@ -236,22 +250,31 @@ public class DataSetPdfRecognitionService(
         }
 
         var headerRow = InvoiceRecognitionSplitter.SplitHeader(result.Values);
-        var headerColumns = InvoiceFields.HeaderFields
-            .Select(f => new DataSetColumnInfo(f.Path, [headerRow.GetValueOrDefault(f.Path) ?? ""]))
-            .ToArray();
-        header.UpdateCache(DataSetDtoMapper.SerializeSchema(headerColumns), 1, JsonSerializer.Serialize(new[] { headerRow }));
-
         // Сломанный/не-JSON ответ модели по товарам — InvoiceRecognitionSplitter молча вернёт []
         // (шапка уже распозналась независимо, та же философия, что и у постраничного профиля).
         var lineItemRows = InvoiceRecognitionSplitter.SplitLineItems(result.Values);
-        var lineItemColumns = InvoiceFields.LineItemColumns
-            .Select(f => new DataSetColumnInfo(f.Path,
-                lineItemRows.Take(3).Select(r => r.GetValueOrDefault(f.Path) ?? "").ToArray()))
-            .ToArray();
-        lineItems.UpdateCache(DataSetDtoMapper.SerializeSchema(lineItemColumns), lineItemRows.Count, JsonSerializer.Serialize(lineItemRows));
+
+        file.SetInvoiceRawData(JsonSerializer.Serialize(new InvoiceRawData(headerRow, lineItemRows)));
+
+        var header = file.Sources.FirstOrDefault(s => s.SheetOrPath == PdfProfiles.InvoiceHeaderMarker);
+        if (header is not null)
+        {
+            var headerColumns = InvoiceFields.HeaderFields
+                .Select(f => new DataSetColumnInfo(f.Path, [headerRow.GetValueOrDefault(f.Path) ?? ""]))
+                .ToArray();
+            header.UpdateCache(DataSetDtoMapper.SerializeSchema(headerColumns), 1, JsonSerializer.Serialize(new[] { headerRow }));
+        }
+        var lineItems = file.Sources.FirstOrDefault(s => s.SheetOrPath == PdfProfiles.InvoiceLineItemsMarker);
+        if (lineItems is not null)
+        {
+            var lineItemColumns = InvoiceFields.LineItemColumns
+                .Select(f => new DataSetColumnInfo(f.Path,
+                    lineItemRows.Take(3).Select(r => r.GetValueOrDefault(f.Path) ?? "").ToArray()))
+                .ToArray();
+            lineItems.UpdateCache(DataSetDtoMapper.SerializeSchema(lineItemColumns), lineItemRows.Count, JsonSerializer.Serialize(lineItemRows));
+        }
 
         await db.SaveChangesAsync(ct);
-        return DataSetDtoMapper.MapSource(requestedSourceId == header.Id ? header : lineItems);
     }
 
     /// <summary>

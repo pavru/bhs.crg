@@ -35,6 +35,11 @@ public class DataSetFile : Entity
     /// </summary>
     public bool RecognitionStale { get; private set; }
 
+    /// <summary>Сырьё профиля «Счёт на оплату» (issue #44) — JSON {Header, LineItems}, аналог
+    /// <see cref="Grouping"/> для ГОСТ (иная, непостраничная форма — своя колонка, не обобщение).
+    /// Пишется распознаванием; источники «Шапка»/«Товары» — кандидаты, проецируются пользователем.</summary>
+    public string? InvoiceRawData { get; private set; }
+
     private DataSetFile() { }
 
     public static DataSetFile Create(string name, DataSetFormat format, string blobPath,
@@ -77,6 +82,14 @@ public class DataSetFile : Entity
     public void SetGrouping(string? groupingJson)
     {
         Grouping = groupingJson;
+        RecognitionStale = false;
+        TouchUpdatedAt();
+    }
+
+    /// <summary>Пишет сырьё профиля «Счёт на оплату» (issue #44) — аналог SetGrouping для ГОСТ.</summary>
+    public void SetInvoiceRawData(string? rawDataJson)
+    {
+        InvoiceRawData = rawDataJson;
         RecognitionStale = false;
         TouchUpdatedAt();
     }

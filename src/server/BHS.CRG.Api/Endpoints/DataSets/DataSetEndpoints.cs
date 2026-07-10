@@ -197,8 +197,10 @@ public static class DataSetEndpoints
             catch (KeyNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
         });
 
-        // Распознавание ГОСТ-набора (issue #38, набор-centric) — по fileId. confirm=true подтверждает
-        // перезапись ручной правки разбиения (409 без него). Долгая операция → фоновая задача, 202+jobId.
+        // Распознавание PDF-набора (issue #38/#44, набор-centric) — по fileId, для ВСЕХ профилей (unifies
+        // VERB вызова: ГОСТ и «Счёт» теперь оба входят через fileId, не только ГОСТ). confirm=true
+        // подтверждает перезапись ручной правки разбиения (409 без него, только ГОСТ). Долгая операция
+        // (ГОСТ, минуты) → фоновая задача, 202+jobId; короткая (Счёт, секунды) → синхронно, 200.
         g.MapPost("/files/{fileId:guid}/recognize", async (Guid fileId, bool? confirm, IDataSetService svc, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
         {
             try
@@ -207,8 +209,13 @@ public static class DataSetEndpoints
                     return Results.Conflict(new { error = "По этому набору уже идёт распознавание." });
                 var plan = await svc.PlanFileRecognitionAsync(fileId, confirm ?? false, ct);
                 if (plan is null) return Results.NotFound();
-                var jobId = await jobs.EnqueueAsync(JobKind.RecognizeGostSet, UserId(user), fileId, plan.Title, null, ct);
-                return Results.Accepted($"/api/jobs/active", new { jobId });
+                if (plan.Background)
+                {
+                    var jobId = await jobs.EnqueueAsync(JobKind.RecognizeGostSet, UserId(user), fileId, plan.Title, null, ct);
+                    return Results.Accepted($"/api/jobs/active", new { jobId });
+                }
+                await svc.RecognizeFileAsync(fileId, confirm ?? false, ct);
+                return Results.Ok();
             }
             catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
             catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
