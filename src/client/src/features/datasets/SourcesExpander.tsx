@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronDown, ChevronRight, Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
-  BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, LayoutGrid,
+  BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, LayoutGrid, Type,
 } from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
 import { useSourceRecognizing } from '@/shared/api/jobs';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
   usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizePdfSource, useRecognizeFile,
-  isManualGroupingConflict, exportDataSetSource, useSourceCandidates, useCreateDataSetSource,
+  isManualGroupingConflict, exportDataSetSource, useSourceCandidates, useCreateDataSetSource, useRenameSource,
 } from '@/shared/api/datasets';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
@@ -91,12 +91,15 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
   const [materializing, setMaterializing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [renameVal, setRenameVal] = useState('');
 
   const setProcessing = useSetDataSetSourceProcessing();
   const createTemplate = useCreateProcessingTemplate();
   const applyTemplateMutation = useApplyProcessingTemplate();
   const deleteMutation = useDeleteDataSetSource();
   const duplicateMutation = useDuplicateDataSetSource();
+  const renameMutation = useRenameSource();
 
   const filterCount = countFilterConditions(src.rowFilter);
   const transformCount = src.computedColumns?.length ?? 0;
@@ -145,6 +148,7 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
       { key: 'export-xls', label: 'XLS', onSelect: () => void exportDataSetSource(src.id, 'xls') },
       { key: 'export-csv', label: 'CSV', onSelect: () => void exportDataSetSource(src.id, 'csv') },
     ] },
+    { key: 'rename', label: 'Переименовать…', icon: <Type size={13} />, onSelect: () => { setRenameVal(src.name); setRenaming(true); } },
     { key: 'duplicate', label: 'Создать копию', icon: <Copy size={13} />, onSelect: () => duplicateMutation.mutate({ id: src.id }), disabled: duplicateMutation.isPending },
     { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: <Boxes size={13} />, onSelect: () => setMaterializing(true) },
     ...(canManageExtraction && !isPdf ? [{ key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => onEdit(src) }] : []),
@@ -206,6 +210,28 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
       )}
       {previewing && <SourcePreviewDialog source={src} onClose={() => setPreviewing(false)} />}
       {materializing && <MaterializationDialog source={src} onClose={() => setMaterializing(false)} />}
+
+      {renaming && (
+        <Modal open onOpenChange={o => { if (!o) setRenaming(false); }} title="Переименовать источник"
+          footer={
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setRenaming(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-base text-fg2 hover:bg-muted">Отмена</button>
+              <button type="button" disabled={!renameVal.trim() || renameMutation.isPending}
+                onClick={() => renameMutation.mutateAsync({ id: src.id, name: renameVal.trim() }).then(() => setRenaming(false))}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-50">
+                {renameMutation.isPending ? 'Сохранение…' : 'Сохранить'}
+              </button>
+            </div>
+          }>
+          <div className="min-w-[380px]">
+            <label className="block text-sm font-medium text-fg1 mb-1">Название</label>
+            <input value={renameVal} onChange={e => setRenameVal(e.target.value)} autoFocus
+              onKeyDown={e => { if (e.key === 'Enter' && renameVal.trim()) renameMutation.mutateAsync({ id: src.id, name: renameVal.trim() }).then(() => setRenaming(false)); }}
+              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm" />
+          </div>
+        </Modal>
+      )}
 
       <ConfirmDialog
         open={confirmDelete}

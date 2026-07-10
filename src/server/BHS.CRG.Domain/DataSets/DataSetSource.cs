@@ -106,6 +106,14 @@ public class DataSetSource : Entity
         TouchUpdatedAt();
     }
 
+    /// <summary>Лёгкое переименование источника (issue #43) — только имя, не трогает локатор/колонки/кэш.
+    /// Применимо к любому источнику, включая PDF-проекции (у них UpdateDefinition недоступен).</summary>
+    public void Rename(string name)
+    {
+        Name = name.Trim();
+        TouchUpdatedAt();
+    }
+
     /// <summary>Ручное редактирование источника пользователем (имя, локатор, колонки).</summary>
     public void UpdateDefinition(string name, string sheetOrPath, string? columnExpressions)
     {

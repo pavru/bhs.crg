@@ -32,6 +32,9 @@ public interface IDataSetService
     /// <summary>Предпросмотр материализации источника (строки → объекты формы типа).</summary>
     Task<MaterializePreviewDto?> MaterializePreviewAsync(Guid sourceId, int maxRows, CancellationToken ct);
     Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct);
+    /// <summary>Лёгкое переименование источника (issue #43) — только имя, без extraction/кэша; для любого
+    /// источника, включая PDF-проекции.</summary>
+    Task<DataSetSourceDto?> RenameSourceAsync(Guid sourceId, string name, CancellationToken ct);
     Task<bool> DeleteSourceAsync(Guid sourceId, CancellationToken ct);
 
     /// <summary>Копия источника (тот же locator/колонки/Filter/Transformation/Sort) на том же файле — доступно для любого формата.</summary>

@@ -292,6 +292,18 @@ public class DataSetSourceService(
         return DataSetDtoMapper.MapSource(source);
     }
 
+    // Лёгкое переименование (issue #43) — только имя, без парсинга/кэша; применимо к любому источнику
+    // (включая PDF-проекции, для которых полное UpdateSource недоступно).
+    public async Task<DataSetSourceDto?> RenameSourceAsync(Guid sourceId, string name, CancellationToken ct)
+    {
+        var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        if (source == null) return null;
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Укажите название.");
+        source.Rename(name);
+        await db.SaveChangesAsync(ct);
+        return DataSetDtoMapper.MapSource(source);
+    }
+
     public async Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct)
     {
         var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
