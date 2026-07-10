@@ -21,7 +21,7 @@ public record BindingFileDto(Guid Id, string Name, string Format, string Scope, 
 
 public record BindingSourceDto(
     Guid Id, string Name, string SheetOrPath, string CachedSchema, int CachedRowCount, BindingFileDto? File,
-    Guid? MaterializeTypeId = null);
+    Guid? MaterializeTypeId = null, Dictionary<string, string>? MaterializeMapping = null);
 
 /// <summary>Привязка — только Mapping. Filter/Transformation/Sort живут на DataSetSource.
 /// Владелец — ровно одно из InstanceId/CommonDataEntryId задано.</summary>

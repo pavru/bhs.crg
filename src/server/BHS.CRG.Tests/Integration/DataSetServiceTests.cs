@@ -211,4 +211,31 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         Assert.Single(list);
         Assert.Equal(src.Id, list[0].SourceId);
     }
+
+    [Fact]
+    public async Task Binding_MaterializedSource_ExposesMaterializeMappingOnSource()
+    {
+        // issue #55: клиент вычисляет "эффективный маппинг" скалярной привязки (какие поля
+        // реквизитов она реально покрывает) без похода на сервер — для этого DataSetBindingDto.Source
+        // должен нести MaterializeMapping (не только MaterializeTypeId), см. DataSetDtoMapper.MapBinding.
+        var typeId = await CreateDocumentTypeAsync();
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var (_, src) = await UploadCsvWithSourceAsync(scope);
+        await svc.SetMaterializationAsync(src.Id, typeId, new() { ["Поле"] = "A" }, default);
+
+        var entry = await scope.ServiceProvider.GetRequiredService<MediatR.IMediator>().Send(
+            new CreateCommonDataEntryCommand("Запись", typeId, JsonDocument.Parse("{}"),
+                BHS.CRG.Domain.Catalog.CatalogScope.System, null));
+        // Своя привязка без явного маппинга — эффективный маппинг берётся с материализации источника.
+        await svc.CreateBindingAsync(new CreateBindingInput(null, entry.Id, src.Id, null, null), default);
+
+        var list = await svc.ListBindingsAsync(null, entry.Id, default);
+        var binding = Assert.Single(list);
+        Assert.Empty(binding.Mapping);
+        Assert.NotNull(binding.Source);
+        Assert.Equal(typeId, binding.Source!.MaterializeTypeId);
+        Assert.NotNull(binding.Source.MaterializeMapping);
+        Assert.Equal("A", binding.Source.MaterializeMapping!["Поле"]);
+    }
 }

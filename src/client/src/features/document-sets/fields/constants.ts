@@ -17,7 +17,10 @@ export const SCOPE_COLORS: Record<CatalogScope, string> = {
   System: 'bg-muted text-fg2',
 };
 
-export function fieldInputClass(invalid = false) {
+export function fieldInputClass(invalid = false, readOnly = false) {
+  if (readOnly) {
+    return 'w-full border rounded-md px-3 py-2 text-sm text-fg3 bg-muted border-stroke cursor-not-allowed';
+  }
   return `w-full border rounded-md px-3 py-2 text-sm text-fg1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface ${
     invalid ? 'border-danger focus-visible:ring-danger' : 'border-stroke-strong'
   }`;

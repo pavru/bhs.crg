@@ -84,7 +84,8 @@ public static class DataSetDtoMapper
             b.Source.File is null ? null : new BindingFileDto(
                 b.Source.File.Id, b.Source.File.Name, b.Source.File.Format.ToString(),
                 b.Source.File.Scope.ToString(), b.Source.File.ScopeId),
-            b.Source.MaterializeTypeId));
+            b.Source.MaterializeTypeId,
+            b.Source.MaterializeMapping is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(b.Source.MaterializeMapping)));
 
     public static DataSetBindingTemplateDto MapTemplate(DataSetBindingTemplate t) => new(
         t.Id, t.DocumentTypeId, t.Name, t.TargetFieldKey,
