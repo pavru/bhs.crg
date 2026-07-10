@@ -95,6 +95,10 @@ public interface IDataSetService
     /// пишет строки как СЫРЬЁ на группу (Grouping) — доступна как кандидат «Таблица …», источник создаёт
     /// пользователь (issue #42). Источника НЕ создаёт. firstPageIndex — любая страница документа.</summary>
     Task<GostGroupingDto?> RecognizeDocumentTableAsync(Guid fileId, int firstPageIndex, CancellationToken ct);
+    /// <summary>Извлечь ВЕСЬ текст документа (issue #51), лениво по запросу пользователя — колонка
+    /// «ТекстЛиста» в реестре «Документы», субстрат для вычисляемых колонок (regex-извлечение доп-полей).
+    /// Без гейта по тэгу/типу (в отличие от таблиц). firstPageIndex — любая страница документа.</summary>
+    Task<GostGroupingDto?> RecognizeDocumentTextAsync(Guid fileId, int firstPageIndex, CancellationToken ct);
 
     /// <summary>Пути XML-записей внутри ZIP-файла — для выбора при ручном создании источника.</summary>
     Task<IReadOnlyList<string>> ListZipXmlEntriesAsync(Guid fileId, CancellationToken ct);

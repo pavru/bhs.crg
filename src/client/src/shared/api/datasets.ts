@@ -312,6 +312,16 @@ export function useRecognizeDocumentTable(fileId: string) {
   });
 }
 
+/** Извлечь ВЕСЬ текст документа (issue #51) — лениво, по запросу; колонка «ТекстЛиста» в реестре «Документы». */
+export function useRecognizeDocumentText(fileId: string) {
+  const qc = useQueryClient();
+  return useMutation<{ jobId?: string }, unknown, number>({
+    mutationFn: (firstPageIndex) =>
+      apiClient.post(`/datasets/files/${fileId}/recognize-text`, { firstPageIndex }).then(r => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['jobs', 'active'] }); },
+  });
+}
+
 // ── Обработка источника (Filter/Transformation/Sort) — лёгкая правка, файл не трогает ─────
 
 export function useSetDataSetSourceProcessing() {

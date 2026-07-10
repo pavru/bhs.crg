@@ -306,6 +306,17 @@ public static class DataSetEndpoints
             return Results.Accepted($"/api/jobs/active", new { jobId });
         });
 
+        // Извлечь ВЕСЬ текст документа (issue #51) — лениво, по запросу. Vision-вызов → фоновая задача.
+        g.MapPost("/files/{fileId:guid}/recognize-text", async (
+            Guid fileId, RecognizeTableRequest req, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
+        {
+            if (await jobs.HasActiveForTargetAsync(UserId(user), fileId, ct))
+                return Results.Conflict(new { error = "По этому набору уже идёт распознавание." });
+            var payload = JsonSerializer.Serialize(new { firstPageIndex = req.FirstPageIndex });
+            var jobId = await jobs.EnqueueAsync(JobKind.RecognizeDocumentText, UserId(user), fileId, "Извлечение текста документа", payload, ct);
+            return Results.Accepted($"/api/jobs/active", new { jobId });
+        });
+
         // Точечное перераспознавание ОДНОГО документа набора (не всего альбома, P6) → фоновая задача.
         g.MapPost("/files/{fileId:guid}/recognize-document", async (
             Guid fileId, RecognizeTableRequest req, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>

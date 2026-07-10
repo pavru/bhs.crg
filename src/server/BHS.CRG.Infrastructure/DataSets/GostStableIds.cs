@@ -65,6 +65,9 @@ public static class GostStableIds
                 carried = carried with { Tags = matched.Tags ?? g.Tags };
                 if (dominant && !string.IsNullOrEmpty(matched.TableData))
                     carried = carried with { TableData = matched.TableData, TableColumns = matched.TableColumns, TableStale = matched.TableStale || !samePages };
+                // Извлечённый текст документа (issue #51) — тот же перенос, что TableData.
+                if (dominant && !string.IsNullOrEmpty(matched.SheetText))
+                    carried = carried with { SheetText = matched.SheetText, SheetTextStale = matched.SheetTextStale || !samePages };
             }
             result.Add(carried);
         }

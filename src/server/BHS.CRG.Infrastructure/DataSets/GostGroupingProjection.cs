@@ -54,6 +54,10 @@ public static class GostGroupingProjection
                         fields["ФайлПуть"] = group.BlobPath;
                         fields["РазмерБайт"] = group.BlobSize?.ToString() ?? "";
                     }
+                    // Весь текст документа (issue #51) — из ЛЕНИВОГО извлечения (RecognizeDocumentTextAsync),
+                    // не при авто-распознавании альбома. Null, пока пользователь не запросил извлечение.
+                    if (!string.IsNullOrEmpty(group.SheetText))
+                        fields["ТекстЛиста"] = group.SheetText;
                     documents.Add(new ProjectedDocument(
                         group.Id, group.Code ?? "", group.Name, group.Pages.Select(p => p.PageIndex).ToList(), fields));
                     break;

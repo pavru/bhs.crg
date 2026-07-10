@@ -40,11 +40,20 @@ public record GostGroupingData(IReadOnlyList<GostGroupingGroup> Groups, bool Man
 /// <param name="TableColumns">Схема строк таблицы (JSON [{name,sampleValues}]) — для кандидата/проекции.</param>
 /// <param name="TableStale">true — состав страниц группы изменился после распознавания таблицы: строки
 /// относятся к прежним границам, нужно перераспознать. Тэги переносятся всегда, TableData — с этим флагом.</param>
+/// <param name="SheetText">Весь текст документа (issue #51) — все страницы группы, reading-order
+/// (сверху-вниз, слева-направо), одна строка (join пробелом). СЫРЬЁ: извлекается ЛЕНИВО по запросу
+/// пользователя (не при авто-распознавании альбома — иначе риск truncation-отравления ответа модели
+/// и раздувания Grouping без пользы, если текст нужен не для всех документов). Доступен как колонка
+/// «ТекстЛиста» в реестре «Документы» — субстрат для вычисляемых колонок (напр. regex-извлечение
+/// доп-полей). Null — не извлечён.</param>
+/// <param name="SheetTextStale">true — состав страниц группы изменился после извлечения текста (аналог
+/// TableStale) — текст относится к прежним границам, нужно извлечь заново.</param>
 public record GostGroupingGroup(
     GostGroupKind Kind, string? Code, string? Name, IReadOnlyList<GostGroupingPage> Pages,
     IReadOnlyList<string>? Tags = null, Guid Id = default,
     string? BlobPath = null, long? BlobSize = null,
-    string? TableData = null, string? TableColumns = null, bool TableStale = false);
+    string? TableData = null, string? TableColumns = null, bool TableStale = false,
+    string? SheetText = null, bool SheetTextStale = false);
 
 /// <param name="PageIndex">Индекс страницы исходного PDF (0-based).</param>
 /// <param name="Fields">Распознанные поля штампа этой страницы (без служебных ТипСтраницы/Форма).</param>

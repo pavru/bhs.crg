@@ -119,6 +119,22 @@ public static class RecognitionShared
         return sb.ToString();
     }
 
+    /// <summary>Промпт для ленивого извлечения ВСЕГО текста документа (issue #51) — субстрат для
+    /// пользовательских вычисляемых колонок (regex и т.п.), не структурированные поля.</summary>
+    public static string BuildFullTextPrompt(IReadOnlyList<RecognitionField> fields)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Ты извлекаешь ВЕСЬ текст документа (скан-копия, одна или несколько страниц) для");
+        sb.AppendLine("последующего текстового поиска. Включай весь читаемый текст: штампы, таблицы, подписи,");
+        sb.AppendLine("примечания — ничего не пропускай и не суммаризируй.");
+        AppendCommonInstructions(sb, fields);
+        sb.AppendLine();
+        sb.Append("Поле ").Append(DocumentTextFields.Path)
+          .AppendLine(" — верни ОДНОЙ строкой: страницы по порядку следования, на каждой странице —");
+        sb.AppendLine("сверху вниз, слева направо; фрагменты раздели ОДНИМ пробелом. Без переносов строк и markdown.");
+        return sb.ToString();
+    }
+
     private static void AppendCommonInstructions(StringBuilder sb, IReadOnlyList<RecognitionField> fields)
     {
         sb.AppendLine("Извлеки значения СТРОГО для перечисленных полей. Ответ — один JSON-объект {\"путь\": \"значение\"} без markdown и пояснений.");

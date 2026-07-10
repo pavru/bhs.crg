@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, Save, ZoomIn, Table2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, Save, ZoomIn, Table2, RefreshCw, FileText } from 'lucide-react';
 import {
-  useFilePages, useApplyGrouping, useRecognizeDocumentTable, useRecognizeDocument,
+  useFilePages, useApplyGrouping, useRecognizeDocumentTable, useRecognizeDocument, useRecognizeDocumentText,
   loadPageThumbnailUrl, loadPageImageUrl,
 } from '@/shared/api/datasets';
 import type { GostGroupingGroup, GostGroupKind } from '@/shared/api/types';
@@ -210,7 +210,7 @@ function SelectionActionBar({
 function GroupSection({
   fileId, group, otherGroups, selected, suspiciousOnly, dirty,
   onToggle, onRename, onMoveSelected, onSplitSelected, onDisband, onView, onSetTag,
-  onRecognizeTable, onRecognizeDoc, tableBusyPage, docBusyPage,
+  onRecognizeTable, onRecognizeDoc, onRecognizeText, tableBusyPage, docBusyPage, textBusyPage,
 }: {
   fileId: string;
   group: EditableGroup;
@@ -227,8 +227,10 @@ function GroupSection({
   onSetTag: (groupId: string, tag: string) => void;
   onRecognizeTable: (firstPageIndex: number) => void;
   onRecognizeDoc: (firstPageIndex: number) => void;
+  onRecognizeText: (firstPageIndex: number) => void;
   tableBusyPage: number | null;
   docBusyPage: number | null;
+  textBusyPage: number | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [codeVal, setCodeVal] = useState(group.code);
@@ -303,6 +305,12 @@ function GroupSection({
               Таблица
             </button>
           )}
+          <button onClick={() => onRecognizeText(firstPage)} disabled={dirty || textBusyPage === firstPage}
+            title={dirty ? 'Сначала сохраните разбиение' : 'Извлечь весь текст документа (для регулярных выражений в вычисляемых колонках)'}
+            className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-base disabled:opacity-50">
+            {textBusyPage === firstPage ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
+            Текст
+          </button>
           <button onClick={() => onRecognizeDoc(firstPage)} disabled={dirty || docBusyPage === firstPage}
             title={dirty ? 'Сначала сохраните разбиение' : 'Перераспознать только этот документ (не весь набор)'}
             className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-base disabled:opacity-50">
@@ -345,6 +353,7 @@ export function PdfGroupingEditor() {
   const applyMutation = useApplyGrouping(fileId!);
   const recognizeTable = useRecognizeDocumentTable(fileId!);
   const recognizeDoc = useRecognizeDocument(fileId!);
+  const recognizeText = useRecognizeDocumentText(fileId!);
 
   const [groups, setGroups] = useState<EditableGroup[] | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -500,8 +509,10 @@ export function PdfGroupingEditor() {
             onSetTag={handleSetTag}
             onRecognizeTable={p => recognizeTable.mutate(p)}
             onRecognizeDoc={p => recognizeDoc.mutate(p)}
+            onRecognizeText={p => recognizeText.mutate(p)}
             tableBusyPage={recognizeTable.isPending ? (recognizeTable.variables ?? null) : null}
             docBusyPage={recognizeDoc.isPending ? (recognizeDoc.variables ?? null) : null}
+            textBusyPage={recognizeText.isPending ? (recognizeText.variables ?? null) : null}
           />
         ))}
 

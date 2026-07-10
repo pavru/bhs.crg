@@ -13,6 +13,8 @@ public enum JobKind
     AssembleDocumentSet = 3,
     /// <summary>Отправка собранного комплекта подписчикам по email (вложение/ссылка).</summary>
     SendEmail = 4,
+    /// <summary>Извлечение всего текста документа (issue #51) — лениво, по запросу пользователя.</summary>
+    RecognizeDocumentText = 5,
 }
 
 /// <summary>Статус фоновой задачи. Активные (для индикатора) — Queued/Running.</summary>

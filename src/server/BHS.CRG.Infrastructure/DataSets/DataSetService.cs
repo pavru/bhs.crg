@@ -87,6 +87,8 @@ public class DataSetService(
         pdfRecognition.SetDocumentTagsAsync(fileId, firstPageIndex, tags, ct);
     public Task<GostGroupingDto?> RecognizeDocumentTableAsync(Guid fileId, int firstPageIndex, CancellationToken ct) =>
         pdfRecognition.RecognizeDocumentTableAsync(fileId, firstPageIndex, ct);
+    public Task<GostGroupingDto?> RecognizeDocumentTextAsync(Guid fileId, int firstPageIndex, CancellationToken ct) =>
+        pdfRecognition.RecognizeDocumentTextAsync(fileId, firstPageIndex, ct);
 
     // ── Processing templates ────────────────────────────────────────────────────
     public Task<IReadOnlyList<DataSetProcessingTemplateDto>> ListProcessingTemplatesAsync(CancellationToken ct) =>

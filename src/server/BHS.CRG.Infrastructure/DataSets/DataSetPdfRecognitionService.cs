@@ -526,8 +526,10 @@ public class DataSetPdfRecognitionService(
     private async Task RefreshProjectionSourcesAsync(Guid fileId, ProjectedRows projected, CancellationToken ct)
     {
         var coverColumnPaths = GostCoverTitleFields.All.Select(f => f.Path).ToArray();
+        // ТекстЛиста (issue #51) — извлекается лениво, колонка в схеме всегда, значение пустое, пока
+        // пользователь не запросил извлечение для конкретного документа.
         var documentsColumnPaths = GostTitleBlockFields.All.Select(f => f.Path)
-            .Concat(["КоличествоЛистов", "ФайлПуть", "РазмерБайт"]).ToArray();
+            .Concat(["КоличествоЛистов", "ФайлПуть", "РазмерБайт", "ТекстЛиста"]).ToArray();
 
         static DataSetColumnInfo[] Cols(IReadOnlyList<string> paths, IReadOnlyList<IReadOnlyDictionary<string, string?>> data) =>
             paths.Select(p => new DataSetColumnInfo(p, data.Take(3).Select(r => r.TryGetValue(p, out var v) ? v ?? "" : "").ToArray())).ToArray();
@@ -838,6 +840,84 @@ public class DataSetPdfRecognitionService(
         return new GostGroupingDto(
             updated.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags)).ToList(),
             updated.ManuallyEdited, pageCount);
+    }
+
+    /// <summary>
+    /// Извлекает ВЕСЬ текст документа (issue #51) — ЛЕНИВО, по запросу пользователя (не при авто-
+    /// распознавании альбома — иначе риск truncation-отравления ответа модели на каждом листе и
+    /// раздувания Grouping без пользы, если текст нужен не для всех документов). Один vision-вызов по
+    /// под-PDF документа (не по страницам — весь документ) → результат ОДНА строка (reading-order,
+    /// join пробелом) → пишется как СЫРЬЁ на группу (SheetText), доступна как колонка «ТекстЛиста» в
+    /// реестре «Документы» — субстрат для вычисляемых колонок (regex-извлечение доп-полей).
+    /// Доступно для ЛЮБОГО документа — без гейта по тэгу/типу (в отличие от таблиц: тексту не нужно
+    /// заранее знать «форму», это просто текст). firstPageIndex — любая страница документа.
+    /// </summary>
+    public async Task<GostGroupingDto?> RecognizeDocumentTextAsync(Guid fileId, int firstPageIndex, CancellationToken ct)
+    {
+        var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file == null) return null;
+        if (file.Format != DataSetFormat.Pdf)
+            throw new ArgumentException("Извлечение текста доступно только для PDF-набора.");
+
+        var grouping = ParseGrouping(file.Grouping);
+        var group = grouping?.Groups.FirstOrDefault(
+            g => g.Kind == GostGroupKind.Document && g.Pages.Any(p => p.PageIndex == firstPageIndex));
+        if (group is null)
+            throw new ArgumentException("Документ с указанной страницей не найден в группировке.");
+
+        // Под-PDF документа для vision: переиспользуем уже вырезанный при распознавании блок (group.BlobPath,
+        // issue #38) — не режем заново. Fallback — вырезать из полного PDF (старые наборы без BlobPath).
+        byte[] subPdf;
+        if (!string.IsNullOrEmpty(group.BlobPath))
+        {
+            await using var s = await blob.DownloadAsync(group.BlobPath, ct);
+            using var m = new MemoryStream();
+            await s.CopyToAsync(m, ct);
+            subPdf = m.ToArray();
+        }
+        else
+        {
+            await using var s = await blob.DownloadAsync(file.BlobPath, ct);
+            using var m = new MemoryStream();
+            await s.CopyToAsync(m, ct);
+            var pageIndices = group.Pages.Select(p => p.PageIndex).OrderBy(i => i).ToList();
+            try { subPdf = PdfPageSplitter.ExtractPages(m.ToArray(), pageIndices); }
+            catch (Exception ex) { throw new ArgumentException($"Не удалось выделить страницы документа: {ex.Message}"); }
+        }
+
+        RecognitionResult result;
+        try
+        {
+            result = await recognizer.RecognizeAsync(subPdf, "application/pdf",
+                [DocumentTextFields.Field], RecognitionShared.BuildFullTextPrompt, ct: ct);
+        }
+        catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
+        {
+            throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
+        }
+
+        var text = result.Values.GetValueOrDefault(DocumentTextFields.Path) ?? "";
+        var docName = string.IsNullOrWhiteSpace(group.Name) ? "документ" : group.Name;
+
+        var updatedText = grouping! with
+        {
+            Groups = grouping.Groups
+                .Select(gg => gg.Id == group.Id ? gg with { SheetText = text, SheetTextStale = false } : gg)
+                .ToList(),
+        };
+        file.SetGrouping(JsonSerializer.Serialize(updatedText));
+        // Реестр «Документы» уже мог существовать (пользователь создал источник из кандидата) — обновляем
+        // его кэш новой проекцией, тем же паттерном, что RefreshProjectionSourcesAsync у авто-распознавания.
+        await RefreshProjectionSourcesAsync(file.Id, GostGroupingProjection.Project(updatedText), ct);
+        await db.SaveChangesAsync(ct);
+
+        await notifications.PublishAsync(NotificationSeverity.Info, "Текст документа извлечён",
+            $"«{docName}» — {text.Length} символов. Доступен в колонке «ТекстЛиста» источника «Документы».", "Распознавание PDF", ct: ct);
+
+        var pageCountText = await GetPdfPageCountAsync(file.BlobPath, ct);
+        return new GostGroupingDto(
+            updatedText.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags)).ToList(),
+            updatedText.ManuallyEdited, pageCountText);
     }
 
     /// <summary>Точечное перераспознавание ОДНОГО документа (P6): заново распознаёт только страницы его

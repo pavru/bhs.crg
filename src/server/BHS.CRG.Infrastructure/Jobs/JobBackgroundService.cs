@@ -81,6 +81,11 @@ public class JobBackgroundService(
                         .RecognizeDocumentTableAsync(targetId, ParseFirstPageIndex(payload), ct);
                     break;
 
+                case JobKind.RecognizeDocumentText:
+                    await scope.ServiceProvider.GetRequiredService<DataSetPdfRecognitionService>()
+                        .RecognizeDocumentTextAsync(targetId, ParseFirstPageIndex(payload), ct);
+                    break;
+
                 case JobKind.AssembleDocumentSet:
                     await scope.ServiceProvider.GetRequiredService<DocumentSetAssemblyService>()
                         .AssembleAsync(targetId, ParseInstanceIds(payload), userId, ct, (c, t) => report("документов", c, t));
