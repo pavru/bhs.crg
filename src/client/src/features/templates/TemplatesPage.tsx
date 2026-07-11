@@ -176,7 +176,9 @@ export function TemplatesPage() {
 
       {/* ── Content ── */}
       {mode === 'userlib' ? (
-        <UserLibPanel />
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <UserLibPanel />
+        </div>
       ) : !selectedTypeId ? (
         <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Выберите тип документа</div>
       ) : templatesLoading ? (
