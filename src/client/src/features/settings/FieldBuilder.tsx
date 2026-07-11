@@ -421,9 +421,10 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
 
 // ─── Default value cell (module-level to avoid remount on each render) ────────
 
-export function DefaultValueCell({ field, override, onOverrideDefaultValue }: {
+export function DefaultValueCell({ field, override, enumTypes, onOverrideDefaultValue }: {
   field: SchemaField;
   override?: { required?: boolean; defaultValue?: unknown };
+  enumTypes: EnumTypeDef[];
   onOverrideDefaultValue: (key: string, value: unknown) => void;
 }) {
   const isPrimitive = field.type !== 'complex' && field.type !== 'array' && field.type !== 'primitive';
@@ -447,16 +448,16 @@ export function DefaultValueCell({ field, override, onOverrideDefaultValue }: {
     );
   }
   if (field.type === 'enum') {
-    // typeId-резолв (issue #59) сюда не проброшен (как и primitiveTypeDef для type="primitive"
-    // выше по isPrimitive) — для таких полей переопределение default value здесь недоступно.
-    if (field.typeId) return <span className="text-xs text-stroke-strong">—</span>;
-    const opts = (field.options ?? []).filter(o => o);
+    const enumTypeDef = field.typeId ? enumTypes.find(et => et.id === field.typeId) : undefined;
+    if (field.typeId && !enumTypeDef) return <span className="text-xs text-stroke-strong">—</span>;
     return (
       <select value={hasDv ? String(cur) : ''} onChange={e => {
         onOverrideDefaultValue(field.key, e.target.value || undefined);
       }} className={inputCls}>
         <option value="">{parentDv !== undefined ? String(parentDv) : 'не задано'}</option>
-        {opts.map(o => <option key={o} value={o}>{o}</option>)}
+        {enumTypeDef
+          ? enumTypeDef.values.map(v => <option key={v.code} value={v.code}>{v.label}</option>)
+          : (field.options ?? []).filter(o => o).map(o => <option key={o} value={o}>{o}</option>)}
       </select>
     );
   }

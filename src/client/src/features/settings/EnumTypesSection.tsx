@@ -11,6 +11,7 @@ import {
 } from '@/shared/api/enumTypes';
 import type { EnumOptionDef, EnumTypeDef } from '@/shared/api/types';
 import { TypeGroupAccordion, GroupPicker } from './TypeGroupAccordion';
+import { toCamelKey } from './schemaConstants';
 
 // ─── Values editor (список код|имя) ────────────────────────────────────────────
 
@@ -70,12 +71,19 @@ function EnumForm({ initial, onSaved, onCancel }: {
   const create = useCreateEnumType();
   const update = useUpdateEnumType(initial?.id ?? '');
 
+  // См. DocumentTypesPage.handleNameChange/FieldBuilder.updateTitle — тот же принцип: код
+  // перегенерируется из названия, пока совпадает с авто-значением (или пуст); ручная правка
+  // кода отключает автогенерацию. Код не ограничен латиницей — тот же toCamelKey уже даёт
+  // кириллические PascalCase-коды для DocumentType/ключей полей, никакого спец. формата не нужно.
+  function handleNameChange(v: string) {
+    const isCodeAuto = !code.trim() || code === toCamelKey(name);
+    setName(v);
+    if (isCodeAuto) setCode(toCamelKey(v));
+  }
+
   async function handleSave() {
     if (!name.trim()) { setError('Укажите название'); return; }
     if (!code.trim()) { setError('Укажите код'); return; }
-    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(code.trim())) {
-      setError('Код: только латинские буквы, цифры и _'); return;
-    }
     const cleaned = values.map(v => ({ code: v.code.trim(), label: v.label.trim() })).filter(v => v.code && v.label);
     if (cleaned.length === 0) { setError('Добавьте хотя бы один вариант'); return; }
     const codes = new Set<string>();
@@ -106,7 +114,7 @@ function EnumForm({ initial, onSaved, onCancel }: {
             className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
             placeholder="Статус документа"
             value={name}
-            onChange={e => setName(e.target.value)}
+            onChange={e => handleNameChange(e.target.value)}
           />
         </div>
         <div>

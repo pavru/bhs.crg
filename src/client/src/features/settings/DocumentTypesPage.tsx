@@ -19,7 +19,7 @@ import {
 import { TypeGroupAccordion, GroupPicker } from './TypeGroupAccordion';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
-import type { DocumentType, DocumentTypeKind } from '@/shared/api/types';
+import type { DocumentType, DocumentTypeKind, EnumTypeDef } from '@/shared/api/types';
 import {
   parseSchemaFields,
   resolveEffectiveFields,
@@ -35,13 +35,14 @@ import { GroupEditor } from './GroupEditor';
 import { JsonPreview, FieldBuilder, DefaultValueCell } from './FieldBuilder';
 
 function InheritedFieldsPanel({
-  parentEffectiveFields, excludedFields, fieldOverrides, compositeTypes,
+  parentEffectiveFields, excludedFields, fieldOverrides, compositeTypes, enumTypes,
   onExclude, onInclude, onOverrideRequired, onOverrideDefaultValue, onResetOverride,
 }: {
   parentEffectiveFields: SchemaField[];
   excludedFields: string[];
   fieldOverrides: Record<string, { required?: boolean; defaultValue?: unknown }>;
   compositeTypes: DocumentType[];
+  enumTypes: EnumTypeDef[];
   onExclude: (key: string) => void;
   onInclude: (key: string) => void;
   onOverrideRequired: (key: string, required: boolean) => void;
@@ -115,7 +116,7 @@ function InheritedFieldsPanel({
               </div>
             ) : <span />}
             {!isExcluded
-              ? <DefaultValueCell field={field} override={override} onOverrideDefaultValue={onOverrideDefaultValue} />
+              ? <DefaultValueCell field={field} override={override} enumTypes={enumTypes} onOverrideDefaultValue={onOverrideDefaultValue} />
               : <span />
             }
             {isExcluded ? (
@@ -486,6 +487,7 @@ function SchemaEditor({ docType, allDocTypes }: {
             excludedFields={excludedFields}
             fieldOverrides={fieldOverrides}
             compositeTypes={compositeTypes}
+            enumTypes={enumTypes}
             onExclude={handleExclude}
             onInclude={handleInclude}
             onOverrideRequired={handleOverrideRequired}
