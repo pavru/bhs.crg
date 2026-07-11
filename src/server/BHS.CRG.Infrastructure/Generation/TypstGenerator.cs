@@ -12,6 +12,7 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
     public const string TypeBlocksFileName = "typeblocks.typ";
     public const string UserLibFileName = "userlib.typ";
     public const string AssetsSubdir = "assets";
+    public const string FontsSubdir = "fonts";
 
     private static readonly string TypstPath =
         Environment.GetEnvironmentVariable("TYPST_PATH") ?? "typst";
@@ -68,6 +69,38 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
                 : request.UserLibContent;
             await File.WriteAllTextAsync(Path.Combine(tmpDir, UserLibFileName), userLibContent, Encoding.UTF8, ct);
 
+            // Ассеты шаблона (issue #62) — уже свёрнутые по приоритету Template>DocumentType>System
+            // резолвером (ITemplateAssetResolver). Картинки — в assets/ по стабильному Name (шаблон
+            // обращается через image("assets/{Name}.{ext}")); шрифты — в отдельную fonts/, путь к
+            // которой передаётся компилятору через --font-path (сам файл на диске может называться
+            // как угодно — Typst резолвит шрифт по имени семейства, зашитому в файл, не по filename).
+            string? fontsDirForCli = null;
+            if (request.TemplateAssets is { } assets)
+            {
+                foreach (var img in assets.Images)
+                {
+                    var bytes = await TryDownloadAsync(img.BlobPath, ct);
+                    if (bytes is null) continue;
+                    Directory.CreateDirectory(assetsDir);
+                    var ext = Path.GetExtension(img.FileName);
+                    await File.WriteAllBytesAsync(Path.Combine(assetsDir, $"{img.Name}{ext}"), bytes, ct);
+                }
+                if (assets.Fonts.Count > 0)
+                {
+                    var fontsDir = Path.Combine(tmpDir, FontsSubdir);
+                    Directory.CreateDirectory(fontsDir);
+                    var fontIndex = 0;
+                    foreach (var font in assets.Fonts)
+                    {
+                        var bytes = await TryDownloadAsync(font.BlobPath, ct);
+                        if (bytes is null) continue;
+                        var ext = Path.GetExtension(font.FileName);
+                        await File.WriteAllBytesAsync(Path.Combine(fontsDir, $"font_{fontIndex++}{ext}"), bytes, ct);
+                    }
+                    if (fontIndex > 0) fontsDirForCli = fontsDir;
+                }
+            }
+
             var psi = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = TypstPath,
@@ -81,6 +114,11 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
             psi.ArgumentList.Add("output.pdf");
             psi.ArgumentList.Add("--root");
             psi.ArgumentList.Add(tmpDir);
+            if (fontsDirForCli is not null)
+            {
+                psi.ArgumentList.Add("--font-path");
+                psi.ArgumentList.Add(fontsDirForCli);
+            }
 
             using var process = System.Diagnostics.Process.Start(psi)
                 ?? throw new InvalidOperationException("Failed to start Typst");
@@ -104,5 +142,30 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
         {
             try { Directory.Delete(tmpDir, recursive: true); } catch { /* best effort */ }
         }
+    }
+
+    private const long MaxAssetBytes = 100L * 1024 * 1024;
+
+    // Скачивание ассета шаблона из blob — тот же толерантный паттерн, что и
+    // TypstFileMaterializer.TryDownload (отсутствие/превышение размера — не критично, просто
+    // пропускаем конкретный ассет, не прерываем генерацию).
+    private async Task<byte[]?> TryDownloadAsync(string blobPath, CancellationToken ct)
+    {
+        try
+        {
+            await using var stream = await blob.DownloadAsync(blobPath, ct);
+            using var buffer = new MemoryStream();
+            var pool = new byte[81920];
+            int read;
+            long total = 0;
+            while ((read = await stream.ReadAsync(pool, ct)) > 0)
+            {
+                total += read;
+                if (total > MaxAssetBytes) return null;
+                buffer.Write(pool, 0, read);
+            }
+            return buffer.ToArray();
+        }
+        catch { return null; }
     }
 }

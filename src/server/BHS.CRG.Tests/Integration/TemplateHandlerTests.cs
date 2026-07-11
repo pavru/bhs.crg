@@ -2,6 +2,7 @@ using System.Text.Json;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Templates;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -156,5 +157,76 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
         Assert.Equal("landscape", updated.PageOrientation);
         Assert.Equal(15, updated.MarginTop);
         Assert.Equal(25, updated.MarginLeft);
+    }
+
+    // ── TemplateAsset duplication-by-reference (issue #62) ───────────────────────
+
+    [Fact]
+    public async Task Update_DuplicatesIndividualAssetsByReference_SameBlobPath()
+    {
+        var dtId = await CreateDocTypeAsync("DT_ASSET_V");
+        using var scope = fixture.Services.CreateScope();
+        var m = Mediator(scope);
+        var original = await m.Send(new CreateTemplateCommand(dtId, "Шаблон", "v1"));
+        await m.Send(new CreateTemplateAssetCommand(
+            TemplateAssetScope.Template, original.Id, TemplateAssetKind.Image, "logo", "logo.png", "image/png", "blob/logo.png", null));
+
+        using var scope2 = fixture.Services.CreateScope();
+        var newVersion = await Mediator(scope2).Send(new UpdateTemplateCommand(original.Id, "v2"));
+
+        using var scope3 = fixture.Services.CreateScope();
+        var newVersionAssets = await Mediator(scope3).Send(
+            new ListTemplateAssetsQuery(TemplateAssetScope.Template, newVersion.Id));
+        var oldVersionAssets = await Mediator(scope3).Send(
+            new ListTemplateAssetsQuery(TemplateAssetScope.Template, original.Id));
+
+        Assert.Single(newVersionAssets);
+        Assert.Equal("blob/logo.png", newVersionAssets[0].BlobPath); // та же ссылка, без переупаковки
+        Assert.Single(oldVersionAssets); // у старой версии свой (исходный) остался нетронутым
+    }
+
+    [Fact]
+    public async Task ReplaceOnNewVersion_DoesNotAffectSourceVersionAsset()
+    {
+        var dtId = await CreateDocTypeAsync("DT_ASSET_R");
+        using var scope = fixture.Services.CreateScope();
+        var m = Mediator(scope);
+        var original = await m.Send(new CreateTemplateCommand(dtId, "Шаблон", "v1"));
+        await m.Send(new CreateTemplateAssetCommand(
+            TemplateAssetScope.Template, original.Id, TemplateAssetKind.Image, "logo", "logo.png", "image/png", "blob/old.png", null));
+
+        using var scope2 = fixture.Services.CreateScope();
+        var newVersion = await Mediator(scope2).Send(new UpdateTemplateCommand(original.Id, "v2"));
+
+        using var scope3 = fixture.Services.CreateScope();
+        var newVersionAsset = (await Mediator(scope3).Send(
+            new ListTemplateAssetsQuery(TemplateAssetScope.Template, newVersion.Id))).Single();
+        await Mediator(scope3).Send(new ReplaceTemplateAssetCommand(
+            newVersionAsset.Id, "logo-new.png", "image/png", "blob/new.png", null));
+
+        using var scope4 = fixture.Services.CreateScope();
+        var oldVersionAsset = (await Mediator(scope4).Send(
+            new ListTemplateAssetsQuery(TemplateAssetScope.Template, original.Id))).Single();
+        Assert.Equal("blob/old.png", oldVersionAsset.BlobPath); // старая версия не затронута заменой на новой
+    }
+
+    [Fact]
+    public async Task Duplicate_DuplicatesIndividualAssetsByReference()
+    {
+        var dtId = await CreateDocTypeAsync("DT_ASSET_D");
+        using var scope = fixture.Services.CreateScope();
+        var m = Mediator(scope);
+        var source = await m.Send(new CreateTemplateCommand(dtId, "Шаблон", "v1"));
+        await m.Send(new CreateTemplateAssetCommand(
+            TemplateAssetScope.Template, source.Id, TemplateAssetKind.Font, "font", "f.ttf", "font/ttf", "blob/f.ttf", "Family"));
+
+        using var scope2 = fixture.Services.CreateScope();
+        var copy = await Mediator(scope2).Send(new DuplicateTemplateCommand(source.Id, null));
+
+        using var scope3 = fixture.Services.CreateScope();
+        var copyAssets = await Mediator(scope3).Send(new ListTemplateAssetsQuery(TemplateAssetScope.Template, copy.Id));
+        Assert.Single(copyAssets);
+        Assert.Equal("blob/f.ttf", copyAssets[0].BlobPath);
+        Assert.Equal("Family", copyAssets[0].FontFamilyName);
     }
 }

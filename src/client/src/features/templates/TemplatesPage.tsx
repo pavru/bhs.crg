@@ -187,6 +187,7 @@ export function TemplatesPage() {
             groups={groups}
             selectedTemplate={selectedTemplate}
             maxVersions={maxVersions}
+            documentTypeId={selectedTypeId}
             onSelect={setSelectedTemplate}
             onNew={() => setNewModalOpen(true)}
             onDelete={handleDelete}

@@ -3,6 +3,7 @@ using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.Schema;
+using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.Templates;
@@ -19,6 +20,7 @@ public class GenerateDocumentHandler(
     IEntityResolver entityResolver,
     IDataSetResolver dataSetResolver,
     IQualityLinkResolver qualityLinkResolver,
+    ITemplateAssetResolver templateAssetResolver,
     IDocumentGeneratorFactory generatorFactory,
     IBlobStorage blobStorage,
     IMetadataExtractor metadataExtractor,
@@ -111,12 +113,17 @@ public class GenerateDocumentHandler(
                 context.Set("params", TemplateParams.Effective(template.Parameters,
                     TemplateParams.OverridesForTemplate(instance.TemplateParams, template.Id)));
 
+                // Ассеты шаблона (issue #62) — только для PDF (как typeBlocks/userLib выше).
+                var templateAssets = cmd.Format == OutputFormat.Pdf
+                    ? await templateAssetResolver.ResolveAsync(template.Id, instance.DocumentTypeId, ct)
+                    : null;
+
                 var generator = generatorFactory.Create(cmd.Format);
                 var request = new GenerationRequest(instance, template.Content, cmd.Format, context,
                     template.PageSize, template.PageOrientation,
                     template.MarginTop, template.MarginRight, template.MarginBottom, template.MarginLeft,
                     TypeBlocksContent: typeBlocksContent, UserLibContent: userLibContent,
-                    ImageOptions: imageOptions);
+                    ImageOptions: imageOptions, TemplateAssets: templateAssets);
                 var bytes = await generator.GenerateAsync(request, ct);
 
                 // Обратная запись метаданных — только с ПЕРВОГО файла (репрезентативно: число листов и т.п.).

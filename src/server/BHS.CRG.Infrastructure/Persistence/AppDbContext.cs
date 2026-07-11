@@ -22,6 +22,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<EnumType> EnumTypes => Set<EnumType>();
     public DbSet<DocumentType> DocumentTypes => Set<DocumentType>();
     public DbSet<Template> Templates => Set<Template>();
+    public DbSet<TemplateAsset> TemplateAssets => Set<TemplateAsset>();
     public DbSet<Construction> Constructions => Set<Construction>();
     public DbSet<Section> Sections => Set<Section>();
     public DbSet<DocumentSet> DocumentSets => Set<DocumentSet>();

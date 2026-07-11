@@ -3,6 +3,7 @@ import Editor from '@monaco-editor/react';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { Save } from 'lucide-react';
 import { useTypstUserLib, useSaveTypstUserLib } from '@/shared/api/typstUserLib';
+import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 // ─── User Typst library panel ─────────────────────────────────────────────────
 
 export function UserLibPanel() {
@@ -65,6 +66,8 @@ export function UserLibPanel() {
           }}
         />
       </div>
+      {/* Ассеты шаблонов (issue #62) — системный уровень, общий для всех шаблонов */}
+      <TemplateAssetsPanel scope="System" scopeId={null} title="Системные ассеты" />
     </div>
   );
 }
