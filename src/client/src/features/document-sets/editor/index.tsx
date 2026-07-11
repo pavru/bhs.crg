@@ -23,7 +23,8 @@ import {
   DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup,
 } from '../fields';
 import { DataSetsTab } from './DataSetsTab';
-import { useListDataSetBindings } from '@/shared/api/datasets';
+import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
+import { mergeBindingPreviewsIntoValues } from '@/shared/api/datasetHelpers';
 import { QualityLinksTab } from './QualityLinksTab';
 import { DocumentTemplateParams } from './DocumentTemplateParams';
 import { Modal } from '@/shared/ui/Modal';
@@ -63,6 +64,15 @@ function SourceBoundBadge({ onGoToDataTab }: { onGoToDataTab: () => void }) {
   );
 }
 
+/// Подсказка о состоянии связанного скалярного поля без значения (issue #67): грузится / источник
+/// недоступен / источник не дал значения — чтобы пустой read-only бокс не выглядел как «немой».
+function BoundStateHint({ loading, error }: { loading: boolean; error: boolean }) {
+  const text = loading ? 'Загрузка значения из источника…'
+    : error ? 'Источник недоступен — проверьте на вкладке «Данные»'
+    : 'Источник не дал значения';
+  return <p className="text-[11px] text-fg4 mt-0.5 italic">{text}</p>;
+}
+
 function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, otherInstances, onDirty, saveRef, onGoToDataTab }: {
   instance: DocumentInstance; setId: string; schemaFields: SchemaField[];
   allDocTypes: DocumentType[]; docType: DocumentType | undefined;
@@ -96,6 +106,20 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   // Обязательное поле, покрытое активной привязкой, не блокирует сохранение реквизитов —
   // значение подставится при генерации (DataSetResolver.InjectAsync), форма его не хранит.
   const isFieldMissing = (f: SchemaField, val: unknown) => isMissing(f, val) && !sourceBoundFields.has(f.key);
+
+  // Предпросмотр значений привязок (issue #67): скалярный биндинг не пишет значение в реквизиты —
+  // оно резолвится только при генерации. Тот же preview-эндпоинт, что и на вкладке «Данные»,
+  // даёт резолвнутое значение для показа read-only прямо в поле (в saved-values НЕ пишем).
+  const { data: bindingPreviews, isFetching: previewingBindings, refetch: runBindingPreview, error: previewError } =
+    usePreviewDataSetBindings({ instanceId: instance.id });
+  useEffect(() => {
+    if (sourceBoundFields.size > 0) void runBindingPreview();
+  }, [sourceBoundFields.size]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Оверлей отображения (не сохраняется): резолвнутые значения биндингов поверх пустого объекта.
+  const boundValues = useMemo(
+    () => bindingPreviews ? mergeBindingPreviewsIntoValues({}, bindingPreviews) : {},
+    [bindingPreviews]);
+  const hasBindingError = !!previewError || (bindingPreviews?.some(p => p.mode === 'error') ?? false);
 
   function getEnumDef(field: SchemaField): EnumTypeDef | undefined {
     if (field.type !== 'enum' || !field.typeId) return undefined;
@@ -180,6 +204,11 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
           const raw = values[field.key];
           const missing = showValidation && isFieldMissing(field, raw);
           const bound = sourceBoundFields.has(field.key);
+          // Значение для показа связанного скалярного поля — резолвнутое из источника (issue #67);
+          // в saved-values не пишем. Пусто → покажем подсказку о состоянии вместо «немого» бокса.
+          const boundVal = bound ? boundValues[field.key] : undefined;
+          const displayValue = bound && boundVal != null && boundVal !== '' ? boundVal : raw;
+          const boundEmpty = bound && (boundVal == null || boundVal === '');
           const primitiveDef = getPrimitiveDef(field);
           const constraintError = constraintErrors[field.key];
           const hasError = missing || !!constraintError;
@@ -233,10 +262,11 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                       },
                     } : undefined} />
                 ) : (
-                  <PrimitiveInput field={field} value={raw}
+                  <PrimitiveInput field={field} value={displayValue}
                     onChange={v => setValue(field.key, v, primitiveDef)}
                     invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} readOnly={bound} />
                 )}
+                {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
                 {missing && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
                 {!missing && constraintError && <p className="text-xs text-danger mt-1">{constraintError}</p>}
               </div>
@@ -254,9 +284,10 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                 )}
                 {bound && <SourceBoundBadge onGoToDataTab={onGoToDataTab} />}
               </label>
-              <PrimitiveInput field={field} value={raw}
+              <PrimitiveInput field={field} value={displayValue}
                 onChange={v => setValue(field.key, v, primitiveDef)}
                 invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} readOnly={bound} />
+              {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
               {missing && <p className="text-[11px] text-danger mt-0.5">Обязательное поле</p>}
               {!missing && constraintError && <p className="text-[11px] text-danger mt-0.5">{constraintError}</p>}
             </div>
