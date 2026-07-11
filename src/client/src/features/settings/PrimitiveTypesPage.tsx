@@ -10,7 +10,8 @@ import {
   useSetPrimitiveTypeGroup,
   buildPrimitiveTypeDto,
 } from '@/shared/api/primitiveTypes';
-import type { FieldConstraints, PrimitiveTypeDef } from '@/shared/api/types';
+import type { FieldConstraints, PrimitiveTypeDef, DatePrecision } from '@/shared/api/types';
+import { formatDateRu } from '@/shared/utils/date';
 import { useTagRegistry, fieldTags } from '@/shared/api/tags';
 import { TypeGroupAccordion, GroupPicker } from './TypeGroupAccordion';
 import { EnumTypesSection } from './EnumTypesSection';
@@ -22,6 +23,16 @@ const BASE_TYPES = [
   { value: 'number' as const, label: 'Число' },
   { value: 'date' as const, label: 'Дата' },
 ];
+
+const DATE_PRECISIONS: { value: DatePrecision; label: string }[] = [
+  { value: 'day', label: 'Полная (ДД.ММ.ГГГГ)' },
+  { value: 'month', label: 'Месяц и год (ММ.ГГГГ)' },
+  { value: 'year', label: 'Только год (ГГГГ)' },
+];
+
+const DATE_PRECISION_LABEL: Record<DatePrecision, string> = {
+  day: 'полная', month: 'месяц и год', year: 'только год',
+};
 
 // ─── Constraint editor ────────────────────────────────────────────────────────
 
@@ -128,23 +139,48 @@ function ConstraintEditor({ baseType, constraints, onChange }: ConstraintEditorP
 
   // date
   const dateCls = 'w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm';
+  const precision = constraints.datePrecision ?? 'day';
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-3">
       <div>
-        <label className="block text-sm font-medium text-fg1 mb-1">Минимальная дата</label>
-        <DateInput
-          value={constraints.minDate ?? ''}
-          onChange={v => v ? set('minDate', v) : unset('minDate')}
-          className={dateCls}
-        />
+        <label className="block text-sm font-medium text-fg1 mb-1">Точность</label>
+        <div className="flex gap-2">
+          {DATE_PRECISIONS.map(p => (
+            <button
+              key={p.value}
+              type="button"
+              onClick={() => p.value === 'day' ? unset('datePrecision') : set('datePrecision', p.value)}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                precision === p.value ? 'bg-brand text-white' : 'bg-base text-fg2 hover:bg-muted'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-fg3 mt-1">
+          Управляет форматом ввода и отображения. Значение хранится как полная дата.
+        </p>
       </div>
-      <div>
-        <label className="block text-sm font-medium text-fg1 mb-1">Максимальная дата</label>
-        <DateInput
-          value={constraints.maxDate ?? ''}
-          onChange={v => v ? set('maxDate', v) : unset('maxDate')}
-          className={dateCls}
-        />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-fg1 mb-1">Минимальная дата</label>
+          <DateInput
+            value={constraints.minDate ?? ''}
+            onChange={v => v ? set('minDate', v) : unset('minDate')}
+            precision={precision}
+            className={dateCls}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-fg1 mb-1">Максимальная дата</label>
+          <DateInput
+            value={constraints.maxDate ?? ''}
+            onChange={v => v ? set('maxDate', v) : unset('maxDate')}
+            precision={precision}
+            className={dateCls}
+          />
+        </div>
       </div>
     </div>
   );
@@ -314,8 +350,10 @@ function ConstraintSummary({ baseType, c }: { baseType: string; c: FieldConstrai
     if (c.max != null) parts.push(`≤ ${c.max}`);
     if (c.integer) parts.push('целое');
   } else if (baseType === 'date') {
-    if (c.minDate) parts.push(`от ${c.minDate}`);
-    if (c.maxDate) parts.push(`до ${c.maxDate}`);
+    const prec = c.datePrecision ?? 'day';
+    if (prec !== 'day') parts.push(DATE_PRECISION_LABEL[prec]);
+    if (c.minDate) parts.push(`от ${formatDateRu(c.minDate, prec)}`);
+    if (c.maxDate) parts.push(`до ${formatDateRu(c.maxDate, prec)}`);
   }
   if (parts.length === 0) return <span className="text-fg4 italic">нет ограничений</span>;
   return <span>{parts.join(', ')}</span>;
