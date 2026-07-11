@@ -6,6 +6,7 @@ import type { Template, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields } from '@/shared/api/schema';
 import { useUpdateTemplate, useUpdateTemplateSettings, useSetTemplateDefault } from '@/shared/api/templates';
 import { TemplateParamsPanel } from './TemplateParamsPanel';
+import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { flattenFields } from './templateBlank';
 import type * as monacoEditor from 'monaco-editor';
 
@@ -358,6 +359,15 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
       <PageSettingsPanel template={template} onSaved={onSaved} />
       {/* Параметры шаблона (key — чтобы стейт переинициализировался при смене шаблона) */}
       <TemplateParamsPanel key={template.id} template={template} onSaved={onSaved} />
+      {/* Ассеты шаблона (issue #62) — индивидуальный уровень, scoped к этой версии шаблона */}
+      <TemplateAssetsPanel
+        key={`assets-${template.id}`}
+        scope="Template" scopeId={template.id} title="Ассеты шаблона"
+        hintScopes={[
+          { scope: 'DocumentType', scopeId: docType.id, label: 'на уровне типа' },
+          { scope: 'System', scopeId: null, label: 'системных' },
+        ]}
+      />
     </div>
   );
 }

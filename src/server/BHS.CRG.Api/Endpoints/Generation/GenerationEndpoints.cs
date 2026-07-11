@@ -126,6 +126,42 @@ public static class GenerationEndpoints
                 }, ct);
                 dataJson = dataNode.ToJsonString(prettyOpts);
 
+                // Ассеты шаблона (issue #62) — уже свёрнутые по приоритету резолвером; тот же
+                // паттерн материализации, что и в TypstGenerator, только пишем сразу в assets/
+                // отладочного пакета (картинки) и в отдельную fonts/ (шрифты для --font-path).
+                foreach (var img in bundle.TemplateAssets.Images)
+                {
+                    try
+                    {
+                        await using var imgStream = await blob.DownloadAsync(img.BlobPath, ct);
+                        using var imgMs = new MemoryStream();
+                        await imgStream.CopyToAsync(imgMs, ct);
+                        Directory.CreateDirectory(assetsDirDbg);
+                        var ext = Path.GetExtension(img.FileName);
+                        await File.WriteAllBytesAsync(Path.Combine(assetsDirDbg, $"{img.Name}{ext}"), imgMs.ToArray(), ct);
+                    }
+                    catch { /* пропускаем недоступный ассет — best effort, как и остальная материализация */ }
+                }
+                string? fontsDirDbg = null;
+                if (bundle.TemplateAssets.Fonts.Count > 0)
+                {
+                    fontsDirDbg = Path.Combine(tmpDir, "fonts");
+                    Directory.CreateDirectory(fontsDirDbg);
+                    var fontIdx = 0;
+                    foreach (var font in bundle.TemplateAssets.Fonts)
+                    {
+                        try
+                        {
+                            await using var fontStream = await blob.DownloadAsync(font.BlobPath, ct);
+                            using var fontMs = new MemoryStream();
+                            await fontStream.CopyToAsync(fontMs, ct);
+                            var ext = Path.GetExtension(font.FileName);
+                            await File.WriteAllBytesAsync(Path.Combine(fontsDirDbg, $"font_{fontIdx++}{ext}"), fontMs.ToArray(), ct);
+                        }
+                        catch { /* пропускаем недоступный шрифт — best effort */ }
+                    }
+                }
+
                 using var ms = new MemoryStream();
                 using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
                 {
@@ -133,12 +169,25 @@ public static class GenerationEndpoints
                     await WriteEntry(zip, "data.json", dataJson);
                     await WriteEntry(zip, "typeblocks.typ", typeBlocks);
                     await WriteEntry(zip, "userlib.typ", userLib);
+                    if (fontsDirDbg is not null)
+                        await WriteEntry(zip, "README.txt",
+                            "У шаблона есть шрифтовые ассеты — компилируйте с --font-path:\r\n\r\n" +
+                            "  typst compile template.typ output.pdf --font-path fonts\r\n");
 
                     var assetsDir = Path.Combine(tmpDir, "assets");
                     if (Directory.Exists(assetsDir))
                         foreach (var file in Directory.GetFiles(assetsDir))
                         {
                             var entry = zip.CreateEntry($"assets/{Path.GetFileName(file)}",
+                                System.IO.Compression.CompressionLevel.Optimal);
+                            await using var es = entry.Open();
+                            await using var fs = File.OpenRead(file);
+                            await fs.CopyToAsync(es, ct);
+                        }
+                    if (fontsDirDbg is not null)
+                        foreach (var file in Directory.GetFiles(fontsDirDbg))
+                        {
+                            var entry = zip.CreateEntry($"fonts/{Path.GetFileName(file)}",
                                 System.IO.Compression.CompressionLevel.Optimal);
                             await using var es = entry.Open();
                             await using var fs = File.OpenRead(file);

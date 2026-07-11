@@ -3,6 +3,7 @@ import { Plus, Trash2, Star, ChevronDown, ChevronUp, AlertTriangle, Copy } from 
 import { Modal } from '@/shared/ui/Modal';
 import type { Template, DocumentType } from '@/shared/api/types';
 import { useDeleteTemplate } from '@/shared/api/templates';
+import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 // ─── Template grouping ────────────────────────────────────────────────────────
 
 export interface TemplateGroup {
@@ -148,10 +149,11 @@ export function DocTypeSelector({ docTypes, selected, onSelect }: {
 
 // ─── Grouped sidebar ──────────────────────────────────────────────────────────
 
-export function TemplateSidebar({ groups, selectedTemplate, maxVersions, onSelect, onNew, onDelete, onDeleteGroup, onDuplicate, onCleanup }: {
+export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documentTypeId, onSelect, onNew, onDelete, onDeleteGroup, onDuplicate, onCleanup }: {
   groups: TemplateGroup[];
   selectedTemplate: Template | null;
   maxVersions: number;
+  documentTypeId: string;
   onSelect: (t: Template) => void;
   onNew: () => void;
   onDelete: (t: Template) => void;
@@ -196,6 +198,11 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, onSelec
           <Plus size={16} />
         </button>
       </div>
+      <TemplateAssetsPanel
+        key={`assets-${documentTypeId}`}
+        scope="DocumentType" scopeId={documentTypeId} title="Ассеты типа документа"
+        hintScopes={[{ scope: 'System', scopeId: null, label: 'системных' }]}
+      />
       <div className="flex-1 overflow-auto py-1">
         {groups.length === 0 && (
           <div className="px-4 py-3 text-sm text-fg4">Шаблонов нет</div>

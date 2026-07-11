@@ -51,6 +51,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
                 sections,
                 constructions,
                 templates,
+                template_assets,
                 document_types,
                 catalog_entities,
                 common_data_entries,
