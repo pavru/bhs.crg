@@ -43,7 +43,7 @@ public static class DocumentTypeEndpoints
         admin.MapPut("/{id:guid}", async (Guid id, UpdateTypeRequest req, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new UpdateDocumentTypeCommand(id, req.Name, req.Code, req.ParentId))); }
-            catch (InvalidOperationException ex) { return Results.Conflict(ex.Message); }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         admin.MapPut("/{id:guid}/schema", async (Guid id, UpdateSchemaRequest req, IMediator m)
@@ -59,7 +59,7 @@ public static class DocumentTypeEndpoints
         admin.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             try { await m.Send(new DeleteDocumentTypeCommand(id)); return Results.NoContent(); }
-            catch (InvalidOperationException ex) { return Results.Conflict(ex.Message); }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
     }
 
