@@ -198,6 +198,25 @@ export interface PrimitiveTypeDef {
   updatedAt: string;
 }
 
+// ─── Enum Types (issue #59) ────────────────────────────────────────────────────
+
+/** Один вариант перечисления: код (хранится в реквизитах) + отображаемое имя. */
+export interface EnumOptionDef {
+  code: string;
+  label: string;
+}
+
+export interface EnumTypeDef {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  values: EnumOptionDef[];
+  group: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Backup / Restore ─────────────────────────────────────────────────────────
 
 export interface BackupManifest {

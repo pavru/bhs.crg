@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import { Plus, Trash2, ArrowUp, ArrowDown, Cpu } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
-import type { DocumentType, PrimitiveTypeDef } from '@/shared/api/types';
+import type { DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import type { SchemaField, FieldGroup } from '@/shared/api/schema';
 import { PRIMITIVE_TYPES, toCamelKey } from './schemaConstants';
 import { useTagRegistry, fieldTags } from '@/shared/api/tags';
@@ -42,10 +42,11 @@ interface FieldBuilderProps {
   disabledKeys?: Set<string>;
   compositeTypes: DocumentType[];
   primitiveTypes: PrimitiveTypeDef[];
+  enumTypes: EnumTypeDef[];
   allDocTypes: DocumentType[];
 }
 
-export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, primitiveTypes, allDocTypes }: FieldBuilderProps) {
+export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, primitiveTypes, enumTypes, allDocTypes }: FieldBuilderProps) {
   const uid = useId();
   const { data: tagRegistry } = useTagRegistry();
 
@@ -68,6 +69,10 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
     }
     return fieldTags(tagRegistry, f.type);
   };
+  // Легаси enum-поле (issue #59): options заданы инлайн, typeId не выбран — создано до появления
+  // реестра EnumType. Продолжает редактироваться старым инлайн-списком, без принудительного переноса.
+  const isLegacyEnum = (f: SchemaField) => f.type === 'enum' && !f.typeId && (f.options?.length ?? 0) > 0;
+  const enumTypeDefFor = (f: SchemaField) => f.type === 'enum' ? enumTypes.find(et => et.id === f.typeId) : undefined;
   const setImageOpt = (i: number, patch: Partial<NonNullable<SchemaField['image']>>) => {
     const merged = { ...(fields[i].image ?? {}), ...patch };
     const cleaned = Object.fromEntries(Object.entries(merged).filter(([, v]) => v !== undefined && v !== ''));
@@ -137,8 +142,10 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
                   const t = e.target.value as SchemaField['type'];
                   update(i, {
                     type: t,
-                    typeId: (t === 'complex' || t === 'primitive' || t === 'array' || t === 'doc-ref' || t === 'doc-array') ? '' : undefined,
-                    options: t === 'enum' ? (field.options ?? []) : undefined,
+                    typeId: (t === 'complex' || t === 'primitive' || t === 'array' || t === 'doc-ref' || t === 'doc-array' || t === 'enum') ? '' : undefined,
+                    // Легаси options НЕ предзаполняем для нового enum-поля (issue #59) — новые
+                    // поля идут через typeId; сохраняем, только если уже были (переключение туда-обратно).
+                    options: t === 'enum' ? field.options : undefined,
                     defaultValue: undefined,
                   });
                 }}
@@ -227,6 +234,24 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
                 </select>
               </div>
             )}
+            {/* Enum type selector (issue #59) — только для НЕ-легаси enum-полей: у легаси (options
+                инлайн, typeId не выбран) остаётся старый инлайн-редактор ниже. */}
+            {field.type === 'enum' && !isLegacyEnum(field) && (
+              <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)]">
+                <select
+                  value={field.typeId ?? ''}
+                  onChange={e => update(i, { typeId: e.target.value })}
+                  className={`w-full border rounded-md px-2 py-1.5 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface ${
+                    !field.typeId ? 'border-yellow-400 text-fg4' : 'border-stroke-strong'
+                  }`}
+                >
+                  <option value="">Выберите тип перечисления...</option>
+                  {enumTypes.map(et => (
+                    <option key={et.id} value={et.id}>{et.name} ({et.code})</option>
+                  ))}
+                </select>
+              </div>
+            )}
             {/* Default value editor */}
             {field.type !== 'complex' && field.type !== 'array' && field.type !== 'primitive'
               && field.type !== 'doc-ref' && field.type !== 'doc-array' && (
@@ -249,9 +274,11 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
                     className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
                   >
                     <option value="">— не задано —</option>
-                    {(field.options ?? []).filter(o => o).map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
+                    {enumTypeDefFor(field)
+                      ? enumTypeDefFor(field)!.values.map(v => <option key={v.code} value={v.code}>{v.label}</option>)
+                      : (field.options ?? []).filter(o => o).map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
                   </select>
                 ) : field.type === 'date' ? (
                   <DateInput
@@ -276,8 +303,8 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
                 )}
               </div>
             )}
-            {/* Enum options editor */}
-            {field.type === 'enum' && (
+            {/* Enum options editor — только легаси (options инлайн, без typeId, issue #59) */}
+            {isLegacyEnum(field) && (
               <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] space-y-1.5">
                 {(field.options ?? []).map((opt, oi) => (
                   <div key={oi} className="flex items-center gap-1.5">
@@ -420,6 +447,9 @@ export function DefaultValueCell({ field, override, onOverrideDefaultValue }: {
     );
   }
   if (field.type === 'enum') {
+    // typeId-резолв (issue #59) сюда не проброшен (как и primitiveTypeDef для type="primitive"
+    // выше по isPrimitive) — для таких полей переопределение default value здесь недоступно.
+    if (field.typeId) return <span className="text-xs text-stroke-strong">—</span>;
     const opts = (field.options ?? []).filter(o => o);
     return (
       <select value={hasDv ? String(cur) : ''} onChange={e => {

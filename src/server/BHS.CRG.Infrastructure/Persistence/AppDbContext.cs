@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CatalogEntity> CatalogEntities => Set<CatalogEntity>();
     public DbSet<CommonDataEntry> CommonDataEntries => Set<CommonDataEntry>();
     public DbSet<PrimitiveType> PrimitiveTypes => Set<PrimitiveType>();
+    public DbSet<EnumType> EnumTypes => Set<EnumType>();
     public DbSet<DocumentType> DocumentTypes => Set<DocumentType>();
     public DbSet<Template> Templates => Set<Template>();
     public DbSet<Construction> Constructions => Set<Construction>();

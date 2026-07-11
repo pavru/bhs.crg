@@ -1,14 +1,22 @@
 using System.Text.Json;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 
 namespace BHS.CRG.Application.Schema;
+
+/// <summary>Один вариант перечисления: код (хранится в реквизитах) + отображаемое имя.</summary>
+public record EnumOptionInfo(string Code, string Label);
 
 /// <summary>Поле эффективной схемы типа: ключ, тип (string/complex/array/doc-ref/doc-array/…), typeId (для составных/массивов/ссылок), заголовок.</summary>
 /// <param name="DefaultValue">Значение по умолчанию (issue #53) — из собственного объявления поля, либо
 /// переопределено производным типом через fieldOverrides (для унаследованных полей). Null — не задано.
 /// Применяется резолвером генерации, только если поле НЕ определено ни в реквизитах инстанса, ни через
 /// привязку набора данных (см. EntityResolver.ApplyDefaultsAsync).</param>
-public record SchemaFieldInfo(string Key, string Type, Guid? TypeId, string? Title = null, JsonElement? DefaultValue = null);
+/// <param name="Options">Варианты для type="enum" (issue #59) — из собственного инлайн `options`
+/// (легаси: код==имя) либо резолвлены из EnumType по `typeId`. Null — не enum-поле, либо enumTypesById
+/// не передан вызывающим кодом.</param>
+public record SchemaFieldInfo(string Key, string Type, Guid? TypeId, string? Title = null,
+    JsonElement? DefaultValue = null, IReadOnlyList<EnumOptionInfo>? Options = null);
 
 /// <summary>Скалярное ли поле (пригодное для табличного распознавания/материализации из плоских колонок).</summary>
 public static class SchemaFieldKinds
@@ -28,7 +36,8 @@ public static class DocumentTypeSchemaReader
     /// Эффективные поля типа: base → derived; excludedFields исключают унаследованные;
     /// одноимённые поля наследника перекрывают унаследованные (порядок: сначала базовые).
     /// </summary>
-    public static IReadOnlyList<SchemaFieldInfo> EffectiveFields(Guid typeId, IReadOnlyDictionary<Guid, DocumentType> byId)
+    public static IReadOnlyList<SchemaFieldInfo> EffectiveFields(Guid typeId, IReadOnlyDictionary<Guid, DocumentType> byId,
+        IReadOnlyDictionary<Guid, EnumType>? enumTypesById = null)
     {
         var chain = new List<DocumentType>();
         var cur = byId.GetValueOrDefault(typeId);
@@ -44,7 +53,7 @@ public static class DocumentTypeSchemaReader
         var order = new List<string>();
         foreach (var t in chain)
         {
-            var (fields, excluded, overrides) = ParseSchema(t.Schema);
+            var (fields, excluded, overrides) = ParseSchema(t.Schema, enumTypesById);
             foreach (var ex in excluded)
                 if (acc.Remove(ex)) order.Remove(ex);
 
@@ -64,8 +73,9 @@ public static class DocumentTypeSchemaReader
         return order.Select(k => acc[k]).ToList();
     }
 
-    public static SchemaFieldInfo? Field(Guid typeId, string key, IReadOnlyDictionary<Guid, DocumentType> byId)
-        => EffectiveFields(typeId, byId).FirstOrDefault(f => f.Key == key);
+    public static SchemaFieldInfo? Field(Guid typeId, string key, IReadOnlyDictionary<Guid, DocumentType> byId,
+        IReadOnlyDictionary<Guid, EnumType>? enumTypesById = null)
+        => EffectiveFields(typeId, byId, enumTypesById).FirstOrDefault(f => f.Key == key);
 
     /// <summary>
     /// Ссылается ли схема (СОБСТВЕННЫЕ поля типа — без резолва наследования) на составной/ссылочный
@@ -75,8 +85,16 @@ public static class DocumentTypeSchemaReader
     /// </summary>
     public static bool ReferencesType(JsonDocument schema, Guid documentTypeId)
     {
-        var (fields, _, _) = ParseSchema(schema);
+        var (fields, _, _) = ParseSchema(schema, null);
         return fields.Any(f => f.TypeId == documentTypeId && (IsSingleComposite(f.Type) || IsMultiValued(f.Type)));
+    }
+
+    /// <summary>Ссылается ли схема (СОБСТВЕННЫЕ поля типа) на тип перечисления enumTypeId через
+    /// поле type="enum" + typeId (issue #59, проверка перед удалением EnumType).</summary>
+    public static bool ReferencesEnumType(JsonDocument schema, Guid enumTypeId)
+    {
+        var (fields, _, _) = ParseSchema(schema, null);
+        return fields.Any(f => f.Type == "enum" && f.TypeId == enumTypeId);
     }
 
     /// <summary>true, если childId == ancestorId либо childId — потомок ancestorId по ParentId.</summary>
@@ -100,7 +118,8 @@ public static class DocumentTypeSchemaReader
     /// <summary>Поле-одиночная составная сущность/ссылка: complex / doc-ref.</summary>
     public static bool IsSingleComposite(string fieldType) => fieldType is "complex" or "doc-ref";
 
-    private static (List<SchemaFieldInfo> Fields, List<string> Excluded, Dictionary<string, JsonElement> Overrides) ParseSchema(JsonDocument schema)
+    private static (List<SchemaFieldInfo> Fields, List<string> Excluded, Dictionary<string, JsonElement> Overrides) ParseSchema(
+        JsonDocument schema, IReadOnlyDictionary<Guid, EnumType>? enumTypesById)
     {
         var fields = new List<SchemaFieldInfo>();
         var excluded = new List<string>();
@@ -122,7 +141,11 @@ public static class DocumentTypeSchemaReader
                 // ЭТОГО JsonDocument (schema — параметр метода, может быть освобождён вызывающим).
                 JsonElement? defaultValue = f.TryGetProperty("defaultValue", out var dv) && dv.ValueKind != JsonValueKind.Undefined
                     ? dv.Clone() : null;
-                fields.Add(new SchemaFieldInfo(key, type, typeId, title, defaultValue));
+                // Enum-варианты (issue #59): легаси инлайн `options` (код==имя, старое поведение
+                // 1:1) — если пусто, резолвим typeId через EnumType (толерантное сосуществование
+                // обоих представлений, без принудительной миграции).
+                IReadOnlyList<EnumOptionInfo>? options = type == "enum" ? ParseEnumOptions(f, typeId, enumTypesById) : null;
+                fields.Add(new SchemaFieldInfo(key, type, typeId, title, defaultValue, options));
             }
 
         if (root.TryGetProperty("excludedFields", out var ex) && ex.ValueKind == JsonValueKind.Array)
@@ -139,5 +162,39 @@ public static class DocumentTypeSchemaReader
                     overrides[prop.Name] = odv.Clone();
 
         return (fields, excluded, overrides);
+    }
+
+    // Легаси инлайн options (issue #59): каждая строка — и код, и отображаемое имя (как ведёт себя
+    // сегодняшнее поведение enum-поля 1:1). Если options пуст/отсутствует — резолв через typeId.
+    private static IReadOnlyList<EnumOptionInfo>? ParseEnumOptions(
+        JsonElement field, Guid? typeId, IReadOnlyDictionary<Guid, EnumType>? enumTypesById)
+    {
+        if (field.TryGetProperty("options", out var opts) && opts.ValueKind == JsonValueKind.Array)
+        {
+            var list = opts.EnumerateArray()
+                .Where(o => o.ValueKind == JsonValueKind.String)
+                .Select(o => o.GetString()!)
+                .Select(s => new EnumOptionInfo(s, s))
+                .ToList();
+            if (list.Count > 0) return list;
+        }
+        if (typeId is { } tid && enumTypesById is not null && enumTypesById.TryGetValue(tid, out var enumType))
+            return ParseEnumValues(enumType.Values);
+        return null;
+    }
+
+    private static List<EnumOptionInfo> ParseEnumValues(JsonDocument values)
+    {
+        var list = new List<EnumOptionInfo>();
+        if (values.RootElement.ValueKind != JsonValueKind.Array) return list;
+        foreach (var v in values.RootElement.EnumerateArray())
+        {
+            if (v.ValueKind != JsonValueKind.Object) continue;
+            var code = v.TryGetProperty("code", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
+            var label = v.TryGetProperty("label", out var l) && l.ValueKind == JsonValueKind.String ? l.GetString() : null;
+            if (code is null || label is null) continue;
+            list.Add(new EnumOptionInfo(code, label));
+        }
+        return list;
     }
 }

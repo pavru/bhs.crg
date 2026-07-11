@@ -27,4 +27,12 @@ public interface IEntityResolver
     /// составные/табличные (complex/array/doc-ref/doc-array/file/image) не трогает.
     /// </summary>
     Task ApplyDefaultsAsync(GenerationContext ctx, DocumentInstance instance, CancellationToken ct = default);
+
+    /// <summary>
+    /// Резолвит enum-поля реквизитов из кода (хранится в контексте) в отображаемое имя EnumType
+    /// (issue #59) — иначе в PDF попадёт сырой код вместо человекочитаемого текста. Вызывать ПОСЛЕ
+    /// ApplyDefaultsAsync (иначе default-значение enum-поля не получит резолва). Толерантно: код без
+    /// совпадения в реестре остаётся как есть. Только верхнеуровневые скалярные поля.
+    /// </summary>
+    Task ResolveEnumLabelsAsync(GenerationContext ctx, DocumentInstance instance, CancellationToken ct = default);
 }

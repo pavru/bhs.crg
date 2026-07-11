@@ -18,6 +18,7 @@ import {
 } from '@/shared/api/documentTypes';
 import { TypeGroupAccordion, GroupPicker } from './TypeGroupAccordion';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
+import { useListEnumTypes } from '@/shared/api/enumTypes';
 import type { DocumentType, DocumentTypeKind } from '@/shared/api/types';
 import {
   parseSchemaFields,
@@ -237,6 +238,7 @@ function CreateForm({
   allDocTypes: DocumentType[];
 }) {
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [parentId, setParentId] = useState('');
@@ -361,7 +363,7 @@ function CreateForm({
         </div>
         {showJson
           ? <JsonPreview fields={fields} groups={[]} excludedFields={[]} fieldOverrides={{}} />
-          : <FieldBuilder fields={fields} onChange={setFields} disabledKeys={inheritedKeys} compositeTypes={compositeTypes} primitiveTypes={primitiveTypes} allDocTypes={allDocTypes} />}
+          : <FieldBuilder fields={fields} onChange={setFields} disabledKeys={inheritedKeys} compositeTypes={compositeTypes} primitiveTypes={primitiveTypes} enumTypes={enumTypes} allDocTypes={allDocTypes} />}
       </div>
 
       {error && <p className="text-sm text-danger">{error}</p>}
@@ -387,6 +389,7 @@ function SchemaEditor({ docType, allDocTypes }: {
   allDocTypes: DocumentType[];
 }) {
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
   const schemaDef = docType.schema as unknown as SchemaDefinition;
   const [fields, setFields] = useState<SchemaField[]>(() => parseSchemaFields(docType.schema));
   const [groups, setGroups] = useState<FieldGroup[]>(() => schemaDef.groups ?? []);
@@ -511,7 +514,7 @@ function SchemaEditor({ docType, allDocTypes }: {
         {showJson
           ? <JsonPreview fields={fields} groups={groups} excludedFields={excludedFields} fieldOverrides={fieldOverrides} />
           : <FieldBuilder fields={fields} onChange={f => { setFields(f); setSaved(false); }}
-              disabledKeys={inheritedKeys} compositeTypes={compositeTypes} primitiveTypes={primitiveTypes} allDocTypes={allDocTypes} />}
+              disabledKeys={inheritedKeys} compositeTypes={compositeTypes} primitiveTypes={primitiveTypes} enumTypes={enumTypes} allDocTypes={allDocTypes} />}
       </div>
 
       {!showJson && effectiveFields.length > 0 && (

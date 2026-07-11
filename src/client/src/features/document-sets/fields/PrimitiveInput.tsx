@@ -1,7 +1,7 @@
 import { isoToRu, ruToISO } from '@/shared/utils/date';
 import { DateInput } from '@/shared/ui/DateInput';
 import type { SchemaField } from '@/shared/api/schema';
-import type { PrimitiveTypeDef, FieldConstraints } from '@/shared/api/types';
+import type { PrimitiveTypeDef, FieldConstraints, EnumTypeDef } from '@/shared/api/types';
 import { isFieldRef } from '@/shared/api/types';
 import { fieldInputClass } from './constants';
 
@@ -40,9 +40,9 @@ export function validateConstraint(value: unknown, def: PrimitiveTypeDef): strin
   return null;
 }
 
-export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeDef, readOnly }: {
+export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeDef, enumTypeDef, readOnly }: {
   field: SchemaField; value: unknown; onChange: (val: unknown) => void; invalid: boolean;
-  primitiveTypeDef?: PrimitiveTypeDef; readOnly?: boolean;
+  primitiveTypeDef?: PrimitiveTypeDef; enumTypeDef?: EnumTypeDef; readOnly?: boolean;
 }) {
   const strVal = value == null ? '' : String(value);
   const cls = fieldInputClass(invalid, readOnly);
@@ -56,6 +56,14 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
       </label>
     );
   if (field.type === 'enum') {
+    if (enumTypeDef) {
+      return (
+        <select value={strVal} onChange={e => onChange(e.target.value)} disabled={readOnly} className={cls}>
+          <option value="">— выберите —</option>
+          {enumTypeDef.values.map(v => <option key={v.code} value={v.code}>{v.label}</option>)}
+        </select>
+      );
+    }
     const opts = (field.options ?? []).filter(o => o !== '');
     if (opts.length === 0)
       return <p className="text-xs text-fg4 italic py-1">Нет вариантов — добавьте их в схеме типа документа</p>;

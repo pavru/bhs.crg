@@ -55,6 +55,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
                 catalog_entities,
                 common_data_entries,
                 primitive_types,
+                enum_types,
                 dataset_bindings,
                 dataset_binding_templates,
                 dataset_processing_templates,

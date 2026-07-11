@@ -26,6 +26,7 @@ public class ValidateInstanceResolutionHandler(
         var context = await entityResolver.ResolveAsync(instance, ct);
         await dataSetResolver.InjectAsync(context, instance, diagnostics, ct);
         await entityResolver.ApplyDefaultsAsync(context, instance, ct);
+        await entityResolver.ResolveEnumLabelsAsync(context, instance, ct);
         await entityResolver.ResolveContextRefsAsync(context, instance.DocumentSetId, ct);
         ResolutionScanner.ScanLeftoverRefs(context, diagnostics);
         return diagnostics;

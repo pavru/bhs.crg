@@ -7,13 +7,13 @@ import {
 } from '@/shared/api/attachments';
 import { Modal } from '@/shared/ui/Modal';
 import { useListCommonData } from '@/shared/api/commonData';
-import type { CommonDataEntry, DocumentType, FieldRef } from '@/shared/api/types';
+import type { CommonDataEntry, DocumentType, FieldRef, EnumTypeDef } from '@/shared/api/types';
 import { isFieldRef } from '@/shared/api/types';
 import { resolveEffectiveFields, getDefaultValues, isSubtypeOf, type SchemaField } from '@/shared/api/schema';
 // ─── Primitive field input ─────────────────────────────────────────────────────
 
-export function PrimitiveInput({ field, value, onChange }: {
-  field: SchemaField; value: unknown; onChange: (v: unknown) => void;
+export function PrimitiveInput({ field, value, onChange, enumTypeDef }: {
+  field: SchemaField; value: unknown; onChange: (v: unknown) => void; enumTypeDef?: EnumTypeDef;
 }) {
   const cls = 'w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface text-fg1';
   const strVal = value == null ? '' : String(value);
@@ -27,6 +27,14 @@ export function PrimitiveInput({ field, value, onChange }: {
       </label>
     );
   if (field.type === 'enum') {
+    if (enumTypeDef) {
+      return (
+        <select value={strVal} onChange={e => onChange(e.target.value)} className={cls}>
+          <option value="">— выберите —</option>
+          {enumTypeDef.values.map(v => <option key={v.code} value={v.code}>{v.label}</option>)}
+        </select>
+      );
+    }
     const opts = (field.options ?? []).filter(o => o !== '');
     if (opts.length === 0)
       return <p className="text-xs text-fg4 italic py-1">Нет вариантов — добавьте их в схеме типа документа</p>;
@@ -307,8 +315,8 @@ function SystemRefPickerModal({ open, onOpenChange, compositeType, allDocTypes, 
 
 // ─── Array (repeating rows) field editor ─────────────────────────────────────
 
-export function SystemArrayFieldEditor({ field, allDocTypes, value, onChange }: {
-  field: SchemaField; allDocTypes: DocumentType[];
+export function SystemArrayFieldEditor({ field, allDocTypes, enumTypes, value, onChange }: {
+  field: SchemaField; allDocTypes: DocumentType[]; enumTypes: EnumTypeDef[];
   value: unknown; onChange: (v: unknown[]) => void;
 }) {
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
@@ -385,13 +393,14 @@ export function SystemArrayFieldEditor({ field, allDocTypes, value, onChange }: 
                           </label>
                         )}
                         {sf.type === 'complex' ? (
-                          <SystemComplexField field={sf} allDocTypes={allDocTypes}
+                          <SystemComplexField field={sf} allDocTypes={allDocTypes} enumTypes={enumTypes}
                             value={row[sf.key]} onChange={v => updateRow(i, { ...row, [sf.key]: v })} />
                         ) : sf.type === 'doc-ref' ? (
                           <DocRefCatalogField field={sf} allDocTypes={allDocTypes}
                             value={row[sf.key]} onChange={v => updateRow(i, { ...row, [sf.key]: v ?? undefined })} />
                         ) : (
                           <PrimitiveInput field={sf} value={row[sf.key]}
+                            enumTypeDef={sf.type === 'enum' ? enumTypes.find(et => et.id === sf.typeId) : undefined}
                             onChange={v => updateRow(i, { ...row, [sf.key]: v })} />
                         )}
                       </div>
@@ -409,8 +418,8 @@ export function SystemArrayFieldEditor({ field, allDocTypes, value, onChange }: 
 
 // ─── Complex field for system catalog entries ──────────────────────────────────
 
-export function SystemComplexField({ field, allDocTypes, value, onChange }: {
-  field: SchemaField; allDocTypes: DocumentType[];
+export function SystemComplexField({ field, allDocTypes, enumTypes, value, onChange }: {
+  field: SchemaField; allDocTypes: DocumentType[]; enumTypes: EnumTypeDef[];
   value: unknown; onChange: (v: Record<string, unknown> | FieldRef) => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -457,13 +466,15 @@ export function SystemComplexField({ field, allDocTypes, value, onChange }: {
                 </label>
               )}
               {sf.type === 'complex' ? (
-                <SystemComplexField field={sf} allDocTypes={allDocTypes}
+                <SystemComplexField field={sf} allDocTypes={allDocTypes} enumTypes={enumTypes}
                   value={subValues[sf.key]} onChange={v => onChange({ ...subValues, [sf.key]: v })} />
               ) : sf.type === 'doc-ref' ? (
                 <DocRefCatalogField field={sf} allDocTypes={allDocTypes}
                   value={subValues[sf.key]} onChange={v => onChange({ ...subValues, [sf.key]: v ?? undefined })} />
               ) : (
-                <PrimitiveInput field={sf} value={subValues[sf.key]} onChange={v => onChange({ ...subValues, [sf.key]: v })} />
+                <PrimitiveInput field={sf} value={subValues[sf.key]}
+                  enumTypeDef={sf.type === 'enum' ? enumTypes.find(et => et.id === sf.typeId) : undefined}
+                  onChange={v => onChange({ ...subValues, [sf.key]: v })} />
               )}
             </div>
           ))}

@@ -47,6 +47,36 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
     }
 
     /// <summary>
+    /// Резолвит enum-поля реквизитов из кода в отображаемое имя перед генерацией (issue #59): в
+    /// реквизитах хранится стабильный код EnumType.Values, но в PDF должен попасть человекочитаемый
+    /// текст. Scope сознательно ограничен верхнеуровневыми скалярными полями — то же ограничение,
+    /// что уже есть у ApplyDefaultsAsync (не резолвит внутрь строк array/complex полей). Толерантно:
+    /// код без совпадения в Options остаётся как есть (та же философия, что и везде в резолвере).
+    /// </summary>
+    public async Task ResolveEnumLabelsAsync(GenerationContext ctx, DocumentInstance instance, CancellationToken ct = default)
+    {
+        var allDocTypes = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+        var enumTypesById = await db.EnumTypes.AsNoTracking().ToDictionaryAsync(e => e.Id, ct);
+        var fields = DocumentTypeSchemaReader.EffectiveFields(instance.DocumentTypeId, allDocTypes, enumTypesById);
+        foreach (var f in fields)
+        {
+            if (f.Type != "enum" || f.Options is null || f.Options.Count == 0) continue;
+            if (!ctx.Data.TryGetValue(f.Key, out var raw)) continue;
+            // ctx.Data хранит JsonElement (реквизиты из FromJson) — но допускаем и обычную строку
+            // (напр. если значение положено напрямую, не через JSON-парсинг).
+            var code = raw switch
+            {
+                JsonElement el when el.ValueKind == JsonValueKind.String => el.GetString(),
+                string s => s,
+                _ => null,
+            };
+            if (code is null) continue;
+            var match = f.Options.FirstOrDefault(o => o.Code == code);
+            if (match is not null) ctx.Set(f.Key, match.Label);
+        }
+    }
+
+    /// <summary>
     /// Единая точка разбора $ref: обходит произвольное JSON-дерево (объекты/массивы на любой
     /// глубине — раньше это были три разошедшиеся копии). <paramref name="depth"/> — общий предел
     /// глубины графа; <paramref name="allowInstanceRefs"/> — разрешено ли на этом шаге разворачивать
