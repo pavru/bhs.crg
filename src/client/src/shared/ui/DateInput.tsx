@@ -1,20 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
+import type { DatePrecision } from '@/shared/api/types';
 
 interface DateInputProps {
-  /** Stored value: ISO YYYY-MM-DD or '' */
+  /** Stored value: ISO YYYY-MM-DD or '' (always full ISO, независимо от точности) */
   value: string;
-  /** Emits ISO YYYY-MM-DD when complete, '' when explicitly cleared, nothing while partially typed */
+  /**
+   * Emits full ISO YYYY-MM-DD when the visible segments are complete, '' when explicitly cleared,
+   * nothing while partially typed. Скрытые точностью части допоняются '01' (issue #60):
+   * 'year' → YYYY-01-01, 'month' → YYYY-MM-01, 'day' → YYYY-MM-DD.
+   */
   onChange: (iso: string) => void;
+  /** Точность ввода: 'day' (ДД.ММ.ГГГГ, по умолч.), 'month' (ММ.ГГГГ), 'year' (ГГГГ). */
+  precision?: DatePrecision;
   /** Applied to the outer container div (border, bg, padding, focus-within:ring, width) */
   className?: string;
   disabled?: boolean;
 }
 
-export function DateInput({ value, onChange, className = '', disabled = false }: DateInputProps) {
+export function DateInput({ value, onChange, precision = 'day', className = '', disabled = false }: DateInputProps) {
   const [d, setD] = useState('');
   const [m, setM] = useState('');
   const [y, setY] = useState('');
   const [focused, setFocused] = useState(false);
+
+  const showMonth = precision !== 'year';
+  const showDay = precision === 'day';
 
   const dayRef = useRef<HTMLInputElement>(null);
   const monRef = useRef<HTMLInputElement>(null);
@@ -41,7 +51,18 @@ export function DateInput({ value, onChange, className = '', disabled = false }:
     blurTimer.current = setTimeout(() => setFocused(false), 120);
   }
 
+  // Emit полный ISO из видимых сегментов; скрытые части допоняем '01'. Пустой ввод — явная очистка.
   function emit(dd: string, mm: string, yyyy: string) {
+    if (precision === 'year') {
+      if (yyyy.length === 4) onChange(`${yyyy}-01-01`);
+      else if (!yyyy) onChange('');
+      return;
+    }
+    if (precision === 'month') {
+      if (mm.length === 2 && yyyy.length === 4) onChange(`${yyyy}-${mm}-01`);
+      else if (!mm && !yyyy) onChange('');
+      return;
+    }
     if (dd.length === 2 && mm.length === 2 && yyyy.length === 4) {
       onChange(`${yyyy}-${mm}-${dd}`);
     } else if (!dd && !mm && !yyyy) {
@@ -117,32 +138,40 @@ export function DateInput({ value, onChange, className = '', disabled = false }:
 
   return (
     <div className={`flex items-center ${className}`}>
-      <input
-        ref={dayRef} type="text" inputMode="numeric"
-        placeholder="ДД" maxLength={2}
-        style={{ width: '2.2ch' }}
-        value={d}
-        disabled={disabled}
-        onChange={e => handleD(e.target.value)}
-        onKeyDown={onDayKey}
-        onFocus={onFocus}
-        onBlur={() => { blurD(); onBlur(); }}
-        className={seg}
-      />
-      <span className="text-fg4 select-none">.</span>
-      <input
-        ref={monRef} type="text" inputMode="numeric"
-        placeholder="ММ" maxLength={2}
-        style={{ width: '2.2ch' }}
-        value={m}
-        disabled={disabled}
-        onChange={e => handleM(e.target.value)}
-        onKeyDown={onMonKey}
-        onFocus={onFocus}
-        onBlur={() => { blurM(); onBlur(); }}
-        className={seg}
-      />
-      <span className="text-fg4 select-none">.</span>
+      {showDay && (
+        <>
+          <input
+            ref={dayRef} type="text" inputMode="numeric"
+            placeholder="ДД" maxLength={2}
+            style={{ width: '2.2ch' }}
+            value={d}
+            disabled={disabled}
+            onChange={e => handleD(e.target.value)}
+            onKeyDown={onDayKey}
+            onFocus={onFocus}
+            onBlur={() => { blurD(); onBlur(); }}
+            className={seg}
+          />
+          <span className="text-fg4 select-none">.</span>
+        </>
+      )}
+      {showMonth && (
+        <>
+          <input
+            ref={monRef} type="text" inputMode="numeric"
+            placeholder="ММ" maxLength={2}
+            style={{ width: '2.2ch' }}
+            value={m}
+            disabled={disabled}
+            onChange={e => handleM(e.target.value)}
+            onKeyDown={onMonKey}
+            onFocus={onFocus}
+            onBlur={() => { blurM(); onBlur(); }}
+            className={seg}
+          />
+          <span className="text-fg4 select-none">.</span>
+        </>
+      )}
       <input
         ref={yrRef} type="text" inputMode="numeric"
         placeholder="ГГГГ" maxLength={4}

@@ -166,6 +166,10 @@ export interface GeneratedFile {
 
 // ─── Primitive Types ─────────────────────────────────────────────────────────
 
+/** Точность ввода/отображения date-значения (issue #60). Хранение всегда полный ISO YYYY-MM-DD;
+ *  точность управляет только раскладкой ввода и отображением. Отсутствие ≡ 'day' (обратная совм.). */
+export type DatePrecision = 'day' | 'month' | 'year';
+
 export interface FieldConstraints {
   pattern?: string;
   patternMessage?: string;
@@ -176,6 +180,8 @@ export interface FieldConstraints {
   integer?: boolean;
   minDate?: string;
   maxDate?: string;
+  /** Точность date-типа (issue #60). Отсутствует ≡ 'day' — полная дата ДД.ММ.ГГГГ. */
+  datePrecision?: DatePrecision;
 }
 
 export interface PrimitiveTypeDef {

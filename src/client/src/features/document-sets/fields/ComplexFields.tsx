@@ -6,9 +6,10 @@ import { DateInput } from '@/shared/ui/DateInput';
 import { Modal } from '@/shared/ui/Modal';
 import { useCommonDataForSet, useListCommonData } from '@/shared/api/commonData';
 import type {
-  CatalogScope, CommonDataEntry, DocumentInstance, DocumentType, FieldRef,
+  CatalogScope, CommonDataEntry, DocumentInstance, DocumentType, FieldRef, PrimitiveTypeDef,
 } from '@/shared/api/types';
 import { isFieldRef, SCOPE_LABELS } from '@/shared/api/types';
+import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import {
   resolveEffectiveFields, getDefaultValues, type SchemaField,
 } from '@/shared/api/schema';
@@ -59,11 +60,12 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
 
 // ─── Table cell ───────────────────────────────────────────────────────────────
 
-export function TableCell({ field, value, onChange, compositeType, setId, allDocTypes, scope, scopeId }: {
+export function TableCell({ field, value, onChange, compositeType, setId, allDocTypes, scope, scopeId, primitiveTypeDef }: {
   field: SchemaField; value: unknown; onChange: (v: unknown) => void;
   compositeType: DocumentType | null;
   setId?: string; allDocTypes: DocumentType[];
   scope?: CatalogScope; scopeId?: string | null;
+  primitiveTypeDef?: PrimitiveTypeDef;
 }) {
   const strVal = value == null ? '' : String(value);
   if (field.type === 'complex') {
@@ -94,6 +96,12 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
   }
   if (field.type === 'date') {
     return <DateInput value={strVal} onChange={v => onChange(v)}
+      className="w-full h-full flex items-center px-1.5 focus-within:bg-brand-subtle" />;
+  }
+  // primitive-тип на базе date (issue #60) — иначе рендерился обычным текст-инпутом без DateInput/точности
+  if (field.type === 'primitive' && primitiveTypeDef?.baseType === 'date') {
+    return <DateInput value={strVal} onChange={v => onChange(v)}
+      precision={primitiveTypeDef.constraints.datePrecision ?? 'day'}
       className="w-full h-full flex items-center px-1.5 focus-within:bg-brand-subtle" />;
   }
   return (
@@ -132,6 +140,8 @@ export function ArrayTableModal({
   const { data: cdForSet = [] } = useCommonDataForSet({ setId: setId ?? '', enabled: open && !!setId });
   const { data: cdSystem = [] } = useListCommonData({ scope: 'System', enabled: open && !setId });
   const commonDataEntries = (setId ? cdForSet : cdSystem) as CommonDataEntry[];
+  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const primDef = (f: SchemaField) => f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
 
   const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes) : [];
   const tableFields = subFields.filter(f => TABLE_SHOWN_TYPES.has(f.type));
@@ -241,7 +251,7 @@ export function ArrayTableModal({
                       style={{ border: BORDER, padding: 0, height: 26 }}>
                       <TableCell field={f} value={row[f.key]} onChange={v => updateCell(i, f.key, v)}
                         compositeType={compositeForField} setId={setId} allDocTypes={allDocTypes}
-                        scope={scope} scopeId={scopeId} />
+                        scope={scope} scopeId={scopeId} primitiveTypeDef={primDef(f)} />
                     </td>
                   );
                 })}
@@ -300,6 +310,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   const [catalogPickerOpen, setCatalogPickerOpen] = useState(false);
 
   const hasTableFields = subFields.some(f => TABLE_SHOWN_TYPES.has(f.type));
+  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const primDef = (f: SchemaField) => f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
 
   function addRow() {
     const newRow = getDefaultValues(subFields);
@@ -440,7 +452,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                               otherInstances={otherInstances} setId={setId} />
                           ) : (
                             <PrimitiveInput field={sf} value={subVal}
-                              onChange={v => updateRow(i, { ...row, [sf.key]: v })} invalid={invalid} />
+                              onChange={v => updateRow(i, { ...row, [sf.key]: v })} invalid={invalid}
+                              primitiveTypeDef={primDef(sf)} />
                           )}
                           {invalid && <p className="text-xs text-danger mt-0.5">Обязательное поле</p>}
                         </div>
@@ -489,6 +502,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
+  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
 
   if (isFieldRef(value)) {
@@ -512,6 +526,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   const subValues = (value != null && typeof value === 'object' && !isFieldRef(value)
     ? value : {}) as Record<string, unknown>;
   const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes) : [];
+  const primDef = (f: SchemaField) => f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
 
   function setSubValue(key: string, val: unknown) {
     onChange({ ...subValues, [key]: val });
@@ -574,7 +589,8 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
                     setId={setId} otherInstances={otherInstances}
                     scope={scope} scopeId={scopeId} docRefMode={docRefMode} />
                 ) : (
-                  <PrimitiveInput field={sf} value={subVal} onChange={v => setSubValue(sf.key, v)} invalid={invalid} />
+                  <PrimitiveInput field={sf} value={subVal} onChange={v => setSubValue(sf.key, v)} invalid={invalid}
+                    primitiveTypeDef={primDef(sf)} />
                 )}
                 {invalid && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
               </div>

@@ -1,4 +1,4 @@
-import { isoToRu, ruToISO } from '@/shared/utils/date';
+import { formatDateRu, ruToISO } from '@/shared/utils/date';
 import { DateInput } from '@/shared/ui/DateInput';
 import type { SchemaField } from '@/shared/api/schema';
 import type { PrimitiveTypeDef, FieldConstraints, EnumTypeDef } from '@/shared/api/types';
@@ -34,8 +34,9 @@ export function validateConstraint(value: unknown, def: PrimitiveTypeDef): strin
     if (c.max != null && num > c.max) return `Макс. значение: ${c.max}`;
   } else if (def.baseType === 'date') {
     const iso = ruToISO(String(value));
-    if (c.minDate && iso < c.minDate) return `Дата не ранее ${isoToRu(c.minDate)}`;
-    if (c.maxDate && iso > c.maxDate) return `Дата не позднее ${isoToRu(c.maxDate)}`;
+    const prec = c.datePrecision ?? 'day';
+    if (c.minDate && iso < c.minDate) return `Дата не ранее ${formatDateRu(c.minDate, prec)}`;
+    if (c.maxDate && iso > c.maxDate) return `Дата не позднее ${formatDateRu(c.maxDate, prec)}`;
   }
   return null;
 }
@@ -77,7 +78,9 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
   if (field.type === 'primitive' && primitiveTypeDef) {
     const bt = primitiveTypeDef.baseType;
     if (bt === 'date') {
-      return <DateInput value={strVal} onChange={v => onChange(v)} className={cls} disabled={readOnly} />;
+      return <DateInput value={strVal} onChange={v => onChange(v)}
+        precision={primitiveTypeDef.constraints.datePrecision ?? 'day'}
+        className={cls} disabled={readOnly} />;
     }
     const step = bt === 'number' && primitiveTypeDef.constraints.integer ? 1 : undefined;
     return (
