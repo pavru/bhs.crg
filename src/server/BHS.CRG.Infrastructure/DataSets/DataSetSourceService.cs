@@ -383,6 +383,9 @@ public class DataSetSourceService(
         return true;
     }
 
+    public Task<bool> AnySourceMaterializedAsTypeAsync(Guid documentTypeId, CancellationToken ct) =>
+        db.DataSetSources.AnyAsync(s => s.MaterializeTypeId == documentTypeId, ct);
+
     // Человекочитаемое описание, где именно используется источник (для сообщения об ошибке
     // удаления) — по DocumentInstance (документ + комплект) и по CommonDataEntry (запись каталога).
     private async Task<List<string>> DescribeBindingUsagesAsync(List<DataSetBinding> bindings, CancellationToken ct)

@@ -67,6 +67,18 @@ public static class DocumentTypeSchemaReader
     public static SchemaFieldInfo? Field(Guid typeId, string key, IReadOnlyDictionary<Guid, DocumentType> byId)
         => EffectiveFields(typeId, byId).FirstOrDefault(f => f.Key == key);
 
+    /// <summary>
+    /// Ссылается ли схема (СОБСТВЕННЫЕ поля типа — без резолва наследования) на составной/ссылочный
+    /// тип documentTypeId через complex/array/doc-ref/doc-array поле (issue #57, п.7 — проверка перед
+    /// удалением типа документа). Наследование резолвить не нужно: ссылка typeId хранится там, где
+    /// поле было изначально объявлено, а не синтезируется заново для каждого потомка.
+    /// </summary>
+    public static bool ReferencesType(JsonDocument schema, Guid documentTypeId)
+    {
+        var (fields, _, _) = ParseSchema(schema);
+        return fields.Any(f => f.TypeId == documentTypeId && (IsSingleComposite(f.Type) || IsMultiValued(f.Type)));
+    }
+
     /// <summary>true, если childId == ancestorId либо childId — потомок ancestorId по ParentId.</summary>
     public static bool IsSameOrDescendant(Guid childId, Guid ancestorId, IReadOnlyDictionary<Guid, DocumentType> byId)
     {

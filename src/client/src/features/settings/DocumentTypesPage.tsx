@@ -6,6 +6,7 @@ import {
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { apiError } from '@/shared/utils/apiError';
 import {
   useListDocumentTypes,
   useCreateDocumentType,
@@ -724,7 +725,9 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
         description={<p>Это повлияет на все документы и шаблоны, использующие этот тип. Действие необратимо.</p>}
         confirmLabel={`Удалить тип «${docType.name}»`}
         requireCheckbox="Понимаю, что это необратимо"
-        onConfirm={() => deleteMutation.mutate(docType.id)}
+        onConfirm={() => deleteMutation.mutate(docType.id, {
+          onError: err => alert(apiError(err, 'Не удалось удалить тип.')),
+        })}
       />
     </div>
   );
