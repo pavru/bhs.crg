@@ -13,6 +13,7 @@ import {
 import type { FieldConstraints, PrimitiveTypeDef } from '@/shared/api/types';
 import { useTagRegistry, fieldTags } from '@/shared/api/tags';
 import { TypeGroupAccordion, GroupPicker } from './TypeGroupAccordion';
+import { EnumTypesSection } from './EnumTypesSection';
 
 // ─── Base type options ────────────────────────────────────────────────────────
 
@@ -402,9 +403,9 @@ function FieldTypeRow({ type, allGroups, expanded, onToggle }: {
   );
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Primitive section (существующее содержимое страницы, без изменений) ──────
 
-export function PrimitiveTypesPage() {
+function PrimitiveTypesSection() {
   const { data: types = [], isLoading } = useListPrimitiveTypes();
   const [createOpen, setCreateOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -418,14 +419,11 @@ export function PrimitiveTypesPage() {
   }
 
   return (
-    <div className="px-6 py-4">
+    <div>
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl font-semibold text-fg1">Типы полей</h1>
-          <p className="text-xs text-fg3 mt-0.5">
-            Пользовательские типы реквизитов на основе строки, числа или даты с ограничениями
-          </p>
-        </div>
+        <p className="text-xs text-fg3">
+          Пользовательские типы реквизитов на основе строки, числа или даты с ограничениями
+        </p>
         <button onClick={() => setCreateOpen(true)}
           className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
           <Plus size={16} /> Добавить тип
@@ -450,6 +448,42 @@ export function PrimitiveTypesPage() {
           <TypeForm onSaved={() => setCreateOpen(false)} onCancel={() => setCreateOpen(false)} />
         )}
       </Modal>
+    </div>
+  );
+}
+
+// ─── Main page — вкладки «Примитивные»/«Перечисления» (issue #59) ──────────────
+
+type FieldTypesMode = 'primitive' | 'enum';
+
+export function PrimitiveTypesPage() {
+  const [mode, setMode] = useState<FieldTypesMode>('primitive');
+
+  return (
+    <div className="px-6 py-4">
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-xl font-semibold text-fg1">Типы полей</h1>
+      </div>
+      <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5 mb-4 w-fit">
+        <button
+          onClick={() => setMode('primitive')}
+          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+            mode === 'primitive' ? 'bg-surface text-fg1 font-medium shadow-sm' : 'text-fg3 hover:text-fg2'
+          }`}
+        >
+          Примитивные
+        </button>
+        <button
+          onClick={() => setMode('enum')}
+          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+            mode === 'enum' ? 'bg-surface text-fg1 font-medium shadow-sm' : 'text-fg3 hover:text-fg2'
+          }`}
+        >
+          Перечисления
+        </button>
+      </div>
+
+      {mode === 'primitive' ? <PrimitiveTypesSection /> : <EnumTypesSection />}
     </div>
   );
 }

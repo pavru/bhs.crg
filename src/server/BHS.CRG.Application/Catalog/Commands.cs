@@ -34,3 +34,18 @@ public record UpdatePrimitiveTypeCommand(
 
 public record DeletePrimitiveTypeCommand(Guid Id) : IRequest;
 public record SetPrimitiveTypeGroupCommand(Guid Id, string? Group) : IRequest<PrimitiveType>;
+
+// ── EnumType (issue #59) ────────────────────────────────────────────────────────
+
+public record ListEnumTypesQuery : IRequest<IReadOnlyList<EnumType>>;
+
+public record CreateEnumTypeCommand(
+    string Name, string Code, string? Description, JsonDocument Values
+) : IRequest<EnumType>;
+
+public record UpdateEnumTypeCommand(
+    Guid Id, string Name, string Code, string? Description, JsonDocument Values
+) : IRequest<EnumType>;
+
+public record DeleteEnumTypeCommand(Guid Id) : IRequest;
+public record SetEnumTypeGroupCommand(Guid Id, string? Group) : IRequest<EnumType>;

@@ -4,6 +4,7 @@ import { useAuth } from '@/shared/hooks/useAuth';
 import { useEmailDocument } from '@/shared/api/documentSets';
 import { EmailSendDialog } from '../EmailSendDialog';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
+import { useListEnumTypes } from '@/shared/api/enumTypes';
 import {
   useUpdateRequisites, useGenerateDocument,
   useSetDocumentTemplates, useRenameDocumentInstance,
@@ -12,7 +13,7 @@ import {
 } from '@/shared/api/documentSets';
 import { useListTemplates } from '@/shared/api/templates';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
-import type { DocumentInstance, DocumentType, Template, PrimitiveTypeDef } from '@/shared/api/types';
+import type { DocumentInstance, DocumentType, Template, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import {
   groupEffectiveFields, resolveEffectiveFields, compositeFieldHasTag, type SchemaField,
 } from '@/shared/api/schema';
@@ -69,6 +70,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   onDirty: (dirty: boolean) => void; saveRef: SaveRef; onGoToDataTab: () => void;
 }) {
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
   const [values, setValues] = useState<Record<string, unknown>>(() => ({ ...instance.requisites }));
   const [constraintErrors, setConstraintErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
@@ -94,6 +96,11 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   // Обязательное поле, покрытое активной привязкой, не блокирует сохранение реквизитов —
   // значение подставится при генерации (DataSetResolver.InjectAsync), форма его не хранит.
   const isFieldMissing = (f: SchemaField, val: unknown) => isMissing(f, val) && !sourceBoundFields.has(f.key);
+
+  function getEnumDef(field: SchemaField): EnumTypeDef | undefined {
+    if (field.type !== 'enum' || !field.typeId) return undefined;
+    return enumTypes.find(et => et.id === field.typeId);
+  }
 
   function getPrimitiveDef(field: SchemaField): PrimitiveTypeDef | undefined {
     if (field.type !== 'primitive') return undefined;
@@ -228,7 +235,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                 ) : (
                   <PrimitiveInput field={field} value={raw}
                     onChange={v => setValue(field.key, v, primitiveDef)}
-                    invalid={hasError} primitiveTypeDef={primitiveDef} readOnly={bound} />
+                    invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} readOnly={bound} />
                 )}
                 {missing && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
                 {!missing && constraintError && <p className="text-xs text-danger mt-1">{constraintError}</p>}
@@ -249,7 +256,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
               </label>
               <PrimitiveInput field={field} value={raw}
                 onChange={v => setValue(field.key, v, primitiveDef)}
-                invalid={hasError} primitiveTypeDef={primitiveDef} readOnly={bound} />
+                invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} readOnly={bound} />
               {missing && <p className="text-[11px] text-danger mt-0.5">Обязательное поле</p>}
               {!missing && constraintError && <p className="text-[11px] text-danger mt-0.5">{constraintError}</p>}
             </div>

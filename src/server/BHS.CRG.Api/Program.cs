@@ -114,6 +114,7 @@ builder.Services.AddMediatR(cfg =>
 // ── Repositories ──────────────────────────────────────────────────────────────
 builder.Services.AddScoped<IRepository<CatalogEntity>, Repository<CatalogEntity>>();
 builder.Services.AddScoped<IRepository<PrimitiveType>, Repository<PrimitiveType>>();
+builder.Services.AddScoped<IRepository<EnumType>, Repository<EnumType>>();
 builder.Services.AddScoped<IRepository<DocumentType>, Repository<DocumentType>>();
 builder.Services.AddScoped<IRepository<Construction>, ConstructionRepository>();
 builder.Services.AddScoped<IRepository<Section>, Repository<Section>>();
@@ -274,6 +275,7 @@ app.MapUserEndpoints();
 app.MapBackupEndpoints();
 app.MapCatalogEndpoints();
 app.MapPrimitiveTypeEndpoints();
+app.MapEnumTypeEndpoints();
 app.MapDocumentTypeEndpoints();
 app.MapCommonDataEndpoints();
 app.MapTemplateEndpoints();

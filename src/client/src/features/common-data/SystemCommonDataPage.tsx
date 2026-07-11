@@ -3,20 +3,22 @@ import { Plus, Pencil, Trash2, Search, Link2, Unlink, ChevronDown, ChevronUp } f
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
+import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { useListCommonData, useCreateCommonDataEntry, useUpdateCommonDataEntry, useDeleteCommonDataEntry } from '@/shared/api/commonData';
-import type { CommonDataEntry, DocumentType } from '@/shared/api/types';
+import type { CommonDataEntry, DocumentType, EnumTypeDef } from '@/shared/api/types';
 import { resolveEffectiveFields, groupEffectiveFields, parseSchemaFields, getDefaultValues, type SchemaField } from '@/shared/api/schema';
 import { PrimitiveInput, FileField, ImageField, SystemArrayFieldEditor, SystemComplexField, DocRefCatalogField, BaseEntryPickerModal } from './systemFields';
 
 // ─── Entry form (add / edit) ──────────────────────────────────────────────────
 
 function EntryForm({
-  entry, compositeTypes, documentTypes, allDocTypes, onClose,
+  entry, compositeTypes, documentTypes, allDocTypes, enumTypes, onClose,
 }: {
   entry: CommonDataEntry | null;
   compositeTypes: DocumentType[];
   documentTypes: DocumentType[];
   allDocTypes: DocumentType[];
+  enumTypes: EnumTypeDef[];
   onClose: () => void;
 }) {
   const [displayName, setDisplayName] = useState(entry?.displayName ?? '');
@@ -94,10 +96,10 @@ function EntryForm({
                   {field.title}{field.required && <span className="ml-0.5 text-danger">*</span>}
                 </label>
                 {field.type === 'array' ? (
-                  <SystemArrayFieldEditor field={field} allDocTypes={allDocTypes}
+                  <SystemArrayFieldEditor field={field} allDocTypes={allDocTypes} enumTypes={enumTypes}
                     value={values[field.key]} onChange={v => setValue(field.key, v)} />
                 ) : (
-                  <SystemComplexField field={field} allDocTypes={allDocTypes}
+                  <SystemComplexField field={field} allDocTypes={allDocTypes} enumTypes={enumTypes}
                     value={values[field.key]} onChange={v => setValue(field.key, v)} />
                 )}
               </div>
@@ -121,7 +123,9 @@ function EntryForm({
                 ) : field.type === 'file' ? (
                   <FileField value={values[field.key]} onChange={v => setValue(field.key, v)} />
                 ) : (
-                  <PrimitiveInput field={field} value={values[field.key]} onChange={v => setValue(field.key, v)} />
+                  <PrimitiveInput field={field} value={values[field.key]}
+                    enumTypeDef={field.type === 'enum' ? enumTypes.find(et => et.id === field.typeId) : undefined}
+                    onChange={v => setValue(field.key, v)} />
                 )}
               </>
             )}
@@ -261,6 +265,7 @@ export function SystemCommonDataPage() {
   }
 
   const { data: allDocTypes = [] } = useListDocumentTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
   const { data: entries = [], isLoading } = useListCommonData({ scope: 'System' });
   const deleteMutation = useDeleteCommonDataEntry();
 
@@ -414,12 +419,12 @@ export function SystemCommonDataPage() {
 
       <Modal open={addOpen} onOpenChange={setAddOpen} title="Новая запись" wide flushBody>
         {addOpen && (
-          <EntryForm entry={null} compositeTypes={compositeTypes} documentTypes={documentTypes} allDocTypes={allDocTypes} onClose={() => setAddOpen(false)} />
+          <EntryForm entry={null} compositeTypes={compositeTypes} documentTypes={documentTypes} allDocTypes={allDocTypes} enumTypes={enumTypes} onClose={() => setAddOpen(false)} />
         )}
       </Modal>
       <Modal open={!!editEntry} onOpenChange={o => { if (!o) setEditEntry(null); }} title="Редактировать запись" wide flushBody>
         {editEntry && (
-          <EntryForm entry={editEntry} compositeTypes={compositeTypes} documentTypes={documentTypes} allDocTypes={allDocTypes} onClose={() => setEditEntry(null)} />
+          <EntryForm entry={editEntry} compositeTypes={compositeTypes} documentTypes={documentTypes} allDocTypes={allDocTypes} enumTypes={enumTypes} onClose={() => setEditEntry(null)} />
         )}
       </Modal>
       <ConfirmDialog

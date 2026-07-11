@@ -18,7 +18,8 @@ import {
 } from '@/shared/api/documentTypes';
 import { TypeGroupAccordion, GroupPicker } from './TypeGroupAccordion';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
-import type { DocumentType, DocumentTypeKind } from '@/shared/api/types';
+import { useListEnumTypes } from '@/shared/api/enumTypes';
+import type { DocumentType, DocumentTypeKind, EnumTypeDef } from '@/shared/api/types';
 import {
   parseSchemaFields,
   resolveEffectiveFields,
@@ -34,13 +35,14 @@ import { GroupEditor } from './GroupEditor';
 import { JsonPreview, FieldBuilder, DefaultValueCell } from './FieldBuilder';
 
 function InheritedFieldsPanel({
-  parentEffectiveFields, excludedFields, fieldOverrides, compositeTypes,
+  parentEffectiveFields, excludedFields, fieldOverrides, compositeTypes, enumTypes,
   onExclude, onInclude, onOverrideRequired, onOverrideDefaultValue, onResetOverride,
 }: {
   parentEffectiveFields: SchemaField[];
   excludedFields: string[];
   fieldOverrides: Record<string, { required?: boolean; defaultValue?: unknown }>;
   compositeTypes: DocumentType[];
+  enumTypes: EnumTypeDef[];
   onExclude: (key: string) => void;
   onInclude: (key: string) => void;
   onOverrideRequired: (key: string, required: boolean) => void;
@@ -114,7 +116,7 @@ function InheritedFieldsPanel({
               </div>
             ) : <span />}
             {!isExcluded
-              ? <DefaultValueCell field={field} override={override} onOverrideDefaultValue={onOverrideDefaultValue} />
+              ? <DefaultValueCell field={field} override={override} enumTypes={enumTypes} onOverrideDefaultValue={onOverrideDefaultValue} />
               : <span />
             }
             {isExcluded ? (
@@ -237,6 +239,7 @@ function CreateForm({
   allDocTypes: DocumentType[];
 }) {
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [parentId, setParentId] = useState('');
@@ -361,7 +364,7 @@ function CreateForm({
         </div>
         {showJson
           ? <JsonPreview fields={fields} groups={[]} excludedFields={[]} fieldOverrides={{}} />
-          : <FieldBuilder fields={fields} onChange={setFields} disabledKeys={inheritedKeys} compositeTypes={compositeTypes} primitiveTypes={primitiveTypes} allDocTypes={allDocTypes} />}
+          : <FieldBuilder fields={fields} onChange={setFields} disabledKeys={inheritedKeys} compositeTypes={compositeTypes} primitiveTypes={primitiveTypes} enumTypes={enumTypes} allDocTypes={allDocTypes} />}
       </div>
 
       {error && <p className="text-sm text-danger">{error}</p>}
@@ -387,6 +390,7 @@ function SchemaEditor({ docType, allDocTypes }: {
   allDocTypes: DocumentType[];
 }) {
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
   const schemaDef = docType.schema as unknown as SchemaDefinition;
   const [fields, setFields] = useState<SchemaField[]>(() => parseSchemaFields(docType.schema));
   const [groups, setGroups] = useState<FieldGroup[]>(() => schemaDef.groups ?? []);
@@ -483,6 +487,7 @@ function SchemaEditor({ docType, allDocTypes }: {
             excludedFields={excludedFields}
             fieldOverrides={fieldOverrides}
             compositeTypes={compositeTypes}
+            enumTypes={enumTypes}
             onExclude={handleExclude}
             onInclude={handleInclude}
             onOverrideRequired={handleOverrideRequired}
@@ -511,7 +516,7 @@ function SchemaEditor({ docType, allDocTypes }: {
         {showJson
           ? <JsonPreview fields={fields} groups={groups} excludedFields={excludedFields} fieldOverrides={fieldOverrides} />
           : <FieldBuilder fields={fields} onChange={f => { setFields(f); setSaved(false); }}
-              disabledKeys={inheritedKeys} compositeTypes={compositeTypes} primitiveTypes={primitiveTypes} allDocTypes={allDocTypes} />}
+              disabledKeys={inheritedKeys} compositeTypes={compositeTypes} primitiveTypes={primitiveTypes} enumTypes={enumTypes} allDocTypes={allDocTypes} />}
       </div>
 
       {!showJson && effectiveFields.length > 0 && (
