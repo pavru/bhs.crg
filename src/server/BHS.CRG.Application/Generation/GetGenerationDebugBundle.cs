@@ -1,6 +1,7 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Templates;
 using MediatR;
@@ -10,14 +11,16 @@ namespace BHS.CRG.Application.Generation;
 /// <summary>
 /// Файлы, которые генератор кладёт во временный каталог Typst.
 /// Выгружаются «как есть» для отладки шаблона во внешнем инструменте:
-/// распаковал → <c>typst compile template.typ</c>.
+/// распаковал → <c>typst compile template.typ</c> (для шаблонов со шрифтовыми ассетами —
+/// <c>typst compile template.typ output.pdf --font-path fonts</c>, см. README.txt в пакете).
 /// </summary>
 public record GenerationDebugBundle(
     string TemplateContent,
     string DataJson,
     string TypeBlocks,
     string UserLib,
-    IReadOnlyDictionary<string, BHS.CRG.Application.Schema.ImageRenderOptions> ImageOptions);
+    IReadOnlyDictionary<string, BHS.CRG.Application.Schema.ImageRenderOptions> ImageOptions,
+    ResolvedTemplateAssets TemplateAssets);
 
 public record GetGenerationDebugBundleQuery(Guid InstanceId) : IRequest<GenerationDebugBundle?>;
 
@@ -28,7 +31,8 @@ public class GetGenerationDebugBundleHandler(
     IRepository<TypstUserLib> userLibRepo,
     IEntityResolver entityResolver,
     IDataSetResolver dataSetResolver,
-    IQualityLinkResolver qualityLinkResolver
+    IQualityLinkResolver qualityLinkResolver,
+    ITemplateAssetResolver templateAssetResolver
 ) : IRequestHandler<GetGenerationDebugBundleQuery, GenerationDebugBundle?>
 {
     // Indented + нескрытая кириллица — для удобства чтения при отладке.
@@ -72,6 +76,7 @@ public class GetGenerationDebugBundleHandler(
         var userLib = allLibs.FirstOrDefault()?.Content ?? "";
 
         var imageOptions = BHS.CRG.Application.Schema.SchemaImageOptions.Collect(allDocTypes);
-        return new GenerationDebugBundle(template.Content, dataJson, typeBlocks, userLib, imageOptions);
+        var templateAssets = await templateAssetResolver.ResolveAsync(template.Id, instance.DocumentTypeId, ct);
+        return new GenerationDebugBundle(template.Content, dataJson, typeBlocks, userLib, imageOptions, templateAssets);
     }
 }
