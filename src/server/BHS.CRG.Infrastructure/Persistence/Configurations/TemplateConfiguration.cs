@@ -16,12 +16,6 @@ public class TemplateConfiguration : IEntityTypeConfiguration<Template>
         b.Property(e => e.Version).IsRequired();
         b.Property(e => e.IsActive).IsRequired();
         b.Property(e => e.IsDefault).IsRequired();
-        b.Property(e => e.PageSize).HasMaxLength(10).IsRequired();
-        b.Property(e => e.PageOrientation).HasMaxLength(20).IsRequired();
-        b.Property(e => e.MarginTop).IsRequired();
-        b.Property(e => e.MarginRight).IsRequired();
-        b.Property(e => e.MarginBottom).IsRequired();
-        b.Property(e => e.MarginLeft).IsRequired();
         b.HasIndex(e => new { e.DocumentTypeId, e.IsActive });
         b.HasIndex(e => new { e.DocumentTypeId, e.IsDefault });
     }

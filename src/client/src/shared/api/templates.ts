@@ -49,23 +49,6 @@ export function useUpdateTemplate() {
   });
 }
 
-export function useUpdateTemplateSettings() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (p: {
-      id: string; documentTypeId: string;
-      pageSize: string; pageOrientation: string;
-      marginTop: number; marginRight: number; marginBottom: number; marginLeft: number;
-    }) =>
-      apiClient.put<Template>(`/templates/${p.id}/settings`, {
-        pageSize: p.pageSize, pageOrientation: p.pageOrientation,
-        marginTop: p.marginTop, marginRight: p.marginRight,
-        marginBottom: p.marginBottom, marginLeft: p.marginLeft,
-      }).then((r) => r.data),
-    onSuccess: (t) => qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] }),
-  });
-}
-
 /** Объявление параметров шаблона — parameters = JSON-текст TemplateParam[] или null. */
 export function useUpdateTemplateParameters() {
   const qc = useQueryClient();
