@@ -139,26 +139,6 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
         Assert.True(all.First(t => t.Id == t2.Id).IsDefault);
     }
 
-    // ── UpdateSettings ────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task UpdateSettings_ChangesPageProperties()
-    {
-        var dtId = await CreateDocTypeAsync("DT_S1");
-
-        using var scope = fixture.Services.CreateScope();
-        var t = await Mediator(scope).Send(new CreateTemplateCommand(dtId, "Шаблон", "v1"));
-
-        using var scope2 = fixture.Services.CreateScope();
-        var updated = await Mediator(scope2).Send(
-            new UpdateTemplateSettingsCommand(t.Id, "A3", "landscape", 15, 10, 15, 25));
-
-        Assert.Equal("A3", updated.PageSize);
-        Assert.Equal("landscape", updated.PageOrientation);
-        Assert.Equal(15, updated.MarginTop);
-        Assert.Equal(25, updated.MarginLeft);
-    }
-
     // ── TemplateAsset duplication-by-reference (issue #62) ───────────────────────
 
     [Fact]

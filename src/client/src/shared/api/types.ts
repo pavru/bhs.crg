@@ -91,12 +91,6 @@ export interface Template {
   version: number;
   isActive: boolean;
   isDefault: boolean;
-  pageSize: string;
-  pageOrientation: string;
-  marginTop: number;
-  marginRight: number;
-  marginBottom: number;
-  marginLeft: number;
   createdAt: string;
   updatedAt: string;
 }

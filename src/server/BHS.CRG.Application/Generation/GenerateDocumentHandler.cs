@@ -120,8 +120,6 @@ public class GenerateDocumentHandler(
 
                 var generator = generatorFactory.Create(cmd.Format);
                 var request = new GenerationRequest(instance, template.Content, cmd.Format, context,
-                    template.PageSize, template.PageOrientation,
-                    template.MarginTop, template.MarginRight, template.MarginBottom, template.MarginLeft,
                     TypeBlocksContent: typeBlocksContent, UserLibContent: userLibContent,
                     ImageOptions: imageOptions, TemplateAssets: templateAssets);
                 var bytes = await generator.GenerateAsync(request, ct);

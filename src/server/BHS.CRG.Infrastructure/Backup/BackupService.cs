@@ -74,8 +74,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 dt.CreatedAt, dt.UpdatedAt, dt.Group)).ToArray(),
             Templates: templates.Select(t => new BackupTemplate(
                 t.Id, t.DocumentTypeId, t.Name, t.Content, t.Version,
-                t.IsActive, t.IsDefault, t.PageSize, t.PageOrientation,
-                t.MarginTop, t.MarginRight, t.MarginBottom, t.MarginLeft,
+                t.IsActive, t.IsDefault,
                 t.CreatedAt, t.UpdatedAt, t.Parameters)).ToArray(),
             CatalogEntities: catalogEntities.Select(e => new BackupCatalogEntity(
                 e.Id, e.EntityType, e.DisplayName, e.Data.RootElement.Clone(), e.OwnerId,
@@ -281,8 +280,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             }
             var entity = Template.Restore(
                 item.Id, item.DocumentTypeId, item.Name, item.Content, item.Version,
-                item.IsActive, item.IsDefault, item.PageSize, item.PageOrientation,
-                item.MarginTop, item.MarginRight, item.MarginBottom, item.MarginLeft,
+                item.IsActive, item.IsDefault,
                 item.CreatedAt, item.UpdatedAt, item.Parameters);
             db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
             if (existingIds.Contains(item.Id)) stats.TemplatesUpdated++; else stats.TemplatesCreated++;

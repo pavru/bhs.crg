@@ -35,11 +35,6 @@ public static class TemplateEndpoints
             return Results.NoContent();
         });
 
-        admin.MapPut("/{id:guid}/settings", async (Guid id, UpdateSettingsRequest req, IMediator m)
-            => Results.Ok(await m.Send(new UpdateTemplateSettingsCommand(
-                id, req.PageSize, req.PageOrientation,
-                req.MarginTop, req.MarginRight, req.MarginBottom, req.MarginLeft))));
-
         admin.MapPut("/{id:guid}/set-default", async (Guid id, IMediator m)
             => Results.Ok(await m.Send(new SetTemplateDefaultCommand(id))));
 
@@ -51,6 +46,5 @@ public static class TemplateEndpoints
     record CreateTemplateRequest(Guid DocumentTypeId, string Name, string Content);
     record UpdateTemplateRequest(string Content);
     record DuplicateTemplateRequest(string? Name);
-    record UpdateSettingsRequest(string PageSize, string PageOrientation, int MarginTop, int MarginRight, int MarginBottom, int MarginLeft);
     record UpdateParametersRequest(string? Parameters);
 }

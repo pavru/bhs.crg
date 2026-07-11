@@ -25,8 +25,6 @@ public record BackupDocumentType(
 public record BackupTemplate(
     Guid Id, Guid DocumentTypeId, string Name, string Content, int Version,
     bool IsActive, bool IsDefault,
-    string PageSize, string PageOrientation,
-    int MarginTop, int MarginRight, int MarginBottom, int MarginLeft,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string? Parameters = null);
 
 public record BackupCatalogEntity(

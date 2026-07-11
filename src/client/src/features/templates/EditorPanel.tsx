@@ -1,16 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
-import { BookOpen, Settings, Save, Star, ChevronDown, ChevronUp, CheckCircle } from 'lucide-react';
+import { BookOpen, Save, Star, CheckCircle } from 'lucide-react';
 import type { Template, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields } from '@/shared/api/schema';
-import { useUpdateTemplate, useUpdateTemplateSettings, useSetTemplateDefault } from '@/shared/api/templates';
+import { useUpdateTemplate, useSetTemplateDefault } from '@/shared/api/templates';
 import { TemplateParamsPanel } from './TemplateParamsPanel';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { flattenFields } from './templateBlank';
 import type * as monacoEditor from 'monaco-editor';
 
-const ISO_SIZES = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6'] as const;
 // ─── Toolbar button ───────────────────────────────────────────────────────────
 
 function ToolbarButton({
@@ -84,117 +83,6 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
   );
 }
 
-// ─── Page settings panel ──────────────────────────────────────────────────────
-
-function PageSettingsPanel({ template, onSaved }: { template: Template; onSaved: (t: Template) => void }) {
-  const [open, setOpen] = useState(false);
-  const [pageSize, setPageSize] = useState(template.pageSize);
-  const [orientation, setOrientation] = useState(template.pageOrientation);
-  const [marginTop, setMarginTop] = useState(template.marginTop);
-  const [marginRight, setMarginRight] = useState(template.marginRight);
-  const [marginBottom, setMarginBottom] = useState(template.marginBottom);
-  const [marginLeft, setMarginLeft] = useState(template.marginLeft);
-  const [saved, setSaved] = useState(false);
-
-  const settingsMutation = useUpdateTemplateSettings();
-  const defaultMutation = useSetTemplateDefault();
-
-  useEffect(() => {
-    setPageSize(template.pageSize);
-    setOrientation(template.pageOrientation);
-    setMarginTop(template.marginTop);
-    setMarginRight(template.marginRight);
-    setMarginBottom(template.marginBottom);
-    setMarginLeft(template.marginLeft);
-  }, [template.id]);
-
-  async function handleSaveSettings() {
-    const updated = await settingsMutation.mutateAsync({
-      id: template.id, documentTypeId: template.documentTypeId,
-      pageSize, pageOrientation: orientation,
-      marginTop, marginRight, marginBottom, marginLeft,
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-    onSaved(updated);
-  }
-
-  async function handleSetDefault() {
-    const updated = await defaultMutation.mutateAsync({ id: template.id, documentTypeId: template.documentTypeId });
-    onSaved(updated);
-  }
-
-  const inputCls = 'w-full border border-stroke-strong rounded px-2 py-1 text-sm text-fg1 bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand';
-
-  return (
-    <div className="border-t border-stroke bg-surface">
-      <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-base transition-colors text-left">
-        <Settings size={13} className="text-fg4" />
-        <span className="text-xs font-medium text-fg2 flex-1">Настройки страницы</span>
-        {open ? <ChevronUp size={13} className="text-fg4" /> : <ChevronDown size={13} className="text-fg4" />}
-      </button>
-      {open && (
-        <div className="px-4 pb-4 space-y-4 border-t border-muted">
-          <div className="grid grid-cols-2 gap-3 pt-3">
-            <div>
-              <label className="block text-xs font-medium text-fg2 mb-1">Формат (ISO)</label>
-              <select value={pageSize} onChange={e => setPageSize(e.target.value)} className={inputCls}>
-                {ISO_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-fg2 mb-1">Ориентация (по умолч.)</label>
-              <div className="flex gap-2 mt-1.5">
-                {(['portrait', 'landscape'] as const).map(o => (
-                  <label key={o} className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="radio" name={`orient-${template.id}`} value={o}
-                      checked={orientation === o} onChange={() => setOrientation(o)}
-                      className="w-3.5 h-3.5 text-brand" />
-                    <span className="text-xs text-fg2">{o === 'portrait' ? 'Книжная' : 'Альбомная'}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-fg2 mb-2">Поля (мм)</label>
-            <div className="grid grid-cols-4 gap-2">
-              {([['Верх', marginTop, setMarginTop], ['Право', marginRight, setMarginRight],
-                 ['Низ', marginBottom, setMarginBottom], ['Лево', marginLeft, setMarginLeft]] as [string, number, (v: number) => void][]).map(([label, val, set]) => (
-                <div key={label}>
-                  <label className="block text-xs text-fg3 mb-1 text-center">{label}</label>
-                  <input type="number" min={0} max={100} value={val}
-                    onChange={e => set(Number(e.target.value))}
-                    className={inputCls + ' text-center'} />
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button onClick={handleSaveSettings} disabled={settingsMutation.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand hover:bg-brand-hover text-white rounded disabled:opacity-50 transition-colors">
-              <Save size={11} /> {settingsMutation.isPending ? 'Сохранение...' : 'Сохранить настройки'}
-            </button>
-            {saved && <span className="text-xs text-success">Сохранено</span>}
-            {!template.isDefault && (
-              <button onClick={handleSetDefault} disabled={defaultMutation.isPending}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-yellow-300 text-warning hover:bg-yellow-50 rounded disabled:opacity-50 transition-colors ml-auto">
-                <Star size={11} /> Сделать шаблоном по умолчанию
-              </button>
-            )}
-            {template.isDefault && (
-              <span className="ml-auto flex items-center gap-1.5 text-xs text-yellow-600">
-                <Star size={11} className="fill-yellow-400 text-yellow-400" /> Шаблон по умолчанию
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Editor panel ─────────────────────────────────────────────────────────────
 
 interface EditorPanelProps {
@@ -211,6 +99,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
   const [error, setError] = useState('');
   const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
   const updateMutation = useUpdateTemplate();
+  const defaultMutation = useSetTemplateDefault();
 
   // When true, the next template.id change came from our own save — skip content reset
   // so Monaco keeps its cursor position and scroll offset.
@@ -282,6 +171,11 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
     // version history into duplicate same-numbered versions.
   }
 
+  async function handleSetDefault() {
+    const updated = await defaultMutation.mutateAsync({ id: template.id, documentTypeId: template.documentTypeId });
+    onSaved(updated);
+  }
+
   function insertAtCursor(snippet: string) {
     const editor = editorRef.current;
     if (!editor) {
@@ -317,10 +211,15 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
           {template.isActive && (
             <span className="text-xs text-success flex items-center gap-1"><CheckCircle size={12} /> активный</span>
           )}
-          {template.isDefault && (
+          {template.isDefault ? (
             <span className="text-xs text-yellow-600 flex items-center gap-1">
               <Star size={11} className="fill-yellow-400 text-yellow-400" /> по умолчанию
             </span>
+          ) : (
+            <button onClick={handleSetDefault} disabled={defaultMutation.isPending}
+              className="flex items-center gap-1 px-2 py-1 text-xs border border-yellow-300 text-warning hover:bg-yellow-50 rounded disabled:opacity-50 transition-colors">
+              <Star size={11} /> Сделать по умолчанию
+            </button>
           )}
           {savedMsg && <span className="text-xs text-success">Сохранено ✓</span>}
           {error && <span className="text-xs text-danger max-w-xs truncate">{error}</span>}
@@ -355,8 +254,6 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
         />
       </div>
 
-      {/* Page settings */}
-      <PageSettingsPanel template={template} onSaved={onSaved} />
       {/* Параметры шаблона (key — чтобы стейт переинициализировался при смене шаблона) */}
       <TemplateParamsPanel key={template.id} template={template} onSaved={onSaved} />
       {/* Ассеты шаблона (issue #62) — индивидуальный уровень, scoped к этой версии шаблона */}
