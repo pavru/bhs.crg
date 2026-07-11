@@ -1,12 +1,20 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Templates;
 using MediatR;
 
 namespace BHS.CRG.Application.Documents;
 
-public class DocumentTypeHandlers(IRepository<DocumentType> repo) :
+public class DocumentTypeHandlers(
+    IRepository<DocumentType> repo,
+    IRepository<DocumentInstance> instanceRepo,
+    IRepository<Template> templateRepo,
+    IRepository<QualityDocument> qualityDocRepo,
+    IRepository<CommonDataEntry> commonDataEntryRepo,
+    IDataSetService dataSetService) :
     IRequestHandler<CreateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeSchemaCommand, DocumentType>,
@@ -104,12 +112,47 @@ public class DocumentTypeHandlers(IRepository<DocumentType> repo) :
         return dt;
     }
 
+    // issue #57: удаление типа не проверяло использование — документы/шаблоны/записи каталога,
+    // созданные на его основе, оставались с "висячей" ссылкой (ни FK в БД, ни прикладной проверки не
+    // было ни для одной из этих точек). Ниже — прикладная проверка (по образцу уже существовавшей
+    // ParentId-проверки и DataSetSourceService.DeleteSourceAsync), а не настоящий FK в БД: единственный
+    // реальный FK в модели — self-reference ParentId (дерево внутри одной таблицы), все остальные
+    // межагрегатные ссылки в проекте уже сознательно "мягкие" (CommonDataEntry.CompositeTypeId,
+    // DataSetSource.MaterializeTypeId и т.д.) — вводить здесь исключение было бы немотивированным
+    // расхождением с конвенцией, а не усилением защиты.
     public async Task Handle(DeleteDocumentTypeCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
         var all = await repo.GetAllAsync(ct);
         if (all.Any(x => x.ParentId == cmd.Id))
             throw new InvalidOperationException("Нельзя удалить тип, от которого наследуются другие типы.");
+
+        if ((await instanceRepo.FindAsync(i => i.DocumentTypeId == cmd.Id, ct)).Count > 0)
+            throw new InvalidOperationException("Нельзя удалить тип — по нему уже созданы документы.");
+
+        if ((await templateRepo.FindAsync(t => t.DocumentTypeId == cmd.Id, ct)).Count > 0)
+            throw new InvalidOperationException("Нельзя удалить тип — для него есть шаблоны.");
+
+        if ((await qualityDocRepo.FindAsync(q => q.DocumentTypeId == cmd.Id, ct)).Count > 0)
+            throw new InvalidOperationException("Нельзя удалить тип — есть документы качества этого типа.");
+
+        if ((await commonDataEntryRepo.FindAsync(e => e.CompositeTypeId == cmd.Id, ct)).Count > 0)
+            throw new InvalidOperationException("Нельзя удалить тип — есть записи каталога этого типа.");
+
+        if ((await dataSetService.ListTemplatesAsync(cmd.Id, ct)).Count > 0)
+            throw new InvalidOperationException("Нельзя удалить тип — для него есть шаблоны привязки наборов данных.");
+
+        if (await dataSetService.AnySourceMaterializedAsTypeAsync(cmd.Id, ct))
+            throw new InvalidOperationException("Нельзя удалить тип — на него материализован источник набора данных.");
+
+        // Тип может использоваться как составной подтип внутри схемы ДРУГОГО типа (complex/array/
+        // doc-ref/doc-array поле с typeId == cmd.Id) — сам себя (собственную схему) не проверяем,
+        // иначе self-referential составной тип (напр. дерево) стал бы неудаляемым навсегда.
+        var usedInSchemas = all.Where(t => t.Id != cmd.Id && DocumentTypeSchemaReader.ReferencesType(t.Schema, cmd.Id)).ToList();
+        if (usedInSchemas.Count > 0)
+            throw new InvalidOperationException(
+                $"Нельзя удалить тип — используется как составной подтип в схеме: {string.Join(", ", usedInSchemas.Select(t => t.Name))}.");
+
         repo.Remove(dt);
         await repo.SaveChangesAsync(ct);
     }

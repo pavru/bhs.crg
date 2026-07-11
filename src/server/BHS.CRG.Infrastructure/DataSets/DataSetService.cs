@@ -55,6 +55,8 @@ public class DataSetService(
         sources.RenameSourceAsync(sourceId, name, ct);
     public Task<bool> DeleteSourceAsync(Guid sourceId, CancellationToken ct) =>
         sources.DeleteSourceAsync(sourceId, ct);
+    public Task<bool> AnySourceMaterializedAsTypeAsync(Guid documentTypeId, CancellationToken ct) =>
+        sources.AnySourceMaterializedAsTypeAsync(documentTypeId, ct);
     public Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, CancellationToken ct) =>
         sources.DuplicateSourceAsync(sourceId, ct);
     public Task<IReadOnlyList<string>> ListZipXmlEntriesAsync(Guid fileId, CancellationToken ct) =>
