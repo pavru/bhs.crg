@@ -5,9 +5,44 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { useListCommonData, useCreateCommonDataEntry, useUpdateCommonDataEntry, useDeleteCommonDataEntry } from '@/shared/api/commonData';
-import type { CommonDataEntry, DocumentType, EnumTypeDef } from '@/shared/api/types';
+import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
+import type { CommonDataEntry, DocumentType, EnumTypeDef, PrimitiveTypeDef } from '@/shared/api/types';
 import { resolveEffectiveFields, groupEffectiveFields, parseSchemaFields, getDefaultValues, type SchemaField } from '@/shared/api/schema';
-import { PrimitiveInput, FileField, ImageField, SystemArrayFieldEditor, SystemComplexField, DocRefCatalogField, BaseEntryPickerModal } from './systemFields';
+import {
+  PrimitiveInput, FileField, ImageField, ArrayFieldEditor, ComplexFieldGroup, DocRefCatalogPickerField,
+} from '../document-sets/fields';
+
+// ─── Base entry picker (общие данные System-скопа) ────────────────────────────
+// Локальный пикер базового экземпляра (issue #73, шаг 1). Единый пикер — отдельный шаг (#73 п.2).
+function BaseEntryPickerModal({ open, onOpenChange, parentType, onSelect }: {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  parentType: DocumentType; onSelect: (entry: CommonDataEntry) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const { data: entries = [] } = useListCommonData({ scope: 'System', typeId: parentType.id, enabled: open });
+  const filtered = entries.filter(e => e.displayName.toLowerCase().includes(search.toLowerCase()));
+  return (
+    <Modal open={open} onOpenChange={onOpenChange} title={`Базовый экземпляр: ${parentType.name}`}>
+      <div className="space-y-4">
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..." autoFocus
+          className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
+        {filtered.length === 0 ? (
+          <p className="text-sm text-fg4 text-center py-4">Нет записей типа «{parentType.name}» в системном каталоге.</p>
+        ) : (
+          <div className="space-y-1 max-h-72 overflow-y-auto">
+            {filtered.map(entry => (
+              <button key={entry.id} type="button" onClick={() => { onSelect(entry); onOpenChange(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md hover:bg-brand-subtle transition-colors">
+                <Link2 size={13} className="text-brand shrink-0" />
+                <span className="flex-1 font-medium text-fg1 truncate">{entry.displayName}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
 
 // ─── Entry form (add / edit) ──────────────────────────────────────────────────
 
@@ -27,8 +62,14 @@ function EntryForm({
   const [error, setError] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [basePickerOpen, setBasePickerOpen] = useState(false);
+  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const createMutation = useCreateCommonDataEntry();
   const updateMutation = useUpdateCommonDataEntry();
+
+  const getPrimitiveDef = (f: SchemaField): PrimitiveTypeDef | undefined =>
+    f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
+  const getEnumDef = (f: SchemaField): EnumTypeDef | undefined =>
+    f.type === 'enum' ? enumTypes.find(et => et.id === f.typeId) : undefined;
 
   const allSelectableTypes = [...compositeTypes, ...documentTypes];
   const selectedType = allSelectableTypes.find(t => t.id === typeId) ?? null;
@@ -96,11 +137,13 @@ function EntryForm({
                   {field.title}{field.required && <span className="ml-0.5 text-danger">*</span>}
                 </label>
                 {field.type === 'array' ? (
-                  <SystemArrayFieldEditor field={field} allDocTypes={allDocTypes} enumTypes={enumTypes}
-                    value={values[field.key]} onChange={v => setValue(field.key, v)} />
+                  <ArrayFieldEditor field={field} allDocTypes={allDocTypes}
+                    value={values[field.key]} onChange={v => setValue(field.key, v)}
+                    showValidation={false} scope="System" scopeId={null} />
                 ) : (
-                  <SystemComplexField field={field} allDocTypes={allDocTypes} enumTypes={enumTypes}
-                    value={values[field.key]} onChange={v => setValue(field.key, v)} />
+                  <ComplexFieldGroup field={field} allDocTypes={allDocTypes}
+                    value={values[field.key]} onChange={v => setValue(field.key, v)}
+                    showValidation={false} scope="System" scopeId={null} />
                 )}
               </div>
             ) : field.type === 'doc-ref' ? (
@@ -108,8 +151,9 @@ function EntryForm({
                 <label className="block text-sm font-medium text-fg2 mb-1">
                   {field.title}{field.required && <span className="ml-0.5 text-danger">*</span>}
                 </label>
-                <DocRefCatalogField field={field} allDocTypes={allDocTypes}
-                  value={values[field.key]} onChange={v => setValue(field.key, v ?? undefined)} />
+                <DocRefCatalogPickerField field={field} allDocTypes={allDocTypes}
+                  value={values[field.key]} onChange={v => setValue(field.key, v ?? undefined)}
+                  scope="System" scopeId={null} />
               </div>
             ) : (
               <>
@@ -124,8 +168,8 @@ function EntryForm({
                   <FileField value={values[field.key]} onChange={v => setValue(field.key, v)} />
                 ) : (
                   <PrimitiveInput field={field} value={values[field.key]}
-                    enumTypeDef={field.type === 'enum' ? enumTypes.find(et => et.id === field.typeId) : undefined}
-                    onChange={v => setValue(field.key, v)} />
+                    onChange={v => setValue(field.key, v)} invalid={false}
+                    primitiveTypeDef={getPrimitiveDef(field)} enumTypeDef={getEnumDef(field)} />
                 )}
               </>
             )}
