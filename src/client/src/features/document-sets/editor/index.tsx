@@ -205,8 +205,6 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   }, [hasBase, ancestorIds, otherInstances, commonData]);
 
   const selectedBase = baseRef ? baseCandidates.find(c => c.id === baseRef.id) : undefined;
-  const ownFields = docType ? parseSchemaFields(docType.schema) : schemaFields;
-  const displayFields = (hasBase && baseRef) ? ownFields : schemaFields;
   // Поля, покрытые базовым экземпляром (его собственные ключи), не требуются к заполнению здесь —
   // придут наследованием при генерации (тот же класс, что sourceBoundFields из #55).
   const baseCoveredFields = useMemo(() => {
@@ -218,6 +216,14 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
     const entry = (commonData as CommonDataEntry[]).find(e => e.id === baseRef.id);
     return new Set(entry ? Object.keys(entry.data) : []);
   }, [baseRef, otherInstances, commonData]);
+  const ownFields = docType ? parseSchemaFields(docType.schema) : schemaFields;
+  const ownFieldKeys = new Set(ownFields.map(f => f.key));
+  // При выбранной базе скрываем ТОЛЬКО поля, реально покрытые ею; собственные (можно переопределить)
+  // и унаследованные, но НЕ покрытые базой (напр. база — дед/запись общих данных, часть полей не даёт),
+  // показываем — их нужно заполнить вручную (issue #71).
+  const displayFields = (hasBase && baseRef)
+    ? schemaFields.filter(f => ownFieldKeys.has(f.key) || !baseCoveredFields.has(f.key))
+    : schemaFields;
   function selectBase(c: BaseCandidate) { setValue('_baseRef', { kind: c.kind, id: c.id }); }
   function clearBaseRef() {
     setValues(p => { const n = { ...p }; delete n._baseRef; return n; });
