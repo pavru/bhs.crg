@@ -24,9 +24,9 @@ public record BindingSourceDto(
     Guid? MaterializeTypeId = null, Dictionary<string, string>? MaterializeMapping = null);
 
 /// <summary>Привязка — только Mapping. Filter/Transformation/Sort живут на DataSetSource.
-/// Владелец — ровно одно из InstanceId/CommonDataEntryId задано.</summary>
+/// Владелец — единый <see cref="OwnerId"/> (DomainObject: документ или запись общих данных).</summary>
 public record DataSetBindingDto(
-    Guid Id, Guid? InstanceId, Guid? CommonDataEntryId, Guid SourceId, string? TargetFieldKey,
+    Guid Id, Guid OwnerId, Guid SourceId, string? TargetFieldKey,
     Dictionary<string, string> Mapping, BindingSourceDto? Source);
 
 /// <summary>Шаблон маппинга (для типа документа). Filter/Transformation/Sort — см. DataSetProcessingTemplateDto.</summary>
@@ -130,9 +130,9 @@ public record UpdateProcessingTemplateInput(
     string Name, string? SheetOrPath, IReadOnlyList<ColumnExprDto>? ColumnExpressions,
     object? RowFilter, object? ComputedColumns, object? SortSpec);
 
-/// <summary>Владелец — ровно одно из InstanceId/CommonDataEntryId задано.</summary>
+/// <summary>Владелец — единый DomainObject (документ или запись общих данных).</summary>
 public record CreateBindingInput(
-    Guid? InstanceId, Guid? CommonDataEntryId, Guid SourceId, string? TargetFieldKey, Dictionary<string, string>? Mapping);
+    Guid OwnerId, Guid SourceId, string? TargetFieldKey, Dictionary<string, string>? Mapping);
 
 public record UpdateBindingInput(string? TargetFieldKey, Dictionary<string, string>? Mapping);
 

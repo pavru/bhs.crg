@@ -1,8 +1,10 @@
+using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
 using MediatR;
 
@@ -10,10 +12,9 @@ namespace BHS.CRG.Application.Documents;
 
 public class DocumentTypeHandlers(
     IRepository<DocumentType> repo,
-    IRepository<DocumentInstance> instanceRepo,
+    IRepository<DomainObject> objectRepo,
     IRepository<Template> templateRepo,
     IRepository<QualityDocument> qualityDocRepo,
-    IRepository<CommonDataEntry> commonDataEntryRepo,
     IDataSetService dataSetService) :
     IRequestHandler<CreateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeCommand, DocumentType>,
@@ -112,14 +113,9 @@ public class DocumentTypeHandlers(
         return dt;
     }
 
-    // issue #57: удаление типа не проверяло использование — документы/шаблоны/записи каталога,
-    // созданные на его основе, оставались с "висячей" ссылкой (ни FK в БД, ни прикладной проверки не
-    // было ни для одной из этих точек). Ниже — прикладная проверка (по образцу уже существовавшей
-    // ParentId-проверки и DataSetSourceService.DeleteSourceAsync), а не настоящий FK в БД: единственный
-    // реальный FK в модели — self-reference ParentId (дерево внутри одной таблицы), все остальные
-    // межагрегатные ссылки в проекте уже сознательно "мягкие" (CommonDataEntry.CompositeTypeId,
-    // DataSetSource.MaterializeTypeId и т.д.) — вводить здесь исключение было бы немотивированным
-    // расхождением с конвенцией, а не усилением защиты.
+    // issue #57: удаление типа не проверяло использование. Ниже — прикладные проверки (по образцу
+    // ParentId-проверки и DataSetSourceService.DeleteSourceAsync). После слияния (issue #84) документы
+    // и записи общих данных — единый DomainObject.CompositeTypeId, поэтому проверка объектов одна.
     public async Task Handle(DeleteDocumentTypeCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
@@ -127,17 +123,14 @@ public class DocumentTypeHandlers(
         if (all.Any(x => x.ParentId == cmd.Id))
             throw new InvalidOperationException("Нельзя удалить тип, от которого наследуются другие типы.");
 
-        if ((await instanceRepo.FindAsync(i => i.DocumentTypeId == cmd.Id, ct)).Count > 0)
-            throw new InvalidOperationException("Нельзя удалить тип — по нему уже созданы документы.");
+        if ((await objectRepo.FindAsync(o => o.CompositeTypeId == cmd.Id, ct)).Count > 0)
+            throw new InvalidOperationException("Нельзя удалить тип — по нему уже созданы объекты (документы или записи общих данных).");
 
         if ((await templateRepo.FindAsync(t => t.DocumentTypeId == cmd.Id, ct)).Count > 0)
             throw new InvalidOperationException("Нельзя удалить тип — для него есть шаблоны.");
 
         if ((await qualityDocRepo.FindAsync(q => q.DocumentTypeId == cmd.Id, ct)).Count > 0)
             throw new InvalidOperationException("Нельзя удалить тип — есть документы качества этого типа.");
-
-        if ((await commonDataEntryRepo.FindAsync(e => e.CompositeTypeId == cmd.Id, ct)).Count > 0)
-            throw new InvalidOperationException("Нельзя удалить тип — есть записи каталога этого типа.");
 
         if ((await dataSetService.ListTemplatesAsync(cmd.Id, ct)).Count > 0)
             throw new InvalidOperationException("Нельзя удалить тип — для него есть шаблоны привязки наборов данных.");
@@ -146,8 +139,7 @@ public class DocumentTypeHandlers(
             throw new InvalidOperationException("Нельзя удалить тип — на него материализован источник набора данных.");
 
         // Тип может использоваться как составной подтип внутри схемы ДРУГОГО типа (complex/array/
-        // doc-ref/doc-array поле с typeId == cmd.Id) — сам себя (собственную схему) не проверяем,
-        // иначе self-referential составной тип (напр. дерево) стал бы неудаляемым навсегда.
+        // doc-ref/doc-array поле с typeId == cmd.Id) — сам себя (собственную схему) не проверяем.
         var usedInSchemas = all.Where(t => t.Id != cmd.Id && DocumentTypeSchemaReader.ReferencesType(t.Schema, cmd.Id)).ToList();
         if (usedInSchemas.Count > 0)
             throw new InvalidOperationException(
@@ -239,23 +231,23 @@ public class ConstructionHandlers(
 public class DocumentSetHandlers(
     IRepository<DocumentSet> setRepo,
     IRepository<Section> sectionRepo,
-    IRepository<DocumentInstance> instRepo,
+    IDomainObjectRepository objRepo,
     IBlobStorage blobStorage) :
     IRequestHandler<CreateDocumentSetCommand, DocumentSet>,
     IRequestHandler<RenameDocumentSetCommand, DocumentSet>,
     IRequestHandler<DeleteDocumentSetCommand>,
     IRequestHandler<GetDocumentSetQuery, DocumentSet?>,
-    IRequestHandler<ListAvailableInstancesQuery, IReadOnlyList<DocumentInstance>>,
-    IRequestHandler<AddDocumentToSetCommand, DocumentInstance>,
+    IRequestHandler<ListAvailableInstancesQuery, IReadOnlyList<DomainObject>>,
+    IRequestHandler<AddDocumentToSetCommand, DomainObject>,
     IRequestHandler<ReorderDocumentInstancesCommand, DocumentSet>,
-    IRequestHandler<RenameDocumentInstanceCommand, DocumentInstance>,
+    IRequestHandler<RenameDocumentInstanceCommand, DomainObject>,
     IRequestHandler<DeleteDocumentInstanceCommand>,
-    IRequestHandler<UpdateRequisitesCommand, DocumentInstance>,
-    IRequestHandler<UpdatePluginDataCommand, DocumentInstance>,
-    IRequestHandler<GetDocumentInstanceQuery, DocumentInstance?>,
-    IRequestHandler<SetDocumentTemplateCommand, DocumentInstance>,
-    IRequestHandler<SetDocumentTemplatesCommand, DocumentInstance>,
-    IRequestHandler<SetDocumentTemplateParamsCommand, DocumentInstance>
+    IRequestHandler<UpdateRequisitesCommand, DomainObject>,
+    IRequestHandler<UpdatePluginDataCommand, DomainObject>,
+    IRequestHandler<GetDocumentInstanceQuery, DomainObject?>,
+    IRequestHandler<SetDocumentTemplateCommand, DomainObject>,
+    IRequestHandler<SetDocumentTemplatesCommand, DomainObject>,
+    IRequestHandler<SetDocumentTemplateParamsCommand, DomainObject>
 {
     public async Task<DocumentSet> Handle(CreateDocumentSetCommand cmd, CancellationToken ct)
     {
@@ -277,6 +269,10 @@ public class DocumentSetHandlers(
     public async Task Handle(DeleteDocumentSetCommand cmd, CancellationToken ct)
     {
         var set = await setRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        // Объекты на оси (Set, этот Id) — документы и Set-скоуп общих данных — принадлежат комплекту:
+        // FK-каскада на комплект нет (единая ось, полиморфный ScopeId), удаляем прикладно.
+        var owned = await objRepo.FindAsync(o => o.ScopeLevel == CatalogScope.Set && o.ScopeId == cmd.Id, ct);
+        foreach (var o in owned) objRepo.Remove(o); // фасета + generated_files каскадируются в БД
         setRepo.Remove(set);
         await setRepo.SaveChangesAsync(ct);
     }
@@ -284,149 +280,153 @@ public class DocumentSetHandlers(
     public Task<DocumentSet?> Handle(GetDocumentSetQuery q, CancellationToken ct)
         => setRepo.GetByIdAsync(q.Id, ct);
 
-    public async Task<IReadOnlyList<DocumentInstance>> Handle(ListAvailableInstancesQuery q, CancellationToken ct)
+    public async Task<IReadOnlyList<DomainObject>> Handle(ListAvailableInstancesQuery q, CancellationToken ct)
     {
         var set = await setRepo.GetByIdAsync(q.SetId, ct) ?? throw new KeyNotFoundException();
         var section = await sectionRepo.GetByIdAsync(set.SectionId, ct) ?? throw new KeyNotFoundException();
         var constructionId = section.ConstructionId;
 
         var sectionIds = (await sectionRepo.FindAsync(s => s.ConstructionId == constructionId, ct))
-            .Select(s => s.Id)
-            .ToHashSet();
-
+            .Select(s => s.Id).ToHashSet();
         var setIds = (await setRepo.FindAsync(s => sectionIds.Contains(s.SectionId), ct))
-            .Select(s => s.Id)
-            .ToHashSet();
+            .Select(s => s.Id).ToList();
 
-        return await instRepo.FindAsync(i => setIds.Contains(i.DocumentSetId), ct);
+        return await objRepo.GetDocumentsInSetsAsync(setIds, ct);
     }
 
-    public async Task<DocumentInstance> Handle(AddDocumentToSetCommand cmd, CancellationToken ct)
+    public async Task<DomainObject> Handle(AddDocumentToSetCommand cmd, CancellationToken ct)
     {
         var set = await setRepo.GetByIdAsync(cmd.DocumentSetId, ct)
             ?? throw new KeyNotFoundException();
-        var inst = DocumentInstance.Create(cmd.DocumentSetId, cmd.DocumentTypeId);
+        var docs = await objRepo.GetSetDocumentsAsync(cmd.DocumentSetId, tracked: false, ct);
         // Новый документ — в конец комплекта (порядок сборки задаётся SortOrder).
-        var maxOrder = set.Instances.Count == 0 ? -1 : set.Instances.Max(i => i.SortOrder);
-        inst.SetSortOrder(maxOrder + 1);
+        var maxOrder = docs.Count == 0 ? -1 : docs.Max(d => d.SortOrder);
+
+        var obj = DomainObject.Create(cmd.DocumentTypeId, null, JsonDocument.Parse("{}"),
+            CatalogScope.Set, cmd.DocumentSetId);
+        obj.EnsureFacet();
+        obj.SetSortOrder(maxOrder + 1);
         set.TouchUpdatedAt();
-        await instRepo.AddAsync(inst, ct);
-        await instRepo.SaveChangesAsync(ct);
-        return inst;
+        setRepo.Update(set);
+        await objRepo.AddAsync(obj, ct);
+        await objRepo.SaveChangesAsync(ct);
+        return obj;
     }
 
     public async Task<DocumentSet> Handle(ReorderDocumentInstancesCommand cmd, CancellationToken ct)
     {
         var set = await setRepo.GetByIdAsync(cmd.SetId, ct) ?? throw new KeyNotFoundException();
+        var docs = await objRepo.GetSetDocumentsAsync(cmd.SetId, tracked: true, ct);
         // Присваиваем SortOrder по позиции в переданном списке; отсутствующие в списке документы
         // (напр. добавленные параллельно) — в конец, сохраняя их относительный порядок.
         var order = cmd.OrderedInstanceIds.Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
         var next = cmd.OrderedInstanceIds.Count;
-        foreach (var inst in set.Instances.OrderBy(i => i.SortOrder))
-            inst.SetSortOrder(order.TryGetValue(inst.Id, out var pos) ? pos : next++);
-        await setRepo.SaveChangesAsync(ct);
+        foreach (var d in docs.OrderBy(d => d.SortOrder))
+            d.SetSortOrder(order.TryGetValue(d.Id, out var pos) ? pos : next++);
+        await objRepo.SaveChangesAsync(ct);
         return set;
     }
 
-    public async Task<DocumentInstance> Handle(RenameDocumentInstanceCommand cmd, CancellationToken ct)
+    public async Task<DomainObject> Handle(RenameDocumentInstanceCommand cmd, CancellationToken ct)
     {
-        var inst = await instRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
-        inst.Rename(cmd.Name);
-        instRepo.Update(inst);
-        await instRepo.SaveChangesAsync(ct);
-        return inst;
+        var obj = await objRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        obj.Rename(cmd.Name);
+        objRepo.Update(obj);
+        await objRepo.SaveChangesAsync(ct);
+        return obj;
     }
 
     public async Task Handle(DeleteDocumentInstanceCommand cmd, CancellationToken ct)
     {
-        var inst = await instRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
-        instRepo.Remove(inst);
-        await instRepo.SaveChangesAsync(ct);
+        var obj = await objRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        objRepo.Remove(obj);
+        await objRepo.SaveChangesAsync(ct);
     }
 
-    public async Task<DocumentInstance> Handle(UpdateRequisitesCommand cmd, CancellationToken ct)
+    public async Task<DomainObject> Handle(UpdateRequisitesCommand cmd, CancellationToken ct)
     {
-        var inst = await instRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
-        var blobs = inst.ResetToDraft();
-        inst.UpdateRequisites(cmd.Requisites);
-        instRepo.Update(inst);
-        await instRepo.SaveChangesAsync(ct);
+        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
+        var blobs = obj.ResetToDraft();
+        obj.SetData(cmd.Requisites);
+        objRepo.Update(obj);
+        await objRepo.SaveChangesAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
-        return inst;
+        return obj;
     }
 
-    public async Task<DocumentInstance> Handle(UpdatePluginDataCommand cmd, CancellationToken ct)
+    public async Task<DomainObject> Handle(UpdatePluginDataCommand cmd, CancellationToken ct)
     {
-        var inst = await instRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
-        var blobs = inst.ResetToDraft();
-        inst.UpdatePluginData(cmd.PluginData);
-        instRepo.Update(inst);
-        await instRepo.SaveChangesAsync(ct);
+        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
+        var blobs = obj.ResetToDraft();
+        obj.UpdatePluginData(cmd.PluginData);
+        objRepo.Update(obj);
+        await objRepo.SaveChangesAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
-        return inst;
+        return obj;
     }
 
-    public Task<DocumentInstance?> Handle(GetDocumentInstanceQuery q, CancellationToken ct)
-        => instRepo.GetByIdAsync(q.Id, ct);
+    public Task<DomainObject?> Handle(GetDocumentInstanceQuery q, CancellationToken ct)
+        => objRepo.GetByIdAsync(q.Id, ct);
 
-    public async Task<DocumentInstance> Handle(SetDocumentTemplateCommand cmd, CancellationToken ct)
+    public async Task<DomainObject> Handle(SetDocumentTemplateCommand cmd, CancellationToken ct)
     {
-        var inst = await instRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
-        var blobs = inst.ResetToDraft();
-        inst.SetTemplate(cmd.TemplateId);
-        instRepo.Update(inst);
-        await instRepo.SaveChangesAsync(ct);
+        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
+        var blobs = obj.ResetToDraft();
+        obj.SetTemplate(cmd.TemplateId);
+        objRepo.Update(obj);
+        await objRepo.SaveChangesAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
-        return inst;
+        return obj;
     }
 
-    public async Task<DocumentInstance> Handle(SetDocumentTemplatesCommand cmd, CancellationToken ct)
+    public async Task<DomainObject> Handle(SetDocumentTemplatesCommand cmd, CancellationToken ct)
     {
-        var inst = await instRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
-        var blobs = inst.ResetToDraft(); // смена набора шаблонов меняет вывод — в черновик
-        inst.SetTemplateIds(cmd.TemplateIds);
-        instRepo.Update(inst);
-        await instRepo.SaveChangesAsync(ct);
+        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
+        var blobs = obj.ResetToDraft(); // смена набора шаблонов меняет вывод — в черновик
+        obj.SetTemplateIds(cmd.TemplateIds);
+        objRepo.Update(obj);
+        await objRepo.SaveChangesAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
-        return inst;
+        return obj;
     }
 
-    public async Task<DocumentInstance> Handle(SetDocumentTemplateParamsCommand cmd, CancellationToken ct)
+    public async Task<DomainObject> Handle(SetDocumentTemplateParamsCommand cmd, CancellationToken ct)
     {
-        var inst = await instRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
-        var blobs = inst.ResetToDraft(); // параметры влияют на вывод — сбрасываем в черновик
-        inst.SetTemplateParams(cmd.Params);
-        instRepo.Update(inst);
-        await instRepo.SaveChangesAsync(ct);
+        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
+        var blobs = obj.ResetToDraft(); // параметры влияют на вывод — сбрасываем в черновик
+        obj.SetTemplateParams(cmd.Params);
+        objRepo.Update(obj);
+        await objRepo.SaveChangesAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
-        return inst;
+        return obj;
     }
 }
 
 public class CommonDataHandlers(
-    IRepository<CommonDataEntry> repo,
+    IRepository<DomainObject> repo,
     IRepository<DocumentSet> setRepo,
     IRepository<Section> sectionRepo,
     IDataSetService dataSetService) :
-    IRequestHandler<CreateCommonDataEntryCommand, CommonDataEntry>,
-    IRequestHandler<UpdateCommonDataEntryCommand, CommonDataEntry>,
+    IRequestHandler<CreateCommonDataEntryCommand, DomainObject>,
+    IRequestHandler<UpdateCommonDataEntryCommand, DomainObject>,
     IRequestHandler<DeleteCommonDataEntryCommand>,
-    IRequestHandler<ListCommonDataEntriesQuery, IReadOnlyList<CommonDataEntry>>,
+    IRequestHandler<ListCommonDataEntriesQuery, IReadOnlyList<DomainObject>>,
     IRequestHandler<ResolveCommonDataForSetQuery, IReadOnlyList<CommonDataEntryWithScope>>,
     IRequestHandler<ResolveCommonDataForScopeQuery, IReadOnlyList<CommonDataEntryWithScope>>
 {
-    public async Task<CommonDataEntry> Handle(CreateCommonDataEntryCommand cmd, CancellationToken ct)
+    public async Task<DomainObject> Handle(CreateCommonDataEntryCommand cmd, CancellationToken ct)
     {
-        var entry = CommonDataEntry.Create(cmd.DisplayName, cmd.CompositeTypeId, cmd.Data, cmd.Scope, cmd.ScopeId, cmd.Aliases);
+        // Запись общих данных — DomainObject БЕЗ документной фасеты (issue #84).
+        var entry = DomainObject.Create(cmd.CompositeTypeId, cmd.DisplayName, cmd.Data, cmd.Scope, cmd.ScopeId, cmd.Aliases);
         await repo.AddAsync(entry, ct);
         await repo.SaveChangesAsync(ct);
         return entry;
     }
 
-    public async Task<CommonDataEntry> Handle(UpdateCommonDataEntryCommand cmd, CancellationToken ct)
+    public async Task<DomainObject> Handle(UpdateCommonDataEntryCommand cmd, CancellationToken ct)
     {
         var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
-        var previews = await dataSetService.PreviewBindingsAsync(null, cmd.Id, ct);
+        var previews = await dataSetService.PreviewBindingsAsync(cmd.Id, ct);
         var data = previews.Count == 0 ? cmd.Data : CommonDataBindingMerge.Merge(cmd.Data, previews);
         entry.Update(cmd.DisplayName, data, cmd.Aliases);
         repo.Update(entry);
@@ -441,13 +441,14 @@ public class CommonDataHandlers(
         await repo.SaveChangesAsync(ct);
     }
 
-    public Task<IReadOnlyList<CommonDataEntry>> Handle(ListCommonDataEntriesQuery q, CancellationToken ct)
+    public Task<IReadOnlyList<DomainObject>> Handle(ListCommonDataEntriesQuery q, CancellationToken ct)
     {
         var scope = q.Scope;
         var scopeId = q.ScopeId;
         var typeId = q.CompositeTypeId;
-        return repo.FindAsync(e =>
-            (!scope.HasValue || e.Scope == scope.Value) &&
+        // Только общие данные (без документной фасеты).
+        return repo.FindAsync(e => e.Facet == null &&
+            (!scope.HasValue || e.ScopeLevel == scope.Value) &&
             (!scopeId.HasValue || e.ScopeId == scopeId.Value) &&
             (!typeId.HasValue || e.CompositeTypeId == typeId.Value), ct);
     }
@@ -462,21 +463,14 @@ public class CommonDataHandlers(
         var sectionId = set.SectionId;
         var typeId = q.CompositeTypeId;
 
-        var relevant = await repo.FindAsync(e =>
-            ((e.Scope == CatalogScope.Set         && e.ScopeId == setId) ||
-             (e.Scope == CatalogScope.Section     && e.ScopeId == sectionId) ||
-             (e.Scope == CatalogScope.Construction && e.ScopeId == constructionId) ||
-             e.Scope == CatalogScope.System) &&
+        var relevant = await repo.FindAsync(e => e.Facet == null &&
+            ((e.ScopeLevel == CatalogScope.Set          && e.ScopeId == setId) ||
+             (e.ScopeLevel == CatalogScope.Section       && e.ScopeId == sectionId) ||
+             (e.ScopeLevel == CatalogScope.Construction  && e.ScopeId == constructionId) ||
+             e.ScopeLevel == CatalogScope.System) &&
             (!typeId.HasValue || e.CompositeTypeId == typeId.Value), ct);
 
-        return relevant
-            .Select(e => new CommonDataEntryWithScope(
-                e.Id, e.DisplayName, e.CompositeTypeId, e.Data,
-                e.Scope, e.ScopeId, (int)e.Scope,
-                e.CreatedAt, e.UpdatedAt))
-            .OrderBy(e => e.Priority)
-            .ThenBy(e => e.DisplayName)
-            .ToList();
+        return Project(relevant);
     }
 
     public async Task<IReadOnlyList<CommonDataEntryWithScope>> Handle(
@@ -509,20 +503,23 @@ public class CommonDataHandlers(
         }
         var typeId = q.CompositeTypeId;
 
-        var relevant = await repo.FindAsync(e =>
-            ((e.Scope == CatalogScope.Set          && e.ScopeId == setId) ||
-             (e.Scope == CatalogScope.Section       && e.ScopeId == sectionId) ||
-             (e.Scope == CatalogScope.Construction  && e.ScopeId == constructionId) ||
-             e.Scope == CatalogScope.System) &&
+        var relevant = await repo.FindAsync(e => e.Facet == null &&
+            ((e.ScopeLevel == CatalogScope.Set          && e.ScopeId == setId) ||
+             (e.ScopeLevel == CatalogScope.Section       && e.ScopeId == sectionId) ||
+             (e.ScopeLevel == CatalogScope.Construction  && e.ScopeId == constructionId) ||
+             e.ScopeLevel == CatalogScope.System) &&
             (!typeId.HasValue || e.CompositeTypeId == typeId.Value), ct);
 
-        return relevant
+        return Project(relevant);
+    }
+
+    private static List<CommonDataEntryWithScope> Project(IReadOnlyList<DomainObject> entries) =>
+        entries
             .Select(e => new CommonDataEntryWithScope(
-                e.Id, e.DisplayName, e.CompositeTypeId, e.Data,
-                e.Scope, e.ScopeId, (int)e.Scope,
+                e.Id, e.DisplayName ?? "", e.CompositeTypeId, e.Data,
+                e.ScopeLevel, e.ScopeId, (int)e.ScopeLevel,
                 e.CreatedAt, e.UpdatedAt))
             .OrderBy(e => e.Priority)
             .ThenBy(e => e.DisplayName)
             .ToList();
-    }
 }

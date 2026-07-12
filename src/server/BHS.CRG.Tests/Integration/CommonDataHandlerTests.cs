@@ -3,6 +3,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -53,7 +54,7 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
 
         Assert.NotEqual(Guid.Empty, entry.Id);
         Assert.Equal("ООО Тест", entry.DisplayName);
-        Assert.Equal(CatalogScope.System, entry.Scope);
+        Assert.Equal(CatalogScope.System, entry.ScopeLevel);
         Assert.Null(entry.ScopeId);
     }
 
@@ -75,7 +76,7 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
         }
         using (var scope = fixture.Services.CreateScope())
         {
-            var repo = scope.ServiceProvider.GetRequiredService<IRepository<CommonDataEntry>>();
+            var repo = scope.ServiceProvider.GetRequiredService<IRepository<DomainObject>>();
             var reloaded = await repo.GetByIdAsync(id, default);
             Assert.NotNull(reloaded);
             Assert.Equal(new[] { "Ромашка", "РМШ" }, reloaded!.Aliases); // персистентно (text[])

@@ -8,16 +8,16 @@ public static class DataSetBindingEndpoints
     {
         var g = app.MapGroup("/api/datasets/bindings").RequireAuthorization();
 
-        g.MapGet("", async (Guid? instanceId, Guid? commonDataEntryId, IDataSetService svc, CancellationToken ct) =>
-            Results.Ok(await svc.ListBindingsAsync(instanceId, commonDataEntryId, ct)));
+        g.MapGet("", async (Guid ownerId, IDataSetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListBindingsAsync(ownerId, ct)));
 
         // Literal route — registered before /{id:guid} so it is matched first.
-        g.MapGet("/preview", async (Guid? instanceId, Guid? commonDataEntryId, IDataSetService svc, CancellationToken ct) =>
-            Results.Ok(await svc.PreviewBindingsAsync(instanceId, commonDataEntryId, ct)));
+        g.MapGet("/preview", async (Guid ownerId, IDataSetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.PreviewBindingsAsync(ownerId, ct)));
 
         g.MapPost("", async (CreateBindingRequest req, IDataSetService svc, CancellationToken ct) =>
         {
-            var input = new CreateBindingInput(req.InstanceId, req.CommonDataEntryId, req.SourceId, req.TargetFieldKey, req.Mapping);
+            var input = new CreateBindingInput(req.OwnerId, req.SourceId, req.TargetFieldKey, req.Mapping);
             try
             {
                 var result = await svc.CreateBindingAsync(input, ct);
@@ -38,7 +38,7 @@ public static class DataSetBindingEndpoints
     }
 
     private record CreateBindingRequest(
-        Guid? InstanceId, Guid? CommonDataEntryId, Guid SourceId, string? TargetFieldKey, Dictionary<string, string>? Mapping);
+        Guid OwnerId, Guid SourceId, string? TargetFieldKey, Dictionary<string, string>? Mapping);
 
     private record UpdateBindingRequest(string? TargetFieldKey, Dictionary<string, string>? Mapping);
 }

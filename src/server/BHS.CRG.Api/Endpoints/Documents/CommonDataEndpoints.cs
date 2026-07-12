@@ -22,7 +22,8 @@ public static class CommonDataEndpoints
                 "System"       => CatalogScope.System,
                 _              => null,
             };
-            return Results.Ok(await m.Send(new ListCommonDataEntriesQuery(parsedScope, scopeId, typeId)));
+            return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(parsedScope, scopeId, typeId)))
+                .Select(CommonDataEntryDto.From));
         });
 
         // Resolve all relevant entries for a document set (full hierarchy)
@@ -54,7 +55,7 @@ public static class CommonDataEndpoints
         {
             var all = await m.Send(new ListCommonDataEntriesQuery());
             var entry = all.FirstOrDefault(e => e.Id == id);
-            return entry is null ? Results.NotFound() : Results.Ok(entry);
+            return entry is null ? Results.NotFound() : Results.Ok(CommonDataEntryDto.From(entry));
         });
 
         g.MapPost("/", async (CreateRequest req, IMediator m) =>
@@ -66,14 +67,14 @@ public static class CommonDataEndpoints
                 "System"       => CatalogScope.System,
                 _              => CatalogScope.Set,
             };
-            return Results.Ok(await m.Send(new CreateCommonDataEntryCommand(
+            return Results.Ok(CommonDataEntryDto.From(await m.Send(new CreateCommonDataEntryCommand(
                 req.DisplayName, req.CompositeTypeId,
-                JsonDocument.Parse(req.Data), scope, req.ScopeId, req.Aliases)));
+                JsonDocument.Parse(req.Data), scope, req.ScopeId, req.Aliases))));
         });
 
         g.MapPut("/{id:guid}", async (Guid id, UpdateRequest req, IMediator m) =>
-            Results.Ok(await m.Send(new UpdateCommonDataEntryCommand(
-                id, req.DisplayName, JsonDocument.Parse(req.Data), req.Aliases))));
+            Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand(
+                id, req.DisplayName, JsonDocument.Parse(req.Data), req.Aliases)))));
 
         g.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {

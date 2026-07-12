@@ -113,8 +113,8 @@ public class DocumentSetHandlerTests(IntegrationTestFixture fixture) : IAsyncLif
         var inst = await Mediator(scope).Send(new AddDocumentToSetCommand(set.Id, dtId));
 
         Assert.NotEqual(Guid.Empty, inst.Id);
-        Assert.Equal(set.Id, inst.DocumentSetId);
-        Assert.Equal(dtId, inst.DocumentTypeId);
+        Assert.Equal(set.Id, inst.ScopeId);
+        Assert.Equal(dtId, inst.CompositeTypeId);
     }
 
     [Fact]
@@ -131,8 +131,8 @@ public class DocumentSetHandlerTests(IntegrationTestFixture fixture) : IAsyncLif
         using var scope2 = fixture.Services.CreateScope();
         var updated = await Mediator(scope2).Send(new UpdateRequisitesCommand(inst.Id, requisites));
 
-        Assert.NotNull(updated.Requisites);
-        using var doc = updated.Requisites;
+        Assert.NotNull(updated.Data);
+        using var doc = updated.Data;
         Assert.True(doc!.RootElement.TryGetProperty("Дата", out _));
     }
 

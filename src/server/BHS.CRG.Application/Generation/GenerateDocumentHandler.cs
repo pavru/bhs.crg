@@ -6,13 +6,14 @@ using BHS.CRG.Application.Schema;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Notifications;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
 using MediatR;
 
 namespace BHS.CRG.Application.Generation;
 
 public class GenerateDocumentHandler(
-    IRepository<DocumentInstance> instanceRepo,
+    IRepository<DomainObject> instanceRepo,
     IRepository<GeneratedFile> fileRepo,
     IRepository<Template> templateRepo,
     IRepository<DocumentType> docTypeRepo,
@@ -44,7 +45,7 @@ public class GenerateDocumentHandler(
 
         try
         {
-            var candidates = (await templateRepo.FindAsync(t => t.DocumentTypeId == instance.DocumentTypeId, ct)).ToList();
+            var candidates = (await templateRepo.FindAsync(t => t.DocumentTypeId == instance.CompositeTypeId, ct)).ToList();
 
             // Список шаблонов для генерации: выбранный НАБОР (мульти-шаблоны) или один эффективный
             // (явно выбранный → по умолчанию → первый активный) — как раньше при пустом наборе.
@@ -61,7 +62,7 @@ public class GenerateDocumentHandler(
                 var single = (instance.TemplateId.HasValue ? candidates.FirstOrDefault(t => t.Id == instance.TemplateId.Value) : null)
                     ?? candidates.FirstOrDefault(t => t.IsDefault && t.IsActive)
                     ?? candidates.FirstOrDefault(t => t.IsActive)
-                    ?? throw new InvalidOperationException($"No active template for DocumentType {instance.DocumentTypeId}");
+                    ?? throw new InvalidOperationException($"No active template for DocumentType {instance.CompositeTypeId}");
                 templates = [single];
             }
 
@@ -79,7 +80,7 @@ public class GenerateDocumentHandler(
             await qualityLinkResolver.InjectAsync(context, view, ct);
             // Наборы данных могли добавить ссылки на каталог ($ref) в составные поля —
             // разрешаем их вторым проходом (для уже разрешённых данных идемпотентно).
-            await entityResolver.ResolveContextRefsAsync(context, instance.DocumentSetId, ct);
+            await entityResolver.ResolveContextRefsAsync(context, view.DocumentSetId, ct);
             // Проверка разрешения ссылок перед генерацией: оставшиеся $ref — ошибки,
             // при их наличии прерываем генерацию с диагностикой.
             ResolutionScanner.ScanLeftoverRefs(context, diagnostics);
@@ -104,7 +105,7 @@ public class GenerateDocumentHandler(
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
             var imageOptions = SchemaImageOptions.Collect(allDocTypes);
-            var docType = allDocTypes.FirstOrDefault(dt => dt.Id == instance.DocumentTypeId);
+            var docType = allDocTypes.FirstOrDefault(dt => dt.Id == instance.CompositeTypeId);
 
             // По PDF на каждый выбранный шаблон. Контекст (реквизиты/наборы/каталог) общий — строится
             // один раз выше; на шаблон меняются только params, содержимое и настройки страницы.
@@ -116,7 +117,7 @@ public class GenerateDocumentHandler(
 
                 // Ассеты шаблона (issue #62) — только для PDF (как typeBlocks/userLib выше).
                 var templateAssets = cmd.Format == OutputFormat.Pdf
-                    ? await templateAssetResolver.ResolveAsync(template.Id, instance.DocumentTypeId, ct)
+                    ? await templateAssetResolver.ResolveAsync(template.Id, instance.CompositeTypeId, ct)
                     : null;
 
                 var generator = generatorFactory.Create(cmd.Format);
@@ -132,7 +133,7 @@ public class GenerateDocumentHandler(
                     if (taggedFields.Count > 0)
                     {
                         var meta = metadataExtractor.Extract(bytes, isPdf: cmd.Format == OutputFormat.Pdf, cmd.GeneratedBy);
-                        instance.UpdateRequisites(SchemaTags.PatchMetadata(instance.Requisites, taggedFields, meta));
+                        instance.SetData(SchemaTags.PatchMetadata(instance.Data, taggedFields, meta));
                     }
                 }
 
@@ -147,7 +148,7 @@ public class GenerateDocumentHandler(
 
             var first = generated[0];
             await notifications.PublishAsync(NotificationSeverity.Info, "Документ сгенерирован",
-                generated.Count == 1 ? $"«{instance.Name}» — {cmd.Format}." : $"«{instance.Name}» — сгенерировано файлов: {generated.Count}.",
+                generated.Count == 1 ? $"«{instance.DisplayName}» — {cmd.Format}." : $"«{instance.DisplayName}» — сгенерировано файлов: {generated.Count}.",
                 "Генерация", userId: cmd.UserId,
                 linkUrl: $"/api/generate/download/{instance.Id}/{first.TemplateId}/{ext}",
                 linkLabel: generated.Count == 1 ? $"Скачать {ext.ToUpperInvariant()}" : "Открыть",
@@ -161,7 +162,7 @@ public class GenerateDocumentHandler(
             instanceRepo.Update(instance);
             await instanceRepo.SaveChangesAsync(ct);
             await notifications.PublishAsync(NotificationSeverity.Error, "Ошибка генерации",
-                $"«{instance.Name}»: {ex.Message}", "Генерация", userId: cmd.UserId, ct: ct);
+                $"«{instance.DisplayName}»: {ex.Message}", "Генерация", userId: cmd.UserId, ct: ct);
             throw;
         }
     }

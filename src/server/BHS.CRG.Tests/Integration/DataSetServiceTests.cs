@@ -186,7 +186,7 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
                 new CreateCommonDataEntryCommand("Запись", typeId, JsonDocument.Parse("{}"),
                     BHS.CRG.Domain.Catalog.CatalogScope.System, null));
             await Svc(scope).CreateBindingAsync(
-                new CreateBindingInput(null, entry.Id, srcId, null, new() { ["Поле"] = "A" }), default);
+                new CreateBindingInput(entry.Id, srcId, null, new() { ["Поле"] = "A" }), default);
         }
 
         using var scope2 = fixture.Services.CreateScope();
@@ -204,10 +204,10 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
                 BHS.CRG.Domain.Catalog.CatalogScope.System, null));
 
         var created = await Svc(scope).CreateBindingAsync(
-            new CreateBindingInput(null, entry.Id, src.Id, null, new() { ["Поле"] = "A" }), default);
+            new CreateBindingInput(entry.Id, src.Id, null, new() { ["Поле"] = "A" }), default);
         Assert.NotNull(created);
 
-        var list = await Svc(scope).ListBindingsAsync(null, entry.Id, default);
+        var list = await Svc(scope).ListBindingsAsync(entry.Id, default);
         Assert.Single(list);
         Assert.Equal(src.Id, list[0].SourceId);
     }
@@ -228,9 +228,9 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
             new CreateCommonDataEntryCommand("Запись", typeId, JsonDocument.Parse("{}"),
                 BHS.CRG.Domain.Catalog.CatalogScope.System, null));
         // Своя привязка без явного маппинга — эффективный маппинг берётся с материализации источника.
-        await svc.CreateBindingAsync(new CreateBindingInput(null, entry.Id, src.Id, null, null), default);
+        await svc.CreateBindingAsync(new CreateBindingInput(entry.Id, src.Id, null, null), default);
 
-        var list = await svc.ListBindingsAsync(null, entry.Id, default);
+        var list = await svc.ListBindingsAsync(entry.Id, default);
         var binding = Assert.Single(list);
         Assert.Empty(binding.Mapping);
         Assert.NotNull(binding.Source);

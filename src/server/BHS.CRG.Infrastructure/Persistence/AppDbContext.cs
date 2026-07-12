@@ -17,7 +17,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
     public DbSet<CatalogEntity> CatalogEntities => Set<CatalogEntity>();
-    public DbSet<CommonDataEntry> CommonDataEntries => Set<CommonDataEntry>();
+    public DbSet<BHS.CRG.Domain.Objects.DomainObject> DomainObjects => Set<BHS.CRG.Domain.Objects.DomainObject>();
+    public DbSet<BHS.CRG.Domain.Objects.DocumentFacet> DocumentFacets => Set<BHS.CRG.Domain.Objects.DocumentFacet>();
     public DbSet<PrimitiveType> PrimitiveTypes => Set<PrimitiveType>();
     public DbSet<EnumType> EnumTypes => Set<EnumType>();
     public DbSet<DocumentType> DocumentTypes => Set<DocumentType>();
@@ -26,7 +27,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Construction> Constructions => Set<Construction>();
     public DbSet<Section> Sections => Set<Section>();
     public DbSet<DocumentSet> DocumentSets => Set<DocumentSet>();
-    public DbSet<DocumentInstance> DocumentInstances => Set<DocumentInstance>();
     public DbSet<GeneratedFile> GeneratedFiles => Set<GeneratedFile>();
     public DbSet<DocumentSetOutput> DocumentSetOutputs => Set<DocumentSetOutput>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();

@@ -101,16 +101,16 @@ public class DataSetService(
         processingTemplates.DeleteAsync(id, ct);
 
     // ── Bindings ──────────────────────────────────────────────────────────────
-    public Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid? instanceId, Guid? commonDataEntryId, CancellationToken ct) =>
-        bindings.ListBindingsAsync(instanceId, commonDataEntryId, ct);
+    public Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid ownerId, CancellationToken ct) =>
+        bindings.ListBindingsAsync(ownerId, ct);
     public Task<DataSetBindingDto?> CreateBindingAsync(CreateBindingInput input, CancellationToken ct) =>
         bindings.CreateBindingAsync(input, ct);
     public Task<DataSetBindingDto?> UpdateBindingAsync(Guid id, UpdateBindingInput input, CancellationToken ct) =>
         bindings.UpdateBindingAsync(id, input, ct);
     public Task<bool> DeleteBindingAsync(Guid id, CancellationToken ct) =>
         bindings.DeleteBindingAsync(id, ct);
-    public Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(Guid? instanceId, Guid? commonDataEntryId, CancellationToken ct) =>
-        bindings.PreviewBindingsAsync(instanceId, commonDataEntryId, ct);
+    public Task<IReadOnlyList<BindingPreviewDto>> PreviewBindingsAsync(Guid ownerId, CancellationToken ct) =>
+        bindings.PreviewBindingsAsync(ownerId, ct);
 
     // ── Binding templates ───────────────────────────────────────────────────────
     public Task<IReadOnlyList<DataSetBindingTemplateDto>> ListTemplatesAsync(Guid docTypeId, CancellationToken ct) =>

@@ -4,7 +4,8 @@ namespace BHS.CRG.Domain.Documents;
 
 public class GeneratedFile : Entity
 {
-    public Guid DocumentInstanceId { get; private set; }
+    /// <summary>Владелец — документная фасета объекта (issue #84: было DocumentInstanceId).</summary>
+    public Guid ObjectId { get; private set; }
     public OutputFormat Format { get; private set; }
     public string BlobPath { get; private set; } = default!;
 
@@ -14,8 +15,11 @@ public class GeneratedFile : Entity
 
     private GeneratedFile() { }
 
-    internal static GeneratedFile Create(Guid instanceId, OutputFormat format, string blobPath, Guid? templateId)
-        => new() { DocumentInstanceId = instanceId, Format = format, BlobPath = blobPath, TemplateId = templateId };
+    internal static GeneratedFile Create(Guid objectId, OutputFormat format, string blobPath, Guid? templateId)
+        => new() { ObjectId = objectId, Format = format, BlobPath = blobPath, TemplateId = templateId };
 }
 
 public enum OutputFormat { Pdf }
+
+/// <summary>Статус документа (документная фасета <c>DomainObject</c>).</summary>
+public enum DocumentStatus { Draft, Generating, Generated, Failed }

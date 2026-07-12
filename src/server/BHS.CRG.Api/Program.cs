@@ -121,10 +121,11 @@ builder.Services.AddScoped<IRepository<DocumentType>, Repository<DocumentType>>(
 builder.Services.AddScoped<IRepository<Construction>, ConstructionRepository>();
 builder.Services.AddScoped<IRepository<Section>, Repository<Section>>();
 builder.Services.AddScoped<IRepository<DocumentSet>, DocumentSetRepository>();
-builder.Services.AddScoped<IRepository<DocumentInstance>, DocumentInstanceRepository>();
+builder.Services.AddScoped<DomainObjectRepository>();
+builder.Services.AddScoped<IRepository<BHS.CRG.Domain.Objects.DomainObject>>(sp => sp.GetRequiredService<DomainObjectRepository>());
+builder.Services.AddScoped<IDomainObjectRepository>(sp => sp.GetRequiredService<DomainObjectRepository>());
 builder.Services.AddScoped<IRepository<Template>, Repository<Template>>();
 builder.Services.AddScoped<IRepository<TemplateAsset>, Repository<TemplateAsset>>();
-builder.Services.AddScoped<IRepository<CommonDataEntry>, Repository<CommonDataEntry>>();
 builder.Services.AddScoped<IRepository<GeneratedFile>, Repository<GeneratedFile>>();
 builder.Services.AddScoped<IRepository<DocumentSetOutput>, Repository<DocumentSetOutput>>();
 builder.Services.AddScoped<IRepository<TypstUserLib>, Repository<TypstUserLib>>();

@@ -3,6 +3,7 @@ using BHS.CRG.Application.Email;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Notifications;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
 using Microsoft.Extensions.Configuration;
 
@@ -17,7 +18,7 @@ namespace BHS.CRG.Infrastructure.Email;
 public class DocumentSetEmailService(
     IRepository<DocumentSet> setRepo,
     IRepository<DocumentSetOutput> outputRepo,
-    IRepository<DocumentInstance> instanceRepo,
+    IRepository<DomainObject> instanceRepo,
     IRepository<DocumentType> docTypeRepo,
     IRepository<Template> templateRepo,
     IBlobStorage blob,
@@ -53,8 +54,8 @@ public class DocumentSetEmailService(
         if (pdfs.Count == 0)
             throw new InvalidOperationException("У документа нет сгенерированных PDF — сначала сгенерируйте.");
 
-        var docType = await docTypeRepo.GetByIdAsync(instance.DocumentTypeId, ct);
-        var docName = instance.Name ?? docType?.Name ?? "Документ";
+        var docType = await docTypeRepo.GetByIdAsync(instance.CompositeTypeId, ct);
+        var docName = instance.DisplayName ?? docType?.Name ?? "Документ";
 
         // Имена вложений: для нескольких PDF (мульти-шаблон) добавляем имя шаблона.
         var files = new List<Attachment>();

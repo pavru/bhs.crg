@@ -11,30 +11,8 @@ public class DocumentSetConfiguration : IEntityTypeConfiguration<DocumentSet>
         b.ToTable("document_sets");
         b.HasKey(e => e.Id);
         b.Property(e => e.Name).HasMaxLength(512).IsRequired();
-        b.HasMany(e => e.Instances)
-         .WithOne()
-         .HasForeignKey(i => i.DocumentSetId)
-         .OnDelete(DeleteBehavior.Cascade);
+        // Документы комплекта — DomainObject на оси (Set, этот Id), прямой FK-навигации нет (issue #84).
         b.HasIndex(e => e.SectionId);
-    }
-}
-
-public class DocumentInstanceConfiguration : IEntityTypeConfiguration<DocumentInstance>
-{
-    public void Configure(EntityTypeBuilder<DocumentInstance> b)
-    {
-        b.ToTable("document_instances");
-        b.HasKey(e => e.Id);
-        b.Property(e => e.Name).HasMaxLength(512);
-        b.Property(e => e.Requisites).HasColumnType("jsonb");
-        b.Property(e => e.PluginData).HasColumnType("jsonb");
-        b.Property(e => e.TemplateParams).HasColumnType("jsonb");
-        b.Property(e => e.TemplateIds).HasColumnType("jsonb");
-        b.Property(e => e.Status).HasConversion<string>().HasMaxLength(32);
-        b.HasMany(e => e.GeneratedFiles)
-         .WithOne()
-         .HasForeignKey(f => f.DocumentInstanceId)
-         .OnDelete(DeleteBehavior.Cascade);
     }
 }
 

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
 using MediatR;
 
 namespace BHS.CRG.Application.Documents;
@@ -32,38 +33,38 @@ public record CreateDocumentSetCommand(Guid SectionId, string Name) : IRequest<D
 public record RenameDocumentSetCommand(Guid Id, string Name) : IRequest<DocumentSet>;
 public record DeleteDocumentSetCommand(Guid Id) : IRequest;
 public record GetDocumentSetQuery(Guid Id) : IRequest<DocumentSet?>;
-public record ListAvailableInstancesQuery(Guid SetId) : IRequest<IReadOnlyList<DocumentInstance>>;
+public record ListAvailableInstancesQuery(Guid SetId) : IRequest<IReadOnlyList<DomainObject>>;
 
 // --- DocumentInstance ---
-public record AddDocumentToSetCommand(Guid DocumentSetId, Guid DocumentTypeId) : IRequest<DocumentInstance>;
+public record AddDocumentToSetCommand(Guid DocumentSetId, Guid DocumentTypeId) : IRequest<DomainObject>;
 public record ReorderDocumentInstancesCommand(Guid SetId, IReadOnlyList<Guid> OrderedInstanceIds) : IRequest<DocumentSet>;
-public record RenameDocumentInstanceCommand(Guid Id, string? Name) : IRequest<DocumentInstance>;
+public record RenameDocumentInstanceCommand(Guid Id, string? Name) : IRequest<DomainObject>;
 public record DeleteDocumentInstanceCommand(Guid Id) : IRequest;
-public record UpdateRequisitesCommand(Guid InstanceId, JsonDocument Requisites) : IRequest<DocumentInstance>;
-public record UpdatePluginDataCommand(Guid InstanceId, JsonDocument PluginData) : IRequest<DocumentInstance>;
-public record GetDocumentInstanceQuery(Guid Id) : IRequest<DocumentInstance?>;
-public record SetDocumentTemplateCommand(Guid InstanceId, Guid? TemplateId) : IRequest<DocumentInstance>;
+public record UpdateRequisitesCommand(Guid InstanceId, JsonDocument Requisites) : IRequest<DomainObject>;
+public record UpdatePluginDataCommand(Guid InstanceId, JsonDocument PluginData) : IRequest<DomainObject>;
+public record GetDocumentInstanceQuery(Guid Id) : IRequest<DomainObject?>;
+public record SetDocumentTemplateCommand(Guid InstanceId, Guid? TemplateId) : IRequest<DomainObject>;
 
 /// <summary>Набор выбранных шаблонов для мульти-генерации (JSON-массив Guid или null — тогда один дефолт).</summary>
-public record SetDocumentTemplatesCommand(Guid InstanceId, string? TemplateIds) : IRequest<DocumentInstance>;
+public record SetDocumentTemplatesCommand(Guid InstanceId, string? TemplateIds) : IRequest<DomainObject>;
 
 /// <summary>Переопределения значений параметров шаблона на документе (JSON-объект {имя:значение} или null).</summary>
-public record SetDocumentTemplateParamsCommand(Guid InstanceId, string? Params) : IRequest<DocumentInstance>;
+public record SetDocumentTemplateParamsCommand(Guid InstanceId, string? Params) : IRequest<DomainObject>;
 
 // --- CommonDataEntry ---
 public record CreateCommonDataEntryCommand(
     string DisplayName, Guid CompositeTypeId, JsonDocument Data,
-    CatalogScope Scope, Guid? ScopeId, IReadOnlyList<string>? Aliases = null) : IRequest<CommonDataEntry>;
+    CatalogScope Scope, Guid? ScopeId, IReadOnlyList<string>? Aliases = null) : IRequest<DomainObject>;
 
 public record UpdateCommonDataEntryCommand(Guid Id, string DisplayName, JsonDocument Data,
-    IReadOnlyList<string>? Aliases = null) : IRequest<CommonDataEntry>;
+    IReadOnlyList<string>? Aliases = null) : IRequest<DomainObject>;
 
 public record DeleteCommonDataEntryCommand(Guid Id) : IRequest;
 
 public record ListCommonDataEntriesQuery(
     CatalogScope? Scope = null,
     Guid? ScopeId = null,
-    Guid? CompositeTypeId = null) : IRequest<IReadOnlyList<CommonDataEntry>>;
+    Guid? CompositeTypeId = null) : IRequest<IReadOnlyList<DomainObject>>;
 
 /// <summary>
 /// Возвращает все записи каталога, доступные для данного комплекта,

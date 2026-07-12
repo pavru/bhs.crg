@@ -4,6 +4,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.DataSets;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Recognition;
 using Microsoft.EntityFrameworkCore;
@@ -387,37 +388,30 @@ public class DataSetSourceService(
         db.DataSetSources.AnyAsync(s => s.MaterializeTypeId == documentTypeId, ct);
 
     // Человекочитаемое описание, где именно используется источник (для сообщения об ошибке
-    // удаления) — по DocumentInstance (документ + комплект) и по CommonDataEntry (запись каталога).
+    // удаления) — по владельцу-объекту: документ (есть фасета, живёт в комплекте) или запись общих данных.
     private async Task<List<string>> DescribeBindingUsagesAsync(List<DataSetBinding> bindings, CancellationToken ct)
     {
         var usages = new List<string>();
+        var ownerIds = bindings.Select(b => b.OwnerId).Distinct().ToList();
+        if (ownerIds.Count == 0) return usages;
 
-        var instanceIds = bindings.Where(b => b.InstanceId is not null).Select(b => b.InstanceId!.Value).Distinct().ToList();
-        if (instanceIds.Count > 0)
+        var owners = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
+            .Where(o => ownerIds.Contains(o.Id)).ToListAsync(ct);
+        var typeIds = owners.Select(o => o.CompositeTypeId).Distinct().ToList();
+        var typeNames = await db.DocumentTypes.Where(t => typeIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.Name, ct);
+        var setIds = owners.Where(o => o.IsDocument && o.ScopeId != null).Select(o => o.ScopeId!.Value).Distinct().ToList();
+        var setNames = await db.DocumentSets.Where(s => setIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
+
+        foreach (var o in owners)
         {
-            var instances = await db.DocumentInstances
-                .Where(i => instanceIds.Contains(i.Id))
-                .Select(i => new { i.Id, i.Name, i.DocumentTypeId, i.DocumentSetId })
-                .ToListAsync(ct);
-            var typeIds = instances.Select(i => i.DocumentTypeId).Distinct().ToList();
-            var setIds = instances.Select(i => i.DocumentSetId).Distinct().ToList();
-            var typeNames = await db.DocumentTypes.Where(t => typeIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.Name, ct);
-            var setNames = await db.DocumentSets.Where(s => setIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
-            foreach (var inst in instances)
+            var label = o.DisplayName ?? typeNames.GetValueOrDefault(o.CompositeTypeId, o.IsDocument ? "документ" : "запись");
+            if (o.IsDocument)
             {
-                var label = inst.Name ?? typeNames.GetValueOrDefault(inst.DocumentTypeId, "документ");
-                var setName = setNames.GetValueOrDefault(inst.DocumentSetId);
+                var setName = o.ScopeId is { } sid ? setNames.GetValueOrDefault(sid) : null;
                 usages.Add(setName is not null ? $"документ «{label}» (комплект «{setName}»)" : $"документ «{label}»");
             }
+            else usages.Add($"запись каталога «{label}»");
         }
-
-        var entryIds = bindings.Where(b => b.CommonDataEntryId is not null).Select(b => b.CommonDataEntryId!.Value).Distinct().ToList();
-        if (entryIds.Count > 0)
-        {
-            var entryNames = await db.CommonDataEntries.Where(e => entryIds.Contains(e.Id)).Select(e => e.DisplayName).ToListAsync(ct);
-            usages.AddRange(entryNames.Select(name => $"запись каталога «{name}»"));
-        }
-
         return usages;
     }
 

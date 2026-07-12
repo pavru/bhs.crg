@@ -3,6 +3,7 @@ using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
 using MediatR;
 
@@ -25,7 +26,7 @@ public record GenerationDebugBundle(
 public record GetGenerationDebugBundleQuery(Guid InstanceId) : IRequest<GenerationDebugBundle?>;
 
 public class GetGenerationDebugBundleHandler(
-    IRepository<DocumentInstance> instanceRepo,
+    IRepository<DomainObject> instanceRepo,
     IRepository<Template> templateRepo,
     IRepository<DocumentType> docTypeRepo,
     IRepository<TypstUserLib> userLibRepo,
@@ -50,13 +51,13 @@ public class GetGenerationDebugBundleHandler(
         if (instance is null) return null;
 
         // Тот же выбор шаблона, что и в GenerateDocumentHandler.
-        var candidates = await templateRepo.FindAsync(t => t.DocumentTypeId == instance.DocumentTypeId, ct);
+        var candidates = await templateRepo.FindAsync(t => t.DocumentTypeId == instance.CompositeTypeId, ct);
         Template? template = null;
         if (instance.TemplateId.HasValue)
             template = await templateRepo.GetByIdAsync(instance.TemplateId.Value, ct);
         template ??= candidates.FirstOrDefault(t => t.IsDefault && t.IsActive)
             ?? candidates.FirstOrDefault(t => t.IsActive)
-            ?? throw new InvalidOperationException($"No active template for DocumentType {instance.DocumentTypeId}");
+            ?? throw new InvalidOperationException($"No active template for DocumentType {instance.CompositeTypeId}");
 
         var allDocTypes = await docTypeRepo.GetAllAsync(ct);
         var view = DocumentView.From(instance);
@@ -66,7 +67,7 @@ public class GetGenerationDebugBundleHandler(
         await entityResolver.ResolveEnumLabelsAsync(context, view, ct);
         await qualityLinkResolver.InjectAsync(context, view, ct);
         // Тот же второй проход, что и при генерации — разрешаем $ref, добавленные наборами данных.
-        await entityResolver.ResolveContextRefsAsync(context, instance.DocumentSetId, ct);
+        await entityResolver.ResolveContextRefsAsync(context, view.DocumentSetId, ct);
         context.Set("params", TemplateParams.Effective(template.Parameters,
             TemplateParams.OverridesForTemplate(instance.TemplateParams, template.Id)));
 
@@ -77,7 +78,7 @@ public class GetGenerationDebugBundleHandler(
         var userLib = allLibs.FirstOrDefault()?.Content ?? "";
 
         var imageOptions = BHS.CRG.Application.Schema.SchemaImageOptions.Collect(allDocTypes);
-        var templateAssets = await templateAssetResolver.ResolveAsync(template.Id, instance.DocumentTypeId, ct);
+        var templateAssets = await templateAssetResolver.ResolveAsync(template.Id, instance.CompositeTypeId, ct);
         return new GenerationDebugBundle(template.Content, dataJson, typeBlocks, userLib, imageOptions, templateAssets);
     }
 }
