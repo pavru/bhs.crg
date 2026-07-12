@@ -3,6 +3,7 @@ using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Infrastructure.Common;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -28,7 +29,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         var reqRoot = instance.Requisites.RootElement;
         if (reqRoot.ValueKind == JsonValueKind.Object && reqRoot.TryGetProperty("_baseRef", out _))
         {
-            var scope = await LoadScopeChainAsync(instance.DocumentSetId, ct);
+            var scope = await ScopeChains.LoadAsync(db, instance.DocumentSetId, ct);
             var effReq = await ResolveDocumentBaseRefAsync(reqRoot, scope, [instance.Id], ct);
             using var effReqDoc = JsonSerializer.SerializeToDocument(effReq);
             ctx = GenerationContext.FromJson(effReqDoc, instance.PluginData);
@@ -236,8 +237,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
     /// <paramref name="visited"/> (id глобально уникальны; связи instance→catalog однонаправленны).
     /// </summary>
     private async Task<JsonElement> ResolveDocumentBaseRefAsync(
-        JsonElement ownData, (Guid setId, Guid sectionId, Guid constructionId) scope,
-        HashSet<Guid> visited, CancellationToken ct)
+        JsonElement ownData, ScopeChain scope, HashSet<Guid> visited, CancellationToken ct)
     {
         if (ownData.ValueKind != JsonValueKind.Object) return ownData;
         if (!ownData.TryGetProperty("_baseRef", out var baseRefEl)) return ownData;
@@ -249,14 +249,14 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         {
             if (!visited.Add(id)) return ownData; // цикл/самоссылка → без наследования
             var baseInstance = await db.DocumentInstances.AsNoTracking()
-                .FirstOrDefaultAsync(i => i.Id == id && i.DocumentSetId == scope.setId, ct); // same-set guard
+                .FirstOrDefaultAsync(i => i.Id == id && i.DocumentSetId == scope.SetId, ct); // same-set guard
             if (baseInstance is null) return ownData; // не найден / другой комплект
             baseData = await ResolveDocumentBaseRefAsync(baseInstance.Requisites.RootElement, scope, visited, ct);
         }
         else // catalog — запись общих данных
         {
             var entry = await db.CommonDataEntries.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id, ct);
-            if (entry is null || !IsEntryInScopeSubtree(entry, scope)) return ownData; // scope-subtree guard
+            if (entry is null || !scope.Contains(entry.Scope, entry.ScopeId)) return ownData; // scope-subtree guard
             baseData = await ResolveCommonDataEntryAsync(id, visited, ct); // entry→entry цепочка + свой visited
         }
 
@@ -276,28 +276,6 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
             return (kind == "instance" ? "instance" : "catalog", gid);
         }
         return ("catalog", null);
-    }
-
-    /// Запись общих данных в скоп-поддереве документа: System, либо её (Scope,ScopeId) совпадает
-    /// с комплектом/разделом/стройкой документа (иначе — чужое поддерево, не наследуем).
-    private static bool IsEntryInScopeSubtree(CommonDataEntry entry, (Guid setId, Guid sectionId, Guid constructionId) scope)
-        => entry.Scope switch
-        {
-            CatalogScope.System => true,
-            CatalogScope.Set => entry.ScopeId == scope.setId,
-            CatalogScope.Section => entry.ScopeId == scope.sectionId,
-            CatalogScope.Construction => entry.ScopeId == scope.constructionId,
-            _ => false,
-        };
-
-    /// Скоп-цепочка документа: (комплект, раздел, стройка) — для scope-subtree guard entry-базы.
-    private async Task<(Guid setId, Guid sectionId, Guid constructionId)> LoadScopeChainAsync(Guid setId, CancellationToken ct)
-    {
-        var set = await db.DocumentSets.AsNoTracking().FirstOrDefaultAsync(s => s.Id == setId, ct);
-        var sectionId = set?.SectionId ?? Guid.Empty;
-        var section = sectionId == Guid.Empty ? null
-            : await db.Sections.AsNoTracking().FirstOrDefaultAsync(s => s.Id == sectionId, ct);
-        return (setId, sectionId, section?.ConstructionId ?? Guid.Empty);
     }
 
     /// <summary>
