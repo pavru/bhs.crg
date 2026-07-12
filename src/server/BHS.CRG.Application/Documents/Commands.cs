@@ -72,6 +72,15 @@ public record ListCommonDataEntriesQuery(
 public record ResolveCommonDataForSetQuery(Guid SetId, Guid? CompositeTypeId = null)
     : IRequest<IReadOnlyList<CommonDataEntryWithScope>>;
 
+/// <summary>
+/// Записи общих данных, видимые из ЛЮБОГО скопа (issue #82): резолвит полную родительскую цепочку
+/// (Set→Section→Construction→System) — в отличие от <see cref="ResolveCommonDataForSetQuery"/>,
+/// который стартует только с комплекта. Нужен, чтобы из раздел/строечного объекта ссылаться на
+/// объекты более широких уровней.
+/// </summary>
+public record ResolveCommonDataForScopeQuery(CatalogScope Scope, Guid? ScopeId, Guid? CompositeTypeId = null)
+    : IRequest<IReadOnlyList<CommonDataEntryWithScope>>;
+
 public record CommonDataEntryWithScope(
     Guid Id,
     string DisplayName,

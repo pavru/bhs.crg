@@ -412,7 +412,8 @@ public class CommonDataHandlers(
     IRequestHandler<UpdateCommonDataEntryCommand, CommonDataEntry>,
     IRequestHandler<DeleteCommonDataEntryCommand>,
     IRequestHandler<ListCommonDataEntriesQuery, IReadOnlyList<CommonDataEntry>>,
-    IRequestHandler<ResolveCommonDataForSetQuery, IReadOnlyList<CommonDataEntryWithScope>>
+    IRequestHandler<ResolveCommonDataForSetQuery, IReadOnlyList<CommonDataEntryWithScope>>,
+    IRequestHandler<ResolveCommonDataForScopeQuery, IReadOnlyList<CommonDataEntryWithScope>>
 {
     public async Task<CommonDataEntry> Handle(CreateCommonDataEntryCommand cmd, CancellationToken ct)
     {
@@ -465,6 +466,53 @@ public class CommonDataHandlers(
             ((e.Scope == CatalogScope.Set         && e.ScopeId == setId) ||
              (e.Scope == CatalogScope.Section     && e.ScopeId == sectionId) ||
              (e.Scope == CatalogScope.Construction && e.ScopeId == constructionId) ||
+             e.Scope == CatalogScope.System) &&
+            (!typeId.HasValue || e.CompositeTypeId == typeId.Value), ct);
+
+        return relevant
+            .Select(e => new CommonDataEntryWithScope(
+                e.Id, e.DisplayName, e.CompositeTypeId, e.Data,
+                e.Scope, e.ScopeId, (int)e.Scope,
+                e.CreatedAt, e.UpdatedAt))
+            .OrderBy(e => e.Priority)
+            .ThenBy(e => e.DisplayName)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<CommonDataEntryWithScope>> Handle(
+        ResolveCommonDataForScopeQuery q, CancellationToken ct)
+    {
+        // Разрешаем родительскую цепочку скопа: Set→Section→Construction→System (issue #82).
+        // Неразрешённые уровни — Guid.Empty: ни одна запись со ScopeId==Empty не совпадёт.
+        Guid setId = Guid.Empty, sectionId = Guid.Empty, constructionId = Guid.Empty;
+        switch (q.Scope)
+        {
+            case CatalogScope.Set when q.ScopeId is { } sid:
+                setId = sid;
+                var set = await setRepo.GetByIdAsync(sid, ct);
+                if (set is not null)
+                {
+                    sectionId = set.SectionId;
+                    var sec = await sectionRepo.GetByIdAsync(set.SectionId, ct);
+                    if (sec is not null) constructionId = sec.ConstructionId;
+                }
+                break;
+            case CatalogScope.Section when q.ScopeId is { } secId:
+                sectionId = secId;
+                var section = await sectionRepo.GetByIdAsync(secId, ct);
+                if (section is not null) constructionId = section.ConstructionId;
+                break;
+            case CatalogScope.Construction when q.ScopeId is { } cid:
+                constructionId = cid;
+                break;
+            // System — родителей нет.
+        }
+        var typeId = q.CompositeTypeId;
+
+        var relevant = await repo.FindAsync(e =>
+            ((e.Scope == CatalogScope.Set          && e.ScopeId == setId) ||
+             (e.Scope == CatalogScope.Section       && e.ScopeId == sectionId) ||
+             (e.Scope == CatalogScope.Construction  && e.ScopeId == constructionId) ||
              e.Scope == CatalogScope.System) &&
             (!typeId.HasValue || e.CompositeTypeId == typeId.Value), ct);
 

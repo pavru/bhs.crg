@@ -4,9 +4,9 @@ import {
 } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Modal } from '@/shared/ui/Modal';
-import { useCommonDataForSet, useListCommonData } from '@/shared/api/commonData';
+import { useCommonDataForScope } from '@/shared/api/commonData';
 import type {
-  CatalogScope, CommonDataEntry, DocumentInstance, DocumentType, FieldRef, PrimitiveTypeDef,
+  CatalogScope, DocumentInstance, DocumentType, FieldRef, PrimitiveTypeDef,
 } from '@/shared/api/types';
 import { isFieldRef, SCOPE_LABELS } from '@/shared/api/types';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
@@ -137,9 +137,10 @@ export function ArrayTableModal({
     if (open) setRows(items.map(r => ({ ...r })));
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { data: cdForSet = [] } = useCommonDataForSet({ setId: setId ?? '', enabled: open && !!setId });
-  const { data: cdSystem = [] } = useListCommonData({ scope: 'System', enabled: open && !setId });
-  const commonDataEntries = (setId ? cdForSet : cdSystem) as CommonDataEntry[];
+  // Единая цепочка скопов (issue #82): комплект → (Set, setId), иначе (scope, scopeId) — с подъёмом по родителям.
+  const { data: commonDataEntries = [] } = useCommonDataForScope({
+    scope: setId ? 'Set' : scope, scopeId: setId ?? scopeId, enabled: open && (!!setId || !!scope),
+  });
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const primDef = (f: SchemaField) => f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
 

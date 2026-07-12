@@ -45,6 +45,33 @@ export function useCommonDataForSet({
   });
 }
 
+/**
+ * Записи, видимые из ЛЮБОГО скопа (issue #82): резолвит родительскую цепочку
+ * (Раздел→Стройка→Система и т.д.) — в отличие от useCommonDataForSet, который стартует с комплекта.
+ */
+export function useCommonDataForScope({
+  scope,
+  scopeId,
+  typeId,
+  enabled = true,
+}: {
+  scope: CatalogScope | undefined;
+  scopeId?: string | null;
+  typeId?: string;
+  enabled?: boolean;
+}) {
+  return useQuery({
+    queryKey: [QK, 'for-scope', scope ?? null, scopeId ?? null, typeId ?? null],
+    queryFn: () =>
+      apiClient
+        .get<CommonDataEntryWithScope[]>('/common-data/for-scope', {
+          params: { scope, scopeId: scopeId ?? undefined, typeId },
+        })
+        .then(r => r.data),
+    enabled: enabled && !!scope,
+  });
+}
+
 export function useCreateCommonDataEntry() {
   const qc = useQueryClient();
   return useMutation({
