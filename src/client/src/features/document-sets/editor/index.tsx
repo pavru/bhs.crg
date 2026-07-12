@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Loader2, FileText, Download, Eye, Pencil, ChevronDown, ChevronUp, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail, Database } from 'lucide-react';
+import { Loader2, FileText, Download, Eye, Pencil, ChevronDown, ChevronUp, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail, Database, Link2, Unlink } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useEmailDocument } from '@/shared/api/documentSets';
 import { EmailSendDialog } from '../EmailSendDialog';
@@ -13,9 +13,11 @@ import {
 } from '@/shared/api/documentSets';
 import { useListTemplates } from '@/shared/api/templates';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
-import type { DocumentInstance, DocumentType, Template, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
+import type { DocumentInstance, DocumentType, Template, PrimitiveTypeDef, EnumTypeDef, CommonDataEntry, CatalogScope } from '@/shared/api/types';
+import { SCOPE_LABELS } from '@/shared/api/types';
+import { useCommonDataForSet } from '@/shared/api/commonData';
 import {
-  groupEffectiveFields, resolveEffectiveFields, compositeFieldHasTag, type SchemaField,
+  groupEffectiveFields, resolveEffectiveFields, compositeFieldHasTag, parseSchemaFields, type SchemaField,
 } from '@/shared/api/schema';
 import {
   STATUS_LABELS, STATUS_COLORS,
@@ -73,6 +75,80 @@ function BoundStateHint({ loading, error }: { loading: boolean; error: boolean }
   return <p className="text-[11px] text-fg4 mt-0.5 italic">{text}</p>;
 }
 
+// ─── Базовый экземпляр (issue #71) ────────────────────────────────────────────
+// Документ дочернего типа может наследоваться от базы — документа комплекта ЛИБО записи общих данных.
+// Кандидаты берутся по всей цепочке типов-предков и по скоп-близости (комплект > раздел > стройка >
+// система), внутри уровня — по близости наследования. Ссылка хранится как _baseRef {kind,id}.
+
+type BaseCandidateKind = 'instance' | 'catalog';
+interface BaseCandidate {
+  kind: BaseCandidateKind;
+  id: string;
+  name: string;
+  typeId: string;
+  tier: number;        // скоп-уровень: 0 комплект, 1 раздел, 2 стройка, 3 система
+  scopeLabel: string;  // «Комплект»/«Раздел»/«Стройка»/«Система»
+  dist: number;        // дистанция наследования: 0 прямой родитель, дальше — больше
+}
+
+const SCOPE_TIER: Record<CatalogScope, number> = { Set: 0, Section: 1, Construction: 2, System: 3 };
+
+/// Идентификаторы типов-предков по цепочке parentId (по возрастанию дистанции: [родитель, дед, …]).
+function ancestorTypeIds(docType: DocumentType | undefined, allDocTypes: DocumentType[]): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  let cur = docType?.parentId ?? undefined;
+  while (cur && !seen.has(cur)) {
+    seen.add(cur); ids.push(cur);
+    cur = allDocTypes.find(dt => dt.id === cur)?.parentId ?? undefined;
+  }
+  return ids;
+}
+
+/// Толерантный разбор _baseRef: {kind,id} (issue #71) или голая строка-id (legacy = catalog/запись).
+function parseBaseRef(raw: unknown): { kind: BaseCandidateKind; id: string } | undefined {
+  if (typeof raw === 'string') return raw ? { kind: 'catalog', id: raw } : undefined;
+  if (raw && typeof raw === 'object' && 'id' in raw) {
+    const r = raw as { kind?: string; id?: string };
+    if (r.id) return { kind: r.kind === 'instance' ? 'instance' : 'catalog', id: r.id };
+  }
+  return undefined;
+}
+
+/// Пикер базового экземпляра (issue #71) — единый список кандидатов (документы + общие данные),
+/// уже отсортированный по близости; у каждого — бейдж уровня скопа.
+function BaseCandidatePicker({ open, onOpenChange, candidates, onSelect }: {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  candidates: BaseCandidate[]; onSelect: (c: BaseCandidate) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const filtered = candidates.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
+  return (
+    <Modal open={open} onOpenChange={onOpenChange} title="Базовый экземпляр">
+      <div className="space-y-4">
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..." autoFocus
+          className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
+        {filtered.length === 0 ? (
+          <p className="text-sm text-fg4 text-center py-4">Нет подходящих базовых экземпляров.</p>
+        ) : (
+          <div className="space-y-1 max-h-72 overflow-y-auto">
+            {filtered.map(c => (
+              <button key={`${c.kind}:${c.id}`} type="button" onClick={() => { onSelect(c); onOpenChange(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md hover:bg-brand-subtle transition-colors">
+                {c.kind === 'instance'
+                  ? <FileText size={13} className="text-brand shrink-0" />
+                  : <Database size={13} className="text-brand shrink-0" />}
+                <span className="flex-1 font-medium text-fg1 truncate">{c.name}</span>
+                <span className="text-[11px] text-fg4 shrink-0">{c.scopeLabel}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, otherInstances, onDirty, saveRef, onGoToDataTab }: {
   instance: DocumentInstance; setId: string; schemaFields: SchemaField[];
   allDocTypes: DocumentType[]; docType: DocumentType | undefined;
@@ -103,9 +179,61 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
     }
     return s;
   }, [dsBindings]);
-  // Обязательное поле, покрытое активной привязкой, не блокирует сохранение реквизитов —
-  // значение подставится при генерации (DataSetResolver.InjectAsync), форма его не хранит.
-  const isFieldMissing = (f: SchemaField, val: unknown) => isMissing(f, val) && !sourceBoundFields.has(f.key);
+  // Базовый экземпляр (issue #71): документ дочернего типа наследуется от базы — документа комплекта
+  // ЛИБО записи общих данных (по цепочке типов-предков и скоп-близости). При связке наследуются её
+  // данные (мердж при генерации), вручную заполняются только собственные поля. Ссылка — `_baseRef` {kind,id}.
+  const [basePickerOpen, setBasePickerOpen] = useState(false);
+  const ancestorIds = useMemo(() => ancestorTypeIds(docType, allDocTypes), [docType, allDocTypes]);
+  const hasBase = ancestorIds.length > 0;
+  // Общие данные всех уровней скопа комплекта (Set/Section/Construction/System) — кандидаты-записи.
+  const { data: commonData = [] } = useCommonDataForSet({ setId, enabled: hasBase });
+  const baseRef = useMemo(() => parseBaseRef(values._baseRef), [values._baseRef]);
+
+  const baseCandidates = useMemo<BaseCandidate[]>(() => {
+    if (!hasBase) return [];
+    const ancestorSet = new Set(ancestorIds);
+    const distOf = (typeId: string) => { const i = ancestorIds.indexOf(typeId); return i < 0 ? 999 : i; };
+    const docs: BaseCandidate[] = otherInstances
+      .filter(i => ancestorSet.has(i.documentTypeId))
+      .map(i => ({ kind: 'instance', id: i.id, name: i.name ?? '(без имени)', typeId: i.documentTypeId,
+        tier: 0, scopeLabel: 'Комплект', dist: distOf(i.documentTypeId) }));
+    const entries: BaseCandidate[] = (commonData as CommonDataEntry[])
+      .filter(e => ancestorSet.has(e.compositeTypeId))
+      .map(e => ({ kind: 'catalog', id: e.id, name: e.displayName, typeId: e.compositeTypeId,
+        tier: SCOPE_TIER[e.scope], scopeLabel: SCOPE_LABELS[e.scope], dist: distOf(e.compositeTypeId) }));
+    return [...docs, ...entries].sort((a, b) => a.tier - b.tier || a.dist - b.dist || a.name.localeCompare(b.name, 'ru'));
+  }, [hasBase, ancestorIds, otherInstances, commonData]);
+
+  const selectedBase = baseRef ? baseCandidates.find(c => c.id === baseRef.id) : undefined;
+  // Поля, покрытые базовым экземпляром (его собственные ключи), не требуются к заполнению здесь —
+  // придут наследованием при генерации (тот же класс, что sourceBoundFields из #55).
+  const baseCoveredFields = useMemo(() => {
+    if (!baseRef) return new Set<string>();
+    if (baseRef.kind === 'instance') {
+      const inst = otherInstances.find(i => i.id === baseRef.id);
+      return new Set(inst ? Object.keys(inst.requisites) : []);
+    }
+    const entry = (commonData as CommonDataEntry[]).find(e => e.id === baseRef.id);
+    return new Set(entry ? Object.keys(entry.data) : []);
+  }, [baseRef, otherInstances, commonData]);
+  const ownFields = docType ? parseSchemaFields(docType.schema) : schemaFields;
+  const ownFieldKeys = new Set(ownFields.map(f => f.key));
+  // При выбранной базе скрываем ТОЛЬКО поля, реально покрытые ею; собственные (можно переопределить)
+  // и унаследованные, но НЕ покрытые базой (напр. база — дед/запись общих данных, часть полей не даёт),
+  // показываем — их нужно заполнить вручную (issue #71).
+  const displayFields = (hasBase && baseRef)
+    ? schemaFields.filter(f => ownFieldKeys.has(f.key) || !baseCoveredFields.has(f.key))
+    : schemaFields;
+  function selectBase(c: BaseCandidate) { setValue('_baseRef', { kind: c.kind, id: c.id }); }
+  function clearBaseRef() {
+    setValues(p => { const n = { ...p }; delete n._baseRef; return n; });
+    onDirty(true);
+  }
+
+  // Обязательное поле, покрытое активной привязкой ИЛИ базовым экземпляром, не блокирует сохранение
+  // реквизитов — значение подставится при генерации, форма его не хранит.
+  const isFieldMissing = (f: SchemaField, val: unknown) =>
+    isMissing(f, val) && !sourceBoundFields.has(f.key) && !baseCoveredFields.has(f.key);
 
   // Предпросмотр значений привязок (issue #67): скалярный биндинг не пишет значение в реквизиты —
   // оно резолвится только при генерации. Тот же preview-эндпоинт, что и на вкладке «Данные»,
@@ -191,7 +319,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   if (schemaFields.length === 0)
     return <div className="text-sm text-fg4 py-4 text-center">Схема полей не задана.</div>;
 
-  const sections = groupEffectiveFields(schemaFields, docType?.schema ?? {});
+  const sections = groupEffectiveFields(displayFields, docType?.schema ?? {});
 
   function renderFields(fields: SchemaField[]) {
     const isWide = (f: SchemaField) =>
@@ -300,6 +428,49 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+      {hasBase && (
+        <div className="rounded-lg border border-stroke p-3 space-y-2">
+          <p className="text-xs font-semibold text-fg3 uppercase tracking-wide">Базовый экземпляр</p>
+          {baseRef && selectedBase ? (
+            <div className="flex items-center gap-2 rounded-md border border-brand-subtle bg-brand-subtle px-3 py-2">
+              {selectedBase.kind === 'instance'
+                ? <FileText size={14} className="text-brand shrink-0" />
+                : <Database size={14} className="text-brand shrink-0" />}
+              <span className="flex-1 text-sm font-medium text-brand-hover truncate">{selectedBase.name}</span>
+              <span className="text-[11px] text-fg4 shrink-0">{selectedBase.scopeLabel}</span>
+              <button type="button" onClick={clearBaseRef}
+                className="text-brand hover:text-danger transition-colors" title="Снять ссылку">
+                <Unlink size={13} />
+              </button>
+            </div>
+          ) : baseRef && !selectedBase ? (
+            <div className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2">
+              <span className="flex-1 text-sm text-warning truncate">Базовый экземпляр недоступен (удалён или вне области видимости)</span>
+              <button type="button" onClick={clearBaseRef}
+                className="text-brand hover:text-danger transition-colors" title="Снять ссылку">
+                <Unlink size={13} />
+              </button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setBasePickerOpen(true)}
+              className="flex items-center gap-2 text-sm text-brand hover:text-brand-hover border border-dashed border-brand-subtle rounded-md px-3 py-2 w-full hover:bg-brand-subtle transition-colors">
+              <Link2 size={14} />
+              Выбрать базовый экземпляр...
+            </button>
+          )}
+          {!baseRef && ownFields.length < schemaFields.length && (
+            <p className="text-xs text-fg4">
+              Без базового экземпляра все {schemaFields.length} полей заполняются вручную.
+            </p>
+          )}
+          <BaseCandidatePicker
+            open={basePickerOpen}
+            onOpenChange={setBasePickerOpen}
+            candidates={baseCandidates}
+            onSelect={selectBase}
+          />
+        </div>
+      )}
       {sections.map(section => {
         if (!section.title) {
           // Ungrouped fields — always visible, no header

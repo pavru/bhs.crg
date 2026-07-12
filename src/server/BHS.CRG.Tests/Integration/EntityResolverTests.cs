@@ -98,6 +98,97 @@ public class EntityResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         Assert.Equal("Ромашка", org.GetProperty("Наименование").GetString());  // переопределено
     }
 
+    // ── Базовый экземпляр документа комплекта (issue #71) ────────────────────────
+
+    [Fact]
+    public async Task InstanceBaseRef_Merged()
+    {
+        var setId = await SetupSetAsync();
+        var baseType = await TypeAsync(DocumentTypeKind.Document, "DOC_BASE");
+        var childType = await TypeAsync(DocumentTypeKind.Document, "DOC_CHILD");
+        var baseId = await DocAsync(setId, baseType, "{'Город':'Владивосток','Номер':'B-1'}");
+        var childId = await DocAsync(setId, childType,
+            "{'_baseRef':{'kind':'instance','id':'" + baseId + "'},'Номер':'C-1'}");
+
+        var ctx = await ResolveAsync(childId);
+
+        Assert.Equal("Владивосток", E(ctx, "Город").GetString()); // унаследовано от базового
+        Assert.Equal("C-1", E(ctx, "Номер").GetString());         // собственное переопределяет
+        Assert.False(ctx.Data.ContainsKey("_baseRef"));           // служебный ключ не протекает в контекст
+    }
+
+    [Fact]
+    public async Task InstanceBaseRef_CrossSet_NotMerged()
+    {
+        var setId = await SetupSetAsync();
+        var otherSetId = await SetupSetAsync();
+        var type = await TypeAsync(DocumentTypeKind.Document, "DOC_XSET");
+        var baseId = await DocAsync(otherSetId, type, "{'Город':'Владивосток'}"); // база в ДРУГОМ комплекте
+        var childId = await DocAsync(setId, type,
+            "{'_baseRef':{'kind':'instance','id':'" + baseId + "'},'Номер':'C-1'}");
+
+        var ctx = await ResolveAsync(childId);
+
+        Assert.False(ctx.Data.ContainsKey("Город"));      // set-guard: чужой комплект не подмешивается
+        Assert.Equal("C-1", E(ctx, "Номер").GetString());
+    }
+
+    [Fact]
+    public async Task InstanceBaseRef_Cycle_Breaks()
+    {
+        var setId = await SetupSetAsync();
+        var type = await TypeAsync(DocumentTypeKind.Document, "DOC_CYC");
+        var aId = await DocAsync(setId, type, "{'Поле':'A'}");
+        var bId = await DocAsync(setId, type, "{'_baseRef':{'kind':'instance','id':'" + aId + "'},'Поле':'B'}");
+        // Замыкаем цикл: A._baseRef → B, B._baseRef → A.
+        using (var scope = fixture.Services.CreateScope())
+            await M(scope).Send(new UpdateRequisitesCommand(aId, J("{'_baseRef':{'kind':'instance','id':'" + bId + "'},'Поле':'A'}")));
+
+        var ctx = await ResolveAsync(aId); // не должно зациклиться
+
+        Assert.Equal("A", E(ctx, "Поле").GetString()); // собственное значение, цикл оборван через visited
+    }
+
+    [Fact]
+    public async Task CatalogEntryBaseRef_Merged()
+    {
+        var setId = await SetupSetAsync();
+        var docType = await TypeAsync(DocumentTypeKind.Document, "DOC_CB");
+        var entryType = await TypeAsync(DocumentTypeKind.Composite, "CMP_CB");
+        var entryId = await EntryAsync(entryType, "{'Город':'Москва','Орг':'База-СРО'}"); // System scope → в поддереве
+        var childId = await DocAsync(setId, docType,
+            "{'_baseRef':{'kind':'catalog','id':'" + entryId + "'},'Орг':'Своя'}");
+
+        var ctx = await ResolveAsync(childId);
+
+        Assert.Equal("Москва", E(ctx, "Город").GetString()); // унаследовано из записи общих данных
+        Assert.Equal("Своя", E(ctx, "Орг").GetString());     // собственное переопределяет
+    }
+
+    [Fact]
+    public async Task CatalogEntryBaseRef_OutOfScope_NotMerged()
+    {
+        var setId = await SetupSetAsync();
+        var otherSetId = await SetupSetAsync();
+        var docType = await TypeAsync(DocumentTypeKind.Document, "DOC_CBO");
+        var entryType = await TypeAsync(DocumentTypeKind.Composite, "CMP_CBO");
+        // Запись общих данных, привязанная к ДРУГОМУ комплекту (чужое скоп-поддерево).
+        Guid entryId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var e = await M(scope).Send(new CreateCommonDataEntryCommand(
+                "Чужая", entryType, J("{'Город':'Чужой'}"), CatalogScope.Set, otherSetId));
+            entryId = e.Id;
+        }
+        var childId = await DocAsync(setId, docType,
+            "{'_baseRef':{'kind':'catalog','id':'" + entryId + "'},'Номер':'C-1'}");
+
+        var ctx = await ResolveAsync(childId);
+
+        Assert.False(ctx.Data.ContainsKey("Город"));      // scope-subtree guard: чужой комплект не наследуется
+        Assert.Equal("C-1", E(ctx, "Номер").GetString());
+    }
+
     [Fact]
     public async Task DocumentRef_TopLevel_Resolved()
     {
