@@ -276,7 +276,7 @@ function AddBindingPanel({
     setError('');
     try {
       // Материализованный источник — маппинг пустой (резолвер берёт маппинг с источника).
-      await create.mutateAsync({ instanceId, sourceId, targetFieldKey, mapping: materializeTypeId ? {} : mapping });
+      await create.mutateAsync({ ownerId: instanceId, sourceId, targetFieldKey, mapping: materializeTypeId ? {} : mapping });
       onDone();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка');
@@ -405,12 +405,12 @@ function BindingRow({
   }
 
   async function handleSave() {
-    await update.mutateAsync({ id: binding.id, instanceId, targetFieldKey, mapping });
+    await update.mutateAsync({ id: binding.id, ownerId: instanceId, targetFieldKey, mapping });
     setEditing(false);
   }
 
   async function handleDelete() {
-    await del.mutateAsync({ id: binding.id, instanceId });
+    await del.mutateAsync({ id: binding.id, ownerId: instanceId });
   }
 
   const mappedCount = Object.keys(mapping).filter(k => mapping[k]).length;
@@ -594,11 +594,11 @@ export function DataSetsTab({ instance, setId, schemaFields, allDocTypes, docTyp
   instance: DocumentInstance; setId: string; schemaFields: SchemaField[];
   allDocTypes: DocumentType[]; docType: DocumentType | undefined;
 }) {
-  const { data: bindings = [], isLoading } = useListDataSetBindings({ instanceId: instance.id });
+  const { data: bindings = [], isLoading } = useListDataSetBindings({ ownerId: instance.id });
   const [adding, setAdding] = useState(false);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const { data: previewResults, isFetching: previewing, refetch: runPreview, error: previewError } = usePreviewDataSetBindings({ instanceId: instance.id });
+  const { data: previewResults, isFetching: previewing, refetch: runPreview, error: previewError } = usePreviewDataSetBindings({ ownerId: instance.id });
 
   async function handlePreview() {
     setShowPreview(true);

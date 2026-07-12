@@ -101,7 +101,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   // табличные (targetFieldKey, issue #17) + скалярные (ключи мэппинга, issue #55). Для скалярной
   // привязки эффективный маппинг — собственный (binding.mapping), а если он пуст — с материализации
   // источника (binding.source.materializeMapping, issue #19), см. DataSetMappingValue.EffectiveMappingJson.
-  const { data: dsBindings = [] } = useListDataSetBindings({ instanceId: instance.id });
+  const { data: dsBindings = [] } = useListDataSetBindings({ ownerId: instance.id });
   const sourceBoundFields = useMemo(() => {
     const s = new Set<string>();
     for (const b of dsBindings) {
@@ -170,7 +170,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   // оно резолвится только при генерации. Тот же preview-эндпоинт, что и на вкладке «Данные»,
   // даёт резолвнутое значение для показа read-only прямо в поле (в saved-values НЕ пишем).
   const { data: bindingPreviews, isFetching: previewingBindings, refetch: runBindingPreview, error: previewError } =
-    usePreviewDataSetBindings({ instanceId: instance.id });
+    usePreviewDataSetBindings({ ownerId: instance.id });
   useEffect(() => {
     if (sourceBoundFields.size > 0) void runBindingPreview();
   }, [sourceBoundFields.size]); // eslint-disable-line react-hooks/exhaustive-deps

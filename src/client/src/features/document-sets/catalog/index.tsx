@@ -244,10 +244,10 @@ export function CatalogEntryForm({
     .sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name, 'ru'));
 
   // Наборы данных: биндинги существуют только у уже сохранённой записи (нужен id-владелец).
-  const { data: bindings = [] } = useListDataSetBindings({ commonDataEntryId: entry?.id });
+  const { data: bindings = [] } = useListDataSetBindings({ ownerId: entry?.id });
   const { scalarKeys: boundFieldKeys, arrayKeys: boundArrayKeys } = computeBoundFieldKeys(bindings);
   const { refetch: refetchBindingPreview, isFetching: refreshingFromSource } =
-    usePreviewDataSetBindings({ commonDataEntryId: entry?.id });
+    usePreviewDataSetBindings({ ownerId: entry?.id });
 
   async function handleRefreshFromSource() {
     const { data: previews } = await refetchBindingPreview();

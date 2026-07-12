@@ -148,7 +148,7 @@ export function ApplyTemplateDialog({
     setError('');
     try {
       await create.mutateAsync({
-        instanceId,
+        ownerId: instanceId,
         sourceId: selectedSource.id,
         targetFieldKey: selectedTemplate.targetFieldKey,
         mapping: selectedTemplate.columnMappings,
