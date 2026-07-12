@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   ChevronDown, ChevronUp, Plus, Pencil, Trash2, FileText, Database, ShieldCheck, Loader2,
-  DatabaseZap, RefreshCw,
+  DatabaseZap, RefreshCw, X,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -180,6 +180,13 @@ export function CatalogEntryForm({
   onClose: () => void;
 }) {
   const [displayName, setDisplayName] = useState(entry?.displayName ?? '');
+  const [aliases, setAliases] = useState<string[]>(entry?.aliases ?? []);
+  const [aliasDraft, setAliasDraft] = useState('');
+  function addAlias() {
+    const t = aliasDraft.trim();
+    if (t && !aliases.some(a => a.toLowerCase() === t.toLowerCase())) setAliases(prev => [...prev, t]);
+    setAliasDraft('');
+  }
   const [typeId, setTypeId] = useState(entry?.compositeTypeId ?? '');
   const [values, setValues] = useState<Record<string, unknown>>(() => entry?.data ?? {});
   const [error, setError] = useState('');
@@ -286,9 +293,9 @@ export function CatalogEntryForm({
     if (!displayName.trim() || !typeId) { setError('Укажите название и тип'); return; }
     try {
       if (entry) {
-        await updateMutation.mutateAsync({ id: entry.id, displayName, data: JSON.stringify(values) });
+        await updateMutation.mutateAsync({ id: entry.id, displayName, data: JSON.stringify(values), aliases });
       } else {
-        await createMutation.mutateAsync({ displayName, compositeTypeId: typeId, data: JSON.stringify(values), scope, scopeId });
+        await createMutation.mutateAsync({ displayName, compositeTypeId: typeId, data: JSON.stringify(values), scope, scopeId, aliases });
       }
       onClose();
     } catch (err: unknown) { setError(err instanceof Error ? err.message : 'Ошибка'); }
@@ -428,6 +435,31 @@ export function CatalogEntryForm({
       <div>
         <label className="block text-sm font-medium text-fg2 mb-1">Наименование</label>
         <input value={displayName} onChange={e => setDisplayName(e.target.value)} required autoFocus
+          className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
+      </div>
+
+      {/* Алиасы (issue #74) — доп. имена для поиска записи при связывании с источниками */}
+      <div>
+        <label className="block text-sm font-medium text-fg2 mb-1">
+          Псевдонимы <span className="text-xs text-fg4 font-normal">(для поиска при связывании с источниками)</span>
+        </label>
+        {aliases.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-1.5">
+            {aliases.map(a => (
+              <span key={a} className="inline-flex items-center gap-1 text-xs bg-muted text-fg2 rounded-full pl-2.5 pr-1 py-0.5">
+                {a}
+                <button type="button" onClick={() => setAliases(prev => prev.filter(x => x !== a))}
+                  className="text-fg4 hover:text-danger transition-colors" title="Удалить">
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <input value={aliasDraft} onChange={e => setAliasDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addAlias(); } }}
+          onBlur={addAlias}
+          placeholder="Добавить псевдоним и Enter..."
           className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
       </div>
 

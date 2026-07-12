@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
@@ -54,6 +55,50 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
         Assert.Equal("ООО Тест", entry.DisplayName);
         Assert.Equal(CatalogScope.System, entry.Scope);
         Assert.Null(entry.ScopeId);
+    }
+
+    // ── Aliases (issue #74) ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Create_NormalizesAndPersistsAliases()
+    {
+        var typeId = await CreateCompositeTypeAsync("ORG_AL");
+        Guid id;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var entry = await Mediator(scope).Send(new CreateCommonDataEntryCommand(
+                "ООО Ромашка", typeId, Json("{}"), CatalogScope.System, null,
+                new[] { "Ромашка", " Ромашка ", "ромашка", "", "  ", "РМШ" }));
+            id = entry.Id;
+            // trim + dedup (без учёта регистра) + отбрасывание пустых → остаются "Ромашка", "РМШ"
+            Assert.Equal(new[] { "Ромашка", "РМШ" }, entry.Aliases);
+        }
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var repo = scope.ServiceProvider.GetRequiredService<IRepository<CommonDataEntry>>();
+            var reloaded = await repo.GetByIdAsync(id, default);
+            Assert.NotNull(reloaded);
+            Assert.Equal(new[] { "Ромашка", "РМШ" }, reloaded!.Aliases); // персистентно (text[])
+        }
+    }
+
+    [Fact]
+    public async Task Update_ReplacesAliases()
+    {
+        var typeId = await CreateCompositeTypeAsync("ORG_AU");
+        Guid id;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var e = await Mediator(scope).Send(new CreateCommonDataEntryCommand(
+                "X", typeId, Json("{}"), CatalogScope.System, null, new[] { "старый" }));
+            id = e.Id;
+        }
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var e = await Mediator(scope).Send(new UpdateCommonDataEntryCommand(
+                id, "X", Json("{}"), new[] { "новый1", "новый2" }));
+            Assert.Equal(new[] { "новый1", "новый2" }, e.Aliases);
+        }
     }
 
     // ── Update ────────────────────────────────────────────────────────────────

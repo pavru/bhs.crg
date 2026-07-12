@@ -13,6 +13,8 @@ export const SCOPE_LABELS: Record<CatalogScope, string> = {
 export interface CommonDataEntry {
   id: string;
   displayName: string;
+  /** Альтернативные имена (issue #74) — для поиска записи при связывании с источниками данных. */
+  aliases: string[];
   compositeTypeId: string;
   data: Record<string, unknown>;
   scope: CatalogScope;

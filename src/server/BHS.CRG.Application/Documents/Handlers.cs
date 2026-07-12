@@ -416,7 +416,7 @@ public class CommonDataHandlers(
 {
     public async Task<CommonDataEntry> Handle(CreateCommonDataEntryCommand cmd, CancellationToken ct)
     {
-        var entry = CommonDataEntry.Create(cmd.DisplayName, cmd.CompositeTypeId, cmd.Data, cmd.Scope, cmd.ScopeId);
+        var entry = CommonDataEntry.Create(cmd.DisplayName, cmd.CompositeTypeId, cmd.Data, cmd.Scope, cmd.ScopeId, cmd.Aliases);
         await repo.AddAsync(entry, ct);
         await repo.SaveChangesAsync(ct);
         return entry;
@@ -427,7 +427,7 @@ public class CommonDataHandlers(
         var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
         var previews = await dataSetService.PreviewBindingsAsync(null, cmd.Id, ct);
         var data = previews.Count == 0 ? cmd.Data : CommonDataBindingMerge.Merge(cmd.Data, previews);
-        entry.Update(cmd.DisplayName, data);
+        entry.Update(cmd.DisplayName, data, cmd.Aliases);
         repo.Update(entry);
         await repo.SaveChangesAsync(ct);
         return entry;

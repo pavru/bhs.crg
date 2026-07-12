@@ -34,7 +34,8 @@ public record BackupCatalogEntity(
 public record BackupCommonDataEntry(
     Guid Id, string DisplayName, Guid CompositeTypeId, JsonElement Data,
     string Scope, Guid? ScopeId,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
+    string[]? Aliases = null);
 
 public record RestoreReport(
     bool Success,

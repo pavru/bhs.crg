@@ -82,7 +82,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             CommonDataEntries: commonDataEntries.Select(e => new BackupCommonDataEntry(
                 e.Id, e.DisplayName, e.CompositeTypeId, e.Data.RootElement.Clone(),
                 e.Scope.ToString(), e.ScopeId,
-                e.CreatedAt, e.UpdatedAt)).ToArray(),
+                e.CreatedAt, e.UpdatedAt, e.Aliases.ToArray())).ToArray(),
             PrimitiveTypes: primitiveTypes.Select(p => new BackupPrimitiveType(
                 p.Id, p.Name, p.Code, p.BaseType, p.Description,
                 p.Constraints.RootElement.Clone(),
@@ -326,7 +326,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             var entity = CommonDataEntry.Restore(
                 item.Id, item.DisplayName, item.CompositeTypeId,
                 JsonDocument.Parse(item.Data.GetRawText()),
-                scope, item.ScopeId, item.CreatedAt, item.UpdatedAt);
+                scope, item.ScopeId, item.CreatedAt, item.UpdatedAt, item.Aliases);
             db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
             if (existingIds.Contains(item.Id)) stats.CommonDataEntriesUpdated++; else stats.CommonDataEntriesCreated++;
         }
