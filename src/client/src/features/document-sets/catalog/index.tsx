@@ -9,8 +9,10 @@ import {
   useListCommonData, useCommonDataForSet, useCreateCommonDataEntry,
   useUpdateCommonDataEntry, useDeleteCommonDataEntry,
 } from '@/shared/api/commonData';
-import type { CommonDataEntry, CatalogScope, DocumentType } from '@/shared/api/types';
+import type { CommonDataEntry, CatalogScope, DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import { SCOPE_LABELS, SCOPE_PRIORITY } from '@/shared/api/types';
+import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
+import { useListEnumTypes } from '@/shared/api/enumTypes';
 import {
   resolveEffectiveFields, parseSchemaFields, groupEffectiveFields,
   getDefaultValues, findTaggedFieldPath, type SchemaField,
@@ -185,6 +187,13 @@ function CatalogEntryForm({
   const [recognizing, setRecognizing] = useState(false);
   const createMutation = useCreateCommonDataEntry();
   const updateMutation = useUpdateCommonDataEntry();
+  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
+
+  const getPrimitiveDef = (f: SchemaField): PrimitiveTypeDef | undefined =>
+    f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
+  const getEnumDef = (f: SchemaField): EnumTypeDef | undefined =>
+    f.type === 'enum' ? enumTypes.find(et => et.id === f.typeId) : undefined;
 
   const allSelectableTypes = [...compositeTypes, ...documentTypes];
   const selectedType = allSelectableTypes.find(t => t.id === typeId) ?? null;
@@ -392,7 +401,8 @@ function CatalogEntryForm({
                   ) : field.type === 'file' ? (
                     <FileField value={val} onChange={v => setValue(field.key, v)} />
                   ) : (
-                    <PrimitiveInput field={field} value={val} onChange={v => setValue(field.key, v)} invalid={false} />
+                    <PrimitiveInput field={field} value={val} onChange={v => setValue(field.key, v)} invalid={false}
+                      primitiveTypeDef={getPrimitiveDef(field)} enumTypeDef={getEnumDef(field)} />
                   )}
                 </>
               )}
