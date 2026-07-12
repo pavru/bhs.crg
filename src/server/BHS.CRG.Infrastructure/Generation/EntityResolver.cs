@@ -19,7 +19,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
     // глубоких структур). Ортогональна allowInstanceRefs (защита от циклов по документам).
     private const int MaxRefDepth = 8;
 
-    public async Task<GenerationContext> ResolveAsync(DocumentInstance instance, CancellationToken ct = default)
+    public async Task<GenerationContext> ResolveAsync(DocumentView instance, CancellationToken ct = default)
     {
         // Наследование от базового экземпляра (issue #71): если реквизиты несут "_baseRef", подмешиваем
         // реквизиты базы — документа комплекта ЛИБО записи общих данных (полиморфно, по скоп-близости) —
@@ -52,7 +52,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         }
     }
 
-    public async Task ApplyDefaultsAsync(GenerationContext ctx, DocumentInstance instance, CancellationToken ct = default)
+    public async Task ApplyDefaultsAsync(GenerationContext ctx, DocumentView instance, CancellationToken ct = default)
     {
         var allDocTypes = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
         var fields = DocumentTypeSchemaReader.EffectiveFields(instance.DocumentTypeId, allDocTypes);
@@ -72,7 +72,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
     /// что уже есть у ApplyDefaultsAsync (не резолвит внутрь строк array/complex полей). Толерантно:
     /// код без совпадения в Options остаётся как есть (та же философия, что и везде в резолвере).
     /// </summary>
-    public async Task ResolveEnumLabelsAsync(GenerationContext ctx, DocumentInstance instance, CancellationToken ct = default)
+    public async Task ResolveEnumLabelsAsync(GenerationContext ctx, DocumentView instance, CancellationToken ct = default)
     {
         var allDocTypes = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
         var enumTypesById = await db.EnumTypes.AsNoTracking().ToDictionaryAsync(e => e.Id, ct);

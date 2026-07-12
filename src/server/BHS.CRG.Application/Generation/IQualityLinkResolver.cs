@@ -1,5 +1,3 @@
-using BHS.CRG.Domain.Documents;
-
 namespace BHS.CRG.Application.Generation;
 
 /// <summary>
@@ -9,5 +7,5 @@ namespace BHS.CRG.Application.Generation;
 /// </summary>
 public interface IQualityLinkResolver
 {
-    Task InjectAsync(GenerationContext ctx, DocumentInstance instance, CancellationToken ct = default);
+    Task InjectAsync(GenerationContext ctx, DocumentView instance, CancellationToken ct = default);
 }

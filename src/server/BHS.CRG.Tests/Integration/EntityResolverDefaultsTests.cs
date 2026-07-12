@@ -53,7 +53,7 @@ public class EntityResolverDefaultsTests(IntegrationTestFixture fixture) : IAsyn
         using var scope = fixture.Services.CreateScope();
         var inst = await M(scope).Send(new GetDocumentInstanceQuery(instanceId));
         var resolver = scope.ServiceProvider.GetRequiredService<IEntityResolver>();
-        await resolver.ApplyDefaultsAsync(ctx, inst!, default);
+        await resolver.ApplyDefaultsAsync(ctx, DocumentView.From(inst!), default);
     }
 
     [Fact]

@@ -44,7 +44,7 @@ public class EntityResolverEnumLabelsTests(IntegrationTestFixture fixture) : IAs
         using var scope = fixture.Services.CreateScope();
         var inst = await M(scope).Send(new GetDocumentInstanceQuery(instanceId));
         var resolver = scope.ServiceProvider.GetRequiredService<IEntityResolver>();
-        await resolver.ResolveEnumLabelsAsync(ctx, inst!, default);
+        await resolver.ResolveEnumLabelsAsync(ctx, DocumentView.From(inst!), default);
     }
 
     [Fact]
