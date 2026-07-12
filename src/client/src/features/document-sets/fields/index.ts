@@ -8,3 +8,4 @@ export * from './DocRefCatalogPickerField';
 export * from './DocRefField';
 export * from './PasteMappingModal';
 export * from './ComplexFields';
+export * from './BaseCandidatePicker';

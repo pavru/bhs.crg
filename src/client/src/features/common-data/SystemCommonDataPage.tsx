@@ -6,43 +6,13 @@ import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { useListCommonData, useCreateCommonDataEntry, useUpdateCommonDataEntry, useDeleteCommonDataEntry } from '@/shared/api/commonData';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
-import type { CommonDataEntry, DocumentType, EnumTypeDef, PrimitiveTypeDef } from '@/shared/api/types';
+import type { DocumentType, EnumTypeDef, PrimitiveTypeDef, CommonDataEntry } from '@/shared/api/types';
+import { SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, groupEffectiveFields, parseSchemaFields, getDefaultValues, type SchemaField } from '@/shared/api/schema';
 import {
   PrimitiveInput, FileField, ImageField, ArrayFieldEditor, ComplexFieldGroup, DocRefCatalogPickerField,
+  BaseCandidatePicker, SCOPE_TIER, type BaseCandidate,
 } from '../document-sets/fields';
-
-// ─── Base entry picker (общие данные System-скопа) ────────────────────────────
-// Локальный пикер базового экземпляра (issue #73, шаг 1). Единый пикер — отдельный шаг (#73 п.2).
-function BaseEntryPickerModal({ open, onOpenChange, parentType, onSelect }: {
-  open: boolean; onOpenChange: (o: boolean) => void;
-  parentType: DocumentType; onSelect: (entry: CommonDataEntry) => void;
-}) {
-  const [search, setSearch] = useState('');
-  const { data: entries = [] } = useListCommonData({ scope: 'System', typeId: parentType.id, enabled: open });
-  const filtered = entries.filter(e => e.displayName.toLowerCase().includes(search.toLowerCase()));
-  return (
-    <Modal open={open} onOpenChange={onOpenChange} title={`Базовый экземпляр: ${parentType.name}`}>
-      <div className="space-y-4">
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..." autoFocus
-          className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
-        {filtered.length === 0 ? (
-          <p className="text-sm text-fg4 text-center py-4">Нет записей типа «{parentType.name}» в системном каталоге.</p>
-        ) : (
-          <div className="space-y-1 max-h-72 overflow-y-auto">
-            {filtered.map(entry => (
-              <button key={entry.id} type="button" onClick={() => { onSelect(entry); onOpenChange(false); }}
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md hover:bg-brand-subtle transition-colors">
-                <Link2 size={13} className="text-brand shrink-0" />
-                <span className="flex-1 font-medium text-fg1 truncate">{entry.displayName}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </Modal>
-  );
-}
 
 // ─── Entry form (add / edit) ──────────────────────────────────────────────────
 
@@ -98,6 +68,11 @@ function EntryForm({
     enabled: !!parentType,
   });
   const baseEntry = parentEntries.find(e => e.id === baseRefId);
+  // Кандидаты базы для общего пикера (issue #73, шаг 2): записи родительского типа (System-скоп).
+  const baseCandidates: BaseCandidate[] = parentEntries.map(e => ({
+    kind: 'catalog' as const, id: e.id, name: e.displayName, typeId: e.compositeTypeId,
+    tier: SCOPE_TIER[e.scope], scopeLabel: SCOPE_LABELS[e.scope], dist: 0,
+  }));
 
   function setValue(key: string, v: unknown) {
     setValues(p => {
@@ -252,11 +227,11 @@ function EntryForm({
               Без базового экземпляра все {effectiveFields.length} полей заполняются вручную.
             </p>
           )}
-          <BaseEntryPickerModal
+          <BaseCandidatePicker
             open={basePickerOpen}
             onOpenChange={setBasePickerOpen}
-            parentType={parentType}
-            onSelect={e => setValue('_baseRef', e.id)}
+            candidates={baseCandidates}
+            onSelect={c => setValue('_baseRef', c.id)}
           />
         </div>
       )}
