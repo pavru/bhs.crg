@@ -1,15 +1,13 @@
-using BHS.CRG.Domain.Documents;
-
 namespace BHS.CRG.Application.Generation;
 
 /// <summary>
 /// C#-аналог ref/merge механизма из NewElementResolverStyles.xsl старой системы.
-/// Принимает DocumentInstance, разрешает ссылки на сущности каталога,
+/// Принимает <see cref="DocumentView"/>, разрешает ссылки на сущности каталога,
 /// возвращает собранный GenerationContext.
 /// </summary>
 public interface IEntityResolver
 {
-    Task<GenerationContext> ResolveAsync(DocumentInstance instance, CancellationToken ct = default);
+    Task<GenerationContext> ResolveAsync(DocumentView instance, CancellationToken ct = default);
 
     /// <summary>
     /// Повторно разрешает $ref-ссылки в уже собранном контексте. Применяется после
@@ -26,7 +24,7 @@ public interface IEntityResolver
     /// IDataSetResolver.InjectAsync (иначе биндинг не успеет "победить"). Только скалярные поля —
     /// составные/табличные (complex/array/doc-ref/doc-array/file/image) не трогает.
     /// </summary>
-    Task ApplyDefaultsAsync(GenerationContext ctx, DocumentInstance instance, CancellationToken ct = default);
+    Task ApplyDefaultsAsync(GenerationContext ctx, DocumentView instance, CancellationToken ct = default);
 
     /// <summary>
     /// Резолвит enum-поля реквизитов из кода (хранится в контексте) в отображаемое имя EnumType
@@ -34,5 +32,5 @@ public interface IEntityResolver
     /// ApplyDefaultsAsync (иначе default-значение enum-поля не получит резолва). Толерантно: код без
     /// совпадения в реестре остаётся как есть. Только верхнеуровневые скалярные поля.
     /// </summary>
-    Task ResolveEnumLabelsAsync(GenerationContext ctx, DocumentInstance instance, CancellationToken ct = default);
+    Task ResolveEnumLabelsAsync(GenerationContext ctx, DocumentView instance, CancellationToken ct = default);
 }

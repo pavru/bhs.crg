@@ -61,7 +61,7 @@ public class EntityResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         using var scope = fixture.Services.CreateScope();
         var inst = await M(scope).Send(new GetDocumentInstanceQuery(instanceId));
         var resolver = scope.ServiceProvider.GetRequiredService<IEntityResolver>();
-        return await resolver.ResolveAsync(inst!);
+        return await resolver.ResolveAsync(DocumentView.From(inst!));
     }
 
     private static JsonElement E(GenerationContext ctx, string key) => (JsonElement)ctx.Data[key]!;

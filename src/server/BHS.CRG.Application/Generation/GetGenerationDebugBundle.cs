@@ -59,11 +59,12 @@ public class GetGenerationDebugBundleHandler(
             ?? throw new InvalidOperationException($"No active template for DocumentType {instance.DocumentTypeId}");
 
         var allDocTypes = await docTypeRepo.GetAllAsync(ct);
-        var context = await entityResolver.ResolveAsync(instance, ct);
-        await dataSetResolver.InjectAsync(context, instance, null, ct);
-        await entityResolver.ApplyDefaultsAsync(context, instance, ct);
-        await entityResolver.ResolveEnumLabelsAsync(context, instance, ct);
-        await qualityLinkResolver.InjectAsync(context, instance, ct);
+        var view = DocumentView.From(instance);
+        var context = await entityResolver.ResolveAsync(view, ct);
+        await dataSetResolver.InjectAsync(context, view, null, ct);
+        await entityResolver.ApplyDefaultsAsync(context, view, ct);
+        await entityResolver.ResolveEnumLabelsAsync(context, view, ct);
+        await qualityLinkResolver.InjectAsync(context, view, ct);
         // Тот же второй проход, что и при генерации — разрешаем $ref, добавленные наборами данных.
         await entityResolver.ResolveContextRefsAsync(context, instance.DocumentSetId, ct);
         context.Set("params", TemplateParams.Effective(template.Parameters,

@@ -10,7 +10,6 @@ public interface IDocumentGenerator
 }
 
 public record GenerationRequest(
-    DocumentInstance Instance,
     string TemplateContent,
     OutputFormat Format,
     GenerationContext Context,

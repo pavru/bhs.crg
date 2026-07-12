@@ -12,7 +12,7 @@ namespace BHS.CRG.Infrastructure.Generation;
 
 public class QualityLinkResolver(AppDbContext db) : IQualityLinkResolver
 {
-    public async Task InjectAsync(GenerationContext ctx, DocumentInstance instance, CancellationToken ct = default)
+    public async Task InjectAsync(GenerationContext ctx, DocumentView instance, CancellationToken ct = default)
     {
         // Поля идентичности материала и целевое поле ссылки берём по функциональным тэгам
         // (material.identity / material.qualityDocLink) из составных типов, а не по именам.

@@ -61,8 +61,9 @@ public class DataSetResolverDefaultsTests(IntegrationTestFixture fixture) : IAsy
         var resolver = scope.ServiceProvider.GetRequiredService<IEntityResolver>();
         var dataSetResolver = scope.ServiceProvider.GetRequiredService<IDataSetResolver>();
 
-        var ctx = await resolver.ResolveAsync(inst!, default);
-        await dataSetResolver.InjectAsync(ctx, inst!, null, default);
+        var view = DocumentView.From(inst!);
+        var ctx = await resolver.ResolveAsync(view, default);
+        await dataSetResolver.InjectAsync(ctx, view, null, default);
 
         var rows = (JsonElement)ctx.Data["Строки"]!;
         Assert.Equal(JsonValueKind.Array, rows.ValueKind);
@@ -104,8 +105,9 @@ public class DataSetResolverDefaultsTests(IntegrationTestFixture fixture) : IAsy
         var resolver = scope.ServiceProvider.GetRequiredService<IEntityResolver>();
         var dataSetResolver = scope.ServiceProvider.GetRequiredService<IDataSetResolver>();
 
-        var ctx = await resolver.ResolveAsync(inst!, default);
-        await dataSetResolver.InjectAsync(ctx, inst!, null, default);
+        var view = DocumentView.From(inst!);
+        var ctx = await resolver.ResolveAsync(view, default);
+        await dataSetResolver.InjectAsync(ctx, view, null, default);
 
         var rows = (JsonElement)ctx.Data["Строки"]!;
         Assert.Equal("2", rows[0].GetProperty("ВидДокумента").GetString()); // из колонки B, не "дефолт"

@@ -23,10 +23,11 @@ public class ValidateInstanceResolutionHandler(
             ?? throw new KeyNotFoundException($"DocumentInstance {q.InstanceId} not found");
 
         var diagnostics = new List<ResolutionDiagnostic>();
-        var context = await entityResolver.ResolveAsync(instance, ct);
-        await dataSetResolver.InjectAsync(context, instance, diagnostics, ct);
-        await entityResolver.ApplyDefaultsAsync(context, instance, ct);
-        await entityResolver.ResolveEnumLabelsAsync(context, instance, ct);
+        var view = DocumentView.From(instance);
+        var context = await entityResolver.ResolveAsync(view, ct);
+        await dataSetResolver.InjectAsync(context, view, diagnostics, ct);
+        await entityResolver.ApplyDefaultsAsync(context, view, ct);
+        await entityResolver.ResolveEnumLabelsAsync(context, view, ct);
         await entityResolver.ResolveContextRefsAsync(context, instance.DocumentSetId, ct);
         ResolutionScanner.ScanLeftoverRefs(context, diagnostics);
         return diagnostics;

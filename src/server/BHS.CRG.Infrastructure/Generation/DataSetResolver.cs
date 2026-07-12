@@ -20,7 +20,7 @@ public class DataSetResolver(
     ILogger<DataSetResolver> logger
 ) : IDataSetResolver
 {
-    public async Task InjectAsync(GenerationContext ctx, DocumentInstance instance,
+    public async Task InjectAsync(GenerationContext ctx, DocumentView instance,
         List<ResolutionDiagnostic>? diagnostics = null, CancellationToken ct = default)
     {
         var bindings = await db.DataSetBindings
@@ -149,7 +149,7 @@ public class DataSetResolver(
     private async Task<object?> MapValueAsync(
         string mapVal,
         IReadOnlyDictionary<string, string?> row,
-        DocumentInstance instance,
+        DocumentView instance,
         Func<Task<ScopeChain>> scopeChainAccessor,
         Dictionary<Guid, List<CommonDataEntry>> entryCache,
         List<ResolutionDiagnostic>? diagnostics,

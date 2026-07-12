@@ -67,15 +67,16 @@ public class GenerateDocumentHandler(
 
             var allDocTypes = await docTypeRepo.GetAllAsync(ct);
             var diagnostics = new List<ResolutionDiagnostic>();
-            var context = await entityResolver.ResolveAsync(instance, ct);
-            await dataSetResolver.InjectAsync(context, instance, diagnostics, ct);
+            var view = DocumentView.From(instance);
+            var context = await entityResolver.ResolveAsync(view, ct);
+            await dataSetResolver.InjectAsync(context, view, diagnostics, ct);
             // Значения по умолчанию из схемы типа (issue #53) — для полей, оставшихся без значения
             // после реквизитов инстанса и биндингов (самый низкий приоритет).
-            await entityResolver.ApplyDefaultsAsync(context, instance, ct);
+            await entityResolver.ApplyDefaultsAsync(context, view, ct);
             // Enum-поля: код → отображаемое имя (issue #59) — иначе в PDF попадёт сырой код.
-            await entityResolver.ResolveEnumLabelsAsync(context, instance, ct);
+            await entityResolver.ResolveEnumLabelsAsync(context, view, ct);
             // Подмешиваем документы качества по идентичности материала (артикул/наименование).
-            await qualityLinkResolver.InjectAsync(context, instance, ct);
+            await qualityLinkResolver.InjectAsync(context, view, ct);
             // Наборы данных могли добавить ссылки на каталог ($ref) в составные поля —
             // разрешаем их вторым проходом (для уже разрешённых данных идемпотентно).
             await entityResolver.ResolveContextRefsAsync(context, instance.DocumentSetId, ct);
@@ -119,7 +120,7 @@ public class GenerateDocumentHandler(
                     : null;
 
                 var generator = generatorFactory.Create(cmd.Format);
-                var request = new GenerationRequest(instance, template.Content, cmd.Format, context,
+                var request = new GenerationRequest(template.Content, cmd.Format, context,
                     TypeBlocksContent: typeBlocksContent, UserLibContent: userLibContent,
                     ImageOptions: imageOptions, TemplateAssets: templateAssets);
                 var bytes = await generator.GenerateAsync(request, ct);
