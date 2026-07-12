@@ -35,6 +35,21 @@ public static class CommonDataEndpoints
             catch (KeyNotFoundException ex) { return Results.NotFound(ex.Message); }
         });
 
+        // Resolve entries visible from ANY scope level, walking the parent chain (issue #82).
+        g.MapGet("/for-scope", async (string scope, Guid? scopeId, Guid? typeId, IMediator m) =>
+        {
+            CatalogScope? parsed = scope switch
+            {
+                "Set"          => CatalogScope.Set,
+                "Section"      => CatalogScope.Section,
+                "Construction" => CatalogScope.Construction,
+                "System"       => CatalogScope.System,
+                _              => null,
+            };
+            if (parsed is null) return Results.BadRequest($"Unknown scope '{scope}'.");
+            return Results.Ok(await m.Send(new ResolveCommonDataForScopeQuery(parsed.Value, scopeId, typeId)));
+        });
+
         g.MapGet("/{id:guid}", async (Guid id, IMediator m) =>
         {
             var all = await m.Send(new ListCommonDataEntriesQuery());

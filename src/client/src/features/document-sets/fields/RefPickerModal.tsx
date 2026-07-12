@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
-import { useCommonDataForSet, useListCommonData } from '@/shared/api/commonData';
+import { useCommonDataForScope } from '@/shared/api/commonData';
 import type {
   CommonDataEntry, DocumentInstance, DocumentType, FieldRef, CatalogScope,
 } from '@/shared/api/types';
@@ -26,23 +26,14 @@ export function RefPickerModal({
 }) {
   const [search, setSearch] = useState('');
 
-  const { data: setCatalogEntries = [] } = useCommonDataForSet({
-    setId: setId ?? '',
-    enabled: open && !!setId,
+  // Единый резолв всей цепочки скопов (issue #82): комплект-контекст → (Set, setId), иначе (scope, scopeId).
+  // for-scope сам поднимается по родителям (Раздел→Стройка→Система), поэтому объекты более широких
+  // уровней видны из раздел/строечных контекстов (раньше запасной путь их пропускал).
+  const effScope: CatalogScope | undefined = setId ? 'Set' : scope;
+  const effScopeId = setId ?? scopeId;
+  const { data: catalogEntries = [] } = useCommonDataForScope({
+    scope: effScope, scopeId: effScopeId, enabled: open && !!effScope,
   });
-
-  const { data: scopeEntries = [] } = useListCommonData({
-    scope, scopeId: scopeId ?? undefined,
-    enabled: open && !setId && !!scope && scope !== 'System',
-  });
-  const { data: systemFallback = [] } = useListCommonData({
-    scope: 'System',
-    enabled: open && !setId,
-  });
-
-  const catalogEntries: CommonDataEntry[] = setId
-    ? setCatalogEntries
-    : [...scopeEntries, ...systemFallback.filter(e => !scopeEntries.some(s => s.id === e.id))];
 
   const filtered = catalogEntries.filter(e => {
     if (compositeType && !isSubtypeOf(e.compositeTypeId, compositeType.id, allDocTypes)) return false;

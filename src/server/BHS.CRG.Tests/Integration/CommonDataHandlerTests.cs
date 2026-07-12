@@ -101,6 +101,29 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
         }
     }
 
+    // ── for-scope: резолв родительской цепочки (issue #82) ──────────────────────
+
+    [Fact]
+    public async Task ForScope_Section_IncludesConstructionAndSystem_NotForeign()
+    {
+        var typeId = await CreateCompositeTypeAsync("ORG_FS");
+        var (_, sectionId, constructionId) = await CreateHierarchyAsync();
+        using var scope = fixture.Services.CreateScope();
+        var m = Mediator(scope);
+        var c = await m.Send(new CreateCommonDataEntryCommand("Стройка", typeId, Json("{}"), CatalogScope.Construction, constructionId));
+        var s = await m.Send(new CreateCommonDataEntryCommand("Раздел", typeId, Json("{}"), CatalogScope.Section, sectionId));
+        var sys = await m.Send(new CreateCommonDataEntryCommand("Система", typeId, Json("{}"), CatalogScope.System, null));
+        var foreign = await m.Send(new CreateCommonDataEntryCommand("Чужая стройка", typeId, Json("{}"), CatalogScope.Construction, Guid.NewGuid()));
+
+        var ids = (await m.Send(new ResolveCommonDataForScopeQuery(CatalogScope.Section, sectionId, null)))
+            .Select(e => e.Id).ToHashSet();
+
+        Assert.Contains(c.Id, ids);       // стройка — родитель раздела (раньше пикер её не показывал)
+        Assert.Contains(s.Id, ids);       // сам раздел
+        Assert.Contains(sys.Id, ids);     // система
+        Assert.DoesNotContain(foreign.Id, ids); // объект чужой стройки не виден
+    }
+
     // ── Update ────────────────────────────────────────────────────────────────
 
     [Fact]
