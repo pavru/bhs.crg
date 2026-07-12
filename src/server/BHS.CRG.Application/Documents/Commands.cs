@@ -53,10 +53,10 @@ public record SetDocumentTemplateParamsCommand(Guid InstanceId, string? Params) 
 // --- CommonDataEntry ---
 public record CreateCommonDataEntryCommand(
     string DisplayName, Guid CompositeTypeId, JsonDocument Data,
-    CatalogScope Scope, Guid? ScopeId) : IRequest<CommonDataEntry>;
+    CatalogScope Scope, Guid? ScopeId, IReadOnlyList<string>? Aliases = null) : IRequest<CommonDataEntry>;
 
-public record UpdateCommonDataEntryCommand(Guid Id, string DisplayName, JsonDocument Data)
-    : IRequest<CommonDataEntry>;
+public record UpdateCommonDataEntryCommand(Guid Id, string DisplayName, JsonDocument Data,
+    IReadOnlyList<string>? Aliases = null) : IRequest<CommonDataEntry>;
 
 public record DeleteCommonDataEntryCommand(Guid Id) : IRequest;
 

@@ -207,11 +207,16 @@ public class DataSetResolver(
         if (needle.Length == 0) return null; // пустое значение ни с чем не сопоставляем
         foreach (var entry in candidates)
         {
-            var hay = string.IsNullOrEmpty(match)
-                ? entry.DisplayName
-                : ReadDataField(entry.Data, match);
-            if (hay is not null && Normalize(hay) == needle)
-                return entry.Id;
+            if (!string.IsNullOrEmpty(match))
+            {
+                // Матч по конкретному полю данных — алиасы (это про имя) не участвуют.
+                var hay = ReadDataField(entry.Data, match);
+                if (hay is not null && Normalize(hay) == needle) return entry.Id;
+                continue;
+            }
+            // Матч по имени: DisplayName ИЛИ любой из алиасов (issue #74).
+            if (Normalize(entry.DisplayName) == needle) return entry.Id;
+            if (entry.Aliases.Any(a => Normalize(a) == needle)) return entry.Id;
         }
         return null;
     }

@@ -53,12 +53,12 @@ public static class CommonDataEndpoints
             };
             return Results.Ok(await m.Send(new CreateCommonDataEntryCommand(
                 req.DisplayName, req.CompositeTypeId,
-                JsonDocument.Parse(req.Data), scope, req.ScopeId)));
+                JsonDocument.Parse(req.Data), scope, req.ScopeId, req.Aliases)));
         });
 
         g.MapPut("/{id:guid}", async (Guid id, UpdateRequest req, IMediator m) =>
             Results.Ok(await m.Send(new UpdateCommonDataEntryCommand(
-                id, req.DisplayName, JsonDocument.Parse(req.Data)))));
+                id, req.DisplayName, JsonDocument.Parse(req.Data), req.Aliases))));
 
         g.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
@@ -67,6 +67,6 @@ public static class CommonDataEndpoints
         });
     }
 
-    record CreateRequest(string DisplayName, Guid CompositeTypeId, string Data, string Scope, Guid? ScopeId);
-    record UpdateRequest(string DisplayName, string Data);
+    record CreateRequest(string DisplayName, Guid CompositeTypeId, string Data, string Scope, Guid? ScopeId, string[]? Aliases);
+    record UpdateRequest(string DisplayName, string Data, string[]? Aliases);
 }

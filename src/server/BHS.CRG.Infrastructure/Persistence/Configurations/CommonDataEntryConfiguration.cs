@@ -11,6 +11,8 @@ public class CommonDataEntryConfiguration : IEntityTypeConfiguration<CommonDataE
         b.ToTable("common_data_entries");
         b.HasKey(e => e.Id);
         b.Property(e => e.DisplayName).HasMaxLength(512).IsRequired();
+        // Алиасы (issue #74) — Postgres text[]; сопоставление идёт в памяти, индексация не требуется.
+        b.Property(e => e.Aliases).HasColumnType("text[]").IsRequired();
         b.Property(e => e.CompositeTypeId).IsRequired();
         b.Property(e => e.Data).HasColumnType("jsonb").IsRequired();
         b.Property(e => e.Scope)

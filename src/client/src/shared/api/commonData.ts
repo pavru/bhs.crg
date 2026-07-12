@@ -54,6 +54,7 @@ export function useCreateCommonDataEntry() {
       data: string;
       scope: CatalogScope;
       scopeId?: string | null;
+      aliases?: string[];
     }) => apiClient.post<CommonDataEntry>('/common-data', payload).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
@@ -62,8 +63,8 @@ export function useCreateCommonDataEntry() {
 export function useUpdateCommonDataEntry() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, displayName, data }: { id: string; displayName: string; data: string }) =>
-      apiClient.put<CommonDataEntry>(`/common-data/${id}`, { displayName, data }).then(r => r.data),
+    mutationFn: ({ id, displayName, data, aliases }: { id: string; displayName: string; data: string; aliases?: string[] }) =>
+      apiClient.put<CommonDataEntry>(`/common-data/${id}`, { displayName, data, aliases }).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }
