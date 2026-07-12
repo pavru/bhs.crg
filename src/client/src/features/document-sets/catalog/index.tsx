@@ -167,7 +167,7 @@ export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
 
 // ─── Catalog entry form (create + edit, shared by ScopedCatalogPanel) ────────
 
-function CatalogEntryForm({
+export function CatalogEntryForm({
   entry, compositeTypes, documentTypes = [], allDocTypes, scope, scopeId, setId, onClose,
 }: {
   entry?: CommonDataEntry | null;
