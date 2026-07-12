@@ -5,6 +5,7 @@ using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Infrastructure.Common;
 using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -33,7 +34,7 @@ public class DataSetResolver(
         // Цепочка scope каталога (Set → Section → Construction → System) и кэш записей
         // по составному типу — строятся лениво, только если встретится ссылочный маппинг.
         Task<ScopeChain>? scopeChainTask = null;
-        Task<ScopeChain> ChainAsync() => scopeChainTask ??= LoadScopeChainAsync(instance, ct);
+        Task<ScopeChain> ChainAsync() => scopeChainTask ??= ScopeChains.LoadAsync(db, instance.DocumentSetId, ct);
         var entryCache = new Dictionary<Guid, List<CommonDataEntry>>();
 
         // Схема типов (для кардинальности целевого поля материализации/табличной связки) — лениво, один раз.
@@ -233,20 +234,4 @@ public class DataSetResolver(
         };
     }
 
-    private async Task<ScopeChain> LoadScopeChainAsync(DocumentInstance instance, CancellationToken ct)
-    {
-        var set = await db.DocumentSets.AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == instance.DocumentSetId, ct);
-        Guid sectionId = set?.SectionId ?? Guid.Empty;
-        Guid constructionId = Guid.Empty;
-        if (sectionId != Guid.Empty)
-        {
-            var section = await db.Sections.AsNoTracking()
-                .FirstOrDefaultAsync(s => s.Id == sectionId, ct);
-            constructionId = section?.ConstructionId ?? Guid.Empty;
-        }
-        return new ScopeChain(instance.DocumentSetId, sectionId, constructionId);
-    }
-
-    private readonly record struct ScopeChain(Guid SetId, Guid SectionId, Guid ConstructionId);
 }
