@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, Search, Link2, Unlink, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -11,7 +11,7 @@ import { SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, groupEffectiveFields, parseSchemaFields, getDefaultValues, type SchemaField } from '@/shared/api/schema';
 import {
   PrimitiveInput, FileField, ImageField, ArrayFieldEditor, ComplexFieldGroup, DocRefCatalogPickerField,
-  BaseCandidatePicker, SCOPE_TIER, type BaseCandidate,
+  BaseInstancePanel, SCOPE_TIER, type BaseCandidate,
 } from '../document-sets/fields';
 
 // ─── Entry form (add / edit) ──────────────────────────────────────────────────
@@ -31,7 +31,6 @@ function EntryForm({
   const [values, setValues] = useState<Record<string, unknown>>(() => entry?.data ?? {});
   const [error, setError] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [basePickerOpen, setBasePickerOpen] = useState(false);
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const createMutation = useCreateCommonDataEntry();
   const updateMutation = useUpdateCommonDataEntry();
@@ -67,7 +66,6 @@ function EntryForm({
     typeId: parentType?.id,
     enabled: !!parentType,
   });
-  const baseEntry = parentEntries.find(e => e.id === baseRefId);
   // Кандидаты базы для общего пикера (issue #73, шаг 2): записи родительского типа (System-скоп).
   const baseCandidates: BaseCandidate[] = parentEntries.map(e => ({
     kind: 'catalog' as const, id: e.id, name: e.displayName, typeId: e.compositeTypeId,
@@ -201,39 +199,16 @@ function EntryForm({
 
       {/* Базовый экземпляр — показываем, если тип имеет родителя */}
       {parentType && (
-        <div className="rounded-lg border border-stroke p-3 space-y-2">
-          <p className="text-xs font-semibold text-fg3 uppercase tracking-wide">
-            Базовый экземпляр
-            <span className="normal-case font-normal ml-1 text-fg4">({parentType.name})</span>
-          </p>
-          {baseRefId && baseEntry ? (
-            <div className="flex items-center gap-2 rounded-md border border-brand-subtle bg-brand-subtle px-3 py-2">
-              <Link2 size={14} className="text-brand shrink-0" />
-              <span className="flex-1 text-sm font-medium text-brand-hover truncate">{baseEntry.displayName}</span>
-              <button type="button" onClick={() => setValue('_baseRef', undefined)}
-                className="text-brand hover:text-danger transition-colors" title="Снять ссылку">
-                <Unlink size={13} />
-              </button>
-            </div>
-          ) : (
-            <button type="button" onClick={() => setBasePickerOpen(true)}
-              className="flex items-center gap-2 text-sm text-brand hover:text-brand-hover border border-dashed border-brand-subtle rounded-md px-3 py-2 w-full hover:bg-brand-subtle transition-colors">
-              <Link2 size={14} />
-              Выбрать из «{parentType.name}»...
-            </button>
-          )}
-          {!baseRefId && ownFields.length < effectiveFields.length && (
-            <p className="text-xs text-fg4">
-              Без базового экземпляра все {effectiveFields.length} полей заполняются вручную.
-            </p>
-          )}
-          <BaseCandidatePicker
-            open={basePickerOpen}
-            onOpenChange={setBasePickerOpen}
-            candidates={baseCandidates}
-            onSelect={c => setValue('_baseRef', c.id)}
-          />
-        </div>
+        <BaseInstancePanel
+          title={parentType.name}
+          candidates={baseCandidates}
+          selected={baseCandidates.find(c => c.id === baseRefId)}
+          missing={!!baseRefId && !baseCandidates.some(c => c.id === baseRefId)}
+          manualHint={ownFields.length < effectiveFields.length
+            ? `Без базового экземпляра все ${effectiveFields.length} полей заполняются вручную.` : undefined}
+          onSelect={c => setValue('_baseRef', c.id)}
+          onClear={() => setValue('_baseRef', undefined)}
+        />
       )}
 
       {selectedType && sections.length > 0 && displayFields.length > 0 && (

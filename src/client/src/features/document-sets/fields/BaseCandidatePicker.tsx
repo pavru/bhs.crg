@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Database } from 'lucide-react';
+import { FileText, Database, Link2, Unlink } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
 
@@ -77,5 +77,58 @@ export function BaseCandidatePicker({ open, onOpenChange, candidates, onSelect }
         )}
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Панель «Базовый экземпляр» (issue #73, шаг 3) — единый блок для всех форм объекта составного типа
+ * (редактор документов, каталог, системный каталог). Показывает выбранную базу / кнопку выбора /
+ * состояние «недоступна», содержит пикер. Вычисление кандидатов и формат хранения `_baseRef` —
+ * ответственность вызывающего (см. BaseCandidatePicker).
+ */
+export function BaseInstancePanel({ title, candidates, selected, missing = false, manualHint, onSelect, onClear }: {
+  title?: string;                       // напр. имя родительского типа — в подзаголовок
+  candidates: BaseCandidate[];
+  selected: BaseCandidate | undefined;  // выбранная база (по _baseRef), если найдена среди кандидатов
+  missing?: boolean;                    // ссылка задана, но кандидат не найден (удалён/вне видимости)
+  manualHint?: string;                  // подсказка «без базы все N полей вручную»
+  onSelect: (c: BaseCandidate) => void;
+  onClear: () => void;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  return (
+    <div className="rounded-lg border border-stroke p-3 space-y-2">
+      <p className="text-xs font-semibold text-fg3 uppercase tracking-wide">
+        Базовый экземпляр
+        {title && <span className="normal-case font-normal ml-1 text-fg4">({title})</span>}
+      </p>
+      {selected ? (
+        <div className="flex items-center gap-2 rounded-md border border-brand-subtle bg-brand-subtle px-3 py-2">
+          {selected.kind === 'instance'
+            ? <FileText size={14} className="text-brand shrink-0" />
+            : <Database size={14} className="text-brand shrink-0" />}
+          <span className="flex-1 text-sm font-medium text-brand-hover truncate">{selected.name}</span>
+          <span className="text-[11px] text-fg4 shrink-0">{selected.scopeLabel}</span>
+          <button type="button" onClick={onClear} className="text-brand hover:text-danger transition-colors" title="Снять ссылку">
+            <Unlink size={13} />
+          </button>
+        </div>
+      ) : missing ? (
+        <div className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2">
+          <span className="flex-1 text-sm text-warning truncate">Базовый экземпляр недоступен (удалён или вне области видимости)</span>
+          <button type="button" onClick={onClear} className="text-brand hover:text-danger transition-colors" title="Снять ссылку">
+            <Unlink size={13} />
+          </button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setPickerOpen(true)}
+          className="flex items-center gap-2 text-sm text-brand hover:text-brand-hover border border-dashed border-brand-subtle rounded-md px-3 py-2 w-full hover:bg-brand-subtle transition-colors">
+          <Link2 size={14} />
+          Выбрать базовый экземпляр...
+        </button>
+      )}
+      {!selected && !missing && manualHint && <p className="text-xs text-fg4">{manualHint}</p>}
+      <BaseCandidatePicker open={pickerOpen} onOpenChange={setPickerOpen} candidates={candidates} onSelect={onSelect} />
+    </div>
   );
 }

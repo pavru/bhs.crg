@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Loader2, FileText, Download, Eye, Pencil, ChevronDown, ChevronUp, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail, Database, Link2, Unlink } from 'lucide-react';
+import { Loader2, FileText, Download, Eye, Pencil, ChevronDown, ChevronUp, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail, Database } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useEmailDocument } from '@/shared/api/documentSets';
 import { EmailSendDialog } from '../EmailSendDialog';
@@ -23,7 +23,7 @@ import {
   STATUS_LABELS, STATUS_COLORS,
   validateConstraint, isMissing, PrimitiveInput, FileField, ImageField,
   DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup,
-  BaseCandidatePicker, SCOPE_TIER, ancestorTypeIds, parseBaseRef, type BaseCandidate,
+  BaseInstancePanel, SCOPE_TIER, ancestorTypeIds, parseBaseRef, type BaseCandidate,
 } from '../fields';
 import { DataSetsTab } from './DataSetsTab';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
@@ -114,7 +114,6 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   // Базовый экземпляр (issue #71): документ дочернего типа наследуется от базы — документа комплекта
   // ЛИБО записи общих данных (по цепочке типов-предков и скоп-близости). При связке наследуются её
   // данные (мердж при генерации), вручную заполняются только собственные поля. Ссылка — `_baseRef` {kind,id}.
-  const [basePickerOpen, setBasePickerOpen] = useState(false);
   const ancestorIds = useMemo(() => ancestorTypeIds(docType, allDocTypes), [docType, allDocTypes]);
   const hasBase = ancestorIds.length > 0;
   // Общие данные всех уровней скопа комплекта (Set/Section/Construction/System) — кандидаты-записи.
@@ -361,47 +360,15 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
     <div className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
       {hasBase && (
-        <div className="rounded-lg border border-stroke p-3 space-y-2">
-          <p className="text-xs font-semibold text-fg3 uppercase tracking-wide">Базовый экземпляр</p>
-          {baseRef && selectedBase ? (
-            <div className="flex items-center gap-2 rounded-md border border-brand-subtle bg-brand-subtle px-3 py-2">
-              {selectedBase.kind === 'instance'
-                ? <FileText size={14} className="text-brand shrink-0" />
-                : <Database size={14} className="text-brand shrink-0" />}
-              <span className="flex-1 text-sm font-medium text-brand-hover truncate">{selectedBase.name}</span>
-              <span className="text-[11px] text-fg4 shrink-0">{selectedBase.scopeLabel}</span>
-              <button type="button" onClick={clearBaseRef}
-                className="text-brand hover:text-danger transition-colors" title="Снять ссылку">
-                <Unlink size={13} />
-              </button>
-            </div>
-          ) : baseRef && !selectedBase ? (
-            <div className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2">
-              <span className="flex-1 text-sm text-warning truncate">Базовый экземпляр недоступен (удалён или вне области видимости)</span>
-              <button type="button" onClick={clearBaseRef}
-                className="text-brand hover:text-danger transition-colors" title="Снять ссылку">
-                <Unlink size={13} />
-              </button>
-            </div>
-          ) : (
-            <button type="button" onClick={() => setBasePickerOpen(true)}
-              className="flex items-center gap-2 text-sm text-brand hover:text-brand-hover border border-dashed border-brand-subtle rounded-md px-3 py-2 w-full hover:bg-brand-subtle transition-colors">
-              <Link2 size={14} />
-              Выбрать базовый экземпляр...
-            </button>
-          )}
-          {!baseRef && ownFields.length < schemaFields.length && (
-            <p className="text-xs text-fg4">
-              Без базового экземпляра все {schemaFields.length} полей заполняются вручную.
-            </p>
-          )}
-          <BaseCandidatePicker
-            open={basePickerOpen}
-            onOpenChange={setBasePickerOpen}
-            candidates={baseCandidates}
-            onSelect={selectBase}
-          />
-        </div>
+        <BaseInstancePanel
+          candidates={baseCandidates}
+          selected={selectedBase}
+          missing={!!baseRef && !selectedBase}
+          manualHint={ownFields.length < schemaFields.length
+            ? `Без базового экземпляра все ${schemaFields.length} полей заполняются вручную.` : undefined}
+          onSelect={selectBase}
+          onClear={clearBaseRef}
+        />
       )}
       {sections.map(section => {
         if (!section.title) {
