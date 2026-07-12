@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Loader2, FileText, Download, Eye, Pencil, ChevronDown, ChevronUp, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail, Database } from 'lucide-react';
+import { Loader2, FileText, Download, Eye, Pencil, ChevronDown, ChevronUp, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail, Database, Link2, Unlink } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useEmailDocument } from '@/shared/api/documentSets';
 import { EmailSendDialog } from '../EmailSendDialog';
@@ -15,7 +15,7 @@ import { useListTemplates } from '@/shared/api/templates';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import type { DocumentInstance, DocumentType, Template, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import {
-  groupEffectiveFields, resolveEffectiveFields, compositeFieldHasTag, type SchemaField,
+  groupEffectiveFields, resolveEffectiveFields, compositeFieldHasTag, parseSchemaFields, type SchemaField,
 } from '@/shared/api/schema';
 import {
   STATUS_LABELS, STATUS_COLORS,
@@ -73,6 +73,40 @@ function BoundStateHint({ loading, error }: { loading: boolean; error: boolean }
   return <p className="text-[11px] text-fg4 mt-0.5 italic">{text}</p>;
 }
 
+/// Пикер базового экземпляра (issue #71) — порт CatalogBaseEntryPicker для документов комплекта:
+/// выбор документа родительского типа из ТОГО ЖЕ комплекта (кандидаты уже под рукой в otherInstances).
+function BaseInstancePicker({ open, onOpenChange, parentType, candidates, onSelect }: {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  parentType: DocumentType; candidates: DocumentInstance[];
+  onSelect: (inst: DocumentInstance) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const filtered = candidates.filter(i => (i.name ?? '').toLowerCase().includes(search.toLowerCase()));
+  return (
+    <Modal open={open} onOpenChange={onOpenChange} title={`Базовый экземпляр: ${parentType.name}`}>
+      <div className="space-y-4">
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..." autoFocus
+          className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
+        {filtered.length === 0 ? (
+          <p className="text-sm text-fg4 text-center py-4">
+            Нет документов типа «{parentType.name}» в комплекте.
+          </p>
+        ) : (
+          <div className="space-y-1 max-h-72 overflow-y-auto">
+            {filtered.map(inst => (
+              <button key={inst.id} type="button" onClick={() => { onSelect(inst); onOpenChange(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md hover:bg-brand-subtle transition-colors">
+                <Link2 size={13} className="text-brand shrink-0" />
+                <span className="flex-1 font-medium text-fg1 truncate">{inst.name ?? '(без имени)'}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, otherInstances, onDirty, saveRef, onGoToDataTab }: {
   instance: DocumentInstance; setId: string; schemaFields: SchemaField[];
   allDocTypes: DocumentType[]; docType: DocumentType | undefined;
@@ -103,9 +137,30 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
     }
     return s;
   }, [dsBindings]);
-  // Обязательное поле, покрытое активной привязкой, не блокирует сохранение реквизитов —
-  // значение подставится при генерации (DataSetResolver.InjectAsync), форма его не хранит.
-  const isFieldMissing = (f: SchemaField, val: unknown) => isMissing(f, val) && !sourceBoundFields.has(f.key);
+  // Базовый экземпляр (issue #71): документ дочернего типа можно связать с документом РОДИТЕЛЬСКОГО
+  // типа в том же комплекте — при связке наследуются его реквизиты (мердж при генерации), а вручную
+  // заполняются только собственные поля дочернего типа. Ссылка хранится как `_baseRef` в реквизитах.
+  const [basePickerOpen, setBasePickerOpen] = useState(false);
+  const parentType = docType?.parentId ? allDocTypes.find(dt => dt.id === docType.parentId) ?? null : null;
+  const baseRefId = typeof values._baseRef === 'string' ? values._baseRef : undefined;
+  const baseCandidates = parentType ? otherInstances.filter(i => i.documentTypeId === parentType.id) : [];
+  const baseInstance = baseRefId ? baseCandidates.find(i => i.id === baseRefId) : undefined;
+  const ownFields = docType ? parseSchemaFields(docType.schema) : schemaFields;
+  const displayFields = (parentType && baseRefId) ? ownFields : schemaFields;
+  // Поля, покрытые базовым экземпляром, не требуются к заполнению здесь — придут наследованием при
+  // генерации (тот же класс, что sourceBoundFields из #55).
+  const baseCoveredFields = useMemo(
+    () => new Set(baseInstance ? Object.keys(baseInstance.requisites) : []),
+    [baseInstance]);
+  function clearBaseRef() {
+    setValues(p => { const n = { ...p }; delete n._baseRef; return n; });
+    onDirty(true);
+  }
+
+  // Обязательное поле, покрытое активной привязкой ИЛИ базовым экземпляром, не блокирует сохранение
+  // реквизитов — значение подставится при генерации, форма его не хранит.
+  const isFieldMissing = (f: SchemaField, val: unknown) =>
+    isMissing(f, val) && !sourceBoundFields.has(f.key) && !baseCoveredFields.has(f.key);
 
   // Предпросмотр значений привязок (issue #67): скалярный биндинг не пишет значение в реквизиты —
   // оно резолвится только при генерации. Тот же preview-эндпоинт, что и на вкладке «Данные»,
@@ -191,7 +246,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   if (schemaFields.length === 0)
     return <div className="text-sm text-fg4 py-4 text-center">Схема полей не задана.</div>;
 
-  const sections = groupEffectiveFields(schemaFields, docType?.schema ?? {});
+  const sections = groupEffectiveFields(displayFields, docType?.schema ?? {});
 
   function renderFields(fields: SchemaField[]) {
     const isWide = (f: SchemaField) =>
@@ -300,6 +355,50 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+      {parentType && (
+        <div className="rounded-lg border border-stroke p-3 space-y-2">
+          <p className="text-xs font-semibold text-fg3 uppercase tracking-wide">
+            Базовый экземпляр
+            <span className="normal-case font-normal ml-1 text-fg4">({parentType.name})</span>
+          </p>
+          {baseRefId && baseInstance ? (
+            <div className="flex items-center gap-2 rounded-md border border-brand-subtle bg-brand-subtle px-3 py-2">
+              <Link2 size={14} className="text-brand shrink-0" />
+              <span className="flex-1 text-sm font-medium text-brand-hover truncate">{baseInstance.name ?? '(без имени)'}</span>
+              <button type="button" onClick={clearBaseRef}
+                className="text-brand hover:text-danger transition-colors" title="Снять ссылку">
+                <Unlink size={13} />
+              </button>
+            </div>
+          ) : baseRefId && !baseInstance ? (
+            <div className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2">
+              <span className="flex-1 text-sm text-warning truncate">Базовый экземпляр не найден в комплекте</span>
+              <button type="button" onClick={clearBaseRef}
+                className="text-brand hover:text-danger transition-colors" title="Снять ссылку">
+                <Unlink size={13} />
+              </button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setBasePickerOpen(true)}
+              className="flex items-center gap-2 text-sm text-brand hover:text-brand-hover border border-dashed border-brand-subtle rounded-md px-3 py-2 w-full hover:bg-brand-subtle transition-colors">
+              <Link2 size={14} />
+              Выбрать из «{parentType.name}»...
+            </button>
+          )}
+          {!baseRefId && ownFields.length < schemaFields.length && (
+            <p className="text-xs text-fg4">
+              Без базового экземпляра все {schemaFields.length} полей заполняются вручную.
+            </p>
+          )}
+          <BaseInstancePicker
+            open={basePickerOpen}
+            onOpenChange={setBasePickerOpen}
+            parentType={parentType}
+            candidates={baseCandidates}
+            onSelect={inst => setValue('_baseRef', inst.id)}
+          />
+        </div>
+      )}
       {sections.map(section => {
         if (!section.title) {
           // Ungrouped fields — always visible, no header

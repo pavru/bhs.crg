@@ -98,6 +98,55 @@ public class EntityResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         Assert.Equal("Ромашка", org.GetProperty("Наименование").GetString());  // переопределено
     }
 
+    // ── Базовый экземпляр документа комплекта (issue #71) ────────────────────────
+
+    [Fact]
+    public async Task InstanceBaseRef_Merged()
+    {
+        var setId = await SetupSetAsync();
+        var baseType = await TypeAsync(DocumentTypeKind.Document, "DOC_BASE");
+        var childType = await TypeAsync(DocumentTypeKind.Document, "DOC_CHILD");
+        var baseId = await DocAsync(setId, baseType, "{'Город':'Владивосток','Номер':'B-1'}");
+        var childId = await DocAsync(setId, childType, "{'_baseRef':'" + baseId + "','Номер':'C-1'}");
+
+        var ctx = await ResolveAsync(childId);
+
+        Assert.Equal("Владивосток", E(ctx, "Город").GetString()); // унаследовано от базового
+        Assert.Equal("C-1", E(ctx, "Номер").GetString());         // собственное переопределяет
+        Assert.False(ctx.Data.ContainsKey("_baseRef"));           // служебный ключ не протекает в контекст
+    }
+
+    [Fact]
+    public async Task InstanceBaseRef_CrossSet_NotMerged()
+    {
+        var setId = await SetupSetAsync();
+        var otherSetId = await SetupSetAsync();
+        var type = await TypeAsync(DocumentTypeKind.Document, "DOC_XSET");
+        var baseId = await DocAsync(otherSetId, type, "{'Город':'Владивосток'}"); // база в ДРУГОМ комплекте
+        var childId = await DocAsync(setId, type, "{'_baseRef':'" + baseId + "','Номер':'C-1'}");
+
+        var ctx = await ResolveAsync(childId);
+
+        Assert.False(ctx.Data.ContainsKey("Город"));      // set-guard: чужой комплект не подмешивается
+        Assert.Equal("C-1", E(ctx, "Номер").GetString());
+    }
+
+    [Fact]
+    public async Task InstanceBaseRef_Cycle_Breaks()
+    {
+        var setId = await SetupSetAsync();
+        var type = await TypeAsync(DocumentTypeKind.Document, "DOC_CYC");
+        var aId = await DocAsync(setId, type, "{'Поле':'A'}");
+        var bId = await DocAsync(setId, type, "{'_baseRef':'" + aId + "','Поле':'B'}");
+        // Замыкаем цикл: A._baseRef → B, B._baseRef → A.
+        using (var scope = fixture.Services.CreateScope())
+            await M(scope).Send(new UpdateRequisitesCommand(aId, J("{'_baseRef':'" + bId + "','Поле':'A'}")));
+
+        var ctx = await ResolveAsync(aId); // не должно зациклиться
+
+        Assert.Equal("A", E(ctx, "Поле").GetString()); // собственное значение, цикл оборван через visited
+    }
+
     [Fact]
     public async Task DocumentRef_TopLevel_Resolved()
     {

@@ -19,7 +19,15 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
 
     public async Task<GenerationContext> ResolveAsync(DocumentInstance instance, CancellationToken ct = default)
     {
-        var ctx = GenerationContext.FromJson(instance.Requisites, instance.PluginData);
+        // Наследование от базового экземпляра (issue #71): если реквизиты несут "_baseRef",
+        // подмешиваем реквизиты базового инстанса ТОГО ЖЕ комплекта (собственные поля
+        // переопределяют). Только Requisites; PluginData (per-instance кэш плагинов) не наследуется.
+        // Резолв-тайм — ничего не персистим. visited стартует с текущего инстанса (обрыв самоссылки/цикла).
+        var effReq = await ResolveInstanceBaseRefAsync(
+            instance.Requisites.RootElement, instance.DocumentSetId, [instance.Id], ct);
+        using var effReqDoc = JsonSerializer.SerializeToDocument(effReq);
+
+        var ctx = GenerationContext.FromJson(effReqDoc, instance.PluginData);
         await ResolveContextRefsAsync(ctx, instance.DocumentSetId, ct);
         return ctx;
     }
@@ -204,7 +212,47 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         if (baseData.ValueKind != JsonValueKind.Object)
             return ownData;
 
-        // Merge: базовые поля первыми, собственные поля переопределяют их
+        return MergeBaseObjects(baseData, ownData);
+    }
+
+    /// <summary>
+    /// Наследование от базового экземпляра для документов комплекта (issue #71): если в реквизитах
+    /// инстанса есть "_baseRef": "&lt;instanceId&gt;", подмешивает реквизиты базового инстанса
+    /// (собственные поля переопределяют). Рекурсивно (у базового может быть свой _baseRef),
+    /// cycle-guard через <paramref name="visited"/>. По образцу <see cref="ResolveCommonDataEntryAsync"/>,
+    /// но с двумя расхождениями: (1) грузит DocumentInstance, а не CommonDataEntry; (2) жёсткий
+    /// set-guard — базовый инстанс обязан быть в ТОМ ЖЕ комплекте (cross-set наследование = утечка
+    /// между комплектами). Тип базового НЕ проверяем — merge это key-union, лишние ключи безвредны.
+    /// </summary>
+    private async Task<JsonElement> ResolveInstanceBaseRefAsync(
+        JsonElement ownData, Guid documentSetId, HashSet<Guid> visited, CancellationToken ct)
+    {
+        if (ownData.ValueKind != JsonValueKind.Object) return ownData;
+        if (!ownData.TryGetProperty("_baseRef", out var baseRefEl) ||
+            !Guid.TryParse(baseRefEl.GetString(), out var baseInstanceId))
+            return ownData;
+
+        if (!visited.Add(baseInstanceId)) return ownData; // цикл/самоссылка → без наследования
+
+        var baseInstance = await db.DocumentInstances
+            .AsNoTracking()
+            .FirstOrDefaultAsync(i => i.Id == baseInstanceId && i.DocumentSetId == documentSetId, ct);
+        if (baseInstance is null) return ownData; // не найден / другой комплект → без наследования
+
+        var baseData = await ResolveInstanceBaseRefAsync(
+            baseInstance.Requisites.RootElement, documentSetId, visited, ct);
+        if (baseData.ValueKind != JsonValueKind.Object) return ownData;
+
+        return MergeBaseObjects(baseData, ownData);
+    }
+
+    /// <summary>
+    /// Слияние двух JSON-объектов для _baseRef-наследования: базовые поля первыми, собственные
+    /// переопределяют их на верхнем уровне; ключ "_baseRef" исключается. Чистая функция —
+    /// общая для наследования записей каталога и инстансов документов (issue #71).
+    /// </summary>
+    private static JsonElement MergeBaseObjects(JsonElement baseData, JsonElement ownData)
+    {
         var merged = new Dictionary<string, JsonElement>();
         foreach (var p in baseData.EnumerateObject())
             if (p.Name != "_baseRef") merged[p.Name] = p.Value.Clone();
@@ -213,5 +261,4 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
 
         return JsonSerializer.SerializeToElement(merged);
     }
-
 }
