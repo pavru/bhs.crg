@@ -21,21 +21,43 @@ public class DataSetResolver(
     ILogger<DataSetResolver> logger
 ) : IDataSetResolver
 {
-    public async Task InjectAsync(GenerationContext ctx, DocumentView instance,
+    /// <summary>Генерация документа: резолвит привязки владельца в контекст (scope — из комплекта документа).</summary>
+    public Task InjectAsync(GenerationContext ctx, DocumentView instance,
         List<ResolutionDiagnostic>? diagnostics = null, CancellationToken ct = default)
+        => ResolveBindingsCoreAsync(ctx, instance.Id, instance.DocumentTypeId,
+            () => ScopeChains.LoadAsync(db, instance.DocumentSetId, ct), diagnostics, ct);
+
+    /// <summary>
+    /// Резолв привязок для ПЕРСИСТА (issue #99): sync-on-save общих данных. Прогоняет тот же резолв-путь,
+    /// что и генерация (@@ref → {$ref:catalog, entryId}, нет матча → пропуск + WARNING), но scope берётся
+    /// из расположения объекта (ScopeLevel, ScopeId), а результат отдаётся значениями для слияния в Data.
+    /// Ключевое отличие от превью: здесь резолвится ЗНАЧЕНИЕ (ссылка), а не display-строка «🔗 …».
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, object?>> ResolveOwnerBindingsAsync(
+        Guid ownerId, Guid typeId, CatalogScope scopeLevel, Guid? scopeId,
+        List<ResolutionDiagnostic>? diagnostics = null, CancellationToken ct = default)
+    {
+        var ctx = new GenerationContext();
+        await ResolveBindingsCoreAsync(ctx, ownerId, typeId,
+            () => ScopeChains.LoadForScopeAsync(db, scopeLevel, scopeId, ct), diagnostics, ct);
+        return ctx.Data;
+    }
+
+    private async Task ResolveBindingsCoreAsync(GenerationContext ctx, Guid ownerId, Guid typeId,
+        Func<Task<ScopeChain>> chainProvider, List<ResolutionDiagnostic>? diagnostics, CancellationToken ct)
     {
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
-            .Where(b => b.OwnerId == instance.Id)
+            .Where(b => b.OwnerId == ownerId)
             .AsNoTracking()
             .ToListAsync(ct);
 
         if (bindings.Count == 0) return;
 
-        // Цепочка scope каталога (Set → Section → Construction → System) и кэш записей
-        // по составному типу — строятся лениво, только если встретится ссылочный маппинг.
+        // Цепочка scope каталога и кэш записей по составному типу — строятся лениво, только если
+        // встретится ссылочный маппинг. Источник scope-цепочки — параметр (комплект vs расположение объекта).
         Task<ScopeChain>? scopeChainTask = null;
-        Task<ScopeChain> ChainAsync() => scopeChainTask ??= ScopeChains.LoadAsync(db, instance.DocumentSetId, ct);
+        Task<ScopeChain> ChainAsync() => scopeChainTask ??= chainProvider();
         var entryCache = new Dictionary<Guid, List<DomainObject>>();
 
         // Схема типов (для кардинальности целевого поля материализации/табличной связки) — лениво, один раз.
@@ -65,7 +87,7 @@ public class DataSetResolver(
                         var row = rows[0];
                         foreach (var (fieldKey, mapVal) in mapping)
                         {
-                            var value = await MapValueAsync(mapVal, row, instance, ChainAsync, entryCache, diagnostics, fieldKey, ct);
+                            var value = await MapValueAsync(mapVal, row, ownerId, ChainAsync, entryCache, diagnostics, fieldKey, ct);
                             if (value is not null)
                                 ctx.Set(fieldKey, value);
                         }
@@ -76,7 +98,7 @@ public class DataSetResolver(
                     // Кардинальность решает ТИП целевого поля: complex/doc-ref ← первая сущность;
                     // array/doc-array (и всё прочее) ← весь поток. Вычисляем ДО построения строк —
                     // нужен и для кардинальности, и для defaultValue (issue #53, часть 2).
-                    var field = DocumentTypeSchemaReader.Field(instance.DocumentTypeId, binding.TargetFieldKey, await TypesAsync());
+                    var field = DocumentTypeSchemaReader.Field(typeId, binding.TargetFieldKey, await TypesAsync());
 
                     // defaultValue незамапленных полей ТИПА СТРОКИ (issue #53, часть 2): для табличных
                     // биндингов маппинг покрывает только явно перечисленные ключи (свои — binding.Mapping,
@@ -103,7 +125,7 @@ public class DataSetResolver(
                         foreach (var (fieldKey, mapVal) in mapping)
                         {
                             var path = $"{binding.TargetFieldKey}[{rowIndex}].{fieldKey}";
-                            var value = await MapValueAsync(mapVal, row, instance, ChainAsync, entryCache, diagnostics, path, ct);
+                            var value = await MapValueAsync(mapVal, row, ownerId, ChainAsync, entryCache, diagnostics, path, ct);
                             if (value is not null)
                                 obj[fieldKey] = value;
                         }
@@ -131,8 +153,8 @@ public class DataSetResolver(
                 // Пропускаем невалидные привязки, чтобы не блокировать генерацию,
                 // но фиксируем причину — иначе "пустые" поля невозможно отладить.
                 logger.LogWarning(ex,
-                    "Привязка набора данных пропущена при генерации. BindingId={BindingId}, SourceId={SourceId}, Instance={InstanceId}",
-                    binding.Id, binding.SourceId, instance.Id);
+                    "Привязка набора данных пропущена. BindingId={BindingId}, SourceId={SourceId}, Owner={OwnerId}",
+                    binding.Id, binding.SourceId, ownerId);
                 // Иначе поле просто исчезает без следа — поднимаем причину в диагностику.
                 diagnostics?.Add(new ResolutionDiagnostic(
                     DiagnosticSeverity.Error,
@@ -150,7 +172,7 @@ public class DataSetResolver(
     private async Task<object?> MapValueAsync(
         string mapVal,
         IReadOnlyDictionary<string, string?> row,
-        DocumentView instance,
+        Guid ownerId,
         Func<Task<ScopeChain>> scopeChainAccessor,
         Dictionary<Guid, List<DomainObject>> entryCache,
         List<ResolutionDiagnostic>? diagnostics,
@@ -174,8 +196,8 @@ public class DataSetResolver(
         if (entryId is null)
         {
             logger.LogWarning(
-                "Запись каталога не найдена при маппинге набора данных. TypeId={TypeId}, Match={Match}, Value={Value}, Instance={InstanceId}",
-                refMap.TypeId, refMap.Match, lookup, instance.Id);
+                "Запись каталога не найдена при маппинге набора данных. TypeId={TypeId}, Match={Match}, Value={Value}, Owner={OwnerId}",
+                refMap.TypeId, refMap.Match, lookup, ownerId);
             diagnostics?.Add(new ResolutionDiagnostic(
                 DiagnosticSeverity.Warning, path,
                 $"Значение «{lookup}» не найдено в каталоге — ссылка не подставлена."));

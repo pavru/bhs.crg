@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
@@ -417,7 +418,7 @@ public class CommonDataHandlers(
     IRepository<DomainObject> repo,
     IRepository<DocumentSet> setRepo,
     IRepository<Section> sectionRepo,
-    IDataSetService dataSetService) :
+    IDataSetResolver dataSetResolver) :
     IRequestHandler<CreateCommonDataEntryCommand, DomainObject>,
     IRequestHandler<UpdateCommonDataEntryCommand, DomainObject>,
     IRequestHandler<DeleteCommonDataEntryCommand>,
@@ -437,8 +438,11 @@ public class CommonDataHandlers(
     public async Task<DomainObject> Handle(UpdateCommonDataEntryCommand cmd, CancellationToken ct)
     {
         var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
-        var previews = await dataSetService.PreviewBindingsAsync(cmd.Id, ct);
-        var data = previews.Count == 0 ? cmd.Data : CommonDataBindingMerge.Merge(cmd.Data, previews);
+        // Резолв-путь (issue #99): @@ref → {$ref:catalog, entryId}, а не display-строка «🔗 …».
+        // Scope — из расположения объекта. Нет матча → поле не пишется (резолвер пропускает).
+        var resolved = await dataSetResolver.ResolveOwnerBindingsAsync(
+            cmd.Id, entry.CompositeTypeId, entry.ScopeLevel, entry.ScopeId, null, ct);
+        var data = resolved.Count == 0 ? cmd.Data : CommonDataBindingMerge.Merge(cmd.Data, resolved);
         entry.Update(cmd.DisplayName, data, cmd.Aliases);
         repo.Update(entry);
         await repo.SaveChangesAsync(ct);
