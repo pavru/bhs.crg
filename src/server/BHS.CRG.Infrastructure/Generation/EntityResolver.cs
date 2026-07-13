@@ -211,7 +211,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         if (obj is null) return default;
 
         var ownData = obj.Data.RootElement;
-        if (!ownData.TryGetProperty("_baseRef", out var baseRefEl) || ParseBaseRef(baseRefEl).id is not { } baseId)
+        if (!ownData.TryGetProperty("_baseRef", out var baseRefEl) || ParseBaseRef(baseRefEl) is not { } baseId)
             return ownData;
 
         var baseData = await ResolveEntryByIdAsync(baseId, visited, ct);
@@ -230,7 +230,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
     {
         if (ownData.ValueKind != JsonValueKind.Object) return ownData;
         if (!ownData.TryGetProperty("_baseRef", out var baseRefEl)) return ownData;
-        if (ParseBaseRef(baseRefEl).id is not { } id) return ownData;
+        if (ParseBaseRef(baseRefEl) is not { } id) return ownData;
 
         var baseObj = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
@@ -252,25 +252,23 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         return baseData.ValueKind == JsonValueKind.Object ? MergeBaseObjects(baseData, ownData) : ownData;
     }
 
-    /// Разбор "_baseRef": дискриминированный объект {kind,id} (issue #71) или голый id-строка
-    /// (legacy). Возвращает (kind, id|null); kind теперь информативен, решает природа цели.
-    private static (string kind, Guid? id) ParseBaseRef(JsonElement el)
+    /// Разбор "_baseRef": дискриминированный объект {kind,id} (issue #71) или голый id-строка (legacy).
+    /// После слияния объектов (issue #84) разновидность цели определяется её природой при резолве
+    /// (наличие фасеты), поэтому здесь нужен только id — тег kind игнорируется.
+    private static Guid? ParseBaseRef(JsonElement el)
     {
         if (el.ValueKind == JsonValueKind.String)
-            return ("catalog", Guid.TryParse(el.GetString(), out var g) ? g : null);
+            return Guid.TryParse(el.GetString(), out var g) ? g : null;
         if (el.ValueKind == JsonValueKind.Object
             && el.TryGetProperty("id", out var idEl) && Guid.TryParse(idEl.GetString(), out var gid))
-        {
-            var kind = el.TryGetProperty("kind", out var kEl) ? kEl.GetString() : null;
-            return (kind == "instance" ? "instance" : "catalog", gid);
-        }
-        return ("catalog", null);
+            return gid;
+        return null;
     }
 
     /// <summary>
     /// Слияние двух JSON-объектов для _baseRef-наследования: базовые поля первыми, собственные
     /// переопределяют их на верхнем уровне; ключ "_baseRef" исключается. Чистая функция —
-    /// общая для наследования записей каталога и инстансов документов (issue #71).
+    /// общая для наследования любых объектов (issue #71/#84).
     /// </summary>
     private static JsonElement MergeBaseObjects(JsonElement baseData, JsonElement ownData)
     {
