@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, Search, ChevronDown, ChevronUp, Link2 } from 'lucide-react';
+import { Plus, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListCommonData, useDeleteCommonDataEntry } from '@/shared/api/commonData';
 import type { CommonDataEntry } from '@/shared/api/types';
 import { CatalogEntryForm } from '../document-sets/catalog';
+import { groupObjectsByType, ObjectRow } from '../document-sets/catalog/ObjectsByTypeList';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -39,11 +40,8 @@ export function SystemCommonDataPage() {
     return typeCmp !== 0 ? typeCmp : a.displayName.localeCompare(b.displayName);
   });
 
-  // Group by type
-  const grouped = allSelectableTypes
-    .map(t => ({ t, items: filtered.filter(e => e.compositeTypeId === t.id) }))
-    .filter(g => g.items.length > 0);
-  const noType = filtered.filter(e => !allSelectableTypes.find(t => t.id === e.compositeTypeId));
+  // Группировка по типу — общий хелпер (issue #88)
+  const { groups, noType } = groupObjectsByType(filtered, allSelectableTypes);
 
   return (
     <div className="px-6 py-4 max-w-4xl mx-auto">
@@ -95,7 +93,7 @@ export function SystemCommonDataPage() {
         <div className="text-center py-10 text-fg4 text-sm">Ничего не найдено</div>
       ) : (
         <div className="space-y-2">
-          {grouped.map(({ t, items }) => {
+          {groups.map(({ type: t, items }) => {
             const isOpen = expandedTypes.has(t.id);
             return (
               <div key={t.id} className="border border-stroke rounded-xl overflow-hidden">
@@ -114,36 +112,9 @@ export function SystemCommonDataPage() {
                 {isOpen && (
                   <div className="border-t border-stroke">
                     {items.map((entry, idx) => (
-                      <div key={entry.id}
-                        className={`flex items-center gap-4 px-4 py-3 group hover:bg-base transition-colors ${idx > 0 ? 'border-t border-muted' : ''}`}>
-                        <span className="flex-1 text-sm font-medium text-fg1 truncate">{entry.displayName}</span>
-                        {(() => { // issue #89: пометка роли/прокси (цель того же типа — в этой же группе)
-                          const br = (entry.data as Record<string, unknown>)?._baseRef;
-                          const tid = typeof br === 'string' ? br : (br && typeof br === 'object' && 'id' in br ? (br as { id?: string }).id : undefined);
-                          const target = tid ? items.find(e => e.id === tid) : undefined;
-                          if (!target) return null;
-                          return <button type="button" onClick={e => { e.stopPropagation(); setEditEntry(target); }}
-                            title="Открыть реальный объект" className="flex items-center gap-1 text-[11px] text-fg4 hover:text-brand shrink-0 max-w-[180px] truncate transition-colors">
-                            <Link2 size={11} className="shrink-0" />→ {target.displayName}</button>;
-                        })()}
-                        {Object.keys(entry.data).length > 0 && (
-                          <span className="text-xs text-fg4 truncate max-w-xs hidden sm:block">
-                            {Object.entries(entry.data).filter(([, v]) => v != null && v !== '').slice(0, 3).map(([k, v]) => `${k}: ${v}`).join(' · ')}
-                          </span>
-                        )}
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                          <button onClick={() => setEditEntry(entry)}
-                            className="p-1.5 text-fg4 hover:text-fg2 rounded transition-colors" title="Редактировать">
-                            <Pencil size={13} />
-                          </button>
-                          <button
-                            onClick={() => setDeleteTarget(entry)}
-                            disabled={deleteMutation.isPending}
-                            className="p-1.5 text-fg4 hover:text-danger rounded transition-colors disabled:opacity-30" title="Удалить">
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
+                      <ObjectRow key={entry.id} entry={entry} siblings={items}
+                        onEdit={setEditEntry} onDelete={setDeleteTarget} deleteDisabled={deleteMutation.isPending}
+                        showPreview className={idx > 0 ? 'border-t border-muted' : ''} />
                     ))}
                   </div>
                 )}
@@ -165,14 +136,9 @@ export function SystemCommonDataPage() {
                 {isOpen && (
                   <div className="border-t border-stroke">
                     {noType.map((entry, idx) => (
-                      <div key={entry.id}
-                        className={`flex items-center gap-4 px-4 py-3 group hover:bg-base ${idx > 0 ? 'border-t border-muted' : ''}`}>
-                        <span className="flex-1 text-sm font-medium text-fg1">{entry.displayName}</span>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 shrink-0">
-                          <button onClick={() => setEditEntry(entry)} className="p-1.5 text-fg4 hover:text-fg2 rounded"><Pencil size={13} /></button>
-                          <button onClick={() => setDeleteTarget(entry)} className="p-1.5 text-fg4 hover:text-danger rounded"><Trash2 size={13} /></button>
-                        </div>
-                      </div>
+                      <ObjectRow key={entry.id} entry={entry} siblings={noType}
+                        onEdit={setEditEntry} onDelete={setDeleteTarget} deleteDisabled={deleteMutation.isPending}
+                        className={idx > 0 ? 'border-t border-muted' : ''} />
                     ))}
                   </div>
                 )}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
-  ChevronDown, ChevronUp, Plus, Pencil, Trash2, FileText, Database, ShieldCheck, Loader2,
-  DatabaseZap, RefreshCw, X, Link2, CornerUpLeft,
+  ChevronDown, ChevronUp, Plus, Database, ShieldCheck, Loader2,
+  DatabaseZap, RefreshCw, X, CornerUpLeft,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -24,6 +24,7 @@ import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
 import { computeBoundFieldKeys, mergeBindingPreviewsIntoValues } from '@/shared/api/datasetHelpers';
 import { EntryDataSetBindings } from './EntryDataSetBindings';
+import { groupObjectsByType, ObjectRow } from './ObjectsByTypeList';
 import {
   SCOPE_COLORS, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
   PrimitiveInput, FileField, ImageField,
@@ -48,46 +49,20 @@ export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
   const allSelectableTypes = [...compositeTypes, ...documentTypes];
   const deleteMutation = useDeleteCommonDataEntry();
 
-  const grouped = allSelectableTypes
-    .map(ct => ({ ct, items: [...entries].filter(e => e.compositeTypeId === ct.id).sort((a, b) => a.displayName.localeCompare(b.displayName)) }))
-    .filter(g => g.items.length > 0);
-  const noType = [...entries].filter(e => !allSelectableTypes.find(ct => ct.id === e.compositeTypeId)).sort((a, b) => a.displayName.localeCompare(b.displayName));
+  const sorted = [...entries].sort((a, b) => a.displayName.localeCompare(b.displayName));
+  const { groups, noType } = groupObjectsByType(sorted, allSelectableTypes);
 
   function toggleType(id: string) {
     setExpandedTypes(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   }
 
   function renderEntries(items: CommonDataEntry[]) {
-    return items.map((entry, idx) => {
-      const isDocKind = documentTypes.some(dt => dt.id === entry.compositeTypeId);
-      return (
-        <div key={entry.id}
-          className={`flex items-center gap-3 pl-3 pr-3 py-2 group hover:bg-muted transition-colors ${idx > 0 ? 'border-t border-stroke' : ''}`}>
-          {isDocKind && <FileText size={12} className="text-warning shrink-0" />}
-          <span className="flex-1 text-sm text-fg1 truncate">{entry.displayName}</span>
-          {(() => { // issue #89: пометка роли/прокси — тот же тип, ссылка на реальный объект
-            const br = (entry.data as Record<string, unknown>)?._baseRef;
-            const tid = typeof br === 'string' ? br : (br && typeof br === 'object' && 'id' in br ? (br as { id?: string }).id : undefined);
-            const target = tid ? entries.find(e => e.id === tid) : undefined;
-            if (!target || target.compositeTypeId !== entry.compositeTypeId) return null;
-            return <button type="button" onClick={e => { e.stopPropagation(); setEditEntry(target); }}
-              title="Открыть реальный объект" className="flex items-center gap-1 text-[11px] text-fg4 hover:text-brand shrink-0 max-w-[180px] truncate transition-colors">
-              <Link2 size={11} className="shrink-0" />→ {target.displayName}</button>;
-          })()}
-          {isDocKind && <span className="text-xs px-1.5 py-0.5 rounded bg-warning-subtle text-warning font-medium shrink-0">внеш. документ</span>}
-          <button onClick={() => setEditEntry(entry)}
-            className="p-1 text-stroke-strong hover:text-fg2 opacity-0 group-hover:opacity-100 transition-all">
-            <Pencil size={12} />
-          </button>
-          <button
-            onClick={() => setDeleteTarget(entry)}
-            disabled={deleteMutation.isPending}
-            className="p-1 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30">
-            <Trash2 size={12} />
-          </button>
-        </div>
-      );
-    });
+    return items.map((entry, idx) => (
+      <ObjectRow key={entry.id} entry={entry} siblings={entries}
+        onEdit={setEditEntry} onDelete={setDeleteTarget} deleteDisabled={deleteMutation.isPending}
+        dense docKind={documentTypes.some(dt => dt.id === entry.compositeTypeId)}
+        className={idx > 0 ? 'border-t border-stroke' : ''} />
+    ));
   }
 
   // Группа типа: uppercase-микрозаголовок на заливке bg-base (сильный «заголовочный» сигнал),
@@ -138,7 +113,7 @@ export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
             <p className="text-sm text-fg4 text-center py-2">Записей нет</p>
           ) : (
             <div className="space-y-1">
-              {grouped.map(({ ct, items }) => renderGroup(ct.id, ct.name, items))}
+              {groups.map(({ type, items }) => renderGroup(type.id, type.name, items))}
               {noType.length > 0 && renderGroup('__no_type__', 'Без типа', noType, true)}
             </div>
           )}
