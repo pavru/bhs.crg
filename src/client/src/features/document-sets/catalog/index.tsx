@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import {
   ChevronDown, ChevronUp, Plus, Database, ShieldCheck, Loader2,
-  DatabaseZap, RefreshCw, X, CornerUpLeft,
+  DatabaseZap, RefreshCw, X, CornerUpLeft, Link2,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import {
   useListCommonData, useCommonDataForSet, useCreateCommonDataEntry,
-  useUpdateCommonDataEntry, useDeleteCommonDataEntry,
+  useUpdateCommonDataEntry, useDeleteCommonDataEntry, useCommonDataEntry,
 } from '@/shared/api/commonData';
 import type { CommonDataEntry, CatalogScope, DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import { SCOPE_LABELS, SCOPE_PRIORITY } from '@/shared/api/types';
@@ -30,6 +30,17 @@ import {
   PrimitiveInput, FileField, ImageField,
   BaseInstancePanel, SCOPE_TIER, type BaseCandidate,
 } from '../fields';
+
+/** Показ резолвнутой $ref-ссылки в связанном поле (issue #99): резолвит запись каталога по id → имя. */
+function BoundRefValue({ entryId }: { entryId: string }) {
+  const { data: entry } = useCommonDataEntry(entryId);
+  return (
+    <span className="inline-flex items-center gap-1 text-brand">
+      <Link2 size={12} className="shrink-0" />
+      {entry ? entry.displayName : <span className="text-fg4">запись каталога…</span>}
+    </span>
+  );
+}
 
 export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
   scope: CatalogScope; scopeId: string | null; allDocTypes: DocumentType[];
@@ -393,6 +404,11 @@ export function CatalogEntryForm({
           }
 
           if (isBoundScalar) {
+            // Резолвнутая ссылка на запись каталога (@@ref, issue #99): показываем связанную запись,
+            // а не сырой JSON. Составное поле теперь хранит {$ref:catalog, entryId}, а не строку «🔗 …».
+            const refId = val && typeof val === 'object'
+              && (val as { $ref?: string }).$ref === 'catalog'
+              ? (val as { entryId?: string }).entryId : undefined;
             const display = val === undefined || val === null || val === ''
               ? null
               : isFileAttachment(val)
@@ -405,7 +421,7 @@ export function CatalogEntryForm({
                   <span title="Значение подставляется из источника данных"><DatabaseZap size={12} className="text-brand" /></span>
                 </label>
                 <div className="w-full border border-stroke rounded-md px-3 py-2 text-sm bg-muted text-fg2">
-                  {display ?? <em className="text-fg4">нет данных</em>}
+                  {refId ? <BoundRefValue entryId={refId} /> : (display ?? <em className="text-fg4">нет данных</em>)}
                 </div>
               </div>
             );

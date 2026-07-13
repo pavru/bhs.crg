@@ -72,6 +72,16 @@ export function useCommonDataForScope({
   });
 }
 
+/** Одна запись каталога по id — для показа резолвнутой $ref-ссылки в связанном поле (issue #99). */
+export function useCommonDataEntry(id: string | undefined) {
+  return useQuery({
+    queryKey: [QK, 'by-id', id],
+    queryFn: () => apiClient.get<CommonDataEntry>(`/common-data/${id}`).then(r => r.data),
+    enabled: !!id,
+    staleTime: 60_000,
+  });
+}
+
 export function useCreateCommonDataEntry() {
   const qc = useQueryClient();
   return useMutation({

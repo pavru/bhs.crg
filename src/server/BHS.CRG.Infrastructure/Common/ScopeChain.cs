@@ -37,4 +37,25 @@ public static class ScopeChains
             : await db.Sections.AsNoTracking().FirstOrDefaultAsync(s => s.Id == sectionId, ct);
         return new ScopeChain(setId, sectionId, section?.ConstructionId ?? Guid.Empty);
     }
+
+    /// <summary>
+    /// Скоп-цепочка для объекта на произвольном уровне оси (issue #99): от его расположения
+    /// (ScopeLevel, ScopeId) резолвит родителей вверх (Section→Construction). Неразрешённые уровни —
+    /// Guid.Empty. Нужна для резолва @@ref-привязок общих данных (у них нет комплекта-владельца).
+    /// </summary>
+    public static async Task<ScopeChain> LoadForScopeAsync(AppDbContext db, CatalogScope scopeLevel, Guid? scopeId, CancellationToken ct)
+    {
+        switch (scopeLevel)
+        {
+            case CatalogScope.Set when scopeId is { } sid:
+                return await LoadAsync(db, sid, ct);
+            case CatalogScope.Section when scopeId is { } secId:
+                var section = await db.Sections.AsNoTracking().FirstOrDefaultAsync(s => s.Id == secId, ct);
+                return new ScopeChain(Guid.Empty, secId, section?.ConstructionId ?? Guid.Empty);
+            case CatalogScope.Construction when scopeId is { } cid:
+                return new ScopeChain(Guid.Empty, Guid.Empty, cid);
+            default: // System — родителей нет
+                return new ScopeChain(Guid.Empty, Guid.Empty, Guid.Empty);
+        }
+    }
 }
