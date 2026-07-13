@@ -215,9 +215,14 @@ export function CatalogEntryForm({
   const { data: systemParentEntries = [] } = useListCommonData({
     scope: 'System', typeId: parentType?.id, enabled: !!parentType,
   });
-  const parentEntries: CommonDataEntry[] = setId
-    ? allParentEntries
-    : [...scopeParentEntries, ...systemParentEntries.filter(e => !scopeParentEntries.some(s => s.id === e.id))];
+  // ВАЖНО: клиентский фильтр по типу обязателен — useQuery с typeId:undefined (когда parentType нет)
+  // возвращает закешированные данные по совпадающему ключу (нефильтрованный список каталога),
+  // даже при enabled:false. Без этого фильтра в пикер протекают объекты чужих типов.
+  const parentEntries: CommonDataEntry[] = !parentType ? [] :
+    (setId
+      ? allParentEntries
+      : [...scopeParentEntries, ...systemParentEntries.filter(e => !scopeParentEntries.some(s => s.id === e.id))]
+    ).filter(e => e.compositeTypeId === parentType.id);
   // Кандидаты базы для общего пикера (issue #73, шаг 2): записи родительского типа по скопам.
   const baseCandidates: BaseCandidate[] = parentEntries
     .map(e => ({
@@ -238,9 +243,12 @@ export function CatalogEntryForm({
   const { data: systemProxyEntries = [] } = useListCommonData({
     scope: 'System', typeId: proxyTypeId, enabled: !!proxyTypeId,
   });
-  const proxyEntries: CommonDataEntry[] = setId
-    ? allProxyEntries
-    : [...scopeProxyEntries, ...systemProxyEntries.filter(e => !scopeProxyEntries.some(s => s.id === e.id))];
+  // Тот же клиентский фильтр по типу (иммунно к cache-collision по ключу typeId:undefined).
+  const proxyEntries: CommonDataEntry[] = !proxyTypeId ? [] :
+    (setId
+      ? allProxyEntries
+      : [...scopeProxyEntries, ...systemProxyEntries.filter(e => !scopeProxyEntries.some(s => s.id === e.id))]
+    ).filter(e => e.compositeTypeId === proxyTypeId);
   const proxyCandidates: BaseCandidate[] = proxyEntries
     .filter(e => e.id !== entry?.id) // не сам на себя
     .map(e => ({
