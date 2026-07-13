@@ -4,6 +4,7 @@ using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +14,9 @@ namespace BHS.CRG.Infrastructure.Backup;
 
 public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupService> logger)
 {
-    public const int CurrentSchemaVersion = 1;
+    // v2 (issue #84): общие данные теперь DomainObject (без документной фасеты). Старые копии (v1)
+    // несовместимы — чистый разрыв (решение пользователя): импорт отклоняется.
+    public const int CurrentSchemaVersion = 2;
     public const string CurrentAppVersion = "1.0.0";
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
@@ -61,7 +64,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         var docTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
         var templates = await db.Templates.AsNoTracking().ToListAsync(ct);
         var catalogEntities = await db.CatalogEntities.AsNoTracking().ToListAsync(ct);
-        var commonDataEntries = await db.CommonDataEntries.AsNoTracking().ToListAsync(ct);
+        var commonDataEntries = await db.DomainObjects.AsNoTracking().Where(o => o.Facet == null).ToListAsync(ct);
         var primitiveTypes = await db.PrimitiveTypes.AsNoTracking().ToListAsync(ct);
 
         return new BackupManifest(
@@ -80,8 +83,8 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 e.Id, e.EntityType, e.DisplayName, e.Data.RootElement.Clone(), e.OwnerId,
                 e.CreatedAt, e.UpdatedAt)).ToArray(),
             CommonDataEntries: commonDataEntries.Select(e => new BackupCommonDataEntry(
-                e.Id, e.DisplayName, e.CompositeTypeId, e.Data.RootElement.Clone(),
-                e.Scope.ToString(), e.ScopeId,
+                e.Id, e.DisplayName ?? "", e.CompositeTypeId, e.Data.RootElement.Clone(),
+                e.ScopeLevel.ToString(), e.ScopeId,
                 e.CreatedAt, e.UpdatedAt, e.Aliases.ToArray())).ToArray(),
             PrimitiveTypes: primitiveTypes.Select(p => new BackupPrimitiveType(
                 p.Id, p.Name, p.Code, p.BaseType, p.Description,
@@ -114,10 +117,9 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         if (manifest.SchemaVersion > CurrentSchemaVersion)
             warnings.Add($"Резервная копия создана в более новой версии системы (schema v{manifest.SchemaVersion}). Часть данных могла быть пропущена.");
         else if (manifest.SchemaVersion < CurrentSchemaVersion)
-        {
-            conversionNotice = $"Резервная копия создана в схеме v{manifest.SchemaVersion}. Данные автоматически конвертированы в схему v{CurrentSchemaVersion}.";
-            manifest = MigrateManifest(manifest, warnings);
-        }
+            throw new InvalidOperationException(
+                $"Резервная копия создана в старом формате (schema v{manifest.SchemaVersion}) и несовместима с текущей версией " +
+                $"после унификации объектов (issue #84). Восстановление такой копии невозможно.");
 
         // Restore blobs first (before DB, so references are valid on use)
         var blobEntries = zip.Entries.Where(e => e.FullName.StartsWith("blobs/", StringComparison.OrdinalIgnoreCase)).ToList();
@@ -309,7 +311,8 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     private async Task RestoreCommonDataEntriesAsync(
         BackupCommonDataEntry[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
     {
-        var existingIds = await db.CommonDataEntries.Select(e => e.Id).ToHashSetAsync(ct);
+        // Общие данные восстанавливаем как DomainObject без документной фасеты (issue #84).
+        var existingIds = await db.DomainObjects.Select(e => e.Id).ToHashSetAsync(ct);
         var validDocTypeIds = await db.DocumentTypes.Select(e => e.Id).ToHashSetAsync(ct);
         foreach (var item in items)
         {
@@ -323,8 +326,8 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 warnings.Add($"Общие данные «{item.DisplayName}»: неизвестная область «{item.Scope}», пропущена.");
                 continue;
             }
-            var entity = CommonDataEntry.Restore(
-                item.Id, item.DisplayName, item.CompositeTypeId,
+            var entity = DomainObject.Restore(
+                item.Id, item.CompositeTypeId, item.DisplayName,
                 JsonDocument.Parse(item.Data.GetRawText()),
                 scope, item.ScopeId, item.CreatedAt, item.UpdatedAt, item.Aliases);
             db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
@@ -333,11 +336,6 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
     }
-
-    // ── Schema migration ──────────────────────────────────────────────────────
-
-    private static BackupManifest MigrateManifest(BackupManifest manifest, List<string> _warnings)
-        => manifest with { SchemaVersion = CurrentSchemaVersion };
 
     // ── Topological sort ──────────────────────────────────────────────────────
 

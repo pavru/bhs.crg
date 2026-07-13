@@ -4,6 +4,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Schema;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,7 +23,7 @@ public static class PrintFormEndpoints
                 Guid instanceId,
                 string fieldKey,
                 IFormFile file,
-                IRepository<DocumentInstance> instanceRepo,
+                IRepository<DomainObject> instanceRepo,
                 IRepository<DocumentType> docTypeRepo,
                 IBlobStorage blob,
                 IMetadataExtractor metadataExtractor,
@@ -30,7 +31,7 @@ public static class PrintFormEndpoints
                 CancellationToken ct) =>
             {
                 var instance = await instanceRepo.GetByIdAsync(instanceId, ct);
-                if (instance is null || instance.DocumentSetId != setId)
+                if (instance is null || instance.ScopeId != setId)
                     return Results.NotFound();
 
                 const long maxSize = 50 * 1024 * 1024;
@@ -67,7 +68,7 @@ public static class PrintFormEndpoints
 
                 // Находим все тегированные поля типа документа
                 var allDocTypes = await docTypeRepo.GetAllAsync(ct);
-                var docType = allDocTypes.FirstOrDefault(dt => dt.Id == instance.DocumentTypeId);
+                var docType = allDocTypes.FirstOrDefault(dt => dt.Id == instance.CompositeTypeId);
 
                 var updatedFields = new Dictionary<string, object?>();
 
@@ -87,14 +88,14 @@ public static class PrintFormEndpoints
                 }
 
                 // Патчим реквизиты и сохраняем
-                var current = instance.Requisites;
+                var current = instance.Data;
                 var dict = new Dictionary<string, JsonElement>();
                 foreach (var p in current.RootElement.EnumerateObject())
                     dict[p.Name] = p.Value.Clone();
                 foreach (var (k, v) in updatedFields)
                     dict[k] = JsonSerializer.SerializeToElement(v);
 
-                instance.UpdateRequisites(JsonDocument.Parse(JsonSerializer.Serialize(dict)));
+                instance.SetData(JsonDocument.Parse(JsonSerializer.Serialize(dict)));
                 instanceRepo.Update(instance);
                 await instanceRepo.SaveChangesAsync(ct);
 

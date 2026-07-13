@@ -5,6 +5,7 @@ using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Common;
 using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
@@ -25,7 +26,7 @@ public class DataSetResolver(
     {
         var bindings = await db.DataSetBindings
             .Include(b => b.Source).ThenInclude(s => s.File)
-            .Where(b => b.InstanceId == instance.Id)
+            .Where(b => b.OwnerId == instance.Id)
             .AsNoTracking()
             .ToListAsync(ct);
 
@@ -35,7 +36,7 @@ public class DataSetResolver(
         // по составному типу — строятся лениво, только если встретится ссылочный маппинг.
         Task<ScopeChain>? scopeChainTask = null;
         Task<ScopeChain> ChainAsync() => scopeChainTask ??= ScopeChains.LoadAsync(db, instance.DocumentSetId, ct);
-        var entryCache = new Dictionary<Guid, List<CommonDataEntry>>();
+        var entryCache = new Dictionary<Guid, List<DomainObject>>();
 
         // Схема типов (для кардинальности целевого поля материализации/табличной связки) — лениво, один раз.
         Dictionary<Guid, DocumentType>? typesById = null;
@@ -151,7 +152,7 @@ public class DataSetResolver(
         IReadOnlyDictionary<string, string?> row,
         DocumentView instance,
         Func<Task<ScopeChain>> scopeChainAccessor,
-        Dictionary<Guid, List<CommonDataEntry>> entryCache,
+        Dictionary<Guid, List<DomainObject>> entryCache,
         List<ResolutionDiagnostic>? diagnostics,
         string path,
         CancellationToken ct)
@@ -186,20 +187,20 @@ public class DataSetResolver(
 
     private async Task<Guid?> FindCatalogEntryIdAsync(
         Guid typeId, string match, string value, ScopeChain chain,
-        Dictionary<Guid, List<CommonDataEntry>> entryCache, CancellationToken ct)
+        Dictionary<Guid, List<DomainObject>> entryCache, CancellationToken ct)
     {
         if (!entryCache.TryGetValue(typeId, out var candidates))
         {
-            candidates = await db.CommonDataEntries
+            candidates = await db.DomainObjects
                 .AsNoTracking()
-                .Where(e => e.CompositeTypeId == typeId &&
-                    ((e.Scope == CatalogScope.Set && e.ScopeId == chain.SetId) ||
-                     (e.Scope == CatalogScope.Section && e.ScopeId == chain.SectionId) ||
-                     (e.Scope == CatalogScope.Construction && e.ScopeId == chain.ConstructionId) ||
-                     e.Scope == CatalogScope.System))
+                .Where(e => e.Facet == null && e.CompositeTypeId == typeId &&
+                    ((e.ScopeLevel == CatalogScope.Set && e.ScopeId == chain.SetId) ||
+                     (e.ScopeLevel == CatalogScope.Section && e.ScopeId == chain.SectionId) ||
+                     (e.ScopeLevel == CatalogScope.Construction && e.ScopeId == chain.ConstructionId) ||
+                     e.ScopeLevel == CatalogScope.System))
                 .ToListAsync(ct);
             // Приоритет: Set=1 (высший) … System=5 (низший).
-            candidates = candidates.OrderBy(e => (int)e.Scope).ToList();
+            candidates = candidates.OrderBy(e => (int)e.ScopeLevel).ToList();
             entryCache[typeId] = candidates;
         }
 
@@ -215,7 +216,7 @@ public class DataSetResolver(
                 continue;
             }
             // Матч по имени: DisplayName ИЛИ любой из алиасов (issue #74).
-            if (Normalize(entry.DisplayName) == needle) return entry.Id;
+            if (Normalize(entry.DisplayName ?? "") == needle) return entry.Id;
             if (entry.Aliases.Any(a => Normalize(a) == needle)) return entry.Id;
         }
         return null;

@@ -1,5 +1,5 @@
 using BHS.CRG.Application.Common;
-using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
 using MediatR;
 
 namespace BHS.CRG.Application.Generation;
@@ -12,7 +12,7 @@ namespace BHS.CRG.Application.Generation;
 public record ValidateInstanceResolutionQuery(Guid InstanceId) : IRequest<IReadOnlyList<ResolutionDiagnostic>>;
 
 public class ValidateInstanceResolutionHandler(
-    IRepository<DocumentInstance> instanceRepo,
+    IRepository<DomainObject> instanceRepo,
     IEntityResolver entityResolver,
     IDataSetResolver dataSetResolver
 ) : IRequestHandler<ValidateInstanceResolutionQuery, IReadOnlyList<ResolutionDiagnostic>>
@@ -28,7 +28,7 @@ public class ValidateInstanceResolutionHandler(
         await dataSetResolver.InjectAsync(context, view, diagnostics, ct);
         await entityResolver.ApplyDefaultsAsync(context, view, ct);
         await entityResolver.ResolveEnumLabelsAsync(context, view, ct);
-        await entityResolver.ResolveContextRefsAsync(context, instance.DocumentSetId, ct);
+        await entityResolver.ResolveContextRefsAsync(context, view.DocumentSetId, ct);
         ResolutionScanner.ScanLeftoverRefs(context, diagnostics);
         return diagnostics;
     }

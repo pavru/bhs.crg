@@ -3,14 +3,15 @@ using BHS.CRG.Domain.Common;
 namespace BHS.CRG.Domain.DataSets;
 
 /// <summary>
-/// Привязка набора данных к документу — только Mapping (колонка → поле).
+/// Привязка набора данных к объекту — только Mapping (колонка → поле).
 /// Filter/Transformation/Sort — на уровне DataSetSource, см. DataSetSource.SetProcessing.
+/// Владелец — единый <see cref="OwnerId"/> (issue #84: было InstanceId/CommonDataEntryId).
+/// Природа владельца (документ vs общие данные) определяется самим объектом, а не биндингом.
 /// </summary>
 public class DataSetBinding : Entity
 {
-    /// <summary>Владелец — ровно одно из InstanceId/CommonDataEntryId задано.</summary>
-    public Guid? InstanceId { get; private set; }
-    public Guid? CommonDataEntryId { get; private set; }
+    /// <summary>Объект-владелец (DomainObject) — документ комплекта либо запись общих данных.</summary>
+    public Guid OwnerId { get; private set; }
     public Guid SourceId { get; private set; }
 
     /// <summary>
@@ -26,19 +27,10 @@ public class DataSetBinding : Entity
 
     private DataSetBinding() { }
 
-    public static DataSetBinding ForInstance(Guid instanceId, Guid sourceId, string? targetFieldKey, string mapping)
+    public static DataSetBinding For(Guid ownerId, Guid sourceId, string? targetFieldKey, string mapping)
         => new()
         {
-            InstanceId = instanceId,
-            SourceId = sourceId,
-            TargetFieldKey = targetFieldKey,
-            Mapping = mapping,
-        };
-
-    public static DataSetBinding ForCommonDataEntry(Guid commonDataEntryId, Guid sourceId, string? targetFieldKey, string mapping)
-        => new()
-        {
-            CommonDataEntryId = commonDataEntryId,
+            OwnerId = ownerId,
             SourceId = sourceId,
             TargetFieldKey = targetFieldKey,
             Mapping = mapping,

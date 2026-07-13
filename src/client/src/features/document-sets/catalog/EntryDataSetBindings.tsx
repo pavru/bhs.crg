@@ -60,7 +60,7 @@ function AddEntryBindingPanel({
     if (!sourceId) { setError('Выберите источник'); return; }
     setError('');
     try {
-      await create.mutateAsync({ commonDataEntryId: entryId, sourceId, targetFieldKey, mapping });
+      await create.mutateAsync({ ownerId: entryId, sourceId, targetFieldKey, mapping });
       onDone();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка');
@@ -143,11 +143,11 @@ function EntryBindingRow({
   const mappedCount = Object.keys(mapping).filter(k => mapping[k]).length;
 
   async function handleSave() {
-    await update.mutateAsync({ id: binding.id, commonDataEntryId: entryId, targetFieldKey, mapping });
+    await update.mutateAsync({ id: binding.id, ownerId: entryId, targetFieldKey, mapping });
     setEditing(false);
   }
   async function handleDelete() {
-    await del.mutateAsync({ id: binding.id, commonDataEntryId: entryId });
+    await del.mutateAsync({ id: binding.id, ownerId: entryId });
   }
 
   return (

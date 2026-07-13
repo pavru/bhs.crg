@@ -55,7 +55,7 @@ public class DataSetResolverDefaultsTests(IntegrationTestFixture fixture) : IAsy
 
         // Биндинг табличный (TargetFieldKey задан), СВОЙ маппинг пуст — эффективный маппинг берётся
         // с материализации источника (см. EffectiveMappingJson).
-        await svc.CreateBindingAsync(new CreateBindingInput(instance.Id, null, source.Id, "Строки", null), default);
+        await svc.CreateBindingAsync(new CreateBindingInput(instance.Id, source.Id, "Строки", null), default);
 
         var inst = await m.Send(new GetDocumentInstanceQuery(instance.Id));
         var resolver = scope.ServiceProvider.GetRequiredService<IEntityResolver>();
@@ -99,7 +99,7 @@ public class DataSetResolverDefaultsTests(IntegrationTestFixture fixture) : IAsy
         var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Данные", candidate.SheetOrPath, null), default);
 
         await svc.SetMaterializationAsync(source.Id, rowType.Id, new() { ["ВидДокумента"] = "B" }, default);
-        await svc.CreateBindingAsync(new CreateBindingInput(instance.Id, null, source.Id, "Строки", null), default);
+        await svc.CreateBindingAsync(new CreateBindingInput(instance.Id, source.Id, "Строки", null), default);
 
         var inst = await m.Send(new GetDocumentInstanceQuery(instance.Id));
         var resolver = scope.ServiceProvider.GetRequiredService<IEntityResolver>();

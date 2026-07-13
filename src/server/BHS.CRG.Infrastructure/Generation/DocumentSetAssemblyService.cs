@@ -4,6 +4,7 @@ using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Notifications;
+using BHS.CRG.Domain.Objects;
 using MediatR;
 
 namespace BHS.CRG.Infrastructure.Generation;
@@ -21,6 +22,7 @@ namespace BHS.CRG.Infrastructure.Generation;
 public class DocumentSetAssemblyService(
     IMediator mediator,
     IRepository<DocumentSet> setRepo,
+    IDomainObjectRepository objRepo,
     IRepository<DocumentType> docTypeRepo,
     IRepository<DocumentSetOutput> outputRepo,
     IBlobStorage blob,
@@ -35,7 +37,8 @@ public class DocumentSetAssemblyService(
     {
         var set = await setRepo.GetByIdAsync(setId, ct) ?? throw new KeyNotFoundException("Комплект не найден");
 
-        var included = set.Instances.OrderBy(i => i.SortOrder).ToList();
+        var included = (await objRepo.GetSetDocumentsAsync(setId, tracked: false, ct))
+            .OrderBy(i => i.SortOrder).ToList();
         if (subsetIds is { Count: > 0 })
         {
             var wanted = subsetIds.ToHashSet();
@@ -45,8 +48,8 @@ public class DocumentSetAssemblyService(
             throw new InvalidOperationException("В комплекте нет документов для сборки.");
 
         var docTypes = (await docTypeRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
-        string Name(DocumentInstance i) =>
-            i.Name ?? (docTypes.TryGetValue(i.DocumentTypeId, out var t) ? t.Name : "Документ");
+        string Name(DomainObject i) =>
+            i.DisplayName ?? (docTypes.TryGetValue(i.CompositeTypeId, out var t) ? t.Name : "Документ");
 
         // Проход 1 — гарантируем, что каждый документ сгенерирован. Собираем ВСЕ сбои, затем прерываем.
         var failures = new List<string>();
@@ -76,10 +79,11 @@ public class DocumentSetAssemblyService(
             throw new InvalidOperationException(
                 "Сборка прервана — не готовы документы:\n" + string.Join("\n", failures.Select(f => " • " + f)));
 
-        // Проход 2 — перечитываем комплект (свежие файлы) и склеиваем PDF по порядку.
+        // Проход 2 — перечитываем документы комплекта (свежие файлы) и склеиваем PDF по порядку.
         set = await setRepo.GetByIdAsync(setId, ct) ?? throw new KeyNotFoundException("Комплект не найден");
         var includedIds = included.Select(i => i.Id).ToHashSet();
-        var ordered = set.Instances.Where(i => includedIds.Contains(i.Id)).OrderBy(i => i.SortOrder);
+        var ordered = (await objRepo.GetSetDocumentsAsync(setId, tracked: false, ct))
+            .Where(i => includedIds.Contains(i.Id)).OrderBy(i => i.SortOrder);
 
         var pdfBytes = new List<byte[]>();
         foreach (var inst in ordered)
@@ -111,7 +115,7 @@ public class DocumentSetAssemblyService(
     }
 
     /// <summary>PDF-файлы документа в порядке шаблонов (TemplateIds); неупорядоченные — в конец.</summary>
-    private static IEnumerable<GeneratedFile> OrderPdfFiles(DocumentInstance inst)
+    private static IEnumerable<GeneratedFile> OrderPdfFiles(DomainObject inst)
     {
         var pdfs = inst.GeneratedFiles.Where(f => f.Format == OutputFormat.Pdf).ToList();
         var order = ParseTemplateIds(inst.TemplateIds);

@@ -2,7 +2,7 @@ using System.Text.Json;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
-using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Common;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -30,7 +30,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         if (reqRoot.ValueKind == JsonValueKind.Object && reqRoot.TryGetProperty("_baseRef", out _))
         {
             var scope = await ScopeChains.LoadAsync(db, instance.DocumentSetId, ct);
-            var effReq = await ResolveDocumentBaseRefAsync(reqRoot, scope, [instance.Id], ct);
+            var effReq = await ResolveObjectBaseRefAsync(reqRoot, scope, [instance.Id], ct);
             using var effReqDoc = JsonSerializer.SerializeToDocument(effReq);
             ctx = GenerationContext.FromJson(effReqDoc, instance.PluginData);
         }
@@ -140,7 +140,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
             case "catalog"
                 when node.TryGetProperty("entryId", out var entryIdProp) && Guid.TryParse(entryIdProp.GetString(), out var entryId):
             {
-                var resolved = await ResolveCommonDataEntryAsync(entryId, [], ct);
+                var resolved = await ResolveEntryByIdAsync(entryId, [], ct);
                 return resolved.ValueKind == JsonValueKind.Undefined
                     ? node.Clone()
                     : await ResolveNode(resolved, documentSetId, depth + 1, allowInstanceRefs, ct);
@@ -153,9 +153,9 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
                      && node.TryGetProperty("fieldKey", out var fieldKeyProp):
             {
                 var fieldKey = fieldKeyProp.GetString() ?? string.Empty;
-                var refInstance = await db.DocumentInstances.AsNoTracking()
-                    .FirstOrDefaultAsync(i => i.Id == instId && i.DocumentSetId == documentSetId, ct);
-                return refInstance is not null && refInstance.Requisites.RootElement.TryGetProperty(fieldKey, out var fieldVal)
+                var refObj = await db.DomainObjects.AsNoTracking()
+                    .FirstOrDefaultAsync(o => o.Id == instId && o.ScopeLevel == CatalogScope.Set && o.ScopeId == documentSetId, ct);
+                return refObj is not null && refObj.Data.RootElement.TryGetProperty(fieldKey, out var fieldVal)
                     ? fieldVal.Clone()
                     : node.Clone();
             }
@@ -182,13 +182,13 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
     /// </summary>
     private async Task<JsonElement> ResolveDocumentInstanceAsync(Guid instanceId, Guid documentSetId, int depth, CancellationToken ct)
     {
-        var instance = await db.DocumentInstances
-            .AsNoTracking()
-            .FirstOrDefaultAsync(i => i.Id == instanceId && i.DocumentSetId == documentSetId, ct);
+        var obj = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
+            .FirstOrDefaultAsync(o => o.Id == instanceId && o.ScopeLevel == CatalogScope.Set
+                                      && o.ScopeId == documentSetId && o.Facet != null, ct);
 
-        if (instance is null) return default;
+        if (obj is null) return default;
 
-        var subCtx = GenerationContext.FromJson(instance.Requisites, instance.PluginData);
+        var subCtx = GenerationContext.FromJson(obj.Data, obj.Facet!.PluginData);
         var dict = new Dictionary<string, JsonElement>();
         foreach (var (k, v) in subCtx.Data)
             if (v is JsonElement je)
@@ -198,73 +198,62 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
     }
 
     /// <summary>
-    /// Рекурсивно разрешает CommonDataEntry с поддержкой _baseRef:
-    /// если в data есть "_baseRef": "&lt;entryId&gt;", подтягивает данные базового экземпляра
-    /// и выполняет deep-merge (собственные поля имеют приоритет над унаследованными).
+    /// Рекурсивно разрешает объект общих данных по id с поддержкой _baseRef: если в data есть
+    /// "_baseRef", подтягивает данные базового объекта и выполняет deep-merge (собственные поля
+    /// имеют приоритет). Цепочка entry→entry со своим <paramref name="visited"/>-guard.
     /// </summary>
-    private async Task<JsonElement> ResolveCommonDataEntryAsync(Guid entryId, HashSet<Guid> visited, CancellationToken ct)
+    private async Task<JsonElement> ResolveEntryByIdAsync(Guid id, HashSet<Guid> visited, CancellationToken ct)
     {
-        if (!visited.Add(entryId))
+        if (!visited.Add(id))
             return default; // защита от циклических ссылок
 
-        var entry = await db.CommonDataEntries
-            .AsNoTracking()
-            .FirstOrDefaultAsync(e => e.Id == entryId, ct);
+        var obj = await db.DomainObjects.AsNoTracking().FirstOrDefaultAsync(o => o.Id == id, ct);
+        if (obj is null) return default;
 
-        if (entry is null) return default;
-
-        var ownData = entry.Data.RootElement;
-
-        if (!ownData.TryGetProperty("_baseRef", out var baseRefEl) ||
-            !Guid.TryParse(baseRefEl.GetString(), out var baseEntryId))
+        var ownData = obj.Data.RootElement;
+        if (!ownData.TryGetProperty("_baseRef", out var baseRefEl) || ParseBaseRef(baseRefEl).id is not { } baseId)
             return ownData;
 
-        var baseData = await ResolveCommonDataEntryAsync(baseEntryId, visited, ct);
-        if (baseData.ValueKind != JsonValueKind.Object)
-            return ownData;
-
-        return MergeBaseObjects(baseData, ownData);
+        var baseData = await ResolveEntryByIdAsync(baseId, visited, ct);
+        return baseData.ValueKind == JsonValueKind.Object ? MergeBaseObjects(baseData, ownData) : ownData;
     }
 
     /// <summary>
-    /// Полиморфное наследование от базового экземпляра для документов комплекта (issue #71): реквизиты
-    /// документа могут нести "_baseRef" на ДРУГОЙ документ комплекта ЛИБО на запись общих данных.
-    /// Формат — дискриминированный <c>{"kind":"instance"|"catalog","id":"&lt;guid&gt;"}</c>; голый id
-    /// читается толерантно как legacy = "catalog"/запись. Собственные поля переопределяют
-    /// унаследованные (<see cref="MergeBaseObjects"/>). Guard по типу цели: instance — тот же комплект;
-    /// catalog — запись обязана быть в скоп-поддереве документа (System / его Set / Section /
-    /// Construction), иначе cross-subtree = утечка чужих данных. Cycle-guard — общий
-    /// <paramref name="visited"/> (id глобально уникальны; связи instance→catalog однонаправленны).
+    /// Наследование от базового объекта (issue #71/#84): данные объекта могут нести "_baseRef" на
+    /// ДРУГОЙ объект — документ комплекта ЛИБО запись общих данных (после слияния — единый DomainObject).
+    /// Полиморфизм схлопнут: разновидность определяется природой цели (наличие фасеты), а не тегом ссылки.
+    /// Guard: цель-документ — тот же комплект (same-set); цель-общие-данные — скоп-поддерево документа
+    /// (иначе утечка чужих данных). Собственные поля переопределяют унаследованные (<see cref="MergeBaseObjects"/>).
     /// </summary>
-    private async Task<JsonElement> ResolveDocumentBaseRefAsync(
+    private async Task<JsonElement> ResolveObjectBaseRefAsync(
         JsonElement ownData, ScopeChain scope, HashSet<Guid> visited, CancellationToken ct)
     {
         if (ownData.ValueKind != JsonValueKind.Object) return ownData;
         if (!ownData.TryGetProperty("_baseRef", out var baseRefEl)) return ownData;
-        var (kind, baseId) = ParseBaseRef(baseRefEl);
-        if (baseId is not { } id) return ownData;
+        if (ParseBaseRef(baseRefEl).id is not { } id) return ownData;
+
+        var baseObj = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
+            .FirstOrDefaultAsync(o => o.Id == id, ct);
+        if (baseObj is null) return ownData;
 
         JsonElement baseData;
-        if (kind == "instance")
+        if (baseObj.IsDocument)
         {
             if (!visited.Add(id)) return ownData; // цикл/самоссылка → без наследования
-            var baseInstance = await db.DocumentInstances.AsNoTracking()
-                .FirstOrDefaultAsync(i => i.Id == id && i.DocumentSetId == scope.SetId, ct); // same-set guard
-            if (baseInstance is null) return ownData; // не найден / другой комплект
-            baseData = await ResolveDocumentBaseRefAsync(baseInstance.Requisites.RootElement, scope, visited, ct);
+            if (baseObj.ScopeLevel != CatalogScope.Set || baseObj.ScopeId != scope.SetId) return ownData; // same-set guard
+            baseData = await ResolveObjectBaseRefAsync(baseObj.Data.RootElement, scope, visited, ct);
         }
-        else // catalog — запись общих данных
+        else // запись общих данных
         {
-            var entry = await db.CommonDataEntries.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id, ct);
-            if (entry is null || !scope.Contains(entry.Scope, entry.ScopeId)) return ownData; // scope-subtree guard
-            baseData = await ResolveCommonDataEntryAsync(id, visited, ct); // entry→entry цепочка + свой visited
+            if (!scope.Contains(baseObj.ScopeLevel, baseObj.ScopeId)) return ownData; // scope-subtree guard
+            baseData = await ResolveEntryByIdAsync(id, visited, ct); // entry→entry цепочка + свой visited.Add(id)
         }
 
         return baseData.ValueKind == JsonValueKind.Object ? MergeBaseObjects(baseData, ownData) : ownData;
     }
 
     /// Разбор "_baseRef": дискриминированный объект {kind,id} (issue #71) или голый id-строка
-    /// (legacy = "catalog"/запись). Возвращает (kind, id|null); неизвестный kind → "catalog".
+    /// (legacy). Возвращает (kind, id|null); kind теперь информативен, решает природа цели.
     private static (string kind, Guid? id) ParseBaseRef(JsonElement el)
     {
         if (el.ValueKind == JsonValueKind.String)

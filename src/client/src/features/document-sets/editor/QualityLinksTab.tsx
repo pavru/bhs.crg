@@ -296,7 +296,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   const [suggesting, setSuggesting] = useState(false);
   const [viewDoc, setViewDoc] = useState<QualityDocument | null>(null);
 
-  const { data: preview, isFetching, refetch } = usePreviewDataSetBindings({ instanceId: instance.id });
+  const { data: preview, isFetching, refetch } = usePreviewDataSetBindings({ ownerId: instance.id });
   const { data: linksSystem = [] } = useListMaterialLinks({ scope: 'System' });
   const { data: linksSet = [] } = useListMaterialLinks({ scope: 'Set', scopeId: setId });
   const { data: docsSystem = [] } = useListQualityDocs({ scope: 'System' });

@@ -69,10 +69,12 @@ public static class DocumentSetEndpoints
         g.MapGet("/search", async (string? q, Guid? constructionId, IDocumentSearch search, CancellationToken ct)
             => Results.Ok(await search.SearchAsync(q ?? "", constructionId, ct)));
 
-        g.MapGet("/{id:guid}", async (Guid id, IMediator m) =>
+        g.MapGet("/{id:guid}", async (Guid id, IMediator m, IDomainObjectRepository objRepo, CancellationToken ct) =>
         {
             var set = await m.Send(new GetDocumentSetQuery(id));
-            return set is null ? Results.NotFound() : Results.Ok(set);
+            if (set is null) return Results.NotFound();
+            var docs = await objRepo.GetSetDocumentsAsync(id, tracked: false, ct);
+            return Results.Ok(DocumentSetDto.From(set, docs));
         });
 
         g.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
@@ -86,46 +88,46 @@ public static class DocumentSetEndpoints
 
         // ── DocumentInstances ──────────────────────────────────────────────────
         g.MapGet("/{id:guid}/available-instances", async (Guid id, IMediator m)
-            => Results.Ok(await m.Send(new ListAvailableInstancesQuery(id))));
+            => Results.Ok((await m.Send(new ListAvailableInstancesQuery(id))).Select(InstanceDto.From)));
 
         g.MapPost("/{setId:guid}/documents", async (Guid setId, AddDocumentRequest req, IMediator m)
-            => Results.Ok(await m.Send(new AddDocumentToSetCommand(setId, req.DocumentTypeId))));
+            => Results.Ok(InstanceDto.From(await m.Send(new AddDocumentToSetCommand(setId, req.DocumentTypeId)))));
 
         g.MapGet("/{setId:guid}/documents/{id:guid}", async (Guid id, IMediator m) =>
         {
             var inst = await m.Send(new GetDocumentInstanceQuery(id));
-            return inst is null ? Results.NotFound() : Results.Ok(inst);
+            return inst is null ? Results.NotFound() : Results.Ok(InstanceDto.From(inst));
         });
 
         g.MapPut("/{setId:guid}/documents/{id:guid}/name",
             async (Guid id, RenameDocumentInstanceRequest req, IMediator m)
-                => Results.Ok(await m.Send(new RenameDocumentInstanceCommand(id, req.Name))));
+                => Results.Ok(InstanceDto.From(await m.Send(new RenameDocumentInstanceCommand(id, req.Name)))));
 
         g.MapPut("/{setId:guid}/documents/{id:guid}/requisites",
             async (Guid id, JsonElement body, IMediator m)
-                => Results.Ok(await m.Send(new UpdateRequisitesCommand(
-                    id, JsonDocument.Parse(body.GetRawText())))));
+                => Results.Ok(InstanceDto.From(await m.Send(new UpdateRequisitesCommand(
+                    id, JsonDocument.Parse(body.GetRawText()))))));
 
         g.MapPut("/{setId:guid}/documents/{id:guid}/plugin-data",
             async (Guid id, JsonElement body, IMediator m)
-                => Results.Ok(await m.Send(new UpdatePluginDataCommand(
-                    id, JsonDocument.Parse(body.GetRawText())))));
+                => Results.Ok(InstanceDto.From(await m.Send(new UpdatePluginDataCommand(
+                    id, JsonDocument.Parse(body.GetRawText()))))));
 
         g.MapPut("/{setId:guid}/documents/{id:guid}/template",
             async (Guid id, SetTemplateRequest req, IMediator m)
-                => Results.Ok(await m.Send(new SetDocumentTemplateCommand(id, req.TemplateId))));
+                => Results.Ok(InstanceDto.From(await m.Send(new SetDocumentTemplateCommand(id, req.TemplateId)))));
 
         // Набор выбранных шаблонов для мульти-генерации (JSON-массив Guid в теле или null).
         g.MapPut("/{setId:guid}/documents/{id:guid}/templates",
             async (Guid id, JsonElement body, IMediator m)
-                => Results.Ok(await m.Send(new SetDocumentTemplatesCommand(
-                    id, body.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined ? null : body.GetRawText()))));
+                => Results.Ok(InstanceDto.From(await m.Send(new SetDocumentTemplatesCommand(
+                    id, body.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined ? null : body.GetRawText())))));
 
         // Переопределения значений параметров шаблона на документе (JSON-объект {имя:значение} или null).
         g.MapPut("/{setId:guid}/documents/{id:guid}/template-params",
             async (Guid id, JsonElement body, IMediator m)
-                => Results.Ok(await m.Send(new SetDocumentTemplateParamsCommand(
-                    id, body.ValueKind == JsonValueKind.Null ? null : body.GetRawText()))));
+                => Results.Ok(InstanceDto.From(await m.Send(new SetDocumentTemplateParamsCommand(
+                    id, body.ValueKind == JsonValueKind.Null ? null : body.GetRawText())))));
 
         g.MapDelete("/{setId:guid}/documents/{id:guid}", async (Guid id, IMediator m) =>
         {
@@ -135,8 +137,12 @@ public static class DocumentSetEndpoints
 
         // ── Сборка комплекта ───────────────────────────────────────────────────
         // Порядок документов в собранном файле (тела — массив id в нужном порядке).
-        g.MapPut("/{setId:guid}/documents/order", async (Guid setId, Guid[] orderedIds, IMediator m)
-            => Results.Ok(await m.Send(new ReorderDocumentInstancesCommand(setId, orderedIds))));
+        g.MapPut("/{setId:guid}/documents/order", async (Guid setId, Guid[] orderedIds, IMediator m, IDomainObjectRepository objRepo, CancellationToken ct) =>
+        {
+            var set = await m.Send(new ReorderDocumentInstancesCommand(setId, orderedIds));
+            var docs = await objRepo.GetSetDocumentsAsync(setId, tracked: false, ct);
+            return Results.Ok(DocumentSetDto.From(set, docs));
+        });
 
         // Запуск сборки всего комплекта (или подмножества) в один PDF — фоновая задача (генерация
         // недостающих + склейка могут занять десятки секунд). 202 + jobId, прогресс в индикаторе.
@@ -175,7 +181,7 @@ public static class DocumentSetEndpoints
             if (inst is null) return Results.NotFound();
             var payload = JsonSerializer.Serialize(new { subject = req.Subject, body = req.Body, kind = "document", to = req.To });
             var jobId = await jobs.EnqueueAsync(JobKind.SendEmail, GetUserId(user), id,
-                $"Отправка документа «{inst.Name ?? "документ"}»", payload, ct);
+                $"Отправка документа «{inst.DisplayName ?? "документ"}»", payload, ct);
             return Results.Accepted("/api/jobs/active", new { jobId });
         }).RequireAuthorization("Admin");
 

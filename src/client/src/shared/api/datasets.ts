@@ -458,10 +458,10 @@ export function useAutoMapDataSetSource() {
   });
 }
 
-// ── Привязки (владелец — DocumentInstance или CommonDataEntry) ─────────────────
+// ── Привязки (владелец — единый DomainObject: документ или запись общих данных) ──
 
 function ownerKey(owner: DataSetBindingOwner) {
-  return [owner.instanceId ?? null, owner.commonDataEntryId ?? null] as const;
+  return [owner.ownerId ?? null] as const;
 }
 
 export function useListDataSetBindings(owner: DataSetBindingOwner) {
@@ -469,7 +469,7 @@ export function useListDataSetBindings(owner: DataSetBindingOwner) {
     queryKey: ['datasets', 'bindings', ...ownerKey(owner)],
     queryFn: () =>
       apiClient.get('/datasets/bindings', { params: owner }).then(r => r.data),
-    enabled: !!(owner.instanceId || owner.commonDataEntryId),
+    enabled: !!owner.ownerId,
   });
 }
 

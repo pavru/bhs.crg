@@ -325,22 +325,20 @@ export interface DataSetFile {
   preprocessingProfile?: string | null;
 }
 
-/** Привязка набора данных к документу или записи каталога — только Mapping.
- * Filter/Transformation/Sort — на DataSetSource. Владелец — ровно одно из instanceId/commonDataEntryId. */
+/** Привязка набора данных к объекту — только Mapping. Filter/Transformation/Sort — на DataSetSource.
+ * Владелец — единый ownerId (DomainObject: документ или запись общих данных). */
 export interface DataSetBinding {
   id: string;
-  instanceId: string | null;
-  commonDataEntryId: string | null;
+  ownerId: string;
   sourceId: string;
   targetFieldKey: string | null;
   mapping: Record<string, string>;
   source?: DataSetSource & { file?: Pick<DataSetFile, 'id' | 'name' | 'format' | 'scope' | 'scopeId'> };
 }
 
-/** Владелец привязки к набору данных — ровно одно из полей задано. */
+/** Владелец привязки к набору данных — единый объект (документ или запись общих данных). */
 export interface DataSetBindingOwner {
-  instanceId?: string;
-  commonDataEntryId?: string;
+  ownerId?: string;
 }
 
 export interface DataSetPreview {

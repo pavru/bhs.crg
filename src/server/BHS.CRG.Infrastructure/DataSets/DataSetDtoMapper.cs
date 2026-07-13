@@ -77,7 +77,7 @@ public static class DataSetDtoMapper
         s.MaterializeMapping is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(s.MaterializeMapping));
 
     public static DataSetBindingDto MapBinding(DataSetBinding b) => new(
-        b.Id, b.InstanceId, b.CommonDataEntryId, b.SourceId, b.TargetFieldKey,
+        b.Id, b.OwnerId, b.SourceId, b.TargetFieldKey,
         JsonSerializer.Deserialize<Dictionary<string, string>>(b.Mapping) ?? [],
         b.Source is null ? null : new BindingSourceDto(
             b.Source.Id, b.Source.Name, b.Source.SheetOrPath, b.Source.CachedSchema, b.Source.CachedRowCount,

@@ -9,8 +9,6 @@ public class ConstructionRepository(AppDbContext db) : Repository<Construction>(
         => Db.Set<Construction>()
             .Include(c => c.Sections)
             .ThenInclude(s => s.DocumentSets)
-            .ThenInclude(ds => ds.Instances)
-            .ThenInclude(i => i.GeneratedFiles)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
 
     public override async Task<IReadOnlyList<Construction>> GetAllAsync(CancellationToken ct = default)

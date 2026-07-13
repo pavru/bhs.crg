@@ -76,8 +76,7 @@ public class DataSetBindingConfiguration : IEntityTypeConfiguration<DataSetBindi
         b.HasKey(e => e.Id);
         b.Property(e => e.TargetFieldKey).HasMaxLength(256);
         b.Property(e => e.Mapping).HasColumnType("jsonb").IsRequired();
-        b.HasIndex(e => e.InstanceId);
-        b.HasIndex(e => e.CommonDataEntryId);
+        b.HasIndex(e => e.OwnerId);
         b.HasIndex(e => e.SourceId);
     }
 }

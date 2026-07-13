@@ -3,6 +3,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
 using MediatR;
 
@@ -229,12 +230,12 @@ public static class GenerationEndpoints
 
     // Имя скачиваемого файла: «Имя документа - Имя шаблона.pdf» (спецсимволы → '_'). Имя документа —
     // из instance.Name, иначе имя типа; суффикс-шаблон — если файл сгенерирован конкретным шаблоном.
-    static async Task<string> BuildDownloadNameAsync(DocumentInstance inst, Guid? templateId,
+    static async Task<string> BuildDownloadNameAsync(DomainObject inst, Guid? templateId,
         IRepository<DocumentType> docTypes, IRepository<Template> templates, CancellationToken ct)
     {
-        var docName = inst.Name;
+        var docName = inst.DisplayName;
         if (string.IsNullOrWhiteSpace(docName))
-            docName = (await docTypes.GetByIdAsync(inst.DocumentTypeId, ct))?.Name ?? "Документ";
+            docName = (await docTypes.GetByIdAsync(inst.CompositeTypeId, ct))?.Name ?? "Документ";
 
         var name = FileNames.Sanitize(docName, "документ");
         if (templateId is { } tid)
