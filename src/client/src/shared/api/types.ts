@@ -67,6 +67,8 @@ export interface DocumentType {
   code: string;
   kind: DocumentTypeKind;
   isAbstract: boolean;
+  /** issue #89: объект этого типа может быть ролью/прокси — ссылаться (_baseRef) на реальный объект того же типа. */
+  allowsProxy: boolean;
   parentId: string | null;
   schema: Record<string, unknown>;
   pluginBindings: Record<string, unknown>;

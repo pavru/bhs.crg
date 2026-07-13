@@ -17,7 +17,7 @@ let seq = 0;
 function dt(schema: Record<string, unknown>, parentId: string | null = null, id?: string): DocumentType {
   return {
     id: id ?? `dt${++seq}`,
-    name: 'T', code: 'C', kind: 'Document', isAbstract: false,
+    name: 'T', code: 'C', kind: 'Document', isAbstract: false, allowsProxy: false,
     parentId, schema, pluginBindings: {}, group: null,
     createdAt: '', updatedAt: '',
   };
