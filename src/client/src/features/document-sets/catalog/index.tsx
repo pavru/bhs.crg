@@ -7,7 +7,8 @@ import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import {
   useListCommonData, useCommonDataForSet, useCreateCommonDataEntry,
-  useUpdateCommonDataEntry, useDeleteCommonDataEntry, useCommonDataEntry,
+  useUpdateCommonDataEntry, useDeleteCommonDataEntry, useCommonDataEntry, useCheckBindings,
+  type BindingCheckItem,
 } from '@/shared/api/commonData';
 import type { CommonDataEntry, CatalogScope, DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import { SCOPE_LABELS, SCOPE_PRIORITY } from '@/shared/api/types';
@@ -30,6 +31,37 @@ import {
   PrimitiveInput, FileField, ImageField,
   BaseInstancePanel, SCOPE_TIER, type BaseCandidate,
 } from '../fields';
+
+// Отчёт «Проверить связки» (issue #99): статус каждого @@ref-поля.
+const CHECK_STATUS: Record<string, { label: string; cls: string }> = {
+  matched: { label: 'связано', cls: 'bg-green-50 text-green-700 border-green-200' },
+  'not-found': { label: 'не найдено', cls: 'bg-warning-subtle text-warning border-warning-border' },
+  dangling: { label: 'запись удалена', cls: 'bg-red-50 text-danger border-red-200' },
+  drift: { label: 'устарело', cls: 'bg-warning-subtle text-warning border-warning-border' },
+  stale: { label: 'пересохранить', cls: 'bg-warning-subtle text-warning border-warning-border' },
+};
+
+function BindingCheckReport({ items }: { items: BindingCheckItem[] }) {
+  if (items.length === 0)
+    return <p className="text-xs text-fg4 px-1">Ссылочных связок нет — проверять нечего.</p>;
+  return (
+    <div className="rounded-lg border border-stroke divide-y divide-muted">
+      {items.map(it => {
+        const s = CHECK_STATUS[it.status] ?? { label: it.status, cls: 'bg-muted text-fg3 border-stroke' };
+        return (
+          <div key={it.fieldKey} className="flex items-start gap-2 px-3 py-2 text-sm">
+            <span className="flex-1 min-w-0">
+              <span className="font-medium text-fg1">{it.fieldTitle}</span>
+              {it.linkedName && <span className="text-fg4"> → {it.linkedName}</span>}
+              {it.detail && <span className="block text-[11px] text-fg4">{it.detail}</span>}
+            </span>
+            <span className={`shrink-0 text-[11px] px-1.5 py-0.5 rounded-full border font-medium ${s.cls}`}>{s.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /** Показ резолвнутой $ref-ссылки в связанном поле (issue #99): резолвит запись каталога по id → имя. */
 function BoundRefValue({ entryId }: { entryId: string }) {
@@ -307,6 +339,8 @@ export function CatalogEntryForm({
   const { scalarKeys: boundFieldKeys, arrayKeys: boundArrayKeys } = computeBoundFieldKeys(bindings);
   const { refetch: refetchBindingPreview, isFetching: refreshingFromSource } =
     usePreviewDataSetBindings({ ownerId: entry?.id });
+  // Проверка связок (issue #99) — по требованию.
+  const { data: bindingCheck, refetch: runBindingCheck, isFetching: checkingBindings } = useCheckBindings(entry?.id);
 
   async function handleRefreshFromSource() {
     const { data: previews } = await refetchBindingPreview();
@@ -619,12 +653,20 @@ export function CatalogEntryForm({
             scopeId={scopeId}
           />
           {bindings.length > 0 && (
-            <button type="button" onClick={handleRefreshFromSource} disabled={refreshingFromSource}
-              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-muted text-fg2 hover:bg-stroke disabled:opacity-50">
-              {refreshingFromSource ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-              Обновить из источника
-            </button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={handleRefreshFromSource} disabled={refreshingFromSource}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-muted text-fg2 hover:bg-stroke disabled:opacity-50">
+                {refreshingFromSource ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                Обновить из источника
+              </button>
+              <button type="button" onClick={() => runBindingCheck()} disabled={checkingBindings}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-muted text-fg2 hover:bg-stroke disabled:opacity-50">
+                {checkingBindings ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                Проверить связки
+              </button>
+            </div>
           )}
+          {bindingCheck && <BindingCheckReport items={bindingCheck.items} />}
         </div>
       ) : (
         <p className="text-xs text-fg4">Сохраните запись, чтобы привязать источники данных.</p>

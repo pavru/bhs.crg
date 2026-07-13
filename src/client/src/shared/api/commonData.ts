@@ -82,6 +82,24 @@ export function useCommonDataEntry(id: string | undefined) {
   });
 }
 
+/** Проверка связок (issue #99): статус каждого @@ref-поля. */
+export interface BindingCheckItem {
+  fieldKey: string;
+  fieldTitle: string;
+  status: 'matched' | 'not-found' | 'dangling' | 'drift' | 'stale';
+  linkedName: string | null;
+  detail: string | null;
+}
+
+/** По требованию (кнопка «Проверить связки») — enabled:false, дёргается через refetch. */
+export function useCheckBindings(id: string | undefined) {
+  return useQuery({
+    queryKey: [QK, 'binding-check', id],
+    queryFn: () => apiClient.get<{ items: BindingCheckItem[] }>(`/common-data/${id}/binding-check`).then(r => r.data),
+    enabled: false,
+  });
+}
+
 export function useCreateCommonDataEntry() {
   const qc = useQueryClient();
   return useMutation({
