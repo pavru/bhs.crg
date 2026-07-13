@@ -58,6 +58,13 @@ public static class CommonDataEndpoints
             return entry is null ? Results.NotFound() : Results.Ok(CommonDataEntryDto.From(entry));
         });
 
+        // Проверка связок (issue #99): сверка снимка $ref-ссылок со свежим резолвом источника.
+        g.MapGet("/{id:guid}/binding-check", async (Guid id, IMediator m) =>
+        {
+            try { return Results.Ok(await m.Send(new CheckCommonDataBindingsQuery(id))); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+        });
+
         g.MapPost("/", async (CreateRequest req, IMediator m) =>
         {
             var scope = req.Scope switch
