@@ -70,8 +70,9 @@ export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
             const tid = typeof br === 'string' ? br : (br && typeof br === 'object' && 'id' in br ? (br as { id?: string }).id : undefined);
             const target = tid ? entries.find(e => e.id === tid) : undefined;
             if (!target || target.compositeTypeId !== entry.compositeTypeId) return null;
-            return <span className="flex items-center gap-1 text-[11px] text-fg4 shrink-0 max-w-[180px] truncate" title="Роль — ссылка на реальный объект">
-              <Link2 size={11} className="shrink-0" />→ {target.displayName}</span>;
+            return <button type="button" onClick={e => { e.stopPropagation(); setEditEntry(target); }}
+              title="Открыть реальный объект" className="flex items-center gap-1 text-[11px] text-fg4 hover:text-brand shrink-0 max-w-[180px] truncate transition-colors">
+              <Link2 size={11} className="shrink-0" />→ {target.displayName}</button>;
           })()}
           {isDocKind && <span className="text-xs px-1.5 py-0.5 rounded bg-warning-subtle text-warning font-medium shrink-0">внеш. документ</span>}
           <button onClick={() => setEditEntry(entry)}
@@ -278,9 +279,27 @@ export function CatalogEntryForm({
   const selectedBase = baseRefId ? allCandidates.find(c => c.id === baseRefId) : undefined;
   const isProxy = !!selectedBase?.proxy;
   const canHaveBase = !!parentType || !!selectedType?.allowsProxy;
-  // Данные выбранного реального объекта — для подсказки «наследует: …» в режиме прокси (issue #92).
-  const proxyTarget = isProxy && baseRefId ? proxyEntries.find(e => e.id === baseRefId) : undefined;
-  const realData = (proxyTarget?.data ?? {}) as Record<string, unknown>;
+  // Резолвнутые данные выбранного реального объекта — для подсказки «наследует: …» в режиме прокси
+  // (issue #92). Проходим цепочку _baseRef цели (прокси-на-прокси), мержим база→свои, без _baseRef.
+  const realData: Record<string, unknown> = (() => {
+    if (!isProxy || !baseRefId) return {};
+    const seen = new Set<string>();
+    const chain: CommonDataEntry[] = [];
+    let curId: string | undefined = baseRefId;
+    while (curId && !seen.has(curId)) {
+      seen.add(curId);
+      const e = proxyEntries.find(x => x.id === curId);
+      if (!e) break;
+      chain.push(e);
+      const br = (e.data as Record<string, unknown>)?._baseRef;
+      curId = typeof br === 'string' ? br : (br && typeof br === 'object' && 'id' in br ? (br as { id?: string }).id : undefined);
+    }
+    const merged: Record<string, unknown> = {};
+    for (const e of chain.reverse())
+      for (const [k, v] of Object.entries(e.data as Record<string, unknown>))
+        if (k !== '_baseRef') merged[k] = v;
+    return merged;
+  })();
 
   // Поля формы: у прокси нет деления свои/родительские — все наследуются. Показываем «дельту»
   // (только переопределённые поля), с раскрытием всех для добавления переопределений (issue #89).

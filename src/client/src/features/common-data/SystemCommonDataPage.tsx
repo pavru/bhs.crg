@@ -122,8 +122,9 @@ export function SystemCommonDataPage() {
                           const tid = typeof br === 'string' ? br : (br && typeof br === 'object' && 'id' in br ? (br as { id?: string }).id : undefined);
                           const target = tid ? items.find(e => e.id === tid) : undefined;
                           if (!target) return null;
-                          return <span className="flex items-center gap-1 text-[11px] text-fg4 shrink-0 max-w-[180px] truncate" title="Роль — ссылка на реальный объект">
-                            <Link2 size={11} className="shrink-0" />→ {target.displayName}</span>;
+                          return <button type="button" onClick={e => { e.stopPropagation(); setEditEntry(target); }}
+                            title="Открыть реальный объект" className="flex items-center gap-1 text-[11px] text-fg4 hover:text-brand shrink-0 max-w-[180px] truncate transition-colors">
+                            <Link2 size={11} className="shrink-0" />→ {target.displayName}</button>;
                         })()}
                         {Object.keys(entry.data).length > 0 && (
                           <span className="text-xs text-fg4 truncate max-w-xs hidden sm:block">
