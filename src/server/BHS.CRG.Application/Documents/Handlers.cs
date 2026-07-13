@@ -20,6 +20,7 @@ public class DocumentTypeHandlers(
     IRequestHandler<UpdateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeSchemaCommand, DocumentType>,
     IRequestHandler<SetDocumentTypeAbstractCommand, DocumentType>,
+    IRequestHandler<SetDocumentTypeAllowsProxyCommand, DocumentType>,
     IRequestHandler<SetDocumentTypeGroupCommand, DocumentType>,
     IRequestHandler<DeleteDocumentTypeCommand>,
     IRequestHandler<ListDocumentTypesQuery, IReadOnlyList<DocumentType>>,
@@ -98,6 +99,16 @@ public class DocumentTypeHandlers(
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new KeyNotFoundException($"DocumentType {cmd.Id} not found");
         dt.SetAbstract(cmd.IsAbstract);
+        repo.Update(dt);
+        await repo.SaveChangesAsync(ct);
+        return dt;
+    }
+
+    public async Task<DocumentType> Handle(SetDocumentTypeAllowsProxyCommand cmd, CancellationToken ct)
+    {
+        var dt = await repo.GetByIdAsync(cmd.Id, ct)
+            ?? throw new KeyNotFoundException($"DocumentType {cmd.Id} not found");
+        dt.SetAllowsProxy(cmd.AllowsProxy);
         repo.Update(dt);
         await repo.SaveChangesAsync(ct);
         return dt;

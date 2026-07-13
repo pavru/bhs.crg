@@ -53,6 +53,9 @@ public static class DocumentTypeEndpoints
         admin.MapPut("/{id:guid}/abstract", async (Guid id, SetAbstractRequest req, IMediator m)
             => Results.Ok(await m.Send(new SetDocumentTypeAbstractCommand(id, req.IsAbstract))));
 
+        admin.MapPut("/{id:guid}/allows-proxy", async (Guid id, SetAllowsProxyRequest req, IMediator m)
+            => Results.Ok(await m.Send(new SetDocumentTypeAllowsProxyCommand(id, req.AllowsProxy))));
+
         admin.MapPut("/{id:guid}/group", async (Guid id, SetGroupRequest req, IMediator m)
             => Results.Ok(await m.Send(new SetDocumentTypeGroupCommand(id, req.Group))));
 
@@ -67,5 +70,6 @@ public static class DocumentTypeEndpoints
     record UpdateTypeRequest(string Name, string Code, Guid? ParentId);
     record UpdateSchemaRequest(string Schema);
     record SetAbstractRequest(bool IsAbstract);
+    record SetAllowsProxyRequest(bool AllowsProxy);
     record SetGroupRequest(string? Group);
 }
