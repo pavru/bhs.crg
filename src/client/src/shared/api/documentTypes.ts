@@ -45,6 +45,15 @@ export function useSetDocumentTypeAbstract() {
   });
 }
 
+export function useSetDocumentTypeAllowsProxy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, allowsProxy }: { id: string; allowsProxy: boolean }) =>
+      apiClient.put<DocumentType>(`/document-types/${id}/allows-proxy`, { allowsProxy }).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['document-types'] }),
+  });
+}
+
 export function useSetDocumentTypeGroup() {
   const qc = useQueryClient();
   return useMutation({

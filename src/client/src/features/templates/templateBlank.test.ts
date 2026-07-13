@@ -8,7 +8,7 @@ function docType(overrides: Partial<DocumentType> & { schema: Record<string, unk
     name: overrides.name ?? 'Тест',
     code: overrides.code ?? 'TEST',
     kind: 'Document' as DocumentType['kind'],
-    isAbstract: false,
+    isAbstract: false, allowsProxy: false,
     parentId: overrides.parentId ?? null,
     schema: overrides.schema,
     pluginBindings: {},

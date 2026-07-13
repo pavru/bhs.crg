@@ -11,6 +11,7 @@ public record CreateDocumentTypeCommand(string Name, string Code, DocumentTypeKi
 public record UpdateDocumentTypeCommand(Guid Id, string Name, string Code, Guid? ParentId) : IRequest<DocumentType>;
 public record UpdateDocumentTypeSchemaCommand(Guid Id, JsonDocument Schema) : IRequest<DocumentType>;
 public record SetDocumentTypeAbstractCommand(Guid Id, bool IsAbstract) : IRequest<DocumentType>;
+public record SetDocumentTypeAllowsProxyCommand(Guid Id, bool AllowsProxy) : IRequest<DocumentType>;
 public record SetDocumentTypeGroupCommand(Guid Id, string? Group) : IRequest<DocumentType>;
 public record DeleteDocumentTypeCommand(Guid Id) : IRequest;
 public record ListDocumentTypesQuery(DocumentTypeKind? Kind = null) : IRequest<IReadOnlyList<DocumentType>>;

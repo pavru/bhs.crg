@@ -42,9 +42,12 @@ public class EntityResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
     }
 
     private async Task<Guid> EntryAsync(Guid typeId, string data)
+        => await EntryScopedAsync(typeId, data, CatalogScope.System, null);
+
+    private async Task<Guid> EntryScopedAsync(Guid typeId, string data, CatalogScope scope, Guid? scopeId)
     {
-        using var scope = fixture.Services.CreateScope();
-        var e = await M(scope).Send(new CreateCommonDataEntryCommand("Запись", typeId, J(data), CatalogScope.System, null));
+        using var s = fixture.Services.CreateScope();
+        var e = await M(s).Send(new CreateCommonDataEntryCommand("Запись", typeId, J(data), scope, scopeId));
         return e.Id;
     }
 
@@ -250,5 +253,41 @@ public class EntityResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
 
         // раньше catalog-ссылка внутри таблицы подмешанного instance оставалась неразрешённой
         Assert.Equal("ООО Ромашка", table[0].GetProperty("Поставщик").GetProperty("Наименование").GetString());
+    }
+
+    // ── Прокси/роль того же типа (issue #89) ─────────────────────────────────────
+
+    [Fact] // Прокси «Подрядчик» → реальная «Ромашка» (тот же тип): документ через $ref catalog получает данные реальной
+    public async Task Proxy_SameType_ChainMerged()
+    {
+        var setId = await SetupSetAsync();
+        var docType = await TypeAsync(DocumentTypeKind.Document, "DOC_PX");
+        var orgType = await TypeAsync(DocumentTypeKind.Composite, "ORG_PX");
+        var realId = await EntryAsync(orgType, "{'Наименование':'ООО Ромашка','ИНН':'123'}");        // реальная орг (System)
+        var proxyId = await EntryAsync(orgType, "{'_baseRef':'" + realId + "','Роль':'Подрядчик'}");   // прокси того же типа (System)
+        var docId = await DocAsync(setId, docType, "{'Орг':{'$ref':'catalog','entryId':'" + proxyId + "'}}");
+
+        var org = E(await ResolveAsync(docId), "Орг");
+
+        Assert.Equal("ООО Ромашка", org.GetProperty("Наименование").GetString()); // унаследовано от реальной через прокси
+        Assert.Equal("123", org.GetProperty("ИНН").GetString());
+        Assert.Equal("Подрядчик", org.GetProperty("Роль").GetString());           // собственное поле прокси
+    }
+
+    [Fact] // guard-фикс #89: прокси в скоупе, но его _baseRef — на орг ЧУЖОЙ стройки → чужие данные не подмешиваются
+    public async Task Proxy_ChainCrossScope_NotMerged()
+    {
+        var setId = await SetupSetAsync();
+        var otherSetId = await SetupSetAsync();  // другой комплект/стройка (SetupSet создаёт свою Construction)
+        var docType = await TypeAsync(DocumentTypeKind.Document, "DOC_PXX");
+        var orgType = await TypeAsync(DocumentTypeKind.Composite, "ORG_PXX");
+        var realOtherId = await EntryScopedAsync(orgType, "{'Наименование':'Чужая орг'}", CatalogScope.Set, otherSetId); // вне скоупа документа
+        var proxyId = await EntryAsync(orgType, "{'_baseRef':'" + realOtherId + "','Роль':'Подрядчик'}");                  // прокси видим (System)
+        var docId = await DocAsync(setId, docType, "{'Орг':{'$ref':'catalog','entryId':'" + proxyId + "'}}");
+
+        var org = E(await ResolveAsync(docId), "Орг");
+
+        Assert.False(org.TryGetProperty("Наименование", out _)); // scope-guard на цепочке: чужая орг не подмешана
+        Assert.Equal("Подрядчик", org.GetProperty("Роль").GetString()); // собственные поля прокси остаются
     }
 }

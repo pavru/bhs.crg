@@ -45,10 +45,11 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
 
     public async Task ResolveContextRefsAsync(GenerationContext ctx, Guid documentSetId, CancellationToken ct = default)
     {
+        var scope = await ScopeChains.LoadAsync(db, documentSetId, ct);
         foreach (var key in ctx.Data.Keys.ToList())
         {
             if (ctx.Data[key] is not JsonElement el) continue;
-            ctx.Set(key, await ResolveNode(el, documentSetId, depth: 0, allowInstanceRefs: true, ct));
+            ctx.Set(key, await ResolveNode(el, scope, depth: 0, allowInstanceRefs: true, ct));
         }
     }
 
@@ -102,20 +103,20 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
     /// instance-ссылки (становится false внутри уже развёрнутого instance — один переход по
     /// документу, защита от циклов A→B→C).
     /// </summary>
-    private async Task<JsonElement> ResolveNode(JsonElement node, Guid documentSetId, int depth, bool allowInstanceRefs, CancellationToken ct)
+    private async Task<JsonElement> ResolveNode(JsonElement node, ScopeChain scope, int depth, bool allowInstanceRefs, CancellationToken ct)
     {
         if (depth >= MaxRefDepth) return node.Clone();
 
         switch (node.ValueKind)
         {
             case JsonValueKind.Object when node.TryGetProperty("$ref", out var refTypeProp):
-                return await ResolveRefObject(node, refTypeProp.GetString(), documentSetId, depth, allowInstanceRefs, ct);
+                return await ResolveRefObject(node, refTypeProp.GetString(), scope, depth, allowInstanceRefs, ct);
 
             case JsonValueKind.Object:
             {
                 var dict = new Dictionary<string, JsonElement>();
                 foreach (var prop in node.EnumerateObject())
-                    dict[prop.Name] = await ResolveNode(prop.Value, documentSetId, depth + 1, allowInstanceRefs, ct);
+                    dict[prop.Name] = await ResolveNode(prop.Value, scope, depth + 1, allowInstanceRefs, ct);
                 return JsonSerializer.SerializeToElement(dict);
             }
 
@@ -123,7 +124,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
             {
                 var list = new List<JsonElement>();
                 foreach (var item in node.EnumerateArray())
-                    list.Add(await ResolveNode(item, documentSetId, depth + 1, allowInstanceRefs, ct));
+                    list.Add(await ResolveNode(item, scope, depth + 1, allowInstanceRefs, ct));
                 return JsonSerializer.SerializeToElement(list);
             }
 
@@ -132,7 +133,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         }
     }
 
-    private async Task<JsonElement> ResolveRefObject(JsonElement node, string? refType, Guid documentSetId, int depth, bool allowInstanceRefs, CancellationToken ct)
+    private async Task<JsonElement> ResolveRefObject(JsonElement node, string? refType, ScopeChain scope, int depth, bool allowInstanceRefs, CancellationToken ct)
     {
         switch (refType)
         {
@@ -140,10 +141,10 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
             case "catalog"
                 when node.TryGetProperty("entryId", out var entryIdProp) && Guid.TryParse(entryIdProp.GetString(), out var entryId):
             {
-                var resolved = await ResolveEntryByIdAsync(entryId, [], ct);
+                var resolved = await ResolveEntryByIdAsync(entryId, scope, [], ct);
                 return resolved.ValueKind == JsonValueKind.Undefined
                     ? node.Clone()
-                    : await ResolveNode(resolved, documentSetId, depth + 1, allowInstanceRefs, ct);
+                    : await ResolveNode(resolved, scope, depth + 1, allowInstanceRefs, ct);
             }
 
             // Протягивание одного поля из реквизитов другого документа — значение как есть, без рекурсии
@@ -154,7 +155,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
             {
                 var fieldKey = fieldKeyProp.GetString() ?? string.Empty;
                 var refObj = await db.DomainObjects.AsNoTracking()
-                    .FirstOrDefaultAsync(o => o.Id == instId && o.ScopeLevel == CatalogScope.Set && o.ScopeId == documentSetId, ct);
+                    .FirstOrDefaultAsync(o => o.Id == instId && o.ScopeLevel == CatalogScope.Set && o.ScopeId == scope.SetId, ct);
                 return refObj is not null && refObj.Data.RootElement.TryGetProperty(fieldKey, out var fieldVal)
                     ? fieldVal.Clone()
                     : node.Clone();
@@ -165,7 +166,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
                 when allowInstanceRefs
                      && node.TryGetProperty("instanceId", out var docInstIdProp) && Guid.TryParse(docInstIdProp.GetString(), out var docInstId):
             {
-                var resolved = await ResolveDocumentInstanceAsync(docInstId, documentSetId, depth, ct);
+                var resolved = await ResolveDocumentInstanceAsync(docInstId, scope, depth, ct);
                 return resolved.ValueKind != JsonValueKind.Undefined ? resolved : node.Clone();
             }
 
@@ -180,11 +181,11 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
     /// <c>allowInstanceRefs: false</c> — вложенные instance-ссылки дальше не разворачиваются
     /// (защита от циклов), а массивы/таблицы внутри обрабатываются как везде (это чинит баг B).
     /// </summary>
-    private async Task<JsonElement> ResolveDocumentInstanceAsync(Guid instanceId, Guid documentSetId, int depth, CancellationToken ct)
+    private async Task<JsonElement> ResolveDocumentInstanceAsync(Guid instanceId, ScopeChain scope, int depth, CancellationToken ct)
     {
         var obj = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
             .FirstOrDefaultAsync(o => o.Id == instanceId && o.ScopeLevel == CatalogScope.Set
-                                      && o.ScopeId == documentSetId && o.Facet != null, ct);
+                                      && o.ScopeId == scope.SetId && o.Facet != null, ct);
 
         if (obj is null) return default;
 
@@ -192,7 +193,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         var dict = new Dictionary<string, JsonElement>();
         foreach (var (k, v) in subCtx.Data)
             if (v is JsonElement je)
-                dict[k] = await ResolveNode(je, documentSetId, depth + 1, allowInstanceRefs: false, ct);
+                dict[k] = await ResolveNode(je, scope, depth + 1, allowInstanceRefs: false, ct);
 
         return JsonSerializer.SerializeToElement(dict);
     }
@@ -200,9 +201,11 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
     /// <summary>
     /// Рекурсивно разрешает объект общих данных по id с поддержкой _baseRef: если в data есть
     /// "_baseRef", подтягивает данные базового объекта и выполняет deep-merge (собственные поля
-    /// имеют приоритет). Цепочка entry→entry со своим <paramref name="visited"/>-guard.
+    /// имеют приоритет). Цель может быть того же типа — прокси/роль (issue #89). Guard: база обязана
+    /// быть в скоуп-поддереве документа (<paramref name="scope"/>) — вверх по оси/System да, вбок
+    /// (другая стройка/раздел/комплект) нет; иначе утечка чужих данных. Цикл — <paramref name="visited"/>.
     /// </summary>
-    private async Task<JsonElement> ResolveEntryByIdAsync(Guid id, HashSet<Guid> visited, CancellationToken ct)
+    private async Task<JsonElement> ResolveEntryByIdAsync(Guid id, ScopeChain scope, HashSet<Guid> visited, CancellationToken ct)
     {
         if (!visited.Add(id))
             return default; // защита от циклических ссылок
@@ -214,7 +217,12 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         if (!ownData.TryGetProperty("_baseRef", out var baseRefEl) || ParseBaseRef(baseRefEl) is not { } baseId)
             return ownData;
 
-        var baseData = await ResolveEntryByIdAsync(baseId, visited, ct);
+        // Scope-guard на цель базы/прокси (issue #89): вне скоуп-поддерева документа — не наследуем.
+        var baseObj = await db.DomainObjects.AsNoTracking().FirstOrDefaultAsync(o => o.Id == baseId, ct);
+        if (baseObj is null || !scope.Contains(baseObj.ScopeLevel, baseObj.ScopeId))
+            return ownData;
+
+        var baseData = await ResolveEntryByIdAsync(baseId, scope, visited, ct);
         return baseData.ValueKind == JsonValueKind.Object ? MergeBaseObjects(baseData, ownData) : ownData;
     }
 
@@ -246,7 +254,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         else // запись общих данных
         {
             if (!scope.Contains(baseObj.ScopeLevel, baseObj.ScopeId)) return ownData; // scope-subtree guard
-            baseData = await ResolveEntryByIdAsync(id, visited, ct); // entry→entry цепочка + свой visited.Add(id)
+            baseData = await ResolveEntryByIdAsync(id, scope, visited, ct); // entry→entry цепочка (guard на всю цепь) + свой visited.Add(id)
         }
 
         return baseData.ValueKind == JsonValueKind.Object ? MergeBaseObjects(baseData, ownData) : ownData;

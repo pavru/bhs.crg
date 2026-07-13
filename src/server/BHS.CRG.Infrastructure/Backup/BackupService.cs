@@ -74,7 +74,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             DocumentTypes: docTypes.Select(dt => new BackupDocumentType(
                 dt.Id, dt.Name, dt.Code, dt.Kind.ToString(), dt.ParentId, dt.IsAbstract,
                 dt.Schema.RootElement.Clone(), dt.PluginBindings.RootElement.Clone(),
-                dt.CreatedAt, dt.UpdatedAt, dt.Group)).ToArray(),
+                dt.CreatedAt, dt.UpdatedAt, dt.Group, dt.AllowsProxy)).ToArray(),
             Templates: templates.Select(t => new BackupTemplate(
                 t.Id, t.DocumentTypeId, t.Name, t.Content, t.Version,
                 t.IsActive, t.IsDefault,
@@ -260,7 +260,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 item.Id, item.Name, item.Code, kind, item.ParentId,
                 JsonDocument.Parse(item.Schema.GetRawText()),
                 JsonDocument.Parse(item.PluginBindings.GetRawText()),
-                item.IsAbstract, item.CreatedAt, item.UpdatedAt, item.Group);
+                item.IsAbstract, item.CreatedAt, item.UpdatedAt, item.Group, item.AllowsProxy);
             db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
             if (existingIds.Contains(item.Id)) stats.DocumentTypesUpdated++; else stats.DocumentTypesCreated++;
         }

@@ -14,6 +14,7 @@ import {
   useUpdateDocumentTypeSchema,
   useDeleteDocumentType,
   useSetDocumentTypeAbstract,
+  useSetDocumentTypeAllowsProxy,
   useSetDocumentTypeGroup,
 } from '@/shared/api/documentTypes';
 import { TypeGroupAccordion, GroupPicker } from './TypeGroupAccordion';
@@ -614,6 +615,7 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
 }) {
   const deleteMutation = useDeleteDocumentType();
   const abstractMutation = useSetDocumentTypeAbstract();
+  const proxyMutation = useSetDocumentTypeAllowsProxy();
   const groupMutation = useSetDocumentTypeGroup();
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -661,6 +663,11 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
               ↑ {parentType.name}
             </span>
           )}
+          {docType.allowsProxy && (
+            <span className="text-[11px] bg-brand-subtle text-brand px-1.5 py-0.5 rounded-full shrink-0">
+              роль/прокси
+            </span>
+          )}
           <span className="flex-1" />
           {effectiveFields.length > 0 && (
             <span className="text-xs text-fg4 shrink-0">
@@ -677,6 +684,17 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
               {complexFields.length} сост.
             </span>
           )}
+        </button>
+        <button
+          onClick={e => { e.stopPropagation(); proxyMutation.mutate({ id: docType.id, allowsProxy: !docType.allowsProxy }); }}
+          disabled={proxyMutation.isPending}
+          className={`px-2 py-3 text-xs font-medium opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30 ${
+            docType.allowsProxy ? 'text-brand hover:text-brand-hover' : 'text-stroke-strong hover:text-brand'
+          }`}
+          title={docType.allowsProxy
+            ? 'Запретить роль/прокси'
+            : 'Разрешить роль/прокси: объект этого типа сможет ссылаться на реальный объект того же типа'}>
+          Прокси
         </button>
         {docType.kind === 'Document' && (
           <>
