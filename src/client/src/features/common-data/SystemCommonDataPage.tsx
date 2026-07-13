@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, ChevronDown, ChevronUp, Link2 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -117,6 +117,14 @@ export function SystemCommonDataPage() {
                       <div key={entry.id}
                         className={`flex items-center gap-4 px-4 py-3 group hover:bg-base transition-colors ${idx > 0 ? 'border-t border-muted' : ''}`}>
                         <span className="flex-1 text-sm font-medium text-fg1 truncate">{entry.displayName}</span>
+                        {(() => { // issue #89: пометка роли/прокси (цель того же типа — в этой же группе)
+                          const br = (entry.data as Record<string, unknown>)?._baseRef;
+                          const tid = typeof br === 'string' ? br : (br && typeof br === 'object' && 'id' in br ? (br as { id?: string }).id : undefined);
+                          const target = tid ? items.find(e => e.id === tid) : undefined;
+                          if (!target) return null;
+                          return <span className="flex items-center gap-1 text-[11px] text-fg4 shrink-0 max-w-[180px] truncate" title="Роль — ссылка на реальный объект">
+                            <Link2 size={11} className="shrink-0" />→ {target.displayName}</span>;
+                        })()}
                         {Object.keys(entry.data).length > 0 && (
                           <span className="text-xs text-fg4 truncate max-w-xs hidden sm:block">
                             {Object.entries(entry.data).filter(([, v]) => v != null && v !== '').slice(0, 3).map(([k, v]) => `${k}: ${v}`).join(' · ')}
