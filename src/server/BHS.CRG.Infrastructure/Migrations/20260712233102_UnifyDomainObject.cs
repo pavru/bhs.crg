@@ -13,6 +13,15 @@ namespace BHS.CRG.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // Цутовер объектов (issue #84): документы и записи общих данных пересоздаются заново
+            // (решение — чистый разрыв, без переноса данных). Существующие сгенерированные файлы и
+            // привязки принадлежат уничтожаемым сущностям — чистим их, иначе новые FK на document_facets
+            // не пройдут по осиротевшим строкам generated_files. Блобы в MinIO подчистятся штатной
+            // пересборкой; для dev-пересоздания это несущественно.
+            migrationBuilder.Sql("DELETE FROM generated_files;");
+            migrationBuilder.Sql("DELETE FROM dataset_bindings;");
+            migrationBuilder.Sql("DELETE FROM document_set_outputs;");
+
             migrationBuilder.DropForeignKey(
                 name: "FK_generated_files_document_instances_DocumentInstanceId",
                 table: "generated_files");
