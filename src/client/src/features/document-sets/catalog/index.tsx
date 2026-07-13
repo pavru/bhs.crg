@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   ChevronDown, ChevronUp, Plus, Pencil, Trash2, FileText, Database, ShieldCheck, Loader2,
-  DatabaseZap, RefreshCw, X, Link2,
+  DatabaseZap, RefreshCw, X, Link2, CornerUpLeft,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -278,6 +278,9 @@ export function CatalogEntryForm({
   const selectedBase = baseRefId ? allCandidates.find(c => c.id === baseRefId) : undefined;
   const isProxy = !!selectedBase?.proxy;
   const canHaveBase = !!parentType || !!selectedType?.allowsProxy;
+  // Данные выбранного реального объекта — для подсказки «наследует: …» в режиме прокси (issue #92).
+  const proxyTarget = isProxy && baseRefId ? proxyEntries.find(e => e.id === baseRefId) : undefined;
+  const realData = (proxyTarget?.data ?? {}) as Record<string, unknown>;
 
   // Поля формы: у прокси нет деления свои/родительские — все наследуются. Показываем «дельту»
   // (только переопределённые поля), с раскрытием всех для добавления переопределений (issue #89).
@@ -406,8 +409,28 @@ export function CatalogEntryForm({
             );
           }
 
+          const proxyOverridden = isProxy && values[field.key] !== undefined;
+          const proxyReal = realData[field.key];
+          const proxyRealHint = isProxy && (typeof proxyReal === 'string' || typeof proxyReal === 'number') && proxyReal !== ''
+            ? String(proxyReal) : undefined;
           return (
             <div key={field.key}>
+              {isProxy && (
+                <div className="flex items-center justify-between gap-2 mb-0.5 min-h-[16px]">
+                  <span className="text-[11px] text-fg4 truncate">
+                    {proxyOverridden ? 'переопределено'
+                      : proxyRealHint ? `наследует: ${proxyRealHint}`
+                      : 'наследуется от реального'}
+                  </span>
+                  {proxyOverridden && (
+                    <button type="button" onClick={() => setValue(field.key, undefined)}
+                      title="Вернуть к наследованию от реального объекта"
+                      className="text-[11px] text-brand hover:text-brand-hover flex items-center gap-0.5 shrink-0">
+                      <CornerUpLeft size={11} /> наследовать
+                    </button>
+                  )}
+                </div>
+              )}
               {field.type === 'complex' || field.type === 'array' ? (
                 <div>
                   <label className="block text-sm font-medium text-fg2 mb-1">
