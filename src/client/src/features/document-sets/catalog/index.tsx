@@ -514,10 +514,10 @@ export function CatalogEntryForm({
         {aliases.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-1.5">
             {aliases.map(a => (
-              <span key={a} className="inline-flex items-center gap-1 text-xs bg-muted text-fg2 rounded-full pl-2.5 pr-1 py-0.5">
-                {a}
+              <span key={a} className="inline-flex items-center gap-1 text-xs bg-muted text-fg2 rounded-2xl pl-2.5 pr-1 py-0.5 max-w-full">
+                <span className="min-w-0 break-words">{a}</span>
                 <button type="button" onClick={() => setAliases(prev => prev.filter(x => x !== a))}
-                  className="text-fg4 hover:text-danger transition-colors" title="Удалить">
+                  className="text-fg4 hover:text-danger transition-colors shrink-0" title="Удалить">
                   <X size={11} />
                 </button>
               </span>
