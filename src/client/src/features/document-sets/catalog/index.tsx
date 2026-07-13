@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   ChevronDown, ChevronUp, Plus, Pencil, Trash2, FileText, Database, ShieldCheck, Loader2,
-  DatabaseZap, RefreshCw, X,
+  DatabaseZap, RefreshCw, X, Link2,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -65,6 +65,14 @@ export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
           className={`flex items-center gap-3 pl-3 pr-3 py-2 group hover:bg-muted transition-colors ${idx > 0 ? 'border-t border-stroke' : ''}`}>
           {isDocKind && <FileText size={12} className="text-warning shrink-0" />}
           <span className="flex-1 text-sm text-fg1 truncate">{entry.displayName}</span>
+          {(() => { // issue #89: пометка роли/прокси — тот же тип, ссылка на реальный объект
+            const br = (entry.data as Record<string, unknown>)?._baseRef;
+            const tid = typeof br === 'string' ? br : (br && typeof br === 'object' && 'id' in br ? (br as { id?: string }).id : undefined);
+            const target = tid ? entries.find(e => e.id === tid) : undefined;
+            if (!target || target.compositeTypeId !== entry.compositeTypeId) return null;
+            return <span className="flex items-center gap-1 text-[11px] text-fg4 shrink-0 max-w-[180px] truncate" title="Роль — ссылка на реальный объект">
+              <Link2 size={11} className="shrink-0" />→ {target.displayName}</span>;
+          })()}
           {isDocKind && <span className="text-xs px-1.5 py-0.5 rounded bg-warning-subtle text-warning font-medium shrink-0">внеш. документ</span>}
           <button onClick={() => setEditEntry(entry)}
             className="p-1 text-stroke-strong hover:text-fg2 opacity-0 group-hover:opacity-100 transition-all">
@@ -192,6 +200,7 @@ export function CatalogEntryForm({
   const [error, setError] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [recognizing, setRecognizing] = useState(false);
+  const [showAllProxyFields, setShowAllProxyFields] = useState(false); // прокси: раскрыть все поля для переопределения (issue #89)
   const createMutation = useCreateCommonDataEntry();
   const updateMutation = useUpdateCommonDataEntry();
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
@@ -211,8 +220,6 @@ export function CatalogEntryForm({
   const baseRefId = typeof values._baseRef === 'string' ? values._baseRef : undefined;
   const ownFields = selectedType ? parseSchemaFields(selectedType.schema) : [];
   const effectiveFields = selectedType ? resolveEffectiveFields(selectedType, allDocTypes) : [];
-  const displayFields = (parentType && baseRefId) ? ownFields : effectiveFields;
-  const sections = selectedType ? groupEffectiveFields(displayFields, selectedType.schema) : [];
 
   // Распознавание: берём первое поле-файл с загруженным вложением (обычно единственное —
   // "Файл"). Заполняет только простые поля (flattenLeaves пропускает array/doc-ref/complex-с-
@@ -242,6 +249,42 @@ export function CatalogEntryForm({
       tier: SCOPE_TIER[e.scope], scopeLabel: SCOPE_LABELS[e.scope], dist: 0,
     }))
     .sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name, 'ru'));
+
+  // Кандидаты роли/прокси (issue #89): объекты ТОГО ЖЕ типа, видимые в скоупе (кроме самого себя).
+  const proxyTypeId = selectedType?.allowsProxy ? selectedType.id : undefined;
+  const { data: allProxyEntries = [] } = useCommonDataForSet({
+    setId: setId ?? '', typeId: proxyTypeId, enabled: !!proxyTypeId && !!setId,
+  });
+  const { data: scopeProxyEntries = [] } = useListCommonData({
+    scope, scopeId: scopeId ?? undefined, typeId: proxyTypeId,
+    enabled: !!proxyTypeId && !setId && scope !== 'System',
+  });
+  const { data: systemProxyEntries = [] } = useListCommonData({
+    scope: 'System', typeId: proxyTypeId, enabled: !!proxyTypeId,
+  });
+  const proxyEntries: CommonDataEntry[] = setId
+    ? allProxyEntries
+    : [...scopeProxyEntries, ...systemProxyEntries.filter(e => !scopeProxyEntries.some(s => s.id === e.id))];
+  const proxyCandidates: BaseCandidate[] = proxyEntries
+    .filter(e => e.id !== entry?.id) // не сам на себя
+    .map(e => ({
+      kind: 'catalog' as const, id: e.id, name: e.displayName, typeId: e.compositeTypeId,
+      tier: SCOPE_TIER[e.scope], scopeLabel: SCOPE_LABELS[e.scope], dist: 0, proxy: true,
+      targetIsProxy: !!(e.data as Record<string, unknown>)?._baseRef,
+    }))
+    .sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name, 'ru'));
+
+  const allCandidates = [...proxyCandidates, ...baseCandidates];
+  const selectedBase = baseRefId ? allCandidates.find(c => c.id === baseRefId) : undefined;
+  const isProxy = !!selectedBase?.proxy;
+  const canHaveBase = !!parentType || !!selectedType?.allowsProxy;
+
+  // Поля формы: у прокси нет деления свои/родительские — все наследуются. Показываем «дельту»
+  // (только переопределённые поля), с раскрытием всех для добавления переопределений (issue #89).
+  const displayFields = isProxy
+    ? (showAllProxyFields ? effectiveFields : effectiveFields.filter(f => values[f.key] !== undefined && values[f.key] !== ''))
+    : (parentType && baseRefId) ? ownFields : effectiveFields;
+  const sections = selectedType ? groupEffectiveFields(displayFields, selectedType.schema) : [];
 
   // Наборы данных: биндинги существуют только у уже сохранённой записи (нужен id-владелец).
   const { data: bindings = [] } = useListDataSetBindings({ ownerId: entry?.id });
@@ -494,16 +537,16 @@ export function CatalogEntryForm({
         </p>
       )}
 
-      {parentType && (
+      {canHaveBase && (
         <BaseInstancePanel
-          title={parentType.name}
-          candidates={baseCandidates}
-          selected={baseCandidates.find(c => c.id === baseRefId)}
-          missing={!!baseRefId && !baseCandidates.some(c => c.id === baseRefId)}
-          manualHint={ownFields.length < effectiveFields.length
+          title={parentType?.name}
+          candidates={allCandidates}
+          selected={selectedBase}
+          missing={!!baseRefId && !allCandidates.some(c => c.id === baseRefId)}
+          manualHint={!isProxy && ownFields.length < effectiveFields.length
             ? `Без базового экземпляра все ${effectiveFields.length} полей заполняются вручную.` : undefined}
-          onSelect={c => setValue('_baseRef', c.id)}
-          onClear={() => setValue('_baseRef', undefined)}
+          onSelect={c => { setValue('_baseRef', c.id); setShowAllProxyFields(false); }}
+          onClear={() => { setValue('_baseRef', undefined); setShowAllProxyFields(false); }}
         />
       )}
 
@@ -544,6 +587,16 @@ export function CatalogEntryForm({
         </div>
       ) : (
         <p className="text-xs text-fg4">Сохраните запись, чтобы привязать источники данных.</p>
+      )}
+
+      {isProxy && (
+        <div className="rounded-md bg-brand-subtle/40 px-3 py-2 text-xs text-fg3 flex items-center justify-between gap-2">
+          <span>Роль наследует все поля реального объекта — заполните только переопределяемые, пустые берутся у реального.</span>
+          {!showAllProxyFields && (
+            <button type="button" onClick={() => setShowAllProxyFields(true)}
+              className="text-brand hover:text-brand-hover font-medium shrink-0">Переопределить ещё…</button>
+          )}
+        </div>
       )}
 
       {selectedType && sections.length > 0 && (
