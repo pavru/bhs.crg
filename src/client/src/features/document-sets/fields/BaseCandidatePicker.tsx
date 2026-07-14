@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FileText, Database, Link2, Unlink, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
@@ -55,44 +55,62 @@ export function BaseCandidatePicker({ open, onOpenChange, candidates, onSelect }
   candidates: BaseCandidate[]; onSelect: (c: BaseCandidate) => void;
 }) {
   const [search, setSearch] = useState('');
+  const [active, setActive] = useState(0);
   const filtered = candidates.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
   // issue #89: две именованные группы — «роль на реальный объект того же типа» и наследование от базового типа.
   const proxyCands = filtered.filter(c => c.proxy);
   const baseCands = filtered.filter(c => !c.proxy);
+  // Единый порядок для клавиатурной навигации (issue #107 F5): proxy-группа, затем базовые.
+  const ordered = [...proxyCands, ...baseCands];
+  useEffect(() => { setActive(0); }, [search]);
 
-  const row = (c: BaseCandidate) => (
-    <button key={`${c.kind}:${c.id}`} type="button" onClick={() => { onSelect(c); onOpenChange(false); }}
-      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md hover:bg-brand-subtle transition-colors">
-      {c.proxy
-        ? <Link2 size={13} className="text-brand shrink-0" />
-        : c.kind === 'instance'
-          ? <FileText size={13} className="text-brand shrink-0" />
-          : <Database size={13} className="text-brand shrink-0" />}
-      <span className="flex-1 font-medium text-fg1 truncate">{c.name}</span>
-      {c.targetIsProxy && <span className="text-[10px] text-warning shrink-0">роль</span>}
-      <span className="text-[11px] text-fg4 shrink-0">{c.scopeLabel}</span>
-    </button>
-  );
+  function pick(c: BaseCandidate) { onSelect(c); onOpenChange(false); }
+  function onKey(e: React.KeyboardEvent) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, ordered.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
+    else if (e.key === 'Enter') { e.preventDefault(); const c = ordered[active]; if (c) pick(c); }
+  }
+
+  const row = (c: BaseCandidate, gi: number) => {
+    const on = gi === active;
+    return (
+      <button key={`${c.kind}:${c.id}`} type="button" role="option" aria-selected={on} id={`bcp-opt-${gi}`}
+        onMouseEnter={() => setActive(gi)} onClick={() => pick(c)}
+        className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors ${
+          on ? 'bg-tonal text-on-tonal' : 'hover:bg-brand-subtle'}`}>
+        {c.proxy
+          ? <Link2 size={13} className={`shrink-0 ${on ? 'text-on-tonal' : 'text-brand'}`} />
+          : c.kind === 'instance'
+            ? <FileText size={13} className={`shrink-0 ${on ? 'text-on-tonal' : 'text-brand'}`} />
+            : <Database size={13} className={`shrink-0 ${on ? 'text-on-tonal' : 'text-brand'}`} />}
+        <span className={`flex-1 font-medium truncate ${on ? 'text-on-tonal' : 'text-fg1'}`}>{c.name}</span>
+        {c.targetIsProxy && <span className="text-[10px] text-warning shrink-0">роль</span>}
+        <span className={`text-[11px] shrink-0 ${on ? 'text-on-tonal/80' : 'text-fg4'}`}>{c.scopeLabel}</span>
+      </button>
+    );
+  };
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Базовый экземпляр / роль">
       <div className="space-y-4">
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск..." autoFocus
+        <input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={onKey}
+          placeholder="Поиск…" autoFocus role="combobox" aria-expanded aria-controls="bcp-listbox"
+          aria-activedescendant={ordered.length ? `bcp-opt-${active}` : undefined}
           className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
         {filtered.length === 0 ? (
           <p className="text-sm text-fg4 text-center py-4">Нет подходящих кандидатов.</p>
         ) : (
-          <div className="space-y-3 max-h-72 overflow-y-auto">
+          <div id="bcp-listbox" role="listbox" aria-label="Кандидаты" className="space-y-3 max-h-72 overflow-y-auto">
             {proxyCands.length > 0 && (
               <div className="space-y-1">
                 <p className="text-[11px] font-semibold text-fg3 uppercase tracking-wide px-1">Роль на реальный объект (тот же тип)</p>
-                {proxyCands.map(row)}
+                {proxyCands.map((c, i) => row(c, i))}
               </div>
             )}
             {baseCands.length > 0 && (
               <div className="space-y-1">
                 {proxyCands.length > 0 && <p className="text-[11px] font-semibold text-fg3 uppercase tracking-wide px-1">Базовый тип</p>}
-                {baseCands.map(row)}
+                {baseCands.map((c, j) => row(c, proxyCands.length + j))}
               </div>
             )}
           </div>
