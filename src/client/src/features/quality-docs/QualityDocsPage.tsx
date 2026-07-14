@@ -2,7 +2,7 @@ import { useState, useMemo, Fragment } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2, ShieldCheck, FileText, Search, Globe, ExternalLink, Download, Loader2, ChevronRight, ChevronDown } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -222,14 +222,13 @@ export function QualityDocsPage() {
                         </td>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-                            <button onClick={() => setEditDoc(d)} className="p-1.5 text-fg4 hover:text-fg2 rounded" title="Редактировать">
+                            <IconButton label="Редактировать" size="sm" onClick={() => setEditDoc(d)}>
                               <Pencil size={14} />
-                            </button>
-                            <button onClick={() => setDeleteTarget(d)}
-                              disabled={del.isPending}
-                              className="p-1.5 text-fg4 hover:text-danger rounded disabled:opacity-40" title="Удалить">
+                            </IconButton>
+                            <IconButton label="Удалить" size="sm" danger onClick={() => setDeleteTarget(d)}
+                              disabled={del.isPending}>
                               <Trash2 size={14} />
-                            </button>
+                            </IconButton>
                           </div>
                         </td>
                       </tr>
