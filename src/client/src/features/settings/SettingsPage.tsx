@@ -338,7 +338,7 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="px-6 py-4 max-w-2xl space-y-5">
+    <div className="px-6 py-4 max-w-3xl space-y-5">
       <h1 className="text-xl font-semibold text-fg1">Настройки</h1>
 
       {/* ── Template versioning ────────────────────────────────────────────── */}
