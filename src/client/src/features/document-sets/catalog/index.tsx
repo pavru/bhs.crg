@@ -6,6 +6,7 @@ import {
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem, SelectGroup } from '@/shared/ui/Select';
+import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import {
   useListCommonData, useCommonDataForSet, useCreateCommonDataEntry,
@@ -595,11 +596,7 @@ export function CatalogEntryForm({
         <span className="text-xs text-fg3">приоритет {SCOPE_PRIORITY[scope]}</span>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-fg2 mb-1">Наименование</label>
-        <input value={displayName} onChange={e => setDisplayName(e.target.value)} required autoFocus
-          className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
-      </div>
+      <TextField label="Наименование" value={displayName} onChange={e => setDisplayName(e.target.value)} required autoFocus />
 
       {/* Алиасы (issue #74) — доп. имена для поиска записи при связывании с источниками */}
       <div>
