@@ -333,6 +333,9 @@ export function CatalogEntryForm({
     ? (showAllProxyFields ? effectiveFields : effectiveFields.filter(f => values[f.key] !== undefined && values[f.key] !== ''))
     : (parentType && baseRefId) ? ownFields : effectiveFields;
   const sections = selectedType ? groupEffectiveFields(displayFields, selectedType.schema) : [];
+  // Rail разделов — только для крупных форм с несколькими именованными группами (issue #102, P3).
+  const titledSections = sections.filter(s => s.title);
+  const showRail = titledSections.length >= 3 && displayFields.length >= 12;
 
   // Наборы данных: биндинги существуют только у уже сохранённой записи (нужен id-владелец).
   const { data: bindings = [] } = useListDataSetBindings({ ownerId: entry?.id });
@@ -355,6 +358,12 @@ export function CatalogEntryForm({
   }
   function toggleGroup(key: string) {
     setExpandedGroups(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  }
+  // Навигация по разделам большой формы (issue #102, P3): раскрыть раздел и проскроллить к нему.
+  function goToSection(key: string) {
+    setExpandedGroups(prev => new Set(prev).add(key));
+    requestAnimationFrame(() =>
+      document.getElementById(`cat-section-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }
 
   async function handleRecognize() {
@@ -558,7 +567,25 @@ export function CatalogEntryForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+      <div className={showRail ? 'flex gap-5 items-start' : ''}>
+      {showRail && (
+        <nav className="hidden lg:block sticky top-0 w-52 shrink-0 self-start space-y-0.5">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-fg4 px-2 pb-1">Разделы</div>
+          {titledSections.map(section => {
+            const expanded = expandedGroups.has(section.key);
+            return (
+              <button key={section.key} type="button" onClick={() => goToSection(section.key)}
+                className={`w-full flex items-center gap-1.5 text-left text-xs px-2 py-1 rounded transition-colors
+                  ${expanded ? 'bg-base text-fg1 font-medium' : 'text-fg3 hover:bg-base hover:text-fg1'}`}>
+                <span className="flex-1 truncate">{section.title}</span>
+                <span className="text-[10px] text-fg4 shrink-0">{section.fields.length}</span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
+      <div className="flex-1 min-w-0 space-y-4">
       <div className="flex items-center gap-2">
         <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${SCOPE_COLORS[scope]}`}>
           {SCOPE_LABELS[scope]}
@@ -706,7 +733,8 @@ export function CatalogEntryForm({
             }
             const isExpanded = expandedGroups.has(section.key);
             return (
-              <div key={section.key} className="border border-stroke rounded-lg overflow-hidden">
+              <div key={section.key} id={`cat-section-${section.key}`}
+                className="border border-stroke rounded-lg overflow-hidden scroll-mt-2">
                 <button type="button" onClick={() => toggleGroup(section.key)}
                   className="w-full flex items-center gap-2 px-3 py-2.5 bg-base hover:bg-muted transition-colors text-left">
                   {isExpanded
@@ -723,6 +751,8 @@ export function CatalogEntryForm({
       )}
 
       {error && <p className="text-sm text-danger">{error}</p>}
+      </div>
+      </div>
       </div>
       <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-3">
         <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>

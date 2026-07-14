@@ -210,6 +210,12 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
       return next;
     });
   }
+  // Навигация по разделам большой формы (issue #102, P3): раскрыть раздел и проскроллить к нему.
+  function goToSection(key: string) {
+    setExpandedGroups(prev => new Set(prev).add(key));
+    requestAnimationFrame(() =>
+      document.getElementById(`req-section-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
 
   // Сохраняет реквизиты. Возвращает true при успехе. НЕ закрывает редактор.
   async function handleSaveCore(): Promise<boolean> {
@@ -251,6 +257,10 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
     return <div className="text-sm text-fg4 py-4 text-center">Схема полей не задана.</div>;
 
   const sections = groupEffectiveFields(displayFields, docType?.schema ?? {});
+  // Rail разделов — только для крупных форм с несколькими именованными группами (issue #102, P3):
+  // на короткой форме или без групп он бесполезен.
+  const titledSections = sections.filter(s => s.title);
+  const showRail = titledSections.length >= 3 && displayFields.length >= 12;
 
     const isWide = (f: SchemaField) =>
       f.type === 'complex' || f.type === 'array' || f.type === 'doc-ref' ||
@@ -370,7 +380,27 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+      <div className={showRail ? 'flex gap-5 items-start' : ''}>
+      {showRail && (
+        <nav className="hidden lg:block sticky top-0 w-52 shrink-0 self-start space-y-0.5">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-fg4 px-2 pb-1">Разделы</div>
+          {titledSections.map(section => {
+            const expanded = expandedGroups.has(section.key);
+            const missing = showValidation && section.fields.some(f => isFieldMissing(f, values[f.key]));
+            return (
+              <button key={section.key} type="button" onClick={() => goToSection(section.key)}
+                className={`w-full flex items-center gap-1.5 text-left text-xs px-2 py-1 rounded transition-colors
+                  ${expanded ? 'bg-base text-fg1 font-medium' : 'text-fg3 hover:bg-base hover:text-fg1'}`}>
+                <span className="flex-1 truncate">{section.title}</span>
+                {missing && <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" title="Не заполнено" />}
+                <span className="text-[10px] text-fg4 shrink-0">{section.fields.length}</span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
+      <div className="flex-1 min-w-0 space-y-4">
       {hasBase && (
         <BaseInstancePanel
           candidates={baseCandidates}
@@ -390,7 +420,8 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
         const isExpanded = expandedGroups.has(section.key);
         const hasMissing = showValidation && section.fields.some(f => isFieldMissing(f, values[f.key]));
         return (
-          <div key={section.key} className="border border-stroke rounded-lg overflow-hidden">
+          <div key={section.key} id={`req-section-${section.key}`}
+            className="border border-stroke rounded-lg overflow-hidden scroll-mt-2">
             <button type="button"
               onClick={() => toggleGroup(section.key)}
               className="w-full flex items-center gap-2 px-3 py-2.5 bg-base hover:bg-muted transition-colors text-left">
@@ -411,6 +442,8 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
           </div>
         );
       })}
+      </div>
+      </div>
       </div>
       {error && (
         <div className="shrink-0 px-6 py-2 bg-surface border-t border-stroke">
