@@ -31,6 +31,7 @@ import { mergeBindingPreviewsIntoValues } from '@/shared/api/datasetHelpers';
 import { QualityLinksTab } from './QualityLinksTab';
 import { DocumentTemplateParams } from './DocumentTemplateParams';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 
 type SaveRef = { current: (() => Promise<boolean>) | null };
 
@@ -823,7 +824,14 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
   }
 
   return (
-    <div className="flex flex-col min-h-0 flex-1">
+    <div className="flex flex-col min-h-0 flex-1"
+      onKeyDown={e => {
+        // Ctrl/⌘+Enter — сохранить и закрыть (issue #107 F7); работает из любого поля вкладки реквизитов.
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && editable && !saving) {
+          e.preventDefault();
+          void doSaveAndClose();
+        }
+      }}>
       <div className="shrink-0 px-6 pt-1 bg-surface">
         <div className="flex items-center gap-2 mb-1 min-w-0">
           <div className="flex-1 min-w-0">
@@ -874,18 +882,14 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
       <div className="shrink-0 px-6 py-3 bg-surface border-t border-stroke flex items-center gap-2 flex-wrap">
         {editable ? (
           <>
-            <button onClick={() => void doSave()} disabled={saving}
-              className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors disabled:opacity-50">
-              {saving ? 'Сохранение...' : 'Сохранить'}
-            </button>
-            <button onClick={() => void doSaveAndClose()} disabled={saving}
-              className="px-4 py-2 text-sm border border-brand text-brand-hover hover:bg-brand-subtle rounded-md transition-colors disabled:opacity-50">
+            <Button variant="filled" onClick={() => void doSaveAndClose()} loading={saving}
+              title="Ctrl+Enter">
               Сохранить и закрыть
-            </button>
-            <button onClick={onClose} disabled={saving}
-              className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md transition-colors disabled:opacity-50">
-              Отмена
-            </button>
+            </Button>
+            <Button variant="text" onClick={() => void doSave()} disabled={saving}>
+              {saving ? 'Сохранение…' : 'Сохранить'}
+            </Button>
+            <Button variant="text" onClick={onClose} disabled={saving}>Отмена</Button>
             {savedFlash && <span className="text-sm text-success">Сохранено</span>}
           </>
         ) : (
