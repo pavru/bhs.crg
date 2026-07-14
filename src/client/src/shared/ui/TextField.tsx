@@ -11,13 +11,15 @@ import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'rea
 export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'placeholder'> {
   label: string;
   error?: string;
+  /** Вспомогательный текст под полем (напр. пример ввода) — скрывается при наличии error. */
+  hint?: string;
   /** Правый адорнмент (например «глаз» пароля). */
   trailing?: ReactNode;
   containerClassName?: string;
 }
 
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
-  { label, error, trailing, className = '', containerClassName = '', id, required, ...rest },
+  { label, error, hint, trailing, className = '', containerClassName = '', id, required, ...rest },
   ref,
 ) {
   const autoId = useId();
@@ -45,7 +47,9 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
         </label>
         {trailing && <div className="absolute right-2 top-1/2 -translate-y-1/2">{trailing}</div>}
       </div>
-      {error && <p className="mt-1 px-1 text-xs text-danger">{error}</p>}
+      {error
+        ? <p className="mt-1 px-1 text-xs text-danger">{error}</p>
+        : hint ? <p className="mt-1 px-1 text-xs text-fg4">{hint}</p> : null}
     </div>
   );
 });
