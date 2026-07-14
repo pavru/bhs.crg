@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { useChangeMyPassword } from '@/shared/api/users';
 
 function apiError(e: unknown): string {
@@ -50,13 +51,11 @@ export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose:
         </div>
         {error && <p className="text-sm text-danger">{error}</p>}
         {done && <p className="text-sm text-success">Пароль изменён</p>}
-        <div className="flex justify-end gap-3 pt-1">
-          <button type="button" onClick={() => { reset(); onClose(); }}
-            className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-          <button type="submit" disabled={change.isPending}
-            className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-            {change.isPending ? 'Сохранение...' : 'Сменить'}
-          </button>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="text" onClick={() => { reset(); onClose(); }}>Отмена</Button>
+          <Button type="submit" variant="filled" loading={change.isPending}>
+            {change.isPending ? 'Сохранение…' : 'Сменить'}
+          </Button>
         </div>
       </form>
     </Modal>

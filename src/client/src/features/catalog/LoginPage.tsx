@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileCheck2 } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAppVersion } from '@/shared/api/version';
+import { Button } from '@/shared/ui/Button';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -71,13 +72,9 @@ export function LoginPage() {
             />
           </div>
           {error && <p className="text-sm text-danger">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-brand hover:bg-brand-hover text-white font-medium py-2 px-4 rounded-md text-sm transition-colors disabled:opacity-50 mt-2"
-          >
-            {loading ? 'Вход...' : 'Войти'}
-          </button>
+          <Button type="submit" variant="filled" size="lg" fullWidth loading={loading} className="mt-2">
+            {loading ? 'Вход…' : 'Войти'}
+          </Button>
         </form>
         {version && (
           <p className="mt-6 text-center text-[11px] text-fg4"

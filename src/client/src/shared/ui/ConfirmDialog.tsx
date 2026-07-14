@@ -1,5 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useState, type ReactNode } from 'react';
+import { Button } from './Button';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -70,21 +71,15 @@ export function ConfirmDialog({
 
           <div className={`flex gap-2 justify-end ${!requireCheckbox ? 'mt-4' : ''}`}>
             <Dialog.Close asChild>
-              <button
-                type="button"
-                className="px-3 py-1.5 text-sm rounded-md transition-colors border border-stroke text-fg2 hover:bg-muted"
-              >
-                {cancelLabel}
-              </button>
+              <Button variant="text" size="sm">{cancelLabel}</Button>
             </Dialog.Close>
-            <button
-              type="button"
+            <Button
+              variant="filled" danger size="sm"
               disabled={!canConfirm}
               onClick={() => { onConfirm(); onOpenChange(false); }}
-              className="px-3 py-1.5 text-sm rounded-md bg-danger text-white transition-colors disabled:opacity-40"
             >
               {confirmLabel}
-            </button>
+            </Button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

@@ -135,6 +135,7 @@
   --color-brand-hover:   var(--f-brand-hover);
   --color-brand-pressed: var(--f-brand-pressed);
   --color-brand-subtle:  var(--f-brand-bg2);          /* primary-container      */
+  --color-on-brand:        var(--f-brand-text);       /* on-primary (текст на filled) */
   --color-on-brand-subtle: var(--f-on-primary-container);
 
   /* Tonal (MD3 secondary-container) — для filled-tonal кнопок/чипов (фазы 1–3) */
