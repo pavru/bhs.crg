@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileCheck2 } from 'lucide-react';
+import { FileCheck2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAppVersion } from '@/shared/api/version';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
+import { TextField } from '@/shared/ui/TextField';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -11,6 +12,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -47,30 +49,16 @@ export function LoginPage() {
           Исполнительная документация
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1 text-fg2">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1 text-fg2">
-              Пароль
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
-              required
-            />
-          </div>
+          <TextField label="Email" type="email" autoComplete="email" required autoFocus
+            value={email} onChange={e => setEmail(e.target.value)} />
+          <TextField label="Пароль" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required
+            value={password} onChange={e => setPassword(e.target.value)}
+            trailing={
+              <IconButton label={showPassword ? 'Скрыть пароль' : 'Показать пароль'} size="sm"
+                onClick={() => setShowPassword(v => !v)}>
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </IconButton>
+            } />
           {error && <p className="text-sm text-danger">{error}</p>}
           <Button type="submit" variant="filled" size="lg" fullWidth loading={loading} className="mt-2">
             {loading ? 'Вход…' : 'Войти'}
