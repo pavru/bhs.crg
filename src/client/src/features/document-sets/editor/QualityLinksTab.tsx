@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { Select, SelectItem } from '@/shared/ui/Select';
 import { usePreviewDataSetBindings } from '@/shared/api/datasets';
 import {
   useListQualityDocs, useListMaterialLinks, useSetMaterialLinks, useRemoveMaterialLink,
@@ -233,10 +234,10 @@ function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, materials
       {tab === 'search' && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <select value={searchType} onChange={e => setSearchType(e.target.value)}
-              className="border border-stroke-strong rounded-md px-2 py-2 text-sm bg-surface text-fg1">
-              {qualityTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+            <Select value={searchType || undefined} onValueChange={setSearchType}
+              placeholder="Тип" aria-label="Тип документа качества" className="w-52">
+              {qualityTypes.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+            </Select>
             <div className="flex-1 flex items-center gap-2 border border-stroke-strong rounded-md px-2">
               <Search size={14} className="text-fg4" />
               <input value={query} onChange={e => setQuery(e.target.value)}
@@ -453,11 +454,11 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
         <span className="text-xs text-fg4">{materials.length} материалов · привязано {linkedCount}</span>
         <div className="ml-auto flex items-center gap-2">
           <label className="text-xs text-fg3">Область связи:</label>
-          <select value={scope} onChange={e => setScope(e.target.value as CatalogScope)}
-            className="border border-stroke rounded-md px-2 py-1 text-xs bg-surface text-fg1">
-            <option value="System">Общая (System)</option>
-            <option value="Set">Только этот комплект</option>
-          </select>
+          <Select value={scope} onValueChange={v => setScope(v as CatalogScope)}
+            aria-label="Область связи" className="w-52">
+            <SelectItem value="System">Общая (System)</SelectItem>
+            <SelectItem value="Set">Только этот комплект</SelectItem>
+          </Select>
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 import { formatDateRu, ruToISO } from '@/shared/utils/date';
 import { DateInput } from '@/shared/ui/DateInput';
+import { Select, SelectItem } from '@/shared/ui/Select';
 import type { SchemaField } from '@/shared/api/schema';
 import type { PrimitiveTypeDef, FieldConstraints, EnumTypeDef } from '@/shared/api/types';
 import { isFieldRef } from '@/shared/api/types';
@@ -57,22 +58,23 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
       </label>
     );
   if (field.type === 'enum') {
+    const selCls = invalid ? 'border-danger' : '';
     if (enumTypeDef) {
       return (
-        <select value={strVal} onChange={e => onChange(e.target.value)} disabled={readOnly} className={cls}>
-          <option value="">— выберите —</option>
-          {enumTypeDef.values.map(v => <option key={v.code} value={v.code}>{v.label}</option>)}
-        </select>
+        <Select value={strVal || undefined} onValueChange={onChange} disabled={readOnly}
+          placeholder="— выберите —" aria-label={field.title} className={selCls}>
+          {enumTypeDef.values.map(v => <SelectItem key={v.code} value={v.code}>{v.label}</SelectItem>)}
+        </Select>
       );
     }
     const opts = (field.options ?? []).filter(o => o !== '');
     if (opts.length === 0)
       return <p className="text-xs text-fg4 italic py-1">Нет вариантов — добавьте их в схеме типа документа</p>;
     return (
-      <select value={strVal} onChange={e => onChange(e.target.value)} disabled={readOnly} className={cls}>
-        <option value="">— выберите —</option>
-        {opts.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-      </select>
+      <Select value={strVal || undefined} onValueChange={onChange} disabled={readOnly}
+        placeholder="— выберите —" aria-label={field.title} className={selCls}>
+        {opts.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+      </Select>
     );
   }
   if (field.type === 'primitive' && primitiveTypeDef) {
