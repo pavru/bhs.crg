@@ -305,7 +305,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   const allItems = Array.isArray(value) ? value as unknown[] : [];
   const inlineItems = allItems.filter(item => !isFieldRef(item)) as Record<string, unknown>[];
   const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes) : [];
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [rowModal, setRowModal] = useState<number | null>(null); // issue #102: строка массива правится в модалке, не инлайн
   const [tableOpen, setTableOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
   const [catalogPickerOpen, setCatalogPickerOpen] = useState(false);
@@ -317,7 +317,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   function addRow() {
     const newRow = getDefaultValues(subFields);
     onChange([...allItems, newRow]);
-    setExpandedRows(prev => new Set([...prev, allItems.length]));
+    setRowModal(allItems.length); // сразу открыть модалку новой строки
   }
 
   function addFromCatalog(ref: FieldRef) {
@@ -326,26 +326,15 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
 
   function removeItem(i: number) {
     onChange(allItems.filter((_, idx) => idx !== i));
-    setExpandedRows(prev => {
-      const n = new Set<number>();
-      prev.forEach(r => { if (r < i) n.add(r); else if (r > i) n.add(r - 1); });
-      return n;
-    });
+    setRowModal(null);
   }
 
   function updateRow(i: number, row: Record<string, unknown>) {
     onChange(allItems.map((it, idx) => idx === i ? row : it));
   }
 
-  function toggleRow(i: number) {
-    setExpandedRows(prev => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; });
-  }
-
   function rowSummary(row: Record<string, unknown>) {
-    return subFields.slice(0, 3)
-      .map(f => row[f.key])
-      .filter(v => v != null && v !== '')
-      .join(' · ') || '(пусто)';
+    return objectSummary(row, subFields);
   }
 
   return (
@@ -401,71 +390,79 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               );
             }
             const row = item as Record<string, unknown>;
-            const isOpen = expandedRows.has(i);
+            // issue #102: строка — компактная сводка + ✎ (модалка), без инлайн-раскрытия (источник «портянки»).
             return (
-              <div key={i}>
-                <div className="flex items-center gap-2 px-3 py-2 hover:bg-base">
-                  <span className="text-xs text-fg4 font-mono w-5 text-right shrink-0">{i + 1}</span>
-                  <button type="button" onClick={() => toggleRow(i)}
-                    className="flex-1 text-left text-sm text-fg2 truncate">
-                    {rowSummary(row)}
-                  </button>
-                  <button type="button" onClick={() => toggleRow(i)}
-                    className="p-1 text-fg4 hover:text-fg2 shrink-0">
-                    {isOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                  </button>
-                  <button type="button" onClick={() => removeItem(i)}
-                    className="p-1 text-fg4 hover:text-danger shrink-0">
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-                {isOpen && (
-                  <div className="px-4 py-3 space-y-3 bg-base/50 border-t border-muted">
-                    {subFields.map(sf => {
-                      const subVal = row[sf.key];
-                      const invalid = showValidation && isMissing(sf, subVal);
-                      return (
-                        <div key={sf.key}>
-                          {sf.type !== 'boolean' && (
-                            <label className="block text-xs font-medium text-fg2 mb-1">
-                              {sf.title}{sf.required && <span className="ml-0.5 text-danger">*</span>}
-                            </label>
-                          )}
-                          {sf.type === 'complex' ? (
-                            <ComplexFieldGroup field={sf} allDocTypes={allDocTypes} value={subVal}
-                              onChange={v => updateRow(i, { ...row, [sf.key]: v })}
-                              showValidation={showValidation} setId={setId}
-                              otherInstances={otherInstances} scope={scope} scopeId={scopeId}
-                              docRefMode={docRefMode} nested />
-                          ) : sf.type === 'doc-ref' ? (
-                            docRefMode === 'instance' ? (
-                              <DocRefField field={sf} allDocTypes={allDocTypes} value={subVal}
-                                onChange={v => updateRow(i, { ...row, [sf.key]: v ?? undefined })}
-                                otherInstances={otherInstances} setId={setId} />
-                            ) : (
-                              <DocRefCatalogPickerField field={sf} allDocTypes={allDocTypes} value={subVal}
-                                onChange={v => updateRow(i, { ...row, [sf.key]: v ?? undefined })}
-                                setId={setId} scope={scope ?? 'System'} scopeId={scopeId ?? null} />
-                            )
-                          ) : sf.type === 'doc-array' && docRefMode === 'instance' ? (
-                            <DocArrayField field={sf} allDocTypes={allDocTypes} value={subVal}
-                              onChange={v => updateRow(i, { ...row, [sf.key]: v })}
-                              otherInstances={otherInstances} setId={setId} />
-                          ) : (
-                            <PrimitiveInput field={sf} value={subVal}
-                              onChange={v => updateRow(i, { ...row, [sf.key]: v })} invalid={invalid}
-                              primitiveTypeDef={primDef(sf)} />
-                          )}
-                          {invalid && <p className="text-xs text-danger mt-0.5">Обязательное поле</p>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+              <div key={i} className="flex items-center gap-2 px-3 py-2 hover:bg-base">
+                <span className="text-xs text-fg4 font-mono w-5 text-right shrink-0">{i + 1}</span>
+                <button type="button" onClick={() => setRowModal(i)}
+                  className="flex-1 text-left text-sm text-fg2 hover:text-fg1 truncate">
+                  {rowSummary(row)}
+                </button>
+                <button type="button" onClick={() => setRowModal(i)} title="Редактировать"
+                  className="p-1 text-fg4 hover:text-fg2 shrink-0">
+                  <Pencil size={13} />
+                </button>
+                <button type="button" onClick={() => removeItem(i)}
+                  className="p-1 text-fg4 hover:text-danger shrink-0">
+                  <Trash2 size={13} />
+                </button>
               </div>
             );
           })}
         </div>
+      )}
+      {rowModal !== null && allItems[rowModal] != null && !isFieldRef(allItems[rowModal]) && (
+        <Modal open onOpenChange={o => { if (!o) setRowModal(null); }} wide
+          title={`${compositeType?.name ?? field.title} — строка ${rowModal + 1}`}
+          footer={
+            <div className="flex justify-end">
+              <button type="button" onClick={() => setRowModal(null)}
+                className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors">Готово</button>
+            </div>
+          }>
+          <div className="px-6 py-4 space-y-3">
+            {subFields.map(sf => {
+              const rowObj = allItems[rowModal] as Record<string, unknown>;
+              const subVal = rowObj[sf.key];
+              const invalid = showValidation && isMissing(sf, subVal);
+              return (
+                <div key={sf.key}>
+                  {sf.type !== 'boolean' && (
+                    <label className="block text-sm font-medium text-fg2 mb-1">
+                      {sf.title}{sf.required && <span className="ml-0.5 text-danger">*</span>}
+                    </label>
+                  )}
+                  {sf.type === 'complex' ? (
+                    <ComplexFieldGroup field={sf} allDocTypes={allDocTypes} value={subVal}
+                      onChange={v => updateRow(rowModal, { ...rowObj, [sf.key]: v })}
+                      showValidation={showValidation} setId={setId}
+                      otherInstances={otherInstances} scope={scope} scopeId={scopeId}
+                      docRefMode={docRefMode} nested />
+                  ) : sf.type === 'doc-ref' ? (
+                    docRefMode === 'instance' ? (
+                      <DocRefField field={sf} allDocTypes={allDocTypes} value={subVal}
+                        onChange={v => updateRow(rowModal, { ...rowObj, [sf.key]: v ?? undefined })}
+                        otherInstances={otherInstances} setId={setId} />
+                    ) : (
+                      <DocRefCatalogPickerField field={sf} allDocTypes={allDocTypes} value={subVal}
+                        onChange={v => updateRow(rowModal, { ...rowObj, [sf.key]: v ?? undefined })}
+                        setId={setId} scope={scope ?? 'System'} scopeId={scopeId ?? null} />
+                    )
+                  ) : sf.type === 'doc-array' && docRefMode === 'instance' ? (
+                    <DocArrayField field={sf} allDocTypes={allDocTypes} value={subVal}
+                      onChange={v => updateRow(rowModal, { ...rowObj, [sf.key]: v })}
+                      otherInstances={otherInstances} setId={setId} />
+                  ) : (
+                    <PrimitiveInput field={sf} value={subVal}
+                      onChange={v => updateRow(rowModal, { ...rowObj, [sf.key]: v })} invalid={invalid}
+                      primitiveTypeDef={primDef(sf)} />
+                  )}
+                  {invalid && <p className="text-xs text-danger mt-0.5">Обязательное поле</p>}
+                </div>
+              );
+            })}
+          </div>
+        </Modal>
       )}
       <ArrayTableModal
         open={tableOpen} onOpenChange={setTableOpen}
