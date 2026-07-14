@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Button, IconButton } from '@/shared/ui/Button';
+import { EmptyState } from '@/shared/ui/EmptyState';
 import { Upload, Trash2, Database, RefreshCw, Download, Layers } from 'lucide-react';
 import { useListDataSetFiles, useUploadDataSetFile } from '@/shared/api/datasets';
 import type { DataSetFile } from '@/shared/api/types';
@@ -110,9 +111,10 @@ export function DataSetsPage() {
         {isLoading ? (
           <div className="p-8 text-center text-sm text-fg4">Загрузка...</div>
         ) : files.length === 0 ? (
-          <div className="p-8 text-center text-sm text-fg4">
-            Нет загруженных наборов данных
-          </div>
+          <EmptyState className="m-4 border-0" icon={<Database size={30} />} title="Пока нет наборов данных"
+            description="Загрузите файл (CSV, XLSX, XML, JSON, ZIP, PDF) — из него можно собирать источники для колонок и таблиц документов."
+            action={<Button variant="filled" size="sm" onClick={() => fileInputRef.current?.click()}
+              loading={uploading} icon={<Upload size={14} />}>Загрузить файл</Button>} />
         ) : (
           files.map(f => <FileRow key={f.id} file={f} />)
         )}

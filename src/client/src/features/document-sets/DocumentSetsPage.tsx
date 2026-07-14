@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import {
   Plus, Trash2, ChevronRight, Download, Pencil, ChevronDown, ChevronUp, FolderOpen, Eye,
-  ArrowUp, ArrowDown, Layers, Search, X, Mail,
+  ArrowUp, ArrowDown, Layers, Building2, Search, X, Mail,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
+import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -557,7 +558,9 @@ function ConstructionDetail() {
       </div>
 
       {construction.sections.length === 0 ? (
-        <div className="text-center py-12 text-fg4 text-sm">Нет разделов. Добавьте первый раздел (дисциплину).</div>
+        <EmptyState icon={<Layers size={30} />} title="Пока нет разделов"
+          description="Добавьте первый раздел (дисциплину) — например «Электроснабжение» — чтобы собирать в нём комплекты документов."
+          action={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>} />
       ) : (
         <div className="space-y-3">
           {construction.sections.map(s => (
@@ -702,7 +705,9 @@ function ConstructionsList() {
       {isLoading ? (
         <div className="text-center py-10 text-fg4 text-sm">Загрузка...</div>
       ) : constructions.length === 0 ? (
-        <div className="text-center py-16 text-fg4 text-sm">Нет строек. Создайте первую.</div>
+        <EmptyState icon={<Building2 size={30} />} title="Пока нет строек"
+          description="Создайте первую стройку, чтобы начать вести исполнительную документацию по её разделам и комплектам."
+          action={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>Новая стройка</Button>} />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {constructions.map(c => {
