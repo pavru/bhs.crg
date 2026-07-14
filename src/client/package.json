@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e:keyboard": "node e2e/keyboard-smoke.mjs"
   },
   "dependencies": {
     "@fontsource/roboto": "^5.2.10",
