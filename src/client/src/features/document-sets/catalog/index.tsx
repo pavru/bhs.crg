@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { Select, SelectItem, SelectGroup } from '@/shared/ui/Select';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import {
   useListCommonData, useCommonDataForSet, useCreateCommonDataEntry,
@@ -628,25 +629,23 @@ export function CatalogEntryForm({
       {!entry ? (
         <div>
           <label className="block text-sm font-medium text-fg2 mb-1">Тип</label>
-          <select value={typeId} onChange={e => {
-              const newId = e.target.value;
+          <Select value={typeId || undefined} required placeholder="Выберите тип…" aria-label="Тип"
+            onValueChange={newId => {
               setTypeId(newId);
               const t = allSelectableTypes.find(c => c.id === newId);
               setValues(t ? getDefaultValues(resolveEffectiveFields(t, allDocTypes)) : {});
-            }} required
-            className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface">
-            <option value="">Выберите тип...</option>
+            }}>
             {compositeTypes.length > 0 && (
-              <optgroup label="Составные типы">
-                {compositeTypes.map(ct => <option key={ct.id} value={ct.id}>{ct.name} ({ct.code})</option>)}
-              </optgroup>
+              <SelectGroup label="Составные типы">
+                {compositeTypes.map(ct => <SelectItem key={ct.id} value={ct.id}>{ct.name} ({ct.code})</SelectItem>)}
+              </SelectGroup>
             )}
             {documentTypes.length > 0 && (
-              <optgroup label="Типы документов (внешние)">
-                {documentTypes.map(dt => <option key={dt.id} value={dt.id}>{dt.name} ({dt.code})</option>)}
-              </optgroup>
+              <SelectGroup label="Типы документов (внешние)">
+                {documentTypes.map(dt => <SelectItem key={dt.id} value={dt.id}>{dt.name} ({dt.code})</SelectItem>)}
+              </SelectGroup>
             )}
-          </select>
+          </Select>
         </div>
       ) : (
         <p className="text-sm text-fg3">

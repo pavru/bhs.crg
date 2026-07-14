@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { Select, SelectItem } from '@/shared/ui/Select';
 import { useCreateDataSetSource, useUpdateDataSetSource, useListZipXmlEntries, useSourceCandidates } from '@/shared/api/datasets';
 import { XPathBuilder } from './xpath/XPathBuilder';
 import { JsonPathBuilder } from './jsonpath/JsonPathBuilder';
@@ -159,13 +160,12 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
         {isPdf ? (
           <div>
             <label className="block text-sm font-medium text-fg1 mb-1">Данные набора</label>
-            <select value={sheetOrPath} onChange={e => { setSheetOrPath(e.target.value); const c = candidates.find(x => x.sheetOrPath === e.target.value); if (c) setName(prev => prev || c.name); }}
-              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm">
-              <option value="">— выберите —</option>
+            <Select value={sheetOrPath || undefined} placeholder="— выберите —" aria-label="Данные набора"
+              onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
               {candidates.map(c => (
-                <option key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</option>
+                <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</SelectItem>
               ))}
-            </select>
+            </Select>
             {candidates.length === 0 && (
               <p className="text-xs text-fg4 mt-1">Набор ещё не распознан — сначала запустите «Распознать».</p>
             )}
@@ -177,13 +177,12 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
           needsSheet ? (
             <div>
               <label className="block text-sm font-medium text-fg1 mb-1">Лист</label>
-              <select value={sheetOrPath} onChange={e => setSheetOrPath(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm">
-                <option value="">— выберите лист —</option>
+              <Select value={sheetOrPath || undefined} placeholder="— выберите лист —" aria-label="Лист"
+                onValueChange={setSheetOrPath}>
                 {candidates.map(c => (
-                  <option key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</option>
+                  <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</SelectItem>
                 ))}
-              </select>
+              </Select>
               {candidates.length === 0 && (
                 <p className="text-xs text-fg4 mt-1">Листы не обнаружены.</p>
               )}
@@ -202,11 +201,10 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
             {isZip && (
               <div>
                 <label className="block text-sm font-medium text-fg1 mb-1">Файл в архиве</label>
-                <select value={entryPath} onChange={e => setEntryPath(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm font-mono">
-                  <option value="">— выберите XML-файл в архиве —</option>
-                  {entryOptions.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
+                <Select value={entryPath || undefined} placeholder="— выберите XML-файл в архиве —"
+                  aria-label="Файл в архиве" onValueChange={setEntryPath} className="font-mono">
+                  {entryOptions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                </Select>
                 {entryOptions.length === 0 && (
                   <p className="text-xs text-fg4 mt-1">В архиве не найдено XML-файлов.</p>
                 )}
