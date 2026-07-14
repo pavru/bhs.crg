@@ -7,6 +7,7 @@ import {
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -415,12 +416,8 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
         }>
         {addSetOpen && (
           <form id="add-set-form" onSubmit={handleAddSet} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-fg2 mb-1">Наименование</label>
-              <input value={newSetName} onChange={e => setNewSetName(e.target.value)} required autoFocus
-                placeholder="например: Кабельный журнал, секция 2"
-                className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
-            </div>
+            <TextField label="Наименование" value={newSetName} onChange={e => setNewSetName(e.target.value)}
+              required autoFocus hint="например: Кабельный журнал, секция 2" />
             {addError && <p className="text-sm text-danger">{addError}</p>}
           </form>
         )}
@@ -590,12 +587,9 @@ function ConstructionDetail() {
         }>
         {addSectionOpen && (
           <form id="add-section-form" onSubmit={handleAddSection} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-fg2 mb-1">Название раздела (дисциплина)</label>
-              <input value={newSectionName} onChange={e => setNewSectionName(e.target.value)} required autoFocus
-                placeholder="например: Электроснабжение, Слаботочные системы"
-                className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
-            </div>
+            <TextField label="Название раздела (дисциплина)" value={newSectionName}
+              onChange={e => setNewSectionName(e.target.value)} required autoFocus
+              hint="например: Электроснабжение, Слаботочные системы" />
             {sectionError && <p className="text-sm text-danger">{sectionError}</p>}
           </form>
         )}
@@ -768,12 +762,8 @@ function ConstructionsList() {
         }>
         {createOpen && (
           <form id="create-construction-form" onSubmit={handleCreate} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-fg2 mb-1">Название стройки</label>
-              <input value={newName} onChange={e => setNewName(e.target.value)} required autoFocus
-                placeholder="например: ЖК Северный, корпус 1"
-                className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
-            </div>
+            <TextField label="Название стройки" value={newName} onChange={e => setNewName(e.target.value)}
+              required autoFocus hint="например: ЖК Северный, корпус 1" />
             {createError && <p className="text-sm text-danger">{createError}</p>}
           </form>
         )}
