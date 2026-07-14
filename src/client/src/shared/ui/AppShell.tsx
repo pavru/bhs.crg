@@ -74,20 +74,21 @@ function NavSection({
             key={to}
             to={to}
             className={({ isActive }) =>
-              `group flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors select-none ${
-                isActive ? 'bg-brand-subtle' : ''
+              `group flex items-center gap-3 px-3 py-2.5 rounded-full text-sm font-medium select-none transition-colors ` +
+              `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                isActive
+                  ? 'bg-tonal text-on-tonal'
+                  : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'
               }`
             }
           >
             {({ isActive }) => (
               <>
                 <Icon
-                  size={16}
-                  className={`shrink-0 ${isActive ? 'text-brand' : 'text-fg3'}`}
+                  size={18}
+                  className={`shrink-0 ${isActive ? 'text-on-tonal' : 'text-fg3'}`}
                 />
-                <span className={isActive ? 'text-brand' : 'text-fg1'}>
-                  {itemLabel}
-                </span>
+                <span>{itemLabel}</span>
               </>
             )}
           </NavLink>
