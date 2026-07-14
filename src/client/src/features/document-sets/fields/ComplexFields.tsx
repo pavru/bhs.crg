@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import {
-  Clipboard, ChevronDown, ChevronUp, FileSpreadsheet, Link2, Pencil, Plus, Trash2, Unlink, X,
+  Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, Link2, Pencil, Plus, Trash2, Unlink, X,
 } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Modal } from '@/shared/ui/Modal';
@@ -502,6 +502,24 @@ export function objectSummary(values: Record<string, unknown>, fields: SchemaFie
   return parts.length ? parts.join(' · ') : '(пусто)';
 }
 
+/** Сворачиваемая секция «Заполняются автоматически» (issue #102, P2): read-only поля из источника
+ *  прячем по умолчанию, чтобы длинная форма не выглядела «портянкой» одинаковых боксов. */
+export function AutoFieldsSection({ count, children }: { count: number; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border border-dashed border-stroke rounded-lg overflow-hidden">
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 bg-base/40 hover:bg-base transition-colors text-left">
+        {open ? <ChevronUp size={12} className="text-fg4 shrink-0" /> : <ChevronDown size={12} className="text-fg4 shrink-0" />}
+        <Database size={11} className="text-brand shrink-0" />
+        <span className="text-xs text-fg3 flex-1">Заполняются автоматически</span>
+        <span className="text-xs text-fg4">{count} п.</span>
+      </button>
+      {open && <div className="px-3 py-3 border-t border-stroke">{children}</div>}
+    </div>
+  );
+}
+
 export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showValidation,
   setId, otherInstances = [],
   scope, scopeId, docRefMode = 'catalog', nested = false,
@@ -645,6 +663,27 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
         </Modal>
         {picker}
       </>
+    );
+  }
+
+  // Пустое составное (верхний уровень): продвигаем ВЫБОР между «из каталога» (ссылка-объект) и ручным
+  // заполнением как равноправные действия, а не прячем «из каталога» в мелкую ссылку (issue #102, P2).
+  if (isEmpty && collapsed) {
+    return (
+      <div className="border border-dashed border-stroke rounded-lg px-3 py-3 bg-base/40">
+        <div className="text-sm text-fg3 mb-2">{compositeType ? compositeType.name : 'Составной тип'}</div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setPickerOpen(true)}
+            className="flex items-center gap-1.5 text-sm bg-brand hover:bg-brand-hover text-white px-3 py-1.5 rounded-md transition-colors">
+            <Link2 size={13} /> Выбрать из каталога
+          </button>
+          <button type="button" onClick={() => setCollapsed(false)}
+            className="flex items-center gap-1.5 text-sm text-fg2 hover:text-fg1 border border-stroke hover:border-fg4 px-3 py-1.5 rounded-md transition-colors">
+            <Pencil size={13} /> Заполнить вручную
+          </button>
+        </div>
+        {picker}
+      </div>
     );
   }
 

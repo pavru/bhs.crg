@@ -22,7 +22,7 @@ import {
 import {
   STATUS_LABELS, STATUS_COLORS,
   validateConstraint, isMissing, PrimitiveInput, FileField, ImageField,
-  DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup,
+  DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup, AutoFieldsSection,
   BaseInstancePanel, SCOPE_TIER, ancestorTypeIds, parseBaseRef, type BaseCandidate,
 } from '../fields';
 import { DataSetsTab } from './DataSetsTab';
@@ -252,14 +252,11 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
 
   const sections = groupEffectiveFields(displayFields, docType?.schema ?? {});
 
-  function renderFields(fields: SchemaField[]) {
     const isWide = (f: SchemaField) =>
       f.type === 'complex' || f.type === 'array' || f.type === 'doc-ref' ||
       f.type === 'doc-array' || f.type === 'image' || f.type === 'file' || f.type === 'text';
 
-    return (
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-        {fields.map(field => {
+    function renderCell(field: SchemaField) {
           const raw = values[field.key];
           const missing = showValidation && isFieldMissing(field, raw);
           const bound = sourceBoundFields.has(field.key);
@@ -351,10 +348,25 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
               {!missing && constraintError && <p className="text-[11px] text-danger mt-0.5">{constraintError}</p>}
             </div>
           );
-        })}
-      </div>
-    );
-  }
+    }
+
+    function fieldGrid(fields: SchemaField[]) {
+      return <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">{fields.map(renderCell)}</div>;
+    }
+
+    // Поля, заполняемые из источника данных (read-only), прячем под сворачиваемую секцию
+    // «Заполняются автоматически» — чтобы форма не превращалась в «портянку» (issue #102, P2).
+    function renderFields(fields: SchemaField[]) {
+      const auto = fields.filter(f => sourceBoundFields.has(f.key));
+      if (auto.length === 0) return fieldGrid(fields);
+      const normal = fields.filter(f => !sourceBoundFields.has(f.key));
+      return (
+        <div className="space-y-2.5">
+          {normal.length > 0 && fieldGrid(normal)}
+          <AutoFieldsSection count={auto.length}>{fieldGrid(auto)}</AutoFieldsSection>
+        </div>
+      );
+    }
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
