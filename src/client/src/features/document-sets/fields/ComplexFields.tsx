@@ -183,21 +183,39 @@ export function ArrayTableModal({
   // ↑↓ выбирают опцию; для остальных (text/number/date/checkbox/пикер) нативное ↑↓ — no-op либо
   // нежелательный инкремент, так что перехват безопасен и полезен при вводе столбца сверху вниз.
   const tableRef = useRef<HTMLTableElement>(null);
+  // Фокус на контрол ячейки (r,c). true — удалось.
+  function focusCell(r: number, c: number): boolean {
+    const target = tableRef.current?.querySelector<HTMLElement>(`td[data-r="${r}"][data-c="${c}"]`);
+    const f = target?.querySelector<HTMLElement>('input, select, textarea, button');
+    if (!f) return false;
+    f.focus();
+    if (f instanceof HTMLInputElement && f.type !== 'checkbox') f.select();
+    return true;
+  }
+  // APG grid-навигация (issue #107 F8b): ↑↓ — строки; ←→ — колонки, но для текст-инпута только
+  // когда каретка на краю (иначе стрелка двигает курсор). <select> хранит ↑↓ за собой (опции).
   function onGridKey(e: React.KeyboardEvent) {
-    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
     const el = e.target as HTMLElement;
-    if (el.tagName === 'SELECT') return;
     const td = el.closest('td[data-r]') as HTMLElement | null;
     if (!td) return;
     const r = Number(td.dataset.r), c = Number(td.dataset.c);
-    const nr = e.key === 'ArrowUp' ? r - 1 : r + 1;
-    if (nr < 0 || nr >= rows.length) return;
-    const target = tableRef.current?.querySelector<HTMLElement>(`td[data-r="${nr}"][data-c="${c}"]`);
-    const focusable = target?.querySelector<HTMLElement>('input, select, textarea, button');
-    if (!focusable) return;
-    e.preventDefault();
-    focusable.focus();
-    if (focusable instanceof HTMLInputElement && focusable.type !== 'checkbox') focusable.select();
+    const input = el instanceof HTMLInputElement ? el : null;
+    const isText = !!input && input.type !== 'checkbox';
+    const atStart = !isText || (input!.selectionStart === 0 && input!.selectionEnd === 0);
+    const atEnd = !isText || (input!.selectionStart === input!.value.length && input!.selectionEnd === input!.value.length);
+
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      if (el.tagName === 'SELECT') return;
+      const nr = e.key === 'ArrowUp' ? r - 1 : r + 1;
+      if (nr < 0 || nr >= rows.length) return;
+      if (focusCell(nr, c)) e.preventDefault();
+    } else if (e.key === 'ArrowLeft') {
+      if (!atStart || c - 1 < 0) return;
+      if (focusCell(r, c - 1)) e.preventDefault();
+    } else if (e.key === 'ArrowRight') {
+      if (!atEnd || c + 1 >= tableFields.length) return;
+      if (focusCell(r, c + 1)) e.preventDefault();
+    }
   }
 
   const BORDER = '1px solid #d1d5db';
@@ -234,7 +252,7 @@ export function ArrayTableModal({
         </div>
       }>
       <div className="overflow-x-auto -mx-6 px-6">
-        <table ref={tableRef} onKeyDown={onGridKey}
+        <table ref={tableRef} onKeyDown={onGridKey} role="grid" aria-label={`Строки: ${compositeType?.name ?? field.title}`}
           style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
           <colgroup>
             <col style={{ width: 32 }} />
@@ -242,12 +260,12 @@ export function ArrayTableModal({
             <col style={{ width: 26 }} />
           </colgroup>
           <thead>
-            <tr>
-              <th style={{ border: BORDER, background: TH_BG, padding: 0, width: 32 }}>
+            <tr role="row">
+              <th role="columnheader" style={{ border: BORDER, background: TH_BG, padding: 0, width: 32 }}>
                 <span className="flex items-center justify-center text-xs text-fg4 font-normal" style={{ height: 28 }}>#</span>
               </th>
               {tableFields.map(f => (
-                <th key={f.key}
+                <th key={f.key} role="columnheader"
                   style={{ border: BORDER, background: TH_BG, padding: 0, position: 'relative', userSelect: 'none' }}>
                   <span className="flex items-center px-2 text-left text-xs font-semibold text-fg2 truncate" style={{ height: 28 }}>
                     {f.title}{f.required && <span className="text-danger ml-0.5">*</span>}
@@ -268,15 +286,15 @@ export function ArrayTableModal({
           </thead>
           <tbody>
             {rows.map((row, i) => (
-              <tr key={i}>
-                <td style={{ border: BORDER, background: IDX_BG, padding: 0, textAlign: 'center' }}>
+              <tr key={i} role="row">
+                <td role="rowheader" style={{ border: BORDER, background: IDX_BG, padding: 0, textAlign: 'center' }}>
                   <span className="flex items-center justify-center text-xs text-fg4 font-mono" style={{ height: 26 }}>{i + 1}</span>
                 </td>
                 {tableFields.map((f, ci) => {
                   const compositeForField = f.type === 'complex'
                     ? allDocTypes.find(dt => dt.id === f.typeId) ?? null : null;
                   return (
-                    <td key={f.key} data-r={i} data-c={ci}
+                    <td key={f.key} data-r={i} data-c={ci} role="gridcell"
                       className="focus-within:bg-brand-subtle transition-colors"
                       style={{ border: BORDER, padding: 0, height: 26 }}>
                       <TableCell field={f} value={row[f.key]} onChange={v => updateCell(i, f.key, v)}
