@@ -13,6 +13,7 @@ import {
 } from '@/shared/api/datasets';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
 import { SourceEditorDialog } from './SourceEditorDialog';
 import { MaterializationDialog } from './MaterializationDialog';
@@ -40,14 +41,11 @@ function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
       title="Сохранить как шаблон"
       footer={
         <div className="flex gap-2 justify-end">
-          <button onClick={onClose} disabled={isPending}
-            className="px-3 py-1.5 text-sm rounded-md border border-stroke text-fg2 hover:bg-muted disabled:opacity-50">
-            Отмена
-          </button>
-          <button onClick={() => canSave && onSave(name.trim())} disabled={!canSave}
-            className="px-3 py-1.5 text-sm rounded-md bg-brand text-white disabled:opacity-50">
+          <Button variant="text" size="sm" onClick={onClose} disabled={isPending}>Отмена</Button>
+          <Button variant="filled" size="sm" onClick={() => canSave && onSave(name.trim())}
+            disabled={!canSave} loading={isPending}>
             {isPending ? 'Сохранение…' : 'Сохранить'}
-          </button>
+          </Button>
         </div>
       }>
       <p className="text-xs mb-3 text-fg3">
@@ -215,13 +213,11 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
         <Modal open onOpenChange={o => { if (!o) setRenaming(false); }} title="Переименовать источник"
           footer={
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setRenaming(false)}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-base text-fg2 hover:bg-muted">Отмена</button>
-              <button type="button" disabled={!renameVal.trim() || renameMutation.isPending}
-                onClick={() => renameMutation.mutateAsync({ id: src.id, name: renameVal.trim() }).then(() => setRenaming(false))}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-50">
+              <Button type="button" variant="text" onClick={() => setRenaming(false)}>Отмена</Button>
+              <Button type="button" variant="filled" disabled={!renameVal.trim()} loading={renameMutation.isPending}
+                onClick={() => renameMutation.mutateAsync({ id: src.id, name: renameVal.trim() }).then(() => setRenaming(false))}>
                 {renameMutation.isPending ? 'Сохранение…' : 'Сохранить'}
-              </button>
+              </Button>
             </div>
           }>
           <div className="min-w-[380px]">

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { useCreatePdfSource, useRecognizeFile } from '@/shared/api/datasets';
 import { useTagRegistry, datasetTags } from '@/shared/api/tags';
 
@@ -44,14 +45,10 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
     <Modal open onOpenChange={open => { if (!open) onClose(); }} title="Распознать PDF (профиль)"
       footer={
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-base text-fg2 hover:bg-muted">
-            Отмена
-          </button>
-          <button type="button" onClick={handleSave} disabled={create.isPending}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-50">
+          <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
+          <Button type="button" variant="filled" onClick={handleSave} loading={create.isPending}>
             {create.isPending ? 'Создание…' : 'Создать и распознать'}
-          </button>
+          </Button>
         </div>
       }>
       <div className="space-y-4 min-w-[420px]">
