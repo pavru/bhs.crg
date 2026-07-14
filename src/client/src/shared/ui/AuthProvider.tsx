@@ -1,6 +1,7 @@
 import { useState, useCallback, type ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { apiClient } from '@/shared/api/client';
+import { getToken, setToken, clearToken } from '@/shared/api/token';
 import { AuthContext, type AuthUser, type UserRole } from '@/shared/hooks/useAuth';
 
 function decodeUser(token: string): AuthUser {
@@ -12,18 +13,18 @@ function decodeUser(token: string): AuthUser {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
-    const token = localStorage.getItem('access_token');
+    const token = getToken();
     return token ? decodeUser(token) : null;
   });
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, remember = true) => {
     const { data } = await apiClient.post<{ accessToken: string }>('/auth/login', { email, password });
-    localStorage.setItem('access_token', data.accessToken);
+    setToken(data.accessToken, remember);
     setUser(decodeUser(data.accessToken));
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('access_token');
+    clearToken();
     setUser(null);
   }, []);
 
