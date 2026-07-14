@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { DateInput } from '@/shared/ui/DateInput';
 import {
   useListPrimitiveTypes,
@@ -324,14 +325,10 @@ function TypeForm({ initial, onSaved, onCancel }: TypeFormProps) {
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <div className="flex justify-end gap-2 border-t border-stroke pt-3">
-        <button type="button" onClick={onCancel}
-          className="px-4 py-2 rounded-lg text-sm font-medium bg-base text-fg2 hover:bg-muted">
-          Отмена
-        </button>
-        <button type="button" onClick={handleSave} disabled={isPending}
-          className="px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover disabled:opacity-50">
+        <Button type="button" variant="text" onClick={onCancel}>Отмена</Button>
+        <Button type="button" variant="filled" onClick={handleSave} loading={isPending}>
           {isPending ? 'Сохранение…' : 'Сохранить'}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -462,10 +459,9 @@ function PrimitiveTypesSection() {
         <p className="text-xs text-fg3">
           Пользовательские типы реквизитов на основе строки, числа или даты с ограничениями
         </p>
-        <button onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
-          <Plus size={16} /> Добавить тип
-        </button>
+        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
+          Добавить тип
+        </Button>
       </div>
 
       {isLoading ? (

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { apiError } from '@/shared/utils/apiError';
 import {
@@ -219,10 +220,9 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
       <div className="flex items-center gap-3">
-        <button type="submit" disabled={!dirty || mutation.isPending}
-          className="px-3 py-1.5 text-xs bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-40 transition-colors">
-          {mutation.isPending ? 'Сохранение...' : 'Сохранить параметры'}
-        </button>
+        <Button type="submit" variant="filled" size="sm" disabled={!dirty} loading={mutation.isPending}>
+          {mutation.isPending ? 'Сохранение…' : 'Сохранить параметры'}
+        </Button>
         {saved && <span className="text-xs text-success">Сохранено</span>}
         {dirty && !saved && <span className="text-xs text-warning">Есть несохранённые изменения</span>}
       </div>
@@ -371,14 +371,10 @@ function CreateForm({
       {error && <p className="text-sm text-danger">{error}</p>}
       </div>
       <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-3">
-        <button type="button" onClick={onClose}
-          className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">
-          Отмена
-        </button>
-        <button type="submit" disabled={mutation.isPending}
-          className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-          {mutation.isPending ? 'Создание...' : 'Создать'}
-        </button>
+        <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
+        <Button type="submit" variant="filled" loading={mutation.isPending}>
+          {mutation.isPending ? 'Создание…' : 'Создать'}
+        </Button>
       </div>
     </form>
   );
@@ -595,10 +591,9 @@ function SchemaEditor({ docType, allDocTypes }: {
         <>
           {error && <p className="text-xs text-danger">{error}</p>}
           <div className="flex items-center gap-3 pt-1">
-            <button onClick={handleSave} disabled={mutation.isPending}
-              className="px-3 py-1.5 text-xs bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-              {mutation.isPending ? 'Сохранение...' : 'Сохранить схему'}
-            </button>
+            <Button variant="filled" size="sm" onClick={handleSave} loading={mutation.isPending}>
+              {mutation.isPending ? 'Сохранение…' : 'Сохранить схему'}
+            </Button>
             {saved && <span className="text-xs text-success">Сохранено</span>}
           </div>
         </>
@@ -791,10 +786,9 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
             </p>
           )}
         </div>
-        <button onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
-          <Plus size={16} /> {addLabel}
-        </button>
+        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
+          {addLabel}
+        </Button>
       </div>
 
       {isLoading ? (
