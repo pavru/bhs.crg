@@ -43,6 +43,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
         <label
           htmlFor={inputId}
           className={`absolute left-2.5 top-3.5 px-1 text-sm bg-surface text-fg4 pointer-events-none transition-all ` +
+            `block max-w-[calc(100%-1.25rem)] truncate ` +
             `peer-focus:top-[-7px] peer-focus:text-xs ${labelFocus} ` +
             `peer-[:not(:placeholder-shown)]:top-[-7px] peer-[:not(:placeholder-shown)]:text-xs`}
         >

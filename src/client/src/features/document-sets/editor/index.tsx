@@ -24,6 +24,7 @@ import {
   validateConstraint, isMissing, PrimitiveInput, FileField, ImageField,
   DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup, AutoFieldsSection,
   BaseInstancePanel, SCOPE_TIER, ancestorTypeIds, parseBaseRef, type BaseCandidate,
+  SectionRail,
 } from '../fields';
 import { DataSetsTab } from './DataSetsTab';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
@@ -392,26 +393,16 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
       <div className={showRail ? 'flex gap-5 items-start' : ''}>
       {showRail && (
-        <nav aria-label="Разделы" className="hidden lg:block sticky top-0 w-52 shrink-0 self-start space-y-0.5">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-fg4 px-2 pb-1">Разделы</div>
-          {titledSections.map(section => {
-            const expanded = expandedGroups.has(section.key);
-            const missing = showValidation && section.fields.some(f => isFieldMissing(f, values[f.key]));
-            return (
-              <button key={section.key} type="button" onClick={() => goToSection(section.key)}
-                aria-current={expanded ? 'true' : undefined}
-                className={`w-full flex items-center gap-1.5 text-left text-xs px-2 py-1 rounded transition-colors
-                  ${expanded ? 'bg-base text-fg1 font-medium' : 'text-fg3 hover:bg-base hover:text-fg1'}`}>
-                <span className="flex-1 truncate">{section.title}</span>
-                {missing && <>
-                  <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" aria-hidden="true" />
-                  <span className="sr-only">не заполнено</span>
-                </>}
-                <span className="text-[10px] text-fg4 shrink-0">{section.fields.length}</span>
-              </button>
-            );
-          })}
-        </nav>
+        <SectionRail
+          sections={titledSections.map(section => ({
+            key: section.key,
+            title: section.title!,
+            count: section.fields.length,
+            missing: showValidation && section.fields.some(f => isFieldMissing(f, values[f.key])),
+          }))}
+          isActive={key => expandedGroups.has(key)}
+          onSelect={goToSection}
+        />
       )}
       <div className="flex-1 min-w-0 space-y-4">
       {hasBase && (
