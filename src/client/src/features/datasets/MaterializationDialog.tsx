@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { Select, SelectItem } from '@/shared/ui/Select';
+
+/** Sentinel для «— не материализовать —» — Radix Select запрещает пустую строку. */
+const NO_TYPE = '__none__';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useSetMaterialization, useMaterializePreview } from '@/shared/api/datasets';
 import { MappingEditor } from '@/features/document-sets/editor/DataSetsTab';
@@ -53,13 +57,13 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
 
         <div>
           <label className="block text-sm font-medium text-fg1 mb-1">Тип для материализации</label>
-          <select value={typeId} onChange={e => { setTypeId(e.target.value); setMapping({}); setShowPreview(false); }}
-            className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm">
-            <option value="">— не материализовать —</option>
+          <Select value={typeId || NO_TYPE} aria-label="Тип для материализации"
+            onValueChange={v => { setTypeId(v === NO_TYPE ? '' : v); setMapping({}); setShowPreview(false); }}>
+            <SelectItem value={NO_TYPE}>— не материализовать —</SelectItem>
             {allDocTypes.filter(t => !t.isAbstract).map(t => (
-              <option key={t.id} value={t.id}>{t.name} ({t.kind === 'Composite' ? 'составной' : 'документ'})</option>
+              <SelectItem key={t.id} value={t.id}>{t.name} ({t.kind === 'Composite' ? 'составной' : 'документ'})</SelectItem>
             ))}
-          </select>
+          </Select>
         </div>
 
         {selectedType && (

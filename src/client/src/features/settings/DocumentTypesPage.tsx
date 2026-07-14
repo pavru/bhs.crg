@@ -6,6 +6,7 @@ import {
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
+import { Select, SelectItem } from '@/shared/ui/Select';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { apiError } from '@/shared/utils/apiError';
 import {
@@ -35,6 +36,9 @@ import { schemaToJson, validateFields, TYPE_LABELS, toCamelKey } from './schemaC
 import { useTagRegistry, typeTags as typeTagDefs } from '@/shared/api/tags';
 import { GroupEditor } from './GroupEditor';
 import { JsonPreview, FieldBuilder, DefaultValueCell } from './FieldBuilder';
+
+/** Sentinel для «— без родителя —» — Radix Select запрещает пустую строку как value. */
+const NO_PARENT = '__none__';
 
 function InheritedFieldsPanel({
   parentEffectiveFields, excludedFields, fieldOverrides, compositeTypes, enumTypes,
@@ -210,13 +214,13 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
       </div>
       <div>
         <label className="block text-xs font-medium text-fg2 mb-1">Родительский тип</label>
-        <select value={parentId} onChange={e => { setParentId(e.target.value); setSaved(false); }}
-          className="w-full border border-stroke-strong rounded-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface">
-          <option value="">— без родителя —</option>
+        <Select value={parentId || NO_PARENT} aria-label="Родительский тип"
+          onValueChange={v => { setParentId(v === NO_PARENT ? '' : v); setSaved(false); }}>
+          <SelectItem value={NO_PARENT}>— без родителя —</SelectItem>
           {eligibleParents.map(dt => (
-            <option key={dt.id} value={dt.id}>{dt.name} ({dt.code})</option>
+            <SelectItem key={dt.id} value={dt.id}>{dt.name} ({dt.code})</SelectItem>
           ))}
-        </select>
+        </Select>
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
       <div className="flex items-center gap-3">
@@ -312,13 +316,13 @@ function CreateForm({
           <label className="block text-sm font-medium text-fg2 mb-1">
             Родительский тип (наследование)
           </label>
-          <select value={parentId} onChange={e => setParentId(e.target.value)}
-            className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface">
-            <option value="">— без родителя —</option>
+          <Select value={parentId || NO_PARENT} aria-label="Родительский тип"
+            onValueChange={v => setParentId(v === NO_PARENT ? '' : v)}>
+            <SelectItem value={NO_PARENT}>— без родителя —</SelectItem>
             {sameKindTypes.map(dt => (
-              <option key={dt.id} value={dt.id}>{dt.name} ({dt.code})</option>
+              <SelectItem key={dt.id} value={dt.id}>{dt.name} ({dt.code})</SelectItem>
             ))}
-          </select>
+          </Select>
         </div>
       )}
 
