@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Loader2, ShieldCheck, Upload, Eye } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { TextField } from '@/shared/ui/TextField';
 import {
   useCreateQualityDoc, useUpdateQualityDoc, useSetQualityDocScan, recognizeDocument,
   type QualityDocument, type RecognitionFieldReq,
@@ -165,11 +166,8 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
             {qualityTypes.map(dt => <SelectItem key={dt.id} value={dt.id}>{dt.name}</SelectItem>)}
           </Select>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">Название в библиотеке</label>
-          <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="авто из номера"
-            className="w-full border border-stroke-strong rounded-md px-2 py-1.5 text-sm bg-surface text-fg1" />
-        </div>
+        <TextField label="Название в библиотеке" value={displayName}
+          onChange={e => setDisplayName(e.target.value)} hint="авто из номера" />
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
+import { TextField } from '@/shared/ui/TextField';
 import { DateInput } from '@/shared/ui/DateInput';
 import {
   useListPrimitiveTypes,
@@ -237,27 +238,9 @@ function TypeForm({ initial, onSaved, onCancel }: TypeFormProps) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium text-fg1 mb-1">Название</label>
-          <input
-            type="text"
-            className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
-            placeholder="Email"
-            value={name}
-            onChange={e => setName(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-fg1 mb-1">Код</label>
-          <input
-            type="text"
-            className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm font-mono"
-            placeholder="email"
-            value={code}
-            onChange={e => setCode(e.target.value)}
-            disabled={!!initial}
-          />
-        </div>
+        <TextField label="Название" value={name} onChange={e => setName(e.target.value)} hint="Email" />
+        <TextField label="Код" value={code} onChange={e => setCode(e.target.value)}
+          disabled={!!initial} className="font-mono" hint="email" />
       </div>
 
       <div>
@@ -281,16 +264,8 @@ function TypeForm({ initial, onSaved, onCancel }: TypeFormProps) {
         </div>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-fg1 mb-1">Описание</label>
-        <input
-          type="text"
-          className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
-          placeholder="Необязательное описание типа"
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-        />
-      </div>
+      <TextField label="Описание" value={description} onChange={e => setDescription(e.target.value)}
+        hint="Необязательное описание типа" />
 
       <div className="border-t border-stroke pt-3">
         <p className="text-sm font-medium text-fg1 mb-3">Ограничения</p>
