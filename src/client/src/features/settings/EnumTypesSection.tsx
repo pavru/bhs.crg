@@ -181,7 +181,7 @@ function EnumTypeRow({ type, allGroups, expanded, onToggle }: {
   return (
     <div className={`overflow-hidden group ${expanded ? 'bg-base' : ''}`}>
       <div className="flex items-center hover:bg-base transition-colors">
-        <button onClick={onToggle}
+        <button type="button" onClick={onToggle} aria-expanded={expanded}
           className="flex-1 min-w-0 flex items-center gap-2 px-4 py-2.5 text-left">
           {expanded
             ? <ChevronUp size={15} className="text-fg4 shrink-0" />
@@ -200,7 +200,7 @@ function EnumTypeRow({ type, allGroups, expanded, onToggle }: {
             onChange={group => groupMutation.mutate({ id: type.id, group })} />
         </span>
         <button onClick={handleDelete} disabled={deleteMutation.isPending}
-          className="px-3 py-3 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30"
+          className="px-3 py-3 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all disabled:opacity-30"
           title="Удалить">
           <Trash2 size={14} />
         </button>

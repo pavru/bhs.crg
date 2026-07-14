@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import {
   Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, Link2, Pencil, Plus, Trash2, Unlink, X,
 } from 'lucide-react';
@@ -178,6 +178,28 @@ export function ArrayTableModal({
     setPasteOpen(true);
   }
 
+  // ↑↓-навигация между ячейками ОДНОЙ колонки (issue #107, F8a). Полный APG grid (←→, роли,
+  // выделение строк, ресайз с клавиатуры) отложен в фазу таблиц MD3. <select> не трогаем — там
+  // ↑↓ выбирают опцию; для остальных (text/number/date/checkbox/пикер) нативное ↑↓ — no-op либо
+  // нежелательный инкремент, так что перехват безопасен и полезен при вводе столбца сверху вниз.
+  const tableRef = useRef<HTMLTableElement>(null);
+  function onGridKey(e: React.KeyboardEvent) {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    const el = e.target as HTMLElement;
+    if (el.tagName === 'SELECT') return;
+    const td = el.closest('td[data-r]') as HTMLElement | null;
+    if (!td) return;
+    const r = Number(td.dataset.r), c = Number(td.dataset.c);
+    const nr = e.key === 'ArrowUp' ? r - 1 : r + 1;
+    if (nr < 0 || nr >= rows.length) return;
+    const target = tableRef.current?.querySelector<HTMLElement>(`td[data-r="${nr}"][data-c="${c}"]`);
+    const focusable = target?.querySelector<HTMLElement>('input, select, textarea, button');
+    if (!focusable) return;
+    e.preventDefault();
+    focusable.focus();
+    if (focusable instanceof HTMLInputElement && focusable.type !== 'checkbox') focusable.select();
+  }
+
   const BORDER = '1px solid #d1d5db';
   const TH_BG = '#f3f4f6';
   const IDX_BG = '#f9fafb';
@@ -212,7 +234,8 @@ export function ArrayTableModal({
         </div>
       }>
       <div className="overflow-x-auto -mx-6 px-6">
-        <table style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
+        <table ref={tableRef} onKeyDown={onGridKey}
+          style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
           <colgroup>
             <col style={{ width: 32 }} />
             {tableFields.map(f => <col key={f.key} style={{ width: getW(f) }} />)}
@@ -243,11 +266,11 @@ export function ArrayTableModal({
                 <td style={{ border: BORDER, background: IDX_BG, padding: 0, textAlign: 'center' }}>
                   <span className="flex items-center justify-center text-xs text-fg4 font-mono" style={{ height: 26 }}>{i + 1}</span>
                 </td>
-                {tableFields.map(f => {
+                {tableFields.map((f, ci) => {
                   const compositeForField = f.type === 'complex'
                     ? allDocTypes.find(dt => dt.id === f.typeId) ?? null : null;
                   return (
-                    <td key={f.key}
+                    <td key={f.key} data-r={i} data-c={ci}
                       className="focus-within:bg-brand-subtle transition-colors"
                       style={{ border: BORDER, padding: 0, height: 26 }}>
                       <TableCell field={f} value={row[f.key]} onChange={v => updateCell(i, f.key, v)}
@@ -508,7 +531,7 @@ export function AutoFieldsSection({ count, children }: { count: number; children
   const [open, setOpen] = useState(false);
   return (
     <div className="border border-dashed border-stroke rounded-lg overflow-hidden">
-      <button type="button" onClick={() => setOpen(v => !v)}
+      <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}
         className="w-full flex items-center gap-2 px-3 py-2 bg-base/40 hover:bg-base transition-colors text-left">
         {open ? <ChevronUp size={12} className="text-fg4 shrink-0" /> : <ChevronDown size={12} className="text-fg4 shrink-0" />}
         <Database size={11} className="text-brand shrink-0" />

@@ -76,7 +76,7 @@ export function SubscribersPanel({ scope, scopeId }: { scope: SubscriptionScope;
                   )}
                   {isAdmin && (
                     <button onClick={() => remove.mutate({ id: s.id, scope, scopeId })}
-                      className="p-0.5 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 transition-all" title="Убрать из подписчиков">
+                      className="p-0.5 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all" title="Убрать из подписчиков">
                       <Trash2 size={13} />
                     </button>
                   )}

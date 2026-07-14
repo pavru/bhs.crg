@@ -66,7 +66,7 @@ export function ObjectRow({
       {showPreview && preview && (
         <span className="text-xs text-fg4 truncate max-w-xs hidden sm:block">{preview}</span>
       )}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
         <button type="button" onClick={() => onEdit(entry)} title="Редактировать"
           className={`rounded transition-colors ${dense ? 'p-1 text-stroke-strong hover:text-fg2' : 'p-1.5 text-fg4 hover:text-fg2'}`}>
           <Pencil size={icon} />

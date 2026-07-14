@@ -646,7 +646,7 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
   return (
     <div className={`overflow-hidden group ${expanded ? 'bg-base' : ''}`}>
       <div className="flex items-center hover:bg-base transition-colors">
-        <button onClick={onToggle}
+        <button type="button" onClick={onToggle} aria-expanded={expanded}
           className="flex-1 min-w-0 flex items-center gap-2 px-4 py-2.5 text-left">
           {expanded
             ? <ChevronUp size={15} className="text-fg4 shrink-0" />
@@ -688,7 +688,7 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
         <button
           onClick={e => { e.stopPropagation(); proxyMutation.mutate({ id: docType.id, allowsProxy: !docType.allowsProxy }); }}
           disabled={proxyMutation.isPending}
-          className={`px-2 py-3 text-xs font-medium opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30 ${
+          className={`px-2 py-3 text-xs font-medium opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all disabled:opacity-30 ${
             docType.allowsProxy ? 'text-brand hover:text-brand-hover' : 'text-stroke-strong hover:text-brand'
           }`}
           title={docType.allowsProxy
@@ -700,7 +700,7 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
           <>
             <button
               onClick={e => { e.stopPropagation(); setTemplatesOpen(true); }}
-              className="px-2 py-3 opacity-0 group-hover:opacity-100 transition-all text-brand"
+              className="px-2 py-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all text-brand"
               title="Шаблоны данных"
             >
               <Database size={14} />
@@ -708,7 +708,7 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
             <button
               onClick={e => { e.stopPropagation(); abstractMutation.mutate({ id: docType.id, isAbstract: !docType.isAbstract }); }}
               disabled={abstractMutation.isPending}
-              className={`px-2 py-3 text-xs font-medium opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30 ${
+              className={`px-2 py-3 text-xs font-medium opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all disabled:opacity-30 ${
                 docType.isAbstract
                   ? 'text-warning hover:text-orange-700'
                   : 'text-stroke-strong hover:text-warning'
@@ -723,7 +723,7 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
             onChange={group => groupMutation.mutate({ id: docType.id, group })} />
         </span>
         <button onClick={handleDelete} disabled={deleteMutation.isPending}
-          className="px-3 py-3 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30"
+          className="px-3 py-3 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all disabled:opacity-30"
           title={hasChildren ? 'Нельзя удалить: есть дочерние типы' : 'Удалить'}>
           <Trash2 size={14} />
         </button>
