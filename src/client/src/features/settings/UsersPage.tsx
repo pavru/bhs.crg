@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, KeyRound, Trash2, ShieldCheck, User as UserIcon, Mail } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SendMessageDialog } from '@/shared/ui/SendMessageDialog';
 import { useAuth, type UserRole } from '@/shared/hooks/useAuth';
@@ -42,14 +43,12 @@ export function UsersPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold text-fg1">Пользователи</h1>
         <div className="flex items-center gap-2">
-          <button onClick={() => setSendOpen(true)}
-            className="flex items-center gap-2 border border-stroke hover:bg-base text-fg2 text-sm font-medium px-3 py-2 rounded-md transition-colors">
-            <Mail size={15} className="text-brand" /> Отправить сообщение
-          </button>
-          <button onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
-            <Plus size={16} /> Добавить пользователя
-          </button>
+          <Button variant="tonal" icon={<Mail size={15} />} onClick={() => setSendOpen(true)}>
+            Отправить сообщение
+          </Button>
+          <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
+            Добавить пользователя
+          </Button>
         </div>
       </div>
 
@@ -174,13 +173,11 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
           </select>
         </div>
         {error && <p className="text-sm text-danger">{error}</p>}
-        <div className="flex justify-end gap-3 pt-1">
-          <button type="button" onClick={() => { reset(); onClose(); }}
-            className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-          <button type="submit" disabled={create.isPending}
-            className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-            {create.isPending ? 'Создание...' : 'Создать'}
-          </button>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="text" onClick={() => { reset(); onClose(); }}>Отмена</Button>
+          <Button type="submit" variant="filled" loading={create.isPending}>
+            {create.isPending ? 'Создание…' : 'Создать'}
+          </Button>
         </div>
       </form>
     </Modal>
@@ -213,13 +210,11 @@ function ResetPasswordModal({ user, onClose }: { user: AppUser | null; onClose: 
         </div>
         {error && <p className="text-sm text-danger">{error}</p>}
         {done && <p className="text-sm text-success">Пароль изменён</p>}
-        <div className="flex justify-end gap-3 pt-1">
-          <button type="button" onClick={onClose}
-            className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-          <button type="submit" disabled={reset.isPending}
-            className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-            {reset.isPending ? 'Сохранение...' : 'Сбросить пароль'}
-          </button>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
+          <Button type="submit" variant="filled" loading={reset.isPending}>
+            {reset.isPending ? 'Сохранение…' : 'Сбросить пароль'}
+          </Button>
         </div>
       </form>
     </Modal>

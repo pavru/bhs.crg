@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Loader2, ShieldCheck, Upload, Eye } from 'lucide-react';
+import { Button } from '@/shared/ui/Button';
 import {
   useCreateQualityDoc, useUpdateQualityDoc, useSetQualityDocScan, recognizeDocument,
   type QualityDocument, type RecognitionFieldReq,
@@ -219,11 +220,10 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
 
       {error && <p className="text-sm text-danger">{error}</p>}
       <div className="flex items-center gap-2 pt-1">
-        <button onClick={handleSave} disabled={busy || recognizing || !typeId}
-          className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-          {busy ? 'Сохранение...' : isEdit ? 'Сохранить' : 'Создать'}
-        </button>
-        <button onClick={onCancel} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
+        <Button variant="filled" onClick={handleSave} loading={busy} disabled={busy || recognizing || !typeId}>
+          {busy ? 'Сохранение…' : isEdit ? 'Сохранить' : 'Создать'}
+        </Button>
+        <Button variant="text" onClick={onCancel}>Отмена</Button>
         {recognizing && (
           <span className="flex items-center gap-1.5 text-xs text-fg3">
             <Loader2 size={12} className="animate-spin" /> Идёт распознавание — дождитесь завершения перед сохранением…

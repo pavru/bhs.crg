@@ -2,6 +2,7 @@ import { useState, useMemo, Fragment } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2, ShieldCheck, FileText, Search, Globe, ExternalLink, Download, Loader2, ChevronRight, ChevronDown } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -111,10 +112,9 @@ export function QualityDocsPage() {
         <h1 className="text-xl font-semibold text-fg1 flex items-center gap-2">
           <ShieldCheck size={20} className="text-brand" /> Документы качества
         </h1>
-        <button onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
-          <Plus size={16} /> Добавить документ
-        </button>
+        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
+          Добавить документ
+        </Button>
       </div>
 
       {/* Веб-поиск (ФГИС → производитель → веб) */}
@@ -128,10 +128,10 @@ export function QualityDocsPage() {
             onKeyDown={e => { if (e.key === 'Enter') void handleWebSearch(); }}
             placeholder="Напр.: Выключатель автоматический EKF AV-10"
             className="flex-1 min-w-[260px] border border-stroke-strong rounded-md px-3 py-2 text-sm bg-surface text-fg1" />
-          <button onClick={handleWebSearch} disabled={searching || !webQuery.trim()}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-            {searching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />} Найти
-          </button>
+          <Button variant="filled" onClick={handleWebSearch} disabled={searching || !webQuery.trim()}
+            loading={searching} icon={<Search size={14} />}>
+            Найти
+          </Button>
         </div>
         {searchError && <p className="text-sm text-danger mt-2">{searchError}</p>}
         {candidates && (
