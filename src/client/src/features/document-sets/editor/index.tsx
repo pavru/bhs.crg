@@ -789,10 +789,23 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
     ['generation', 'Генерация'],
   ];
 
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   function requestTab(next: InstanceTab) {
     if (next === tab) return;
     if (dirty) setPendingTab(next);   // есть несохранённые изменения — спрашиваем
     else setTab(next);
+  }
+  // APG-tablist (issue #107 F3): стрелки/Home/End двигают ФОКУС между вкладками (manual
+  // activation — переключение по Enter/Space через onClick, чтобы dirty-guard не срабатывал на скролле).
+  function onTabKey(e: React.KeyboardEvent, i: number) {
+    let ni = -1;
+    if (e.key === 'ArrowRight') ni = (i + 1) % tabs.length;
+    else if (e.key === 'ArrowLeft') ni = (i - 1 + tabs.length) % tabs.length;
+    else if (e.key === 'Home') ni = 0;
+    else if (e.key === 'End') ni = tabs.length - 1;
+    else return;
+    e.preventDefault();
+    tabRefs.current[ni]?.focus();
   }
   function switchTo(next: InstanceTab) {
     setDirty(false);
@@ -823,10 +836,13 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
             {STATUS_LABELS[instance.status] ?? instance.status}
           </span>
         </div>
-        <div className="flex border-b border-stroke gap-0">
-          {tabs.map(([key, label]) => (
-            <button key={key} onClick={() => requestTab(key)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === key ? 'border-brand text-brand-hover' : 'border-transparent text-fg3 hover:text-fg2'}`}>
+        <div role="tablist" aria-label="Разделы документа" className="flex border-b border-stroke gap-0">
+          {tabs.map(([key, label], i) => (
+            <button key={key} role="tab" aria-selected={tab === key} tabIndex={tab === key ? 0 : -1}
+              ref={el => { tabRefs.current[i] = el; }}
+              onClick={() => requestTab(key)} onKeyDown={e => onTabKey(e, i)}
+              className={`h-12 px-4 text-sm font-medium border-b-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ${
+                tab === key ? 'border-brand text-brand' : 'border-transparent text-fg3 hover:text-fg1'}`}>
               {label}{key === tab && dirty && <span className="ml-1 text-warning" title="Есть несохранённые изменения">•</span>}
             </button>
           ))}
