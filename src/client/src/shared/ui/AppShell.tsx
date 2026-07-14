@@ -7,6 +7,7 @@ import { NotificationsCenter } from '@/features/notifications/NotificationsCente
 import { ActiveJobsIndicator } from '@/features/jobs/ActiveJobsIndicator';
 import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
+import { ShortcutsHelp } from '@/shared/ui/ShortcutsHelp';
 import { workNav, settingsNav, type NavItem } from '@/shared/ui/navConfig';
 import { LogOut, Sun, Moon, Monitor, KeyRound } from 'lucide-react';
 
@@ -86,13 +87,20 @@ export function AppShell() {
   const isAdmin = user?.role === 'Admin';
   const [pwOpen, setPwOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
-  // Глобальный Ctrl/⌘+K — командная палитра (issue #107).
+  // Глобальные шорткаты (issue #107): Ctrl/⌘+K — палитра, «?» — справка (не в полях ввода).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setPaletteOpen(o => !o);
+        return;
+      }
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const el = document.activeElement as HTMLElement | null;
+        const editable = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+        if (!editable) { e.preventDefault(); setHelpOpen(o => !o); }
       }
     }
     window.addEventListener('keydown', onKey);
@@ -145,6 +153,7 @@ export function AppShell() {
       </aside>
       <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <ShortcutsHelp open={helpOpen} onOpenChange={setHelpOpen} />
 
       {/* Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
