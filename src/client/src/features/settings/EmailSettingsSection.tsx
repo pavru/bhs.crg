@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Mail, Send, CheckCircle, XCircle, AlertTriangle, PlugZap } from 'lucide-react';
+import { TextField } from '@/shared/ui/TextField';
 import {
   useIntegrationSettings, useSaveSmtp, useTestEmail, useTestSmtpConnection, useEmailUserStatus,
   type SmtpUpdate,
@@ -76,31 +77,17 @@ export function EmailSettingsSection() {
       </label>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2 sm:col-span-1">
-          <label className="block text-xs font-medium text-fg2 mb-1">SMTP-сервер (host)</label>
-          <input className={fieldCls} value={form.host ?? ''} onChange={e => set('host', e.target.value)} placeholder="smtp.example.com" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">Порт</label>
-          <input type="number" className={fieldCls} value={form.port} onChange={e => set('port', Number(e.target.value))} />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">Пользователь</label>
-          <input className={fieldCls} value={form.user ?? ''} onChange={e => set('user', e.target.value)} placeholder="user@example.com" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">Пароль</label>
-          <input type="password" className={fieldCls} value={form.password ?? ''} onChange={e => set('password', e.target.value)}
-            placeholder={hasPassword ? '•••••• (не менять)' : ''} />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">Адрес отправителя (From)</label>
-          <input className={fieldCls} value={form.from ?? ''} onChange={e => set('from', e.target.value)} placeholder="docs@example.com" />
-        </div>
-        <div className="col-span-2 sm:col-span-1">
-          <label className="block text-xs font-medium text-fg2 mb-1">Имя отправителя</label>
-          <input className={fieldCls} value={form.fromName ?? ''} onChange={e => set('fromName', e.target.value)} placeholder="BHS.CRG" />
-        </div>
+        <TextField containerClassName="col-span-2 sm:col-span-1" label="SMTP-сервер (host)"
+          value={form.host ?? ''} onChange={e => set('host', e.target.value)} hint="smtp.example.com" />
+        <TextField label="Порт" type="number" value={form.port} onChange={e => set('port', Number(e.target.value))} />
+        <TextField label="Пользователь" value={form.user ?? ''} onChange={e => set('user', e.target.value)}
+          hint="user@example.com" />
+        <TextField label="Пароль" type="password" value={form.password ?? ''} onChange={e => set('password', e.target.value)}
+          hint={hasPassword ? '•••••• (не менять)' : undefined} />
+        <TextField label="Адрес отправителя (From)" value={form.from ?? ''} onChange={e => set('from', e.target.value)}
+          hint="docs@example.com" />
+        <TextField containerClassName="col-span-2 sm:col-span-1" label="Имя отправителя"
+          value={form.fromName ?? ''} onChange={e => set('fromName', e.target.value)} hint="BHS.CRG" />
       </div>
 
       <label className="flex items-center gap-2 text-sm text-fg2">

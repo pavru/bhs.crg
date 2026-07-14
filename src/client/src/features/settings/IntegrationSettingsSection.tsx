@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { TextField } from '@/shared/ui/TextField';
+import { Select, SelectItem } from '@/shared/ui/Select';
 import {
   useIntegrationSettings,
   useSaveIntegrationSettings,
@@ -114,16 +116,9 @@ function EngineCard({
       <p className="text-xs text-fg4">{meta.hint}</p>
 
       {!meta.keyless && (
-        <Field label="API-ключ">
-          <input
-            type="password"
-            autoComplete="off"
-            value={form.apiKey}
-            onChange={e => onChange({ ...form, apiKey: e.target.value })}
-            placeholder={form.hasKey ? '•••••••• (ключ задан — оставьте пустым, чтобы не менять)' : 'ключ не задан'}
-            className={inputCls}
-          />
-        </Field>
+        <TextField label="API-ключ" type="password" autoComplete="off" value={form.apiKey}
+          onChange={e => onChange({ ...form, apiKey: e.target.value })}
+          hint={form.hasKey ? '•••••••• (ключ задан — оставьте пустым, чтобы не менять)' : 'ключ не задан'} />
       )}
 
       {meta.modelLabel && (() => {
@@ -138,41 +133,28 @@ function EngineCard({
                   : 'Список моделей недоступен'}
               </div>
             ) : (
-              <select
-                value={form.model}
-                onChange={e => onChange({ ...form, model: e.target.value })}
-                className={inputCls}
-              >
-                {!form.model && <option value="">— выберите —</option>}
-                {opts.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
+              <Select value={form.model || undefined} placeholder="— выберите —" aria-label={meta.modelLabel}
+                onValueChange={m => onChange({ ...form, model: m })}>
+                {opts.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              </Select>
             )}
           </Field>
         );
       })()}
 
       {meta.showBaseUrl && (
-        <Field label="Базовый URL">
-          <input type="text" value={form.baseUrl} placeholder="http://localhost:11434"
-            onChange={e => onChange({ ...form, baseUrl: e.target.value })}
-            className={inputCls} />
-        </Field>
+        <TextField label="Базовый URL" value={form.baseUrl} hint="http://localhost:11434"
+          onChange={e => onChange({ ...form, baseUrl: e.target.value })} />
       )}
 
       {meta.showFolderId && (
-        <Field label="Folder ID">
-          <input type="text" value={form.folderId}
-            onChange={e => onChange({ ...form, folderId: e.target.value })}
-            className={inputCls} />
-        </Field>
+        <TextField label="Folder ID" value={form.folderId}
+          onChange={e => onChange({ ...form, folderId: e.target.value })} />
       )}
 
       {meta.showHost && (
-        <Field label="Host (необязательно)">
-          <input type="text" value={form.host} placeholder="https://yandex.ru/search/xml"
-            onChange={e => onChange({ ...form, host: e.target.value })}
-            className={inputCls} />
-        </Field>
+        <TextField label="Host (необязательно)" value={form.host} hint="https://yandex.ru/search/xml"
+          onChange={e => onChange({ ...form, host: e.target.value })} />
       )}
     </div>
   );
