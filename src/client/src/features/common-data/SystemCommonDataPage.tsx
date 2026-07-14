@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { Plus, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { Select, SelectItem, SelectGroup } from '@/shared/ui/Select';
+
+/** Sentinel для «Все типы» — Radix Select запрещает пустую строку как value. */
+const ALL_TYPES = '__all__';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListCommonData, useDeleteCommonDataEntry } from '@/shared/api/commonData';
@@ -65,20 +69,21 @@ export function SystemCommonDataPage() {
             className="w-full border border-stroke-strong rounded-md pl-9 pr-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
         </div>
         {allSelectableTypes.length > 0 && (
-          <select value={filterTypeId} onChange={e => setFilterTypeId(e.target.value)}
-            className="border border-stroke-strong rounded-md px-3 py-2 text-sm text-fg1 bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-            <option value="">Все типы</option>
+          <Select value={filterTypeId || ALL_TYPES}
+            onValueChange={v => setFilterTypeId(v === ALL_TYPES ? '' : v)}
+            aria-label="Фильтр по типу" className="w-56">
+            <SelectItem value={ALL_TYPES}>Все типы</SelectItem>
             {compositeTypes.length > 0 && (
-              <optgroup label="Составные типы">
-                {compositeTypes.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
-              </optgroup>
+              <SelectGroup label="Составные типы">
+                {compositeTypes.map(ct => <SelectItem key={ct.id} value={ct.id}>{ct.name}</SelectItem>)}
+              </SelectGroup>
             )}
             {documentTypes.length > 0 && (
-              <optgroup label="Типы документов">
-                {documentTypes.map(dt => <option key={dt.id} value={dt.id}>{dt.name}</option>)}
-              </optgroup>
+              <SelectGroup label="Типы документов">
+                {documentTypes.map(dt => <SelectItem key={dt.id} value={dt.id}>{dt.name}</SelectItem>)}
+              </SelectGroup>
             )}
-          </select>
+          </Select>
         )}
       </div>
 

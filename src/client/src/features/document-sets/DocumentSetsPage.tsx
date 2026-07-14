@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
+import { Select, SelectItem } from '@/shared/ui/Select';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -281,11 +282,10 @@ function SetDetail() {
           <form id="add-doc-form" onSubmit={handleAddDoc} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-fg2 mb-1">Тип документа</label>
-              <select value={addTypeId} onChange={e => setAddTypeId(e.target.value)} required
-                className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-                <option value="">Выберите тип...</option>
-                {documentKindTypes.map(dt => <option key={dt.id} value={dt.id}>{dt.name}</option>)}
-              </select>
+              <Select value={addTypeId || undefined} onValueChange={setAddTypeId} required
+                placeholder="Выберите тип…" aria-label="Тип документа">
+                {documentKindTypes.map(dt => <SelectItem key={dt.id} value={dt.id}>{dt.name}</SelectItem>)}
+              </Select>
             </div>
             {addError && <p className="text-sm text-danger">{addError}</p>}
           </form>
