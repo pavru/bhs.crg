@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, KeyRound, Trash2, ShieldCheck, User as UserIcon, Mail } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
+import { Select, SelectItem } from '@/shared/ui/Select';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SendMessageDialog } from '@/shared/ui/SendMessageDialog';
 import { useAuth, type UserRole } from '@/shared/hooks/useAuth';
@@ -84,12 +85,11 @@ export function UsersPage() {
                       {rowError?.id === u.id && <div className="text-xs text-danger mt-1">{rowError.msg}</div>}
                     </td>
                     <td className="px-4 py-2.5">
-                      <select value={u.role} onChange={e => onRoleChange(u, e.target.value as UserRole)}
-                        disabled={changeRole.isPending}
-                        className="border border-stroke-strong rounded-md px-2 py-1.5 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-                        <option value="Admin">Администратор</option>
-                        <option value="User">Пользователь</option>
-                      </select>
+                      <Select value={u.role} onValueChange={v => onRoleChange(u, v as UserRole)}
+                        disabled={changeRole.isPending} aria-label="Роль" className="w-44">
+                        <SelectItem value="Admin">Администратор</SelectItem>
+                        <SelectItem value="User">Пользователь</SelectItem>
+                      </Select>
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
@@ -169,11 +169,10 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
         </div>
         <div>
           <label className="block text-sm font-medium text-fg2 mb-1">Роль</label>
-          <select value={role} onChange={e => setRole(e.target.value as UserRole)}
-            className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-            <option value="User">Пользователь — только документы и данные</option>
-            <option value="Admin">Администратор — полный доступ</option>
-          </select>
+          <Select value={role} onValueChange={v => setRole(v as UserRole)} aria-label="Роль">
+            <SelectItem value="User">Пользователь — только документы и данные</SelectItem>
+            <SelectItem value="Admin">Администратор — полный доступ</SelectItem>
+          </Select>
         </div>
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">

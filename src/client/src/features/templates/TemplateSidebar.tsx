@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Star, ChevronDown, ChevronUp, AlertTriangle, Copy } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { Select, SelectItem } from '@/shared/ui/Select';
 import type { Template, DocumentType } from '@/shared/api/types';
 import { useDeleteTemplate } from '@/shared/api/templates';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
@@ -137,13 +138,12 @@ export function DocTypeSelector({ docTypes, selected, onSelect }: {
 }) {
   const nonAbstractDocs = docTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract);
   return (
-    <select value={selected} onChange={(e) => onSelect(e.target.value)}
-      className="border border-stroke-strong rounded-md px-3 py-2 text-sm text-fg1 bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-      <option value="">Выберите тип документа</option>
+    <Select value={selected || undefined} onValueChange={onSelect}
+      placeholder="Выберите тип документа" aria-label="Тип документа" className="w-56">
       {nonAbstractDocs.map((dt) => (
-        <option key={dt.id} value={dt.id}>{dt.name}</option>
+        <SelectItem key={dt.id} value={dt.id}>{dt.name}</SelectItem>
       ))}
-    </select>
+    </Select>
   );
 }
 

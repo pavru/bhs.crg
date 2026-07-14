@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Loader2, ShieldCheck, Upload, Eye } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { Select, SelectItem } from '@/shared/ui/Select';
 import {
   useCreateQualityDoc, useUpdateQualityDoc, useSetQualityDocScan, recognizeDocument,
   type QualityDocument, type RecognitionFieldReq,
@@ -159,10 +160,10 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-fg2 mb-1">Тип документа</label>
-          <select value={typeId} onChange={e => setTypeId(e.target.value)}
-            className="w-full border border-stroke-strong rounded-md px-2 py-1.5 text-sm bg-surface text-fg1">
-            {qualityTypes.map(dt => <option key={dt.id} value={dt.id}>{dt.name}</option>)}
-          </select>
+          <Select value={typeId || undefined} onValueChange={setTypeId}
+            placeholder="Выберите тип…" aria-label="Тип документа">
+            {qualityTypes.map(dt => <SelectItem key={dt.id} value={dt.id}>{dt.name}</SelectItem>)}
+          </Select>
         </div>
         <div>
           <label className="block text-xs font-medium text-fg2 mb-1">Название в библиотеке</label>

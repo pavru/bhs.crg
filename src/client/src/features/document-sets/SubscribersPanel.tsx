@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Users, ChevronDown, ChevronRight, Trash2, Mail, Plus, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
+import { Select, SelectItem } from '@/shared/ui/Select';
 import { useListUsers } from '@/shared/api/users';
 import {
   useSubscribers, useRecipients, useAddSubscriber, useRemoveSubscriber, type SubscriptionScope,
@@ -87,11 +88,10 @@ export function SubscribersPanel({ scope, scopeId }: { scope: SubscriptionScope;
 
           {isAdmin && (
             <div className="flex items-center gap-2">
-              <select value={addUserId} onChange={e => setAddUserId(e.target.value)}
-                className="flex-1 border border-stroke-strong rounded-md px-2 py-1.5 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-                <option value="">Добавить подписчика…</option>
-                {available.map(u => <option key={u.id} value={u.id}>{u.displayName || u.email}</option>)}
-              </select>
+              <Select value={addUserId || undefined} onValueChange={setAddUserId}
+                placeholder="Добавить подписчика…" aria-label="Подписчик" className="flex-1">
+                {available.map(u => <SelectItem key={u.id} value={u.id}>{u.displayName || u.email}</SelectItem>)}
+              </Select>
               <button onClick={handleAdd} disabled={!addUserId || add.isPending}
                 className="flex items-center gap-1 text-sm px-3 py-1.5 border border-stroke-strong rounded-md hover:bg-base transition-colors disabled:opacity-50">
                 <Plus size={13} /> Добавить
