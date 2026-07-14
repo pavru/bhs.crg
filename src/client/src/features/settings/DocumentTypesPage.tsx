@@ -646,7 +646,7 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
   return (
     <div className={`overflow-hidden group ${expanded ? 'bg-base' : ''}`}>
       <div className="flex items-center hover:bg-base transition-colors">
-        <button onClick={onToggle}
+        <button type="button" onClick={onToggle} aria-expanded={expanded}
           className="flex-1 min-w-0 flex items-center gap-2 px-4 py-2.5 text-left">
           {expanded
             ? <ChevronUp size={15} className="text-fg4 shrink-0" />

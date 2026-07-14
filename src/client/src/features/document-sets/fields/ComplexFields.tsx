@@ -531,7 +531,7 @@ export function AutoFieldsSection({ count, children }: { count: number; children
   const [open, setOpen] = useState(false);
   return (
     <div className="border border-dashed border-stroke rounded-lg overflow-hidden">
-      <button type="button" onClick={() => setOpen(v => !v)}
+      <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}
         className="w-full flex items-center gap-2 px-3 py-2 bg-base/40 hover:bg-base transition-colors text-left">
         {open ? <ChevronUp size={12} className="text-fg4 shrink-0" /> : <ChevronDown size={12} className="text-fg4 shrink-0" />}
         <Database size={11} className="text-brand shrink-0" />

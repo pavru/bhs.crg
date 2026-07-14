@@ -97,7 +97,7 @@ export function SystemCommonDataPage() {
             const isOpen = expandedTypes.has(t.id);
             return (
               <div key={t.id} className="border border-stroke rounded-xl overflow-hidden">
-                <button onClick={() => toggleType(t.id)}
+                <button type="button" onClick={() => toggleType(t.id)} aria-expanded={isOpen}
                   className="w-full flex items-center gap-2 px-4 py-3 bg-surface hover:bg-base transition-colors text-left">
                   {isOpen
                     ? <ChevronUp size={14} className="text-fg4 shrink-0" />
@@ -125,7 +125,7 @@ export function SystemCommonDataPage() {
             const isOpen = expandedTypes.has('__no_type__');
             return (
               <div className="border border-stroke rounded-xl overflow-hidden">
-                <button onClick={() => toggleType('__no_type__')}
+                <button type="button" onClick={() => toggleType('__no_type__')} aria-expanded={isOpen}
                   className="w-full flex items-center gap-2 px-4 py-3 bg-surface hover:bg-base transition-colors text-left">
                   {isOpen
                     ? <ChevronUp size={14} className="text-fg4 shrink-0" />
