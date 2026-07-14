@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Plus, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Search, ChevronDown, ChevronUp, Database } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { EmptyState } from '@/shared/ui/EmptyState';
 import { Select, SelectItem, SelectGroup } from '@/shared/ui/Select';
 
 /** Sentinel для «Все типы» — Radix Select запрещает пустую строку как value. */
@@ -90,10 +91,9 @@ export function SystemCommonDataPage() {
       {isLoading ? (
         <div className="text-center py-12 text-fg4 text-sm">Загрузка...</div>
       ) : entries.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-fg4 text-sm mb-2">Системный каталог пуст</p>
-          <p className="text-xs text-stroke-strong">Добавьте справочные данные, которые будут доступны во всех проектах</p>
-        </div>
+        <EmptyState icon={<Database size={30} />} title="Системный каталог пуст"
+          description="Добавьте справочные данные (организации, лица, объекты) — они будут доступны во всех проектах."
+          action={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddOpen(true)}>Добавить запись</Button>} />
       ) : filtered.length === 0 ? (
         <div className="text-center py-10 text-fg4 text-sm">Ничего не найдено</div>
       ) : (
