@@ -28,7 +28,7 @@ import { EntryDataSetBindings } from './EntryDataSetBindings';
 import { groupObjectsByType, ObjectRow } from './ObjectsByTypeList';
 import {
   SCOPE_COLORS, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
-  PrimitiveInput, FileField, ImageField,
+  PrimitiveInput, FileField, ImageField, AutoFieldsSection,
   BaseInstancePanel, SCOPE_TIER, type BaseCandidate,
 } from '../fields';
 
@@ -394,10 +394,11 @@ export function CatalogEntryForm({
     } catch (err: unknown) { setError(err instanceof Error ? err.message : 'Ошибка'); }
   }
 
-  function renderFields(sectionFields: SchemaField[]) {
-    return (
-      <div className="space-y-4">
-        {sectionFields.map(field => {
+    const isAuto = (f: SchemaField) =>
+      (f.type === 'array' && boundArrayKeys.has(f.key)) ||
+      (f.type !== 'array' && boundFieldKeys.has(f.key));
+
+    function renderCell(field: SchemaField) {
           const val = values[field.key];
           const isBoundArray = field.type === 'array' && boundArrayKeys.has(field.key);
           const isBoundScalar = field.type !== 'array' && boundFieldKeys.has(field.key);
@@ -533,10 +534,25 @@ export function CatalogEntryForm({
               )}
             </div>
           );
-        })}
-      </div>
-    );
-  }
+    }
+
+    function fieldStack(fields: SchemaField[]) {
+      return <div className="space-y-4">{fields.map(renderCell)}</div>;
+    }
+
+    // Поля из источника данных (read-only) — под сворачиваемую секцию «Заполняются автоматически»
+    // (issue #102, P2), чтобы форма записи каталога не растягивалась в «портянку».
+    function renderFields(sectionFields: SchemaField[]) {
+      const auto = sectionFields.filter(isAuto);
+      if (auto.length === 0) return fieldStack(sectionFields);
+      const normal = sectionFields.filter(f => !isAuto(f));
+      return (
+        <div className="space-y-4">
+          {normal.length > 0 && fieldStack(normal)}
+          <AutoFieldsSection count={auto.length}>{fieldStack(auto)}</AutoFieldsSection>
+        </div>
+      );
+    }
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
