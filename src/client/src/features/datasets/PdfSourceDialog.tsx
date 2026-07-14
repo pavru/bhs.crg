@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { Select, SelectItem } from '@/shared/ui/Select';
 import { useCreatePdfSource, useRecognizeFile } from '@/shared/api/datasets';
 import { useTagRegistry, datasetTags } from '@/shared/api/tags';
 
@@ -61,11 +62,11 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
 
         <div>
           <label className="block text-sm font-medium text-fg1 mb-1">Профиль распознавания</label>
-          <select value={profile} onChange={e => setProfile(e.target.value as 'gost-titleblock' | 'invoice')}
-            className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm">
-            <option value="gost-titleblock">Основная надпись (ГОСТ Р 21.101-2020) — реестр по страницам</option>
-            <option value="invoice">Счёт на оплату — шапка + таблица товаров</option>
-          </select>
+          <Select value={profile} onValueChange={v => setProfile(v as 'gost-titleblock' | 'invoice')}
+            aria-label="Профиль распознавания">
+            <SelectItem value="gost-titleblock">Основная надпись (ГОСТ Р 21.101-2020) — реестр по страницам</SelectItem>
+            <SelectItem value="invoice">Счёт на оплату — шапка + таблица товаров</SelectItem>
+          </Select>
         </div>
 
         {profile === 'gost-titleblock' && datasetTags(allTags).length > 0 && (
