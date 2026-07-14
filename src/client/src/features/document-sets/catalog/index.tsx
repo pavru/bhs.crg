@@ -525,23 +525,24 @@ export function CatalogEntryForm({
                     onChange={v => setValue(field.key, v ?? undefined)}
                     setId={setId} scope={scope} scopeId={scopeId} />
                 </div>
+              ) : field.type === 'image' ? (
+                <div>
+                  <label className="block text-sm font-medium text-fg2 mb-1">
+                    {field.title}{field.required && <span className="ml-0.5 text-danger">*</span>}
+                  </label>
+                  <ImageField value={val} onChange={v => setValue(field.key, v)} />
+                </div>
+              ) : field.type === 'file' ? (
+                <div>
+                  <label className="block text-sm font-medium text-fg2 mb-1">
+                    {field.title}{field.required && <span className="ml-0.5 text-danger">*</span>}
+                  </label>
+                  <FileField value={val} onChange={v => setValue(field.key, v)} />
+                </div>
               ) : (
-                <>
-                  {field.type !== 'boolean' && (
-                    <label className="block text-sm font-medium text-fg2 mb-1">
-                      {field.title}
-                      {field.required && <span className="ml-0.5 text-danger">*</span>}
-                    </label>
-                  )}
-                  {field.type === 'image' ? (
-                    <ImageField value={val} onChange={v => setValue(field.key, v)} />
-                  ) : field.type === 'file' ? (
-                    <FileField value={val} onChange={v => setValue(field.key, v)} />
-                  ) : (
-                    <PrimitiveInput field={field} value={val} onChange={v => setValue(field.key, v)} invalid={false}
-                      primitiveTypeDef={getPrimitiveDef(field)} enumTypeDef={getEnumDef(field)} />
-                  )}
-                </>
+                <PrimitiveInput field={field} value={val} label={field.title}
+                  hint={getPrimitiveDef(field)?.name} onChange={v => setValue(field.key, v)} invalid={false}
+                  primitiveTypeDef={getPrimitiveDef(field)} enumTypeDef={getEnumDef(field)} />
               )}
             </div>
           );

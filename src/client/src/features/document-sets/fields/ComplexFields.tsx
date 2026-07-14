@@ -474,7 +474,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               const invalid = showValidation && isMissing(sf, subVal);
               return (
                 <div key={sf.key}>
-                  {sf.type !== 'boolean' && (
+                  {['complex', 'array', 'doc-ref', 'doc-array', 'image', 'file'].includes(sf.type) && (
                     <label className="block text-sm font-medium text-fg2 mb-1">
                       {sf.title}{sf.required && <span className="ml-0.5 text-danger">*</span>}
                     </label>
@@ -500,7 +500,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                       onChange={v => updateRow(rowModal, { ...rowObj, [sf.key]: v })}
                       otherInstances={otherInstances} setId={setId} />
                   ) : (
-                    <PrimitiveInput field={sf} value={subVal}
+                    <PrimitiveInput field={sf} value={subVal} label={sf.title}
                       onChange={v => updateRow(rowModal, { ...rowObj, [sf.key]: v })} invalid={invalid}
                       primitiveTypeDef={primDef(sf)} />
                   )}
@@ -624,7 +624,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
         const invalid = showValidation && isMissing(sf, subVal);
         return (
           <div key={sf.key}>
-            {sf.type !== 'boolean' && (
+            {['complex', 'array', 'doc-ref', 'doc-array', 'image', 'file'].includes(sf.type) && (
               <label className="block text-sm font-medium text-fg2 mb-1">
                 {sf.title}
                 {sf.required && <span className="ml-0.5 text-danger">*</span>}
@@ -659,7 +659,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
                 setId={setId} otherInstances={otherInstances}
                 scope={scope} scopeId={scopeId} docRefMode={docRefMode} />
             ) : (
-              <PrimitiveInput field={sf} value={subVal} onChange={v => setSubValue(sf.key, v)} invalid={invalid}
+              <PrimitiveInput field={sf} value={subVal} label={sf.title} onChange={v => setSubValue(sf.key, v)} invalid={invalid}
                 primitiveTypeDef={primDef(sf)} />
             )}
             {invalid && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
