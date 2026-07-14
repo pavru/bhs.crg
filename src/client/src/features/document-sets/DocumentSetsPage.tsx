@@ -715,7 +715,7 @@ function ConstructionsList() {
           {constructions.map(c => {
             const setsCount = c.sections.reduce((acc, s) => acc + s.documentSets.length, 0);
             return (
-              <div key={c.id} className="bg-surface border border-stroke rounded-xl p-5 flex flex-col gap-3 hover:border-brand-subtle hover:shadow-sm transition-all group cursor-pointer"
+              <div key={c.id} className="bg-surface border border-stroke rounded-xl p-5 flex flex-col gap-3 hover:border-brand hover:shadow-[var(--f-shadow16)] transition-all group cursor-pointer"
                 onClick={() => editId !== c.id && navigate(`/document-sets/${c.id}`)}>
                 <div className="flex items-start justify-between gap-2">
                   {editId === c.id ? (

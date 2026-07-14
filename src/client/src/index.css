@@ -52,11 +52,12 @@
   --f-shadow16: 0 2px 8px rgba(16,35,63,.12), 0 1px 2px rgba(16,35,63,.10);
   --f-shadow28: 0 8px 24px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.14);
 
-  /* Border radii */
-  --f-r-sm: 2px;
-  --f-r-md: 4px;
-  --f-r-lg: 6px;
-  --f-r-xl: 8px;
+  /* Border radii — MD3 (issue #110 фаза 3): карточки/панели крупнее (xl → 16),
+     диалоги задают radius 28 напрямую. sm/md/lg — контролы/чипы. */
+  --f-r-sm: 4px;
+  --f-r-md: 6px;
+  --f-r-lg: 10px;
+  --f-r-xl: 16px;
 }
 
 /* ── Dark theme ──────────────────────────────────────────────────────────────── */
