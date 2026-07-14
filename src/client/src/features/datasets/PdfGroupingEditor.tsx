@@ -7,6 +7,7 @@ import {
 } from '@/shared/api/datasets';
 import type { GostGroupingGroup, GostGroupKind } from '@/shared/api/types';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 
 const DEFAULT_CODE = '(без шифра)';
 /** Тэги типа таблицы документа (спецификация / кабельный журнал) — распознаются и выгружаются. */
@@ -476,11 +477,10 @@ export function PdfGroupingEditor() {
               <AlertTriangle size={12} /> {suspiciousOnly ? 'Показать все' : `⚠ ${suspiciousPageCount} подозрительных`}
             </button>
           )}
-          <button onClick={handleSave} disabled={!dirty || applyMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors disabled:opacity-50">
-            {applyMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          <Button variant="filled" onClick={handleSave} disabled={!dirty} loading={applyMutation.isPending}
+            icon={<Save size={14} />}>
             Сохранить
-          </button>
+          </Button>
         </div>
       </div>
 

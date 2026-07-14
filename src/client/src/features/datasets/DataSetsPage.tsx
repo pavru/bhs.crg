@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Button } from '@/shared/ui/Button';
 import { Upload, Trash2, Database, RefreshCw, Download, Layers } from 'lucide-react';
 import { useListDataSetFiles, useUploadDataSetFile } from '@/shared/api/datasets';
 import type { DataSetFile } from '@/shared/api/types';
@@ -112,14 +113,10 @@ export function DataSetsPage() {
               className="hidden"
               onChange={handleFileInput}
             />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-md transition-colors disabled:opacity-40 bg-brand text-white"
-            >
-              <Upload size={14} />
-              {uploading ? 'Загрузка...' : 'Загрузить файл'}
-            </button>
+            <Button variant="filled" size="sm" onClick={() => fileInputRef.current?.click()}
+              loading={uploading} icon={<Upload size={14} />}>
+              {uploading ? 'Загрузка…' : 'Загрузить файл'}
+            </Button>
           </div>
         </div>
 
