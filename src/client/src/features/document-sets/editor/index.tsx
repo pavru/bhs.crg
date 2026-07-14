@@ -340,20 +340,28 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
             );
           }
 
-          // Label-above layout for simple fields (string, number, date, enum, boolean, primitive)
+          // Простые поля (string/number/date/enum/boolean/primitive). Редактируемые — MD3 floating-label
+          // (G1); привязанные к источнику (read-only, с бейджем) — оставляем label-сверху.
           return (
             <div key={field.key} className="col-span-1 min-w-0">
-              <label className="block text-[13px] font-medium text-fg2 mb-0.5 leading-tight">
-                {field.title}
-                {field.required && <span className="ml-0.5 text-danger">*</span>}
-                {primitiveDef && (
-                  <span className="ml-1 text-[10px] text-fg4 font-normal">· {primitiveDef.name}</span>
-                )}
-                {bound && <SourceBoundBadge onGoToDataTab={onGoToDataTab} />}
-              </label>
-              <PrimitiveInput field={field} value={displayValue}
-                onChange={v => setValue(field.key, v, primitiveDef)}
-                invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} readOnly={bound} />
+              {bound ? (
+                <>
+                  <label className="block text-[13px] font-medium text-fg2 mb-0.5 leading-tight">
+                    {field.title}
+                    {field.required && <span className="ml-0.5 text-danger">*</span>}
+                    {primitiveDef && <span className="ml-1 text-[10px] text-fg4 font-normal">· {primitiveDef.name}</span>}
+                    <SourceBoundBadge onGoToDataTab={onGoToDataTab} />
+                  </label>
+                  <PrimitiveInput field={field} value={displayValue}
+                    onChange={v => setValue(field.key, v, primitiveDef)}
+                    invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} readOnly />
+                </>
+              ) : (
+                <PrimitiveInput field={field} value={displayValue} label={field.title}
+                  hint={primitiveDef ? primitiveDef.name : undefined}
+                  onChange={v => setValue(field.key, v, primitiveDef)}
+                  invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} />
+              )}
               {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
               {missing && <p className="text-[11px] text-danger mt-0.5">Обязательное поле</p>}
               {!missing && constraintError && <p className="text-[11px] text-danger mt-0.5">{constraintError}</p>}

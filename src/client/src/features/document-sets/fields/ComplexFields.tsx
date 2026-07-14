@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { useCommonDataForScope } from '@/shared/api/commonData';
 import type {
   CatalogScope, DocumentInstance, DocumentType, FieldRef, PrimitiveTypeDef,
@@ -228,26 +229,14 @@ export function ArrayTableModal({
       extraWide
       footer={
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={addRow}
-              className="flex items-center gap-1.5 text-sm text-brand hover:text-brand-hover transition-colors">
-              <Plus size={13} /> Добавить строку
-            </button>
+          <div className="flex items-center gap-1">
+            <Button variant="text" size="sm" icon={<Plus size={13} />} onClick={addRow}>Добавить строку</Button>
             <span className="text-stroke-strong">·</span>
-            <button type="button" onClick={handlePasteClick}
-              className="flex items-center gap-1.5 text-sm text-fg3 hover:text-fg2 transition-colors">
-              <Clipboard size={13} /> Вставить из Excel
-            </button>
+            <Button variant="text" size="sm" icon={<Clipboard size={13} />} onClick={handlePasteClick}>Вставить из Excel</Button>
           </div>
-          <div className="flex gap-3">
-            <button type="button" onClick={() => onOpenChange(false)}
-              className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md transition-colors">
-              Отмена
-            </button>
-            <button type="button" onClick={handleSave}
-              className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors">
-              Применить
-            </button>
+          <div className="flex gap-2">
+            <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
+            <Button variant="filled" onClick={handleSave}>Применить</Button>
           </div>
         </div>
       }>
@@ -463,8 +452,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
           title={`${compositeType?.name ?? field.title} — строка ${rowModal + 1}`}
           footer={
             <div className="flex justify-end">
-              <button type="button" onClick={() => setRowModal(null)}
-                className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors">Готово</button>
+              <Button variant="filled" onClick={() => setRowModal(null)}>Готово</Button>
             </div>
           }>
           <div className="px-6 py-4 space-y-3">
@@ -474,7 +462,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               const invalid = showValidation && isMissing(sf, subVal);
               return (
                 <div key={sf.key}>
-                  {sf.type !== 'boolean' && (
+                  {['complex', 'array', 'doc-ref', 'doc-array', 'image', 'file'].includes(sf.type) && (
                     <label className="block text-sm font-medium text-fg2 mb-1">
                       {sf.title}{sf.required && <span className="ml-0.5 text-danger">*</span>}
                     </label>
@@ -500,7 +488,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                       onChange={v => updateRow(rowModal, { ...rowObj, [sf.key]: v })}
                       otherInstances={otherInstances} setId={setId} />
                   ) : (
-                    <PrimitiveInput field={sf} value={subVal}
+                    <PrimitiveInput field={sf} value={subVal} label={sf.title}
                       onChange={v => updateRow(rowModal, { ...rowObj, [sf.key]: v })} invalid={invalid}
                       primitiveTypeDef={primDef(sf)} />
                   )}
@@ -624,7 +612,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
         const invalid = showValidation && isMissing(sf, subVal);
         return (
           <div key={sf.key}>
-            {sf.type !== 'boolean' && (
+            {['complex', 'array', 'doc-ref', 'doc-array', 'image', 'file'].includes(sf.type) && (
               <label className="block text-sm font-medium text-fg2 mb-1">
                 {sf.title}
                 {sf.required && <span className="ml-0.5 text-danger">*</span>}
@@ -659,7 +647,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
                 setId={setId} otherInstances={otherInstances}
                 scope={scope} scopeId={scopeId} docRefMode={docRefMode} />
             ) : (
-              <PrimitiveInput field={sf} value={subVal} onChange={v => setSubValue(sf.key, v)} invalid={invalid}
+              <PrimitiveInput field={sf} value={subVal} label={sf.title} onChange={v => setSubValue(sf.key, v)} invalid={invalid}
                 primitiveTypeDef={primDef(sf)} />
             )}
             {invalid && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
@@ -702,8 +690,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
           title={compositeType ? `${compositeType.name}${field.title !== compositeType.name ? ` — ${field.title}` : ''}` : field.title}
           footer={
             <div className="flex justify-end">
-              <button type="button" onClick={() => setModalOpen(false)}
-                className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors">Готово</button>
+              <Button variant="filled" onClick={() => setModalOpen(false)}>Готово</Button>
             </div>
           }>
           <div className="px-6 py-4">{subfieldsBody}</div>
@@ -720,14 +707,12 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
       <div className="border border-dashed border-stroke rounded-lg px-3 py-3 bg-base/40">
         <div className="text-sm text-fg3 mb-2">{compositeType ? compositeType.name : 'Составной тип'}</div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => setPickerOpen(true)}
-            className="flex items-center gap-1.5 text-sm bg-brand hover:bg-brand-hover text-white px-3 py-1.5 rounded-md transition-colors">
-            <Link2 size={13} /> Выбрать из каталога
-          </button>
-          <button type="button" onClick={() => setCollapsed(false)}
-            className="flex items-center gap-1.5 text-sm text-fg2 hover:text-fg1 border border-stroke hover:border-fg4 px-3 py-1.5 rounded-md transition-colors">
-            <Pencil size={13} /> Заполнить вручную
-          </button>
+          <Button variant="tonal" size="sm" icon={<Link2 size={13} />} onClick={() => setPickerOpen(true)}>
+            Выбрать из каталога
+          </Button>
+          <Button variant="text" size="sm" icon={<Pencil size={13} />} onClick={() => setCollapsed(false)}>
+            Заполнить вручную
+          </Button>
         </div>
         {picker}
       </div>

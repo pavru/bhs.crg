@@ -213,7 +213,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
             return <div key={f.key}>{label}<ImageField value={v} onChange={x => setValue(f.key, x)} /></div>;
           if (f.type === 'file')
             return <div key={f.key}>{label}<FileField value={v} onChange={x => setValue(f.key, x ?? undefined)} /></div>;
-          return <div key={f.key}>{label}<PrimitiveInput field={f} value={v} onChange={x => setValue(f.key, x)} invalid={false} /></div>;
+          return <div key={f.key}><PrimitiveInput field={f} value={v} label={f.title} onChange={x => setValue(f.key, x)} invalid={false} /></div>;
         })}
       </div>
 

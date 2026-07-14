@@ -101,7 +101,7 @@ export function DataSetsPage() {
               className="hidden"
               onChange={handleFileInput}
             />
-            <Button variant="filled" size="sm" onClick={() => fileInputRef.current?.click()}
+            <Button variant="tonal" size="sm" onClick={() => fileInputRef.current?.click()}
               loading={uploading} icon={<Upload size={14} />}>
               {uploading ? 'Загрузка…' : 'Загрузить файл'}
             </Button>

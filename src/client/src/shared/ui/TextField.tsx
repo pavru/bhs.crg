@@ -11,6 +11,8 @@ import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'rea
 export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'placeholder'> {
   label: string;
   error?: string;
+  /** Красная рамка без сообщения (сообщение об ошибке рисует вызывающий код). */
+  invalid?: boolean;
   /** Вспомогательный текст под полем (напр. пример ввода) — скрывается при наличии error. */
   hint?: string;
   /** Правый адорнмент (например «глаз» пароля). */
@@ -19,15 +21,16 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
 }
 
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
-  { label, error, hint, trailing, className = '', containerClassName = '', id, required, ...rest },
+  { label, error, invalid, hint, trailing, className = '', containerClassName = '', id, required, ...rest },
   ref,
 ) {
   const autoId = useId();
   const inputId = id ?? autoId;
-  const border = error
+  const bad = !!error || invalid;
+  const border = bad
     ? 'border-danger focus:border-danger focus:ring-1 focus:ring-inset focus:ring-danger'
     : 'border-stroke-strong focus:border-brand focus:ring-1 focus:ring-inset focus:ring-brand';
-  const labelFocus = error ? 'peer-focus:text-danger' : 'peer-focus:text-brand';
+  const labelFocus = bad ? 'peer-focus:text-danger' : 'peer-focus:text-brand';
   return (
     <div className={containerClassName}>
       <div className="relative">
