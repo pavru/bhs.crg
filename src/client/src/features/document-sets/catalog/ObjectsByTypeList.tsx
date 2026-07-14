@@ -1,4 +1,5 @@
 import { Pencil, Trash2, Link2, FileText } from 'lucide-react';
+import { IconButton } from '@/shared/ui/Button';
 import type { CommonDataEntry, DocumentType } from '@/shared/api/types';
 
 // Общие презентационные части списка «объекты по типу» (issue #88) — устраняют дублирование между
@@ -67,14 +68,12 @@ export function ObjectRow({
         <span className="text-xs text-fg4 truncate max-w-xs hidden sm:block">{preview}</span>
       )}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
-        <button type="button" onClick={() => onEdit(entry)} title="Редактировать"
-          className={`rounded transition-colors ${dense ? 'p-1 text-stroke-strong hover:text-fg2' : 'p-1.5 text-fg4 hover:text-fg2'}`}>
+        <IconButton label="Редактировать" size="sm" onClick={() => onEdit(entry)}>
           <Pencil size={icon} />
-        </button>
-        <button type="button" onClick={() => onDelete(entry)} disabled={deleteDisabled} title="Удалить"
-          className={`rounded transition-colors disabled:opacity-30 ${dense ? 'p-1 text-stroke-strong hover:text-danger' : 'p-1.5 text-fg4 hover:text-danger'}`}>
+        </IconButton>
+        <IconButton label="Удалить" size="sm" danger onClick={() => onDelete(entry)} disabled={deleteDisabled}>
           <Trash2 size={icon} />
-        </button>
+        </IconButton>
       </div>
     </div>
   );

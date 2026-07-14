@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Database, Pencil, Trash2, Plus } from 'lucide-react';
+import { IconButton } from '@/shared/ui/Button';
 import {
   useListDataSetFiles, useAvailableDataSetFiles,
   useCreateDataSetBinding, useUpdateDataSetBinding, useDeleteDataSetBinding, useAutoMapDataSetSource,
@@ -163,13 +164,13 @@ function EntryBindingRow({
             {targetFieldKey && ` · таблица: ${targetFieldKey}`}
           </div>
         </div>
-        <button type="button" onClick={() => setEditing(e => !e)} className="p-1.5 rounded text-xs text-fg3" title="Редактировать маппинг">
+        <IconButton label="Редактировать маппинг" size="sm" onClick={() => setEditing(e => !e)}>
           <Pencil size={13} />
-        </button>
+        </IconButton>
         {!confirming ? (
-          <button type="button" onClick={() => setConfirming(true)} className="p-1.5 rounded text-fg4 hover:text-danger transition-colors" title="Удалить">
+          <IconButton label="Удалить" size="sm" danger onClick={() => setConfirming(true)}>
             <Trash2 size={13} />
-          </button>
+          </IconButton>
         ) : (
           <div className="flex items-center gap-1.5 text-xs">
             <button type="button" onClick={handleDelete} disabled={del.isPending} className="px-2 py-0.5 rounded text-white text-xs bg-danger">Да</button>
