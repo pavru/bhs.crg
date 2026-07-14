@@ -89,7 +89,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
           type="button"
           onClick={() => dismiss.mutate(n.id)}
           title="Удалить"
-          className="text-fg4 hover:text-danger opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+          className="text-fg4 hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity"
         >
           <X size={14} />
         </button>

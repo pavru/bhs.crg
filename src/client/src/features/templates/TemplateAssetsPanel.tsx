@@ -44,13 +44,13 @@ function AssetRow({ asset }: { asset: TemplateAssetDto }) {
       <button type="button" onClick={() => replaceInputRef.current?.click()}
         disabled={replaceMutation.isPending}
         title="Заменить файл"
-        className="p-1 text-fg4 hover:text-brand opacity-0 group-hover:opacity-100 transition-all shrink-0 disabled:opacity-30">
+        className="p-1 text-fg4 hover:text-brand opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all shrink-0 disabled:opacity-30">
         <RefreshCw size={12} />
       </button>
       <input ref={replaceInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleReplace} />
       <button type="button" onClick={() => setConfirmDelete(true)}
         title="Удалить"
-        className="p-1 text-fg4 hover:text-danger opacity-0 group-hover:opacity-100 transition-all shrink-0">
+        className="p-1 text-fg4 hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all shrink-0">
         <Trash2 size={12} />
       </button>
       <ConfirmDialog

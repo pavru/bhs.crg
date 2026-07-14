@@ -241,7 +241,7 @@ function SetDetail() {
                       <button
                         onClick={e => { e.stopPropagation(); setDeleteTarget(inst); }}
                         disabled={deleteMutation.isPending}
-                        className="p-1 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30"
+                        className="p-1 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all disabled:opacity-30"
                         title="Удалить документ">
                         <Trash2 size={14} />
                       </button>
@@ -495,10 +495,10 @@ function DocumentSetRow({ ds, section: _section, construction: _construction, on
         </button>
       )}
       <span className="text-xs text-fg4 shrink-0">{ds.instances?.length ?? 0} doc</span>
-      <button onClick={() => setEditing(true)} className="p-1 text-stroke-strong hover:text-fg2 opacity-0 group-hover:opacity-100 transition-all" title="Переименовать">
+      <button onClick={() => setEditing(true)} className="p-1 text-stroke-strong hover:text-fg2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all" title="Переименовать">
         <Pencil size={12} />
       </button>
-      <button onClick={onDelete} className="p-1 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 transition-all" title="Удалить">
+      <button onClick={onDelete} className="p-1 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all" title="Удалить">
         <Trash2 size={12} />
       </button>
       <ChevronRight size={13} className="text-stroke-strong shrink-0" />
@@ -733,7 +733,7 @@ function ConstructionsList() {
                   ) : (
                     <h3 className="text-base font-semibold text-fg1 flex-1">{c.name}</h3>
                   )}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
                     <button onClick={e => { e.stopPropagation(); setEditId(c.id); setEditName(c.name); }}
                       className="p-1.5 text-fg4 hover:text-fg2 rounded transition-colors" title="Переименовать">
                       <Pencil size={13} />

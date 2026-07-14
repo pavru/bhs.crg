@@ -196,13 +196,14 @@ export function QualityDocsPage() {
                 const open = openGroups.has(manuf);
                 return (
                   <Fragment key={manuf}>
-                    <tr className="bg-base/60 cursor-pointer select-none hover:bg-base" onClick={() => toggleGroup(manuf)}>
-                      <td colSpan={5} className="px-3 py-2">
-                        <span className="flex items-center gap-2 text-sm font-medium text-fg2">
+                    <tr className="bg-base/60 hover:bg-base">
+                      <td colSpan={5} className="p-0">
+                        <button type="button" onClick={() => toggleGroup(manuf)} aria-expanded={open}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-fg2 text-left select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand">
                           {open ? <ChevronDown size={14} className="text-fg4 shrink-0" /> : <ChevronRight size={14} className="text-fg4 shrink-0" />}
                           <span className="truncate">{manuf}</span>
                           <span className="text-xs text-fg4 font-normal">({items.length})</span>
-                        </span>
+                        </button>
                       </td>
                     </tr>
                     {open && items.map(d => (
@@ -220,7 +221,7 @@ export function QualityDocsPage() {
                             : <span className="text-fg4">—</span>}
                         </td>
                         <td className="px-4 py-2.5">
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                             <button onClick={() => setEditDoc(d)} className="p-1.5 text-fg4 hover:text-fg2 rounded" title="Редактировать">
                               <Pencil size={14} />
                             </button>

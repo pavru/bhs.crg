@@ -93,7 +93,7 @@ export function UsersPage() {
                       </select>
                     </td>
                     <td className="px-4 py-2.5">
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                         <button onClick={() => setResetFor(u)} title="Сбросить пароль"
                           className="p-1.5 text-fg4 hover:text-brand rounded"><KeyRound size={14} /></button>
                         <button onClick={() => setDeleteTarget(u)} disabled={isSelf || del.isPending}
