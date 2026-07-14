@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2, ShieldCheck, FileText, Search, Globe, ExternalLink, Download, Loader2, ChevronRight, ChevronDown } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
+import { Select, SelectItem } from '@/shared/ui/Select';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -168,11 +169,11 @@ export function QualityDocsPage() {
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по названию..."
             className="flex-1 py-2 text-sm bg-transparent focus:outline-none" />
         </div>
-        <select value={scopeFilter} onChange={e => setScopeFilter(e.target.value as 'all' | 'System')}
-          className="border border-stroke-strong rounded-md px-2 py-2 text-sm bg-surface text-fg1">
-          <option value="all">Все области</option>
-          <option value="System">Только общие (System)</option>
-        </select>
+        <Select value={scopeFilter} onValueChange={v => setScopeFilter(v as 'all' | 'System')}
+          aria-label="Область" className="w-48">
+          <SelectItem value="all">Все области</SelectItem>
+          <SelectItem value="System">Только общие (System)</SelectItem>
+        </Select>
       </div>
 
       <div className="border border-stroke rounded-lg overflow-hidden bg-surface">
