@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Clipboard, ChevronDown, ChevronUp, FileSpreadsheet, Link2, Plus, Trash2, Unlink, X,
+  Clipboard, ChevronDown, ChevronUp, FileSpreadsheet, Link2, Pencil, Plus, Trash2, Unlink, X,
 } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Modal } from '@/shared/ui/Modal';
@@ -436,7 +436,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                               onChange={v => updateRow(i, { ...row, [sf.key]: v })}
                               showValidation={showValidation} setId={setId}
                               otherInstances={otherInstances} scope={scope} scopeId={scopeId}
-                              docRefMode={docRefMode} />
+                              docRefMode={docRefMode} nested />
                           ) : sf.type === 'doc-ref' ? (
                             docRefMode === 'instance' ? (
                               <DocRefField field={sf} allDocTypes={allDocTypes} value={subVal}
@@ -490,9 +490,24 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
 
 // ─── Complex field group ──────────────────────────────────────────────────────
 
+/** Сводка первых заполненных полей объекта — для свёрнутого/строкового вида составного (issue #102). */
+export function objectSummary(values: Record<string, unknown>, fields: SchemaField[]): string {
+  const parts = fields
+    .map(f => {
+      const v = values[f.key];
+      if (v == null || v === '') return null;
+      if (isFieldRef(v)) return v.displayName;
+      if (typeof v === 'object') return null; // вложенные объекты/массивы — не в сводку
+      return String(v);
+    })
+    .filter((s): s is string => !!s)
+    .slice(0, 3);
+  return parts.length ? parts.join(' · ') : '(пусто)';
+}
+
 export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showValidation,
   setId, otherInstances = [],
-  scope, scopeId, docRefMode = 'catalog',
+  scope, scopeId, docRefMode = 'catalog', nested = false,
 }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
   onChange: (val: Record<string, unknown> | FieldRef) => void;
@@ -500,9 +515,12 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   setId?: string; otherInstances?: DocumentInstance[];
   scope?: CatalogScope; scopeId?: string | null;
   docRefMode?: 'catalog' | 'instance';
+  // issue #102: вложенное составное (глубина ≥1) правится в МОДАЛКЕ, а не инлайн — защита от «портянки»/матрёшки.
+  nested?: boolean;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
 
@@ -528,85 +546,131 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
     ? value : {}) as Record<string, unknown>;
   const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes) : [];
   const primDef = (f: SchemaField) => f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
+  const isEmpty = subFields.every(f => { const v = subValues[f.key]; return v == null || v === ''; });
 
   function setSubValue(key: string, val: unknown) {
     onChange({ ...subValues, [key]: val });
   }
 
+  // Тело редактора подполей. Вложенные complex → nested (модалка), массивы → ArrayFieldEditor.
+  const subfieldsBody = (
+    <div className="space-y-3">
+      {subFields.length === 0 ? (
+        <p className="text-xs text-fg4">Поля не заданы</p>
+      ) : subFields.map(sf => {
+        const subVal = subValues[sf.key];
+        const invalid = showValidation && isMissing(sf, subVal);
+        return (
+          <div key={sf.key}>
+            {sf.type !== 'boolean' && (
+              <label className="block text-sm font-medium text-fg2 mb-1">
+                {sf.title}
+                {sf.required && <span className="ml-0.5 text-danger">*</span>}
+              </label>
+            )}
+            {sf.type === 'complex' ? (
+              <ComplexFieldGroup field={sf} allDocTypes={allDocTypes} value={subVal}
+                onChange={v => setSubValue(sf.key, v)} showValidation={showValidation}
+                setId={setId} otherInstances={otherInstances}
+                scope={scope} scopeId={scopeId} docRefMode={docRefMode} nested />
+            ) : sf.type === 'doc-ref' ? (
+              docRefMode === 'instance' ? (
+                <DocRefField field={sf} allDocTypes={allDocTypes} value={subVal}
+                  onChange={v => setSubValue(sf.key, v ?? undefined)}
+                  otherInstances={otherInstances} setId={setId} />
+              ) : (
+                <DocRefCatalogPickerField field={sf} allDocTypes={allDocTypes} value={subVal}
+                  onChange={v => setSubValue(sf.key, v ?? undefined)}
+                  setId={setId} scope={scope ?? 'System'} scopeId={scopeId ?? null} />
+              )
+            ) : sf.type === 'doc-array' && docRefMode === 'instance' ? (
+              <DocArrayField field={sf} allDocTypes={allDocTypes} value={subVal}
+                onChange={v => setSubValue(sf.key, v)}
+                otherInstances={otherInstances} setId={setId} />
+            ) : sf.type === 'image' ? (
+              <ImageField value={subVal} onChange={v => setSubValue(sf.key, v)} />
+            ) : sf.type === 'file' ? (
+              <FileField value={subVal} onChange={v => setSubValue(sf.key, v ?? undefined)} />
+            ) : sf.type === 'array' ? (
+              <ArrayFieldEditor field={sf} allDocTypes={allDocTypes} value={subVal}
+                onChange={v => setSubValue(sf.key, v)} showValidation={showValidation}
+                setId={setId} otherInstances={otherInstances}
+                scope={scope} scopeId={scopeId} docRefMode={docRefMode} />
+            ) : (
+              <PrimitiveInput field={sf} value={subVal} onChange={v => setSubValue(sf.key, v)} invalid={invalid}
+                primitiveTypeDef={primDef(sf)} />
+            )}
+            {invalid && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const picker = (
+    <RefPickerModal
+      open={pickerOpen} onOpenChange={setPickerOpen}
+      compositeType={compositeType}
+      setId={setId} scope={scope} scopeId={scopeId}
+      otherInstances={otherInstances}
+      allDocTypes={allDocTypes}
+      onSelect={ref => onChange(ref)}
+    />
+  );
+
+  // Вложенное составное (глубина ≥1): строка-сводка + правка в модалке — глубина формы не растёт.
+  if (nested) {
+    return (
+      <>
+        <div className="flex items-center gap-2 border border-stroke rounded-lg px-3 py-2 bg-base">
+          <button type="button" onClick={() => setModalOpen(true)}
+            className="flex-1 min-w-0 text-left text-sm text-fg2 hover:text-fg1 truncate">
+            {isEmpty ? <span className="text-fg4">Заполнить…</span> : objectSummary(subValues, subFields)}
+          </button>
+          <button type="button" onClick={() => setPickerOpen(true)}
+            className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover px-2 py-0.5 rounded hover:bg-brand-subtle transition-colors shrink-0">
+            <Link2 size={11} /> Из каталога
+          </button>
+          <button type="button" onClick={() => setModalOpen(true)} title="Редактировать"
+            className="p-1 text-fg4 hover:text-fg2 transition-colors shrink-0">
+            <Pencil size={13} />
+          </button>
+        </div>
+        <Modal open={modalOpen} onOpenChange={setModalOpen} wide
+          title={compositeType ? `${compositeType.name}${field.title !== compositeType.name ? ` — ${field.title}` : ''}` : field.title}
+          footer={
+            <div className="flex justify-end">
+              <button type="button" onClick={() => setModalOpen(false)}
+                className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors">Готово</button>
+            </div>
+          }>
+          <div className="px-6 py-4">{subfieldsBody}</div>
+        </Modal>
+        {picker}
+      </>
+    );
+  }
+
+  // Верхний уровень (инлайн, глубина 0): свёрнуто по умолчанию, заголовок — сводка значений (не «Тип (код)»).
   return (
     <div className="border border-stroke rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 bg-base border-b border-stroke">
+      <div className={`flex items-center justify-between px-3 py-2 bg-base ${collapsed ? '' : 'border-b border-stroke'}`}>
         <button type="button" onClick={() => setCollapsed(v => !v)}
-          className="flex items-center gap-1.5 text-xs font-medium text-fg3 hover:text-fg2 transition-colors">
-          {collapsed ? <ChevronDown size={12} className="shrink-0" /> : <ChevronUp size={12} className="shrink-0" />}
-          {compositeType ? `${compositeType.name} (${compositeType.code})` : 'Составной тип'}
+          className="flex items-center gap-1.5 min-w-0 text-sm font-medium text-fg2 hover:text-fg1 transition-colors">
+          {collapsed ? <ChevronDown size={12} className="shrink-0 text-fg4" /> : <ChevronUp size={12} className="shrink-0 text-fg4" />}
+          <span className="truncate">
+            {isEmpty
+              ? <span className="text-fg4 font-normal">{compositeType ? compositeType.name : 'Составной тип'}</span>
+              : objectSummary(subValues, subFields)}
+          </span>
         </button>
         <button type="button" onClick={() => setPickerOpen(true)}
-          className="flex items-center gap-1.5 text-xs text-brand hover:text-brand-hover px-2 py-0.5 rounded hover:bg-brand-subtle transition-colors">
+          className="flex items-center gap-1.5 text-xs text-brand hover:text-brand-hover px-2 py-0.5 rounded hover:bg-brand-subtle transition-colors shrink-0">
           <Link2 size={11} /> Выбрать из каталога
         </button>
       </div>
-      {!collapsed && (
-        <div className="px-3 py-3 space-y-3">
-          {subFields.length === 0 ? (
-            <p className="text-xs text-fg4">Поля не заданы</p>
-          ) : subFields.map(sf => {
-            const subVal = subValues[sf.key];
-            const invalid = showValidation && isMissing(sf, subVal);
-            return (
-              <div key={sf.key}>
-                {sf.type !== 'boolean' && (
-                  <label className="block text-sm font-medium text-fg2 mb-1">
-                    {sf.title}
-                    {sf.required && <span className="ml-0.5 text-danger">*</span>}
-                  </label>
-                )}
-                {sf.type === 'complex' ? (
-                  <ComplexFieldGroup field={sf} allDocTypes={allDocTypes} value={subVal}
-                    onChange={v => setSubValue(sf.key, v)} showValidation={showValidation}
-                    setId={setId} otherInstances={otherInstances}
-                    scope={scope} scopeId={scopeId} docRefMode={docRefMode} />
-                ) : sf.type === 'doc-ref' ? (
-                  docRefMode === 'instance' ? (
-                    <DocRefField field={sf} allDocTypes={allDocTypes} value={subVal}
-                      onChange={v => setSubValue(sf.key, v ?? undefined)}
-                      otherInstances={otherInstances} setId={setId} />
-                  ) : (
-                    <DocRefCatalogPickerField field={sf} allDocTypes={allDocTypes} value={subVal}
-                      onChange={v => setSubValue(sf.key, v ?? undefined)}
-                      setId={setId} scope={scope ?? 'System'} scopeId={scopeId ?? null} />
-                  )
-                ) : sf.type === 'doc-array' && docRefMode === 'instance' ? (
-                  <DocArrayField field={sf} allDocTypes={allDocTypes} value={subVal}
-                    onChange={v => setSubValue(sf.key, v)}
-                    otherInstances={otherInstances} setId={setId} />
-                ) : sf.type === 'image' ? (
-                  <ImageField value={subVal} onChange={v => setSubValue(sf.key, v)} />
-                ) : sf.type === 'file' ? (
-                  <FileField value={subVal} onChange={v => setSubValue(sf.key, v ?? undefined)} />
-                ) : sf.type === 'array' ? (
-                  <ArrayFieldEditor field={sf} allDocTypes={allDocTypes} value={subVal}
-                    onChange={v => setSubValue(sf.key, v)} showValidation={showValidation}
-                    setId={setId} otherInstances={otherInstances}
-                    scope={scope} scopeId={scopeId} docRefMode={docRefMode} />
-                ) : (
-                  <PrimitiveInput field={sf} value={subVal} onChange={v => setSubValue(sf.key, v)} invalid={invalid}
-                    primitiveTypeDef={primDef(sf)} />
-                )}
-                {invalid && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
-              </div>
-            );
-          })}
-        </div>
-      )}
-      <RefPickerModal
-        open={pickerOpen} onOpenChange={setPickerOpen}
-        compositeType={compositeType}
-        setId={setId} scope={scope} scopeId={scopeId}
-        otherInstances={otherInstances}
-        allDocTypes={allDocTypes}
-        onSelect={ref => onChange(ref)}
-      />
+      {!collapsed && <div className="px-3 py-3">{subfieldsBody}</div>}
+      {picker}
     </div>
   );
 }
