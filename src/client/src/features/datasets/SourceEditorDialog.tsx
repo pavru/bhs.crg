@@ -3,6 +3,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { TextField } from '@/shared/ui/TextField';
 import { useCreateDataSetSource, useUpdateDataSetSource, useListZipXmlEntries, useSourceCandidates } from '@/shared/api/datasets';
 import { XPathBuilder } from './xpath/XPathBuilder';
 import { JsonPathBuilder } from './jsonpath/JsonPathBuilder';
@@ -150,12 +151,8 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
         </div>
       }>
       <div className="space-y-4 min-w-[520px]">
-        <div>
-          <label className="block text-sm font-medium text-fg1 mb-1">Название</label>
-          <input value={name} onChange={e => setName(e.target.value)}
-            placeholder={tabular ? 'Позиции спецификации' : 'Позиции спецификации'}
-            className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm" />
-        </div>
+        <TextField label="Название" value={name} onChange={e => setName(e.target.value)}
+          hint="Позиции спецификации" />
 
         {isPdf ? (
           <div>

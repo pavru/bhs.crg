@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Download, Upload, CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { TextField } from '@/shared/ui/TextField';
 import { downloadBackup, restoreBackup } from '@/shared/api/backup';
 import type { RestoreReport } from '@/shared/api/types';
 import {
@@ -344,17 +345,12 @@ export function SettingsPage() {
       <form onSubmit={handleSave}>
         <CollapsibleSection title="Шаблоны" storageKey="templates">
           <div>
-            <label className="block text-sm font-medium text-fg2 mb-1">
-              Максимум версий шаблона
-            </label>
             <p className="text-xs text-fg3 mb-2">
               При превышении система предложит удалить старые версии. Минимум — 2.
             </p>
-            <input
+            <TextField containerClassName="w-40" label="Максимум версий шаблона"
               type="number" min={2} max={100} value={input}
-              onChange={e => { setInput(e.target.value); setSaved(false); }}
-              className="w-28 border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
-            />
+              onChange={e => { setInput(e.target.value); setSaved(false); }} />
           </div>
           <div className="flex items-center gap-3">
             <Button type="submit" variant="filled">Сохранить</Button>

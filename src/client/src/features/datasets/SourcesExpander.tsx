@@ -14,6 +14,7 @@ import {
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { TextField } from '@/shared/ui/TextField';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
 import { SourceEditorDialog } from './SourceEditorDialog';
 import { MaterializationDialog } from './MaterializationDialog';
@@ -52,10 +53,8 @@ function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
         Row-selector/колонки (Extraction) и текущие Filter/Transformation/Sort источника
         станут переиспользуемым шаблоном — копия, не живая ссылка.
       </p>
-      <input value={name} onChange={e => setName(e.target.value)} autoFocus
-        onKeyDown={e => { if (e.key === 'Enter' && canSave) onSave(name.trim()); }}
-        placeholder="Название шаблона"
-        className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-base text-sm" />
+      <TextField label="Название шаблона" value={name} onChange={e => setName(e.target.value)} autoFocus
+        onKeyDown={e => { if (e.key === 'Enter' && canSave) onSave(name.trim()); }} />
     </Modal>
   );
 }
@@ -221,10 +220,8 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
             </div>
           }>
           <div className="min-w-[380px]">
-            <label className="block text-sm font-medium text-fg1 mb-1">Название</label>
-            <input value={renameVal} onChange={e => setRenameVal(e.target.value)} autoFocus
-              onKeyDown={e => { if (e.key === 'Enter' && renameVal.trim()) renameMutation.mutateAsync({ id: src.id, name: renameVal.trim() }).then(() => setRenaming(false)); }}
-              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm" />
+            <TextField label="Название" value={renameVal} onChange={e => setRenameVal(e.target.value)} autoFocus
+              onKeyDown={e => { if (e.key === 'Enter' && renameVal.trim()) renameMutation.mutateAsync({ id: src.id, name: renameVal.trim() }).then(() => setRenaming(false)); }} />
           </div>
         </Modal>
       )}
