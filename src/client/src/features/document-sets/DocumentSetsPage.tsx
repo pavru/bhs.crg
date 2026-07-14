@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import {
   Plus, Trash2, ChevronRight, Download, Pencil, ChevronDown, ChevronUp, FolderOpen, Eye,
-  ArrowUp, ArrowDown, Layers, Building2, Search, X, Mail,
+  ArrowUp, ArrowDown, Layers, Building2, FileText, Search, X, Mail,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -169,7 +169,9 @@ function SetDetail() {
 
       <div className="bg-surface border border-stroke rounded-xl overflow-hidden">
         {set.instances.length === 0 ? (
-          <div className="p-10 text-center text-fg4 text-sm">Документов нет</div>
+          <EmptyState className="m-4 border-0" icon={<FileText size={30} />} title="В комплекте пока нет документов"
+            description="Добавьте документ нужного типа — заполните реквизиты и сгенерируйте PDF."
+            action={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>} />
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-base border-b border-stroke">

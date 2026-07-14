@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2, ShieldCheck, FileText, Search, Globe, ExternalLin
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -180,7 +181,9 @@ export function QualityDocsPage() {
         {isLoading ? (
           <p className="text-sm text-fg4 text-center py-8">Загрузка...</p>
         ) : docs.length === 0 ? (
-          <p className="text-sm text-fg4 text-center py-8">Документов нет. Добавьте первый — можно загрузить скан и распознать реквизиты.</p>
+          <EmptyState className="m-4 border-0" icon={<ShieldCheck size={30} />} title="Документов качества пока нет"
+            description="Добавьте первый документ — можно загрузить скан и распознать реквизиты, либо найти в интернете."
+            action={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>Добавить документ</Button>} />
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-base border-b border-stroke">
