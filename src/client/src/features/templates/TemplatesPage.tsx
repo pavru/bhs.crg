@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Library } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -52,12 +53,11 @@ function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose, onCrea
         </p>
         {error && <p className="text-sm text-danger">{error}</p>}
       </div>
-      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-3">
-        <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-        <button type="submit" disabled={mutation.isPending}
-          className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-          {mutation.isPending ? 'Создание...' : 'Создать'}
-        </button>
+      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-2">
+        <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
+        <Button type="submit" variant="filled" loading={mutation.isPending}>
+          {mutation.isPending ? 'Создание…' : 'Создать'}
+        </Button>
       </div>
     </form>
   );

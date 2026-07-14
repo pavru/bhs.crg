@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
+import { Button } from '@/shared/ui/Button';
 import { Save } from 'lucide-react';
 import { useTypstUserLib, useSaveTypstUserLib } from '@/shared/api/typstUserLib';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
@@ -40,10 +41,10 @@ export function UserLibPanel() {
         <div className="flex items-center gap-2">
           {savedMsg && <span className="text-xs text-success">Сохранено</span>}
           {error && <span className="text-xs text-danger max-w-xs truncate">{error}</span>}
-          <button onClick={handleSave} disabled={saveMutation.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand hover:bg-brand-hover text-white rounded-md transition-colors disabled:opacity-50">
-            <Save size={12} /> {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
-          </button>
+          <Button variant="filled" size="sm" onClick={handleSave} loading={saveMutation.isPending}
+            icon={<Save size={12} />}>
+            {saveMutation.isPending ? 'Сохранение…' : 'Сохранить'}
+          </Button>
         </div>
       </div>
       <div className="flex-1 overflow-hidden">

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
+import { Button } from '@/shared/ui/Button';
 import { BookOpen, Save, Star, CheckCircle } from 'lucide-react';
 import type { Template, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields } from '@/shared/api/schema';
@@ -223,11 +224,10 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
           )}
           {savedMsg && <span className="text-xs text-success">Сохранено ✓</span>}
           {error && <span className="text-xs text-danger max-w-xs truncate">{error}</span>}
-          <button onClick={handleSave} disabled={saving}
-            title="Сохранить (Ctrl+S)"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-brand hover:bg-brand-hover text-white rounded-md transition-colors disabled:opacity-50">
-            <Save size={12} /> {saving ? 'Сохранение...' : 'Сохранить'}
-          </button>
+          <Button variant="filled" size="sm" onClick={handleSave} loading={saving}
+            icon={<Save size={12} />} title="Сохранить (Ctrl+S)">
+            {saving ? 'Сохранение…' : 'Сохранить'}
+          </Button>
         </div>
       </div>
 
