@@ -68,7 +68,7 @@ export function FilePreviewModal({ open, onOpenChange, attachment }: {
           <FileSpreadsheet size={48} className="text-success" />
           <p className="text-sm text-fg3">Предпросмотр недоступен для этого формата.</p>
           <a href={objectUrl} download={attachment.fileName}
-            className="flex items-center gap-2 px-4 py-2 bg-brand hover:bg-brand-hover text-white text-sm rounded-md transition-colors">
+            className="inline-flex items-center gap-2 h-9 px-4 bg-brand hover:bg-brand-hover active:bg-brand-pressed text-on-brand text-sm font-medium rounded-full shadow-[var(--f-shadow4)] transition-colors">
             <Download size={14} /> Скачать
           </a>
         </div>

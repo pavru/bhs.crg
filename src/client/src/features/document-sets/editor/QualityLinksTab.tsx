@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { usePreviewDataSetBindings } from '@/shared/api/datasets';
 import {
@@ -202,10 +203,9 @@ function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, materials
                     : queryTokens.length > 0 ? 'По материалу в библиотеке ничего не найдено.'
                     : 'Нет подходящих (непросроченных) документов.'}
                 </p>
-                <button onClick={enterSearch}
-                  className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md">
-                  <Globe size={14} /> Искать в интернете
-                </button>
+                <Button variant="filled" size="sm" onClick={enterSearch} icon={<Globe size={14} />}>
+                  Искать в интернете
+                </Button>
               </div>
             ) : (
               <div className="max-h-80 overflow-y-auto divide-y divide-muted border border-stroke rounded-md">
@@ -244,10 +244,10 @@ function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, materials
                 onKeyDown={e => { if (e.key === 'Enter') void runSearch(); }}
                 placeholder="строка поиска" className="flex-1 py-2 text-sm bg-transparent focus:outline-none" />
             </div>
-            <button onClick={() => runSearch()} disabled={searching || !query.trim()}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-              {searching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />} Найти
-            </button>
+            <Button variant="filled" size="sm" onClick={() => runSearch()} loading={searching}
+              disabled={!query.trim()} icon={<Search size={14} />}>
+              Найти
+            </Button>
           </div>
           {searchError && <p className="text-sm text-danger">{searchError}</p>}
           {results && results.length === 0 && <p className="text-sm text-fg4 py-3 text-center">Ничего не найдено.</p>}
@@ -263,11 +263,11 @@ function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, materials
                     </a>
                     {c.snippet && <p className="text-xs text-fg4 line-clamp-2">{c.snippet}</p>}
                   </div>
-                  <button onClick={() => importAndLink(c)} disabled={importingUrl !== null}
-                    className="flex items-center gap-1 px-2 py-1 text-xs bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50 shrink-0">
-                    {importingUrl === c.url ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                  <Button variant="filled" size="sm" onClick={() => importAndLink(c)}
+                    loading={importingUrl === c.url} disabled={importingUrl !== null}
+                    icon={<Download size={12} />} className="shrink-0">
                     В библиотеку
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
@@ -510,7 +510,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
                               {suggestion.doc.displayName}
                             </button>
                             <button onClick={() => void acceptSuggestion(m, suggestion.doc.id)} title="Привязать предложенный документ"
-                              className="flex items-center gap-1 px-1.5 py-0.5 text-xs bg-brand hover:bg-brand-hover text-white rounded">
+                              className="flex items-center gap-1 px-1.5 py-0.5 text-xs bg-brand hover:bg-brand-hover text-on-brand rounded-full">
                               <Check size={12} /> привязать
                             </button>
                           </span>
@@ -526,10 +526,10 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       )}
 
       <div className="flex items-center gap-3">
-        <button onClick={() => setPickerOpen(true)} disabled={selected.size === 0}
-          className="flex items-center gap-2 px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-          <Link2 size={14} /> Связать выбранные ({selected.size})
-        </button>
+        <Button variant="filled" onClick={() => setPickerOpen(true)} disabled={selected.size === 0}
+          icon={<Link2 size={14} />}>
+          Связать выбранные ({selected.size})
+        </Button>
         <button onClick={() => void acceptAllSuggestions()} disabled={suggestCount === 0 || setLinks.isPending}
           title="Привязать все предложенные из библиотеки документы"
           className="flex items-center gap-2 px-4 py-2 text-sm bg-brand-subtle text-brand rounded-md hover:bg-brand/15 disabled:opacity-50">
@@ -567,11 +567,11 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
         title="Предложенные связи" wide
         footer={
           <div className="flex items-center gap-2">
-            <button onClick={applySuggestions} disabled={suggestSel.size === 0 || setLinks.isPending}
-              className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
+            <Button variant="filled" onClick={applySuggestions} loading={setLinks.isPending}
+              disabled={suggestSel.size === 0}>
               {setLinks.isPending ? 'Применение...' : `Применить выбранные (${suggestSel.size})`}
-            </button>
-            <button onClick={() => setSuggestions(null)} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
+            </Button>
+            <Button variant="text" onClick={() => setSuggestions(null)}>Отмена</Button>
           </div>
         }>
         {suggestions && suggestions.length === 0 ? (

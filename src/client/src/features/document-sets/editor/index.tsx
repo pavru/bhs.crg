@@ -632,23 +632,21 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
       )}
 
       <div className="flex gap-3">
-        <button onClick={() => handleGenerate()} disabled={mutation.isPending || noTemplates}
-          className="flex items-center gap-2 px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors disabled:opacity-50">
-          {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+        <Button variant="filled" onClick={() => handleGenerate()} disabled={noTemplates}
+          loading={mutation.isPending} icon={<FileText size={14} />}>
           Сгенерировать PDF
-        </button>
-        <button onClick={handleValidate} disabled={validating}
+        </Button>
+        <Button variant="outlined" onClick={handleValidate} loading={validating}
           title="Проверить разрешение ссылок (каталог, наборы данных) без генерации"
-          className="flex items-center gap-2 px-4 py-2 text-sm border border-stroke rounded-md hover:bg-base transition-colors disabled:opacity-50">
-          {validating ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} className="text-fg3" />}
+          icon={<ShieldCheck size={14} />}>
           Проверить ссылки
-        </button>
-        <button onClick={handleDebugBundle} disabled={debugBusy || noTemplates}
+        </Button>
+        <Button variant="outlined" onClick={handleDebugBundle} disabled={debugBusy || noTemplates}
+          loading={debugBusy}
           title="Скачать ZIP с template.typ, data.json, typeblocks.typ и userlib.typ для отладки во внешнем инструменте (typst compile template.typ)"
-          className="flex items-center gap-2 px-4 py-2 text-sm border border-stroke rounded-md hover:bg-base transition-colors disabled:opacity-50">
-          {debugBusy ? <Loader2 size={14} className="animate-spin" /> : <Bug size={14} className="text-fg3" />}
+          icon={<Bug size={14} />}>
           Отладочный пакет
-        </button>
+        </Button>
       </div>
       {(mutation.isPending || instance.status === 'Generating') && (
         <p className="flex items-center gap-2 text-xs text-fg4">
@@ -912,18 +910,15 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           title="Документ не сохранён"
           footer={
             <div className="flex gap-2 justify-end flex-wrap">
-              <button onClick={() => setPendingTab(null)} disabled={switching}
-                className="px-3 py-1.5 text-sm rounded-md border border-stroke text-fg2 hover:bg-muted transition-colors disabled:opacity-50">
+              <Button variant="text" size="sm" onClick={() => setPendingTab(null)} disabled={switching}>
                 Отмена
-              </button>
-              <button onClick={() => switchTo(pendingTab)} disabled={switching}
-                className="px-3 py-1.5 text-sm rounded-md text-danger hover:bg-danger-subtle transition-colors disabled:opacity-50">
+              </Button>
+              <Button variant="text" size="sm" danger onClick={() => switchTo(pendingTab)} disabled={switching}>
                 Не сохранять
-              </button>
-              <button onClick={saveThenSwitch} disabled={switching}
-                className="px-3 py-1.5 text-sm rounded-md bg-brand hover:bg-brand-hover text-white transition-colors disabled:opacity-50">
+              </Button>
+              <Button variant="filled" size="sm" onClick={saveThenSwitch} loading={switching}>
                 {switching ? 'Сохранение...' : 'Сохранить'}
-              </button>
+              </Button>
             </div>
           }>
           <p className="text-xs text-fg3">

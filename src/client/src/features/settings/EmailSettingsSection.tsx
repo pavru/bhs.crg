@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Mail, Send, CheckCircle, XCircle, AlertTriangle, PlugZap } from 'lucide-react';
+import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import {
   useIntegrationSettings, useSaveSmtp, useTestEmail, useTestSmtpConnection, useEmailUserStatus,
@@ -96,16 +97,14 @@ export function EmailSettingsSection() {
       </label>
 
       <div className="flex items-center gap-3 flex-wrap">
-        <button type="button" onClick={handleSave} disabled={saveSmtp.isPending}
-          className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors disabled:opacity-50">
+        <Button variant="filled" onClick={handleSave} loading={saveSmtp.isPending}>
           {saveSmtp.isPending ? 'Сохранение...' : 'Сохранить'}
-        </button>
-        <button type="button" onClick={handleTestConnection} disabled={testConn.isPending || !form.host}
+        </Button>
+        <Button variant="outlined" onClick={handleTestConnection} disabled={testConn.isPending || !form.host}
           title="Проверить соединение и аутентификацию по введённым значениям (письмо не отправляется)"
-          className="flex items-center gap-2 px-3 py-2 text-sm border border-stroke-strong hover:bg-base rounded-md transition-colors disabled:opacity-50">
-          <PlugZap size={14} className="text-fg3" />
+          icon={<PlugZap size={14} />}>
           {testConn.isPending ? 'Проверка...' : 'Проверить подключение'}
-        </button>
+        </Button>
         {saved && <span className="text-sm text-success">Сохранено</span>}
         {saveError && <span className="text-sm text-danger flex items-center gap-1"><XCircle size={14} /> {saveError}</span>}
         {connResult && (connResult.ok

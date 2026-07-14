@@ -4,6 +4,7 @@ import Editor from '@monaco-editor/react';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { Plus, Trash2, Maximize2 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import type { DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields, type SchemaField, type TypstRender } from '@/shared/api/schema';
 // ─── Typst it-field autocomplete ──────────────────────────────────────────────
@@ -111,14 +112,8 @@ function TypstBlockDialog({ render, onSave, onClose }: {
       isDirty={isDirty}
       footer={
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose}
-            className="px-4 py-2 text-sm text-fg2 hover:text-fg1 border border-stroke-strong rounded-md transition-colors">
-            Отмена
-          </button>
-          <button type="button" onClick={() => { onSave(draft); onClose(); }}
-            className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors">
-            Применить
-          </button>
+          <Button variant="text" onClick={onClose}>Отмена</Button>
+          <Button variant="filled" onClick={() => { onSave(draft); onClose(); }}>Применить</Button>
         </div>
       }
     >

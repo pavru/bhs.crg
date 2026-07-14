@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { useRecipients } from '@/shared/api/subscriptions';
 import { apiError } from '@/shared/utils/apiError';
 
@@ -64,12 +65,11 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
     <Modal open={open} onOpenChange={o => { if (!o) { onClose(); setQueued(false); setError(''); } }} title={`Отправить: ${itemName}`}
       footer={
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Закрыть</button>
-          <button type="button" onClick={handleSend} disabled={sending || queued || !ready || to.length === 0}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-            {sending ? <Loader2 size={14} className="animate-spin" /> : null}
+          <Button variant="text" onClick={onClose}>Закрыть</Button>
+          <Button variant="filled" onClick={handleSend} loading={sending}
+            disabled={queued || !ready || to.length === 0}>
             Отправить ({to.length})
-          </button>
+          </Button>
         </div>
       }>
       <div className="space-y-4">
