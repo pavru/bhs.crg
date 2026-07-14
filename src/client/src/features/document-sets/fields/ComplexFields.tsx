@@ -252,8 +252,14 @@ export function ArrayTableModal({
                   <span className="flex items-center px-2 text-left text-xs font-semibold text-fg2 truncate" style={{ height: 28 }}>
                     {f.title}{f.required && <span className="text-danger ml-0.5">*</span>}
                   </span>
-                  <div onMouseDown={e => startResize(e, f.key, getW(f))}
-                    className="hover:bg-brand-subtle/40 transition-colors"
+                  <div role="separator" aria-orientation="vertical" tabIndex={0}
+                    aria-label={`Ширина колонки «${f.title}» — стрелки ←→`}
+                    onMouseDown={e => startResize(e, f.key, getW(f))}
+                    onKeyDown={e => {
+                      if (e.key === 'ArrowLeft') { e.preventDefault(); setColWidths(p => ({ ...p, [f.key]: Math.max(44, getW(f) - 16) })); }
+                      else if (e.key === 'ArrowRight') { e.preventDefault(); setColWidths(p => ({ ...p, [f.key]: getW(f) + 16 })); }
+                    }}
+                    className="hover:bg-brand-subtle/40 focus-visible:bg-brand focus-visible:outline-none transition-colors"
                     style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 5, cursor: 'col-resize', zIndex: 1 }} />
                 </th>
               ))}
