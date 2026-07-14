@@ -5,7 +5,7 @@ import {
   ArrowUp, ArrowDown, Layers, Search, X, Mail,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -220,11 +220,10 @@ function SetDetail() {
                               title="Открыть PDF">
                               <Eye size={11} /> PDF
                             </button>
-                            <button onClick={() => downloadGeneratedFile(inst.id, pdfFiles[0].templateId)}
-                              className="p-1 text-fg4 hover:text-brand transition-colors"
-                              title="Скачать PDF">
-                              <Download size={12} />
-                            </button>
+                            <IconButton label="Скачать PDF" size="sm"
+                              onClick={() => downloadGeneratedFile(inst.id, pdfFiles[0].templateId)}>
+                              <Download size={13} />
+                            </IconButton>
                           </>
                         )}
                         {pdfFiles.length > 1 && (
@@ -237,13 +236,12 @@ function SetDetail() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
+                      <IconButton label="Удалить документ" size="sm" danger
                         onClick={e => { e.stopPropagation(); setDeleteTarget(inst); }}
                         disabled={deleteMutation.isPending}
-                        className="p-1 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all disabled:opacity-30"
-                        title="Удалить документ">
+                        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                         <Trash2 size={14} />
-                      </button>
+                      </IconButton>
                     </td>
                   </tr>
                 );
@@ -377,13 +375,12 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
             {ruCount(section.documentSets.length, 'комплект', 'комплекта', 'комплектов')}
           </span>
         </button>
-        <button onClick={() => setEditName(true)} className="p-1 text-stroke-strong hover:text-fg2 transition-colors" title="Переименовать">
+        <IconButton label="Переименовать" size="sm" onClick={() => setEditName(true)}>
           <Pencil size={13} />
-        </button>
-        <button onClick={() => setDeleteSectionConfirm(true)}
-          className="p-1 text-stroke-strong hover:text-danger transition-colors" title="Удалить раздел">
+        </IconButton>
+        <IconButton label="Удалить раздел" size="sm" danger onClick={() => setDeleteSectionConfirm(true)}>
           <Trash2 size={13} />
-        </button>
+        </IconButton>
       </div>
 
       {expanded && (
@@ -491,12 +488,14 @@ function DocumentSetRow({ ds, section: _section, construction: _construction, on
         </button>
       )}
       <span className="text-xs text-fg4 shrink-0">{ds.instances?.length ?? 0} doc</span>
-      <button onClick={() => setEditing(true)} className="p-1 text-stroke-strong hover:text-fg2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all" title="Переименовать">
-        <Pencil size={12} />
-      </button>
-      <button onClick={onDelete} className="p-1 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all" title="Удалить">
-        <Trash2 size={12} />
-      </button>
+      <IconButton label="Переименовать" size="sm" onClick={() => setEditing(true)}
+        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+        <Pencil size={13} />
+      </IconButton>
+      <IconButton label="Удалить" size="sm" danger onClick={onDelete}
+        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+        <Trash2 size={13} />
+      </IconButton>
       <ChevronRight size={13} className="text-stroke-strong shrink-0" />
     </div>
   );
@@ -623,10 +622,10 @@ function DocumentSearchPanel() {
           placeholder="Найти документ по всем комплектам (имя, тип, реквизиты)…"
           className="w-full pl-9 pr-8 py-2 text-sm border border-stroke-strong rounded-md bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
         {text && (
-          <button onClick={() => setText('')} title="Очистить"
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-fg4 hover:text-fg2 transition-colors">
+          <IconButton label="Очистить" size="sm" onClick={() => setText('')}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2">
             <X size={14} />
-          </button>
+          </IconButton>
         )}
       </div>
       {active && (
@@ -728,14 +727,14 @@ function ConstructionsList() {
                     <h3 className="text-base font-semibold text-fg1 flex-1">{c.name}</h3>
                   )}
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
-                    <button onClick={e => { e.stopPropagation(); setEditId(c.id); setEditName(c.name); }}
-                      className="p-1.5 text-fg4 hover:text-fg2 rounded transition-colors" title="Переименовать">
+                    <IconButton label="Переименовать" size="sm"
+                      onClick={e => { e.stopPropagation(); setEditId(c.id); setEditName(c.name); }}>
                       <Pencil size={13} />
-                    </button>
-                    <button onClick={e => { e.stopPropagation(); setDeleteTarget(c); }}
-                      className="p-1.5 text-fg4 hover:text-danger rounded transition-colors" title="Удалить">
+                    </IconButton>
+                    <IconButton label="Удалить" size="sm" danger
+                      onClick={e => { e.stopPropagation(); setDeleteTarget(c); }}>
                       <Trash2 size={13} />
-                    </button>
+                    </IconButton>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 text-xs text-fg4">
