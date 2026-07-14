@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListCommonData, useDeleteCommonDataEntry } from '@/shared/api/commonData';
@@ -50,10 +51,9 @@ export function SystemCommonDataPage() {
           <h1 className="text-xl font-semibold text-fg1">Системный каталог</h1>
           <p className="text-xs text-fg3 mt-0.5">Общие данные, доступные во всех проектах (приоритет 5)</p>
         </div>
-        <button onClick={() => setAddOpen(true)}
-          className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
-          <Plus size={16} /> Добавить запись
-        </button>
+        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddOpen(true)}>
+          Добавить запись
+        </Button>
       </div>
 
       {/* Filters */}
