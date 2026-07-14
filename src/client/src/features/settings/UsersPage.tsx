@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, KeyRound, Trash2, ShieldCheck, User as UserIcon, Mail } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SendMessageDialog } from '@/shared/ui/SendMessageDialog';
 import { useAuth, type UserRole } from '@/shared/hooks/useAuth';
@@ -93,11 +93,14 @@ export function UsersPage() {
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-                        <button onClick={() => setResetFor(u)} title="Сбросить пароль"
-                          className="p-1.5 text-fg4 hover:text-brand rounded"><KeyRound size={14} /></button>
-                        <button onClick={() => setDeleteTarget(u)} disabled={isSelf || del.isPending}
-                          title={isSelf ? 'Нельзя удалить себя' : 'Удалить'}
-                          className="p-1.5 text-fg4 hover:text-danger rounded disabled:opacity-30 disabled:hover:text-fg4"><Trash2 size={14} /></button>
+                        <IconButton label="Сбросить пароль" size="sm" onClick={() => setResetFor(u)}>
+                          <KeyRound size={14} />
+                        </IconButton>
+                        <IconButton label="Удалить" size="sm" danger onClick={() => setDeleteTarget(u)}
+                          disabled={isSelf || del.isPending}
+                          title={isSelf ? 'Нельзя удалить себя' : 'Удалить'}>
+                          <Trash2 size={14} />
+                        </IconButton>
                       </div>
                     </td>
                   </tr>

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
 import { Modal } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { apiError } from '@/shared/utils/apiError';
 import {
@@ -717,11 +717,11 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
           <GroupPicker groups={allGroups} value={docType.group}
             onChange={group => groupMutation.mutate({ id: docType.id, group })} />
         </span>
-        <button onClick={handleDelete} disabled={deleteMutation.isPending}
-          className="px-3 py-3 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all disabled:opacity-30"
+        <IconButton label="Удалить" size="sm" danger onClick={handleDelete} disabled={deleteMutation.isPending}
+          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
           title={hasChildren ? 'Нельзя удалить: есть дочерние типы' : 'Удалить'}>
           <Trash2 size={14} />
-        </button>
+        </IconButton>
       </div>
       {expanded && (
         <div className="px-4 pb-5 pt-3 border-t border-stroke bg-base">

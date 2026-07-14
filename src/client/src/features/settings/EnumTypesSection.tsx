@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import {
   useListEnumTypes,
   useCreateEnumType,
@@ -196,11 +196,10 @@ function EnumTypeRow({ type, allGroups, expanded, onToggle }: {
           <GroupPicker groups={allGroups} value={type.group}
             onChange={group => groupMutation.mutate({ id: type.id, group })} />
         </span>
-        <button onClick={handleDelete} disabled={deleteMutation.isPending}
-          className="px-3 py-3 text-stroke-strong hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all disabled:opacity-30"
-          title="Удалить">
+        <IconButton label="Удалить" size="sm" danger onClick={handleDelete} disabled={deleteMutation.isPending}
+          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
           <Trash2 size={14} />
-        </button>
+        </IconButton>
       </div>
       {expanded && (
         <div className="px-4 pb-5 pt-3 border-t border-stroke bg-base">
