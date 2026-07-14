@@ -4,6 +4,7 @@ import {
   DatabaseZap, RefreshCw, X, CornerUpLeft, Link2,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import {
   useListCommonData, useCommonDataForSet, useCreateCommonDataEntry,
@@ -160,10 +161,9 @@ export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
               {noType.length > 0 && renderGroup('__no_type__', 'Без типа', noType, true)}
             </div>
           )}
-          <button onClick={() => setAddOpen(true)}
-            className="flex items-center gap-1.5 text-sm text-brand hover:text-brand-hover transition-colors pt-1">
-            <Plus size={14} /> Добавить запись
-          </button>
+          <Button variant="text" size="sm" icon={<Plus size={14} />} onClick={() => setAddOpen(true)} className="mt-1">
+            Добавить запись
+          </Button>
         </div>
       )}
       <Modal open={addOpen} onOpenChange={setAddOpen} title="Новая запись каталога" wide flushBody>
@@ -671,12 +671,11 @@ export function CatalogEntryForm({
 
       {attachment && (
         <div className="flex items-center gap-2">
-          <button type="button" onClick={handleRecognize} disabled={recognizing}
-            title="Заполнит простые поля по штампу/реквизитам файла — ссылочные и составные поля не тронет"
-            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-brand-subtle text-brand hover:bg-brand-subtle disabled:opacity-50">
-            {recognizing ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+          <Button type="button" variant="tonal" size="sm" onClick={handleRecognize}
+            loading={recognizing} icon={<ShieldCheck size={14} />}
+            title="Заполнит простые поля по штампу/реквизитам файла — ссылочные и составные поля не тронет">
             Распознать «{attachment.fileName}»
-          </button>
+          </Button>
           {recognizing && (
             <span className="flex items-center gap-1.5 text-xs text-fg3">
               <Loader2 size={12} className="animate-spin" /> Идёт распознавание — дождитесь завершения перед сохранением…
@@ -698,16 +697,14 @@ export function CatalogEntryForm({
           />
           {bindings.length > 0 && (
             <div className="flex items-center gap-2">
-              <button type="button" onClick={handleRefreshFromSource} disabled={refreshingFromSource}
-                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-muted text-fg2 hover:bg-stroke disabled:opacity-50">
-                {refreshingFromSource ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+              <Button type="button" variant="outlined" size="sm" onClick={handleRefreshFromSource}
+                loading={refreshingFromSource} icon={<RefreshCw size={14} />}>
                 Обновить из источника
-              </button>
-              <button type="button" onClick={() => runBindingCheck()} disabled={checkingBindings}
-                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-muted text-fg2 hover:bg-stroke disabled:opacity-50">
-                {checkingBindings ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+              </Button>
+              <Button type="button" variant="outlined" size="sm" onClick={() => runBindingCheck()}
+                loading={checkingBindings} icon={<ShieldCheck size={14} />}>
                 Проверить связки
-              </button>
+              </Button>
             </div>
           )}
           {bindingCheck && <BindingCheckReport items={bindingCheck.items} />}
@@ -755,12 +752,11 @@ export function CatalogEntryForm({
       </div>
       </div>
       </div>
-      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-3">
-        <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-        <button type="submit" disabled={isPending || recognizing}
-          className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-          {isPending ? 'Сохранение...' : entry ? 'Сохранить' : 'Создать'}
-        </button>
+      <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-2">
+        <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
+        <Button type="submit" variant="filled" loading={isPending} disabled={isPending || recognizing}>
+          {isPending ? 'Сохранение…' : entry ? 'Сохранить' : 'Создать'}
+        </Button>
       </div>
     </form>
   );
