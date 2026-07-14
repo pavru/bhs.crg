@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAppVersion } from '@/shared/api/version';
@@ -6,26 +6,9 @@ import { useTheme, type Theme } from '@/shared/ui/ThemeProvider';
 import { NotificationsCenter } from '@/features/notifications/NotificationsCenter';
 import { ActiveJobsIndicator } from '@/features/jobs/ActiveJobsIndicator';
 import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
-import {
-  FolderOpen, BookOpen, FileText, Settings, LogOut,
-  Sun, Moon, Monitor, Layers, Database, Tag, ShieldCheck, Users, KeyRound,
-} from 'lucide-react';
-
-const workNav = [
-  { to: '/document-sets', label: 'Стройки',        icon: FolderOpen },
-  { to: '/common-data',   label: 'Общие данные',    icon: Database   },
-  { to: '/datasets',      label: 'Наборы данных',   icon: Layers     },
-  { to: '/quality-docs',  label: 'Документы качества', icon: ShieldCheck },
-];
-
-const settingsNav = [
-  { to: '/document-types',  label: 'Типы документов', icon: BookOpen  },
-  { to: '/composite-types', label: 'Составные типы',  icon: Layers    },
-  { to: '/field-types',     label: 'Типы полей',      icon: Tag       },
-  { to: '/templates',       label: 'Шаблоны',         icon: FileText  },
-  { to: '/users',           label: 'Пользователи',    icon: Users     },
-  { to: '/settings',        label: 'Настройки',       icon: Settings  },
-];
+import { CommandPalette } from '@/shared/ui/CommandPalette';
+import { workNav, settingsNav, type NavItem } from '@/shared/ui/navConfig';
+import { LogOut, Sun, Moon, Monitor, KeyRound } from 'lucide-react';
 
 const themeOptions: { value: Theme; icon: typeof Sun; label: string }[] = [
   { value: 'light',  icon: Sun,     label: 'Светлая'   },
@@ -61,7 +44,7 @@ function NavSection({
   items,
 }: {
   label: string;
-  items: { to: string; label: string; icon: typeof FolderOpen }[];
+  items: NavItem[];
 }) {
   return (
     <div>
@@ -102,6 +85,19 @@ export function AppShell() {
   const { user, logout } = useAuth();
   const isAdmin = user?.role === 'Admin';
   const [pwOpen, setPwOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // Глобальный Ctrl/⌘+K — командная палитра (issue #107).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen(o => !o);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   return (
     <div className="flex h-screen bg-base">
@@ -148,6 +144,7 @@ export function AppShell() {
         </div>
       </aside>
       <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
 
       {/* Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
