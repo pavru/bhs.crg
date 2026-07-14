@@ -257,7 +257,8 @@ function SetDetail() {
       </div>
 
       {setId && (
-        <div className="mt-6 space-y-4">
+        <div className="mt-6 pt-5 border-t border-stroke space-y-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-fg4">Область: комплект</h2>
           <ScopedCatalogPanel scope="Set" scopeId={setId} allDocTypes={docTypes} setId={setId} />
           <ScopedDataSetsPanel scope="Set" scopeId={setId} />
           <SubscribersPanel scope="Set" scopeId={setId} />
@@ -402,9 +403,12 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
           <Button variant="text" size="sm" icon={<Plus size={14} />} onClick={() => setAddSetOpen(true)} className="mt-1">
             Добавить комплект
           </Button>
-          <ScopedCatalogPanel scope="Section" scopeId={section.id} allDocTypes={allDocTypes} />
-          <ScopedDataSetsPanel scope="Section" scopeId={section.id} />
-          <SubscribersPanel scope="Section" scopeId={section.id} />
+          <div className="pt-3 mt-2 border-t border-muted space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-fg4">Область: раздел</h3>
+            <ScopedCatalogPanel scope="Section" scopeId={section.id} allDocTypes={allDocTypes} />
+            <ScopedDataSetsPanel scope="Section" scopeId={section.id} />
+            <SubscribersPanel scope="Section" scopeId={section.id} />
+          </div>
         </div>
       )}
 
@@ -575,7 +579,7 @@ function ConstructionDetail() {
 
       {/* Блок уровня «Стройка» — визуально обособлен от списка разделов (иначе читается как ещё один раздел). */}
       <div className="mt-6 pt-5 border-t border-stroke space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-fg4">Общие для стройки</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-fg4">Область: стройка</h2>
         <ScopedCatalogPanel scope="Construction" scopeId={constructionId!} allDocTypes={docTypes} />
         <ScopedDataSetsPanel scope="Construction" scopeId={constructionId!} />
         <SubscribersPanel scope="Construction" scopeId={constructionId!} />
