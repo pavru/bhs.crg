@@ -21,6 +21,8 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(true);
+  const [forgotOpen, setForgotOpen] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -29,7 +31,7 @@ export function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, remember);
       navigate('/document-sets', { replace: true });
     } catch {
       setError('Неверный email или пароль');
@@ -96,6 +98,25 @@ export function LoginPage() {
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </IconButton>
               } />
+
+            <div className="flex justify-end -mt-2">
+              <button type="button" onClick={() => setForgotOpen(o => !o)} aria-expanded={forgotOpen}
+                className="text-sm font-medium text-brand px-3 py-2 rounded-full hover:bg-brand/10 transition-colors">
+                Забыли пароль?
+              </button>
+            </div>
+            {forgotOpen && (
+              <p className="-mt-3 px-1 text-xs text-fg3">
+                Самостоятельный сброс пока недоступен — пароль сбрасывает администратор системы.
+              </p>
+            )}
+
+            <label className="flex items-center gap-3 text-sm text-fg1 cursor-pointer select-none">
+              <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
+                className="w-[18px] h-[18px] accent-brand cursor-pointer" />
+              Запомнить меня
+            </label>
+
             {error && <p className="text-sm text-danger">{error}</p>}
             <Button type="submit" variant="filled" size="lg" fullWidth loading={loading} className="mt-1">
               {loading ? 'Вход…' : 'Войти'}
