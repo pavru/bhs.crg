@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Download, Upload, CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { downloadBackup, restoreBackup } from '@/shared/api/backup';
 import type { RestoreReport } from '@/shared/api/types';
 import {
@@ -59,14 +60,8 @@ function RestoreConfirmModal({ file, onConfirm, onCancel }: {
       </div>
       </div>
       <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-3">
-        <button type="button" onClick={onCancel}
-          className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md transition-colors">
-          Отмена
-        </button>
-        <button type="button" onClick={onConfirm}
-          className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors">
-          Восстановить
-        </button>
+        <Button variant="text" onClick={onCancel}>Отмена</Button>
+        <Button variant="filled" onClick={onConfirm}>Восстановить</Button>
       </div>
     </div>
   );
@@ -362,10 +357,7 @@ export function SettingsPage() {
             />
           </div>
           <div className="flex items-center gap-3">
-            <button type="submit"
-              className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md transition-colors">
-              Сохранить
-            </button>
+            <Button type="submit" variant="filled">Сохранить</Button>
             {saved && <span className="text-sm text-success">Сохранено</span>}
           </div>
         </CollapsibleSection>
