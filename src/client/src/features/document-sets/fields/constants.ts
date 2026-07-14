@@ -38,7 +38,7 @@ export function defaultColWidth(f: SchemaField) {
 }
 
 export const CELL_INPUT =
-  'w-full h-full px-1.5 bg-transparent border-none outline-none text-xs text-fg1 tabular-nums';
+  'w-full h-full px-1.5 bg-transparent border-none outline-none text-xs text-fg1 tabular-nums focus:bg-brand-subtle';
 
 export function tryPrettyJson(val: unknown): string {
   try { return JSON.stringify(val, null, 2); } catch { return '{}'; }

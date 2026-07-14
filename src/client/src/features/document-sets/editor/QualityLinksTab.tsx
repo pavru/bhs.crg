@@ -185,7 +185,7 @@ function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, materials
 
       {tab === 'pick' && (
         <div className="space-y-2">
-          <div className="flex items-center gap-2 border border-stroke-strong rounded-md px-2">
+          <div className="flex items-center gap-2 border border-stroke-strong rounded-md px-2 transition-colors focus-within:border-brand focus-within:ring-1 focus-within:ring-brand">
             <Search size={14} className="text-fg4" />
             <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Поиск по материалу / названию..."
               className="flex-1 py-2 text-sm bg-transparent focus:outline-none" />
@@ -238,7 +238,7 @@ function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, materials
               placeholder="Тип" aria-label="Тип документа качества" className="w-52">
               {qualityTypes.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
             </Select>
-            <div className="flex-1 flex items-center gap-2 border border-stroke-strong rounded-md px-2">
+            <div className="flex-1 flex items-center gap-2 border border-stroke-strong rounded-md px-2 transition-colors focus-within:border-brand focus-within:ring-1 focus-within:ring-brand">
               <Search size={14} className="text-fg4" />
               <input value={query} onChange={e => setQuery(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') void runSearch(); }}

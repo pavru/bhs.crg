@@ -165,7 +165,7 @@ export function QualityDocsPage() {
       </div>
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="flex items-center gap-2 border border-stroke-strong rounded-md px-2 flex-1 min-w-[220px] max-w-md">
+        <div className="flex items-center gap-2 border border-stroke-strong rounded-md px-2 flex-1 min-w-[220px] max-w-md transition-colors focus-within:border-brand focus-within:ring-1 focus-within:ring-brand">
           <Search size={14} className="text-fg4" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по названию..."
             className="flex-1 py-2 text-sm bg-transparent focus:outline-none" />
