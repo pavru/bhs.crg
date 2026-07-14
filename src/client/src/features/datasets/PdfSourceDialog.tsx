@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { TextField } from '@/shared/ui/TextField';
 import { useCreatePdfSource, useRecognizeFile } from '@/shared/api/datasets';
 import { useTagRegistry, datasetTags } from '@/shared/api/tags';
 
@@ -53,12 +54,8 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
         </div>
       }>
       <div className="space-y-4 min-w-[420px]">
-        <div>
-          <label className="block text-sm font-medium text-fg1 mb-1">Название</label>
-          <input value={name} onChange={e => setName(e.target.value)} autoFocus
-            placeholder={profile === 'invoice' ? 'Счёт на оплату' : 'Реестр листов'}
-            className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm" />
-        </div>
+        <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
+          hint={profile === 'invoice' ? 'Счёт на оплату' : 'Реестр листов'} />
 
         <div>
           <label className="block text-sm font-medium text-fg1 mb-1">Профиль распознавания</label>
