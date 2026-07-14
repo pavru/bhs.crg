@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { Modal } from './Modal';
+import { Button } from './Button';
 import { useSendEmail } from '@/shared/api/users';
 import { apiError } from '@/shared/utils/apiError';
 
@@ -43,12 +44,11 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
   return (
     <Modal open={open} onOpenChange={o => { if (!o) { onClose(); setResult(null); } }} title={title}
       footer={
-        <div className="flex justify-end gap-3">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Закрыть</button>
-          <button type="button" onClick={handleSend} disabled={!canSend}
-            className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-            {sendEmail.isPending ? 'Отправка...' : `Отправить (${selected.size})`}
-          </button>
+        <div className="flex justify-end gap-2">
+          <Button variant="text" onClick={onClose}>Закрыть</Button>
+          <Button variant="filled" onClick={handleSend} disabled={!canSend} loading={sendEmail.isPending}>
+            {sendEmail.isPending ? 'Отправка…' : `Отправить (${selected.size})`}
+          </Button>
         </div>
       }>
       <div className="space-y-4">
