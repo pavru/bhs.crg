@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Image as ImageIcon, Type as FontIcon, Upload, RefreshCw, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { IconButton } from '@/shared/ui/Button';
 import {
   useListTemplateAssets, useUploadTemplateAsset, useReplaceTemplateAsset, useDeleteTemplateAsset,
   type TemplateAssetDto, type TemplateAssetScope,
@@ -41,18 +42,16 @@ function AssetRow({ asset }: { asset: TemplateAssetDto }) {
         {asset.fileName}{asset.fontFamilyName ? ` — ${asset.fontFamilyName}` : ''}
       </span>
       {error && <span className="text-xs text-danger shrink-0">{error}</span>}
-      <button type="button" onClick={() => replaceInputRef.current?.click()}
+      <IconButton label="Заменить файл" size="sm" onClick={() => replaceInputRef.current?.click()}
         disabled={replaceMutation.isPending}
-        title="Заменить файл"
-        className="p-1 text-fg4 hover:text-brand opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all shrink-0 disabled:opacity-30">
+        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0">
         <RefreshCw size={12} />
-      </button>
+      </IconButton>
       <input ref={replaceInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleReplace} />
-      <button type="button" onClick={() => setConfirmDelete(true)}
-        title="Удалить"
-        className="p-1 text-fg4 hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all shrink-0">
+      <IconButton label="Удалить" size="sm" danger onClick={() => setConfirmDelete(true)}
+        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0">
         <Trash2 size={12} />
-      </button>
+      </IconButton>
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
