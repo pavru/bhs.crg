@@ -40,11 +40,11 @@ export function ConfirmDialog({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay
-          className="fixed inset-0 z-40 bg-black/50"
+          className="fixed inset-0 z-40 bg-black/40"
           style={{ backdropFilter: 'blur(2px)' }}
         />
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-xl p-5 w-full max-w-sm bg-surface border border-stroke focus:outline-none"
+          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] p-6 w-full max-w-sm bg-surface border border-stroke focus:outline-none"
           style={{ boxShadow: 'var(--f-shadow28)' }}
         >
           <Dialog.Title className="text-sm font-semibold mb-2 text-fg1">

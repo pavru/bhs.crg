@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { useState, useEffect, type ReactNode } from 'react';
+import { Button } from './Button';
 
 interface ModalProps {
   open: boolean;
@@ -34,11 +35,11 @@ export function Modal({ open, onOpenChange, title, children, wide, extraWide, is
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay
-          className="fixed inset-0 z-40 bg-black/50"
+          className="fixed inset-0 z-40 bg-black/40"
           style={{ backdropFilter: 'blur(2px)' }}
         />
         <Dialog.Content
-          className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-lg max-h-[90vh] flex flex-col overflow-hidden focus:outline-none bg-surface border border-stroke ${
+          className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] max-h-[90vh] flex flex-col overflow-hidden focus:outline-none bg-surface border border-stroke ${
             extraWide ? 'w-full max-w-5xl' : wide ? 'w-full max-w-2xl' : 'w-full max-w-lg'
           }`}
           style={{ boxShadow: 'var(--f-shadow28)' }}
@@ -62,9 +63,10 @@ export function Modal({ open, onOpenChange, title, children, wide, extraWide, is
             <button
               type="button"
               onClick={attemptClose}
-              className="flex items-center justify-center w-8 h-8 rounded-md transition-colors text-fg3 hover:text-fg1 hover:bg-muted"
+              aria-label="Закрыть"
+              className="flex items-center justify-center w-9 h-9 rounded-full transition-colors text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
           {flushBody ? (
@@ -84,8 +86,8 @@ export function Modal({ open, onOpenChange, title, children, wide, extraWide, is
           )}
 
           {confirmClose && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/50">
-              <div className="rounded-xl p-5 shadow-2xl w-80 bg-surface border border-stroke">
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[28px] bg-black/40">
+              <div className="rounded-3xl p-5 w-80 bg-surface border border-stroke" style={{ boxShadow: 'var(--f-shadow28)' }}>
                 <p className="text-sm font-semibold mb-1 text-fg1">
                   Закрыть без сохранения?
                 </p>
@@ -93,20 +95,13 @@ export function Modal({ open, onOpenChange, title, children, wide, extraWide, is
                   Несохранённые изменения будут потеряны.
                 </p>
                 <div className="flex gap-2 justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setConfirmClose(false)}
-                    className="px-3 py-1.5 text-sm rounded-md transition-colors border border-stroke text-fg2 hover:bg-muted"
-                  >
+                  <Button variant="text" size="sm" onClick={() => setConfirmClose(false)}>
                     Продолжить редактирование
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setConfirmClose(false); onOpenChange(false); }}
-                    className="px-3 py-1.5 text-sm rounded-md bg-danger text-white transition-colors"
-                  >
+                  </Button>
+                  <Button variant="filled" danger size="sm"
+                    onClick={() => { setConfirmClose(false); onOpenChange(false); }}>
                     Закрыть
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
