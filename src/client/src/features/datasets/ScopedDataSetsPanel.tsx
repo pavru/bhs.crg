@@ -10,6 +10,7 @@ import { SCOPE_COLORS } from '@/features/document-sets/fields/constants';
 import { SourcesExpander } from './SourcesExpander';
 import { useDataSetFileActions } from './useDataSetFileActions';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { IconButton } from '@/shared/ui/Button';
 
 function FileRow({ file, scope, scopeId }: { file: DataSetFile; scope: CatalogScope; scopeId?: string }) {
   const {
@@ -26,29 +27,16 @@ function FileRow({ file, scope, scopeId }: { file: DataSetFile; scope: CatalogSc
           <span className="ml-2 text-xs text-fg4">{DATA_SET_FORMAT_LABELS[file.format]}</span>
         </div>
         <input ref={updateInputRef} type="file" accept=".csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx,.pdf" className="hidden" onChange={handleReplace} />
-        <button
-          onClick={handleDownload}
-          disabled={downloading}
-          className="p-1 rounded transition-colors disabled:opacity-40 text-fg4 hover:text-brand"
-          title="Скачать оригинальный файл"
-        >
+        <IconButton label="Скачать оригинальный файл" size="sm" onClick={handleDownload} disabled={downloading}>
           <Download size={13} className={downloading ? 'opacity-50' : ''} />
-        </button>
-        <button
-          onClick={() => updateInputRef.current?.click()}
-          disabled={update.isPending}
-          className="p-1 rounded transition-colors disabled:opacity-40 text-fg4 hover:text-brand"
-          title="Обновить файл (привязки сохранятся)"
-        >
+        </IconButton>
+        <IconButton label="Обновить файл (привязки сохранятся)" size="sm"
+          onClick={() => updateInputRef.current?.click()} disabled={update.isPending}>
           <RefreshCw size={13} className={update.isPending ? 'animate-spin' : ''} />
-        </button>
-        <button
-          onClick={() => setConfirming(true)}
-          className="p-1 rounded transition-colors text-fg4 hover:text-danger"
-          title="Удалить"
-        >
+        </IconButton>
+        <IconButton label="Удалить" size="sm" danger onClick={() => setConfirming(true)}>
           <Trash2 size={13} />
-        </button>
+        </IconButton>
       </div>
       <div className="pl-5">
         <SourcesExpander file={file} maxColumns={6} />

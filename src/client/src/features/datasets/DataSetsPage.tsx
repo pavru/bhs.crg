@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { Upload, Trash2, Database, RefreshCw, Download, Layers } from 'lucide-react';
 import { useListDataSetFiles, useUploadDataSetFile } from '@/shared/api/datasets';
 import type { DataSetFile } from '@/shared/api/types';
@@ -24,29 +24,16 @@ function FileRow({ file }: { file: DataSetFile }) {
           <div className="text-xs mt-0.5 text-fg4">{DATA_SET_FORMAT_LABELS[file.format]}</div>
         </div>
         <input ref={updateInputRef} type="file" accept=".csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx,.pdf" className="hidden" onChange={handleReplace} />
-        <button
-          onClick={handleDownload}
-          disabled={downloading}
-          className="p-1.5 rounded transition-colors disabled:opacity-40 text-fg4 hover:text-brand"
-          title="Скачать оригинальный файл"
-        >
+        <IconButton label="Скачать оригинальный файл" size="sm" onClick={handleDownload} disabled={downloading}>
           <Download size={14} className={downloading ? 'opacity-50' : ''} />
-        </button>
-        <button
-          onClick={() => updateInputRef.current?.click()}
-          disabled={update.isPending}
-          className="p-1.5 rounded transition-colors disabled:opacity-40 text-fg4 hover:text-brand"
-          title="Обновить файл (привязки сохранятся)"
-        >
+        </IconButton>
+        <IconButton label="Обновить файл (привязки сохранятся)" size="sm"
+          onClick={() => updateInputRef.current?.click()} disabled={update.isPending}>
           <RefreshCw size={14} className={update.isPending ? 'animate-spin' : ''} />
-        </button>
-        <button
-          onClick={() => setConfirming(true)}
-          className="p-1.5 rounded transition-colors text-fg4 hover:text-danger"
-          title="Удалить"
-        >
+        </IconButton>
+        <IconButton label="Удалить" size="sm" danger onClick={() => setConfirming(true)}>
           <Trash2 size={14} />
-        </button>
+        </IconButton>
       </div>
       <div className="pl-7">
         <SourcesExpander file={file} />

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, Pencil, Check, Layers, Filter, FunctionSquare, ArrowUpDown, Route } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { IconButton } from '@/shared/ui/Button';
 import {
   useListProcessingTemplates, useCreateProcessingTemplate,
   useUpdateProcessingTemplate, useDeleteProcessingTemplate,
@@ -221,13 +222,13 @@ function TemplateRow({ template }: { template: DataSetProcessingTemplate }) {
             )}
           </div>
         </div>
-        <button onClick={() => setEditing(e => !e)} className="p-1.5 rounded text-fg3" title="Редактировать">
+        <IconButton label="Редактировать" size="sm" onClick={() => setEditing(e => !e)}>
           <Pencil size={13} />
-        </button>
+        </IconButton>
         {!confirming ? (
-          <button onClick={() => setConfirming(true)} className="p-1.5 rounded text-fg4 hover:text-danger transition-colors" title="Удалить">
+          <IconButton label="Удалить" size="sm" danger onClick={() => setConfirming(true)}>
             <Trash2 size={13} />
-          </button>
+          </IconButton>
         ) : (
           <div className="flex items-center gap-1.5 text-xs">
             <span className="text-fg3">Удалить?</span>
