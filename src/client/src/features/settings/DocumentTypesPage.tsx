@@ -7,6 +7,7 @@ import { BindingTemplatesDialog } from './BindingTemplatesDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { apiError } from '@/shared/utils/apiError';
 import {
@@ -201,16 +202,9 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
     <form onSubmit={handleSave} className="space-y-3 pb-4 border-b border-stroke mb-4">
       <p className="text-xs font-medium text-fg3 uppercase tracking-wide">Параметры типа</p>
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">Наименование</label>
-          <input value={name} onChange={e => handleNameChange(e.target.value)} required
-            className="w-full border border-stroke-strong rounded-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">Код</label>
-          <input value={code} onChange={e => { setCode(e.target.value); setSaved(false); }} required spellCheck={false}
-            className="w-full border border-stroke-strong rounded-md px-3 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
-        </div>
+        <TextField label="Наименование" value={name} onChange={e => handleNameChange(e.target.value)} required />
+        <TextField label="Код" value={code} onChange={e => { setCode(e.target.value); setSaved(false); }}
+          required spellCheck={false} className="font-mono" />
       </div>
       <div>
         <label className="block text-xs font-medium text-fg2 mb-1">Родительский тип</label>
@@ -290,16 +284,9 @@ function CreateForm({
     <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5">
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-fg2 mb-1">Наименование</label>
-          <input value={name} onChange={e => handleNameChange(e.target.value)} required
-            className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-fg2 mb-1">Код</label>
-          <input value={code} onChange={e => setCode(e.target.value)} required spellCheck={false}
-            className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
-        </div>
+        <TextField label="Наименование" value={name} onChange={e => handleNameChange(e.target.value)} required />
+        <TextField label="Код" value={code} onChange={e => setCode(e.target.value)}
+          required spellCheck={false} className="font-mono" />
       </div>
 
       {kind === 'Document' && (

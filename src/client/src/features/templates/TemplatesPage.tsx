@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Library } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -43,11 +44,7 @@ function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose, onCrea
   return (
     <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-fg2 mb-1">Название шаблона</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus
-            className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
-        </div>
+        <TextField label="Название шаблона" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
         <p className="text-xs text-fg4">
           Будет создан Typst-шаблон с колонтитулами, нумерацией страниц и списком всех реквизитов типа документа.
         </p>
