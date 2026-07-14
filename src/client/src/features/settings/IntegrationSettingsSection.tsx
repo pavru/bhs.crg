@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import {
@@ -317,14 +318,9 @@ export function IntegrationSettingsSection() {
           </div>
 
           <div className="flex items-center gap-3 pt-1">
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={save.isPending}
-              className="px-4 py-2 text-sm font-medium rounded-md bg-brand text-white hover:bg-brand-hover disabled:opacity-50"
-            >
+            <Button variant="filled" onClick={handleSave} loading={save.isPending}>
               {save.isPending ? 'Сохранение…' : 'Сохранить'}
-            </button>
+            </Button>
             {saved && <span className="text-sm text-success">Сохранено</span>}
             {save.isError && <span className="text-sm text-danger">Ошибка сохранения</span>}
           </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import type { CommonDataEntry, DocumentType, FieldRef } from '@/shared/api/types';
 import { resolveEffectiveFields, isSubtypeOf, type SchemaField } from '@/shared/api/schema';
 // ─── Paste mapping modal ──────────────────────────────────────────────────────
@@ -101,13 +102,11 @@ export function PasteMappingModal({
       <Modal open={open} onOpenChange={onOpenChange} title="Вставить из Excel" wide
         footer={
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => onOpenChange(false)}
-              className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-            <button type="button" disabled={!rawText.trim()}
-              onClick={() => { initMapping(rawText); setStep('map'); }}
-              className="px-4 py-2 text-sm bg-brand text-white rounded-md disabled:opacity-50 hover:bg-brand-hover">
+            <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
+            <Button variant="filled" disabled={!rawText.trim()}
+              onClick={() => { initMapping(rawText); setStep('map'); }}>
               Далее →
-            </button>
+            </Button>
           </div>
         }>
         <div className="space-y-4">
@@ -129,15 +128,12 @@ export function PasteMappingModal({
     <Modal open={open} onOpenChange={onOpenChange} title="Сопоставление столбцов" wide
       footer={
         <div className="flex justify-between">
-          <button type="button" onClick={() => setStep('input')}
-            className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">← Назад</button>
+          <Button variant="text" onClick={() => setStep('input')}>← Назад</Button>
           <div className="flex gap-3">
-            <button type="button" onClick={() => onOpenChange(false)}
-              className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-            <button type="button" onClick={apply} disabled={importCount === 0}
-              className="px-4 py-2 text-sm bg-brand text-white rounded-md disabled:opacity-50 hover:bg-brand-hover">
+            <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
+            <Button variant="filled" onClick={apply} disabled={importCount === 0}>
               Импортировать {importCount > 0 ? `(${importCount} стр.)` : ''}
-            </button>
+            </Button>
           </div>
         </div>
       }>
