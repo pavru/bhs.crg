@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import {
   Plus, Trash2, ChevronRight, Download, Pencil, ChevronDown, ChevronUp, FolderOpen, Eye,
-  ArrowUp, ArrowDown, Layers, Loader2, Search, X, Mail,
+  ArrowUp, ArrowDown, Layers, Search, X, Mail,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -137,29 +138,27 @@ function SetDetail() {
         <h1 className="text-xl font-semibold text-fg1">{set.name}</h1>
         <div className="flex items-center gap-2">
           {output && (
-            <button onClick={() => downloadSetOutput(set.id, set.name)}
-              className="flex items-center gap-2 border border-stroke hover:bg-base text-fg2 text-sm font-medium px-3 py-2 rounded-md transition-colors"
+            <Button variant="outlined" icon={<Download size={15} />}
+              onClick={() => downloadSetOutput(set.id, set.name)}
               title={`Собран ${new Date(output.generatedAt).toLocaleString('ru-RU')}`}>
-              <Download size={15} className="text-brand" /> Скачать комплект
-            </button>
+              Скачать комплект
+            </Button>
           )}
           {isAdmin && output && (
-            <button onClick={() => setEmailKitOpen(true)}
-              className="flex items-center gap-2 border border-stroke hover:bg-base text-fg2 text-sm font-medium px-3 py-2 rounded-md transition-colors"
+            <Button variant="outlined" icon={<Mail size={15} />} onClick={() => setEmailKitOpen(true)}
               title="Отправить собранный комплект по почте (подписчикам и/или на внешние адреса)">
-              <Mail size={15} className="text-brand" /> Отправить по почте
-            </button>
+              Отправить по почте
+            </Button>
           )}
-          <button onClick={handleAssemble} disabled={assembleMutation.isPending || watching || set.instances.length === 0}
-            className="flex items-center gap-2 border border-brand text-brand-hover hover:bg-brand-subtle text-sm font-medium px-3 py-2 rounded-md transition-colors disabled:opacity-50"
+          <Button variant="tonal" icon={<Layers size={15} />} loading={assembleMutation.isPending || watching}
+            disabled={assembleMutation.isPending || watching || set.instances.length === 0}
+            onClick={handleAssemble}
             title="Собрать все документы комплекта в один PDF в заданном порядке">
-            {assembleMutation.isPending || watching ? <Loader2 size={15} className="animate-spin" /> : <Layers size={15} />}
             Собрать комплект
-          </button>
-          <button onClick={() => setAddDocOpen(true)}
-            className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
-            <Plus size={16} /> Добавить документ
-          </button>
+          </Button>
+          <Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddDocOpen(true)}>
+            Добавить документ
+          </Button>
         </div>
       </div>
       {assembleMsg && <p className="text-xs text-fg4 mb-3">{assembleMsg}</p>}
@@ -273,13 +272,11 @@ function SetDetail() {
 
       <Modal open={addDocOpen} onOpenChange={setAddDocOpen} title="Добавить документ"
         footer={
-          <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => setAddDocOpen(false)}
-              className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-            <button type="submit" form="add-doc-form" disabled={addMutation.isPending}
-              className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-              {addMutation.isPending ? 'Добавление...' : 'Добавить'}
-            </button>
+          <div className="flex justify-end gap-2">
+            <Button variant="text" onClick={() => setAddDocOpen(false)}>Отмена</Button>
+            <Button type="submit" form="add-doc-form" variant="filled" loading={addMutation.isPending}>
+              {addMutation.isPending ? 'Добавление…' : 'Добавить'}
+            </Button>
           </div>
         }>
         {addDocOpen && (
@@ -401,10 +398,9 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
               onDelete={() => setDeleteSetTarget(ds)}
             />
           ))}
-          <button onClick={() => setAddSetOpen(true)}
-            className="flex items-center gap-1.5 text-sm text-brand hover:text-brand-hover transition-colors mt-1">
-            <Plus size={14} /> Добавить комплект
-          </button>
+          <Button variant="text" size="sm" icon={<Plus size={14} />} onClick={() => setAddSetOpen(true)} className="mt-1">
+            Добавить комплект
+          </Button>
           <ScopedCatalogPanel scope="Section" scopeId={section.id} allDocTypes={allDocTypes} />
           <ScopedDataSetsPanel scope="Section" scopeId={section.id} />
           <SubscribersPanel scope="Section" scopeId={section.id} />
@@ -413,11 +409,11 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
 
       <Modal open={addSetOpen} onOpenChange={setAddSetOpen} title="Новый комплект"
         footer={
-          <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => setAddSetOpen(false)} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-            <button type="submit" form="add-set-form" disabled={createSet.isPending} className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-              {createSet.isPending ? 'Создание...' : 'Создать'}
-            </button>
+          <div className="flex justify-end gap-2">
+            <Button variant="text" onClick={() => setAddSetOpen(false)}>Отмена</Button>
+            <Button type="submit" form="add-set-form" variant="filled" loading={createSet.isPending}>
+              {createSet.isPending ? 'Создание…' : 'Создать'}
+            </Button>
           </div>
         }>
         {addSetOpen && (
@@ -559,10 +555,9 @@ function ConstructionDetail() {
 
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-xl font-semibold text-fg1">{construction.name}</h1>
-        <button onClick={() => setAddSectionOpen(true)}
-          className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
-          <Plus size={16} /> Добавить раздел
-        </button>
+        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddSectionOpen(true)}>
+          Добавить раздел
+        </Button>
       </div>
 
       {construction.sections.length === 0 ? (
@@ -587,11 +582,11 @@ function ConstructionDetail() {
 
       <Modal open={addSectionOpen} onOpenChange={setAddSectionOpen} title="Новый раздел"
         footer={
-          <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => setAddSectionOpen(false)} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-            <button type="submit" form="add-section-form" disabled={createSection.isPending} className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-              {createSection.isPending ? 'Создание...' : 'Создать'}
-            </button>
+          <div className="flex justify-end gap-2">
+            <Button variant="text" onClick={() => setAddSectionOpen(false)}>Отмена</Button>
+            <Button type="submit" form="add-section-form" variant="filled" loading={createSection.isPending}>
+              {createSection.isPending ? 'Создание…' : 'Создать'}
+            </Button>
           </div>
         }>
         {addSectionOpen && (
@@ -704,10 +699,9 @@ function ConstructionsList() {
     <div className="px-6 py-4">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold text-fg1">Стройки</h1>
-        <button onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-2 bg-brand hover:bg-brand-hover text-white text-sm font-medium px-4 py-2 rounded-md transition-colors">
-          <Plus size={16} /> Новая стройка
-        </button>
+        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
+          Новая стройка
+        </Button>
       </div>
 
       <DocumentSearchPanel />
@@ -766,11 +760,11 @@ function ConstructionsList() {
 
       <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новая стройка"
         footer={
-          <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => setCreateOpen(false)} className="px-4 py-2 text-sm text-fg2 hover:bg-muted rounded-md">Отмена</button>
-            <button type="submit" form="create-construction-form" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-md disabled:opacity-50">
-              {createMutation.isPending ? 'Создание...' : 'Создать'}
-            </button>
+          <div className="flex justify-end gap-2">
+            <Button variant="text" onClick={() => setCreateOpen(false)}>Отмена</Button>
+            <Button type="submit" form="create-construction-form" variant="filled" loading={createMutation.isPending}>
+              {createMutation.isPending ? 'Создание…' : 'Создать'}
+            </Button>
           </div>
         }>
         {createOpen && (
