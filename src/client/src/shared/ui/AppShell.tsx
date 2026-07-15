@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Link, Outlet } from 'react-router-dom';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAppVersion } from '@/shared/api/version';
+import { useAccount, useResendConfirmation } from '@/shared/api/account';
 import { useTheme, type Theme } from '@/shared/ui/ThemeProvider';
 import { NotificationsCenter } from '@/features/notifications/NotificationsCenter';
 import { ActiveJobsIndicator } from '@/features/jobs/ActiveJobsIndicator';
@@ -9,7 +10,7 @@ import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
 import { ShortcutsHelp } from '@/shared/ui/ShortcutsHelp';
 import { workNav, settingsNav, type NavItem } from '@/shared/ui/navConfig';
-import { LogOut, Sun, Moon, Monitor, KeyRound, UserRound } from 'lucide-react';
+import { LogOut, Sun, Moon, Monitor, KeyRound, UserRound, MailWarning, X } from 'lucide-react';
 
 const themeOptions: { value: Theme; icon: typeof Sun; label: string }[] = [
   { value: 'light',  icon: Sun,     label: 'Светлая'   },
@@ -166,10 +167,43 @@ export function AppShell() {
           <ActiveJobsIndicator />
           <NotificationsCenter />
         </header>
+        <EmailConfirmBanner />
         <div className="flex-1 overflow-auto">
           <Outlet />
         </div>
       </main>
+    </div>
+  );
+}
+
+/** Мягкий баннер «подтвердите email» (issue #148) — не гейтит вход, закрывается на сессию. */
+function EmailConfirmBanner() {
+  const { data: account } = useAccount();
+  const resend = useResendConfirmation();
+  const [dismissed, setDismissed] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  if (dismissed || !account || account.emailConfirmed) return null;
+
+  return (
+    <div className="shrink-0 flex items-center gap-2 px-4 py-2 text-sm bg-warning-subtle text-warning border-b border-warning/30">
+      <MailWarning size={16} className="shrink-0" />
+      <span className="flex-1">
+        Email <span className="font-medium">{account.email}</span> не подтверждён.{' '}
+        {sent
+          ? <span className="text-fg2">Письмо отправлено — проверьте почту.</span>
+          : <button type="button" onClick={() => resend.mutate(undefined, { onSuccess: () => setSent(true) })}
+              disabled={resend.isPending}
+              className="font-medium underline hover:no-underline disabled:opacity-50">
+              Отправить письмо
+            </button>}
+        {' · '}
+        <Link to="/profile" className="font-medium underline hover:no-underline">Профиль</Link>
+      </span>
+      <button type="button" onClick={() => setDismissed(true)} aria-label="Скрыть"
+        className="shrink-0 p-1 rounded hover:bg-warning/10">
+        <X size={14} />
+      </button>
     </div>
   );
 }
