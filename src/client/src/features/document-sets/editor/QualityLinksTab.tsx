@@ -74,10 +74,10 @@ function relevance(tokens: WeightedToken[], hayStems: Set<string>): number {
   return total ? matched / total : 0;
 }
 
-/** Совпадает с backend MaterialKeyNormalizer: регистр + схлопывание пробелов. */
+/** Совпадает с backend MatchKeyNormalizer: схлоп пробелов → срез хвостовых точек/пробелов → регистр. */
 function normalizeKey(s: string | null | undefined): string {
   if (!s) return '';
-  return s.split(/\s+/).filter(Boolean).join(' ').toLowerCase();
+  return s.split(/\s+/).filter(Boolean).join(' ').replace(/[.\s]+$/, '').toLowerCase();
 }
 
 interface MaterialRow { key: string; label: string; idValues: string[] }
@@ -323,13 +323,13 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
     return m;
   }, [linksSystem, linksSet]);
 
-  // Ключи полей идентичности материала — из тэга material.identity (без хардкода имён).
+  // Ключи полей-идентификаторов — из тэга identity (без хардкода имён).
   const identityKeys = useMemo(() => {
     const keys: string[] = [];
     for (const t of allDocTypes) {
       if (t.kind !== 'Composite') continue;
       for (const f of resolveEffectiveFields(t, allDocTypes))
-        if (f.tags?.includes(FUNCTIONAL_TAG.materialIdentity)) keys.push(f.key);
+        if (f.tags?.includes(FUNCTIONAL_TAG.identity)) keys.push(f.key);
     }
     return Array.from(new Set(keys));
   }, [allDocTypes]);
@@ -358,7 +358,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       for (const f of resolveEffectiveFields(docType, allDocTypes)) {
         if (f.type !== 'array' || !f.typeId) continue;
         const ct = allDocTypes.find(t => t.id === f.typeId);
-        if (!ct || !resolveEffectiveFields(ct, allDocTypes).some(cf => cf.tags?.includes(FUNCTIONAL_TAG.materialIdentity))) continue;
+        if (!ct || !resolveEffectiveFields(ct, allDocTypes).some(cf => cf.tags?.includes(FUNCTIONAL_TAG.identity))) continue;
         const arr = instance.requisites[f.key];
         if (Array.isArray(arr)) for (const el of arr) if (el && typeof el === 'object') add(el as Record<string, unknown>);
       }

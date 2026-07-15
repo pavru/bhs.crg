@@ -9,7 +9,7 @@ export const FUNCTIONAL_TAG = {
   typeQualityDocument: 'type.qualityDocument',
   typeProjectDocumentation: 'type.projectDocumentation',
   materialQualityDocLink: 'material.qualityDocLink',
-  materialIdentity: 'material.identity',
+  identity: 'identity',
   qualityValidUntil: 'quality.validUntil',
   qualityManufacturer: 'quality.manufacturer',
   datasetHasCover: 'dataset.hasCover',

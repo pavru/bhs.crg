@@ -27,10 +27,10 @@ public class SchemaTagsTests
     [Fact]
     public void TaggedFields_MultipleTagsPerField()
     {
-        var dt = Type("""{"fields":[{"key":"Арт","tags":["material.identity","doc.generatedBy"]}]}""");
+        var dt = Type("""{"fields":[{"key":"Арт","tags":["identity","doc.generatedBy"]}]}""");
         var tags = SchemaTags.TaggedFields(dt, [dt]);
         Assert.Equal(2, tags.Count);
-        Assert.Contains(("Арт", "material.identity"), tags);
+        Assert.Contains(("Арт", "identity"), tags);
         Assert.Contains(("Арт", "doc.generatedBy"), tags);
     }
 
@@ -50,12 +50,12 @@ public class SchemaTagsTests
     {
         var dt = Type("""
             {"fields":[
-              {"key":"Артикул","tags":["material.identity"]},
-              {"key":"Наименование","tags":["material.identity"]},
+              {"key":"Артикул","tags":["identity"]},
+              {"key":"Наименование","tags":["identity"]},
               {"key":"Кач","tags":["material.qualityDocLink"]}
             ]}
             """);
-        var ids = SchemaTags.FieldKeysWithTag(dt.Schema, "material.identity");
+        var ids = SchemaTags.FieldKeysWithTag(dt.Schema, "identity");
         Assert.Equal(["Артикул", "Наименование"], ids);
         Assert.Equal(["Кач"], SchemaTags.FieldKeysWithTag(dt.Schema, "material.qualityDocLink"));
     }
