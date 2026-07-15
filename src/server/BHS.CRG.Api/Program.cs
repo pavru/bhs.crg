@@ -84,6 +84,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(opt =>
         opt.Tokens.ChangeEmailTokenProvider = "EmailConfirmDP";
     })
     .AddEntityFrameworkStores<AppDbContext>()
+    .AddErrorDescriber<RuIdentityErrorDescriber>()
     .AddDefaultTokenProviders()
     .AddTokenProvider<EmailConfirmTokenProvider>("EmailConfirmDP");
 
