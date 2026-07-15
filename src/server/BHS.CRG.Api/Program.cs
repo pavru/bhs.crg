@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using BHS.CRG.Api.Endpoints.Account;
 using BHS.CRG.Api.Endpoints.Attachments;
 using BHS.CRG.Api.Endpoints.Auth;
@@ -45,7 +46,9 @@ using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Plugins;
 using BHS.CRG.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Minio;
@@ -69,6 +72,29 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(opt =>
     })
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
+
+// Токены сброса/подтверждения (issue #148) шифруются ключами Data Protection. БЕЗ персистентных
+// ключей они инвалидируются при каждом рестарте API (и ломаются при >1 инстанса). Персистим на диск
+// (в контейнере — том); путь настраивается, дефолт — рядом с приложением.
+var dpKeysPath = cfg["DataProtection:KeysPath"];
+if (string.IsNullOrWhiteSpace(dpKeysPath))
+    dpKeysPath = Path.Combine(builder.Environment.ContentRootPath, "dp-keys");
+Directory.CreateDirectory(dpKeysPath);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath))
+    .SetApplicationName("BHS.CRG");
+
+// Время жизни токенов сброса пароля / подтверждения (дефолтный token-провайдер) — 1 час.
+builder.Services.Configure<DataProtectionTokenProviderOptions>(o => o.TokenLifespan = TimeSpan.FromHours(1));
+
+// Rate limiting для чувствительных анонимных эндпоинтов сброса пароля (по IP).
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy("auth", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
+});
 
 // ── JWT ───────────────────────────────────────────────────────────────────────
 var jwtSection = cfg.GetSection("Jwt");
@@ -152,6 +178,7 @@ builder.Services.AddScoped<IDocumentRecognizer, ChainDocumentRecognizer>();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IIntegrationSettings, IntegrationSettingsService>();
 builder.Services.AddScoped<BHS.CRG.Application.Email.IEmailSender, BHS.CRG.Infrastructure.Email.MailKitEmailSender>();
+builder.Services.AddScoped<BHS.CRG.Infrastructure.Email.AccountEmailService>();
 
 // ── Фоновые задачи (долгие операции: распознавание набора/таблицы) ──────────────
 builder.Services.AddSingleton<JobQueue>();
@@ -274,6 +301,7 @@ app.UseExceptionHandler(exApp => exApp.Run(async ctx =>
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapAttachmentEndpoints();
 app.MapAuthEndpoints();
