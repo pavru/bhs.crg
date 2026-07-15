@@ -44,20 +44,7 @@ public static class AuthEndpoints
             var token = CreateToken(user, roles, cfg);
             return Results.Ok(new { accessToken = token });
         });
-
-        // Самостоятельная смена пароля текущим пользователем.
-        g.MapPost("/change-password", async (ChangePasswordRequest req,
-            UserManager<ApplicationUser> users, ClaimsPrincipal principal) =>
-        {
-            var id = principal.FindFirstValue(JwtRegisteredClaimNames.Sub)
-                  ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (id is null) return Results.Unauthorized();
-            var user = await users.FindByIdAsync(id);
-            if (user is null) return Results.Unauthorized();
-
-            var result = await users.ChangePasswordAsync(user, req.CurrentPassword, req.NewPassword);
-            return result.Succeeded ? Results.Ok() : Results.BadRequest(result.Errors);
-        }).RequireAuthorization();
+        // Смена пароля переехала в /api/account/change-password (issue #148).
     }
 
     private static string CreateToken(ApplicationUser user, IList<string> roles, IConfiguration cfg)
@@ -84,5 +71,4 @@ public static class AuthEndpoints
 
     record RegisterRequest(string Email, string Password, string DisplayName);
     record LoginRequest(string Email, string Password);
-    record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 }

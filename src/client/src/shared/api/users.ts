@@ -61,9 +61,3 @@ export function useSendEmail() {
   });
 }
 
-export function useChangeMyPassword() {
-  return useMutation({
-    mutationFn: (dto: { currentPassword: string; newPassword: string }) =>
-      apiClient.post('/auth/change-password', dto),
-  });
-}

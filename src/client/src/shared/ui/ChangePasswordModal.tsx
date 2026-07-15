@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
-import { useChangeMyPassword } from '@/shared/api/users';
+import { useChangeMyPassword } from '@/shared/api/account';
 
 function apiError(e: unknown): string {
   const err = e as { response?: { data?: { error?: string; errors?: { description: string }[] } }; message?: string };
