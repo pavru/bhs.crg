@@ -37,24 +37,24 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
       <div className="relative">
         <input
           ref={ref} id={inputId} placeholder=" " required={required}
-          className={`peer w-full h-12 rounded-md bg-transparent text-sm text-fg1 px-3 ` +
-            `outline-none disabled:opacity-50 ${trailing ? 'pr-10' : ''} ${className}`}
+          className={`peer w-full h-14 rounded-md bg-transparent text-sm text-fg1 px-4 ` +
+            `outline-none disabled:opacity-50 ${trailing ? 'pr-11' : ''} ${className}`}
           {...rest}
         />
         {/* Рамка с вырезом: fieldset даёт границу, legend прорезает верх под плавающей меткой. */}
         {/* peer-* реагируют только на СОСЕДЕЙ input'а, поэтому реакцию на фокус/заполнение
             вешаем на fieldset (он сосед) и целим вложенный legend через [&>legend]. */}
         <fieldset aria-hidden
-          className={`pointer-events-none absolute inset-x-0 bottom-0 -top-2 m-0 rounded-md border px-2 transition-colors ${borderColor} peer-focus:border-2 ` +
+          className={`pointer-events-none absolute inset-x-0 bottom-0 -top-2 m-0 rounded-md border px-3 transition-colors ${borderColor} peer-focus:border-2 ` +
             `peer-focus:[&>legend]:max-w-full peer-[:not(:placeholder-shown)]:[&>legend]:max-w-full`}>
-          <legend className="ml-1 h-2.5 w-auto max-w-[0.01px] whitespace-nowrap p-0 text-xs invisible transition-[max-width] duration-100">
+          <legend className="h-2.5 w-auto max-w-[0.01px] whitespace-nowrap p-0 text-xs invisible transition-[max-width] duration-100">
             <span className="inline-block px-1 opacity-0">{label}{required ? ' *' : ''}</span>
           </legend>
         </fieldset>
         <label
           htmlFor={inputId}
-          className={`absolute left-2 top-1/2 -translate-y-1/2 px-1 text-sm pointer-events-none transition-all ${labelColor} ` +
-            `block max-w-[calc(100%-1rem)] truncate ` +
+          className={`absolute left-3 top-1/2 -translate-y-1/2 px-1 text-sm pointer-events-none transition-all ${labelColor} ` +
+            `block max-w-[calc(100%-1.5rem)] truncate ` +
             `peer-focus:top-[-8px] peer-focus:text-xs peer-[:not(:placeholder-shown)]:top-[-8px] peer-[:not(:placeholder-shown)]:text-xs`}
         >
           {label}{required && <span className="ml-0.5 text-danger">*</span>}
