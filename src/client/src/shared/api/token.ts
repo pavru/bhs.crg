@@ -1,35 +1,40 @@
 /**
- * Хранилище access-токена с поддержкой «Запомнить меня».
- *
- * remember = true  → localStorage (переживает закрытие вкладки/браузера);
- * remember = false → sessionStorage (живёт только до закрытия вкладки).
- *
- * Чтение всегда смотрит в оба хранилища, очистка — тоже, чтобы не оставить
- * «висящий» токен при смене режима или логауте.
+ * Хранилище токенов сессии (issue #148 follow-up): короткий access-JWT + долгоживущий
+ * refresh-токен. «Запомнить меня» выбирает хранилище: localStorage (переживает вкладку)
+ * либо sessionStorage (до закрытия вкладки). Чтение/очистка смотрят оба.
  */
-const KEY = 'access_token';
+const ACCESS = 'access_token';
+const REFRESH = 'refresh_token';
 
 export function getToken(): string | null {
-  return localStorage.getItem(KEY) ?? sessionStorage.getItem(KEY);
+  return localStorage.getItem(ACCESS) ?? sessionStorage.getItem(ACCESS);
 }
 
-export function setToken(token: string, remember: boolean): void {
-  if (remember) {
-    localStorage.setItem(KEY, token);
-    sessionStorage.removeItem(KEY);
-  } else {
-    sessionStorage.setItem(KEY, token);
-    localStorage.removeItem(KEY);
-  }
+export function getRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH) ?? sessionStorage.getItem(REFRESH);
+}
+
+/** Сохранить пару токенов в выбранное хранилище (при логине). */
+export function setTokens(access: string, refresh: string, remember: boolean): void {
+  const store = remember ? localStorage : sessionStorage;
+  const other = remember ? sessionStorage : localStorage;
+  store.setItem(ACCESS, access);
+  store.setItem(REFRESH, refresh);
+  other.removeItem(ACCESS);
+  other.removeItem(REFRESH);
+}
+
+/** Обновить пару, сохранив текущее хранилище (после refresh-ротации или смены пароля). */
+export function replaceTokens(access: string, refresh: string): void {
+  const inSession = sessionStorage.getItem(ACCESS) !== null;
+  const store = inSession ? sessionStorage : localStorage;
+  store.setItem(ACCESS, access);
+  store.setItem(REFRESH, refresh);
 }
 
 export function clearToken(): void {
-  localStorage.removeItem(KEY);
-  sessionStorage.removeItem(KEY);
-}
-
-/** Заменяет токен, сохраняя выбранное хранилище (напр. после re-issue при смене пароля). */
-export function replaceToken(token: string): void {
-  if (sessionStorage.getItem(KEY) !== null) sessionStorage.setItem(KEY, token);
-  else localStorage.setItem(KEY, token);
+  localStorage.removeItem(ACCESS);
+  sessionStorage.removeItem(ACCESS);
+  localStorage.removeItem(REFRESH);
+  sessionStorage.removeItem(REFRESH);
 }

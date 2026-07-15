@@ -32,8 +32,8 @@ public static class AuthEndpoints
             Results.Ok(new { open = !users.Users.Any() }));
 
         g.MapPost("/login", async (LoginRequest req,
-            UserManager<ApplicationUser> users,
-            IConfiguration cfg) =>
+            UserManager<ApplicationUser> users, RefreshTokenService refreshTokens,
+            IConfiguration cfg, CancellationToken ct) =>
         {
             var user = await users.FindByEmailAsync(req.Email);
             if (user is null)
@@ -56,10 +56,35 @@ public static class AuthEndpoints
             await users.ResetAccessFailedCountAsync(user);
             var roles = await users.GetRolesAsync(user);
             var stamp = await users.GetSecurityStampAsync(user);
-            var token = JwtTokens.Create(user, roles, stamp, cfg);
-            return Results.Ok(new { accessToken = token });
+            var access = JwtTokens.Create(user, roles, stamp, cfg);
+            var refresh = await refreshTokens.IssueAsync(user.Id, ct);
+            return Results.Ok(new { accessToken = access, refreshToken = refresh });
         });
         // Смена пароля переехала в /api/account/change-password (issue #148).
+
+        // Обмен refresh-токена на новую пару (issue #148 follow-up). Ротация: старый ревокается.
+        g.MapPost("/refresh", async (RefreshRequest req,
+            UserManager<ApplicationUser> users, RefreshTokenService refreshTokens,
+            IConfiguration cfg, CancellationToken ct) =>
+        {
+            var rotated = await refreshTokens.RotateAsync(req.RefreshToken, ct);
+            if (rotated is null) return Results.Unauthorized();
+
+            var user = await users.FindByIdAsync(rotated.Value.UserId.ToString());
+            if (user is null) return Results.Unauthorized();
+
+            var roles = await users.GetRolesAsync(user);
+            var stamp = await users.GetSecurityStampAsync(user);
+            var access = JwtTokens.Create(user, roles, stamp, cfg);
+            return Results.Ok(new { accessToken = access, refreshToken = rotated.Value.NewToken });
+        }).RequireRateLimiting("auth");
+
+        // Логаут: отзыв refresh-токена текущей сессии.
+        g.MapPost("/logout", async (RefreshRequest req, RefreshTokenService refreshTokens, CancellationToken ct) =>
+        {
+            await refreshTokens.RevokeAsync(req.RefreshToken, ct);
+            return Results.Ok();
+        });
 
         // Сброс пароля (issue #148). Анонимные, под rate-limit «auth».
         // Enumeration-safe: forgot всегда 200, существование адреса не раскрываем.
@@ -85,7 +110,7 @@ public static class AuthEndpoints
         }).RequireRateLimiting("auth");
 
         g.MapPost("/reset-password", async (ResetPasswordRequest req,
-            UserManager<ApplicationUser> users) =>
+            UserManager<ApplicationUser> users, RefreshTokenService refreshTokens, CancellationToken ct) =>
         {
             var user = await users.FindByEmailAsync(req.Email);
             if (user is null)
@@ -95,9 +120,10 @@ public static class AuthEndpoints
             if (!result.Succeeded)
                 return Results.BadRequest(new { error = DescribeErrors(result) });
 
-            // Успешный сброс снимает блокировку по неудачным попыткам (issue #148 follow-up).
+            // Успешный сброс снимает блокировку и отзывает все refresh-сессии (issue #148 follow-up).
             await users.SetLockoutEndDateAsync(user, null);
             await users.ResetAccessFailedCountAsync(user);
+            await refreshTokens.RevokeAllForUserAsync(user.Id, ct);
             return Results.Ok();
         }).RequireRateLimiting("auth");
 
@@ -140,4 +166,5 @@ public static class AuthEndpoints
     record ResetPasswordRequest(string Email, string Token, string NewPassword);
     record ConfirmEmailRequest(string Email, string Token);
     record ConfirmEmailChangeRequest(Guid UserId, string NewEmail, string Token);
+    record RefreshRequest(string RefreshToken);
 }

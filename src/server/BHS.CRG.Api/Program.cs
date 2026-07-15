@@ -206,6 +206,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IIntegrationSettings, IntegrationSettingsService>();
 builder.Services.AddScoped<BHS.CRG.Application.Email.IEmailSender, BHS.CRG.Infrastructure.Email.MailKitEmailSender>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Email.AccountEmailService>();
+builder.Services.AddScoped<RefreshTokenService>();
 
 // ── Фоновые задачи (долгие операции: распознавание набора/таблицы) ──────────────
 builder.Services.AddSingleton<JobQueue>();

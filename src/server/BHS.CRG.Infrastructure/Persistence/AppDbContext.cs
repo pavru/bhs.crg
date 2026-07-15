@@ -41,6 +41,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<BHS.CRG.Domain.Settings.IntegrationSettingsEntity> IntegrationSettings => Set<BHS.CRG.Domain.Settings.IntegrationSettingsEntity>();
     public DbSet<BHS.CRG.Domain.Notifications.Notification> Notifications => Set<BHS.CRG.Domain.Notifications.Notification>();
     public DbSet<BHS.CRG.Domain.Jobs.Job> Jobs => Set<BHS.CRG.Domain.Jobs.Job>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
