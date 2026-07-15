@@ -6,8 +6,8 @@ import {
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
-import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
+import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { ruCount } from '@/shared/utils/pluralize';
@@ -47,7 +47,6 @@ function SetDetail() {
   const deleteMutation = useDeleteDocumentInstance();
   const reorderMutation = useReorderInstances();
   const assembleMutation = useAssembleSet();
-  const [addTypeId, setAddTypeId] = useState('');
   const [addError, setAddError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DocumentInstance | null>(null);
   // Слежение за сборкой: пока идёт задача — опрашиваем вывод; останавливаемся, когда generatedAt изменится.
@@ -103,15 +102,12 @@ function SetDetail() {
     reorderMutation.mutate({ setId: set!.id, orderedIds: ids });
   }
 
-  async function handleAddDoc(e: React.FormEvent) {
-    e.preventDefault();
+  // Пикер сам закрывается по выбору; добавляем документ выбранного типа (ошибку показываем строкой у шапки).
+  async function handlePickDocType(typeId: string) {
     setAddError('');
-    if (!addTypeId) return;
     try {
-      await addMutation.mutateAsync({ setId: set!.id, documentTypeId: addTypeId });
-      setAddDocOpen(false);
-      setAddTypeId('');
-    } catch (err: unknown) { setAddError(err instanceof Error ? err.message : 'Ошибка'); }
+      await addMutation.mutateAsync({ setId: set!.id, documentTypeId: typeId });
+    } catch (err: unknown) { setAddError(err instanceof Error ? err.message : 'Ошибка добавления документа'); }
   }
 
   const docTypeMap = Object.fromEntries(docTypes.map(dt => [dt.id, dt]));
@@ -164,8 +160,9 @@ function SetDetail() {
           </Button>
         </div>
       </div>
-      {assembleMsg && <p className="text-xs text-fg4 mb-3">{assembleMsg}</p>}
-      {!assembleMsg && <div className="mb-3" />}
+      {addError && <p className="text-xs text-danger mb-3">{addError}</p>}
+      {!addError && assembleMsg && <p className="text-xs text-fg4 mb-3">{assembleMsg}</p>}
+      {!addError && !assembleMsg && <div className="mb-3" />}
 
       <div className="bg-surface border border-stroke rounded-xl overflow-hidden">
         {set.instances.length === 0 ? (
@@ -274,28 +271,14 @@ function SetDetail() {
           onSend={(to, subject, body) => emailSet.mutateAsync({ setId: set.id, to, subject, body })} />
       )}
 
-      <Modal open={addDocOpen} onOpenChange={setAddDocOpen} title="Добавить документ"
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button variant="text" onClick={() => setAddDocOpen(false)}>Отмена</Button>
-            <Button type="submit" form="add-doc-form" variant="filled" loading={addMutation.isPending}>
-              {addMutation.isPending ? 'Добавление…' : 'Добавить'}
-            </Button>
-          </div>
-        }>
-        {addDocOpen && (
-          <form id="add-doc-form" onSubmit={handleAddDoc} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-fg2 mb-1">Тип документа</label>
-              <Select value={addTypeId || undefined} onValueChange={setAddTypeId} required
-                placeholder="Выберите тип…" aria-label="Тип документа">
-                {documentKindTypes.map(dt => <SelectItem key={dt.id} value={dt.id}>{dt.name}</SelectItem>)}
-              </Select>
-            </div>
-            {addError && <p className="text-sm text-danger">{addError}</p>}
-          </form>
-        )}
-      </Modal>
+      <TypePicker
+        open={addDocOpen}
+        onOpenChange={setAddDocOpen}
+        title="Добавить документ"
+        recentKey="doc-type"
+        types={documentKindTypes.map<PickType>(dt => ({ id: dt.id, name: dt.name, code: dt.code, section: 'Типы документов' }))}
+        onSelect={handlePickDocType}
+      />
 
       {editInstance && setId && (() => {
         const liveInstance = set.instances.find(i => i.id === editInstance.id) ?? editInstance;
