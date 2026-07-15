@@ -70,6 +70,10 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(opt =>
         opt.Password.RequireDigit = false;
         opt.Password.RequireNonAlphanumeric = false;
         opt.Password.RequiredLength = 6;
+        // Защита от перебора пароля (issue #148 follow-up): блокировка на 15 минут после 5 неудач.
+        opt.Lockout.AllowedForNewUsers = true;
+        opt.Lockout.MaxFailedAccessAttempts = 5;
+        opt.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
         // Подтверждение/смена email — на отдельном 24-часовом провайдере (issue #148),
         // сброс пароля остаётся на дефолтном (1 час).
         opt.Tokens.EmailConfirmationTokenProvider = "EmailConfirmDP";

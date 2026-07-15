@@ -86,7 +86,12 @@ public static class UserEndpoints
             if (user is null) return Results.NotFound();
             var token = await users.GeneratePasswordResetTokenAsync(user);
             var result = await users.ResetPasswordAsync(user, token, req.NewPassword);
-            return result.Succeeded ? Results.Ok() : Results.BadRequest(new { error = DescribeErrors(result) });
+            if (!result.Succeeded) return Results.BadRequest(new { error = DescribeErrors(result) });
+
+            // Сброс пароля админом снимает и блокировку по неудачным попыткам (issue #148 follow-up).
+            await users.SetLockoutEndDateAsync(user, null);
+            await users.ResetAccessFailedCountAsync(user);
+            return Results.Ok();
         });
 
         g.MapDelete("/{id:guid}", async (Guid id,
