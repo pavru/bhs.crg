@@ -5,7 +5,6 @@ import {
 import { DateInput } from '@/shared/ui/DateInput';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
-import { useCommonDataForScope } from '@/shared/api/commonData';
 import type {
   CatalogScope, DocumentInstance, DocumentType, FieldRef, PrimitiveTypeDef,
 } from '@/shared/api/types';
@@ -147,10 +146,9 @@ export function ArrayTableModal({
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Единая цепочка скопов (issue #82): комплект → (Set, setId), иначе (scope, scopeId) — с подъёмом по родителям.
-  const { data: commonDataEntries = [] } = useCommonDataForScope({
-    scope: setId ? 'Set' : scope, scopeId: setId ?? scopeId, enabled: open && (!!setId || !!scope),
-  });
+  // Единый scope-контекст владельца (issue #82): комплект → (Set, setId), иначе (scope, scopeId).
+  const resolveScope = setId ? 'Set' as const : scope;
+  const resolveScopeId = setId ?? scopeId;
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const primDef = (f: SchemaField) => f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
 
@@ -401,7 +399,7 @@ export function ArrayTableModal({
         initialText={pasteText}
         tableFields={tableFields}
         allDocTypes={allDocTypes}
-        commonDataEntries={commonDataEntries}
+        scope={resolveScope} scopeId={resolveScopeId}
         onApply={newRows => {
           setRows(prev => [...prev, ...newRows]);
           setRowIds(prev => [...prev, ...newRows.map(() => crypto.randomUUID())]);
