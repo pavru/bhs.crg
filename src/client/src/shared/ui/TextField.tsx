@@ -42,9 +42,12 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
           {...rest}
         />
         {/* Рамка с вырезом: fieldset даёт границу, legend прорезает верх под плавающей меткой. */}
+        {/* peer-* реагируют только на СОСЕДЕЙ input'а, поэтому реакцию на фокус/заполнение
+            вешаем на fieldset (он сосед) и целим вложенный legend через [&>legend]. */}
         <fieldset aria-hidden
-          className={`pointer-events-none absolute inset-x-0 bottom-0 -top-2 m-0 rounded-md border px-2 transition-colors ${borderColor} peer-focus:border-2`}>
-          <legend className="ml-1 h-2.5 w-auto max-w-[0.01px] whitespace-nowrap p-0 text-xs invisible transition-[max-width] duration-100 peer-focus:max-w-full peer-[:not(:placeholder-shown)]:max-w-full">
+          className={`pointer-events-none absolute inset-x-0 bottom-0 -top-2 m-0 rounded-md border px-2 transition-colors ${borderColor} peer-focus:border-2 ` +
+            `peer-focus:[&>legend]:max-w-full peer-[:not(:placeholder-shown)]:[&>legend]:max-w-full`}>
+          <legend className="ml-1 h-2.5 w-auto max-w-[0.01px] whitespace-nowrap p-0 text-xs invisible transition-[max-width] duration-100">
             <span className="inline-block px-1 opacity-0">{label}{required ? ' *' : ''}</span>
           </legend>
         </fieldset>
