@@ -39,9 +39,24 @@ public static class AuthEndpoints
             IConfiguration cfg) =>
         {
             var user = await users.FindByEmailAsync(req.Email);
-            if (user is null || !await users.CheckPasswordAsync(user, req.Password))
+            if (user is null)
                 return Results.Unauthorized();
 
+            // Защита от перебора пароля: временная блокировка после N неудач (issue #148 follow-up).
+            if (await users.IsLockedOutAsync(user))
+                return Results.Json(new { error = "Слишком много попыток. Аккаунт временно заблокирован, попробуйте позже." },
+                    statusCode: StatusCodes.Status423Locked);
+
+            if (!await users.CheckPasswordAsync(user, req.Password))
+            {
+                await users.AccessFailedAsync(user);
+                if (await users.IsLockedOutAsync(user))
+                    return Results.Json(new { error = "Слишком много попыток. Аккаунт временно заблокирован, попробуйте позже." },
+                        statusCode: StatusCodes.Status423Locked);
+                return Results.Unauthorized();
+            }
+
+            await users.ResetAccessFailedCountAsync(user);
             var roles = await users.GetRolesAsync(user);
             var token = CreateToken(user, roles, cfg);
             return Results.Ok(new { accessToken = token });
@@ -79,9 +94,13 @@ public static class AuthEndpoints
                 return Results.BadRequest(new { error = "Ссылка недействительна или устарела." });
 
             var result = await users.ResetPasswordAsync(user, req.Token, req.NewPassword);
-            return result.Succeeded
-                ? Results.Ok()
-                : Results.BadRequest(new { error = DescribeErrors(result) });
+            if (!result.Succeeded)
+                return Results.BadRequest(new { error = DescribeErrors(result) });
+
+            // Успешный сброс снимает блокировку по неудачным попыткам (issue #148 follow-up).
+            await users.SetLockoutEndDateAsync(user, null);
+            await users.ResetAccessFailedCountAsync(user);
+            return Results.Ok();
         }).RequireRateLimiting("auth");
 
         // Подтверждение адреса по ссылке из письма (issue #148). Анонимные.
