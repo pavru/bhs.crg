@@ -18,18 +18,23 @@ export function PasteMappingModal({
   const [step, setStep] = useState<'input' | 'map'>('input');
   const [rawText, setRawText] = useState('');
   const [skipHeader, setSkipHeader] = useState(false);
-  const [colMappings, setColMappings] = useState<string[]>([]);
+  // Сопоставление: ПОЛЕ таблицы → индекс колонки Excel-данных (источник). '' = пропустить.
+  const [fieldCol, setFieldCol] = useState<Record<string, number>>({});
+  // Для полей-ссылок (complex): по какому под-полю искать запись каталога.
   const [matchFields, setMatchFields] = useState<Record<string, string>>({});
 
   const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
 
-  // Сопоставление колонок по заголовкам первой строки (заголовок ≈ имя/ключ поля).
-  function mapByHeader(headerRow: string[], count: number): string[] {
-    return Array.from({ length: count }, (_, i) => {
-      const h = norm(headerRow[i] ?? '');
-      if (!h) return '';
-      return tableFields.find(f => norm(f.title) === h || norm(f.key) === h)?.key ?? '';
+  // Авто-сопоставление по заголовкам первой строки: для каждого поля ищем колонку,
+  // чей заголовок совпадает с именем/ключом поля.
+  function mapByHeader(headerRow: string[], count: number): Record<string, number> {
+    const m: Record<string, number> = {};
+    tableFields.forEach(f => {
+      const ci = headerRow.findIndex((cell, i) =>
+        i < count && (norm(cell) === norm(f.title) || norm(cell) === norm(f.key)));
+      if (ci >= 0) m[f.key] = ci;
     });
+    return m;
   }
 
   function initMapping(text: string) {
@@ -41,7 +46,7 @@ export function PasteMappingModal({
       return !!c && tableFields.some(f => norm(f.title) === c || norm(f.key) === c);
     });
     setSkipHeader(isHeader);
-    setColMappings(isHeader ? mapByHeader(firstRow, maxCols) : Array.from({ length: maxCols }, () => ''));
+    setFieldCol(isHeader ? mapByHeader(firstRow, maxCols) : {});
     setMatchFields({});
   }
 
@@ -57,11 +62,17 @@ export function PasteMappingModal({
   const dataRows = skipHeader ? allRows.slice(1) : allRows;
   const importCount = dataRows.filter(r => r.some(c => c.trim())).length;
 
+  // Подпись колонки Excel в выпадашке: заголовок (если галка) либо «Кол. N — пример данных».
+  function colLabel(ci: number): string {
+    if (skipHeader) return (allRows[0]?.[ci] ?? '').trim() || `Кол. ${ci + 1}`;
+    const preview = dataRows.slice(0, 3).map(r => r[ci] ?? '').filter(Boolean).join(', ');
+    return preview ? `Кол. ${ci + 1} — ${preview}` : `Кол. ${ci + 1}`;
+  }
+
   function apply() {
     const newRows = dataRows.filter(r => r.some(c => c.trim())).map(r => {
       const row: Record<string, unknown> = {};
-      colMappings.forEach((fieldKey, ci) => {
-        if (!fieldKey) return;
+      Object.entries(fieldCol).forEach(([fieldKey, ci]) => {
         const field = tableFields.find(f => f.key === fieldKey);
         if (!field) return;
         const raw = (r[ci] ?? '').trim();
@@ -98,7 +109,7 @@ export function PasteMappingModal({
     onOpenChange(false);
   }
 
-  const selectCls = 'flex-1 min-w-[120px] border border-stroke-strong rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand';
+  const selectCls = 'w-full min-w-[140px] border border-stroke-strong rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand';
 
   if (step === 'input') {
     return (
@@ -126,7 +137,7 @@ export function PasteMappingModal({
     );
   }
 
-  // step === 'map'
+  // step === 'map' — строки = ПОЛЯ таблицы, справа выбираем колонку Excel-источник.
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Сопоставление столбцов" wide
       footer={
@@ -147,8 +158,8 @@ export function PasteMappingModal({
               onChange={e => {
                 const checked = e.target.checked;
                 setSkipHeader(checked);
-                // Пересопоставляем: с заголовками — по именам первой строки; без — сброс на «пропустить».
-                setColMappings(checked ? mapByHeader(allRows[0] ?? [], maxCols) : Array.from({ length: maxCols }, () => ''));
+                // С заголовками — авто-маппинг по именам первой строки; без — сброс.
+                setFieldCol(checked ? mapByHeader(allRows[0] ?? [], maxCols) : {});
                 setMatchFields({});
               }}
               className="w-4 h-4 rounded border-stroke-strong text-brand" />
@@ -160,52 +171,51 @@ export function PasteMappingModal({
           <table className="w-full text-xs border-collapse">
             <thead>
               <tr className="bg-base">
-                <th className="border border-stroke px-2 py-1.5 text-left text-fg3 font-medium">Столбец</th>
-                <th className="border border-stroke px-2 py-1.5 text-left text-fg3 font-medium">Поле таблицы</th>
+                <th className="border border-stroke px-2 py-1.5 text-left text-fg3 font-medium w-1/3">Поле таблицы</th>
+                <th className="border border-stroke px-2 py-1.5 text-left text-fg3 font-medium">Столбец из Excel</th>
                 <th className="border border-stroke px-2 py-1.5 text-left text-fg3 font-medium">Сопоставить по</th>
               </tr>
             </thead>
             <tbody>
-              {Array.from({ length: maxCols }, (_, ci) => {
-                const mappedKey = colMappings[ci] ?? '';
-                const mappedField = tableFields.find(f => f.key === mappedKey);
-                const firstRows = (skipHeader ? allRows.slice(1) : allRows).slice(0, 3);
-                const preview = firstRows.map(r => r[ci] ?? '').filter(Boolean).join(', ');
-                const needsMatch = mappedField?.type === 'complex';
+              {tableFields.map(f => {
+                const ci = fieldCol[f.key];
+                const needsMatch = f.type === 'complex';
                 const compositeType = needsMatch
-                  ? allDocTypes.find(dt => dt.id === mappedField?.typeId) ?? null : null;
+                  ? allDocTypes.find(dt => dt.id === f.typeId) ?? null : null;
                 const matchableFields = compositeType
                   ? resolveEffectiveFields(compositeType, allDocTypes).filter(
-                    f => f.type === 'string' || f.type === 'number',
+                    mf => mf.type === 'string' || mf.type === 'number',
                   ) : [];
                 return (
-                  <tr key={ci} className="hover:bg-base">
+                  <tr key={f.key} className="hover:bg-base">
                     <td className="border border-stroke px-2 py-1.5">
-                      <span className="font-mono text-fg2">
-                        {skipHeader ? (allRows[0]?.[ci] ?? `Кол. ${ci + 1}`) : `Кол. ${ci + 1}`}
-                      </span>
-                      {preview && <span className="ml-2 text-fg4 truncate max-w-[120px] inline-block">{preview}</span>}
+                      <span className="text-fg1 font-medium">{f.title}</span>
+                      {f.required && <span className="text-danger ml-0.5">*</span>}
                     </td>
                     <td className="border border-stroke px-2 py-1.5">
-                      <select value={mappedKey}
+                      <select value={ci ?? ''}
                         onChange={e => {
-                          const next = [...colMappings];
-                          next[ci] = e.target.value;
-                          setColMappings(next);
-                          setMatchFields(prev => { const n = { ...prev }; delete n[colMappings[ci]]; return n; });
+                          const v = e.target.value;
+                          setFieldCol(prev => {
+                            const n = { ...prev };
+                            if (v === '') delete n[f.key]; else n[f.key] = Number(v);
+                            return n;
+                          });
                         }}
                         className={selectCls}>
                         <option value="">— пропустить —</option>
-                        {tableFields.map(f => <option key={f.key} value={f.key}>{f.title}</option>)}
+                        {Array.from({ length: maxCols }, (_, i) => (
+                          <option key={i} value={i}>{colLabel(i)}</option>
+                        ))}
                       </select>
                     </td>
                     <td className="border border-stroke px-2 py-1.5">
-                      {needsMatch && matchableFields.length > 0 && (
-                        <select value={matchFields[mappedKey] ?? ''}
-                          onChange={e => setMatchFields(prev => ({ ...prev, [mappedKey]: e.target.value }))}
+                      {needsMatch && matchableFields.length > 0 && ci != null && (
+                        <select value={matchFields[f.key] ?? ''}
+                          onChange={e => setMatchFields(prev => ({ ...prev, [f.key]: e.target.value }))}
                           className={selectCls}>
                           <option value="">— выберите поле —</option>
-                          {matchableFields.map(f => <option key={f.key} value={f.key}>{f.title}</option>)}
+                          {matchableFields.map(mf => <option key={mf.key} value={mf.key}>{mf.title}</option>)}
                         </select>
                       )}
                     </td>
@@ -219,4 +229,3 @@ export function PasteMappingModal({
     </Modal>
   );
 }
-
