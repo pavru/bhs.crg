@@ -138,6 +138,23 @@ builder.Services.AddAuthentication(opt =>
                     ctx.HttpContext.Request.Path.StartsWithSegments("/hubs"))
                     ctx.Token = token;
                 return Task.CompletedTask;
+            },
+            // Проверка SecurityStamp (issue #148 follow-up): токен со «старым» стампом
+            // (после сброса/смены пароля или logout-all) отклоняется, даже не истёкший.
+            OnTokenValidated = async ctx =>
+            {
+                var principal = ctx.Principal;
+                var userId = principal?.FindFirst("sub")?.Value;
+                var tokenStamp = principal?.FindFirst(JwtTokens.SecurityStampClaim)?.Value;
+                if (userId is null || tokenStamp is null) { ctx.Fail("Недействительный токен."); return; }
+
+                var userManager = ctx.HttpContext.RequestServices.GetRequiredService<UserManager<ApplicationUser>>();
+                var user = await userManager.FindByIdAsync(userId);
+                if (user is null) { ctx.Fail("Пользователь не найден."); return; }
+
+                var currentStamp = await userManager.GetSecurityStampAsync(user);
+                if (!string.Equals(tokenStamp, currentStamp, StringComparison.Ordinal))
+                    ctx.Fail("Сессия недействительна — войдите заново.");
             }
         };
     });

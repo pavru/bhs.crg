@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Email;
 using BHS.CRG.Infrastructure.Email;
 using BHS.CRG.Infrastructure.Persistence;
@@ -42,13 +43,19 @@ public static class AccountEndpoints
 
         // Смена пароля текущим пользователем (перенесено из /api/auth в #148).
         g.MapPost("/change-password", async (ChangePasswordRequest req,
-            UserManager<ApplicationUser> users, ClaimsPrincipal principal) =>
+            UserManager<ApplicationUser> users, ClaimsPrincipal principal, IConfiguration cfg) =>
         {
             var user = await FindCurrent(users, principal);
             if (user is null) return Results.Unauthorized();
 
             var result = await users.ChangePasswordAsync(user, req.CurrentPassword, req.NewPassword);
-            return result.Succeeded ? Results.Ok() : Results.BadRequest(new { error = DescribeErrors(result) });
+            if (!result.Succeeded) return Results.BadRequest(new { error = DescribeErrors(result) });
+
+            // Смена пароля обновляет SecurityStamp → текущий токен становится недействительным.
+            // Выдаём свежий, чтобы не разлогинивать активную сессию (issue #148 follow-up).
+            var roles = await users.GetRolesAsync(user);
+            var stamp = await users.GetSecurityStampAsync(user);
+            return Results.Ok(new { accessToken = JwtTokens.Create(user, roles, stamp, cfg) });
         });
 
         // Повторно отправить письмо подтверждения себе (issue #148).

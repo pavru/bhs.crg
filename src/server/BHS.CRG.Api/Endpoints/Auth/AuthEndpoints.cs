@@ -1,10 +1,7 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Infrastructure.Email;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.IdentityModel.Tokens;
 
 namespace BHS.CRG.Api.Endpoints.Auth;
 
@@ -58,7 +55,8 @@ public static class AuthEndpoints
 
             await users.ResetAccessFailedCountAsync(user);
             var roles = await users.GetRolesAsync(user);
-            var token = CreateToken(user, roles, cfg);
+            var stamp = await users.GetSecurityStampAsync(user);
+            var token = JwtTokens.Create(user, roles, stamp, cfg);
             return Results.Ok(new { accessToken = token });
         });
         // Смена пароля переехала в /api/account/change-password (issue #148).
@@ -135,28 +133,6 @@ public static class AuthEndpoints
 
     private static string DescribeErrors(IdentityResult r) =>
         string.Join("; ", r.Errors.Select(e => e.Description));
-
-    private static string CreateToken(ApplicationUser user, IList<string> roles, IConfiguration cfg)
-    {
-        var jwtCfg = cfg.GetSection("Jwt");
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtCfg["Key"]!));
-        var claims = new List<Claim>
-        {
-            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new(JwtRegisteredClaimNames.Email, user.Email!),
-            new("displayName", user.DisplayName),
-        };
-        foreach (var role in roles)
-            claims.Add(new Claim("role", role));
-
-        var token = new JwtSecurityToken(
-            issuer: jwtCfg["Issuer"],
-            audience: jwtCfg["Audience"],
-            claims: claims,
-            expires: DateTime.UtcNow.AddDays(7),
-            signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256));
-        return new JwtSecurityTokenHandler().WriteToken(token);
-    }
 
     record RegisterRequest(string Email, string Password, string DisplayName);
     record LoginRequest(string Email, string Password);

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { useChangeMyPassword } from '@/shared/api/account';
+import { useAuth } from '@/shared/hooks/useAuth';
 
 function apiError(e: unknown): string {
   const err = e as { response?: { data?: { error?: string; errors?: { description: string }[] } }; message?: string };
@@ -12,6 +13,7 @@ function apiError(e: unknown): string {
 
 export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const change = useChangeMyPassword();
+  const { updateSession } = useAuth();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -25,7 +27,9 @@ export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose:
     setError('');
     if (next !== confirm) { setError('Новый пароль и подтверждение не совпадают'); return; }
     try {
-      await change.mutateAsync({ currentPassword: current, newPassword: next });
+      const res = await change.mutateAsync({ currentPassword: current, newPassword: next });
+      // Смена пароля обновляет SecurityStamp → используем свежий токен, чтобы не разлогиниться.
+      if (res?.accessToken) updateSession(res.accessToken);
       setDone(true);
       setTimeout(() => { reset(); onClose(); }, 1200);
     } catch (err) { setError(apiError(err)); }

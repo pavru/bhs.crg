@@ -27,3 +27,9 @@ export function clearToken(): void {
   localStorage.removeItem(KEY);
   sessionStorage.removeItem(KEY);
 }
+
+/** Заменяет токен, сохраняя выбранное хранилище (напр. после re-issue при смене пароля). */
+export function replaceToken(token: string): void {
+  if (sessionStorage.getItem(KEY) !== null) sessionStorage.setItem(KEY, token);
+  else localStorage.setItem(KEY, token);
+}
