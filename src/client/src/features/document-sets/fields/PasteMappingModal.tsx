@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import type { CatalogScope, DocumentType, FieldRef } from '@/shared/api/types';
-import { resolveObjectsBatch } from '@/shared/api/objects';
+import { resolveObjectsBatch, type ObjectResolveItem, type ObjectResolveResult } from '@/shared/api/objects';
+import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { resolveEffectiveFields, type SchemaField } from '@/shared/api/schema';
 // ─── Paste mapping modal ──────────────────────────────────────────────────────
 
@@ -40,8 +41,18 @@ export function PasteMappingModal({
   const [skipHeader, setSkipHeader] = useState(false);
   // Сопоставление: ПОЛЕ таблицы → индекс колонки Excel-данных (источник). '' = пропустить.
   const [fieldCol, setFieldCol] = useState<Record<string, number>>({});
-  // Для полей-ссылок (complex): по какому под-полю искать запись каталога.
-  const [matchFields, setMatchFields] = useState<Record<string, string>>({});
+  // Для полей-ссылок (complex): чем сопоставлять — 'name' (имя+алиасы) или 'key' (identity-поля).
+  const [matchFields, setMatchFields] = useState<Record<string, 'name' | 'key'>>({});
+
+  // Метаданные составного типа поля: identity-поля (тэг identity) + поле для inline-фолбэка.
+  function complexMeta(field: SchemaField) {
+    const ct = field.typeId ? allDocTypes.find(dt => dt.id === field.typeId) ?? null : null;
+    const eff = ct ? resolveEffectiveFields(ct, allDocTypes) : [];
+    const identityKeys = eff.filter(fld => fld.tags?.includes(FUNCTIONAL_TAG.identity)).map(fld => fld.key);
+    // Фолбэк-поле для несопоставленного значения: первое identity-поле, иначе первое строковое/числовое.
+    const fallbackKey = identityKeys[0] ?? eff.find(fld => fld.type === 'string' || fld.type === 'number')?.key;
+    return { identityKeys, fallbackKey };
+  }
   // Резолв идёт на сервере (issue #183): индикатор + промежуточная сводка перед вставкой.
   const [resolving, setResolving] = useState(false);
   const [pending, setPending] = useState<{ rows: Record<string, unknown>[]; linked: number; inline: number } | null>(null);
@@ -95,12 +106,15 @@ export function PasteMappingModal({
   // Изменения сопоставления инвалидируют промежуточную сводку.
   function clearPending() { if (pending) setPending(null); }
 
-  // Резолв строк на сервере → сборка строк. Complex-поля: match по выбранному под-полю (Field);
-  // нет совпадения → inline-данные (сырой текст в это под-поле), чтобы НЕ терять ввод (не пусто).
+  // Резолв строк на сервере → сборка строк. Complex-поля сопоставляются «по наименованию» (Name)
+  // или «по ключу» (identity-поля, OR: значение матчит любое identity-поле). Нет совпадения →
+  // inline-данные (сырой текст в identity/строковое под-поле), чтобы НЕ терять ввод (не пусто).
   async function stage() {
     const dataOnly = dataRows.filter(r => r.some(c => c.trim()));
     const rows: Record<string, unknown>[] = dataOnly.map(() => ({}));
-    const reqs: { row: number; fieldKey: string; mf: string; raw: string; typeId: string }[] = [];
+    const flat: ObjectResolveItem[] = [];
+    // На complex-ячейку — диапазон [start, start+count) запросов в flat; фолбэк — куда класть inline.
+    const cells: { row: number; fieldKey: string; raw: string; start: number; count: number; fallbackKey?: string }[] = [];
 
     dataOnly.forEach((r, ri) => {
       Object.entries(fieldCol).forEach(([fieldKey, ci]) => {
@@ -109,9 +123,17 @@ export function PasteMappingModal({
         const raw = (r[ci] ?? '').trim();
         if (!raw) return;
         if (field.type === 'complex') {
-          const mf = matchFields[fieldKey];
-          if (!mf || !field.typeId) return;
-          reqs.push({ row: ri, fieldKey, mf, raw, typeId: field.typeId });
+          const strat = matchFields[fieldKey];
+          if (!strat || !field.typeId) return;
+          const { identityKeys, fallbackKey } = complexMeta(field);
+          const start = flat.length;
+          if (strat === 'name') {
+            flat.push({ typeId: field.typeId, strategy: 'Name', value: raw });
+          } else {
+            if (identityKeys.length === 0) return; // «по ключу» без identity-полей — нечем матчить
+            identityKeys.forEach(k => flat.push({ typeId: field.typeId!, strategy: 'Field', value: raw, fieldKey: k }));
+          }
+          cells.push({ row: ri, fieldKey, raw, start, count: flat.length - start, fallbackKey });
         } else {
           const v = coerceScalar(field, raw);
           if (v !== undefined) rows[ri][fieldKey] = v;
@@ -119,25 +141,24 @@ export function PasteMappingModal({
       });
     });
 
+    const inlineFallback = (c: typeof cells[number]) => { rows[c.row][c.fieldKey] = c.fallbackKey ? { [c.fallbackKey]: c.raw } : {}; };
+
     let linked = 0, inline = 0;
     setResolving(true);
     try {
-      const results = await resolveObjectsBatch(scope, scopeId,
-        reqs.map(q => ({ typeId: q.typeId, strategy: 'Field' as const, value: q.raw, fieldKey: q.mf })));
-      reqs.forEach((q, i) => {
-        const res = results[i];
-        if (res) {
-          rows[q.row][q.fieldKey] = { $ref: 'catalog', entryId: res.entryId, displayName: res.displayName ?? '', scope: res.scope } as FieldRef;
+      const results = await resolveObjectsBatch(scope, scopeId, flat);
+      cells.forEach(c => {
+        let hit: ObjectResolveResult | null = null;
+        for (let i = c.start; i < c.start + c.count; i++) { if (results[i]) { hit = results[i]!; break; } }
+        if (hit) {
+          rows[c.row][c.fieldKey] = { $ref: 'catalog', entryId: hit.entryId, displayName: hit.displayName ?? '', scope: hit.scope } as FieldRef;
           linked++;
-        } else {
-          rows[q.row][q.fieldKey] = { [q.mf]: q.raw };
-          inline++;
-        }
+        } else { inlineFallback(c); inline++; }
       });
     } catch {
       // Ошибка резолва не должна терять ввод — вставляем всё как inline-данные.
-      reqs.forEach(q => { rows[q.row][q.fieldKey] = { [q.mf]: q.raw }; });
-      inline = reqs.length; linked = 0;
+      cells.forEach(inlineFallback);
+      inline = cells.length; linked = 0;
     } finally {
       setResolving(false);
     }
@@ -250,12 +271,7 @@ export function PasteMappingModal({
               {tableFields.map(f => {
                 const ci = fieldCol[f.key];
                 const needsMatch = f.type === 'complex';
-                const compositeType = needsMatch
-                  ? allDocTypes.find(dt => dt.id === f.typeId) ?? null : null;
-                const matchableFields = compositeType
-                  ? resolveEffectiveFields(compositeType, allDocTypes).filter(
-                    mf => mf.type === 'string' || mf.type === 'number',
-                  ) : [];
+                const hasIdentity = needsMatch && complexMeta(f).identityKeys.length > 0;
                 return (
                   <tr key={f.key} className="hover:bg-base">
                     <td className="border border-stroke px-2 py-1.5">
@@ -281,12 +297,13 @@ export function PasteMappingModal({
                       </select>
                     </td>
                     <td className="border border-stroke px-2 py-1.5">
-                      {needsMatch && matchableFields.length > 0 && ci != null && (
+                      {needsMatch && ci != null && (
                         <select value={matchFields[f.key] ?? ''}
-                          onChange={e => { clearPending(); setMatchFields(prev => ({ ...prev, [f.key]: e.target.value })); }}
+                          onChange={e => { clearPending(); setMatchFields(prev => ({ ...prev, [f.key]: e.target.value as 'name' | 'key' })); }}
                           className={selectCls}>
-                          <option value="">— выберите поле —</option>
-                          {matchableFields.map(mf => <option key={mf.key} value={mf.key}>{mf.title}</option>)}
+                          <option value="">— выберите —</option>
+                          <option value="name">Наименование</option>
+                          {hasIdentity && <option value="key">Ключ</option>}
                         </select>
                       )}
                     </td>
