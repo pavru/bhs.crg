@@ -402,7 +402,10 @@ export function ArrayTableModal({
         tableFields={tableFields}
         allDocTypes={allDocTypes}
         commonDataEntries={commonDataEntries}
-        onApply={newRows => setRows(prev => [...prev, ...newRows])}
+        onApply={newRows => {
+          setRows(prev => [...prev, ...newRows]);
+          setRowIds(prev => [...prev, ...newRows.map(() => crypto.randomUUID())]);
+        }}
       />
     </Modal>
   );
