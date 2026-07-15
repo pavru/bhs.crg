@@ -32,12 +32,12 @@ export function DateField({
           <DateInput value={value} onChange={onChange} precision={precision} disabled={disabled} />
         </div>
         <fieldset aria-hidden
-          className={`pointer-events-none absolute inset-x-0 bottom-0 -top-2 m-0 rounded-md border px-3 transition-colors ${borderColor} ${focused ? 'border-2' : ''}`}>
+          className={`pointer-events-none absolute inset-x-0 bottom-0 top-[-5px] m-0 rounded-md border px-3 transition-colors ${borderColor} ${focused ? 'border-2' : ''}`}>
           <legend className="h-2.5 w-auto max-w-full whitespace-nowrap p-0 text-xs">
             <span className="inline-block px-1 opacity-0">{label}{required ? ' *' : ''}</span>
           </legend>
         </fieldset>
-        <span className={`absolute left-3 top-[-8px] px-1 text-xs pointer-events-none transition-colors ${labelColor} block max-w-[calc(100%-1.5rem)] truncate`}>
+        <span className={`absolute left-3 top-0 -translate-y-1/2 px-1 text-xs pointer-events-none transition-colors ${labelColor} block max-w-[calc(100%-1.5rem)] truncate`}>
           {label}{required && <span className="ml-0.5 text-danger">*</span>}
         </span>
       </div>
