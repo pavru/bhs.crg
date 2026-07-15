@@ -15,6 +15,7 @@ import { UsersPage } from '@/features/settings/UsersPage';
 import { DataSetsPage } from '@/features/datasets/DataSetsPage';
 import { PdfGroupingEditor } from '@/features/datasets/PdfGroupingEditor';
 import { QualityDocsPage } from '@/features/quality-docs/QualityDocsPage';
+import { ProfilePage } from '@/features/account/ProfilePage';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -36,6 +37,7 @@ export default function App() {
                 <Route path="datasets" element={<DataSetsPage />} />
                 <Route path="datasets/files/:fileId/grouping" element={<PdfGroupingEditor />} />
                 <Route path="quality-docs" element={<QualityDocsPage />} />
+                <Route path="profile" element={<ProfilePage />} />
                 <Route element={<AdminRoute />}>
                   <Route path="document-types/*" element={<DocumentTypesPage kind="Document" />} />
                   <Route path="composite-types/*" element={<DocumentTypesPage kind="Composite" />} />

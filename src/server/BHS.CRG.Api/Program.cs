@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using BHS.CRG.Api.Endpoints.Account;
 using BHS.CRG.Api.Endpoints.Attachments;
 using BHS.CRG.Api.Endpoints.Auth;
 using BHS.CRG.Api.Endpoints.Backup;
@@ -276,6 +277,7 @@ app.UseAuthorization();
 
 app.MapAttachmentEndpoints();
 app.MapAuthEndpoints();
+app.MapAccountEndpoints();
 app.MapUserEndpoints();
 app.MapBackupEndpoints();
 app.MapCatalogEndpoints();

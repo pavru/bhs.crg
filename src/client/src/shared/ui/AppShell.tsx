@@ -9,7 +9,7 @@ import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
 import { ShortcutsHelp } from '@/shared/ui/ShortcutsHelp';
 import { workNav, settingsNav, type NavItem } from '@/shared/ui/navConfig';
-import { LogOut, Sun, Moon, Monitor, KeyRound } from 'lucide-react';
+import { LogOut, Sun, Moon, Monitor, KeyRound, UserRound } from 'lucide-react';
 
 const themeOptions: { value: Theme; icon: typeof Sun; label: string }[] = [
   { value: 'light',  icon: Sun,     label: 'Светлая'   },
@@ -132,10 +132,15 @@ export function AppShell() {
         {/* Bottom: theme + user */}
         <div className="px-3 py-3 border-t border-stroke space-y-3 shrink-0">
           <ThemeToggle />
-          <div className="text-xs truncate text-fg3">
-            {user?.displayName || user?.email}
-            <span className="ml-1 text-fg4">· {isAdmin ? 'Администратор' : 'Пользователь'}</span>
-          </div>
+          <NavLink to="/profile"
+            className={({ isActive }) => `flex items-center gap-2 text-xs truncate transition-colors ` +
+              (isActive ? 'text-brand' : 'text-fg3 hover:text-brand')}>
+            <UserRound size={14} className="shrink-0" />
+            <span className="truncate">
+              {user?.displayName || user?.email}
+              <span className="ml-1 text-fg4">· {isAdmin ? 'Администратор' : 'Пользователь'}</span>
+            </span>
+          </NavLink>
           <button
             onClick={() => setPwOpen(true)}
             className="flex items-center gap-2 text-sm transition-colors w-full text-fg2 hover:text-brand"
