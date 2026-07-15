@@ -45,7 +45,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
         {/* peer-* реагируют только на СОСЕДЕЙ input'а, поэтому реакцию на фокус/заполнение
             вешаем на fieldset (он сосед) и целим вложенный legend через [&>legend]. */}
         <fieldset aria-hidden
-          className={`pointer-events-none absolute inset-x-0 bottom-0 -top-2 m-0 rounded-md border px-3 transition-colors ${borderColor} peer-focus:border-2 ` +
+          className={`pointer-events-none absolute inset-x-0 bottom-0 top-[-5px] m-0 rounded-md border px-3 transition-colors ${borderColor} peer-focus:border-2 ` +
             `peer-focus:[&>legend]:max-w-full peer-[:not(:placeholder-shown)]:[&>legend]:max-w-full`}>
           <legend className="h-2.5 w-auto max-w-[0.01px] whitespace-nowrap p-0 text-xs invisible transition-[max-width] duration-100">
             <span className="inline-block px-1 opacity-0">{label}{required ? ' *' : ''}</span>
@@ -55,7 +55,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
           htmlFor={inputId}
           className={`absolute left-3 top-1/2 -translate-y-1/2 px-1 text-sm pointer-events-none transition-all ${labelColor} ` +
             `block max-w-[calc(100%-1.5rem)] truncate ` +
-            `peer-focus:top-[-8px] peer-focus:text-xs peer-[:not(:placeholder-shown)]:top-[-8px] peer-[:not(:placeholder-shown)]:text-xs`}
+            `peer-focus:top-0 peer-focus:text-xs peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-xs`}
         >
           {label}{required && <span className="ml-0.5 text-danger">*</span>}
         </label>
