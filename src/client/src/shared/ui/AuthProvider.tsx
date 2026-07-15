@@ -1,7 +1,7 @@
 import { useState, useCallback, type ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { apiClient } from '@/shared/api/client';
-import { getToken, setToken, clearToken } from '@/shared/api/token';
+import { getToken, setToken, clearToken, replaceToken } from '@/shared/api/token';
 import { AuthContext, type AuthUser, type UserRole } from '@/shared/hooks/useAuth';
 
 function decodeUser(token: string): AuthUser {
@@ -23,13 +23,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(decodeUser(data.accessToken));
   }, []);
 
+  const updateSession = useCallback((accessToken: string) => {
+    replaceToken(accessToken);
+    setUser(decodeUser(accessToken));
+  }, []);
+
   const logout = useCallback(() => {
     clearToken();
     setUser(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, updateSession, logout }}>
       {children}
     </AuthContext.Provider>
   );

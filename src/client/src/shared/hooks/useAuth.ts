@@ -12,6 +12,8 @@ export interface AuthUser {
 export interface AuthContextValue {
   user: AuthUser | null;
   login: (email: string, password: string, remember?: boolean) => Promise<void>;
+  /** Обновить сессию по свежему токену (напр. re-issue при смене пароля). */
+  updateSession: (accessToken: string) => void;
   logout: () => void;
 }
 

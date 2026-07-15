@@ -31,7 +31,7 @@ export function useUpdateAccount() {
 export function useChangeMyPassword() {
   return useMutation({
     mutationFn: (dto: { currentPassword: string; newPassword: string }) =>
-      apiClient.post('/account/change-password', dto),
+      apiClient.post<{ accessToken?: string }>('/account/change-password', dto).then(r => r.data),
   });
 }
 
