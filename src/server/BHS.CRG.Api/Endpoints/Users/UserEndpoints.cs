@@ -1,5 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using BHS.CRG.Application.Email;
+using BHS.CRG.Infrastructure.Email;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -26,7 +28,8 @@ public static class UserEndpoints
             return Results.Ok(result);
         });
 
-        g.MapPost("/", async (CreateUserRequest req, UserManager<ApplicationUser> users) =>
+        g.MapPost("/", async (CreateUserRequest req,
+            UserManager<ApplicationUser> users, AccountEmailService emails, CancellationToken ct) =>
         {
             var role = NormalizeRole(req.Role);
             if (role is null) return Results.BadRequest(new { error = "Недопустимая роль" });
@@ -41,6 +44,18 @@ public static class UserEndpoints
             var created = await users.CreateAsync(user, req.Password);
             if (!created.Succeeded) return Results.BadRequest(new { error = DescribeErrors(created) });
             await users.AddToRoleAsync(user, role);
+
+            // По желанию админа — сразу отправить письмо для подтверждения адреса (issue #148).
+            // Ошибку отправки не роняем в ответ: пользователь уже создан, письмо можно переслать позже.
+            if (req.SendConfirmation == true)
+            {
+                try
+                {
+                    var token = await users.GenerateEmailConfirmationTokenAsync(user);
+                    await emails.SendEmailConfirmationAsync(user.Email!, token, ct);
+                }
+                catch (EmailNotConfiguredException) { /* SMTP не настроен — пользователь создан, письмо позже */ }
+            }
             return Results.Ok(new UserDto(user.Id, user.Email!, user.DisplayName, role));
         });
 
@@ -106,7 +121,7 @@ public static class UserEndpoints
         string.Join("; ", r.Errors.Select(e => e.Description));
 
     record UserDto(Guid Id, string Email, string DisplayName, string Role);
-    record CreateUserRequest(string Email, string? DisplayName, string Password, string Role);
+    record CreateUserRequest(string Email, string? DisplayName, string Password, string Role, bool? SendConfirmation);
     record ChangeRoleRequest(string Role);
     record ResetPasswordRequest(string NewPassword);
 }

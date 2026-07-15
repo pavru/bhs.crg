@@ -34,3 +34,18 @@ export function useChangeMyPassword() {
       apiClient.post('/account/change-password', dto),
   });
 }
+
+/** Повторно отправить письмо подтверждения адреса себе (issue #148). */
+export function useResendConfirmation() {
+  return useMutation({
+    mutationFn: () => apiClient.post('/account/resend-confirmation'),
+  });
+}
+
+/** Запустить смену email: письмо-подтверждение уходит на новый адрес. */
+export function useChangeEmail() {
+  return useMutation({
+    mutationFn: (dto: { newEmail: string; currentPassword: string }) =>
+      apiClient.post('/account/change-email', dto),
+  });
+}

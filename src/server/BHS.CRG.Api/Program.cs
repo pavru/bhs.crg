@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Endpoints.Account;
 using BHS.CRG.Api.Endpoints.Attachments;
 using BHS.CRG.Api.Endpoints.Auth;
@@ -69,9 +70,14 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(opt =>
         opt.Password.RequireDigit = false;
         opt.Password.RequireNonAlphanumeric = false;
         opt.Password.RequiredLength = 6;
+        // Подтверждение/смена email — на отдельном 24-часовом провайдере (issue #148),
+        // сброс пароля остаётся на дефолтном (1 час).
+        opt.Tokens.EmailConfirmationTokenProvider = "EmailConfirmDP";
+        opt.Tokens.ChangeEmailTokenProvider = "EmailConfirmDP";
     })
     .AddEntityFrameworkStores<AppDbContext>()
-    .AddDefaultTokenProviders();
+    .AddDefaultTokenProviders()
+    .AddTokenProvider<EmailConfirmTokenProvider>("EmailConfirmDP");
 
 // Токены сброса/подтверждения (issue #148) шифруются ключами Data Protection. БЕЗ персистентных
 // ключей они инвалидируются при каждом рестарте API (и ломаются при >1 инстанса). Персистим на диск

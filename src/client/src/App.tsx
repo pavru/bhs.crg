@@ -18,6 +18,8 @@ import { QualityDocsPage } from '@/features/quality-docs/QualityDocsPage';
 import { ProfilePage } from '@/features/account/ProfilePage';
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage';
+import { ConfirmEmailPage } from '@/features/auth/ConfirmEmailPage';
+import { ConfirmEmailChangePage } from '@/features/auth/ConfirmEmailChangePage';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -33,6 +35,8 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/confirm-email" element={<ConfirmEmailPage />} />
+            <Route path="/confirm-email-change" element={<ConfirmEmailChangePage />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<AppShell />}>
                 <Route index element={<Navigate to="/document-sets" replace />} />

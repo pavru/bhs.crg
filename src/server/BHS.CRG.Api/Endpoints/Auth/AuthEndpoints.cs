@@ -23,7 +23,8 @@ public static class AuthEndpoints
             if (users.Users.Any())
                 return Results.Problem("Регистрация закрыта. Обратитесь к администратору.", statusCode: 403);
 
-            var user = new ApplicationUser { UserName = req.Email, Email = req.Email, DisplayName = req.DisplayName };
+            // Первому админу подтверждать адрес некому — считаем подтверждённым (issue #148).
+            var user = new ApplicationUser { UserName = req.Email, Email = req.Email, DisplayName = req.DisplayName, EmailConfirmed = true };
             var result = await users.CreateAsync(user, req.Password);
             if (!result.Succeeded) return Results.BadRequest(result.Errors);
             await users.AddToRoleAsync(user, "Admin");
@@ -82,6 +83,35 @@ public static class AuthEndpoints
                 ? Results.Ok()
                 : Results.BadRequest(new { error = DescribeErrors(result) });
         }).RequireRateLimiting("auth");
+
+        // Подтверждение адреса по ссылке из письма (issue #148). Анонимные.
+        g.MapPost("/confirm-email", async (ConfirmEmailRequest req, UserManager<ApplicationUser> users) =>
+        {
+            var user = await users.FindByEmailAsync(req.Email);
+            if (user is null)
+                return Results.BadRequest(new { error = "Ссылка недействительна или устарела." });
+
+            var result = await users.ConfirmEmailAsync(user, req.Token);
+            return result.Succeeded
+                ? Results.Ok()
+                : Results.BadRequest(new { error = DescribeErrors(result) });
+        }).RequireRateLimiting("auth");
+
+        // Подтверждение смены адреса (переход по ссылке из письма на НОВЫЙ адрес).
+        g.MapPost("/confirm-email-change", async (ConfirmEmailChangeRequest req, UserManager<ApplicationUser> users) =>
+        {
+            var user = await users.FindByIdAsync(req.UserId.ToString());
+            if (user is null)
+                return Results.BadRequest(new { error = "Ссылка недействительна или устарела." });
+
+            var result = await users.ChangeEmailAsync(user, req.NewEmail, req.Token);
+            if (!result.Succeeded)
+                return Results.BadRequest(new { error = DescribeErrors(result) });
+
+            // UserName == Email (вход по email) — синхронизируем, иначе логин отвалится.
+            await users.SetUserNameAsync(user, req.NewEmail);
+            return Results.Ok();
+        }).RequireRateLimiting("auth");
     }
 
     private static string DescribeErrors(IdentityResult r) =>
@@ -113,4 +143,6 @@ public static class AuthEndpoints
     record LoginRequest(string Email, string Password);
     record ForgotPasswordRequest(string Email);
     record ResetPasswordRequest(string Email, string Token, string NewPassword);
+    record ConfirmEmailRequest(string Email, string Token);
+    record ConfirmEmailChangeRequest(Guid UserId, string NewEmail, string Token);
 }
