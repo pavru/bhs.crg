@@ -7,9 +7,16 @@ interface ModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  children: ReactNode;
+  /** Тело диалога. Функция-форма получает requestClose (с isDirty-guard) — содержимое само
+   *  рисует свою шапку/крестик (для full-screen top app bar). */
+  children: ReactNode | ((requestClose: () => void) => ReactNode);
   wide?: boolean;
   extraWide?: boolean;
+  /** Полноэкранный диалог-оверлей (на весь вьюпорт) — для крупных форм. Рендерится НАД
+   *  текущей страницей (она остаётся смонтированной): закрытие возвращает в прежний контекст. */
+  fullScreen?: boolean;
+  /** Не рисовать заголовок по умолчанию (содержимое рисует собственный top app bar). */
+  headerless?: boolean;
   isDirty?: boolean;
   /** Не добавлять собственный скролл и паддинг тела — содержимое само управляет
    *  раскладкой (фиксированный футер, прокрутка только области полей). */
@@ -19,7 +26,7 @@ interface ModalProps {
   footer?: ReactNode;
 }
 
-export function Modal({ open, onOpenChange, title, children, wide, extraWide, isDirty, flushBody, footer }: ModalProps) {
+export function Modal({ open, onOpenChange, title, children, wide, extraWide, fullScreen, headerless, isDirty, flushBody, footer }: ModalProps) {
   const [confirmClose, setConfirmClose] = useState(false);
 
   useEffect(() => {
@@ -39,10 +46,12 @@ export function Modal({ open, onOpenChange, title, children, wide, extraWide, is
           style={{ backdropFilter: 'blur(2px)' }}
         />
         <Dialog.Content
-          className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] max-h-[90vh] flex flex-col overflow-hidden focus:outline-none bg-surface border border-stroke ${
-            extraWide ? 'w-full max-w-5xl' : wide ? 'w-full max-w-2xl' : 'w-full max-w-lg'
-          }`}
-          style={{ boxShadow: 'var(--f-shadow28)' }}
+          className={fullScreen
+            ? 'fixed inset-0 z-50 flex flex-col overflow-hidden focus:outline-none bg-base'
+            : `fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-[28px] max-h-[90vh] flex flex-col overflow-hidden focus:outline-none bg-surface border border-stroke ${
+              extraWide ? 'w-full max-w-5xl' : wide ? 'w-full max-w-2xl' : 'w-full max-w-lg'
+            }`}
+          style={fullScreen ? undefined : { boxShadow: 'var(--f-shadow28)' }}
           onEscapeKeyDown={e => {
             if (isDirty) {
               e.preventDefault();
@@ -56,26 +65,27 @@ export function Modal({ open, onOpenChange, title, children, wide, extraWide, is
             }
           }}
         >
-          <div className="flex items-center justify-between shrink-0 px-6 pt-6 pb-5">
-            <Dialog.Title className="text-base font-semibold text-fg1">
-              {title}
-            </Dialog.Title>
-            <button
-              type="button"
-              onClick={attemptClose}
-              aria-label="Закрыть"
-              className="flex items-center justify-center w-9 h-9 rounded-full transition-colors text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-            >
-              <X size={18} />
-            </button>
-          </div>
+          <Dialog.Title className="sr-only">{title}</Dialog.Title>
+          {!headerless && (
+            <div className="flex items-center justify-between shrink-0 px-6 pt-6 pb-5">
+              <span className="text-base font-semibold text-fg1">{title}</span>
+              <button
+                type="button"
+                onClick={attemptClose}
+                aria-label="Закрыть"
+                className="flex items-center justify-center w-9 h-9 rounded-full transition-colors text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
           {flushBody ? (
             <div className="flex-1 min-h-0 flex flex-col">
-              {children}
+              {typeof children === 'function' ? children(attemptClose) : children}
             </div>
           ) : (
             <div className={`overflow-y-auto flex-1 px-6 ${footer ? 'pb-4' : 'pb-6'}`}>
-              {children}
+              {typeof children === 'function' ? children(attemptClose) : children}
             </div>
           )}
 
@@ -86,7 +96,7 @@ export function Modal({ open, onOpenChange, title, children, wide, extraWide, is
           )}
 
           {confirmClose && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[28px] bg-black/40">
+            <div className={`absolute inset-0 z-10 flex items-center justify-center bg-black/40 ${fullScreen ? '' : 'rounded-[28px]'}`}>
               <div className="rounded-3xl p-5 w-80 bg-surface border border-stroke" style={{ boxShadow: 'var(--f-shadow28)' }}>
                 <p className="text-sm font-semibold mb-1 text-fg1">
                   Закрыть без сохранения?
