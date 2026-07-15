@@ -21,24 +21,27 @@ export function PasteMappingModal({
   const [colMappings, setColMappings] = useState<string[]>([]);
   const [matchFields, setMatchFields] = useState<Record<string, string>>({});
 
+  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+
+  // Сопоставление колонок по заголовкам первой строки (заголовок ≈ имя/ключ поля).
+  function mapByHeader(headerRow: string[], count: number): string[] {
+    return Array.from({ length: count }, (_, i) => {
+      const h = norm(headerRow[i] ?? '');
+      if (!h) return '';
+      return tableFields.find(f => norm(f.title) === h || norm(f.key) === h)?.key ?? '';
+    });
+  }
+
   function initMapping(text: string) {
     const rows = text.trim().split('\n').map(r => r.split('\t'));
     const maxCols = rows.length > 0 ? Math.max(...rows.map(r => r.length)) : 0;
     const firstRow = rows[0] ?? [];
-    const isHeader = firstRow.some(cell =>
-      tableFields.some(f =>
-        f.title.toLowerCase() === cell.trim().toLowerCase() ||
-        f.key.toLowerCase() === cell.trim().toLowerCase()
-      )
-    );
+    const isHeader = firstRow.some(cell => {
+      const c = norm(cell);
+      return !!c && tableFields.some(f => norm(f.title) === c || norm(f.key) === c);
+    });
     setSkipHeader(isHeader);
-    setColMappings(Array.from({ length: maxCols }, (_, i) => {
-      if (!isHeader) return '';
-      const header = (firstRow[i] ?? '').trim().toLowerCase();
-      return tableFields.find(f =>
-        f.title.toLowerCase() === header || f.key.toLowerCase() === header
-      )?.key ?? '';
-    }));
+    setColMappings(isHeader ? mapByHeader(firstRow, maxCols) : Array.from({ length: maxCols }, () => ''));
     setMatchFields({});
   }
 
@@ -140,7 +143,14 @@ export function PasteMappingModal({
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-fg2 cursor-pointer">
-            <input type="checkbox" checked={skipHeader} onChange={e => setSkipHeader(e.target.checked)}
+            <input type="checkbox" checked={skipHeader}
+              onChange={e => {
+                const checked = e.target.checked;
+                setSkipHeader(checked);
+                // Пересопоставляем: с заголовками — по именам первой строки; без — сброс на «пропустить».
+                setColMappings(checked ? mapByHeader(allRows[0] ?? [], maxCols) : Array.from({ length: maxCols }, () => ''));
+                setMatchFields({});
+              }}
               className="w-4 h-4 rounded border-stroke-strong text-brand" />
             Первая строка — заголовки
           </label>
