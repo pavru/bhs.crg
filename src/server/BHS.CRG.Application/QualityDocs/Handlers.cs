@@ -82,7 +82,7 @@ public class QualityDocHandlers(
         var count = 0;
         foreach (var rawKey in cmd.MaterialKeys)
         {
-            var key = MaterialKeyNormalizer.Normalize(rawKey);
+            var key = MatchKeyNormalizer.Normalize(rawKey);
             if (key.Length == 0) continue;
             if (byKey.TryGetValue(key, out var link))
             {

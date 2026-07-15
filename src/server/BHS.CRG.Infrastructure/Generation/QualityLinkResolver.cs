@@ -21,7 +21,7 @@ public class QualityLinkResolver(AppDbContext db) : IQualityLinkResolver
             .ToListAsync(ct);
 
         var identityFields = composites
-            .SelectMany(t => SchemaTags.FieldKeysWithTag(t.Schema, FunctionalTag.MaterialIdentity))
+            .SelectMany(t => SchemaTags.FieldKeysWithTag(t.Schema, FunctionalTag.Identity))
             .Distinct().ToArray();
         var targetField = composites
             .SelectMany(t => SchemaTags.FieldKeysWithTag(t.Schema, FunctionalTag.MaterialQualityDocLink))
@@ -97,7 +97,7 @@ public class QualityLinkResolver(AppDbContext db) : IQualityLinkResolver
         foreach (var field in identityFields)
             if (elem.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.String)
             {
-                var key = MaterialKeyNormalizer.Normalize(v.GetString());
+                var key = MatchKeyNormalizer.Normalize(v.GetString());
                 if (key.Length > 0 && byKey.TryGetValue(key, out docId)) return true;
             }
         docId = default;

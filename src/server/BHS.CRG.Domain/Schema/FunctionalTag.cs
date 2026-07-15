@@ -24,9 +24,14 @@ public static class FunctionalTag
     /// <summary>Номер документа (для отображения/реестров).</summary>
     public const string DocNumber = "doc.number";
 
-    // ── Тэги поля: документы качества ───────────────────────────────────────────
-    /// <summary>Поле идентичности материала (артикул/наименование). Может быть несколько (по приоритету).</summary>
-    public const string MaterialIdentity = "material.identity";
+    // ── Тэги поля: идентификатор объекта / документы качества ───────────────────
+    /// <summary>Поле-идентификатор объекта (артикул/наименование/...). Обобщён из «material.identity»
+    /// (issue #183): применим к ЛЮБОМУ составному типу — участвует в резолве «строка→объект».
+    /// Может быть несколько: порядок задаёт приоритет и порядок компонентов композитного ключа.</summary>
+    public const string Identity = "identity";
+    /// <summary>Legacy-алиас на <see cref="Identity"/> (код тэга был «material.identity» до #183).
+    /// Оставлен на один релиз как страховка; новый код использует <see cref="Identity"/>.</summary>
+    public const string MaterialIdentity = Identity;
     /// <summary>Целевое поле, в которое подмешивается документ, подтверждающий качество.</summary>
     public const string MaterialQualityDocLink = "material.qualityDocLink";
 

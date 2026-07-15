@@ -60,7 +60,7 @@ public class SuggestLinksHandler(
         var result = new List<LinkSuggestion>();
         foreach (var m in q.Materials)
         {
-            var key = MaterialKeyNormalizer.Normalize(m.Key);
+            var key = MatchKeyNormalizer.Normalize(m.Key);
             if (key.Length == 0 || linkedKeys.Contains(key)) continue; // уже связан или пуст
 
             var matTokens = Tokenize(key);
