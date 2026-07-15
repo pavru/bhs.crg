@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import {
-  Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, Link2, Pencil, Plus, Trash2, Unlink, X,
+  Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, GripVertical, Link2, Pencil, Plus, Trash2, Unlink, X,
 } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Modal } from '@/shared/ui/Modal';
@@ -130,12 +130,21 @@ export function ArrayTableModal({
   setId?: string; scope?: CatalogScope; scopeId?: string | null;
 }) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  // Стабильные id строк (issue #171): переживают reorder/удаление, служат ключом выбора.
+  const [rowIds, setRowIds] = useState<string[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dropIdx, setDropIdx] = useState<number | null>(null);
   const [colWidths, setColWidths] = useState<Record<string, number>>({});
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
 
   useEffect(() => {
-    if (open) setRows(items.map(r => ({ ...r })));
+    if (open) {
+      setRows(items.map(r => ({ ...r })));
+      setRowIds(items.map(() => crypto.randomUUID()));
+      setSelected(new Set());
+    }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Единая цепочка скопов (issue #82): комплект → (Set, setId), иначе (scope, scopeId) — с подъёмом по родителям.
@@ -168,9 +177,37 @@ export function ArrayTableModal({
   function updateCell(ri: number, key: string, val: unknown) {
     setRows(prev => prev.map((r, i) => i === ri ? { ...r, [key]: val } : r));
   }
-  function addRow() { setRows(prev => [...prev, getDefaultValues(subFields)]); }
-  function removeRow(idx: number) { setRows(prev => prev.filter((_, i) => i !== idx)); }
+  function addRow() {
+    setRows(prev => [...prev, getDefaultValues(subFields)]);
+    setRowIds(prev => [...prev, crypto.randomUUID()]);
+  }
+  function removeRow(idx: number) {
+    const id = rowIds[idx];
+    setRows(prev => prev.filter((_, i) => i !== idx));
+    setRowIds(prev => prev.filter((_, i) => i !== idx));
+    if (id) setSelected(prev => { const n = new Set(prev); n.delete(id); return n; });
+  }
   function handleSave() { onSave(rows); onOpenChange(false); }
+
+  // ── Выбор строк (issue #171) ────────────────────────────────────────────
+  function toggleSelect(id: string) {
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+  function toggleAll() {
+    setSelected(prev => prev.size === rowIds.length ? new Set() : new Set(rowIds));
+  }
+  function deleteSelected() {
+    setRows(prev => prev.filter((_, i) => !selected.has(rowIds[i])));
+    setRowIds(prev => prev.filter(id => !selected.has(id)));
+    setSelected(new Set());
+  }
+
+  // ── Изменение порядка строк: drag-and-drop + клавиатура (issue #171) ─────
+  function moveRow(from: number, to: number) {
+    if (to < 0 || to >= rows.length || from === to) return;
+    setRows(prev => { const a = [...prev]; const [m] = a.splice(from, 1); a.splice(to, 0, m); return a; });
+    setRowIds(prev => { const a = [...prev]; const [m] = a.splice(from, 1); a.splice(to, 0, m); return a; });
+  }
 
   async function handlePasteClick() {
     let text = '';
@@ -221,7 +258,6 @@ export function ArrayTableModal({
 
   const BORDER = '1px solid #d1d5db';
   const TH_BG = '#f3f4f6';
-  const IDX_BG = '#f9fafb';
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}
@@ -230,9 +266,19 @@ export function ArrayTableModal({
       footer={
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <Button variant="text" size="sm" icon={<Plus size={13} />} onClick={addRow}>Добавить строку</Button>
-            <span className="text-stroke-strong">·</span>
-            <Button variant="text" size="sm" icon={<Clipboard size={13} />} onClick={handlePasteClick}>Вставить из Excel</Button>
+            {selected.size > 0 ? (
+              <>
+                <span className="text-sm font-medium text-fg2 px-2">Выбрано: {selected.size}</span>
+                <Button variant="text" size="sm" danger icon={<Trash2 size={13} />} onClick={deleteSelected}>Удалить выбранные</Button>
+                <Button variant="text" size="sm" onClick={() => setSelected(new Set())}>Сбросить</Button>
+              </>
+            ) : (
+              <>
+                <Button variant="text" size="sm" icon={<Plus size={13} />} onClick={addRow}>Добавить строку</Button>
+                <span className="text-stroke-strong">·</span>
+                <Button variant="text" size="sm" icon={<Clipboard size={13} />} onClick={handlePasteClick}>Вставить из Excel</Button>
+              </>
+            )}
           </div>
           <div className="flex gap-2">
             <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
@@ -244,13 +290,22 @@ export function ArrayTableModal({
         <table ref={tableRef} onKeyDown={onGridKey} role="grid" aria-label={`Строки: ${compositeType?.name ?? field.title}`}
           style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
           <colgroup>
-            <col style={{ width: 32 }} />
+            <col style={{ width: 34 }} />
+            <col style={{ width: 44 }} />
             {tableFields.map(f => <col key={f.key} style={{ width: getW(f) }} />)}
             <col style={{ width: 26 }} />
           </colgroup>
           <thead>
             <tr role="row">
-              <th role="columnheader" style={{ border: BORDER, background: TH_BG, padding: 0, width: 32 }}>
+              <th style={{ border: BORDER, background: TH_BG, padding: 0, width: 34 }}>
+                <span className="flex items-center justify-center" style={{ height: 28 }}>
+                  <input type="checkbox" aria-label="Выбрать все строки"
+                    checked={rowIds.length > 0 && selected.size === rowIds.length}
+                    ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < rowIds.length; }}
+                    onChange={toggleAll} className="w-4 h-4 accent-brand cursor-pointer" />
+                </span>
+              </th>
+              <th role="columnheader" style={{ border: BORDER, background: TH_BG, padding: 0, width: 44 }}>
                 <span className="flex items-center justify-center text-xs text-fg4 font-normal" style={{ height: 28 }}>#</span>
               </th>
               {tableFields.map(f => (
@@ -274,17 +329,43 @@ export function ArrayTableModal({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
-              <tr key={i} role="row">
-                <td role="rowheader" style={{ border: BORDER, background: IDX_BG, padding: 0, textAlign: 'center' }}>
-                  <span className="flex items-center justify-center text-xs text-fg4 font-mono" style={{ height: 26 }}>{i + 1}</span>
+            {rows.map((row, i) => {
+              const sel = selected.has(rowIds[i]);
+              return (
+              <tr key={rowIds[i]} role="row"
+                onDragOver={e => { if (dragIdx !== null) { e.preventDefault(); if (dropIdx !== i) setDropIdx(i); } }}
+                onDrop={e => { e.preventDefault(); if (dragIdx !== null) moveRow(dragIdx, i); setDragIdx(null); setDropIdx(null); }}
+                style={dragIdx !== null && dropIdx === i && dragIdx !== i
+                  ? { outline: '2px solid var(--color-brand)', outlineOffset: '-2px' } : undefined}>
+                <td style={{ border: BORDER, padding: 0, textAlign: 'center' }} className={sel ? 'bg-brand-subtle' : ''}>
+                  <span className="flex items-center justify-center" style={{ height: 26 }}>
+                    <input type="checkbox" checked={sel} onChange={() => toggleSelect(rowIds[i])}
+                      aria-label={`Выбрать строку ${i + 1}`} className="w-4 h-4 accent-brand cursor-pointer" />
+                  </span>
+                </td>
+                <td role="rowheader" style={{ border: BORDER, padding: 0 }} className={sel ? 'bg-brand-subtle' : 'bg-base'}>
+                  <div className="flex items-center justify-center gap-0.5" style={{ height: 26 }}>
+                    <button type="button" draggable
+                      onDragStart={e => { setDragIdx(i); e.dataTransfer.effectAllowed = 'move'; }}
+                      onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
+                      onKeyDown={e => {
+                        if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); moveRow(i, i - 1); }
+                        else if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); moveRow(i, i + 1); }
+                      }}
+                      title="Перетащить для изменения порядка (или стрелки ↑↓)"
+                      aria-label={`Переместить строку ${i + 1}: стрелки вверх/вниз`}
+                      className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 focus-visible:outline-none focus-visible:text-brand">
+                      <GripVertical size={12} />
+                    </button>
+                    <span className="text-xs text-fg4 font-mono">{i + 1}</span>
+                  </div>
                 </td>
                 {tableFields.map((f, ci) => {
                   const compositeForField = f.type === 'complex'
                     ? allDocTypes.find(dt => dt.id === f.typeId) ?? null : null;
                   return (
                     <td key={f.key} data-r={i} data-c={ci} role="gridcell"
-                      className="focus-within:bg-brand-subtle transition-colors"
+                      className={`focus-within:bg-brand-subtle transition-colors ${sel ? 'bg-brand-subtle' : ''}`}
                       style={{ border: BORDER, padding: 0, height: 26 }}>
                       <TableCell field={f} value={row[f.key]} onChange={v => updateCell(i, f.key, v)}
                         compositeType={compositeForField} setId={setId} allDocTypes={allDocTypes}
@@ -292,7 +373,7 @@ export function ArrayTableModal({
                     </td>
                   );
                 })}
-                <td style={{ border: BORDER, padding: 0, width: 26 }}>
+                <td style={{ border: BORDER, padding: 0, width: 26 }} className={sel ? 'bg-brand-subtle' : ''}>
                   <button type="button" onClick={() => removeRow(i)}
                     className="w-full h-full flex items-center justify-center text-stroke-strong hover:text-danger transition-colors"
                     style={{ height: 26 }}>
@@ -300,7 +381,8 @@ export function ArrayTableModal({
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
         {rows.length === 0 && (
