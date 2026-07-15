@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { dtCard, dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
 import { Select, SelectItem } from '@/shared/ui/Select';
 
 /** Sentinel для «— не материализовать —» — Radix Select запрещает пустую строку. */
@@ -92,23 +93,23 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
               {showPreview ? 'Скрыть предпросмотр' : 'Предпросмотр материализации'}
             </button>
             {showPreview && (
-              <div className="mt-2 rounded-lg border border-stroke overflow-auto max-h-72">
+              <div className={`mt-2 ${dtCard} max-h-72`}>
                 {preview.isLoading ? (
                   <p className="text-xs text-fg4 p-3">Загрузка…</p>
                 ) : preview.data?.error ? (
                   <p className="text-xs text-danger p-3">{preview.data.error}</p>
                 ) : preview.data && preview.data.rows.length > 0 ? (
-                  <table className="text-xs w-full">
+                  <table className={dtTable}>
                     <thead>
-                      <tr className="bg-base">
-                        {previewCols.map(c => <th key={c} className="text-left px-2 py-1 font-medium text-fg3">{c}</th>)}
+                      <tr>
+                        {previewCols.map(c => <th key={c} className={dtTh}>{c}</th>)}
                       </tr>
                     </thead>
                     <tbody>
                       {preview.data.rows.map((row, i) => (
-                        <tr key={i} className="border-t border-stroke">
+                        <tr key={i} className={dtRow}>
                           {previewCols.map(c => (
-                            <td key={c} className="px-2 py-1 text-fg2 align-top">{renderCell(row[c])}</td>
+                            <td key={c} className={`${dtTd} text-fg2 align-top`}>{renderCell(row[c])}</td>
                           ))}
                         </tr>
                       ))}

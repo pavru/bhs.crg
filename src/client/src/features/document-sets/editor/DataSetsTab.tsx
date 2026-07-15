@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Database, Pencil, Trash2, Plus, LayoutTemplate, PlayCircle, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
 import { ApplyTemplateDialog } from './ApplyTemplateDialog';
 import {
   useAvailableDataSetFiles, useListDataSetBindings,
@@ -555,19 +556,19 @@ function PreviewPanel({ results }: { results: DataSetBindingPreviewResult[] }) {
                   <p className="px-3 py-2 text-xs text-fg4">Нет данных</p>
                 );
                 return (
-                  <table className="text-xs w-full">
+                  <table className={dtTable}>
                     <thead>
-                      <tr className="bg-base">
+                      <tr>
                         {keys.map(k => (
-                          <th key={k} className="px-3 py-1.5 text-left font-medium whitespace-nowrap text-fg3">{k}</th>
+                          <th key={k} className={dtTh}>{k}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {preview.map((row, i) => (
-                        <tr key={i} className="border-t border-stroke">
+                        <tr key={i} className={dtRow}>
                           {keys.map(k => (
-                            <td key={k} className={`px-3 py-1.5 whitespace-nowrap ${row[k] == null ? 'text-fg4' : 'text-fg1'}`}>
+                            <td key={k} className={`${dtTd} whitespace-nowrap ${row[k] == null ? 'text-fg4' : 'text-fg1'}`}>
                               {renderCellValue(row[k])}
                             </td>
                           ))}
