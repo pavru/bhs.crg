@@ -80,7 +80,7 @@ public static class UserEndpoints
         });
 
         g.MapPost("/{id:guid}/reset-password", async (Guid id, ResetPasswordRequest req,
-            UserManager<ApplicationUser> users) =>
+            UserManager<ApplicationUser> users, RefreshTokenService refreshTokens, CancellationToken ct) =>
         {
             var user = await users.FindByIdAsync(id.ToString());
             if (user is null) return Results.NotFound();
@@ -88,9 +88,10 @@ public static class UserEndpoints
             var result = await users.ResetPasswordAsync(user, token, req.NewPassword);
             if (!result.Succeeded) return Results.BadRequest(new { error = DescribeErrors(result) });
 
-            // Сброс пароля админом снимает и блокировку по неудачным попыткам (issue #148 follow-up).
+            // Сброс пароля админом снимает блокировку и отзывает refresh-сессии (issue #148 follow-up).
             await users.SetLockoutEndDateAsync(user, null);
             await users.ResetAccessFailedCountAsync(user);
+            await refreshTokens.RevokeAllForUserAsync(user.Id, ct);
             return Results.Ok();
         });
 

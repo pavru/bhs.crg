@@ -43,7 +43,8 @@ public static class AccountEndpoints
 
         // Смена пароля текущим пользователем (перенесено из /api/auth в #148).
         g.MapPost("/change-password", async (ChangePasswordRequest req,
-            UserManager<ApplicationUser> users, ClaimsPrincipal principal, IConfiguration cfg) =>
+            UserManager<ApplicationUser> users, RefreshTokenService refreshTokens,
+            ClaimsPrincipal principal, IConfiguration cfg, CancellationToken ct) =>
         {
             var user = await FindCurrent(users, principal);
             if (user is null) return Results.Unauthorized();
@@ -51,11 +52,14 @@ public static class AccountEndpoints
             var result = await users.ChangePasswordAsync(user, req.CurrentPassword, req.NewPassword);
             if (!result.Succeeded) return Results.BadRequest(new { error = DescribeErrors(result) });
 
-            // Смена пароля обновляет SecurityStamp → текущий токен становится недействительным.
-            // Выдаём свежий, чтобы не разлогинивать активную сессию (issue #148 follow-up).
+            // Смена пароля обновляет SecurityStamp и отзывает все refresh-сессии. Чтобы не разлогинить
+            // текущую — выдаём свежую пару access+refresh (issue #148 follow-up).
+            await refreshTokens.RevokeAllForUserAsync(user.Id, ct);
             var roles = await users.GetRolesAsync(user);
             var stamp = await users.GetSecurityStampAsync(user);
-            return Results.Ok(new { accessToken = JwtTokens.Create(user, roles, stamp, cfg) });
+            var access = JwtTokens.Create(user, roles, stamp, cfg);
+            var refresh = await refreshTokens.IssueAsync(user.Id, ct);
+            return Results.Ok(new { accessToken = access, refreshToken = refresh });
         });
 
         // Повторно отправить письмо подтверждения себе (issue #148).

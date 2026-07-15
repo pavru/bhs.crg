@@ -28,8 +28,8 @@ export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose:
     if (next !== confirm) { setError('Новый пароль и подтверждение не совпадают'); return; }
     try {
       const res = await change.mutateAsync({ currentPassword: current, newPassword: next });
-      // Смена пароля обновляет SecurityStamp → используем свежий токен, чтобы не разлогиниться.
-      if (res?.accessToken) updateSession(res.accessToken);
+      // Смена пароля отзывает старые токены → применяем свежую пару, чтобы не разлогиниться.
+      if (res?.accessToken && res?.refreshToken) updateSession(res.accessToken, res.refreshToken);
       setDone(true);
       setTimeout(() => { reset(); onClose(); }, 1200);
     } catch (err) { setError(apiError(err)); }

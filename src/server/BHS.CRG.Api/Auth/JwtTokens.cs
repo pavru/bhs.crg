@@ -30,11 +30,13 @@ public static class JwtTokens
         foreach (var role in roles)
             claims.Add(new Claim("role", role));
 
+        // Короткий срок жизни access-токена (issue #148 follow-up): продление — через refresh.
+        var minutes = int.TryParse(jwtCfg["AccessTokenMinutes"], out var m) ? m : 60;
         var token = new JwtSecurityToken(
             issuer: jwtCfg["Issuer"],
             audience: jwtCfg["Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddDays(7),
+            expires: DateTime.UtcNow.AddMinutes(minutes),
             signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256));
         return new JwtSecurityTokenHandler().WriteToken(token);
     }

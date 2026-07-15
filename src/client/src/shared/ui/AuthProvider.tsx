@@ -1,7 +1,7 @@
 import { useState, useCallback, type ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { apiClient } from '@/shared/api/client';
-import { getToken, setToken, clearToken, replaceToken } from '@/shared/api/token';
+import { getToken, getRefreshToken, setTokens, clearToken, replaceTokens } from '@/shared/api/token';
 import { AuthContext, type AuthUser, type UserRole } from '@/shared/hooks/useAuth';
 
 function decodeUser(token: string): AuthUser {
@@ -18,17 +18,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const login = useCallback(async (email: string, password: string, remember = true) => {
-    const { data } = await apiClient.post<{ accessToken: string }>('/auth/login', { email, password });
-    setToken(data.accessToken, remember);
+    const { data } = await apiClient.post<{ accessToken: string; refreshToken: string }>(
+      '/auth/login', { email, password });
+    setTokens(data.accessToken, data.refreshToken, remember);
     setUser(decodeUser(data.accessToken));
   }, []);
 
-  const updateSession = useCallback((accessToken: string) => {
-    replaceToken(accessToken);
+  const updateSession = useCallback((accessToken: string, refreshToken: string) => {
+    replaceTokens(accessToken, refreshToken);
     setUser(decodeUser(accessToken));
   }, []);
 
   const logout = useCallback(() => {
+    // Отзываем refresh-токен на сервере (best-effort), затем чистим локально.
+    const refresh = getRefreshToken();
+    if (refresh) void apiClient.post('/auth/logout', { refreshToken: refresh }).catch(() => {});
     clearToken();
     setUser(null);
   }, []);
