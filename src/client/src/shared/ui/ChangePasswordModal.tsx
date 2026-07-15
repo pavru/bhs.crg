@@ -3,6 +3,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { useChangeMyPassword } from '@/shared/api/account';
 import { useAuth } from '@/shared/hooks/useAuth';
+import { PASSWORD_MIN_LENGTH, PASSWORD_HINT } from '@/shared/auth/passwordPolicy';
 
 function apiError(e: unknown): string {
   const err = e as { response?: { data?: { error?: string; errors?: { description: string }[] } }; message?: string };
@@ -45,12 +46,13 @@ export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose:
         </div>
         <div>
           <label className="block text-sm font-medium text-fg2 mb-1">Новый пароль</label>
-          <input type="password" value={next} onChange={e => setNext(e.target.value)} required minLength={6}
+          <input type="password" value={next} onChange={e => setNext(e.target.value)} required minLength={PASSWORD_MIN_LENGTH}
             className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
+          <p className="mt-1 text-xs text-fg4">{PASSWORD_HINT}</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-fg2 mb-1">Подтверждение</label>
-          <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required minLength={6}
+          <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required minLength={PASSWORD_MIN_LENGTH}
             className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
         </div>
         {error && <p className="text-sm text-danger">{error}</p>}

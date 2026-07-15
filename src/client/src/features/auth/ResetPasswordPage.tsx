@@ -4,6 +4,7 @@ import { AuthCard } from './AuthCard';
 import { TextField } from '@/shared/ui/TextField';
 import { Button } from '@/shared/ui/Button';
 import { useResetPassword } from '@/shared/api/auth';
+import { PASSWORD_MIN_LENGTH, PASSWORD_HINT } from '@/shared/auth/passwordPolicy';
 import { apiError } from '@/shared/utils/apiError';
 
 /** Установка нового пароля по ссылке из письма (issue #148). email и token — из query. */
@@ -58,9 +59,10 @@ export function ResetPasswordPage() {
   return (
     <AuthCard title="Новый пароль" subtitle={`Аккаунт: ${email}`}>
       <form onSubmit={submit} className="space-y-5">
-        <TextField label="Новый пароль" type="password" autoComplete="new-password" required autoFocus minLength={6}
+        <TextField label="Новый пароль" type="password" autoComplete="new-password" required autoFocus
+          minLength={PASSWORD_MIN_LENGTH} hint={PASSWORD_HINT}
           value={password} onChange={e => setPassword(e.target.value)} />
-        <TextField label="Подтверждение" type="password" autoComplete="new-password" required minLength={6}
+        <TextField label="Подтверждение" type="password" autoComplete="new-password" required minLength={PASSWORD_MIN_LENGTH}
           value={confirm} onChange={e => setConfirm(e.target.value)} />
         {error && <p className="text-sm text-danger">{error}</p>}
         <Button type="submit" variant="filled" size="lg" fullWidth loading={reset.isPending}>

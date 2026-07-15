@@ -67,9 +67,13 @@ builder.Services.AddDbContext<AppDbContext>(opt =>
 // ── Identity ──────────────────────────────────────────────────────────────────
 builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(opt =>
     {
-        opt.Password.RequireDigit = false;
+        // Парольная политика (issue #148 follow-up): ≥8 символов, буквы разного регистра + цифра.
+        // Спецсимволы не обязательны (меньше трения). Затрагивает только установку нового пароля.
+        opt.Password.RequiredLength = 8;
+        opt.Password.RequireDigit = true;
+        opt.Password.RequireLowercase = true;
+        opt.Password.RequireUppercase = true;
         opt.Password.RequireNonAlphanumeric = false;
-        opt.Password.RequiredLength = 6;
         // Защита от перебора пароля (issue #148 follow-up): блокировка на 15 минут после 5 неудач.
         opt.Lockout.AllowedForNewUsers = true;
         opt.Lockout.MaxFailedAccessAttempts = 5;

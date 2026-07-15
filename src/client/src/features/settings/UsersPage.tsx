@@ -4,6 +4,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
+import { PASSWORD_MIN_LENGTH, PASSWORD_HINT } from '@/shared/auth/passwordPolicy';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SendMessageDialog } from '@/shared/ui/SendMessageDialog';
 import { useAuth, type UserRole } from '@/shared/hooks/useAuth';
@@ -155,8 +156,8 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
         <TextField label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
         <TextField label="Отображаемое имя" value={displayName} onChange={e => setDisplayName(e.target.value)} />
         <TextField label="Начальный пароль" type="text" value={password} onChange={e => setPassword(e.target.value)}
-          required minLength={6} className="font-mono"
-          hint="Минимум 6 символов. Пользователь сможет сменить его сам." />
+          required minLength={PASSWORD_MIN_LENGTH} className="font-mono"
+          hint={`${PASSWORD_HINT} Пользователь сможет сменить его сам.`} />
         <div>
           <label className="block text-sm font-medium text-fg2 mb-1">Роль</label>
           <Select value={role} onValueChange={v => setRole(v as UserRole)} aria-label="Роль">
@@ -195,7 +196,8 @@ function ResetPasswordModal({ user, onClose }: { user: AppUser | null; onClose: 
       title={`Сброс пароля — ${user?.email ?? ''}`}>
       <form onSubmit={submit} className="space-y-3">
         <TextField label="Новый пароль" type="text" value={password} onChange={e => setPassword(e.target.value)}
-          required minLength={6} autoFocus className="font-mono" hint="Сообщите новый пароль пользователю." />
+          required minLength={PASSWORD_MIN_LENGTH} autoFocus className="font-mono"
+          hint={`${PASSWORD_HINT} Сообщите новый пароль пользователю.`} />
         {error && <p className="text-sm text-danger">{error}</p>}
         {done && <p className="text-sm text-success">Пароль изменён</p>}
         <div className="flex justify-end gap-2 pt-1">
