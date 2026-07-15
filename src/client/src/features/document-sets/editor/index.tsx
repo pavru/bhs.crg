@@ -293,7 +293,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
             return (
               <div key={field.key} className="col-span-2">
                 {field.type !== 'boolean' && field.type !== 'complex' && field.type !== 'array' && (
-                  <label className="block text-[13px] font-medium text-fg2 mb-0.5 leading-tight">
+                  <label className="block text-xs font-medium text-fg2 mb-1">
                     {field.title}
                     {field.required && <span className="ml-0.5 text-danger">*</span>}
                     {!field.required && <span className="ml-1 text-[10px] text-fg4 font-normal">опц.</span>}
@@ -302,8 +302,8 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                 )}
                 {field.type === 'complex' ? (
                   <div>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <label className="block text-[13px] font-medium text-fg2 leading-tight">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-medium text-fg2">
                         {field.title}
                         {field.required && <span className="ml-0.5 text-danger">*</span>}
                       </label>
@@ -354,7 +354,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
             <div key={field.key} className="col-span-1 min-w-0">
               {bound ? (
                 <>
-                  <label className="block text-[13px] font-medium text-fg2 mb-0.5 leading-tight">
+                  <label className="block text-xs font-medium text-fg2 mb-1">
                     {field.title}
                     {field.required && <span className="ml-0.5 text-danger">*</span>}
                     {primitiveDef && <span className="ml-1 text-[10px] text-fg4 font-normal">· {primitiveDef.name}</span>}
@@ -388,7 +388,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
       if (auto.length === 0) return fieldGrid(fields);
       const normal = fields.filter(f => !sourceBoundFields.has(f.key));
       return (
-        <div className="space-y-2.5">
+        <div className="space-y-4">
           {normal.length > 0 && fieldGrid(normal)}
           <AutoFieldsSection count={auto.length}>{fieldGrid(auto)}</AutoFieldsSection>
         </div>
@@ -445,7 +445,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
               {isExpanded ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
             </button>
             {isExpanded && (
-              <div className="px-4 pb-4 pt-1">
+              <div className="px-4 pb-4 pt-2">
                 {renderFields(section.fields)}
               </div>
             )}

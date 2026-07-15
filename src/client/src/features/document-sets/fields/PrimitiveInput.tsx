@@ -57,7 +57,7 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
   // Обёртка «подпись сверху» для не-floating контролов (textarea/select/date).
   const withLabel = (control: ReactNode) => label == null ? <>{control}</> : (
     <div>
-      <label className="block text-[13px] font-medium text-fg2 mb-0.5 leading-tight">
+      <label className="block text-xs font-medium text-fg2 mb-1">
         {label}{field.required && <span className="ml-0.5 text-danger">*</span>}
       </label>
       {control}
