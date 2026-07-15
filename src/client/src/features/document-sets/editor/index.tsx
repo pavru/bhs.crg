@@ -17,7 +17,8 @@ import type { DocumentInstance, DocumentType, Template, PrimitiveTypeDef, EnumTy
 import { SCOPE_LABELS } from '@/shared/api/types';
 import { useCommonDataForSet } from '@/shared/api/commonData';
 import {
-  groupEffectiveFields, resolveEffectiveFields, compositeFieldHasTag, parseSchemaFields, type SchemaField,
+  groupEffectiveFields, resolveEffectiveFields, compositeFieldHasTag, parseSchemaFields,
+  getDefaultValues, type SchemaField,
 } from '@/shared/api/schema';
 import {
   STATUS_LABELS, STATUS_COLORS,
@@ -91,7 +92,13 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
 }) {
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const { data: enumTypes = [] } = useListEnumTypes();
-  const [values, setValues] = useState<Record<string, unknown>>(() => ({ ...instance.requisites }));
+  // Свежий документ (пустые реквизиты) — засеваем значения по умолчанию из эффективных полей
+  // (включая переопределённые в дочернем типе); существующий грузим как сохранён. См. каталог,
+  // где дефолты применялись, а у документов — нет.
+  const [values, setValues] = useState<Record<string, unknown>>(() =>
+    Object.keys(instance.requisites ?? {}).length === 0
+      ? getDefaultValues(schemaFields)
+      : { ...instance.requisites });
   const [constraintErrors, setConstraintErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [showValidation, setShowValidation] = useState(false);
