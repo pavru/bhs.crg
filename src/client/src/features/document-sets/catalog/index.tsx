@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
-import { Select, SelectItem, SelectGroup } from '@/shared/ui/Select';
+import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import {
@@ -218,6 +218,7 @@ export function CatalogEntryForm({
     setAliasDraft('');
   }
   const [typeId, setTypeId] = useState(entry?.compositeTypeId ?? '');
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [values, setValues] = useState<Record<string, unknown>>(() => entry?.data ?? {});
   const [error, setError] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -622,23 +623,26 @@ export function CatalogEntryForm({
       {!entry ? (
         <div>
           <label className="block text-sm font-medium text-fg2 mb-1">Тип</label>
-          <Select value={typeId || undefined} required placeholder="Выберите тип…" aria-label="Тип"
-            onValueChange={newId => {
+          <button type="button" onClick={() => setPickerOpen(true)} aria-label="Тип"
+            className="w-full h-10 flex items-center justify-between gap-2 rounded-md border border-stroke-strong bg-surface px-3 text-sm text-left transition-colors hover:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand">
+            <span className={typeId ? 'text-fg1 truncate' : 'text-fg4'}>
+              {typeId ? (allSelectableTypes.find(c => c.id === typeId)?.name ?? typeId) : 'Выберите тип…'}
+            </span>
+            <ChevronDown size={16} className="text-fg4 shrink-0" />
+          </button>
+          <TypePicker
+            open={pickerOpen} onOpenChange={setPickerOpen}
+            recentKey={`common-data-type:${scope}`}
+            types={[
+              ...compositeTypes.map<PickType>(ct => ({ id: ct.id, name: ct.name, code: ct.code, section: 'Составные типы' })),
+              ...(documentTypes ?? []).map<PickType>(dt => ({ id: dt.id, name: dt.name, code: dt.code, section: 'Типы документов (внешние)' })),
+            ]}
+            onSelect={newId => {
               setTypeId(newId);
               const t = allSelectableTypes.find(c => c.id === newId);
               setValues(t ? getDefaultValues(resolveEffectiveFields(t, allDocTypes)) : {});
-            }}>
-            {compositeTypes.length > 0 && (
-              <SelectGroup label="Составные типы">
-                {compositeTypes.map(ct => <SelectItem key={ct.id} value={ct.id}>{ct.name} ({ct.code})</SelectItem>)}
-              </SelectGroup>
-            )}
-            {documentTypes.length > 0 && (
-              <SelectGroup label="Типы документов (внешние)">
-                {documentTypes.map(dt => <SelectItem key={dt.id} value={dt.id}>{dt.name} ({dt.code})</SelectItem>)}
-              </SelectGroup>
-            )}
-          </Select>
+            }}
+          />
         </div>
       ) : (
         <p className="text-sm text-fg3">
