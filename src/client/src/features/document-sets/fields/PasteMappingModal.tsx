@@ -1,18 +1,38 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
-import type { CommonDataEntry, DocumentType, FieldRef } from '@/shared/api/types';
-import { resolveEffectiveFields, isSubtypeOf, type SchemaField } from '@/shared/api/schema';
+import type { CatalogScope, DocumentType, FieldRef } from '@/shared/api/types';
+import { resolveObjectsBatch } from '@/shared/api/objects';
+import { resolveEffectiveFields, type SchemaField } from '@/shared/api/schema';
 // ─── Paste mapping modal ──────────────────────────────────────────────────────
 
+/** Приведение скалярного значения ячейки к типу поля. undefined → пропустить (не парсится). */
+function coerceScalar(field: SchemaField, raw: string): unknown {
+  if (field.type === 'number') {
+    const n = parseFloat(raw.replace(',', '.').replace(/\s/g, ''));
+    return isNaN(n) ? undefined : n;
+  }
+  if (field.type === 'boolean') return ['1', 'да', 'true', 'yes', '+', 'y'].includes(raw.toLowerCase());
+  if (field.type === 'enum') {
+    const opts = (field.options ?? []).filter(o => o !== '');
+    return opts.find(o => o.toLowerCase() === raw.toLowerCase());
+  }
+  if (field.type === 'date') {
+    const m = /^(\d{1,2})[./\-](\d{1,2})[./\-](\d{4})$/.exec(raw);
+    return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : raw;
+  }
+  return raw;
+}
+
 export function PasteMappingModal({
-  open, onOpenChange, initialText, tableFields, allDocTypes, commonDataEntries, onApply,
+  open, onOpenChange, initialText, tableFields, allDocTypes, scope, scopeId, onApply,
 }: {
   open: boolean; onOpenChange: (v: boolean) => void;
   initialText: string;
   tableFields: SchemaField[];
   allDocTypes: DocumentType[];
-  commonDataEntries: CommonDataEntry[];
+  /** Scope-контекст владельца — для серверного резолва «строка→объект» (issue #183). */
+  scope?: CatalogScope; scopeId?: string | null;
   onApply: (rows: Record<string, unknown>[]) => void;
 }) {
   const [step, setStep] = useState<'input' | 'map'>('input');
@@ -22,11 +42,13 @@ export function PasteMappingModal({
   const [fieldCol, setFieldCol] = useState<Record<string, number>>({});
   // Для полей-ссылок (complex): по какому под-полю искать запись каталога.
   const [matchFields, setMatchFields] = useState<Record<string, string>>({});
+  // Резолв идёт на сервере (issue #183): индикатор + промежуточная сводка перед вставкой.
+  const [resolving, setResolving] = useState(false);
+  const [pending, setPending] = useState<{ rows: Record<string, unknown>[]; linked: number; inline: number } | null>(null);
 
   const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
 
-  // Авто-сопоставление по заголовкам первой строки: для каждого поля ищем колонку,
-  // чей заголовок совпадает с именем/ключом поля.
+  // Авто-сопоставление по заголовкам первой строки.
   function mapByHeader(headerRow: string[], count: number): Record<string, number> {
     const m: Record<string, number> = {};
     tableFields.forEach(f => {
@@ -48,11 +70,13 @@ export function PasteMappingModal({
     setSkipHeader(isHeader);
     setFieldCol(isHeader ? mapByHeader(firstRow, maxCols) : {});
     setMatchFields({});
+    setPending(null);
   }
 
   useEffect(() => {
     if (!open) return;
     setRawText(initialText);
+    setPending(null);
     if (initialText.trim()) { initMapping(initialText); setStep('map'); }
     else setStep('input');
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -62,16 +86,23 @@ export function PasteMappingModal({
   const dataRows = skipHeader ? allRows.slice(1) : allRows;
   const importCount = dataRows.filter(r => r.some(c => c.trim())).length;
 
-  // Подпись колонки Excel в выпадашке: заголовок (если галка) либо «Кол. N — пример данных».
   function colLabel(ci: number): string {
     if (skipHeader) return (allRows[0]?.[ci] ?? '').trim() || `Кол. ${ci + 1}`;
     const preview = dataRows.slice(0, 3).map(r => r[ci] ?? '').filter(Boolean).join(', ');
     return preview ? `Кол. ${ci + 1} — ${preview}` : `Кол. ${ci + 1}`;
   }
 
-  function apply() {
-    const newRows = dataRows.filter(r => r.some(c => c.trim())).map(r => {
-      const row: Record<string, unknown> = {};
+  // Изменения сопоставления инвалидируют промежуточную сводку.
+  function clearPending() { if (pending) setPending(null); }
+
+  // Резолв строк на сервере → сборка строк. Complex-поля: match по выбранному под-полю (Field);
+  // нет совпадения → inline-данные (сырой текст в это под-поле), чтобы НЕ терять ввод (не пусто).
+  async function stage() {
+    const dataOnly = dataRows.filter(r => r.some(c => c.trim()));
+    const rows: Record<string, unknown>[] = dataOnly.map(() => ({}));
+    const reqs: { row: number; fieldKey: string; mf: string; raw: string; typeId: string }[] = [];
+
+    dataOnly.forEach((r, ri) => {
       Object.entries(fieldCol).forEach(([fieldKey, ci]) => {
         const field = tableFields.find(f => f.key === fieldKey);
         if (!field) return;
@@ -79,34 +110,40 @@ export function PasteMappingModal({
         if (!raw) return;
         if (field.type === 'complex') {
           const mf = matchFields[fieldKey];
-          if (!mf) return;
-          const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
-          const entry = commonDataEntries.find(e => {
-            if (compositeType && !isSubtypeOf(e.compositeTypeId, compositeType.id, allDocTypes)) return false;
-            return String(e.data[mf] ?? '').toLowerCase().trim() === raw.toLowerCase().trim();
-          });
-          if (entry) row[fieldKey] = { $ref: 'catalog', entryId: entry.id, displayName: entry.displayName, scope: entry.scope } as FieldRef;
-        } else if (field.type === 'number') {
-          const n = parseFloat(raw.replace(',', '.').replace(/\s/g, ''));
-          if (!isNaN(n)) row[fieldKey] = n;
-        } else if (field.type === 'boolean') {
-          row[fieldKey] = ['1', 'да', 'true', 'yes', '+', 'y'].includes(raw.toLowerCase());
-        } else if (field.type === 'enum') {
-          const opts = (field.options ?? []).filter(o => o !== '');
-          const match = opts.find(o => o.toLowerCase() === raw.toLowerCase());
-          if (match) row[fieldKey] = match;
-        } else if (field.type === 'date') {
-          const m = /^(\d{1,2})[./\-](\d{1,2})[./\-](\d{4})$/.exec(raw);
-          if (m) row[fieldKey] = `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-          else row[fieldKey] = raw;
+          if (!mf || !field.typeId) return;
+          reqs.push({ row: ri, fieldKey, mf, raw, typeId: field.typeId });
         } else {
-          row[fieldKey] = raw;
+          const v = coerceScalar(field, raw);
+          if (v !== undefined) rows[ri][fieldKey] = v;
         }
       });
-      return row;
     });
-    onApply(newRows);
-    onOpenChange(false);
+
+    let linked = 0, inline = 0;
+    setResolving(true);
+    try {
+      const results = await resolveObjectsBatch(scope, scopeId,
+        reqs.map(q => ({ typeId: q.typeId, strategy: 'Field' as const, value: q.raw, fieldKey: q.mf })));
+      reqs.forEach((q, i) => {
+        const res = results[i];
+        if (res) {
+          rows[q.row][q.fieldKey] = { $ref: 'catalog', entryId: res.entryId, displayName: res.displayName ?? '', scope: res.scope } as FieldRef;
+          linked++;
+        } else {
+          rows[q.row][q.fieldKey] = { [q.mf]: q.raw };
+          inline++;
+        }
+      });
+    } catch {
+      // Ошибка резолва не должна терять ввод — вставляем всё как inline-данные.
+      reqs.forEach(q => { rows[q.row][q.fieldKey] = { [q.mf]: q.raw }; });
+      inline = reqs.length; linked = 0;
+    } finally {
+      setResolving(false);
+    }
+
+    if (inline === 0) { onApply(rows); onOpenChange(false); }
+    else setPending({ rows, linked, inline }); // есть несопоставленные — показываем сводку перед вставкой
   }
 
   const selectCls = 'w-full min-w-[140px] border border-stroke-strong rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand';
@@ -137,6 +174,39 @@ export function PasteMappingModal({
     );
   }
 
+  // step === 'map', промежуточная сводка перед вставкой (есть несопоставленные строки).
+  if (pending) {
+    return (
+      <Modal open={open} onOpenChange={onOpenChange} title="Готово к вставке" wide
+        footer={
+          <div className="flex justify-between">
+            <Button variant="text" onClick={() => setPending(null)}>← Изменить сопоставление</Button>
+            <div className="flex gap-3">
+              <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
+              <Button variant="filled" onClick={() => { onApply(pending.rows); onOpenChange(false); }}>
+                Вставить {importCount} стр.
+              </Button>
+            </div>
+          </div>
+        }>
+        <div className="space-y-3 text-sm">
+          <p className="text-fg2">Будет вставлено строк: <span className="font-medium text-fg1">{importCount}</span></p>
+          <ul className="space-y-1.5">
+            <li className="text-fg2">🔗 Связано с каталогом: <span className="font-medium text-fg1">{pending.linked}</span></li>
+            <li className="text-fg2">
+              📝 Вставлено как данные (совпадений не найдено): <span className="font-medium text-fg1">{pending.inline}</span>
+            </li>
+          </ul>
+          {pending.inline > 0 && (
+            <p className="text-xs text-fg4">
+              Несопоставленные ячейки-ссылки сохранены как обычные данные — их можно дозаполнить/связать вручную после вставки.
+            </p>
+          )}
+        </div>
+      </Modal>
+    );
+  }
+
   // step === 'map' — строки = ПОЛЯ таблицы, справа выбираем колонку Excel-источник.
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Сопоставление столбцов" wide
@@ -145,7 +215,7 @@ export function PasteMappingModal({
           <Button variant="text" onClick={() => setStep('input')}>← Назад</Button>
           <div className="flex gap-3">
             <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
-            <Button variant="filled" onClick={apply} disabled={importCount === 0}>
+            <Button variant="filled" onClick={stage} loading={resolving} disabled={importCount === 0 || resolving}>
               Импортировать {importCount > 0 ? `(${importCount} стр.)` : ''}
             </Button>
           </div>
@@ -158,9 +228,9 @@ export function PasteMappingModal({
               onChange={e => {
                 const checked = e.target.checked;
                 setSkipHeader(checked);
-                // С заголовками — авто-маппинг по именам первой строки; без — сброс.
                 setFieldCol(checked ? mapByHeader(allRows[0] ?? [], maxCols) : {});
                 setMatchFields({});
+                clearPending();
               }}
               className="w-4 h-4 rounded border-stroke-strong text-brand" />
             Первая строка — заголовки
@@ -196,6 +266,7 @@ export function PasteMappingModal({
                       <select value={ci ?? ''}
                         onChange={e => {
                           const v = e.target.value;
+                          clearPending();
                           setFieldCol(prev => {
                             const n = { ...prev };
                             if (v === '') delete n[f.key]; else n[f.key] = Number(v);
@@ -212,7 +283,7 @@ export function PasteMappingModal({
                     <td className="border border-stroke px-2 py-1.5">
                       {needsMatch && matchableFields.length > 0 && ci != null && (
                         <select value={matchFields[f.key] ?? ''}
-                          onChange={e => setMatchFields(prev => ({ ...prev, [f.key]: e.target.value }))}
+                          onChange={e => { clearPending(); setMatchFields(prev => ({ ...prev, [f.key]: e.target.value })); }}
                           className={selectCls}>
                           <option value="">— выберите поле —</option>
                           {matchableFields.map(mf => <option key={mf.key} value={mf.key}>{mf.title}</option>)}

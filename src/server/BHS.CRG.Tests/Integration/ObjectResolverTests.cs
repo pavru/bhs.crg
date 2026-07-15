@@ -117,6 +117,31 @@ public class ObjectResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
     }
 
     [Fact]
+    public async Task Batch_ReturnsResultsInOrder_WithNameAndNulls()
+    {
+        using var s = fixture.Services.CreateScope();
+        var m = M(s);
+        var typeId = await TypeAsync(m, "MAT_BATCH", IdentitySchema);
+        var id = await ObjAsync(m, "Кабель ВВГ", typeId, "{'Артикул':'A1'}", aliases: new[] { "ВВГ" });
+
+        var items = new List<ObjectResolveItem>
+        {
+            new(typeId, ObjectMatchStrategy.Name, "кабель ввг"),   // → displayName-матч
+            new(typeId, ObjectMatchStrategy.Name, "нет такого"),   // → null
+            new(typeId, ObjectMatchStrategy.Field, "A1", "Артикул"), // → field-матч
+        };
+        var res = await m.Send(new ResolveObjectsBatchQuery(CatalogScope.System, null, items));
+
+        Assert.Equal(3, res.Count);
+        Assert.NotNull(res[0]);
+        Assert.Equal(id, res[0]!.EntryId);
+        Assert.Equal("Кабель ВВГ", res[0]!.DisplayName);
+        Assert.Equal(CatalogScope.System, res[0]!.Scope);
+        Assert.Null(res[1]);
+        Assert.Equal(id, res[2]!.EntryId);
+    }
+
+    [Fact]
     public async Task Subtypes_ResolvedByParentType()
     {
         using var s = fixture.Services.CreateScope();
