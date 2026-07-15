@@ -72,7 +72,8 @@ public static class AccountEndpoints
 
             var token = await users.GenerateEmailConfirmationTokenAsync(user);
             try { await emails.SendEmailConfirmationAsync(user.Email!, token, ct); }
-            catch (EmailNotConfiguredException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (Exception ex) when (ex is EmailNotConfiguredException or AppUrlNotConfiguredException)
+            { return Results.BadRequest(new { error = ex.Message }); }
             return Results.Ok();
         });
 
@@ -94,7 +95,8 @@ public static class AccountEndpoints
 
             var token = await users.GenerateChangeEmailTokenAsync(user, newEmail);
             try { await emails.SendEmailChangeAsync(user.Id, newEmail, token, ct); }
-            catch (EmailNotConfiguredException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (Exception ex) when (ex is EmailNotConfiguredException or AppUrlNotConfiguredException)
+            { return Results.BadRequest(new { error = ex.Message }); }
             return Results.Ok();
         });
     }

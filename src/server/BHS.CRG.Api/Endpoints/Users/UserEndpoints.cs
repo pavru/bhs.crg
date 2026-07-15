@@ -54,7 +54,8 @@ public static class UserEndpoints
                     var token = await users.GenerateEmailConfirmationTokenAsync(user);
                     await emails.SendEmailConfirmationAsync(user.Email!, token, ct);
                 }
-                catch (EmailNotConfiguredException) { /* SMTP не настроен — пользователь создан, письмо позже */ }
+                // SMTP/App:PublicUrl не настроены — пользователь создан, письмо отправят позже.
+                catch (Exception ex) when (ex is EmailNotConfiguredException or AppUrlNotConfiguredException) { }
             }
             return Results.Ok(new UserDto(user.Id, user.Email!, user.DisplayName, role));
         });

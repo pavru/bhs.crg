@@ -12,6 +12,12 @@ public record EmailMessage(
 /// <summary>SMTP не сконфигурирован (нет host/from или выключен) — отдаём как понятную ошибку, не 500.</summary>
 public class EmailNotConfiguredException(string message) : Exception(message);
 
+/// <summary>Не задан публичный адрес приложения (App:PublicUrl) — ссылку в письме собрать нельзя.
+/// Отдаём как понятную ошибку инициатору действия, а НЕ шлём пользователю письмо без ссылки.</summary>
+public class AppUrlNotConfiguredException()
+    : Exception("Не задан адрес приложения (App:PublicUrl) — ссылки в письмах недоступны. " +
+                "Задайте его в конфигурации (переменная APP_PUBLIC_URL) и повторите.");
+
 /// <summary>Транспорт исходящей почты. Реализация — MailKit поверх SMTP-настроек (Настройки → Почта).</summary>
 public interface IEmailSender
 {
