@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { formatDateRu, ruToISO } from '@/shared/utils/date';
 import { DateInput } from '@/shared/ui/DateInput';
+import { DateField } from '@/shared/ui/DateField';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import type { SchemaField } from '@/shared/api/schema';
@@ -96,9 +97,11 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
   if (field.type === 'primitive' && primitiveTypeDef) {
     const bt = primitiveTypeDef.baseType;
     if (bt === 'date') {
-      return withLabel(<DateInput value={strVal} onChange={v => onChange(v)}
-        precision={primitiveTypeDef.constraints.datePrecision ?? 'day'}
-        className={cls} disabled={readOnly} />);
+      const prec = primitiveTypeDef.constraints.datePrecision ?? 'day';
+      return label != null
+        ? <DateField label={label} required={field.required} hint={hint ?? primitiveTypeDef.description}
+            invalid={invalid} value={strVal} onChange={v => onChange(v)} precision={prec} disabled={readOnly} />
+        : <DateInput value={strVal} onChange={v => onChange(v)} precision={prec} className={cls} disabled={readOnly} />;
     }
     const step = bt === 'number' && primitiveTypeDef.constraints.integer ? 1 : undefined;
     const onCh = (v: string) => onChange(bt === 'number' ? (v === '' ? '' : Number(v)) : v);
@@ -112,7 +115,10 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
     );
   }
   if (field.type === 'date') {
-    return withLabel(<DateInput value={strVal} onChange={v => onChange(v)} className={cls} disabled={readOnly} />);
+    return label != null
+      ? <DateField label={label} required={field.required} hint={hint} invalid={invalid}
+          value={strVal} onChange={v => onChange(v)} disabled={readOnly} />
+      : <DateInput value={strVal} onChange={v => onChange(v)} className={cls} disabled={readOnly} />;
   }
   const onCh = (v: string) => onChange(field.type === 'number' ? (v === '' ? '' : Number(v)) : v);
   if (label != null)
