@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { FileCheck2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAppVersion } from '@/shared/api/version';
@@ -22,7 +22,6 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
-  const [forgotOpen, setForgotOpen] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -100,16 +99,11 @@ export function LoginPage() {
               } />
 
             <div className="flex justify-end -mt-2">
-              <button type="button" onClick={() => setForgotOpen(o => !o)} aria-expanded={forgotOpen}
+              <Link to="/forgot-password"
                 className="text-sm font-medium text-brand px-3 py-2 rounded-full hover:bg-brand/10 transition-colors">
                 Забыли пароль?
-              </button>
+              </Link>
             </div>
-            {forgotOpen && (
-              <p className="-mt-3 px-1 text-xs text-fg3">
-                Самостоятельный сброс пока недоступен — пароль сбрасывает администратор системы.
-              </p>
-            )}
 
             <label className="flex items-center gap-3 text-sm text-fg1 cursor-pointer select-none">
               <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}

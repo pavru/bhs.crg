@@ -16,6 +16,8 @@ import { DataSetsPage } from '@/features/datasets/DataSetsPage';
 import { PdfGroupingEditor } from '@/features/datasets/PdfGroupingEditor';
 import { QualityDocsPage } from '@/features/quality-docs/QualityDocsPage';
 import { ProfilePage } from '@/features/account/ProfilePage';
+import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -29,6 +31,8 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<AppShell />}>
                 <Route index element={<Navigate to="/document-sets" replace />} />

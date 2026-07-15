@@ -26,3 +26,7 @@ Thumbs.db
 
 # ── Local tooling config ──────────────────────────────
 .claude/
+
+# Data Protection keys (issue #148) — секрет, не коммитить
+src/server/BHS.CRG.Api/dp-keys/
+dp-keys/

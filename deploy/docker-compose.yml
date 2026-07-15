@@ -93,8 +93,14 @@ services:
       Gemini__ApiKey: ${GEMINI_API_KEY:-}
       WebSearch__ApiKey: ${SERPER_API_KEY:-}
       AllowedOrigins: ${ALLOWED_ORIGINS:-http://localhost:${WEB_PORT:-8080}}
-      # Публичный адрес системы — для ссылки в письме, когда документ/комплект слишком велик для вложения.
+      # Публичный адрес системы — для ссылок в письмах (сброс пароля, подтверждение почты,
+      # ссылка на большой комплект). Без него ссылки в письмах собрать нельзя.
       App__PublicUrl: ${APP_PUBLIC_URL:-}
+      # Ключи Data Protection (шифруют токены сброса/подтверждения) — на томе, иначе токены
+      # инвалидируются при пересоздании контейнера.
+      DataProtection__KeysPath: "/app/dp-keys"
+    volumes:
+      - dp_keys:/app/dp-keys
     restart: unless-stopped
 
   web:
@@ -111,3 +117,4 @@ volumes:
   postgres_data:
   minio_data:
   ollama_data:
+  dp_keys:
