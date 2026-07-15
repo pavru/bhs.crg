@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Loader2, FileText, ExternalLink } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { dtCard, dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
 import { usePreviewDataSetSource } from '@/shared/api/datasets';
 import { openAttachmentInNewTab, formatBytes } from '@/shared/api/attachments';
 import type { DataSetPreview, DataSetSource } from '@/shared/api/types';
@@ -95,20 +96,20 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
       ) : isGostDocuments ? (
         <GostDocumentsPreview data={data} />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-stroke">
-          <table className="text-xs w-full">
+        <div className={dtCard}>
+          <table className={dtTable}>
             <thead>
-              <tr className="bg-base">
+              <tr>
                 {data.columns.map(c => (
-                  <th key={c} className="px-3 py-1.5 text-left font-medium whitespace-nowrap text-fg3">{c}</th>
+                  <th key={c} className={dtTh}>{c}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {data.rows.map((row, i) => (
-                <tr key={i} className="border-t border-stroke">
+                <tr key={i} className={dtRow}>
                   {row.map((v, j) => (
-                    <td key={j} className={`px-3 py-1.5 whitespace-nowrap ${v == null ? 'text-fg4' : 'text-fg1'}`}>
+                    <td key={j} className={`${dtTd} whitespace-nowrap ${v == null ? 'text-fg4' : 'text-fg1'}`}>
                       {v ?? <em>null</em>}
                     </td>
                   ))}
