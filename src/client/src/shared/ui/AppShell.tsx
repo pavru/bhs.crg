@@ -10,7 +10,7 @@ import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
 import { ShortcutsHelp } from '@/shared/ui/ShortcutsHelp';
 import { workNav, settingsNav, type NavItem } from '@/shared/ui/navConfig';
-import { LogOut, Sun, Moon, Monitor, KeyRound, UserRound, MailWarning, X } from 'lucide-react';
+import { LogOut, Sun, Moon, Monitor, KeyRound, Check, ChevronsUpDown, MailWarning, X } from 'lucide-react';
 
 const themeOptions: { value: Theme; icon: typeof Sun; label: string }[] = [
   { value: 'light',  icon: Sun,     label: 'Светлая'   },
@@ -18,27 +18,36 @@ const themeOptions: { value: Theme; icon: typeof Sun; label: string }[] = [
   { value: 'system', icon: Monitor, label: 'Системная' },
 ];
 
+// MD3 segmented button (issue #157): выбранный сегмент — tonal + галочка.
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   return (
-    <div
-      className="flex items-center gap-0.5 rounded-md p-0.5 bg-muted"
-      title="Тема оформления"
-    >
-      {themeOptions.map(({ value, icon: Icon, label }) => (
-        <button
-          key={value}
-          onClick={() => setTheme(value)}
-          title={label}
-          className={`flex items-center justify-center w-7 h-7 rounded transition-colors ${
-            theme === value ? 'text-fg1 shadow-sm bg-surface' : 'text-fg3 hover:text-fg2'
-          }`}
-        >
-          <Icon size={14} />
-        </button>
-      ))}
+    <div role="group" aria-label="Тема оформления"
+      className="flex h-10 rounded-full border border-stroke-strong overflow-hidden">
+      {themeOptions.map(({ value, icon: Icon, label }, i) => {
+        const active = theme === value;
+        return (
+          <button key={value} type="button" onClick={() => setTheme(value)}
+            title={label} aria-label={label} aria-pressed={active}
+            className={`flex-1 flex items-center justify-center gap-1 text-xs transition-colors ` +
+              `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ` +
+              `${i > 0 ? 'border-l border-stroke-strong' : ''} ` +
+              (active ? 'bg-tonal text-on-tonal' : 'text-fg3 hover:bg-black/5 dark:hover:bg-white/10')}>
+            {active && <Check size={14} className="shrink-0" />}
+            <Icon size={16} />
+          </button>
+        );
+      })}
     </div>
   );
+}
+
+/** Инициалы для аватара: 2 буквы из имени (или email). */
+function initialsOf(name?: string, email?: string): string {
+  const src = (name || email || '').trim();
+  const parts = src.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return src.slice(0, 2).toUpperCase();
 }
 
 function NavSection({
@@ -130,30 +139,38 @@ export function AppShell() {
           )}
         </nav>
 
-        {/* Bottom: theme + user */}
-        <div className="px-3 py-3 border-t border-stroke space-y-3 shrink-0">
-          <ThemeToggle />
-          <NavLink to="/profile"
-            className={({ isActive }) => `flex items-center gap-2 text-xs truncate transition-colors ` +
-              (isActive ? 'text-brand' : 'text-fg3 hover:text-brand')}>
-            <UserRound size={14} className="shrink-0" />
-            <span className="truncate">
-              {user?.displayName || user?.email}
-              <span className="ml-1 text-fg4">· {isAdmin ? 'Администратор' : 'Пользователь'}</span>
-            </span>
-          </NavLink>
-          <button
-            onClick={() => setPwOpen(true)}
-            className="flex items-center gap-2 text-sm transition-colors w-full text-fg2 hover:text-brand"
-          >
-            <KeyRound size={14} /> Сменить пароль
-          </button>
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 text-sm transition-colors w-full text-fg2 hover:text-danger"
-          >
-            <LogOut size={14} /> Выйти
-          </button>
+        {/* Bottom: theme + user (MD3 drawer footer, issue #157) */}
+        <div className="px-3 pt-3 pb-1 border-t border-stroke shrink-0">
+          <div className="mb-3"><ThemeToggle /></div>
+
+          <div className="space-y-0.5">
+            {/* Блок пользователя — пилюля с аватаром */}
+            <NavLink to="/profile"
+              className={({ isActive }) => `flex items-center gap-3 h-14 px-4 rounded-[28px] transition-colors ` +
+                `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ` +
+                (isActive ? 'bg-tonal' : 'hover:bg-black/5 dark:hover:bg-white/10')}>
+              <span className="flex items-center justify-center w-10 h-10 rounded-full shrink-0 bg-brand-subtle text-on-brand-subtle text-[15px] font-medium">
+                {initialsOf(user?.displayName, user?.email)}
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-medium text-fg1 truncate">{user?.displayName || user?.email}</span>
+                <span className="block text-xs text-fg3">{isAdmin ? 'Администратор' : 'Пользователь'}</span>
+              </span>
+              <ChevronsUpDown size={18} className="text-fg3 shrink-0" />
+            </NavLink>
+
+            <button type="button" onClick={() => setPwOpen(true)}
+              className="w-full flex items-center gap-3 h-14 px-4 rounded-[28px] text-left transition-colors hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+              <KeyRound size={22} className="text-fg3 shrink-0" />
+              <span className="text-sm font-medium text-fg1">Сменить пароль</span>
+            </button>
+            <button type="button" onClick={logout}
+              className="w-full flex items-center gap-3 h-14 px-4 rounded-[28px] text-left transition-colors hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+              <LogOut size={22} className="text-fg3 shrink-0" />
+              <span className="text-sm font-medium text-fg1">Выйти</span>
+            </button>
+          </div>
+
           <VersionLabel />
         </div>
       </aside>
@@ -218,7 +235,7 @@ function VersionLabel() {
     data.buildDate && new Date(data.buildDate).toLocaleString('ru-RU'),
   ].filter(Boolean).join(' · ');
   return (
-    <div className="text-[10px] text-fg4 truncate pt-1" title={title}>
+    <div className="text-[11px] text-fg3 truncate px-4 pt-2.5 pb-1.5" title={title}>
       v{data.version}{data.commit ? ` · ${data.commit}` : ''}
     </div>
   );
