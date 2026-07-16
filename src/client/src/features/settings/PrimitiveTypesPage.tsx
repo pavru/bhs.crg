@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import {
-  Plus, Trash2, Search, CaseSensitive, Hash, Calendar, List as ListIcon,
+  Plus, Trash2, CaseSensitive, Hash, Calendar, List as ListIcon,
   CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
+import { ListDetailShell, NavSearchInput, DetailHeader, useDirtyGuard } from '@/shared/ui/ListDetailShell';
 import { TextField } from '@/shared/ui/TextField';
 import { DateInput } from '@/shared/ui/DateInput';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -300,9 +301,9 @@ function PrimitiveCreateForm({ onSaved, onCancel }: { onSaved: () => void; onCan
   );
 }
 
-// ─── Detail header (общий для примитива и enum) ──────────────────────────────────
+// ─── Detail header (доменные heading/actions поверх общего DetailHeader) ──────────
 
-function DetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, allGroups, group, onGroup, onDelete, deleteBlock }: {
+function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, allGroups, group, onGroup, onDelete, deleteBlock }: {
   name: string; code: string; chip: string; usedBy: number;
   dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>;
   allGroups: string[]; group: string | null; onGroup: (g: string | null) => void;
@@ -310,30 +311,26 @@ function DetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, allG
 }) {
   const badge = 'text-xs px-2 py-0.5 rounded-full font-medium';
   return (
-    <div className="shrink-0 px-6 py-4 border-b border-stroke bg-surface">
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
+    <DetailHeader dirty={dirty} saving={saving} onSaveAll={onSaveAll}
+      heading={
+        <>
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-xl font-normal text-fg1 truncate">{name || '(без названия)'}</h2>
             <span className={`${badge} bg-muted text-fg3`}>{chip}</span>
             {usedBy > 0 && <span className={`${badge} bg-brand-subtle text-brand`}>используется: {usedBy}</span>}
           </div>
           <span className="text-xs text-fg4 font-mono">{code}</span>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {dirty && <span className={`${badge} bg-warning-subtle text-warning`}>есть изменения</span>}
-          <Button variant="filled" size="sm" disabled={!dirty} loading={saving}
-            onClick={() => { onSaveAll().catch(() => { /* ошибки показаны в форме */ }); }}>
-            Сохранить
-          </Button>
+        </>
+      }
+      actions={
+        <>
           <GroupPicker groups={allGroups} value={group} onChange={onGroup} />
           <IconButton label="Удалить" size="sm" danger onClick={() => { if (!deleteBlock) onDelete(); }}
             disabled={!!deleteBlock} title={deleteBlock ?? 'Удалить тип'}>
             <Trash2 size={15} />
           </IconButton>
-        </div>
-      </div>
-    </div>
+        </>
+      } />
   );
 }
 
@@ -375,7 +372,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll
   const deleteBlock = usedBy > 0 ? `Нельзя удалить: используется в ${usedBy} типах` : null;
   return (
     <div className="flex flex-col min-h-0 flex-1">
-      <DetailHeader name={name} code={type.code} chip={BASE_TYPE_LABEL[type.baseType] ?? type.baseType} usedBy={usedBy}
+      <TypeDetailHeader name={name} code={type.code} chip={BASE_TYPE_LABEL[type.baseType] ?? type.baseType} usedBy={usedBy}
         dirty={dirty} saving={saving} onSaveAll={onSaveAll}
         allGroups={allGroups} group={type.group} onGroup={g => groupMutation.mutate({ id: type.id, group: g })}
         onDelete={() => setConfirmDelete(true)} deleteBlock={deleteBlock} />
@@ -473,7 +470,7 @@ function EnumTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onD
   const deleteBlock = usedBy > 0 ? `Нельзя удалить: используется в ${usedBy} типах` : null;
   return (
     <div className="flex flex-col min-h-0 flex-1">
-      <DetailHeader name={name} code={type.code} chip="Перечисление" usedBy={usedBy}
+      <TypeDetailHeader name={name} code={type.code} chip="Перечисление" usedBy={usedBy}
         dirty={dirty} saving={saving} onSaveAll={onSaveAll}
         allGroups={allGroups} group={type.group} onGroup={g => groupMutation.mutate({ id: type.id, group: g })}
         onDelete={() => setConfirmDelete(true)} deleteBlock={deleteBlock} />
@@ -530,18 +527,12 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
   );
 
   return (
-    <nav aria-label="Типы полей" className="w-80 shrink-0 border-r border-stroke flex flex-col bg-base">
+    <>
       <div className="flex border-b border-stroke shrink-0">
         {tab('primitive', 'Примитивные')}
         {tab('enum', 'Перечисления')}
       </div>
-      <div className="p-3 shrink-0">
-        <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
-          <input value={query} onChange={e => onQuery(e.target.value)} placeholder="Поиск типа…" aria-label="Поиск типа"
-            className="w-full h-10 pl-9 pr-3 rounded-full text-sm bg-surface border border-stroke-strong text-fg1 outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-fg4" />
-        </div>
-      </div>
+      <NavSearchInput value={query} onChange={onQuery} placeholder="Поиск типа…" />
       <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
         {items.length === 0 && <p className="px-3 py-6 text-center text-sm text-fg4">Ничего не найдено</p>}
         {items.map(t => {
@@ -564,7 +555,7 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
           );
         })}
       </div>
-    </nav>
+    </>
   );
 }
 
@@ -587,55 +578,47 @@ export function PrimitiveTypesPage() {
 
   const { registry, anyDirty, saving, saveAll } = useTypeEditorRegistry();
 
-  const [pendingSelect, setPendingSelect] = useState<{ mode: Mode; id: string | null } | null>(null);
-  const applyPending = (p: { mode: Mode; id: string | null }) => { setMode(p.mode); setSelectedId(p.id); };
-  const guard = (next: { mode: Mode; id: string | null }) => {
-    if (next.mode === mode && next.id === selectedId) return;
-    if (anyDirty) setPendingSelect(next); else applyPending(next);
-  };
-  const requestSelect = (id: string) => guard({ mode, id });
-  const requestMode = (m: Mode) => guard({ mode: m, id: null });
+  // Общий гард несохранённых изменений (ключ = {mode,id}) — issue #210 Этап 1 (ListDetailShell).
+  const { request, dialogProps } = useDirtyGuard<{ mode: Mode; id: string | null }>({
+    isDirty: anyDirty, saving, saveAll,
+    onCommit: ({ mode: m, id }) => { setMode(m); setSelectedId(id); },
+  });
+  const requestSelect = (id: string) => { if (id !== selectedId) request({ mode, id }); };
+  const requestMode = (m: Mode) => { if (m !== mode) request({ mode: m, id: null }); };
 
   const selectedPrim = mode === 'primitive' ? (sortedPrim.find(t => t.id === selectedId) ?? sortedPrim[0]) : undefined;
   const selectedEnum = mode === 'enum' ? (sortedEnum.find(t => t.id === selectedId) ?? sortedEnum[0]) : undefined;
   const addLabel = mode === 'primitive' ? 'Добавить тип' : 'Добавить перечисление';
 
-  return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between gap-3 px-6 py-3 shrink-0 border-b border-stroke">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-fg1">Типы полей</h1>
-          <p className="text-xs text-fg3 mt-0.5">Пользовательские типы реквизитов (строка/число/дата) и перечисления</p>
-        </div>
-        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>
-      </div>
+  const detail = mode === 'primitive' && selectedPrim ? (
+    <PrimitiveTypeDetail key={selectedPrim.id} type={selectedPrim} allGroups={allGroups}
+      usedBy={countTypeRefs(selectedPrim.id, 'primitive', allDocTypes)}
+      dirty={anyDirty} saving={saving} onSaveAll={saveAll} onDeleted={() => setSelectedId(null)} />
+  ) : mode === 'enum' && selectedEnum ? (
+    <EnumTypeDetail key={selectedEnum.id} type={selectedEnum} allGroups={allGroups}
+      usedBy={countTypeRefs(selectedEnum.id, 'enum', allDocTypes)}
+      dirty={anyDirty} saving={saving} onSaveAll={saveAll} onDeleted={() => setSelectedId(null)} />
+  ) : (
+    <div className="flex-1 flex items-center justify-center text-fg4 text-sm">
+      {mode === 'primitive' ? 'Типов полей ещё нет' : 'Перечислений ещё нет'} — создайте первый.
+    </div>
+  );
 
+  return (
+    <>
       <TypeEditorProvider value={registry}>
-        <div className="flex-1 min-h-0 flex">
-          <FieldTypeListPanel mode={mode} onMode={requestMode}
+        <ListDetailShell
+          title="Типы полей"
+          subtitle="Пользовательские типы реквизитов (строка/число/дата) и перечисления"
+          headerAction={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>}
+          nav={<FieldTypeListPanel mode={mode} onMode={requestMode}
             primitives={sortedPrim} enums={sortedEnum}
             selectedId={mode === 'primitive' ? (selectedPrim?.id ?? null) : (selectedEnum?.id ?? null)}
-            onSelect={requestSelect} query={query} onQuery={setQuery} />
-          {mode === 'primitive' && selectedPrim ? (
-            <PrimitiveTypeDetail key={selectedPrim.id} type={selectedPrim} allGroups={allGroups}
-              usedBy={countTypeRefs(selectedPrim.id, 'primitive', allDocTypes)}
-              dirty={anyDirty} saving={saving} onSaveAll={saveAll} onDeleted={() => setSelectedId(null)} />
-          ) : mode === 'enum' && selectedEnum ? (
-            <EnumTypeDetail key={selectedEnum.id} type={selectedEnum} allGroups={allGroups}
-              usedBy={countTypeRefs(selectedEnum.id, 'enum', allDocTypes)}
-              dirty={anyDirty} saving={saving} onSaveAll={saveAll} onDeleted={() => setSelectedId(null)} />
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-fg4 text-sm">
-              {mode === 'primitive' ? 'Типов полей ещё нет' : 'Перечислений ещё нет'} — создайте первый.
-            </div>
-          )}
-        </div>
+            onSelect={requestSelect} query={query} onQuery={setQuery} />}
+          detail={detail} />
       </TypeEditorProvider>
 
-      <LeaveGuardDialog open={pendingSelect !== null} saving={saving}
-        onCancel={() => setPendingSelect(null)}
-        onDiscard={() => { if (pendingSelect) applyPending(pendingSelect); setPendingSelect(null); }}
-        onSave={async () => { try { await saveAll(); if (pendingSelect) applyPending(pendingSelect); setPendingSelect(null); } catch { /* остаёмся */ } }} />
+      <LeaveGuardDialog {...dialogProps} />
 
       <Modal open={createOpen} onOpenChange={setCreateOpen}
         title={mode === 'primitive' ? 'Новый тип поля' : 'Новый тип перечисления'}>
@@ -643,6 +626,6 @@ export function PrimitiveTypesPage() {
           ? <PrimitiveCreateForm onSaved={() => setCreateOpen(false)} onCancel={() => setCreateOpen(false)} />
           : <EnumForm onSaved={() => setCreateOpen(false)} onCancel={() => setCreateOpen(false)} />)}
       </Modal>
-    </div>
+    </>
   );
 }
