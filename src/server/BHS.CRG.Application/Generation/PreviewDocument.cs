@@ -54,10 +54,17 @@ public class PreviewDocumentHandler(
         var instance = await instanceRepo.GetByIdAsync(q.InstanceId, ct);
         if (instance is null) return PreviewDocumentResult.Fail("Документ не найден.");
 
-        // Выбор ОДНОГО шаблона (как в GenerateDocumentHandler): явно выбранный → дефолтный → первый активный.
+        // Шаблон предпросмотра = как пользователь бы СГЕНЕРИРОВАЛ (issue #193 follow-up):
+        // выбранный набор (ПЕРВЫЙ выбранный в порядке TemplateIds, активный) → одиночный выбор
+        // (TemplateId) → дефолтный → первый активный. Зеркалит выбор в GenerateDocumentHandler.
         var candidates = (await templateRepo.FindAsync(t => t.DocumentTypeId == instance.CompositeTypeId, ct)).ToList();
-        var selectedIds = ParseGuidList(instance.TemplateIds);
-        var template = (selectedIds.Count > 0 ? candidates.FirstOrDefault(t => selectedIds.Contains(t.Id) && t.IsActive) : null)
+        Template? bySelected = null;
+        foreach (var id in ParseGuidList(instance.TemplateIds))
+        {
+            bySelected = candidates.FirstOrDefault(t => t.Id == id && t.IsActive);
+            if (bySelected is not null) break;
+        }
+        var template = bySelected
             ?? (instance.TemplateId.HasValue ? candidates.FirstOrDefault(t => t.Id == instance.TemplateId.Value) : null)
             ?? candidates.FirstOrDefault(t => t.IsDefault && t.IsActive)
             ?? candidates.FirstOrDefault(t => t.IsActive);
