@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
-  Plus, ChevronRight, Trash2, Folder, FileText, Boxes, EyeOff, Check,
+  Plus, ChevronRight, Trash2, Copy, Folder, FileText, Boxes, EyeOff, Check,
   Braces, RotateCcw, Code, Database, Cpu,
 } from 'lucide-react';
 import { Switch } from '@/shared/ui/Switch';
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
 import { Modal } from '@/shared/ui/Modal';
-import { Button, IconButton } from '@/shared/ui/Button';
+import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -43,6 +43,8 @@ import {
   TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry, LeaveGuardDialog, SectionCard,
 } from './typeEditorShell';
 import { ListDetailShell, NavSearchInput, DetailHeader, useDirtyGuard } from '@/shared/ui/ListDetailShell';
+import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
+import { uniqueCode } from './PrimitiveTypesPage';
 
 /** Единственное членство (issue #197 Фаза C): каждый ключ поля остаётся только в первой группе,
  *  где встречается. Легаси-схемы могли класть поле в несколько групп — нормализуем при загрузке. */
@@ -635,9 +637,9 @@ function findReferencingTypes(id: string, allDocTypes: DocumentType[]): Document
 }
 
 /** Правая панель list-detail (issue #197 Фаза A): шапка типа (метрики+действия) + редактор как есть. */
-function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving, onSaveAll, onRevert }: {
+function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving, onSaveAll, onRevert, onDuplicate }: {
   docType: DocumentType; allDocTypes: DocumentType[]; allGroups: string[]; onDeleted: () => void;
-  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void;
+  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void; onDuplicate: () => void;
 }) {
   const deleteMutation = useDeleteDocumentType();
   const groupMutation = useSetDocumentTypeGroup();
@@ -704,19 +706,16 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
         }
         actions={
           <>
-            {docType.kind === 'Document' && (
-              <IconButton label="Шаблоны данных" size="sm" onClick={() => setTemplatesOpen(true)} title="Шаблоны данных">
-                <Database size={15} />
-              </IconButton>
-            )}
             <GroupPicker groups={allGroups} value={docType.group}
               onChange={group => groupMutation.mutate({ id: docType.id, group })} />
-            <IconButton label="Удалить тип" size="sm" danger
-              onClick={() => { if (!deleteBlock) setDeleteConfirmOpen(true); }}
-              disabled={deleteMutation.isPending || !!deleteBlock}
-              title={deleteBlock ?? 'Удалить тип'}>
-              <Trash2 size={15} />
-            </IconButton>
+            <RowActionsMenu ariaLabel="Действия типа" actions={[
+              { key: 'dup', label: 'Дублировать', icon: <Copy size={14} />, onSelect: onDuplicate },
+              ...(docType.kind === 'Document'
+                ? [{ key: 'tpl', label: 'Шаблоны данных', icon: <Database size={14} />, onSelect: () => setTemplatesOpen(true) }]
+                : []),
+              { key: 'del', label: deleteBlock ?? 'Удалить тип', danger: true, disabled: deleteMutation.isPending || !!deleteBlock,
+                icon: <Trash2 size={14} />, onSelect: () => { if (!deleteBlock) setDeleteConfirmOpen(true); } },
+            ]} />
           </>
         } />
       {/* Тело редактора (существующие редакторы как есть — Фаза A) */}
@@ -791,6 +790,14 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   // Выбранный тип: из выбора (если ещё в отфильтрованных) иначе первый.
   const selected = filtered.find(t => t.id === selectedId) ?? filtered[0];
 
+  // Дублирование типа со схемой (клиентский клон, issue #210 Этап 2).
+  const createDoc = useCreateDocumentType();
+  const duplicateType = (dt: DocumentType) => createDoc.mutate({
+    name: `Копия ${dt.name}`, code: uniqueCode(dt.code, new Set(allDocTypes.map(x => x.code))),
+    kind: dt.kind, parentId: dt.parentId ?? null,
+    schema: JSON.stringify(dt.schema), isAbstract: dt.kind === 'Document' ? dt.isAbstract : false,
+  });
+
   const overlay = isLoading
     ? <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка...</div>
     : filtered.length === 0
@@ -814,7 +821,8 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
           detail={selected ? (
             <TypeDetail key={selected.id} docType={selected} allDocTypes={allDocTypes}
               allGroups={allGroups} onDeleted={() => setSelectedId(null)}
-              dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll} />
+              dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll}
+              onDuplicate={() => duplicateType(selected)} />
           ) : (
             <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Ничего не найдено</div>
           )} />

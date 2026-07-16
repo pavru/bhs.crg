@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import {
-  Plus, Trash2, CaseSensitive, Hash, Calendar, List as ListIcon,
+  Plus, Trash2, Copy, CaseSensitive, Hash, Calendar, List as ListIcon,
   CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
-import { Button, IconButton } from '@/shared/ui/Button';
+import { Button } from '@/shared/ui/Button';
+import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavSearchInput, DetailHeader, useDirtyGuard } from '@/shared/ui/ListDetailShell';
 import { TextField } from '@/shared/ui/TextField';
 import { DateInput } from '@/shared/ui/DateInput';
@@ -23,6 +24,7 @@ import {
 } from '@/shared/api/primitiveTypes';
 import {
   useListEnumTypes,
+  useCreateEnumType,
   useUpdateEnumType,
   useDeleteEnumType,
   useSetEnumTypeGroup,
@@ -60,6 +62,13 @@ const baseTypeIcon = (bt: string) => bt === 'number' ? Hash : bt === 'date' ? Ca
 /** Число типов, ссылающихся на данный тип поля (primitive/enum) полем с этим typeId (по своим схемам). */
 function countTypeRefs(typeId: string, kind: 'primitive' | 'enum', allDocTypes: DocumentType[]): number {
   return allDocTypes.filter(dt => parseSchemaFields(dt.schema).some(f => f.type === kind && f.typeId === typeId)).length;
+}
+
+/** Уникальный код на базе исходного: base2, base3 … (для дублирования типа, issue #210 Этап 2). */
+export function uniqueCode(base: string, existing: Set<string>): string {
+  if (!existing.has(base)) return base;
+  let i = 2; while (existing.has(`${base}${i}`)) i++;
+  return `${base}${i}`;
 }
 
 /** Человекочитаемое превью ограничений для строки списка. Regex не «переводим» (нельзя надёжно) —
@@ -303,9 +312,9 @@ function PrimitiveCreateForm({ onSaved, onCancel }: { onSaved: () => void; onCan
 
 // ─── Detail header (доменные heading/actions поверх общего DetailHeader) ──────────
 
-function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, onRevert, allGroups, group, onGroup, onDelete, deleteBlock }: {
+function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, onRevert, onDuplicate, allGroups, group, onGroup, onDelete, deleteBlock }: {
   name: string; code: string; chip: string; usedBy: number;
-  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void;
+  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void; onDuplicate: () => void;
   allGroups: string[]; group: string | null; onGroup: (g: string | null) => void;
   onDelete: () => void; deleteBlock: string | null;
 }) {
@@ -325,10 +334,10 @@ function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, 
       actions={
         <>
           <GroupPicker groups={allGroups} value={group} onChange={onGroup} />
-          <IconButton label="Удалить" size="sm" danger onClick={() => { if (!deleteBlock) onDelete(); }}
-            disabled={!!deleteBlock} title={deleteBlock ?? 'Удалить тип'}>
-            <Trash2 size={15} />
-          </IconButton>
+          <RowActionsMenu ariaLabel="Действия типа" actions={[
+            { key: 'dup', label: 'Дублировать', icon: <Copy size={14} />, onSelect: onDuplicate },
+            { key: 'del', label: deleteBlock ?? 'Удалить', danger: true, disabled: !!deleteBlock, icon: <Trash2 size={14} />, onSelect: () => { if (!deleteBlock) onDelete(); } },
+          ]} />
         </>
       } />
   );
@@ -336,9 +345,9 @@ function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, 
 
 // ─── Primitive detail ────────────────────────────────────────────────────────────
 
-function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onRevert, onDeleted }: {
+function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onRevert, onDuplicate, onDeleted }: {
   type: PrimitiveTypeDef; allGroups: string[]; usedBy: number;
-  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void; onDeleted: () => void;
+  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void; onDuplicate: () => void; onDeleted: () => void;
 }) {
   const [name, setName] = useState(type.name);
   const [description, setDescription] = useState(type.description ?? '');
@@ -374,7 +383,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <TypeDetailHeader name={name} code={type.code} chip={BASE_TYPE_LABEL[type.baseType] ?? type.baseType} usedBy={usedBy}
-        dirty={dirty} saving={saving} onSaveAll={onSaveAll} onRevert={onRevert}
+        dirty={dirty} saving={saving} onSaveAll={onSaveAll} onRevert={onRevert} onDuplicate={onDuplicate}
         allGroups={allGroups} group={type.group} onGroup={g => groupMutation.mutate({ id: type.id, group: g })}
         onDelete={() => setConfirmDelete(true)} deleteBlock={deleteBlock} />
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
@@ -432,9 +441,9 @@ function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll
 
 // ─── Enum detail ──────────────────────────────────────────────────────────────────
 
-function EnumTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onRevert, onDeleted }: {
+function EnumTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onRevert, onDuplicate, onDeleted }: {
   type: EnumTypeDef; allGroups: string[]; usedBy: number;
-  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void; onDeleted: () => void;
+  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void; onDuplicate: () => void; onDeleted: () => void;
 }) {
   const [name, setName] = useState(type.name);
   const [description, setDescription] = useState(type.description ?? '');
@@ -473,7 +482,7 @@ function EnumTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onR
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <TypeDetailHeader name={name} code={type.code} chip="Перечисление" usedBy={usedBy}
-        dirty={dirty} saving={saving} onSaveAll={onSaveAll} onRevert={onRevert}
+        dirty={dirty} saving={saving} onSaveAll={onSaveAll} onRevert={onRevert} onDuplicate={onDuplicate}
         allGroups={allGroups} group={type.group} onGroup={g => groupMutation.mutate({ id: type.id, group: g })}
         onDelete={() => setConfirmDelete(true)} deleteBlock={deleteBlock} />
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
@@ -592,14 +601,24 @@ export function PrimitiveTypesPage() {
   const selectedEnum = mode === 'enum' ? (sortedEnum.find(t => t.id === selectedId) ?? sortedEnum[0]) : undefined;
   const addLabel = mode === 'primitive' ? 'Добавить тип' : 'Добавить перечисление';
 
+  // Дублирование типа (клиентский клон, issue #210 Этап 2): имя «Копия …», код с суффиксом.
+  const createPrim = useCreatePrimitiveType();
+  const createEnum = useCreateEnumType();
+  const duplicatePrim = (t: PrimitiveTypeDef) => createPrim.mutate(
+    buildPrimitiveTypeDto(`Копия ${t.name}`, uniqueCode(t.code, new Set(sortedPrim.map(x => x.code))), t.baseType, t.description, t.constraints, t.allowedTags));
+  const duplicateEnum = (t: EnumTypeDef) => createEnum.mutate(
+    buildEnumTypeDto(`Копия ${t.name}`, uniqueCode(t.code, new Set(sortedEnum.map(x => x.code))), t.description, t.values));
+
   const detail = mode === 'primitive' && selectedPrim ? (
     <PrimitiveTypeDetail key={selectedPrim.id} type={selectedPrim} allGroups={allGroups}
       usedBy={countTypeRefs(selectedPrim.id, 'primitive', allDocTypes)}
-      dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll} onDeleted={() => setSelectedId(null)} />
+      dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll}
+      onDuplicate={() => duplicatePrim(selectedPrim)} onDeleted={() => setSelectedId(null)} />
   ) : mode === 'enum' && selectedEnum ? (
     <EnumTypeDetail key={selectedEnum.id} type={selectedEnum} allGroups={allGroups}
       usedBy={countTypeRefs(selectedEnum.id, 'enum', allDocTypes)}
-      dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll} onDeleted={() => setSelectedId(null)} />
+      dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll}
+      onDuplicate={() => duplicateEnum(selectedEnum)} onDeleted={() => setSelectedId(null)} />
   ) : (
     <div className="flex-1 flex items-center justify-center text-fg4 text-sm">
       {mode === 'primitive' ? 'Типов полей ещё нет' : 'Перечислений ещё нет'} — создайте первый.
