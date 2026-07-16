@@ -40,6 +40,25 @@ public static class GenerationEndpoints
             }
         });
 
+        // Живой предпросмотр (issue #193): рендер ДЕФОЛТНОГО шаблона на переданных (несохранённых)
+        // реквизитах в PDF. Эфемерно — ничего не персистит. PDF → 200 application/pdf;
+        // нет шаблона → 200 {noTemplate:true}; ошибка резолва/Typst → 422 {error, diagnostics}.
+        g.MapPost("/preview/{instanceId:guid}", async (
+            Guid instanceId, System.Text.Json.JsonElement requisites, IMediator m, CancellationToken ct) =>
+        {
+            var raw = requisites.ValueKind == System.Text.Json.JsonValueKind.Undefined ? "{}" : requisites.GetRawText();
+            var result = await m.Send(new PreviewDocumentQuery(instanceId, System.Text.Json.JsonDocument.Parse(raw)), ct);
+            if (result.Pdf is not null)
+                return Results.File(result.Pdf, "application/pdf");
+            if (result.NoTemplate)
+                return Results.Ok(new { noTemplate = true });
+            return Results.UnprocessableEntity(new
+            {
+                error = result.Error ?? "Не удалось построить предпросмотр",
+                diagnostics = result.Diagnostics?.Select(ToDto),
+            });
+        });
+
         // Проверка разрешения ссылок «по требованию» — возвращает все проблемы (warning/error).
         g.MapGet("/validate/{instanceId:guid}", async (Guid instanceId, IMediator m) =>
         {
