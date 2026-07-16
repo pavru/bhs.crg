@@ -177,6 +177,29 @@ export function GroupedFieldsEditor({
 
   return (
     <div className="space-y-3">
+      {/* Без группы (катч-олл) — первой: эти поля идут первыми в формах редактирования (#197) */}
+      {(() => {
+        const zone = dropZoneProps(null);
+        return (
+          <div className={`border rounded-lg overflow-hidden transition-colors ${zone.highlighted ? 'border-brand bg-brand-subtle/30' : 'border-stroke border-dashed bg-base'}`}>
+            <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-stroke">
+              <span className="text-sm font-medium text-fg3">Без группы</span>
+              <span className="text-xs text-fg4">{ownUngrouped.length + inhUngrouped.length}</span>
+            </div>
+            <div className="p-2 space-y-2 min-h-[3rem]" onDragOver={zone.onDragOver} onDrop={zone.onDrop}>
+              {(() => {
+                const ownKeys = ownUngrouped.map(f => f.key);
+                return ownUngrouped.map((f, i) => renderOwn(f, null, ownKeys, i));
+              })()}
+              {inhUngrouped.map(f => renderInherited(f, null))}
+              <Button type="button" variant="tonal" onClick={addField} icon={<Plus size={14} />} className="w-full justify-center">
+                Добавить поле
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Группы-карточки */}
       {groups.map((group, gi) => {
         const zone = dropZoneProps(group.key);
@@ -229,29 +252,6 @@ export function GroupedFieldsEditor({
           Группа
         </Button>
       </div>
-
-      {/* Без группы (катч-олл) */}
-      {(() => {
-        const zone = dropZoneProps(null);
-        return (
-          <div className={`border rounded-lg overflow-hidden transition-colors ${zone.highlighted ? 'border-brand bg-brand-subtle/30' : 'border-stroke border-dashed bg-base'}`}>
-            <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-stroke">
-              <span className="text-sm font-medium text-fg3">Без группы</span>
-              <span className="text-xs text-fg4">{ownUngrouped.length + inhUngrouped.length}</span>
-            </div>
-            <div className="p-2 space-y-2 min-h-[3rem]" onDragOver={zone.onDragOver} onDrop={zone.onDrop}>
-              {(() => {
-                const ownKeys = ownUngrouped.map(f => f.key);
-                return ownUngrouped.map((f, i) => renderOwn(f, null, ownKeys, i));
-              })()}
-              {inhUngrouped.map(f => renderInherited(f, null))}
-              <Button type="button" variant="tonal" onClick={addField} icon={<Plus size={14} />} className="w-full justify-center">
-                Добавить поле
-              </Button>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 }
