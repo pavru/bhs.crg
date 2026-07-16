@@ -1,10 +1,11 @@
-import { useId, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { Plus, Trash2, ArrowUp, ArrowDown, Cpu, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Button } from '@/shared/ui/Button';
+import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import type { DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import type { SchemaField, FieldGroup } from '@/shared/api/schema';
-import { PRIMITIVE_TYPES, TYPE_LABELS, toCamelKey } from './schemaConstants';
+import { TYPE_LABELS, toCamelKey } from './schemaConstants';
 import { useTagRegistry, fieldTags, type TagDefinition } from '@/shared/api/tags';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
 
@@ -63,6 +64,43 @@ export function fieldTypeSummary(f: SchemaField, reg: FieldRegistries): string {
   return TYPE_LABELS[f.type] ?? f.type;
 }
 
+// ─── Пикер типа поля (issue #197, переиспользует общий TypePicker) ──────────────
+// Каждый выбираемый тип поля кодируется одним PickType с id вида "kind::targetId":
+// базовые скаляры, реестр типов полей/перечислений, составные (одиночно/список), ссылки на
+// документы (одиночно/список). onSelect декодирует id обратно в пару {type, typeId}.
+const BUILTIN_TYPES: { type: SchemaField['type']; label: string }[] = [
+  { type: 'string', label: 'Строка' },
+  { type: 'text', label: 'Текст' },
+  { type: 'number', label: 'Число' },
+  { type: 'date', label: 'Дата' },
+  { type: 'boolean', label: 'Флаг' },
+  { type: 'image', label: 'Изображение' },
+  { type: 'file', label: 'Файл (вложение)' },
+];
+
+/** Плоский список выбираемых типов поля для TypePicker (сгруппирован по section). */
+export function buildFieldTypeOptions(reg: FieldRegistries): PickType[] {
+  const opts: PickType[] = [];
+  for (const b of BUILTIN_TYPES) opts.push({ id: `builtin::${b.type}`, name: b.label, code: b.type, section: 'Базовые' });
+  for (const pt of reg.primitiveTypes) opts.push({ id: `primitive::${pt.id}`, name: pt.name, code: pt.code, section: 'Типы полей (реестр)' });
+  for (const et of reg.enumTypes) opts.push({ id: `enum::${et.id}`, name: `${et.name} · ${et.values.length}`, code: et.code, section: 'Перечисления' });
+  for (const ct of reg.compositeTypes) opts.push({ id: `complex::${ct.id}`, name: ct.name, code: ct.code, section: 'Составные типы' });
+  for (const ct of reg.compositeTypes) opts.push({ id: `array::${ct.id}`, name: `${ct.name} — список`, code: ct.code, section: 'Списки (массивы)' });
+  const docs = reg.allDocTypes.filter(dt => dt.kind === 'Document');
+  for (const dt of docs) opts.push({ id: `doc-ref::${dt.id}`, name: dt.name, code: dt.code, section: 'Ссылки на документы' });
+  for (const dt of docs) opts.push({ id: `doc-array::${dt.id}`, name: `${dt.name} — список`, code: dt.code, section: 'Списки документов' });
+  return opts;
+}
+
+/** Декодирует id из buildFieldTypeOptions обратно в патч {type, typeId}. */
+export function decodeFieldType(id: string): Pick<SchemaField, 'type' | 'typeId'> {
+  const sep = id.indexOf('::');
+  const kind = id.slice(0, sep);
+  const target = id.slice(sep + 2);
+  if (kind === 'builtin') return { type: target as SchemaField['type'], typeId: undefined };
+  return { type: kind as SchemaField['type'], typeId: target };
+}
+
 interface FieldCardProps {
   field: SchemaField;
   reg: FieldRegistries;
@@ -90,8 +128,11 @@ export function FieldCard({
   field, reg, keyConflict, open, onToggleOpen, onChange, onRemove,
   onMoveUp, onMoveDown, isFirst, isLast, dragging, onDragStart, onDragEnd, onDragOver, onDrop,
 }: FieldCardProps) {
-  const { compositeTypes, primitiveTypes, enumTypes, allDocTypes, tagRegistry } = reg;
+  const { primitiveTypes, enumTypes, tagRegistry } = reg;
   const tags = field.tags ?? [];
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickTypes = useMemo(() => buildFieldTypeOptions(reg),
+    [reg.compositeTypes, reg.primitiveTypes, reg.enumTypes, reg.allDocTypes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleTag = (code: string) => {
     const next = tags.includes(code) ? tags.filter(c => c !== code) : [...tags, code];
@@ -175,24 +216,12 @@ export function FieldCard({
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-danger">!</span>
           )}
         </div>
-        {/* Type */}
-        <select
-          value={field.type}
-          onChange={e => {
-            const t = e.target.value as SchemaField['type'];
-            onChange({
-              type: t,
-              typeId: (t === 'complex' || t === 'primitive' || t === 'array' || t === 'doc-ref' || t === 'doc-array' || t === 'enum') ? '' : undefined,
-              options: t === 'enum' ? field.options : undefined,
-              defaultValue: undefined,
-            });
-          }}
-          className="border border-stroke-strong rounded-md px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
-        >
-          {PRIMITIVE_TYPES.map(t => (
-            <option key={t.value} value={t.value}>{t.label}</option>
-          ))}
-        </select>
+        {/* Type — открывает searchable TypePicker (issue #197) */}
+        <button type="button" onClick={() => setPickerOpen(true)} title="Выбрать тип поля"
+          className="flex items-center justify-between gap-1 border border-stroke-strong rounded-md px-2 py-1.5 text-sm bg-surface hover:bg-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+          <span className="truncate text-left">{fieldTypeSummary(field, reg)}</span>
+          <ChevronDown size={14} className="text-fg4 shrink-0" />
+        </button>
         {/* Required */}
         <label className="flex items-center justify-center gap-1.5 cursor-pointer">
           <input
@@ -219,76 +248,6 @@ export function FieldCard({
           </button>
         </div>
       </div>
-      {/* Composite type selector (complex & array) */}
-      {(field.type === 'complex' || field.type === 'array') && (
-        <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)]">
-          <select
-            value={field.typeId ?? ''}
-            onChange={e => onChange({ typeId: e.target.value })}
-            className={`w-full border rounded-md px-2 py-1.5 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface ${
-              !field.typeId ? 'border-yellow-400 text-fg4' : 'border-stroke-strong'
-            }`}
-          >
-            <option value="">
-              {field.type === 'array' ? 'Тип строки (составной)...' : 'Выберите составной тип...'}
-            </option>
-            {compositeTypes.map(ct => (
-              <option key={ct.id} value={ct.id}>{ct.name} ({ct.code})</option>
-            ))}
-          </select>
-        </div>
-      )}
-      {/* Document type selector (doc-ref & doc-array) */}
-      {(field.type === 'doc-ref' || field.type === 'doc-array') && (
-        <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)]">
-          <select
-            value={field.typeId ?? ''}
-            onChange={e => onChange({ typeId: e.target.value })}
-            className={`w-full border rounded-md px-2 py-1.5 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface ${
-              !field.typeId ? 'border-yellow-400 text-fg4' : 'border-stroke-strong'
-            }`}
-          >
-            <option value="">Выберите тип документа...</option>
-            {allDocTypes.filter(dt => dt.kind === 'Document').map(dt => (
-              <option key={dt.id} value={dt.id}>{dt.name} ({dt.code})</option>
-            ))}
-          </select>
-        </div>
-      )}
-      {/* Primitive type selector */}
-      {field.type === 'primitive' && (
-        <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)]">
-          <select
-            value={field.typeId ?? ''}
-            onChange={e => onChange({ typeId: e.target.value })}
-            className={`w-full border rounded-md px-2 py-1.5 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface ${
-              !field.typeId ? 'border-yellow-400 text-fg4' : 'border-stroke-strong'
-            }`}
-          >
-            <option value="">Выберите тип поля...</option>
-            {primitiveTypes.map(pt => (
-              <option key={pt.id} value={pt.id}>{pt.name} ({pt.code})</option>
-            ))}
-          </select>
-        </div>
-      )}
-      {/* Enum type selector (issue #59) — только для НЕ-легаси enum-полей. */}
-      {field.type === 'enum' && !isLegacyEnum && (
-        <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)]">
-          <select
-            value={field.typeId ?? ''}
-            onChange={e => onChange({ typeId: e.target.value })}
-            className={`w-full border rounded-md px-2 py-1.5 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface ${
-              !field.typeId ? 'border-yellow-400 text-fg4' : 'border-stroke-strong'
-            }`}
-          >
-            <option value="">Выберите тип перечисления...</option>
-            {enumTypes.map(et => (
-              <option key={et.id} value={et.id}>{et.name} ({et.code})</option>
-            ))}
-          </select>
-        </div>
-      )}
       {/* Default value editor */}
       {field.type !== 'complex' && field.type !== 'array' && field.type !== 'primitive'
         && field.type !== 'doc-ref' && field.type !== 'doc-array' && (
@@ -439,6 +398,19 @@ export function FieldCard({
       )}
       </div>
       )}
+      {/* Searchable-пикер типа поля (issue #197): один список — базовые + реестры + составные/ссылки */}
+      <TypePicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        types={pickTypes}
+        recentKey="field-type"
+        title="Тип поля"
+        onSelect={id => {
+          const dec = decodeFieldType(id);
+          const changed = dec.type !== field.type || dec.typeId !== field.typeId;
+          onChange(changed ? { ...dec, defaultValue: undefined, options: undefined } : dec);
+        }}
+      />
     </div>
   );
 }
