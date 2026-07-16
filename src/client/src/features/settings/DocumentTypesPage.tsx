@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
-  Plus, ChevronRight, Trash2, Search, Folder, FileText, Boxes, EyeOff, Check,
+  Plus, ChevronRight, Trash2, Folder, FileText, Boxes, EyeOff, Check,
   Braces, RotateCcw, Code, Database, Cpu,
 } from 'lucide-react';
 import { Switch } from '@/shared/ui/Switch';
@@ -42,6 +42,7 @@ import { JsonPreview, FieldBuilder, DefaultValueCell, type FieldRegistries } fro
 import {
   TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry, LeaveGuardDialog, SectionCard,
 } from './typeEditorShell';
+import { ListDetailShell, NavSearchInput, DetailHeader, useDirtyGuard } from '@/shared/ui/ListDetailShell';
 
 /** Единственное членство (issue #197 Фаза C): каждый ключ поля остаётся только в первой группе,
  *  где встречается. Легаси-схемы могли класть поле в несколько групп — нормализуем при загрузке. */
@@ -659,10 +660,10 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
   const badge = 'text-xs px-2 py-0.5 rounded-full font-medium';
   return (
     <div className="flex flex-col min-h-0 flex-1">
-      {/* Шапка типа */}
-      <div className="shrink-0 px-6 py-4 border-b border-stroke bg-surface">
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1">
+      {/* Шапка типа — доменные heading/actions поверх общего DetailHeader (issue #210 Этап 1b) */}
+      <DetailHeader dirty={dirty} saving={saving} onSaveAll={onSaveAll}
+        heading={
+          <>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-xl font-normal text-fg1 truncate">{docType.name}</h2>
               <span className="text-xs text-fg4 font-mono">{docType.code}</span>
@@ -690,14 +691,10 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
                 </span>
               )}
             </div>
-          </div>
-          {/* Действия типа (прокси/абстрактность перенесены в «Параметры типа» как switch'и — #197 Фаза C) */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {dirty && <span className={`${badge} bg-warning-subtle text-warning`}>есть изменения</span>}
-            <Button variant="filled" size="sm" disabled={!dirty} loading={saving}
-              onClick={() => { onSaveAll().catch(() => { /* ошибки показаны в формах */ }); }}>
-              Сохранить
-            </Button>
+          </>
+        }
+        actions={
+          <>
             {docType.kind === 'Document' && (
               <IconButton label="Шаблоны данных" size="sm" onClick={() => setTemplatesOpen(true)} title="Шаблоны данных">
                 <Database size={15} />
@@ -711,9 +708,8 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
               title={deleteBlock ?? 'Удалить тип'}>
               <Trash2 size={15} />
             </IconButton>
-          </div>
-        </div>
-      </div>
+          </>
+        } />
       {/* Тело редактора (существующие редакторы как есть — Фаза A) */}
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
         <div className="mx-auto max-w-4xl">
@@ -755,13 +751,12 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   // Реестр незасохранённых форм текущего типа (явное сохранение, issue #197 / #210 — общий).
   const { registry, anyDirty, saving, saveAll } = useTypeEditorRegistry();
 
-  // Гард при уходе с типа с несохранёнными правками.
-  const [pendingSelect, setPendingSelect] = useState<string | null>(null);
-  const requestSelect = (id: string) => {
-    if (id === selectedId) return;
-    if (anyDirty) setPendingSelect(id);
-    else setSelectedId(id);
-  };
+  // Гард при уходе с типа с несохранёнными правками (общий useDirtyGuard, issue #210 Этап 1b).
+  const { request, dialogProps } = useDirtyGuard<string | null>({
+    isDirty: anyDirty, saving, saveAll,
+    onCommit: id => setSelectedId(id),
+  });
+  const requestSelect = (id: string) => { if (id !== selectedId) request(id); };
 
   const filtered = allDocTypes
     .filter(dt => dt.kind === kind)
@@ -787,56 +782,36 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   // Выбранный тип: из выбора (если ещё в отфильтрованных) иначе первый.
   const selected = filtered.find(t => t.id === selectedId) ?? filtered[0];
 
-  return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between gap-3 px-6 py-3 shrink-0 border-b border-stroke">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-fg1">{title}</h1>
-          {kind === 'Composite' && (
-            <p className="text-xs text-fg3 mt-0.5">
-              Переиспользуемые структуры полей для использования внутри типов документов
-            </p>
-          )}
-        </div>
-        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
-          {addLabel}
-        </Button>
-      </div>
-
-      {isLoading ? (
-        <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка...</div>
-      ) : filtered.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center text-fg4 text-sm">
+  const overlay = isLoading
+    ? <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка...</div>
+    : filtered.length === 0
+      ? <div className="flex-1 flex items-center justify-center text-fg4 text-sm">
           {kind === 'Document' ? 'Типов документов не создано' : 'Составных типов не создано'}
         </div>
-      ) : (
-        <TypeEditorProvider value={registry}>
-          <div className="flex-1 min-h-0 flex">
-            <TypeListPanel
-              groupOrder={groupOrder} byGroup={byGroup} allDocTypes={allDocTypes}
-              selectedId={selected?.id ?? null} onSelect={requestSelect}
-              query={query} onQuery={setQuery} />
-            {selected ? (
-              <TypeDetail key={selected.id} docType={selected} allDocTypes={allDocTypes}
-                allGroups={allGroups} onDeleted={() => setSelectedId(null)}
-                dirty={anyDirty} saving={saving} onSaveAll={saveAll} />
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Ничего не найдено</div>
-            )}
-          </div>
-        </TypeEditorProvider>
-      )}
+      : null;
 
-      <LeaveGuardDialog
-        open={pendingSelect !== null}
-        saving={saving}
-        onCancel={() => setPendingSelect(null)}
-        onDiscard={() => { setSelectedId(pendingSelect); setPendingSelect(null); }}
-        onSave={async () => {
-          try { await saveAll(); setSelectedId(pendingSelect); setPendingSelect(null); }
-          catch { /* ошибка валидации показана в форме — остаёмся на типе */ }
-        }}
-      />
+  return (
+    <>
+      <TypeEditorProvider value={registry}>
+        <ListDetailShell
+          title={title}
+          subtitle={kind === 'Composite' ? 'Переиспользуемые структуры полей для использования внутри типов документов' : undefined}
+          headerAction={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>}
+          overlay={overlay}
+          nav={<TypeListPanel
+            groupOrder={groupOrder} byGroup={byGroup} allDocTypes={allDocTypes}
+            selectedId={selected?.id ?? null} onSelect={requestSelect}
+            query={query} onQuery={setQuery} />}
+          detail={selected ? (
+            <TypeDetail key={selected.id} docType={selected} allDocTypes={allDocTypes}
+              allGroups={allGroups} onDeleted={() => setSelectedId(null)}
+              dirty={anyDirty} saving={saving} onSaveAll={saveAll} />
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Ничего не найдено</div>
+          )} />
+      </TypeEditorProvider>
+
+      <LeaveGuardDialog {...dialogProps} />
 
       <Modal open={createOpen} onOpenChange={setCreateOpen}
         title={kind === 'Document' ? 'Новый тип документа' : 'Новый составной тип'}
@@ -845,7 +820,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
           <CreateForm kind={kind} onClose={() => setCreateOpen(false)} allDocTypes={allDocTypes} />
         )}
       </Modal>
-    </div>
+    </>
   );
 }
 
@@ -867,14 +842,8 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
     setExpandedGroups(s => { const n = new Set(s); n.has(g) ? n.delete(g) : n.add(g); return n; });
 
   return (
-    <nav aria-label="Типы" className="w-80 shrink-0 border-r border-stroke flex flex-col bg-base">
-      <div className="p-3 shrink-0">
-        <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
-          <input value={query} onChange={e => onQuery(e.target.value)} placeholder="Поиск типа…" aria-label="Поиск типа"
-            className="w-full h-10 pl-9 pr-3 rounded-full text-sm bg-surface border border-stroke-strong text-fg1 outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-fg4" />
-        </div>
-      </div>
+    <>
+      <NavSearchInput value={query} onChange={onQuery} placeholder="Поиск типа…" />
       <div className="flex-1 overflow-y-auto px-2 pb-3">
         {groupOrder.length === 0 && <p className="px-3 py-6 text-center text-sm text-fg4">Ничего не найдено</p>}
         {groupOrder.map(g => {
@@ -908,6 +877,6 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
           );
         })}
       </div>
-    </nav>
+    </>
   );
 }
