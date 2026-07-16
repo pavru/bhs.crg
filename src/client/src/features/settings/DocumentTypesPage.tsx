@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
-  Plus, ChevronDown, ChevronUp, Trash2, Search, Folder, FileText,
-  Braces, Ban, RotateCcw, Layers, Code, Database, Cpu,
+  Plus, ChevronDown, ChevronUp, Trash2, Search, Folder, FileText, EyeOff, Check,
+  Braces, RotateCcw, Layers, Code, Database, Cpu,
 } from 'lucide-react';
+import { Switch } from '@/shared/ui/Switch';
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -70,77 +72,93 @@ function InheritedFieldsPanel({
     return TYPE_LABELS[f.type] ?? f.type;
   }
 
+  const cols = 'grid grid-cols-[1fr_1fr_110px_160px_120px_64px] gap-2 items-center';
   return (
-    <div className="space-y-1.5">
-      <div className="grid grid-cols-[1fr_1fr_100px_70px_80px_120px_56px] gap-2 px-2 pb-1">
+    <div className="space-y-0.5">
+      <div className={`${cols} px-2 pb-1`}>
         <span className="text-xs font-medium text-fg3">Ключ</span>
         <span className="text-xs font-medium text-fg3">Название</span>
         <span className="text-xs font-medium text-fg3">Тип</span>
-        <span className="text-xs font-medium text-fg3">Обязат.</span>
-        <span className="text-xs font-medium text-fg3">Переопр.</span>
+        <span className="text-xs font-medium text-fg3">Обязательность</span>
         <span className="text-xs font-medium text-fg3">Дефолт</span>
-        <span className="text-xs font-medium text-fg3">Искл.</span>
+        <span className="text-xs font-medium text-fg3 text-center">Вкл.</span>
       </div>
       {parentEffectiveFields.map(field => {
         const isExcluded = excludedSet.has(field.key);
         const override = fieldOverrides[field.key];
-        const effectiveRequired = override?.required !== undefined ? override.required : field.required;
-
         return (
-          <div
-            key={field.key}
-            className={`grid grid-cols-[1fr_1fr_100px_70px_80px_120px_56px] gap-2 items-center rounded-md px-2 py-1.5 ${
-              isExcluded ? 'bg-danger-subtle opacity-60' : 'bg-base'
-            }`}
-          >
-            <span className={`text-sm font-mono ${isExcluded ? 'line-through text-fg4' : 'text-fg2'}`}>
-              {field.key}
+          <div key={field.key} className={`${cols} rounded-md px-2 py-2 hover:bg-muted/50 transition-colors ${isExcluded ? 'opacity-55' : ''}`}>
+            <span className="flex items-center gap-1.5 min-w-0">
+              {isExcluded && <EyeOff size={14} className="text-fg4 shrink-0" />}
+              <span className={`text-sm font-mono truncate ${isExcluded ? 'line-through text-fg4' : 'text-fg2'}`}>{field.key}</span>
             </span>
-            <span className={`text-sm ${isExcluded ? 'line-through text-fg4' : 'text-fg2'}`}>
-              {field.title}
-            </span>
+            <span className="text-sm text-fg2 truncate">{field.title}</span>
             <span className="text-xs text-fg4 truncate">{fieldTypeLabel(field)}</span>
-            <span className={`text-xs font-medium ${effectiveRequired ? 'text-danger' : 'text-fg4'}`}>
-              {effectiveRequired ? 'обязат.' : 'опц.'}
-            </span>
-            {!isExcluded ? (
-              <div className="flex items-center gap-1">
-                {override?.required !== undefined ? (
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-brand">{override.required ? 'обяз.✎' : 'опц.✎'}</span>
-                    <button type="button" onClick={() => onResetOverride(field.key)}
-                      className="p-0.5 text-fg4 hover:text-fg2" title="Сбросить">
-                      <RotateCcw size={11} />
-                    </button>
-                  </div>
-                ) : (
-                  <button type="button"
-                    onClick={() => onOverrideRequired(field.key, !field.required)}
-                    className="text-xs text-fg4 hover:text-brand px-1 py-0.5 rounded hover:bg-brand-subtle">
-                    → {field.required ? 'опц.' : 'обяз.'}
-                  </button>
-                )}
-              </div>
-            ) : <span />}
-            {!isExcluded
-              ? <DefaultValueCell field={field} override={override} enumTypes={enumTypes} onOverrideDefaultValue={onOverrideDefaultValue} />
-              : <span />
-            }
-            {isExcluded ? (
-              <button type="button" onClick={() => onInclude(field.key)}
-                className="flex items-center gap-1 text-xs text-success hover:text-success px-1 py-0.5 rounded hover:bg-success-subtle">
-                <RotateCcw size={11} /> Вкл.
-              </button>
-            ) : (
-              <button type="button" onClick={() => onExclude(field.key)}
-                className="flex items-center gap-1 text-xs text-danger hover:text-danger px-1 py-0.5 rounded hover:bg-danger-subtle">
-                <Ban size={11} /> Искл.
-              </button>
-            )}
+            {isExcluded
+              ? <span className="text-xs text-fg4">—</span>
+              : <RequiredChip field={field} override={override}
+                  onOverride={r => onOverrideRequired(field.key, r)} onReset={() => onResetOverride(field.key)} />}
+            {isExcluded
+              ? <span />
+              : <DefaultValueCell field={field} override={override} enumTypes={enumTypes} onOverrideDefaultValue={onOverrideDefaultValue} />}
+            <div className="flex justify-center">
+              <Switch size="sm" checked={!isExcluded}
+                onChange={on => on ? onInclude(field.key) : onExclude(field.key)}
+                title={isExcluded ? 'Включить поле' : 'Исключить поле'} label={`Поле ${field.key}: включено`} />
+            </div>
           </div>
         );
       })}
     </div>
+  );
+}
+
+/** Интерактивный chip обязательности унаследованного поля (issue #197): меню как-у-родителя/обяз/опц/сброс. */
+function RequiredChip({ field, override, onOverride, onReset }: {
+  field: SchemaField;
+  override?: { required?: boolean };
+  onOverride: (required: boolean) => void;
+  onReset: () => void;
+}) {
+  const overridden = override?.required !== undefined;
+  const effective = overridden ? override!.required! : field.required;
+  const parentLabel = field.required ? 'обяз.' : 'опц.';
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button type="button"
+          className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full transition-colors ${
+            overridden ? 'bg-brand-subtle text-brand font-medium' : 'text-fg3 hover:bg-muted'}`}>
+          {overridden && <span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" />}
+          {overridden ? `${parentLabel} → ${effective ? 'обяз.' : 'опц.'}` : (effective ? 'обяз.' : 'опц.')}
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content align="start" sideOffset={4}
+          className="z-50 min-w-[210px] rounded-xl border border-stroke bg-surface p-1 text-sm text-fg1"
+          style={{ boxShadow: 'var(--f-shadow16)' }}>
+          <ReqItem onSelect={onReset} active={!overridden}>Как у родителя ({parentLabel})</ReqItem>
+          <ReqItem onSelect={() => onOverride(true)} active={overridden && effective}>Обязательное</ReqItem>
+          <ReqItem onSelect={() => onOverride(false)} active={overridden && !effective}>Опциональное</ReqItem>
+          {overridden && (
+            <>
+              <DropdownMenu.Separator className="my-1 h-px bg-stroke" />
+              <ReqItem onSelect={onReset}><RotateCcw size={13} className="text-fg4" /> Сбросить переопределение</ReqItem>
+            </>
+          )}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
+function ReqItem({ children, onSelect, active }: { children: React.ReactNode; onSelect: () => void; active?: boolean }) {
+  return (
+    <DropdownMenu.Item onSelect={onSelect}
+      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer outline-none data-[highlighted]:bg-muted">
+      <Check size={14} className={active ? 'text-brand' : 'invisible'} />
+      <span className="flex-1">{children}</span>
+    </DropdownMenu.Item>
   );
 }
 
