@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Loader2, FileText, Download, Eye, Pencil, ChevronDown, ChevronUp, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail, Database, X } from 'lucide-react';
+import { Loader2, FileText, Download, Eye, Pencil, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Circle, CircleDot, Mail, Database, X } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useEmailDocument } from '@/shared/api/documentSets';
 import { EmailSendDialog } from '../EmailSendDialog';
@@ -14,7 +14,7 @@ import {
 import { useListTemplates } from '@/shared/api/templates';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import type { DocumentInstance, DocumentType, Template, PrimitiveTypeDef, EnumTypeDef, CommonDataEntry } from '@/shared/api/types';
-import { SCOPE_LABELS } from '@/shared/api/types';
+import { SCOPE_LABELS, isFieldRef } from '@/shared/api/types';
 import { useCommonDataForSet } from '@/shared/api/commonData';
 import {
   groupEffectiveFields, resolveEffectiveFields, compositeFieldHasTag, parseSchemaFields,
@@ -25,7 +25,6 @@ import {
   validateConstraint, isMissing, PrimitiveInput, FileField, ImageField,
   DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup, AutoFieldsSection,
   BaseInstancePanel, SCOPE_TIER, ancestorTypeIds, parseBaseRef, type BaseCandidate,
-  SectionRail,
 } from '../fields';
 import { DataSetsTab } from './DataSetsTab';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
@@ -102,7 +101,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   const [constraintErrors, setConstraintErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [showValidation, setShowValidation] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [activeKey, setActiveKey] = useState<string>(''); // активный раздел (list-detail, issue #191)
   const mutation = useUpdateRequisites();
 
   // Поля, заполняемые привязкой к набору данных при генерации — источник перезаписывает их,
@@ -212,18 +211,23 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
       });
     }
   }
-  function toggleGroup(key: string) {
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
+  // Значение поля непусто (для счётчика заполнения раздела).
+  function hasValue(val: unknown): boolean {
+    if (isFieldRef(val)) return true;
+    if (Array.isArray(val)) return val.length > 0;
+    if (val != null && typeof val === 'object') return Object.keys(val).length > 0;
+    return val != null && String(val).trim() !== '';
   }
-  // Навигация по разделам большой формы (issue #102, P3): раскрыть раздел и проскроллить к нему.
-  function goToSection(key: string) {
-    setExpandedGroups(prev => new Set(prev).add(key));
-    requestAnimationFrame(() =>
-      document.getElementById(`req-section-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  // Статистика раздела: total/filled (bound/base-covered считаем заполненными — придут при генерации),
+  // missing — обязательные незаполненные (гейтится showValidation при отображении иконки ошибки).
+  function sectionStats(fields: SchemaField[]) {
+    let total = 0, filled = 0, missing = 0;
+    for (const f of fields) {
+      total++;
+      if (hasValue(values[f.key]) || sourceBoundFields.has(f.key) || baseCoveredFields.has(f.key)) filled++;
+      if (isFieldMissing(f, values[f.key])) missing++;
+    }
+    return { total, filled, missing };
   }
 
   // Сохраняет реквизиты. Возвращает true при успехе. НЕ закрывает редактор.
@@ -269,7 +273,22 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   // Rail разделов — только для крупных форм с несколькими именованными группами (issue #102, P3):
   // на короткой форме или без групп он бесполезен.
   const titledSections = sections.filter(s => s.title);
-  const showRail = titledSections.length >= 3 && displayFields.length >= 12;
+  const ungrouped = sections.find(s => !s.title && s.fields.length > 0);
+
+  // Пункты list-detail (issue #191): «Основа» (базовый экземпляр) → «Основные реквизиты»
+  // (несгруппированные поля) → разделы схемы. Слева drawer, справа — только активный пункт.
+  type RailItem = { key: string; title: string; kind: 'base' | 'fields'; fields: SchemaField[] };
+  const items: RailItem[] = [];
+  if (hasBase) items.push({ key: '__base__', title: 'Основа', kind: 'base', fields: [] });
+  if (ungrouped) items.push({ key: ungrouped.key || '__main__', title: 'Основные реквизиты', kind: 'fields', fields: ungrouped.fields });
+  for (const s of titledSections) items.push({ key: s.key, title: s.title!, kind: 'fields', fields: s.fields });
+
+  const useDrawer = items.length >= 2; // мелкие формы (<2 пунктов) — плоский fallback без drawer
+  const activeIdx = Math.max(0, items.findIndex(i => i.key === activeKey));
+  const activeItem = items[activeIdx] ?? items[0];
+  const prevItem = activeIdx > 0 ? items[activeIdx - 1] : null;
+  const nextItem = activeIdx >= 0 && activeIdx < items.length - 1 ? items[activeIdx + 1] : null;
+  const fieldsItems = items.filter(i => i.kind === 'fields'); // для подстроки «раздел X из Y»
 
     const isWide = (f: SchemaField) =>
       f.type === 'complex' || f.type === 'array' || f.type === 'doc-ref' ||
@@ -395,66 +414,94 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
       );
     }
 
+  const basePanel = hasBase ? (
+    <BaseInstancePanel
+      candidates={baseCandidates}
+      selected={selectedBase}
+      missing={!!baseRef && !selectedBase}
+      manualHint={ownFields.length < schemaFields.length
+        ? `Без базового экземпляра все ${schemaFields.length} полей заполняются вручную.` : undefined}
+      onSelect={selectBase}
+      onClear={clearBaseRef}
+    />
+  ) : null;
+
+  // Тело пункта справа: «Основа» → панель базового экземпляра; раздел → заголовок + прогресс + поля.
+  function renderItemBody(item: RailItem) {
+    if (item.kind === 'base') return basePanel;
+    const stats = sectionStats(item.fields);
+    const sectionIdx = fieldsItems.findIndex(i => i.key === item.key);
+    return (
+      <>
+        <div className="mb-4">
+          <h2 className="text-xl font-normal text-fg1">{item.title}</h2>
+          <p className="text-xs text-fg4 mt-0.5">
+            Заполнено {stats.filled} из {stats.total}
+            {sectionIdx >= 0 && ` · раздел ${sectionIdx + 1} из ${fieldsItems.length}`}
+          </p>
+        </div>
+        {renderFields(item.fields)}
+      </>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-0 flex-1">
-      <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className={`mx-auto px-6 py-6 ${showRail ? 'max-w-4xl' : 'max-w-3xl'}`}>
-      <div className={showRail ? 'flex gap-5 items-start' : ''}>
-      {showRail && (
-        <SectionRail
-          sections={titledSections.map(section => ({
-            key: section.key,
-            title: section.title!,
-            count: section.fields.length,
-            missing: showValidation && section.fields.some(f => isFieldMissing(f, values[f.key])),
-          }))}
-          isActive={key => expandedGroups.has(key)}
-          onSelect={goToSection}
-        />
-      )}
-      <div className="flex-1 min-w-0 space-y-4">
-      {hasBase && (
-        <BaseInstancePanel
-          candidates={baseCandidates}
-          selected={selectedBase}
-          missing={!!baseRef && !selectedBase}
-          manualHint={ownFields.length < schemaFields.length
-            ? `Без базового экземпляра все ${schemaFields.length} полей заполняются вручную.` : undefined}
-          onSelect={selectBase}
-          onClear={clearBaseRef}
-        />
-      )}
-      {sections.map(section => {
-        if (!section.title) {
-          // Ungrouped fields — always visible, no header
-          return <div key={section.key}>{renderFields(section.fields)}</div>;
-        }
-        const isExpanded = expandedGroups.has(section.key);
-        const hasMissing = showValidation && section.fields.some(f => isFieldMissing(f, values[f.key]));
-        return (
-          <div key={section.key} id={`req-section-${section.key}`}
-            className="bg-surface border border-stroke rounded-xl overflow-hidden scroll-mt-2">
-            <button type="button"
-              onClick={() => toggleGroup(section.key)}
-              className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-muted transition-colors text-left">
-              <span className="text-sm font-medium text-fg1 flex-1">{section.title}</span>
-              <span className="text-xs text-fg4 bg-muted rounded-full px-2 py-0.5">{section.fields.length} п.</span>
-              {hasMissing && (
-                <span className="text-xs text-danger font-medium">! не заполнено</span>
-              )}
-              {isExpanded ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
-            </button>
-            {isExpanded && (
-              <div className="px-4 pb-4 pt-2">
-                {renderFields(section.fields)}
+      <div className="flex-1 min-h-0 flex">
+        {/* Drawer разделов (list-detail, issue #191) */}
+        {useDrawer && (
+          <nav aria-label="Разделы формы" className="hidden lg:flex flex-col w-72 shrink-0 border-r border-stroke overflow-y-auto p-3 gap-0.5">
+            <div className="text-xs font-medium text-fg4 px-3 pb-1.5">Разделы</div>
+            {items.map(item => {
+              const isActive = item.key === activeItem.key;
+              const stats = item.kind === 'fields' ? sectionStats(item.fields) : null;
+              let Icon = Circle, iconCls = 'text-fg4';
+              if (item.kind === 'base') {
+                if (baseRef) { Icon = CheckCircle2; iconCls = 'text-brand'; }
+                else if (isActive) { Icon = CircleDot; iconCls = 'text-brand'; }
+              } else if (stats) {
+                if (showValidation && stats.missing > 0) { Icon = AlertCircle; iconCls = 'text-danger'; }
+                else if (stats.total > 0 && stats.filled === stats.total) { Icon = CheckCircle2; iconCls = 'text-brand'; }
+                else if (isActive) { Icon = CircleDot; iconCls = 'text-brand'; }
+                else if (stats.filled > 0) { Icon = CircleDot; iconCls = 'text-fg3'; }
+              }
+              return (
+                <button key={item.key} type="button" onClick={() => setActiveKey(item.key)}
+                  aria-current={isActive ? 'true' : undefined}
+                  className={`w-full flex items-center gap-3 text-left px-3 h-11 rounded-full transition-colors ${
+                    isActive ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg3 hover:bg-muted hover:text-fg1'}`}>
+                  <Icon size={18} className={`shrink-0 ${iconCls}`} />
+                  <span className="flex-1 truncate text-sm">{item.title}</span>
+                  {stats && <span className="text-xs text-fg4 tabular-nums shrink-0">{stats.filled}/{stats.total}</span>}
+                </button>
+              );
+            })}
+          </nav>
+        )}
+        {/* Детали активного раздела */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="mx-auto max-w-3xl px-8 py-6">
+            {useDrawer ? (
+              <>
+                {renderItemBody(activeItem)}
+                {(prevItem || nextItem) && (
+                  <div className="flex items-center justify-between gap-3 mt-8 pt-4 border-t border-stroke">
+                    {prevItem
+                      ? <Button variant="outlined" onClick={() => setActiveKey(prevItem.key)}>← {prevItem.title}</Button>
+                      : <span />}
+                    {nextItem
+                      ? <Button variant="tonal" onClick={() => setActiveKey(nextItem.key)}>{nextItem.title} →</Button>
+                      : <span />}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="space-y-6">
+                {items.map(item => <div key={item.key}>{renderItemBody(item)}</div>)}
               </div>
             )}
           </div>
-        );
-      })}
-      </div>
-      </div>
-      </div>
+        </div>
       </div>
       {error && (
         <div className="shrink-0 px-6 py-2 bg-surface border-t border-stroke">
