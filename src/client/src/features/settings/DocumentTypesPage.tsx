@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useMemo, useEffect, useContext, createContext } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Plus, ChevronDown, ChevronUp, Trash2, Search, Folder, FileText, EyeOff, Check,
@@ -52,6 +52,48 @@ function normalizeGroupMembership(gs: FieldGroup[]): FieldGroup[] {
 
 /** Sentinel для «— без родителя —» — Radix Select запрещает пустую строку как value. */
 const NO_PARENT = '__none__';
+
+// ─── Реестр редакторов (явное сохранение, issue #197 Фаза C) ────────────────────
+// Дочерние формы (параметры типа + схема) публикуют своё состояние dirty и функцию сохранения;
+// страница агрегирует их в одну кнопку «Сохранить» в шапке, бейдж «есть изменения» и диалог-гард
+// при уходе с типа. Сохранение может бросить — тогда переход не выполняется.
+interface TypeEditorRegistry {
+  publish: (key: string, dirty: boolean, save: () => Promise<void>) => void;
+  unpublish: (key: string) => void;
+}
+const TypeEditorContext = createContext<TypeEditorRegistry | null>(null);
+
+/** Публикует dirty/save текущей формы в реестр страницы (save всегда берётся свежий через ref). */
+function useRegisterEditor(key: string, dirty: boolean, save: () => Promise<void>) {
+  const ctx = useContext(TypeEditorContext);
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(() => {
+    ctx?.publish(key, dirty, () => saveRef.current());
+  }, [ctx, key, dirty]);
+  useEffect(() => () => ctx?.unpublish(key), [ctx, key]);
+}
+
+/** MD3-диалог-гард при уходе с типа с несохранёнными правками (issue #197 Фаза C). */
+function LeaveGuardDialog({ open, saving, onSave, onDiscard, onCancel }: {
+  open: boolean; saving: boolean;
+  onSave: () => void; onDiscard: () => void; onCancel: () => void;
+}) {
+  return (
+    <Modal open={open} onOpenChange={o => { if (!o && !saving) onCancel(); }} title="Несохранённые изменения"
+      footer={
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="text" onClick={onCancel} disabled={saving}>Отмена</Button>
+          <Button variant="tonal" onClick={onDiscard} disabled={saving}>Не сохранять</Button>
+          <Button variant="filled" onClick={onSave} loading={saving}>Сохранить и перейти</Button>
+        </div>
+      }>
+      <p className="text-sm text-fg2">
+        В этом типе есть несохранённые изменения. Сохранить их перед переходом к другому типу?
+      </p>
+    </Modal>
+  );
+}
 
 /** Свёрнутая MD3-карточка-секция (issue #197 Фаза C): заголовок с иконкой/счётчиком/chevron +
  *  раскрывающееся тело. Единый вид для «Группировка», «Тэги типа», «Typst-блоки». */
@@ -220,7 +262,6 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
   const [code, setCode] = useState(docType.code);
   const [parentId, setParentId] = useState(docType.parentId ?? '');
   const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
   const mutation = useUpdateDocumentType();
   const abstractMutation = useSetDocumentTypeAbstract();
   const proxyMutation = useSetDocumentTypeAllowsProxy();
@@ -237,35 +278,35 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
   function handleNameChange(v: string) {
     const isCodeAuto = !code.trim() || code === toCamelKey(name);
     setName(v);
-    setSaved(false);
     if (isCodeAuto) setCode(toCamelKey(v));
   }
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim() || !code.trim()) { setError('Наименование и код обязательны'); return; }
+  // Сохранение параметров: бросает при ошибке — чтобы общий «Сохранить»/гард прервались (issue #197).
+  async function save() {
+    if (!name.trim() || !code.trim()) { setError('Наименование и код обязательны'); throw new Error('validation'); }
     setError('');
     try {
       await mutation.mutateAsync({ id: docType.id, name: name.trim(), code: code.trim(), parentId: parentId || null });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка сохранения');
+      throw err;
     }
   }
+  useRegisterEditor('props', dirty, save);
 
   return (
-    <form onSubmit={handleSave} className="space-y-3 pb-4 border-b border-stroke mb-4">
+    <form onSubmit={e => { e.preventDefault(); save().catch(() => { /* ошибка показана в форме */ }); }}
+      className="space-y-3 pb-4 border-b border-stroke mb-4">
       <p className="text-xs font-medium text-fg3 uppercase tracking-wide">Параметры типа</p>
       <div className="grid grid-cols-2 gap-3">
         <TextField label="Наименование" value={name} onChange={e => handleNameChange(e.target.value)} required />
-        <TextField label="Код" value={code} onChange={e => { setCode(e.target.value); setSaved(false); }}
+        <TextField label="Код" value={code} onChange={e => setCode(e.target.value)}
           required spellCheck={false} className="font-mono" />
       </div>
       <div>
         <label className="block text-xs font-medium text-fg2 mb-1">Родительский тип</label>
         <Select value={parentId || NO_PARENT} aria-label="Родительский тип"
-          onValueChange={v => { setParentId(v === NO_PARENT ? '' : v); setSaved(false); }}>
+          onValueChange={v => setParentId(v === NO_PARENT ? '' : v)}>
           <SelectItem value={NO_PARENT}>— без родителя —</SelectItem>
           {eligibleParents.map(dt => (
             <SelectItem key={dt.id} value={dt.id}>{dt.name} ({dt.code})</SelectItem>
@@ -293,13 +334,6 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
         )}
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
-      <div className="flex items-center gap-3">
-        <Button type="submit" variant="filled" size="sm" disabled={!dirty} loading={mutation.isPending}>
-          {mutation.isPending ? 'Сохранение…' : 'Сохранить параметры'}
-        </Button>
-        {saved && <span className="text-xs text-success">Сохранено</span>}
-        {dirty && !saved && <span className="text-xs text-warning">Есть несохранённые изменения</span>}
-      </div>
     </form>
   );
 }
@@ -470,7 +504,7 @@ function SchemaEditor({ docType, allDocTypes }: {
   const [showTypstRenders, setShowTypstRenders] = useState(typstRenders.length > 0);
   const [showTypeTags, setShowTypeTags] = useState(false);
   const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const mutation = useUpdateDocumentTypeSchema();
 
   const compositeTypes = allDocTypes.filter(dt => dt.kind === 'Composite');
@@ -485,11 +519,11 @@ function SchemaEditor({ docType, allDocTypes }: {
   const handleExclude = (key: string) => {
     setExcludedFields(prev => [...prev.filter(k => k !== key), key]);
     setFieldOverrides(prev => { const n = { ...prev }; delete n[key]; return n; });
-    setSaved(false);
+    setDirty(true);
   };
-  const handleInclude = (key: string) => { setExcludedFields(prev => prev.filter(k => k !== key)); setSaved(false); };
+  const handleInclude = (key: string) => { setExcludedFields(prev => prev.filter(k => k !== key)); setDirty(true); };
   const handleOverrideRequired = (key: string, required: boolean) => {
-    setFieldOverrides(prev => ({ ...prev, [key]: { ...prev[key], required } })); setSaved(false);
+    setFieldOverrides(prev => ({ ...prev, [key]: { ...prev[key], required } })); setDirty(true);
   };
   const handleOverrideDefaultValue = (key: string, value: unknown) => {
     setFieldOverrides(prev => {
@@ -499,23 +533,25 @@ function SchemaEditor({ docType, allDocTypes }: {
         return Object.keys(rest).length ? { ...prev, [key]: rest } : { ...prev, [key]: rest };
       }
       return { ...prev, [key]: { ...cur, defaultValue: value } };
-    }); setSaved(false);
+    }); setDirty(true);
   };
   const handleResetOverride = (key: string) => {
-    setFieldOverrides(prev => { const n = { ...prev }; delete n[key]; return n; }); setSaved(false);
+    setFieldOverrides(prev => { const n = { ...prev }; delete n[key]; return n; }); setDirty(true);
   };
 
-  async function handleSave() {
-    setError(''); setSaved(false);
+  // Сохранение схемы: бросает при ошибке валидации/мутации — чтобы общий «Сохранить»/гард
+  // прерывались, а ошибка показывалась здесь же (issue #197 Фаза C).
+  async function save() {
+    setError('');
     const fieldError = validateFields(fields);
-    if (fieldError) { setError(fieldError); return; }
+    if (fieldError) { setError(fieldError); throw new Error(fieldError); }
     const conflict = fields.find(f => inheritedKeys.has(f.key.trim()));
-    if (conflict) { setError(`Ключ "${conflict.key}" уже есть в родительском типе`); return; }
+    if (conflict) { const m = `Ключ "${conflict.key}" уже есть в родительском типе`; setError(m); throw new Error(m); }
 
     // Проверка уникальности fnName Typst-блоков в рамках всей системы
     const definedFnNames = typstRenders.map(r => r.fnName.trim()).filter(Boolean);
     const localDup = definedFnNames.find((n, i) => definedFnNames.indexOf(n) !== i);
-    if (localDup) { setError(`Имя функции "${localDup}" задано дважды`); return; }
+    if (localDup) { const m = `Имя функции "${localDup}" задано дважды`; setError(m); throw new Error(m); }
 
     const foreignFnNames = new Set<string>();
     for (const dt of allDocTypes) {
@@ -526,16 +562,17 @@ function SchemaEditor({ docType, allDocTypes }: {
       }
     }
     const crossDup = definedFnNames.find(n => foreignFnNames.has(n));
-    if (crossDup) { setError(`Имя функции "${crossDup}" уже используется в другом типе`); return; }
+    if (crossDup) { const m = `Имя функции "${crossDup}" уже используется в другом типе`; setError(m); throw new Error(m); }
 
     try {
       await mutation.mutateAsync({ id: docType.id, schema: schemaToJson(fields, excludedFields, fieldOverrides, groups, typstRenders, docTypeTags) });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      setDirty(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка сохранения');
+      throw err;
     }
   }
+  useRegisterEditor('schema', dirty, save);
 
   return (
     <div className="space-y-4">
@@ -582,9 +619,9 @@ function SchemaEditor({ docType, allDocTypes }: {
           ? <JsonPreview fields={fields} groups={groups} excludedFields={excludedFields} fieldOverrides={fieldOverrides} />
           : <GroupedFieldsEditor
               fields={fields}
-              onFieldsChange={f => { setFields(f); setSaved(false); }}
+              onFieldsChange={f => { setFields(f); setDirty(true); }}
               groups={groups}
-              onGroupsChange={g => { setGroups(g); setSaved(false); }}
+              onGroupsChange={g => { setGroups(g); setDirty(true); }}
               parentEffectiveFields={activeInheritedFields}
               disabledKeys={inheritedKeys}
               reg={reg}
@@ -603,7 +640,7 @@ function SchemaEditor({ docType, allDocTypes }: {
                   key={t.code}
                   type="button"
                   title={t.description}
-                  onClick={() => { setDocTypeTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code]); setSaved(false); }}
+                  onClick={() => { setDocTypeTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code]); setDirty(true); }}
                   className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
                     on ? 'bg-purple-500/15 border-purple-400 text-purple-700' : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
                   }`}
@@ -623,7 +660,7 @@ function SchemaEditor({ docType, allDocTypes }: {
           <div className="pt-2">
             <TypstRendersEditor
               renders={typstRenders}
-              onChange={r => { setTypstRenders(r); setSaved(false); }}
+              onChange={r => { setTypstRenders(r); setDirty(true); }}
               fields={effectiveFields}
               allDocTypes={allDocTypes}
             />
@@ -631,17 +668,7 @@ function SchemaEditor({ docType, allDocTypes }: {
         </SectionCard>
       )}
 
-      {!showJson && (
-        <>
-          {error && <p className="text-xs text-danger">{error}</p>}
-          <div className="flex items-center gap-3 pt-1">
-            <Button variant="filled" size="sm" onClick={handleSave} loading={mutation.isPending}>
-              {mutation.isPending ? 'Сохранение…' : 'Сохранить схему'}
-            </Button>
-            {saved && <span className="text-xs text-success">Сохранено</span>}
-          </div>
-        </>
-      )}
+      {!showJson && error && <p className="text-xs text-danger pt-1">{error}</p>}
     </div>
   );
 }
@@ -654,8 +681,9 @@ function fieldCount(docType: DocumentType, allDocTypes: DocumentType[]): number 
 }
 
 /** Правая панель list-detail (issue #197 Фаза A): шапка типа (метрики+действия) + редактор как есть. */
-function TypeDetail({ docType, allDocTypes, allGroups, onDeleted }: {
+function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving, onSaveAll }: {
   docType: DocumentType; allDocTypes: DocumentType[]; allGroups: string[]; onDeleted: () => void;
+  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>;
 }) {
   const deleteMutation = useDeleteDocumentType();
   const groupMutation = useSetDocumentTypeGroup();
@@ -709,7 +737,12 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted }: {
             </div>
           </div>
           {/* Действия типа (прокси/абстрактность перенесены в «Параметры типа» как switch'и — #197 Фаза C) */}
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
+            {dirty && <span className={`${badge} bg-warning-subtle text-warning`}>есть изменения</span>}
+            <Button variant="filled" size="sm" disabled={!dirty} loading={saving}
+              onClick={() => { onSaveAll().catch(() => { /* ошибки показаны в формах */ }); }}>
+              Сохранить
+            </Button>
             {docType.kind === 'Document' && (
               <IconButton label="Шаблоны данных" size="sm" onClick={() => setTemplatesOpen(true)} title="Шаблоны данных">
                 <Database size={15} />
@@ -764,6 +797,35 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   const [query, setQuery] = useState('');
   const { data: allDocTypes = [], isLoading } = useListDocumentTypes();
 
+  // Реестр незасохранённых форм текущего типа (явное сохранение, issue #197 Фаза C).
+  const [dirtyMap, setDirtyMap] = useState<Record<string, boolean>>({});
+  const saversRef = useRef<Record<string, () => Promise<void>>>({});
+  const registry = useMemo<TypeEditorRegistry>(() => ({
+    publish: (key, dirty, save) => {
+      saversRef.current[key] = save;
+      setDirtyMap(m => m[key] === dirty ? m : { ...m, [key]: dirty });
+    },
+    unpublish: (key) => {
+      delete saversRef.current[key];
+      setDirtyMap(m => (key in m ? (() => { const n = { ...m }; delete n[key]; return n; })() : m));
+    },
+  }), []);
+  const anyDirty = Object.values(dirtyMap).some(Boolean);
+  const [saving, setSaving] = useState(false);
+  const saveAll = async () => {
+    setSaving(true);
+    try { for (const s of Object.values(saversRef.current)) await s(); }
+    finally { setSaving(false); }
+  };
+
+  // Гард при уходе с типа с несохранёнными правками.
+  const [pendingSelect, setPendingSelect] = useState<string | null>(null);
+  const requestSelect = (id: string) => {
+    if (id === selectedId) return;
+    if (anyDirty) setPendingSelect(id);
+    else setSelectedId(id);
+  };
+
   const filtered = allDocTypes
     .filter(dt => dt.kind === kind)
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
@@ -811,19 +873,33 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
           {kind === 'Document' ? 'Типов документов не создано' : 'Составных типов не создано'}
         </div>
       ) : (
-        <div className="flex-1 min-h-0 flex">
-          <TypeListPanel
-            groupOrder={groupOrder} byGroup={byGroup} allDocTypes={allDocTypes}
-            selectedId={selected?.id ?? null} onSelect={setSelectedId}
-            query={query} onQuery={setQuery} />
-          {selected ? (
-            <TypeDetail key={selected.id} docType={selected} allDocTypes={allDocTypes}
-              allGroups={allGroups} onDeleted={() => setSelectedId(null)} />
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Ничего не найдено</div>
-          )}
-        </div>
+        <TypeEditorContext.Provider value={registry}>
+          <div className="flex-1 min-h-0 flex">
+            <TypeListPanel
+              groupOrder={groupOrder} byGroup={byGroup} allDocTypes={allDocTypes}
+              selectedId={selected?.id ?? null} onSelect={requestSelect}
+              query={query} onQuery={setQuery} />
+            {selected ? (
+              <TypeDetail key={selected.id} docType={selected} allDocTypes={allDocTypes}
+                allGroups={allGroups} onDeleted={() => setSelectedId(null)}
+                dirty={anyDirty} saving={saving} onSaveAll={saveAll} />
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Ничего не найдено</div>
+            )}
+          </div>
+        </TypeEditorContext.Provider>
       )}
+
+      <LeaveGuardDialog
+        open={pendingSelect !== null}
+        saving={saving}
+        onCancel={() => setPendingSelect(null)}
+        onDiscard={() => { setSelectedId(pendingSelect); setPendingSelect(null); }}
+        onSave={async () => {
+          try { await saveAll(); setSelectedId(pendingSelect); setPendingSelect(null); }
+          catch { /* ошибка валидации показана в форме — остаёмся на типе */ }
+        }}
+      />
 
       <Modal open={createOpen} onOpenChange={setCreateOpen}
         title={kind === 'Document' ? 'Новый тип документа' : 'Новый составной тип'}
