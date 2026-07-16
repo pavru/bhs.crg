@@ -43,6 +43,32 @@ import { JsonPreview, FieldBuilder, DefaultValueCell } from './FieldBuilder';
 /** Sentinel для «— без родителя —» — Radix Select запрещает пустую строку как value. */
 const NO_PARENT = '__none__';
 
+/** Свёрнутая MD3-карточка-секция (issue #197 Фаза C): заголовок с иконкой/счётчиком/chevron +
+ *  раскрывающееся тело. Единый вид для «Группировка», «Тэги типа», «Typst-блоки». */
+function SectionCard({ icon, title, count, countClass, open, onToggle, children }: {
+  icon: React.ReactNode;
+  title: string;
+  count?: number;
+  countClass?: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="border border-stroke rounded-lg bg-surface overflow-hidden">
+      <button type="button" onClick={onToggle}
+        className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-muted/40 transition-colors">
+        <span className="text-fg4 shrink-0">{icon}</span>
+        <span className="text-sm font-medium text-fg2">{title}</span>
+        {count != null && count > 0 && <span className={`text-xs ${countClass ?? 'text-brand'}`}>({count})</span>}
+        <span className="flex-1" />
+        {open ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
+      </button>
+      {open && <div className="px-3 pb-3 pt-1 border-t border-stroke">{children}</div>}
+    </div>
+  );
+}
+
 function InheritedFieldsPanel({
   parentEffectiveFields, excludedFields, fieldOverrides, compositeTypes, enumTypes,
   onExclude, onInclude, onOverrideRequired, onOverrideDefaultValue, onResetOverride,
@@ -186,6 +212,8 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const mutation = useUpdateDocumentType();
+  const abstractMutation = useSetDocumentTypeAbstract();
+  const proxyMutation = useSetDocumentTypeAllowsProxy();
 
   const descendantIds = getDescendantIds(docType.id, allDocTypes);
   const eligibleParents = allDocTypes.filter(
@@ -233,6 +261,26 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
             <SelectItem key={dt.id} value={dt.id}>{dt.name} ({dt.code})</SelectItem>
           ))}
         </Select>
+      </div>
+      {/* Прокси/абстрактность — отдельные мгновенные переключатели (не часть формы «Сохранить
+          параметры»): каждый — своя мутация, применяется сразу по щелчку (issue #197 Фаза C). */}
+      <div className="flex flex-col gap-2 pt-1">
+        <label className="flex items-center gap-2.5 select-none">
+          <Switch checked={docType.allowsProxy} size="sm" label="Роль/прокси"
+            disabled={proxyMutation.isPending}
+            onChange={v => proxyMutation.mutate({ id: docType.id, allowsProxy: v })} />
+          <span className="text-sm text-fg2">Роль/прокси</span>
+          <span className="text-xs text-fg4">— тип может подменять другой при генерации</span>
+        </label>
+        {docType.kind === 'Document' && (
+          <label className="flex items-center gap-2.5 select-none">
+            <Switch checked={docType.isAbstract} size="sm" label="Абстрактный"
+              disabled={abstractMutation.isPending}
+              onChange={v => abstractMutation.mutate({ id: docType.id, isAbstract: v })} />
+            <span className="text-sm text-fg2">Абстрактный</span>
+            <span className="text-xs text-fg4">— нельзя добавить в комплект напрямую</span>
+          </label>
+        )}
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
       <div className="flex items-center gap-3">
@@ -411,6 +459,7 @@ function SchemaEditor({ docType, allDocTypes }: {
   const [showJson, setShowJson] = useState(false);
   const [showGroups, setShowGroups] = useState(groups.length > 0);
   const [showTypstRenders, setShowTypstRenders] = useState(typstRenders.length > 0);
+  const [showTypeTags, setShowTypeTags] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const mutation = useUpdateDocumentTypeSchema();
@@ -526,33 +575,21 @@ function SchemaEditor({ docType, allDocTypes }: {
       </div>
 
       {!showJson && effectiveFields.length > 0 && (
-        <div className="border-t border-stroke pt-4">
-          <button type="button"
-            onClick={() => setShowGroups(v => !v)}
-            className="flex items-center gap-2 text-xs font-medium text-fg3 hover:text-fg1 uppercase tracking-wide">
-            <Layers size={12} />
-            Группировка полей
-            {groups.length > 0 && <span className="text-brand">({groups.length})</span>}
-            {showGroups ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          </button>
-          {showGroups && (
-            <div className="mt-3">
-              <GroupEditor
-                groups={groups}
-                effectiveFields={effectiveFields}
-                onChange={g => { setGroups(g); setSaved(false); }}
-              />
-            </div>
-          )}
-        </div>
+        <SectionCard icon={<Layers size={15} />} title="Группировка полей" count={groups.length}
+          open={showGroups} onToggle={() => setShowGroups(v => !v)}>
+          <GroupEditor
+            groups={groups}
+            effectiveFields={effectiveFields}
+            onChange={g => { setGroups(g); setSaved(false); }}
+          />
+        </SectionCard>
       )}
 
       {!showJson && applicableTypeTags.length > 0 && (
-        <div className="border-t border-stroke pt-4">
-          <div className="flex items-center gap-2 mb-2 text-xs font-medium text-fg3 uppercase tracking-wide">
-            <Cpu size={12} /> Функциональные тэги типа
-          </div>
-          <div className="flex flex-wrap gap-1.5">
+        <SectionCard icon={<Cpu size={15} />} title="Функциональные тэги типа"
+          count={docTypeTags.length} countClass="text-purple-600"
+          open={showTypeTags} onToggle={() => setShowTypeTags(v => !v)}>
+          <div className="flex flex-wrap gap-1.5 pt-2">
             {applicableTypeTags.map(t => {
               const on = docTypeTags.includes(t.code);
               return (
@@ -570,30 +607,22 @@ function SchemaEditor({ docType, allDocTypes }: {
               );
             })}
           </div>
-        </div>
+        </SectionCard>
       )}
 
       {!showJson && (docType.kind === 'Composite' || docType.kind === 'Document') && (
-        <div className="border-t border-stroke pt-4">
-          <button type="button"
-            onClick={() => setShowTypstRenders(v => !v)}
-            className="flex items-center gap-2 text-xs font-medium text-fg3 hover:text-fg1 uppercase tracking-wide">
-            <Code size={12} />
-            Typst-блоки (варианты отображения)
-            {typstRenders.length > 0 && <span className="text-purple-600">({typstRenders.length})</span>}
-            {showTypstRenders ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          </button>
-          {showTypstRenders && (
-            <div className="mt-3">
-              <TypstRendersEditor
-                renders={typstRenders}
-                onChange={r => { setTypstRenders(r); setSaved(false); }}
-                fields={effectiveFields}
-                allDocTypes={allDocTypes}
-              />
-            </div>
-          )}
-        </div>
+        <SectionCard icon={<Code size={15} />} title="Typst-блоки (варианты отображения)"
+          count={typstRenders.length} countClass="text-purple-600"
+          open={showTypstRenders} onToggle={() => setShowTypstRenders(v => !v)}>
+          <div className="pt-2">
+            <TypstRendersEditor
+              renders={typstRenders}
+              onChange={r => { setTypstRenders(r); setSaved(false); }}
+              fields={effectiveFields}
+              allDocTypes={allDocTypes}
+            />
+          </div>
+        </SectionCard>
       )}
 
       {!showJson && (
@@ -623,8 +652,6 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted }: {
   docType: DocumentType; allDocTypes: DocumentType[]; allGroups: string[]; onDeleted: () => void;
 }) {
   const deleteMutation = useDeleteDocumentType();
-  const abstractMutation = useSetDocumentTypeAbstract();
-  const proxyMutation = useSetDocumentTypeAllowsProxy();
   const groupMutation = useSetDocumentTypeGroup();
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -675,30 +702,12 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted }: {
               )}
             </div>
           </div>
-          {/* Действия типа */}
+          {/* Действия типа (прокси/абстрактность перенесены в «Параметры типа» как switch'и — #197 Фаза C) */}
           <div className="flex items-center gap-1 shrink-0">
-            <button type="button"
-              onClick={() => proxyMutation.mutate({ id: docType.id, allowsProxy: !docType.allowsProxy })}
-              disabled={proxyMutation.isPending}
-              className={`px-2.5 h-8 rounded-full text-xs font-medium transition-colors disabled:opacity-40 ${
-                docType.allowsProxy ? 'bg-brand-subtle text-brand' : 'text-fg4 hover:bg-muted'}`}
-              title={docType.allowsProxy ? 'Запретить роль/прокси' : 'Разрешить роль/прокси'}>
-              Прокси
-            </button>
             {docType.kind === 'Document' && (
-              <>
-                <button type="button"
-                  onClick={() => abstractMutation.mutate({ id: docType.id, isAbstract: !docType.isAbstract })}
-                  disabled={abstractMutation.isPending}
-                  className={`px-2.5 h-8 rounded-full text-xs font-medium transition-colors disabled:opacity-40 ${
-                    docType.isAbstract ? 'bg-warning-subtle text-warning' : 'text-fg4 hover:bg-muted'}`}
-                  title={docType.isAbstract ? 'Снять абстрактность' : 'Сделать абстрактным'}>
-                  Абстр.
-                </button>
-                <IconButton label="Шаблоны данных" size="sm" onClick={() => setTemplatesOpen(true)} title="Шаблоны данных">
-                  <Database size={15} />
-                </IconButton>
-              </>
+              <IconButton label="Шаблоны данных" size="sm" onClick={() => setTemplatesOpen(true)} title="Шаблоны данных">
+                <Database size={15} />
+              </IconButton>
             )}
             <GroupPicker groups={allGroups} value={docType.group}
               onChange={group => groupMutation.mutate({ id: docType.id, group })} />
