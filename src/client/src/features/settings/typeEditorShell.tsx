@@ -9,34 +9,40 @@ import { Button } from '@/shared/ui/Button';
 // «Сохранить» в шапке, бейдж «есть изменения» и диалог-гард при уходе. Сохранение может бросить —
 // тогда переход не выполняется. Полноценный ListDetailShell извлечём позже (после 3-й страницы).
 export interface TypeEditorRegistry {
-  publish: (key: string, dirty: boolean, save: () => Promise<void>) => void;
+  publish: (key: string, dirty: boolean, save: () => Promise<void>, reset?: () => void) => void;
   unpublish: (key: string) => void;
 }
 const TypeEditorContext = createContext<TypeEditorRegistry | null>(null);
 export const TypeEditorProvider = TypeEditorContext.Provider;
 
-/** Публикует dirty/save текущей формы в реестр страницы (save всегда берётся свежий через ref). */
-export function useRegisterEditor(key: string, dirty: boolean, save: () => Promise<void>) {
+/** Публикует dirty/save/reset текущей формы в реестр страницы (save/reset всегда берутся свежими через
+ *  ref). `reset` откатывает локальное состояние формы к сохранённому — для кнопки «Отмена» (issue #210). */
+export function useRegisterEditor(key: string, dirty: boolean, save: () => Promise<void>, reset?: () => void) {
   const ctx = useContext(TypeEditorContext);
   const saveRef = useRef(save);
   saveRef.current = save;
+  const resetRef = useRef(reset);
+  resetRef.current = reset;
   useEffect(() => {
-    ctx?.publish(key, dirty, () => saveRef.current());
+    ctx?.publish(key, dirty, () => saveRef.current(), () => resetRef.current?.());
   }, [ctx, key, dirty]);
   useEffect(() => () => ctx?.unpublish(key), [ctx, key]);
 }
 
-/** Агрегатор реестра для корня list-detail страницы: dirty-состояние + saveAll + provider value. */
+/** Агрегатор реестра для корня list-detail страницы: dirty-состояние + saveAll + resetAll + provider value. */
 export function useTypeEditorRegistry() {
   const [dirtyMap, setDirtyMap] = useState<Record<string, boolean>>({});
   const saversRef = useRef<Record<string, () => Promise<void>>>({});
+  const resettersRef = useRef<Record<string, () => void>>({});
   const registry = useMemo<TypeEditorRegistry>(() => ({
-    publish: (key, dirty, save) => {
+    publish: (key, dirty, save, reset) => {
       saversRef.current[key] = save;
+      if (reset) resettersRef.current[key] = reset;
       setDirtyMap(m => m[key] === dirty ? m : { ...m, [key]: dirty });
     },
     unpublish: (key) => {
       delete saversRef.current[key];
+      delete resettersRef.current[key];
       setDirtyMap(m => (key in m ? (() => { const n = { ...m }; delete n[key]; return n; })() : m));
     },
   }), []);
@@ -47,7 +53,8 @@ export function useTypeEditorRegistry() {
     try { for (const s of Object.values(saversRef.current)) await s(); }
     finally { setSaving(false); }
   };
-  return { registry, anyDirty, saving, saveAll };
+  const resetAll = () => { for (const r of Object.values(resettersRef.current)) r(); };
+  return { registry, anyDirty, saving, saveAll, resetAll };
 }
 
 /** MD3-диалог-гард при уходе с выбранного элемента с несохранёнными правками. */
