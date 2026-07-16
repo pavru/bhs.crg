@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import {
-  Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, GripVertical, Link2, Pencil, Plus, Trash2, Unlink, X,
+  Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, GripVertical, Link2, Pencil, Plus, RefreshCw, Trash2, Unlink, X,
 } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Modal } from '@/shared/ui/Modal';
@@ -657,20 +657,38 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
 
+  const picker = (
+    <RefPickerModal
+      open={pickerOpen} onOpenChange={setPickerOpen}
+      compositeType={compositeType}
+      setId={setId} scope={scope} scopeId={scopeId}
+      otherInstances={otherInstances}
+      allDocTypes={allDocTypes}
+      onSelect={ref => onChange(ref)}
+    />
+  );
+
   if (isFieldRef(value)) {
+    // Link-строка (issue #189): нейтральный контейнер, имя — ссылка primary, тональный chip источника,
+    // два действия — «заменить» (открыть пикер) и «снять».
     return (
-      <div className="flex items-center gap-2 border border-brand-subtle rounded-lg px-3 py-2 bg-brand-subtle">
-        <Link2 size={14} className="text-brand shrink-0" />
-        <span className="flex-1 text-sm text-brand-hover font-medium">{value.displayName}</span>
+      <div className="flex items-center gap-1.5 border border-stroke rounded-lg pl-3 pr-1.5 py-1.5 bg-base">
+        <Link2 size={16} className="text-fg4 shrink-0" />
+        <span className="flex-1 text-sm text-brand font-medium truncate">{value.displayName}</span>
         {value.scope && (
-          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${SCOPE_COLORS[value.scope]}`}>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${SCOPE_COLORS[value.scope]}`}>
             {SCOPE_LABELS[value.scope]}
           </span>
         )}
-        <button type="button" onClick={() => onChange({})}
-          className="p-1 text-brand hover:text-danger transition-colors" title="Снять ссылку">
-          <Unlink size={13} />
+        <button type="button" onClick={() => setPickerOpen(true)}
+          className="p-1.5 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0" title="Заменить ссылку">
+          <RefreshCw size={14} />
         </button>
+        <button type="button" onClick={() => onChange({})}
+          className="p-1.5 rounded-full text-fg4 hover:text-danger hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0" title="Снять ссылку">
+          <Unlink size={14} />
+        </button>
+        {picker}
       </div>
     );
   }
@@ -738,17 +756,6 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
         );
       })}
     </div>
-  );
-
-  const picker = (
-    <RefPickerModal
-      open={pickerOpen} onOpenChange={setPickerOpen}
-      compositeType={compositeType}
-      setId={setId} scope={scope} scopeId={scopeId}
-      otherInstances={otherInstances}
-      allDocTypes={allDocTypes}
-      onSelect={ref => onChange(ref)}
-    />
   );
 
   // Вложенное составное (глубина ≥1): строка-сводка + правка в модалке — глубина формы не растёт.

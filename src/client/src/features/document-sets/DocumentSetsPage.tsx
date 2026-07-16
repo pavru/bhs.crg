@@ -284,10 +284,14 @@ function SetDetail() {
         const liveInstance = set.instances.find(i => i.id === editInstance.id) ?? editInstance;
         return (
           <Modal open={!!editInstance} onOpenChange={open => { if (!open) { setEditInstance(null); setEditDirty(false); } }}
-            title="Редактировать документ" wide isDirty={editDirty} flushBody>
-            <InstanceEditor key={liveInstance.id} instance={liveInstance} setId={setId} docType={docTypeMap[liveInstance.documentTypeId]}
-              allDocTypes={docTypes} otherInstances={otherInstances}
-              onClose={() => { setEditInstance(null); setEditDirty(false); }} onDirtyChange={setEditDirty} />
+            title={liveInstance.name || docTypeMap[liveInstance.documentTypeId]?.name || 'Редактировать документ'}
+            fullScreen headerless isDirty={editDirty} flushBody>
+            {requestClose => (
+              <InstanceEditor key={liveInstance.id} instance={liveInstance} setId={setId} docType={docTypeMap[liveInstance.documentTypeId]}
+                allDocTypes={docTypes} otherInstances={otherInstances}
+                onClose={() => { setEditInstance(null); setEditDirty(false); }} onDirtyChange={setEditDirty}
+                requestClose={requestClose} />
+            )}
           </Modal>
         );
       })()}

@@ -137,10 +137,10 @@ export function BaseInstancePanel({ title, candidates, selected, missing = false
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   return (
-    <div className="rounded-lg border border-stroke p-3 space-y-2">
-      <p className="text-xs font-semibold text-fg3 uppercase tracking-wide">
+    <div className="rounded-xl border border-stroke bg-surface p-4 space-y-2">
+      <p className="text-sm font-medium text-fg1">
         {selected?.proxy ? 'Роль — ссылка на реальный объект' : 'Базовый экземпляр'}
-        {title && !selected?.proxy && <span className="normal-case font-normal ml-1 text-fg4">({title})</span>}
+        {title && !selected?.proxy && <span className="font-normal ml-1 text-fg4">({title})</span>}
       </p>
       {selected ? (
         <>

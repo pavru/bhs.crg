@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Loader2, FileText, Download, Eye, Pencil, ChevronDown, ChevronUp, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail, Database } from 'lucide-react';
+import { Loader2, FileText, Download, Eye, Pencil, ChevronDown, ChevronUp, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail, Database, X } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useEmailDocument } from '@/shared/api/documentSets';
 import { EmailSendDialog } from '../EmailSendDialog';
@@ -293,7 +293,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
             return (
               <div key={field.key} className="col-span-2">
                 {field.type !== 'boolean' && field.type !== 'complex' && field.type !== 'array' && (
-                  <label className="block text-[13px] font-medium text-fg2 mb-0.5 leading-tight">
+                  <label className="block text-xs font-medium text-fg2 mb-1">
                     {field.title}
                     {field.required && <span className="ml-0.5 text-danger">*</span>}
                     {!field.required && <span className="ml-1 text-[10px] text-fg4 font-normal">опц.</span>}
@@ -302,8 +302,8 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                 )}
                 {field.type === 'complex' ? (
                   <div>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <label className="block text-[13px] font-medium text-fg2 leading-tight">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-medium text-fg2">
                         {field.title}
                         {field.required && <span className="ml-0.5 text-danger">*</span>}
                       </label>
@@ -354,7 +354,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
             <div key={field.key} className="col-span-1 min-w-0">
               {bound ? (
                 <>
-                  <label className="block text-[13px] font-medium text-fg2 mb-0.5 leading-tight">
+                  <label className="block text-xs font-medium text-fg2 mb-1">
                     {field.title}
                     {field.required && <span className="ml-0.5 text-danger">*</span>}
                     {primitiveDef && <span className="ml-1 text-[10px] text-fg4 font-normal">· {primitiveDef.name}</span>}
@@ -378,7 +378,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
     }
 
     function fieldGrid(fields: SchemaField[]) {
-      return <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">{fields.map(renderCell)}</div>;
+      return <div className="grid grid-cols-2 gap-x-4 gap-y-4">{fields.map(renderCell)}</div>;
     }
 
     // Поля, заполняемые из источника данных (read-only), прячем под сворачиваемую секцию
@@ -388,7 +388,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
       if (auto.length === 0) return fieldGrid(fields);
       const normal = fields.filter(f => !sourceBoundFields.has(f.key));
       return (
-        <div className="space-y-2.5">
+        <div className="space-y-4">
           {normal.length > 0 && fieldGrid(normal)}
           <AutoFieldsSection count={auto.length}>{fieldGrid(auto)}</AutoFieldsSection>
         </div>
@@ -397,7 +397,8 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className={`mx-auto px-6 py-6 ${showRail ? 'max-w-4xl' : 'max-w-3xl'}`}>
       <div className={showRail ? 'flex gap-5 items-start' : ''}>
       {showRail && (
         <SectionRail
@@ -432,27 +433,26 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
         const hasMissing = showValidation && section.fields.some(f => isFieldMissing(f, values[f.key]));
         return (
           <div key={section.key} id={`req-section-${section.key}`}
-            className="border border-stroke rounded-lg overflow-hidden scroll-mt-2">
+            className="bg-surface border border-stroke rounded-xl overflow-hidden scroll-mt-2">
             <button type="button"
               onClick={() => toggleGroup(section.key)}
-              className="w-full flex items-center gap-2 px-3 py-2.5 bg-base hover:bg-muted transition-colors text-left">
-              {isExpanded ? <ChevronUp size={13} className="text-fg4 shrink-0" /> : <ChevronDown size={13} className="text-fg4 shrink-0" />}
-              <span className="text-xs font-semibold uppercase tracking-wide text-fg2 flex-1">
-                {section.title}
-              </span>
-              <span className="text-xs text-fg4">{section.fields.length} п.</span>
+              className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-muted transition-colors text-left">
+              <span className="text-sm font-medium text-fg1 flex-1">{section.title}</span>
+              <span className="text-xs text-fg4 bg-muted rounded-full px-2 py-0.5">{section.fields.length} п.</span>
               {hasMissing && (
                 <span className="text-xs text-danger font-medium">! не заполнено</span>
               )}
+              {isExpanded ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
             </button>
             {isExpanded && (
-              <div className="px-3 py-3">
+              <div className="px-4 pb-4 pt-2">
                 {renderFields(section.fields)}
               </div>
             )}
           </div>
         );
       })}
+      </div>
       </div>
       </div>
       </div>
@@ -751,10 +751,12 @@ function InstanceNameEditor({ instance, setId, docType }: {
 
 type InstanceTab = 'requisites' | 'datasets' | 'quality' | 'generation';
 
-export function InstanceEditor({ instance, setId, docType, allDocTypes, otherInstances, onClose, onDirtyChange }: {
+export function InstanceEditor({ instance, setId, docType, allDocTypes, otherInstances, onClose, onDirtyChange, requestClose }: {
   instance: DocumentInstance; setId: string; docType: DocumentType | undefined;
   allDocTypes: DocumentType[]; otherInstances: DocumentInstance[]; onClose: () => void;
   onDirtyChange?: (dirty: boolean) => void;
+  /** Закрытие с guard несохранённых изменений (крестик top app bar). */
+  requestClose?: () => void;
 }) {
   const schemaFields = docType ? resolveEffectiveFields(docType, allDocTypes) : [];
   const [tab, setTab] = useState<InstanceTab>('requisites');
@@ -836,19 +838,35 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           void doSaveAndClose();
         }
       }}>
-      <div className="shrink-0 px-6 pt-1 bg-surface">
-        <div className="flex items-center gap-2 mb-1 min-w-0">
+      {/* MD3 top app bar: крестик слева, имя+подзаголовок, статус, действия справа */}
+      <div className="shrink-0 bg-surface">
+        <div className="flex items-center gap-3 h-16 px-3 sm:px-4">
+          <button type="button" onClick={() => (requestClose ?? onClose)()} aria-label="Закрыть"
+            className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+            <X size={20} />
+          </button>
           <div className="flex-1 min-w-0">
             <InstanceNameEditor instance={instance} setId={setId} docType={docType} />
-            {instance.name && (
-              <p className="text-xs text-fg4 mt-0.5">{docType?.name}</p>
-            )}
+            <p className="text-xs text-fg4 mt-0.5 truncate">
+              {docType?.name ? `${docType.name} · Редактирование` : 'Редактирование'}
+            </p>
           </div>
-          <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[instance.status] ?? 'bg-muted text-fg2'}`}>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLORS[instance.status] ?? 'bg-brand-subtle text-brand'}`}>
             {STATUS_LABELS[instance.status] ?? instance.status}
           </span>
+          {editable && (
+            <div className="flex items-center gap-2 shrink-0">
+              {savedFlash && <span className="text-sm text-success hidden sm:inline">Сохранено</span>}
+              <Button variant="text" onClick={() => void doSave()} disabled={saving}>
+                {saving ? 'Сохранение…' : 'Сохранить'}
+              </Button>
+              <Button variant="filled" onClick={() => void doSaveAndClose()} loading={saving} title="Ctrl+Enter">
+                Сохранить и закрыть
+              </Button>
+            </div>
+          )}
         </div>
-        <div role="tablist" aria-label="Разделы документа" className="flex border-b border-stroke gap-0">
+        <div role="tablist" aria-label="Разделы документа" className="flex border-b border-stroke gap-0 px-3 sm:px-4">
           {tabs.map(([key, label], i) => (
             <button key={key} role="tab" aria-selected={tab === key} tabIndex={tab === key ? 0 : -1}
               ref={el => { tabRefs.current[i] = el; }}
@@ -881,25 +899,6 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           <GenerationTab instance={instance} setId={setId} />
         </div>
       )}
-
-      {/* Основные действия диалога — только на редактируемых вкладках; на остальных — информационное сообщение */}
-      <div className="shrink-0 px-6 py-3 bg-surface border-t border-stroke flex items-center gap-2 flex-wrap">
-        {editable ? (
-          <>
-            <Button variant="filled" onClick={() => void doSaveAndClose()} loading={saving}
-              title="Ctrl+Enter">
-              Сохранить и закрыть
-            </Button>
-            <Button variant="text" onClick={() => void doSave()} disabled={saving}>
-              {saving ? 'Сохранение…' : 'Сохранить'}
-            </Button>
-            <Button variant="text" onClick={onClose} disabled={saving}>Отмена</Button>
-            {savedFlash && <span className="text-sm text-success">Сохранено</span>}
-          </>
-        ) : (
-          <span className="text-xs text-fg4">Изменения на этой вкладке применяются сразу</span>
-        )}
-      </div>
 
       {pendingTab && (
         <Modal
