@@ -20,7 +20,8 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
   instanceId: string;
   requisites: unknown;
 }) {
-  const [open, setOpen] = useState(() => localStorage.getItem(LS_KEY) !== '0');
+  // По умолчанию свёрнута (issue #193 follow-up): открыта только если пользователь явно её открывал.
+  const [open, setOpen] = useState(() => localStorage.getItem(LS_KEY) === '1');
   const [state, setState] = useState<State>({ kind: 'idle' });
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const reqId = useRef(0);
