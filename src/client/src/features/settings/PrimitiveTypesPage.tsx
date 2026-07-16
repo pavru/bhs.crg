@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   Plus, Trash2, Search, CaseSensitive, Hash, Calendar, List as ListIcon,
+  CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -8,6 +9,9 @@ import { TextField } from '@/shared/ui/TextField';
 import { DateInput } from '@/shared/ui/DateInput';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { apiError } from '@/shared/utils/apiError';
+import { validateConstraint } from '@/features/document-sets/fields/PrimitiveInput';
+import { useListDocumentTypes } from '@/shared/api/documentTypes';
+import { parseSchemaFields } from '@/shared/api/schema';
 import {
   useListPrimitiveTypes,
   useCreatePrimitiveType,
@@ -23,7 +27,7 @@ import {
   useSetEnumTypeGroup,
   buildEnumTypeDto,
 } from '@/shared/api/enumTypes';
-import type { FieldConstraints, PrimitiveTypeDef, EnumTypeDef, EnumOptionDef, DatePrecision } from '@/shared/api/types';
+import type { FieldConstraints, PrimitiveTypeDef, EnumTypeDef, EnumOptionDef, DatePrecision, DocumentType } from '@/shared/api/types';
 import { formatDateRu } from '@/shared/utils/date';
 import { useTagRegistry, fieldTags } from '@/shared/api/tags';
 import { GroupPicker } from './TypeGroupAccordion';
@@ -51,6 +55,11 @@ const DATE_PRECISION_LABEL: Record<DatePrecision, string> = {
 };
 
 const baseTypeIcon = (bt: string) => bt === 'number' ? Hash : bt === 'date' ? Calendar : CaseSensitive;
+
+/** Число типов, ссылающихся на данный тип поля (primitive/enum) полем с этим typeId (по своим схемам). */
+function countTypeRefs(typeId: string, kind: 'primitive' | 'enum', allDocTypes: DocumentType[]): number {
+  return allDocTypes.filter(dt => parseSchemaFields(dt.schema).some(f => f.type === kind && f.typeId === typeId)).length;
+}
 
 /** Человекочитаемое превью ограничений для строки списка. Regex не «переводим» (нельзя надёжно) —
  *  fallback: показываем короткий паттерн (issue #210, рекомендация Дизайнера). */
@@ -181,6 +190,33 @@ function ConstraintEditor({ baseType, constraints, onChange }: {
   );
 }
 
+// ─── Constraint tester (живая проверка образца) ──────────────────────────────────
+
+/** Проверка образца по текущим ограничениям — через ТУ ЖЕ validateConstraint, что и рантайм форм
+ *  документов (issue #210, требование Дизайнера: не дублировать валидацию). Состояние эфемерное. */
+function ConstraintTester({ def }: { def: PrimitiveTypeDef }) {
+  const [sample, setSample] = useState('');
+  const has = sample.trim() !== '';
+  const err = has ? validateConstraint(sample, def) : null;
+  const ok = has && !err;
+  const placeholder = def.baseType === 'date' ? 'ДД.ММ.ГГГГ' : def.baseType === 'number' ? 'например: 42' : 'введите образец';
+  const StatusIcon = ok ? CheckCircle2 : AlertCircle;
+  const tone = !has ? 'text-fg4' : ok ? 'text-success' : 'text-danger';
+  return (
+    <div>
+      <label className="block text-sm font-medium text-fg1 mb-1">Проверка образца</label>
+      <div className="flex items-center gap-2 rounded-lg bg-base border border-stroke px-3 py-2">
+        <StatusIcon size={16} className={`shrink-0 ${tone}`} />
+        <input value={sample} onChange={e => setSample(e.target.value)} placeholder={placeholder} spellCheck={false}
+          className="flex-1 min-w-0 bg-transparent text-sm font-mono outline-none text-fg1 placeholder:text-fg4" />
+        <span className={`text-xs shrink-0 max-w-[45%] truncate ${tone}`} title={has && !ok ? (err ?? '') : undefined}>
+          {!has ? 'по ограничениям' : ok ? 'соответствует' : err}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Segmented base-type control ────────────────────────────────────────────────
 
 function BaseTypeSegmented({ value, onChange, disabled }: {
@@ -266,8 +302,8 @@ function PrimitiveCreateForm({ onSaved, onCancel }: { onSaved: () => void; onCan
 
 // ─── Detail header (общий для примитива и enum) ──────────────────────────────────
 
-function DetailHeader({ name, code, chip, dirty, saving, onSaveAll, allGroups, group, onGroup, onDelete, deleteBlock }: {
-  name: string; code: string; chip: string;
+function DetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, allGroups, group, onGroup, onDelete, deleteBlock }: {
+  name: string; code: string; chip: string; usedBy: number;
   dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>;
   allGroups: string[]; group: string | null; onGroup: (g: string | null) => void;
   onDelete: () => void; deleteBlock: string | null;
@@ -280,6 +316,7 @@ function DetailHeader({ name, code, chip, dirty, saving, onSaveAll, allGroups, g
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-xl font-normal text-fg1 truncate">{name || '(без названия)'}</h2>
             <span className={`${badge} bg-muted text-fg3`}>{chip}</span>
+            {usedBy > 0 && <span className={`${badge} bg-brand-subtle text-brand`}>используется: {usedBy}</span>}
           </div>
           <span className="text-xs text-fg4 font-mono">{code}</span>
         </div>
@@ -302,8 +339,8 @@ function DetailHeader({ name, code, chip, dirty, saving, onSaveAll, allGroups, g
 
 // ─── Primitive detail ────────────────────────────────────────────────────────────
 
-function PrimitiveTypeDetail({ type, allGroups, dirty, saving, onSaveAll, onDeleted }: {
-  type: PrimitiveTypeDef; allGroups: string[];
+function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onDeleted }: {
+  type: PrimitiveTypeDef; allGroups: string[]; usedBy: number;
   dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onDeleted: () => void;
 }) {
   const [name, setName] = useState(type.name);
@@ -335,12 +372,13 @@ function PrimitiveTypeDetail({ type, allGroups, dirty, saving, onSaveAll, onDele
   }
   useRegisterEditor('primitive', localDirty, save);
 
+  const deleteBlock = usedBy > 0 ? `Нельзя удалить: используется в ${usedBy} типах` : null;
   return (
     <div className="flex flex-col min-h-0 flex-1">
-      <DetailHeader name={name} code={type.code} chip={BASE_TYPE_LABEL[type.baseType] ?? type.baseType}
+      <DetailHeader name={name} code={type.code} chip={BASE_TYPE_LABEL[type.baseType] ?? type.baseType} usedBy={usedBy}
         dirty={dirty} saving={saving} onSaveAll={onSaveAll}
         allGroups={allGroups} group={type.group} onGroup={g => groupMutation.mutate({ id: type.id, group: g })}
-        onDelete={() => setConfirmDelete(true)} deleteBlock={null} />
+        onDelete={() => setConfirmDelete(true)} deleteBlock={deleteBlock} />
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
         <div className="mx-auto max-w-3xl space-y-4">
           <Card title="Параметры">
@@ -358,6 +396,7 @@ function PrimitiveTypeDetail({ type, allGroups, dirty, saving, onSaveAll, onDele
 
           <Card title="Ограничения">
             <ConstraintEditor baseType={type.baseType} constraints={constraints} onChange={setConstraints} />
+            <ConstraintTester def={{ ...type, constraints }} />
           </Card>
 
           <Card title="Применимые функциональные тэги">
@@ -395,8 +434,8 @@ function PrimitiveTypeDetail({ type, allGroups, dirty, saving, onSaveAll, onDele
 
 // ─── Enum detail ──────────────────────────────────────────────────────────────────
 
-function EnumTypeDetail({ type, allGroups, dirty, saving, onSaveAll, onDeleted }: {
-  type: EnumTypeDef; allGroups: string[];
+function EnumTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onDeleted }: {
+  type: EnumTypeDef; allGroups: string[]; usedBy: number;
   dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onDeleted: () => void;
 }) {
   const [name, setName] = useState(type.name);
@@ -431,12 +470,13 @@ function EnumTypeDetail({ type, allGroups, dirty, saving, onSaveAll, onDeleted }
   }
   useRegisterEditor('enum', localDirty, save);
 
+  const deleteBlock = usedBy > 0 ? `Нельзя удалить: используется в ${usedBy} типах` : null;
   return (
     <div className="flex flex-col min-h-0 flex-1">
-      <DetailHeader name={name} code={type.code} chip="Перечисление"
+      <DetailHeader name={name} code={type.code} chip="Перечисление" usedBy={usedBy}
         dirty={dirty} saving={saving} onSaveAll={onSaveAll}
         allGroups={allGroups} group={type.group} onGroup={g => groupMutation.mutate({ id: type.id, group: g })}
-        onDelete={() => setConfirmDelete(true)} deleteBlock={null} />
+        onDelete={() => setConfirmDelete(true)} deleteBlock={deleteBlock} />
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
         <div className="mx-auto max-w-3xl space-y-4">
           <Card title="Параметры">
@@ -538,6 +578,7 @@ export function PrimitiveTypesPage() {
 
   const { data: primitives = [] } = useListPrimitiveTypes();
   const { data: enums = [] } = useListEnumTypes();
+  const { data: allDocTypes = [] } = useListDocumentTypes();
 
   const sortedPrim = [...primitives].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   const sortedEnum = [...enums].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
@@ -577,9 +618,11 @@ export function PrimitiveTypesPage() {
             onSelect={requestSelect} query={query} onQuery={setQuery} />
           {mode === 'primitive' && selectedPrim ? (
             <PrimitiveTypeDetail key={selectedPrim.id} type={selectedPrim} allGroups={allGroups}
+              usedBy={countTypeRefs(selectedPrim.id, 'primitive', allDocTypes)}
               dirty={anyDirty} saving={saving} onSaveAll={saveAll} onDeleted={() => setSelectedId(null)} />
           ) : mode === 'enum' && selectedEnum ? (
             <EnumTypeDetail key={selectedEnum.id} type={selectedEnum} allGroups={allGroups}
+              usedBy={countTypeRefs(selectedEnum.id, 'enum', allDocTypes)}
               dirty={anyDirty} saving={saving} onSaveAll={saveAll} onDeleted={() => setSelectedId(null)} />
           ) : (
             <div className="flex-1 flex items-center justify-center text-fg4 text-sm">
