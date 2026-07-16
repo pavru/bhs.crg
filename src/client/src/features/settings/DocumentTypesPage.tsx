@@ -230,7 +230,8 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
       throw err;
     }
   }
-  useRegisterEditor('props', dirty, save);
+  useRegisterEditor('props', dirty, save,
+    () => { setName(docType.name); setCode(docType.code); setParentId(docType.parentId ?? ''); setError(''); });
 
   return (
     <form onSubmit={e => { e.preventDefault(); save().catch(() => { /* ошибка показана в форме */ }); }}
@@ -510,7 +511,15 @@ function SchemaEditor({ docType, allDocTypes }: {
       throw err;
     }
   }
-  useRegisterEditor('schema', dirty, save);
+  useRegisterEditor('schema', dirty, save, () => {
+    setFields(parseSchemaFields(docType.schema));
+    setGroups(normalizeGroupMembership(schemaDef.groups ?? []));
+    setExcludedFields(schemaDef.excludedFields ?? []);
+    setFieldOverrides(schemaDef.fieldOverrides ?? {});
+    setTypstRenders(schemaDef.typstRenders ?? []);
+    setDocTypeTags(schemaDef.tags ?? []);
+    setError(''); setDirty(false);
+  });
 
   return (
     <div className="space-y-4">
@@ -626,9 +635,9 @@ function findReferencingTypes(id: string, allDocTypes: DocumentType[]): Document
 }
 
 /** Правая панель list-detail (issue #197 Фаза A): шапка типа (метрики+действия) + редактор как есть. */
-function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving, onSaveAll }: {
+function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving, onSaveAll, onRevert }: {
   docType: DocumentType; allDocTypes: DocumentType[]; allGroups: string[]; onDeleted: () => void;
-  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>;
+  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void;
 }) {
   const deleteMutation = useDeleteDocumentType();
   const groupMutation = useSetDocumentTypeGroup();
@@ -661,7 +670,7 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
   return (
     <div className="flex flex-col min-h-0 flex-1">
       {/* Шапка типа — доменные heading/actions поверх общего DetailHeader (issue #210 Этап 1b) */}
-      <DetailHeader dirty={dirty} saving={saving} onSaveAll={onSaveAll}
+      <DetailHeader dirty={dirty} saving={saving} onSaveAll={onSaveAll} onRevert={onRevert}
         heading={
           <>
             <div className="flex items-center gap-2 flex-wrap">
@@ -749,7 +758,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   const { data: allDocTypes = [], isLoading } = useListDocumentTypes();
 
   // Реестр незасохранённых форм текущего типа (явное сохранение, issue #197 / #210 — общий).
-  const { registry, anyDirty, saving, saveAll } = useTypeEditorRegistry();
+  const { registry, anyDirty, saving, saveAll, resetAll } = useTypeEditorRegistry();
 
   // Гард при уходе с типа с несохранёнными правками (общий useDirtyGuard, issue #210 Этап 1b).
   const { request, dialogProps } = useDirtyGuard<string | null>({
@@ -805,7 +814,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
           detail={selected ? (
             <TypeDetail key={selected.id} docType={selected} allDocTypes={allDocTypes}
               allGroups={allGroups} onDeleted={() => setSelectedId(null)}
-              dirty={anyDirty} saving={saving} onSaveAll={saveAll} />
+              dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll} />
           ) : (
             <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Ничего не найдено</div>
           )} />

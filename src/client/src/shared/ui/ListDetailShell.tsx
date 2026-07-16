@@ -59,9 +59,11 @@ export function NavSearchInput({ value, onChange, placeholder = 'Поиск…' 
 /** Sticky-шапка detail: слева доменный `heading` (имя+бейджи+код), справа dirty-бейдж + «Сохранить»
  *  (единственный общий концерн) + доменные `actions` (group-picker/delete). Инвариант: «Сохранить»
  *  ТОЛЬКО здесь. */
-export function DetailHeader({ heading, dirty, saving, onSaveAll, actions }: {
+export function DetailHeader({ heading, dirty, saving, onSaveAll, onRevert, actions }: {
   heading: ReactNode;
   dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>;
+  /** Откат несохранённых правок; если задан — показывается кнопка «Отмена» (активна при dirty). */
+  onRevert?: () => void;
   actions?: ReactNode;
 }) {
   return (
@@ -70,6 +72,9 @@ export function DetailHeader({ heading, dirty, saving, onSaveAll, actions }: {
         <div className="min-w-0 flex-1">{heading}</div>
         <div className="flex items-center gap-1.5 shrink-0">
           {dirty && <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-warning-subtle text-warning">есть изменения</span>}
+          {onRevert && (
+            <Button variant="text" size="sm" disabled={!dirty || saving} onClick={onRevert}>Отмена</Button>
+          )}
           <Button variant="filled" size="sm" disabled={!dirty} loading={saving}
             onClick={() => { onSaveAll().catch(() => { /* ошибки показаны в формах */ }); }}>
             Сохранить

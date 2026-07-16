@@ -303,15 +303,15 @@ function PrimitiveCreateForm({ onSaved, onCancel }: { onSaved: () => void; onCan
 
 // ─── Detail header (доменные heading/actions поверх общего DetailHeader) ──────────
 
-function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, allGroups, group, onGroup, onDelete, deleteBlock }: {
+function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, onRevert, allGroups, group, onGroup, onDelete, deleteBlock }: {
   name: string; code: string; chip: string; usedBy: number;
-  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>;
+  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void;
   allGroups: string[]; group: string | null; onGroup: (g: string | null) => void;
   onDelete: () => void; deleteBlock: string | null;
 }) {
   const badge = 'text-xs px-2 py-0.5 rounded-full font-medium';
   return (
-    <DetailHeader dirty={dirty} saving={saving} onSaveAll={onSaveAll}
+    <DetailHeader dirty={dirty} saving={saving} onSaveAll={onSaveAll} onRevert={onRevert}
       heading={
         <>
           <div className="flex items-center gap-2 flex-wrap">
@@ -336,9 +336,9 @@ function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, 
 
 // ─── Primitive detail ────────────────────────────────────────────────────────────
 
-function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onDeleted }: {
+function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onRevert, onDeleted }: {
   type: PrimitiveTypeDef; allGroups: string[]; usedBy: number;
-  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onDeleted: () => void;
+  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void; onDeleted: () => void;
 }) {
   const [name, setName] = useState(type.name);
   const [description, setDescription] = useState(type.description ?? '');
@@ -367,13 +367,14 @@ function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll
       setError(e instanceof Error ? e.message : 'Ошибка сохранения'); throw e;
     }
   }
-  useRegisterEditor('primitive', localDirty, save);
+  const reset = () => { setName(type.name); setDescription(type.description ?? ''); setConstraints(type.constraints ?? {}); setAllowedTags(type.allowedTags ?? []); setError(''); };
+  useRegisterEditor('primitive', localDirty, save, reset);
 
   const deleteBlock = usedBy > 0 ? `Нельзя удалить: используется в ${usedBy} типах` : null;
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <TypeDetailHeader name={name} code={type.code} chip={BASE_TYPE_LABEL[type.baseType] ?? type.baseType} usedBy={usedBy}
-        dirty={dirty} saving={saving} onSaveAll={onSaveAll}
+        dirty={dirty} saving={saving} onSaveAll={onSaveAll} onRevert={onRevert}
         allGroups={allGroups} group={type.group} onGroup={g => groupMutation.mutate({ id: type.id, group: g })}
         onDelete={() => setConfirmDelete(true)} deleteBlock={deleteBlock} />
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
@@ -431,9 +432,9 @@ function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll
 
 // ─── Enum detail ──────────────────────────────────────────────────────────────────
 
-function EnumTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onDeleted }: {
+function EnumTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onRevert, onDeleted }: {
   type: EnumTypeDef; allGroups: string[]; usedBy: number;
-  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onDeleted: () => void;
+  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void; onDeleted: () => void;
 }) {
   const [name, setName] = useState(type.name);
   const [description, setDescription] = useState(type.description ?? '');
@@ -465,13 +466,14 @@ function EnumTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onD
       setError(e instanceof Error ? e.message : 'Ошибка сохранения'); throw e;
     }
   }
-  useRegisterEditor('enum', localDirty, save);
+  const reset = () => { setName(type.name); setDescription(type.description ?? ''); setValues(type.values ?? []); setError(''); };
+  useRegisterEditor('enum', localDirty, save, reset);
 
   const deleteBlock = usedBy > 0 ? `Нельзя удалить: используется в ${usedBy} типах` : null;
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <TypeDetailHeader name={name} code={type.code} chip="Перечисление" usedBy={usedBy}
-        dirty={dirty} saving={saving} onSaveAll={onSaveAll}
+        dirty={dirty} saving={saving} onSaveAll={onSaveAll} onRevert={onRevert}
         allGroups={allGroups} group={type.group} onGroup={g => groupMutation.mutate({ id: type.id, group: g })}
         onDelete={() => setConfirmDelete(true)} deleteBlock={deleteBlock} />
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
@@ -576,7 +578,7 @@ export function PrimitiveTypesPage() {
   const allGroups = [...new Set([...sortedPrim, ...sortedEnum].map(t => t.group).filter((g): g is string => !!g))]
     .sort((a, b) => a.localeCompare(b, 'ru'));
 
-  const { registry, anyDirty, saving, saveAll } = useTypeEditorRegistry();
+  const { registry, anyDirty, saving, saveAll, resetAll } = useTypeEditorRegistry();
 
   // Общий гард несохранённых изменений (ключ = {mode,id}) — issue #210 Этап 1 (ListDetailShell).
   const { request, dialogProps } = useDirtyGuard<{ mode: Mode; id: string | null }>({
@@ -593,11 +595,11 @@ export function PrimitiveTypesPage() {
   const detail = mode === 'primitive' && selectedPrim ? (
     <PrimitiveTypeDetail key={selectedPrim.id} type={selectedPrim} allGroups={allGroups}
       usedBy={countTypeRefs(selectedPrim.id, 'primitive', allDocTypes)}
-      dirty={anyDirty} saving={saving} onSaveAll={saveAll} onDeleted={() => setSelectedId(null)} />
+      dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll} onDeleted={() => setSelectedId(null)} />
   ) : mode === 'enum' && selectedEnum ? (
     <EnumTypeDetail key={selectedEnum.id} type={selectedEnum} allGroups={allGroups}
       usedBy={countTypeRefs(selectedEnum.id, 'enum', allDocTypes)}
-      dirty={anyDirty} saving={saving} onSaveAll={saveAll} onDeleted={() => setSelectedId(null)} />
+      dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll} onDeleted={() => setSelectedId(null)} />
   ) : (
     <div className="flex-1 flex items-center justify-center text-fg4 text-sm">
       {mode === 'primitive' ? 'Типов полей ещё нет' : 'Перечислений ещё нет'} — создайте первый.
