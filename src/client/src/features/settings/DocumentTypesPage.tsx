@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Plus, ChevronDown, ChevronUp, Trash2,
+  Plus, ChevronDown, ChevronUp, Trash2, Search, Folder, FileText,
   Braces, Ban, RotateCcw, Layers, Code, Database, Cpu,
 } from 'lucide-react';
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
@@ -20,7 +20,7 @@ import {
   useSetDocumentTypeAllowsProxy,
   useSetDocumentTypeGroup,
 } from '@/shared/api/documentTypes';
-import { TypeGroupAccordion, GroupPicker } from './TypeGroupAccordion';
+import { GroupPicker } from './TypeGroupAccordion';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import type { DocumentType, DocumentTypeKind, EnumTypeDef } from '@/shared/api/types';
@@ -595,9 +595,14 @@ function SchemaEditor({ docType, allDocTypes }: {
 
 // ─── Type row ──────────────────────────────────────────────────────────────────
 
-function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
-  docType: DocumentType; allDocTypes: DocumentType[]; allGroups: string[];
-  expanded: boolean; onToggle: () => void;
+/** Число эффективных полей типа — для счётчика в списке-пилюле (issue #197). */
+function fieldCount(docType: DocumentType, allDocTypes: DocumentType[]): number {
+  return resolveEffectiveFields(docType, allDocTypes).length;
+}
+
+/** Правая панель list-detail (issue #197 Фаза A): шапка типа (метрики+действия) + редактор как есть. */
+function TypeDetail({ docType, allDocTypes, allGroups, onDeleted }: {
+  docType: DocumentType; allDocTypes: DocumentType[]; allGroups: string[]; onDeleted: () => void;
 }) {
   const deleteMutation = useDeleteDocumentType();
   const abstractMutation = useSetDocumentTypeAbstract();
@@ -611,6 +616,8 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
   const parentType = docType.parentId ? allDocTypes.find(dt => dt.id === docType.parentId) : null;
   const hasChildren = allDocTypes.some(dt => dt.parentId === docType.id);
   const compositeTypes = allDocTypes.filter(dt => dt.kind === 'Composite');
+  const requiredCount = effectiveFields.filter(f => f.required).length;
+  const complexFields = effectiveFields.filter(f => f.type === 'complex');
 
   function getFieldTypeLabel(f: SchemaField) {
     if (f.type === 'complex') {
@@ -620,112 +627,81 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
     return TYPE_LABELS[f.type] ?? f.type;
   }
 
-  function handleDelete(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (hasChildren) { alert(`Тип «${docType.name}» является родительским — удаление невозможно.`); return; }
-    setDeleteConfirmOpen(true);
-  }
-
-  const requiredCount = effectiveFields.filter(f => f.required).length;
-  const complexFields = effectiveFields.filter(f => f.type === 'complex');
-
+  const badge = 'text-xs px-2 py-0.5 rounded-full font-medium';
   return (
-    <div className={`overflow-hidden group ${expanded ? 'bg-base' : ''}`}>
-      <div className="flex items-center hover:bg-base transition-colors">
-        <button type="button" onClick={onToggle} aria-expanded={expanded}
-          className="flex-1 min-w-0 flex items-center gap-2 px-4 py-2.5 text-left">
-          {expanded
-            ? <ChevronUp size={15} className="text-fg4 shrink-0" />
-            : <ChevronDown size={15} className="text-fg4 shrink-0" />}
-          <span className="text-sm font-medium text-fg1 shrink-0">{docType.name}</span>
-          <span className="text-xs text-fg4 font-mono shrink-0">{docType.code}</span>
-          {docType.isAbstract && (
-            <span className="text-[11px] bg-orange-50 text-orange-600 border border-orange-200 px-1.5 py-0.5 rounded-full shrink-0">
-              абстрактный
-            </span>
-          )}
-          {parentType && (
-            <span className="text-[11px] bg-brand-subtle text-brand px-1.5 py-0.5 rounded-full shrink-0 truncate max-w-[160px]">
-              ↑ {parentType.name}
-            </span>
-          )}
-          {docType.allowsProxy && (
-            <span className="text-[11px] bg-brand-subtle text-brand px-1.5 py-0.5 rounded-full shrink-0">
-              роль/прокси
-            </span>
-          )}
-          <span className="flex-1" />
-          {effectiveFields.length > 0 && (
-            <span className="text-xs text-fg4 shrink-0">
-              {effectiveFields.length} {effectiveFields.length < 5 ? 'поля' : 'полей'}
-              {parentType && ownFieldCount > 0 && ` (+${ownFieldCount})`}
-            </span>
-          )}
-          {requiredCount > 0 && (
-            <span className="text-xs text-danger shrink-0">{requiredCount} обяз.</span>
-          )}
-          {complexFields.length > 0 && (
-            <span className="text-xs text-purple-500 shrink-0"
-              title={complexFields.map(f => getFieldTypeLabel(f)).join(', ')}>
-              {complexFields.length} сост.
-            </span>
-          )}
-        </button>
-        <button
-          onClick={e => { e.stopPropagation(); proxyMutation.mutate({ id: docType.id, allowsProxy: !docType.allowsProxy }); }}
-          disabled={proxyMutation.isPending}
-          className={`px-2 py-3 text-xs font-medium opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all disabled:opacity-30 ${
-            docType.allowsProxy ? 'text-brand hover:text-brand-hover' : 'text-stroke-strong hover:text-brand'
-          }`}
-          title={docType.allowsProxy
-            ? 'Запретить роль/прокси'
-            : 'Разрешить роль/прокси: объект этого типа сможет ссылаться на реальный объект того же типа'}>
-          Прокси
-        </button>
-        {docType.kind === 'Document' && (
-          <>
-            <button
-              onClick={e => { e.stopPropagation(); setTemplatesOpen(true); }}
-              className="px-2 py-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all text-brand"
-              title="Шаблоны данных"
-            >
-              <Database size={14} />
+    <div className="flex flex-col min-h-0 flex-1">
+      {/* Шапка типа */}
+      <div className="shrink-0 px-6 py-4 border-b border-stroke bg-surface">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl font-normal text-fg1 truncate">{docType.name}</h2>
+              <span className="text-xs text-fg4 font-mono">{docType.code}</span>
+              {parentType && (
+                <span className={`${badge} bg-brand-subtle text-brand truncate max-w-[200px]`}>↑ {parentType.name}</span>
+              )}
+              {docType.isAbstract && <span className={`${badge} bg-warning-subtle text-warning`}>абстрактный</span>}
+              {docType.allowsProxy && <span className={`${badge} bg-brand-subtle text-brand`}>роль/прокси</span>}
+            </div>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {effectiveFields.length > 0 && (
+                <span className={`${badge} bg-muted text-fg3`}>
+                  {effectiveFields.length} полей{parentType && ownFieldCount > 0 ? ` · ${ownFieldCount} своих` : ''}
+                </span>
+              )}
+              {requiredCount > 0 && <span className={`${badge} bg-muted text-fg3`}>{requiredCount} обязательных</span>}
+              {complexFields.length > 0 && (
+                <span className={`${badge} bg-muted text-fg3`} title={complexFields.map(getFieldTypeLabel).join(', ')}>
+                  {complexFields.length} составных
+                </span>
+              )}
+            </div>
+          </div>
+          {/* Действия типа */}
+          <div className="flex items-center gap-1 shrink-0">
+            <button type="button"
+              onClick={() => proxyMutation.mutate({ id: docType.id, allowsProxy: !docType.allowsProxy })}
+              disabled={proxyMutation.isPending}
+              className={`px-2.5 h-8 rounded-full text-xs font-medium transition-colors disabled:opacity-40 ${
+                docType.allowsProxy ? 'bg-brand-subtle text-brand' : 'text-fg4 hover:bg-muted'}`}
+              title={docType.allowsProxy ? 'Запретить роль/прокси' : 'Разрешить роль/прокси'}>
+              Прокси
             </button>
-            <button
-              onClick={e => { e.stopPropagation(); abstractMutation.mutate({ id: docType.id, isAbstract: !docType.isAbstract }); }}
-              disabled={abstractMutation.isPending}
-              className={`px-2 py-3 text-xs font-medium opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all disabled:opacity-30 ${
-                docType.isAbstract
-                  ? 'text-warning hover:text-orange-700'
-                  : 'text-stroke-strong hover:text-warning'
-              }`}
-              title={docType.isAbstract ? 'Снять абстрактность' : 'Сделать абстрактным'}>
-              Абстр.
-            </button>
-          </>
-        )}
-        <span className="pr-1" onClick={e => e.stopPropagation()}>
-          <GroupPicker groups={allGroups} value={docType.group}
-            onChange={group => groupMutation.mutate({ id: docType.id, group })} />
-        </span>
-        <IconButton label="Удалить" size="sm" danger onClick={handleDelete} disabled={deleteMutation.isPending}
-          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
-          title={hasChildren ? 'Нельзя удалить: есть дочерние типы' : 'Удалить'}>
-          <Trash2 size={14} />
-        </IconButton>
+            {docType.kind === 'Document' && (
+              <>
+                <button type="button"
+                  onClick={() => abstractMutation.mutate({ id: docType.id, isAbstract: !docType.isAbstract })}
+                  disabled={abstractMutation.isPending}
+                  className={`px-2.5 h-8 rounded-full text-xs font-medium transition-colors disabled:opacity-40 ${
+                    docType.isAbstract ? 'bg-warning-subtle text-warning' : 'text-fg4 hover:bg-muted'}`}
+                  title={docType.isAbstract ? 'Снять абстрактность' : 'Сделать абстрактным'}>
+                  Абстр.
+                </button>
+                <IconButton label="Шаблоны данных" size="sm" onClick={() => setTemplatesOpen(true)} title="Шаблоны данных">
+                  <Database size={15} />
+                </IconButton>
+              </>
+            )}
+            <GroupPicker groups={allGroups} value={docType.group}
+              onChange={group => groupMutation.mutate({ id: docType.id, group })} />
+            <IconButton label="Удалить тип" size="sm" danger
+              onClick={() => { if (!hasChildren) setDeleteConfirmOpen(true); }}
+              disabled={deleteMutation.isPending || hasChildren}
+              title={hasChildren ? 'Нельзя удалить: есть дочерние типы' : 'Удалить тип'}>
+              <Trash2 size={15} />
+            </IconButton>
+          </div>
+        </div>
       </div>
-      {expanded && (
-        <div className="px-4 pb-5 pt-3 border-t border-stroke bg-base">
+      {/* Тело редактора (существующие редакторы как есть — Фаза A) */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
+        <div className="mx-auto max-w-4xl">
           <PropertiesEditor docType={docType} allDocTypes={allDocTypes} />
           <SchemaEditor docType={docType} allDocTypes={allDocTypes} />
         </div>
-      )}
+      </div>
       {templatesOpen && (
-        <BindingTemplatesDialog
-          docType={docType}
-          allDocTypes={allDocTypes}
-          onClose={() => setTemplatesOpen(false)}
-        />
+        <BindingTemplatesDialog docType={docType} allDocTypes={allDocTypes} onClose={() => setTemplatesOpen(false)} />
       )}
       <ConfirmDialog
         open={deleteConfirmOpen}
@@ -735,6 +711,7 @@ function TypeRow({ docType, allDocTypes, allGroups, expanded, onToggle }: {
         confirmLabel={`Удалить тип «${docType.name}»`}
         requireCheckbox="Понимаю, что это необратимо"
         onConfirm={() => deleteMutation.mutate(docType.id, {
+          onSuccess: onDeleted,
           onError: err => alert(apiError(err, 'Не удалось удалить тип.')),
         })}
       />
@@ -750,7 +727,8 @@ interface TypesPageProps {
 
 export function DocumentTypesPage({ kind }: TypesPageProps) {
   const [createOpen, setCreateOpen] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
   const { data: allDocTypes = [], isLoading } = useListDocumentTypes();
 
   const filtered = allDocTypes
@@ -762,14 +740,25 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   const title = kind === 'Document' ? 'Типы документов' : 'Составные типы';
   const addLabel = kind === 'Document' ? 'Добавить тип документа' : 'Добавить составной тип';
 
-  function toggleExpanded(id: string) {
-    setExpandedId(prev => prev === id ? null : id);
+  // Поиск по левому списку + группировка (пустая группа — первой).
+  const q = query.trim().toLowerCase();
+  const listed = q ? filtered.filter(t => `${t.name} ${t.code}`.toLowerCase().includes(q)) : filtered;
+  const groupOrder: string[] = [];
+  const byGroup = new Map<string, DocumentType[]>();
+  for (const t of listed) {
+    const g = t.group ?? '';
+    if (!byGroup.has(g)) { byGroup.set(g, []); groupOrder.push(g); }
+    byGroup.get(g)!.push(t);
   }
+  groupOrder.sort((a, b) => a === '' ? -1 : b === '' ? 1 : a.localeCompare(b, 'ru'));
+
+  // Выбранный тип: из выбора (если ещё в отфильтрованных) иначе первый.
+  const selected = filtered.find(t => t.id === selectedId) ?? filtered[0];
 
   return (
-    <div className="px-6 py-4">
-      <div className="flex items-center justify-between mb-4">
-        <div>
+    <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between gap-3 px-6 py-3 shrink-0 border-b border-stroke">
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold text-fg1">{title}</h1>
           {kind === 'Composite' && (
             <p className="text-xs text-fg3 mt-0.5">
@@ -783,16 +772,24 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
       </div>
 
       {isLoading ? (
-        <div className="text-center text-fg4 text-sm py-10">Загрузка...</div>
+        <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center text-fg4 text-sm py-10">
+        <div className="flex-1 flex items-center justify-center text-fg4 text-sm">
           {kind === 'Document' ? 'Типов документов не создано' : 'Составных типов не создано'}
         </div>
       ) : (
-        <TypeGroupAccordion items={filtered} getGroup={dt => dt.group} renderItem={dt => (
-          <TypeRow key={dt.id} docType={dt} allDocTypes={allDocTypes} allGroups={allGroups}
-            expanded={expandedId === dt.id} onToggle={() => toggleExpanded(dt.id)} />
-        )} />
+        <div className="flex-1 min-h-0 flex">
+          <TypeListPanel
+            groupOrder={groupOrder} byGroup={byGroup} allDocTypes={allDocTypes}
+            selectedId={selected?.id ?? null} onSelect={setSelectedId}
+            query={query} onQuery={setQuery} />
+          {selected ? (
+            <TypeDetail key={selected.id} docType={selected} allDocTypes={allDocTypes}
+              allGroups={allGroups} onDeleted={() => setSelectedId(null)} />
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Ничего не найдено</div>
+          )}
+        </div>
       )}
 
       <Modal open={createOpen} onOpenChange={setCreateOpen}
@@ -803,5 +800,53 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
         )}
       </Modal>
     </div>
+  );
+}
+
+/** Левая панель list-detail (issue #197): поиск + группы + пилюли-типы со счётчиком полей. */
+function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect, query, onQuery }: {
+  groupOrder: string[];
+  byGroup: Map<string, DocumentType[]>;
+  allDocTypes: DocumentType[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  query: string;
+  onQuery: (q: string) => void;
+}) {
+  return (
+    <nav aria-label="Типы" className="w-80 shrink-0 border-r border-stroke flex flex-col bg-base">
+      <div className="p-3 shrink-0">
+        <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
+          <input value={query} onChange={e => onQuery(e.target.value)} placeholder="Поиск типа…" aria-label="Поиск типа"
+            className="w-full h-10 pl-9 pr-3 rounded-full text-sm bg-surface border border-stroke-strong text-fg1 outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-fg4" />
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto px-2 pb-3">
+        {groupOrder.length === 0 && <p className="px-3 py-6 text-center text-sm text-fg4">Ничего не найдено</p>}
+        {groupOrder.map(g => (
+          <div key={g || '__ungrouped__'}>
+            <div className="flex items-center gap-1.5 px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-fg4">
+              <Folder size={12} className="shrink-0" />
+              <span className="truncate flex-1">{g || 'Без группы'}</span>
+              <span className="opacity-70">{byGroup.get(g)!.length}</span>
+            </div>
+            {byGroup.get(g)!.map(t => {
+              const active = t.id === selectedId;
+              return (
+                <button key={t.id} type="button" onClick={() => onSelect(t.id)}
+                  aria-current={active ? 'true' : undefined}
+                  className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
+                    active ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
+                  <FileText size={17} className="shrink-0" />
+                  <span className="flex-1 truncate text-sm">{t.name}</span>
+                  <span className="text-xs text-fg4 shrink-0">{fieldCount(t, allDocTypes)}</span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </nav>
   );
 }
