@@ -1,9 +1,10 @@
-import { useId } from 'react';
-import { Plus, Trash2, ArrowUp, ArrowDown, Cpu } from 'lucide-react';
+import { useId, useState } from 'react';
+import { Plus, Trash2, ArrowUp, ArrowDown, Cpu, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
+import { Button } from '@/shared/ui/Button';
 import type { DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import type { SchemaField, FieldGroup } from '@/shared/api/schema';
-import { PRIMITIVE_TYPES, toCamelKey } from './schemaConstants';
+import { PRIMITIVE_TYPES, TYPE_LABELS, toCamelKey } from './schemaConstants';
 import { useTagRegistry, fieldTags } from '@/shared/api/tags';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
 
@@ -94,22 +95,63 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
     if (i === fields.length - 1) return;
     const next = [...fields]; [next[i], next[i + 1]] = [next[i + 1], next[i]]; onChange(next);
   };
+  // Раскрытие карточки (одна за раз) и drag-and-drop переупорядочивания (issue #197 Фаза B).
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const move = (from: number, to: number) => {
+    if (from === to) return;
+    const next = [...fields];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    onChange(next);
+    setOpenIndex(o => o === from ? to : o);
+  };
+  // Краткая метка типа поля для свёрнутой карточки.
+  const typeSummary = (f: SchemaField): string => {
+    if (f.type === 'complex' || f.type === 'array') {
+      const ct = compositeTypes.find(c => c.id === f.typeId);
+      return ct ? ct.name : (f.type === 'array' ? 'Массив' : 'Составной');
+    }
+    if (f.type === 'enum') { const et = enumTypes.find(e => e.id === f.typeId); return et ? et.name : 'Перечисление'; }
+    if (f.type === 'primitive') { const pt = primitiveTypes.find(p => p.id === f.typeId); return pt ? pt.name : 'Тип поля'; }
+    return TYPE_LABELS[f.type] ?? f.type;
+  };
 
   return (
     <div className="space-y-2">
-      {fields.length > 0 && (
-        <div className="grid grid-cols-[1fr_1fr_160px_72px_48px] gap-2 px-2 pb-1">
-          <span className="text-xs font-medium text-fg3">Название</span>
-          <span className="text-xs font-medium text-fg3">Ключ</span>
-          <span className="text-xs font-medium text-fg3">Тип</span>
-          <span className="text-xs font-medium text-fg3">Обяз.</span>
-          <span />
-        </div>
-      )}
       {fields.map((field, i) => {
         const keyConflict = !!field.key && disabledKeys?.has(field.key.trim());
+        const open = openIndex === i;
+        const tags = field.tags ?? [];
         return (
-          <div key={`${uid}-${i}`} className="space-y-1">
+          <div key={`${uid}-${i}`}
+            className={`border rounded-lg overflow-hidden bg-surface transition-colors ${dragIndex === i ? 'border-brand' : 'border-stroke'}`}
+            onDragOver={dragIndex !== null ? e => e.preventDefault() : undefined}
+            onDrop={dragIndex !== null ? () => { move(dragIndex, i); setDragIndex(null); } : undefined}>
+            {/* Свёрнутая шапка карточки: drag handle + сводка + chip типа + chevron */}
+            <div className="flex items-center gap-2 pl-2 pr-3 py-2 hover:bg-muted/40 transition-colors"
+              draggable onDragStart={() => setDragIndex(i)} onDragEnd={() => setDragIndex(null)}>
+              <GripVertical size={15} className="text-fg4 shrink-0 cursor-grab" />
+              <button type="button" onClick={() => setOpenIndex(open ? null : i)}
+                className="flex-1 min-w-0 flex items-center gap-2 text-left">
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-sm font-medium text-fg1 truncate">{field.title || '(без названия)'}</span>
+                    {field.required && <span className="text-[11px] text-danger shrink-0">обяз.</span>}
+                    {keyConflict && <span className="text-[11px] text-danger shrink-0">! ключ занят</span>}
+                  </span>
+                  <span className="block text-xs text-fg4 font-mono truncate">{field.key || '—'}</span>
+                </span>
+                {tags.slice(0, 2).map(tc => (
+                  <span key={tc} className="hidden md:inline text-[11px] font-mono px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{tc}</span>
+                ))}
+                {tags.length > 2 && <span className="text-[11px] text-fg4 shrink-0">+{tags.length - 2}</span>}
+                <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{typeSummary(field)}</span>
+                {open ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
+              </button>
+            </div>
+            {open && (
+            <div className="px-3 pb-3 pt-2 border-t border-stroke space-y-2">
             <div className="grid grid-cols-[1fr_1fr_160px_72px_48px] gap-2 items-center">
               {/* Title */}
               <input
@@ -405,16 +447,14 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
                 </div>
               );
             })()}
+            </div>
+            )}
           </div>
         );
       })}
-      <button
-        type="button"
-        onClick={add}
-        className="flex items-center gap-1.5 text-sm text-brand hover:text-brand-hover mt-1"
-      >
-        <Plus size={14} /> Добавить поле
-      </button>
+      <Button type="button" variant="tonal" onClick={add} icon={<Plus size={14} />} className="w-full justify-center">
+        Добавить поле
+      </Button>
     </div>
   );
 }
