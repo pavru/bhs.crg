@@ -140,10 +140,10 @@ export function TemplatesPage() {
       <div className="px-6 py-3 border-b border-stroke bg-surface">
         <div className="flex items-center justify-between gap-4">
           {/* Mode tabs */}
-          <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5 shrink-0">
             <button
               onClick={() => setMode('templates')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md whitespace-nowrap transition-colors ${
                 mode === 'templates'
                   ? 'bg-surface text-fg1 font-medium shadow-sm'
                   : 'text-fg3 hover:text-fg2'
@@ -153,13 +153,13 @@ export function TemplatesPage() {
             </button>
             <button
               onClick={() => setMode('userlib')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md whitespace-nowrap transition-colors ${
                 mode === 'userlib'
                   ? 'bg-surface text-fg1 font-medium shadow-sm'
                   : 'text-fg3 hover:text-fg2'
               }`}
             >
-              <Library size={14} />
+              <Library size={14} className="shrink-0" />
               Общие функции Typst
             </button>
           </div>
