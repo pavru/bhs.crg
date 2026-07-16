@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useEffect, useContext, createContext } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
-  Plus, ChevronDown, ChevronUp, Trash2, Search, Folder, FileText, EyeOff, Check,
+  Plus, ChevronDown, ChevronUp, ChevronRight, Trash2, Search, Folder, FileText, EyeOff, Check,
   Braces, RotateCcw, Code, Database, Cpu,
 } from 'lucide-react';
 import { Switch } from '@/shared/ui/Switch';
@@ -922,6 +922,13 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
   query: string;
   onQuery: (q: string) => void;
 }) {
+  // Сворачиваемые группы навигации (по умолчанию свёрнуты). При активном поиске все
+  // группы раскрыты, чтобы результаты были видны.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const searching = query.trim().length > 0;
+  const toggleGroup = (g: string) =>
+    setExpandedGroups(s => { const n = new Set(s); n.has(g) ? n.delete(g) : n.add(g); return n; });
+
   return (
     <nav aria-label="Типы" className="w-80 shrink-0 border-r border-stroke flex flex-col bg-base">
       <div className="p-3 shrink-0">
@@ -933,28 +940,35 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
       </div>
       <div className="flex-1 overflow-y-auto px-2 pb-3">
         {groupOrder.length === 0 && <p className="px-3 py-6 text-center text-sm text-fg4">Ничего не найдено</p>}
-        {groupOrder.map(g => (
-          <div key={g || '__ungrouped__'}>
-            <div className="flex items-center gap-1.5 px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-fg4">
-              <Folder size={12} className="shrink-0" />
-              <span className="truncate flex-1">{g || 'Без группы'}</span>
-              <span className="opacity-70">{byGroup.get(g)!.length}</span>
+        {groupOrder.map(g => {
+          const items = byGroup.get(g)!;
+          const open = searching || expandedGroups.has(g);
+          return (
+            <div key={g || '__ungrouped__'}>
+              <button type="button" onClick={() => toggleGroup(g)}
+                aria-expanded={open}
+                className="w-full flex items-center gap-1.5 px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-fg4 hover:text-fg2 transition-colors">
+                <ChevronRight size={12} className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+                <Folder size={12} className="shrink-0" />
+                <span className="truncate flex-1 text-left">{g || 'Без группы'}</span>
+                <span className="opacity-70">{items.length}</span>
+              </button>
+              {open && items.map(t => {
+                const active = t.id === selectedId;
+                return (
+                  <button key={t.id} type="button" onClick={() => onSelect(t.id)}
+                    aria-current={active ? 'true' : undefined}
+                    className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
+                      active ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
+                    <FileText size={17} className="shrink-0" />
+                    <span className="flex-1 truncate text-sm">{t.name}</span>
+                    <span className="text-xs text-fg4 shrink-0">{fieldCount(t, allDocTypes)}</span>
+                  </button>
+                );
+              })}
             </div>
-            {byGroup.get(g)!.map(t => {
-              const active = t.id === selectedId;
-              return (
-                <button key={t.id} type="button" onClick={() => onSelect(t.id)}
-                  aria-current={active ? 'true' : undefined}
-                  className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
-                    active ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
-                  <FileText size={17} className="shrink-0" />
-                  <span className="flex-1 truncate text-sm">{t.name}</span>
-                  <span className="text-xs text-fg4 shrink-0">{fieldCount(t, allDocTypes)}</span>
-                </button>
-              );
-            })}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </nav>
   );
