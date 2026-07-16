@@ -2,7 +2,7 @@ import { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Plus, ChevronDown, ChevronUp, Trash2, Search, Folder, FileText, EyeOff, Check,
-  Braces, RotateCcw, Layers, Code, Database, Cpu,
+  Braces, RotateCcw, Code, Database, Cpu,
 } from 'lucide-react';
 import { Switch } from '@/shared/ui/Switch';
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
@@ -37,8 +37,18 @@ import {
 import { TypstRendersEditor } from './TypstRendersEditor';
 import { schemaToJson, validateFields, TYPE_LABELS, toCamelKey } from './schemaConstants';
 import { useTagRegistry, typeTags as typeTagDefs } from '@/shared/api/tags';
-import { GroupEditor } from './GroupEditor';
-import { JsonPreview, FieldBuilder, DefaultValueCell } from './FieldBuilder';
+import { GroupedFieldsEditor } from './GroupedFieldsEditor';
+import { JsonPreview, FieldBuilder, DefaultValueCell, type FieldRegistries } from './FieldBuilder';
+
+/** Единственное членство (issue #197 Фаза C): каждый ключ поля остаётся только в первой группе,
+ *  где встречается. Легаси-схемы могли класть поле в несколько групп — нормализуем при загрузке. */
+function normalizeGroupMembership(gs: FieldGroup[]): FieldGroup[] {
+  const seen = new Set<string>();
+  return gs.map(g => ({
+    ...g,
+    fieldKeys: g.fieldKeys.filter(k => (seen.has(k) ? false : (seen.add(k), true))),
+  }));
+}
 
 /** Sentinel для «— без родителя —» — Radix Select запрещает пустую строку как value. */
 const NO_PARENT = '__none__';
@@ -447,7 +457,7 @@ function SchemaEditor({ docType, allDocTypes }: {
   const { data: enumTypes = [] } = useListEnumTypes();
   const schemaDef = docType.schema as unknown as SchemaDefinition;
   const [fields, setFields] = useState<SchemaField[]>(() => parseSchemaFields(docType.schema));
-  const [groups, setGroups] = useState<FieldGroup[]>(() => schemaDef.groups ?? []);
+  const [groups, setGroups] = useState<FieldGroup[]>(() => normalizeGroupMembership(schemaDef.groups ?? []));
   const [excludedFields, setExcludedFields] = useState<string[]>(() => schemaDef.excludedFields ?? []);
   const [fieldOverrides, setFieldOverrides] = useState<Record<string, { required?: boolean; defaultValue?: unknown }>>(
     () => schemaDef.fieldOverrides ?? {},
@@ -457,7 +467,6 @@ function SchemaEditor({ docType, allDocTypes }: {
   const { data: tagRegistry } = useTagRegistry();
   const applicableTypeTags = typeTagDefs(tagRegistry, docType.kind);
   const [showJson, setShowJson] = useState(false);
-  const [showGroups, setShowGroups] = useState(groups.length > 0);
   const [showTypstRenders, setShowTypstRenders] = useState(typstRenders.length > 0);
   const [showTypeTags, setShowTypeTags] = useState(false);
   const [error, setError] = useState('');
@@ -469,6 +478,9 @@ function SchemaEditor({ docType, allDocTypes }: {
   const parentEffectiveFields = parentType ? resolveEffectiveFields(parentType, allDocTypes) : [];
   const inheritedKeys = new Set(parentEffectiveFields.map(f => f.key));
   const effectiveFields = resolveEffectiveFields(docType, allDocTypes);
+  const reg: FieldRegistries = { compositeTypes, primitiveTypes, enumTypes, allDocTypes, tagRegistry };
+  // Унаследованные поля для группировки — активные (исключённые не показываем в раскладке).
+  const activeInheritedFields = parentEffectiveFields.filter(f => !excludedFields.includes(f.key));
 
   const handleExclude = (key: string) => {
     setExcludedFields(prev => [...prev.filter(k => k !== key), key]);
@@ -553,12 +565,10 @@ function SchemaEditor({ docType, allDocTypes }: {
       )}
 
       <div>
-        {parentType && (
-          <p className="text-xs font-medium text-fg3 uppercase tracking-wide mb-2">
-            Собственные поля
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-medium text-fg3 uppercase tracking-wide">
+            {parentType ? 'Поля и группировка' : 'Поля'}
           </p>
-        )}
-        <div className="flex justify-end mb-2">
           {(fields.length > 0 || parentEffectiveFields.length > 0) && (
             <button type="button" onClick={() => setShowJson(v => !v)}
               className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${
@@ -570,20 +580,16 @@ function SchemaEditor({ docType, allDocTypes }: {
         </div>
         {showJson
           ? <JsonPreview fields={fields} groups={groups} excludedFields={excludedFields} fieldOverrides={fieldOverrides} />
-          : <FieldBuilder fields={fields} onChange={f => { setFields(f); setSaved(false); }}
-              disabledKeys={inheritedKeys} compositeTypes={compositeTypes} primitiveTypes={primitiveTypes} enumTypes={enumTypes} allDocTypes={allDocTypes} />}
+          : <GroupedFieldsEditor
+              fields={fields}
+              onFieldsChange={f => { setFields(f); setSaved(false); }}
+              groups={groups}
+              onGroupsChange={g => { setGroups(g); setSaved(false); }}
+              parentEffectiveFields={activeInheritedFields}
+              disabledKeys={inheritedKeys}
+              reg={reg}
+            />}
       </div>
-
-      {!showJson && effectiveFields.length > 0 && (
-        <SectionCard icon={<Layers size={15} />} title="Группировка полей" count={groups.length}
-          open={showGroups} onToggle={() => setShowGroups(v => !v)}>
-          <GroupEditor
-            groups={groups}
-            effectiveFields={effectiveFields}
-            onChange={g => { setGroups(g); setSaved(false); }}
-          />
-        </SectionCard>
-      )}
 
       {!showJson && applicableTypeTags.length > 0 && (
         <SectionCard icon={<Cpu size={15} />} title="Функциональные тэги типа"
