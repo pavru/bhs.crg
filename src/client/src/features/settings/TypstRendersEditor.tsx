@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type * as Monaco from 'monaco-editor';
 import Editor from '@monaco-editor/react';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
-import { Plus, Trash2, Maximize2 } from 'lucide-react';
+import { Plus, Trash2, Maximize2, Code } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import type { DocumentType } from '@/shared/api/types';
@@ -108,7 +108,8 @@ function TypstBlockDialog({ render, onSave, onClose }: {
       open
       onOpenChange={o => { if (!o) onClose(); }}
       title={render.name || 'Typst-блок'}
-      extraWide
+      fullScreen
+      flushBody
       isDirty={isDirty}
       footer={
         <div className="flex justify-end gap-2">
@@ -117,8 +118,8 @@ function TypstBlockDialog({ render, onSave, onClose }: {
         </div>
       }
     >
-      <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-3">
+      <div className="flex-1 min-h-0 flex flex-col gap-3 px-6 pt-2 pb-4">
+        <div className="grid grid-cols-2 gap-3 shrink-0">
           <div>
             <label className="block text-xs font-medium text-fg2 mb-1">Название варианта</label>
             <input
@@ -140,42 +141,39 @@ function TypstBlockDialog({ render, onSave, onClose }: {
           </div>
         </div>
 
-        <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">
-            Тело функции — выражение Typst (<code className="font-mono">it</code> — данные объекта):
-          </label>
-          <div className="border border-stroke-strong rounded-md overflow-hidden">
-            <Editor
-              height="420px"
-              defaultLanguage="typst"
-              value={draft.block}
-              onChange={val => setDraft(d => ({ ...d, block: val ?? '' }))}
-              beforeMount={beforeMountTypstBlock}
-              options={{
-                minimap: { enabled: false },
-                fontSize: 13,
-                fontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace",
-                wordWrap: 'on',
-                lineNumbers: 'on',
-                folding: true,
-                scrollBeyondLastLine: false,
-                automaticLayout: true,
-                padding: { top: 8, bottom: 8 },
-                suggestOnTriggerCharacters: true,
-                quickSuggestions: { other: true, comments: false, strings: true },
-              }}
-            />
-          </div>
+        <label className="block text-xs font-medium text-fg2 shrink-0">
+          Тело функции — выражение Typst (<code className="font-mono">it</code> — данные объекта):
+        </label>
+        <div className="flex-1 min-h-0 border border-stroke-strong rounded-md overflow-hidden">
+          <Editor
+            height="100%"
+            defaultLanguage="typst"
+            value={draft.block}
+            onChange={val => setDraft(d => ({ ...d, block: val ?? '' }))}
+            beforeMount={beforeMountTypstBlock}
+            options={{
+              minimap: { enabled: false },
+              fontSize: 13,
+              fontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace",
+              wordWrap: 'on',
+              lineNumbers: 'on',
+              folding: true,
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              padding: { top: 8, bottom: 8 },
+              suggestOnTriggerCharacters: true,
+              quickSuggestions: { other: true, comments: false, strings: true },
+            }}
+          />
         </div>
 
         {draft.fnName && (
-          <p className="text-xs text-fg4">
+          <p className="text-xs text-fg4 shrink-0">
             Импорт: <code className="font-mono text-purple-600">#import "typeblocks.typ": *</code>
             {' · '}
             Вызов: <code className="font-mono text-brand">#{draft.fnName}(data.КлючПоля)</code>
           </p>
         )}
-
       </div>
     </Modal>
   );
@@ -212,73 +210,49 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes }: {
           Нет вариантов отображения. Добавьте функцию для использования в Typst-шаблонах.
         </p>
       )}
-      {renders.map((r, i) => (
-        <div key={i} className="border border-stroke rounded-lg p-3 space-y-2 bg-base">
-          <div className="flex items-center gap-2">
-            <div className="flex-1 grid grid-cols-2 gap-2">
-              <input
-                value={r.name}
-                onChange={e => update(i, { name: e.target.value })}
-                placeholder="Название варианта"
-                className="border border-stroke-strong rounded-md px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
-              />
-              <input
-                value={r.fnName}
-                onChange={e => update(i, { fnName: e.target.value })}
-                placeholder="typst_fn_name"
-                spellCheck={false}
-                className="border border-stroke-strong rounded-md px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
-              />
+      {renders.map((r, i) => {
+        const lines = r.block ? r.block.split('\n').length : 0;
+        return (
+          <div key={i} className="border border-stroke rounded-lg p-3 space-y-2 bg-base">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 grid grid-cols-2 gap-2">
+                <input
+                  value={r.name}
+                  onChange={e => update(i, { name: e.target.value })}
+                  placeholder="Название варианта"
+                  className="border border-stroke-strong rounded-md px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
+                />
+                <input
+                  value={r.fnName}
+                  onChange={e => update(i, { fnName: e.target.value })}
+                  placeholder="typst_fn_name"
+                  spellCheck={false}
+                  className="border border-stroke-strong rounded-md px-2 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
+                />
+              </div>
+              <button type="button" onClick={() => remove(i)}
+                className="p-1 text-fg4 hover:text-danger shrink-0">
+                <Trash2 size={13} />
+              </button>
             </div>
+            {/* Код правится только в полноэкранном редакторе (не inline, issue #197 Фаза C) */}
             <button type="button" onClick={() => setEditingIndex(i)}
-              title="Редактировать в диалоге"
-              className="p-1 text-fg4 hover:text-brand shrink-0 transition-colors">
-              <Maximize2 size={13} />
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-md border border-stroke bg-surface hover:bg-muted/50 transition-colors text-left">
+              <Code size={14} className="text-fg4 shrink-0" />
+              <span className="text-sm text-fg2 flex-1">Редактировать Typst-код</span>
+              <span className="text-xs text-fg4 shrink-0">{lines > 0 ? `${lines} стр.` : 'пусто'}</span>
+              <Maximize2 size={13} className="text-fg4 shrink-0" />
             </button>
-            <button type="button" onClick={() => remove(i)}
-              className="p-1 text-fg4 hover:text-danger shrink-0">
-              <Trash2 size={13} />
-            </button>
+            {r.fnName && (
+              <p className="text-xs text-fg4">
+                Импорт: <code className="font-mono text-purple-600">#import "typeblocks.typ": *</code>
+                {' · '}
+                Вызов: <code className="font-mono text-brand">#{r.fnName}(data.КлючПоля)</code>
+              </p>
+            )}
           </div>
-          <div>
-            <label className="block text-xs text-fg3 mb-1">
-              Тело функции — выражение Typst (<code className="font-mono">it</code> — данные объекта):
-            </label>
-            <div className="border border-stroke-strong rounded-md overflow-hidden">
-              <Editor
-                height="90px"
-                defaultLanguage="typst"
-                value={r.block}
-                onChange={val => update(i, { block: val ?? '' })}
-                beforeMount={beforeMountTypstBlock}
-                options={{
-                  minimap: { enabled: false },
-                  fontSize: 12,
-                  fontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace",
-                  wordWrap: 'on',
-                  lineNumbers: 'off',
-                  folding: false,
-                  glyphMargin: false,
-                  lineDecorationsWidth: 0,
-                  lineNumbersMinChars: 0,
-                  scrollBeyondLastLine: false,
-                  suggestOnTriggerCharacters: true,
-                  automaticLayout: true,
-                  padding: { top: 6, bottom: 6 },
-                  overviewRulerLanes: 0,
-                }}
-              />
-            </div>
-          </div>
-          {r.fnName && (
-            <p className="text-xs text-fg4">
-              Импорт: <code className="font-mono text-purple-600">#import "typeblocks.typ": *</code>
-              {' · '}
-              Вызов: <code className="font-mono text-brand">#{r.fnName}(data.КлючПоля)</code>
-            </p>
-          )}
-        </div>
-      ))}
+        );
+      })}
       <button type="button" onClick={add}
         className="flex items-center gap-1.5 text-sm text-brand hover:text-brand-hover mt-1">
         <Plus size={14} /> Добавить вариант
