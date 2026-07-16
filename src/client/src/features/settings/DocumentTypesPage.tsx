@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useEffect, useContext, createContext } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
-  Plus, ChevronDown, ChevronUp, ChevronRight, Trash2, Search, Folder, FileText, EyeOff, Check,
+  Plus, ChevronDown, ChevronUp, ChevronRight, Trash2, Search, Folder, FileText, Boxes, EyeOff, Check,
   Braces, RotateCcw, Code, Database, Cpu,
 } from 'lucide-react';
 import { Switch } from '@/shared/ui/Switch';
@@ -680,6 +680,13 @@ function fieldCount(docType: DocumentType, allDocTypes: DocumentType[]): number 
   return resolveEffectiveFields(docType, allDocTypes).length;
 }
 
+/** Типы, ссылающиеся на данный тип полем complex/array/doc-ref/doc-array (по собственной схеме). */
+function findReferencingTypes(id: string, allDocTypes: DocumentType[]): DocumentType[] {
+  return allDocTypes.filter(dt => dt.id !== id
+    && parseSchemaFields(dt.schema).some(f =>
+      (f.type === 'complex' || f.type === 'array' || f.type === 'doc-ref' || f.type === 'doc-array') && f.typeId === id));
+}
+
 /** Правая панель list-detail (issue #197 Фаза A): шапка типа (метрики+действия) + редактор как есть. */
 function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving, onSaveAll }: {
   docType: DocumentType; allDocTypes: DocumentType[]; allGroups: string[]; onDeleted: () => void;
@@ -694,6 +701,12 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
   const ownFieldCount = parseSchemaFields(docType.schema).length;
   const parentType = docType.parentId ? allDocTypes.find(dt => dt.id === docType.parentId) : null;
   const hasChildren = allDocTypes.some(dt => dt.parentId === docType.id);
+  // Типы, ссылающиеся на этот тип полем complex/array/doc-ref/doc-array (актуально для составных —
+  // удаление сломало бы ссылки). issue #197 Фаза C — полировка Composite.
+  const referencedBy = findReferencingTypes(docType.id, allDocTypes);
+  const deleteBlock = hasChildren ? 'Нельзя удалить: есть дочерние типы'
+    : referencedBy.length > 0 ? `Нельзя удалить: используется другими типами (${referencedBy.length})`
+    : null;
   const compositeTypes = allDocTypes.filter(dt => dt.kind === 'Composite');
   const requiredCount = effectiveFields.filter(f => f.required).length;
   const complexFields = effectiveFields.filter(f => f.type === 'complex');
@@ -734,6 +747,11 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
                   {complexFields.length} составных
                 </span>
               )}
+              {referencedBy.length > 0 && (
+                <span className={`${badge} bg-brand-subtle text-brand`} title={`Используется в: ${referencedBy.map(t => t.name).join(', ')}`}>
+                  используется: {referencedBy.length}
+                </span>
+              )}
             </div>
           </div>
           {/* Действия типа (прокси/абстрактность перенесены в «Параметры типа» как switch'и — #197 Фаза C) */}
@@ -751,9 +769,9 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
             <GroupPicker groups={allGroups} value={docType.group}
               onChange={group => groupMutation.mutate({ id: docType.id, group })} />
             <IconButton label="Удалить тип" size="sm" danger
-              onClick={() => { if (!hasChildren) setDeleteConfirmOpen(true); }}
-              disabled={deleteMutation.isPending || hasChildren}
-              title={hasChildren ? 'Нельзя удалить: есть дочерние типы' : 'Удалить тип'}>
+              onClick={() => { if (!deleteBlock) setDeleteConfirmOpen(true); }}
+              disabled={deleteMutation.isPending || !!deleteBlock}
+              title={deleteBlock ?? 'Удалить тип'}>
               <Trash2 size={15} />
             </IconButton>
           </div>
@@ -955,12 +973,13 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
               </button>
               {open && items.map(t => {
                 const active = t.id === selectedId;
+                const Icon = t.kind === 'Composite' ? Boxes : FileText;
                 return (
                   <button key={t.id} type="button" onClick={() => onSelect(t.id)}
                     aria-current={active ? 'true' : undefined}
                     className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
                       active ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
-                    <FileText size={17} className="shrink-0" />
+                    <Icon size={17} className="shrink-0" />
                     <span className="flex-1 truncate text-sm">{t.name}</span>
                     <span className="text-xs text-fg4 shrink-0">{fieldCount(t, allDocTypes)}</span>
                   </button>
