@@ -106,6 +106,8 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
     onChange(next);
     setOpenIndex(o => o === from ? to : o);
   };
+  // Человеко-имя функц. тэга по коду (для превью в свёрнутой карточке); фолбэк — сам код.
+  const tagLabel = (code: string): string => (tagRegistry ?? []).find(t => t.code === code)?.label ?? code;
   // Краткая метка типа поля для свёрнутой карточки.
   const typeSummary = (f: SchemaField): string => {
     if (f.type === 'complex' || f.type === 'array') {
@@ -143,7 +145,7 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
                   <span className="block text-xs text-fg4 font-mono truncate">{field.key || '—'}</span>
                 </span>
                 {tags.slice(0, 2).map(tc => (
-                  <span key={tc} className="hidden md:inline text-[11px] font-mono px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{tc}</span>
+                  <span key={tc} className="hidden md:inline text-[11px] px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{tagLabel(tc)}</span>
                 ))}
                 {tags.length > 2 && <span className="text-[11px] text-fg4 shrink-0">+{tags.length - 2}</span>}
                 <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{typeSummary(field)}</span>
