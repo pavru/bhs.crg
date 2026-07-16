@@ -27,6 +27,7 @@ import {
   BaseInstancePanel, SCOPE_TIER, ancestorTypeIds, parseBaseRef, type BaseCandidate,
 } from '../fields';
 import { DataSetsTab } from './DataSetsTab';
+import { DocumentPreviewPanel } from './DocumentPreviewPanel';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
 import { mergeBindingPreviewsIntoValues } from '@/shared/api/datasetHelpers';
 import { QualityLinksTab } from './QualityLinksTab';
@@ -502,6 +503,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
             )}
           </div>
         </div>
+        <DocumentPreviewPanel instanceId={instance.id} requisites={values} />
       </div>
       {error && (
         <div className="shrink-0 px-6 py-2 bg-surface border-t border-stroke">

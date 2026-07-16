@@ -202,6 +202,36 @@ export interface ResolutionDiagnostic {
   message: string;
 }
 
+export type PreviewResult =
+  | { kind: 'pdf'; url: string }
+  | { kind: 'no-template' }
+  | { kind: 'error'; message: string };
+
+/**
+ * Живой предпросмотр документа (issue #193): POST текущих (несохранённых) реквизитов →
+ * эфемерный PDF по дефолтному шаблону. Успех → blob-URL PDF; нет шаблона / ошибка → маркер.
+ * Ответ приходит как blob (и PDF, и JSON-статус) — различаем по content-type.
+ */
+export async function previewDocument(instanceId: string, requisites: unknown): Promise<PreviewResult> {
+  async function parseJsonBlob(b: Blob): Promise<PreviewResult> {
+    try {
+      const j = JSON.parse(await b.text());
+      if (j.noTemplate) return { kind: 'no-template' };
+      return { kind: 'error', message: j.error ?? 'Ошибка предпросмотра' };
+    } catch { return { kind: 'error', message: 'Ошибка предпросмотра' }; }
+  }
+  try {
+    const res = await apiClient.post(`/generate/preview/${instanceId}`, requisites, { responseType: 'blob' });
+    const ct = String(res.headers['content-type'] ?? '');
+    if (ct.includes('application/pdf')) return { kind: 'pdf', url: URL.createObjectURL(res.data as Blob) };
+    return await parseJsonBlob(res.data as Blob);
+  } catch (e: unknown) {
+    const data = (e as { response?: { data?: unknown } })?.response?.data;
+    if (data instanceof Blob) return await parseJsonBlob(data);
+    return { kind: 'error', message: e instanceof Error ? e.message : 'Ошибка предпросмотра' };
+  }
+}
+
 /** Проверяет разрешение ссылок экземпляра «по требованию» (warning/error). */
 export async function validateResolution(instanceId: string): Promise<ResolutionDiagnostic[]> {
   const r = await apiClient.get<ResolutionDiagnostic[]>(`/generate/validate/${instanceId}`);
