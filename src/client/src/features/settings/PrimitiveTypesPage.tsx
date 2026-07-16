@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Plus, Trash2, Search, CaseSensitive, Hash, Calendar, List as ListIcon,
+} from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { DateInput } from '@/shared/ui/DateInput';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { apiError } from '@/shared/utils/apiError';
 import {
   useListPrimitiveTypes,
   useCreatePrimitiveType,
@@ -12,39 +16,74 @@ import {
   useSetPrimitiveTypeGroup,
   buildPrimitiveTypeDto,
 } from '@/shared/api/primitiveTypes';
-import type { FieldConstraints, PrimitiveTypeDef, DatePrecision } from '@/shared/api/types';
+import {
+  useListEnumTypes,
+  useUpdateEnumType,
+  useDeleteEnumType,
+  useSetEnumTypeGroup,
+  buildEnumTypeDto,
+} from '@/shared/api/enumTypes';
+import type { FieldConstraints, PrimitiveTypeDef, EnumTypeDef, EnumOptionDef, DatePrecision } from '@/shared/api/types';
 import { formatDateRu } from '@/shared/utils/date';
 import { useTagRegistry, fieldTags } from '@/shared/api/tags';
-import { TypeGroupAccordion, GroupPicker } from './TypeGroupAccordion';
-import { EnumTypesSection } from './EnumTypesSection';
+import { GroupPicker } from './TypeGroupAccordion';
+import { ValuesEditor, EnumForm, humanEnumPreview } from './EnumTypesSection';
+import {
+  TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry, LeaveGuardDialog,
+} from './typeEditorShell';
 
-// ─── Base type options ────────────────────────────────────────────────────────
+// ─── Constants ──────────────────────────────────────────────────────────────────
 
 const BASE_TYPES = [
   { value: 'string' as const, label: 'Строка' },
   { value: 'number' as const, label: 'Число' },
   { value: 'date' as const, label: 'Дата' },
 ];
+const BASE_TYPE_LABEL: Record<string, string> = { string: 'Строка', number: 'Число', date: 'Дата' };
 
 const DATE_PRECISIONS: { value: DatePrecision; label: string }[] = [
   { value: 'day', label: 'Полная (ДД.ММ.ГГГГ)' },
   { value: 'month', label: 'Месяц и год (ММ.ГГГГ)' },
   { value: 'year', label: 'Только год (ГГГГ)' },
 ];
-
 const DATE_PRECISION_LABEL: Record<DatePrecision, string> = {
   day: 'полная', month: 'месяц и год', year: 'только год',
 };
 
-// ─── Constraint editor ────────────────────────────────────────────────────────
+const baseTypeIcon = (bt: string) => bt === 'number' ? Hash : bt === 'date' ? Calendar : CaseSensitive;
 
-interface ConstraintEditorProps {
+/** Человекочитаемое превью ограничений для строки списка. Regex не «переводим» (нельзя надёжно) —
+ *  fallback: показываем короткий паттерн (issue #210, рекомендация Дизайнера). */
+function humanConstraintPreview(baseType: string, c: FieldConstraints): string {
+  const parts: string[] = [];
+  if (baseType === 'string') {
+    if (c.minLength != null && c.maxLength != null) parts.push(`${c.minLength}–${c.maxLength} симв.`);
+    else if (c.minLength != null) parts.push(`от ${c.minLength} симв.`);
+    else if (c.maxLength != null) parts.push(`до ${c.maxLength} симв.`);
+    if (c.pattern) parts.push(c.pattern.length <= 28 ? c.pattern : c.pattern.slice(0, 26) + '…');
+    return parts.length ? parts.join(' · ') : 'без ограничений';
+  }
+  if (baseType === 'number') {
+    if (c.integer) parts.push('только целые');
+    if (c.min != null && c.max != null) parts.push(`${c.min}…${c.max}`);
+    else if (c.min != null) parts.push(`≥ ${c.min}`);
+    else if (c.max != null) parts.push(`≤ ${c.max}`);
+    return parts.length ? parts.join(' · ') : 'любое число';
+  }
+  const prec = c.datePrecision ?? 'day';
+  if (prec !== 'day') parts.push(DATE_PRECISION_LABEL[prec]);
+  if (c.minDate) parts.push(`от ${formatDateRu(c.minDate, prec)}`);
+  if (c.maxDate) parts.push(`до ${formatDateRu(c.maxDate, prec)}`);
+  return parts.length ? parts.join(' · ') : 'любая дата';
+}
+
+// ─── Constraint editor (per base type) ──────────────────────────────────────────
+
+function ConstraintEditor({ baseType, constraints, onChange }: {
   baseType: 'string' | 'number' | 'date';
   constraints: FieldConstraints;
   onChange: (c: FieldConstraints) => void;
-}
-
-function ConstraintEditor({ baseType, constraints, onChange }: ConstraintEditorProps) {
+}) {
   function set<K extends keyof FieldConstraints>(key: K, val: FieldConstraints[K]) {
     onChange({ ...constraints, [key]: val });
   }
@@ -53,445 +92,514 @@ function ConstraintEditor({ baseType, constraints, onChange }: ConstraintEditorP
     delete next[key];
     onChange(next);
   }
+  const inputCls = 'w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm';
 
   if (baseType === 'string') {
     return (
       <div className="space-y-3">
         <div>
           <label className="block text-sm font-medium text-fg1 mb-1">Шаблон (regex)</label>
-          <input
-            type="text"
-            className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm font-mono"
-            placeholder="например: ^[\w.]+@[\w]+\.\w+$"
+          <input type="text" className={`${inputCls} font-mono`} placeholder="например: ^[\w.]+@[\w]+\.\w+$"
             value={constraints.pattern ?? ''}
-            onChange={e => e.target.value ? set('pattern', e.target.value) : unset('pattern')}
-          />
+            onChange={e => e.target.value ? set('pattern', e.target.value) : unset('pattern')} />
         </div>
         <div>
           <label className="block text-sm font-medium text-fg1 mb-1">Сообщение об ошибке</label>
-          <input
-            type="text"
-            className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
-            placeholder="например: Введите корректный email"
+          <input type="text" className={inputCls} placeholder="например: Введите корректный email"
             value={constraints.patternMessage ?? ''}
-            onChange={e => e.target.value ? set('patternMessage', e.target.value) : unset('patternMessage')}
-          />
+            onChange={e => e.target.value ? set('patternMessage', e.target.value) : unset('patternMessage')} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-fg1 mb-1">Мин. длина</label>
-            <input
-              type="number"
-              min={0}
-              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
-              value={constraints.minLength ?? ''}
-              onChange={e => e.target.value ? set('minLength', Number(e.target.value)) : unset('minLength')}
-            />
+            <input type="number" min={0} className={inputCls} value={constraints.minLength ?? ''}
+              onChange={e => e.target.value ? set('minLength', Number(e.target.value)) : unset('minLength')} />
           </div>
           <div>
             <label className="block text-sm font-medium text-fg1 mb-1">Макс. длина</label>
-            <input
-              type="number"
-              min={0}
-              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
-              value={constraints.maxLength ?? ''}
-              onChange={e => e.target.value ? set('maxLength', Number(e.target.value)) : unset('maxLength')}
-            />
+            <input type="number" min={0} className={inputCls} value={constraints.maxLength ?? ''}
+              onChange={e => e.target.value ? set('maxLength', Number(e.target.value)) : unset('maxLength')} />
           </div>
         </div>
       </div>
     );
   }
-
   if (baseType === 'number') {
     return (
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-fg1 mb-1">Минимум</label>
-            <input
-              type="number"
-              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
-              value={constraints.min ?? ''}
-              onChange={e => e.target.value ? set('min', Number(e.target.value)) : unset('min')}
-            />
+            <input type="number" className={inputCls} value={constraints.min ?? ''}
+              onChange={e => e.target.value ? set('min', Number(e.target.value)) : unset('min')} />
           </div>
           <div>
             <label className="block text-sm font-medium text-fg1 mb-1">Максимум</label>
-            <input
-              type="number"
-              className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm"
-              value={constraints.max ?? ''}
-              onChange={e => e.target.value ? set('max', Number(e.target.value)) : unset('max')}
-            />
+            <input type="number" className={inputCls} value={constraints.max ?? ''}
+              onChange={e => e.target.value ? set('max', Number(e.target.value)) : unset('max')} />
           </div>
         </div>
         <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            className="w-4 h-4 rounded accent-brand"
+          <input type="checkbox" className="w-4 h-4 rounded accent-brand"
             checked={constraints.integer ?? false}
-            onChange={e => e.target.checked ? set('integer', true) : unset('integer')}
-          />
+            onChange={e => e.target.checked ? set('integer', true) : unset('integer')} />
           <span className="text-sm text-fg1">Только целые числа</span>
         </label>
       </div>
     );
   }
-
-  // date
-  const dateCls = 'w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm';
   const precision = constraints.datePrecision ?? 'day';
   return (
     <div className="space-y-3">
       <div>
         <label className="block text-sm font-medium text-fg1 mb-1">Точность</label>
-        <div className="flex gap-2">
+        <div className="inline-flex rounded-full border border-stroke-strong overflow-hidden">
           {DATE_PRECISIONS.map(p => (
-            <button
-              key={p.value}
-              type="button"
+            <button key={p.value} type="button"
               onClick={() => p.value === 'day' ? unset('datePrecision') : set('datePrecision', p.value)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                precision === p.value ? 'bg-brand text-white' : 'bg-base text-fg2 hover:bg-muted'
-              }`}
-            >
+              className={`px-3 py-1.5 text-sm transition-colors ${
+                precision === p.value ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
               {p.label}
             </button>
           ))}
         </div>
-        <p className="text-xs text-fg3 mt-1">
-          Управляет форматом ввода и отображения. Значение хранится как полная дата.
-        </p>
+        <p className="text-xs text-fg3 mt-1">Управляет форматом ввода/отображения. Значение хранится как полная дата.</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-fg1 mb-1">Минимальная дата</label>
-          <DateInput
-            value={constraints.minDate ?? ''}
-            onChange={v => v ? set('minDate', v) : unset('minDate')}
-            precision={precision}
-            className={dateCls}
-          />
+          <DateInput value={constraints.minDate ?? ''} onChange={v => v ? set('minDate', v) : unset('minDate')}
+            precision={precision} className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm" />
         </div>
         <div>
           <label className="block text-sm font-medium text-fg1 mb-1">Максимальная дата</label>
-          <DateInput
-            value={constraints.maxDate ?? ''}
-            onChange={v => v ? set('maxDate', v) : unset('maxDate')}
-            precision={precision}
-            className={dateCls}
-          />
+          <DateInput value={constraints.maxDate ?? ''} onChange={v => v ? set('maxDate', v) : unset('maxDate')}
+            precision={precision} className="w-full px-3 py-2 rounded-lg border border-stroke-strong bg-surface text-sm" />
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Type form (инлайн для редактирования строки, в модалке для создания) ─────
+// ─── Segmented base-type control ────────────────────────────────────────────────
 
-interface TypeFormProps {
-  initial?: PrimitiveTypeDef;
-  onSaved: () => void;
-  onCancel: () => void;
+function BaseTypeSegmented({ value, onChange, disabled }: {
+  value: 'string' | 'number' | 'date'; onChange: (v: 'string' | 'number' | 'date') => void; disabled?: boolean;
+}) {
+  return (
+    <div className={`inline-flex rounded-full border border-stroke-strong overflow-hidden ${disabled ? 'opacity-60' : ''}`}>
+      {BASE_TYPES.map(bt => {
+        const Icon = baseTypeIcon(bt.value);
+        const on = value === bt.value;
+        return (
+          <button key={bt.value} type="button" disabled={disabled} onClick={() => onChange(bt.value)}
+            className={`flex items-center gap-1.5 px-4 py-1.5 text-sm transition-colors disabled:cursor-not-allowed ${
+              on ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
+            <Icon size={15} className="shrink-0" /> {bt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
-function TypeForm({ initial, onSaved, onCancel }: TypeFormProps) {
-  const [name, setName] = useState(initial?.name ?? '');
-  const [code, setCode] = useState(initial?.code ?? '');
-  const [baseType, setBaseType] = useState<'string' | 'number' | 'date'>(initial?.baseType ?? 'string');
-  const [description, setDescription] = useState(initial?.description ?? '');
-  const [constraints, setConstraints] = useState<FieldConstraints>(initial?.constraints ?? {});
-  const [allowedTags, setAllowedTags] = useState<string[]>(initial?.allowedTags ?? []);
+// ─── Card wrapper ────────────────────────────────────────────────────────────────
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="border border-stroke rounded-xl bg-surface p-4 space-y-3">
+      <p className="text-xs font-medium text-fg3 uppercase tracking-wide">{title}</p>
+      {children}
+    </div>
+  );
+}
+
+// ─── Primitive create form (в модалке) ──────────────────────────────────────────
+
+function PrimitiveCreateForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () => void }) {
+  const [name, setName] = useState('');
+  const [code, setCode] = useState('');
+  const [baseType, setBaseType] = useState<'string' | 'number' | 'date'>('string');
+  const [description, setDescription] = useState('');
+  const [constraints, setConstraints] = useState<FieldConstraints>({});
   const [error, setError] = useState('');
-
   const create = useCreatePrimitiveType();
-  const update = useUpdatePrimitiveType(initial?.id ?? '');
-  const { data: tagRegistry } = useTagRegistry();
-  const applicableTags = fieldTags(tagRegistry, baseType);
-
-  function handleBaseTypeChange(bt: 'string' | 'number' | 'date') {
-    setBaseType(bt);
-    setConstraints({});
-    setAllowedTags([]); // применимость тэгов зависит от базового типа
-  }
 
   async function handleSave() {
     if (!name.trim()) { setError('Укажите название'); return; }
     if (!code.trim()) { setError('Укажите код'); return; }
-    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(code.trim())) {
-      setError('Код: только латинские буквы, цифры и _'); return;
-    }
+    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(code.trim())) { setError('Код: только латинские буквы, цифры и _'); return; }
     setError('');
-    const dto = buildPrimitiveTypeDto(name.trim(), code.trim(), baseType, description.trim() || undefined, constraints, allowedTags);
     try {
-      if (initial) await update.mutateAsync(dto);
-      else await create.mutateAsync(dto);
+      await create.mutateAsync(buildPrimitiveTypeDto(name.trim(), code.trim(), baseType, description.trim() || undefined, constraints, []));
       onSaved();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Ошибка сохранения');
     }
   }
 
-  const isPending = create.isPending || update.isPending;
-
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
-        <TextField label="Название" value={name} onChange={e => setName(e.target.value)} hint="Email" />
-        <TextField label="Код" value={code} onChange={e => setCode(e.target.value)}
-          disabled={!!initial} className="font-mono" hint="email" />
+        <TextField label="Название" value={name} onChange={e => setName(e.target.value)} />
+        <TextField label="Код" value={code} onChange={e => setCode(e.target.value)} className="font-mono" />
       </div>
-
       <div>
         <label className="block text-sm font-medium text-fg1 mb-1">Базовый тип</label>
-        <div className="flex gap-2">
-          {BASE_TYPES.map(bt => (
-            <button
-              key={bt.value}
-              type="button"
-              onClick={() => handleBaseTypeChange(bt.value)}
-              disabled={!!initial}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                baseType === bt.value
-                  ? 'bg-brand text-white'
-                  : 'bg-base text-fg2 hover:bg-muted'
-              } disabled:opacity-50`}
-            >
-              {bt.label}
-            </button>
-          ))}
-        </div>
+        <BaseTypeSegmented value={baseType} onChange={bt => { setBaseType(bt); setConstraints({}); }} />
       </div>
-
-      <TextField label="Описание" value={description} onChange={e => setDescription(e.target.value)}
-        hint="Необязательное описание типа" />
-
+      <TextField label="Описание" value={description} onChange={e => setDescription(e.target.value)} />
       <div className="border-t border-stroke pt-3">
         <p className="text-sm font-medium text-fg1 mb-3">Ограничения</p>
         <ConstraintEditor baseType={baseType} constraints={constraints} onChange={setConstraints} />
       </div>
-
-      <div className="border-t border-stroke pt-3">
-        <p className="text-sm font-medium text-fg1 mb-1">Применимые функциональные тэги</p>
-        <p className="text-xs text-fg3 mb-2">
-          Какие функциональные тэги можно назначить полям этого типа (показываются в редакторе схемы).
-        </p>
-        {applicableTags.length === 0 ? (
-          <p className="text-xs text-fg4">Для базового типа «{baseType}» подходящих тэгов нет.</p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {applicableTags.map(t => {
-              const on = allowedTags.includes(t.code);
-              return (
-                <button key={t.code} type="button" title={t.description}
-                  onClick={() => setAllowedTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code])}
-                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                    on ? 'bg-purple-500/15 border-purple-400 text-purple-700' : 'border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1'
-                  }`}>
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
       {error && <p className="text-sm text-danger">{error}</p>}
-
       <div className="flex justify-end gap-2 border-t border-stroke pt-3">
         <Button type="button" variant="text" onClick={onCancel}>Отмена</Button>
-        <Button type="button" variant="filled" onClick={handleSave} loading={isPending}>
-          {isPending ? 'Сохранение…' : 'Сохранить'}
+        <Button type="button" variant="filled" onClick={handleSave} loading={create.isPending}>
+          {create.isPending ? 'Сохранение…' : 'Сохранить'}
         </Button>
       </div>
     </div>
   );
 }
 
-// ─── Constraint summary ───────────────────────────────────────────────────────
+// ─── Detail header (общий для примитива и enum) ──────────────────────────────────
 
-function ConstraintSummary({ baseType, c }: { baseType: string; c: FieldConstraints }) {
-  const parts: string[] = [];
-  if (baseType === 'string') {
-    if (c.pattern) parts.push(`pattern: ${c.pattern}`);
-    if (c.minLength != null) parts.push(`мин: ${c.minLength}`);
-    if (c.maxLength != null) parts.push(`макс: ${c.maxLength}`);
-  } else if (baseType === 'number') {
-    if (c.min != null) parts.push(`≥ ${c.min}`);
-    if (c.max != null) parts.push(`≤ ${c.max}`);
-    if (c.integer) parts.push('целое');
-  } else if (baseType === 'date') {
-    const prec = c.datePrecision ?? 'day';
-    if (prec !== 'day') parts.push(DATE_PRECISION_LABEL[prec]);
-    if (c.minDate) parts.push(`от ${formatDateRu(c.minDate, prec)}`);
-    if (c.maxDate) parts.push(`до ${formatDateRu(c.maxDate, prec)}`);
-  }
-  if (parts.length === 0) return <span className="text-fg4 italic">нет ограничений</span>;
-  return <span>{parts.join(', ')}</span>;
+function DetailHeader({ name, code, chip, dirty, saving, onSaveAll, allGroups, group, onGroup, onDelete, deleteBlock }: {
+  name: string; code: string; chip: string;
+  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>;
+  allGroups: string[]; group: string | null; onGroup: (g: string | null) => void;
+  onDelete: () => void; deleteBlock: string | null;
+}) {
+  const badge = 'text-xs px-2 py-0.5 rounded-full font-medium';
+  return (
+    <div className="shrink-0 px-6 py-4 border-b border-stroke bg-surface">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-xl font-normal text-fg1 truncate">{name || '(без названия)'}</h2>
+            <span className={`${badge} bg-muted text-fg3`}>{chip}</span>
+          </div>
+          <span className="text-xs text-fg4 font-mono">{code}</span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {dirty && <span className={`${badge} bg-warning-subtle text-warning`}>есть изменения</span>}
+          <Button variant="filled" size="sm" disabled={!dirty} loading={saving}
+            onClick={() => { onSaveAll().catch(() => { /* ошибки показаны в форме */ }); }}>
+            Сохранить
+          </Button>
+          <GroupPicker groups={allGroups} value={group} onChange={onGroup} />
+          <IconButton label="Удалить" size="sm" danger onClick={() => { if (!deleteBlock) onDelete(); }}
+            disabled={!!deleteBlock} title={deleteBlock ?? 'Удалить тип'}>
+            <Trash2 size={15} />
+          </IconButton>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-// ─── Row ──────────────────────────────────────────────────────────────────────
+// ─── Primitive detail ────────────────────────────────────────────────────────────
 
-const BASE_TYPE_LABEL: Record<string, string> = { string: 'Строка', number: 'Число', date: 'Дата' };
-
-function FieldTypeRow({ type, allGroups, expanded, onToggle }: {
-  type: PrimitiveTypeDef; allGroups: string[]; expanded: boolean; onToggle: () => void;
+function PrimitiveTypeDetail({ type, allGroups, dirty, saving, onSaveAll, onDeleted }: {
+  type: PrimitiveTypeDef; allGroups: string[];
+  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onDeleted: () => void;
 }) {
-  const deleteMutation = useDeletePrimitiveType();
-  const groupMutation = useSetPrimitiveTypeGroup();
+  const [name, setName] = useState(type.name);
+  const [description, setDescription] = useState(type.description ?? '');
+  const [constraints, setConstraints] = useState<FieldConstraints>(type.constraints ?? {});
+  const [allowedTags, setAllowedTags] = useState<string[]>(type.allowedTags ?? []);
+  const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  function handleDelete(e: React.MouseEvent) {
-    e.stopPropagation();
-    setConfirmDelete(true);
+  const update = useUpdatePrimitiveType(type.id);
+  const del = useDeletePrimitiveType();
+  const groupMutation = useSetPrimitiveTypeGroup();
+  const { data: tagRegistry } = useTagRegistry();
+  const applicableTags = fieldTags(tagRegistry, type.baseType);
+
+  const localDirty = name !== type.name
+    || description !== (type.description ?? '')
+    || JSON.stringify(constraints) !== JSON.stringify(type.constraints ?? {})
+    || JSON.stringify([...allowedTags].sort()) !== JSON.stringify([...(type.allowedTags ?? [])].sort());
+
+  async function save() {
+    if (!name.trim()) { setError('Укажите название'); throw new Error('validation'); }
+    setError('');
+    try {
+      await update.mutateAsync(buildPrimitiveTypeDto(name.trim(), type.code, type.baseType, description.trim() || undefined, constraints, allowedTags));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Ошибка сохранения'); throw e;
+    }
   }
+  useRegisterEditor('primitive', localDirty, save);
 
   return (
-    <div className={`overflow-hidden group ${expanded ? 'bg-base' : ''}`}>
-      <div className="flex items-center hover:bg-base transition-colors">
-        <button type="button" onClick={onToggle} aria-expanded={expanded}
-          className="flex-1 min-w-0 flex items-center gap-2 px-4 py-2.5 text-left">
-          {expanded
-            ? <ChevronUp size={15} className="text-fg4 shrink-0" />
-            : <ChevronDown size={15} className="text-fg4 shrink-0" />}
-          <span className="text-sm font-medium text-fg1 shrink-0">{type.name}</span>
-          <span className="text-xs text-fg4 font-mono shrink-0">{type.code}</span>
-          <span className="text-[11px] bg-brand-subtle text-brand px-1.5 py-0.5 rounded-full shrink-0">
-            {BASE_TYPE_LABEL[type.baseType] ?? type.baseType}
-          </span>
-          <span className="flex-1" />
-          <span className="text-xs text-fg4 shrink-0 truncate max-w-[240px]">
-            <ConstraintSummary baseType={type.baseType} c={type.constraints} />
-          </span>
-        </button>
-        <span className="pr-1" onClick={e => e.stopPropagation()}>
-          <GroupPicker groups={allGroups} value={type.group}
-            onChange={group => groupMutation.mutate({ id: type.id, group })} />
-        </span>
-        <IconButton label="Удалить" size="sm" danger onClick={handleDelete} disabled={deleteMutation.isPending}
-          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
-          <Trash2 size={14} />
-        </IconButton>
-      </div>
-      {expanded && (
-        <div className="px-4 pb-5 pt-3 border-t border-stroke bg-base">
-          <TypeForm initial={type} onSaved={onToggle} onCancel={onToggle} />
-        </div>
-      )}
-      {confirmDelete && (
-        <Modal open onOpenChange={o => { if (!o) setConfirmDelete(false); }} title="Удалить тип поля"
-          footer={
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(false)}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-base text-fg2 hover:bg-muted"
-              >
-                Отмена
-              </button>
-              <button
-                type="button"
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutateAsync(type.id).then(() => setConfirmDelete(false))}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-danger text-white hover:bg-danger disabled:opacity-50"
-              >
-                Удалить
-              </button>
+    <div className="flex flex-col min-h-0 flex-1">
+      <DetailHeader name={name} code={type.code} chip={BASE_TYPE_LABEL[type.baseType] ?? type.baseType}
+        dirty={dirty} saving={saving} onSaveAll={onSaveAll}
+        allGroups={allGroups} group={type.group} onGroup={g => groupMutation.mutate({ id: type.id, group: g })}
+        onDelete={() => setConfirmDelete(true)} deleteBlock={null} />
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
+        <div className="mx-auto max-w-3xl space-y-4">
+          <Card title="Параметры">
+            <div className="grid grid-cols-2 gap-3">
+              <TextField label="Название" value={name} onChange={e => setName(e.target.value)} required />
+              <TextField label="Код" value={type.code} onChange={() => {}} disabled className="font-mono" />
             </div>
-          }>
-          <div className="space-y-4 min-w-[360px]">
-            <p className="text-sm text-fg2">
-              Тип <span className="font-semibold text-fg1">«{type.name}»</span> будет удалён.
-              Поля документов, использующие этот тип, перестанут валидироваться.
-            </p>
-          </div>
-        </Modal>
-      )}
+            <div>
+              <label className="block text-sm font-medium text-fg1 mb-1">Базовый тип</label>
+              <BaseTypeSegmented value={type.baseType} onChange={() => {}} disabled />
+              <p className="text-xs text-fg3 mt-1">Базовый тип нельзя изменить после создания.</p>
+            </div>
+            <TextField label="Описание" value={description} onChange={e => setDescription(e.target.value)} />
+          </Card>
+
+          <Card title="Ограничения">
+            <ConstraintEditor baseType={type.baseType} constraints={constraints} onChange={setConstraints} />
+          </Card>
+
+          <Card title="Применимые функциональные тэги">
+            <p className="text-xs text-fg3 -mt-1">Какие тэги можно назначать полям этого типа — показываются в редакторе схемы.</p>
+            {applicableTags.length === 0 ? (
+              <p className="text-xs text-fg4">Для базового типа «{BASE_TYPE_LABEL[type.baseType]}» подходящих тэгов нет.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {applicableTags.map(t => {
+                  const on = allowedTags.includes(t.code);
+                  return (
+                    <button key={t.code} type="button" title={t.description}
+                      onClick={() => setAllowedTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code])}
+                      className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                        on ? 'bg-purple-500/15 border-purple-400 text-purple-700' : 'border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1'}`}>
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+
+          {error && <p className="text-sm text-danger">{error}</p>}
+        </div>
+      </div>
+      <ConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete}
+        title={`Удалить тип «${type.name}»?`}
+        description={<p>Поля документов, использующие этот тип, перестанут валидироваться. Действие необратимо.</p>}
+        confirmLabel={`Удалить «${type.name}»`}
+        onConfirm={() => del.mutate(type.id, { onSuccess: onDeleted, onError: e => alert(apiError(e, 'Не удалось удалить тип.')) })} />
     </div>
   );
 }
 
-// ─── Primitive section (существующее содержимое страницы, без изменений) ──────
+// ─── Enum detail ──────────────────────────────────────────────────────────────────
 
-function PrimitiveTypesSection() {
-  const { data: types = [], isLoading } = useListPrimitiveTypes();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+function EnumTypeDetail({ type, allGroups, dirty, saving, onSaveAll, onDeleted }: {
+  type: EnumTypeDef; allGroups: string[];
+  dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onDeleted: () => void;
+}) {
+  const [name, setName] = useState(type.name);
+  const [description, setDescription] = useState(type.description ?? '');
+  const [values, setValues] = useState<EnumOptionDef[]>(type.values ?? []);
+  const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const sorted = [...types].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-  const allGroups = [...new Set(sorted.map(t => t.group).filter((g): g is string => !!g))]
-    .sort((a, b) => a.localeCompare(b, 'ru'));
+  const update = useUpdateEnumType(type.id);
+  const del = useDeleteEnumType();
+  const groupMutation = useSetEnumTypeGroup();
 
-  function toggleExpanded(id: string) {
-    setExpandedId(prev => prev === id ? null : id);
+  const localDirty = name !== type.name
+    || description !== (type.description ?? '')
+    || JSON.stringify(values) !== JSON.stringify(type.values ?? []);
+
+  async function save() {
+    if (!name.trim()) { setError('Укажите название'); throw new Error('validation'); }
+    const cleaned = values.map(v => ({ code: v.code.trim(), label: v.label.trim() })).filter(v => v.code && v.label);
+    if (cleaned.length === 0) { setError('Добавьте хотя бы один вариант'); throw new Error('validation'); }
+    const codes = new Set<string>();
+    for (const v of cleaned) {
+      if (codes.has(v.code)) { setError(`Код «${v.code}» повторяется`); throw new Error('validation'); }
+      codes.add(v.code);
+    }
+    setError('');
+    try {
+      await update.mutateAsync(buildEnumTypeDto(name.trim(), type.code, description.trim() || undefined, cleaned));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Ошибка сохранения'); throw e;
+    }
   }
+  useRegisterEditor('enum', localDirty, save);
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-fg3">
-          Пользовательские типы реквизитов на основе строки, числа или даты с ограничениями
-        </p>
-        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
-          Добавить тип
-        </Button>
-      </div>
+    <div className="flex flex-col min-h-0 flex-1">
+      <DetailHeader name={name} code={type.code} chip="Перечисление"
+        dirty={dirty} saving={saving} onSaveAll={onSaveAll}
+        allGroups={allGroups} group={type.group} onGroup={g => groupMutation.mutate({ id: type.id, group: g })}
+        onDelete={() => setConfirmDelete(true)} deleteBlock={null} />
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
+        <div className="mx-auto max-w-3xl space-y-4">
+          <Card title="Параметры">
+            <div className="grid grid-cols-2 gap-3">
+              <TextField label="Название" value={name} onChange={e => setName(e.target.value)} required />
+              <TextField label="Код" value={type.code} onChange={() => {}} disabled className="font-mono" />
+            </div>
+            <TextField label="Описание" value={description} onChange={e => setDescription(e.target.value)} />
+          </Card>
 
-      {isLoading ? (
-        <div className="text-center text-fg4 text-sm py-10">Загрузка...</div>
-      ) : types.length === 0 ? (
-        <div className="text-center text-fg4 text-sm py-10">
-          Пользовательских типов ещё нет. Создайте тип, например «Email» или «ИНН».
+          <Card title={`Варианты · ${values.length}`}>
+            <ValuesEditor values={values} onChange={setValues} />
+          </Card>
+
+          {error && <p className="text-sm text-danger">{error}</p>}
         </div>
-      ) : (
-        <TypeGroupAccordion items={sorted} getGroup={t => t.group} renderItem={t => (
-          <FieldTypeRow key={t.id} type={t} allGroups={allGroups}
-            expanded={expandedId === t.id} onToggle={() => toggleExpanded(t.id)} />
-        )} />
-      )}
-
-      <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новый тип поля">
-        {createOpen && (
-          <TypeForm onSaved={() => setCreateOpen(false)} onCancel={() => setCreateOpen(false)} />
-        )}
-      </Modal>
+      </div>
+      <ConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete}
+        title={`Удалить тип «${type.name}»?`}
+        description={<p>Поля документов, использующие это перечисление, перестанут резолвить варианты. Действие необратимо.</p>}
+        confirmLabel={`Удалить «${type.name}»`}
+        onConfirm={() => del.mutate(type.id, { onSuccess: onDeleted, onError: e => alert(apiError(e, 'Не удалось удалить тип.')) })} />
     </div>
   );
 }
 
-// ─── Main page — вкладки «Примитивные»/«Перечисления» (issue #59) ──────────────
+// ─── Left panel (tabs + search + list) ───────────────────────────────────────────
 
-type FieldTypesMode = 'primitive' | 'enum';
+type Mode = 'primitive' | 'enum';
+
+function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSelect, query, onQuery }: {
+  mode: Mode; onMode: (m: Mode) => void;
+  primitives: PrimitiveTypeDef[]; enums: EnumTypeDef[];
+  selectedId: string | null; onSelect: (id: string) => void;
+  query: string; onQuery: (q: string) => void;
+}) {
+  const q = query.trim().toLowerCase();
+  const items: { id: string; name: string; code: string; chip: string; preview: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] =
+    mode === 'primitive'
+      ? primitives.filter(t => !q || `${t.name} ${t.code}`.toLowerCase().includes(q))
+          .map(t => ({ id: t.id, name: t.name, code: t.code, chip: BASE_TYPE_LABEL[t.baseType] ?? t.baseType, preview: humanConstraintPreview(t.baseType, t.constraints), icon: baseTypeIcon(t.baseType) }))
+      : enums.filter(t => !q || `${t.name} ${t.code}`.toLowerCase().includes(q))
+          .map(t => ({ id: t.id, name: t.name, code: t.code, chip: 'Перечисление', preview: humanEnumPreview(t.values), icon: ListIcon }));
+
+  const tab = (m: Mode, label: string) => (
+    <button type="button" onClick={() => onMode(m)}
+      className={`relative flex-1 h-12 text-sm transition-colors ${mode === m ? 'text-brand font-medium' : 'text-fg3 hover:text-fg2'}`}>
+      {label}
+      {mode === m && <span className="absolute left-0 right-0 bottom-0 h-0.5 bg-brand rounded-t" />}
+    </button>
+  );
+
+  return (
+    <nav aria-label="Типы полей" className="w-80 shrink-0 border-r border-stroke flex flex-col bg-base">
+      <div className="flex border-b border-stroke shrink-0">
+        {tab('primitive', 'Примитивные')}
+        {tab('enum', 'Перечисления')}
+      </div>
+      <div className="p-3 shrink-0">
+        <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
+          <input value={query} onChange={e => onQuery(e.target.value)} placeholder="Поиск типа…" aria-label="Поиск типа"
+            className="w-full h-10 pl-9 pr-3 rounded-full text-sm bg-surface border border-stroke-strong text-fg1 outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-fg4" />
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
+        {items.length === 0 && <p className="px-3 py-6 text-center text-sm text-fg4">Ничего не найдено</p>}
+        {items.map(t => {
+          const active = t.id === selectedId;
+          const Icon = t.icon;
+          return (
+            <button key={t.id} type="button" onClick={() => onSelect(t.id)} aria-current={active ? 'true' : undefined}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors ${
+                active ? 'bg-brand-subtle text-brand-hover' : 'hover:bg-muted'}`}>
+              <Icon size={17} className={`shrink-0 ${active ? 'text-brand-hover' : 'text-fg4'}`} />
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5">
+                  <span className={`text-sm font-medium truncate ${active ? 'text-brand-hover' : 'text-fg1'}`}>{t.name}</span>
+                  <span className="text-[11px] text-fg4 font-mono shrink-0">{t.code}</span>
+                </span>
+                <span className="block text-xs text-fg4 truncate">{t.preview}</span>
+              </span>
+              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{t.chip}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────────
 
 export function PrimitiveTypesPage() {
-  const [mode, setMode] = useState<FieldTypesMode>('primitive');
+  const [mode, setMode] = useState<Mode>('primitive');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const { data: primitives = [] } = useListPrimitiveTypes();
+  const { data: enums = [] } = useListEnumTypes();
+
+  const sortedPrim = [...primitives].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+  const sortedEnum = [...enums].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+  const allGroups = [...new Set([...sortedPrim, ...sortedEnum].map(t => t.group).filter((g): g is string => !!g))]
+    .sort((a, b) => a.localeCompare(b, 'ru'));
+
+  const { registry, anyDirty, saving, saveAll } = useTypeEditorRegistry();
+
+  const [pendingSelect, setPendingSelect] = useState<{ mode: Mode; id: string | null } | null>(null);
+  const applyPending = (p: { mode: Mode; id: string | null }) => { setMode(p.mode); setSelectedId(p.id); };
+  const guard = (next: { mode: Mode; id: string | null }) => {
+    if (next.mode === mode && next.id === selectedId) return;
+    if (anyDirty) setPendingSelect(next); else applyPending(next);
+  };
+  const requestSelect = (id: string) => guard({ mode, id });
+  const requestMode = (m: Mode) => guard({ mode: m, id: null });
+
+  const selectedPrim = mode === 'primitive' ? (sortedPrim.find(t => t.id === selectedId) ?? sortedPrim[0]) : undefined;
+  const selectedEnum = mode === 'enum' ? (sortedEnum.find(t => t.id === selectedId) ?? sortedEnum[0]) : undefined;
+  const addLabel = mode === 'primitive' ? 'Добавить тип' : 'Добавить перечисление';
 
   return (
-    <div className="px-6 py-4">
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-xl font-semibold text-fg1">Типы полей</h1>
-      </div>
-      <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5 mb-4 w-fit">
-        <button
-          onClick={() => setMode('primitive')}
-          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-            mode === 'primitive' ? 'bg-surface text-fg1 font-medium shadow-sm' : 'text-fg3 hover:text-fg2'
-          }`}
-        >
-          Примитивные
-        </button>
-        <button
-          onClick={() => setMode('enum')}
-          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-            mode === 'enum' ? 'bg-surface text-fg1 font-medium shadow-sm' : 'text-fg3 hover:text-fg2'
-          }`}
-        >
-          Перечисления
-        </button>
+    <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between gap-3 px-6 py-3 shrink-0 border-b border-stroke">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold text-fg1">Типы полей</h1>
+          <p className="text-xs text-fg3 mt-0.5">Пользовательские типы реквизитов (строка/число/дата) и перечисления</p>
+        </div>
+        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>{addLabel}</Button>
       </div>
 
-      {mode === 'primitive' ? <PrimitiveTypesSection /> : <EnumTypesSection />}
+      <TypeEditorProvider value={registry}>
+        <div className="flex-1 min-h-0 flex">
+          <FieldTypeListPanel mode={mode} onMode={requestMode}
+            primitives={sortedPrim} enums={sortedEnum}
+            selectedId={mode === 'primitive' ? (selectedPrim?.id ?? null) : (selectedEnum?.id ?? null)}
+            onSelect={requestSelect} query={query} onQuery={setQuery} />
+          {mode === 'primitive' && selectedPrim ? (
+            <PrimitiveTypeDetail key={selectedPrim.id} type={selectedPrim} allGroups={allGroups}
+              dirty={anyDirty} saving={saving} onSaveAll={saveAll} onDeleted={() => setSelectedId(null)} />
+          ) : mode === 'enum' && selectedEnum ? (
+            <EnumTypeDetail key={selectedEnum.id} type={selectedEnum} allGroups={allGroups}
+              dirty={anyDirty} saving={saving} onSaveAll={saveAll} onDeleted={() => setSelectedId(null)} />
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-fg4 text-sm">
+              {mode === 'primitive' ? 'Типов полей ещё нет' : 'Перечислений ещё нет'} — создайте первый.
+            </div>
+          )}
+        </div>
+      </TypeEditorProvider>
+
+      <LeaveGuardDialog open={pendingSelect !== null} saving={saving}
+        onCancel={() => setPendingSelect(null)}
+        onDiscard={() => { if (pendingSelect) applyPending(pendingSelect); setPendingSelect(null); }}
+        onSave={async () => { try { await saveAll(); if (pendingSelect) applyPending(pendingSelect); setPendingSelect(null); } catch { /* остаёмся */ } }} />
+
+      <Modal open={createOpen} onOpenChange={setCreateOpen}
+        title={mode === 'primitive' ? 'Новый тип поля' : 'Новый тип перечисления'}>
+        {createOpen && (mode === 'primitive'
+          ? <PrimitiveCreateForm onSaved={() => setCreateOpen(false)} onCancel={() => setCreateOpen(false)} />
+          : <EnumForm onSaved={() => setCreateOpen(false)} onCancel={() => setCreateOpen(false)} />)}
+      </Modal>
     </div>
   );
 }

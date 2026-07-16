@@ -1,7 +1,7 @@
-import { useState, useRef, useMemo, useEffect, useContext, createContext } from 'react';
+import { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
-  Plus, ChevronDown, ChevronUp, ChevronRight, Trash2, Search, Folder, FileText, Boxes, EyeOff, Check,
+  Plus, ChevronRight, Trash2, Search, Folder, FileText, Boxes, EyeOff, Check,
   Braces, RotateCcw, Code, Database, Cpu,
 } from 'lucide-react';
 import { Switch } from '@/shared/ui/Switch';
@@ -39,6 +39,9 @@ import { schemaToJson, validateFields, TYPE_LABELS, toCamelKey } from './schemaC
 import { useTagRegistry, typeTags as typeTagDefs } from '@/shared/api/tags';
 import { GroupedFieldsEditor } from './GroupedFieldsEditor';
 import { JsonPreview, FieldBuilder, DefaultValueCell, type FieldRegistries } from './FieldBuilder';
+import {
+  TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry, LeaveGuardDialog, SectionCard,
+} from './typeEditorShell';
 
 /** Единственное членство (issue #197 Фаза C): каждый ключ поля остаётся только в первой группе,
  *  где встречается. Легаси-схемы могли класть поле в несколько групп — нормализуем при загрузке. */
@@ -53,73 +56,7 @@ function normalizeGroupMembership(gs: FieldGroup[]): FieldGroup[] {
 /** Sentinel для «— без родителя —» — Radix Select запрещает пустую строку как value. */
 const NO_PARENT = '__none__';
 
-// ─── Реестр редакторов (явное сохранение, issue #197 Фаза C) ────────────────────
-// Дочерние формы (параметры типа + схема) публикуют своё состояние dirty и функцию сохранения;
-// страница агрегирует их в одну кнопку «Сохранить» в шапке, бейдж «есть изменения» и диалог-гард
-// при уходе с типа. Сохранение может бросить — тогда переход не выполняется.
-interface TypeEditorRegistry {
-  publish: (key: string, dirty: boolean, save: () => Promise<void>) => void;
-  unpublish: (key: string) => void;
-}
-const TypeEditorContext = createContext<TypeEditorRegistry | null>(null);
-
-/** Публикует dirty/save текущей формы в реестр страницы (save всегда берётся свежий через ref). */
-function useRegisterEditor(key: string, dirty: boolean, save: () => Promise<void>) {
-  const ctx = useContext(TypeEditorContext);
-  const saveRef = useRef(save);
-  saveRef.current = save;
-  useEffect(() => {
-    ctx?.publish(key, dirty, () => saveRef.current());
-  }, [ctx, key, dirty]);
-  useEffect(() => () => ctx?.unpublish(key), [ctx, key]);
-}
-
-/** MD3-диалог-гард при уходе с типа с несохранёнными правками (issue #197 Фаза C). */
-function LeaveGuardDialog({ open, saving, onSave, onDiscard, onCancel }: {
-  open: boolean; saving: boolean;
-  onSave: () => void; onDiscard: () => void; onCancel: () => void;
-}) {
-  return (
-    <Modal open={open} onOpenChange={o => { if (!o && !saving) onCancel(); }} title="Несохранённые изменения"
-      footer={
-        <div className="flex items-center justify-end gap-2">
-          <Button variant="text" onClick={onCancel} disabled={saving}>Отмена</Button>
-          <Button variant="tonal" onClick={onDiscard} disabled={saving}>Не сохранять</Button>
-          <Button variant="filled" onClick={onSave} loading={saving}>Сохранить и перейти</Button>
-        </div>
-      }>
-      <p className="text-sm text-fg2">
-        В этом типе есть несохранённые изменения. Сохранить их перед переходом к другому типу?
-      </p>
-    </Modal>
-  );
-}
-
-/** Свёрнутая MD3-карточка-секция (issue #197 Фаза C): заголовок с иконкой/счётчиком/chevron +
- *  раскрывающееся тело. Единый вид для «Группировка», «Тэги типа», «Typst-блоки». */
-function SectionCard({ icon, title, count, countClass, open, onToggle, children }: {
-  icon: React.ReactNode;
-  title: string;
-  count?: number;
-  countClass?: string;
-  open: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="border border-stroke rounded-lg bg-surface overflow-hidden">
-      <button type="button" onClick={onToggle}
-        className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-muted/40 transition-colors">
-        <span className="text-fg4 shrink-0">{icon}</span>
-        <span className="text-sm font-medium text-fg2">{title}</span>
-        {count != null && count > 0 && <span className={`text-xs ${countClass ?? 'text-brand'}`}>({count})</span>}
-        <span className="flex-1" />
-        {open ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
-      </button>
-      {open && <div className="px-3 pb-3 pt-1 border-t border-stroke">{children}</div>}
-    </div>
-  );
-}
+// Реестр редакторов / диалог-гард / карточка-секция — общие для list-detail страниц (см. typeEditorShell).
 
 function InheritedFieldsPanel({
   parentEffectiveFields, excludedFields, fieldOverrides, compositeTypes, enumTypes,
@@ -815,26 +752,8 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   const [query, setQuery] = useState('');
   const { data: allDocTypes = [], isLoading } = useListDocumentTypes();
 
-  // Реестр незасохранённых форм текущего типа (явное сохранение, issue #197 Фаза C).
-  const [dirtyMap, setDirtyMap] = useState<Record<string, boolean>>({});
-  const saversRef = useRef<Record<string, () => Promise<void>>>({});
-  const registry = useMemo<TypeEditorRegistry>(() => ({
-    publish: (key, dirty, save) => {
-      saversRef.current[key] = save;
-      setDirtyMap(m => m[key] === dirty ? m : { ...m, [key]: dirty });
-    },
-    unpublish: (key) => {
-      delete saversRef.current[key];
-      setDirtyMap(m => (key in m ? (() => { const n = { ...m }; delete n[key]; return n; })() : m));
-    },
-  }), []);
-  const anyDirty = Object.values(dirtyMap).some(Boolean);
-  const [saving, setSaving] = useState(false);
-  const saveAll = async () => {
-    setSaving(true);
-    try { for (const s of Object.values(saversRef.current)) await s(); }
-    finally { setSaving(false); }
-  };
+  // Реестр незасохранённых форм текущего типа (явное сохранение, issue #197 / #210 — общий).
+  const { registry, anyDirty, saving, saveAll } = useTypeEditorRegistry();
 
   // Гард при уходе с типа с несохранёнными правками.
   const [pendingSelect, setPendingSelect] = useState<string | null>(null);
@@ -891,7 +810,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
           {kind === 'Document' ? 'Типов документов не создано' : 'Составных типов не создано'}
         </div>
       ) : (
-        <TypeEditorContext.Provider value={registry}>
+        <TypeEditorProvider value={registry}>
           <div className="flex-1 min-h-0 flex">
             <TypeListPanel
               groupOrder={groupOrder} byGroup={byGroup} allDocTypes={allDocTypes}
@@ -905,7 +824,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
               <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Ничего не найдено</div>
             )}
           </div>
-        </TypeEditorContext.Provider>
+        </TypeEditorProvider>
       )}
 
       <LeaveGuardDialog
