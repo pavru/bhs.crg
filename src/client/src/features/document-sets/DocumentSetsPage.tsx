@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import {
-  Plus, Trash2, Download, Pencil, FolderOpen, Eye,
+  Plus, Trash2, Download, Pencil, FolderOpen, Eye, GripVertical,
   ArrowUp, ArrowDown, Layers, Building2, FileText, Search, X, Mail, Database, Table2, Users,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
@@ -60,6 +60,10 @@ function SetDetail() {
   const [renameSetOpen, setRenameSetOpen] = useState(false);
   const [renameSetVal, setRenameSetVal] = useState('');
   const [deleteSetConfirm, setDeleteSetConfirm] = useState(false);
+  // DnD-порядок документов: dragIndex — перетаскиваемая строка; dropPos — позиция вставки 0..N
+  // (перед instances[dropPos]; N = в конец). Стрелки ↑↓ остаются доступным фолбэком.
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropPos, setDropPos] = useState<number | null>(null);
   // Слежение за сборкой: пока идёт задача — опрашиваем вывод; останавливаемся, когда generatedAt изменится.
   const [watching, setWatching] = useState(false);
   const [assembleMsg, setAssembleMsg] = useState('');
@@ -111,6 +115,25 @@ function SetDetail() {
     if (j < 0 || j >= ids.length) return;
     [ids[index], ids[j]] = [ids[j], ids[index]];
     reorderMutation.mutate({ setId: set!.id, orderedIds: ids });
+  }
+
+  // Переставить документ из позиции from в позицию вставки pos (перед instances[pos]; pos=N — в конец).
+  function moveDocToPos(from: number, pos: number) {
+    if (pos === from || pos === from + 1) return; // на месте
+    const ids = set!.instances.map(i => i.id);
+    const [moved] = ids.splice(from, 1);
+    const insertAt = pos > from ? pos - 1 : pos; // учёт сдвига после удаления
+    ids.splice(insertAt, 0, moved);
+    reorderMutation.mutate({ setId: set!.id, orderedIds: ids });
+  }
+  function endDrag() { setDragIndex(null); setDropPos(null); }
+  // Позиция вставки по половине строки под курсором (верх → перед, низ → после) — полный диапазон, вкл. конец.
+  function onRowDragOver(e: React.DragEvent, index: number) {
+    if (dragIndex === null) return;
+    e.preventDefault();
+    const r = e.currentTarget.getBoundingClientRect();
+    const pos = e.clientY < r.top + r.height / 2 ? index : index + 1;
+    if (pos !== dropPos) setDropPos(pos);
   }
 
   // Пикер сам закрывается по выбору; добавляем документ выбранного типа (ошибку показываем строкой у шапки).
@@ -199,7 +222,7 @@ function SetDetail() {
           <table className="w-full text-sm">
             <thead className="bg-base border-b border-stroke">
               <tr>
-                <th className="px-2 py-3 w-12" title="Порядок в собранном комплекте" />
+                <th className="px-2 py-3 w-16" title="Порядок в собранном комплекте" />
                 <th className="text-left px-4 py-3 font-medium text-fg2">Документ</th>
                 <th className="text-left px-4 py-3 font-medium text-fg2 w-32">Статус</th>
                 <th className="px-4 py-3 w-36" />
@@ -209,19 +232,37 @@ function SetDetail() {
             <tbody>
               {set.instances.map((inst, index) => {
                 const pdfFiles = inst.generatedFiles.filter(f => f.format === 'Pdf');
+                const isDragging = dragIndex === index;
+                const lastIndex = set.instances.length - 1;
+                const showTop = dragIndex !== null && dropPos === index;
+                const showBottom = dragIndex !== null && dropPos === set.instances.length && index === lastIndex;
+                const rowStyle = showTop ? { boxShadow: 'inset 0 2px 0 0 var(--color-brand)' }
+                  : showBottom ? { boxShadow: 'inset 0 -2px 0 0 var(--color-brand)' } : undefined;
                 return (
-                  <tr key={inst.id} className="border-b border-muted last:border-0 hover:bg-base cursor-pointer group"
-                    onClick={() => setEditInstance(inst)}>
+                  <tr key={inst.id}
+                    className={`border-b border-muted last:border-0 hover:bg-base cursor-pointer group transition-opacity ${isDragging ? 'opacity-40' : ''}`}
+                    style={rowStyle}
+                    onClick={() => setEditInstance(inst)}
+                    onDragOver={e => onRowDragOver(e, index)}
+                    onDrop={() => { if (dragIndex !== null && dropPos !== null) moveDocToPos(dragIndex, dropPos); endDrag(); }}>
                     <td className="px-2 py-3" onClick={e => e.stopPropagation()}>
-                      <div className="flex flex-col items-center -my-1">
-                        <button onClick={() => moveDoc(index, -1)} disabled={index === 0 || reorderMutation.isPending}
-                          className="p-0.5 text-fg4 hover:text-brand disabled:opacity-25 disabled:hover:text-fg4 transition-colors" title="Выше">
-                          <ArrowUp size={13} />
+                      <div className="flex items-center gap-1">
+                        <button type="button" draggable
+                          onDragStart={() => setDragIndex(index)} onDragEnd={endDrag}
+                          className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 shrink-0 focus-visible:outline-none focus-visible:text-brand"
+                          title="Перетащить для изменения порядка" aria-label={`Переместить документ ${index + 1} перетаскиванием`}>
+                          <GripVertical size={14} />
                         </button>
-                        <button onClick={() => moveDoc(index, 1)} disabled={index === set.instances.length - 1 || reorderMutation.isPending}
-                          className="p-0.5 text-fg4 hover:text-brand disabled:opacity-25 disabled:hover:text-fg4 transition-colors" title="Ниже">
-                          <ArrowDown size={13} />
-                        </button>
+                        <div className="flex flex-col items-center -my-1">
+                          <button onClick={() => moveDoc(index, -1)} disabled={index === 0 || reorderMutation.isPending}
+                            className="p-0.5 text-fg4 hover:text-brand disabled:opacity-25 disabled:hover:text-fg4 transition-colors" title="Выше">
+                            <ArrowUp size={13} />
+                          </button>
+                          <button onClick={() => moveDoc(index, 1)} disabled={index === lastIndex || reorderMutation.isPending}
+                            className="p-0.5 text-fg4 hover:text-brand disabled:opacity-25 disabled:hover:text-fg4 transition-colors" title="Ниже">
+                            <ArrowDown size={13} />
+                          </button>
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3">
