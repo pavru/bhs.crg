@@ -68,7 +68,7 @@ export function ObjectRow({
   return (
     <div className={`group flex items-center transition-colors ${dense ? 'gap-3 px-3 py-2 hover:bg-muted' : 'gap-4 px-4 py-3 hover:bg-base'} ${className}`}>
       {docKind && dense && <FileText size={12} className="text-warning shrink-0" />}
-      <span className={`flex-1 text-sm truncate ${dense ? 'text-fg1' : 'font-medium text-fg1'}`}>{entry.displayName}</span>
+      <span className={`flex-1 min-w-[8rem] text-sm truncate ${dense ? 'text-fg1' : 'font-medium text-fg1'}`}>{entry.displayName}</span>
       <ProxyRoleMarker entry={entry} siblings={siblings} resolvePool={resolvePool} onOpen={onEdit} />
       {docKind && dense && (
         <span className="text-xs px-1.5 py-0.5 rounded bg-warning-subtle text-warning font-medium shrink-0">внеш. документ</span>
