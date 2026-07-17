@@ -409,7 +409,7 @@ function SectionDetail() {
   if (!section) return <div className="p-6 text-sm text-danger">Раздел не найден</div>;
 
   const setsInSection = section.documentSets.length;
-  const docsInSection = section.documentSets.reduce((acc, ds) => acc + (ds.instances?.length ?? 0), 0);
+  const docsInSection = section.documentSets.reduce((acc, ds) => acc + (ds.documentCount ?? 0), 0);
   const base = `/document-sets/${constructionId}/sections/${sectionId}`;
   const goPanel = (p: SectionPanel) => navigate(p === 'catalog' ? base : `${base}/${p}`);
 
@@ -439,7 +439,7 @@ function SectionDetail() {
       <NavSection label="Комплекты" />
       {section.documentSets.length === 0 && <p className="px-3 py-1.5 text-xs text-fg4">Нет комплектов</p>}
       {section.documentSets.map(ds => (
-        <NavItem key={ds.id} icon={<FolderOpen size={17} />} label={ds.name} count={ds.instances?.length ?? 0} chevron
+        <NavItem key={ds.id} icon={<FolderOpen size={17} />} label={ds.name} count={ds.documentCount ?? 0} chevron
           onClick={() => navigate(`/document-sets/${constructionId}/sets/${ds.id}`)} />
       ))}
       <button type="button" onClick={() => setAddSetOpen(true)}
@@ -578,7 +578,7 @@ function ConstructionDetail() {
   const goPanel = (p: ConstructionPanel) => navigate(p === 'catalog' ? base : `${base}/${p}`);
   const sectionsN = construction.sections.length;
   const setsN = construction.sections.reduce((a, s) => a + s.documentSets.length, 0);
-  const docsN = construction.sections.reduce((a, s) => a + s.documentSets.reduce((x, ds) => x + (ds.instances?.length ?? 0), 0), 0);
+  const docsN = construction.sections.reduce((a, s) => a + s.documentSets.reduce((x, ds) => x + (ds.documentCount ?? 0), 0), 0);
 
   const contextCrumbs = (
     <Link to="/document-sets" className="text-xs text-fg4 hover:text-fg2 transition-colors">Стройки</Link>
@@ -875,7 +875,7 @@ function ConstructionsList() {
           if (!deleteTarget) return undefined;
           const sectionsN = deleteTarget.sections.length;
           const setsN = deleteTarget.sections.reduce((acc, s) => acc + s.documentSets.length, 0);
-          const docsN = deleteTarget.sections.reduce((acc, s) => acc + s.documentSets.reduce((a, ds) => a + (ds.instances?.length ?? 0), 0), 0);
+          const docsN = deleteTarget.sections.reduce((acc, s) => acc + s.documentSets.reduce((a, ds) => a + (ds.documentCount ?? 0), 0), 0);
           if (sectionsN === 0) return undefined;
           return (
             <>

@@ -15,4 +15,8 @@ public interface IDomainObjectRepository : IRepository<DomainObject>
 
     /// <summary>Документы нескольких комплектов (untracked, для списков/пикеров).</summary>
     Task<IReadOnlyList<DomainObject>> GetDocumentsInSetsAsync(IReadOnlyCollection<Guid> setIds, CancellationToken ct = default);
+
+    /// <summary>Число документов по каждому комплекту (лёгкий COUNT, без JSONB) — для счётчиков навигации
+    /// и каскадов удаления в дереве стройки. Комплекты без документов в словарь не попадают.</summary>
+    Task<IReadOnlyDictionary<Guid, int>> CountDocumentsInSetsAsync(IReadOnlyCollection<Guid> setIds, CancellationToken ct = default);
 }

@@ -16,16 +16,22 @@ public static class DocumentSetEndpoints
         // ── Constructions ──────────────────────────────────────────────────────
         var c = app.MapGroup("/api/constructions").RequireAuthorization();
 
-        c.MapGet("/", async (IMediator m, ClaimsPrincipal user) =>
+        c.MapGet("/", async (IMediator m, ClaimsPrincipal user, IDomainObjectRepository objRepo, CancellationToken ct) =>
         {
             var userId = GetUserId(user);
-            return Results.Ok(await m.Send(new ListConstructionsQuery(userId)));
+            var list = await m.Send(new ListConstructionsQuery(userId));
+            var setIds = list.SelectMany(x => x.Sections).SelectMany(s => s.DocumentSets).Select(ds => ds.Id).ToList();
+            var counts = await objRepo.CountDocumentsInSetsAsync(setIds, ct);
+            return Results.Ok(list.Select(x => ConstructionDto.From(x, counts)).ToList());
         });
 
-        c.MapGet("/{id:guid}", async (Guid id, IMediator m) =>
+        c.MapGet("/{id:guid}", async (Guid id, IMediator m, IDomainObjectRepository objRepo, CancellationToken ct) =>
         {
             var construction = await m.Send(new GetConstructionQuery(id));
-            return construction is null ? Results.NotFound() : Results.Ok(construction);
+            if (construction is null) return Results.NotFound();
+            var setIds = construction.Sections.SelectMany(s => s.DocumentSets).Select(ds => ds.Id).ToList();
+            var counts = await objRepo.CountDocumentsInSetsAsync(setIds, ct);
+            return Results.Ok(ConstructionDto.From(construction, counts));
         });
 
         c.MapPost("/", async (CreateConstructionRequest req, IMediator m, ClaimsPrincipal user) =>
