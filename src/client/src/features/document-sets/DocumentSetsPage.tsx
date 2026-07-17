@@ -324,12 +324,13 @@ function SetDetail() {
 
   const detail = (
     <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
-      {/* Каталог — во всю ширину (рейл типов у левого края); прочие панели центрируем. */}
+      {/* Каталог и Наборы данных — во всю ширину (рейл у левого края); документы/подписчики центрируем. */}
       {activePanel === 'catalog'
         ? <CatalogResource scope="Set" scopeId={setId ?? null} allDocTypes={docTypes} />
+        : activePanel === 'datasets'
+        ? <DataSetsResource scope="Set" scopeId={setId} />
         : <div className="mx-auto max-w-5xl">
             {activePanel === 'documents' ? documentsContent
-              : activePanel === 'datasets' ? <DataSetsResource scope="Set" scopeId={setId} />
               : <SubscribersResource scope="Set" scopeId={setId!} />}
           </div>}
     </div>
@@ -510,9 +511,10 @@ function SectionDetail() {
     <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
       {activePanel === 'catalog'
         ? <CatalogResource scope="Section" scopeId={sectionId ?? null} allDocTypes={docTypes} />
+        : activePanel === 'datasets'
+        ? <DataSetsResource scope="Section" scopeId={sectionId} />
         : <div className="mx-auto max-w-5xl">
-            {activePanel === 'datasets' ? <DataSetsResource scope="Section" scopeId={sectionId} />
-              : <SubscribersResource scope="Section" scopeId={sectionId!} />}
+            <SubscribersResource scope="Section" scopeId={sectionId!} />
           </div>}
     </div>
   );
@@ -661,9 +663,10 @@ function ConstructionDetail() {
     <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
       {activePanel === 'catalog'
         ? <CatalogResource scope="Construction" scopeId={constructionId ?? null} allDocTypes={docTypes} />
+        : activePanel === 'datasets'
+        ? <DataSetsResource scope="Construction" scopeId={constructionId} />
         : <div className="mx-auto max-w-5xl">
-            {activePanel === 'datasets' ? <DataSetsResource scope="Construction" scopeId={constructionId} />
-              : <SubscribersResource scope="Construction" scopeId={constructionId!} />}
+            <SubscribersResource scope="Construction" scopeId={constructionId!} />
           </div>}
     </div>
   );

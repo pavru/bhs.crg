@@ -11,7 +11,7 @@ export function DataSetsPage() {
   const [templatesOpen, setTemplatesOpen] = useState(false);
 
   return (
-    <div className="px-6 py-4 max-w-3xl">
+    <div className="px-6 py-4">
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-xl font-semibold text-fg1">Наборы данных</h1>
         <button onClick={() => setTemplatesOpen(true)}
