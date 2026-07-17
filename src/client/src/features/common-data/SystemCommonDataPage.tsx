@@ -8,7 +8,7 @@ import { CatalogResource } from '../document-sets/catalog/CatalogResource';
 export function SystemCommonDataPage() {
   const { data: allDocTypes = [] } = useListDocumentTypes();
   return (
-    <div className="px-6 py-4 max-w-4xl mx-auto">
+    <div className="px-6 py-4">
       <div className="mb-4">
         <h1 className="text-xl font-semibold text-fg1">Системный каталог</h1>
         <p className="text-xs text-fg3 mt-0.5">Общие данные, доступные во всех проектах (приоритет 5)</p>
