@@ -9,7 +9,7 @@ import { useRecognitionJobs, useCancelJob, type ActiveJob } from '@/shared/api/j
 import type { CatalogScope, DataSetFile } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS } from '@/shared/api/types';
 import { ruCount } from '@/shared/utils/pluralize';
-import { SourcesPanel } from './SourcesExpander';
+import { SourcesPanel, FileRecognizeActions } from './SourcesExpander';
 import { useDataSetFileActions } from './useDataSetFileActions';
 
 const ACCEPT = '.csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx,.pdf';
@@ -66,6 +66,7 @@ function FileDetail({ file, scope, scopeId, job }: {
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <input ref={updateInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleReplace} />
+          <FileRecognizeActions file={file} />
           <IconButton label="Скачать оригинальный файл" size="sm" onClick={handleDownload} disabled={downloading}>
             <Download size={15} className={downloading ? 'opacity-50' : ''} />
           </IconButton>

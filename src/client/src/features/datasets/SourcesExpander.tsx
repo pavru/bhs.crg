@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
-  BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, LayoutGrid, Type,
+  BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, Scissors, Type,
 } from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
 import { useSourceRecognizing } from '@/shared/api/jobs';
@@ -13,7 +13,7 @@ import {
 } from '@/shared/api/datasets';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
 import { SourceEditorDialog } from './SourceEditorDialog';
@@ -245,6 +245,58 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
  * кандидаты. Раньше — сворачиваемый инлайн-блок (`SourcesExpander`); теперь всегда раскрыт как detail.
  * Обработка (Filter/Transformation/Sort) — для любого формата; PDF Extraction — распознавание (не builder).
  */
+/**
+ * Действия уровня НАБОРА для PDF — распознать + разбиение (ГОСТ), как иконки в toolbar шапки файла
+ * (issue #237, рейл-по-файлу: file-actions в toolbar, не текстовые ссылки). Владеет диалогами профиля
+ * и конфликта ручной группировки. Для не-PDF рендерит null.
+ */
+export function FileRecognizeActions({ file }: { file: DataSetFile }) {
+  const recognizeFile = useRecognizeFile();
+  const [recognizeConflict, setRecognizeConflict] = useState(false);
+  const [profileDialog, setProfileDialog] = useState(false);
+  const navigate = useNavigate();
+  const isPdf = file.format === 'Pdf';
+  const profile = file.preprocessingProfile;
+  const isGostDataset = profile === 'gost-titleblock'
+    || file.sources.some(s => s.sheetOrPath === 'gost-documents' || s.sheetOrPath === 'gost-cover'
+      || s.sheetOrPath === 'gost-titlepage' || s.sheetOrPath.startsWith('gost-table:'));
+  const recognizing = useSourceRecognizing(file.id);
+  const { data: candidates = [] } = useSourceCandidates(isPdf ? file.id : undefined);
+
+  function handleRecognizeDataset(confirm = false) {
+    if (profile || candidates.length > 0) {
+      recognizeFile.mutate({ fileId: file.id, confirm }, {
+        onError: (err: unknown) => { if (isManualGroupingConflict(err)) setRecognizeConflict(true); },
+      });
+    } else {
+      setProfileDialog(true); // профиль не выбран → диалог выбора профиля (ставит профиль + распознаёт)
+    }
+  }
+
+  if (!isPdf) return null;
+
+  return (
+    <>
+      <IconButton label={profile ? 'Распознать заново' : 'Распознать'} size="sm"
+        onClick={() => handleRecognizeDataset()} disabled={recognizeFile.isPending || recognizing}>
+        {recognizing ? <Loader2 size={15} className="animate-spin" /> : <ScanText size={15} />}
+      </IconButton>
+      {isGostDataset && (
+        <IconButton label="Разбиение — перенос страниц, типы таблиц, распознавание таблицы" size="sm"
+          onClick={() => navigate(`/datasets/files/${file.id}/grouping`, { state: { sourceName: file.name } })}>
+          <Scissors size={15} />
+        </IconButton>
+      )}
+      {profileDialog && <PdfSourceDialog fileId={file.id} onClose={() => setProfileDialog(false)} />}
+      <ConfirmDialog open={recognizeConflict} onOpenChange={o => { if (!o) setRecognizeConflict(false); }}
+        title="Разбиение было скорректировано вручную"
+        description={<p>Повторное автораспознавание сотрёт ручные правки разбиения на документы. Продолжить?</p>}
+        confirmLabel="Распознать заново"
+        onConfirm={() => recognizeFile.mutate({ fileId: file.id, confirm: true })} />
+    </>
+  );
+}
+
 export function SourcesPanel({
   file,
   maxColumns = 8,
@@ -267,63 +319,17 @@ export function SourcesPanel({
   const createSource = useCreateDataSetSource();
   const availableCandidates = candidates.filter(c => !sources.some(s => s.sheetOrPath === c.sheetOrPath));
 
-  // Распознавание — команда УРОВНЯ НАБОРА, единая для ВСЕХ профилей PDF (issue #38/#44: унифицирован
-  // VERB вызова — раньше «Счёт» шёл по source-centric пути, теперь оба профиля через fileId). ГОСТ
-  // пишет сырьё (Grouping), источников не создаёт; «Счёт» распознаёт и обновляет уже созданную пару
-  // источников. Профиль ещё не выбран → диалог профиля (ставит профиль + распознаёт).
-  const recognizeFile = useRecognizeFile();
-  const [recognizeConflict, setRecognizeConflict] = useState(false);
-  const [profileDialog, setProfileDialog] = useState(false); // диалог выбора профиля PDF (только для «Распознать»)
-  const navigate = useNavigate();
-  const profile = file.preprocessingProfile;
-  // ГОСТ-набор: профиль gost ИЛИ есть проекции/таблицы из его группировки (legacy-наборы без профиля).
-  const isGostDataset = profile === 'gost-titleblock'
-    || sources.some(s => s.sheetOrPath === 'gost-documents' || s.sheetOrPath === 'gost-cover'
-      || s.sheetOrPath === 'gost-titlepage' || s.sheetOrPath.startsWith('gost-table:'));
-  const recognizing = useSourceRecognizing(file.id); // Job-based (ГОСТ); «Счёт» — recognizeFile.isPending покрывает
-  const recognizeBusy = recognizeFile.isPending;
-
-  function handleRecognizeDataset(confirm = false) {
-    if (profile || candidates.length > 0) {
-      recognizeFile.mutate({ fileId: file.id, confirm }, {
-        onError: (err: unknown) => { if (isManualGroupingConflict(err)) setRecognizeConflict(true); },
-      });
-    } else {
-      setProfileDialog(true); // профиль не выбран → диалог выбора профиля (ставит профиль + распознаёт)
-    }
-  }
-
-  if (sources.length === 0 && !canManageExtraction)
-    return <span className="text-xs text-fg4">Нет источников</span>;
-
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-fg4">
           Источники{sources.length > 0 ? ` · ${sources.length}` : ''}
         </span>
-        <div className="flex items-center gap-3">
-          {/* PDF-набор: «Распознать» (уровень набора, issue #38). */}
-          {isPdf && (
-            <button onClick={() => handleRecognizeDataset()} disabled={recognizeBusy || recognizing}
-              className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover disabled:opacity-50">
-              <ScanText size={13} /> {recognizing ? 'Распознаётся…' : profile ? 'Распознать заново' : 'Распознать'}
-            </button>
-          )}
-          {/* Редактор разбиения — на уровне НАБОРА (issue #40): доступен без создания источника «Документы». */}
-          {isPdf && isGostDataset && (
-            <button onClick={() => navigate(`/datasets/files/${file.id}/grouping`, { state: { sourceName: file.name } })}
-              className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover"
-              title="Перенести страницы между документами, задать тип таблицы, распознать таблицу — на уровне набора">
-              <LayoutGrid size={13} /> Разбиение
-            </button>
-          )}
-          {canManageExtraction && (
-            <Button variant="outlined" size="sm" icon={<Plus size={14} />} onClick={() => setEditing('new')}>
-              Добавить источник
-            </Button>
-          )}
-        </div>
+        {canManageExtraction && (
+          <Button variant="outlined" size="sm" icon={<Plus size={14} />} onClick={() => setEditing('new')}>
+            Добавить источник
+          </Button>
+        )}
       </div>
       <div className="space-y-2">
         {sources.length === 0 && (
@@ -360,16 +366,6 @@ export function SourcesPanel({
           onClose={() => setEditing(null)}
         />
       )}
-      {profileDialog && <PdfSourceDialog fileId={file.id} onClose={() => setProfileDialog(false)} />}
-
-      <ConfirmDialog
-        open={recognizeConflict}
-        onOpenChange={o => { if (!o) setRecognizeConflict(false); }}
-        title="Разбиение было скорректировано вручную"
-        description={<p>Повторное автораспознавание сотрёт ручные правки разбиения на документы. Продолжить?</p>}
-        confirmLabel="Распознать заново"
-        onConfirm={() => recognizeFile.mutate({ fileId: file.id, confirm: true })}
-      />
     </div>
   );
 }
