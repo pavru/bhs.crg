@@ -26,7 +26,11 @@ export function GroupedFieldsEditor({
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null); // ключ группы (или '__ungrouped__') под курсором
+  const [dropBeforeKey, setDropBeforeKey] = useState<string | null>(null); // поле, ПЕРЕД которым ляжет; null = в конец контейнера
   const [newGroupTitle, setNewGroupTitle] = useState('');
+
+  // Показать линию-индикатор вставки перед членом (кроме самого перетаскиваемого).
+  const lineBefore = (key: string) => !!dragKey && dropBeforeKey === key && dragKey !== key;
 
   const ownByKey = new Map(fields.map(f => [f.key, f]));
   const inhByKey = new Map(parentEffectiveFields.map(f => [f.key, f]));
@@ -120,11 +124,20 @@ export function GroupedFieldsEditor({
   const memberDropProps = (targetKey: string, containerKey: string | null) => ({
     dragging: !!dragKey && dragKey === targetKey,
     onDragStart: () => { if (targetKey) setDragKey(targetKey); },
-    onDragEnd: () => { setDragKey(null); setDropTarget(null); },
-    onDragOver: (e: React.DragEvent) => { if (dragKey && targetKey && dragKey !== targetKey) e.preventDefault(); },
-    onDrop: () => {
+    onDragEnd: () => { setDragKey(null); setDropTarget(null); setDropBeforeKey(null); },
+    // Над конкретным полем: линия ПЕРЕД ним. stopPropagation — чтобы обработчик тела контейнера
+    // (append) не перебивал точную позицию.
+    onDragOver: (e: React.DragEvent) => {
+      if (dragKey && targetKey && dragKey !== targetKey) {
+        e.preventDefault(); e.stopPropagation();
+        setDropTarget(containerKey ?? '__ungrouped__');
+        setDropBeforeKey(targetKey);
+      }
+    },
+    onDrop: (e: React.DragEvent) => {
+      e.stopPropagation();
       if (dragKey && targetKey && dragKey !== targetKey) moveKey(dragKey, containerKey, targetKey);
-      setDragKey(null); setDropTarget(null);
+      setDragKey(null); setDropTarget(null); setDropBeforeKey(null);
     },
   });
 
@@ -132,28 +145,33 @@ export function GroupedFieldsEditor({
     const idx = fields.indexOf(own);
     const dp = memberDropProps(own.key, containerKey);
     return (
-      <FieldCard
-        key={`own-${idx}`}
-        field={own}
-        reg={reg}
-        keyConflict={!!own.key && !!disabledKeys?.has(own.key.trim())}
-        open={openIndex === idx}
-        onToggleOpen={() => setOpenIndex(o => o === idx ? null : idx)}
-        onChange={patch => patchOwn(own, patch)}
-        onRemove={() => removeOwn(own)}
-        onMoveUp={pos > 0 ? () => moveKey(own.key, containerKey, siblingKeys[pos - 1]) : undefined}
-        onMoveDown={pos < siblingKeys.length - 1 ? () => moveKey(own.key, containerKey, siblingKeys[pos + 2]) : undefined}
-        isFirst={pos === 0}
-        isLast={pos === siblingKeys.length - 1}
-        {...dp}
-      />
+      <div key={`own-${idx}`}>
+        {lineBefore(own.key) && <DropLine />}
+        <FieldCard
+          field={own}
+          reg={reg}
+          keyConflict={!!own.key && !!disabledKeys?.has(own.key.trim())}
+          open={openIndex === idx}
+          onToggleOpen={() => setOpenIndex(o => o === idx ? null : idx)}
+          onChange={patch => patchOwn(own, patch)}
+          onRemove={() => removeOwn(own)}
+          onMoveUp={pos > 0 ? () => moveKey(own.key, containerKey, siblingKeys[pos - 1]) : undefined}
+          onMoveDown={pos < siblingKeys.length - 1 ? () => moveKey(own.key, containerKey, siblingKeys[pos + 2]) : undefined}
+          isFirst={pos === 0}
+          isLast={pos === siblingKeys.length - 1}
+          {...dp}
+        />
+      </div>
     );
   }
 
   function renderInherited(inh: SchemaField, containerKey: string | null) {
     const dp = memberDropProps(inh.key, containerKey);
     return (
-      <InheritedRow key={`inh-${inh.key}`} field={inh} typeLabel={fieldTypeSummary(inh, reg)} {...dp} />
+      <div key={`inh-${inh.key}`}>
+        {lineBefore(inh.key) && <DropLine />}
+        <InheritedRow field={inh} typeLabel={fieldTypeSummary(inh, reg)} {...dp} />
+      </div>
     );
   }
 
@@ -169,9 +187,12 @@ export function GroupedFieldsEditor({
   const dropZoneProps = (containerKey: string | null) => {
     const id = containerKey ?? '__ungrouped__';
     return {
-      onDragOver: (e: React.DragEvent) => { if (dragKey) { e.preventDefault(); setDropTarget(id); } },
-      onDrop: () => { if (dragKey) moveKey(dragKey, containerKey); setDragKey(null); setDropTarget(null); },
+      // Тело контейнера (не над полем — обработчик поля делает stopPropagation): бросок в конец.
+      onDragOver: (e: React.DragEvent) => { if (dragKey) { e.preventDefault(); setDropTarget(id); setDropBeforeKey(null); } },
+      onDrop: () => { if (dragKey) moveKey(dragKey, containerKey); setDragKey(null); setDropTarget(null); setDropBeforeKey(null); },
       highlighted: dropTarget === id,
+      // Линия «в конец» — когда курсор над телом этого контейнера, но не над конкретным полем.
+      appendLine: !!dragKey && dropTarget === id && dropBeforeKey === null,
     };
   };
 
@@ -192,6 +213,7 @@ export function GroupedFieldsEditor({
                 return ownUngrouped.map((f, i) => renderOwn(f, null, ownKeys, i));
               })()}
               {inhUngrouped.map(f => renderInherited(f, null))}
+              {zone.appendLine && (ownUngrouped.length + inhUngrouped.length) > 0 && <DropLine />}
               <Button type="button" variant="tonal" onClick={addField} icon={<Plus size={14} />} className="w-full justify-center">
                 Добавить поле
               </Button>
@@ -234,6 +256,7 @@ export function GroupedFieldsEditor({
                 </p>
               )}
               {members.map(k => renderMemberByKey(k, group.key, members))}
+              {zone.appendLine && members.length > 0 && <DropLine />}
             </div>
           </div>
         );
@@ -256,6 +279,11 @@ export function GroupedFieldsEditor({
   );
 }
 
+// ── Индикатор места вставки при drag&drop (issue: линия, куда ляжет поле) ──────
+function DropLine() {
+  return <div aria-hidden className="h-0.5 rounded-full bg-brand mb-2 shadow-[0_0_0_1px_var(--color-brand)]" />;
+}
+
 // ── Компактная read-only строка унаследованного поля внутри группы ────────────
 function InheritedRow({ field, typeLabel, dragging, onDragStart, onDragEnd, onDragOver, onDrop }: {
   field: SchemaField;
@@ -264,7 +292,7 @@ function InheritedRow({ field, typeLabel, dragging, onDragStart, onDragEnd, onDr
   onDragStart?: () => void;
   onDragEnd?: () => void;
   onDragOver?: (e: React.DragEvent) => void;
-  onDrop?: () => void;
+  onDrop?: (e: React.DragEvent) => void;
 }) {
   return (
     <div

@@ -118,7 +118,7 @@ interface FieldCardProps {
   onDragStart?: () => void;
   onDragEnd?: () => void;
   onDragOver?: (e: React.DragEvent) => void;
-  onDrop?: () => void;
+  onDrop?: (e: React.DragEvent) => void;
 }
 
 /** Одно СВОЁ поле: свёрнутая шапка (drag-ручка + сводка + chip типа + chevron) → раскрытый
