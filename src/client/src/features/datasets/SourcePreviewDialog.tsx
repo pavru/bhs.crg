@@ -96,31 +96,36 @@ export function SourcePreviewDialog({ source, onClose }: { source: DataSetSource
       ) : isGostDocuments ? (
         <GostDocumentsPreview data={data} />
       ) : (
-        <div className={dtCard}>
-          <table className={dtTable}>
-            <thead>
-              <tr>
-                {data.columns.map(c => (
-                  <th key={c} className={dtTh}>{c}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.rows.map((row, i) => (
-                <tr key={i} className={dtRow}>
-                  {row.map((v, j) => (
-                    <td key={j} className={`${dtTd} whitespace-nowrap ${v == null ? 'text-fg4' : 'text-fg1'}`}>
-                      {v ?? <em>null</em>}
-                    </td>
+        <>
+          {/* Ограниченная по высоте карточка — единый скролл-контейнер (sticky-шапка + горизонтальный
+              скролл ВНУТРИ него); иначе таблица растягивала тело модалки и горизонтальный скроллбар
+              «уезжал» к дну длинной таблицы, а на стыке со скроллом модалки был глюк (issue #240). */}
+          <div className={`${dtCard} max-h-[65vh]`}>
+            <table className={dtTable}>
+              <thead>
+                <tr>
+                  {data.columns.map(c => (
+                    <th key={c} className={dtTh}>{c}</th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="px-3 py-1.5 border-t border-stroke text-xs text-fg4">
+              </thead>
+              <tbody>
+                {data.rows.map((row, i) => (
+                  <tr key={i} className={dtRow}>
+                    {row.map((v, j) => (
+                      <td key={j} className={`${dtTd} whitespace-nowrap ${v == null ? 'text-fg4' : 'text-fg1'}`}>
+                        {v ?? <em>null</em>}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-1 pt-2 text-xs text-fg4">
             {data.totalRows} строк{data.totalRows > data.rows.length ? ` (показано первых ${data.rows.length})` : ''}
           </div>
-        </div>
+        </>
       )}
     </Modal>
   );
