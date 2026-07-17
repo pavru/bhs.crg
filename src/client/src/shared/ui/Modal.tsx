@@ -84,7 +84,7 @@ export function Modal({ open, onOpenChange, title, children, wide, extraWide, fu
               {typeof children === 'function' ? children(attemptClose) : children}
             </div>
           ) : (
-            <div className={`overflow-y-auto flex-1 px-6 ${footer ? 'pb-4' : 'pb-6'}`}>
+            <div className={`overflow-y-auto flex-1 px-6 pt-2 ${footer ? 'pb-4' : 'pb-6'}`}>
               {typeof children === 'function' ? children(attemptClose) : children}
             </div>
           )}
