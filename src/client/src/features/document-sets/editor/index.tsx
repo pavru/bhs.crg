@@ -35,6 +35,7 @@ import { QualityLinksTab } from './QualityLinksTab';
 import { DocumentTemplateParams } from './DocumentTemplateParams';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 
 type SaveRef = { current: (() => Promise<boolean>) | null };
 
@@ -109,6 +110,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   const [showValidation, setShowValidation] = useState(false);
   const [activeKey, setActiveKey] = useState<string>(''); // активный раздел (list-detail, issue #191)
   const [hintPicker, setHintPicker] = useState(false); // пикер «Основы» из строки-подсказки (issue #223)
+  const [pendingBase, setPendingBase] = useState<BaseCandidate | null>(null); // подтверждение замены базы
   const mutation = useUpdateRequisites();
 
   // Поля, заполняемые привязкой к набору данных при генерации — источник перезаписывает их,
@@ -171,6 +173,13 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
     ? schemaFields.filter(f => ownFieldKeys.has(f.key) || !baseCoveredFields.has(f.key))
     : schemaFields;
   function selectBase(c: BaseCandidate) { setValue('_baseRef', { kind: c.kind, id: c.id }); }
+  // Замена уже выбранной базы на другую — сперва подтверждение (issue #223): набор предзаполняемых
+  // полей меняется. Значения НЕ удаляются (база мёржится в пустые/покрытые при генерации), поэтому
+  // диалог предупреждает, а не «перезаписывает». Первый выбор (базы ещё нет) — сразу, без диалога.
+  function requestSelectBase(c: BaseCandidate) {
+    if (baseRef && baseRef.id !== c.id) setPendingBase(c);
+    else selectBase(c);
+  }
   function clearBaseRef() {
     setValues(p => { const n = { ...p }; delete n._baseRef; return n; });
     onDirty(true);
@@ -186,7 +195,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
     onBaseState({ hasBase, selected: selectedBase, missing: missingBase, candidates: baseCandidates, coveredCount: baseCoveredCount });
   }, [hasBase, selectedBase, missingBase, baseCandidates, baseCoveredCount, onBaseState]);
   useEffect(() => {
-    baseControlRef.current = { select: selectBase, clear: clearBaseRef };
+    baseControlRef.current = { select: requestSelectBase, clear: clearBaseRef };
     return () => { baseControlRef.current = null; };
   });
 
@@ -522,7 +531,17 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
           <p className="text-sm text-danger">{error}</p>
         </div>
       )}
-      <BaseCandidatePicker open={hintPicker} onOpenChange={setHintPicker} candidates={baseCandidates} onSelect={selectBase} />
+      <BaseCandidatePicker open={hintPicker} onOpenChange={setHintPicker} candidates={baseCandidates} onSelect={requestSelectBase} />
+      <ConfirmDialog
+        open={!!pendingBase}
+        onOpenChange={o => { if (!o) setPendingBase(null); }}
+        title="Заменить основу?"
+        description={
+          <>Набор предзаполняемых полей изменится: часть значений может перестать наследоваться от текущей основы, а другие поля станут обязательными. Введённые вручную значения не удаляются.</>
+        }
+        confirmLabel="Заменить"
+        onConfirm={() => { if (pendingBase) selectBase(pendingBase); setPendingBase(null); }}
+      />
     </div>
   );
 }
