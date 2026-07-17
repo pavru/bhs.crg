@@ -65,6 +65,17 @@ export function useSourceRecognizing(sourceId: string): boolean {
   return (data ?? []).some(j => j.targetId === sourceId && RECOGNITION_KINDS.includes(j.kind));
 }
 
+/** Активные задачи распознавания текущего пользователя (для статуса набора: спиннер в рейле, баннер
+ *  прогресса «лист N из M» в шапке). Тот же кэш `['jobs','active']`, что и индикатор. */
+export function useRecognitionJobs(): ActiveJob[] {
+  const { data } = useQuery<ActiveJob[]>({
+    queryKey: ['jobs', 'active'],
+    queryFn: () => apiClient.get('/jobs/active').then(r => r.data as ActiveJob[]),
+    refetchInterval: q => ((q.state.data?.length ?? 0) > 0 ? 2000 : 10000),
+  });
+  return (data ?? []).filter(j => RECOGNITION_KINDS.includes(j.kind));
+}
+
 /** Отмена задачи из очереди (только Queued — 409 для выполняемых). После — обновляем список активных. */
 export function useCancelJob() {
   const qc = useQueryClient();
