@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ChevronDown, ChevronRight, Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
+  Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
   BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, LayoutGrid, Type,
 } from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
@@ -240,18 +240,18 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
 }
 
 /**
- * Collapsible list of a file's data sources with a preview of their column names.
- * Обработка (Filter/Transformation/Sort) доступна для источников любого формата; для PDF Extraction —
- * распознавание (не builder). Все действия строки свёрнуты в меню «три точки» (см. SourceRow).
+ * Панель источников одного набора (detail в list-detail «Наборы данных», issue #210/рейл-по-файлу):
+ * заголовок с действиями уровня набора (распознать/разбиение/добавить) + плоский список источников +
+ * кандидаты. Раньше — сворачиваемый инлайн-блок (`SourcesExpander`); теперь всегда раскрыт как detail.
+ * Обработка (Filter/Transformation/Sort) — для любого формата; PDF Extraction — распознавание (не builder).
  */
-export function SourcesExpander({
+export function SourcesPanel({
   file,
   maxColumns = 8,
 }: {
   file: DataSetFile;
   maxColumns?: number;
 }) {
-  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<DataSetSource | 'new' | null>(null);
   const { data: templates = [] } = useListProcessingTemplates();
   const isPdf = file.format === 'Pdf';
@@ -263,7 +263,7 @@ export function SourcesExpander({
   // Кандидаты на источник (issue #30/#34): для всех форматов — логические таблицы/листы набора,
   // которых ещё нет как источников, создаются в один клик. PDF — Обложка/Титул из распознанной
   // группировки; XLSX — листы; CSV — «весь файл»; JSON — верхнеуровневые массивы.
-  const { data: candidates = [] } = useSourceCandidates(open ? file.id : undefined);
+  const { data: candidates = [] } = useSourceCandidates(file.id);
   const createSource = useCreateDataSetSource();
   const availableCandidates = candidates.filter(c => !sources.some(s => s.sheetOrPath === c.sheetOrPath));
 
@@ -298,58 +298,57 @@ export function SourcesExpander({
 
   return (
     <div>
-      <div className="flex items-center gap-2">
-        <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="flex items-center gap-1 text-xs text-brand">
-          {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          {sources.length > 0
-            ? `${sources.length} ${sources.length === 1 ? 'источник' : 'источника(-ов)'}`
-            : 'Нет источников'}
-        </button>
-        {/* PDF-набор: «Распознать» (уровень набора, issue #38) + «Добавить источник» рядом. */}
-        {isPdf && (
-          <button onClick={() => handleRecognizeDataset()} disabled={recognizeBusy || recognizing}
-            className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover disabled:opacity-50">
-            <ScanText size={11} /> {recognizing ? 'Распознаётся…' : profile ? 'Распознать заново' : 'Распознать'}
-          </button>
-        )}
-        {/* Редактор разбиения — на уровне НАБОРА (issue #40): доступен без создания источника «Документы». */}
-        {isPdf && isGostDataset && (
-          <button onClick={() => navigate(`/datasets/files/${file.id}/grouping`, { state: { sourceName: file.name } })}
-            className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover"
-            title="Перенести страницы между документами, задать тип таблицы, распознать таблицу — на уровне набора">
-            <LayoutGrid size={11} /> Разбиение
-          </button>
-        )}
-        {canManageExtraction && (
-          <button onClick={() => { setEditing('new'); setOpen(true); }}
-            className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
-            <Plus size={11} /> Добавить источник
-          </button>
-        )}
-      </div>
-      {open && (
-        <div className="mt-2 space-y-2 pl-3">
-          {sources.map(src => (
-            <SourceRow key={src.id} src={src} isPdf={isPdf} canManageExtraction={canManageExtraction}
-              templates={templates} maxColumns={maxColumns} onEdit={setEditing} />
-          ))}
-          {availableCandidates.length > 0 && (
-            <div className="border-t border-stroke pt-2 mt-1 space-y-1">
-              <p className="text-[11px] text-fg4">{isPdf ? 'Доступно из распознанного набора:' : 'Доступно из набора:'}</p>
-              {availableCandidates.map(c => (
-                <div key={c.sheetOrPath} className="flex items-center gap-2 text-xs">
-                  <span className="text-fg2">{c.name} <span className="text-fg4">· {c.rowCount} строк</span></span>
-                  <button type="button" disabled={createSource.isPending}
-                    onClick={() => createSource.mutate({ fileId: file.id, name: c.name, sheetOrPath: c.sheetOrPath })}
-                    className="flex items-center gap-0.5 text-brand hover:text-brand-hover disabled:opacity-50">
-                    <Plus size={11} /> Создать
-                  </button>
-                </div>
-              ))}
-            </div>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-fg4">
+          Источники{sources.length > 0 ? ` · ${sources.length}` : ''}
+        </span>
+        <div className="flex items-center gap-3">
+          {/* PDF-набор: «Распознать» (уровень набора, issue #38). */}
+          {isPdf && (
+            <button onClick={() => handleRecognizeDataset()} disabled={recognizeBusy || recognizing}
+              className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover disabled:opacity-50">
+              <ScanText size={13} /> {recognizing ? 'Распознаётся…' : profile ? 'Распознать заново' : 'Распознать'}
+            </button>
+          )}
+          {/* Редактор разбиения — на уровне НАБОРА (issue #40): доступен без создания источника «Документы». */}
+          {isPdf && isGostDataset && (
+            <button onClick={() => navigate(`/datasets/files/${file.id}/grouping`, { state: { sourceName: file.name } })}
+              className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover"
+              title="Перенести страницы между документами, задать тип таблицы, распознать таблицу — на уровне набора">
+              <LayoutGrid size={13} /> Разбиение
+            </button>
+          )}
+          {canManageExtraction && (
+            <Button variant="outlined" size="sm" icon={<Plus size={14} />} onClick={() => setEditing('new')}>
+              Добавить источник
+            </Button>
           )}
         </div>
-      )}
+      </div>
+      <div className="space-y-2">
+        {sources.length === 0 && (
+          <p className="text-xs text-fg4 py-1">Источников пока нет — добавьте из набора или распознайте PDF.</p>
+        )}
+        {sources.map(src => (
+          <SourceRow key={src.id} src={src} isPdf={isPdf} canManageExtraction={canManageExtraction}
+            templates={templates} maxColumns={maxColumns} onEdit={setEditing} />
+        ))}
+        {availableCandidates.length > 0 && (
+          <div className="rounded-md border border-dashed border-stroke-strong bg-base px-3 py-2 space-y-1 mt-1">
+            <p className="text-[11px] text-fg4">{isPdf ? 'Доступно из распознанного набора:' : 'Доступно из набора:'}</p>
+            {availableCandidates.map(c => (
+              <div key={c.sheetOrPath} className="flex items-center gap-2 text-xs">
+                <span className="text-fg2">{c.name} <span className="text-fg4">· {c.rowCount} строк</span></span>
+                <button type="button" disabled={createSource.isPending}
+                  onClick={() => createSource.mutate({ fileId: file.id, name: c.name, sheetOrPath: c.sheetOrPath })}
+                  className="flex items-center gap-0.5 text-brand hover:text-brand-hover disabled:opacity-50">
+                  <Plus size={11} /> Создать
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* «Добавить источник» — обычный диалог создания источника для ВСЕХ форматов, включая PDF
           (выбор кандидата-проекции, как лист Excel). Диалог выбора профиля — только у «Распознать». */}
