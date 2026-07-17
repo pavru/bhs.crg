@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import {
   Plus, Trash2, ChevronRight, Download, Pencil, ChevronDown, ChevronUp, FolderOpen, Eye,
-  ArrowUp, ArrowDown, Layers, Building2, FileText, Search, X, Mail,
+  ArrowUp, ArrowDown, Layers, Building2, FileText, Search, X, Mail, Database, Table2, Users,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -10,6 +10,10 @@ import { TextField } from '@/shared/ui/TextField';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
+import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
+import { CatalogResource } from './catalog/CatalogResource';
+import { DataSetsResource } from '@/features/datasets/DataSetsResource';
+import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import {
@@ -34,8 +38,12 @@ import { useAuth } from '@/shared/hooks/useAuth';
 
 // ─── Set detail (documents) ───────────────────────────────────────────────────
 
+type SetPanel = 'documents' | 'catalog' | 'datasets' | 'subscribers';
+
 function SetDetail() {
-  const { constructionId, setId } = useParams<{ constructionId: string; setId: string }>();
+  const { constructionId, setId, panel } = useParams<{ constructionId: string; setId: string; panel?: string }>();
+  const navigate = useNavigate();
+  const activePanel: SetPanel = (['catalog', 'datasets', 'subscribers'].includes(panel ?? '') ? panel : 'documents') as SetPanel;
   const { data: set, isLoading } = useGetDocumentSet(setId);
   const { data: construction } = useGetConstruction(constructionId!);
   const { data: availableInstances = [] } = useGetAvailableInstances(setId);
@@ -117,52 +125,59 @@ function SetDetail() {
     : availableInstances;
   const sectionName = construction?.sections.find(s => s.id === set.sectionId)?.name;
 
-  return (
-    <div className="p-6">
-      <nav className="flex items-center gap-1 text-sm text-fg4 mb-5">
-        <Link to="/document-sets" className="hover:text-fg2 transition-colors">Стройки</Link>
-        <ChevronRight size={14} />
-        <Link to={`/document-sets/${constructionId}`} className="hover:text-fg2 transition-colors">{construction?.name ?? 'Разделы и комплекты'}</Link>
-        {sectionName && (
-          <>
-            <ChevronRight size={14} />
-            <Link to={`/document-sets/${constructionId}?section=${set.sectionId}`} className="hover:text-fg2 transition-colors">{sectionName}</Link>
-          </>
-        )}
-        <ChevronRight size={14} />
-        <span className="text-fg2 font-medium">{set.name}</span>
-      </nav>
+  const base = `/document-sets/${constructionId}/sets/${setId}`;
+  const goPanel = (p: SetPanel) => navigate(p === 'documents' ? base : `${base}/${p}`);
 
-      <div className="flex items-center justify-between mb-1 gap-3 flex-wrap">
-        <h1 className="text-xl font-semibold text-fg1">{set.name}</h1>
-        <div className="flex items-center gap-2">
-          {output && (
-            <Button variant="outlined" icon={<Download size={15} />}
-              onClick={() => downloadSetOutput(set.id, set.name)}
-              title={`Собран ${new Date(output.generatedAt).toLocaleString('ru-RU')}`}>
-              Скачать комплект
-            </Button>
-          )}
-          {isAdmin && output && (
-            <Button variant="outlined" icon={<Mail size={15} />} onClick={() => setEmailKitOpen(true)}
-              title="Отправить собранный комплект по почте (подписчикам и/или на внешние адреса)">
-              Отправить по почте
-            </Button>
-          )}
-          <Button variant="tonal" icon={<Layers size={15} />} loading={assembleMutation.isPending || watching}
-            disabled={assembleMutation.isPending || watching || set.instances.length === 0}
-            onClick={handleAssemble}
-            title="Собрать все документы комплекта в один PDF в заданном порядке">
-            Собрать комплект
-          </Button>
-          <Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddDocOpen(true)}>
-            Добавить документ
-          </Button>
-        </div>
-      </div>
+  const contextCrumbs = (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <Link to="/document-sets" className="text-xs text-fg4 hover:text-fg2 transition-colors">Стройки</Link>
+      {construction && (
+        <Link to={`/document-sets/${constructionId}`}
+          className="text-[11px] px-2 py-0.5 rounded-full border border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1 transition-colors">
+          Стройка: {construction.name}
+        </Link>
+      )}
+      {sectionName && (
+        <Link to={`/document-sets/${constructionId}?section=${set.sectionId}`}
+          className="text-[11px] px-2 py-0.5 rounded-full border border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1 transition-colors">
+          Раздел: {sectionName}
+        </Link>
+      )}
+    </div>
+  );
+
+  const nav = (
+    <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
+      <NavItem icon={<FileText size={17} />} label="Документы" count={set.instances.length}
+        active={activePanel === 'documents'} onClick={() => goPanel('documents')} />
+      <NavSection label="Этот комплект" />
+      <NavItem icon={<Database size={17} />} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
+      <NavItem icon={<Table2 size={17} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
+      <NavItem icon={<Users size={17} />} label="Подписчики" active={activePanel === 'subscribers'} onClick={() => goPanel('subscribers')} />
+    </div>
+  );
+
+  const headerAction = activePanel === 'documents' ? (
+    <div className="flex items-center gap-2 shrink-0">
+      {output && (
+        <Button variant="outlined" size="sm" icon={<Download size={15} />} onClick={() => downloadSetOutput(set.id, set.name)}
+          title={`Собран ${new Date(output.generatedAt).toLocaleString('ru-RU')}`}>Скачать</Button>
+      )}
+      {isAdmin && output && (
+        <Button variant="outlined" size="sm" icon={<Mail size={15} />} onClick={() => setEmailKitOpen(true)}
+          title="Отправить собранный комплект по почте">Почта</Button>
+      )}
+      <Button variant="tonal" size="sm" icon={<Layers size={15} />} loading={assembleMutation.isPending || watching}
+        disabled={assembleMutation.isPending || watching || set.instances.length === 0} onClick={handleAssemble}
+        title="Собрать все документы комплекта в один PDF">Собрать</Button>
+      <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>
+    </div>
+  ) : null;
+
+  const documentsContent = (
+    <>
       {addError && <p className="text-xs text-danger mb-3">{addError}</p>}
       {!addError && assembleMsg && <p className="text-xs text-fg4 mb-3">{assembleMsg}</p>}
-      {!addError && !assembleMsg && <div className="mb-3" />}
 
       <div className="bg-surface border border-stroke rounded-xl overflow-hidden">
         {set.instances.length === 0 ? (
@@ -252,15 +267,24 @@ function SetDetail() {
           </table>
         )}
       </div>
+    </>
+  );
 
-      {setId && (
-        <div className="mt-6 pt-5 border-t border-stroke space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-fg4">Область: комплект</h2>
-          <ScopedCatalogPanel scope="Set" scopeId={setId} allDocTypes={docTypes} setId={setId} />
-          <ScopedDataSetsPanel scope="Set" scopeId={setId} />
-          <SubscribersPanel scope="Set" scopeId={setId} />
-        </div>
-      )}
+  const detail = (
+    <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
+      <div className="mx-auto max-w-5xl">
+        {activePanel === 'documents' ? documentsContent
+          : activePanel === 'catalog' ? <CatalogResource scope="Set" scopeId={setId ?? null} allDocTypes={docTypes} />
+          : activePanel === 'datasets' ? <DataSetsResource scope="Set" scopeId={setId} />
+          : <SubscribersResource scope="Set" scopeId={setId!} />}
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <ListDetailShell title={set.name} titleIcon={<FolderOpen size={20} />} breadcrumb={contextCrumbs}
+        headerAction={headerAction} nav={nav} detail={detail} />
 
       {isAdmin && (
         <EmailSendDialog open={emailKitOpen} onClose={() => setEmailKitOpen(false)}
@@ -307,7 +331,7 @@ function SetDetail() {
           deleteMutation.mutate({ setId: set.id, instanceId: deleteTarget.id });
         }}
       />
-    </div>
+    </>
   );
 }
 
@@ -804,6 +828,7 @@ export function DocumentSetsPage() {
       <Route index element={<ConstructionsList />} />
       <Route path=":constructionId" element={<ConstructionDetail />} />
       <Route path=":constructionId/sets/:setId" element={<SetDetail />} />
+      <Route path=":constructionId/sets/:setId/:panel" element={<SetDetail />} />
     </Routes>
   );
 }

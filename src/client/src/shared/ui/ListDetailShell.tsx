@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Search } from 'lucide-react';
+import { Search, ChevronRight } from 'lucide-react';
 import { Button } from './Button';
 
 /**
@@ -9,14 +9,20 @@ import { Button } from './Button';
  * per-page слоты; реестр агрегации dirty — отдельный модуль (features/settings/typeEditorShell).
  * НЕ клиент этого shell: редактор документа (#192) — там навигация ВНУТРИ сущности + preview-панель.
  */
-export function ListDetailShell({ title, subtitle, headerAction, overlay, nav, detail }: {
+export function ListDetailShell({ title, subtitle, titleIcon, breadcrumb, headerAction, overlay, nav, navWidth = 'w-80', detail }: {
   title: string;
   subtitle?: string;
+  /** Иконка уровня слева от заголовка (scope-страницы: стройка/раздел/комплект). */
+  titleIcon?: ReactNode;
+  /** Хлебные крошки над заголовком (scope-страницы). */
+  breadcrumb?: ReactNode;
   headerAction?: ReactNode;
   /** Полноэкранное состояние вместо сплита (загрузка / пустая коллекция). */
   overlay?: ReactNode;
   /** Содержимое левой колонки (табы/поиск/список) — per-page. Рамку/ширину задаёт shell. */
   nav: ReactNode;
+  /** Ширина левой колонки (Tailwind-класс): по умолчанию w-80 (320px); w-64 (260) для вырожденных. */
+  navWidth?: string;
   /** Detail-панель или EmptyState «выберите …». */
   detail: ReactNode;
 }) {
@@ -24,14 +30,18 @@ export function ListDetailShell({ title, subtitle, headerAction, overlay, nav, d
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between gap-3 px-6 py-3 shrink-0 border-b border-stroke">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-fg1">{title}</h1>
+          {breadcrumb && <div className="mb-0.5">{breadcrumb}</div>}
+          <div className="flex items-center gap-2 min-w-0">
+            {titleIcon && <span className="text-fg3 shrink-0">{titleIcon}</span>}
+            <h1 className="text-xl font-semibold text-fg1 truncate">{title}</h1>
+          </div>
           {subtitle && <p className="text-xs text-fg3 mt-0.5">{subtitle}</p>}
         </div>
         {headerAction}
       </div>
       {overlay ?? (
         <div className="flex-1 min-h-0 flex">
-          <nav aria-label={title} className="w-80 shrink-0 border-r border-stroke flex flex-col bg-base">
+          <nav aria-label={title} className={`${navWidth} shrink-0 border-r border-stroke flex flex-col bg-base`}>
             {nav}
           </nav>
           {detail}
@@ -53,6 +63,40 @@ export function NavSearchInput({ value, onChange, placeholder = 'Поиск…' 
           className="w-full h-10 pl-9 pr-3 rounded-full text-sm bg-surface border border-stroke-strong text-fg1 outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-fg4" />
       </div>
     </div>
+  );
+}
+
+/** Микрозаголовок секции левой навигации scope-страницы («КОМПЛЕКТЫ», «ЭТОТ РАЗДЕЛ», …). */
+export function NavSection({ label }: { label: string }) {
+  return <div className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-fg4">{label}</div>;
+}
+
+/**
+ * Пилюля левой навигации scope-страницы (issue #210, ось видимости). Два рода (аффорданс кодирует scope):
+ * `chevron` — «ребёнок» (уводит вглубь/роут): счётчик перед chevron, НИКОГДА не подсвечивается;
+ * без `chevron` — ресурс/контент уровня (меняет detail на месте): тональный бейдж-счётчик, подсветка при active.
+ */
+export function NavItem({ icon, label, count, active, chevron, onClick }: {
+  icon: ReactNode; label: string; count?: number; active?: boolean; chevron?: boolean; onClick: () => void;
+}) {
+  const highlight = active && !chevron;
+  return (
+    <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
+      className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
+        highlight ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
+      <span className={`shrink-0 ${highlight ? 'text-brand-hover' : 'text-fg4'}`}>{icon}</span>
+      <span className="flex-1 truncate text-sm">{label}</span>
+      {chevron ? (
+        <>
+          {count != null && <span className="text-xs text-fg4 shrink-0">{count}</span>}
+          <ChevronRight size={14} className="shrink-0 text-fg4" />
+        </>
+      ) : (
+        count != null && count > 0 && (
+          <span className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 ${highlight ? 'bg-white/50 text-brand-hover' : 'bg-brand-subtle text-brand'}`}>{count}</span>
+        )
+      )}
+    </button>
   );
 }
 
