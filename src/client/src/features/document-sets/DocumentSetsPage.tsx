@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import {
-  Plus, Trash2, ChevronRight, Download, Pencil, ChevronDown, ChevronUp, FolderOpen, Eye,
+  Plus, Trash2, ChevronRight, Download, Pencil, FolderOpen, Eye,
   ArrowUp, ArrowDown, Layers, Building2, FileText, Search, X, Mail, Database, Table2, Users,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
@@ -10,6 +10,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
+import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { CatalogResource } from './catalog/CatalogResource';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
@@ -26,7 +27,7 @@ import {
   useReorderInstances, useAssembleSet, useDocumentSetOutput, downloadSetOutput,
   useSearchDocuments, downloadGeneratedFile, previewGeneratedFile,
 } from '@/shared/api/documentSets';
-import type { Construction, Section, DocumentSet, DocumentInstance, DocumentType } from '@/shared/api/types';
+import type { Construction, DocumentInstance } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from './fields';
 import { InstanceEditor } from './editor';
 import { ScopedCatalogPanel } from './catalog';
@@ -55,8 +56,13 @@ function SetDetail() {
   const deleteMutation = useDeleteDocumentInstance();
   const reorderMutation = useReorderInstances();
   const assembleMutation = useAssembleSet();
+  const renameSet = useRenameDocumentSet();
+  const deleteSet = useDeleteDocumentSet();
   const [addError, setAddError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DocumentInstance | null>(null);
+  const [renameSetOpen, setRenameSetOpen] = useState(false);
+  const [renameSetVal, setRenameSetVal] = useState('');
+  const [deleteSetConfirm, setDeleteSetConfirm] = useState(false);
   // Слежение за сборкой: пока идёт задача — опрашиваем вывод; останавливаемся, когда generatedAt изменится.
   const [watching, setWatching] = useState(false);
   const [assembleMsg, setAssembleMsg] = useState('');
@@ -138,7 +144,7 @@ function SetDetail() {
         </Link>
       )}
       {sectionName && (
-        <Link to={`/document-sets/${constructionId}?section=${set.sectionId}`}
+        <Link to={`/document-sets/${constructionId}/sections/${set.sectionId}`}
           className="text-[11px] px-2 py-0.5 rounded-full border border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1 transition-colors">
           Раздел: {sectionName}
         </Link>
@@ -157,22 +163,30 @@ function SetDetail() {
     </div>
   );
 
-  const headerAction = activePanel === 'documents' ? (
+  const headerAction = (
     <div className="flex items-center gap-2 shrink-0">
-      {output && (
-        <Button variant="outlined" size="sm" icon={<Download size={15} />} onClick={() => downloadSetOutput(set.id, set.name)}
-          title={`Собран ${new Date(output.generatedAt).toLocaleString('ru-RU')}`}>Скачать</Button>
+      {activePanel === 'documents' && (
+        <>
+          {output && (
+            <Button variant="outlined" size="sm" icon={<Download size={15} />} onClick={() => downloadSetOutput(set.id, set.name)}
+              title={`Собран ${new Date(output.generatedAt).toLocaleString('ru-RU')}`}>Скачать</Button>
+          )}
+          {isAdmin && output && (
+            <Button variant="outlined" size="sm" icon={<Mail size={15} />} onClick={() => setEmailKitOpen(true)}
+              title="Отправить собранный комплект по почте">Почта</Button>
+          )}
+          <Button variant="tonal" size="sm" icon={<Layers size={15} />} loading={assembleMutation.isPending || watching}
+            disabled={assembleMutation.isPending || watching || set.instances.length === 0} onClick={handleAssemble}
+            title="Собрать все документы комплекта в один PDF">Собрать</Button>
+          <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>
+        </>
       )}
-      {isAdmin && output && (
-        <Button variant="outlined" size="sm" icon={<Mail size={15} />} onClick={() => setEmailKitOpen(true)}
-          title="Отправить собранный комплект по почте">Почта</Button>
-      )}
-      <Button variant="tonal" size="sm" icon={<Layers size={15} />} loading={assembleMutation.isPending || watching}
-        disabled={assembleMutation.isPending || watching || set.instances.length === 0} onClick={handleAssemble}
-        title="Собрать все документы комплекта в один PDF">Собрать</Button>
-      <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddDocOpen(true)}>Добавить документ</Button>
+      <RowActionsMenu ariaLabel="Действия комплекта" actions={[
+        { key: 'rename', label: 'Переименовать', icon: <Pencil size={14} />, onSelect: () => { setRenameSetVal(set.name); setRenameSetOpen(true); } },
+        { key: 'delete', label: 'Удалить комплект', icon: <Trash2 size={14} />, danger: true, onSelect: () => setDeleteSetConfirm(true) },
+      ]} />
     </div>
-  ) : null;
+  );
 
   const documentsContent = (
     <>
@@ -331,97 +345,141 @@ function SetDetail() {
           deleteMutation.mutate({ setId: set.id, instanceId: deleteTarget.id });
         }}
       />
+
+      <Modal open={renameSetOpen} onOpenChange={setRenameSetOpen} title="Переименовать комплект"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="text" onClick={() => setRenameSetOpen(false)}>Отмена</Button>
+            <Button type="submit" form="rename-set-form" variant="filled" loading={renameSet.isPending}>Сохранить</Button>
+          </div>
+        }>
+        {renameSetOpen && (
+          <form id="rename-set-form" className="space-y-4"
+            onSubmit={async e => {
+              e.preventDefault();
+              if (!renameSetVal.trim() || renameSetVal === set.name) { setRenameSetOpen(false); return; }
+              await renameSet.mutateAsync({ id: set.id, name: renameSetVal, constructionId: constructionId! });
+              setRenameSetOpen(false);
+            }}>
+            <TextField label="Наименование" value={renameSetVal} onChange={e => setRenameSetVal(e.target.value)} required autoFocus />
+          </form>
+        )}
+      </Modal>
+
+      <ConfirmDialog
+        open={deleteSetConfirm}
+        onOpenChange={setDeleteSetConfirm}
+        title={`Удалить комплект «${set.name}»?`}
+        description={
+          set.instances.length > 0
+            ? <CascadeList items={[`${ruCount(set.instances.length, 'документ', 'документа', 'документов')} (и их сгенерированные PDF)`]} />
+            : undefined
+        }
+        confirmLabel="Удалить комплект"
+        onConfirm={() => {
+          deleteSet.mutate({ id: set.id, constructionId: constructionId! });
+          navigate(`/document-sets/${constructionId}/sections/${set.sectionId}`);
+        }}
+      />
     </>
   );
 }
 
-// ─── Construction detail (sections + sets) ────────────────────────────────────
+// ─── Section detail (sets as children + section resources) ────────────────────
 
-function SectionCard({ section, construction, expanded, onToggle, allDocTypes }: {
-  section: Section; construction: Construction; expanded: boolean; onToggle: () => void; allDocTypes: DocumentType[];
-}) {
+type SectionPanel = 'catalog' | 'datasets' | 'subscribers';
+
+function SectionDetail() {
+  const { constructionId, sectionId, panel } = useParams<{ constructionId: string; sectionId: string; panel?: string }>();
   const navigate = useNavigate();
+  const activePanel: SectionPanel = (['datasets', 'subscribers'].includes(panel ?? '') ? panel : 'catalog') as SectionPanel;
+  const { data: construction, isLoading } = useGetConstruction(constructionId!);
+  const { data: docTypes = [] } = useListDocumentTypes();
+
   const [addSetOpen, setAddSetOpen] = useState(false);
   const [newSetName, setNewSetName] = useState('');
-  const [editName, setEditName] = useState(false);
-  const [nameVal, setNameVal] = useState(section.name);
   const [addError, setAddError] = useState('');
-
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameVal, setRenameVal] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const createSet = useCreateDocumentSet();
   const renameSection = useRenameSection();
   const deleteSection = useDeleteSection();
-  const renameSet = useRenameDocumentSet();
-  const deleteSet = useDeleteDocumentSet();
-  const [deleteSectionConfirm, setDeleteSectionConfirm] = useState(false);
-  const [deleteSetTarget, setDeleteSetTarget] = useState<DocumentSet | null>(null);
+
+  if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
+  if (!construction) return <div className="p-6 text-sm text-danger">Стройка не найдена</div>;
+  const section = construction.sections.find(s => s.id === sectionId);
+  if (!section) return <div className="p-6 text-sm text-danger">Раздел не найден</div>;
 
   const setsInSection = section.documentSets.length;
   const docsInSection = section.documentSets.reduce((acc, ds) => acc + (ds.instances?.length ?? 0), 0);
+  const base = `/document-sets/${constructionId}/sections/${sectionId}`;
+  const goPanel = (p: SectionPanel) => navigate(p === 'catalog' ? base : `${base}/${p}`);
 
   async function handleAddSet(e: React.FormEvent) {
     e.preventDefault();
     setAddError('');
     try {
-      await createSet.mutateAsync({ sectionId: section.id, name: newSetName, constructionId: construction.id });
+      const ds = await createSet.mutateAsync({ sectionId: section!.id, name: newSetName, constructionId: construction!.id });
       setAddSetOpen(false);
       setNewSetName('');
+      navigate(`/document-sets/${constructionId}/sets/${ds.id}`);
     } catch (err: unknown) { setAddError(err instanceof Error ? err.message : 'Ошибка'); }
   }
 
-  async function handleRenameSection() {
-    if (!nameVal.trim() || nameVal === section.name) { setEditName(false); return; }
-    await renameSection.mutateAsync({ id: section.id, name: nameVal });
-    setEditName(false);
-  }
+  const contextCrumbs = (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <Link to="/document-sets" className="text-xs text-fg4 hover:text-fg2 transition-colors">Стройки</Link>
+      <Link to={`/document-sets/${constructionId}`}
+        className="text-[11px] px-2 py-0.5 rounded-full border border-stroke text-fg3 hover:border-stroke-strong hover:text-fg1 transition-colors">
+        Стройка: {construction.name}
+      </Link>
+    </div>
+  );
+
+  const nav = (
+    <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
+      <NavSection label="Комплекты" />
+      {section.documentSets.length === 0 && <p className="px-3 py-1.5 text-xs text-fg4">Нет комплектов</p>}
+      {section.documentSets.map(ds => (
+        <NavItem key={ds.id} icon={<FolderOpen size={17} />} label={ds.name} count={ds.instances?.length ?? 0} chevron
+          onClick={() => navigate(`/document-sets/${constructionId}/sets/${ds.id}`)} />
+      ))}
+      <button type="button" onClick={() => setAddSetOpen(true)}
+        className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-brand hover:bg-brand-subtle transition-colors">
+        <Plus size={16} className="shrink-0" /> Добавить комплект
+      </button>
+      <NavSection label="Этот раздел" />
+      <NavItem icon={<Database size={17} />} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
+      <NavItem icon={<Table2 size={17} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
+      <NavItem icon={<Users size={17} />} label="Подписчики" active={activePanel === 'subscribers'} onClick={() => goPanel('subscribers')} />
+    </div>
+  );
+
+  const headerAction = (
+    <div className="flex items-center gap-2 shrink-0">
+      <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddSetOpen(true)}>Добавить комплект</Button>
+      <RowActionsMenu ariaLabel="Действия раздела" actions={[
+        { key: 'rename', label: 'Переименовать', icon: <Pencil size={14} />, onSelect: () => { setRenameVal(section.name); setRenameOpen(true); } },
+        { key: 'delete', label: 'Удалить раздел', icon: <Trash2 size={14} />, danger: true, onSelect: () => setDeleteConfirm(true) },
+      ]} />
+    </div>
+  );
+
+  const detail = (
+    <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
+      <div className="mx-auto max-w-5xl">
+        {activePanel === 'catalog' ? <CatalogResource scope="Section" scopeId={sectionId ?? null} allDocTypes={docTypes} />
+          : activePanel === 'datasets' ? <DataSetsResource scope="Section" scopeId={sectionId} />
+          : <SubscribersResource scope="Section" scopeId={sectionId!} />}
+      </div>
+    </div>
+  );
 
   return (
-    <div id={`section-${section.id}`} className="border border-stroke rounded-xl overflow-hidden scroll-mt-4">
-      <div className="flex items-center bg-surface px-4 py-3 gap-2">
-        <button onClick={onToggle} className="flex-1 flex items-center gap-3 text-left">
-          {expanded ? <ChevronUp size={16} className="text-fg4 shrink-0" /> : <ChevronDown size={16} className="text-fg4 shrink-0" />}
-          {editName ? (
-            <input value={nameVal} onChange={e => setNameVal(e.target.value)}
-              onBlur={handleRenameSection} onKeyDown={e => { if (e.key === 'Enter') handleRenameSection(); if (e.key === 'Escape') { setNameVal(section.name); setEditName(false); } }}
-              autoFocus onClick={e => e.stopPropagation()}
-              className="text-sm font-medium border-b border-brand bg-transparent outline-none flex-1" />
-          ) : (
-            <span className="text-sm font-medium text-fg1">{section.name}</span>
-          )}
-          <span className="text-xs text-fg4 ml-1">
-            {ruCount(section.documentSets.length, 'комплект', 'комплекта', 'комплектов')}
-          </span>
-        </button>
-        <IconButton label="Переименовать" size="sm" onClick={() => setEditName(true)}>
-          <Pencil size={13} />
-        </IconButton>
-        <IconButton label="Удалить раздел" size="sm" danger onClick={() => setDeleteSectionConfirm(true)}>
-          <Trash2 size={13} />
-        </IconButton>
-      </div>
-
-      {expanded && (
-        <div className="border-t border-muted bg-base px-4 py-3 space-y-2">
-          {section.documentSets.length === 0 && (
-            <p className="text-xs text-fg4 py-1">Нет комплектов</p>
-          )}
-          {section.documentSets.map(ds => (
-            <DocumentSetRow key={ds.id} ds={ds} section={section} construction={construction}
-              onOpen={() => navigate(`/document-sets/${construction.id}/sets/${ds.id}`)}
-              onRename={(name) => renameSet.mutateAsync({ id: ds.id, name, constructionId: construction.id })}
-              onDelete={() => setDeleteSetTarget(ds)}
-            />
-          ))}
-          <Button variant="text" size="sm" icon={<Plus size={14} />} onClick={() => setAddSetOpen(true)} className="mt-1">
-            Добавить комплект
-          </Button>
-          <div className="pt-3 mt-2 border-t border-muted space-y-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-fg4">Область: раздел</h3>
-            <ScopedCatalogPanel scope="Section" scopeId={section.id} allDocTypes={allDocTypes} />
-            <ScopedDataSetsPanel scope="Section" scopeId={section.id} />
-            <SubscribersPanel scope="Section" scopeId={section.id} />
-          </div>
-        </div>
-      )}
+    <>
+      <ListDetailShell title={section.name} titleIcon={<Layers size={20} />} breadcrumb={contextCrumbs}
+        headerAction={headerAction} nav={nav} detail={detail} />
 
       <Modal open={addSetOpen} onOpenChange={setAddSetOpen} title="Новый комплект"
         footer={
@@ -441,9 +499,29 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
         )}
       </Modal>
 
+      <Modal open={renameOpen} onOpenChange={setRenameOpen} title="Переименовать раздел"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="text" onClick={() => setRenameOpen(false)}>Отмена</Button>
+            <Button type="submit" form="rename-section-form" variant="filled" loading={renameSection.isPending}>Сохранить</Button>
+          </div>
+        }>
+        {renameOpen && (
+          <form id="rename-section-form" className="space-y-4"
+            onSubmit={async e => {
+              e.preventDefault();
+              if (!renameVal.trim() || renameVal === section.name) { setRenameOpen(false); return; }
+              await renameSection.mutateAsync({ id: section.id, name: renameVal });
+              setRenameOpen(false);
+            }}>
+            <TextField label="Название раздела (дисциплина)" value={renameVal} onChange={e => setRenameVal(e.target.value)} required autoFocus />
+          </form>
+        )}
+      </Modal>
+
       <ConfirmDialog
-        open={deleteSectionConfirm}
-        onOpenChange={setDeleteSectionConfirm}
+        open={deleteConfirm}
+        onOpenChange={setDeleteConfirm}
         title={`Удалить раздел «${section.name}»?`}
         description={
           setsInSection > 0 ? (
@@ -458,92 +536,24 @@ function SectionCard({ section, construction, expanded, onToggle, allDocTypes }:
         }
         confirmLabel={`Удалить раздел «${section.name}»`}
         requireCheckbox={setsInSection > 0 ? 'Понимаю, что это необратимо' : undefined}
-        onConfirm={() => deleteSection.mutate({ id: section.id, constructionId: construction.id })}
+        onConfirm={() => {
+          deleteSection.mutate({ id: section.id, constructionId: constructionId! });
+          navigate(`/document-sets/${constructionId}`);
+        }}
       />
-
-      <ConfirmDialog
-        open={!!deleteSetTarget}
-        onOpenChange={o => { if (!o) setDeleteSetTarget(null); }}
-        title={`Удалить комплект «${deleteSetTarget?.name ?? ''}»?`}
-        description={
-          deleteSetTarget && deleteSetTarget.instances.length > 0
-            ? <CascadeList items={[`${ruCount(deleteSetTarget.instances.length, 'документ', 'документа', 'документов')} (и их сгенерированные PDF)`]} />
-            : undefined
-        }
-        confirmLabel="Удалить комплект"
-        onConfirm={() => { if (deleteSetTarget) deleteSet.mutate({ id: deleteSetTarget.id, constructionId: construction.id }); }}
-      />
-    </div>
-  );
-}
-
-function DocumentSetRow({ ds, section: _section, construction: _construction, onOpen, onRename, onDelete }: {
-  ds: DocumentSet; section: Section; construction: Construction;
-  onOpen: () => void; onRename: (name: string) => void; onDelete: () => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(ds.name);
-
-  function commitRename() {
-    if (!val.trim() || val === ds.name) { setEditing(false); return; }
-    onRename(val);
-    setEditing(false);
-  }
-
-  return (
-    <div className="flex items-center gap-2 bg-surface border border-stroke rounded-lg px-3 py-2 group hover:border-brand-subtle hover:bg-brand-subtle/40 transition-colors">
-      <FolderOpen size={14} className="text-brand shrink-0" />
-      {editing ? (
-        <input value={val} onChange={e => setVal(e.target.value)}
-          onBlur={commitRename} onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') { setVal(ds.name); setEditing(false); } }}
-          autoFocus className="flex-1 text-sm border-b border-brand bg-transparent outline-none" />
-      ) : (
-        <button onClick={onOpen} className="flex-1 text-left text-sm font-medium text-fg1 hover:text-brand-hover transition-colors">
-          {ds.name}
-        </button>
-      )}
-      <span className="text-xs text-fg4 shrink-0">{ds.instances?.length ?? 0} doc</span>
-      <IconButton label="Переименовать" size="sm" onClick={() => setEditing(true)}
-        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
-        <Pencil size={13} />
-      </IconButton>
-      <IconButton label="Удалить" size="sm" danger onClick={onDelete}
-        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
-        <Trash2 size={13} />
-      </IconButton>
-      <ChevronRight size={13} className="text-stroke-strong shrink-0" />
-    </div>
+    </>
   );
 }
 
 function ConstructionDetail() {
   const { constructionId } = useParams<{ constructionId: string }>();
+  const navigate = useNavigate();
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
   const { data: docTypes = [] } = useListDocumentTypes();
-  const [searchParams] = useSearchParams();
-  const focusSectionId = searchParams.get('section');
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    () => focusSectionId ? new Set([focusSectionId]) : new Set());
   const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
   const [sectionError, setSectionError] = useState('');
   const createSection = useCreateSection();
-
-  // Переход из хлебных крошек по ?section= — раскрыть этот раздел и подскроллить к нему.
-  useEffect(() => {
-    if (!focusSectionId || !construction) return;
-    setExpandedSections(prev => new Set([...prev, focusSectionId]));
-    const el = document.getElementById(`section-${focusSectionId}`);
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [focusSectionId, construction]);
-
-  function toggleSection(id: string) {
-    setExpandedSections(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
 
   async function handleAddSection(e: React.FormEvent) {
     e.preventDefault();
@@ -552,7 +562,7 @@ function ConstructionDetail() {
       const s = await createSection.mutateAsync({ constructionId: constructionId!, name: newSectionName });
       setAddSectionOpen(false);
       setNewSectionName('');
-      setExpandedSections(prev => new Set([...prev, s.id]));
+      navigate(`/document-sets/${constructionId}/sections/${s.id}`);
     } catch (err: unknown) { setSectionError(err instanceof Error ? err.message : 'Ошибка'); }
   }
 
@@ -579,12 +589,22 @@ function ConstructionDetail() {
           description="Добавьте первый раздел (дисциплину) — например «Электроснабжение» — чтобы собирать в нём комплекты документов."
           action={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>} />
       ) : (
-        <div className="space-y-3">
-          {construction.sections.map(s => (
-            <SectionCard key={s.id} section={s} construction={construction}
-              expanded={expandedSections.has(s.id)} onToggle={() => toggleSection(s.id)}
-              allDocTypes={docTypes} />
-          ))}
+        <div className="space-y-2">
+          {construction.sections.map(s => {
+            const setsN = s.documentSets.length;
+            const docsN = s.documentSets.reduce((acc, ds) => acc + (ds.instances?.length ?? 0), 0);
+            return (
+              <button key={s.id} onClick={() => navigate(`/document-sets/${constructionId}/sections/${s.id}`)}
+                className="w-full flex items-center gap-3 bg-surface border border-stroke rounded-xl px-4 py-3 text-left hover:border-brand hover:bg-brand-subtle/30 transition-colors group">
+                <Layers size={17} className="text-brand shrink-0" />
+                <span className="flex-1 min-w-0 text-sm font-medium text-fg1 truncate group-hover:text-brand-hover transition-colors">{s.name}</span>
+                <span className="text-xs text-fg4 shrink-0">
+                  {ruCount(setsN, 'комплект', 'комплекта', 'комплектов')}{docsN > 0 && ` · ${ruCount(docsN, 'документ', 'документа', 'документов')}`}
+                </span>
+                <ChevronRight size={16} className="text-fg4 shrink-0" />
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -827,6 +847,8 @@ export function DocumentSetsPage() {
     <Routes>
       <Route index element={<ConstructionsList />} />
       <Route path=":constructionId" element={<ConstructionDetail />} />
+      <Route path=":constructionId/sections/:sectionId" element={<SectionDetail />} />
+      <Route path=":constructionId/sections/:sectionId/:panel" element={<SectionDetail />} />
       <Route path=":constructionId/sets/:setId" element={<SetDetail />} />
       <Route path=":constructionId/sets/:setId/:panel" element={<SetDetail />} />
     </Routes>
