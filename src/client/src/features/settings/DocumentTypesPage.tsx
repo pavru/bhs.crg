@@ -439,6 +439,7 @@ function SchemaEditor({ docType, allDocTypes }: {
   );
   const [typstRenders, setTypstRenders] = useState<TypstRender[]>(() => schemaDef.typstRenders ?? []);
   const [docTypeTags, setDocTypeTags] = useState<string[]>(() => schemaDef.tags ?? []);
+  const [ungroupedOrder, setUngroupedOrder] = useState<string[]>(() => schemaDef.ungroupedOrder ?? []);
   const { data: tagRegistry } = useTagRegistry();
   const applicableTypeTags = typeTagDefs(tagRegistry, docType.kind);
   const [showJson, setShowJson] = useState(false);
@@ -506,7 +507,7 @@ function SchemaEditor({ docType, allDocTypes }: {
     if (crossDup) { const m = `Имя функции "${crossDup}" уже используется в другом типе`; setError(m); throw new Error(m); }
 
     try {
-      await mutation.mutateAsync({ id: docType.id, schema: schemaToJson(fields, excludedFields, fieldOverrides, groups, typstRenders, docTypeTags) });
+      await mutation.mutateAsync({ id: docType.id, schema: schemaToJson(fields, excludedFields, fieldOverrides, groups, typstRenders, docTypeTags, ungroupedOrder) });
       setDirty(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка сохранения');
@@ -520,6 +521,7 @@ function SchemaEditor({ docType, allDocTypes }: {
     setFieldOverrides(schemaDef.fieldOverrides ?? {});
     setTypstRenders(schemaDef.typstRenders ?? []);
     setDocTypeTags(schemaDef.tags ?? []);
+    setUngroupedOrder(schemaDef.ungroupedOrder ?? []);
     setError(''); setDirty(false);
   });
 
@@ -571,6 +573,8 @@ function SchemaEditor({ docType, allDocTypes }: {
               onFieldsChange={f => { setFields(f); setDirty(true); }}
               groups={groups}
               onGroupsChange={g => { setGroups(g); setDirty(true); }}
+              ungroupedOrder={ungroupedOrder}
+              onUngroupedOrderChange={o => { setUngroupedOrder(o); setDirty(true); }}
               parentEffectiveFields={activeInheritedFields}
               disabledKeys={inheritedKeys}
               reg={reg}

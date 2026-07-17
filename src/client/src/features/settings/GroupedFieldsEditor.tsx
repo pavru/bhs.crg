@@ -13,12 +13,15 @@ import { FieldCard, fieldTypeSummary, type FieldRegistries } from './FieldBuilde
  * группы (в конец) / «Без группы» (разгруппировать). Порядок групп — стрелками на шапке группы.
  */
 export function GroupedFieldsEditor({
-  fields, onFieldsChange, groups, onGroupsChange, parentEffectiveFields, disabledKeys, reg,
+  fields, onFieldsChange, groups, onGroupsChange, ungroupedOrder = [], onUngroupedOrderChange, parentEffectiveFields, disabledKeys, reg,
 }: {
   fields: SchemaField[];
   onFieldsChange: (f: SchemaField[]) => void;
   groups: FieldGroup[];
   onGroupsChange: (g: FieldGroup[]) => void;
+  /** Явный порядок «Без группы» (свои + унаследованные) — задаётся DnD/стрелками (issue: порядок унасл.). */
+  ungroupedOrder?: string[];
+  onUngroupedOrderChange?: (o: string[]) => void;
   parentEffectiveFields: SchemaField[];
   disabledKeys?: Set<string>;
   reg: FieldRegistries;
@@ -35,10 +38,22 @@ export function GroupedFieldsEditor({
   const ownByKey = new Map(fields.map(f => [f.key, f]));
   const inhByKey = new Map(parentEffectiveFields.map(f => [f.key, f]));
   const groupedKeys = new Set(groups.flatMap(g => g.fieldKeys));
-  const isOwn = (key: string) => ownByKey.has(key);
 
   const ownUngrouped = fields.filter(f => !f.key || !groupedKeys.has(f.key));
   const inhUngrouped = parentEffectiveFields.filter(f => !groupedKeys.has(f.key));
+
+  // Единый упорядоченный список членов «Без группы» (свои + унаследованные) по ungroupedOrder.
+  // Стабильно: ключи вне порядка — в конце (свои по массиву fields, затем унаследованные по родителю).
+  const ungroupedMembers = (() => {
+    const pool: { key: string; own?: SchemaField; inh?: SchemaField }[] = [
+      ...ownUngrouped.map(f => ({ key: f.key, own: f })),
+      ...inhUngrouped.map(f => ({ key: f.key, inh: f })),
+    ];
+    const posMap = new Map(ungroupedOrder.map((k, i) => [k, i] as const));
+    const rank = (k: string) => (k && posMap.has(k) ? posMap.get(k)! : Number.POSITIVE_INFINITY);
+    return [...pool].sort((a, b) => rank(a.key) - rank(b.key));
+  })();
+  const ungroupedMemberKeys = ungroupedMembers.map(m => m.key);
 
   // ── Операции над данными ──────────────────────────────────────────────────
   const removeKeyFromGroups = (gs: FieldGroup[], key: string) =>
@@ -57,18 +72,14 @@ export function GroupedFieldsEditor({
       });
       onGroupsChange(gs);
     } else {
+      // «Без группы»: единый явный порядок ungroupedOrder (свои + унаследованные).
       if (groupedKeys.has(key)) onGroupsChange(removeKeyFromGroups(groups, key));
-      // порядок ungrouped-своих задаёт массив fields — переставим перед beforeKey (если он тоже свой)
-      if (isOwn(key) && beforeKey && isOwn(beforeKey)) {
-        const arr = [...fields];
-        const from = arr.findIndex(f => f.key === key);
-        if (from >= 0) {
-          const [moved] = arr.splice(from, 1);
-          const to = arr.findIndex(f => f.key === beforeKey);
-          arr.splice(to < 0 ? arr.length : to, 0, moved);
-          onFieldsChange(arr);
-        }
-      }
+      // текущий видимый порядок ungrouped-ключей + гарантируем присутствие key (мог прийти из группы)
+      const base = ungroupedMemberKeys.filter(k => !!k);
+      const arr = (base.includes(key) ? base : [...base, key]).filter(k => k !== key);
+      const to = beforeKey ? arr.indexOf(beforeKey) : -1;
+      arr.splice(to < 0 ? arr.length : to, 0, key);
+      onUngroupedOrderChange?.(arr);
     }
   }
 
@@ -78,9 +89,14 @@ export function GroupedFieldsEditor({
     if (idx < 0) return;
     const oldKey = f.key;
     onFieldsChange(fields.map((x, i) => i === idx ? { ...x, ...patch } : x));
-    // ключ поменялся — мигрируем членство в группах на новый ключ
-    if (patch.key !== undefined && patch.key !== oldKey && oldKey && groupedKeys.has(oldKey)) {
-      onGroupsChange(groups.map(g => ({ ...g, fieldKeys: g.fieldKeys.map(k => k === oldKey ? patch.key! : k) })));
+    // ключ поменялся — мигрируем членство в группах и порядок «Без группы» на новый ключ
+    if (patch.key !== undefined && patch.key !== oldKey && oldKey) {
+      if (groupedKeys.has(oldKey)) {
+        onGroupsChange(groups.map(g => ({ ...g, fieldKeys: g.fieldKeys.map(k => k === oldKey ? patch.key! : k) })));
+      }
+      if (ungroupedOrder.includes(oldKey)) {
+        onUngroupedOrderChange?.(ungroupedOrder.map(k => k === oldKey ? patch.key! : k));
+      }
     }
   }
 
@@ -88,6 +104,7 @@ export function GroupedFieldsEditor({
     const idx = fields.indexOf(f);
     onFieldsChange(fields.filter((_, i) => i !== idx));
     if (f.key && groupedKeys.has(f.key)) onGroupsChange(removeKeyFromGroups(groups, f.key));
+    if (f.key && ungroupedOrder.includes(f.key)) onUngroupedOrderChange?.(ungroupedOrder.filter(k => k !== f.key));
     setOpenIndex(null);
   }
 
@@ -208,12 +225,11 @@ export function GroupedFieldsEditor({
               <span className="text-xs text-fg4">{ownUngrouped.length + inhUngrouped.length}</span>
             </div>
             <div className="p-2 space-y-2 min-h-[3rem]" onDragOver={zone.onDragOver} onDrop={zone.onDrop}>
-              {(() => {
-                const ownKeys = ownUngrouped.map(f => f.key);
-                return ownUngrouped.map((f, i) => renderOwn(f, null, ownKeys, i));
-              })()}
-              {inhUngrouped.map(f => renderInherited(f, null))}
-              {zone.appendLine && (ownUngrouped.length + inhUngrouped.length) > 0 && <DropLine />}
+              {ungroupedMembers.map((m, i) =>
+                m.own
+                  ? renderOwn(m.own, null, ungroupedMemberKeys, i)
+                  : renderInherited(m.inh!, null))}
+              {zone.appendLine && ungroupedMembers.length > 0 && <DropLine />}
               <Button type="button" variant="tonal" onClick={addField} icon={<Plus size={14} />} className="w-full justify-center">
                 Добавить поле
               </Button>

@@ -120,6 +120,29 @@ describe('groupEffectiveFields', () => {
     const sections = groupEffectiveFields(fields, schema);
     expect(sections.find(s => s.title === 'G')!.fields.map(f => f.key)).toEqual(['B']);
   });
+
+  it('applies ungroupedOrder to the ungrouped section (no groups)', () => {
+    const schema = { ungroupedOrder: ['C', 'A'] };
+    const sections = groupEffectiveFields(fields, schema);
+    // C, A позиционированы; B вне порядка — стабильно в конце
+    expect(sections[0].fields.map(f => f.key)).toEqual(['C', 'A', 'B']);
+  });
+
+  it('applies ungroupedOrder only to ungrouped fields, groups untouched', () => {
+    const schema = {
+      groups: [{ key: 'g1', title: 'G', fieldKeys: ['B'] }],
+      ungroupedOrder: ['C', 'A'],
+    };
+    const sections = groupEffectiveFields(fields, schema);
+    expect(sections[0].fields.map(f => f.key)).toEqual(['C', 'A']); // ungrouped упорядочен
+    expect(sections[1].fields.map(f => f.key)).toEqual(['B']);      // группа как есть
+  });
+
+  it('keys outside ungroupedOrder keep their relative order (stable)', () => {
+    const many = [field('A'), field('B'), field('C'), field('D')];
+    const sections = groupEffectiveFields(many, { ungroupedOrder: ['D'] });
+    expect(sections[0].fields.map(f => f.key)).toEqual(['D', 'A', 'B', 'C']);
+  });
 });
 
 // ── isSubtypeOf ─────────────────────────────────────────────────────────────────

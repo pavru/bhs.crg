@@ -52,6 +52,9 @@ export interface SchemaDefinition {
   typstRenders?: TypstRender[];
   /** Type-level functional tags (registry: GET /api/tags, scope=Type). */
   tags?: string[];
+  /** Явный порядок полей секции «Без группы» (свои + унаследованные, по ключу). Ключи не из списка
+   *  сохраняют относительный порядок в конце (унаследованные — по родителю, свои — по массиву fields). */
+  ungroupedOrder?: string[];
 }
 
 /**
@@ -65,10 +68,21 @@ export function groupEffectiveFields(
 ): Array<{ key: string; title: string | null; fields: SchemaField[] }> {
   const def = schema as unknown as SchemaDefinition;
   const groups = def.groups ?? [];
-  if (groups.length === 0) return [{ key: '__all__', title: null, fields }];
+
+  // Явный порядок «Без группы» (issue: DnD унаследованных в ungrouped) — стабильная сортировка,
+  // ключи вне ungroupedOrder сохраняют относительный порядок (унаслед.→свои).
+  const order = def.ungroupedOrder ?? [];
+  const sortUngrouped = <T extends SchemaField>(arr: T[]): T[] => {
+    if (order.length === 0) return arr;
+    const pos = new Map(order.map((k, i) => [k, i] as const));
+    const rank = (k: string) => (pos.has(k) ? pos.get(k)! : Number.POSITIVE_INFINITY);
+    return [...arr].sort((a, b) => rank(a.key) - rank(b.key));
+  };
+
+  if (groups.length === 0) return [{ key: '__all__', title: null, fields: sortUngrouped(fields) }];
 
   const groupedKeys = new Set(groups.flatMap(g => g.fieldKeys));
-  const ungrouped = fields.filter(f => !groupedKeys.has(f.key));
+  const ungrouped = sortUngrouped(fields.filter(f => !groupedKeys.has(f.key)));
   const result: Array<{ key: string; title: string | null; fields: SchemaField[] }> = [];
 
   if (ungrouped.length > 0) result.push({ key: '__ungrouped__', title: null, fields: ungrouped });
