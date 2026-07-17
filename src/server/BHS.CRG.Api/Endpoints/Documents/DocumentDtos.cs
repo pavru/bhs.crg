@@ -37,6 +37,36 @@ public record DocumentSetDto(
         documents.OrderBy(d => d.SortOrder).Select(InstanceDto.From).ToList());
 }
 
+/// <summary>Комплект в дереве стройки — без документов, но со счётчиком (issue #84: документы —
+/// DomainObject по расположению, здесь нужен только COUNT для навигации/каскадов).</summary>
+public record DocumentSetSummaryDto(
+    Guid Id, string Name, Guid SectionId, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, int DocumentCount)
+{
+    public static DocumentSetSummaryDto From(DocumentSet ds, IReadOnlyDictionary<Guid, int> counts) => new(
+        ds.Id, ds.Name, ds.SectionId, ds.CreatedAt, ds.UpdatedAt,
+        counts.TryGetValue(ds.Id, out var n) ? n : 0);
+}
+
+/// <summary>Раздел в дереве стройки.</summary>
+public record SectionSummaryDto(
+    Guid Id, string Name, Guid ConstructionId, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
+    IReadOnlyList<DocumentSetSummaryDto> DocumentSets)
+{
+    public static SectionSummaryDto From(Section s, IReadOnlyDictionary<Guid, int> counts) => new(
+        s.Id, s.Name, s.ConstructionId, s.CreatedAt, s.UpdatedAt,
+        s.DocumentSets.Select(ds => DocumentSetSummaryDto.From(ds, counts)).ToList());
+}
+
+/// <summary>Стройка с деревом разделов/комплектов и счётчиками документов.</summary>
+public record ConstructionDto(
+    Guid Id, string Name, Guid CreatedByUserId, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
+    IReadOnlyList<SectionSummaryDto> Sections)
+{
+    public static ConstructionDto From(Construction c, IReadOnlyDictionary<Guid, int> counts) => new(
+        c.Id, c.Name, c.CreatedByUserId, c.CreatedAt, c.UpdatedAt,
+        c.Sections.Select(s => SectionSummaryDto.From(s, counts)).ToList());
+}
+
 /// <summary>Запись общих данных — форма клиентского CommonDataEntry.</summary>
 public record CommonDataEntryDto(
     Guid Id, string DisplayName, string[] Aliases, Guid CompositeTypeId, JsonDocument Data,

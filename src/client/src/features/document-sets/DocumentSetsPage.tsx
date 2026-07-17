@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import {
-  Plus, Trash2, ChevronRight, Download, Pencil, FolderOpen, Eye,
+  Plus, Trash2, Download, Pencil, FolderOpen, Eye,
   ArrowUp, ArrowDown, Layers, Building2, FileText, Search, X, Mail, Database, Table2, Users,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
@@ -30,9 +30,6 @@ import {
 import type { Construction, DocumentInstance } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from './fields';
 import { InstanceEditor } from './editor';
-import { ScopedCatalogPanel } from './catalog';
-import { ScopedDataSetsPanel } from '@/features/datasets/ScopedDataSetsPanel';
-import { SubscribersPanel } from './SubscribersPanel';
 import { EmailSendDialog } from './EmailSendDialog';
 import { useEmailSet } from '@/shared/api/documentSets';
 import { useAuth } from '@/shared/hooks/useAuth';
@@ -412,7 +409,7 @@ function SectionDetail() {
   if (!section) return <div className="p-6 text-sm text-danger">Раздел не найден</div>;
 
   const setsInSection = section.documentSets.length;
-  const docsInSection = section.documentSets.reduce((acc, ds) => acc + (ds.instances?.length ?? 0), 0);
+  const docsInSection = section.documentSets.reduce((acc, ds) => acc + (ds.documentCount ?? 0), 0);
   const base = `/document-sets/${constructionId}/sections/${sectionId}`;
   const goPanel = (p: SectionPanel) => navigate(p === 'catalog' ? base : `${base}/${p}`);
 
@@ -442,7 +439,7 @@ function SectionDetail() {
       <NavSection label="Комплекты" />
       {section.documentSets.length === 0 && <p className="px-3 py-1.5 text-xs text-fg4">Нет комплектов</p>}
       {section.documentSets.map(ds => (
-        <NavItem key={ds.id} icon={<FolderOpen size={17} />} label={ds.name} count={ds.instances?.length ?? 0} chevron
+        <NavItem key={ds.id} icon={<FolderOpen size={17} />} label={ds.name} count={ds.documentCount ?? 0} chevron
           onClick={() => navigate(`/document-sets/${constructionId}/sets/${ds.id}`)} />
       ))}
       <button type="button" onClick={() => setAddSetOpen(true)}
@@ -545,15 +542,23 @@ function SectionDetail() {
   );
 }
 
+type ConstructionPanel = 'catalog' | 'datasets' | 'subscribers';
+
 function ConstructionDetail() {
-  const { constructionId } = useParams<{ constructionId: string }>();
+  const { constructionId, panel } = useParams<{ constructionId: string; panel?: string }>();
   const navigate = useNavigate();
+  const activePanel: ConstructionPanel = (['datasets', 'subscribers'].includes(panel ?? '') ? panel : 'catalog') as ConstructionPanel;
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
   const { data: docTypes = [] } = useListDocumentTypes();
   const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
   const [sectionError, setSectionError] = useState('');
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameVal, setRenameVal] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const createSection = useCreateSection();
+  const renameConstruction = useRenameConstruction();
+  const deleteConstruction = useDeleteConstruction();
 
   async function handleAddSection(e: React.FormEvent) {
     e.preventDefault();
@@ -569,52 +574,59 @@ function ConstructionDetail() {
   if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
   if (!construction) return <div className="p-6 text-sm text-danger">Стройка не найдена</div>;
 
+  const base = `/document-sets/${constructionId}`;
+  const goPanel = (p: ConstructionPanel) => navigate(p === 'catalog' ? base : `${base}/${p}`);
+  const sectionsN = construction.sections.length;
+  const setsN = construction.sections.reduce((a, s) => a + s.documentSets.length, 0);
+  const docsN = construction.sections.reduce((a, s) => a + s.documentSets.reduce((x, ds) => x + (ds.documentCount ?? 0), 0), 0);
+
+  const contextCrumbs = (
+    <Link to="/document-sets" className="text-xs text-fg4 hover:text-fg2 transition-colors">Стройки</Link>
+  );
+
+  const nav = (
+    <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
+      <NavSection label="Разделы" />
+      {construction.sections.length === 0 && <p className="px-3 py-1.5 text-xs text-fg4">Нет разделов</p>}
+      {construction.sections.map(s => (
+        <NavItem key={s.id} icon={<Layers size={17} />} label={s.name} count={s.documentSets.length} chevron
+          onClick={() => navigate(`/document-sets/${constructionId}/sections/${s.id}`)} />
+      ))}
+      <button type="button" onClick={() => setAddSectionOpen(true)}
+        className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-brand hover:bg-brand-subtle transition-colors">
+        <Plus size={16} className="shrink-0" /> Добавить раздел
+      </button>
+      <NavSection label="Эта стройка" />
+      <NavItem icon={<Database size={17} />} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
+      <NavItem icon={<Table2 size={17} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
+      <NavItem icon={<Users size={17} />} label="Подписчики" active={activePanel === 'subscribers'} onClick={() => goPanel('subscribers')} />
+    </div>
+  );
+
+  const headerAction = (
+    <div className="flex items-center gap-2 shrink-0">
+      <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>
+      <RowActionsMenu ariaLabel="Действия стройки" actions={[
+        { key: 'rename', label: 'Переименовать', icon: <Pencil size={14} />, onSelect: () => { setRenameVal(construction.name); setRenameOpen(true); } },
+        { key: 'delete', label: 'Удалить стройку', icon: <Trash2 size={14} />, danger: true, onSelect: () => setDeleteConfirm(true) },
+      ]} />
+    </div>
+  );
+
+  const detail = (
+    <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
+      <div className="mx-auto max-w-5xl">
+        {activePanel === 'catalog' ? <CatalogResource scope="Construction" scopeId={constructionId ?? null} allDocTypes={docTypes} />
+          : activePanel === 'datasets' ? <DataSetsResource scope="Construction" scopeId={constructionId} />
+          : <SubscribersResource scope="Construction" scopeId={constructionId!} />}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="p-6">
-      <nav className="flex items-center gap-1 text-sm text-fg4 mb-5">
-        <Link to="/document-sets" className="hover:text-fg2 transition-colors">Стройки</Link>
-        <ChevronRight size={14} />
-        <span className="text-fg2 font-medium">{construction.name}</span>
-      </nav>
-
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="text-xl font-semibold text-fg1">{construction.name}</h1>
-        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddSectionOpen(true)}>
-          Добавить раздел
-        </Button>
-      </div>
-
-      {construction.sections.length === 0 ? (
-        <EmptyState icon={<Layers size={30} />} title="Пока нет разделов"
-          description="Добавьте первый раздел (дисциплину) — например «Электроснабжение» — чтобы собирать в нём комплекты документов."
-          action={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setAddSectionOpen(true)}>Добавить раздел</Button>} />
-      ) : (
-        <div className="space-y-2">
-          {construction.sections.map(s => {
-            const setsN = s.documentSets.length;
-            const docsN = s.documentSets.reduce((acc, ds) => acc + (ds.instances?.length ?? 0), 0);
-            return (
-              <button key={s.id} onClick={() => navigate(`/document-sets/${constructionId}/sections/${s.id}`)}
-                className="w-full flex items-center gap-3 bg-surface border border-stroke rounded-xl px-4 py-3 text-left hover:border-brand hover:bg-brand-subtle/30 transition-colors group">
-                <Layers size={17} className="text-brand shrink-0" />
-                <span className="flex-1 min-w-0 text-sm font-medium text-fg1 truncate group-hover:text-brand-hover transition-colors">{s.name}</span>
-                <span className="text-xs text-fg4 shrink-0">
-                  {ruCount(setsN, 'комплект', 'комплекта', 'комплектов')}{docsN > 0 && ` · ${ruCount(docsN, 'документ', 'документа', 'документов')}`}
-                </span>
-                <ChevronRight size={16} className="text-fg4 shrink-0" />
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Блок уровня «Стройка» — визуально обособлен от списка разделов (иначе читается как ещё один раздел). */}
-      <div className="mt-6 pt-5 border-t border-stroke space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-fg4">Область: стройка</h2>
-        <ScopedCatalogPanel scope="Construction" scopeId={constructionId!} allDocTypes={docTypes} />
-        <ScopedDataSetsPanel scope="Construction" scopeId={constructionId!} />
-        <SubscribersPanel scope="Construction" scopeId={constructionId!} />
-      </div>
+    <>
+      <ListDetailShell title={construction.name} titleIcon={<Building2 size={20} />} breadcrumb={contextCrumbs}
+        headerAction={headerAction} nav={nav} detail={detail} />
 
       <Modal open={addSectionOpen} onOpenChange={setAddSectionOpen} title="Новый раздел"
         footer={
@@ -634,7 +646,51 @@ function ConstructionDetail() {
           </form>
         )}
       </Modal>
-    </div>
+
+      <Modal open={renameOpen} onOpenChange={setRenameOpen} title="Переименовать стройку"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="text" onClick={() => setRenameOpen(false)}>Отмена</Button>
+            <Button type="submit" form="rename-construction-form" variant="filled" loading={renameConstruction.isPending}>Сохранить</Button>
+          </div>
+        }>
+        {renameOpen && (
+          <form id="rename-construction-form" className="space-y-4"
+            onSubmit={async e => {
+              e.preventDefault();
+              if (!renameVal.trim() || renameVal === construction.name) { setRenameOpen(false); return; }
+              await renameConstruction.mutateAsync({ id: construction.id, name: renameVal });
+              setRenameOpen(false);
+            }}>
+            <TextField label="Название стройки" value={renameVal} onChange={e => setRenameVal(e.target.value)} required autoFocus />
+          </form>
+        )}
+      </Modal>
+
+      <ConfirmDialog
+        open={deleteConfirm}
+        onOpenChange={setDeleteConfirm}
+        title={`Удалить стройку «${construction.name}»?`}
+        description={
+          sectionsN > 0 ? (
+            <>
+              <p>Вместе с ней будут безвозвратно удалены:</p>
+              <CascadeList items={[
+                ruCount(sectionsN, 'раздел', 'раздела', 'разделов'),
+                ...(setsN > 0 ? [ruCount(setsN, 'комплект', 'комплекта', 'комплектов')] : []),
+                ...(docsN > 0 ? [`${ruCount(docsN, 'документ', 'документа', 'документов')} (и их сгенерированные PDF)`] : []),
+              ]} />
+            </>
+          ) : undefined
+        }
+        confirmLabel={`Удалить стройку «${construction.name}»`}
+        requireCheckbox={sectionsN > 0 ? 'Понимаю, что это необратимо' : undefined}
+        onConfirm={() => {
+          deleteConstruction.mutate(construction.id);
+          navigate('/document-sets');
+        }}
+      />
+    </>
   );
 }
 
@@ -819,7 +875,7 @@ function ConstructionsList() {
           if (!deleteTarget) return undefined;
           const sectionsN = deleteTarget.sections.length;
           const setsN = deleteTarget.sections.reduce((acc, s) => acc + s.documentSets.length, 0);
-          const docsN = deleteTarget.sections.reduce((acc, s) => acc + s.documentSets.reduce((a, ds) => a + (ds.instances?.length ?? 0), 0), 0);
+          const docsN = deleteTarget.sections.reduce((acc, s) => acc + s.documentSets.reduce((a, ds) => a + (ds.documentCount ?? 0), 0), 0);
           if (sectionsN === 0) return undefined;
           return (
             <>
@@ -847,6 +903,7 @@ export function DocumentSetsPage() {
     <Routes>
       <Route index element={<ConstructionsList />} />
       <Route path=":constructionId" element={<ConstructionDetail />} />
+      <Route path=":constructionId/:panel" element={<ConstructionDetail />} />
       <Route path=":constructionId/sections/:sectionId" element={<SectionDetail />} />
       <Route path=":constructionId/sections/:sectionId/:panel" element={<SectionDetail />} />
       <Route path=":constructionId/sets/:setId" element={<SetDetail />} />

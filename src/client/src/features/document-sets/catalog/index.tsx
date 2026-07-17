@@ -1,16 +1,14 @@
 import { useState } from 'react';
 import {
-  ChevronDown, ChevronUp, Plus, Database, ShieldCheck, Loader2,
+  ChevronDown, ChevronUp, ShieldCheck, Loader2,
   DatabaseZap, RefreshCw, X, CornerUpLeft, Link2,
 } from 'lucide-react';
-import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
-import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import {
   useListCommonData, useCommonDataForSet, useCreateCommonDataEntry,
-  useUpdateCommonDataEntry, useDeleteCommonDataEntry, useCommonDataEntry, useCheckBindings,
+  useUpdateCommonDataEntry, useCommonDataEntry, useCheckBindings,
   type BindingCheckItem,
 } from '@/shared/api/commonData';
 import type { CommonDataEntry, CatalogScope, DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
@@ -28,7 +26,6 @@ import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
 import { computeBoundFieldKeys, mergeBindingPreviewsIntoValues } from '@/shared/api/datasetHelpers';
 import { EntryDataSetBindings } from './EntryDataSetBindings';
-import { groupObjectsByType, ObjectRow } from './ObjectsByTypeList';
 import {
   SCOPE_COLORS, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
   PrimitiveInput, FileField, ImageField, AutoFieldsSection,
@@ -78,124 +75,10 @@ function BoundRefValue({ entryId }: { entryId: string }) {
   );
 }
 
-export function ScopedCatalogPanel({ scope, scopeId, allDocTypes, setId }: {
-  scope: CatalogScope; scopeId: string | null; allDocTypes: DocumentType[];
-  setId?: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
-  const [addOpen, setAddOpen] = useState(false);
-  const [editEntry, setEditEntry] = useState<CommonDataEntry | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<CommonDataEntry | null>(null);
-
-  const { data: entries = [], isLoading } = useListCommonData({
-    scope, scopeId: scopeId ?? undefined, enabled: expanded,
-  });
-  const compositeTypes = allDocTypes.filter(dt => dt.kind === 'Composite');
-  const documentTypes = allDocTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract);
-  const allSelectableTypes = [...compositeTypes, ...documentTypes];
-  const deleteMutation = useDeleteCommonDataEntry();
-
-  const sorted = [...entries].sort((a, b) => a.displayName.localeCompare(b.displayName));
-  const { groups, noType } = groupObjectsByType(sorted, allSelectableTypes);
-
-  function toggleType(id: string) {
-    setExpandedTypes(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  }
-
-  function renderEntries(items: CommonDataEntry[]) {
-    return items.map((entry, idx) => (
-      <ObjectRow key={entry.id} entry={entry} siblings={entries}
-        onEdit={setEditEntry} onDelete={setDeleteTarget} deleteDisabled={deleteMutation.isPending}
-        dense docKind={documentTypes.some(dt => dt.id === entry.compositeTypeId)}
-        className={idx > 0 ? 'border-t border-stroke' : ''} />
-    ));
-  }
-
-  // Группа типа: uppercase-микрозаголовок на заливке bg-base (сильный «заголовочный» сигнал),
-  // записи — плоские, на bg-surface, с левым рейлом-коннектором. Три канала различия уровней
-  // (типографика + заливка + рейл) — issue #8, слабая визуальная иерархия.
-  function renderGroup(key: string, label: string, items: CommonDataEntry[], muted = false) {
-    const isOpen = expandedTypes.has(key);
-    return (
-      <div key={key} className="border border-stroke rounded-lg overflow-hidden bg-surface">
-        <button onClick={() => toggleType(key)} aria-expanded={isOpen}
-          className="w-full flex items-center gap-2 px-3 py-1.5 bg-base hover:bg-muted transition-colors text-left">
-          {isOpen
-            ? <ChevronUp size={12} className="text-fg4 shrink-0" />
-            : <ChevronDown size={12} className="text-fg4 shrink-0" />}
-          <span className={`flex-1 text-xs font-semibold uppercase tracking-wide ${muted ? 'text-fg4' : 'text-fg2'}`}>{label}</span>
-          <span className="text-xs text-fg4">{items.length}</span>
-        </button>
-        {isOpen && (
-          <div className="bg-surface">
-            <div className="ml-3 border-l border-stroke">{renderEntries(items)}</div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="border border-stroke rounded-xl overflow-hidden">
-      <button onClick={() => setExpanded(v => !v)} aria-expanded={expanded}
-        className="w-full flex items-center gap-3 px-4 py-3 bg-surface hover:bg-base transition-colors text-left">
-        <Database size={16} className="text-fg4" />
-        <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${SCOPE_COLORS[scope]}`}>
-          {SCOPE_LABELS[scope]}
-        </span>
-        <span className="text-sm font-medium text-fg2">Каталог общих данных</span>
-        {!expanded && entries.length > 0 && (
-          <span className="text-xs text-fg4">{entries.length} записей</span>
-        )}
-        {expanded
-          ? <ChevronUp size={14} className="text-fg4 ml-auto" />
-          : <ChevronDown size={14} className="text-fg4 ml-auto" />}
-      </button>
-      {expanded && (
-        <div className="border-t border-stroke bg-base px-4 py-4 space-y-2">
-          {isLoading ? (
-            <p className="text-sm text-fg4 text-center py-2">Загрузка...</p>
-          ) : entries.length === 0 ? (
-            <p className="text-sm text-fg4 text-center py-2">Записей нет</p>
-          ) : (
-            <div className="space-y-1">
-              {groups.map(({ type, items }) => renderGroup(type.id, type.name, items))}
-              {noType.length > 0 && renderGroup('__no_type__', 'Без типа', noType, true)}
-            </div>
-          )}
-          <Button variant="text" size="sm" icon={<Plus size={14} />} onClick={() => setAddOpen(true)} className="mt-1">
-            Добавить запись
-          </Button>
-        </div>
-      )}
-      <Modal open={addOpen} onOpenChange={setAddOpen} title="Новая запись каталога" wide flushBody>
-        {addOpen && (
-          <CatalogEntryForm compositeTypes={compositeTypes} documentTypes={documentTypes} allDocTypes={allDocTypes}
-            scope={scope} scopeId={scopeId} setId={setId} onClose={() => setAddOpen(false)} />
-        )}
-      </Modal>
-      <Modal open={!!editEntry} onOpenChange={o => { if (!o) setEditEntry(null); }} title="Редактировать запись" wide flushBody>
-        {editEntry && (
-          <CatalogEntryForm entry={editEntry} compositeTypes={compositeTypes} documentTypes={documentTypes} allDocTypes={allDocTypes}
-            scope={scope} scopeId={scopeId} setId={setId} onClose={() => setEditEntry(null)} />
-        )}
-      </Modal>
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={o => { if (!o) setDeleteTarget(null); }}
-        title={`Удалить «${deleteTarget?.displayName ?? ''}»?`}
-        confirmLabel="Удалить"
-        onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id); }}
-      />
-    </div>
-  );
-}
-
 // Базовый экземпляр каталога использует общий BaseCandidatePicker (issue #73, шаг 2) —
 // кандидаты (записи родительского типа по скопам) строятся ниже из parentEntries.
 
-// ─── Catalog entry form (create + edit, shared by ScopedCatalogPanel) ────────
+// ─── Catalog entry form (create + edit, shared by CatalogResource) ───────────
 
 export function CatalogEntryForm({
   entry, compositeTypes, documentTypes = [], allDocTypes, scope, scopeId, setId, onClose,

@@ -32,4 +32,18 @@ public class DomainObjectRepository(AppDbContext db) : Repository<DomainObject>(
             .Include(o => o.Facet)
             .Where(o => o.ScopeLevel == CatalogScope.Set && o.ScopeId != null && setIds.Contains(o.ScopeId.Value) && o.Facet != null)
             .ToListAsync(ct);
+
+    public async Task<IReadOnlyDictionary<Guid, int>> CountDocumentsInSetsAsync(IReadOnlyCollection<Guid> setIds, CancellationToken ct = default)
+    {
+        if (setIds.Count == 0) return new Dictionary<Guid, int>();
+        // Только COUNT по оси (Set, ScopeId) с наличием фасеты — без загрузки Data/JSONB (лёгкий счётчик
+        // для навигации/каскадов; сами документы — DomainObject по расположению, прямой навигации нет).
+        var rows = await Db.Set<DomainObject>()
+            .AsNoTracking()
+            .Where(o => o.ScopeLevel == CatalogScope.Set && o.ScopeId != null && setIds.Contains(o.ScopeId.Value) && o.Facet != null)
+            .GroupBy(o => o.ScopeId!.Value)
+            .Select(g => new { SetId = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        return rows.ToDictionary(r => r.SetId, r => r.Count);
+    }
 }

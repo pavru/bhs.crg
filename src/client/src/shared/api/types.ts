@@ -123,7 +123,10 @@ export interface DocumentSet {
   sectionId: string;
   createdAt: string;
   updatedAt: string;
+  /** Полный состав документов — только у запроса одного комплекта (GET /document-sets/{id}). */
   instances: DocumentInstance[];
+  /** Число документов комплекта — в дереве стройки (GET /constructions[/{id}]); для навигации/каскадов. */
+  documentCount?: number;
 }
 
 export interface DocumentInstance {
