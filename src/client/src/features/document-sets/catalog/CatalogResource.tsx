@@ -5,7 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { Select, SelectItem, SelectGroup } from '@/shared/ui/Select';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { useListCommonData, useDeleteCommonDataEntry } from '@/shared/api/commonData';
+import { useListCommonData, useDeleteCommonDataEntry, useCommonDataForScope } from '@/shared/api/commonData';
 import type { CommonDataEntry, CatalogScope, DocumentType } from '@/shared/api/types';
 import { CatalogEntryForm } from './index';
 import { groupObjectsByType, ObjectRow } from './ObjectsByTypeList';
@@ -33,6 +33,9 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
   }
 
   const { data: entries = [], isLoading } = useListCommonData({ scope, scopeId: scopeId ?? undefined });
+  // Пул для резолва прокси-цели: записи всей scope-цепочки (текущий уровень + предки) — чтобы прокси,
+  // ссылающийся на реальный объект уровнем ВЫШЕ, всё равно показывал «→ цель» (issue #89, уточнение).
+  const { data: scopeChain = [] } = useCommonDataForScope({ scope, scopeId });
   const deleteMutation = useDeleteCommonDataEntry();
 
   const compositeTypes = allDocTypes.filter(dt => dt.kind === 'Composite');
@@ -106,7 +109,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
                 {isOpen && (
                   <div className="border-t border-stroke">
                     {items.map((entry, idx) => (
-                      <ObjectRow key={entry.id} entry={entry} siblings={items}
+                      <ObjectRow key={entry.id} entry={entry} siblings={items} resolvePool={scopeChain}
                         onEdit={setEditEntry} onDelete={setDeleteTarget} deleteDisabled={deleteMutation.isPending}
                         showPreview className={idx > 0 ? 'border-t border-muted' : ''} />
                     ))}
@@ -128,7 +131,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
                 {isOpen && (
                   <div className="border-t border-stroke">
                     {noType.map((entry, idx) => (
-                      <ObjectRow key={entry.id} entry={entry} siblings={noType}
+                      <ObjectRow key={entry.id} entry={entry} siblings={noType} resolvePool={scopeChain}
                         onEdit={setEditEntry} onDelete={setDeleteTarget} deleteDisabled={deleteMutation.isPending}
                         className={idx > 0 ? 'border-t border-muted' : ''} />
                     ))}

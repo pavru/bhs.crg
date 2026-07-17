@@ -17,15 +17,18 @@ export function groupObjectsByType(entries: CommonDataEntry[], types: DocumentTy
 }
 
 /** Метка роли/прокси (issue #89): если запись ссылается (`_baseRef`) на объект ТОГО ЖЕ типа —
- *  показываем «→ реальный» и открываем его по клику. Цель ищется среди siblings. */
-export function ProxyRoleMarker({ entry, siblings, onOpen }: {
+ *  показываем «→ реальный» и открываем его по клику. Цель ищется среди `resolvePool` (если задан —
+ *  вся scope-цепочка, чтобы находить прокси-цель уровнем ВЫШЕ; иначе — `siblings` того же scope). */
+export function ProxyRoleMarker({ entry, siblings, resolvePool, onOpen }: {
   entry: CommonDataEntry;
   siblings: CommonDataEntry[];
+  /** Пул для резолва цели (обычно scope-цепочка `useCommonDataForScope`) — покрывает кросс-scope прокси. */
+  resolvePool?: CommonDataEntry[];
   onOpen: (e: CommonDataEntry) => void;
 }) {
   const br = (entry.data as Record<string, unknown>)?._baseRef;
   const tid = typeof br === 'string' ? br : (br && typeof br === 'object' && 'id' in br ? (br as { id?: string }).id : undefined);
-  const target = tid ? siblings.find(e => e.id === tid) : undefined;
+  const target = tid ? (resolvePool ?? siblings).find(e => e.id === tid) : undefined;
   if (!target || target.compositeTypeId !== entry.compositeTypeId) return null;
   return (
     <button type="button" onClick={e => { e.stopPropagation(); onOpen(target); }}
@@ -40,11 +43,13 @@ export function ProxyRoleMarker({ entry, siblings, onOpen }: {
  *  <paramref name="dense"/> — компактный вид (панель) vs просторный (страница). Разделитель/фон —
  *  через <paramref name="className"/> на стороне вызывающего. */
 export function ObjectRow({
-  entry, siblings, onEdit, onDelete, deleteDisabled = false,
+  entry, siblings, resolvePool, onEdit, onDelete, deleteDisabled = false,
   dense = false, showPreview = false, docKind = false, className = '',
 }: {
   entry: CommonDataEntry;
   siblings: CommonDataEntry[];
+  /** Пул для резолва прокси-цели (scope-цепочка) — покрывает кросс-scope прокси; см. ProxyRoleMarker. */
+  resolvePool?: CommonDataEntry[];
   onEdit: (e: CommonDataEntry) => void;
   onDelete: (e: CommonDataEntry) => void;
   deleteDisabled?: boolean;
@@ -64,7 +69,7 @@ export function ObjectRow({
     <div className={`group flex items-center transition-colors ${dense ? 'gap-3 px-3 py-2 hover:bg-muted' : 'gap-4 px-4 py-3 hover:bg-base'} ${className}`}>
       {docKind && dense && <FileText size={12} className="text-warning shrink-0" />}
       <span className={`flex-1 text-sm truncate ${dense ? 'text-fg1' : 'font-medium text-fg1'}`}>{entry.displayName}</span>
-      <ProxyRoleMarker entry={entry} siblings={siblings} onOpen={onEdit} />
+      <ProxyRoleMarker entry={entry} siblings={siblings} resolvePool={resolvePool} onOpen={onEdit} />
       {docKind && dense && (
         <span className="text-xs px-1.5 py-0.5 rounded bg-warning-subtle text-warning font-medium shrink-0">внеш. документ</span>
       )}
