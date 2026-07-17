@@ -54,7 +54,11 @@ export function ObjectRow({
   className?: string;
 }) {
   const icon = dense ? 12 : 13;
-  const preview = Object.entries(entry.data).filter(([, v]) => v != null && v !== '')
+  // Превью строки: только собственные скалярные поля. Исключаем служебные ключи (`_baseRef` и пр.,
+  // с префиксом `_`) — иначе в UI протекал сырой uuid; и составные/массивные значения (объекты) —
+  // иначе рендерился `[object Object]` (их содержимое смотрят в редакторе записи).
+  const preview = Object.entries(entry.data)
+    .filter(([k, v]) => !k.startsWith('_') && v != null && v !== '' && typeof v !== 'object')
     .slice(0, 3).map(([k, v]) => `${k}: ${v}`).join(' · ');
   return (
     <div className={`group flex items-center transition-colors ${dense ? 'gap-3 px-3 py-2 hover:bg-muted' : 'gap-4 px-4 py-3 hover:bg-base'} ${className}`}>
