@@ -9,4 +9,5 @@ export * from './DocRefField';
 export * from './PasteMappingModal';
 export * from './ComplexFields';
 export * from './BaseCandidatePicker';
+export * from './BaseInstanceChip';
 export * from './SectionRail';

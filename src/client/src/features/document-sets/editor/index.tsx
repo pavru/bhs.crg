@@ -24,8 +24,9 @@ import {
   STATUS_LABELS, STATUS_COLORS,
   validateConstraint, isMissing, PrimitiveInput, FileField, ImageField,
   DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup, AutoFieldsSection,
-  BaseInstancePanel, SCOPE_TIER, ancestorTypeIds, parseBaseRef, type BaseCandidate,
+  SCOPE_TIER, ancestorTypeIds, parseBaseRef, BaseInstanceChip, BaseCandidatePicker, type BaseCandidate,
 } from '../fields';
+import { ruCount } from '@/shared/utils/pluralize';
 import { DataSetsTab } from './DataSetsTab';
 import { DocumentPreviewPanel } from './DocumentPreviewPanel';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
@@ -84,11 +85,15 @@ function BoundStateHint({ loading, error }: { loading: boolean; error: boolean }
 // Кандидаты берутся по всей цепочке типов-предков и по скоп-близости (комплект > раздел > стройка >
 // система), внутри уровня — по близости наследования. Ссылка хранится как _baseRef {kind,id}.
 
-function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, otherInstances, onDirty, saveRef, onGoToDataTab }: {
+function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, otherInstances, onDirty, saveRef, onGoToDataTab, onBaseState, baseControlRef }: {
   instance: DocumentInstance; setId: string; schemaFields: SchemaField[];
   allDocTypes: DocumentType[]; docType: DocumentType | undefined;
   otherInstances: DocumentInstance[]; onClose: () => void;
   onDirty: (dirty: boolean) => void; saveRef: SaveRef; onGoToDataTab: () => void;
+  /** Синк состояния «Основы» вверх — для chip в шапке (issue #223). */
+  onBaseState: (s: { hasBase: boolean; selected: BaseCandidate | undefined; missing: boolean; candidates: BaseCandidate[]; coveredCount: number }) => void;
+  /** Канал управления «Основой» из шапки (доступен, пока смонтирована вкладка реквизитов). */
+  baseControlRef: React.MutableRefObject<{ select: (c: BaseCandidate) => void; clear: () => void } | null>;
 }) {
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const { data: enumTypes = [] } = useListEnumTypes();
@@ -103,6 +108,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   const [error, setError] = useState('');
   const [showValidation, setShowValidation] = useState(false);
   const [activeKey, setActiveKey] = useState<string>(''); // активный раздел (list-detail, issue #191)
+  const [hintPicker, setHintPicker] = useState(false); // пикер «Основы» из строки-подсказки (issue #223)
   const mutation = useUpdateRequisites();
 
   // Поля, заполняемые привязкой к набору данных при генерации — источник перезаписывает их,
@@ -169,6 +175,20 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
     setValues(p => { const n = { ...p }; delete n._baseRef; return n; });
     onDirty(true);
   }
+
+  // Синк «Основы» в шапку (issue #223): источник правды — values._baseRef здесь; шапка лишь отражает
+  // состояние (chip) и вызывает select/clear через канал, пока эта вкладка смонтирована.
+  const missingBase = hasBase && !!baseRef && !selectedBase;
+  const baseCoveredCount = useMemo(
+    () => schemaFields.filter(f => baseCoveredFields.has(f.key)).length,
+    [schemaFields, baseCoveredFields]);
+  useEffect(() => {
+    onBaseState({ hasBase, selected: selectedBase, missing: missingBase, candidates: baseCandidates, coveredCount: baseCoveredCount });
+  }, [hasBase, selectedBase, missingBase, baseCandidates, baseCoveredCount, onBaseState]);
+  useEffect(() => {
+    baseControlRef.current = { select: selectBase, clear: clearBaseRef };
+    return () => { baseControlRef.current = null; };
+  });
 
   // Обязательное поле, покрытое активной привязкой ИЛИ базовым экземпляром, не блокирует сохранение
   // реквизитов — значение подставится при генерации, форма его не хранит.
@@ -276,11 +296,11 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   const titledSections = sections.filter(s => s.title);
   const ungrouped = sections.find(s => !s.title && s.fields.length > 0);
 
-  // Пункты list-detail (issue #191): «Основа» (базовый экземпляр) → «Основные реквизиты»
-  // (несгруппированные поля) → разделы схемы. Слева drawer, справа — только активный пункт.
-  type RailItem = { key: string; title: string; kind: 'base' | 'fields'; fields: SchemaField[] };
+  // Пункты list-detail (issue #191): «Основные реквизиты» (несгруппированные поля) → разделы схемы.
+  // «Основа» (базовый экземпляр) переехала в chip шапки документа (issue #223) — это документ-левел
+  // мета-настройка, а не раздел полей. Слева drawer, справа — только активный пункт.
+  type RailItem = { key: string; title: string; kind: 'fields'; fields: SchemaField[] };
   const items: RailItem[] = [];
-  if (hasBase) items.push({ key: '__base__', title: 'Основа', kind: 'base', fields: [] });
   if (ungrouped) items.push({ key: ungrouped.key || '__main__', title: 'Основные реквизиты', kind: 'fields', fields: ungrouped.fields });
   for (const s of titledSections) items.push({ key: s.key, title: s.title!, kind: 'fields', fields: s.fields });
 
@@ -415,25 +435,22 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
       );
     }
 
-  const basePanel = hasBase ? (
-    <BaseInstancePanel
-      candidates={baseCandidates}
-      selected={selectedBase}
-      missing={!!baseRef && !selectedBase}
-      manualHint={ownFields.length < schemaFields.length
-        ? `Без базового экземпляра все ${schemaFields.length} полей заполняются вручную.` : undefined}
-      onSelect={selectBase}
-      onClear={clearBaseRef}
-    />
-  ) : null;
-
-  // Тело пункта справа: «Основа» → панель базового экземпляра; раздел → заголовок + прогресс + поля.
+  // Тело пункта справа: заголовок + прогресс + поля. В первом пункте — строка-подсказка про «Основу»
+  // (issue #223): сам выбор базы живёт в chip шапки, здесь — только напоминание, когда не выбрана.
   function renderItemBody(item: RailItem) {
-    if (item.kind === 'base') return basePanel;
     const stats = sectionStats(item.fields);
     const sectionIdx = fieldsItems.findIndex(i => i.key === item.key);
+    const isFirst = item.key === items[0]?.key;
     return (
       <>
+        {isFirst && hasBase && !baseRef && (
+          <p className="text-xs text-fg4 mb-4">
+            Основа не выбрана — все поля заполняются вручную.{' '}
+            <button type="button" onClick={() => setHintPicker(true)} className="text-brand hover:text-brand-hover underline underline-offset-2">
+              Выбрать основу
+            </button>
+          </p>
+        )}
         <div className="mb-4">
           <h2 className="text-xl font-normal text-fg1">{item.title}</h2>
           <p className="text-xs text-fg4 mt-0.5">
@@ -455,17 +472,12 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
             <div className="text-xs font-medium text-fg4 px-3 pb-1.5">Разделы</div>
             {items.map(item => {
               const isActive = item.key === activeItem.key;
-              const stats = item.kind === 'fields' ? sectionStats(item.fields) : null;
+              const stats = sectionStats(item.fields);
               let Icon = Circle, iconCls = 'text-fg4';
-              if (item.kind === 'base') {
-                if (baseRef) { Icon = CheckCircle2; iconCls = 'text-brand'; }
-                else if (isActive) { Icon = CircleDot; iconCls = 'text-brand'; }
-              } else if (stats) {
-                if (showValidation && stats.missing > 0) { Icon = AlertCircle; iconCls = 'text-danger'; }
-                else if (stats.total > 0 && stats.filled === stats.total) { Icon = CheckCircle2; iconCls = 'text-brand'; }
-                else if (isActive) { Icon = CircleDot; iconCls = 'text-brand'; }
-                else if (stats.filled > 0) { Icon = CircleDot; iconCls = 'text-fg3'; }
-              }
+              if (showValidation && stats.missing > 0) { Icon = AlertCircle; iconCls = 'text-danger'; }
+              else if (stats.total > 0 && stats.filled === stats.total) { Icon = CheckCircle2; iconCls = 'text-brand'; }
+              else if (isActive) { Icon = CircleDot; iconCls = 'text-brand'; }
+              else if (stats.filled > 0) { Icon = CircleDot; iconCls = 'text-fg3'; }
               return (
                 <button key={item.key} type="button" onClick={() => setActiveKey(item.key)}
                   aria-current={isActive ? 'true' : undefined}
@@ -510,6 +522,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
           <p className="text-sm text-danger">{error}</p>
         </div>
       )}
+      <BaseCandidatePicker open={hintPicker} onOpenChange={setHintPicker} candidates={baseCandidates} onSelect={selectBase} />
     </div>
   );
 }
@@ -816,6 +829,14 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
   const [savedFlash, setSavedFlash] = useState(false);
   // Актуальная функция сохранения активной редактируемой вкладки.
   const saveRef = useRef<(() => Promise<boolean>) | null>(null);
+  // «Основа» (issue #223): состояние-зеркало базы для chip шапки — источник правды `_baseRef` живёт в
+  // `values` внутри RequisitesTab, сюда синкается для отрисовки. Управление — через baseControlRef
+  // (доступно только пока вкладка реквизитов смонтирована).
+  const [baseState, setBaseState] = useState<{
+    hasBase: boolean; selected: BaseCandidate | undefined; missing: boolean;
+    candidates: BaseCandidate[]; coveredCount: number;
+  } | null>(null);
+  const baseControlRef = useRef<{ select: (c: BaseCandidate) => void; clear: () => void } | null>(null);
 
   // Редактируемые вкладки (есть что сохранять на уровне документа).
   const editable = tab === 'requisites';
@@ -898,8 +919,17 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
             <InstanceNameEditor instance={instance} setId={setId} docType={docType} />
             <p className="text-xs text-fg4 mt-0.5 truncate">
               {docType?.name ? `${docType.name} · Редактирование` : 'Редактирование'}
+              {baseState?.selected && baseState.coveredCount > 0 &&
+                ` · ${ruCount(baseState.coveredCount, 'поле', 'поля', 'полей')} из основы`}
             </p>
           </div>
+          {baseState?.hasBase && (
+            <BaseInstanceChip
+              selected={baseState.selected} missing={baseState.missing} candidates={baseState.candidates}
+              editable={tab === 'requisites'}
+              onSelect={c => baseControlRef.current?.select(c)}
+              onClear={() => baseControlRef.current?.clear()} />
+          )}
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLORS[instance.status] ?? 'bg-brand-subtle text-brand'}`}>
             {STATUS_LABELS[instance.status] ?? instance.status}
           </span>
@@ -931,7 +961,8 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
         <RequisitesTab instance={instance} setId={setId} schemaFields={schemaFields}
           allDocTypes={allDocTypes} docType={docType} otherInstances={otherInstances}
           onClose={onClose} onDirty={setDirty} saveRef={saveRef}
-          onGoToDataTab={() => requestTab('datasets')} />
+          onGoToDataTab={() => requestTab('datasets')}
+          onBaseState={setBaseState} baseControlRef={baseControlRef} />
       )}
       {tab === 'datasets' && (
         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
