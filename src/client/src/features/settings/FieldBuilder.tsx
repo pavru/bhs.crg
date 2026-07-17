@@ -191,7 +191,7 @@ export function FieldCard({
       </div>
       {open && (
       <div className="px-3 pb-3 pt-2 border-t border-stroke space-y-2">
-      <div className="grid grid-cols-[1fr_1fr_160px_72px_48px] gap-2 items-center">
+      <div className="grid grid-cols-[1fr_1fr_160px_72px_76px] gap-2 items-center">
         {/* Title */}
         <input
           value={field.title}
@@ -233,7 +233,7 @@ export function FieldCard({
           <span className="text-xs text-fg3">да</span>
         </label>
         {/* Actions */}
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center justify-end gap-0.5">
           <button type="button" onClick={onMoveUp} disabled={isFirst}
             className="p-1 text-fg4 hover:text-fg2 disabled:opacity-25">
             <ArrowUp size={12} />
