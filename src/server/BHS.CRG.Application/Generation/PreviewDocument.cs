@@ -100,7 +100,6 @@ public class PreviewDocumentHandler(
             var request = new GenerationRequest(template.Content, OutputFormat.Pdf, context,
                 TypeBlocksContent: string.IsNullOrEmpty(preamble) ? null : preamble,
                 UserLibContent: userLib,
-                ImageOptions: SchemaImageOptions.Collect(allDocTypes),
                 TemplateAssets: assets);
             var bytes = await generator.GenerateAsync(request, ct);
             return PreviewDocumentResult.Ok(bytes);

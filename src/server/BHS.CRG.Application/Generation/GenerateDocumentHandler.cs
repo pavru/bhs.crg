@@ -104,7 +104,6 @@ public class GenerateDocumentHandler(
             var contentType = cmd.Format == OutputFormat.Pdf
                 ? "application/pdf"
                 : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-            var imageOptions = SchemaImageOptions.Collect(allDocTypes);
             var docType = allDocTypes.FirstOrDefault(dt => dt.Id == instance.CompositeTypeId);
 
             // По PDF на каждый выбранный шаблон. Контекст (реквизиты/наборы/каталог) общий — строится
@@ -123,7 +122,7 @@ public class GenerateDocumentHandler(
                 var generator = generatorFactory.Create(cmd.Format);
                 var request = new GenerationRequest(template.Content, cmd.Format, context,
                     TypeBlocksContent: typeBlocksContent, UserLibContent: userLibContent,
-                    ImageOptions: imageOptions, TemplateAssets: templateAssets);
+                    TemplateAssets: templateAssets);
                 var bytes = await generator.GenerateAsync(request, ct);
 
                 // Обратная запись метаданных — только с ПЕРВОГО файла (репрезентативно: число листов и т.п.).

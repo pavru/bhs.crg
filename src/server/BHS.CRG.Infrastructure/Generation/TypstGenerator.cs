@@ -28,9 +28,9 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
         try
         {
             // Поля-изображения (data-URI) декодируем в файлы assets/ и подставляем пути,
-            // чтобы шаблон мог обращаться к ним через image(it.Поле).
-            var dataJson = TypstImageMaterializer.Materialize(request.Context.Data, tmpDir,
-                imageOptions: request.ImageOptions);
+            // чтобы шаблон мог обращаться к ним через image(it.Поле). Размер/выравнивание — из самого
+            // значения-объекта {src, width, ...} (issue #246).
+            var dataJson = TypstImageMaterializer.Materialize(request.Context.Data, tmpDir);
 
             // Поля-вложения ({$type:"file"}) скачиваем из blob-хранилища в assets/ и подставляем путь+
             // pageCount, чтобы шаблон вставлял их через image(it.Поле.src[, page: n]) — в т.ч. страницы PDF.

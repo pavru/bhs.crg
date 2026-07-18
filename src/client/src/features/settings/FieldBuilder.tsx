@@ -151,11 +151,6 @@ export function FieldCard({
   // Легаси enum-поле (issue #59): options инлайн, typeId не выбран.
   const isLegacyEnum = field.type === 'enum' && !field.typeId && (field.options?.length ?? 0) > 0;
   const enumTypeDef = field.type === 'enum' ? enumTypes.find(et => et.id === field.typeId) : undefined;
-  const setImageOpt = (patch: Partial<NonNullable<SchemaField['image']>>) => {
-    const merged = { ...(field.image ?? {}), ...patch };
-    const cleaned = Object.fromEntries(Object.entries(merged).filter(([, v]) => v !== undefined && v !== ''));
-    onChange({ image: Object.keys(cleaned).length ? cleaned : undefined });
-  };
   // Ключ «автоматический», пока совпадает с toCamelKey(title) — тогда перегенерируем при вводе названия.
   const updateTitle = (title: string) => {
     const isKeyAuto = !field.key.trim() || field.key === toCamelKey(field.title);
@@ -329,44 +324,6 @@ export function FieldCard({
             className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
             <Plus size={11} /> Добавить вариант
           </button>
-        </div>
-      )}
-      {/* Опции изображения (размер/выравнивание) */}
-      {field.type === 'image' && (
-        <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] flex flex-wrap items-center gap-2">
-          <span className="text-xs text-fg4 shrink-0 w-28">Изображение:</span>
-          <input
-            value={field.image?.width ?? ''}
-            onChange={e => setImageOpt({ width: e.target.value })}
-            placeholder="ширина (напр. 4cm)"
-            className="w-32 border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
-          />
-          <input
-            value={field.image?.height ?? ''}
-            onChange={e => setImageOpt({ height: e.target.value })}
-            placeholder="высота"
-            className="w-24 border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
-          />
-          <select
-            value={field.image?.align ?? ''}
-            onChange={e => setImageOpt({ align: (e.target.value || undefined) as 'left' | 'center' | 'right' | undefined })}
-            className="border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
-          >
-            <option value="">выравнивание</option>
-            <option value="left">слева</option>
-            <option value="center">по центру</option>
-            <option value="right">справа</option>
-          </select>
-          <select
-            value={field.image?.fit ?? ''}
-            onChange={e => setImageOpt({ fit: (e.target.value || undefined) as 'cover' | 'contain' | 'stretch' | undefined })}
-            className="border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand"
-          >
-            <option value="">fit (вписывание)</option>
-            <option value="contain">contain</option>
-            <option value="cover">cover</option>
-            <option value="stretch">stretch</option>
-          </select>
         </div>
       )}
       {/* Функциональные тэги поля (для primitive — из типа поля, иначе из реестра) */}

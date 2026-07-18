@@ -1,4 +1,3 @@
-using BHS.CRG.Application.Schema;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
 
@@ -15,6 +14,5 @@ public record GenerationRequest(
     GenerationContext Context,
     string? TypeBlocksContent = null,
     string? UserLibContent = null,
-    IReadOnlyDictionary<string, ImageRenderOptions>? ImageOptions = null,
     ResolvedTemplateAssets? TemplateAssets = null
 );

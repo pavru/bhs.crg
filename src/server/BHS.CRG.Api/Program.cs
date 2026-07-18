@@ -294,6 +294,10 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
 
+    // Разовый перенос размеров изображений из схем типов в значения инстансов (issue #246).
+    // Идемпотентно: после первого прогона схемы очищены, карта пустеет — обход не запускается.
+    await BHS.CRG.Infrastructure.DataFixups.ImageSizeToInstanceFixup.RunAsync(db);
+
     // Зависшие фоновые задачи (in-process очередь потеряна при рестарте) — помечаем Failed, чтобы
     // индикатор не «висел» вечно (тот же приём восстановления, что и сид ролей ниже).
     var stuckJobs = await db.Jobs.Where(j => j.Status == JobStatus.Queued || j.Status == JobStatus.Running).ToListAsync();
