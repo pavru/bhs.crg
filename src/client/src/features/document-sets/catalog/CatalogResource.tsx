@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Search, ChevronDown, ChevronUp, Database, FileText, Layers, X } from 'lucide-react';
+import { Plus, Search, ChevronDown, ChevronUp, Database, FileText, Layers, X, Building2, Pencil, Copy, Check } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { SearchInput } from '@/shared/ui/SearchInput';
@@ -8,10 +8,22 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useListCommonData, useDeleteCommonDataEntry, useCommonDataForScope } from '@/shared/api/commonData';
 import type { CommonDataEntry, CatalogScope, DocumentType } from '@/shared/api/types';
+import { SCOPE_LABELS } from '@/shared/api/types';
+import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { CatalogEntryForm } from './index';
 import { groupObjectsByType, entryMatchesQuery, ObjectRow } from './ObjectsByTypeList';
 
 const NO_TYPE = '__no_type__';
+const PROFILE = '__profile__';
+/** Тэг профиль-типа и ключ в шаблоне (data.уровень.<key>) по уровню (issue #258). System — нет профиля. */
+const PROFILE_TAG: Partial<Record<CatalogScope, string>> = {
+  Construction: FUNCTIONAL_TAG.profileConstruction,
+  Section: FUNCTIONAL_TAG.profileSection,
+  Set: FUNCTIONAL_TAG.profileSet,
+};
+const PROFILE_KEY: Partial<Record<CatalogScope, string>> = {
+  Construction: 'стройка', Section: 'раздел', Set: 'комплект',
+};
 /** Порог, с которого над списком типов появляется мини-поиск (NN/g: фасеты с поиском при большом числе). */
 const TYPE_SEARCH_THRESHOLD = 12;
 
@@ -54,8 +66,19 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
   const allSelectableTypes = [...compositeTypes, ...documentTypes];
   const isDocType = (id: string) => documentTypes.some(dt => dt.id === id);
 
+  // Профиль уровня (issue #258): составной тип, помеченный тэгом profile-* для этого scope, — его
+  // единственный объект здесь несёт «данные уровня», амбиентно попадающие в шаблон (data.уровень.<key>).
+  const profileTag = PROFILE_TAG[scope];
+  const profileKey = PROFILE_KEY[scope];
+  const profileType = profileTag
+    ? compositeTypes.find(t => (((t.schema as { tags?: string[] }).tags) ?? []).includes(profileTag))
+    : undefined;
+  const profileObject = profileType ? entries.find(e => e.compositeTypeId === profileType.id) : undefined;
+  // Профиль не смешиваем с обычными записями (рейл/список/«Все записи»).
+  const normalEntries = profileObject ? entries.filter(e => e.id !== profileObject.id) : entries;
+
   // Рейл типов: счётчики по всем записям уровня (независимо от текстового поиска и выбранного типа).
-  const rail = groupObjectsByType(entries, allSelectableTypes);
+  const rail = groupObjectsByType(normalEntries, allSelectableTypes);
   const tq = typeSearch.trim().toLowerCase();
   const railGroups = tq ? rail.groups.filter(g => g.type.name.toLowerCase().includes(tq)) : rail.groups;
 
@@ -71,7 +94,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
   // entryMatchesQuery. Раньше искали только по displayName (искали «орга» → тип «Организация» не находился).
   const matchText = (e: CommonDataEntry) =>
     entryMatchesQuery(e, allSelectableTypes.find(t => t.id === e.compositeTypeId)?.name, search);
-  const filtered = entries.filter(e => matchText(e) && matchType(e))
+  const filtered = normalEntries.filter(e => matchText(e) && matchType(e))
     .sort((a, b) => {
       const typeCmp = (allSelectableTypes.find(t => t.id === a.compositeTypeId)?.name ?? '').localeCompare(
         allSelectableTypes.find(t => t.id === b.compositeTypeId)?.name ?? '');
@@ -101,7 +124,12 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
             )}
           </div>
         )}
-        <TypeNavItem icon={<Layers size={15} />} label="Все записи" count={entries.length}
+        {profileType && (
+          <TypeNavItem icon={<Building2 size={15} />} label={`Данные: ${SCOPE_LABELS[scope]}`}
+            count={undefined} active={filterTypeId === PROFILE} profile
+            onClick={() => setFilterTypeId(PROFILE)} />
+        )}
+        <TypeNavItem icon={<Layers size={15} />} label="Все записи" count={normalEntries.length}
           active={!filterTypeId} onClick={() => setFilterTypeId('')} />
         {railGroups.map(({ type: t, items }) => (
           <TypeNavItem key={t.id}
@@ -115,8 +143,13 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
         )}
       </aside>
 
-      {/* Записи */}
+      {/* Записи / профиль уровня */}
       <div className="flex-1 min-w-0">
+        {filterTypeId === PROFILE && profileType ? (
+          <ProfileDetail scope={scope} type={profileType} object={profileObject} templateKey={profileKey!}
+            onEdit={() => profileObject && setEditEntry(profileObject)} />
+        ) : (
+        <>
         <div className="flex items-center gap-3 mb-4">
           <div className="flex-1 max-w-sm">
             <SearchInput value={search} onChange={setSearch}
@@ -183,6 +216,8 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
             })()}
           </div>
         )}
+        </>
+        )}
       </div>
 
       <Modal open={addOpen} onOpenChange={setAddOpen} title="Новая запись" wide flushBody>
@@ -206,16 +241,81 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
 
 /** Пункт вертикального рейла типов (issue #210, вариант B). Активный — заливка brand-subtle;
  *  документные типы (внешний каталог) — приглушённая иконка; счётчик tabular. */
-function TypeNavItem({ icon, label, count, active, doc, muted, onClick }: {
-  icon?: ReactNode; label: string; count: number; active?: boolean; doc?: boolean; muted?: boolean; onClick: () => void;
+function TypeNavItem({ icon, label, count, active, doc, muted, profile, onClick }: {
+  icon?: ReactNode; label: string; count?: number; active?: boolean; doc?: boolean; muted?: boolean;
+  profile?: boolean; onClick: () => void;
 }) {
   return (
     <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
       className={`w-full flex items-center gap-2 px-2.5 h-9 rounded-lg text-left transition-colors ${
-        active ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
-      {icon && <span className={`shrink-0 ${active ? 'text-brand-hover' : doc ? 'text-warning' : 'text-fg4'}`}>{icon}</span>}
+        active ? 'bg-brand-subtle text-brand-hover font-medium'
+          : profile ? 'text-brand-hover hover:bg-brand-subtle' : 'text-fg2 hover:bg-muted'}`}>
+      {icon && <span className={`shrink-0 ${active || profile ? 'text-brand-hover' : doc ? 'text-warning' : 'text-fg4'}`}>{icon}</span>}
       <span className={`flex-1 truncate text-sm ${muted ? 'italic text-fg3' : ''}`}>{label}</span>
-      <span className="text-xs text-fg4 tabular-nums shrink-0">{count}</span>
+      {count != null && <span className="text-xs text-fg4 tabular-nums shrink-0">{count}</span>}
     </button>
+  );
+}
+
+/** Detail профиля уровня (issue #258): бейдж «уровень», объяснитель «данные во всех документах»,
+ *  ключ доступа в шаблоне со «Скопировать», превью полей + «Редактировать» (открывает форму записи). */
+function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
+  scope: CatalogScope; type: DocumentType; object?: CommonDataEntry; templateKey: string; onEdit: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const key = `уровень.${templateKey}`;
+  const copy = () => {
+    navigator.clipboard?.writeText(key);
+    setCopied(true); setTimeout(() => setCopied(false), 1500);
+  };
+  const preview = object ? Object.entries(object.data)
+    .filter(([k, v]) => !k.startsWith('_') && v != null && v !== '' && typeof v !== 'object')
+    .slice(0, 12) : [];
+  return (
+    <div className="max-w-2xl">
+      <div className="flex items-start gap-3 mb-4">
+        <span className="shrink-0 w-10 h-10 rounded-lg bg-brand-subtle text-brand-hover flex items-center justify-center">
+          <Building2 size={18} />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold text-fg1">Данные: {SCOPE_LABELS[scope]}</h2>
+            <span className="text-xs bg-brand-subtle text-brand-hover px-1.5 py-0.5 rounded-full">уровень</span>
+          </div>
+          <p className="text-xs text-fg3 mt-0.5">Тип: {type.name} · единственная запись уровня.</p>
+        </div>
+        <Button variant="outlined" size="sm" icon={<Pencil size={14} />} onClick={onEdit} disabled={!object}>
+          Редактировать
+        </Button>
+      </div>
+
+      <div className="rounded-lg border border-stroke bg-surface p-3 mb-3">
+        <p className="text-xs text-fg2">
+          Эти данные доступны <span className="font-medium">во всех документах уровня</span> — в шаблоне через ключ:
+        </p>
+        <div className="flex items-center gap-2 mt-1.5">
+          <code className="text-xs font-mono bg-muted text-fg1 px-2 py-1 rounded">data.{key}.*</code>
+          <button type="button" onClick={copy} title="Скопировать ключ"
+            className="text-fg4 hover:text-brand transition-colors">
+            {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
+          </button>
+        </div>
+      </div>
+
+      {preview.length > 0 ? (
+        <div className="rounded-lg border border-stroke divide-y divide-muted">
+          {preview.map(([k, v]) => (
+            <div key={k} className="flex items-center gap-3 px-3 py-2 text-sm">
+              <span className="text-fg3 min-w-[10rem] shrink-0">{k}</span>
+              <span className="text-fg1 truncate">{String(v)}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-fg4 px-1 py-4">
+          Профиль пуст. Нажмите «Редактировать», чтобы заполнить данные уровня.
+        </p>
+      )}
+    </div>
   );
 }
