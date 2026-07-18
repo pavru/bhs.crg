@@ -39,8 +39,48 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
             ctx = GenerationContext.FromJson(instance.Requisites, instance.PluginData);
         }
 
+        // Профили уровней (issue #258) — амбиентные данные стройки/раздела/комплекта под ключом
+        // data.уровень.{стройка,раздел,комплект}. ДО resolve-refs: вложенные $ref/_baseRef профилей
+        // резолвятся тем же проходом ниже.
+        await InjectScopeProfilesAsync(ctx, instance.DocumentSetId, ct);
+
         await ResolveContextRefsAsync(ctx, instance.DocumentSetId, ct);
         return ctx;
+    }
+
+    /// <summary>
+    /// Инжектит профили уровней в контекст под ключом «уровень» = { стройка, раздел, комплект } (issue #258).
+    /// Read-only: находит объект-профиль (профиль-тип по тэгу × scope контейнера), резолвит его через
+    /// <see cref="ResolveEntryByIdAsync"/> (с _baseRef-мержем); отсутствующий уровень → пустой объект
+    /// (не отсутствие ключа — чтобы шаблонам было проще). Каскад: доступны все три уровня-предка документа.
+    /// </summary>
+    private async Task InjectScopeProfilesAsync(GenerationContext ctx, Guid documentSetId, CancellationToken ct)
+    {
+        var scope = await ScopeChains.LoadAsync(db, documentSetId, ct);
+        var types = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
+        var empty = JsonDocument.Parse("{}").RootElement.Clone();
+
+        var profiles = new Dictionary<string, JsonElement>();
+        foreach (var (level, tag, key) in LevelProfiles.Levels)
+        {
+            var containerId = level switch
+            {
+                CatalogScope.Construction => scope.ConstructionId,
+                CatalogScope.Section => scope.SectionId,
+                CatalogScope.Set => scope.SetId,
+                _ => Guid.Empty,
+            };
+            var value = empty;
+            if (containerId != Guid.Empty && LevelProfiles.ResolveProfileTypeId(types, tag) is { } typeId)
+            {
+                var profileObj = await db.DomainObjects.AsNoTracking().FirstOrDefaultAsync(
+                    o => o.ScopeLevel == level && o.ScopeId == containerId && o.CompositeTypeId == typeId, ct);
+                if (profileObj is not null)
+                    value = await ResolveEntryByIdAsync(profileObj.Id, scope, [], ct);
+            }
+            profiles[key] = value;
+        }
+        ctx.Set("уровень", JsonSerializer.SerializeToElement(profiles));
     }
 
     public async Task ResolveContextRefsAsync(GenerationContext ctx, Guid documentSetId, CancellationToken ct = default)

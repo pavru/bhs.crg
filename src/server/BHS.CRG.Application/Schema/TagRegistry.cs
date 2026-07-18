@@ -10,13 +10,22 @@ public enum TagScope { Field, Type, Dataset, GostDocument }
 /// для Type — допустимые виды типа ("Document"/"Composite"); для Dataset не используется
 /// (пустой = любой формат источника).
 /// </summary>
+/// <summary>
+/// Внутреннее ограничение назначения тэга (issue #258) — пользователь им не управляет. Сейчас одно
+/// поле: <paramref name="MaxBearers"/> — глобальный максимум РАЗЛИЧНЫХ носителей тэга по всем типам
+/// (носитель: тип для Type-тэга, пара тип+поле для Field-тэга; считается по СОБСТВЕННЫМ схемам).
+/// Сам record — точка расширения (взаимоисключения/обязательность добавляются позже, не ломая контракт).
+/// </summary>
+public record TagRestriction(int? MaxBearers);
+
 public record TagDefinition(
     string Code,
     string Label,
     string Description,
     TagScope Scope,
     string[] AppliesTo,
-    bool Multiple);
+    bool Multiple,
+    TagRestriction? Restriction = null);
 
 /// <summary>Реестр функциональных тэгов — единый источник правды (см. <see cref="FunctionalTag"/>).</summary>
 public static class TagRegistry
@@ -61,6 +70,17 @@ public static class TagRegistry
         new(FunctionalTag.TypeProjectDocumentation, "Проектная документация",
             "Тип документа относится к проектной документации (ГОСТ Р 21.101-2020).",
             TagScope.Type, ["Document"], Multiple: false),
+
+        // ── Type: профиль уровня (issue #258) — ровно один тип на уровень (MaxBearers=1) ──
+        new(FunctionalTag.ProfileConstruction, "Профиль стройки",
+            "Составной тип — профиль уровня «Стройка». Его поля доступны во всех документах стройки в шаблоне: data.уровень.стройка.*. Может быть только один такой тип.",
+            TagScope.Type, ["Composite"], Multiple: false, Restriction: new(MaxBearers: 1)),
+        new(FunctionalTag.ProfileSection, "Профиль раздела",
+            "Составной тип — профиль уровня «Раздел». Его поля доступны во всех документах раздела в шаблоне: data.уровень.раздел.*. Может быть только один такой тип.",
+            TagScope.Type, ["Composite"], Multiple: false, Restriction: new(MaxBearers: 1)),
+        new(FunctionalTag.ProfileSet, "Профиль комплекта",
+            "Составной тип — профиль уровня «Комплект». Его поля доступны во всех документах комплекта в шаблоне: data.уровень.комплект.*. Может быть только один такой тип.",
+            TagScope.Type, ["Composite"], Multiple: false, Restriction: new(MaxBearers: 1)),
 
         // ── Dataset: структура PDF-источника ──
         new(FunctionalTag.DatasetHasCover, "Имеет обложку",

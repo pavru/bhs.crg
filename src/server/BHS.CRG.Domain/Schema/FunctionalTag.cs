@@ -47,6 +47,17 @@ public static class FunctionalTag
     /// <summary>Тип документа относится к проектной документации (ГОСТ Р 21.101-2020).</summary>
     public const string TypeProjectDocumentation = "type.projectDocumentation";
 
+    // ── Тэги типа: профиль уровня (issue #258) ──────────────────────────────────
+    // Составной тип, помеченный тэгом, — «профиль» соответствующего уровня-контейнера: его поля
+    // амбиентно попадают в шаблон всех документов уровня (data.уровень.стройка/раздел/комплект).
+    // Ограничение MaxBearers=1 (TagRegistry): ровно один тип во всей системе может нести каждый тэг.
+    /// <summary>Составной тип — профиль уровня «Стройка».</summary>
+    public const string ProfileConstruction = "profile.construction";
+    /// <summary>Составной тип — профиль уровня «Раздел».</summary>
+    public const string ProfileSection = "profile.section";
+    /// <summary>Составной тип — профиль уровня «Комплект».</summary>
+    public const string ProfileSet = "profile.set";
+
     // ── Тэги набора данных (структура PDF-источника) ────────────────────────────
     /// <summary>PDF содержит обложку (первая страница пропускается при распознавании).</summary>
     public const string DatasetHasCover = "dataset.hasCover";
