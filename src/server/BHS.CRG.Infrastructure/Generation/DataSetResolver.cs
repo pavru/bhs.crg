@@ -182,22 +182,39 @@ public class DataSetResolver(
         if (refMap is null)
             return row.TryGetValue(mapVal, out var val) ? val : null;
 
-        // Ссылочное поле: резолвим значение колонки в существующий объект каталога.
-        if (!row.TryGetValue(refMap.Column, out var lookup) || string.IsNullOrWhiteSpace(lookup))
-            return null;
+        // Ссылочное поле: резолвим строку в существующий объект каталога по одной из двух стратегий
+        // (issue #243): Identity (составной ключ identity-полей) либо Name (по имени/алиасам); legacy
+        // с непустым match — Field (произвольное поле, из UI больше не создаётся, читается вечно).
+        ObjectMatchRequest req;
+        string lookupDisplay; // для WARNING
+        if (refMap.IsIdentity)
+        {
+            var fields = new Dictionary<string, string?>();
+            foreach (var (idField, col) in refMap.IdentityColumns!)
+                fields[idField] = row.TryGetValue(col, out var cv) ? cv : null;
+            if (fields.Values.All(string.IsNullOrWhiteSpace)) return null; // нечего искать
+            req = ObjectMatchRequest.ByIdentity(refMap.TypeId, fields);
+            lookupDisplay = string.Join(" · ", fields.Values.Where(s => !string.IsNullOrWhiteSpace(s)));
+        }
+        else
+        {
+            if (refMap.Column is null || !row.TryGetValue(refMap.Column, out var lookup) || string.IsNullOrWhiteSpace(lookup))
+                return null;
+            req = string.IsNullOrEmpty(refMap.Match)
+                ? ObjectMatchRequest.ByName(refMap.TypeId, lookup)
+                : ObjectMatchRequest.ByField(refMap.TypeId, refMap.Match, lookup);
+            lookupDisplay = lookup;
+        }
 
-        var req = string.IsNullOrEmpty(refMap.Match)
-            ? ObjectMatchRequest.ByName(refMap.TypeId, lookup)
-            : ObjectMatchRequest.ByField(refMap.TypeId, refMap.Match, lookup);
         var entryId = await objectResolver.ResolveAsync(req, scopeLevel, scopeId, ct);
         if (entryId is null)
         {
             logger.LogWarning(
-                "Запись каталога не найдена при маппинге набора данных. TypeId={TypeId}, Match={Match}, Value={Value}, Owner={OwnerId}",
-                refMap.TypeId, refMap.Match, lookup, ownerId);
+                "Запись каталога не найдена при маппинге набора данных. TypeId={TypeId}, Strategy={Strategy}, Value={Value}, Owner={OwnerId}",
+                refMap.TypeId, req.Strategy, lookupDisplay, ownerId);
             diagnostics?.Add(new ResolutionDiagnostic(
                 DiagnosticSeverity.Warning, path,
-                $"Значение «{lookup}» не найдено в каталоге — ссылка не подставлена."));
+                $"Значение «{lookupDisplay}» не найдено в каталоге — ссылка не подставлена."));
             return null;
         }
 
