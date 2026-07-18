@@ -15,7 +15,15 @@ export const FUNCTIONAL_TAG = {
   datasetHasCover: 'dataset.hasCover',
   datasetHasTitlePage: 'dataset.hasTitlePage',
   datasetHasTitleBlock: 'dataset.hasTitleBlock',
+  profileConstruction: 'profile.construction',
+  profileSection: 'profile.section',
+  profileSet: 'profile.set',
 } as const;
+
+/** Внутреннее ограничение тэга (issue #258): глобальный максимум носителей и т.п. */
+export interface TagRestriction {
+  maxBearers?: number | null;
+}
 
 export type TagScope = 'Field' | 'Type' | 'Dataset' | 'GostDocument';
 
@@ -27,6 +35,8 @@ export interface TagDefinition {
   /** For Field: allowed SchemaField.type values; for Type: allowed kinds ("Document"/"Composite"). Empty = any. */
   appliesTo: string[];
   multiple: boolean;
+  /** Внутреннее ограничение назначения (напр. глобальный максимум носителей). */
+  restriction?: TagRestriction | null;
 }
 
 export function useTagRegistry() {

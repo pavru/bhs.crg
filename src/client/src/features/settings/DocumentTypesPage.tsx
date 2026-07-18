@@ -588,14 +588,25 @@ function SchemaEditor({ docType, allDocTypes }: {
           <div className="flex flex-wrap gap-1.5 pt-2">
             {applicableTypeTags.map(t => {
               const on = docTypeTags.includes(t.code);
+              // Ограничение носителей (issue #258): тэг занят другими типами сверх лимита и текущий тип
+              // его не несёт → дизейбл + тултип с занятыми типами.
+              const max = t.restriction?.maxBearers ?? null;
+              const otherBearers = max == null ? [] : allDocTypes.filter(dt => dt.id !== docType.id
+                && (((dt.schema as { tags?: string[] }).tags) ?? []).includes(t.code));
+              const blocked = max != null && !on && otherBearers.length >= max;
               return (
                 <button
                   key={t.code}
                   type="button"
-                  title={t.description}
+                  disabled={blocked}
+                  title={blocked
+                    ? `Тэг уже назначен: ${otherBearers.map(b => `«${b.name}»`).join(', ')}. Допустимо не более ${max}.`
+                    : t.description}
                   onClick={() => { setDocTypeTags(prev => on ? prev.filter(c => c !== t.code) : [...prev, t.code]); setDirty(true); }}
                   className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                    on ? 'bg-purple-500/15 border-purple-400 text-purple-700' : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
+                    blocked ? 'border-stroke text-fg4/50 opacity-60 cursor-not-allowed'
+                      : on ? 'bg-purple-500/15 border-purple-400 text-purple-700'
+                        : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
                   }`}
                 >
                   {t.label}
