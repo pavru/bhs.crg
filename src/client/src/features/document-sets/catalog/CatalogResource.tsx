@@ -3,12 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { Plus, Search, ChevronDown, ChevronUp, Database, FileText, Layers, X } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { SearchInput } from '@/shared/ui/SearchInput';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useListCommonData, useDeleteCommonDataEntry, useCommonDataForScope } from '@/shared/api/commonData';
 import type { CommonDataEntry, CatalogScope, DocumentType } from '@/shared/api/types';
 import { CatalogEntryForm } from './index';
-import { groupObjectsByType, ObjectRow } from './ObjectsByTypeList';
+import { groupObjectsByType, entryMatchesQuery, ObjectRow } from './ObjectsByTypeList';
 
 const NO_TYPE = '__no_type__';
 /** Порог, с которого над списком типов появляется мини-поиск (NN/g: фасеты с поиском при большом числе). */
@@ -66,8 +67,11 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
     !filterTypeId ? true
       : filterTypeId === NO_TYPE ? !allSelectableTypes.some(t => t.id === e.compositeTypeId)
         : e.compositeTypeId === filterTypeId;
-  const filtered = entries.filter(e =>
-    (!search || e.displayName.toLowerCase().includes(search.toLowerCase())) && matchType(e))
+  // Текстовый матч комплексный (issue #249): имя записи + имя типа + значения скалярных полей — см.
+  // entryMatchesQuery. Раньше искали только по displayName (искали «орга» → тип «Организация» не находился).
+  const matchText = (e: CommonDataEntry) =>
+    entryMatchesQuery(e, allSelectableTypes.find(t => t.id === e.compositeTypeId)?.name, search);
+  const filtered = entries.filter(e => matchText(e) && matchType(e))
     .sort((a, b) => {
       const typeCmp = (allSelectableTypes.find(t => t.id === a.compositeTypeId)?.name ?? '').localeCompare(
         allSelectableTypes.find(t => t.id === b.compositeTypeId)?.name ?? '');
@@ -114,11 +118,9 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
       {/* Записи */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-3 mb-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg4" />
-            <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder={selectedType ? `Поиск: ${selectedType.name}…` : 'Поиск по каталогу…'}
-              className="w-full border border-stroke-strong rounded-md pl-9 pr-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />
+          <div className="flex-1 max-w-sm">
+            <SearchInput value={search} onChange={setSearch}
+              placeholder={selectedType ? `Поиск: ${selectedType.name}…` : 'Поиск по каталогу…'} />
           </div>
           <span className="flex-1" />
           <Button variant="filled" size="sm" icon={<Plus size={16} />} onClick={() => setAddOpen(true)}>Добавить запись</Button>

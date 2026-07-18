@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2, ShieldCheck, FileText, Search, Globe, ExternalLin
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { SearchInput } from '@/shared/ui/SearchInput';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
@@ -165,10 +166,8 @@ export function QualityDocsPage() {
       </div>
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="flex items-center gap-2 border border-stroke-strong rounded-md px-2 flex-1 min-w-[220px] max-w-md transition-colors focus-within:border-brand focus-within:ring-1 focus-within:ring-brand">
-          <Search size={14} className="text-fg4" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по названию..."
-            className="flex-1 py-2 text-sm bg-transparent focus:outline-none" />
+        <div className="flex-1 min-w-[220px] max-w-md">
+          <SearchInput value={search} onChange={setSearch} placeholder="Поиск по названию..." />
         </div>
         <Select value={scopeFilter} onValueChange={v => setScopeFilter(v as 'all' | 'System')}
           aria-label="Область" className="w-48">

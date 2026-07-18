@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { SearchInput } from '@/shared/ui/SearchInput';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { usePreviewDataSetBindings } from '@/shared/api/datasets';
 import {
@@ -185,11 +186,7 @@ function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, materials
 
       {tab === 'pick' && (
         <div className="space-y-2">
-          <div className="flex items-center gap-2 border border-stroke-strong rounded-md px-2 transition-colors focus-within:border-brand focus-within:ring-1 focus-within:ring-brand">
-            <Search size={14} className="text-fg4" />
-            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Поиск по материалу / названию..."
-              className="flex-1 py-2 text-sm bg-transparent focus:outline-none" />
-          </div>
+          <SearchInput value={query} onChange={setQuery} placeholder="Поиск по материалу / названию..." />
           <label className="flex items-center gap-1.5 text-xs text-fg3 cursor-pointer">
             <input type="checkbox" checked={includeExpired} onChange={e => setIncludeExpired(e.target.checked)}
               className="w-3.5 h-3.5 rounded border-stroke-strong text-brand" />
