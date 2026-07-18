@@ -29,13 +29,22 @@ export function parseSourceColumnNames(cachedSchema: string | undefined | null):
 
 const REF_PREFIX = '@@ref:';
 
+/**
+ * Ссылочный маппинг «строка→объект каталога». Два user-facing варианта (issue #243, решение #183):
+ *  • Name — по имени/алиасам значения одной колонки (`strategy:'Name'`, `column`);
+ *  • Identity — по составному ключу identity-полей типа (`strategy:'Identity'`, `identityColumns`:
+ *    identityПоле→колонка, по одной на каждое identity-поле).
+ * Legacy `{column, match}` (непустой `match` = стратегия Field, произвольное поле) читается вечно, но
+ * из UI больше не создаётся; при редактировании конвертируется в Name/Identity.
+ */
 export interface RefMapping {
-  /** Колонка файла со значением для поиска. */
-  column: string;
-  /** Поле записи каталога для сопоставления; пусто = по отображаемому имени. */
-  match: string;
-  /** ID составного типа каталога. */
   typeId: string;
+  column?: string;
+  /** Legacy: поле для матча (непустой = Field, пусто = Name). Новый формат его не пишет. */
+  match?: string;
+  strategy?: 'Name' | 'Identity';
+  /** Identity: identityПоле→колонка файла. */
+  identityColumns?: Record<string, string>;
 }
 
 export function isRefMappingValue(value: string | undefined | null): boolean {
@@ -45,16 +54,26 @@ export function isRefMappingValue(value: string | undefined | null): boolean {
 export function parseRefMapping(value: string | undefined | null): RefMapping | null {
   if (!isRefMappingValue(value)) return null;
   try {
-    const parsed = JSON.parse((value as string).slice(REF_PREFIX.length)) as Partial<RefMapping>;
-    if (!parsed.typeId || !parsed.column) return null;
-    return { column: parsed.column, match: parsed.match ?? '', typeId: parsed.typeId };
+    const p = JSON.parse((value as string).slice(REF_PREFIX.length)) as Partial<RefMapping>;
+    const hasIdentity = !!p.identityColumns && Object.keys(p.identityColumns).length > 0;
+    if (!p.typeId || (!p.column && !hasIdentity)) return null;
+    return {
+      typeId: p.typeId, column: p.column, match: p.match ?? '',
+      strategy: p.strategy, identityColumns: p.identityColumns,
+    };
   } catch {
     return null;
   }
 }
 
-export function buildRefMapping(m: RefMapping): string {
-  return REF_PREFIX + JSON.stringify({ column: m.column, match: m.match, typeId: m.typeId });
+/** Резолв по имени/алиасам одной колонки. */
+export function buildRefMappingByName(typeId: string, column: string): string {
+  return REF_PREFIX + JSON.stringify({ strategy: 'Name', column, typeId });
+}
+
+/** Резолв по составному identity-ключу: identityПоле→колонка (по одной на каждое identity-поле). */
+export function buildRefMappingByIdentity(typeId: string, identityColumns: Record<string, string>): string {
+  return REF_PREFIX + JSON.stringify({ strategy: 'Identity', identityColumns, typeId });
 }
 
 // ─── Файловый маппинг ───────────────────────────────────────────────────────
