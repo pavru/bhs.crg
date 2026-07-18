@@ -10,7 +10,8 @@ import {
 import type { DocumentInstance, DocumentType, DataSetSource, DataSetBinding, DataSetBindingPreviewResult } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
-import { parseSourceColumnNames, parseRefMapping, buildRefMapping, parseFileMapping, buildFileMapping } from '@/shared/api/datasetHelpers';
+import { parseSourceColumnNames, parseRefMapping, buildRefMappingByName, buildRefMappingByIdentity, parseFileMapping, buildFileMapping } from '@/shared/api/datasetHelpers';
+import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 /** Совместимость по наследованию: childId == ancestorId либо childId — потомок ancestorId по parentId. */
 function isSameOrDescendant(childId: string, ancestorId: string, allDocTypes: DocumentType[]): boolean {
@@ -66,16 +67,22 @@ export function MappingEditor({
     return resolveEffectiveFields(elementType, allDocTypes);
   }, [targetFieldKey, tabularFields, allDocTypes, schemaFields]);
 
+  // UI-режим резолва ref-поля (по имени/по идентификатору) — держим отдельно, т.к. пустой маппинг
+  // (ещё не выбраны колонки) не отличает режимы; при загрузке выводится из самого маппинга.
+  const [refMode, setRefMode] = useState<Record<string, 'name' | 'identity'>>({});
+
   const scalarMappable = effectiveFields.filter(f => isScalarField(f) && f.type !== 'file');
   // Составные поля заполняются ссылкой на запись каталога (по значению колонки).
   const complexMappable = effectiveFields.filter(f => f.type === 'complex' && f.typeId);
   // Файловые поля заполняются вложением, синтезированным из колонки-пути (+ опц. колонка-размер) той же строки.
   const fileMappable = effectiveFields.filter(f => f.type === 'file');
 
-  function matchFieldsFor(typeId: string): SchemaField[] {
+  // Identity-поля типа-цели (тэг `identity`, в порядке схемы) — по ним резолвится составной ключ (#243).
+  function identityFieldsFor(typeId: string): SchemaField[] {
     const ct = allDocTypes.find(dt => dt.id === typeId);
     if (!ct) return [];
-    return resolveEffectiveFields(ct, allDocTypes).filter(isScalarField);
+    return resolveEffectiveFields(ct, allDocTypes)
+      .filter(f => isScalarField(f) && f.tags?.includes(FUNCTIONAL_TAG.identity));
   }
 
   function setTarget(t: string) {
@@ -88,10 +95,29 @@ export function MappingEditor({
     else delete next[fieldKey];
     onChange(next, targetFieldKey);
   }
-  function setRef(f: SchemaField, column: string, match: string) {
+  // Резолв ref-поля по имени: одна колонка.
+  function setRefName(f: SchemaField, column: string) {
     const next = { ...mapping };
-    if (column) next[f.key] = buildRefMapping({ column, match, typeId: f.typeId! });
+    if (column) next[f.key] = buildRefMappingByName(f.typeId!, column);
     else delete next[f.key];
+    onChange(next, targetFieldKey);
+  }
+  // Резолв ref-поля по идентификатору: колонка на одно identity-поле (частичный маппинг допустим,
+  // пустые компоненты просто не дадут матча на бэке — строгий composite-ключ).
+  function setRefIdentityCol(f: SchemaField, current: Record<string, string>, idKey: string, column: string) {
+    const cols = { ...current };
+    if (column) cols[idKey] = column; else delete cols[idKey];
+    const next = { ...mapping };
+    if (Object.keys(cols).length > 0) next[f.key] = buildRefMappingByIdentity(f.typeId!, cols);
+    else delete next[f.key];
+    onChange(next, targetFieldKey);
+  }
+  // Переключение режима ref-поля (по имени ↔ по идентификатору) — сбрасываем текущий маппинг поля;
+  // режим держим в UI-стейте, т.к. пустой маппинг сам по себе не хранит выбор.
+  function switchRefMode(f: SchemaField, mode: 'name' | 'identity') {
+    setRefMode(prev => ({ ...prev, [f.key]: mode }));
+    const next = { ...mapping };
+    delete next[f.key];
     onChange(next, targetFieldKey);
   }
   function setFile(f: SchemaField, column: string, sizeColumn: string) {
@@ -146,31 +172,53 @@ export function MappingEditor({
           ))}
           {complexMappable.map(f => {
             const refMap = parseRefMapping(mapping[f.key]);
-            const matchFields = matchFieldsFor(f.typeId!);
+            const idFields = identityFieldsFor(f.typeId!);
+            const hasIdentity = idFields.length > 0;
+            // Режим: явный UI-выбор → иначе из маппинга (identityColumns → identity, иначе name).
+            const mode = refMode[f.key] ?? (refMap?.identityColumns ? 'identity' : 'name');
+            const idCols = refMap?.identityColumns ?? {};
             return (
-              <div key={f.key} className="flex items-center gap-2">
-                <span className="w-40 text-xs truncate shrink-0 text-fg2" title={`${f.title} (${f.key}) — ссылка на каталог`}>
-                  {f.title} <span className="text-fg4">↗</span>
-                </span>
-                <select
-                  value={refMap?.column ?? ''}
-                  onChange={e => setRef(f, e.target.value, refMap?.match ?? '')}
-                  className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
-                  title="Колонка со значением для поиска записи в каталоге"
-                >
-                  <option value="">— не привязано —</option>
-                  {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <select
-                  value={refMap?.match ?? ''}
-                  onChange={e => setRef(f, refMap?.column ?? '', e.target.value)}
-                  disabled={!refMap?.column}
-                  className="w-32 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1 disabled:opacity-50"
-                  title="Поле записи каталога для сопоставления"
-                >
-                  <option value="">по названию</option>
-                  {matchFields.map(mf => <option key={mf.key} value={mf.key}>{mf.title}</option>)}
-                </select>
+              <div key={f.key} className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-40 text-xs truncate shrink-0 text-fg2" title={`${f.title} (${f.key}) — ссылка на каталог`}>
+                    {f.title} <span className="text-fg4">↗</span>
+                  </span>
+                  {hasIdentity ? (
+                    <select value={mode} onChange={e => switchRefMode(f, e.target.value as 'name' | 'identity')}
+                      className="w-36 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
+                      title="Как искать запись каталога">
+                      <option value="name">по имени</option>
+                      <option value="identity">по идентификатору</option>
+                    </select>
+                  ) : (
+                    <span className="w-36 shrink-0 text-xs text-fg4 px-2" title="У типа нет полей-идентификаторов — только по имени">по имени</span>
+                  )}
+                  {mode === 'name' && (
+                    <select value={refMap?.identityColumns ? '' : (refMap?.column ?? '')}
+                      onChange={e => setRefName(f, e.target.value)}
+                      className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
+                      title="Колонка с именем записи каталога">
+                      <option value="">— не привязано —</option>
+                      {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  )}
+                </div>
+                {mode === 'identity' && (
+                  <div className="ml-40 pl-2 space-y-1 border-l border-stroke">
+                    {idFields.map(idf => (
+                      <div key={idf.key} className="flex items-center gap-2">
+                        <span className="w-32 shrink-0 text-[11px] text-fg4 truncate" title={idf.key}>{idf.title}</span>
+                        <select value={idCols[idf.key] ?? ''}
+                          onChange={e => setRefIdentityCol(f, idCols, idf.key, e.target.value)}
+                          className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
+                          title={`Колонка для identity-поля «${idf.title}»`}>
+                          <option value="">— колонка —</option>
+                          {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
