@@ -89,4 +89,30 @@ public class LevelProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var construction = await m.Send(new GetConstructionQuery(cId));
         Assert.NotNull(construction!.ProfileObjectId);
     }
+
+    [Fact]
+    public async Task DeletingProfileType_IsBlocked()
+    {
+        var profType = await CompositeTypeAsync("Профиль стройки", "{'tags':['profile.construction'],'fields':[]}");
+        using var scope = fixture.Services.CreateScope();
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => m.Send(new DeleteDocumentTypeCommand(profType)));
+        Assert.Contains("профиль", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DeletingProfileObject_IsBlocked()
+    {
+        var (cId, _, _) = await SetupAsync();
+        var profType = await CompositeTypeAsync("Профиль стройки", "{'tags':['profile.construction'],'fields':[]}");
+        using var scope = fixture.Services.CreateScope();
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var list = await m.Send(new ListCommonDataEntriesQuery(CatalogScope.Construction, cId, null)); // ensure
+        var profileId = list.First(o => o.CompositeTypeId == profType).Id;
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => m.Send(new DeleteCommonDataEntryCommand(profileId)));
+        Assert.Contains("профиль", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }

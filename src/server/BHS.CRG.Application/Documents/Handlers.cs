@@ -6,6 +6,7 @@ using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
+using BHS.CRG.Domain.Schema;
 using BHS.CRG.Domain.Templates;
 using MediatR;
 
@@ -148,6 +149,12 @@ public class DocumentTypeHandlers(
         var all = await repo.GetAllAsync(ct);
         if (all.Any(x => x.ParentId == cmd.Id))
             throw new InvalidOperationException("Нельзя удалить тип, от которого наследуются другие типы.");
+
+        // issue #258: тип, назначенный профилем уровня (несёт тэг profile-*), удалять нельзя — снять тэг.
+        if (SchemaTags.SchemaHasTypeTag(dt.Schema, FunctionalTag.ProfileConstruction)
+            || SchemaTags.SchemaHasTypeTag(dt.Schema, FunctionalTag.ProfileSection)
+            || SchemaTags.SchemaHasTypeTag(dt.Schema, FunctionalTag.ProfileSet))
+            throw new InvalidOperationException("Нельзя удалить тип — он назначен профилем уровня. Снимите тэг «Профиль …» перед удалением.");
 
         if ((await objectRepo.FindAsync(o => o.CompositeTypeId == cmd.Id, ct)).Count > 0)
             throw new InvalidOperationException("Нельзя удалить тип — по нему уже созданы объекты (документы или записи общих данных).");
@@ -432,6 +439,7 @@ public class CommonDataHandlers(
     IRepository<DomainObject> repo,
     IRepository<DocumentSet> setRepo,
     IRepository<Section> sectionRepo,
+    IRepository<Construction> constructionRepo,
     IDataSetResolver dataSetResolver,
     ILevelProfileService levelProfiles) :
     IRequestHandler<CreateCommonDataEntryCommand, DomainObject>,
@@ -467,6 +475,11 @@ public class CommonDataHandlers(
     public async Task Handle(DeleteCommonDataEntryCommand cmd, CancellationToken ct)
     {
         var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        // issue #258: объект-профиль (на который ссылается FK контейнера) — синглтон, удалять нельзя.
+        if ((await constructionRepo.FindAsync(c => c.ProfileObjectId == cmd.Id, ct)).Count > 0
+            || (await sectionRepo.FindAsync(s => s.ProfileObjectId == cmd.Id, ct)).Count > 0
+            || (await setRepo.FindAsync(s => s.ProfileObjectId == cmd.Id, ct)).Count > 0)
+            throw new InvalidOperationException("Это профиль уровня — его нельзя удалить. Он редактируется на странице «Общие данные» уровня.");
         repo.Remove(entry);
         await repo.SaveChangesAsync(ct);
     }

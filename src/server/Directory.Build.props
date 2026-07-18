@@ -3,7 +3,7 @@
        функциональности, PATCH — фиксы; 1.0.0 — первый релиз. К InformationalVersion SDK добавляет
        +<git-sha> (см. target ниже) для трассировки сборок на внутреннем тестировании. -->
   <PropertyGroup>
-    <Version>0.45.0</Version>
+    <Version>0.45.1</Version>
   </PropertyGroup>
 
   <!-- Проставляем короткий git-хеш в SourceRevisionId, если он ещё не задан — SDK допишет его в
