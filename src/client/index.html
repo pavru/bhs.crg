@@ -5,6 +5,10 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BHS.CRG</title>
+    <!-- PWA: устанавливаемое приложение / ярлык Chrome в отдельном окне (без service worker) -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#1d5fb0" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
     <script>
       try {
         var t = localStorage.getItem('crg-theme') || 'system';
