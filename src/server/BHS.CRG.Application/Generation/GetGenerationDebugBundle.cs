@@ -20,7 +20,6 @@ public record GenerationDebugBundle(
     string DataJson,
     string TypeBlocks,
     string UserLib,
-    IReadOnlyDictionary<string, BHS.CRG.Application.Schema.ImageRenderOptions> ImageOptions,
     ResolvedTemplateAssets TemplateAssets);
 
 public record GetGenerationDebugBundleQuery(Guid InstanceId) : IRequest<GenerationDebugBundle?>;
@@ -77,8 +76,7 @@ public class GetGenerationDebugBundleHandler(
         var allLibs = await userLibRepo.GetAllAsync(ct);
         var userLib = allLibs.FirstOrDefault()?.Content ?? "";
 
-        var imageOptions = BHS.CRG.Application.Schema.SchemaImageOptions.Collect(allDocTypes);
         var templateAssets = await templateAssetResolver.ResolveAsync(template.Id, instance.CompositeTypeId, ct);
-        return new GenerationDebugBundle(template.Content, dataJson, typeBlocks, userLib, imageOptions, templateAssets);
+        return new GenerationDebugBundle(template.Content, dataJson, typeBlocks, userLib, templateAssets);
     }
 }

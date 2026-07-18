@@ -14,16 +14,21 @@ export interface SchemaField {
   defaultValue?: unknown;
   /** Functional tags binding this field to hard-coded behaviour (registry: GET /api/tags). */
   tags?: string[];
-  /** Render options for image fields (used by the generator: image() width/height/align/fit). */
-  image?: ImageOptions;
 }
 
+/** Опции отображения картинки (width/height/align/fit). Задаются в значении инстанса (issue #246). */
 export interface ImageOptions {
   /** Typst length, e.g. "4cm", "100%". */
   width?: string;
   height?: string;
   align?: 'left' | 'center' | 'right';
   fit?: 'cover' | 'contain' | 'stretch';
+}
+
+/** Значение поля-картинки: data-URI + опции размера/выравнивания (issue #246). */
+export interface ImageValue extends ImageOptions {
+  /** data:image/...;base64,... */
+  src: string;
 }
 
 export interface FieldGroup {
@@ -109,7 +114,6 @@ export function parseSchemaFields(schema: Record<string, unknown>): SchemaField[
     required: f.required ?? false,
     defaultValue: f.defaultValue,
     tags: f.tags,
-    image: f.image,
   }));
 }
 

@@ -1,5 +1,4 @@
 using System.Text.Json;
-using BHS.CRG.Application.Schema;
 using BHS.CRG.Infrastructure.Generation;
 
 namespace BHS.CRG.Tests.Generation;
@@ -21,32 +20,38 @@ public class TypstImageMaterializerTests
         {
             var data = new Dictionary<string, object?>
             {
-                ["Логотип"] = El(Png),
+                // Значение-объект с размером (issue #246) — размер из самого значения.
+                ["Логотип"] = El(new { src = Png, width = "4cm", align = "center" }),
+                // Голая data-URI строка (легаси) — без размера.
+                ["Печать"] = El(Png),
                 ["Орг"] = El(new { СканПечати = Png, Имя = "ООО" }),
                 ["Материалы"] = El(new[] { new { Фото = Png }, new { Фото = "нет" } }),
                 ["Текст"] = El("обычная строка"),
             };
 
-            var opts = new Dictionary<string, ImageRenderOptions>
-            {
-                ["Логотип"] = new("4cm", null, "center", null),
-            };
-            var json = TypstImageMaterializer.Materialize(data, dir, imageOptions: opts);
+            var json = TypstImageMaterializer.Materialize(data, dir);
 
-            // записаны три файла-изображения
+            // записаны четыре файла-изображения (Логотип, Печать, СканПечати, Материалы[0].Фото)
             var files = Directory.GetFiles(Path.Combine(dir, "assets"));
-            Assert.Equal(3, files.Length);
+            Assert.Equal(4, files.Length);
             Assert.All(files, f => Assert.EndsWith(".png", f));
 
             // в JSON больше нет data-URI; изображение — объект {src, width, ...}
             Assert.DoesNotContain("data:image", json);
             var root = JsonDocument.Parse(json).RootElement;
 
+            // размер взят из значения-объекта
             var logo = root.GetProperty("Логотип");
             Assert.StartsWith("assets/img_", logo.GetProperty("src").GetString());
             Assert.Equal("4cm", logo.GetProperty("width").GetString());
             Assert.Equal("center", logo.GetProperty("align").GetString());
             Assert.Equal(JsonValueKind.Null, logo.GetProperty("height").ValueKind);
+
+            // голая строка → объект без размера (все опции null)
+            var seal = root.GetProperty("Печать");
+            Assert.StartsWith("assets/img_", seal.GetProperty("src").GetString());
+            Assert.Equal(JsonValueKind.Null, seal.GetProperty("width").ValueKind);
+            Assert.Equal(JsonValueKind.Null, seal.GetProperty("align").ValueKind);
 
             Assert.StartsWith("assets/img_", root.GetProperty("Орг").GetProperty("СканПечати").GetProperty("src").GetString());
             Assert.StartsWith("assets/img_", root.GetProperty("Материалы")[0].GetProperty("Фото").GetProperty("src").GetString());
