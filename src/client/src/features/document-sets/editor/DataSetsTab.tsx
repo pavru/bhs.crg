@@ -183,17 +183,8 @@ export function MappingEditor({
                   <span className="w-40 text-xs truncate shrink-0 text-fg2" title={`${f.title} (${f.key}) — ссылка на каталог`}>
                     {f.title} <span className="text-fg4">↗</span>
                   </span>
-                  {hasIdentity ? (
-                    <select value={mode} onChange={e => switchRefMode(f, e.target.value as 'name' | 'identity')}
-                      className="w-36 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
-                      title="Как искать запись каталога">
-                      <option value="name">по имени</option>
-                      <option value="identity">по идентификатору</option>
-                    </select>
-                  ) : (
-                    <span className="w-36 shrink-0 text-xs text-fg4 px-2" title="У типа нет полей-идентификаторов — только по имени">по имени</span>
-                  )}
-                  {mode === 'name' && (
+                  {/* Колонка — в общей позиции (как у остальных строк); режим резолва — справа. */}
+                  {mode === 'name' ? (
                     <select value={refMap?.identityColumns ? '' : (refMap?.column ?? '')}
                       onChange={e => setRefName(f, e.target.value)}
                       className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
@@ -201,6 +192,18 @@ export function MappingEditor({
                       <option value="">— не привязано —</option>
                       {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
+                  ) : (
+                    <span className="flex-1" />
+                  )}
+                  {hasIdentity ? (
+                    <select value={mode} onChange={e => switchRefMode(f, e.target.value as 'name' | 'identity')}
+                      className="w-36 shrink-0 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
+                      title="Как искать запись каталога">
+                      <option value="name">по имени</option>
+                      <option value="identity">по идентификатору</option>
+                    </select>
+                  ) : (
+                    <span className="w-36 shrink-0 text-xs text-fg4 px-2 text-right" title="У типа нет полей-идентификаторов — только по имени">по имени</span>
                   )}
                 </div>
                 {mode === 'identity' && (
