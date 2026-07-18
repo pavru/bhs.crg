@@ -29,9 +29,10 @@ import { EntryDataSetBindings } from './EntryDataSetBindings';
 import {
   SCOPE_COLORS, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
   PrimitiveInput, FileField, ImageField, AutoFieldsSection,
-  BaseInstancePanel, SCOPE_TIER, type BaseCandidate,
+  BaseInstanceChip, SCOPE_TIER, type BaseCandidate,
   SectionRail,
 } from '../fields';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 
 // Отчёт «Проверить связки» (issue #99): статус каждого @@ref-поля.
 const CHECK_STATUS: Record<string, { label: string; cls: string }> = {
@@ -107,6 +108,7 @@ export function CatalogEntryForm({
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [recognizing, setRecognizing] = useState(false);
   const [showAllProxyFields, setShowAllProxyFields] = useState(false); // прокси: раскрыть все поля для переопределения (issue #89)
+  const [pendingBase, setPendingBase] = useState<BaseCandidate | null>(null); // подтверждение замены основы
   const createMutation = useCreateCommonDataEntry();
   const updateMutation = useUpdateCommonDataEntry();
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
@@ -192,6 +194,13 @@ export function CatalogEntryForm({
   const selectedBase = baseRefId ? allCandidates.find(c => c.id === baseRefId) : undefined;
   const isProxy = !!selectedBase?.proxy;
   const canHaveBase = !!parentType || !!selectedType?.allowsProxy;
+  // Выбор основы: при ЗАМЕНЕ уже выбранной — через подтверждение (как в документах #225);
+  // первый выбор и отвязка — сразу. Формат `_baseRef` каталога — строка id (не {kind,id}).
+  const applyBase = (c: BaseCandidate) => { setValue('_baseRef', c.id); setShowAllProxyFields(false); };
+  const requestSelectBase = (c: BaseCandidate) => {
+    if (baseRefId && baseRefId !== c.id) setPendingBase(c); else applyBase(c);
+  };
+  const clearBase = () => { setValue('_baseRef', undefined); setShowAllProxyFields(false); };
   // Резолвнутые данные выбранного реального объекта — для подсказки «наследует: …» в режиме прокси
   // (issue #92). Проходим цепочку _baseRef цели (прокси-на-прокси), мержим база→свои, без _baseRef.
   const realData: Record<string, unknown> = (() => {
@@ -474,6 +483,18 @@ export function CatalogEntryForm({
           {SCOPE_LABELS[scope]}
         </span>
         <span className="text-xs text-fg3">приоритет {SCOPE_PRIORITY[scope]}</span>
+        {/* Основа (базовый экземпляр) — в одной строке с чипом уровня, выровнена вправо. */}
+        {canHaveBase && (
+          <div className="ml-auto">
+            <BaseInstanceChip
+              selected={selectedBase}
+              missing={!!baseRefId && !allCandidates.some(c => c.id === baseRefId)}
+              candidates={allCandidates}
+              onSelect={requestSelectBase}
+              onClear={clearBase}
+            />
+          </div>
+        )}
       </div>
 
       <TextField label="Наименование" value={displayName} onChange={e => setDisplayName(e.target.value)} required autoFocus />
@@ -535,18 +556,6 @@ export function CatalogEntryForm({
         </p>
       )}
 
-      {canHaveBase && (
-        <BaseInstancePanel
-          title={parentType?.name}
-          candidates={allCandidates}
-          selected={selectedBase}
-          missing={!!baseRefId && !allCandidates.some(c => c.id === baseRefId)}
-          manualHint={!isProxy && ownFields.length < effectiveFields.length
-            ? `Без базового экземпляра все ${effectiveFields.length} полей заполняются вручную.` : undefined}
-          onSelect={c => { setValue('_baseRef', c.id); setShowAllProxyFields(false); }}
-          onClear={() => { setValue('_baseRef', undefined); setShowAllProxyFields(false); }}
-        />
-      )}
 
       {attachment && (
         <div className="flex items-center gap-2">
@@ -637,6 +646,14 @@ export function CatalogEntryForm({
           {isPending ? 'Сохранение…' : entry ? 'Сохранить' : 'Создать'}
         </Button>
       </div>
+      <ConfirmDialog
+        open={!!pendingBase}
+        onOpenChange={o => { if (!o) setPendingBase(null); }}
+        title="Заменить основу?"
+        description="Набор наследуемых полей изменится: часть значений может перестать наследоваться от текущей основы, а некоторые поля станут обязательными. Введённые вручную значения не удаляются."
+        confirmLabel="Заменить"
+        onConfirm={() => { if (pendingBase) applyBase(pendingBase); setPendingBase(null); }}
+      />
     </form>
   );
 }
