@@ -198,6 +198,7 @@ builder.Services.AddScoped<BackupService>();
 
 // ── Generation ────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<IEntityResolver, EntityResolver>();
+builder.Services.AddScoped<BHS.CRG.Application.Documents.ILevelProfileService, BHS.CRG.Infrastructure.Generation.LevelProfileService>();
 builder.Services.AddScoped<IMetadataExtractor, MetadataExtractor>();
 builder.Services.AddScoped<IDataSetResolver, DataSetResolver>();
 builder.Services.AddScoped<IObjectResolver, ObjectResolver>();

@@ -36,8 +36,12 @@ public static class DocumentTypeEndpoints
                 "Composite" => DocumentTypeKind.Composite,
                 _           => DocumentTypeKind.Document,
             };
-            return Results.Ok(await m.Send(new CreateDocumentTypeCommand(
-                req.Name, req.Code, kind, req.ParentId, JsonDocument.Parse(req.Schema), req.IsAbstract)));
+            try
+            {
+                return Results.Ok(await m.Send(new CreateDocumentTypeCommand(
+                    req.Name, req.Code, kind, req.ParentId, JsonDocument.Parse(req.Schema), req.IsAbstract)));
+            }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         admin.MapPut("/{id:guid}", async (Guid id, UpdateTypeRequest req, IMediator m) =>
@@ -46,9 +50,11 @@ public static class DocumentTypeEndpoints
             catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
-        admin.MapPut("/{id:guid}/schema", async (Guid id, UpdateSchemaRequest req, IMediator m)
-            => Results.Ok(await m.Send(new UpdateDocumentTypeSchemaCommand(
-                id, JsonDocument.Parse(req.Schema)))));
+        admin.MapPut("/{id:guid}/schema", async (Guid id, UpdateSchemaRequest req, IMediator m) =>
+        {
+            try { return Results.Ok(await m.Send(new UpdateDocumentTypeSchemaCommand(id, JsonDocument.Parse(req.Schema)))); }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+        });
 
         admin.MapPut("/{id:guid}/abstract", async (Guid id, SetAbstractRequest req, IMediator m)
             => Results.Ok(await m.Send(new SetDocumentTypeAbstractCommand(id, req.IsAbstract))));

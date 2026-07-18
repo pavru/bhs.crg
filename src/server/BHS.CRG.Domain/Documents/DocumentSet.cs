@@ -11,6 +11,10 @@ public class DocumentSet : Entity
     public string Name { get; private set; } = default!;
     public Guid SectionId { get; private set; }
 
+    /// <summary>Объект-профиль уровня (issue #258) — DomainObject профиль-типа на scope комплекта, если создан.</summary>
+    public Guid? ProfileObjectId { get; private set; }
+    public void SetProfileObject(Guid objectId) { ProfileObjectId = objectId; TouchUpdatedAt(); }
+
     private DocumentSet() { }
 
     public static DocumentSet Create(Guid sectionId, string name)

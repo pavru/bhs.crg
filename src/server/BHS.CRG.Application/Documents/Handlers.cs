@@ -31,6 +31,8 @@ public class DocumentTypeHandlers(
     {
         var all = await repo.GetAllAsync(ct);
         EnsureUnique(all, cmd.Name, cmd.Code, excludeId: null);
+        // Ограничения тэгов (issue #258): новый тип может сразу нести restricted-тэг (POST несёт схему).
+        ValidateTagRestrictions(cmd.Schema, Guid.Empty, cmd.Name.Trim(), all);
 
         var dt = DocumentType.Create(cmd.Name.Trim(), cmd.Code.Trim(), cmd.Kind, cmd.ParentId, cmd.Schema, cmd.IsAbstract);
         await repo.AddAsync(dt, ct);
@@ -89,10 +91,22 @@ public class DocumentTypeHandlers(
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new KeyNotFoundException($"DocumentType {cmd.Id} not found");
+        // Ограничения тэгов (issue #258): считаем носителей среди прочих типов + входящей схемы.
+        var all = await repo.GetAllAsync(ct);
+        ValidateTagRestrictions(cmd.Schema, dt.Id, dt.Name, all);
         dt.UpdateSchema(cmd.Schema);
         repo.Update(dt);
         await repo.SaveChangesAsync(ct);
         return dt;
+    }
+
+    // Бросает InvalidOperationException (маппится в 409) со списком занятых мест — issue #258.
+    private static void ValidateTagRestrictions(JsonDocument schema, Guid savingId, string savingName,
+        IReadOnlyList<DocumentType> all)
+    {
+        var violations = TagRestrictionValidator.Validate(schema, savingId, savingName, all);
+        if (violations.Count > 0)
+            throw new InvalidOperationException(string.Join(" ", violations.Select(v => v.Describe())));
     }
 
     public async Task<DocumentType> Handle(SetDocumentTypeAbstractCommand cmd, CancellationToken ct)
@@ -418,7 +432,8 @@ public class CommonDataHandlers(
     IRepository<DomainObject> repo,
     IRepository<DocumentSet> setRepo,
     IRepository<Section> sectionRepo,
-    IDataSetResolver dataSetResolver) :
+    IDataSetResolver dataSetResolver,
+    ILevelProfileService levelProfiles) :
     IRequestHandler<CreateCommonDataEntryCommand, DomainObject>,
     IRequestHandler<UpdateCommonDataEntryCommand, DomainObject>,
     IRequestHandler<DeleteCommonDataEntryCommand>,
@@ -456,13 +471,17 @@ public class CommonDataHandlers(
         await repo.SaveChangesAsync(ct);
     }
 
-    public Task<IReadOnlyList<DomainObject>> Handle(ListCommonDataEntriesQuery q, CancellationToken ct)
+    public async Task<IReadOnlyList<DomainObject>> Handle(ListCommonDataEntriesQuery q, CancellationToken ct)
     {
         var scope = q.Scope;
         var scopeId = q.ScopeId;
         var typeId = q.CompositeTypeId;
+        // Ленивое создание профиля уровня (issue #258): при открытии общих данных контейнерного уровня
+        // гарантируем объект-профиль (если профиль-тип сконфигурирован) — он попадёт в список ниже.
+        if (scope is { } s && s != CatalogScope.System && scopeId is { } sid)
+            await levelProfiles.EnsureProfileAsync(s, sid, ct);
         // Только общие данные (без документной фасеты).
-        return repo.FindAsync(e => e.Facet == null &&
+        return await repo.FindAsync(e => e.Facet == null &&
             (!scope.HasValue || e.ScopeLevel == scope.Value) &&
             (!scopeId.HasValue || e.ScopeId == scopeId.Value) &&
             (!typeId.HasValue || e.CompositeTypeId == typeId.Value), ct);
