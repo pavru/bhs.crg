@@ -143,8 +143,11 @@ export function useDirtyGuard<TKey>({ isDirty, saving, saveAll, onCommit }: {
     onCancel: () => setPending(null),
     onDiscard: () => { if (pending) onCommit(pending.next); setPending(null); },
     onSave: async () => {
-      try { await saveAll(); if (pending) onCommit(pending.next); setPending(null); }
-      catch { /* ошибка валидации показана в форме — остаёмся */ }
+      // При ошибке валидации/сохранения закрываем диалог, чтобы ошибка формы стала видна
+      // (иначе «Сохранить и перейти» молча висит и выглядит сломанным). Переход отменяется.
+      try { await saveAll(); if (pending) onCommit(pending.next); }
+      catch { /* ошибка уже показана в форме (setError) */ }
+      finally { setPending(null); }
     },
   };
   return { request, dialogProps };
