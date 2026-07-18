@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Loader2, FileText, Download, Eye, Pencil, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Circle, CircleDot, Mail, Database, X } from 'lucide-react';
+import { Loader2, FileText, Download, Eye, Pencil, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Circle, CircleDot, Mail, Database, X, Info, ChevronDown, ChevronRight } from 'lucide-react';
+import { Markdown } from '@/shared/ui/Markdown';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useEmailDocument } from '@/shared/api/documentSets';
 import { EmailSendDialog } from '../EmailSendDialog';
@@ -109,6 +110,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   const [error, setError] = useState('');
   const [showValidation, setShowValidation] = useState(false);
   const [activeKey, setActiveKey] = useState<string>(''); // активный раздел (list-detail, issue #191)
+  const [helpOpen, setHelpOpen] = useState(false); // справка типа (свёрнута по умолчанию)
   const [hintPicker, setHintPicker] = useState(false); // пикер «Основы» из строки-подсказки (issue #223)
   const [pendingBase, setPendingBase] = useState<BaseCandidate | null>(null); // подтверждение замены базы
   const mutation = useUpdateRequisites();
@@ -472,8 +474,37 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
     );
   }
 
+  const helpText = (docType?.schema as { help?: string } | undefined)?.help?.trim();
+  const hasLevelProfile = allDocTypes.some(t => {
+    const tags = (t.schema as { tags?: string[] }).tags ?? [];
+    return tags.includes('profile.construction') || tags.includes('profile.section') || tags.includes('profile.set');
+  });
+
   return (
     <div className="flex flex-col min-h-0 flex-1">
+      {(helpText || hasLevelProfile) && (
+        <div className="shrink-0 px-6 pt-3">
+          <div className="rounded-lg border border-stroke bg-brand-subtle/30">
+            <button type="button" onClick={() => setHelpOpen(o => !o)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-left">
+              {helpOpen ? <ChevronDown size={14} className="text-brand shrink-0" /> : <ChevronRight size={14} className="text-brand shrink-0" />}
+              <Info size={14} className="text-brand shrink-0" />
+              <span className="text-sm font-medium text-fg1">Справка</span>
+            </button>
+            {helpOpen && (
+              <div className="px-3 pb-3 space-y-2">
+                {helpText && <Markdown>{helpText}</Markdown>}
+                {hasLevelProfile && (
+                  <p className="text-xs text-fg3">
+                    ℹ Часть данных подтягивается из <span className="text-brand-hover font-medium">профиля уровня</span>{' '}
+                    (стройка/раздел/комплект) — они доступны в шаблоне как <code className="font-mono bg-muted text-fg1 px-1 rounded">data.уровень.*</code> и заполняются на странице «Общие данные» уровня, а не здесь.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <div className="flex-1 min-h-0 flex">
         {/* Drawer разделов (list-detail, issue #191) */}
         {useDrawer && (

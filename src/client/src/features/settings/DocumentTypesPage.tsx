@@ -2,9 +2,10 @@ import { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Plus, ChevronRight, Trash2, Copy, Folder, FileText, Boxes, EyeOff, Check,
-  Braces, RotateCcw, Code, Database, Cpu,
+  Braces, RotateCcw, Code, Database, Cpu, HelpCircle,
 } from 'lucide-react';
 import { Switch } from '@/shared/ui/Switch';
+import { Markdown } from '@/shared/ui/Markdown';
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -440,6 +441,9 @@ function SchemaEditor({ docType, allDocTypes }: {
   const [typstRenders, setTypstRenders] = useState<TypstRender[]>(() => schemaDef.typstRenders ?? []);
   const [docTypeTags, setDocTypeTags] = useState<string[]>(() => schemaDef.tags ?? []);
   const [ungroupedOrder, setUngroupedOrder] = useState<string[]>(() => schemaDef.ungroupedOrder ?? []);
+  const [help, setHelp] = useState<string>(() => schemaDef.help ?? '');
+  const [showHelp, setShowHelp] = useState(false);
+  const [helpPreview, setHelpPreview] = useState(false);
   const { data: tagRegistry } = useTagRegistry();
   const applicableTypeTags = typeTagDefs(tagRegistry, docType.kind);
   const [showJson, setShowJson] = useState(false);
@@ -507,7 +511,7 @@ function SchemaEditor({ docType, allDocTypes }: {
     if (crossDup) { const m = `Имя функции "${crossDup}" уже используется в другом типе`; setError(m); throw new Error(m); }
 
     try {
-      await mutation.mutateAsync({ id: docType.id, schema: schemaToJson(fields, excludedFields, fieldOverrides, groups, typstRenders, docTypeTags, ungroupedOrder) });
+      await mutation.mutateAsync({ id: docType.id, schema: schemaToJson(fields, excludedFields, fieldOverrides, groups, typstRenders, docTypeTags, ungroupedOrder, help) });
       setDirty(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка сохранения');
@@ -522,6 +526,7 @@ function SchemaEditor({ docType, allDocTypes }: {
     setTypstRenders(schemaDef.typstRenders ?? []);
     setDocTypeTags(schemaDef.tags ?? []);
     setUngroupedOrder(schemaDef.ungroupedOrder ?? []);
+    setHelp(schemaDef.help ?? '');
     setError(''); setDirty(false);
   });
 
@@ -629,6 +634,34 @@ function SchemaEditor({ docType, allDocTypes }: {
               </p>
             ) : null;
           })()}
+        </SectionCard>
+      )}
+
+      {!showJson && (
+        <SectionCard icon={<HelpCircle size={15} />} title="Справка для пользователя"
+          count={help.trim() ? 1 : 0} countClass="text-brand"
+          open={showHelp} onToggle={() => setShowHelp(v => !v)}>
+          <div className="pt-2 space-y-2">
+            <p className="text-xs text-fg4">
+              Показывается при редактировании документа этого типа (напр. что подтягивается из профиля
+              уровня). Markdown: <code className="font-mono">**жирный**</code>, <code className="font-mono">*курсив*</code>, списки, <code className="font-mono">[ссылки](url)</code>.
+            </p>
+            <div className="flex items-center gap-3 text-xs">
+              <button type="button" onClick={() => setHelpPreview(false)}
+                className={!helpPreview ? 'text-brand font-medium' : 'text-fg4 hover:text-fg2'}>Текст</button>
+              <button type="button" onClick={() => setHelpPreview(true)}
+                className={helpPreview ? 'text-brand font-medium' : 'text-fg4 hover:text-fg2'}>Предпросмотр</button>
+            </div>
+            {helpPreview ? (
+              help.trim()
+                ? <div className="rounded-md border border-stroke bg-surface p-3"><Markdown>{help}</Markdown></div>
+                : <p className="text-xs text-fg4 italic px-1">Пусто — введите текст на вкладке «Текст».</p>
+            ) : (
+              <textarea value={help} onChange={e => { setHelp(e.target.value); setDirty(true); }} rows={5}
+                placeholder="Напр.: Проект, адрес и заказчик подтягиваются из профиля стройки — заполнять здесь не нужно."
+                className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
+            )}
+          </div>
         </SectionCard>
       )}
 

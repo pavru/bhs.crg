@@ -7,6 +7,7 @@ export function schemaToJson(
   typstRenders: TypstRender[] = [],
   typeTags: string[] = [],
   ungroupedOrder: string[] = [],
+  help = '',
 ): string {
   const def: SchemaDefinition = { fields };
   if (groups.length) def.groups = groups;
@@ -15,6 +16,7 @@ export function schemaToJson(
   if (typstRenders.length) def.typstRenders = typstRenders;
   if (typeTags.length) def.tags = typeTags;
   if (ungroupedOrder.length) def.ungroupedOrder = ungroupedOrder;
+  if (help.trim()) def.help = help.trim();
   return JSON.stringify(def);
 }
 
