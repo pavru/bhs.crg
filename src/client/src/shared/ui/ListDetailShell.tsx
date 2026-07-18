@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
-import { Search, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { Button } from './Button';
+import { SearchInput } from './SearchInput';
 
 /**
  * Тонкий layout-примитив «list-detail со вторичной навигацией» (issue #210, разбор с Архитектором+
@@ -57,11 +58,7 @@ export function NavSearchInput({ value, onChange, placeholder = 'Поиск…' 
 }) {
   return (
     <div className="p-3 shrink-0">
-      <div className="relative">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none" />
-        <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} aria-label="Поиск"
-          className="w-full h-10 pl-9 pr-3 rounded-full text-sm bg-surface border border-stroke-strong text-fg1 outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-fg4" />
-      </div>
+      <SearchInput value={value} onChange={onChange} placeholder={placeholder} rounded="full" />
     </div>
   );
 }
