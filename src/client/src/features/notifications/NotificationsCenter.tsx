@@ -121,6 +121,8 @@ export function NotificationsCenter() {
 
   const items = data?.items ?? [];
   const unread = data?.unreadCount ?? 0;
+  // Цвет бейджа: красный, если среди непрочитанных есть ошибка, иначе зелёный.
+  const hasUnreadError = items.some(n => !n.isRead && n.severity === 'Error');
 
   return (
     <Popover.Root>
@@ -133,7 +135,7 @@ export function NotificationsCenter() {
         >
           <Bell size={22} />
           {unread > 0 && (
-            <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full text-[11px] font-medium flex items-center justify-center text-white bg-danger">
+            <span className={`absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full text-[11px] font-medium flex items-center justify-center text-white ${hasUnreadError ? 'bg-danger' : 'bg-success'}`}>
               {unread > 99 ? '99+' : unread}
             </span>
           )}
