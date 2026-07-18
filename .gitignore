@@ -34,3 +34,5 @@ dp-keys/
 # Agent sync artifacts
 .design-sync/
 .ds-sync/
+.ds-css/
+.ds-entry.tsx
