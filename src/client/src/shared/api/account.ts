@@ -9,6 +9,8 @@ export interface Account {
   displayName: string;
   role: UserRole;
   emailConfirmed: boolean;
+  /** Аватар профиля (issue #245) — data-URI уменьшённой картинки, null = нет. */
+  avatar?: string | null;
 }
 
 /** Профиль текущего пользователя (issue #148). */
@@ -24,6 +26,16 @@ export function useUpdateAccount() {
   return useMutation({
     mutationFn: (dto: { displayName: string }) =>
       apiClient.put<Account>('/account', dto).then(r => r.data),
+    onSuccess: (data) => qc.setQueryData([QK], data),
+  });
+}
+
+/** Задать/удалить аватар профиля (issue #245). `avatar` = data-URI или null для удаления. */
+export function useUpdateAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (avatar: string | null) =>
+      apiClient.put<Account>('/account/avatar', { avatar }).then(r => r.data),
     onSuccess: (data) => qc.setQueryData([QK], data),
   });
 }
