@@ -37,39 +37,52 @@ function inline(text: string, kp: string): ReactNode[] {
 }
 
 export function Markdown({ children, className = '' }: { children: string; className?: string }) {
-  const blocks = children.replace(/\r\n/g, '\n').trim().split(/\n{2,}/);
-  return (
-    <div className={`text-sm text-fg2 space-y-2 leading-relaxed ${className}`}>
-      {blocks.map((block, bi) => {
-        const lines = block.split('\n');
-        const h = /^(#{1,3})\s+(.*)$/.exec(lines[0]);
-        if (h && lines.length === 1) {
-          const lvl = h[1].length;
-          const cls = lvl === 1 ? 'text-base font-semibold text-fg1'
-            : lvl === 2 ? 'text-sm font-semibold text-fg1' : 'text-sm font-medium text-fg1';
-          return <p key={bi} className={cls}>{inline(h[2], `h${bi}`)}</p>;
-        }
-        if (lines.every(l => /^[-*]\s+/.test(l))) {
-          return (
-            <ul key={bi} className="list-disc pl-5 space-y-0.5">
-              {lines.map((l, li) => <li key={li}>{inline(l.replace(/^[-*]\s+/, ''), `u${bi}-${li}`)}</li>)}
-            </ul>
-          );
-        }
-        if (lines.every(l => /^\d+\.\s+/.test(l))) {
-          return (
-            <ol key={bi} className="list-decimal pl-5 space-y-0.5">
-              {lines.map((l, li) => <li key={li}>{inline(l.replace(/^\d+\.\s+/, ''), `o${bi}-${li}`)}</li>)}
-            </ol>
-          );
-        }
-        return (
-          <p key={bi}>
-            {lines.flatMap((l, li) =>
-              li === 0 ? inline(l, `p${bi}-${li}`) : [<br key={`br${li}`} />, ...inline(l, `p${bi}-${li}`)])}
-          </p>
-        );
-      })}
-    </div>
-  );
+  const lines = children.replace(/\r\n/g, '\n').split('\n');
+  const out: ReactNode[] = [];
+  let para: string[] = [];
+  let list: { ordered: boolean; items: string[] } | null = null;
+  let k = 0;
+
+  const flushPara = () => {
+    if (!para.length) return;
+    const p = para; const key = `p${k++}`;
+    out.push(<p key={key}>{p.flatMap((l, i) =>
+      i === 0 ? inline(l, `${key}-${i}`) : [<br key={`br${i}`} />, ...inline(l, `${key}-${i}`)])}</p>);
+    para = [];
+  };
+  const flushList = () => {
+    if (!list) return;
+    const { ordered, items } = list; const key = `l${k++}`;
+    out.push(ordered
+      ? <ol key={key} className="list-decimal pl-5 space-y-0.5">{items.map((t, i) => <li key={i}>{inline(t, `${key}-${i}`)}</li>)}</ol>
+      : <ul key={key} className="list-disc pl-5 space-y-0.5">{items.map((t, i) => <li key={i}>{inline(t, `${key}-${i}`)}</li>)}</ul>);
+    list = null;
+  };
+
+  for (const line of lines) {
+    if (line.trim() === '') { flushPara(); flushList(); continue; }
+    const h = /^(#{1,3})\s+(.*)$/.exec(line);
+    const ul = /^[-*]\s+(.*)$/.exec(line);
+    const ol = /^\d+\.\s+(.*)$/.exec(line);
+    if (h) {
+      flushPara(); flushList();
+      const lvl = h[1].length;
+      const cls = lvl === 1 ? 'text-base font-semibold text-fg1'
+        : lvl === 2 ? 'text-sm font-semibold text-fg1' : 'text-sm font-medium text-fg1';
+      out.push(<p key={`h${k++}`} className={cls}>{inline(h[2], `h${k}`)}</p>);
+    } else if (ul) {
+      flushPara();
+      if (list && !list.ordered) list.items.push(ul[1]);
+      else { flushList(); list = { ordered: false, items: [ul[1]] }; }
+    } else if (ol) {
+      flushPara();
+      if (list && list.ordered) list.items.push(ol[1]);
+      else { flushList(); list = { ordered: true, items: [ol[1]] }; }
+    } else {
+      flushList(); para.push(line);
+    }
+  }
+  flushPara(); flushList();
+
+  return <div className={`text-sm text-fg2 space-y-2 leading-relaxed ${className}`}>{out}</div>;
 }
