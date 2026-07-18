@@ -465,19 +465,6 @@ export function CatalogEntryForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
-      {/* Основа (базовый экземпляр) — в sticky-строке под заголовком модалки (перенос из тела формы);
-          остаётся на виду при прокрутке, т.к. это контекст всей записи, а не поле. */}
-      {canHaveBase && (
-        <div className="sticky top-0 z-10 -mx-6 -mt-4 mb-4 px-6 py-2 bg-surface border-b border-stroke flex items-center">
-          <BaseInstanceChip
-            selected={selectedBase}
-            missing={!!baseRefId && !allCandidates.some(c => c.id === baseRefId)}
-            candidates={allCandidates}
-            onSelect={requestSelectBase}
-            onClear={clearBase}
-          />
-        </div>
-      )}
       <div className={showRail ? 'flex gap-5 items-start' : ''}>
       {showRail && (
         <SectionRail
@@ -496,6 +483,18 @@ export function CatalogEntryForm({
           {SCOPE_LABELS[scope]}
         </span>
         <span className="text-xs text-fg3">приоритет {SCOPE_PRIORITY[scope]}</span>
+        {/* Основа (базовый экземпляр) — в одной строке с чипом уровня, выровнена вправо. */}
+        {canHaveBase && (
+          <div className="ml-auto">
+            <BaseInstanceChip
+              selected={selectedBase}
+              missing={!!baseRefId && !allCandidates.some(c => c.id === baseRefId)}
+              candidates={allCandidates}
+              onSelect={requestSelectBase}
+              onClear={clearBase}
+            />
+          </div>
+        )}
       </div>
 
       <TextField label="Наименование" value={displayName} onChange={e => setDisplayName(e.target.value)} required autoFocus />
