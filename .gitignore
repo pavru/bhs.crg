@@ -30,3 +30,7 @@ Thumbs.db
 # Data Protection keys (issue #148) — секрет, не коммитить
 src/server/BHS.CRG.Api/dp-keys/
 dp-keys/
+
+# Agent sync artifacts
+.design-sync/
+.ds-sync/

@@ -35,14 +35,59 @@ public class DataSetMappingValueTests
         Assert.Equal("", parsed!.Match);
     }
 
+    [Fact]
+    public void RefValue_NameStrategy_ParsesColumn_NotIdentity()
+    {
+        var typeId = Guid.NewGuid();
+        var value = $$"""@@ref:{"strategy":"Name","column":"Наименование","typeId":"{{typeId}}"}""";
+        var parsed = DataSetMappingValue.ParseRef(value);
+        Assert.NotNull(parsed);
+        Assert.False(parsed!.IsIdentity);
+        Assert.Equal("Наименование", parsed.Column);
+        Assert.Equal("Name", parsed.Strategy);
+    }
+
+    [Fact]
+    public void RefValue_IdentityStrategy_ParsesIdentityColumns()
+    {
+        var typeId = Guid.NewGuid();
+        var value = $$"""@@ref:{"strategy":"Identity","identityColumns":{"ИНН":"КолИНН","КПП":"КолКПП"},"typeId":"{{typeId}}"}""";
+        var parsed = DataSetMappingValue.ParseRef(value);
+        Assert.NotNull(parsed);
+        Assert.True(parsed!.IsIdentity);
+        Assert.Null(parsed.Column);
+        Assert.Equal(2, parsed.IdentityColumns!.Count);
+        Assert.Equal("КолИНН", parsed.IdentityColumns["ИНН"]);
+        Assert.Equal("КолКПП", parsed.IdentityColumns["КПП"]);
+    }
+
+    [Fact]
+    public void RefValue_IdentityWithEmptyColumns_IsNotIdentity()
+    {
+        var typeId = Guid.NewGuid();
+        // strategy=Identity, но identityColumns пуст → нечем резолвить как identity; и column есть → валиден как Name-подобный.
+        var value = $$"""@@ref:{"strategy":"Identity","column":"Наименование","identityColumns":{},"typeId":"{{typeId}}"}""";
+        var parsed = DataSetMappingValue.ParseRef(value);
+        Assert.NotNull(parsed);
+        Assert.False(parsed!.IsIdentity);
+    }
+
     [Theory]
     [InlineData("@@ref:not-json")]
     [InlineData("@@ref:{\"column\":\"X\"}")]                       // нет typeId
     [InlineData("@@ref:{\"typeId\":\"00000000-0000-0000-0000-000000000000\",\"column\":\"X\"}")] // пустой Guid
-    [InlineData("@@ref:{\"typeId\":\"11111111-1111-1111-1111-111111111111\",\"column\":\"\"}")]  // нет column
+    [InlineData("@@ref:{\"typeId\":\"11111111-1111-1111-1111-111111111111\",\"column\":\"\"}")]  // нет column и нет identityColumns
     public void Malformed_ReturnsNull(string value)
     {
         Assert.Null(DataSetMappingValue.ParseRef(value));
+    }
+
+    [Fact]
+    public void RefValue_IdentityColumnsWithoutColumn_IsValid()
+    {
+        var typeId = Guid.NewGuid();
+        var value = $$"""@@ref:{"strategy":"Identity","identityColumns":{"ИНН":"КолИНН"},"typeId":"{{typeId}}"}""";
+        Assert.NotNull(DataSetMappingValue.ParseRef(value)); // нет column, но есть identityColumns → валиден
     }
 
     [Fact]

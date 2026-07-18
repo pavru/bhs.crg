@@ -59,7 +59,13 @@ public static class DataSetDtoMapper
         var refMap = DataSetMappingValue.ParseRef(mapVal);
         if (refMap is not null)
         {
-            var v = row != null && row.TryGetValue(refMap.Column, out var lv) ? lv : null;
+            string? v;
+            if (refMap.IsIdentity)
+                v = string.Join(" · ", refMap.IdentityColumns!.Values
+                    .Select(c => row != null && row.TryGetValue(c, out var cv) ? cv : null)
+                    .Where(s => !string.IsNullOrWhiteSpace(s)));
+            else
+                v = row != null && refMap.Column != null && row.TryGetValue(refMap.Column, out var lv) ? lv : null;
             return string.IsNullOrWhiteSpace(v) ? null : $"🔗 {v}";
         }
         return row != null && row.TryGetValue(mapVal, out var val) ? val : null;

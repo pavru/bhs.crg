@@ -3,15 +3,28 @@ using System.Text.Json;
 namespace BHS.CRG.Infrastructure.DataSets;
 
 /// <summary>
-/// Значение маппинга колонки в привязке набора данных может быть двух видов:
-///  • обычное — имя колонки файла (скалярное поле);
-///  • ссылочное — составное поле, заполняемое ссылкой на запись каталога. Кодируется
-///    строкой вида <c>@@ref:{"column":"ИНН","match":"ИНН","typeId":"&lt;guid&gt;"}</c>,
-///    где column — колонка с искомым значением, match — поле записи каталога для
-///    сопоставления (пусто = по отображаемому имени), typeId — составной тип каталога.
-/// Формат разделяется с фронтендом (MappingEditor).
+/// Значение маппинга колонки-ссылки на запись каталога (составное поле). Два вида резолва «строка→объект»
+/// (issue #243, сходимость к решению #183 — только Name или IdentityKey):
+///  • <b>по имени</b>: <c>@@ref:{"strategy":"Name","column":"Наименование","typeId":"&lt;guid&gt;"}</c> —
+///    матч по DisplayName ∪ Aliases значения колонки;
+///  • <b>по идентификатору</b>: <c>@@ref:{"strategy":"Identity","identityColumns":{"ИНН":"КолонкаИНН",
+///    "КПП":"КолонкаКПП"},"typeId":"&lt;guid&gt;"}</c> — матч по составному ключу identity-полей типа
+///    (по колонке на каждое identity-поле).
+/// <b>Legacy</b> (создание через UI больше не даётся, но старые маппинги читаются вечно):
+/// <c>{"column":"ИНН","match":"ИНН","typeId":…}</c> — непустой <c>match</c> = стратегия Field (произвольное
+/// поле), пустой = Name. Формат разделяется с фронтендом (MappingEditor).
 /// </summary>
-public record DataSetRefMapping(string Column, string Match, Guid TypeId);
+public record DataSetRefMapping(
+    string? Column,
+    string? Match,
+    Guid TypeId,
+    string? Strategy = null,
+    Dictionary<string, string>? IdentityColumns = null)
+{
+    /// <summary>Резолв по составному identity-ключу (новый формат): задан IdentityColumns.</summary>
+    public bool IsIdentity => string.Equals(Strategy, "Identity", StringComparison.OrdinalIgnoreCase)
+        && IdentityColumns is { Count: > 0 };
+}
 
 /// <summary>
 /// Файловый маппинг — поле типа "file" заполняется вложением, синтезированным из колонок ТОЙ ЖЕ
@@ -40,9 +53,10 @@ public static class DataSetMappingValue
         {
             var json = value![RefPrefix.Length..];
             var parsed = JsonSerializer.Deserialize<DataSetRefMapping>(json, JsonOpts);
-            return parsed is null || parsed.TypeId == Guid.Empty || string.IsNullOrWhiteSpace(parsed.Column)
-                ? null
-                : parsed;
+            // Валиден, если задан typeId И есть чем резолвить: колонка (Name/legacy) ИЛИ identityColumns (Identity).
+            var noSource = string.IsNullOrWhiteSpace(parsed?.Column)
+                && (parsed?.IdentityColumns is null || parsed.IdentityColumns.Count == 0);
+            return parsed is null || parsed.TypeId == Guid.Empty || noSource ? null : parsed;
         }
         catch
         {
