@@ -87,6 +87,7 @@ public static class CommonDataEndpoints
         {
             try { await m.Send(new DeleteCommonDataEntryCommand(id)); return Results.NoContent(); }
             catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
     }
 

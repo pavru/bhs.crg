@@ -36,7 +36,7 @@ import {
 } from '@/shared/api/schema';
 import { TypstRendersEditor } from './TypstRendersEditor';
 import { schemaToJson, validateFields, TYPE_LABELS, toCamelKey } from './schemaConstants';
-import { useTagRegistry, typeTags as typeTagDefs } from '@/shared/api/tags';
+import { useTagRegistry, typeTags as typeTagDefs, FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { GroupedFieldsEditor } from './GroupedFieldsEditor';
 import { JsonPreview, FieldBuilder, DefaultValueCell, type FieldRegistries } from './FieldBuilder';
 import {
@@ -614,6 +614,21 @@ function SchemaEditor({ docType, allDocTypes }: {
               );
             })}
           </div>
+          {(() => {
+            // issue #258: если тип назначен профилем уровня — read-only заметка «где редактируется + ключ».
+            const p = [
+              { code: FUNCTIONAL_TAG.profileConstruction, level: 'Стройка', key: 'стройка' },
+              { code: FUNCTIONAL_TAG.profileSection, level: 'Раздел', key: 'раздел' },
+              { code: FUNCTIONAL_TAG.profileSet, level: 'Комплект', key: 'комплект' },
+            ].find(x => docTypeTags.includes(x.code));
+            return p ? (
+              <p className="mt-2 text-xs text-fg3">
+                Используется как <span className="text-brand-hover font-medium">профиль уровня «{p.level}»</span>:
+                его объект редактируется в «Общие данные» уровня, поля доступны в шаблоне как{' '}
+                <code className="font-mono bg-muted text-fg1 px-1 rounded">data.уровень.{p.key}.*</code>.
+              </p>
+            ) : null;
+          })()}
         </SectionCard>
       )}
 
