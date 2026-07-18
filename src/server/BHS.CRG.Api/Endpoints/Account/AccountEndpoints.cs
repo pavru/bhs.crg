@@ -41,6 +41,35 @@ public static class AccountEndpoints
             return Results.Ok(ToDto(user, roles));
         });
 
+        // Аватар профиля (issue #245): data-URI уменьшённой на клиенте картинки; null — удалить.
+        g.MapPut("/avatar", async (UpdateAvatarRequest req,
+            UserManager<ApplicationUser> users, ClaimsPrincipal principal) =>
+        {
+            var user = await FindCurrent(users, principal);
+            if (user is null) return Results.Unauthorized();
+
+            var avatar = req.Avatar?.Trim();
+            if (string.IsNullOrEmpty(avatar))
+            {
+                user.AvatarDataUri = null;
+            }
+            else
+            {
+                if (!avatar.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase) || !avatar.Contains(";base64,"))
+                    return Results.BadRequest(new { error = "Ожидается изображение (data:image;base64)" });
+                // Аватар уменьшается на клиенте (~256px). Верхняя граница — защита от гигантских data-URI.
+                if (avatar.Length > MaxAvatarChars)
+                    return Results.BadRequest(new { error = "Изображение слишком большое" });
+                user.AvatarDataUri = avatar;
+            }
+
+            var result = await users.UpdateAsync(user);
+            if (!result.Succeeded) return Results.BadRequest(new { error = DescribeErrors(result) });
+
+            var roles = await users.GetRolesAsync(user);
+            return Results.Ok(ToDto(user, roles));
+        });
+
         // Смена пароля текущим пользователем (перенесено из /api/auth в #148).
         g.MapPost("/change-password", async (ChangePasswordRequest req,
             UserManager<ApplicationUser> users, RefreshTokenService refreshTokens,
@@ -101,6 +130,9 @@ public static class AccountEndpoints
         });
     }
 
+    // ~700 КБ строки data-URI (≈0.5 МБ бинарных) — с запасом для уменьшённого клиентом аватара.
+    private const int MaxAvatarChars = 700_000;
+
     private static async Task<ApplicationUser?> FindCurrent(UserManager<ApplicationUser> users, ClaimsPrincipal p)
     {
         var id = p.FindFirstValue(JwtRegisteredClaimNames.Sub)
@@ -109,13 +141,14 @@ public static class AccountEndpoints
     }
 
     private static AccountDto ToDto(ApplicationUser u, IList<string> roles) =>
-        new(u.Email ?? "", u.DisplayName, roles.FirstOrDefault() ?? "User", u.EmailConfirmed);
+        new(u.Email ?? "", u.DisplayName, roles.FirstOrDefault() ?? "User", u.EmailConfirmed, u.AvatarDataUri);
 
     private static string DescribeErrors(IdentityResult r) =>
         string.Join("; ", r.Errors.Select(e => e.Description));
 
-    record AccountDto(string Email, string DisplayName, string Role, bool EmailConfirmed);
+    record AccountDto(string Email, string DisplayName, string Role, bool EmailConfirmed, string? Avatar);
     record UpdateAccountRequest(string? DisplayName);
+    record UpdateAvatarRequest(string? Avatar);
     record ChangePasswordRequest(string CurrentPassword, string NewPassword);
     record ChangeEmailRequest(string? NewEmail, string CurrentPassword);
 }

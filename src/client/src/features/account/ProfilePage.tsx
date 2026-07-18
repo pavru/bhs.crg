@@ -1,22 +1,26 @@
-import { useState, useEffect } from 'react';
-import { useAccount, useUpdateAccount, useResendConfirmation, useChangeEmail } from '@/shared/api/account';
+import { useState, useEffect, useRef } from 'react';
+import { useAccount, useUpdateAccount, useResendConfirmation, useChangeEmail, useUpdateAvatar } from '@/shared/api/account';
 import { TextField } from '@/shared/ui/TextField';
 import { Button } from '@/shared/ui/Button';
+import { Avatar, downscaleToDataUri } from '@/shared/ui/Avatar';
 import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
 import { apiError } from '@/shared/utils/apiError';
-import { KeyRound, CheckCircle2, AlertCircle, Mail } from 'lucide-react';
+import { KeyRound, CheckCircle2, AlertCircle, Mail, Upload, Trash2 } from 'lucide-react';
 
 /** Профиль текущего пользователя (issue #148): просмотр учётных данных,
  *  редактирование отображаемого имени, смена пароля. Доступно любой роли. */
 export function ProfilePage() {
   const { data: account, isLoading } = useAccount();
   const update = useUpdateAccount();
+  const updateAvatar = useUpdateAvatar();
   const resend = useResendConfirmation();
   const changeEmail = useChangeEmail();
   const [displayName, setDisplayName] = useState('');
   const [pwOpen, setPwOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [avatarError, setAvatarError] = useState('');
+  const avatarInput = useRef<HTMLInputElement>(null);
 
   const [resendMsg, setResendMsg] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -44,6 +48,25 @@ export function ProfilePage() {
     }
   }
 
+  async function pickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setAvatarError('');
+    try {
+      const dataUri = await downscaleToDataUri(file);
+      await updateAvatar.mutateAsync(dataUri);
+    } catch (err) {
+      setAvatarError(apiError(err, 'Не удалось загрузить изображение'));
+    }
+  }
+
+  async function removeAvatar() {
+    setAvatarError('');
+    try { await updateAvatar.mutateAsync(null); }
+    catch (err) { setAvatarError(apiError(err, 'Не удалось удалить изображение')); }
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setError(''); setSaved(false);
@@ -65,6 +88,29 @@ export function ProfilePage() {
     <div className="px-6 py-4 max-w-lg">
       <h1 className="text-xl font-semibold text-fg1 mb-1">Профиль</h1>
       <p className="text-xs text-fg4 mb-5">Ваши учётные данные.</p>
+
+      {/* Аватар (issue #245) */}
+      <div className="flex items-center gap-4 mb-6">
+        <Avatar src={account.avatar} name={account.displayName} email={account.email}
+          className="w-16 h-16 text-xl" />
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outlined" size="sm" icon={<Upload size={14} />}
+              loading={updateAvatar.isPending} onClick={() => avatarInput.current?.click()}>
+              {account.avatar ? 'Заменить фото' : 'Загрузить фото'}
+            </Button>
+            {account.avatar && (
+              <Button type="button" variant="text" size="sm" icon={<Trash2 size={14} />}
+                loading={updateAvatar.isPending} onClick={removeAvatar}>
+                Удалить
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-fg4">PNG, JPG. Изображение уменьшится автоматически.</p>
+          {avatarError && <p className="text-xs text-danger">{avatarError}</p>}
+        </div>
+        <input ref={avatarInput} type="file" accept="image/*" className="hidden" onChange={pickAvatar} />
+      </div>
 
       <form onSubmit={save} className="space-y-5">
         <div>

@@ -7,6 +7,7 @@ import { useTheme, type Theme } from '@/shared/ui/ThemeProvider';
 import { NotificationsCenter } from '@/features/notifications/NotificationsCenter';
 import { ActiveJobsIndicator } from '@/features/jobs/ActiveJobsIndicator';
 import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
+import { Avatar } from '@/shared/ui/Avatar';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
 import { ShortcutsHelp } from '@/shared/ui/ShortcutsHelp';
 import { workNav, settingsNav, type NavItem } from '@/shared/ui/navConfig';
@@ -40,14 +41,6 @@ function ThemeToggle() {
       })}
     </div>
   );
-}
-
-/** Инициалы для аватара: 2 буквы из имени (или email). */
-function initialsOf(name?: string, email?: string): string {
-  const src = (name || email || '').trim();
-  const parts = src.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return src.slice(0, 2).toUpperCase();
 }
 
 function NavSection({
@@ -94,6 +87,7 @@ function NavSection({
 
 export function AppShell() {
   const { user, logout } = useAuth();
+  const { data: account } = useAccount();
   const isAdmin = user?.role === 'Admin';
   const [pwOpen, setPwOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -149,9 +143,8 @@ export function AppShell() {
               className={({ isActive }) => `flex items-center gap-3 h-14 px-4 rounded-[28px] transition-colors ` +
                 `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ` +
                 (isActive ? 'bg-tonal' : 'hover:bg-black/5 dark:hover:bg-white/10')}>
-              <span className="flex items-center justify-center w-10 h-10 rounded-full shrink-0 bg-brand-subtle text-on-brand-subtle text-[15px] font-medium">
-                {initialsOf(user?.displayName, user?.email)}
-              </span>
+              <Avatar src={account?.avatar} name={user?.displayName} email={user?.email} />
+
               <span className="flex-1 min-w-0">
                 <span className="block text-sm font-medium text-fg1 truncate">{user?.displayName || user?.email}</span>
                 <span className="block text-xs text-fg3">{isAdmin ? 'Администратор' : 'Пользователь'}</span>
