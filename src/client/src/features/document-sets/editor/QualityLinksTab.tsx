@@ -4,6 +4,8 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { TypePickerField } from '@/shared/ui/TypePickerField';
+import type { PickType } from '@/shared/ui/TypePicker';
 import { usePreviewDataSetBindings } from '@/shared/api/datasets';
 import {
   useListQualityDocs, useListMaterialLinks, useSetMaterialLinks, useRemoveMaterialLink,
@@ -231,10 +233,11 @@ function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, materials
       {tab === 'search' && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Select value={searchType || undefined} onValueChange={setSearchType}
-              placeholder="Тип" aria-label="Тип документа качества" className="w-52">
-              {qualityTypes.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-            </Select>
+            <TypePickerField className="w-52" aria-label="Тип документа качества" title="Тип документа качества"
+              placeholder="Тип"
+              types={qualityTypes.map<PickType>(t => ({ id: t.id, name: t.name, code: t.code, section: 'Документы качества' }))}
+              value={searchType || undefined}
+              onChange={id => { if (id) setSearchType(id); }} />
             <div className="flex-1 flex items-center gap-2 border border-stroke-strong rounded-md px-2 transition-colors focus-within:border-brand focus-within:ring-1 focus-within:ring-brand">
               <Search size={14} className="text-fg4" />
               <input value={query} onChange={e => setQuery(e.target.value)}

@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { Loader2, ShieldCheck, Upload, Eye } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
-import { Select, SelectItem } from '@/shared/ui/Select';
+import { TypePickerField } from '@/shared/ui/TypePickerField';
+import type { PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
 import {
   useCreateQualityDoc, useUpdateQualityDoc, useSetQualityDocScan, recognizeDocument,
@@ -161,10 +162,11 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-fg2 mb-1">Тип документа</label>
-          <Select value={typeId || undefined} onValueChange={setTypeId}
-            placeholder="Выберите тип…" aria-label="Тип документа">
-            {qualityTypes.map(dt => <SelectItem key={dt.id} value={dt.id}>{dt.name}</SelectItem>)}
-          </Select>
+          <TypePickerField className="w-full" aria-label="Тип документа" title="Тип документа"
+            placeholder="Выберите тип…"
+            types={qualityTypes.map<PickType>(dt => ({ id: dt.id, name: dt.name, code: dt.code, section: 'Документы качества' }))}
+            value={typeId || undefined}
+            onChange={id => { if (id) setTypeId(id); }} />
         </div>
         <TextField label="Название в библиотеке" value={displayName}
           onChange={e => setDisplayName(e.target.value)} hint="авто из номера" />
