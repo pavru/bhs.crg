@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Application.Objects;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Objects;
@@ -300,18 +301,10 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         return baseData.ValueKind == JsonValueKind.Object ? MergeBaseObjects(baseData, ownData) : ownData;
     }
 
-    /// Разбор "_baseRef": дискриминированный объект {kind,id} (issue #71) или голый id-строка (legacy).
-    /// После слияния объектов (issue #84) разновидность цели определяется её природой при резолве
-    /// (наличие фасеты), поэтому здесь нужен только id — тег kind игнорируется.
-    private static Guid? ParseBaseRef(JsonElement el)
-    {
-        if (el.ValueKind == JsonValueKind.String)
-            return Guid.TryParse(el.GetString(), out var g) ? g : null;
-        if (el.ValueKind == JsonValueKind.Object
-            && el.TryGetProperty("id", out var idEl) && Guid.TryParse(idEl.GetString(), out var gid))
-            return gid;
-        return null;
-    }
+    /// Разбор "_baseRef": делегирует общему <see cref="BaseRefReader.ParseRef"/> — единое правило
+    /// для резолвера и guard'ов удаления (issue #71). Разновидность цели определяется её природой
+    /// при резолве (наличие фасеты), поэтому здесь нужен только id — тег kind игнорируется.
+    private static Guid? ParseBaseRef(JsonElement el) => BaseRefReader.ParseRef(el);
 
     /// <summary>
     /// Слияние двух JSON-объектов для _baseRef-наследования: базовые поля первыми, собственные

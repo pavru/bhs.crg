@@ -2,6 +2,7 @@ using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Application.Objects;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
@@ -372,6 +373,12 @@ public class DocumentSetHandlers(
     public async Task Handle(DeleteDocumentInstanceCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        // issue #71: удаление базового экземпляра оставило бы у ссылающихся висячий "_baseRef" —
+        // при генерации базовые поля молча пропали бы (EntityResolver пропускает отсутствующую базу).
+        var referrers = await DomainObjectReferences.FindBaseRefReferrersAsync(objRepo, cmd.Id, ct);
+        if (referrers.Count > 0)
+            throw new InvalidOperationException(
+                $"Нельзя удалить документ — на него ссылаются как на базовый экземпляр: {string.Join(", ", referrers.Select(r => r.DisplayName ?? "без имени"))}.");
         objRepo.Remove(obj);
         await objRepo.SaveChangesAsync(ct);
     }
@@ -480,6 +487,12 @@ public class CommonDataHandlers(
             || (await sectionRepo.FindAsync(s => s.ProfileObjectId == cmd.Id, ct)).Count > 0
             || (await setRepo.FindAsync(s => s.ProfileObjectId == cmd.Id, ct)).Count > 0)
             throw new InvalidOperationException("Это профиль уровня — его нельзя удалить. Он редактируется на странице «Общие данные» уровня.");
+        // issue #71: запись, служащая базовым экземпляром для других объектов, — тот же guard,
+        // что и для документа: иначе у ссылающихся остаётся висячий "_baseRef".
+        var referrers = await DomainObjectReferences.FindBaseRefReferrersAsync(repo, cmd.Id, ct);
+        if (referrers.Count > 0)
+            throw new InvalidOperationException(
+                $"Нельзя удалить запись — на неё ссылаются как на базовый экземпляр: {string.Join(", ", referrers.Select(r => r.DisplayName ?? "без имени"))}.");
         repo.Remove(entry);
         await repo.SaveChangesAsync(ct);
     }
