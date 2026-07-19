@@ -9,7 +9,8 @@ import { Markdown } from '@/shared/ui/Markdown';
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
-import { Select, SelectItem } from '@/shared/ui/Select';
+import { TypePickerField } from '@/shared/ui/TypePickerField';
+import type { PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { apiError } from '@/shared/utils/apiError';
@@ -57,8 +58,10 @@ function normalizeGroupMembership(gs: FieldGroup[]): FieldGroup[] {
   }));
 }
 
-/** Sentinel для «— без родителя —» — Radix Select запрещает пустую строку как value. */
-const NO_PARENT = '__none__';
+/** Родительский тип как `PickType` для `TypePickerField` (section — единая шапка группы пикера). */
+function toParentPickTypes(types: DocumentType[]): PickType[] {
+  return types.map(dt => ({ id: dt.id, name: dt.name, code: dt.code, section: 'Родительский тип' }));
+}
 
 // Реестр редакторов / диалог-гард / карточка-секция — общие для list-detail страниц (см. typeEditorShell).
 
@@ -247,13 +250,10 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
       </div>
       <div>
         <label className="block text-xs font-medium text-fg2 mb-1">Родительский тип</label>
-        <Select value={parentId || NO_PARENT} aria-label="Родительский тип"
-          onValueChange={v => setParentId(v === NO_PARENT ? '' : v)}>
-          <SelectItem value={NO_PARENT}>— без родителя —</SelectItem>
-          {eligibleParents.map(dt => (
-            <SelectItem key={dt.id} value={dt.id}>{dt.name} ({dt.code})</SelectItem>
-          ))}
-        </Select>
+        <TypePickerField className="w-full" aria-label="Родительский тип" title="Родительский тип"
+          placeholder="— без родителя —" clearable={{ label: 'Без родителя' }}
+          types={toParentPickTypes(eligibleParents)} value={parentId || undefined}
+          onChange={id => setParentId(id ?? '')} />
       </div>
       {/* Прокси/абстрактность — отдельные мгновенные переключатели (не часть формы «Сохранить
           параметры»): каждый — своя мутация, применяется сразу по щелчку (issue #197 Фаза C). */}
@@ -355,13 +355,10 @@ function CreateForm({
           <label className="block text-sm font-medium text-fg2 mb-1">
             Родительский тип (наследование)
           </label>
-          <Select value={parentId || NO_PARENT} aria-label="Родительский тип"
-            onValueChange={v => setParentId(v === NO_PARENT ? '' : v)}>
-            <SelectItem value={NO_PARENT}>— без родителя —</SelectItem>
-            {sameKindTypes.map(dt => (
-              <SelectItem key={dt.id} value={dt.id}>{dt.name} ({dt.code})</SelectItem>
-            ))}
-          </Select>
+          <TypePickerField className="w-full" aria-label="Родительский тип" title="Родительский тип"
+            placeholder="— без родителя —" clearable={{ label: 'Без родителя' }}
+            types={toParentPickTypes(sameKindTypes)} value={parentId || undefined}
+            onChange={id => setParentId(id ?? '')} />
         </div>
       )}
 
