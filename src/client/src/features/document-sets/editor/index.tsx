@@ -22,6 +22,7 @@ import {
   getDefaultValues, isScalarField, type SchemaField,
 } from '@/shared/api/schema';
 import { FieldSourceBinding } from './FieldSourceBinding';
+import { ContainerFieldBinding } from './ContainerFieldBinding';
 import {
   STATUS_LABELS, STATUS_COLORS,
   validateConstraint, isMissing, PrimitiveInput, FileField, ImageField,
@@ -55,22 +56,9 @@ function SourceBoundDocField() {
     <div className="flex items-center gap-2 border border-brand/40 rounded-lg px-3 py-2 bg-brand/5">
       <Database size={14} className="text-brand shrink-0" />
       <span className="text-xs text-fg3">
-        Заполняется из привязанного источника данных — правьте связку на вкладке «Данные».
+        Заполняется из привязанного источника данных — правьте связку по иконке источника у поля.
       </span>
     </div>
-  );
-}
-
-/// Компактный индикатор для скалярного поля, заполняемого привязкой (issue #55): иконка в строке
-/// лейбла (тот же слот, что занимает тип-хинт) вместо полноразмерной плашки — иначе при «один
-/// биндинг → много полей» форма превращается в стену одинаковых боксов.
-function SourceBoundBadge({ onGoToDataTab }: { onGoToDataTab: () => void }) {
-  return (
-    <button type="button" onClick={onGoToDataTab}
-      title="Заполняется из привязанного источника данных — открыть вкладку «Данные»"
-      className="ml-1 inline-flex align-middle text-brand hover:text-brand-hover">
-      <Database size={11} />
-    </button>
   );
 }
 
@@ -88,11 +76,11 @@ function BoundStateHint({ loading, error }: { loading: boolean; error: boolean }
 // Кандидаты берутся по всей цепочке типов-предков и по скоп-близости (комплект > раздел > стройка >
 // система), внутри уровня — по близости наследования. Ссылка хранится как _baseRef {kind,id}.
 
-function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, otherInstances, onDirty, saveRef, onGoToDataTab, onBaseState, baseControlRef }: {
+function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, otherInstances, onDirty, saveRef, onBaseState, baseControlRef }: {
   instance: DocumentInstance; setId: string; schemaFields: SchemaField[];
   allDocTypes: DocumentType[]; docType: DocumentType | undefined;
   otherInstances: DocumentInstance[]; onClose: () => void;
-  onDirty: (dirty: boolean) => void; saveRef: SaveRef; onGoToDataTab: () => void;
+  onDirty: (dirty: boolean) => void; saveRef: SaveRef;
   /** Синк состояния «Основы» вверх — для chip в шапке (issue #223). */
   onBaseState: (s: { hasBase: boolean; selected: BaseCandidate | undefined; missing: boolean; candidates: BaseCandidate[]; coveredCount: number }) => void;
   /** Канал управления «Основой» из шапки (доступен, пока смонтирована вкладка реквизитов). */
@@ -348,20 +336,28 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
           const wide = isWide(field);
 
           if (wide) {
+            const isContainer = field.type === 'complex' || field.type === 'array' || field.type === 'doc-ref' || field.type === 'doc-array';
             return (
-              <div key={field.key} className="col-span-2">
+              <div key={field.key} className="col-span-2 relative group">
+                {/* Per-field привязка контейнерного поля «линза» (issue #296, фаза 2a) — модалка в углу. */}
+                {isContainer && (
+                  <div className="absolute top-0.5 right-0.5 z-10">
+                    <ContainerFieldBinding instanceId={instance.id} setId={setId} field={field}
+                      allDocTypes={allDocTypes} bindings={dsBindings} />
+                  </div>
+                )}
                 {field.type !== 'boolean' && field.type !== 'complex' && field.type !== 'array' && (
-                  <label className="block text-xs font-medium text-fg2 mb-1">
+                  <label className="block text-xs font-medium text-fg2 mb-1 pr-5">
                     {field.title}
                     {field.required && <span className="ml-0.5 text-danger">*</span>}
                     {!field.required && <span className="ml-1 text-[10px] text-fg4 font-normal">опц.</span>}
-                    {bound && <SourceBoundBadge onGoToDataTab={onGoToDataTab} />}
                   </label>
                 )}
                 {field.type === 'complex' ? (
+                  bound ? <SourceBoundDocField /> : (
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-medium text-fg2">
+                      <label className="block text-xs font-medium text-fg2 pr-5">
                         {field.title}
                         {field.required && <span className="ml-0.5 text-danger">*</span>}
                       </label>
@@ -370,10 +366,13 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                       onChange={v => setValue(field.key, v)} showValidation={showValidation}
                       setId={setId} otherInstances={otherInstances} docRefMode="instance" />
                   </div>
+                  )
                 ) : field.type === 'array' ? (
+                  bound ? <SourceBoundDocField /> : (
                   <ArrayFieldEditor field={field} allDocTypes={allDocTypes} value={raw}
                     onChange={v => setValue(field.key, v)} showValidation={showValidation}
                     setId={setId} otherInstances={otherInstances} docRefMode="instance" />
+                  )
                 ) : field.type === 'doc-ref' ? (
                   sourceBoundFields.has(field.key) ? <SourceBoundDocField /> : (
                     <DocRefField field={field} allDocTypes={allDocTypes} value={raw}
@@ -1035,7 +1034,6 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
         <RequisitesTab instance={instance} setId={setId} schemaFields={schemaFields}
           allDocTypes={allDocTypes} docType={docType} otherInstances={otherInstances}
           onClose={onClose} onDirty={setDirty} saveRef={saveRef}
-          onGoToDataTab={() => requestTab('datasets')}
           onBaseState={setBaseState} baseControlRef={baseControlRef} />
       )}
       {tab === 'datasets' && (
