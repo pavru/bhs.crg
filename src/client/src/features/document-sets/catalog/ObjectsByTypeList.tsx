@@ -1,4 +1,4 @@
-import { Pencil, Trash2, Link2, FileText } from 'lucide-react';
+import { Trash2, Link2, FileText } from 'lucide-react';
 import { IconButton } from '@/shared/ui/Button';
 import type { CommonDataEntry, DocumentType } from '@/shared/api/types';
 
@@ -81,8 +81,16 @@ export function ObjectRow({
   const preview = Object.entries(entry.data)
     .filter(([k, v]) => !k.startsWith('_') && v != null && v !== '' && typeof v !== 'object')
     .slice(0, 3).map(([k, v]) => `${k}: ${v}`).join(' · ');
+  // Вся строка кликабельна → редактирование (карандаш убран, консистентно со строками документов).
+  // role="button"+tabIndex — доступно с клавиатуры; div (не <button>), чтобы вложенные кнопки
+  // (метка прокси, удаление) были валидны. Вложенные интерактивы делают stopPropagation.
   return (
-    <div className={`group flex items-center transition-colors ${dense ? 'gap-3 px-3 py-2 hover:bg-muted' : 'gap-4 px-4 py-3 hover:bg-base'} ${className}`}>
+    <div
+      role="button" tabIndex={0}
+      onClick={() => onEdit(entry)}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(entry); } }}
+      aria-label={`Редактировать «${entry.displayName}»`}
+      className={`group flex items-center cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset ${dense ? 'gap-3 px-3 py-2 hover:bg-muted' : 'gap-4 px-4 py-3 hover:bg-base'} ${className}`}>
       {docKind && dense && <FileText size={12} className="text-warning shrink-0" />}
       <span className={`flex-1 min-w-[8rem] text-sm truncate ${dense ? 'text-fg1' : 'font-medium text-fg1'}`}>{entry.displayName}</span>
       <ProxyRoleMarker entry={entry} siblings={siblings} resolvePool={resolvePool} onOpen={onEdit} />
@@ -93,10 +101,8 @@ export function ObjectRow({
         <span className="text-xs text-fg4 truncate max-w-xs hidden sm:block">{preview}</span>
       )}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
-        <IconButton label="Редактировать" size="sm" onClick={() => onEdit(entry)}>
-          <Pencil size={icon} />
-        </IconButton>
-        <IconButton label="Удалить" size="sm" danger onClick={() => onDelete(entry)} disabled={deleteDisabled}>
+        <IconButton label="Удалить" size="sm" danger
+          onClick={e => { e.stopPropagation(); onDelete(entry); }} disabled={deleteDisabled}>
           <Trash2 size={icon} />
         </IconButton>
       </div>
