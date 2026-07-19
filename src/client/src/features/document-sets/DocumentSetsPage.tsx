@@ -34,6 +34,7 @@ import {
 import type { Construction, DocumentInstance } from '@/shared/api/types';
 import { STATUS_LABELS, STATUS_COLORS } from './fields';
 import { InstanceEditor } from './editor';
+import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { EmailSendDialog } from './EmailSendDialog';
 import { useEmailSet } from '@/shared/api/documentSets';
 import { useAuth } from '@/shared/hooks/useAuth';
@@ -383,10 +384,16 @@ function SetDetail() {
             title={liveInstance.name || docTypeMap[liveInstance.documentTypeId]?.name || 'Редактировать документ'}
             fullScreen headerless isDirty={editDirty} flushBody>
             {requestClose => (
-              <InstanceEditor key={liveInstance.id} instance={liveInstance} setId={setId} docType={docTypeMap[liveInstance.documentTypeId]}
-                allDocTypes={docTypes} otherInstances={otherInstances}
-                onClose={() => { setEditInstance(null); setEditDirty(false); }} onDirtyChange={setEditDirty}
-                requestClose={requestClose} />
+              // Граница ошибок (issue #305): краш рендера редактора изолирован в панель ошибки
+              // вместо немого пустого экрана; Esc/закрытие живут на уровне Modal (вне границы).
+              // resetKeys=[id] — смена документа сбрасывает пойманную ошибку.
+              <ErrorBoundary variant="inline" allowReload resetKeys={[liveInstance.id]}
+                title="Не удалось открыть документ">
+                <InstanceEditor key={liveInstance.id} instance={liveInstance} setId={setId} docType={docTypeMap[liveInstance.documentTypeId]}
+                  allDocTypes={docTypes} otherInstances={otherInstances}
+                  onClose={() => { setEditInstance(null); setEditDirty(false); }} onDirtyChange={setEditDirty}
+                  requestClose={requestClose} />
+              </ErrorBoundary>
             )}
           </Modal>
         );
