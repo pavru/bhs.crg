@@ -63,7 +63,7 @@ function AssetRow({ asset }: { asset: TemplateAssetDto }) {
           </p>
         }
         confirmLabel="Удалить"
-        onConfirm={() => deleteMutation.mutate(asset.id)}
+        onConfirm={() => deleteMutation.mutateAsync(asset.id)}
       />
     </div>
   );

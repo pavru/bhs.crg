@@ -87,7 +87,6 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
   const [previewing, setPreviewing] = useState(false);
   const [materializing, setMaterializing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameVal, setRenameVal] = useState('');
 
@@ -149,7 +148,7 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
     { key: 'duplicate', label: 'Создать копию', icon: <Copy size={13} />, onSelect: () => duplicateMutation.mutate({ id: src.id }), disabled: duplicateMutation.isPending },
     { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: <Boxes size={13} />, onSelect: () => setMaterializing(true) },
     ...(canManageExtraction && !isPdf ? [{ key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => onEdit(src) }] : []),
-    ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: <Trash2 size={13} />, danger: true, onSelect: () => { setDeleteError(null); setConfirmDelete(true); } }] : []),
+    ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: <Trash2 size={13} />, danger: true, onSelect: () => setConfirmDelete(true) }] : []),
   ];
 
   return (
@@ -178,7 +177,6 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
               {cols.slice(0, maxColumns).join(', ')}{cols.length > maxColumns ? ` +${cols.length - maxColumns}` : ''}
             </div>
           )}
-          {deleteError && <div className="text-danger mt-1">{deleteError}</div>}
         </div>
         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
           {passiveLabel && <span className="text-fg4 italic" title="Заполняется вместе с главным источником той же тройки/пары">{passiveLabel}</span>}
@@ -232,8 +230,7 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
         title={`Удалить источник «${src.name}»?`}
         description={<p>Если источник используется в привязках документов — удаление будет отклонено.</p>}
         confirmLabel="Удалить источник"
-        onConfirm={() => deleteMutation.mutateAsync({ id: src.id }).catch((err: { response?: { data?: string } }) =>
-          setDeleteError(err?.response?.data ?? 'Не удалось удалить — возможно, источник используется в привязках.'))}
+        onConfirm={() => deleteMutation.mutateAsync({ id: src.id })}
       />
     </div>
   );
