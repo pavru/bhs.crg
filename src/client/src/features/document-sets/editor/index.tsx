@@ -262,16 +262,17 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
     return { total, filled, missing };
   }
 
+  // Обязательные незаполненные (не покрытые привязкой/базой) — для баннера-черновика и маркеров.
+  const missingRequired = schemaFields.filter(f => isFieldMissing(f, values[f.key]));
+
   // Сохраняет реквизиты. Возвращает true при успехе. НЕ закрывает редактор.
+  // issue #296 (вариант A): обязательность — инвариант ГЕНЕРАЦИИ, не сохранения. Save хранит черновик
+  // (в т.ч. с пустыми обязательными — их можно заполнить позже / привязать к источнику); блокирует
+  // только НЕвалидное введённое (формат/ограничения примитивов). Это разрывает дедлок «нельзя уйти
+  // на «Данные» привязать поле, потому что не сохраняется из-за этого же поля».
   async function handleSaveCore(): Promise<boolean> {
     setError('');
-    const missingRequired = schemaFields.filter(f => isFieldMissing(f, values[f.key]));
-    if (missingRequired.length > 0) {
-      setShowValidation(true);
-      setError(`Заполните обязательные поля: ${missingRequired.map(f => f.title).join(', ')}`);
-      return false;
-    }
-    // Re-validate all primitive-type fields
+    // Формат/ограничения — блокируют (нельзя хранить мусор).
     const constraintViolations: Record<string, string> = {};
     for (const f of schemaFields) {
       const def = getPrimitiveDef(f);
@@ -285,6 +286,8 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
       setError('Исправьте ошибки формата в полях');
       return false;
     }
+    // Незаполненные обязательные не блокируют — но показываем маркеры (не «тихо»).
+    setShowValidation(missingRequired.length > 0);
     try {
       await mutation.mutateAsync({ setId, instanceId: instance.id, requisites: values });
       onDirty(false);
@@ -502,6 +505,19 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* Баннер неполноты (issue #296, вариант A): черновик можно сохранить с пустыми обязательными —
+          но неполнота не «тихая», показываем всегда; жёсткий гейт — на генерации. */}
+      {missingRequired.length > 0 && (
+        <div className="shrink-0 px-6 pt-3">
+          <div className="flex items-start gap-2.5 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-xs text-warning">
+            <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+            <span>
+              Черновик — не заполнено обязательных: <b>{missingRequired.length}</b>. Их можно заполнить позже или
+              привязать к источнику данных; для генерации PDF потребуются.
+            </span>
           </div>
         </div>
       )}
