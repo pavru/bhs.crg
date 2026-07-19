@@ -884,7 +884,7 @@ function InstanceNameEditor({ instance, setId, docType }: {
 
 // ─── Instance editor modal ────────────────────────────────────────────────────
 
-type InstanceTab = 'requisites' | 'datasets' | 'quality' | 'generation';
+type InstanceTab = 'requisites' | 'quality' | 'generation';
 
 export function InstanceEditor({ instance, setId, docType, allDocTypes, otherInstances, onClose, onDirtyChange, requestClose }: {
   instance: DocumentInstance; setId: string; docType: DocumentType | undefined;
@@ -895,6 +895,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
 }) {
   const schemaFields = docType ? resolveEffectiveFields(docType, allDocTypes) : [];
   const [tab, setTab] = useState<InstanceTab>('requisites');
+  const [dataSourcesOpen, setDataSourcesOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [pendingTab, setPendingTab] = useState<InstanceTab | null>(null);
   const [switching, setSwitching] = useState(false);
@@ -934,7 +935,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
   // с полем-ссылкой на документ качества, тэг material.qualityDocLink).
   const requiresQuality = !!docType && compositeFieldHasTag(docType, FUNCTIONAL_TAG.materialQualityDocLink, allDocTypes);
   const tabs: [InstanceTab, string][] = [
-    ['requisites', 'Реквизиты'], ['datasets', 'Данные'],
+    ['requisites', 'Реквизиты'],
     ...(requiresQuality ? [['quality', 'Документы качества'] as [InstanceTab, string]] : []),
     ['generation', 'Генерация'],
   ];
@@ -1006,6 +1007,12 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLORS[instance.status] ?? 'bg-brand-subtle text-brand'}`}>
             {STATUS_LABELS[instance.status] ?? instance.status}
           </span>
+          {/* Источники данных (issue #296, фаза 3): пакетные операции уровня документа — обзор
+              привязок, «Проверить данные», «Из шаблона». Точечная привязка — на самих полях. */}
+          <Button variant="text" size="sm" icon={<Database size={15} />} onClick={() => setDataSourcesOpen(true)}
+            className="shrink-0" title="Обзор привязок, проверка данных, шаблоны">
+            <span className="hidden sm:inline">Источники</span>
+          </Button>
           {editable && (
             <div className="flex items-center gap-2 shrink-0">
               {savedFlash && <span className="text-sm text-success hidden sm:inline">Сохранено</span>}
@@ -1036,11 +1043,17 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           onClose={onClose} onDirty={setDirty} saveRef={saveRef}
           onBaseState={setBaseState} baseControlRef={baseControlRef} />
       )}
-      {tab === 'datasets' && (
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
-          <DataSetsTab instance={instance} setId={setId} schemaFields={schemaFields} allDocTypes={allDocTypes} docType={docType} />
-        </div>
-      )}
+      <Modal open={dataSourcesOpen} onOpenChange={setDataSourcesOpen} title="Источники данных" wide>
+        {dataSourcesOpen && (
+          <div className="space-y-3">
+            <p className="text-xs text-fg4">
+              Точечная привязка полей — по иконке источника у каждого поля в реквизитах.
+              Здесь — обзор привязок, проверка данных и применение шаблонов на весь документ.
+            </p>
+            <DataSetsTab instance={instance} setId={setId} schemaFields={schemaFields} allDocTypes={allDocTypes} docType={docType} />
+          </div>
+        )}
+      </Modal>
       {tab === 'quality' && (
         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
           <QualityLinksTab instance={instance} setId={setId} allDocTypes={allDocTypes} />
