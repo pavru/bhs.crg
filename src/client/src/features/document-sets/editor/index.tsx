@@ -313,6 +313,20 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   const useDrawer = items.length >= 2; // мелкие формы (<2 пунктов) — плоский fallback без drawer
   const activeIdx = Math.max(0, items.findIndex(i => i.key === activeKey));
   const activeItem = items[activeIdx] ?? items[0];
+  // Пустой экран (баг): если ВСЕ поля покрыты основой/привязками (напр. «Титульный лист» наследует
+  // всё от базы «Проект»), displayFields пуст → items пуст → activeItem undefined → renderItemBody
+  // падал. Показываем сообщение вместо краша (все хуки выше — ранний return безопасен).
+  if (!activeItem) {
+    return (
+      <div className="flex-1 min-h-0 flex items-center justify-center px-6 text-center">
+        <p className="text-sm text-fg4 max-w-md">
+          Все поля этого документа заполняются автоматически — из основы
+          {hasBase && baseRef ? ' (базового экземпляра)' : ''} или привязок к источникам данных.
+          Заполнять здесь нечего; проверить итог можно в предпросмотре или при генерации.
+        </p>
+      </div>
+    );
+  }
   const prevItem = activeIdx > 0 ? items[activeIdx - 1] : null;
   const nextItem = activeIdx >= 0 && activeIdx < items.length - 1 ? items[activeIdx + 1] : null;
   const fieldsItems = items.filter(i => i.kind === 'fields'); // для подстроки «раздел X из Y»
