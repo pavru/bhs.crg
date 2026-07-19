@@ -97,6 +97,15 @@ public static class DocumentTypeSchemaReader
         return fields.Any(f => f.Type == "enum" && f.TypeId == enumTypeId);
     }
 
+    /// <summary>Ссылается ли схема (СОБСТВЕННЫЕ поля типа) на тип поля из реестра primitiveTypeId
+    /// через поле type="primitive" + typeId (issue #269, проверка перед удалением PrimitiveType —
+    /// по образцу <see cref="ReferencesEnumType"/>).</summary>
+    public static bool ReferencesPrimitiveType(JsonDocument schema, Guid primitiveTypeId)
+    {
+        var (fields, _, _) = ParseSchema(schema, null);
+        return fields.Any(f => f.Type == "primitive" && f.TypeId == primitiveTypeId);
+    }
+
     /// <summary>true, если childId == ancestorId либо childId — потомок ancestorId по ParentId.</summary>
     public static bool IsSameOrDescendant(Guid childId, Guid ancestorId, IReadOnlyDictionary<Guid, DocumentType> byId)
     {

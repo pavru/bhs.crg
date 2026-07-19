@@ -29,8 +29,8 @@ public static class PrimitiveTypeEndpoints
 
         admin.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
-            await m.Send(new DeletePrimitiveTypeCommand(id));
-            return Results.NoContent();
+            try { await m.Send(new DeletePrimitiveTypeCommand(id)); return Results.NoContent(); }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
     }
 
