@@ -31,6 +31,10 @@ export function GroupedFieldsEditor({
   const [dropTarget, setDropTarget] = useState<string | null>(null); // ключ группы (или '__ungrouped__') под курсором
   const [dropBeforeKey, setDropBeforeKey] = useState<string | null>(null); // поле, ПЕРЕД которым ляжет; null = в конец контейнера
   const [newGroupTitle, setNewGroupTitle] = useState('');
+  // DnD упорядочивания КАРТОЧЕК групп — отдельно от полевого DnD (dragKey). Взаимоисключающие
+  // (нативно тащим одно), поэтому обработчики групп/полей друг друга не перебивают (guard по своему state).
+  const [dragGroupKey, setDragGroupKey] = useState<string | null>(null);
+  const [groupDropBefore, setGroupDropBefore] = useState<string | null>(null); // группа, ПЕРЕД которой ляжет; '__end__' = в конец
 
   // Показать линию-индикатор вставки перед членом (кроме самого перетаскиваемого).
   const lineBefore = (key: string) => !!dragKey && dropBeforeKey === key && dragKey !== key;
@@ -134,6 +138,17 @@ export function GroupedFieldsEditor({
     [next[idx], next[swap]] = [next[swap], next[idx]];
     onGroupsChange(next);
   }
+  // DnD-перестановка группы: убрать перетаскиваемую, вставить перед beforeKey ('__end__' → в конец).
+  function moveGroupTo(gKey: string, beforeKey: string) {
+    const from = groups.findIndex(g => g.key === gKey);
+    if (from < 0 || gKey === beforeKey) return;
+    const next = [...groups];
+    const [moved] = next.splice(from, 1);
+    const to = beforeKey === '__end__' ? next.length : next.findIndex(g => g.key === beforeKey);
+    next.splice(to < 0 ? next.length : to, 0, moved);
+    onGroupsChange(next);
+  }
+  const endGroupDrag = () => { setDragGroupKey(null); setGroupDropBefore(null); };
 
   // ── Рендер членов контейнера (своё поле = карточка, унаслед. = строка) ────────
   // Обработчики drag всегда навешены (guard внутри) — не зависим от ре-рендера между dragstart и
@@ -242,11 +257,23 @@ export function GroupedFieldsEditor({
       {groups.map((group, gi) => {
         const zone = dropZoneProps(group.key);
         const members = group.fieldKeys.filter(k => ownByKey.has(k) || inhByKey.has(k));
+        const draggingThis = dragGroupKey === group.key;
         return (
-          <div key={group.key}
-            className={`border rounded-lg overflow-hidden transition-colors ${zone.highlighted ? 'border-brand bg-brand-subtle/30' : 'border-stroke bg-base'}`}>
+          <div key={group.key}>
+            {/* Место вставки при перетаскивании группы (перед этой карточкой) */}
+            {!!dragGroupKey && !draggingThis && groupDropBefore === group.key && <DropLine />}
+            <div
+              className={`border rounded-lg overflow-hidden transition-colors ${draggingThis ? 'opacity-40' : ''} ${zone.highlighted ? 'border-brand bg-brand-subtle/30' : 'border-stroke bg-base'}`}
+              onDragOver={e => { if (dragGroupKey && !draggingThis) { e.preventDefault(); setGroupDropBefore(group.key); } }}
+              onDrop={() => { if (dragGroupKey && !draggingThis) { moveGroupTo(dragGroupKey, group.key); endGroupDrag(); } }}>
             {/* Шапка группы */}
             <div className="flex items-center gap-2 px-3 py-2 bg-surface border-b border-stroke">
+              <button type="button" draggable
+                onDragStart={() => setDragGroupKey(group.key)} onDragEnd={endGroupDrag}
+                className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 shrink-0 focus-visible:outline-none focus-visible:text-brand"
+                title="Перетащить для изменения порядка групп" aria-label={`Переместить группу «${group.title || group.key}» перетаскиванием`}>
+                <GripVertical size={14} />
+              </button>
               <Layers size={14} className="text-fg4 shrink-0" />
               <input
                 value={group.title}
@@ -274,12 +301,16 @@ export function GroupedFieldsEditor({
               {members.map(k => renderMemberByKey(k, group.key, members))}
               {zone.appendLine && members.length > 0 && <DropLine />}
             </div>
+            </div>
           </div>
         );
       })}
 
-      {/* Добавить группу */}
-      <div className="flex items-center gap-2">
+      {/* Добавить группу (заодно drop-зона «в конец» при перетаскивании групп) */}
+      {!!dragGroupKey && groupDropBefore === '__end__' && <DropLine />}
+      <div className="flex items-center gap-2"
+        onDragOver={e => { if (dragGroupKey) { e.preventDefault(); setGroupDropBefore('__end__'); } }}
+        onDrop={() => { if (dragGroupKey) { moveGroupTo(dragGroupKey, '__end__'); endGroupDrag(); } }}>
         <input
           value={newGroupTitle}
           onChange={e => setNewGroupTitle(e.target.value)}
