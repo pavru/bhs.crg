@@ -106,6 +106,23 @@ public static class DocumentSetEndpoints
             catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
+        // issue #283 (фаза C): скопировать документ в ДРУГОЙ комплект (+ dry-run превью предупреждений).
+        g.MapPost("/{setId:guid}/documents/{id:guid}/copy/preview", async (Guid id, CopyDocumentRequest req, IMediator m) =>
+        {
+            try { return Results.Ok(await m.Send(new PreviewCopyDocumentQuery(id, req.TargetSetId, CopyStrategy.SmartCleanup))); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+        });
+        g.MapPost("/{setId:guid}/documents/{id:guid}/copy", async (Guid id, CopyDocumentRequest req, IMediator m) =>
+        {
+            try
+            {
+                var result = await m.Send(new CopyDocumentToSetCommand(id, req.TargetSetId, CopyStrategy.SmartCleanup));
+                return Results.Ok(new { instance = InstanceDto.From(result.Instance), warnings = result.Warnings });
+            }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+        });
+
         g.MapGet("/{setId:guid}/documents/{id:guid}", async (Guid id, IMediator m) =>
         {
             var inst = await m.Send(new GetDocumentInstanceQuery(id));
@@ -227,6 +244,7 @@ public static class DocumentSetEndpoints
     record CreateSetRequest(string Name);
     record RenameRequest(string Name);
     record AddDocumentRequest(Guid DocumentTypeId);
+    record CopyDocumentRequest(Guid TargetSetId);
     record RenameDocumentInstanceRequest(string? Name);
     record SetTemplateRequest(Guid? TemplateId);
     record AssembleSetRequest(Guid[]? InstanceIds);

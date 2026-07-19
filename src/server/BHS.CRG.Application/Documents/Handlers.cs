@@ -307,6 +307,8 @@ public class DocumentSetHandlers(
     IRequestHandler<RenameDocumentInstanceCommand, DomainObject>,
     IRequestHandler<DeleteDocumentInstanceCommand>,
     IRequestHandler<DuplicateDocumentInstanceCommand, DomainObject>,
+    IRequestHandler<CopyDocumentToSetCommand, CopyResult>,
+    IRequestHandler<PreviewCopyDocumentQuery, IReadOnlyList<CopyWarning>>,
     IRequestHandler<UpdateRequisitesCommand, DomainObject>,
     IRequestHandler<UpdatePluginDataCommand, DomainObject>,
     IRequestHandler<GetDocumentInstanceQuery, DomainObject?>,
@@ -438,6 +440,91 @@ public class DocumentSetHandlers(
         await objRepo.SaveChangesAsync(ct);
         return clone;
     }
+
+    // issue #283 (фаза C): копирование в ДРУГОЙ комплект. Оригинал остаётся (входящий guard не нужен —
+    // referrer'ы всё ещё указывают на живой оригинал; guard только для move, фаза D).
+    public async Task<CopyResult> Handle(CopyDocumentToSetCommand cmd, CancellationToken ct)
+    {
+        var (source, targetSet) = await LoadCopyEndpointsAsync(cmd.SourceId, cmd.TargetSetId, ct);
+        var (data, warnings) = await BuildCopyPlanAsync(source, targetSet, cmd.Strategy, ct);
+
+        var docs = await objRepo.GetSetDocumentsAsync(targetSet.Id, tracked: false, ct);
+        var maxOrder = docs.Count == 0 ? -1 : docs.Max(d => d.SortOrder);
+        var baseName = source.DisplayName ?? (await docTypeRepo.GetByIdAsync(source.CompositeTypeId, ct))?.Name ?? "документа";
+        var clone = DomainObject.CloneAsDocument(source, targetSet.Id, data, baseName);
+        clone.SetSortOrder(maxOrder + 1);
+
+        targetSet.TouchUpdatedAt();
+        setRepo.Update(targetSet);
+        await objRepo.AddAsync(clone, ct);
+        await objRepo.SaveChangesAsync(ct);
+        return new CopyResult(clone, warnings);
+    }
+
+    public async Task<IReadOnlyList<CopyWarning>> Handle(PreviewCopyDocumentQuery q, CancellationToken ct)
+    {
+        var (source, targetSet) = await LoadCopyEndpointsAsync(q.SourceId, q.TargetSetId, ct);
+        var (_, warnings) = await BuildCopyPlanAsync(source, targetSet, q.Strategy, ct);
+        return warnings;
+    }
+
+    private async Task<(DomainObject source, DocumentSet targetSet)> LoadCopyEndpointsAsync(Guid sourceId, Guid targetSetId, CancellationToken ct)
+    {
+        var source = await objRepo.GetByIdAsync(sourceId, ct) ?? throw new KeyNotFoundException();
+        if (!source.IsDocument) throw new InvalidOperationException("Копировать можно только документ комплекта.");
+        var targetSet = await setRepo.GetByIdAsync(targetSetId, ct) ?? throw new KeyNotFoundException("Целевой комплект не найден.");
+        return (source, targetSet);
+    }
+
+    /// Скраб исходящих ссылок (стратегия B) + сбор предупреждений. Data результата — независимый JsonDocument.
+    private async Task<(JsonDocument Data, IReadOnlyList<CopyWarning> Warnings)> BuildCopyPlanAsync(
+        DomainObject source, DocumentSet targetSet, CopyStrategy strategy, CancellationToken ct)
+    {
+        _ = strategy; // сейчас только SmartCleanup; Snapshot — фаза C2.
+        var warnings = new List<CopyWarning>();
+
+        // 1) flatten _baseRef — запекаем унаследованные значения (иначе same-set guard молча потеряет их).
+        var (flattened, didFlatten) = await FlattenBaseAsync(source.Data.RootElement, new HashSet<Guid>(), ct);
+        if (didFlatten)
+            warnings.Add(new CopyWarning("baseref", "Базовый экземпляр запечён в значения", 1, []));
+
+        // 2) стрип $ref:document/instance — same-set, в чужом комплекте = мусор.
+        var (scrubbed, strippedFields) = RefScrubber.StripInstanceRefs(flattened);
+        if (strippedFields.Count > 0)
+            warnings.Add(new CopyWarning("doc-ref", "Удалены ссылки на документы комплекта", strippedFields.Count, strippedFields));
+
+        // 3) $ref:catalog — оставляем, но проверяем разрешимость в scope целевого комплекта.
+        var section = await sectionRepo.GetByIdAsync(targetSet.SectionId, ct);
+        var unresolved = 0;
+        foreach (var catId in RefReader.CollectRefIds(scrubbed).Distinct())
+        {
+            var obj = await objRepo.GetByIdAsync(catId, ct);
+            if (obj is null || !InTargetSubtree(obj, targetSet, section?.ConstructionId)) unresolved++;
+        }
+        if (unresolved > 0)
+            warnings.Add(new CopyWarning("catalog-unresolved", "Ссылки на каталог не разрешатся в новом расположении", unresolved, []));
+
+        return (JsonDocument.Parse(scrubbed.GetRawText()), warnings);
+    }
+
+    // Рекурсивный flatten базового экземпляра: base-first merge, drop _baseRef; cycle-guard через visited.
+    private async Task<(JsonElement Data, bool Flattened)> FlattenBaseAsync(JsonElement data, HashSet<Guid> visited, CancellationToken ct)
+    {
+        if (BaseRefReader.GetBaseRefId(data) is not { } baseId || !visited.Add(baseId)) return (data, false);
+        var baseObj = await objRepo.GetByIdAsync(baseId, ct);
+        if (baseObj is null) return (data, false); // висячая база — нечего запекать
+        var (baseData, _) = await FlattenBaseAsync(baseObj.Data.RootElement, visited, ct);
+        return (BaseRefReader.MergeObjects(baseData, data), true);
+    }
+
+    private static bool InTargetSubtree(DomainObject o, DocumentSet targetSet, Guid? targetConstructionId) => o.ScopeLevel switch
+    {
+        CatalogScope.System => true,
+        CatalogScope.Construction => o.ScopeId == targetConstructionId,
+        CatalogScope.Section => o.ScopeId == targetSet.SectionId,
+        CatalogScope.Set => o.ScopeId == targetSet.Id,
+        _ => false,
+    };
 
     public async Task<DomainObject> Handle(UpdateRequisitesCommand cmd, CancellationToken ct)
     {

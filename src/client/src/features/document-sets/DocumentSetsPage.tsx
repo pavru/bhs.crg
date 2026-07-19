@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import {
-  Plus, Trash2, Download, Pencil, FolderOpen, Eye, GripVertical, Copy,
+  Plus, Trash2, Download, Pencil, FolderOpen, Eye, GripVertical, Copy, FolderInput,
   ArrowUp, ArrowDown, Layers, Building2, FileText, Search, X, Mail, Database, Table2, Users,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
@@ -13,6 +13,7 @@ import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { useToast } from '@/shared/ui/Toast';
+import { CopyDocumentDialog } from './CopyDocumentDialog';
 import { CatalogResource } from './catalog/CatalogResource';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
 import { SubscribersResource } from './SubscribersResource';
@@ -46,6 +47,7 @@ function SetDetail() {
   const activePanel: SetPanel = (['catalog', 'datasets', 'subscribers'].includes(panel ?? '') ? panel : 'documents') as SetPanel;
   const { data: set, isLoading } = useGetDocumentSet(setId);
   const { data: construction } = useGetConstruction(constructionId!);
+  const { data: allConstructions = [] } = useListConstructions();
   const { data: availableInstances = [] } = useGetAvailableInstances(setId);
   const { data: docTypes = [] } = useListDocumentTypes();
   const [addDocOpen, setAddDocOpen] = useState(false);
@@ -60,6 +62,7 @@ function SetDetail() {
   const deleteSet = useDeleteDocumentSet();
   const [addError, setAddError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DocumentInstance | null>(null);
+  const [copyInstance, setCopyInstance] = useState<DocumentInstance | null>(null);
   const [renameSetOpen, setRenameSetOpen] = useState(false);
   const [renameSetVal, setRenameSetVal] = useState('');
   const [deleteSetConfirm, setDeleteSetConfirm] = useState(false);
@@ -316,6 +319,8 @@ function SetDetail() {
                           disabled: duplicateMutation.isPending,
                           onSelect: () => duplicateMutation.mutate({ setId: set.id, instanceId: inst.id },
                             { onError: () => toast.error('Не удалось дублировать документ') }) },
+                        { key: 'copy', label: 'Скопировать в комплект', icon: <FolderInput size={14} />,
+                          onSelect: () => setCopyInstance(inst) },
                         { key: 'del', label: 'Удалить документ', icon: <Trash2 size={14} />, danger: true,
                           disabled: deleteMutation.isPending, onSelect: () => setDeleteTarget(inst) },
                       ]} />
@@ -394,6 +399,16 @@ function SetDetail() {
           if (editInstance?.id === deleteTarget.id) setEditInstance(null);
         }}
       />
+
+      {copyInstance && (
+        <CopyDocumentDialog
+          open={!!copyInstance}
+          onClose={() => setCopyInstance(null)}
+          setId={set.id}
+          instance={{ id: copyInstance.id, name: copyInstance.name || docTypeMap[copyInstance.documentTypeId]?.name || copyInstance.documentTypeId }}
+          constructions={allConstructions}
+        />
+      )}
 
       <Modal open={renameSetOpen} onOpenChange={setRenameSetOpen} title="Переименовать комплект"
         footer={

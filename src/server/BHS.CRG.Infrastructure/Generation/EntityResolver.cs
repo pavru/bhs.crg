@@ -313,12 +313,7 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
     /// </summary>
     private static JsonElement MergeBaseObjects(JsonElement baseData, JsonElement ownData)
     {
-        var merged = new Dictionary<string, JsonElement>();
-        foreach (var p in baseData.EnumerateObject())
-            if (p.Name != "_baseRef") merged[p.Name] = p.Value.Clone();
-        foreach (var p in ownData.EnumerateObject())
-            if (p.Name != "_baseRef") merged[p.Name] = p.Value.Clone();
-
-        return JsonSerializer.SerializeToElement(merged);
+        // Делегируем общему BaseRefReader.MergeObjects — единое правило для резолва и flatten копии (#283).
+        return BaseRefReader.MergeObjects(baseData, ownData);
     }
 }

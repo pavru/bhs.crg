@@ -43,6 +43,33 @@ export function useAddDocumentToSet() {
   });
 }
 
+/** Предупреждение о воздействии копирования/переноса на ссылки (issue #283). */
+export interface CopyWarning { kind: string; label: string; count: number; names: string[] }
+
+/** Dry-run: что затронет копирование в целевой комплект — для превью в диалоге ДО подтверждения. */
+export function usePreviewCopyDocument(setId: string, instanceId: string | undefined, targetSetId: string | undefined) {
+  return useQuery({
+    queryKey: ['copy-preview', instanceId, targetSetId],
+    enabled: !!instanceId && !!targetSetId,
+    queryFn: () =>
+      apiClient
+        .post<CopyWarning[]>(`/document-sets/${setId}/documents/${instanceId}/copy/preview`, { targetSetId })
+        .then((r) => r.data),
+  });
+}
+
+export function useCopyDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ setId, instanceId, targetSetId }: { setId: string; instanceId: string; targetSetId: string }) =>
+      apiClient
+        .post<{ instance: DocumentInstance; warnings: CopyWarning[] }>(
+          `/document-sets/${setId}/documents/${instanceId}/copy`, { targetSetId })
+        .then((r) => r.data),
+    onSuccess: (_d, { targetSetId }) => qc.invalidateQueries({ queryKey: ['document-sets', targetSetId] }),
+  });
+}
+
 export function useDuplicateDocumentInstance() {
   const qc = useQueryClient();
   return useMutation({

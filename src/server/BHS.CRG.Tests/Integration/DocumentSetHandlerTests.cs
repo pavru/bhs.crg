@@ -157,6 +157,50 @@ public class DocumentSetHandlerTests(IntegrationTestFixture fixture) : IAsyncLif
         }
     }
 
+    // issue #283 (фаза C): копия в другой комплект — _baseRef запекается, $ref:document стрипается,
+    // предупреждения собираются; оригинал остаётся.
+    [Fact]
+    public async Task CopyDocumentToSet_FlattensBaseRef_StripsDocRef_CollectsWarnings()
+    {
+        var (_, section) = await CreateConstructionWithSectionAsync();
+        var dtId = await CreateDocTypeAsync("AOSR_COPY");
+
+        Guid targetSetId, childId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var m = Mediator(scope);
+            var srcSet = await m.Send(new CreateDocumentSetCommand(section.Id, "Источник"));
+            var target = await m.Send(new CreateDocumentSetCommand(section.Id, "Цель"));
+            targetSetId = target.Id;
+
+            var baseDoc = await m.Send(new AddDocumentToSetCommand(srcSet.Id, dtId));
+            await m.Send(new UpdateRequisitesCommand(baseDoc.Id, JsonDocument.Parse(@"{""Общее"":""X""}")));
+
+            var child = await m.Send(new AddDocumentToSetCommand(srcSet.Id, dtId));
+            childId = child.Id;
+            var childData = $@"{{""_baseRef"":""{baseDoc.Id}"",""Своё"":""Y"",""Док"":{{""$ref"":""document"",""instanceId"":""{baseDoc.Id}"",""fieldKey"":""f""}}}}";
+            await m.Send(new UpdateRequisitesCommand(child.Id, JsonDocument.Parse(childData)));
+        }
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var result = await Mediator(scope).Send(new CopyDocumentToSetCommand(childId, targetSetId, CopyStrategy.SmartCleanup));
+            Assert.Equal(targetSetId, result.Instance.ScopeId);
+            using var data = result.Instance.Data;
+            var root = data.RootElement;
+            Assert.Equal("X", root.GetProperty("Общее").GetString());   // база запечена
+            Assert.Equal("Y", root.GetProperty("Своё").GetString());     // своё сохранено
+            Assert.False(root.TryGetProperty("_baseRef", out _));         // ссылка на базу убрана
+            Assert.False(root.TryGetProperty("Док", out _));              // doc-ref стрипнут
+            Assert.Contains(result.Warnings, w => w.Kind == "baseref");
+            Assert.Contains(result.Warnings, w => w.Kind == "doc-ref");
+        }
+
+        // Оригинал на месте.
+        using (var scope = fixture.Services.CreateScope())
+            Assert.NotNull(await Mediator(scope).Send(new GetDocumentInstanceQuery(childId)));
+    }
+
     [Fact]
     public async Task UpdateRequisites_PersistsJson()
     {
