@@ -162,6 +162,38 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
         Assert.Empty(list);
     }
 
+    // issue #71: запись, служащая базовым экземпляром для другого объекта, не удаляется, пока на
+    // неё ссылаются (иначе у ссылающегося остался бы висячий "_baseRef"). Дочерний (сам ни для кого
+    // не база) удаляется, после чего и база освобождается.
+    [Fact]
+    public async Task Delete_BaseInstance_BlockedWhileReferenced()
+    {
+        var typeId = await CreateCompositeTypeAsync("ORG_BASE");
+        Guid baseId, childId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var m = Mediator(scope);
+            var baseEntry = await m.Send(new CreateCommonDataEntryCommand(
+                "База", typeId, Json("{}"), CatalogScope.System, null));
+            baseId = baseEntry.Id;
+            var child = await m.Send(new CreateCommonDataEntryCommand(
+                "Дочерний", typeId, Json($@"{{""_baseRef"":""{baseId}""}}"), CatalogScope.System, null));
+            childId = child.Id;
+        }
+
+        using (var scope = fixture.Services.CreateScope())
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => Mediator(scope).Send(new DeleteCommonDataEntryCommand(baseId)));
+
+        using (var scope = fixture.Services.CreateScope())
+            await Mediator(scope).Send(new DeleteCommonDataEntryCommand(childId));
+        using (var scope = fixture.Services.CreateScope())
+            await Mediator(scope).Send(new DeleteCommonDataEntryCommand(baseId));
+
+        using (var scope = fixture.Services.CreateScope())
+            Assert.Empty(await Mediator(scope).Send(new ListCommonDataEntriesQuery()));
+    }
+
     // ── List / filter ─────────────────────────────────────────────────────────
 
     [Fact]

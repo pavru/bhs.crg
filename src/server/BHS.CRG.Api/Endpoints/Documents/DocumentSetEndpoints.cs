@@ -137,8 +137,8 @@ public static class DocumentSetEndpoints
 
         g.MapDelete("/{setId:guid}/documents/{id:guid}", async (Guid id, IMediator m) =>
         {
-            await m.Send(new DeleteDocumentInstanceCommand(id));
-            return Results.NoContent();
+            try { await m.Send(new DeleteDocumentInstanceCommand(id)); return Results.NoContent(); }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         // ── Сборка комплекта ───────────────────────────────────────────────────
