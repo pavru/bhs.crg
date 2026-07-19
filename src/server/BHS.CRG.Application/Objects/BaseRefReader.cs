@@ -29,6 +29,23 @@ public static class BaseRefReader
         if (!data.TryGetProperty("_baseRef", out var el)) return null;
         return ParseRef(el);
     }
+
+    /// <summary>
+    /// Слияние двух JSON-объектов для _baseRef-наследования: базовые поля первыми, собственные
+    /// переопределяют их на верхнем уровне; ключ «_baseRef» исключается. Чистая функция — единый
+    /// источник для резолвера генерации (<c>EntityResolver</c>) и flatten при копировании (issue #283).
+    /// </summary>
+    public static JsonElement MergeObjects(JsonElement baseData, JsonElement ownData)
+    {
+        var merged = new Dictionary<string, JsonElement>();
+        if (baseData.ValueKind == JsonValueKind.Object)
+            foreach (var p in baseData.EnumerateObject())
+                if (p.Name != "_baseRef") merged[p.Name] = p.Value.Clone();
+        if (ownData.ValueKind == JsonValueKind.Object)
+            foreach (var p in ownData.EnumerateObject())
+                if (p.Name != "_baseRef") merged[p.Name] = p.Value.Clone();
+        return JsonSerializer.SerializeToElement(merged);
+    }
 }
 
 /// <summary>
@@ -82,4 +99,52 @@ public static class DomainObjectReferences
     private static bool ReferencesObject(JsonElement data, Guid targetId)
         => BaseRefReader.GetBaseRefId(data) == targetId
            || RefReader.CollectRefIds(data).Contains(targetId);
+}
+
+/// <summary>
+/// Скраб исходящих ссылок при копировании/переносе документа в ДРУГОЙ комплект (issue #283, стратегия
+/// B «умная очистка»): убирает значения-ссылки `$ref:document/instance` — они структурно same-set и в
+/// чужом комплекте не резолвятся (дали бы сырой `{$ref}` = мусор в PDF). `$ref:catalog` НЕ трогает
+/// (валидность в новом scope проверяется отдельно, для предупреждений). Чистая функция.
+/// </summary>
+public static class RefScrubber
+{
+    /// <summary>
+    /// Очищенная копия data без doc/instance-ссылок + ключи полей верхнего уровня, чьё значение убрано.
+    /// </summary>
+    public static (JsonElement Data, IReadOnlyList<string> StrippedFields) StripInstanceRefs(JsonElement data)
+    {
+        var stripped = new List<string>();
+        var result = Strip(data, topLevel: true, stripped) ?? JsonSerializer.SerializeToElement(new Dictionary<string, JsonElement>());
+        return (result, stripped);
+    }
+
+    // Возвращает null, если узел САМ — doc/instance-ссылка (должен быть удалён вызывающим).
+    private static JsonElement? Strip(JsonElement el, bool topLevel, List<string> stripped)
+    {
+        switch (el.ValueKind)
+        {
+            case JsonValueKind.Object:
+                if (IsInstanceRef(el)) return null;
+                var obj = new Dictionary<string, JsonElement>();
+                foreach (var p in el.EnumerateObject())
+                {
+                    var child = Strip(p.Value, topLevel: false, stripped);
+                    if (child is { } c) obj[p.Name] = c;
+                    else if (topLevel && !stripped.Contains(p.Name)) stripped.Add(p.Name);
+                }
+                return JsonSerializer.SerializeToElement(obj);
+            case JsonValueKind.Array:
+                var arr = new List<JsonElement>();
+                foreach (var item in el.EnumerateArray())
+                    if (Strip(item, topLevel: false, stripped) is { } c) arr.Add(c);
+                return JsonSerializer.SerializeToElement(arr);
+            default:
+                return el.Clone();
+        }
+    }
+
+    private static bool IsInstanceRef(JsonElement el)
+        => el.TryGetProperty("$ref", out var r) && r.ValueKind == JsonValueKind.String
+           && r.GetString() is "document" or "instance";
 }

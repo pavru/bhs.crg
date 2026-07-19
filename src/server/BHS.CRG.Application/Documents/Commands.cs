@@ -57,6 +57,27 @@ public record DeleteDocumentInstanceCommand(Guid Id) : IRequest;
 /// Дублировать документ в ТОТ ЖЕ комплект (issue #283, фаза B): клон в конец, «Копия …»,
 /// все ссылки/_baseRef сохраняются (тот же scope), свежий черновик без PDF.
 public record DuplicateDocumentInstanceCommand(Guid InstanceId) : IRequest<DomainObject>;
+
+// --- Копирование в другой комплект (issue #283, фаза C) ---
+/// Стратегия обработки исходящих ссылок при копировании/переносе в ДРУГОЙ комплект.
+public enum CopyStrategy
+{
+    /// «Умная очистка» (дефолт): flatten `_baseRef`, стрип `$ref:document/instance`, оставить `$ref:catalog`.
+    SmartCleanup,
+    // Snapshot (независимый снимок) — фаза C2, пока не реализован.
+}
+
+/// Одно предупреждение о воздействии на ссылки (сгруппировано по виду; Names — примеры полей).
+public record CopyWarning(string Kind, string Label, int Count, IReadOnlyList<string> Names);
+
+/// Результат копирования: созданный документ + предупреждения о затронутых ссылках.
+public record CopyResult(DomainObject Instance, IReadOnlyList<CopyWarning> Warnings);
+
+/// Скопировать документ в другой комплект (оригинал остаётся).
+public record CopyDocumentToSetCommand(Guid SourceId, Guid TargetSetId, CopyStrategy Strategy) : IRequest<CopyResult>;
+
+/// Dry-run: какие ссылки затронет копирование/перенос — для превью в диалоге ДО подтверждения.
+public record PreviewCopyDocumentQuery(Guid SourceId, Guid TargetSetId, CopyStrategy Strategy) : IRequest<IReadOnlyList<CopyWarning>>;
 public record UpdateRequisitesCommand(Guid InstanceId, JsonDocument Requisites) : IRequest<DomainObject>;
 public record UpdatePluginDataCommand(Guid InstanceId, JsonDocument PluginData) : IRequest<DomainObject>;
 public record GetDocumentInstanceQuery(Guid Id) : IRequest<DomainObject?>;
