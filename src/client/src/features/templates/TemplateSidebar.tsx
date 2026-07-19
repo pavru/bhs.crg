@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Star, ChevronDown, ChevronUp, AlertTriangle, Copy } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
-import { Select, SelectItem } from '@/shared/ui/Select';
+import { TypePickerField } from '@/shared/ui/TypePickerField';
+import type { PickType } from '@/shared/ui/TypePicker';
 import type { Template, DocumentType } from '@/shared/api/types';
 import { useDeleteTemplate } from '@/shared/api/templates';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
@@ -136,14 +137,13 @@ export function VersionCleanupModal({ group, onClose, onDeleted }: {
 export function DocTypeSelector({ docTypes, selected, onSelect }: {
   docTypes: DocumentType[]; selected: string; onSelect: (id: string) => void;
 }) {
-  const nonAbstractDocs = docTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract);
+  const nonAbstractDocs = docTypes
+    .filter(dt => dt.kind === 'Document' && !dt.isAbstract)
+    .map<PickType>(dt => ({ id: dt.id, name: dt.name, code: dt.code, section: 'Типы документов' }));
   return (
-    <Select value={selected || undefined} onValueChange={onSelect}
-      placeholder="Выберите тип документа" aria-label="Тип документа" className="w-56">
-      {nonAbstractDocs.map((dt) => (
-        <SelectItem key={dt.id} value={dt.id}>{dt.name}</SelectItem>
-      ))}
-    </Select>
+    <TypePickerField size="sm" className="w-56" recentKey="doc-type" title="Тип документа"
+      placeholder="Выберите тип документа" aria-label="Тип документа"
+      types={nonAbstractDocs} value={selected || undefined} onChange={id => id && onSelect(id)} />
   );
 }
 

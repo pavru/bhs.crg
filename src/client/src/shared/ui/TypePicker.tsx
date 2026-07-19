@@ -1,13 +1,14 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import {
-  Search, Boxes, FileText, Building2, User, MapPin, Wrench, Package, Ruler, CalendarDays,
+  Search, Boxes, FileText, Building2, User, MapPin, Wrench, Package, Ruler, CalendarDays, Ban,
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 // Иконка семейства по эвристике (имя+код). Категории из данных не выводятся (нет тегов/единого
 // parentId-дерева), поэтому иконку подбираем по ключевым словам; неточное совпадение безвредно.
-function typeIcon(t: PickType): LucideIcon {
+// Экспортируется для `TypePickerField` — закрытый триггер показывает ту же иконку, что строки пикера.
+export function typeIcon(t: PickType): LucideIcon {
   const s = `${t.name} ${t.code}`.toLowerCase();
   if (/организ|сро|надзор|подрядчик|заказчик/.test(s)) return Building2;
   if (/персон|фио|подписант/.test(s)) return User;
@@ -30,13 +31,16 @@ export interface PickType { id: string; name: string; code: string; section: str
 
 const RECENTS_CAP = 6;
 
-export function TypePicker({ open, onOpenChange, types, onSelect, recentKey, title = 'Выберите тип' }: {
+export function TypePicker({ open, onOpenChange, types, onSelect, recentKey, title = 'Выберите тип', noneOption, onSelectNone }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   types: PickType[];
   onSelect: (id: string) => void;
   recentKey?: string;
   title?: string;
+  /** Строка «нет значения» первой в списке (для очищаемых пикеров — напр. «Без родителя»). */
+  noneOption?: { label: string };
+  onSelectNone?: () => void;
 }) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -77,18 +81,29 @@ export function TypePicker({ open, onOpenChange, types, onSelect, recentKey, tit
 
   const flat = useMemo(() => sections.flatMap(g => g.items), [sections]);
 
+  // Строка «нет значения» показывается только без запроса (поиск подразумевает выбор реального типа).
+  // Занимает индекс 0; типы сдвигаются на 1 (base).
+  const noneVisible = !!noneOption && !q;
+  const base = noneVisible ? 1 : 0;
+  const total = base + flat.length;
+
   useEffect(() => { setActive(0); }, [query]);
   useEffect(() => { if (!open) setQuery(''); }, [open]);
 
   function choose(t: PickType) { pushRecent(t.id); onSelect(t.id); onOpenChange(false); }
+  function chooseNone() { onSelectNone?.(); onOpenChange(false); }
 
   function onKey(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, flat.length - 1)); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, total - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
-    else if (e.key === 'Enter') { e.preventDefault(); const t = flat[active]; if (t) choose(t); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (noneVisible && active === 0) { chooseNone(); return; }
+      const t = flat[active - base]; if (t) choose(t);
+    }
   }
 
-  let idx = -1; // сквозной индекс строки (совпадает с порядком flat), корректен при дублях «Недавние»
+  let idx = base - 1; // сквозной индекс строки типа (после none-строки, если она есть); ++idx даёт base
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -106,8 +121,18 @@ export function TypePicker({ open, onOpenChange, types, onSelect, recentKey, tit
             <kbd className="rounded border border-stroke px-1 text-[10px] text-fg4">Esc</kbd>
           </div>
           <ul className="overflow-y-auto p-2" role="listbox" aria-label={title}>
+            {noneVisible && (
+              <li role="option" aria-selected={active === 0}>
+                <button type="button" onMouseEnter={() => setActive(0)} onClick={chooseNone}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                    active === 0 ? 'bg-tonal text-on-tonal' : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                  <Ban size={16} className={active === 0 ? 'text-on-tonal' : 'text-fg4'} />
+                  <span className="flex-1 truncate">{noneOption!.label}</span>
+                </button>
+              </li>
+            )}
             {flat.length === 0 ? (
-              <li className="px-3 py-6 text-center text-sm text-fg4">Ничего не найдено</li>
+              !noneVisible && <li className="px-3 py-6 text-center text-sm text-fg4">Ничего не найдено</li>
             ) : sections.map(g => (
               <li key={g.label}>
                 <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-fg4">{g.label}</div>
