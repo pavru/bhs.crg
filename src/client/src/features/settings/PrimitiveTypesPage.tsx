@@ -58,9 +58,27 @@ const DATE_PRECISION_LABEL: Record<DatePrecision, string> = {
 
 const baseTypeIcon = (bt: string) => bt === 'number' ? Hash : bt === 'date' ? Calendar : CaseSensitive;
 
-/** Число типов, ссылающихся на данный тип поля (primitive/enum) полем с этим typeId (по своим схемам). */
-function countTypeRefs(typeId: string, kind: 'primitive' | 'enum', allDocTypes: DocumentType[]): number {
-  return allDocTypes.filter(dt => parseSchemaFields(dt.schema).some(f => f.type === kind && f.typeId === typeId)).length;
+/** Имена типов документов, ссылающихся на данный тип поля (primitive/enum) полем с этим typeId
+ *  (по своим схемам). Единственная причина занятости типа поля = ссылки из схем, и она полностью
+ *  выводима на клиенте из уже загруженных схем — тот же критерий, что и backend-guard удаления. */
+function findReferencingTypeNames(typeId: string, kind: 'primitive' | 'enum', allDocTypes: DocumentType[]): string[] {
+  return allDocTypes
+    .filter(dt => parseSchemaFields(dt.schema).some(f => f.type === kind && f.typeId === typeId))
+    .map(dt => dt.name);
+}
+
+/** Проактивный контент «Удаление невозможно» (issue #275): типы документов, использующие тип поля.
+ *  Пусто → undefined (диалог в обычном режиме подтверждения). */
+function usageBlockedNode(usedByNames: string[]): React.ReactNode | undefined {
+  if (usedByNames.length === 0) return undefined;
+  return (
+    <div>
+      <p className="mb-1.5 font-medium">Тип используется в схемах — сначала уберите поля этого типа:</p>
+      <ul className="list-disc pl-4 space-y-0.5">
+        {usedByNames.map(n => <li key={n}>{n}</li>)}
+      </ul>
+    </div>
+  );
 }
 
 /** Уникальный код на базе исходного: base2, base3 … (для дублирования типа, issue #210 Этап 2). */
@@ -311,11 +329,11 @@ function PrimitiveCreateForm({ onSaved, onCancel }: { onSaved: () => void; onCan
 
 // ─── Detail header (доменные heading/actions поверх общего DetailHeader) ──────────
 
-function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, onRevert, onDuplicate, allGroups, group, onGroup, onDelete, deleteBlock }: {
+function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, onRevert, onDuplicate, allGroups, group, onGroup, onDelete }: {
   name: string; code: string; chip: string; usedBy: number;
   dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void; onDuplicate: () => void;
   allGroups: string[]; group: string | null; onGroup: (g: string | null) => void;
-  onDelete: () => void; deleteBlock: string | null;
+  onDelete: () => void;
 }) {
   const badge = 'text-xs px-2 py-0.5 rounded-full font-medium';
   return (
@@ -335,7 +353,7 @@ function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, 
           <GroupPicker groups={allGroups} value={group} onChange={onGroup} />
           <RowActionsMenu ariaLabel="Действия типа" actions={[
             { key: 'dup', label: 'Дублировать', icon: <Copy size={14} />, onSelect: onDuplicate },
-            { key: 'del', label: deleteBlock ?? 'Удалить', danger: true, disabled: !!deleteBlock, icon: <Trash2 size={14} />, onSelect: () => { if (!deleteBlock) onDelete(); } },
+            { key: 'del', label: 'Удалить', danger: true, icon: <Trash2 size={14} />, onSelect: onDelete },
           ]} />
         </>
       } />
@@ -344,8 +362,8 @@ function TypeDetailHeader({ name, code, chip, usedBy, dirty, saving, onSaveAll, 
 
 // ─── Primitive detail ────────────────────────────────────────────────────────────
 
-function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onRevert, onDuplicate, onDeleted }: {
-  type: PrimitiveTypeDef; allGroups: string[]; usedBy: number;
+function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSaveAll, onRevert, onDuplicate, onDeleted }: {
+  type: PrimitiveTypeDef; allGroups: string[]; usedByNames: string[];
   dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void; onDuplicate: () => void; onDeleted: () => void;
 }) {
   const [name, setName] = useState(type.name);
@@ -378,13 +396,12 @@ function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll
   const reset = () => { setName(type.name); setDescription(type.description ?? ''); setConstraints(type.constraints ?? {}); setAllowedTags(type.allowedTags ?? []); setError(''); };
   useRegisterEditor('primitive', localDirty, save, reset);
 
-  const deleteBlock = usedBy > 0 ? `Нельзя удалить: используется в ${usedBy} типах` : null;
   return (
     <div className="flex flex-col min-h-0 flex-1">
-      <TypeDetailHeader name={name} code={type.code} chip={BASE_TYPE_LABEL[type.baseType] ?? type.baseType} usedBy={usedBy}
+      <TypeDetailHeader name={name} code={type.code} chip={BASE_TYPE_LABEL[type.baseType] ?? type.baseType} usedBy={usedByNames.length}
         dirty={dirty} saving={saving} onSaveAll={onSaveAll} onRevert={onRevert} onDuplicate={onDuplicate}
         allGroups={allGroups} group={type.group} onGroup={g => groupMutation.mutate({ id: type.id, group: g })}
-        onDelete={() => setConfirmDelete(true)} deleteBlock={deleteBlock} />
+        onDelete={() => setConfirmDelete(true)} />
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
         <div className="mx-auto max-w-3xl space-y-4">
           <Card title="Параметры">
@@ -433,6 +450,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll
         title={`Удалить тип «${type.name}»?`}
         description={<p>Поля документов, использующие этот тип, перестанут валидироваться. Действие необратимо.</p>}
         confirmLabel={`Удалить «${type.name}»`}
+        blocked={usageBlockedNode(usedByNames)}
         onConfirm={() => del.mutateAsync(type.id).then(onDeleted)} />
     </div>
   );
@@ -440,8 +458,8 @@ function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll
 
 // ─── Enum detail ──────────────────────────────────────────────────────────────────
 
-function EnumTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onRevert, onDuplicate, onDeleted }: {
-  type: EnumTypeDef; allGroups: string[]; usedBy: number;
+function EnumTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSaveAll, onRevert, onDuplicate, onDeleted }: {
+  type: EnumTypeDef; allGroups: string[]; usedByNames: string[];
   dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void; onDuplicate: () => void; onDeleted: () => void;
 }) {
   const [name, setName] = useState(type.name);
@@ -477,13 +495,12 @@ function EnumTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onR
   const reset = () => { setName(type.name); setDescription(type.description ?? ''); setValues(type.values ?? []); setError(''); };
   useRegisterEditor('enum', localDirty, save, reset);
 
-  const deleteBlock = usedBy > 0 ? `Нельзя удалить: используется в ${usedBy} типах` : null;
   return (
     <div className="flex flex-col min-h-0 flex-1">
-      <TypeDetailHeader name={name} code={type.code} chip="Перечисление" usedBy={usedBy}
+      <TypeDetailHeader name={name} code={type.code} chip="Перечисление" usedBy={usedByNames.length}
         dirty={dirty} saving={saving} onSaveAll={onSaveAll} onRevert={onRevert} onDuplicate={onDuplicate}
         allGroups={allGroups} group={type.group} onGroup={g => groupMutation.mutate({ id: type.id, group: g })}
-        onDelete={() => setConfirmDelete(true)} deleteBlock={deleteBlock} />
+        onDelete={() => setConfirmDelete(true)} />
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
         <div className="mx-auto max-w-3xl space-y-4">
           <Card title="Параметры">
@@ -505,6 +522,7 @@ function EnumTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onR
         title={`Удалить тип «${type.name}»?`}
         description={<p>Поля документов, использующие это перечисление, перестанут резолвить варианты. Действие необратимо.</p>}
         confirmLabel={`Удалить «${type.name}»`}
+        blocked={usageBlockedNode(usedByNames)}
         onConfirm={() => del.mutateAsync(type.id).then(onDeleted)} />
     </div>
   );
@@ -610,12 +628,12 @@ export function PrimitiveTypesPage() {
 
   const detail = mode === 'primitive' && selectedPrim ? (
     <PrimitiveTypeDetail key={selectedPrim.id} type={selectedPrim} allGroups={allGroups}
-      usedBy={countTypeRefs(selectedPrim.id, 'primitive', allDocTypes)}
+      usedByNames={findReferencingTypeNames(selectedPrim.id, 'primitive', allDocTypes)}
       dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll}
       onDuplicate={() => duplicatePrim(selectedPrim)} onDeleted={() => setSelectedId(null)} />
   ) : mode === 'enum' && selectedEnum ? (
     <EnumTypeDetail key={selectedEnum.id} type={selectedEnum} allGroups={allGroups}
-      usedBy={countTypeRefs(selectedEnum.id, 'enum', allDocTypes)}
+      usedByNames={findReferencingTypeNames(selectedEnum.id, 'enum', allDocTypes)}
       dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll}
       onDuplicate={() => duplicateEnum(selectedEnum)} onDeleted={() => setSelectedId(null)} />
   ) : (
