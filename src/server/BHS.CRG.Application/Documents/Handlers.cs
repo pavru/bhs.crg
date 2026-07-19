@@ -373,12 +373,13 @@ public class DocumentSetHandlers(
     public async Task Handle(DeleteDocumentInstanceCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
-        // issue #71: удаление базового экземпляра оставило бы у ссылающихся висячий "_baseRef" —
-        // при генерации базовые поля молча пропали бы (EntityResolver пропускает отсутствующую базу).
-        var referrers = await DomainObjectReferences.FindBaseRefReferrersAsync(objRepo, cmd.Id, ct);
+        // issue #71/#269: удаление объекта, на который ссылаются (базовый экземпляр "_baseRef" или
+        // "$ref" в значениях полей), оставило бы висячую ссылку — при генерации она молча
+        // разворачивается в ничто (EntityResolver возвращает исходный узел / пропускает базу).
+        var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, cmd.Id, ct);
         if (referrers.Count > 0)
             throw new InvalidOperationException(
-                $"Нельзя удалить документ — на него ссылаются как на базовый экземпляр: {string.Join(", ", referrers.Select(r => r.DisplayName ?? "без имени"))}.");
+                $"Нельзя удалить документ — на него ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.DisplayName ?? "без имени"))}.");
         objRepo.Remove(obj);
         await objRepo.SaveChangesAsync(ct);
     }
@@ -487,12 +488,12 @@ public class CommonDataHandlers(
             || (await sectionRepo.FindAsync(s => s.ProfileObjectId == cmd.Id, ct)).Count > 0
             || (await setRepo.FindAsync(s => s.ProfileObjectId == cmd.Id, ct)).Count > 0)
             throw new InvalidOperationException("Это профиль уровня — его нельзя удалить. Он редактируется на странице «Общие данные» уровня.");
-        // issue #71: запись, служащая базовым экземпляром для других объектов, — тот же guard,
-        // что и для документа: иначе у ссылающихся остаётся висячий "_baseRef".
-        var referrers = await DomainObjectReferences.FindBaseRefReferrersAsync(repo, cmd.Id, ct);
+        // issue #71/#269: запись, на которую ссылаются другие объекты (базовый экземпляр "_baseRef"
+        // или "$ref" в значениях полей), — тот же guard, что и для документа: иначе висячая ссылка.
+        var referrers = await DomainObjectReferences.FindReferrersAsync(repo, cmd.Id, ct);
         if (referrers.Count > 0)
             throw new InvalidOperationException(
-                $"Нельзя удалить запись — на неё ссылаются как на базовый экземпляр: {string.Join(", ", referrers.Select(r => r.DisplayName ?? "без имени"))}.");
+                $"Нельзя удалить запись — на неё ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.DisplayName ?? "без имени"))}.");
         repo.Remove(entry);
         await repo.SaveChangesAsync(ct);
     }

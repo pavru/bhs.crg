@@ -194,6 +194,38 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
             Assert.Empty(await Mediator(scope).Send(new ListCommonDataEntriesQuery()));
     }
 
+    // issue #269: запись, на которую ссылаются через "$ref" в значении поля другого объекта
+    // (doc-ref/@@ref, разворачивается EntityResolver), не удаляется, пока жива ссылка. Ссылка
+    // вложена в поле — проверяем рекурсивный обход Data.
+    [Fact]
+    public async Task Delete_BlockedWhenReferencedByFieldRef()
+    {
+        var typeId = await CreateCompositeTypeAsync("ORG_REF");
+        Guid targetId, holderId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var m = Mediator(scope);
+            var target = await m.Send(new CreateCommonDataEntryCommand(
+                "Цель", typeId, Json("{}"), CatalogScope.System, null));
+            targetId = target.Id;
+            var holder = await m.Send(new CreateCommonDataEntryCommand(
+                "Владелец ссылки", typeId,
+                Json($@"{{""org"":{{""$ref"":""catalog"",""entryId"":""{targetId}""}}}}"),
+                CatalogScope.System, null));
+            holderId = holder.Id;
+        }
+
+        using (var scope = fixture.Services.CreateScope())
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => Mediator(scope).Send(new DeleteCommonDataEntryCommand(targetId)));
+
+        // Удаляем ссылающегося — цель освобождается.
+        using (var scope = fixture.Services.CreateScope())
+            await Mediator(scope).Send(new DeleteCommonDataEntryCommand(holderId));
+        using (var scope = fixture.Services.CreateScope())
+            await Mediator(scope).Send(new DeleteCommonDataEntryCommand(targetId));
+    }
+
     // ── List / filter ─────────────────────────────────────────────────────────
 
     [Fact]
