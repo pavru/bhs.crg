@@ -84,6 +84,10 @@ public class GenerateDocumentHandler(
             // Проверка разрешения ссылок перед генерацией: оставшиеся $ref — ошибки,
             // при их наличии прерываем генерацию с диагностикой.
             ResolutionScanner.ScanLeftoverRefs(context, diagnostics);
+            // Полнота обязательных (issue #296, фаза 0b): проверяем ПОСЛЕ полного резолва (реквизиты +
+            // привязки + база + дефолты) — обязательность = инвариант генерации, а не сохранения.
+            ResolutionScanner.ScanMissingRequired(context,
+                DocumentTypeSchemaReader.EffectiveFields(instance.CompositeTypeId, allDocTypes.ToDictionary(t => t.Id)), diagnostics);
             if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
                 throw new ResolutionValidationException(diagnostics);
 

@@ -16,7 +16,7 @@ public record EnumOptionInfo(string Code, string Label);
 /// (легаси: код==имя) либо резолвлены из EnumType по `typeId`. Null — не enum-поле, либо enumTypesById
 /// не передан вызывающим кодом.</param>
 public record SchemaFieldInfo(string Key, string Type, Guid? TypeId, string? Title = null,
-    JsonElement? DefaultValue = null, IReadOnlyList<EnumOptionInfo>? Options = null);
+    JsonElement? DefaultValue = null, IReadOnlyList<EnumOptionInfo>? Options = null, bool Required = false);
 
 /// <summary>Скалярное ли поле (пригодное для табличного распознавания/материализации из плоских колонок).</summary>
 public static class SchemaFieldKinds
@@ -154,7 +154,8 @@ public static class DocumentTypeSchemaReader
                 // 1:1) — если пусто, резолвим typeId через EnumType (толерантное сосуществование
                 // обоих представлений, без принудительной миграции).
                 IReadOnlyList<EnumOptionInfo>? options = type == "enum" ? ParseEnumOptions(f, typeId, enumTypesById) : null;
-                fields.Add(new SchemaFieldInfo(key, type, typeId, title, defaultValue, options));
+                var required = f.TryGetProperty("required", out var rq) && rq.ValueKind == JsonValueKind.True;
+                fields.Add(new SchemaFieldInfo(key, type, typeId, title, defaultValue, options, required));
             }
 
         if (root.TryGetProperty("excludedFields", out var ex) && ex.ValueKind == JsonValueKind.Array)
