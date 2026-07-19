@@ -71,6 +71,12 @@ function BoundStateHint({ loading, error }: { loading: boolean; error: boolean }
   return <p className="text-[11px] text-fg4 mt-0.5 italic">{text}</p>;
 }
 
+// Стабильный пустой дефолт для загружающихся списочных запросов. КРИТИЧНО (issue #305): `= []` в
+// деструктуризации создаёт НОВЫЙ массив на каждый рендер, пока `data === undefined` (загрузка). Если
+// такой список — dep useMemo, который в свою очередь dep эффекта с setState, получаем бесконечный цикл
+// «Maximum update depth exceeded» до догрузки запроса (симптом «пустой экран при открытии документа»).
+const EMPTY: never[] = [];
+
 // ─── Базовый экземпляр (issue #71) ────────────────────────────────────────────
 // Документ дочернего типа может наследоваться от базы — документа комплекта ЛИБО записи общих данных.
 // Кандидаты берутся по всей цепочке типов-предков и по скоп-близости (комплект > раздел > стройка >
@@ -128,7 +134,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   const ancestorIds = useMemo(() => ancestorTypeIds(docType, allDocTypes), [docType, allDocTypes]);
   const hasBase = ancestorIds.length > 0;
   // Общие данные всех уровней скопа комплекта (Set/Section/Construction/System) — кандидаты-записи.
-  const { data: commonData = [] } = useCommonDataForSet({ setId, enabled: hasBase });
+  const { data: commonData = EMPTY } = useCommonDataForSet({ setId, enabled: hasBase });
   const baseRef = useMemo(() => parseBaseRef(values._baseRef), [values._baseRef]);
 
   const baseCandidates = useMemo<BaseCandidate[]>(() => {
