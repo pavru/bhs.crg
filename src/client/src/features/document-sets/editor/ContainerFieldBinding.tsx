@@ -6,10 +6,11 @@ import { MappingEditor } from './DataSetsTab';
 import {
   useAvailableDataSetFiles, useCreateDataSetBinding, useUpdateDataSetBinding, useDeleteDataSetBinding,
 } from '@/shared/api/datasets';
-import type { DataSetBinding, DataSetSource, DocumentType } from '@/shared/api/types';
+import type { DataSetBinding, DataSetSource, DocumentType, CatalogScope } from '@/shared/api/types';
+import { SCOPE_LABELS } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 
-type FlatSource = DataSetSource & { fileName: string };
+type FlatSource = DataSetSource & { fileName: string; fileScope: CatalogScope };
 
 /** Совместимость по наследованию: childId == ancestorId либо потомок ancestorId по parentId. */
 function isSameOrDescendant(childId: string, ancestorId: string, allDocTypes: DocumentType[]): boolean {
@@ -52,7 +53,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
   const del = useDeleteDataSetBinding();
 
   const sources: FlatSource[] = useMemo(() => {
-    const flat = files.flatMap(f => f.sources.map(s => ({ ...s, fileName: f.name })));
+    const flat = files.flatMap(f => f.sources.map(s => ({ ...s, fileName: f.name, fileScope: f.scope })));
     return flat.filter(s => {
       if (s.materializeTypeId) return !!field.typeId && isSameOrDescendant(s.materializeTypeId, field.typeId, allDocTypes);
       return isTabular || isComplexRef; // обычный источник — табличному или составному (ref) полю
@@ -168,7 +169,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
                   <option value="">— выберите источник —</option>
                   {sources.map(s => (
                     <option key={s.id} value={s.id}>
-                      {s.fileName} · {s.name}{s.materializeTypeId ? ` (материализация → ${allDocTypes.find(t => t.id === s.materializeTypeId)?.name ?? 'тип'})` : ''}
+                      [{SCOPE_LABELS[s.fileScope]}] {s.fileName} · {s.name}{s.materializeTypeId ? ` (материализация → ${allDocTypes.find(t => t.id === s.materializeTypeId)?.name ?? 'тип'})` : ''}
                     </option>
                   ))}
                 </select>
