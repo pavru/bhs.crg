@@ -43,6 +43,17 @@ export function useAddDocumentToSet() {
   });
 }
 
+export function useDuplicateDocumentInstance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ setId, instanceId }: { setId: string; instanceId: string }) =>
+      apiClient
+        .post<DocumentInstance>(`/document-sets/${setId}/documents/${instanceId}/duplicate`)
+        .then((r) => r.data),
+    onSuccess: (_d, { setId }) => qc.invalidateQueries({ queryKey: ['document-sets', setId] }),
+  });
+}
+
 export function useRenameDocumentInstance() {
   const qc = useQueryClient();
   return useMutation({

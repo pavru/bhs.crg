@@ -54,6 +54,9 @@ public record AddDocumentToSetCommand(Guid DocumentSetId, Guid DocumentTypeId) :
 public record ReorderDocumentInstancesCommand(Guid SetId, IReadOnlyList<Guid> OrderedInstanceIds) : IRequest<DocumentSet>;
 public record RenameDocumentInstanceCommand(Guid Id, string? Name) : IRequest<DomainObject>;
 public record DeleteDocumentInstanceCommand(Guid Id) : IRequest;
+/// Дублировать документ в ТОТ ЖЕ комплект (issue #283, фаза B): клон в конец, «Копия …»,
+/// все ссылки/_baseRef сохраняются (тот же scope), свежий черновик без PDF.
+public record DuplicateDocumentInstanceCommand(Guid InstanceId) : IRequest<DomainObject>;
 public record UpdateRequisitesCommand(Guid InstanceId, JsonDocument Requisites) : IRequest<DomainObject>;
 public record UpdatePluginDataCommand(Guid InstanceId, JsonDocument PluginData) : IRequest<DomainObject>;
 public record GetDocumentInstanceQuery(Guid Id) : IRequest<DomainObject?>;

@@ -99,6 +99,13 @@ public static class DocumentSetEndpoints
         g.MapPost("/{setId:guid}/documents", async (Guid setId, AddDocumentRequest req, IMediator m)
             => Results.Ok(InstanceDto.From(await m.Send(new AddDocumentToSetCommand(setId, req.DocumentTypeId)))));
 
+        // issue #283 (фаза B): дублировать документ в тот же комплект.
+        g.MapPost("/{setId:guid}/documents/{id:guid}/duplicate", async (Guid id, IMediator m) =>
+        {
+            try { return Results.Ok(InstanceDto.From(await m.Send(new DuplicateDocumentInstanceCommand(id)))); }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+        });
+
         g.MapGet("/{setId:guid}/documents/{id:guid}", async (Guid id, IMediator m) =>
         {
             var inst = await m.Send(new GetDocumentInstanceQuery(id));
