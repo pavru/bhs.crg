@@ -38,7 +38,9 @@ export function Select({
   return (
     <RS.Root value={value} onValueChange={onValueChange} disabled={disabled} required={required} name={name}>
       <RS.Trigger className={`${TRIGGER} ${className}`} aria-label={aria['aria-label']}>
-        <RS.Value placeholder={placeholder} />
+        {/* min-w-0 + truncate: длинное выбранное значение обрезается многоточием, а не переносится
+            на вторую строку, распирая триггер фиксированной высоты. */}
+        <span className="min-w-0 flex-1 truncate text-left"><RS.Value placeholder={placeholder} /></span>
         <RS.Icon className="text-fg4 shrink-0"><ChevronDown size={15} /></RS.Icon>
       </RS.Trigger>
       <RS.Portal>
