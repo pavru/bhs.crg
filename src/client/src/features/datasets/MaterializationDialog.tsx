@@ -25,7 +25,8 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
 
   const selectedType = allDocTypes.find(t => t.id === typeId);
   const effectiveFields = selectedType ? resolveEffectiveFields(selectedType, allDocTypes) : [];
-  const preview = useMaterializePreview(source.id, showPreview && !!source.materializeTypeId);
+  // Live-превью по ТЕКУЩИМ (несохранённым) типу+маппингу (issue #294): обновляется на каждую правку.
+  const preview = useMaterializePreview(source.id, typeId || undefined, mapping, showPreview && !!typeId);
 
   function handleSave() {
     save.mutate(
@@ -64,7 +65,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
               section: t.kind === 'Composite' ? 'Составные типы' : 'Типы документов',
             }))}
             value={typeId || undefined}
-            onChange={id => { setTypeId(id ?? ''); setMapping({}); setShowPreview(false); }} />
+            onChange={id => { setTypeId(id ?? ''); setMapping({}); }} />
         </div>
 
         {selectedType && (
@@ -86,7 +87,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
           )
         )}
 
-        {source.materializeTypeId && (
+        {typeId && (
           <div>
             <button type="button" onClick={() => setShowPreview(v => !v)}
               className="text-xs text-brand hover:text-brand-hover">
@@ -122,9 +123,6 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
               </div>
             )}
           </div>
-        )}
-        {!source.materializeTypeId && typeId && (
-          <p className="text-[11px] text-fg4">Сохраните материализацию, чтобы увидеть предпросмотр.</p>
         )}
       </div>
     </Modal>
