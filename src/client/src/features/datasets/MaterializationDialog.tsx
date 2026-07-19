@@ -2,10 +2,8 @@ import { useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { dtCard, dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
-import { Select, SelectItem } from '@/shared/ui/Select';
-
-/** Sentinel для «— не материализовать —» — Radix Select запрещает пустую строку. */
-const NO_TYPE = '__none__';
+import { TypePickerField } from '@/shared/ui/TypePickerField';
+import type { PickType } from '@/shared/ui/TypePicker';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useSetMaterialization, useMaterializePreview } from '@/shared/api/datasets';
 import { MappingEditor } from '@/features/document-sets/editor/DataSetsTab';
@@ -58,13 +56,15 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
 
         <div>
           <label className="block text-sm font-medium text-fg1 mb-1">Тип для материализации</label>
-          <Select value={typeId || NO_TYPE} aria-label="Тип для материализации"
-            onValueChange={v => { setTypeId(v === NO_TYPE ? '' : v); setMapping({}); setShowPreview(false); }}>
-            <SelectItem value={NO_TYPE}>— не материализовать —</SelectItem>
-            {allDocTypes.filter(t => !t.isAbstract).map(t => (
-              <SelectItem key={t.id} value={t.id}>{t.name} ({t.kind === 'Composite' ? 'составной' : 'документ'})</SelectItem>
-            ))}
-          </Select>
+          <TypePickerField className="w-full" aria-label="Тип для материализации" title="Тип для материализации"
+            placeholder="— не материализовать —" clearable={{ label: 'Не материализовать' }}
+            recentKey="materialize-type"
+            types={allDocTypes.filter(t => !t.isAbstract).map<PickType>(t => ({
+              id: t.id, name: t.name, code: t.code,
+              section: t.kind === 'Composite' ? 'Составные типы' : 'Типы документов',
+            }))}
+            value={typeId || undefined}
+            onChange={id => { setTypeId(id ?? ''); setMapping({}); setShowPreview(false); }} />
         </div>
 
         {selectedType && (
