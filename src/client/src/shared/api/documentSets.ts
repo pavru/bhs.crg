@@ -70,6 +70,35 @@ export function useCopyDocument() {
   });
 }
 
+/** Превью переноса: затронутые ссылки + имена объектов, из-за которых перенос заблокирован (#283). */
+export interface MovePreview { warnings: CopyWarning[]; blockedBy: string[] }
+
+export function usePreviewMoveDocument(setId: string, instanceId: string | undefined, targetSetId: string | undefined) {
+  return useQuery({
+    queryKey: ['move-preview', instanceId, targetSetId],
+    enabled: !!instanceId && !!targetSetId,
+    queryFn: () =>
+      apiClient
+        .post<MovePreview>(`/document-sets/${setId}/documents/${instanceId}/move/preview`, { targetSetId })
+        .then((r) => r.data),
+  });
+}
+
+export function useMoveDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ setId, instanceId, targetSetId }: { setId: string; instanceId: string; targetSetId: string }) =>
+      apiClient
+        .post<{ instance: DocumentInstance; warnings: CopyWarning[] }>(
+          `/document-sets/${setId}/documents/${instanceId}/move`, { targetSetId })
+        .then((r) => r.data),
+    onSuccess: (_d, { setId, targetSetId }) => {
+      qc.invalidateQueries({ queryKey: ['document-sets', setId] });
+      qc.invalidateQueries({ queryKey: ['document-sets', targetSetId] });
+    },
+  });
+}
+
 export function useDuplicateDocumentInstance() {
   const qc = useQueryClient();
   return useMutation({

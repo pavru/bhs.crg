@@ -201,6 +201,64 @@ public class DocumentSetHandlerTests(IntegrationTestFixture fixture) : IAsyncLif
             Assert.NotNull(await Mediator(scope).Send(new GetDocumentInstanceQuery(childId)));
     }
 
+    // issue #283 (фаза D): перенос — документ меняет комплект (тот же Id), реквизиты переносятся.
+    [Fact]
+    public async Task MoveDocumentToSet_ChangesSet()
+    {
+        var (_, section) = await CreateConstructionWithSectionAsync();
+        var dtId = await CreateDocTypeAsync("AOSR_MOVE");
+
+        Guid targetSetId, docId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var m = Mediator(scope);
+            var srcSet = await m.Send(new CreateDocumentSetCommand(section.Id, "Источник"));
+            var target = await m.Send(new CreateDocumentSetCommand(section.Id, "Цель"));
+            targetSetId = target.Id;
+            var doc = await m.Send(new AddDocumentToSetCommand(srcSet.Id, dtId));
+            docId = doc.Id;
+            await m.Send(new UpdateRequisitesCommand(doc.Id, JsonDocument.Parse(@"{""Номер"":""9""}")));
+        }
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var result = await Mediator(scope).Send(new MoveDocumentToSetCommand(docId, targetSetId, CopyStrategy.SmartCleanup));
+            Assert.Equal(docId, result.Instance.Id);       // тот же документ
+            Assert.Equal(targetSetId, result.Instance.ScopeId);
+        }
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var moved = await Mediator(scope).Send(new GetDocumentInstanceQuery(docId));
+            Assert.Equal(targetSetId, moved!.ScopeId);
+        }
+    }
+
+    // Перенос блокируется, если на документ ссылаются (входящий guard, как удаление #269).
+    [Fact]
+    public async Task MoveDocumentToSet_BlockedWhenReferenced()
+    {
+        var (_, section) = await CreateConstructionWithSectionAsync();
+        var dtId = await CreateDocTypeAsync("AOSR_MOVEB");
+
+        Guid targetSetId, baseId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var m = Mediator(scope);
+            var srcSet = await m.Send(new CreateDocumentSetCommand(section.Id, "Источник"));
+            var target = await m.Send(new CreateDocumentSetCommand(section.Id, "Цель"));
+            targetSetId = target.Id;
+            var baseDoc = await m.Send(new AddDocumentToSetCommand(srcSet.Id, dtId));
+            baseId = baseDoc.Id;
+            var child = await m.Send(new AddDocumentToSetCommand(srcSet.Id, dtId));
+            await m.Send(new UpdateRequisitesCommand(child.Id, JsonDocument.Parse($@"{{""_baseRef"":""{baseId}""}}")));
+        }
+
+        using (var scope = fixture.Services.CreateScope())
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => Mediator(scope).Send(new MoveDocumentToSetCommand(baseId, targetSetId, CopyStrategy.SmartCleanup)));
+    }
+
     [Fact]
     public async Task UpdateRequisites_PersistsJson()
     {

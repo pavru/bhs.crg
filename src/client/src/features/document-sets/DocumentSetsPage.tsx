@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import {
-  Plus, Trash2, Download, Pencil, FolderOpen, Eye, GripVertical, Copy, FolderInput,
+  Plus, Trash2, Download, Pencil, FolderOpen, Eye, GripVertical, Copy, FolderInput, FolderOutput,
   ArrowUp, ArrowDown, Layers, Building2, FileText, Search, X, Mail, Database, Table2, Users,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
@@ -14,6 +14,7 @@ import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { useToast } from '@/shared/ui/Toast';
 import { CopyDocumentDialog } from './CopyDocumentDialog';
+import { MoveDocumentDialog } from './MoveDocumentDialog';
 import { CatalogResource } from './catalog/CatalogResource';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
 import { SubscribersResource } from './SubscribersResource';
@@ -63,6 +64,7 @@ function SetDetail() {
   const [addError, setAddError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DocumentInstance | null>(null);
   const [copyInstance, setCopyInstance] = useState<DocumentInstance | null>(null);
+  const [moveInstance, setMoveInstance] = useState<DocumentInstance | null>(null);
   const [renameSetOpen, setRenameSetOpen] = useState(false);
   const [renameSetVal, setRenameSetVal] = useState('');
   const [deleteSetConfirm, setDeleteSetConfirm] = useState(false);
@@ -321,6 +323,8 @@ function SetDetail() {
                             { onError: () => toast.error('Не удалось дублировать документ') }) },
                         { key: 'copy', label: 'Скопировать в комплект', icon: <FolderInput size={14} />,
                           onSelect: () => setCopyInstance(inst) },
+                        { key: 'move', label: 'Перенести в комплект', icon: <FolderOutput size={14} />,
+                          onSelect: () => setMoveInstance(inst) },
                         { key: 'del', label: 'Удалить документ', icon: <Trash2 size={14} />, danger: true,
                           disabled: deleteMutation.isPending, onSelect: () => setDeleteTarget(inst) },
                       ]} />
@@ -406,6 +410,17 @@ function SetDetail() {
           onClose={() => setCopyInstance(null)}
           setId={set.id}
           instance={{ id: copyInstance.id, name: copyInstance.name || docTypeMap[copyInstance.documentTypeId]?.name || copyInstance.documentTypeId }}
+          constructions={allConstructions}
+        />
+      )}
+
+      {moveInstance && (
+        <MoveDocumentDialog
+          open={!!moveInstance}
+          onClose={() => setMoveInstance(null)}
+          setId={set.id}
+          currentSetName={set.name}
+          instance={{ id: moveInstance.id, name: moveInstance.name || docTypeMap[moveInstance.documentTypeId]?.name || moveInstance.documentTypeId }}
           constructions={allConstructions}
         />
       )}

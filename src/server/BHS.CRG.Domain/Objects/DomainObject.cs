@@ -101,6 +101,9 @@ public class DomainObject : Entity
     public void Rename(string? displayName) { DisplayName = Norm(displayName); TouchUpdatedAt(); }
     public void SetData(JsonDocument data) { Data = data; TouchUpdatedAt(); }
 
+    /// <summary>Перенос документа в другой комплект (issue #283, фаза D): смена носителя Set-scope.</summary>
+    public void MoveToSet(Guid targetSetId) { ScopeLevel = CatalogScope.Set; ScopeId = targetSetId; TouchUpdatedAt(); }
+
     // ── Документные изменения (через фасету; TouchUpdatedAt на объекте) ──────────
     private DocumentFacet Doc => Facet ?? throw new InvalidOperationException("Объект не является документом (нет фасеты).");
 

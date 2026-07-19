@@ -309,6 +309,8 @@ public class DocumentSetHandlers(
     IRequestHandler<DuplicateDocumentInstanceCommand, DomainObject>,
     IRequestHandler<CopyDocumentToSetCommand, CopyResult>,
     IRequestHandler<PreviewCopyDocumentQuery, IReadOnlyList<CopyWarning>>,
+    IRequestHandler<MoveDocumentToSetCommand, CopyResult>,
+    IRequestHandler<PreviewMoveDocumentQuery, MovePreview>,
     IRequestHandler<UpdateRequisitesCommand, DomainObject>,
     IRequestHandler<UpdatePluginDataCommand, DomainObject>,
     IRequestHandler<GetDocumentInstanceQuery, DomainObject?>,
@@ -466,6 +468,46 @@ public class DocumentSetHandlers(
         var (source, targetSet) = await LoadCopyEndpointsAsync(q.SourceId, q.TargetSetId, ct);
         var (_, warnings) = await BuildCopyPlanAsync(source, targetSet, q.Strategy, ct);
         return warnings;
+    }
+
+    // issue #283 (фаза D): перенос в другой комплект. Входящий guard (как удаление #269): если на
+    // документ ссылаются — блокируем (в исходном комплекте ссылка повиснет). Тот же скраб исходящих,
+    // что и copy; PDF сбрасываются (контекст резолва сменился).
+    public async Task<CopyResult> Handle(MoveDocumentToSetCommand cmd, CancellationToken ct)
+    {
+        var (source, targetSet) = await LoadCopyEndpointsAsync(cmd.SourceId, cmd.TargetSetId, ct);
+        var srcSetId = source.ScopeId!.Value;
+        if (srcSetId == targetSet.Id) throw new InvalidOperationException("Документ уже в этом комплекте.");
+
+        var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, source.Id, ct);
+        if (referrers.Count > 0)
+            throw new InvalidOperationException(
+                $"Нельзя перенести документ — на него ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.DisplayName ?? "без имени"))}.");
+
+        var (data, warnings) = await BuildCopyPlanAsync(source, targetSet, cmd.Strategy, ct);
+        var docs = await objRepo.GetSetDocumentsAsync(targetSet.Id, tracked: false, ct);
+        var maxOrder = docs.Count == 0 ? -1 : docs.Max(d => d.SortOrder);
+
+        var blobs = source.ResetToDraft(); // собранный вывод обоих комплектов устаревает
+        source.SetData(data);
+        source.MoveToSet(targetSet.Id);
+        source.SetSortOrder(maxOrder + 1);
+
+        targetSet.TouchUpdatedAt();
+        setRepo.Update(targetSet);
+        if (await setRepo.GetByIdAsync(srcSetId, ct) is { } srcSet) { srcSet.TouchUpdatedAt(); setRepo.Update(srcSet); }
+        objRepo.Update(source);
+        await objRepo.SaveChangesAsync(ct);
+        foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
+        return new CopyResult(source, warnings);
+    }
+
+    public async Task<MovePreview> Handle(PreviewMoveDocumentQuery q, CancellationToken ct)
+    {
+        var (source, targetSet) = await LoadCopyEndpointsAsync(q.SourceId, q.TargetSetId, ct);
+        var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, source.Id, ct);
+        var (_, warnings) = await BuildCopyPlanAsync(source, targetSet, q.Strategy, ct);
+        return new MovePreview(warnings, referrers.Select(r => r.DisplayName ?? "без имени").ToList());
     }
 
     private async Task<(DomainObject source, DocumentSet targetSet)> LoadCopyEndpointsAsync(Guid sourceId, Guid targetSetId, CancellationToken ct)
