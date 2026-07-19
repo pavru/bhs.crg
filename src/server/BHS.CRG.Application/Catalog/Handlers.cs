@@ -52,7 +52,7 @@ public class CatalogHandlers(IRepository<CatalogEntity> repo) :
     }
 }
 
-public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo) :
+public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo, IRepository<DocumentType> docTypeRepo) :
     IRequestHandler<ListPrimitiveTypesQuery, IReadOnlyList<PrimitiveType>>,
     IRequestHandler<CreatePrimitiveTypeCommand, PrimitiveType>,
     IRequestHandler<UpdatePrimitiveTypeCommand, PrimitiveType>,
@@ -101,10 +101,17 @@ public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo) :
         return pt;
     }
 
+    // issue #269 (по образцу EnumType #59): удаление типа поля, используемого в схеме какого-либо типа
+    // документа, оставило бы поле с висячим typeId. Проверяем перед удалением.
     public async Task Handle(DeletePrimitiveTypeCommand cmd, CancellationToken ct)
     {
         var pt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new KeyNotFoundException($"PrimitiveType {cmd.Id} not found");
+        var allDocTypes = await docTypeRepo.GetAllAsync(ct);
+        var usedIn = allDocTypes.Where(t => DocumentTypeSchemaReader.ReferencesPrimitiveType(t.Schema, cmd.Id)).ToList();
+        if (usedIn.Count > 0)
+            throw new InvalidOperationException(
+                $"Нельзя удалить тип поля — используется в схеме: {string.Join(", ", usedIn.Select(t => t.Name))}.");
         repo.Remove(pt);
         await repo.SaveChangesAsync(ct);
     }
