@@ -295,6 +295,7 @@ public class DocumentSetHandlers(
     IRepository<DocumentSet> setRepo,
     IRepository<Section> sectionRepo,
     IDomainObjectRepository objRepo,
+    IRepository<DocumentType> docTypeRepo,
     IBlobStorage blobStorage) :
     IRequestHandler<CreateDocumentSetCommand, DocumentSet>,
     IRequestHandler<RenameDocumentSetCommand, DocumentSet>,
@@ -305,6 +306,7 @@ public class DocumentSetHandlers(
     IRequestHandler<ReorderDocumentInstancesCommand, DocumentSet>,
     IRequestHandler<RenameDocumentInstanceCommand, DomainObject>,
     IRequestHandler<DeleteDocumentInstanceCommand>,
+    IRequestHandler<DuplicateDocumentInstanceCommand, DomainObject>,
     IRequestHandler<UpdateRequisitesCommand, DomainObject>,
     IRequestHandler<UpdatePluginDataCommand, DomainObject>,
     IRequestHandler<GetDocumentInstanceQuery, DomainObject?>,
@@ -411,6 +413,30 @@ public class DocumentSetHandlers(
                 $"Нельзя удалить документ — на него ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.DisplayName ?? "без имени"))}.");
         objRepo.Remove(obj);
         await objRepo.SaveChangesAsync(ct);
+    }
+
+    // issue #283 (фаза B): дубль в ТОТ ЖЕ комплект. Ссылки/_baseRef валидны в том же scope —
+    // сохраняем как есть (cross-set скраб — отдельные команды copy/move). Свежий черновик без PDF.
+    public async Task<DomainObject> Handle(DuplicateDocumentInstanceCommand cmd, CancellationToken ct)
+    {
+        var source = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
+        if (!source.IsDocument) throw new InvalidOperationException("Дублировать можно только документ комплекта.");
+        var setId = source.ScopeId!.Value;
+
+        var docs = await objRepo.GetSetDocumentsAsync(setId, tracked: false, ct);
+        var maxOrder = docs.Count == 0 ? -1 : docs.Max(d => d.SortOrder);
+
+        // Deep-clone Data (независимый JsonDocument): _baseRef и $ref сохраняются — тот же комплект.
+        var data = JsonDocument.Parse(source.Data.RootElement.GetRawText());
+        var baseName = source.DisplayName
+            ?? (await docTypeRepo.GetByIdAsync(source.CompositeTypeId, ct))?.Name
+            ?? "документа";
+        var clone = DomainObject.CloneAsDocument(source, setId, data, $"Копия {baseName}");
+        clone.SetSortOrder(maxOrder + 1);
+
+        await objRepo.AddAsync(clone, ct);
+        await objRepo.SaveChangesAsync(ct);
+        return clone;
     }
 
     public async Task<DomainObject> Handle(UpdateRequisitesCommand cmd, CancellationToken ct)

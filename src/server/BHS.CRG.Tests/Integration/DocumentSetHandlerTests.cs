@@ -117,6 +117,46 @@ public class DocumentSetHandlerTests(IntegrationTestFixture fixture) : IAsyncLif
         Assert.Equal(dtId, inst.CompositeTypeId);
     }
 
+    // issue #283 (фаза B): дубль в тот же комплект — «Копия …», реквизиты клонированы, в конце,
+    // свежий черновик; исходный на месте.
+    [Fact]
+    public async Task DuplicateDocumentInstance_ClonesIntoSameSet()
+    {
+        var (_, section) = await CreateConstructionWithSectionAsync();
+        var dtId = await CreateDocTypeAsync("AOSR_DUP");
+
+        Guid setId, srcId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var set = await Mediator(scope).Send(new CreateDocumentSetCommand(section.Id, "Комплект"));
+            setId = set.Id;
+            var inst = await Mediator(scope).Send(new AddDocumentToSetCommand(set.Id, dtId));
+            await Mediator(scope).Send(new RenameDocumentInstanceCommand(inst.Id, "Акт-1"));
+            await Mediator(scope).Send(new UpdateRequisitesCommand(inst.Id, JsonDocument.Parse(@"{""Номер"":""7""}")));
+            srcId = inst.Id;
+        }
+
+        Guid copyId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var copy = await Mediator(scope).Send(new DuplicateDocumentInstanceCommand(srcId));
+            copyId = copy.Id;
+            Assert.NotEqual(srcId, copy.Id);
+            Assert.Equal(setId, copy.ScopeId);
+            Assert.Equal(dtId, copy.CompositeTypeId);
+            Assert.Equal("Копия Акт-1", copy.DisplayName);
+            using var data = copy.Data;
+            Assert.Equal("7", data.RootElement.GetProperty("Номер").GetString());
+        }
+
+        // Оба существуют (исходный на месте).
+        using (var scope = fixture.Services.CreateScope())
+        {
+            Assert.NotNull(await Mediator(scope).Send(new GetDocumentInstanceQuery(srcId)));
+            Assert.NotNull(await Mediator(scope).Send(new GetDocumentInstanceQuery(copyId)));
+        }
+    }
+
     [Fact]
     public async Task UpdateRequisites_PersistsJson()
     {

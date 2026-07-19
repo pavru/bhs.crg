@@ -63,6 +63,25 @@ public class DomainObject : Entity
             Aliases = NormalizeAliases(aliases), CreatedAt = createdAt, UpdatedAt = updatedAt,
         };
 
+    /// <summary>
+    /// Клон как документ (issue #283, дублировать/копировать/перенести): новый объект того же типа
+    /// в целевом Set-scope с переданными (уже клонированными/обработанными вызывающим) данными.
+    /// Копирует конфиг шаблонов и алиасы; фасета свежая — Draft, без сгенерированных файлов,
+    /// PluginData пуст (это generation-кэш, при Draft невалиден). SortOrder выставляет вызывающий.
+    /// </summary>
+    public static DomainObject CloneAsDocument(DomainObject source, Guid targetSetId, JsonDocument data, string? displayName)
+    {
+        var clone = Create(source.CompositeTypeId, displayName, data, CatalogScope.Set, targetSetId, source.Aliases);
+        clone.EnsureFacet();
+        if (source.Facet is not null)
+        {
+            clone.SetTemplate(source.Facet.TemplateId);
+            clone.SetTemplateIds(source.Facet.TemplateIds);
+            clone.SetTemplateParams(source.Facet.TemplateParams);
+        }
+        return clone;
+    }
+
     /// <summary>Делает объект документом (создаёт фасету, если ещё нет). Возвращает фасету.</summary>
     public DocumentFacet EnsureFacet()
     {

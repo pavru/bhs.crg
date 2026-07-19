@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import {
-  Plus, Trash2, Download, Pencil, FolderOpen, Eye, GripVertical,
+  Plus, Trash2, Download, Pencil, FolderOpen, Eye, GripVertical, Copy,
   ArrowUp, ArrowDown, Layers, Building2, FileText, Search, X, Mail, Database, Table2, Users,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
@@ -25,6 +25,7 @@ import {
 } from '@/shared/api/constructions';
 import {
   useGetDocumentSet, useGetAvailableInstances, useAddDocumentToSet, useDeleteDocumentInstance,
+  useDuplicateDocumentInstance,
   useReorderInstances, useAssembleSet, useDocumentSetOutput, downloadSetOutput,
   useSearchDocuments, downloadGeneratedFile, previewGeneratedFile,
 } from '@/shared/api/documentSets';
@@ -52,6 +53,7 @@ function SetDetail() {
   const [editDirty, setEditDirty] = useState(false);
   const addMutation = useAddDocumentToSet();
   const deleteMutation = useDeleteDocumentInstance();
+  const duplicateMutation = useDuplicateDocumentInstance();
   const reorderMutation = useReorderInstances();
   const assembleMutation = useAssembleSet();
   const renameSet = useRenameDocumentSet();
@@ -308,13 +310,15 @@ function SetDetail() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <IconButton label="Удалить документ" size="sm" danger
-                        onClick={e => { e.stopPropagation(); setDeleteTarget(inst); }}
-                        disabled={deleteMutation.isPending}
-                        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
-                        <Trash2 size={14} />
-                      </IconButton>
+                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                      <RowActionsMenu ariaLabel="Действия документа" actions={[
+                        { key: 'dup', label: 'Дублировать', icon: <Copy size={14} />,
+                          disabled: duplicateMutation.isPending,
+                          onSelect: () => duplicateMutation.mutate({ setId: set.id, instanceId: inst.id },
+                            { onError: () => toast.error('Не удалось дублировать документ') }) },
+                        { key: 'del', label: 'Удалить документ', icon: <Trash2 size={14} />, danger: true,
+                          disabled: deleteMutation.isPending, onSelect: () => setDeleteTarget(inst) },
+                      ]} />
                     </td>
                   </tr>
                 );
