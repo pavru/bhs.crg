@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiClient } from './client';
 import { filenameFromContentDisposition } from './attachments';
 import type {
@@ -128,12 +128,20 @@ export interface MaterializePreview {
   error: string | null;
 }
 
-/** Предпросмотр материализации источника (строки → объекты формы типа). enabled — управляет запросом. */
-export function useMaterializePreview(sourceId: string | undefined, enabled: boolean) {
+/** Live-предпросмотр материализации по ТЕКУЩИМ (несохранённым) типу+маппингу (issue #294).
+ *  Ключ включает typeId+mapping → перезапрос при их изменении; keepPreviousData — без мигания. */
+export function useMaterializePreview(
+  sourceId: string | undefined, typeId: string | undefined,
+  mapping: Record<string, string>, enabled: boolean,
+) {
   return useQuery<MaterializePreview>({
-    queryKey: ['datasets', 'materialize-preview', sourceId],
-    queryFn: () => apiClient.get(`/datasets/sources/${sourceId}/materialization/preview`).then(r => r.data),
+    queryKey: ['datasets', 'materialize-preview', sourceId, typeId ?? '', JSON.stringify(mapping)],
+    queryFn: () =>
+      apiClient
+        .post(`/datasets/sources/${sourceId}/materialization/preview`, { typeId: typeId || null, mapping })
+        .then(r => r.data),
     enabled: !!sourceId && enabled,
+    placeholderData: keepPreviousData,
   });
 }
 

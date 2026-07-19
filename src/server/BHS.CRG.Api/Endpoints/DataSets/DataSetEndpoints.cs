@@ -175,10 +175,11 @@ public static class DataSetEndpoints
         });
 
         // Предпросмотр материализации: строки источника → объекты формы типа (без резолва каталога).
-        g.MapGet("/sources/{sourceId:guid}/materialization/preview", async (
-            Guid sourceId, int? maxRows, IDataSetService svc, CancellationToken ct) =>
+        // Live-превью материализации (issue #294): принимает текущие (несохранённые) typeId+mapping из диалога.
+        g.MapPost("/sources/{sourceId:guid}/materialization/preview", async (
+            Guid sourceId, MaterializePreviewRequest req, IDataSetService svc, CancellationToken ct) =>
         {
-            var result = await svc.MaterializePreviewAsync(sourceId, maxRows ?? 50, ct);
+            var result = await svc.MaterializePreviewAsync(sourceId, req.MaxRows ?? 50, req.TypeId, req.Mapping, ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
 
@@ -382,6 +383,7 @@ public static class DataSetEndpoints
     private record SourceRequest(string Name, string SheetOrPath, ColumnExprDto[]? ColumnExpressions);
     private record RenameSourceRequest(string Name);
     private record MaterializationRequest(Guid? TypeId, Dictionary<string, string>? Mapping);
+    private record MaterializePreviewRequest(Guid? TypeId, Dictionary<string, string>? Mapping, int? MaxRows);
     private record ProcessingRequest(object? RowFilter, object? ComputedColumns, object? SortSpec);
     private record ProcessingTemplateRequest(
         string Name, string? SheetOrPath, ColumnExprDto[]? ColumnExpressions,

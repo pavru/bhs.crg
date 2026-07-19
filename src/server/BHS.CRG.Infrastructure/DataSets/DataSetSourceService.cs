@@ -201,23 +201,27 @@ public class DataSetSourceService(
     /// MaterializeMapping. Ссылочный (@@ref) показывается маркером, файловый (@@file) — объектом-вложением
     /// (тот же рендер, что у превью привязки — см. DataSetDtoMapper.PreviewCell). Без резолва каталога.
     /// </summary>
-    public async Task<MaterializePreviewDto?> MaterializePreviewAsync(Guid sourceId, int maxRows, CancellationToken ct)
+    public async Task<MaterializePreviewDto?> MaterializePreviewAsync(
+        Guid sourceId, int maxRows, Guid? typeId, Dictionary<string, string>? mapping, CancellationToken ct)
     {
         var source = await db.DataSetSources.Include(s => s.File).AsNoTracking().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
-        if (source.MaterializeTypeId is null)
+        // typeId/mapping переданы диалогом (live-превью несохранённой настройки, issue #294) — иначе
+        // сохранённые на источнике. typeId служит лишь маркером «есть что материализовать».
+        var effTypeId = typeId ?? source.MaterializeTypeId;
+        if (effTypeId is null)
             return new MaterializePreviewDto(null, 0, [], "Материализация не настроена");
+        var effMapping = mapping ?? JsonSerializer.Deserialize<Dictionary<string, string>>(source.MaterializeMapping ?? "{}") ?? new();
 
         try
         {
             var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
-            var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(source.MaterializeMapping ?? "{}") ?? new();
             var take = maxRows <= 0 ? 50 : maxRows;
 
             var mapped = rows.Take(take).Select(row =>
             {
                 var obj = new Dictionary<string, object?>();
-                foreach (var (fieldKey, mapVal) in mapping)
+                foreach (var (fieldKey, mapVal) in effMapping)
                 {
                     var v = DataSetDtoMapper.PreviewCell(mapVal, row);
                     if (v is not null) obj[fieldKey] = v;
@@ -225,11 +229,11 @@ public class DataSetSourceService(
                 return obj;
             }).ToList();
 
-            return new MaterializePreviewDto(source.MaterializeTypeId, rows.Count, mapped, null);
+            return new MaterializePreviewDto(effTypeId, rows.Count, mapped, null);
         }
         catch (Exception ex)
         {
-            return new MaterializePreviewDto(source.MaterializeTypeId, 0, [], ex.Message);
+            return new MaterializePreviewDto(effTypeId, 0, [], ex.Message);
         }
     }
 
