@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useToast } from '@/shared/ui/Toast';
-import { usePreviewCopyDocument, useCopyDocument, type CopyWarning } from '@/shared/api/documentSets';
+import { usePreviewCopyDocument, useCopyDocument } from '@/shared/api/documentSets';
+import { CopyWarnings } from './CopyWarnings';
 import type { Construction } from '@/shared/api/types';
 
 interface TargetSet { id: string; name: string; constructionId: string }
@@ -74,32 +75,15 @@ export function CopyDocumentDialog({ open, onClose, setId, instance, constructio
         onOpenChange={o => { if (!o) { setTarget(null); targetRef.current = null; onClose(); } }}
         title={`Скопировать «${instance.name}» в «${target?.name ?? ''}»?`}
         description={
-          isFetching
-            ? <p className="text-fg4">Проверка ссылок…</p>
-            : <CopyWarnings warnings={warnings} />
+          isFetching ? <p className="text-fg4">Проверка ссылок…</p>
+            : warnings.length === 0
+              ? <p>Ссылки в порядке — будет создана полная копия в выбранном комплекте.</p>
+              : <><p className="mb-1.5">При копировании в другой комплект:</p><CopyWarnings warnings={warnings} /></>
         }
         confirmLabel="Скопировать"
+        confirmDanger={false}
         onConfirm={handleCopy}
       />
-    </>
-  );
-}
-
-/** Список предупреждений о затронутых ссылках, сгруппированный по виду; doc-ref — с именами полей. */
-function CopyWarnings({ warnings }: { warnings: CopyWarning[] }) {
-  if (warnings.length === 0)
-    return <p>Ссылки в порядке — будет создана полная копия в выбранном комплекте.</p>;
-  return (
-    <>
-      <p className="mb-1.5">При копировании в другой комплект:</p>
-      <ul className="list-disc pl-4 space-y-0.5">
-        {warnings.map(w => (
-          <li key={w.kind}>
-            {w.label}{w.count > 1 ? ` (${w.count})` : ''}
-            {w.names.length > 0 && <span className="text-fg4">: {w.names.join(', ')}</span>}
-          </li>
-        ))}
-      </ul>
     </>
   );
 }

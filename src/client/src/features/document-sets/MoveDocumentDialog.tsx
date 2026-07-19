@@ -4,6 +4,7 @@ import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useToast } from '@/shared/ui/Toast';
 import { usePreviewMoveDocument, useMoveDocument, type CopyWarning } from '@/shared/api/documentSets';
+import { CopyWarnings } from './CopyWarnings';
 import type { Construction } from '@/shared/api/types';
 
 interface TargetSet { id: string; name: string; constructionId: string }
@@ -108,16 +109,7 @@ function MoveInfo({ currentSetName, warnings }: { currentSetName: string; warnin
   return (
     <>
       <p>Документ будет удалён из комплекта «{currentSetName}». Собранный PDF обоих комплектов устареет.</p>
-      {warnings.length > 0 && (
-        <ul className="list-disc pl-4 mt-1.5 space-y-0.5">
-          {warnings.map(w => (
-            <li key={w.kind}>
-              {w.label}{w.count > 1 ? ` (${w.count})` : ''}
-              {w.names.length > 0 && <span className="text-fg4">: {w.names.join(', ')}</span>}
-            </li>
-          ))}
-        </ul>
-      )}
+      {warnings.length > 0 && <div className="mt-1.5"><CopyWarnings warnings={warnings} /></div>}
     </>
   );
 }
