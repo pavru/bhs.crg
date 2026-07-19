@@ -78,6 +78,16 @@ public record CopyDocumentToSetCommand(Guid SourceId, Guid TargetSetId, CopyStra
 
 /// Dry-run: какие ссылки затронет копирование/перенос — для превью в диалоге ДО подтверждения.
 public record PreviewCopyDocumentQuery(Guid SourceId, Guid TargetSetId, CopyStrategy Strategy) : IRequest<IReadOnlyList<CopyWarning>>;
+
+// --- Перенос в другой комплект (issue #283, фаза D) ---
+/// Перенести документ в другой комплект (уходит из текущего). Блокируется, если на него ссылаются
+/// (входящий guard, как удаление #269); при переносе — тот же скраб исходящих ссылок, что и copy;
+/// сгенерированные PDF сбрасываются (контекст резолва сменился).
+public record MoveDocumentToSetCommand(Guid SourceId, Guid TargetSetId, CopyStrategy Strategy) : IRequest<CopyResult>;
+
+/// Превью переноса: затронутые ссылки (как copy) + имена объектов, из-за которых перенос заблокирован.
+public record MovePreview(IReadOnlyList<CopyWarning> Warnings, IReadOnlyList<string> BlockedBy);
+public record PreviewMoveDocumentQuery(Guid SourceId, Guid TargetSetId, CopyStrategy Strategy) : IRequest<MovePreview>;
 public record UpdateRequisitesCommand(Guid InstanceId, JsonDocument Requisites) : IRequest<DomainObject>;
 public record UpdatePluginDataCommand(Guid InstanceId, JsonDocument PluginData) : IRequest<DomainObject>;
 public record GetDocumentInstanceQuery(Guid Id) : IRequest<DomainObject?>;
