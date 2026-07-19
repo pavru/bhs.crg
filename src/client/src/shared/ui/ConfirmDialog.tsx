@@ -69,12 +69,14 @@ export function ConfirmDialog({
             </label>
           )}
 
-          <div className={`flex gap-2 justify-end ${!requireCheckbox ? 'mt-4' : ''}`}>
+          {/* items-start + shrink-0 у «Отмена» и multiline+min-w-0 у подтверждения: длинная подпись
+              (в неё вшито имя объекта) переносится внутри кнопки, а не распирает узкий диалог. */}
+          <div className={`flex gap-2 justify-end items-start ${!requireCheckbox ? 'mt-4' : ''}`}>
             <Dialog.Close asChild>
-              <Button variant="text" size="sm">{cancelLabel}</Button>
+              <Button variant="text" size="sm" className="shrink-0">{cancelLabel}</Button>
             </Dialog.Close>
             <Button
-              variant="filled" danger size="sm"
+              variant="filled" danger size="sm" multiline className="min-w-0"
               disabled={!canConfirm}
               onClick={() => { onConfirm(); onOpenChange(false); }}
             >
