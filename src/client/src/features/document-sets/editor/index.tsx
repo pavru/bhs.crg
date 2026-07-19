@@ -19,8 +19,9 @@ import { SCOPE_LABELS, isFieldRef } from '@/shared/api/types';
 import { useCommonDataForSet } from '@/shared/api/commonData';
 import {
   groupEffectiveFields, resolveEffectiveFields, compositeFieldHasTag, parseSchemaFields,
-  getDefaultValues, type SchemaField,
+  getDefaultValues, isScalarField, type SchemaField,
 } from '@/shared/api/schema';
+import { FieldSourceBinding } from './FieldSourceBinding';
 import {
   STATUS_LABELS, STATUS_COLORS,
   validateConstraint, isMissing, PrimitiveInput, FileField, ImageField,
@@ -130,6 +131,9 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
     }
     return s;
   }, [dsBindings]);
+  // Скалярные поля — для per-field привязки «линза» (issue #296, фаза 1): выбор источника на поле +
+  // авто-предложение покрыть остальные скалярные поля этого источника.
+  const scalarSchemaFields = useMemo(() => schemaFields.filter(f => isScalarField(f) && f.type !== 'file'), [schemaFields]);
   // Базовый экземпляр (issue #71): документ дочернего типа наследуется от базы — документа комплекта
   // ЛИБО записи общих данных (по цепочке типов-предков и скоп-близости). При связке наследуются её
   // данные (мердж при генерации), вручную заполняются только собственные поля. Ссылка — `_baseRef` {kind,id}.
@@ -405,14 +409,18 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
           // Простые поля (string/number/date/enum/boolean/primitive). Редактируемые — MD3 floating-label
           // (G1); привязанные к источнику (read-only, с бейджем) — оставляем label-сверху.
           return (
-            <div key={field.key} className="col-span-1 min-w-0">
+            <div key={field.key} className="col-span-1 min-w-0 relative group">
+              {/* Per-field привязка «линза» (issue #296, фаза 1): иконка в углу — привязать/изменить/отвязать. */}
+              <div className="absolute top-0.5 right-0.5 z-10">
+                <FieldSourceBinding instanceId={instance.id} setId={setId} field={field}
+                  scalarFields={scalarSchemaFields} bindings={dsBindings} />
+              </div>
               {bound ? (
                 <>
-                  <label className="block text-xs font-medium text-fg2 mb-1">
+                  <label className="block text-xs font-medium text-fg2 mb-1 pr-5">
                     {field.title}
                     {field.required && <span className="ml-0.5 text-danger">*</span>}
                     {primitiveDef && <span className="ml-1 text-[10px] text-fg4 font-normal">· {primitiveDef.name}</span>}
-                    <SourceBoundBadge onGoToDataTab={onGoToDataTab} />
                   </label>
                   <PrimitiveInput field={field} value={displayValue}
                     onChange={v => setValue(field.key, v, primitiveDef)}
