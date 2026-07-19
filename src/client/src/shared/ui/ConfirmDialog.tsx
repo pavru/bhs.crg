@@ -12,6 +12,9 @@ interface ConfirmDialogProps {
   description?: ReactNode;
   /** Текст кнопки подтверждения — должен называть объект, не быть голым "Удалить". */
   confirmLabel: string;
+  /** Опасный (красный) вид кнопки подтверждения. По умолчанию true (удаление); для не-деструктивных
+   *  действий (напр. копирование) — false → обычная brand-кнопка. */
+  confirmDanger?: boolean;
   cancelLabel?: string;
   /** Текст чекбокса-барьера ("Понимаю, что это необратимо") — если задан, кнопка
    *  подтверждения неактивна, пока чекбокс не отмечен. Использовать для операций с
@@ -44,7 +47,7 @@ interface ConfirmDialogProps {
  * кнопки подтверждения — единый канал для guard-отказов удаления (409), вместо alert()/тишины.
  */
 export function ConfirmDialog({
-  open, onOpenChange, title, description, confirmLabel, cancelLabel = 'Отмена',
+  open, onOpenChange, title, description, confirmLabel, confirmDanger = true, cancelLabel = 'Отмена',
   requireCheckbox, errorTitle = 'Удаление невозможно', blocked, onConfirm,
 }: ConfirmDialogProps) {
   const [checked, setChecked] = useState(false);
@@ -124,7 +127,7 @@ export function ConfirmDialog({
                   <Button variant="text" size="sm" className="shrink-0" disabled={busy}>{cancelLabel}</Button>
                 </Dialog.Close>
                 <Button
-                  variant="filled" danger size="sm" multiline className="min-w-0"
+                  variant="filled" danger={confirmDanger} size="sm" multiline className="min-w-0"
                   disabled={!canConfirm} loading={busy}
                   onClick={handleConfirm}
                 >
