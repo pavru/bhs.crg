@@ -7,10 +7,11 @@ import {
   useDeleteDataSetBinding, useAutoMapDataSetSource,
 } from '@/shared/api/datasets';
 import { parseSourceColumnNames } from '@/shared/api/datasetHelpers';
-import type { DataSetBinding, DataSetSource } from '@/shared/api/types';
+import type { DataSetBinding, DataSetSource, CatalogScope } from '@/shared/api/types';
+import { SCOPE_LABELS } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 
-type FlatSource = DataSetSource & { fileName: string };
+type FlatSource = DataSetSource & { fileName: string; fileScope: CatalogScope };
 
 /**
  * Per-field привязка скалярного поля к источнику данных (issue #296, фаза 1 — «линза»). Поле — точка
@@ -41,7 +42,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
   const autoMap = useAutoMapDataSetSource();
 
   const sources: FlatSource[] = useMemo(
-    () => files.flatMap(f => f.sources.filter(s => !s.materializeTypeId).map(s => ({ ...s, fileName: f.name }))),
+    () => files.flatMap(f => f.sources.filter(s => !s.materializeTypeId).map(s => ({ ...s, fileName: f.name, fileScope: f.scope }))),
     [files]);
 
   const [sourceId, setSourceId] = useState('');
@@ -154,7 +155,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
               <select value={sourceId} onChange={e => pickSource(e.target.value)}
                 className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1">
                 <option value="">— выберите —</option>
-                {sources.map(s => <option key={s.id} value={s.id}>{s.fileName} · {s.name}</option>)}
+                {sources.map(s => <option key={s.id} value={s.id}>[{SCOPE_LABELS[s.fileScope]}] {s.fileName} · {s.name}</option>)}
               </select>
             </div>
 
