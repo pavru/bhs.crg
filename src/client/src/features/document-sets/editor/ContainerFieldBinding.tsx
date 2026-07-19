@@ -23,11 +23,12 @@ function isSameOrDescendant(childId: string, ancestorId: string, allDocTypes: Do
 }
 
 /**
- * Per-field привязка КОНТЕЙНЕРНОГО поля (array/doc-array/complex/doc-ref) к источнику (issue #296,
- * фаза 2a — «линза»). Модалка (тяжесть аффорданса = тяжести привязки): материализованный источник
- * совместимого типа → типизированный указатель (без маппинга); array/doc-array + обычный источник →
- * табличный маппинг элемента (переиспользуем MappingEditor). Привязка — своя, targetFieldKey=это поле.
- * Ref-маппинг составных/doc-ref по каталогу (scalar-slice) — фаза 2b.
+ * Per-field привязка КОНТЕЙНЕРНОГО поля к источнику (issue #296, фазы 2a/2b — «линза»). Модалка;
+ * три формы под капотом:
+ *  - материализованный источник совместимого типа → типизированный указатель (targetFieldKey=поле, {});
+ *  - array/doc-array + обычный источник → табличный маппинг элемента (targetFieldKey=поле);
+ *  - complex + обычный источник → ref-маппинг каталога по имени/идентификатору — срез общего
+ *    (owner,source)-скалярного binding (targetFieldKey=null, mapping[поле]=@@ref…), find-or-create/prune.
  */
 export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, bindings }: {
   instanceId: string;
@@ -37,24 +38,26 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
   bindings: DataSetBinding[];
 }) {
   const [open, setOpen] = useState(false);
-  const existing = bindings.find(b => b.targetFieldKey === field.key);
-  const isBound = !!existing;
+  const isTabular = field.type === 'array' || field.type === 'doc-array';
+  const isComplexRef = field.type === 'complex'; // caталог-ref по имени/идентификатору (scalar-slice)
+
+  // Текущая привязка поля: своя (targetFieldKey) ИЛИ срез скалярного binding (для complex-ref).
+  const targetBinding = bindings.find(b => b.targetFieldKey === field.key);
+  const sliceBinding = bindings.find(b => !b.targetFieldKey && b.mapping?.[field.key]);
+  const isBound = !!targetBinding || !!sliceBinding;
 
   const { data: files = [] } = useAvailableDataSetFiles(setId);
   const create = useCreateDataSetBinding();
   const update = useUpdateDataSetBinding();
   const del = useDeleteDataSetBinding();
 
-  const isTabular = field.type === 'array' || field.type === 'doc-array';
-
-  // Совместимые источники: материализованные того же типа (указатель) + обычные (только для табличных).
   const sources: FlatSource[] = useMemo(() => {
     const flat = files.flatMap(f => f.sources.map(s => ({ ...s, fileName: f.name })));
     return flat.filter(s => {
       if (s.materializeTypeId) return !!field.typeId && isSameOrDescendant(s.materializeTypeId, field.typeId, allDocTypes);
-      return isTabular; // обычный источник подходит только табличному полю
+      return isTabular || isComplexRef; // обычный источник — табличному или составному (ref) полю
     });
-  }, [files, field.typeId, isTabular, allDocTypes]);
+  }, [files, field.typeId, isTabular, isComplexRef, allDocTypes]);
 
   const [sourceId, setSourceId] = useState('');
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -62,36 +65,64 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
 
   const selectedSource = sources.find(s => s.id === sourceId);
   const isMaterialized = !!selectedSource?.materializeTypeId;
+  // Режим для несматериализованного источника: табличный (element map) или составной ref-срез.
+  const refMode = !!selectedSource && !isMaterialized && isComplexRef;
 
   function onOpenChange(o: boolean) {
     setOpen(o);
     if (o) {
-      setSourceId(existing?.sourceId ?? '');
-      setMapping(existing?.mapping ?? {});
+      if (targetBinding) { setSourceId(targetBinding.sourceId); setMapping(targetBinding.mapping ?? {}); }
+      else if (sliceBinding) { setSourceId(sliceBinding.sourceId); setMapping({ [field.key]: sliceBinding.mapping[field.key] }); }
+      else { setSourceId(''); setMapping({}); }
     }
+  }
+
+  // Убрать поле из среза скалярного binding (prune при опустевшем).
+  async function pruneSlice(binding: DataSetBinding) {
+    const map = { ...binding.mapping }; delete map[field.key];
+    if (Object.keys(map).length === 0) await del.mutateAsync({ id: binding.id, ownerId: instanceId });
+    else await update.mutateAsync({ id: binding.id, ownerId: instanceId, targetFieldKey: null, mapping: map });
   }
 
   async function save() {
     if (!selectedSource) return;
     setBusy(true);
     try {
-      const map = isMaterialized ? {} : mapping;
-      if (existing && existing.sourceId === selectedSource.id) {
-        await update.mutateAsync({ id: existing.id, ownerId: instanceId, targetFieldKey: field.key, mapping: map });
+      if (refMode) {
+        // Составной ref → срез (owner, source)-скалярного binding.
+        const refExpr = mapping[field.key];
+        if (!refExpr) return; // ничего не выбрано
+        const scalar = bindings.find(b => !b.targetFieldKey && b.sourceId === selectedSource.id);
+        const map = { ...(scalar?.mapping ?? {}) }; map[field.key] = refExpr;
+        if (scalar) await update.mutateAsync({ id: scalar.id, ownerId: instanceId, targetFieldKey: null, mapping: map });
+        else await create.mutateAsync({ ownerId: instanceId, sourceId: selectedSource.id, targetFieldKey: null, mapping: map });
+        if (targetBinding) await del.mutateAsync({ id: targetBinding.id, ownerId: instanceId });
+        if (sliceBinding && sliceBinding.sourceId !== selectedSource.id) await pruneSlice(sliceBinding);
       } else {
-        if (existing) await del.mutateAsync({ id: existing.id, ownerId: instanceId });
-        await create.mutateAsync({ ownerId: instanceId, sourceId: selectedSource.id, targetFieldKey: field.key, mapping: map });
+        // Материализованный указатель или табличный маппинг → своя привязка (targetFieldKey=поле).
+        const map = isMaterialized ? {} : mapping;
+        if (targetBinding && targetBinding.sourceId === selectedSource.id) {
+          await update.mutateAsync({ id: targetBinding.id, ownerId: instanceId, targetFieldKey: field.key, mapping: map });
+        } else {
+          if (targetBinding) await del.mutateAsync({ id: targetBinding.id, ownerId: instanceId });
+          await create.mutateAsync({ ownerId: instanceId, sourceId: selectedSource.id, targetFieldKey: field.key, mapping: map });
+        }
+        if (sliceBinding) await pruneSlice(sliceBinding);
       }
       setOpen(false);
     } finally { setBusy(false); }
   }
 
   async function unbind() {
-    if (!existing) return;
     setBusy(true);
-    try { await del.mutateAsync({ id: existing.id, ownerId: instanceId }); setOpen(false); }
-    finally { setBusy(false); }
+    try {
+      if (targetBinding) await del.mutateAsync({ id: targetBinding.id, ownerId: instanceId });
+      if (sliceBinding) await pruneSlice(sliceBinding);
+      setOpen(false);
+    } finally { setBusy(false); }
   }
+
+  const saveDisabled = !selectedSource || busy || (refMode && !mapping[field.key]) || (isTabular && !isMaterialized && Object.keys(mapping).length === 0);
 
   return (
     <>
@@ -115,7 +146,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
             </div>
             <div className="flex gap-2">
               <Button variant="text" size="sm" onClick={() => setOpen(false)}>Отмена</Button>
-              <Button variant="filled" size="sm" onClick={save} disabled={!selectedSource || busy} loading={busy}>
+              <Button variant="filled" size="sm" onClick={save} disabled={saveDisabled} loading={busy}>
                 {isBound ? 'Изменить' : 'Привязать'}
               </Button>
             </div>
@@ -124,7 +155,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
         <div className="space-y-4 min-w-[520px]">
           {sources.length === 0 ? (
             <p className="text-xs text-fg4 py-2">
-              Нет подходящих источников для этого поля. {isTabular
+              Нет подходящих источников для этого поля. {isTabular || isComplexRef
                 ? 'Загрузите набор данных на странице «Наборы данных» или в панели уровня.'
                 : `Нужен источник, материализованный в тип «${allDocTypes.find(t => t.id === field.typeId)?.name ?? 'этого поля'}» (настраивается на источнике).`}
             </p>
@@ -150,8 +181,12 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
                 </div>
               ) : (
                 <div className="rounded-lg border border-stroke p-3">
-                  <MappingEditor source={selectedSource} schemaFields={[]} tabularFields={[field]}
-                    allDocTypes={allDocTypes} mapping={mapping} targetFieldKey={field.key}
+                  {/* refMode (complex): schemaFields=[field] → ref-маппинг каталога; иначе табличный элемент. */}
+                  <MappingEditor source={selectedSource}
+                    schemaFields={refMode ? [field] : []}
+                    tabularFields={refMode ? [] : [field]}
+                    allDocTypes={allDocTypes} mapping={mapping}
+                    targetFieldKey={refMode ? null : field.key}
                     onChange={m => setMapping(m)} hideModeSelector />
                 </div>
               ))}
