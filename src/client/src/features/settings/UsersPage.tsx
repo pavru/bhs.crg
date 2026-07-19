@@ -35,11 +35,6 @@ export function UsersPage() {
     catch (e) { setRowError({ id: u.id, msg: apiError(e) }); }
   }
 
-  async function onDelete(u: AppUser) {
-    setRowError(null);
-    try { await del.mutateAsync(u.id); }
-    catch (e) { setRowError({ id: u.id, msg: apiError(e) }); }
-  }
 
   return (
     <div className="px-6 py-4 max-w-4xl">
@@ -125,7 +120,7 @@ export function UsersPage() {
         title={`Удалить пользователя «${deleteTarget?.email ?? ''}»?`}
         description={<p>Действие необратимо.</p>}
         confirmLabel="Удалить пользователя"
-        onConfirm={() => { if (deleteTarget) onDelete(deleteTarget); }}
+        onConfirm={() => { if (deleteTarget) return del.mutateAsync(deleteTarget.id); }}
       />
     </div>
   );

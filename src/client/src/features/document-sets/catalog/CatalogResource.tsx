@@ -234,7 +234,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
       </Modal>
       <ConfirmDialog open={!!deleteTarget} onOpenChange={o => { if (!o) setDeleteTarget(null); }}
         title={`Удалить «${deleteTarget?.displayName ?? ''}»?`} confirmLabel="Удалить"
-        onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id); }} />
+        onConfirm={() => { if (deleteTarget) return deleteMutation.mutateAsync(deleteTarget.id); }} />
     </div>
   );
 }

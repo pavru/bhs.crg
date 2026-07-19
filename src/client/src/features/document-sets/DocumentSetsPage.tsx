@@ -380,10 +380,10 @@ function SetDetail() {
         onOpenChange={o => { if (!o) setDeleteTarget(null); }}
         title={`Удалить документ «${deleteTarget ? (deleteTarget.name || docTypeMap[deleteTarget.documentTypeId]?.name || deleteTarget.documentTypeId) : ''}»?`}
         confirmLabel="Удалить документ"
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!deleteTarget) return;
+          await deleteMutation.mutateAsync({ setId: set.id, instanceId: deleteTarget.id });
           if (editInstance?.id === deleteTarget.id) setEditInstance(null);
-          deleteMutation.mutate({ setId: set.id, instanceId: deleteTarget.id });
         }}
       />
 

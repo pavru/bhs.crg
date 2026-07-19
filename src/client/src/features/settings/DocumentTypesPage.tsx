@@ -13,7 +13,6 @@ import { TypePickerField } from '@/shared/ui/TypePickerField';
 import type { PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { apiError } from '@/shared/utils/apiError';
 import {
   useListDocumentTypes,
   useCreateDocumentType,
@@ -795,10 +794,7 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
         description={<p>Это повлияет на все документы и шаблоны, использующие этот тип. Действие необратимо.</p>}
         confirmLabel={`Удалить тип «${docType.name}»`}
         requireCheckbox="Понимаю, что это необратимо"
-        onConfirm={() => deleteMutation.mutate(docType.id, {
-          onSuccess: onDeleted,
-          onError: err => alert(apiError(err, 'Не удалось удалить тип.')),
-        })}
+        onConfirm={() => deleteMutation.mutateAsync(docType.id).then(onDeleted)}
       />
     </div>
   );

@@ -265,7 +265,7 @@ export function QualityDocsPage() {
         title={`Удалить «${deleteTarget?.displayName ?? ''}»?`}
         description={<p>Связи с материалами также будут удалены.</p>}
         confirmLabel="Удалить"
-        onConfirm={() => { if (deleteTarget) del.mutate(deleteTarget.id); }}
+        onConfirm={() => { if (deleteTarget) return del.mutateAsync(deleteTarget.id); }}
       />
     </div>
   );

@@ -10,7 +10,6 @@ import { ListDetailShell, NavSearchInput, DetailHeader, useDirtyGuard } from '@/
 import { TextField } from '@/shared/ui/TextField';
 import { DateInput } from '@/shared/ui/DateInput';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { apiError } from '@/shared/utils/apiError';
 import { validateConstraint } from '@/features/document-sets/fields/PrimitiveInput';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { parseSchemaFields } from '@/shared/api/schema';
@@ -434,7 +433,7 @@ function PrimitiveTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll
         title={`Удалить тип «${type.name}»?`}
         description={<p>Поля документов, использующие этот тип, перестанут валидироваться. Действие необратимо.</p>}
         confirmLabel={`Удалить «${type.name}»`}
-        onConfirm={() => del.mutate(type.id, { onSuccess: onDeleted, onError: e => alert(apiError(e, 'Не удалось удалить тип.')) })} />
+        onConfirm={() => del.mutateAsync(type.id).then(onDeleted)} />
     </div>
   );
 }
@@ -506,7 +505,7 @@ function EnumTypeDetail({ type, allGroups, usedBy, dirty, saving, onSaveAll, onR
         title={`Удалить тип «${type.name}»?`}
         description={<p>Поля документов, использующие это перечисление, перестанут резолвить варианты. Действие необратимо.</p>}
         confirmLabel={`Удалить «${type.name}»`}
-        onConfirm={() => del.mutate(type.id, { onSuccess: onDeleted, onError: e => alert(apiError(e, 'Не удалось удалить тип.')) })} />
+        onConfirm={() => del.mutateAsync(type.id).then(onDeleted)} />
     </div>
   );
 }
