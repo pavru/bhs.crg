@@ -20,6 +20,12 @@ interface ConfirmDialogProps {
   /** Заголовок в состоянии отказа (после ошибки сервера, напр. 409-guard). */
   errorTitle?: string;
   /**
+   * Проактивная блокировка (issue #275): если задано — диалог сразу открывается в состоянии
+   * «нельзя» (тот же вид, что и реактивная ошибка): заголовок `errorTitle`, этот контент вместо
+   * подтверждения, кнопка только «Понятно». Реактивный 409 остаётся страховкой от гонок.
+   */
+  blocked?: ReactNode;
+  /**
    * Действие подтверждения. Может быть async: если промис отклоняется (напр. 409 «нельзя удалить —
    * используется …»), диалог НЕ закрывается, а показывает причину (apiError) в теле — пользователь
    * видит, почему кнопка «не сработала». Успех (или синхронный void без throw) — закрывает диалог.
@@ -39,7 +45,7 @@ interface ConfirmDialogProps {
  */
 export function ConfirmDialog({
   open, onOpenChange, title, description, confirmLabel, cancelLabel = 'Отмена',
-  requireCheckbox, errorTitle = 'Удаление невозможно', onConfirm,
+  requireCheckbox, errorTitle = 'Удаление невозможно', blocked, onConfirm,
 }: ConfirmDialogProps) {
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -50,6 +56,8 @@ export function ConfirmDialog({
   }, [open]);
 
   const canConfirm = !requireCheckbox || checked;
+  // Состояние «нельзя»: проактивная блокировка (blocked) ИЛИ реактивная ошибка после попытки (error).
+  const blockedView = error != null || blocked != null;
 
   async function handleConfirm() {
     setBusy(true);
@@ -77,13 +85,13 @@ export function ConfirmDialog({
           style={{ boxShadow: 'var(--f-shadow28)' }}
         >
           <Dialog.Title className="text-sm font-semibold mb-2 text-fg1">
-            {error ? errorTitle : title}
+            {blockedView ? errorTitle : title}
           </Dialog.Title>
 
-          {error ? (
+          {blockedView ? (
             <div className="mt-2 flex items-start gap-2.5 rounded-md bg-danger-subtle px-3 py-2.5 text-xs text-fg1">
               <AlertTriangle size={16} className="shrink-0 mt-0.5 text-danger" />
-              <div className="max-h-40 overflow-y-auto whitespace-pre-line">{error}</div>
+              <div className="max-h-40 overflow-y-auto whitespace-pre-line min-w-0">{error ?? blocked}</div>
             </div>
           ) : (
             <>
@@ -107,8 +115,8 @@ export function ConfirmDialog({
             </>
           )}
 
-          <div className={`flex gap-2 justify-end items-start ${error || !requireCheckbox ? 'mt-4' : ''}`}>
-            {error ? (
+          <div className={`flex gap-2 justify-end items-start ${blockedView || !requireCheckbox ? 'mt-4' : ''}`}>
+            {blockedView ? (
               <Button variant="tonal" size="sm" onClick={() => onOpenChange(false)}>Понятно</Button>
             ) : (
               <>

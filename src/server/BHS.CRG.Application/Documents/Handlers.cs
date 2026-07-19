@@ -27,7 +27,8 @@ public class DocumentTypeHandlers(
     IRequestHandler<SetDocumentTypeGroupCommand, DocumentType>,
     IRequestHandler<DeleteDocumentTypeCommand>,
     IRequestHandler<ListDocumentTypesQuery, IReadOnlyList<DocumentType>>,
-    IRequestHandler<GetDocumentTypeQuery, DocumentType?>
+    IRequestHandler<GetDocumentTypeQuery, DocumentType?>,
+    IRequestHandler<GetDocumentTypeUsageQuery, DocumentTypeUsage>
 {
     public async Task<DocumentType> Handle(CreateDocumentTypeCommand cmd, CancellationToken ct)
     {
@@ -141,46 +142,74 @@ public class DocumentTypeHandlers(
         return dt;
     }
 
-    // issue #57: удаление типа не проверяло использование. Ниже — прикладные проверки (по образцу
-    // ParentId-проверки и DataSetSourceService.DeleteSourceAsync). После слияния (issue #84) документы
-    // и записи общих данных — единый DomainObject.CompositeTypeId, поэтому проверка объектов одна.
+    // issue #57: удаление типа не проверяло использование. Проверки вынесены в ComputeUsageAsync —
+    // общий источник для guard'а удаления И проактивного показа (issue #275), чтобы не разъехались.
     public async Task Handle(DeleteDocumentTypeCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
         var all = await repo.GetAllAsync(ct);
-        if (all.Any(x => x.ParentId == cmd.Id))
-            throw new InvalidOperationException("Нельзя удалить тип, от которого наследуются другие типы.");
-
-        // issue #258: тип, назначенный профилем уровня (несёт тэг profile-*), удалять нельзя — снять тэг.
-        if (SchemaTags.SchemaHasTypeTag(dt.Schema, FunctionalTag.ProfileConstruction)
-            || SchemaTags.SchemaHasTypeTag(dt.Schema, FunctionalTag.ProfileSection)
-            || SchemaTags.SchemaHasTypeTag(dt.Schema, FunctionalTag.ProfileSet))
-            throw new InvalidOperationException("Нельзя удалить тип — он назначен профилем уровня. Снимите тэг «Профиль …» перед удалением.");
-
-        if ((await objectRepo.FindAsync(o => o.CompositeTypeId == cmd.Id, ct)).Count > 0)
-            throw new InvalidOperationException("Нельзя удалить тип — по нему уже созданы объекты (документы или записи общих данных).");
-
-        if ((await templateRepo.FindAsync(t => t.DocumentTypeId == cmd.Id, ct)).Count > 0)
-            throw new InvalidOperationException("Нельзя удалить тип — для него есть шаблоны.");
-
-        if ((await qualityDocRepo.FindAsync(q => q.DocumentTypeId == cmd.Id, ct)).Count > 0)
-            throw new InvalidOperationException("Нельзя удалить тип — есть документы качества этого типа.");
-
-        if ((await dataSetService.ListTemplatesAsync(cmd.Id, ct)).Count > 0)
-            throw new InvalidOperationException("Нельзя удалить тип — для него есть шаблоны привязки наборов данных.");
-
-        if (await dataSetService.AnySourceMaterializedAsTypeAsync(cmd.Id, ct))
-            throw new InvalidOperationException("Нельзя удалить тип — на него материализован источник набора данных.");
-
-        // Тип может использоваться как составной подтип внутри схемы ДРУГОГО типа (complex/array/
-        // doc-ref/doc-array поле с typeId == cmd.Id) — сам себя (собственную схему) не проверяем.
-        var usedInSchemas = all.Where(t => t.Id != cmd.Id && DocumentTypeSchemaReader.ReferencesType(t.Schema, cmd.Id)).ToList();
-        if (usedInSchemas.Count > 0)
+        var usage = await ComputeUsageAsync(dt, all, ct);
+        if (usage.InUse)
             throw new InvalidOperationException(
-                $"Нельзя удалить тип — используется как составной подтип в схеме: {string.Join(", ", usedInSchemas.Select(t => t.Name))}.");
+                "Нельзя удалить тип — используется. " + string.Join("; ", usage.Reasons.Select(FormatReason)) + ".");
 
         repo.Remove(dt);
         await repo.SaveChangesAsync(ct);
+    }
+
+    public async Task<DocumentTypeUsage> Handle(GetDocumentTypeUsageQuery q, CancellationToken ct)
+    {
+        var dt = await repo.GetByIdAsync(q.Id, ct) ?? throw new KeyNotFoundException();
+        return await ComputeUsageAsync(dt, await repo.GetAllAsync(ct), ct);
+    }
+
+    private static string FormatReason(DocumentTypeUsageReason r) =>
+        r.Names.Count > 0 ? $"{r.Label}: {string.Join(", ", r.Names)}"
+        : r.Count > 0 ? $"{r.Label}: {r.Count}"
+        : r.Label;
+
+    // Все причины, из-за которых тип нельзя удалить (issue #57 + #258 + #269). После слияния (issue #84)
+    // документы и записи общих данных — единый DomainObject.CompositeTypeId, поэтому проверка объектов одна.
+    private async Task<DocumentTypeUsage> ComputeUsageAsync(DocumentType dt, IReadOnlyList<DocumentType> all, CancellationToken ct)
+    {
+        var reasons = new List<DocumentTypeUsageReason>();
+
+        var children = all.Where(x => x.ParentId == dt.Id).ToList();
+        if (children.Count > 0)
+            reasons.Add(new("children", "Наследуются типы", children.Count, children.Select(c => c.Name).ToList()));
+
+        // issue #258: тип-профиль уровня (несёт тэг profile-*) — снять тэг перед удалением.
+        if (SchemaTags.SchemaHasTypeTag(dt.Schema, FunctionalTag.ProfileConstruction)
+            || SchemaTags.SchemaHasTypeTag(dt.Schema, FunctionalTag.ProfileSection)
+            || SchemaTags.SchemaHasTypeTag(dt.Schema, FunctionalTag.ProfileSet))
+            reasons.Add(new("profile", "Назначен профилем уровня (снимите тэг «Профиль …»)", 0, []));
+
+        var objects = await objectRepo.FindAsync(o => o.CompositeTypeId == dt.Id, ct);
+        if (objects.Count > 0)
+            reasons.Add(new("objects", "Созданы объекты (документы или записи общих данных)", objects.Count, []));
+
+        var templates = await templateRepo.FindAsync(t => t.DocumentTypeId == dt.Id, ct);
+        if (templates.Count > 0)
+            reasons.Add(new("templates", "Шаблоны", templates.Count, []));
+
+        var qdocs = await qualityDocRepo.FindAsync(qd => qd.DocumentTypeId == dt.Id, ct);
+        if (qdocs.Count > 0)
+            reasons.Add(new("quality", "Документы качества", qdocs.Count, []));
+
+        var bindingTemplates = await dataSetService.ListTemplatesAsync(dt.Id, ct);
+        if (bindingTemplates.Count > 0)
+            reasons.Add(new("binding-templates", "Шаблоны привязки наборов данных", bindingTemplates.Count, []));
+
+        if (await dataSetService.AnySourceMaterializedAsTypeAsync(dt.Id, ct))
+            reasons.Add(new("materialized", "Материализован источник набора данных", 0, []));
+
+        // Тип может использоваться как составной подтип в схеме ДРУГОГО типа (complex/array/doc-ref/
+        // doc-array поле с typeId == dt.Id) — сам себя (собственную схему) не проверяем.
+        var usedInSchemas = all.Where(t => t.Id != dt.Id && DocumentTypeSchemaReader.ReferencesType(t.Schema, dt.Id)).ToList();
+        if (usedInSchemas.Count > 0)
+            reasons.Add(new("subtype", "Используется как составной подтип в схеме", usedInSchemas.Count, usedInSchemas.Select(t => t.Name).ToList()));
+
+        return new DocumentTypeUsage(reasons);
     }
 
     public async Task<IReadOnlyList<DocumentType>> Handle(ListDocumentTypesQuery q, CancellationToken ct)
