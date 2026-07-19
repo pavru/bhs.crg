@@ -177,6 +177,37 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
         Assert.Null(await Mediator(scope3).Send(new GetDocumentTypeQuery(dt.Id)));
     }
 
+    // issue #275: проактивный usage-запрос — тот же источник проверок, что и guard удаления.
+    [Fact]
+    public async Task Usage_Unused_IsEmpty()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var dt = await Mediator(scope).Send(
+            new CreateDocumentTypeCommand("Свободный", "USAGE0", DocumentTypeKind.Document, null, EmptySchema()));
+
+        using var scope2 = fixture.Services.CreateScope();
+        var usage = await Mediator(scope2).Send(new GetDocumentTypeUsageQuery(dt.Id));
+        Assert.False(usage.InUse);
+        Assert.Empty(usage.Reasons);
+    }
+
+    [Fact]
+    public async Task Usage_WithChildren_ReportsReason()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var parent = await Mediator(scope).Send(
+            new CreateDocumentTypeCommand("Родитель", "USAGE_P", DocumentTypeKind.Document, null, EmptySchema()));
+        await Mediator(scope).Send(
+            new CreateDocumentTypeCommand("Дочерний", "USAGE_C", DocumentTypeKind.Document, parent.Id, EmptySchema()));
+
+        using var scope2 = fixture.Services.CreateScope();
+        var usage = await Mediator(scope2).Send(new GetDocumentTypeUsageQuery(parent.Id));
+        Assert.True(usage.InUse);
+        var reason = Assert.Single(usage.Reasons, r => r.Kind == "children");
+        Assert.Equal(1, reason.Count);
+        Assert.Contains("Дочерний", reason.Names);
+    }
+
     [Fact]
     public async Task Delete_WithDocumentInstance_ThrowsInvalidOperation()
     {

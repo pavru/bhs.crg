@@ -17,6 +17,19 @@ public record DeleteDocumentTypeCommand(Guid Id) : IRequest;
 public record ListDocumentTypesQuery(DocumentTypeKind? Kind = null) : IRequest<IReadOnlyList<DocumentType>>;
 public record GetDocumentTypeQuery(Guid Id) : IRequest<DocumentType?>;
 
+/// Использование типа документа (issue #275) — чем занят тип, из-за чего его нельзя удалить.
+/// Показывается проактивно (до попытки удаления); те же проверки, что и guard удаления.
+public record GetDocumentTypeUsageQuery(Guid Id) : IRequest<DocumentTypeUsage>;
+
+public record DocumentTypeUsage(IReadOnlyList<DocumentTypeUsageReason> Reasons)
+{
+    public bool InUse => Reasons.Count > 0;
+}
+
+/// Одна причина занятости: Kind — машинный вид, Label — человекочитаемо, Count — сколько (0 для
+/// булева признака вроде «профиль уровня»), Names — примеры имён (для видов, где они уместны).
+public record DocumentTypeUsageReason(string Kind, string Label, int Count, IReadOnlyList<string> Names);
+
 // --- Construction ---
 public record CreateConstructionCommand(string Name, Guid UserId) : IRequest<Construction>;
 public record RenameConstructionCommand(Guid Id, string Name) : IRequest<Construction>;

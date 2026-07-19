@@ -19,6 +19,7 @@ import {
   useUpdateDocumentType,
   useUpdateDocumentTypeSchema,
   useDeleteDocumentType,
+  useDocumentTypeUsage,
   useSetDocumentTypeAbstract,
   useSetDocumentTypeAllowsProxy,
   useSetDocumentTypeGroup,
@@ -701,6 +702,7 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
   dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void; onDuplicate: () => void;
 }) {
   const deleteMutation = useDeleteDocumentType();
+  const { data: usage } = useDocumentTypeUsage(docType.id);
   const groupMutation = useSetDocumentTypeGroup();
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -708,13 +710,24 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
   const effectiveFields = resolveEffectiveFields(docType, allDocTypes);
   const ownFieldCount = parseSchemaFields(docType.schema).length;
   const parentType = docType.parentId ? allDocTypes.find(dt => dt.id === docType.parentId) : null;
-  const hasChildren = allDocTypes.some(dt => dt.parentId === docType.id);
-  // Типы, ссылающиеся на этот тип полем complex/array/doc-ref/doc-array (актуально для составных —
-  // удаление сломало бы ссылки). issue #197 Фаза C — полировка Composite.
+  // Типы, ссылающиеся на этот тип полем complex/array/doc-ref/doc-array (для бейджа «используется: N»).
   const referencedBy = findReferencingTypes(docType.id, allDocTypes);
-  const deleteBlock = hasChildren ? 'Нельзя удалить: есть дочерние типы'
-    : referencedBy.length > 0 ? `Нельзя удалить: используется другими типами (${referencedBy.length})`
-    : null;
+  // Проактивное использование (issue #275): полный набор причин с backend (объекты/шаблоны/качество/
+  // привязки/материализация/наследники/подтип). При наличии — диалог удаления открывается сразу в
+  // состоянии «нельзя» со списком причин; реактивный 409 остаётся страховкой от гонок.
+  const usageReasons = usage?.reasons ?? [];
+  const deleteBlockedNode = usageReasons.length > 0 ? (
+    <div>
+      <p className="mb-1.5 font-medium">Тип используется — сначала снимите зависимости:</p>
+      <ul className="list-disc pl-4 space-y-0.5">
+        {usageReasons.map(r => (
+          <li key={r.kind}>
+            {r.label}{r.names.length > 0 ? `: ${r.names.join(', ')}` : r.count > 0 ? `: ${r.count}` : ''}
+          </li>
+        ))}
+      </ul>
+    </div>
+  ) : undefined;
   const compositeTypes = allDocTypes.filter(dt => dt.kind === 'Composite');
   const requiredCount = effectiveFields.filter(f => f.required).length;
   const complexFields = effectiveFields.filter(f => f.type === 'complex');
@@ -772,8 +785,8 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
               ...(docType.kind === 'Document'
                 ? [{ key: 'tpl', label: 'Шаблоны данных', icon: <Database size={14} />, onSelect: () => setTemplatesOpen(true) }]
                 : []),
-              { key: 'del', label: deleteBlock ?? 'Удалить тип', danger: true, disabled: deleteMutation.isPending || !!deleteBlock,
-                icon: <Trash2 size={14} />, onSelect: () => { if (!deleteBlock) setDeleteConfirmOpen(true); } },
+              { key: 'del', label: 'Удалить тип', danger: true, disabled: deleteMutation.isPending,
+                icon: <Trash2 size={14} />, onSelect: () => setDeleteConfirmOpen(true) },
             ]} />
           </>
         } />
@@ -794,6 +807,7 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
         description={<p>Это повлияет на все документы и шаблоны, использующие этот тип. Действие необратимо.</p>}
         confirmLabel={`Удалить тип «${docType.name}»`}
         requireCheckbox="Понимаю, что это необратимо"
+        blocked={deleteBlockedNode}
         onConfirm={() => deleteMutation.mutateAsync(docType.id).then(onDeleted)}
       />
     </div>

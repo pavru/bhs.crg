@@ -63,6 +63,19 @@ export function useSetDocumentTypeGroup() {
   });
 }
 
+export interface DocumentTypeUsageReason { kind: string; label: string; count: number; names: string[] }
+export interface DocumentTypeUsage { reasons: DocumentTypeUsageReason[]; inUse: boolean }
+
+/** Использование типа документа (issue #275) — проактивно, почему тип нельзя удалить.
+ *  Тот же набор проверок, что и guard удаления; `id` пуст → запрос отключён. */
+export function useDocumentTypeUsage(id: string | undefined) {
+  return useQuery({
+    queryKey: ['document-type-usage', id],
+    enabled: !!id,
+    queryFn: () => apiClient.get<DocumentTypeUsage>(`/document-types/${id}/usage`).then(r => r.data),
+  });
+}
+
 export function useDeleteDocumentType() {
   const qc = useQueryClient();
   return useMutation({
