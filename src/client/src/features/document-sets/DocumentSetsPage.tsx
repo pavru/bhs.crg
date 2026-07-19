@@ -12,6 +12,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
+import { useToast } from '@/shared/ui/Toast';
 import { CatalogResource } from './catalog/CatalogResource';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
 import { SubscribersResource } from './SubscribersResource';
@@ -73,6 +74,7 @@ function SetDetail() {
   const { user: me } = useAuth();
   const isAdmin = me?.role === 'Admin';
   const emailSet = useEmailSet();
+  const toast = useToast();
 
   useEffect(() => {
     if (watching && output && output.generatedAt !== watchStartRef.current) {
@@ -114,7 +116,8 @@ function SetDetail() {
     const j = index + dir;
     if (j < 0 || j >= ids.length) return;
     [ids[index], ids[j]] = [ids[j], ids[index]];
-    reorderMutation.mutate({ setId: set!.id, orderedIds: ids });
+    reorderMutation.mutate({ setId: set!.id, orderedIds: ids },
+      { onError: () => toast.error('Не удалось изменить порядок документов') });
   }
 
   // Переставить документ из позиции from в позицию вставки pos (перед instances[pos]; pos=N — в конец).
@@ -124,7 +127,8 @@ function SetDetail() {
     const [moved] = ids.splice(from, 1);
     const insertAt = pos > from ? pos - 1 : pos; // учёт сдвига после удаления
     ids.splice(insertAt, 0, moved);
-    reorderMutation.mutate({ setId: set!.id, orderedIds: ids });
+    reorderMutation.mutate({ setId: set!.id, orderedIds: ids },
+      { onError: () => toast.error('Не удалось изменить порядок документов') });
   }
   function endDrag() { setDragIndex(null); setDropPos(null); }
   // Позиция вставки по половине строки под курсором (верх → перед, низ → после) — полный диапазон, вкл. конец.

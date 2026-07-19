@@ -46,6 +46,7 @@ import {
 } from './typeEditorShell';
 import { ListDetailShell, NavSearchInput, DetailHeader, useDirtyGuard } from '@/shared/ui/ListDetailShell';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
+import { useToast } from '@/shared/ui/Toast';
 import { uniqueCode } from './PrimitiveTypesPage';
 
 /** Единственное членство (issue #197 Фаза C): каждый ключ поля остаётся только в первой группе,
@@ -703,6 +704,7 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
 }) {
   const deleteMutation = useDeleteDocumentType();
   const { data: usage } = useDocumentTypeUsage(docType.id);
+  const toast = useToast();
   const groupMutation = useSetDocumentTypeGroup();
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -779,7 +781,8 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
         actions={
           <>
             <GroupPicker groups={allGroups} value={docType.group}
-              onChange={group => groupMutation.mutate({ id: docType.id, group })} />
+              onChange={group => groupMutation.mutate({ id: docType.id, group },
+                { onError: () => toast.error('Не удалось изменить группу типа') })} />
             <RowActionsMenu ariaLabel="Действия типа" actions={[
               { key: 'dup', label: 'Дублировать', icon: <Copy size={14} />, onSelect: onDuplicate },
               ...(docType.kind === 'Document'
