@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BHS.CRG.Application.Schema;
 
 namespace BHS.CRG.Application.Generation;
 
@@ -29,6 +30,40 @@ public static class ResolutionScanner
         foreach (var (key, value) in ctx.Data)
             if (value is JsonElement el)
                 Walk(key, el, diagnostics);
+    }
+
+    /// <summary>
+    /// Обязательные поля, оставшиеся пустыми ПОСЛЕ полного резолва (реквизиты + привязки + база +
+    /// дефолты) — ошибки генерации (issue #296, фаза 0b). Обязательность = инвариант генерации, а не
+    /// сохранения: черновик хранится неполным (можно заполнить позже/привязать), но выпустить PDF с
+    /// пустым обязательным нельзя.
+    /// </summary>
+    public static void ScanMissingRequired(
+        GenerationContext ctx, IReadOnlyList<SchemaFieldInfo> effectiveFields, List<ResolutionDiagnostic> diagnostics)
+    {
+        foreach (var f in effectiveFields)
+        {
+            if (!f.Required) continue;
+            ctx.Data.TryGetValue(f.Key, out var v);
+            if (IsEmpty(v))
+                diagnostics.Add(new ResolutionDiagnostic(DiagnosticSeverity.Error, f.Key,
+                    $"Обязательное поле «{f.Title ?? f.Key}» не заполнено."));
+        }
+    }
+
+    private static bool IsEmpty(object? v)
+    {
+        if (v is null) return true;
+        if (v is JsonElement el)
+            return el.ValueKind switch
+            {
+                JsonValueKind.Null or JsonValueKind.Undefined => true,
+                JsonValueKind.String => string.IsNullOrWhiteSpace(el.GetString()),
+                JsonValueKind.Array => el.GetArrayLength() == 0,
+                JsonValueKind.Object => !el.EnumerateObject().Any(),
+                _ => false, // number / true / false — заполнено
+            };
+        return false; // резолвнутые не-JSON значения считаем заполненными
     }
 
     private static void Walk(string path, JsonElement el, List<ResolutionDiagnostic> diagnostics)
