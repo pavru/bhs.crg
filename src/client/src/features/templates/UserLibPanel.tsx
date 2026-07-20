@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
+import { useTheme } from '@/shared/ui/ThemeProvider';
 import { Button } from '@/shared/ui/Button';
 import { Save } from 'lucide-react';
 import { useTypstUserLib, useSaveTypstUserLib } from '@/shared/api/typstUserLib';
@@ -8,6 +9,7 @@ import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 // ─── User Typst library panel ─────────────────────────────────────────────────
 
 export function UserLibPanel() {
+  const { resolvedTheme } = useTheme();
   const { data: serverContent = '', isLoading } = useTypstUserLib();
   const saveMutation = useSaveTypstUserLib();
   const [content, setContent] = useState('');
@@ -51,6 +53,7 @@ export function UserLibPanel() {
         <Editor
           height="100%"
           defaultLanguage="typst"
+          theme={resolvedTheme === 'dark' ? 'vs-dark' : 'vs'}
           value={content}
           onChange={(val) => setContent(val ?? '')}
           beforeMount={registerTypstLanguage}

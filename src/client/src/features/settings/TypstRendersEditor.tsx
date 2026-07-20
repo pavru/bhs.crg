@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type * as Monaco from 'monaco-editor';
 import Editor from '@monaco-editor/react';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
+import { useTheme } from '@/shared/ui/ThemeProvider';
 import { Plus, Trash2, Maximize2, Code, AlertCircle, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -98,6 +99,7 @@ function TypstBlockDialog({ render, onSave, onClose }: {
   onSave: (r: TypstRender) => void;
   onClose: () => void;
 }) {
+  const { resolvedTheme } = useTheme();
   const [draft, setDraft] = useState<TypstRender>(render);
   const isDirty = draft.name !== render.name
     || draft.fnName !== render.fnName
@@ -148,6 +150,7 @@ function TypstBlockDialog({ render, onSave, onClose }: {
           <Editor
             height="100%"
             defaultLanguage="typst"
+            theme={resolvedTheme === 'dark' ? 'vs-dark' : 'vs'}
             value={draft.block}
             onChange={val => setDraft(d => ({ ...d, block: val ?? '' }))}
             beforeMount={beforeMountTypstBlock}
