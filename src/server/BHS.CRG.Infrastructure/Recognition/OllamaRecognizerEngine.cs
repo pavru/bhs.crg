@@ -60,13 +60,18 @@ public class OllamaRecognizerEngine(
         // Оцениваем: промпт + ~4608 токенов на страницу; клампим в разумные пределы.
         int numCtx = Math.Clamp(2048 + images.Length * 4608, 8192, 32768);
 
+        // НЕ используем format:"json" (issue #318): у thinking-моделей (qwen3-vl) JSON-грамматика
+        // глушит основной вывод — размышления уходят в отдельное поле `thinking`, а `response`
+        // приходит ПУСТЫМ. Без format модель отдаёт чистый JSON в `response` (инструкция «только JSON»
+        // есть в промпте), а RecognitionShared.ParseValues извлекает JSON устойчиво. Non-thinking
+        // модели (qwen2.5vl) работают одинаково с format и без.
         var requestBody = new
         {
             model,
             prompt = (promptBuilder ?? RecognitionShared.BuildPrompt)(fields),
             images,
             stream = false,
-            format = "json",
+            think = false, // подсказка не размышлять (thinking-модели могут игнорировать — тогда спасает парсер)
             options = new { temperature = 0, num_ctx = numCtx },
         };
         var json = JsonSerializer.Serialize(requestBody);
