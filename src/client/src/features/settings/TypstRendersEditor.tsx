@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type * as Monaco from 'monaco-editor';
 import Editor from '@monaco-editor/react';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
-import { Plus, Trash2, Maximize2, Code } from 'lucide-react';
+import { Plus, Trash2, Maximize2, Code, AlertCircle, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import type { DocumentType } from '@/shared/api/types';
@@ -181,11 +181,15 @@ function TypstBlockDialog({ render, onSave, onClose }: {
 
 // ─── Typst renders editor ─────────────────────────────────────────────────────
 
-export function TypstRendersEditor({ renders, onChange, fields, allDocTypes }: {
+export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, onBlockCommitted, problemsByFn }: {
   renders: TypstRender[];
   onChange: (r: TypstRender[]) => void;
   fields: SchemaField[];
   allDocTypes: DocumentType[];
+  /** Вызывается при коммите одного блока («Применить» в диалоге) — триггер проверки сборки (#309). */
+  onBlockCommitted?: (renders: TypstRender[]) => void;
+  /** fnName → severity: бейдж на карточке блока с проблемой сборки. */
+  problemsByFn?: Record<string, 'error' | 'warning'>;
 }) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
@@ -240,6 +244,14 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes }: {
               className="w-full flex items-center gap-2 px-3 py-2 rounded-md border border-stroke bg-surface hover:bg-muted/50 transition-colors text-left">
               <Code size={14} className="text-fg4 shrink-0" />
               <span className="text-sm text-fg2 flex-1">Редактировать Typst-код</span>
+              {problemsByFn?.[r.fnName.trim()] === 'error' && (
+                <span className="inline-flex items-center gap-1 text-xs text-danger shrink-0" title="Ошибка сборки блока">
+                  <AlertCircle size={13} /> не собирается
+                </span>
+              )}
+              {problemsByFn?.[r.fnName.trim()] === 'warning' && (
+                <AlertTriangle size={13} className="text-warning shrink-0" />
+              )}
               <span className="text-xs text-fg4 shrink-0">{lines > 0 ? `${lines} стр.` : 'пусто'}</span>
               <Maximize2 size={13} className="text-fg4 shrink-0" />
             </button>
@@ -261,7 +273,11 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes }: {
       {editingIndex !== null && renders[editingIndex] && (
         <TypstBlockDialog
           render={renders[editingIndex]}
-          onSave={r => update(editingIndex, r)}
+          onSave={r => {
+            const next = renders.map((rr, idx) => idx === editingIndex ? { ...rr, ...r } : rr);
+            onChange(next);
+            onBlockCommitted?.(next); // «Применить» — дискретный триггер проверки сборки (#309)
+          }}
           onClose={() => setEditingIndex(null)}
         />
       )}

@@ -43,19 +43,27 @@ public static class TypstPreambleBuilder
     /// <summary>Адаптер: схема типа → плоские записи блоков (с провенансом). Пустые/битые — пропускаются.</summary>
     public static IEnumerable<TypstBlockRecord> ExtractRenders(DocumentType type)
     {
-        if (!type.Schema.RootElement.TryGetProperty("typstRenders", out var renders)
-            || renders.ValueKind != JsonValueKind.Array)
-            yield break;
+        if (type.Schema.RootElement.TryGetProperty("typstRenders", out var renders))
+            foreach (var r in ExtractRenders(renders, type.Id, type.Name, type.Code))
+                yield return r;
+    }
 
-        foreach (var render in renders.EnumerateArray())
+    /// <summary>Адаптер поверх сырого массива typstRenders (для draft-overlay проверки, issue #309 фаза 2):
+    /// тот же JSON-shape, что в схеме, но приходит НЕсохранённым черновиком из UI.</summary>
+    public static IEnumerable<TypstBlockRecord> ExtractRenders(JsonElement rendersArray, Guid typeId, string typeName, string code)
+    {
+        if (rendersArray.ValueKind != JsonValueKind.Array) yield break;
+
+        foreach (var render in rendersArray.EnumerateArray())
         {
+            if (render.ValueKind != JsonValueKind.Object) continue;
             var fnName = render.TryGetProperty("fnName", out var fn) ? fn.GetString() : null;
             var block = render.TryGetProperty("block", out var bl) ? bl.GetString() : null;
             if (string.IsNullOrWhiteSpace(fnName) || string.IsNullOrWhiteSpace(block)) continue;
             var variant = render.TryGetProperty("name", out var nm) ? nm.GetString() ?? "" : "";
             var fnTrim = fnName.Trim();
-            yield return new TypstBlockRecord(fnTrim, block, Provenance(type.Name, type.Code, variant, fnTrim),
-                type.Id, type.Name, variant);
+            yield return new TypstBlockRecord(fnTrim, block, Provenance(typeName, code, variant, fnTrim),
+                typeId, typeName, variant);
         }
     }
 

@@ -1,6 +1,27 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type { DocumentType, DocumentTypeKind } from './types';
+import type { TypstRender } from './schema';
+
+/** Проблема сборки Typst-блоков (issue #309, фаза 2). Глобальна: `typeId` — где живёт блок. */
+export interface TypstBlockProblem {
+  severity: 'error' | 'warning';
+  code: 'cycle' | 'duplicate-fn' | 'syntax' | 'checker-unavailable';
+  message: string;
+  typeId: string | null;
+  typeName: string | null;
+  variantName: string | null;
+  fnName: string | null;
+  line: number | null;
+}
+
+/** Проверка сборки всех Typst-блоков с draft-overlay текущего типа (тело = его черновик renders). */
+export function useValidateTypstBlocks() {
+  return useMutation({
+    mutationFn: ({ typeId, renders }: { typeId: string; renders: TypstRender[] }) =>
+      apiClient.post<TypstBlockProblem[]>(`/document-types/${typeId}/validate-typst-blocks`, renders).then(r => r.data),
+  });
+}
 
 export function useListDocumentTypes(kind?: DocumentTypeKind) {
   return useQuery({

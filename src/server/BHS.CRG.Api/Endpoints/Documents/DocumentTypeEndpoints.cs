@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
 using MediatR;
 
@@ -55,6 +56,12 @@ public static class DocumentTypeEndpoints
             try { return Results.Ok(await m.Send(new UpdateDocumentTypeSchemaCommand(id, JsonDocument.Parse(req.Schema)))); }
             catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
+
+        // Проверка сборки Typst-блоков (issue #309, фаза 2): глобально по всем типам, с draft-overlay
+        // редактируемого типа (тело = его несохранённый массив typstRenders). Ловит циклы/дубликаты
+        // (граф) + синтаксис (Typst CLI). Не мутирует — только диагностика.
+        admin.MapPost("/{id:guid}/validate-typst-blocks", async (Guid id, JsonElement? draftRenders, IMediator m)
+            => Results.Ok(await m.Send(new ValidateTypstBlocksQuery(id, draftRenders))));
 
         admin.MapPut("/{id:guid}/abstract", async (Guid id, SetAbstractRequest req, IMediator m)
             => Results.Ok(await m.Send(new SetDocumentTypeAbstractCommand(id, req.IsAbstract))));
