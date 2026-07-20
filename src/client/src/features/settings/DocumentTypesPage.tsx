@@ -2,7 +2,7 @@ import { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Plus, ChevronRight, Trash2, Copy, Folder, FileText, Boxes, EyeOff, Check,
-  Braces, RotateCcw, Code, Database, Cpu, HelpCircle,
+  Braces, RotateCcw, Code, Database, Cpu, HelpCircle, RefreshCw,
 } from 'lucide-react';
 import { Switch } from '@/shared/ui/Switch';
 import { Markdown } from '@/shared/ui/Markdown';
@@ -37,6 +37,7 @@ import {
   type TypstRender,
 } from '@/shared/api/schema';
 import { TypstRendersEditor } from './TypstRendersEditor';
+import { useTypstBlocksCheck, TypstBlocksPanel, blocksCheckProblemsByFn } from './TypstBlocksCheck';
 import { schemaToJson, validateFields, TYPE_LABELS, toCamelKey } from './schemaConstants';
 import { useTagRegistry, typeTags as typeTagDefs, FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { GroupedFieldsEditor } from './GroupedFieldsEditor';
@@ -424,9 +425,10 @@ function CreateForm({
 
 // ─── Schema editor (inline) ────────────────────────────────────────────────────
 
-function SchemaEditor({ docType, allDocTypes }: {
+function SchemaEditor({ docType, allDocTypes, onSelectType }: {
   docType: DocumentType;
   allDocTypes: DocumentType[];
+  onSelectType: (id: string) => void;
 }) {
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const { data: enumTypes = [] } = useListEnumTypes();
@@ -438,6 +440,7 @@ function SchemaEditor({ docType, allDocTypes }: {
     () => schemaDef.fieldOverrides ?? {},
   );
   const [typstRenders, setTypstRenders] = useState<TypstRender[]>(() => schemaDef.typstRenders ?? []);
+  const blocksCheck = useTypstBlocksCheck(docType.id, onSelectType);
   const [docTypeTags, setDocTypeTags] = useState<string[]>(() => schemaDef.tags ?? []);
   const [ungroupedOrder, setUngroupedOrder] = useState<string[]>(() => schemaDef.ungroupedOrder ?? []);
   const [help, setHelp] = useState<string>(() => schemaDef.help ?? '');
@@ -512,6 +515,8 @@ function SchemaEditor({ docType, allDocTypes }: {
     try {
       await mutation.mutateAsync({ id: docType.id, schema: schemaToJson(fields, excludedFields, fieldOverrides, groups, typstRenders, docTypeTags, ungroupedOrder, help) });
       setDirty(false);
+      // Проверка сборки блоков после сохранения (issue #309, фаза 2) — не блокирует save.
+      if (typstRenders.length > 0) void blocksCheck.run(typstRenders);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка сохранения');
       throw err;
@@ -668,10 +673,22 @@ function SchemaEditor({ docType, allDocTypes }: {
         <SectionCard icon={<Code size={15} />} title="Typst-блоки (варианты отображения)"
           count={typstRenders.length} countClass="text-purple-600"
           open={showTypstRenders} onToggle={() => setShowTypstRenders(v => !v)}>
-          <div className="pt-2">
+          <div className="pt-2 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-fg4">Функции отображения для Typst-шаблонов.</p>
+              <Button variant="text" size="sm" icon={<RefreshCw size={13} className={blocksCheck.checking ? 'animate-spin' : ''} />}
+                disabled={blocksCheck.checking} onClick={() => void blocksCheck.run(typstRenders)}>
+                Проверить блоки
+              </Button>
+            </div>
+            {blocksCheck.problems && (
+              <TypstBlocksPanel problems={blocksCheck.problems} currentTypeId={docType.id} onSelectType={onSelectType} />
+            )}
             <TypstRendersEditor
               renders={typstRenders}
               onChange={r => { setTypstRenders(r); setDirty(true); }}
+              onBlockCommitted={r => void blocksCheck.run(r)}
+              problemsByFn={blocksCheckProblemsByFn(blocksCheck.problems, docType.id)}
               fields={effectiveFields}
               allDocTypes={allDocTypes}
             />
@@ -699,9 +716,10 @@ function findReferencingTypes(id: string, allDocTypes: DocumentType[]): Document
 }
 
 /** Правая панель list-detail (issue #197 Фаза A): шапка типа (метрики+действия) + редактор как есть. */
-function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving, onSaveAll, onRevert, onDuplicate }: {
+function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving, onSaveAll, onRevert, onDuplicate, onSelectType }: {
   docType: DocumentType; allDocTypes: DocumentType[]; allGroups: string[]; onDeleted: () => void;
   dirty: boolean; saving: boolean; onSaveAll: () => Promise<void>; onRevert: () => void; onDuplicate: () => void;
+  onSelectType: (id: string) => void;
 }) {
   const deleteMutation = useDeleteDocumentType();
   const { data: usage } = useDocumentTypeUsage(docType.id);
@@ -798,7 +816,7 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
         <div className="mx-auto max-w-4xl">
           <PropertiesEditor docType={docType} allDocTypes={allDocTypes} />
-          <SchemaEditor docType={docType} allDocTypes={allDocTypes} />
+          <SchemaEditor docType={docType} allDocTypes={allDocTypes} onSelectType={onSelectType} />
         </div>
       </div>
       {templatesOpen && (
@@ -901,7 +919,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
             <TypeDetail key={selected.id} docType={selected} allDocTypes={allDocTypes}
               allGroups={allGroups} onDeleted={() => setSelectedId(null)}
               dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll}
-              onDuplicate={() => duplicateType(selected)} />
+              onDuplicate={() => duplicateType(selected)} onSelectType={requestSelect} />
           ) : (
             <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Ничего не найдено</div>
           )} />

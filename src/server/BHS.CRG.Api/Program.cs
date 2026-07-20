@@ -242,6 +242,7 @@ builder.Services.AddHttpClient<IFileUrlFetcher, HttpFileUrlFetcher>()
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddSingleton<TypstGenerator>();
 builder.Services.AddSingleton<IDocumentGeneratorFactory, DocumentGeneratorFactory>();
+builder.Services.AddSingleton<ITypstSyntaxChecker, TypstSyntaxChecker>();
 
 // ── DataSets ──────────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IDataSetParser, CsvDataSetParser>();
