@@ -45,6 +45,7 @@ import {
   TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry, LeaveGuardDialog, SectionCard,
 } from './typeEditorShell';
 import { ListDetailShell, NavSearchInput, DetailHeader, useDirtyGuard } from '@/shared/ui/ListDetailShell';
+import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { useToast } from '@/shared/ui/Toast';
 import { uniqueCode } from './PrimitiveTypesPage';
@@ -839,6 +840,11 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   });
   const requestSelect = (id: string) => { if (id !== selectedId) request(id); };
 
+  // Гард ухода со страницы по маршруту (issue #307): сайдбар-навигация перехватывается, показываем
+  // тот же диалог. `routeLeave` хранит отложенный переход (proceed).
+  const [routeLeave, setRouteLeave] = useState<(() => void) | null>(null);
+  useLeaveGuard(anyDirty, (proceed) => setRouteLeave(() => proceed));
+
   const filtered = allDocTypes
     .filter(dt => dt.kind === kind)
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
@@ -902,6 +908,16 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
       </TypeEditorProvider>
 
       <LeaveGuardDialog {...dialogProps} />
+
+      {/* Гард ухода по маршруту (сайдбар/перезагрузка), issue #307 */}
+      <LeaveGuardDialog
+        open={routeLeave !== null} saving={saving}
+        onCancel={() => setRouteLeave(null)}
+        onDiscard={() => { const p = routeLeave; setRouteLeave(null); p?.(); }}
+        onSave={async () => {
+          try { await saveAll(); const p = routeLeave; setRouteLeave(null); p?.(); }
+          catch { setRouteLeave(null); /* ошибка показана в форме */ }
+        }} />
 
       <Modal open={createOpen} onOpenChange={setCreateOpen}
         title={kind === 'Document' ? 'Новый тип документа' : 'Новый составной тип'}

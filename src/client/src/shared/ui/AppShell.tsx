@@ -11,6 +11,7 @@ import { Avatar } from '@/shared/ui/Avatar';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
 import { ShortcutsHelp } from '@/shared/ui/ShortcutsHelp';
 import { workNav, settingsNav, type NavItem } from '@/shared/ui/navConfig';
+import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
 import { LogOut, Sun, Moon, Monitor, KeyRound, Check, ChevronsUpDown, MailWarning, X } from 'lucide-react';
 
 const themeOptions: { value: Theme; icon: typeof Sun; label: string }[] = [
@@ -50,6 +51,7 @@ function NavSection({
   label: string;
   items: NavItem[];
 }) {
+  const guardedClick = useGuardedNavClick();
   return (
     <div>
       <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest select-none text-fg4">
@@ -60,6 +62,7 @@ function NavSection({
           <NavLink
             key={to}
             to={to}
+            onClick={guardedClick(to)}
             className={({ isActive }) =>
               `group flex items-center gap-3 px-3 py-2.5 rounded-full text-sm font-medium select-none transition-colors ` +
               `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
@@ -92,6 +95,7 @@ export function AppShell() {
   const [pwOpen, setPwOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const guardedProfileClick = useGuardedNavClick();
 
   // Глобальные шорткаты (issue #107): Ctrl/⌘+K — палитра, «?» — справка (не в полях ввода).
   useEffect(() => {
@@ -139,7 +143,7 @@ export function AppShell() {
 
           <div className="space-y-0.5">
             {/* Блок пользователя — пилюля с аватаром */}
-            <NavLink to="/profile"
+            <NavLink to="/profile" onClick={guardedProfileClick('/profile')}
               className={({ isActive }) => `flex items-center gap-3 h-14 px-4 rounded-[28px] transition-colors ` +
                 `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ` +
                 (isActive ? 'bg-tonal' : 'hover:bg-black/5 dark:hover:bg-white/10')}>

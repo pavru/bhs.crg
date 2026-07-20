@@ -7,6 +7,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavSearchInput, DetailHeader, useDirtyGuard } from '@/shared/ui/ListDetailShell';
+import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { TextField } from '@/shared/ui/TextField';
 import { DateInput } from '@/shared/ui/DateInput';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -614,6 +615,10 @@ export function PrimitiveTypesPage() {
   const requestSelect = (id: string) => { if (id !== selectedId) request({ mode, id }); };
   const requestMode = (m: Mode) => { if (m !== mode) request({ mode: m, id: null }); };
 
+  // Гард ухода со страницы по маршруту (issue #307): тот же диалог при сайдбар-навигации/перезагрузке.
+  const [routeLeave, setRouteLeave] = useState<(() => void) | null>(null);
+  useLeaveGuard(anyDirty, (proceed) => setRouteLeave(() => proceed));
+
   const selectedPrim = mode === 'primitive' ? (sortedPrim.find(t => t.id === selectedId) ?? sortedPrim[0]) : undefined;
   const selectedEnum = mode === 'enum' ? (sortedEnum.find(t => t.id === selectedId) ?? sortedEnum[0]) : undefined;
   const addLabel = mode === 'primitive' ? 'Добавить тип' : 'Добавить перечисление';
@@ -657,6 +662,16 @@ export function PrimitiveTypesPage() {
       </TypeEditorProvider>
 
       <LeaveGuardDialog {...dialogProps} />
+
+      {/* Гард ухода по маршруту (сайдбар/перезагрузка), issue #307 */}
+      <LeaveGuardDialog
+        open={routeLeave !== null} saving={saving}
+        onCancel={() => setRouteLeave(null)}
+        onDiscard={() => { const p = routeLeave; setRouteLeave(null); p?.(); }}
+        onSave={async () => {
+          try { await saveAll(); const p = routeLeave; setRouteLeave(null); p?.(); }
+          catch { setRouteLeave(null); /* ошибка показана в форме */ }
+        }} />
 
       <Modal open={createOpen} onOpenChange={setCreateOpen}
         title={mode === 'primitive' ? 'Новый тип поля' : 'Новый тип перечисления'}>

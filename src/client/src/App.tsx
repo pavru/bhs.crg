@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/shared/ui/ThemeProvider';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
+import { NavigationGuardProvider } from '@/shared/ui/NavigationGuard';
 import { ToastProvider } from '@/shared/ui/Toast';
 import { AuthProvider } from '@/shared/ui/AuthProvider';
 import { ProtectedRoute, AdminRoute } from '@/shared/ui/ProtectedRoute';
@@ -35,6 +36,7 @@ export default function App() {
         <ToastProvider>
         <BrowserRouter>
           <ErrorBoundary variant="page" allowReload>
+          <NavigationGuardProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -61,6 +63,7 @@ export default function App() {
               </Route>
             </Route>
           </Routes>
+          </NavigationGuardProvider>
           </ErrorBoundary>
         </BrowserRouter>
         </ToastProvider>
