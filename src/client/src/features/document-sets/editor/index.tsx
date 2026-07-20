@@ -747,28 +747,26 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
           </p>
         ) : (
           <>
-            {/* Чекбокс = участие в генерации; клик по строке = фокус (показ параметров ниже). Это две
-                разные оси: строка подсвечивается языком активной строки, галочка отвечает только за то,
-                какие шаблоны дадут PDF. Обёртка не <label> — иначе клик по строке попадал бы в чекбокс. */}
+            {/* Клик по ВСЕЙ строке (обёртка-label) переключает участие в генерации (issue #316);
+                фокус (показ параметров ниже) следует за кликом через onChange. Галочка отражает участие,
+                подсветка строки — фокус. */}
             <div className="rounded-md border border-stroke-strong divide-y divide-stroke overflow-hidden">
               {activeTemplates.map((t: Template) => {
                 const selected = selectedTemplateIds.includes(t.id);
                 const focused = focusedTemplate?.id === t.id;
                 return (
-                  <div key={t.id}
-                    className={`flex items-center gap-2 pr-2.5 text-sm border-l-2 transition-colors ${focused ? 'bg-brand-subtle border-brand' : 'border-transparent hover:bg-base'}`}>
+                  <label key={t.id}
+                    className={`flex items-center gap-2 pr-2.5 text-sm border-l-2 transition-colors cursor-pointer ${focused ? 'bg-brand-subtle border-brand' : 'border-transparent hover:bg-base'}`}>
                     <input type="checkbox" checked={selected} disabled={setTemplatesMutation.isPending}
-                      onChange={e => toggleTemplate(t.id, e.target.checked)}
+                      onChange={e => { toggleTemplate(t.id, e.target.checked); setFocusedTemplateId(t.id); }}
                       aria-label={`Использовать шаблон «${t.name}» для генерации`}
                       className="ml-2.5 shrink-0" />
-                    <button type="button" onClick={() => setFocusedTemplateId(t.id)} aria-pressed={focused}
-                      title="Показать параметры этого шаблона"
-                      className="flex-1 min-w-0 text-left py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-brand rounded">
+                    <span className="flex-1 min-w-0 py-1.5">
                       <span className={`truncate ${focused ? 'text-brand-hover font-medium' : 'text-fg1'}`}>
                         {t.isDefault ? '★ ' : ''}{t.name} <span className="text-fg4 font-normal">(v{t.version})</span>
                       </span>
-                    </button>
-                  </div>
+                    </span>
+                  </label>
                 );
               })}
             </div>
