@@ -154,6 +154,9 @@ function TypstBlockDialog({ render, onSave, onClose }: {
             value={draft.block}
             onChange={val => setDraft(d => ({ ...d, block: val ?? '' }))}
             beforeMount={beforeMountTypstBlock}
+            // Фокус сразу в область кода (issue #314): Monaco монтируется асинхронно, после
+            // Radix-autofocus диалога, поэтому editor.focus() здесь выигрывает.
+            onMount={editor => editor.focus()}
             options={{
               minimap: { enabled: false },
               fontSize: 13,
