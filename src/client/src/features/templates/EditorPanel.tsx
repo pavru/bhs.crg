@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTheme } from '@/shared/ui/ThemeProvider';
 import Editor from '@monaco-editor/react';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { Button } from '@/shared/ui/Button';
@@ -94,6 +95,7 @@ interface EditorPanelProps {
 }
 
 export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorPanelProps) {
+  const { resolvedTheme } = useTheme();
   const [content, setContent] = useState(template.content);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
@@ -236,6 +238,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
         <Editor
           height="100%"
           defaultLanguage="typst"
+          theme={resolvedTheme === 'dark' ? 'vs-dark' : 'vs'}
           value={content}
           onChange={(val) => setContent(val ?? '')}
           beforeMount={registerTypstLanguage}
