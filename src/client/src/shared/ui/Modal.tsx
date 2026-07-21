@@ -53,6 +53,13 @@ export function Modal({ open, onOpenChange, title, children, wide, extraWide, fu
             }`}
           style={fullScreen ? undefined : { boxShadow: 'var(--f-shadow28)' }}
           onEscapeKeyDown={e => {
+            // Esc при показанном подтверждении = «Продолжить редактирование» (закрыть подтверждение,
+            // остаться в редакторе), а не закрыть/no-op.
+            if (confirmClose) {
+              e.preventDefault();
+              setConfirmClose(false);
+              return;
+            }
             if (isDirty) {
               e.preventDefault();
               setConfirmClose(true);
