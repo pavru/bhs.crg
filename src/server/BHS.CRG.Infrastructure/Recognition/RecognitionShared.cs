@@ -136,7 +136,10 @@ public static class RecognitionShared
     public static IReadOnlyDictionary<string, string?> ParseValues(string text, IReadOnlyList<RecognitionField> fields)
     {
         var result = new Dictionary<string, string?>();
+        // Прямой парс очищенного от markdown ответа; если не JSON целиком (напр. модель дописала прозу/
+        // размышления вокруг объекта) — извлекаем первый сбалансированный {...} и парсим его (issue #318).
         var jsonText = StripFences(text).Trim();
+        if (!LooksLikeJsonObject(jsonText)) jsonText = ExtractFirstJsonObject(text) ?? jsonText;
         try
         {
             using var doc = JsonDocument.Parse(jsonText);
@@ -170,6 +173,33 @@ public static class RecognitionShared
         var inner = s[(firstNl + 1)..];
         var lastFence = inner.LastIndexOf("```", StringComparison.Ordinal);
         return lastFence >= 0 ? inner[..lastFence] : inner;
+    }
+
+    private static bool LooksLikeJsonObject(string s) => s.StartsWith('{') && s.EndsWith('}');
+
+    /// <summary>Первый сбалансированный JSON-объект {...} в тексте (учитывает строки и экранирование) —
+    /// для ответов, где модель обернула JSON прозой/размышлениями (issue #318). null, если не найден.</summary>
+    public static string? ExtractFirstJsonObject(string text)
+    {
+        var start = text.IndexOf('{');
+        if (start < 0) return null;
+        int depth = 0;
+        bool inStr = false, esc = false;
+        for (int i = start; i < text.Length; i++)
+        {
+            var c = text[i];
+            if (inStr)
+            {
+                if (esc) esc = false;
+                else if (c == '\\') esc = true;
+                else if (c == '"') inStr = false;
+                continue;
+            }
+            if (c == '"') inStr = true;
+            else if (c == '{') depth++;
+            else if (c == '}' && --depth == 0) return text[start..(i + 1)];
+        }
+        return null;
     }
 
     public static string Truncate(string s, int n) => s.Length <= n ? s : s[..n];
