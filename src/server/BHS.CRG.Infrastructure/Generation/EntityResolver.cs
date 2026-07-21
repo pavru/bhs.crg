@@ -211,10 +211,30 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
                 return resolved.ValueKind != JsonValueKind.Undefined ? resolved : node.Clone();
             }
 
-            // Неизвестный $ref или instance при allowInstanceRefs=false — оставляем как есть (клон).
+            // Обрыв цикла (issue #330): instance-ссылка при allowInstanceRefs=false — один документ уже
+            // развёрнут, глубже не рекурсируем (цикл A↔B). Отдаём ЧИСТЫЙ стаб (без $ref, но с
+            // displayName/instanceId): сырой ссылки не остаётся → сканер не флагает её как «не найдена»,
+            // повторный проход (двойной ResolveContextRefsAsync) не разворачивает её лишний раз, а шаблон
+            // может показать имя. Не-найденная instance-ссылка (target удалён) сюда НЕ попадает — она в
+            // ветке выше уходит в node.Clone() (остаётся $ref → корректно флагается).
+            case "instance":
+                return StripRef(node);
+
+            // Неизвестный $ref (напр. не найденная catalog/document-ссылка) — оставляем как есть (клон).
             default:
                 return node.Clone();
         }
+    }
+
+    /// <summary>Копия объекта без ключа «$ref» — стаб оборванной-по-циклу ссылки (issue #330):
+    /// перестаёт быть ссылкой (не резолвится/не флагается), но сохраняет displayName/instanceId.</summary>
+    private static JsonElement StripRef(JsonElement node)
+    {
+        var dict = new Dictionary<string, JsonElement>();
+        foreach (var p in node.EnumerateObject())
+            if (p.Name != "$ref")
+                dict[p.Name] = p.Value.Clone();
+        return JsonSerializer.SerializeToElement(dict);
     }
 
     /// <summary>
