@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import {
-  Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, GripVertical, Link2, Pencil, Plus, RefreshCw, Trash2, Unlink, X,
+  Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, GripVertical, Info, Link2, Pencil, Plus, RefreshCw, Trash2, Unlink, X,
 } from 'lucide-react';
+import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import type {
   CatalogScope, DocumentInstance, DocumentType, FieldRef, PrimitiveTypeDef,
 } from '@/shared/api/types';
-import { isFieldRef, SCOPE_LABELS } from '@/shared/api/types';
+import { isFieldRef, isInstanceRef, SCOPE_LABELS } from '@/shared/api/types';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import {
   resolveEffectiveFields, getDefaultValues, type SchemaField,
@@ -657,6 +658,18 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
 
+  // Union-тип (issue #320): составной тип с тэгом type.union — «заполняется ровно одно из полей».
+  // Рендерим переключатель варианта + редактор активного подполя вместо стопки всех подполей.
+  const isUnion = !!compositeType
+    && ((compositeType.schema as { tags?: string[] }).tags ?? []).includes(FUNCTIONAL_TAG.typeUnion);
+  if (isUnion) {
+    return (
+      <UnionFieldGroup field={field} allDocTypes={allDocTypes} value={value} onChange={onChange}
+        showValidation={showValidation} setId={setId} otherInstances={otherInstances}
+        scope={scope} scopeId={scopeId} docRefMode={docRefMode} nested={nested} />
+    );
+  }
+
   const picker = (
     <RefPickerModal
       open={pickerOpen} onOpenChange={setPickerOpen}
@@ -696,7 +709,6 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   const subValues = (value != null && typeof value === 'object' && !isFieldRef(value)
     ? value : {}) as Record<string, unknown>;
   const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes) : [];
-  const primDef = (f: SchemaField) => f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
   const isEmpty = subFields.every(f => { const v = subValues[f.key]; return v == null || v === ''; });
 
   function setSubValue(key: string, val: unknown) {
@@ -719,38 +731,10 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
                 {sf.required && <span className="ml-0.5 text-danger">*</span>}
               </label>
             )}
-            {sf.type === 'complex' ? (
-              <ComplexFieldGroup field={sf} allDocTypes={allDocTypes} value={subVal}
-                onChange={v => setSubValue(sf.key, v)} showValidation={showValidation}
-                setId={setId} otherInstances={otherInstances}
-                scope={scope} scopeId={scopeId} docRefMode={docRefMode} nested />
-            ) : sf.type === 'doc-ref' ? (
-              docRefMode === 'instance' ? (
-                <DocRefField field={sf} allDocTypes={allDocTypes} value={subVal}
-                  onChange={v => setSubValue(sf.key, v ?? undefined)}
-                  otherInstances={otherInstances} setId={setId} />
-              ) : (
-                <DocRefCatalogPickerField field={sf} allDocTypes={allDocTypes} value={subVal}
-                  onChange={v => setSubValue(sf.key, v ?? undefined)}
-                  setId={setId} scope={scope ?? 'System'} scopeId={scopeId ?? null} />
-              )
-            ) : sf.type === 'doc-array' && docRefMode === 'instance' ? (
-              <DocArrayField field={sf} allDocTypes={allDocTypes} value={subVal}
-                onChange={v => setSubValue(sf.key, v)}
-                otherInstances={otherInstances} setId={setId} />
-            ) : sf.type === 'image' ? (
-              <ImageField value={subVal} onChange={v => setSubValue(sf.key, v)} />
-            ) : sf.type === 'file' ? (
-              <FileField value={subVal} onChange={v => setSubValue(sf.key, v ?? undefined)} />
-            ) : sf.type === 'array' ? (
-              <ArrayFieldEditor field={sf} allDocTypes={allDocTypes} value={subVal}
-                onChange={v => setSubValue(sf.key, v)} showValidation={showValidation}
-                setId={setId} otherInstances={otherInstances}
-                scope={scope} scopeId={scopeId} docRefMode={docRefMode} />
-            ) : (
-              <PrimitiveInput field={sf} value={subVal} label={sf.title} onChange={v => setSubValue(sf.key, v)} invalid={invalid}
-                primitiveTypeDef={primDef(sf)} />
-            )}
+            <SubfieldEditor sf={sf} value={subVal} onChange={v => setSubValue(sf.key, v)}
+              allDocTypes={allDocTypes} showValidation={showValidation} setId={setId}
+              otherInstances={otherInstances} scope={scope} scopeId={scopeId}
+              docRefMode={docRefMode} primitiveTypes={primitiveTypes} />
             {invalid && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
           </div>
         );
@@ -831,4 +815,168 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
       {picker}
     </div>
   );
+}
+
+// ─── Один подполе-редактор (диспетчеризация по типу) ───────────────────────────
+// Извлечено из ComplexFieldGroup, чтобы переиспользовать для активного варианта union (issue #320).
+function SubfieldEditor({ sf, value, onChange, allDocTypes, showValidation, setId,
+  otherInstances = [], scope, scopeId, docRefMode = 'catalog', primitiveTypes }: {
+  sf: SchemaField; value: unknown; onChange: (v: unknown) => void;
+  allDocTypes: DocumentType[]; showValidation: boolean; setId?: string;
+  otherInstances?: DocumentInstance[]; scope?: CatalogScope; scopeId?: string | null;
+  docRefMode?: 'catalog' | 'instance'; primitiveTypes: PrimitiveTypeDef[];
+}) {
+  const primDef = sf.type === 'primitive' ? primitiveTypes.find(pt => pt.id === sf.typeId) : undefined;
+  const invalid = showValidation && isMissing(sf, value);
+  if (sf.type === 'complex')
+    return <ComplexFieldGroup field={sf} allDocTypes={allDocTypes} value={value} onChange={v => onChange(v)}
+      showValidation={showValidation} setId={setId} otherInstances={otherInstances}
+      scope={scope} scopeId={scopeId} docRefMode={docRefMode} nested />;
+  if (sf.type === 'doc-ref')
+    return docRefMode === 'instance'
+      ? <DocRefField field={sf} allDocTypes={allDocTypes} value={value}
+          onChange={v => onChange(v ?? undefined)} otherInstances={otherInstances} setId={setId} />
+      : <DocRefCatalogPickerField field={sf} allDocTypes={allDocTypes} value={value}
+          onChange={v => onChange(v ?? undefined)} setId={setId} scope={scope ?? 'System'} scopeId={scopeId ?? null} />;
+  if (sf.type === 'doc-array' && docRefMode === 'instance')
+    return <DocArrayField field={sf} allDocTypes={allDocTypes} value={value}
+      onChange={v => onChange(v)} otherInstances={otherInstances} setId={setId} />;
+  if (sf.type === 'image') return <ImageField value={value} onChange={v => onChange(v)} />;
+  if (sf.type === 'file') return <FileField value={value} onChange={v => onChange(v ?? undefined)} />;
+  if (sf.type === 'array')
+    return <ArrayFieldEditor field={sf} allDocTypes={allDocTypes} value={value} onChange={v => onChange(v)}
+      showValidation={showValidation} setId={setId} otherInstances={otherInstances}
+      scope={scope} scopeId={scopeId} docRefMode={docRefMode} />;
+  return <PrimitiveInput field={sf} value={value} label={sf.title} onChange={v => onChange(v)}
+    invalid={invalid} primitiveTypeDef={primDef} />;
+}
+
+// ─── Union-поле (issue #320): заполняется РОВНО ОДИН вариант (подполе union-типа) ──
+/** Вариант считается заполненным: непустой массив / FieldRef / непустой объект / непустая строка. */
+function isVariantFilled(v: unknown): boolean {
+  if (v == null) return false;
+  if (isFieldRef(v)) return true;
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === 'object') return Object.keys(v as object).length > 0;
+  return String(v).trim() !== '';
+}
+
+function VariantSegmentedSwitch({ options, active, onSelect }: {
+  options: { key: string; label: string; filled: boolean }[];
+  active: string; onSelect: (key: string) => void;
+}) {
+  return (
+    <div role="radiogroup" className="inline-flex rounded-lg border border-stroke overflow-hidden text-sm">
+      {options.map((o, i) => {
+        const on = o.key === active;
+        return (
+          <button key={o.key} type="button" role="radio" aria-checked={on} onClick={() => onSelect(o.key)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-stroke' : ''} ${
+              on ? 'bg-brand text-white font-medium' : 'bg-surface text-fg2 hover:bg-base'}`}>
+            {o.filled && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${on ? 'bg-white' : 'bg-brand'}`} />}
+            <span className="truncate">{o.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, setId,
+  otherInstances = [], scope, scopeId, docRefMode = 'catalog', nested = false }: {
+  field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
+  onChange: (val: Record<string, unknown>) => void; showValidation: boolean;
+  setId?: string; otherInstances?: DocumentInstance[];
+  scope?: CatalogScope; scopeId?: string | null; docRefMode?: 'catalog' | 'instance'; nested?: boolean;
+}) {
+  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
+  const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes) : [];
+  const subValues = (value != null && typeof value === 'object' && !isFieldRef(value) ? value : {}) as Record<string, unknown>;
+
+  const presentKey = subFields.find(sf => isVariantFilled(subValues[sf.key]))?.key;
+  const [activeKey, setActiveKey] = useState<string>(() => presentKey ?? subFields[0]?.key ?? '');
+  // Стэш неактивных вариантов — недеструктивное переключение в течение сессии (дискриминатор C, issue #320):
+  // persist хранит ОДИН ключ, данные другого варианта живут в локальном стэше до закрытия редактора.
+  const [stash, setStash] = useState<Record<string, unknown>>({});
+  const [modalOpen, setModalOpen] = useState(false);
+
+  // Значение пришло с заполненным ключом (загрузка/base-merge) — подхватываем активный вариант.
+  useEffect(() => { if (presentKey && presentKey !== activeKey) setActiveKey(presentKey); }, [presentKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const activeSf = subFields.find(sf => sf.key === activeKey) ?? subFields[0] ?? null;
+
+  function switchTo(key: string) {
+    if (key === activeKey) return;
+    setStash(prev => ({ ...prev, [activeKey]: subValues[activeKey] })); // припрятать текущий вариант
+    const restored = stash[key];
+    onChange(isVariantFilled(restored) ? { [key]: restored } : {}); // восстановить целевой (или пусто)
+    setActiveKey(key);
+  }
+  // persist = один ключ активного варианта; пустой активный → {} (= «не выбрано», как обычный complex).
+  // Ссылка на документ в union — всегда НЕ-инлайнящийся marker (семантика b, issue #320): резолвер
+  // маркер не разворачивает, шаблон печатает displayName. instance-ссылку из пикера превращаем в marker.
+  function setActiveValue(v: unknown) {
+    const stored = isInstanceRef(v) ? { ...v, $ref: 'marker' as const } : v;
+    onChange(isVariantFilled(stored) ? { [activeKey]: stored } : {});
+  }
+
+  if (subFields.length === 0) return <p className="text-xs text-fg4">Union-тип без полей.</p>;
+
+  const options = subFields.map(sf => ({
+    key: sf.key, label: sf.title,
+    filled: isVariantFilled(subValues[sf.key]) || isVariantFilled(stash[sf.key]),
+  }));
+  const chip = (
+    <span className="text-[11px] text-fg4 flex items-center gap-1 shrink-0" title="Заполняется ровно один из вариантов">
+      <Info size={11} /> заполните одно из
+    </span>
+  );
+  const activeEditor = activeSf && (
+    <SubfieldEditor sf={activeSf} value={subValues[activeSf.key]} onChange={setActiveValue}
+      allDocTypes={allDocTypes} showValidation={showValidation} setId={setId}
+      otherInstances={otherInstances} scope={scope} scopeId={scopeId} docRefMode={docRefMode} primitiveTypes={primitiveTypes} />
+  );
+  const bar = (
+    <div className="flex items-center justify-between gap-2">
+      <VariantSegmentedSwitch options={options} active={activeKey} onSelect={switchTo} />
+      {chip}
+    </div>
+  );
+
+  // Вложенный union (глубина ≥1) — строка-сводка активного варианта + правка в модалке.
+  if (nested) {
+    return (
+      <>
+        <div className="flex items-center gap-2 border border-stroke rounded-lg px-3 py-2 bg-base">
+          <button type="button" onClick={() => setModalOpen(true)}
+            className="flex-1 min-w-0 text-left text-sm text-fg2 hover:text-fg1 truncate">
+            {unionSummary(activeSf, subValues[activeKey])}
+          </button>
+          <button type="button" onClick={() => setModalOpen(true)} title="Редактировать"
+            className="p-1 text-fg4 hover:text-fg2 transition-colors shrink-0"><Pencil size={13} /></button>
+        </div>
+        <Modal open={modalOpen} onOpenChange={setModalOpen} wide title={field.title}
+          footer={<div className="flex justify-end"><Button variant="filled" onClick={() => setModalOpen(false)}>Готово</Button></div>}>
+          <div className="px-6 py-4 space-y-3">{bar}{activeEditor}</div>
+        </Modal>
+      </>
+    );
+  }
+
+  return (
+    <div className="border border-stroke rounded-lg p-3 space-y-3">
+      {bar}
+      {activeEditor}
+    </div>
+  );
+}
+
+/** Короткая сводка активного варианта union — для свёрнутой строки во вложенном режиме. */
+function unionSummary(sf: SchemaField | null, val: unknown): string {
+  if (!sf) return '(пусто)';
+  if (!isVariantFilled(val)) return `${sf.title}: —`;
+  if (isFieldRef(val)) return `${sf.title} → ${val.displayName}`;
+  if (Array.isArray(val)) return `${sf.title} · ${val.length} стр.`;
+  return `${sf.title}: ${String(val).slice(0, 40)}`;
 }

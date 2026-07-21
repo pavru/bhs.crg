@@ -46,6 +46,10 @@ public static class FunctionalTag
     public const string TypeQualityDocument = "type.qualityDocument";
     /// <summary>Тип документа относится к проектной документации (ГОСТ Р 21.101-2020).</summary>
     public const string TypeProjectDocumentation = "type.projectDocumentation";
+    /// <summary>Составной тип-«выбор» (union, issue #320): пользователь заполняет РОВНО ОДНО из полей
+    /// типа (напр. «список» ИЛИ «ссылка на документ»). Значение — composite с единственным заполненным
+    /// подполем; выбранный вариант определяется по заполненному ключу.</summary>
+    public const string TypeUnion = "type.union";
 
     // ── Тэги типа: профиль уровня (issue #258) ──────────────────────────────────
     // Составной тип, помеченный тэгом, — «профиль» соответствующего уровня-контейнера: его поля
