@@ -24,6 +24,7 @@ import { RefPickerModal } from './RefPickerModal';
 import { DocRefCatalogPickerField } from './DocRefCatalogPickerField';
 import { DocRefField, DocArrayField } from './DocRefField';
 import { PasteMappingModal } from './PasteMappingModal';
+import { BROKEN_PLATE, BROKEN_LABEL, BrokenRefNote } from './BrokenRef';
 
 // ─── Complex cell picker (inline table cell) ──────────────────────────────────
 
@@ -413,13 +414,15 @@ export function ArrayTableModal({
 // ─── Array field editor ───────────────────────────────────────────────────────
 
 export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showValidation,
-  setId, otherInstances = [], scope, scopeId, docRefMode = 'catalog',
+  setId, otherInstances = [], scope, scopeId, docRefMode = 'catalog', brokenPaths, basePath,
 }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
   onChange: (val: unknown[]) => void; showValidation: boolean;
   setId?: string; otherInstances?: DocumentInstance[];
   scope?: CatalogScope; scopeId?: string | null;
   docRefMode?: 'catalog' | 'instance';
+  /** Пути битых ссылок (issue #332) + базовый путь массива — для пометки элементов-ссылок на удалённое. */
+  brokenPaths?: Set<string>; basePath?: string;
 }) {
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
   const allItems = Array.isArray(value) ? value as unknown[] : [];
@@ -497,6 +500,21 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         <div className="divide-y divide-muted">
           {allItems.map((item, i) => {
             if (isFieldRef(item)) {
+              const itemBroken = !!basePath && !!brokenPaths?.has(`${basePath}[${i}]`);
+              if (itemBroken) {
+                return (
+                  <div key={i}>
+                    <div className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE}`}>
+                      <span className="text-xs text-danger font-mono w-5 text-right shrink-0">{i + 1}</span>
+                      <Link2 size={12} className="text-danger shrink-0" />
+                      <span className={`flex-1 text-sm truncate ${BROKEN_LABEL}`}>{item.displayName}</span>
+                      <button type="button" onClick={() => removeItem(i)}
+                        className="p-1 text-danger hover:text-fg1 shrink-0"><Trash2 size={13} /></button>
+                    </div>
+                    <BrokenRefNote compact />
+                  </div>
+                );
+              }
               return (
                 <div key={i} className="flex items-center gap-2 px-3 py-2 hover:bg-base">
                   <span className="text-xs text-fg4 font-mono w-5 text-right shrink-0">{i + 1}</span>
@@ -641,7 +659,7 @@ export function AutoFieldsSection({ count, children }: { count: number; children
 
 export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showValidation,
   setId, otherInstances = [],
-  scope, scopeId, docRefMode = 'catalog', nested = false,
+  scope, scopeId, docRefMode = 'catalog', nested = false, broken = false,
 }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
   onChange: (val: Record<string, unknown> | FieldRef) => void;
@@ -651,6 +669,8 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   docRefMode?: 'catalog' | 'instance';
   // issue #102: вложенное составное (глубина ≥1) правится в МОДАЛКЕ, а не инлайн — защита от «портянки»/матрёшки.
   nested?: boolean;
+  /** Составное поле — ссылка на удалённую запись каталога (issue #332). */
+  broken?: boolean;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
@@ -682,6 +702,27 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   );
 
   if (isFieldRef(value)) {
+    // Битая ссылка (issue #332): цель удалена — danger-плитка + нота вместо нейтрального контейнера.
+    if (broken) {
+      return (
+        <div>
+          <div className={`flex items-center gap-1.5 rounded-lg pl-3 pr-1.5 py-1.5 ${BROKEN_PLATE}`}>
+            <Link2 size={16} className="text-danger shrink-0" />
+            <span className={`flex-1 text-sm font-medium truncate ${BROKEN_LABEL}`}>{value.displayName}</span>
+            <button type="button" onClick={() => setPickerOpen(true)}
+              className="p-1.5 rounded-full text-danger hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0" title="Заменить ссылку">
+              <RefreshCw size={14} />
+            </button>
+            <button type="button" onClick={() => onChange({})}
+              className="p-1.5 rounded-full text-danger hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0" title="Снять ссылку">
+              <Unlink size={14} />
+            </button>
+          </div>
+          <BrokenRefNote />
+          {picker}
+        </div>
+      );
+    }
     // Link-строка (issue #189): нейтральный контейнер, имя — ссылка primary, тональный chip источника,
     // два действия — «заменить» (открыть пикер) и «снять».
     return (
