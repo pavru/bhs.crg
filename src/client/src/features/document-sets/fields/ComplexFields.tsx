@@ -9,7 +9,7 @@ import { Button } from '@/shared/ui/Button';
 import type {
   CatalogScope, DocumentInstance, DocumentType, FieldRef, PrimitiveTypeDef,
 } from '@/shared/api/types';
-import { isFieldRef, SCOPE_LABELS } from '@/shared/api/types';
+import { isFieldRef, isInstanceRef, SCOPE_LABELS } from '@/shared/api/types';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import {
   resolveEffectiveFields, getDefaultValues, type SchemaField,
@@ -914,7 +914,12 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
     setActiveKey(key);
   }
   // persist = один ключ активного варианта; пустой активный → {} (= «не выбрано», как обычный complex).
-  function setActiveValue(v: unknown) { onChange(isVariantFilled(v) ? { [activeKey]: v } : {}); }
+  // Ссылка на документ в union — всегда НЕ-инлайнящийся marker (семантика b, issue #320): резолвер
+  // маркер не разворачивает, шаблон печатает displayName. instance-ссылку из пикера превращаем в marker.
+  function setActiveValue(v: unknown) {
+    const stored = isInstanceRef(v) ? { ...v, $ref: 'marker' as const } : v;
+    onChange(isVariantFilled(stored) ? { [activeKey]: stored } : {});
+  }
 
   if (subFields.length === 0) return <p className="text-xs text-fg4">Union-тип без полей.</p>;
 

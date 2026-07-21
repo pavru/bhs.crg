@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FileText, Plus, Trash2, Unlink } from 'lucide-react';
 import type { CatalogScope, DocumentInstance, DocumentType, FieldRef } from '@/shared/api/types';
-import { isFieldRef, isInstanceRef } from '@/shared/api/types';
+import { isFieldRef, isInstanceRef, isMarkerRef } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 import { STATUS_COLORS, STATUS_LABELS } from './constants';
 import { InstancePickerModal } from './InstancePickerModal';
@@ -12,7 +12,9 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
   setId?: string;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const iRef = isInstanceRef(value) ? value : null;
+  // marker (issue #320) — ссылка-указатель (не инлайнится): отображаем как обычную instance-ссылку.
+  const marker = isMarkerRef(value);
+  const iRef = isInstanceRef(value) || isMarkerRef(value) ? value as FieldRef : null;
   const cRef = isFieldRef(value) && (value as FieldRef).$ref === 'catalog' ? value as FieldRef : null;
 
   if (iRef) {
@@ -24,11 +26,11 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
         <FileText size={14} className="text-indigo-500 shrink-0" />
         <span className="flex-1 min-w-0">
           <span className="block text-sm text-indigo-700 font-medium truncate">{label}</span>
-          {inst?.name && dt && (
-            <span className="block text-xs text-indigo-400 truncate">{dt.name}</span>
-          )}
+          {marker
+            ? <span className="block text-xs text-indigo-400 truncate">указатель — в PDF печатается ссылкой, не разворачивается</span>
+            : inst?.name && dt && <span className="block text-xs text-indigo-400 truncate">{dt.name}</span>}
         </span>
-        {inst && (
+        {!marker && inst && (
           <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
             {STATUS_LABELS[inst.status]}
           </span>

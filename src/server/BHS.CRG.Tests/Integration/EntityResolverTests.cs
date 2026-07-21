@@ -221,6 +221,22 @@ public class EntityResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         Assert.Equal("instance", doc.GetProperty("Вложенный").GetProperty("$ref").GetString());
     }
 
+    [Fact] // issue #320: marker-ссылка (union-вариант «ссылка») НЕ разворачивается — остаётся объектом
+           // с displayName, чтобы шаблон напечатал «см. «…»» вместо инлайна всего чужого документа.
+    public async Task MarkerRef_NotResolved()
+    {
+        var setId = await SetupSetAsync();
+        var docType = await TypeAsync(DocumentTypeKind.Document, "DOC_MK");
+        var otherId = await DocAsync(setId, docType, "{'Номер':'Р-1'}");
+        var docId = await DocAsync(setId, docType,
+            "{'Перечень':{'$ref':'marker','instanceId':'" + otherId + "','displayName':'Реестр работ Р-1'}}");
+
+        var v = E(await ResolveAsync(docId), "Перечень");
+
+        Assert.Equal("marker", v.GetProperty("$ref").GetString());              // не тронут
+        Assert.Equal("Реестр работ Р-1", v.GetProperty("displayName").GetString());
+    }
+
     // ── Исправленные баги ────────────────────────────────────────────────────────
 
     [Fact] // Баг A
