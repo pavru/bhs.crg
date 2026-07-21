@@ -29,11 +29,9 @@ export interface CommonDataEntryWithScope extends CommonDataEntry {
 
 /** Ссылка на объект каталога общих данных, поле другого документа или весь DocumentInstance. */
 export interface FieldRef {
-  // 'marker' (issue #320) — ссылка-указатель на документ: НЕ разворачивается при генерации (резолвер
-  // клонирует неизвестный $ref), шаблон печатает displayName («см. «…»»). Используется union-полем.
-  readonly $ref: 'catalog' | 'document' | 'instance' | 'marker';
+  readonly $ref: 'catalog' | 'document' | 'instance';
   entryId?: string;      // catalog
-  instanceId?: string;   // document | instance | marker
+  instanceId?: string;   // document | instance
   fieldKey?: string;     // document — ключ поля в реквизитах другого документа
   displayName: string;
   scope?: CatalogScope;
@@ -42,16 +40,11 @@ export interface FieldRef {
 export function isFieldRef(val: unknown): val is FieldRef {
   return val != null && typeof val === 'object'
     && '$ref' in (val as Record<string, unknown>)
-    && ['catalog', 'document', 'instance', 'marker'].includes((val as FieldRef).$ref);
+    && ['catalog', 'document', 'instance'].includes((val as FieldRef).$ref);
 }
 
 export function isInstanceRef(val: unknown): val is FieldRef & { $ref: 'instance' } {
   return isFieldRef(val) && (val as FieldRef).$ref === 'instance';
-}
-
-/** Ссылка-указатель (не инлайнится при генерации, показывается именем) — issue #320. */
-export function isMarkerRef(val: unknown): val is FieldRef & { $ref: 'marker' } {
-  return isFieldRef(val) && (val as FieldRef).$ref === 'marker';
 }
 
 // ─── Catalog Entity ───────────────────────────────────────────────────────────
