@@ -3,6 +3,7 @@ import type * as Monaco from 'monaco-editor';
 import Editor from '@monaco-editor/react';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { useTheme } from '@/shared/ui/ThemeProvider';
+import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { Plus, Trash2, Maximize2, Code, AlertCircle, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -100,6 +101,7 @@ function TypstBlockDialog({ render, onSave, onClose }: {
   onClose: () => void;
 }) {
   const { resolvedTheme } = useTheme();
+  useUserLibCompletion();
   const [draft, setDraft] = useState<TypstRender>(render);
   const isDirty = draft.name !== render.name
     || draft.fnName !== render.fnName

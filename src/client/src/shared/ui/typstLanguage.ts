@@ -1,4 +1,5 @@
 import type * as Monaco from 'monaco-editor';
+import { registerUserLibCompletion } from './typstUserLibCompletion';
 
 let registered = false;
 
@@ -101,4 +102,7 @@ export function registerTypstLanguage(monaco: typeof Monaco) {
       { open: '_', close: '_' },
     ],
   });
+
+  // Автокомплит функций из userlib.typ (issue #326) — единая точка для всех Typst-редакторов.
+  registerUserLibCompletion(monaco);
 }

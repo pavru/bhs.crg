@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@/shared/ui/ThemeProvider';
+import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import Editor from '@monaco-editor/react';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { Button } from '@/shared/ui/Button';
@@ -96,6 +97,7 @@ interface EditorPanelProps {
 
 export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorPanelProps) {
   const { resolvedTheme } = useTheme();
+  useUserLibCompletion();
   const [content, setContent] = useState(template.content);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
