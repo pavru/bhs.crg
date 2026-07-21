@@ -10,7 +10,7 @@ import {
   useUpdateRequisites, useGenerateDocument,
   useSetDocumentTemplates, useRenameDocumentInstance,
   downloadGeneratedFile, previewGeneratedFile, downloadDebugBundle,
-  validateResolution, useResolutionDiagnostics, brokenRefPaths, type ResolutionDiagnostic,
+  useResolutionDiagnostics, brokenRefPaths, type ResolutionDiagnostic,
 } from '@/shared/api/documentSets';
 import { useListTemplates } from '@/shared/api/templates';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
@@ -86,6 +86,17 @@ function containsRef(v: unknown): boolean {
   return false;
 }
 
+/** Свод-бейдж числа битых ссылок (issue #334) — на пункте раздела / контейнерном поле / вкладке. */
+function BrokenCountBadge({ count, className = '' }: { count: number; className?: string }) {
+  if (count <= 0) return null;
+  return (
+    <span title={`Битых ссылок: ${count}`}
+      className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-danger text-white text-[10px] font-semibold leading-none ${className}`}>
+      {count}
+    </span>
+  );
+}
+
 // ─── Базовый экземпляр (issue #71) ────────────────────────────────────────────
 // Документ дочернего типа может наследоваться от базы — документа комплекта ЛИБО записи общих данных.
 // Кандидаты берутся по всей цепочке типов-предков и по скоп-близости (комплект > раздел > стройка >
@@ -144,6 +155,26 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   const hasRefValues = useMemo(() => containsRef(values), [values]);
   const { data: resolutionDiagnostics } = useResolutionDiagnostics(instance.id, hasRefValues);
   const brokenPaths = useMemo(() => brokenRefPaths(resolutionDiagnostics), [resolutionDiagnostics]);
+  // Число битых ссылок под полем (по верхнему сегменту пути) — для свод-бейджей раздела и агрегата
+  // на контейнерном поле (issue #334). Прямая ссылка (path == field.key) рисуется danger-плиткой
+  // инлайн; «глубокие» пути (внутри complex/массива) видимы только через агрегат-бейдж.
+  const brokenUnderKey = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of brokenPaths) {
+      const top = p.split(/[.[]/)[0];
+      m.set(top, (m.get(top) ?? 0) + 1);
+    }
+    return m;
+  }, [brokenPaths]);
+  const brokenInFields = (fields: SchemaField[]) =>
+    fields.reduce((n, f) => n + (brokenUnderKey.get(f.key) ?? 0), 0);
+  // «Глубокие» битые под полем (путь строго глубже самого поля) — прямую ссылку не считаем (она уже
+  // danger-плитка). Для complex/массива это count вложенных/элементных битых ссылок.
+  const deepBrokenCount = (key: string) => {
+    let n = 0;
+    for (const p of brokenPaths) if (p !== key && p.split(/[.[]/)[0] === key) n++;
+    return n;
+  };
   // Базовый экземпляр (issue #71): документ дочернего типа наследуется от базы — документа комплекта
   // ЛИБО записи общих данных (по цепочке типов-предков и скоп-близости). При связке наследуются её
   // данные (мердж при генерации), вручную заполняются только собственные поля. Ссылка — `_baseRef` {kind,id}.
@@ -387,6 +418,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                     {field.title}
                     {field.required && <span className="ml-0.5 text-danger">*</span>}
                     {!field.required && <span className="ml-1 text-[10px] text-fg4 font-normal">опц.</span>}
+                    <BrokenCountBadge count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
                   </label>
                 )}
                 {field.type === 'complex' ? (
@@ -396,6 +428,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                       <label className="block text-xs font-medium text-fg2 pr-5">
                         {field.title}
                         {field.required && <span className="ml-0.5 text-danger">*</span>}
+                        <BrokenCountBadge count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
                       </label>
                     </div>
                     <ComplexFieldGroup field={field} allDocTypes={allDocTypes} value={raw}
@@ -576,8 +609,11 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
             {items.map(item => {
               const isActive = item.key === activeItem.key;
               const stats = sectionStats(item.fields);
+              const broken = brokenInFields(item.fields);
               let Icon = Circle, iconCls = 'text-fg4';
-              if (showValidation && stats.missing > 0) { Icon = AlertCircle; iconCls = 'text-danger'; }
+              // Битые ссылки — наивысший приоритет индикатора раздела (issue #334): всегда danger.
+              if (broken > 0) { Icon = AlertCircle; iconCls = 'text-danger'; }
+              else if (showValidation && stats.missing > 0) { Icon = AlertCircle; iconCls = 'text-danger'; }
               else if (stats.total > 0 && stats.filled === stats.total) { Icon = CheckCircle2; iconCls = 'text-brand'; }
               else if (isActive) { Icon = CircleDot; iconCls = 'text-brand'; }
               else if (stats.filled > 0) { Icon = CircleDot; iconCls = 'text-fg3'; }
@@ -588,6 +624,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                     isActive ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg3 hover:bg-muted hover:text-fg1'}`}>
                   <Icon size={18} className={`shrink-0 ${iconCls}`} />
                   <span className="flex-1 truncate text-sm">{item.title}</span>
+                  <BrokenCountBadge count={broken} className="shrink-0" />
                   {stats && <span className="text-xs text-fg4 tabular-nums shrink-0">{stats.filled}/{stats.total}</span>}
                 </button>
               );
@@ -686,8 +723,12 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
   const emailDoc = useEmailDocument();
   const [error, setError] = useState('');
   const [debugBusy, setDebugBusy] = useState(false);
-  const [validating, setValidating] = useState(false);
+  // Диагностика ссылок из общего кэша (issue #334): те же данные, что и индикаторы битых ссылок на
+  // полях реквизитов — один запрос, без расхождений. Локальный override — результат генерации-гейта.
+  const { data: sharedDiagnostics, refetch: refetchDiagnostics, isFetching: validating } =
+    useResolutionDiagnostics(instance.id, containsRef(instance.requisites));
   const [diagnostics, setDiagnostics] = useState<ResolutionDiagnostic[] | null>(null);
+  const shownDiagnostics = diagnostics ?? sharedDiagnostics ?? null;
   const mutation = useGenerateDocument();
   const setTemplatesMutation = useSetDocumentTemplates();
   const { data: templates = [], isLoading: templatesLoading } = useListTemplates(instance.documentTypeId);
@@ -725,10 +766,9 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
 
   async function handleValidate() {
     setError('');
-    setValidating(true);
-    try { setDiagnostics(await validateResolution(instance.id)); }
+    setDiagnostics(null); // снять локальный override → показать свежий общий результат
+    try { await refetchDiagnostics(); }
     catch (err: unknown) { setError(err instanceof Error ? err.message : 'Ошибка'); }
-    finally { setValidating(false); }
   }
 
   async function handleDebugBundle() {
@@ -827,7 +867,7 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
       )}
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      {diagnostics && <DiagnosticsPanel diagnostics={diagnostics} objectName={instance.name || 'без названия'} />}
+      {shownDiagnostics && <DiagnosticsPanel diagnostics={shownDiagnostics} objectName={instance.name || 'без названия'} />}
       {pdfFiles.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -933,6 +973,10 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
 }) {
   const schemaFields = docType ? resolveEffectiveFields(docType, allDocTypes) : [];
   const [tab, setTab] = useState<InstanceTab>('requisites');
+  // Свод битых ссылок для бейджа на вкладке «Реквизиты» (issue #334). Общий кэш с индикаторами полей
+  // (тот же queryKey) — без второго запроса; гейт по наличию ссылок в сохранённых реквизитах.
+  const { data: editorDiagnostics } = useResolutionDiagnostics(instance.id, containsRef(instance.requisites));
+  const brokenTabCount = useMemo(() => brokenRefPaths(editorDiagnostics).size, [editorDiagnostics]);
   const [dataSourcesOpen, setDataSourcesOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [pendingTab, setPendingTab] = useState<InstanceTab | null>(null);
@@ -1070,7 +1114,9 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
               onClick={() => requestTab(key)} onKeyDown={e => onTabKey(e, i)}
               className={`h-12 px-4 text-sm font-medium border-b-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ${
                 tab === key ? 'border-brand text-brand' : 'border-transparent text-fg3 hover:text-fg1'}`}>
-              {label}{key === tab && dirty && <span className="ml-1 text-warning" title="Есть несохранённые изменения">•</span>}
+              {label}
+              {key === 'requisites' && <BrokenCountBadge count={brokenTabCount} className="ml-1.5 align-middle" />}
+              {key === tab && dirty && <span className="ml-1 text-warning" title="Есть несохранённые изменения">•</span>}
             </button>
           ))}
         </div>
