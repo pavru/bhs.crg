@@ -217,8 +217,36 @@ public class EntityResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var doc = E(await ResolveAsync(aId), "Док");
 
         Assert.Equal("B-значение", doc.GetProperty("Поле").GetString());
-        // Цепочка A→B→C: вложенная instance-ссылка НЕ разворачивается (защита от циклов) — остаётся $ref.
-        Assert.Equal("instance", doc.GetProperty("Вложенный").GetProperty("$ref").GetString());
+        // Цепочка A→B→C: вложенная instance-ссылка НЕ разворачивается (защита от циклов). Теперь остаётся
+        // ЧИСТЫЙ стаб без $ref (issue #330) — не флагается как висячая, id сохранён.
+        var vlozh = doc.GetProperty("Вложенный");
+        Assert.False(vlozh.TryGetProperty("$ref", out _));
+        Assert.Equal(cId.ToString(), vlozh.GetProperty("instanceId").GetString());
+    }
+
+    [Fact] // issue #330: цикл документов A↔B. A разворачивает B (один хоп), обратная B→A обрывается СТАБОМ
+           // (без $ref) — не сырая ссылка → сканер не флагает «не найдена», генерация не блокируется.
+    public async Task InstanceRef_Cycle_ResolvesToStub_NotFlagged()
+    {
+        var setId = await SetupSetAsync();
+        var type = await TypeAsync(DocumentTypeKind.Document, "DOC_CY2");
+        var aId = await DocAsync(setId, type, "{'Поле':'A'}");
+        var bId = await DocAsync(setId, type, "{'Поле':'B','Назад':{'$ref':'instance','instanceId':'" + aId + "'}}");
+        // Замыкаем: A.Ссылка → B, B.Назад → A.
+        using (var scope = fixture.Services.CreateScope())
+            await M(scope).Send(new UpdateRequisitesCommand(aId, J("{'Поле':'A','Ссылка':{'$ref':'instance','instanceId':'" + bId + "'}}")));
+
+        var ctx = await ResolveAsync(aId);
+
+        var b = E(ctx, "Ссылка");                       // A.Ссылка → B развёрнут
+        Assert.Equal("B", b.GetProperty("Поле").GetString());
+        var back = b.GetProperty("Назад");              // B.Назад → A: обрыв цикла → стаб без $ref
+        Assert.False(back.TryGetProperty("$ref", out _));
+        Assert.Equal(aId.ToString(), back.GetProperty("instanceId").GetString());
+
+        var diags = new List<ResolutionDiagnostic>();
+        ResolutionScanner.ScanLeftoverRefs(ctx, diags);
+        Assert.DoesNotContain(diags, d => d.Path.StartsWith("Ссылка.Назад")); // стаб не флагается
     }
 
     // ── Исправленные баги ────────────────────────────────────────────────────────
