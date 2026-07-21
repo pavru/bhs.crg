@@ -8,6 +8,7 @@ export const FUNCTIONAL_TAG = {
   docNumber: 'doc.number',
   typeQualityDocument: 'type.qualityDocument',
   typeProjectDocumentation: 'type.projectDocumentation',
+  typeUnion: 'type.union',
   materialQualityDocLink: 'material.qualityDocLink',
   identity: 'identity',
   qualityValidUntil: 'quality.validUntil',

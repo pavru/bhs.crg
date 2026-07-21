@@ -70,6 +70,9 @@ public static class TagRegistry
         new(FunctionalTag.TypeProjectDocumentation, "Проектная документация",
             "Тип документа относится к проектной документации (ГОСТ Р 21.101-2020).",
             TagScope.Type, ["Document"], Multiple: false),
+        new(FunctionalTag.TypeUnion, "Выбор одного (union)",
+            "Составной тип-«выбор»: пользователь заполняет РОВНО ОДНО из полей типа (напр. «Список» ИЛИ «Ссылка на документ»). В форме показывается переключатель варианта, а не все поля сразу.",
+            TagScope.Type, ["Composite"], Multiple: false),
 
         // ── Type: профиль уровня (issue #258) — ровно один тип на уровень (MaxBearers=1) ──
         new(FunctionalTag.ProfileConstruction, "Профиль стройки",
