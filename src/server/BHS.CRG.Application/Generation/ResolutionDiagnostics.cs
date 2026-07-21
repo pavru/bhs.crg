@@ -7,8 +7,10 @@ public enum DiagnosticSeverity { Warning, Error }
 
 /// <summary>
 /// Одна проблема, найденная при проверке разрешения ссылок контекста генерации.
+/// <paramref name="Code"/> различает вид (issue #332): "leftover-ref" — висячая ссылка (цель удалена),
+/// "missing-required" — незаполненное обязательное. Фронт по нему рисует разные индикаторы.
 /// </summary>
-public record ResolutionDiagnostic(DiagnosticSeverity Severity, string Path, string Message);
+public record ResolutionDiagnostic(DiagnosticSeverity Severity, string Path, string Message, string Code = "");
 
 /// <summary>
 /// Исключение, прерывающее генерацию при наличии ошибок разрешения ссылок.
@@ -47,7 +49,7 @@ public static class ResolutionScanner
             ctx.Data.TryGetValue(f.Key, out var v);
             if (IsEmpty(v))
                 diagnostics.Add(new ResolutionDiagnostic(DiagnosticSeverity.Error, f.Key,
-                    $"Обязательное поле «{f.Title ?? f.Key}» не заполнено."));
+                    $"Обязательное поле «{f.Title ?? f.Key}» не заполнено.", "missing-required"));
         }
     }
 
@@ -85,7 +87,8 @@ public static class ResolutionScanner
                     };
                     diagnostics.Add(new ResolutionDiagnostic(
                         DiagnosticSeverity.Error, path,
-                        $"Ссылка на {kindHuman}{(target is null ? "" : $" (id {target})")} не разрешена — целевая запись не найдена или удалена."));
+                        $"Ссылка на {kindHuman}{(target is null ? "" : $" (id {target})")} не разрешена — целевая запись не найдена или удалена.",
+                        "leftover-ref"));
                     return; // глубже не идём — внутренность ссылки не данные
                 }
                 foreach (var p in el.EnumerateObject())

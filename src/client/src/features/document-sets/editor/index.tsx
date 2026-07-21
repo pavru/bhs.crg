@@ -10,7 +10,7 @@ import {
   useUpdateRequisites, useGenerateDocument,
   useSetDocumentTemplates, useRenameDocumentInstance,
   downloadGeneratedFile, previewGeneratedFile, downloadDebugBundle,
-  validateResolution, type ResolutionDiagnostic,
+  validateResolution, useResolutionDiagnostics, brokenRefPaths, type ResolutionDiagnostic,
 } from '@/shared/api/documentSets';
 import { useListTemplates } from '@/shared/api/templates';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
@@ -77,6 +77,15 @@ function BoundStateHint({ loading, error }: { loading: boolean; error: boolean }
 // «Maximum update depth exceeded» до догрузки запроса (симптом «пустой экран при открытии документа»).
 const EMPTY: never[] = [];
 
+// Есть ли в значениях хоть одна ссылка ($ref) — гейт для авто-проверки битых ссылок (issue #332):
+// без ref-полей резолв нечего проверять, лишний запрос не шлём.
+function containsRef(v: unknown): boolean {
+  if (isFieldRef(v)) return true;
+  if (Array.isArray(v)) return v.some(containsRef);
+  if (v != null && typeof v === 'object') return Object.values(v).some(containsRef);
+  return false;
+}
+
 // ─── Базовый экземпляр (issue #71) ────────────────────────────────────────────
 // Документ дочернего типа может наследоваться от базы — документа комплекта ЛИБО записи общих данных.
 // Кандидаты берутся по всей цепочке типов-предков и по скоп-близости (комплект > раздел > стройка >
@@ -128,6 +137,13 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   // Скалярные поля — для per-field привязки «линза» (issue #296, фаза 1): выбор источника на поле +
   // авто-предложение покрыть остальные скалярные поля этого источника.
   const scalarSchemaFields = useMemo(() => schemaFields.filter(f => isScalarField(f) && f.type !== 'file'), [schemaFields]);
+
+  // Битые ссылки (issue #332): цель удалена. Диагностику резолва тянем ОДИН раз в общий кэш (её же
+  // читает панель «Проверить ссылки»), только если в реквизитах есть ссылки. Instance-промахи фронт
+  // ловит сам в DocRefField; catalog/глубокие пути приходят из этой диагностики (code=leftover-ref).
+  const hasRefValues = useMemo(() => containsRef(values), [values]);
+  const { data: resolutionDiagnostics } = useResolutionDiagnostics(instance.id, hasRefValues);
+  const brokenPaths = useMemo(() => brokenRefPaths(resolutionDiagnostics), [resolutionDiagnostics]);
   // Базовый экземпляр (issue #71): документ дочернего типа наследуется от базы — документа комплекта
   // ЛИБО записи общих данных (по цепочке типов-предков и скоп-близости). При связке наследуются её
   // данные (мердж при генерации), вручную заполняются только собственные поля. Ссылка — `_baseRef` {kind,id}.
@@ -384,24 +400,28 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                     </div>
                     <ComplexFieldGroup field={field} allDocTypes={allDocTypes} value={raw}
                       onChange={v => setValue(field.key, v)} showValidation={showValidation}
-                      setId={setId} otherInstances={otherInstances} docRefMode="instance" />
+                      setId={setId} otherInstances={otherInstances} docRefMode="instance"
+                      broken={brokenPaths.has(field.key)} />
                   </div>
                   )
                 ) : field.type === 'array' ? (
                   bound ? <SourceBoundDocField /> : (
                   <ArrayFieldEditor field={field} allDocTypes={allDocTypes} value={raw}
                     onChange={v => setValue(field.key, v)} showValidation={showValidation}
-                    setId={setId} otherInstances={otherInstances} docRefMode="instance" />
+                    setId={setId} otherInstances={otherInstances} docRefMode="instance"
+                    brokenPaths={brokenPaths} basePath={field.key} />
                   )
                 ) : field.type === 'doc-ref' ? (
                   sourceBoundFields.has(field.key) ? <SourceBoundDocField /> : (
                     <DocRefField field={field} allDocTypes={allDocTypes} value={raw}
-                      onChange={v => setValue(field.key, v)} otherInstances={otherInstances} setId={setId} />
+                      onChange={v => setValue(field.key, v)} otherInstances={otherInstances} setId={setId}
+                      broken={brokenPaths.has(field.key)} />
                   )
                 ) : field.type === 'doc-array' ? (
                   sourceBoundFields.has(field.key) ? <SourceBoundDocField /> : (
                     <DocArrayField field={field} allDocTypes={allDocTypes} value={raw}
-                      onChange={v => setValue(field.key, v)} otherInstances={otherInstances} setId={setId} />
+                      onChange={v => setValue(field.key, v)} otherInstances={otherInstances} setId={setId}
+                      brokenPaths={brokenPaths} basePath={field.key} />
                   )
                 ) : field.type === 'image' ? (
                   <ImageField value={raw} onChange={v => setValue(field.key, v)} />

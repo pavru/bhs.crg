@@ -267,6 +267,27 @@ export interface ResolutionDiagnostic {
   severity: 'error' | 'warning';
   path: string;
   message: string;
+  /** Вид проблемы (issue #332): "leftover-ref" — висячая ссылка (цель удалена), "missing-required" — пустое обязательное. */
+  code?: string;
+}
+
+/**
+ * Общий кэш диагностики разрешения ссылок экземпляра (issue #332). Один фетч на instanceId —
+ * его читают И панель «Проверить ссылки», И индикаторы битых ссылок на полях (без второго запроса
+ * и расхождений). Автозапуск фоном при `enabled` (напр. когда в реквизитах есть ref-поля).
+ */
+export function useResolutionDiagnostics(instanceId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['resolution-diagnostics', instanceId],
+    queryFn: () => validateResolution(instanceId!),
+    enabled: !!instanceId && enabled,
+    staleTime: 30_000,
+  });
+}
+
+/** Пути битых ссылок (leftover-ref) из диагностики — для пометки полей. */
+export function brokenRefPaths(diagnostics: ResolutionDiagnostic[] | undefined): Set<string> {
+  return new Set((diagnostics ?? []).filter(d => d.code === 'leftover-ref').map(d => d.path));
 }
 
 export type PreviewResult =

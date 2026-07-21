@@ -5,11 +5,14 @@ import { isFieldRef, isInstanceRef } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 import { STATUS_COLORS, STATUS_LABELS } from './constants';
 import { InstancePickerModal } from './InstancePickerModal';
+import { BROKEN_PLATE, BROKEN_LABEL, BrokenRefNote } from './BrokenRef';
 
-export function DocRefField({ field, allDocTypes, value, onChange, otherInstances, setId }: {
+export function DocRefField({ field, allDocTypes, value, onChange, otherInstances, setId, broken = false }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
   onChange: (val: unknown) => void; otherInstances: DocumentInstance[];
   setId?: string;
+  /** Цель ссылки удалена (issue #332): для catalog — из backend-диагностики; instance-промах ловим сами. */
+  broken?: boolean;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const iRef = isInstanceRef(value) ? value : null;
@@ -19,6 +22,26 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
     const inst = otherInstances.find(i => i.id === iRef.instanceId);
     const dt = inst ? allDocTypes.find(t => t.id === inst.documentTypeId) : undefined;
     const label = inst?.name || dt?.name || iRef.displayName;
+    // Instance-промах ловим локально и бесплатно (данные комплекта уже в руках) — без похода в backend.
+    const isBroken = broken || !inst;
+    if (isBroken) {
+      return (
+        <div>
+          <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${BROKEN_PLATE}`}>
+            <FileText size={14} className="text-danger shrink-0" />
+            <span className={`flex-1 min-w-0 text-sm font-medium truncate ${BROKEN_LABEL}`}>{iRef.displayName}</span>
+            <button type="button" onClick={() => setPickerOpen(true)} title="Выбрать другой документ"
+              className="p-1 text-danger hover:text-fg1 transition-colors"><FileText size={13} /></button>
+            <button type="button" onClick={() => onChange(null)} title="Снять ссылку"
+              className="p-1 text-danger hover:text-fg1 transition-colors"><Unlink size={13} /></button>
+          </div>
+          <BrokenRefNote />
+          <InstancePickerModal open={pickerOpen} onOpenChange={setPickerOpen}
+            field={field} allDocTypes={allDocTypes} otherInstances={otherInstances}
+            setId={setId} onSelect={ref => onChange(ref)} />
+        </div>
+      );
+    }
     return (
       <div className="flex items-center gap-2 border border-indigo-200 rounded-lg px-3 py-2 bg-indigo-50">
         <FileText size={14} className="text-indigo-500 shrink-0" />
@@ -40,6 +63,19 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
   }
 
   if (cRef) {
+    if (broken) {
+      return (
+        <div>
+          <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${BROKEN_PLATE}`}>
+            <FileText size={14} className="text-danger shrink-0" />
+            <span className={`flex-1 min-w-0 text-sm font-medium truncate ${BROKEN_LABEL}`}>{cRef.displayName}</span>
+            <button type="button" onClick={() => onChange(null)} title="Снять ссылку"
+              className="p-1 text-danger hover:text-fg1 transition-colors"><Unlink size={13} /></button>
+          </div>
+          <BrokenRefNote />
+        </div>
+      );
+    }
     return (
       <div className="flex items-center gap-2 border border-warning-border rounded-lg px-3 py-2 bg-warning-subtle">
         <FileText size={14} className="text-warning shrink-0" />
@@ -68,10 +104,12 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
   );
 }
 
-export function DocArrayField({ field, allDocTypes, value, onChange, otherInstances, setId }: {
+export function DocArrayField({ field, allDocTypes, value, onChange, otherInstances, setId, brokenPaths, basePath }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
   onChange: (val: unknown[]) => void; otherInstances: DocumentInstance[];
   setId?: string;
+  /** Пути битых ссылок (issue #332) + базовый путь этого массива — для пометки конкретных элементов. */
+  brokenPaths?: Set<string>; basePath?: string;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const items = (Array.isArray(value) ? value : []).filter(isFieldRef);
@@ -106,6 +144,22 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
             const inst = !isCatalog ? otherInstances.find(inst => inst.id === ref.instanceId) : undefined;
             const dt = inst ? allDocTypes.find(t => t.id === inst.documentTypeId) : undefined;
             const label = inst?.name || dt?.name || ref.displayName;
+            // Битый элемент: instance-промах ловим локально; catalog — по backend-пути `basePath[i]`.
+            const itemBroken = (!isCatalog && !inst)
+              || (!!basePath && !!brokenPaths?.has(`${basePath}[${i}]`));
+            if (itemBroken) {
+              return (
+                <div key={i}>
+                  <div className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE}`}>
+                    <FileText size={13} className="text-danger shrink-0" />
+                    <span className={`flex-1 min-w-0 text-sm truncate ${BROKEN_LABEL}`}>{ref.displayName}</span>
+                    <button type="button" onClick={() => removeRef(i)}
+                      className="p-1 text-danger hover:text-fg1 shrink-0"><Trash2 size={13} /></button>
+                  </div>
+                  <BrokenRefNote compact />
+                </div>
+              );
+            }
             return (
               <div key={i} className="flex items-center gap-2 px-3 py-2">
                 <FileText size={13} className={isCatalog ? 'text-warning shrink-0' : 'text-indigo-400 shrink-0'} />

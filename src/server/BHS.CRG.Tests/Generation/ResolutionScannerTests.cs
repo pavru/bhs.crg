@@ -40,5 +40,24 @@ public class ResolutionScannerTests
         Assert.DoesNotContain(diags, d => d.Path == "Заполнено");
         Assert.DoesNotContain(diags, d => d.Path == "Необязательное");
         Assert.Equal(3, diags.Count);
+        // issue #332: незаполненное обязательное помечается кодом missing-required (не leftover-ref).
+        Assert.All(diags, d => Assert.Equal("missing-required", d.Code));
+    }
+
+    [Fact]
+    public void ScanLeftoverRefs_FlagsUnresolvedRef_WithLeftoverRefCode()
+    {
+        // Ссылка, оставшаяся неразрешённой после резолва (цель удалена) — issue #332 code=leftover-ref.
+        var ctx = new GenerationContext();
+        ctx.Set("Подрядчик", Json("{\"$ref\":\"catalog\",\"entryId\":\"00000000-0000-0000-0000-000000000001\"}"));
+        ctx.Set("Обычное", Json("\"текст\""));
+
+        var diags = new List<ResolutionDiagnostic>();
+        ResolutionScanner.ScanLeftoverRefs(ctx, diags);
+
+        var d = Assert.Single(diags);
+        Assert.Equal("Подрядчик", d.Path);
+        Assert.Equal(DiagnosticSeverity.Error, d.Severity);
+        Assert.Equal("leftover-ref", d.Code);
     }
 }
