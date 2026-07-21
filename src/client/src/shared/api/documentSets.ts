@@ -137,7 +137,11 @@ export function useUpdateRequisites() {
       apiClient
         .put<DocumentInstance>(`/document-sets/${setId}/documents/${instanceId}/requisites`, requisites)
         .then((r) => r.data),
-    onSuccess: (_d, { setId }) => qc.invalidateQueries({ queryKey: ['document-sets', setId] }),
+    onSuccess: (_d, { setId, instanceId }) => {
+      qc.invalidateQueries({ queryKey: ['document-sets', setId] });
+      // Реквизиты изменились → диагностика битых ссылок могла устареть (issue #332/#334): перепроверить.
+      qc.invalidateQueries({ queryKey: ['resolution-diagnostics', instanceId] });
+    },
   });
 }
 
