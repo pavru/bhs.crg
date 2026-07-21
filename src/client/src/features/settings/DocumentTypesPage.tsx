@@ -5,6 +5,7 @@ import {
   Braces, RotateCcw, Code, Database, Cpu, HelpCircle, RefreshCw,
 } from 'lucide-react';
 import { Switch } from '@/shared/ui/Switch';
+import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { Markdown } from '@/shared/ui/Markdown';
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
 import { Modal } from '@/shared/ui/Modal';
@@ -862,6 +863,12 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   // тот же диалог. `routeLeave` хранит отложенный переход (proceed).
   const [routeLeave, setRouteLeave] = useState<(() => void) | null>(null);
   useLeaveGuard(anyDirty, (proceed) => setRouteLeave(() => proceed));
+
+  // Заголовок вкладки: выбранный тип замещает раздел.
+  const selectedType = allDocTypes.find(dt => dt.id === selectedId);
+  useDocumentTitle(selectedType
+    ? `${kind === 'Composite' ? 'Составной тип' : 'Тип'} «${selectedType.name}»`
+    : null);
 
   const filtered = allDocTypes
     .filter(dt => dt.kind === kind)

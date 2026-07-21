@@ -13,6 +13,7 @@ import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { useToast } from '@/shared/ui/Toast';
+import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { CopyDocumentDialog } from './CopyDocumentDialog';
 import { MoveDocumentDialog } from './MoveDocumentDialog';
 import { CatalogResource } from './catalog/CatalogResource';
@@ -102,6 +103,12 @@ function SetDetail() {
       setSearchParams(prev => { prev.delete('doc'); return prev; }, { replace: true });
     }
   }, [docParam, set, setSearchParams]);
+
+  // Заголовок вкладки: открытый документ замещает имя комплекта («Документ — «Комплект»»).
+  const openDocName = editInstance
+    ? (editInstance.name || docTypes.find(t => t.id === editInstance.documentTypeId)?.name || 'Документ')
+    : null;
+  useDocumentTitle(set ? (openDocName ? `${openDocName} — «${set.name}»` : `Комплект «${set.name}»`) : null);
 
   if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
   if (!set) return <div className="p-6 text-sm text-danger">Комплект не найден</div>;
@@ -492,6 +499,11 @@ function SectionDetail() {
   const renameSection = useRenameSection();
   const deleteSection = useDeleteSection();
 
+  useDocumentTitle((() => {
+    const s = construction?.sections.find(s => s.id === sectionId);
+    return s ? `Раздел «${s.name}»` : null;
+  })());
+
   if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
   if (!construction) return <div className="p-6 text-sm text-danger">Стройка не найдена</div>;
   const section = construction.sections.find(s => s.id === sectionId);
@@ -661,6 +673,8 @@ function ConstructionDetail() {
       navigate(`/document-sets/${constructionId}/sections/${s.id}`);
     } catch (err: unknown) { setSectionError(err instanceof Error ? err.message : 'Ошибка'); }
   }
+
+  useDocumentTitle(construction ? `Стройка «${construction.name}»` : null);
 
   if (isLoading) return <div className="p-6 text-sm text-fg4">Загрузка...</div>;
   if (!construction) return <div className="p-6 text-sm text-danger">Стройка не найдена</div>;

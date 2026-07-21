@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Library } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
@@ -81,6 +82,13 @@ export function TemplatesPage() {
 
   const selectedDocType = docTypes.find(dt => dt.id === selectedTypeId) ?? null;
   const groups = groupTemplates(templates);
+
+  // Заголовок вкладки: библиотека / выбранный шаблон / просматриваемый тип замещают раздел.
+  useDocumentTitle(
+    mode === 'userlib' ? 'Библиотека Typst'
+    : selectedTemplate ? `Шаблон «${selectedTemplate.name}»`
+    : selectedDocType ? selectedDocType.name
+    : null);
 
   useEffect(() => { setSelectedTemplate(null); }, [selectedTypeId]);
 
