@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { useTheme } from '@/shared/ui/ThemeProvider';
+import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { Button } from '@/shared/ui/Button';
 import { Save } from 'lucide-react';
 import { useTypstUserLib, useSaveTypstUserLib } from '@/shared/api/typstUserLib';
@@ -10,6 +11,7 @@ import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 
 export function UserLibPanel() {
   const { resolvedTheme } = useTheme();
+  useUserLibCompletion();
   const { data: serverContent = '', isLoading } = useTypstUserLib();
   const saveMutation = useSaveTypstUserLib();
   const [content, setContent] = useState('');
