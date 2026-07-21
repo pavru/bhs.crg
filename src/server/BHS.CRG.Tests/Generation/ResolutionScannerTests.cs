@@ -41,18 +41,4 @@ public class ResolutionScannerTests
         Assert.DoesNotContain(diags, d => d.Path == "Необязательное");
         Assert.Equal(3, diags.Count);
     }
-
-    [Fact] // issue #322: marker (union-указатель) НЕ висячая ссылка — не флагаем; обычный leftover-ref — ошибка.
-    public void ScanLeftoverRefs_SkipsMarker_FlagsUnresolved()
-    {
-        var ctx = new GenerationContext();
-        ctx.Set("Указатель", Json("{\"$ref\":\"marker\",\"instanceId\":\"x\",\"displayName\":\"Реестр\"}"));
-        ctx.Set("Битая", Json("{\"$ref\":\"instance\",\"instanceId\":\"y\"}"));
-
-        var diags = new List<ResolutionDiagnostic>();
-        ResolutionScanner.ScanLeftoverRefs(ctx, diags);
-
-        Assert.DoesNotContain(diags, d => d.Path == "Указатель"); // marker — валидное значение
-        Assert.Contains(diags, d => d.Path == "Битая" && d.Severity == DiagnosticSeverity.Error);
-    }
 }

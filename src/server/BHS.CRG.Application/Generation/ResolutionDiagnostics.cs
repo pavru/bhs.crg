@@ -74,10 +74,6 @@ public static class ResolutionScanner
                 if (el.TryGetProperty("$ref", out var refProp))
                 {
                     var kind = refProp.GetString();
-                    // marker (issue #320, #322) — намеренный указатель-ссылка union-варианта: резолвер его
-                    // осознанно НЕ разворачивает (шаблон печатает displayName). Это валидное значение, а
-                    // не висячая ссылка — не флагаем (иначе ложная ошибка + блок генерации).
-                    if (kind == "marker") return;
                     var target = el.TryGetProperty("entryId", out var eid) ? eid.GetString()
                         : el.TryGetProperty("instanceId", out var iid) ? iid.GetString()
                         : null;
