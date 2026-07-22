@@ -30,6 +30,11 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
   const [y, setY] = useState('');
   const [focused, setFocused] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  // Контейнер портала календаря: если поле внутри нашей модалки (Radix Dialog) — портируем В неё,
+  // чтобы поповер жил ВНУТРИ её focus-scope (иначе trap модалки выдёргивает фокус, клавиатура мертва).
+  // Вне модалки — обычный портал в body (undefined). Считаем при открытии (issue #338).
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
   const showMonth = precision !== 'year';
   const showDay = precision === 'day';
@@ -150,7 +155,7 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
   }
 
   const segments = (
-    <div className={`flex items-center group ${className}`} onKeyDown={onContainerKey}>
+    <div ref={anchorRef} className={`flex items-center group ${className}`} onKeyDown={onContainerKey}>
       {showDay && (
         <>
           <input
@@ -211,12 +216,18 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
 
   if (!calendar) return segments;
 
+  function handleOpenChange(o: boolean) {
+    if (o) setPortalContainer((anchorRef.current?.closest('[role="dialog"]') as HTMLElement) ?? null);
+    setPickerOpen(o);
+  }
+
   return (
-    <Popover.Root open={pickerOpen} onOpenChange={setPickerOpen}>
+    <Popover.Root open={pickerOpen} onOpenChange={handleOpenChange}>
       <Popover.Anchor asChild>{segments}</Popover.Anchor>
-      <Popover.Portal>
-        <Popover.Content align="start" sideOffset={6} onOpenAutoFocus={e => e.preventDefault()}
-          className="z-50 rounded-2xl bg-surface border border-stroke focus:outline-none" style={{ boxShadow: 'var(--f-shadow16)' }}>
+      <Popover.Portal container={portalContainer ?? undefined}>
+        <Popover.Content align="start" sideOffset={6}
+          className="z-50 rounded-2xl bg-surface border border-stroke focus:outline-none"
+          style={{ boxShadow: 'var(--f-shadow16)' }}>
           <Calendar value={value} precision={precision}
             onSelect={iso => onChange(iso)} onClose={() => setPickerOpen(false)} />
         </Popover.Content>
