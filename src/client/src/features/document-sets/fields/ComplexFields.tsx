@@ -97,12 +97,12 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
     );
   }
   if (field.type === 'date') {
-    return <DateInput value={strVal} onChange={v => onChange(v)}
+    return <DateInput value={strVal} onChange={v => onChange(v)} compact
       className="w-full h-full flex items-center px-1.5 focus-within:bg-brand-subtle" />;
   }
   // primitive-тип на базе date (issue #60) — иначе рендерился обычным текст-инпутом без DateInput/точности
   if (field.type === 'primitive' && primitiveTypeDef?.baseType === 'date') {
-    return <DateInput value={strVal} onChange={v => onChange(v)}
+    return <DateInput value={strVal} onChange={v => onChange(v)} compact
       precision={primitiveTypeDef.constraints.datePrecision ?? 'day'}
       className="w-full h-full flex items-center px-1.5 focus-within:bg-brand-subtle" />;
   }

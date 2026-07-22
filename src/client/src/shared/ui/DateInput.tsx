@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import * as Popover from '@radix-ui/react-popover';
+import { CalendarDays } from 'lucide-react';
 import type { DatePrecision } from '@/shared/api/types';
+import { Calendar } from './Calendar';
 
 interface DateInputProps {
   /** Stored value: ISO YYYY-MM-DD or '' (always full ISO, независимо от точности) */
@@ -15,13 +18,23 @@ interface DateInputProps {
   /** Applied to the outer container div (border, bg, padding, focus-within:ring, width) */
   className?: string;
   disabled?: boolean;
+  /** Показывать иконку-триггер календаря (docked date picker, issue #338). По умолчанию — да. */
+  calendar?: boolean;
+  /** Компактный режим (ячейка таблицы): иконка появляется по hover/focus, не занимает место постоянно. */
+  compact?: boolean;
 }
 
-export function DateInput({ value, onChange, precision = 'day', className = '', disabled = false }: DateInputProps) {
+export function DateInput({ value, onChange, precision = 'day', className = '', disabled = false, calendar = true, compact = false }: DateInputProps) {
   const [d, setD] = useState('');
   const [m, setM] = useState('');
   const [y, setY] = useState('');
   const [focused, setFocused] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  // Контейнер портала календаря: если поле внутри нашей модалки (Radix Dialog) — портируем В неё,
+  // чтобы поповер жил ВНУТРИ её focus-scope (иначе trap модалки выдёргивает фокус, клавиатура мертва).
+  // Вне модалки — обычный портал в body (undefined). Считаем при открытии (issue #338).
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
   const showMonth = precision !== 'year';
   const showDay = precision === 'day';
@@ -136,8 +149,13 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
     'rounded-sm tabular-nums',
   ].join(' ');
 
-  return (
-    <div className={`flex items-center ${className}`}>
+  // Alt+↓ из любого сегмента открывает календарь (штатный MD3-жест).
+  function onContainerKey(e: React.KeyboardEvent) {
+    if (calendar && !disabled && e.altKey && e.key === 'ArrowDown') { e.preventDefault(); setPickerOpen(true); }
+  }
+
+  const segments = (
+    <div ref={anchorRef} className={`flex items-center group ${className}`} onKeyDown={onContainerKey}>
       {showDay && (
         <>
           <input
@@ -184,6 +202,36 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
         onBlur={onBlur}
         className={seg}
       />
+      {calendar && (
+        <Popover.Trigger asChild>
+          <button type="button" disabled={disabled} aria-label="Открыть календарь"
+            className={`ml-1 shrink-0 flex items-center justify-center h-5 w-5 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+              compact ? 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100' : ''}`}>
+            <CalendarDays size={compact ? 13 : 14} />
+          </button>
+        </Popover.Trigger>
+      )}
     </div>
+  );
+
+  if (!calendar) return segments;
+
+  function handleOpenChange(o: boolean) {
+    if (o) setPortalContainer((anchorRef.current?.closest('[role="dialog"]') as HTMLElement) ?? null);
+    setPickerOpen(o);
+  }
+
+  return (
+    <Popover.Root open={pickerOpen} onOpenChange={handleOpenChange}>
+      <Popover.Anchor asChild>{segments}</Popover.Anchor>
+      <Popover.Portal container={portalContainer ?? undefined}>
+        <Popover.Content align="start" sideOffset={6}
+          className="z-50 rounded-2xl bg-surface border border-stroke focus:outline-none"
+          style={{ boxShadow: 'var(--f-shadow16)' }}>
+          <Calendar value={value} precision={precision}
+            onSelect={iso => onChange(iso)} onClose={() => setPickerOpen(false)} />
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
