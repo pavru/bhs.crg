@@ -324,6 +324,32 @@ export async function previewDocument(instanceId: string, requisites: unknown): 
   }
 }
 
+/** Аудит одного документа (issue #352): расхождения его данных с текущей схемой. По требованию. */
+export function useAuditInstance(setId: string, instanceId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['instance-audit', instanceId],
+    enabled: !!instanceId && enabled,
+    staleTime: 0,
+    queryFn: () => apiClient
+      .get<import('./documentTypes').AuditFinding[]>(`/document-sets/${setId}/documents/${instanceId}/audit`)
+      .then(r => r.data),
+  });
+}
+
+/** Применение исправлений к ЭТОМУ документу (issue #352) — юзер лечит свой документ без админа. */
+export function useApplyInstanceAuditFixes(setId: string, instanceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (fixes: { action: 'remove' | 'rename'; path: string; targetKey?: string }[]) =>
+      apiClient.post<import('./documentTypes').ApplyAuditFixesResult>(
+        `/document-sets/${setId}/documents/${instanceId}/audit/apply`, { fixes }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['instance-audit', instanceId] });
+      qc.invalidateQueries({ queryKey: ['document-sets', setId] });
+    },
+  });
+}
+
 /** Проверяет разрешение ссылок экземпляра «по требованию» (warning/error). */
 export async function validateResolution(instanceId: string): Promise<ResolutionDiagnostic[]> {
   const r = await apiClient.get<ResolutionDiagnostic[]>(`/generate/validate/${instanceId}`);

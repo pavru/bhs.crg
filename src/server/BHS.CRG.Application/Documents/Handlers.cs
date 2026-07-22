@@ -30,8 +30,19 @@ public class DocumentTypeHandlers(
     IRequestHandler<GetDocumentTypeQuery, DocumentType?>,
     IRequestHandler<GetDocumentTypeUsageQuery, DocumentTypeUsage>,
     IRequestHandler<AuditDocumentTypeQuery, DocumentTypeAuditReport>,
+    IRequestHandler<AuditInstanceQuery, IReadOnlyList<AuditFinding>>,
     IRequestHandler<ApplyAuditFixesCommand, ApplyAuditFixesResult>
 {
+    public async Task<IReadOnlyList<AuditFinding>> Handle(AuditInstanceQuery q, CancellationToken ct)
+    {
+        var inst = await objectRepo.GetByIdAsync(q.InstanceId, ct)
+            ?? throw new KeyNotFoundException($"Instance {q.InstanceId} not found");
+        var byId = (await repo.GetAllAsync(ct)).ToDictionary(t => t.Id);
+        return Schema.SchemaDataAuditor.Audit(inst.Data.RootElement, inst.CompositeTypeId, byId)
+            .Select(iss => new AuditFinding(inst.Id, inst.DisplayName, iss.Code, iss.Severity.ToString(), iss.Path, iss.Message))
+            .ToList();
+    }
+
     public async Task<ApplyAuditFixesResult> Handle(ApplyAuditFixesCommand cmd, CancellationToken ct)
     {
         var outcomes = new List<AuditFixOutcome>();

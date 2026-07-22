@@ -155,6 +155,22 @@ public static class DocumentSetEndpoints
                 => Results.Ok(InstanceDto.From(await m.Send(new UpdateRequisitesCommand(
                     id, JsonDocument.Parse(body.GetRawText()))))));
 
+        // Аудит одного документа (issue #352) — пользовательский режим: юзер видит расхождения своего
+        // документа с текущей схемой и лечит их сам (те же фиксы, что у типового аудита, но по инстансу).
+        g.MapGet("/{setId:guid}/documents/{id:guid}/audit", async (Guid id, IMediator m) =>
+        {
+            try { return Results.Ok(await m.Send(new AuditInstanceQuery(id))); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+        });
+
+        // Применение исправлений к ЭТОМУ документу. instanceId жёстко берём из маршрута (клиент не может
+        // подсунуть чужой) — фиксы несут только action/path/targetKey.
+        g.MapPost("/{setId:guid}/documents/{id:guid}/audit/apply", async (Guid id, InstanceAuditApplyRequest req, IMediator m) =>
+        {
+            var fixes = req.Fixes.Select(f => new AuditFix(id, f.Action, f.Path, f.TargetKey)).ToList();
+            return Results.Ok(await m.Send(new ApplyAuditFixesCommand(fixes)));
+        });
+
         g.MapPut("/{setId:guid}/documents/{id:guid}/plugin-data",
             async (Guid id, JsonElement body, IMediator m)
                 => Results.Ok(InstanceDto.From(await m.Send(new UpdatePluginDataCommand(
@@ -265,5 +281,7 @@ public static class DocumentSetEndpoints
     record RenameDocumentInstanceRequest(string? Name);
     record SetTemplateRequest(Guid? TemplateId);
     record AssembleSetRequest(Guid[]? InstanceIds);
+    record InstanceAuditApplyRequest(IReadOnlyList<InstanceAuditFixItem> Fixes);
+    record InstanceAuditFixItem(string Action, string Path, string? TargetKey);
     record EmailSendRequest(string[]? To, string? Subject, string? Body);
 }
