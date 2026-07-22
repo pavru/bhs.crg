@@ -40,6 +40,19 @@ public record DocumentTypeAuditReport(Guid TypeId, string TypeName, int Instance
 /// Path (JSON-путь в данных), Message. InstanceId/InstanceName — где найдено.
 public record AuditFinding(Guid InstanceId, string InstanceName, string Code, string Severity, string Path, string Message);
 
+/// Применение исправлений аудита (issue #350). Мутирует реквизиты инстансов по JSON-пути, атомарно
+/// (одна SaveChanges). Батч = список фиксов; фронт разворачивает «применить ко всем» в per-instance.
+public record ApplyAuditFixesCommand(IReadOnlyList<AuditFix> Fixes) : IRequest<ApplyAuditFixesResult>;
+
+/// Одно исправление: Action = "remove" (удалить осиротевший ключ / очистить невалидное) или
+/// "rename" (переместить значение в поле схемы TargetKey, только если цель пуста). Path — JSON-путь.
+public record AuditFix(Guid InstanceId, string Action, string Path, string? TargetKey = null);
+
+public record ApplyAuditFixesResult(int Applied, int Skipped, IReadOnlyList<AuditFixOutcome> Outcomes);
+
+/// Итог одного исправления: применено ли, причина пропуска, старое значение (журнал для отката вручную).
+public record AuditFixOutcome(Guid InstanceId, string Path, string Action, bool Applied, string? Reason, string? OldValue);
+
 // --- Construction ---
 public record CreateConstructionCommand(string Name, Guid UserId) : IRequest<Construction>;
 public record RenameConstructionCommand(Guid Id, string Name) : IRequest<Construction>;

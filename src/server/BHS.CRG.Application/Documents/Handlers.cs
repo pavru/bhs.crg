@@ -29,8 +29,51 @@ public class DocumentTypeHandlers(
     IRequestHandler<ListDocumentTypesQuery, IReadOnlyList<DocumentType>>,
     IRequestHandler<GetDocumentTypeQuery, DocumentType?>,
     IRequestHandler<GetDocumentTypeUsageQuery, DocumentTypeUsage>,
-    IRequestHandler<AuditDocumentTypeQuery, DocumentTypeAuditReport>
+    IRequestHandler<AuditDocumentTypeQuery, DocumentTypeAuditReport>,
+    IRequestHandler<ApplyAuditFixesCommand, ApplyAuditFixesResult>
 {
+    public async Task<ApplyAuditFixesResult> Handle(ApplyAuditFixesCommand cmd, CancellationToken ct)
+    {
+        var outcomes = new List<AuditFixOutcome>();
+        var touched = false;
+        // Группируем по инстансу — одну загрузку/мутацию Data на инстанс. Осиротевшие пути — ключи
+        // объектов (не индексы массива), поэтому порядок применения внутри инстанса не сдвигает пути.
+        foreach (var grp in cmd.Fixes.GroupBy(f => f.InstanceId))
+        {
+            var inst = await objectRepo.GetByIdAsync(grp.Key, ct);
+            if (inst is null)
+            {
+                foreach (var f in grp) outcomes.Add(new(f.InstanceId, f.Path, f.Action, false, "Инстанс не найден", null));
+                continue;
+            }
+            var root = System.Text.Json.Nodes.JsonNode.Parse(inst.Data.RootElement.GetRawText()) as System.Text.Json.Nodes.JsonObject
+                ?? new System.Text.Json.Nodes.JsonObject();
+            var changed = false;
+            foreach (var f in grp)
+            {
+                bool ok; string? oldVal = null; string? reason = null;
+                if (f.Action == "remove")
+                {
+                    ok = Schema.JsonPathEditor.Remove(root, f.Path, out oldVal);
+                    if (!ok) reason = "Значение уже отсутствует.";
+                }
+                else if (f.Action == "rename" && !string.IsNullOrWhiteSpace(f.TargetKey))
+                    ok = Schema.JsonPathEditor.Rename(root, f.Path, f.TargetKey!, out oldVal, out reason);
+                else { ok = false; reason = "Неизвестное действие."; }
+                outcomes.Add(new(f.InstanceId, f.Path, f.Action, ok, reason, oldVal));
+                changed |= ok;
+            }
+            if (changed)
+            {
+                inst.SetData(System.Text.Json.JsonDocument.Parse(root.ToJsonString()));
+                objectRepo.Update(inst);
+                touched = true;
+            }
+        }
+        if (touched) await objectRepo.SaveChangesAsync(ct); // атомарно: один SaveChanges на все мутации
+        return new(outcomes.Count(o => o.Applied), outcomes.Count(o => !o.Applied), outcomes);
+    }
+
     public async Task<DocumentTypeAuditReport> Handle(AuditDocumentTypeQuery q, CancellationToken ct)
     {
         var all = await repo.GetAllAsync(ct);

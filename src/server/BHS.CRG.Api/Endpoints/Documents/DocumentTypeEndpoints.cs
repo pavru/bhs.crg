@@ -79,6 +79,10 @@ public static class DocumentTypeEndpoints
             catch (KeyNotFoundException) { return Results.NotFound(); }
         });
 
+        // Применение исправлений аудита (issue #350) — мутирует реквизиты инстансов, атомарно.
+        admin.MapPost("/{id:guid}/audit/apply", async (Guid id, ApplyAuditFixesRequest req, IMediator m)
+            => Results.Ok(await m.Send(new ApplyAuditFixesCommand(req.Fixes))));
+
         // Использование типа (issue #275) — проактивный показ «чем занят тип» до попытки удаления.
         admin.MapGet("/{id:guid}/usage", async (Guid id, IMediator m) =>
         {
@@ -99,4 +103,5 @@ public static class DocumentTypeEndpoints
     record SetAbstractRequest(bool IsAbstract);
     record SetAllowsProxyRequest(bool AllowsProxy);
     record SetGroupRequest(string? Group);
+    record ApplyAuditFixesRequest(IReadOnlyList<AuditFix> Fixes);
 }

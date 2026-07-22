@@ -826,7 +826,9 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
       {templatesOpen && (
         <BindingTemplatesDialog docType={docType} allDocTypes={allDocTypes} onClose={() => setTemplatesOpen(false)} />
       )}
-      <TypeAuditModal typeId={docType.id} typeName={docType.name} open={auditOpen} onClose={() => setAuditOpen(false)} />
+      <TypeAuditModal typeId={docType.id} typeName={docType.name}
+        schemaFieldKeys={effectiveFields.map(f => f.key)}
+        open={auditOpen} onClose={() => setAuditOpen(false)} />
       <ConfirmDialog
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
