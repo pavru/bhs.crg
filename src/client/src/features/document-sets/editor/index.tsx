@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Loader2, FileText, Download, Eye, Pencil, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Circle, CircleDot, Mail, Database, X, Info, ChevronDown, ChevronRight } from 'lucide-react';
+import { Loader2, FileText, Download, Eye, Pencil, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Circle, CircleDot, Mail, Database, X, Info, ChevronDown, ChevronRight, Stethoscope } from 'lucide-react';
 import { Markdown } from '@/shared/ui/Markdown';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useEmailDocument } from '@/shared/api/documentSets';
@@ -32,6 +32,7 @@ import {
 import { ruCount } from '@/shared/utils/pluralize';
 import { DataSetsTab } from './DataSetsTab';
 import { DocumentPreviewPanel } from './DocumentPreviewPanel';
+import { InstanceAuditModal } from './InstanceAuditModal';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
 import { mergeBindingPreviewsIntoValues } from '@/shared/api/datasetHelpers';
 import { QualityLinksTab } from './QualityLinksTab';
@@ -716,7 +717,8 @@ function extractDiagnostics(err: unknown): ResolutionDiagnostic[] | null {
   return Array.isArray(data?.diagnostics) ? data!.diagnostics! : null;
 }
 
-function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId: string }) {
+function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: DocumentInstance; setId: string; schemaFieldKeys: string[] }) {
+  const [auditOpen, setAuditOpen] = useState(false);
   const { user } = useAuth();
   const isAdmin = user?.role === 'Admin';
   const [emailOpen, setEmailOpen] = useState(false);
@@ -852,6 +854,13 @@ function GenerationTab({ instance, setId }: { instance: DocumentInstance; setId:
           icon={<ShieldCheck size={14} />}>
           Проверить ссылки
         </Button>
+        <Button variant="outlined" onClick={() => setAuditOpen(true)}
+          title="Найти в документе поля, которых нет в текущей схеме типа, и исправить"
+          icon={<Stethoscope size={14} />}>
+          Аудит документа
+        </Button>
+        <InstanceAuditModal setId={setId} instanceId={instance.id} docName={instance.name || 'без названия'}
+          schemaFieldKeys={schemaFieldKeys} open={auditOpen} onClose={() => setAuditOpen(false)} />
         <Button variant="outlined" onClick={handleDebugBundle} disabled={debugBusy || noTemplates}
           loading={debugBusy}
           title="Скачать ZIP с template.typ, data.json, typeblocks.typ и userlib.typ для отладки во внешнем инструменте (typst compile template.typ)"
@@ -1145,7 +1154,7 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
       )}
       {tab === 'generation' && (
         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
-          <GenerationTab instance={instance} setId={setId} />
+          <GenerationTab instance={instance} setId={setId} schemaFieldKeys={schemaFields.map(f => f.key)} />
         </div>
       )}
 

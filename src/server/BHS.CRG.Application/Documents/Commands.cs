@@ -40,6 +40,10 @@ public record DocumentTypeAuditReport(Guid TypeId, string TypeName, int Instance
 /// Path (JSON-путь в данных), Message. InstanceId/InstanceName — где найдено.
 public record AuditFinding(Guid InstanceId, string InstanceName, string Code, string Severity, string Path, string Message);
 
+/// Аудит ОДНОГО инстанса (issue #352) — пользовательский режим: юзер «лечит» свой документ без
+/// админа. Те же расхождения, что и типовой аудит, но для конкретного инстанса.
+public record AuditInstanceQuery(Guid InstanceId) : IRequest<IReadOnlyList<AuditFinding>>;
+
 /// Применение исправлений аудита (issue #350). Мутирует реквизиты инстансов по JSON-пути, атомарно
 /// (одна SaveChanges). Батч = список фиксов; фронт разворачивает «применить ко всем» в per-instance.
 public record ApplyAuditFixesCommand(IReadOnlyList<AuditFix> Fixes) : IRequest<ApplyAuditFixesResult>;
