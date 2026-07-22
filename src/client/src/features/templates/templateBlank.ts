@@ -39,7 +39,10 @@ export function buildBlankTypst(name: string, docType: DocumentType, allDocTypes
   // First scalar field to use in the title example
   const firstField = scalarFields[0]?.path ?? 'Наименование';
 
-  return `// ════════════════════════════════════════════════════════════════════
+  return `#import "systemlib.typ": *
+#import "typeblocks.typ": *
+
+// ════════════════════════════════════════════════════════════════════
 // Шаблон : ${name}
 // Тип    : ${docType.name} (${docType.code})
 // Движок : Typst 0.15  https://typst.app/docs

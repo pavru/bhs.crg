@@ -2,7 +2,7 @@ using BHS.CRG.Application.Generation;
 
 namespace BHS.CRG.Tests.Generation;
 
-/// <summary>Системная Typst-библиотека (issue #344): авто-префикс импортов + офсет строк.</summary>
+/// <summary>Системная Typst-библиотека (issue #344/#353): содержимое + стандартные импорты при создании.</summary>
 public class SystemTypstLibTests
 {
     [Fact]
@@ -12,21 +12,24 @@ public class SystemTypstLibTests
     }
 
     [Fact]
-    public void ComposeTemplate_PrependsSystemlibAndTypeblocksImports_ThenTemplateVerbatim()
+    public void EnsureImports_PrependsSystemlibAndTypeblocks()
     {
-        var tpl = "#set page(width: 10cm)\n= Заголовок\n";
-        var composed = SystemTypstLib.ComposeTemplate(tpl);
-        Assert.StartsWith("#import \"systemlib.typ\": *\n#import \"typeblocks.typ\": *\n", composed);
-        Assert.EndsWith(tpl, composed);                 // шаблон дословно в хвосте
+        var content = "= Заголовок\n";
+        var result = SystemTypstLib.EnsureImports(content);
+        Assert.StartsWith("#import \"systemlib.typ\": *\n#import \"typeblocks.typ\": *\n", result);
+        Assert.EndsWith(content, result);
     }
 
     [Fact]
-    public void PreludeLineCount_MatchesPrependedLines()
+    public void EnsureImports_Idempotent_WhenSystemlibAlreadyImported()
     {
-        // Офсет для сдвига номеров строк ошибок = число добавленных строк префикса.
-        Assert.Equal(2, SystemTypstLib.PreludeLineCount);
-        var composed = SystemTypstLib.ComposeTemplate("X");
-        // Строка редактора N → строка composed (N + PreludeLineCount): "X" (ред. строка 1) на 3-й строке.
-        Assert.Equal("X", composed.Split('\n')[SystemTypstLib.PreludeLineCount]);
+        var content = "#import \"systemlib.typ\": *\n#import \"typeblocks.typ\": *\n= Тело\n";
+        Assert.Equal(content, SystemTypstLib.EnsureImports(content)); // не дублируем
+    }
+
+    [Fact]
+    public void EnsureImports_EmptyContent_GetsImports()
+    {
+        Assert.Contains("#import \"systemlib.typ\": *", SystemTypstLib.EnsureImports(""));
     }
 }

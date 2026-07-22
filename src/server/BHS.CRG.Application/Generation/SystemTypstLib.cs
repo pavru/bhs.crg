@@ -22,17 +22,14 @@ public static class SystemTypstLib
         "//   #if instance-of(it, \"Организация\") [ … ]  — сработает и для потомков «Подрядчик»/«Проектировщик».\n" +
         "#let instance-of(it, code) = type(it) == dictionary and code in it.at(\"_type\", default: (:)).at(\"chain\", default: ())\n";
 
-    /// <summary>Импорты, авто-подставляемые в НАЧАЛО шаблона при компиляции: systemlib + typeblocks.
-    /// Повторный импорт идемпотентен → старые шаблоны с ручным <c>#import "typeblocks.typ"</c> не ломаются,
-    /// новым импорты писать не нужно.</summary>
+    /// <summary>Стандартные импорты, которые вставляются в НАЧАЛО шаблона ТОЛЬКО ПРИ СОЗДАНИИ шаблона
+    /// (issue #353): systemlib + typeblocks. Компиляция/превью/debug-bundle шаблон НЕ трогают — он
+    /// компилируется дословно, поэтому импорты обязаны жить в самом содержимом шаблона.</summary>
     public static readonly string Prelude =
         $"#import \"{FileName}\": *\n#import \"typeblocks.typ\": *\n";
 
-    /// <summary>Число строк префикса — константный офсет для сдвига номеров строк ошибок Typst обратно
-    /// на строки РЕДАКТОРА (template.typ пишется с префиксом, а автор видит шаблон без него).</summary>
-    public static readonly int PreludeLineCount = Prelude.Count(c => c == '\n');
-
-    /// <summary>Компилируемое содержимое: префикс импортов + шаблон ДОСЛОВНО (единый источник для
-    /// генерации и debug-bundle — иначе отладка расходится с генерацией).</summary>
-    public static string ComposeTemplate(string templateContent) => Prelude + templateContent;
+    /// <summary>Добавляет стандартные импорты в начало содержимого нового шаблона — идемпотентно
+    /// (если systemlib уже импортирован, не дублируем).</summary>
+    public static string EnsureImports(string content)
+        => content.Contains($"\"{FileName}\"") ? content : Prelude + (content ?? "");
 }
