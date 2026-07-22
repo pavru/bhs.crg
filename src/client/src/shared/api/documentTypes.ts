@@ -110,6 +110,23 @@ export function useAuditDocumentType(id: string | undefined, enabled: boolean) {
   });
 }
 
+export interface AuditFix { instanceId: string; action: 'remove' | 'rename'; path: string; targetKey?: string }
+export interface AuditFixOutcome { instanceId: string; path: string; action: string; applied: boolean; reason?: string; oldValue?: string }
+export interface ApplyAuditFixesResult { applied: number; skipped: number; outcomes: AuditFixOutcome[] }
+
+/** Применение исправлений аудита (issue #350) — мутирует данные инстансов; инвалидирует отчёт и наборы. */
+export function useApplyAuditFixes(typeId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (fixes: AuditFix[]) =>
+      apiClient.post<ApplyAuditFixesResult>(`/document-types/${typeId}/audit/apply`, { fixes }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['document-type-audit', typeId] });
+      qc.invalidateQueries({ queryKey: ['document-sets'] });
+    },
+  });
+}
+
 export function useDeleteDocumentType() {
   const qc = useQueryClient();
   return useMutation({
