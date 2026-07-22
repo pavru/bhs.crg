@@ -48,9 +48,14 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
 
             await File.WriteAllTextAsync(Path.Combine(tmpDir, "data.json"), dataJson, ct);
 
+            // template.typ = префикс системных импортов + шаблон дословно (issue #344). Так systemlib
+            // и typeblocks доступны без ручного импорта; номера строк ошибок сдвигаем обратно (ниже).
             await File.WriteAllTextAsync(
                 Path.Combine(tmpDir, "template.typ"),
-                request.TemplateContent, Encoding.UTF8, ct);
+                SystemTypstLib.ComposeTemplate(request.TemplateContent), Encoding.UTF8, ct);
+
+            // systemlib.typ — системная библиотека (хардкод, issue #344). Всегда присутствует в tmpDir.
+            await File.WriteAllTextAsync(Path.Combine(tmpDir, SystemTypstLib.FileName), SystemTypstLib.Content, Encoding.UTF8, ct);
 
             // Всегда записываем typeblocks.typ — даже пустым.
             // Шаблон импортирует его напрямую: #import "typeblocks.typ": *
@@ -129,7 +134,7 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
             if (process.ExitCode != 0)
             {
                 var err = await stderrTask;
-                throw new InvalidOperationException($"Typst compilation failed (exit {process.ExitCode}):\n{err}");
+                throw new InvalidOperationException($"Typst compilation failed (exit {process.ExitCode}):\n{ShiftTemplateErrorLines(err)}");
             }
 
             var outputPath = Path.Combine(tmpDir, "output.pdf");
@@ -143,6 +148,16 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
             try { Directory.Delete(tmpDir, recursive: true); } catch { /* best effort */ }
         }
     }
+
+    // Сдвиг номеров строк ошибок Typst в template.typ обратно на строки РЕДАКТОРА (issue #344): в файл
+    // добавлен префикс импортов (SystemTypstLib.PreludeLineCount строк), а автор видит шаблон без него.
+    // Трогаем только «template.typ:N» — ошибки в systemlib/typeblocks оставляем как есть.
+    private static string ShiftTemplateErrorLines(string err) =>
+        System.Text.RegularExpressions.Regex.Replace(err, @"(template\.typ:)(\d+)(:)", m =>
+        {
+            var line = int.Parse(m.Groups[2].Value) - SystemTypstLib.PreludeLineCount;
+            return m.Groups[1].Value + (line < 1 ? 1 : line) + m.Groups[3].Value;
+        });
 
     private const long MaxAssetBytes = 100L * 1024 * 1024;
 

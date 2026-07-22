@@ -103,6 +103,25 @@ public class TypeStamperTests
     }
 
     [Fact]
+    public void Stamp_Ref_UsesActualTypeIdFromResolver_ChainToRoot()
+    {
+        // Поле объявлено «Организация», а резолвер пометил запись фактическим типом «Подрядчик» (_typeId).
+        // Штамп берёт фактический тип: code=PODR, chain=[PODR,ORG]. Сырой _typeId в data.json не течёт.
+        var byId = ById(
+            T(DocId, "АОСР", "AOSR", null, $"[{{\"key\":\"Орг\",\"type\":\"doc-ref\",\"typeId\":\"{OrgId}\"}}]"),
+            T(OrgId, "Организация", "ORG", null),
+            T(PodrId, "Подрядчик", "PODR", OrgId));
+        var ctx = new GenerationContext();
+        ctx.Set("Орг", J($"{{\"Наименование\":\"ООО Подряд\",\"_typeId\":\"{PodrId}\"}}"));
+        TypeStamper.Stamp(ctx, DocId, byId);
+        var org = Get(ctx, "Орг");
+        Assert.Equal("PODR", org.GetProperty("_type").GetProperty("code").GetString());
+        Assert.Equal(new[] { "PODR", "ORG" }, org.GetProperty("_type").GetProperty("chain").EnumerateArray().Select(e => e.GetString()).ToArray());
+        Assert.False(org.TryGetProperty("_typeId", out _)); // сырой маркер удалён
+        Assert.Equal("ООО Подряд", org.GetProperty("Наименование").GetString());
+    }
+
+    [Fact]
     public void Stamp_SkipsRefAndAlreadyStamped()
     {
         var byId = ById(T(DocId, "АОСР", "AOSR", null,

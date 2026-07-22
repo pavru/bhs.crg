@@ -13,6 +13,18 @@ export function useTypstUserLib() {
   });
 }
 
+/** Системная Typst-библиотека (issue #344) — хардкод, только чтение. */
+export function useSystemTypstLib() {
+  return useQuery({
+    queryKey: ['typst-systemlib'],
+    queryFn: async () => {
+      const r = await apiClient.get<{ content: string }>('/templates/systemlib');
+      return r.data.content;
+    },
+    staleTime: Infinity, // константа — не протухает
+  });
+}
+
 export function useSaveTypstUserLib() {
   const qc = useQueryClient();
   return useMutation({

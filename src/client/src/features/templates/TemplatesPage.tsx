@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Library } from 'lucide-react';
+import { Library, Lock } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { Button } from '@/shared/ui/Button';
@@ -13,6 +13,7 @@ import { useMaxTemplateVersions } from '@/features/settings/SettingsPage';
 import { buildBlankTypst } from './templateBlank';
 import { EditorPanel } from './EditorPanel';
 import { UserLibPanel } from './UserLibPanel';
+import { SystemLibPanel } from './SystemLibPanel';
 import { TemplateSidebar, DocTypeSelector, VersionCleanupModal, groupTemplates, type TemplateGroup } from './TemplateSidebar';
 // ─── New template form ────────────────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose, onCrea
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type PageMode = 'templates' | 'userlib';
+type PageMode = 'templates' | 'userlib' | 'systemlib';
 
 export function TemplatesPage() {
   const [mode, setMode] = useState<PageMode>('templates');
@@ -85,7 +86,8 @@ export function TemplatesPage() {
 
   // Заголовок вкладки: библиотека / выбранный шаблон / просматриваемый тип замещают раздел.
   useDocumentTitle(
-    mode === 'userlib' ? 'Библиотека Typst'
+    mode === 'systemlib' ? 'Системная библиотека Typst'
+    : mode === 'userlib' ? 'Библиотека Typst'
     : selectedTemplate ? `Шаблон «${selectedTemplate.name}»`
     : selectedDocType ? selectedDocType.name
     : null);
@@ -170,6 +172,17 @@ export function TemplatesPage() {
               <Library size={14} className="shrink-0" />
               Общие функции Typst
             </button>
+            <button
+              onClick={() => setMode('systemlib')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md whitespace-nowrap transition-colors ${
+                mode === 'systemlib'
+                  ? 'bg-surface text-fg1 font-medium shadow-sm'
+                  : 'text-fg3 hover:text-fg2'
+              }`}
+            >
+              <Lock size={14} className="shrink-0" />
+              Системные функции
+            </button>
           </div>
 
           {/* Doc type selector — only in templates mode */}
@@ -180,7 +193,11 @@ export function TemplatesPage() {
       </div>
 
       {/* ── Content ── */}
-      {mode === 'userlib' ? (
+      {mode === 'systemlib' ? (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <SystemLibPanel />
+        </div>
+      ) : mode === 'userlib' ? (
         <div className="flex-1 min-h-0 overflow-hidden">
           <UserLibPanel />
         </div>
