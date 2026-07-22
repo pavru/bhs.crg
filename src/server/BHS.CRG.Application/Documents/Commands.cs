@@ -30,6 +30,16 @@ public record DocumentTypeUsage(IReadOnlyList<DocumentTypeUsageReason> Reasons)
 /// булева признака вроде «профиль уровня»), Names — примеры имён (для видов, где они уместны).
 public record DocumentTypeUsageReason(string Kind, string Label, int Count, IReadOnlyList<string> Names);
 
+/// Аудит типа (issue #348): расхождения данных существующих инстансов (и подтипов) с ТЕКУЩЕЙ
+/// эффективной схемой. Read-only отчёт; исправления — отдельной командой (фаза 2).
+public record AuditDocumentTypeQuery(Guid TypeId) : IRequest<DocumentTypeAuditReport>;
+
+public record DocumentTypeAuditReport(Guid TypeId, string TypeName, int InstanceCount, IReadOnlyList<AuditFinding> Findings);
+
+/// Одно расхождение конкретного инстанса: Code (orphan-key/type-mismatch), Severity ("Warning"/"Error"),
+/// Path (JSON-путь в данных), Message. InstanceId/InstanceName — где найдено.
+public record AuditFinding(Guid InstanceId, string InstanceName, string Code, string Severity, string Path, string Message);
+
 // --- Construction ---
 public record CreateConstructionCommand(string Name, Guid UserId) : IRequest<Construction>;
 public record RenameConstructionCommand(Guid Id, string Name) : IRequest<Construction>;

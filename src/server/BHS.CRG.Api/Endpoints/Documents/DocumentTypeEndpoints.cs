@@ -72,6 +72,13 @@ public static class DocumentTypeEndpoints
         admin.MapPut("/{id:guid}/group", async (Guid id, SetGroupRequest req, IMediator m)
             => Results.Ok(await m.Send(new SetDocumentTypeGroupCommand(id, req.Group))));
 
+        // Аудит типа (issue #348): расхождения данных существующих инстансов с текущей схемой (read-only).
+        admin.MapGet("/{id:guid}/audit", async (Guid id, IMediator m) =>
+        {
+            try { return Results.Ok(await m.Send(new AuditDocumentTypeQuery(id))); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+        });
+
         // Использование типа (issue #275) — проактивный показ «чем занят тип» до попытки удаления.
         admin.MapGet("/{id:guid}/usage", async (Guid id, IMediator m) =>
         {

@@ -2,12 +2,13 @@ import { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Plus, ChevronRight, Trash2, Copy, Folder, FileText, Boxes, EyeOff, Check,
-  Braces, RotateCcw, Code, Database, Cpu, HelpCircle, RefreshCw,
+  Braces, RotateCcw, Code, Database, Cpu, HelpCircle, RefreshCw, ShieldCheck,
 } from 'lucide-react';
 import { Switch } from '@/shared/ui/Switch';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { Markdown } from '@/shared/ui/Markdown';
 import { BindingTemplatesDialog } from './BindingTemplatesDialog';
+import { TypeAuditModal } from './TypeAuditModal';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
@@ -728,6 +729,7 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
   const groupMutation = useSetDocumentTypeGroup();
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   const effectiveFields = resolveEffectiveFields(docType, allDocTypes);
   const ownFieldCount = parseSchemaFields(docType.schema).length;
@@ -805,6 +807,7 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
                 { onError: () => toast.error('Не удалось изменить группу типа') })} />
             <RowActionsMenu ariaLabel="Действия типа" actions={[
               { key: 'dup', label: 'Дублировать', icon: <Copy size={14} />, onSelect: onDuplicate },
+              { key: 'audit', label: 'Аудит инстансов', icon: <ShieldCheck size={14} />, onSelect: () => setAuditOpen(true) },
               ...(docType.kind === 'Document'
                 ? [{ key: 'tpl', label: 'Шаблоны данных', icon: <Database size={14} />, onSelect: () => setTemplatesOpen(true) }]
                 : []),
@@ -823,6 +826,7 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
       {templatesOpen && (
         <BindingTemplatesDialog docType={docType} allDocTypes={allDocTypes} onClose={() => setTemplatesOpen(false)} />
       )}
+      <TypeAuditModal typeId={docType.id} typeName={docType.name} open={auditOpen} onClose={() => setAuditOpen(false)} />
       <ConfirmDialog
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
