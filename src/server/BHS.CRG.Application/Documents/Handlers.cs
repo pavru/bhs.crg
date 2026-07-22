@@ -28,8 +28,29 @@ public class DocumentTypeHandlers(
     IRequestHandler<DeleteDocumentTypeCommand>,
     IRequestHandler<ListDocumentTypesQuery, IReadOnlyList<DocumentType>>,
     IRequestHandler<GetDocumentTypeQuery, DocumentType?>,
-    IRequestHandler<GetDocumentTypeUsageQuery, DocumentTypeUsage>
+    IRequestHandler<GetDocumentTypeUsageQuery, DocumentTypeUsage>,
+    IRequestHandler<AuditDocumentTypeQuery, DocumentTypeAuditReport>
 {
+    public async Task<DocumentTypeAuditReport> Handle(AuditDocumentTypeQuery q, CancellationToken ct)
+    {
+        var all = await repo.GetAllAsync(ct);
+        var byId = all.ToDictionary(t => t.Id);
+        var type = byId.GetValueOrDefault(q.TypeId)
+            ?? throw new KeyNotFoundException($"DocumentType {q.TypeId} not found");
+
+        // Аудит по типу = все инстансы типа И его подтипов (каждый — против СВОЕЙ эффективной схемы).
+        var typeIds = all.Where(t => Schema.DocumentTypeSchemaReader.IsSameOrDescendant(t.Id, q.TypeId, byId))
+            .Select(t => t.Id).ToList();
+        var instances = (await objectRepo.FindAsync(o => typeIds.Contains(o.CompositeTypeId), ct)).ToList();
+
+        var findings = new List<AuditFinding>();
+        foreach (var inst in instances)
+            foreach (var iss in Schema.SchemaDataAuditor.Audit(inst.Data.RootElement, inst.CompositeTypeId, byId))
+                findings.Add(new(inst.Id, inst.DisplayName, iss.Code, iss.Severity.ToString(), iss.Path, iss.Message));
+
+        return new(q.TypeId, type.Name, instances.Count, findings);
+    }
+
     public async Task<DocumentType> Handle(CreateDocumentTypeCommand cmd, CancellationToken ct)
     {
         var all = await repo.GetAllAsync(ct);

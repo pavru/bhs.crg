@@ -97,6 +97,19 @@ export function useDocumentTypeUsage(id: string | undefined) {
   });
 }
 
+export interface AuditFinding { instanceId: string; instanceName: string; code: string; severity: string; path: string; message: string }
+export interface DocumentTypeAuditReport { typeId: string; typeName: string; instanceCount: number; findings: AuditFinding[] }
+
+/** Аудит типа (issue #348): расхождения данных существующих инстансов с текущей схемой. По требованию (enabled). */
+export function useAuditDocumentType(id: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['document-type-audit', id],
+    enabled: !!id && enabled,
+    staleTime: 0,
+    queryFn: () => apiClient.get<DocumentTypeAuditReport>(`/document-types/${id}/audit`).then(r => r.data),
+  });
+}
+
 export function useDeleteDocumentType() {
   const qc = useQueryClient();
   return useMutation({
