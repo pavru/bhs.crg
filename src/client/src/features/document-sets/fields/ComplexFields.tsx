@@ -428,6 +428,10 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   const allItems = Array.isArray(value) ? value as unknown[] : [];
   const inlineItems = allItems.filter(item => !isFieldRef(item)) as Record<string, unknown>[];
   const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes) : [];
+  // Строка массива union-типа (issue #320): редактируется переключателем варианта, а не стопкой всех
+  // полей — иначе диалог строки показывал оба поля union (баг). Тип union = тэг type.union на схеме.
+  const isUnionComposite = !!compositeType
+    && ((compositeType.schema as { tags?: string[] }).tags ?? []).includes(FUNCTIONAL_TAG.typeUnion);
   const [rowModal, setRowModal] = useState<number | null>(null); // issue #102: строка массива правится в модалке, не инлайн
   const [tableOpen, setTableOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
@@ -558,7 +562,13 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
             </div>
           }>
           <div className="px-6 py-4 space-y-3">
-            {subFields.map(sf => {
+            {isUnionComposite ? (
+              <UnionFieldGroup field={field} allDocTypes={allDocTypes}
+                value={allItems[rowModal] as Record<string, unknown>}
+                onChange={row => updateRow(rowModal, row)}
+                showValidation={showValidation} setId={setId} otherInstances={otherInstances}
+                scope={scope} scopeId={scopeId} docRefMode={docRefMode} />
+            ) : subFields.map(sf => {
               const rowObj = allItems[rowModal] as Record<string, unknown>;
               const subVal = rowObj[sf.key];
               const invalid = showValidation && isMissing(sf, subVal);
