@@ -122,6 +122,21 @@ public class TypeStamperTests
     }
 
     [Fact]
+    public void Stamp_ConvertsTypeIdInNonSchemaKey_NoRawMarkerLeaks()
+    {
+        // Осиротевший ключ (нет в схеме документа), внутри — ссылка с сырым _typeId. Проход всё равно
+        // разворачивает _typeId→_type и НЕ оставляет сырой маркер в выводе (issue #346, утечка Фазы 2).
+        var byId = ById(T(DocId, "АОСР", "AOSR", null, "[]"), T(OrgId, "Организация", "ORG", null));
+        var ctx = new GenerationContext();
+        ctx.Set("НовыеРаботы", J($"{{\"Вложенное\":{{\"Наименование\":\"X\",\"_typeId\":\"{OrgId}\"}}}}"));
+        TypeStamper.Stamp(ctx, DocId, byId);
+        var nested = Get(ctx, "НовыеРаботы").GetProperty("Вложенное");
+        Assert.False(nested.TryGetProperty("_typeId", out _));                          // сырой маркер убран
+        Assert.Equal("ORG", nested.GetProperty("_type").GetProperty("code").GetString()); // развёрнут в _type
+        Assert.Equal("X", nested.GetProperty("Наименование").GetString());
+    }
+
+    [Fact]
     public void Stamp_SkipsRefAndAlreadyStamped()
     {
         var byId = ById(T(DocId, "АОСР", "AOSR", null,
