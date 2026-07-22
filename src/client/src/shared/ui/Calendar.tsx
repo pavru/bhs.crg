@@ -112,7 +112,12 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
     e.preventDefault();
   }
 
-  const cellBase = 'flex items-center justify-center rounded-full text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-30 disabled:pointer-events-none';
+  const cellBase = 'flex items-center justify-center rounded-full text-sm transition-colors focus:outline-none disabled:opacity-30 disabled:pointer-events-none';
+  // Индикатор роллинг-фокуса (issue #338): виден ВСЕГДА (не только при :focus-visible), т.к. при
+  // открытии мышью фокус на активной ячейке есть, но :focus-visible не срабатывает → «нет курсора».
+  // На выбранной ячейке (bg-brand) — белое инсет-кольцо, иначе — brand.
+  const focusRing = (isFocus: boolean, isSel: boolean) =>
+    !isFocus ? '' : isSel ? 'ring-2 ring-white/70 ring-inset' : 'ring-2 ring-brand ring-inset';
   const HEADER_BTN = 'flex items-center justify-center h-8 w-8 rounded-full text-fg3 hover:text-fg1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors';
 
   // ── Шапка (навигация уровнем + переключение вида) ──
@@ -163,9 +168,9 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
                   <button type="button" data-focus={isFocus} tabIndex={isFocus ? 0 : -1}
                     aria-selected={isSel} aria-current={isToday ? 'date' : undefined}
                     onClick={() => selectDay(fy, fm, d)}
-                    className={`${cellBase} h-9 w-9 ${
+                    className={`${cellBase} h-9 w-9 ${focusRing(isFocus, isSel)} ${
                       isSel ? 'bg-brand text-white font-medium'
-                      : isToday ? 'ring-1 ring-brand text-brand hover:bg-brand-subtle'
+                      : isToday ? `text-brand hover:bg-brand-subtle ${isFocus ? '' : 'ring-1 ring-brand'}`
                       : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
                     {d}
                   </button>
@@ -187,9 +192,9 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
           return (
             <button key={mn} type="button" data-focus={isFocus} tabIndex={isFocus ? 0 : -1}
               aria-selected={isSel} onClick={() => selectMonth(fy, m)}
-              className={`${cellBase} h-11 ${
+              className={`${cellBase} h-11 ${focusRing(isFocus, isSel)} ${
                 isSel ? 'bg-brand text-white font-medium'
-                : isCur ? 'ring-1 ring-brand text-brand hover:bg-brand-subtle'
+                : isCur ? `text-brand hover:bg-brand-subtle ${isFocus ? '' : 'ring-1 ring-brand'}`
                 : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
               {mn}
             </button>
@@ -207,9 +212,9 @@ export function Calendar({ value, onSelect, precision = 'day', onClose }: {
           return (
             <button key={y} type="button" data-focus={isFocus} tabIndex={isFocus ? 0 : -1}
               aria-selected={isSel} onClick={() => selectYear(y)}
-              className={`${cellBase} h-11 tabular-nums ${
+              className={`${cellBase} h-11 tabular-nums ${focusRing(isFocus, isSel)} ${
                 isSel ? 'bg-brand text-white font-medium'
-                : isCur ? 'ring-1 ring-brand text-brand hover:bg-brand-subtle'
+                : isCur ? `text-brand hover:bg-brand-subtle ${isFocus ? '' : 'ring-1 ring-brand'}`
                 : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
               {y}
             </button>
