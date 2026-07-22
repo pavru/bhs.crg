@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/shared/ui/ThemeProvider';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { NavigationGuardProvider } from '@/shared/ui/NavigationGuard';
+import { DocumentTitleManager } from '@/shared/ui/DocumentTitle';
 import { ToastProvider } from '@/shared/ui/Toast';
 import { AuthProvider } from '@/shared/ui/AuthProvider';
 import { ProtectedRoute, AdminRoute } from '@/shared/ui/ProtectedRoute';
@@ -37,6 +38,7 @@ export default function App() {
         <BrowserRouter>
           <ErrorBoundary variant="page" allowReload>
           <NavigationGuardProvider>
+          <DocumentTitleManager>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -63,6 +65,7 @@ export default function App() {
               </Route>
             </Route>
           </Routes>
+          </DocumentTitleManager>
           </NavigationGuardProvider>
           </ErrorBoundary>
         </BrowserRouter>
