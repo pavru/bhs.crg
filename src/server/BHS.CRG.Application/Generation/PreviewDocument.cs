@@ -88,6 +88,9 @@ public class PreviewDocumentHandler(
             if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
                 return PreviewDocumentResult.Fail("Не все ссылки разрешены — предпросмотр недоступен.", diagnostics);
 
+            // Метаполе типа объекта (issue #342) — тот же терминальный штамп, что при генерации/бандле.
+            TypeStamper.Stamp(context, instance.CompositeTypeId, allDocTypes.ToDictionary(t => t.Id));
+
             var preamble = TypstPreambleBuilder.Build(allDocTypes);
             var lib = (await userLibRepo.GetAllAsync(ct)).FirstOrDefault();
             var userLib = lib is not null && !string.IsNullOrWhiteSpace(lib.Content) ? lib.Content : null;
