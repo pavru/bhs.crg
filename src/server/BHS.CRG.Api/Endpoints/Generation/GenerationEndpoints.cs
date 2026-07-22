@@ -185,7 +185,10 @@ public static class GenerationEndpoints
                 using var ms = new MemoryStream();
                 using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
                 {
-                    await WriteEntry(zip, "template.typ", bundle.TemplateContent);
+                    // template.typ = префикс системных импортов + шаблон (issue #344) — как компилирует
+                    // генерация, чтобы внешний `typst compile template.typ` работал (systemlib/typeblocks).
+                    await WriteEntry(zip, "template.typ", SystemTypstLib.ComposeTemplate(bundle.TemplateContent));
+                    await WriteEntry(zip, SystemTypstLib.FileName, SystemTypstLib.Content);
                     await WriteEntry(zip, "data.json", dataJson);
                     await WriteEntry(zip, "typeblocks.typ", typeBlocks);
                     await WriteEntry(zip, "userlib.typ", userLib);

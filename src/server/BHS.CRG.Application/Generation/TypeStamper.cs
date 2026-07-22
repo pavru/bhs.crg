@@ -14,12 +14,17 @@ namespace BHS.CRG.Application.Generation;
 /// проверка пустоты не видит <c>_type</c> (иначе штамп в <c>{}</c> ложно = «заполнено»). Резолвер
 /// схема-агностичен — вся схема-осведомлённость локализована здесь.
 ///
-/// Фаза 2: ссылки штампуются резолвером ФАКТИЧЕСКИМ типом записи (для корректного <c>instance-of</c>
-/// на подтипах); здесь уже-штампованные объекты пропускаются, домены не пересекаются.
+/// Фаза 2 (issue #344): ссылки помечаются резолвером сырым <c>_typeId</c> = ФАКТИЧЕСКИЙ
+/// <c>CompositeTypeId</c> записи (резолвер строить chain не может — он схема-агностичен и знает лишь
+/// собственный тип объекта). Здесь <c>_typeId</c> разворачивается в полный <c>_type</c> по фактическому
+/// типу (корректный <c>instance-of</c> на подтипах: поле «Организация», запись «Подрядчик»), рекурсия в
+/// подполя идёт по схеме ФАКТИЧЕСКОГО типа. Inline-объекты (без <c>_typeId</c>) — по объявленному.
 /// </summary>
 public static class TypeStamper
 {
     public const string MetaKey = "_type";
+    /// <summary>Сырой маркер фактического типа ссылки от резолвера — разворачивается здесь в <see cref="MetaKey"/>.</summary>
+    public const string TypeIdKey = "_typeId";
 
     /// <summary>Штампует контекст: корень документа + составные поля по эффективной схеме типа.</summary>
     public static void Stamp(GenerationContext ctx, Guid documentTypeId, IReadOnlyDictionary<Guid, DocumentType> byId)
@@ -43,26 +48,29 @@ public static class TypeStamper
         return value;
     }
 
-    /// <summary>Штамп одного составного объекта (declared typeId) + рекурсия в его составные подполя.
-    /// Не-объект / пустой / уже-штампованный (или ссылка-$ref) — оставляем как есть.</summary>
-    private static JsonElement StampObject(JsonElement obj, Guid typeId, IReadOnlyDictionary<Guid, DocumentType> byId)
+    /// <summary>Штамп одного составного объекта + рекурсия в его составные подполя. Тип берём из
+    /// <see cref="TypeIdKey"/> (реф — фактический тип записи), иначе из <paramref name="declaredTypeId"/>
+    /// (inline). Не-объект / пустой / уже-полностью-штампованный (_type) / ссылка-$ref — как есть.</summary>
+    private static JsonElement StampObject(JsonElement obj, Guid declaredTypeId, IReadOnlyDictionary<Guid, DocumentType> byId)
     {
         if (obj.ValueKind != JsonValueKind.Object) return obj;
 
-        // Пустой = нет НЕ-мета свойств (нет объекта → нет типа). Уже штампованный (_type) — чужой домен
-        // (ссылка, проштампованная резолвером). $ref — неразрешённая ссылка, не данные.
+        Guid? actualFromRef = null;
         var hasReal = false;
         foreach (var p in obj.EnumerateObject())
         {
-            if (p.Name == MetaKey || p.Name == "$ref") return obj;
-            if (!p.Name.StartsWith('_')) hasReal = true;
+            if (p.Name == "$ref" || p.Name == MetaKey) return obj;   // неразрешённая ссылка / уже штампован
+            if (p.Name == TypeIdKey) { if (Guid.TryParse(p.Value.GetString(), out var tid)) actualFromRef = tid; }
+            else if (!p.Name.StartsWith('_')) hasReal = true;
         }
-        if (!hasReal) return obj;
+        if (!hasReal && actualFromRef is null) return obj;           // пусто (нет объекта → нет типа)
 
+        var typeId = actualFromRef ?? declaredTypeId;                // реф → фактический; inline → объявленный
         var subFields = DocumentTypeSchemaReader.EffectiveFields(typeId, byId).ToDictionary(sf => sf.Key);
         var dict = new Dictionary<string, JsonElement>();
         foreach (var p in obj.EnumerateObject())
         {
+            if (p.Name == TypeIdKey) continue;                       // сырой маркер не течёт в data.json
             dict[p.Name] = subFields.TryGetValue(p.Name, out var sf) && sf.TypeId is { } stid
                 && (DocumentTypeSchemaReader.IsSingleComposite(sf.Type) || DocumentTypeSchemaReader.IsMultiValued(sf.Type))
                 ? StampField(sf.Type, stid, p.Value, byId)

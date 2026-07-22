@@ -1,3 +1,4 @@
+using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Templates;
 using MediatR;
 
@@ -12,6 +13,9 @@ public static class TemplateEndpoints
 
         g.MapGet("/", async (Guid documentTypeId, IMediator m)
             => Results.Ok(await m.Send(new ListTemplatesQuery(documentTypeId))));
+
+        // Системная Typst-библиотека (issue #344) — хардкод, только чтение (просмотр на странице шаблонов).
+        g.MapGet("/systemlib", () => Results.Ok(new { content = SystemTypstLib.Content }));
 
         g.MapGet("/active", async (Guid documentTypeId, IMediator m) =>
         {

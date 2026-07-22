@@ -183,9 +183,13 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
                 when node.TryGetProperty("entryId", out var entryIdProp) && Guid.TryParse(entryIdProp.GetString(), out var entryId):
             {
                 var resolved = await ResolveEntryByIdAsync(entryId, scope, [], ct);
-                return resolved.ValueKind == JsonValueKind.Undefined
-                    ? node.Clone()
-                    : await ResolveNode(resolved, scope, depth + 1, allowInstanceRefs, ct);
+                if (resolved.ValueKind == JsonValueKind.Undefined) return node.Clone();
+                var recursed = await ResolveNode(resolved, scope, depth + 1, allowInstanceRefs, ct);
+                // Фактический тип записи каталога (issue #344) — для корректного instance-of на подтипах
+                // (поле «Организация», запись «Подрядчик»). Application развернёт _typeId в _type.
+                var typeId = await db.DomainObjects.Where(o => o.Id == entryId)
+                    .Select(o => (Guid?)o.CompositeTypeId).FirstOrDefaultAsync(ct);
+                return typeId is { } tid ? WithTypeId(recursed, tid) : recursed;
             }
 
             // Протягивание одного поля из реквизитов другого документа — значение как есть, без рекурсии
@@ -237,6 +241,20 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
         return JsonSerializer.SerializeToElement(dict);
     }
 
+    /// <summary>Помечает разрешённую ССЫЛКУ сырым <see cref="TypeStamper.TypeIdKey"/> = ФАКТИЧЕСКИЙ тип
+    /// записи (issue #344). Chain строит уже Application-<see cref="TypeStamper"/> (резолвер знает лишь
+    /// собственный тип объекта — агностичность к схеме полей цела). Только для инлайна ссылок (не для
+    /// профилей уровней, которые зовут тот же загрузчик, иначе сырой маркер утёк бы в data.json).</summary>
+    private static JsonElement WithTypeId(JsonElement obj, Guid typeId)
+    {
+        if (obj.ValueKind != JsonValueKind.Object) return obj;
+        var dict = new Dictionary<string, JsonElement>();
+        foreach (var p in obj.EnumerateObject())
+            if (p.Name != TypeStamper.TypeIdKey) dict[p.Name] = p.Value.Clone();
+        dict[TypeStamper.TypeIdKey] = JsonSerializer.SerializeToElement(typeId.ToString());
+        return JsonSerializer.SerializeToElement(dict);
+    }
+
     /// <summary>
     /// Загружает DocumentInstance и разворачивает его поля той же единой обработкой, но с
     /// <c>allowInstanceRefs: false</c> — вложенные instance-ссылки дальше не разворачиваются
@@ -256,6 +274,8 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
             if (v is JsonElement je)
                 dict[k] = await ResolveNode(je, scope, depth + 1, allowInstanceRefs: false, ct);
 
+        // Фактический тип развёрнутого документа-ссылки (issue #344) — Application развернёт в _type.
+        dict[TypeStamper.TypeIdKey] = JsonSerializer.SerializeToElement(obj.CompositeTypeId.ToString());
         return JsonSerializer.SerializeToElement(dict);
     }
 
