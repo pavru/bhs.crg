@@ -70,6 +70,10 @@ public class GetGenerationDebugBundleHandler(
         context.Set("params", TemplateParams.Effective(template.Parameters,
             TemplateParams.OverridesForTemplate(instance.TemplateParams, template.Id)));
 
+        // Тот же штамп _type, что и при генерации (issue #342) — debug-bundle обязан отдавать
+        // идентичную data.json, иначе отладка во внешнем Typst расходится с реальной генерацией.
+        TypeStamper.Stamp(context, instance.CompositeTypeId, allDocTypes.ToDictionary(t => t.Id));
+
         var dataJson = JsonSerializer.Serialize(context.Data, JsonOpts);
         var typeBlocks = TypstPreambleBuilder.Build(allDocTypes);
 

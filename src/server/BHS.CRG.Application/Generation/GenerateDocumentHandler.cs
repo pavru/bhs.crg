@@ -91,6 +91,10 @@ public class GenerateDocumentHandler(
             if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
                 throw new ResolutionValidationException(diagnostics);
 
+            // Метаполе типа объекта (issue #342): data._type + составные по схеме. ТЕРМИНАЛЬНО — после
+            // ScanMissingRequired/union, чтобы штамп непустых объектов не сбил проверки пустоты.
+            TypeStamper.Stamp(context, instance.CompositeTypeId, allDocTypes.ToDictionary(t => t.Id));
+
             string? typeBlocksContent = null;
             string? userLibContent = null;
             if (cmd.Format == OutputFormat.Pdf)
