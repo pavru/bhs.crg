@@ -154,7 +154,8 @@ export function ArrayTableModal({
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const primDef = (f: SchemaField) => f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
 
-  const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes) : [];
+  // Расчётные подполя (issue #368) не редактируются вручную — считаются при генерации; в редакторе скрыты.
+  const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes).filter(f => !f.computed) : [];
   const tableFields = subFields.filter(f => TABLE_SHOWN_TYPES.has(f.type));
   const hiddenFields = subFields.filter(f => !TABLE_SHOWN_TYPES.has(f.type));
 
@@ -427,7 +428,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
   const allItems = Array.isArray(value) ? value as unknown[] : [];
   const inlineItems = allItems.filter(item => !isFieldRef(item)) as Record<string, unknown>[];
-  const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes) : [];
+  // Расчётные подполя (issue #368) не редактируются вручную — считаются при генерации; в редакторе скрыты.
+  const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes).filter(f => !f.computed) : [];
   // Строка массива union-типа (issue #320): редактируется переключателем варианта, а не стопкой всех
   // полей — иначе диалог строки показывал оба поля union (баг). Тип union = тэг type.union на схеме.
   const isUnionComposite = !!compositeType
@@ -759,7 +761,8 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
 
   const subValues = (value != null && typeof value === 'object' && !isFieldRef(value)
     ? value : {}) as Record<string, unknown>;
-  const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes) : [];
+  // Расчётные подполя (issue #368) не редактируются вручную — считаются при генерации; в редакторе скрыты.
+  const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes).filter(f => !f.computed) : [];
   const isEmpty = subFields.every(f => { const v = subValues[f.key]; return v == null || v === ''; });
 
   function setSubValue(key: string, val: unknown) {
@@ -942,7 +945,8 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
 }) {
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
-  const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes) : [];
+  // Расчётные подполя (issue #368) не редактируются вручную — считаются при генерации; в редакторе скрыты.
+  const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes).filter(f => !f.computed) : [];
   const subValues = (value != null && typeof value === 'object' && !isFieldRef(value) ? value : {}) as Record<string, unknown>;
 
   const presentKey = subFields.find(sf => isVariantFilled(subValues[sf.key]))?.key;
