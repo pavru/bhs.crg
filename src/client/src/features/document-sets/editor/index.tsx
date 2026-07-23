@@ -30,6 +30,7 @@ import {
   SCOPE_TIER, ancestorTypeIds, parseBaseRef, BaseInstanceChip, BaseCandidatePicker, type BaseCandidate,
 } from '../fields';
 import { ruCount } from '@/shared/utils/pluralize';
+import { evalComputed, referencedKeys } from '@/shared/utils/computedExpression';
 import { DataSetsTab } from './DataSetsTab';
 import { DocumentPreviewPanel } from './DocumentPreviewPanel';
 import { InstanceAuditModal } from './InstanceAuditModal';
@@ -391,8 +392,14 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
       f.type === 'doc-array' || f.type === 'image' || f.type === 'file' || f.type === 'text';
 
     function renderCell(field: SchemaField) {
-          // Расчётное поле (issue #368) — не ввод: read-only fx-дисплей, значение считается при генерации.
+          // Расчётное поле (issue #368) — не ввод: read-only fx-дисплей с клиентским live-предпросмотром
+          // (авторитет — бэкенд при генерации). До заполнения зависимостей подсказываем, чего не хватает.
           if (field.computed) {
+            const preview = evalComputed(field.expression ?? '', values);
+            const missingInputs = referencedKeys(field.expression ?? '')
+              .filter(k => !hasValue(values[k]))
+              .map(k => schemaFields.find(sf => sf.key === k)?.title ?? k);
+            const empty = preview.value == null || preview.value === '';
             return (
               <div key={field.key}>
                 <label className="mb-1 flex items-center gap-1 text-xs font-medium text-fg2">
@@ -401,9 +408,13 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
                     <FunctionSquare size={11} /> вычисляется
                   </span>
                 </label>
-                <div className="w-full rounded-md border border-dashed border-stroke bg-muted/30 px-3 py-1.5 text-sm text-fg4"
+                <div className="w-full rounded-md border border-dashed border-stroke bg-muted/30 px-3 py-1.5 text-sm"
                   title={field.expression}>
-                  Значение вычисляется при генерации
+                  {preview.error
+                    ? <span className="text-danger">Ошибка формулы</span>
+                    : empty && missingInputs.length > 0
+                      ? <span className="text-fg4">— · заполните {missingInputs.join(', ')}</span>
+                      : <span className="text-fg1">{String(preview.value ?? '—')}</span>}
                 </div>
               </div>
             );

@@ -8,6 +8,7 @@ import type { DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/t
 import type { SchemaField, FieldGroup } from '@/shared/api/schema';
 import { TYPE_LABELS, toCamelKey, nextAutoKey } from './schemaConstants';
 import { useTagRegistry, fieldTags, type TagDefinition } from '@/shared/api/tags';
+import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
 
 export function JsonPreview({
@@ -108,8 +109,8 @@ interface FieldCardProps {
   keyConflict: boolean;
   /** Поле ещё НЕ сохранено (issue #355): ключ авто-следует за именем. У сохранённого — заморожен. */
   isNew: boolean;
-  /** Соседние поля (для пикера ссылок расчётного поля, issue #368) — без самого себя. */
-  siblingFields?: { key: string; title: string; type: string }[];
+  /** Соседние поля (для пикера ссылок + детекции циклов расчётного поля, issue #368) — без самого себя. */
+  siblingFields?: { key: string; title: string; type: string; computed?: boolean; expression?: string }[];
   /** Смена ключа СОХРАНЁННОГО поля (issue #357) — для предложения миграции данных на сохранении схемы. */
   onKeyRename?: (from: string, to: string) => void;
   open: boolean;
@@ -132,16 +133,32 @@ interface FieldCardProps {
 const COMPUTABLE_TYPES = new Set(['string', 'text', 'number', 'date', 'boolean']);
 function SchemaFieldKinds_isComputable(type: string): boolean { return COMPUTABLE_TYPES.has(type); }
 
-/** Редактор формулы расчётного поля (issue #368): текст выражения (JS/Jint) + пикер «Вставить поле»
- *  (вставляет get("ключ") по образцу «Вставить реквизит» в редакторе шаблона). */
+/** Редактор формулы расчётного поля (issue #368): текст выражения (JS) + пикер-typeahead «Вставить поле»,
+ *  инлайн-валидация (синтаксис/неизвестное поле/цикл, #309/#311) и «Проверить на образце». */
 function ComputedFieldEditor({ field, siblingFields, onChange }: {
   field: SchemaField;
-  siblingFields: { key: string; title: string; type: string }[];
+  siblingFields: { key: string; title: string; type: string; computed?: boolean; expression?: string }[];
   onChange: (patch: Partial<SchemaField>) => void;
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const [pickOpen, setPickOpen] = useState(false);
+  const [pickFilter, setPickFilter] = useState('');
+  const [testOpen, setTestOpen] = useState(false);
+  const [sample, setSample] = useState<Record<string, string>>({});
+  const expr = field.expression ?? '';
   const refs = siblingFields.filter(f => f.key.trim());
+
+  // Инлайн-валидация: синтаксис + ссылки на несуществующие поля + цикл зависимостей.
+  const knownKeys = useMemo(() => new Set([field.key, ...refs.map(f => f.key)]), [field.key, refs]);
+  const { syntaxError, unknownRefs } = validateComputed(expr, knownKeys);
+  const inCycle = useMemo(() => {
+    const map: Record<string, string> = { [field.key]: expr };
+    for (const f of refs) if (f.computed && f.expression) map[f.key] = f.expression;
+    return findComputedCycles(map).has(field.key);
+  }, [field.key, expr, refs]);
+
+  const filtered = refs.filter(f =>
+    !pickFilter || `${f.key} ${f.title}`.toLowerCase().includes(pickFilter.toLowerCase()));
 
   function insertRef(key: string) {
     const snippet = `get("${key}")`;
@@ -151,39 +168,94 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
     const start = ta.selectionStart ?? cur.length;
     const end = ta.selectionEnd ?? cur.length;
     onChange({ expression: cur.slice(0, start) + snippet + cur.slice(end) });
-    setPickOpen(false);
+    setPickOpen(false); setPickFilter('');
     requestAnimationFrame(() => { ta.focus(); const p = start + snippet.length; ta.setSelectionRange(p, p); });
   }
+
+  // «Проверить на образце»: образцовые значения ссылок → результат/ошибка (число если парсится).
+  const testRefs = referencedKeys(expr);
+  const testResult = useMemo(() => {
+    if (!testOpen) return null;
+    const values: Record<string, unknown> = {};
+    for (const k of testRefs) {
+      const raw = sample[k] ?? '';
+      values[k] = raw !== '' && !Number.isNaN(Number(raw)) ? Number(raw) : raw;
+    }
+    return evalComputed(expr, values);
+  }, [testOpen, sample, expr, testRefs]);
 
   return (
     <div className="rounded-md border border-brand/30 bg-brand-subtle/40 p-2 space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] text-fg3 font-medium">Формула (JavaScript)</span>
-        <div className="relative">
-          <button type="button" onClick={() => setPickOpen(o => !o)}
-            className="text-[11px] px-2 py-0.5 rounded border border-stroke-strong text-brand hover:bg-brand/10">
-            + Вставить поле
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={() => setTestOpen(o => !o)}
+            className="text-[11px] px-2 py-0.5 rounded border border-stroke-strong text-fg3 hover:bg-muted">
+            Проверить на образце
           </button>
-          {pickOpen && (
-            <div className="absolute right-0 top-full mt-1 z-50 w-64 max-h-56 overflow-auto bg-surface border border-stroke rounded-lg shadow-lg py-1">
-              {refs.length === 0
-                ? <p className="px-3 py-2 text-xs text-fg4">Нет других полей</p>
-                : refs.map(f => (
-                  <button key={f.key} type="button" onClick={() => insertRef(f.key)}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-base">
-                    <code className="text-[11px] font-mono text-brand shrink-0 max-w-[45%] truncate">{f.key}</code>
-                    <span className="text-xs text-fg3 truncate flex-1">{f.title || '—'}</span>
-                    <span className="text-[10px] text-fg4 shrink-0">{f.type}</span>
-                  </button>
-                ))}
-            </div>
-          )}
+          <div className="relative">
+            <button type="button" onClick={() => { setPickOpen(o => !o); setPickFilter(''); }}
+              className="text-[11px] px-2 py-0.5 rounded border border-stroke-strong text-brand hover:bg-brand/10">
+              + Вставить поле
+            </button>
+            {pickOpen && (
+              <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-surface border border-stroke rounded-lg shadow-lg py-1">
+                <input autoFocus value={pickFilter} onChange={e => setPickFilter(e.target.value)}
+                  placeholder="Фильтр…" spellCheck={false}
+                  className="mx-2 mb-1 w-[calc(100%-1rem)] border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand" />
+                <div className="max-h-52 overflow-auto">
+                  {filtered.length === 0
+                    ? <p className="px-3 py-2 text-xs text-fg4">Нет полей</p>
+                    : filtered.map(f => (
+                      <button key={f.key} type="button" onClick={() => insertRef(f.key)}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-base">
+                        <code className="text-[11px] font-mono text-brand shrink-0 max-w-[45%] truncate">{f.key}</code>
+                        <span className="text-xs text-fg3 truncate flex-1">{f.title || '—'}</span>
+                        <span className="text-[10px] text-fg4 shrink-0">{f.type}</span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-      <textarea ref={taRef} value={field.expression ?? ''} spellCheck={false} rows={2}
+      <textarea ref={taRef} value={expr} spellCheck={false} rows={2}
         onChange={e => onChange({ expression: e.target.value })}
         placeholder={'get("Количество") * get("Цена")'}
         className="w-full font-mono text-xs border border-stroke-strong rounded px-2 py-1.5 bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand resize-y" />
+
+      {/* Инлайн-статус валидации (#309/#311) */}
+      {inCycle ? (
+        <p className="text-[11px] text-danger">⚠ Циклическая зависимость — поле ссылается само на себя (прямо или через другие расчётные).</p>
+      ) : syntaxError ? (
+        <p className="text-[11px] text-danger" title={syntaxError}>✗ Синтаксическая ошибка: {syntaxError}</p>
+      ) : unknownRefs.length > 0 ? (
+        <p className="text-[11px] text-warning">⚠ Неизвестные поля: {unknownRefs.map(k => `«${k}»`).join(', ')}</p>
+      ) : expr.trim() ? (
+        <p className="text-[11px] text-success">✓ Синтаксис в порядке</p>
+      ) : null}
+
+      {testOpen && (
+        <div className="rounded border border-stroke bg-surface p-2 space-y-1.5">
+          {testRefs.length === 0
+            ? <p className="text-[11px] text-fg4">Формула не ссылается на поля.</p>
+            : testRefs.map(k => (
+              <label key={k} className="flex items-center gap-2 text-[11px]">
+                <code className="font-mono text-fg3 w-28 truncate shrink-0">{k}</code>
+                <input value={sample[k] ?? ''} onChange={e => setSample(s => ({ ...s, [k]: e.target.value }))}
+                  placeholder="образцовое значение"
+                  className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface focus:outline-none focus-visible:ring-1 focus-visible:ring-brand" />
+              </label>
+            ))}
+          <div className="text-[11px] pt-0.5">
+            {testResult?.error
+              ? <span className="text-danger">Ошибка: {testResult.error}</span>
+              : <span className="text-fg2">Результат: <strong className="font-mono">{String(testResult?.value ?? '—')}</strong></span>}
+          </div>
+        </div>
+      )}
+
       <p className="text-[11px] text-fg4">
         Читайте поля через <code className="font-mono">get("Ключ")</code>. Значения перечислений видны как отображаемое имя.
       </p>
@@ -551,7 +623,7 @@ export function FieldBuilder({ fields, onChange, disabledKeys, persistedKeys, co
           reg={reg}
           keyConflict={!!field.key && !!disabledKeys?.has(field.key.trim())}
           isNew={!persistedKeys?.has(field.key.trim())}
-          siblingFields={fields.filter((_, idx) => idx !== i).map(f => ({ key: f.key, title: f.title, type: f.type }))}
+          siblingFields={fields.filter((_, idx) => idx !== i).map(f => ({ key: f.key, title: f.title, type: f.type, computed: f.computed, expression: f.expression }))}
           open={openIndex === i}
           onToggleOpen={() => setOpenIndex(o => o === i ? null : i)}
           onChange={patch => onChange(fields.map((f, idx) => idx === i ? { ...f, ...patch } : f))}
