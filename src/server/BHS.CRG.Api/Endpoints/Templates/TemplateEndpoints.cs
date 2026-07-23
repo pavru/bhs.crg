@@ -27,8 +27,17 @@ public static class TemplateEndpoints
             => Results.Ok(await m.Send(new CreateTemplateCommand(
                 req.DocumentTypeId, req.Name, req.Content))));
 
-        admin.MapPut("/{id:guid}", async (Guid id, UpdateTemplateRequest req, IMediator m)
-            => Results.Ok(await m.Send(new UpdateTemplateCommand(id, req.Content))));
+        // Простое сохранение (issue #360, Ctrl+S) — правит содержимое активной версии на месте.
+        // Отказ (409), если версия историческая (не активна): её можно только форкнуть.
+        admin.MapPut("/{id:guid}/content", async (Guid id, UpdateTemplateRequest req, IMediator m) =>
+        {
+            try { return Results.Ok(await m.Send(new SaveTemplateContentCommand(id, req.Content))); }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+        });
+
+        // Явное «Сохранить как новую версию» (issue #360) — форк новой версии + опц. примечание.
+        admin.MapPost("/{id:guid}/versions", async (Guid id, NewVersionRequest req, IMediator m)
+            => Results.Ok(await m.Send(new UpdateTemplateCommand(id, req.Content, req.Comment))));
 
         admin.MapPost("/{id:guid}/duplicate", async (Guid id, DuplicateTemplateRequest? req, IMediator m)
             => Results.Ok(await m.Send(new DuplicateTemplateCommand(id, req?.Name))));
@@ -49,6 +58,7 @@ public static class TemplateEndpoints
 
     record CreateTemplateRequest(Guid DocumentTypeId, string Name, string Content);
     record UpdateTemplateRequest(string Content);
+    record NewVersionRequest(string Content, string? Comment);
     record DuplicateTemplateRequest(string? Name);
     record UpdateParametersRequest(string? Parameters);
 }

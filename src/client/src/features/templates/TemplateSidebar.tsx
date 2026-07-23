@@ -111,10 +111,11 @@ export function VersionCleanupModal({ group, onClose, onDeleted }: {
                   className="w-4 h-4 rounded border-stroke-strong text-danger disabled:opacity-40"
                 />
                 <span className="font-mono text-fg2 shrink-0">v{t.version}</span>
-                <span className="flex items-center gap-1.5 flex-1">
-                  {t.isActive && <span className="text-xs text-success bg-success-subtle px-1.5 py-0.5 rounded">активный</span>}
-                  {t.isDefault && <span className="text-xs text-yellow-600 bg-warning-subtle px-1.5 py-0.5 rounded">по умолч.</span>}
-                  {i === 0 && !t.isActive && <span className="text-xs text-fg4">последняя</span>}
+                <span className="flex items-center gap-1.5 flex-1 min-w-0">
+                  {t.isActive && <span className="text-xs text-success bg-success-subtle px-1.5 py-0.5 rounded shrink-0">активный</span>}
+                  {t.isDefault && <span className="text-xs text-yellow-600 bg-warning-subtle px-1.5 py-0.5 rounded shrink-0">по умолч.</span>}
+                  {i === 0 && !t.isActive && <span className="text-xs text-fg4 shrink-0">последняя</span>}
+                  {t.comment && <span className="text-xs text-fg4 truncate" title={t.comment}>{t.comment}</span>}
                 </span>
                 {protected_ && <span className="text-xs text-fg4 shrink-0">защищена</span>}
                 {!protected_ && checked && <span className="text-xs text-danger shrink-0">удалить</span>}
@@ -261,9 +262,12 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
                           ${selectedTemplate?.id === t.id ? 'text-brand-hover' : 'text-fg2'}`}
                       >
                         <span className="text-xs font-mono shrink-0 w-6">v{t.version}</span>
-                        <span className="flex items-center gap-1 flex-1">
-                          {t.isActive && <span className="text-xs text-success">активный</span>}
-                          {t.isDefault && <span className="text-xs text-yellow-600">по умолч.</span>}
+                        <span className="flex items-center gap-1 flex-1 min-w-0">
+                          {t.isActive && <span className="text-xs text-success shrink-0">активный</span>}
+                          {t.isDefault && <span className="text-xs text-yellow-600 shrink-0">по умолч.</span>}
+                          {t.comment && (
+                            <span className="text-xs text-fg4 truncate" title={t.comment}>{t.comment}</span>
+                          )}
                         </span>
                       </button>
                       <button

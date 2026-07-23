@@ -4,7 +4,12 @@ using MediatR;
 namespace BHS.CRG.Application.Templates;
 
 public record CreateTemplateCommand(Guid DocumentTypeId, string Name, string Content) : IRequest<Template>;
-public record UpdateTemplateCommand(Guid Id, string Content) : IRequest<Template>;
+
+/// <summary>Создаёт новую версию шаблона (форк содержимого), опц. с примечанием к версии (issue #360).</summary>
+public record UpdateTemplateCommand(Guid Id, string Content, string? Comment = null) : IRequest<Template>;
+
+/// <summary>Правит содержимое текущей активной версии на месте, без создания новой (issue #360, Ctrl+S).</summary>
+public record SaveTemplateContentCommand(Guid Id, string Content) : IRequest<Template>;
 public record DuplicateTemplateCommand(Guid Id, string? NewName) : IRequest<Template>;
 public record DeleteTemplateCommand(Guid Id) : IRequest;
 public record GetActiveTemplateQuery(Guid DocumentTypeId) : IRequest<Template?>;

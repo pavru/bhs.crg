@@ -92,6 +92,8 @@ export interface Template {
   content: string;
   /** JSON-текст массива TemplateParam[] (jsonb-строка) или null. Парсить на клиенте. */
   parameters: string | null;
+  /** Необязательное примечание к версии (issue #360) — что за версия. */
+  comment: string | null;
   version: number;
   isActive: boolean;
   isDefault: boolean;

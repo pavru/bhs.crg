@@ -7,6 +7,7 @@ namespace BHS.CRG.Application.Templates;
 public class TemplateHandlers(IRepository<Template> repo, IRepository<TemplateAsset> templateAssetRepo) :
     IRequestHandler<CreateTemplateCommand, Template>,
     IRequestHandler<UpdateTemplateCommand, Template>,
+    IRequestHandler<SaveTemplateContentCommand, Template>,
     IRequestHandler<DuplicateTemplateCommand, Template>,
     IRequestHandler<DeleteTemplateCommand>,
     IRequestHandler<GetActiveTemplateQuery, Template?>,
@@ -29,12 +30,24 @@ public class TemplateHandlers(IRepository<Template> repo, IRepository<TemplateAs
     {
         var existing = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new KeyNotFoundException($"Template {cmd.Id} not found");
-        var newVersion = existing.CreateNewVersion(cmd.Content);
+        var newVersion = existing.CreateNewVersion(cmd.Content, cmd.Comment);
         repo.Update(existing);
         await repo.AddAsync(newVersion, ct);
         await repo.SaveChangesAsync(ct);
         await DuplicateTemplateAssetsAsync(existing.Id, newVersion.Id, ct);
         return newVersion;
+    }
+
+    // Простое сохранение (issue #360, Ctrl+S): правит содержимое активной версии на месте, без
+    // новой версии и без дублирования ассетов (та же версия). Бросает, если версия не активна.
+    public async Task<Template> Handle(SaveTemplateContentCommand cmd, CancellationToken ct)
+    {
+        var template = await repo.GetByIdAsync(cmd.Id, ct)
+            ?? throw new KeyNotFoundException($"Template {cmd.Id} not found");
+        template.UpdateContent(cmd.Content);
+        repo.Update(template);
+        await repo.SaveChangesAsync(ct);
+        return template;
     }
 
     public async Task<Template> Handle(DuplicateTemplateCommand cmd, CancellationToken ct)
