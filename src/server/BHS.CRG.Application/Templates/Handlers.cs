@@ -16,7 +16,10 @@ public class TemplateHandlers(IRepository<Template> repo, IRepository<TemplateAs
 {
     public async Task<Template> Handle(CreateTemplateCommand cmd, CancellationToken ct)
     {
-        var template = Template.Create(cmd.DocumentTypeId, cmd.Name, cmd.Content);
+        // Стандартные импорты (systemlib + typeblocks) вставляем ТОЛЬКО при создании шаблона (issue #353):
+        // дальше шаблон компилируется дословно, поэтому импорты обязаны жить в его содержимом.
+        var content = Generation.SystemTypstLib.EnsureImports(cmd.Content);
+        var template = Template.Create(cmd.DocumentTypeId, cmd.Name, content);
         await repo.AddAsync(template, ct);
         await repo.SaveChangesAsync(ct);
         return template;
