@@ -40,13 +40,20 @@ export function useDeleteTemplate() {
   });
 }
 
+/** Результат мутации шаблона, влияющей на вывод (issue #362): шаблон + число документов,
+ *  сброшенных в Draft из-за устаревшего PDF. */
+export interface TemplateMutationResult {
+  template: Template;
+  resetDocuments: number;
+}
+
 /** Простое сохранение (issue #360, Ctrl+S) — правит содержимое активной версии на месте, без новой версии. */
 export function useSaveTemplateContent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, content }: { id: string; content: string }) =>
-      apiClient.put<Template>(`/templates/${id}/content`, { content }).then((r) => r.data),
-    onSuccess: (t) => qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] }),
+      apiClient.put<TemplateMutationResult>(`/templates/${id}/content`, { content }).then((r) => r.data),
+    onSuccess: (res) => qc.invalidateQueries({ queryKey: ['templates', res.template.documentTypeId] }),
   });
 }
 
@@ -55,8 +62,8 @@ export function useCreateTemplateVersion() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, content, comment }: { id: string; content: string; comment?: string | null }) =>
-      apiClient.post<Template>(`/templates/${id}/versions`, { content, comment }).then((r) => r.data),
-    onSuccess: (t) => qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] }),
+      apiClient.post<TemplateMutationResult>(`/templates/${id}/versions`, { content, comment }).then((r) => r.data),
+    onSuccess: (res) => qc.invalidateQueries({ queryKey: ['templates', res.template.documentTypeId] }),
   });
 }
 
@@ -74,7 +81,7 @@ export function useSetTemplateDefault() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id }: { id: string; documentTypeId: string }) =>
-      apiClient.put<Template>(`/templates/${id}/set-default`).then((r) => r.data),
-    onSuccess: (t) => qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] }),
+      apiClient.put<TemplateMutationResult>(`/templates/${id}/set-default`).then((r) => r.data),
+    onSuccess: (res) => qc.invalidateQueries({ queryKey: ['templates', res.template.documentTypeId] }),
   });
 }
