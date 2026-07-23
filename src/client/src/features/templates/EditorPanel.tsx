@@ -6,6 +6,8 @@ import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
+import { useToast } from '@/shared/ui/Toast';
+import { ruCount } from '@/shared/utils/pluralize';
 import { BookOpen, Save, Star, CheckCircle, ChevronDown, GitBranch, History } from 'lucide-react';
 import type { Template, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields } from '@/shared/api/schema';
@@ -142,6 +144,13 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
   const saveContentMutation = useSaveTemplateContent();
   const newVersionMutation = useCreateTemplateVersion();
   const defaultMutation = useSetTemplateDefault();
+  const toast = useToast();
+
+  // Неблокирующее предупреждение: сколько документов ушло в черновик из-за устаревшего PDF (issue #362).
+  function notifyReset(count: number) {
+    if (count > 0)
+      toast.info(`${ruCount(count, 'документ', 'документа', 'документов')} переведено в черновик — PDF устарел`);
+  }
 
   // Есть ли несохранённые правки (dirty). После сохранения onSaved() подставляет
   // обновлённый шаблон с тем же content → снова false.
@@ -179,11 +188,12 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
     setError('');
     setSaving(true);
     try {
-      const updated = await saveContentMutation.mutateAsync({ id: template.id, content: currentContent });
+      const res = await saveContentMutation.mutateAsync({ id: template.id, content: currentContent });
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
       justSavedRef.current = true; // prevent useEffect from resetting cursor
-      onSaved(updated);
+      onSaved(res.template);
+      notifyReset(res.resetDocuments);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка сохранения');
     } finally {
@@ -200,13 +210,14 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
     setError('');
     setSaving(true);
     try {
-      const updated = await newVersionMutation.mutateAsync({
+      const res = await newVersionMutation.mutateAsync({
         id: template.id, content: currentContent, comment: comment.trim() || null,
       });
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
       justSavedRef.current = true;
-      onSaved(updated);
+      onSaved(res.template);
+      notifyReset(res.resetDocuments);
       setNewVersionOpen(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка сохранения');
@@ -258,8 +269,9 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
   }
 
   async function handleSetDefault() {
-    const updated = await defaultMutation.mutateAsync({ id: template.id, documentTypeId: template.documentTypeId });
-    onSaved(updated);
+    const res = await defaultMutation.mutateAsync({ id: template.id, documentTypeId: template.documentTypeId });
+    onSaved(res.template);
+    notifyReset(res.resetDocuments);
   }
 
   function insertAtCursor(snippet: string) {

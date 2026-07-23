@@ -4,16 +4,19 @@ using MediatR;
 
 namespace BHS.CRG.Application.Templates;
 
-public class TemplateHandlers(IRepository<Template> repo, IRepository<TemplateAsset> templateAssetRepo) :
+public class TemplateHandlers(
+    IRepository<Template> repo,
+    IRepository<TemplateAsset> templateAssetRepo,
+    IDocumentTemplateInvalidator invalidator) :
     IRequestHandler<CreateTemplateCommand, Template>,
-    IRequestHandler<UpdateTemplateCommand, Template>,
-    IRequestHandler<SaveTemplateContentCommand, Template>,
+    IRequestHandler<UpdateTemplateCommand, TemplateMutationResult>,
+    IRequestHandler<SaveTemplateContentCommand, TemplateMutationResult>,
     IRequestHandler<DuplicateTemplateCommand, Template>,
     IRequestHandler<DeleteTemplateCommand>,
     IRequestHandler<GetActiveTemplateQuery, Template?>,
     IRequestHandler<ListTemplatesQuery, IReadOnlyList<Template>>,
     IRequestHandler<UpdateTemplateParametersCommand, Template>,
-    IRequestHandler<SetTemplateDefaultCommand, Template>
+    IRequestHandler<SetTemplateDefaultCommand, TemplateMutationResult>
 {
     public async Task<Template> Handle(CreateTemplateCommand cmd, CancellationToken ct)
     {
@@ -26,7 +29,7 @@ public class TemplateHandlers(IRepository<Template> repo, IRepository<TemplateAs
         return template;
     }
 
-    public async Task<Template> Handle(UpdateTemplateCommand cmd, CancellationToken ct)
+    public async Task<TemplateMutationResult> Handle(UpdateTemplateCommand cmd, CancellationToken ct)
     {
         var existing = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new KeyNotFoundException($"Template {cmd.Id} not found");
@@ -35,19 +38,27 @@ public class TemplateHandlers(IRepository<Template> repo, IRepository<TemplateAs
         await repo.AddAsync(newVersion, ct);
         await repo.SaveChangesAsync(ct);
         await DuplicateTemplateAssetsAsync(existing.Id, newVersion.Id, ct);
-        return newVersion;
+        // Если новая версия — дефолтная, эффективный default-active сместился на неё → no-pin
+        // документы этого типа устарели (issue #362). Запиннутые на старую версию не трогаем.
+        var reset = newVersion.IsDefault
+            ? await invalidator.OnDefaultChangedAsync(newVersion.DocumentTypeId, ct)
+            : 0;
+        return new TemplateMutationResult(newVersion, reset);
     }
 
     // Простое сохранение (issue #360, Ctrl+S): правит содержимое активной версии на месте, без
     // новой версии и без дублирования ассетов (та же версия). Бросает, если версия не активна.
-    public async Task<Template> Handle(SaveTemplateContentCommand cmd, CancellationToken ct)
+    public async Task<TemplateMutationResult> Handle(SaveTemplateContentCommand cmd, CancellationToken ct)
     {
         var template = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new KeyNotFoundException($"Template {cmd.Id} not found");
         template.UpdateContent(cmd.Content);
         repo.Update(template);
         await repo.SaveChangesAsync(ct);
-        return template;
+        // Содержимое версии изменилось на месте → устаревают документы, запиннутые на неё
+        // (и no-pin, если версия дефолтная-активная) — сброс в Draft (issue #362).
+        var reset = await invalidator.OnTemplateContentChangedAsync(template.Id, ct);
+        return new TemplateMutationResult(template, reset);
     }
 
     public async Task<Template> Handle(DuplicateTemplateCommand cmd, CancellationToken ct)
@@ -104,7 +115,7 @@ public class TemplateHandlers(IRepository<Template> repo, IRepository<TemplateAs
         return template;
     }
 
-    public async Task<Template> Handle(SetTemplateDefaultCommand cmd, CancellationToken ct)
+    public async Task<TemplateMutationResult> Handle(SetTemplateDefaultCommand cmd, CancellationToken ct)
     {
         var all = await repo.GetAllAsync(ct);
         var target = all.FirstOrDefault(t => t.Id == cmd.Id)
@@ -119,7 +130,9 @@ public class TemplateHandlers(IRepository<Template> repo, IRepository<TemplateAs
         target.SetDefault(true);
         repo.Update(target);
         await repo.SaveChangesAsync(ct);
-        return target;
+        // Дефолт типа сменился → no-pin документы резолвятся в новый default-active → устарели (issue #362).
+        var reset = await invalidator.OnDefaultChangedAsync(target.DocumentTypeId, ct);
+        return new TemplateMutationResult(target, reset);
     }
 }
 

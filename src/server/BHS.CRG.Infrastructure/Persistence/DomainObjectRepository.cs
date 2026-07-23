@@ -33,6 +33,12 @@ public class DomainObjectRepository(AppDbContext db) : Repository<DomainObject>(
             .Where(o => o.ScopeLevel == CatalogScope.Set && o.ScopeId != null && setIds.Contains(o.ScopeId.Value) && o.Facet != null)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<DomainObject>> GetDocumentsOfTypeAsync(Guid documentTypeId, CancellationToken ct = default)
+        => await Db.Set<DomainObject>()
+            .Include(o => o.Facet).ThenInclude(f => f!.GeneratedFiles)
+            .Where(o => o.CompositeTypeId == documentTypeId && o.Facet != null)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyDictionary<Guid, int>> CountDocumentsInSetsAsync(IReadOnlyCollection<Guid> setIds, CancellationToken ct = default)
     {
         if (setIds.Count == 0) return new Dictionary<Guid, int>();

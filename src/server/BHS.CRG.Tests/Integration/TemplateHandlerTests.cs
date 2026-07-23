@@ -56,8 +56,8 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
             new CreateTemplateCommand(dtId, "Шаблон", "v1 content"));
 
         using var scope2 = fixture.Services.CreateScope();
-        var newVersion = await Mediator(scope2).Send(
-            new UpdateTemplateCommand(original.Id, "v2 content"));
+        var newVersion = (await Mediator(scope2).Send(
+            new UpdateTemplateCommand(original.Id, "v2 content"))).Template;
 
         Assert.Equal(2, newVersion.Version);
         Assert.True(newVersion.IsActive);
@@ -79,8 +79,8 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
         var original = await Mediator(scope).Send(new CreateTemplateCommand(dtId, "Шаблон", "v1"));
 
         using var scope2 = fixture.Services.CreateScope();
-        var newVersion = await Mediator(scope2).Send(
-            new UpdateTemplateCommand(original.Id, "v2 content", "переход на новый штамп"));
+        var newVersion = (await Mediator(scope2).Send(
+            new UpdateTemplateCommand(original.Id, "v2 content", "переход на новый штамп"))).Template;
 
         Assert.Equal(2, newVersion.Version);
         Assert.Equal("переход на новый штамп", newVersion.Comment);
@@ -102,7 +102,7 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
         var original = await Mediator(scope).Send(new CreateTemplateCommand(dtId, "Шаблон", "v1"));
 
         using var scope2 = fixture.Services.CreateScope();
-        var saved = await Mediator(scope2).Send(new SaveTemplateContentCommand(original.Id, "v1 edited"));
+        var saved = (await Mediator(scope2).Send(new SaveTemplateContentCommand(original.Id, "v1 edited"))).Template;
 
         // Тот же Id, та же версия — правка на месте.
         Assert.Equal(original.Id, saved.Id);
@@ -214,7 +214,7 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
             TemplateAssetScope.Template, original.Id, TemplateAssetKind.Image, "logo", "logo.png", "image/png", "blob/logo.png", null));
 
         using var scope2 = fixture.Services.CreateScope();
-        var newVersion = await Mediator(scope2).Send(new UpdateTemplateCommand(original.Id, "v2"));
+        var newVersion = (await Mediator(scope2).Send(new UpdateTemplateCommand(original.Id, "v2"))).Template;
 
         using var scope3 = fixture.Services.CreateScope();
         var newVersionAssets = await Mediator(scope3).Send(
@@ -238,7 +238,7 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
             TemplateAssetScope.Template, original.Id, TemplateAssetKind.Image, "logo", "logo.png", "image/png", "blob/old.png", null));
 
         using var scope2 = fixture.Services.CreateScope();
-        var newVersion = await Mediator(scope2).Send(new UpdateTemplateCommand(original.Id, "v2"));
+        var newVersion = (await Mediator(scope2).Send(new UpdateTemplateCommand(original.Id, "v2"))).Template;
 
         using var scope3 = fixture.Services.CreateScope();
         var newVersionAsset = (await Mediator(scope3).Send(

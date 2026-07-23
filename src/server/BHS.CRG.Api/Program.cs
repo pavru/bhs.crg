@@ -187,6 +187,8 @@ builder.Services.AddScoped<IRepository<BHS.CRG.Domain.Objects.DomainObject>>(sp 
 builder.Services.AddScoped<IDomainObjectRepository>(sp => sp.GetRequiredService<DomainObjectRepository>());
 builder.Services.AddScoped<IRepository<Template>, Repository<Template>>();
 builder.Services.AddScoped<IRepository<TemplateAsset>, Repository<TemplateAsset>>();
+builder.Services.AddScoped<BHS.CRG.Application.Templates.IDocumentTemplateInvalidator,
+    BHS.CRG.Application.Templates.DocumentTemplateInvalidator>();
 builder.Services.AddScoped<IRepository<GeneratedFile>, Repository<GeneratedFile>>();
 builder.Services.AddScoped<IRepository<DocumentSetOutput>, Repository<DocumentSetOutput>>();
 builder.Services.AddScoped<IRepository<TypstUserLib>, Repository<TypstUserLib>>();
