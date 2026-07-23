@@ -24,6 +24,12 @@ public class Template : Entity
     /// <summary>Шаблон по умолчанию для данного типа документа.</summary>
     public bool IsDefault { get; private set; }
 
+    /// <summary>
+    /// Необязательное примечание к версии (issue #360) — что за версия, для самоописания
+    /// в истории версий и модалке очистки. Задаётся при явном «Сохранить как новую версию».
+    /// </summary>
+    public string? Comment { get; private set; }
+
     private Template() { }
 
     public static Template Create(Guid documentTypeId, string name, string content)
@@ -32,15 +38,15 @@ public class Template : Entity
     public static Template Restore(
         Guid id, Guid documentTypeId, string name, string content, int version,
         bool isActive, bool isDefault,
-        DateTimeOffset createdAt, DateTimeOffset updatedAt, string? parameters = null)
+        DateTimeOffset createdAt, DateTimeOffset updatedAt, string? parameters = null, string? comment = null)
         => new()
         {
             Id = id, DocumentTypeId = documentTypeId, Name = name, Content = content, Version = version,
             IsActive = isActive, IsDefault = isDefault,
-            Parameters = parameters, CreatedAt = createdAt, UpdatedAt = updatedAt,
+            Parameters = parameters, Comment = comment, CreatedAt = createdAt, UpdatedAt = updatedAt,
         };
 
-    public Template CreateNewVersion(string content)
+    public Template CreateNewVersion(string content, string? comment = null)
     {
         var wasDefault = IsDefault;
         IsActive = false;
@@ -55,7 +61,22 @@ public class Template : Entity
             IsActive = true,
             IsDefault = wasDefault,
             Parameters = Parameters,
+            Comment = comment,
         };
+    }
+
+    /// <summary>
+    /// Правит содержимое текущей версии на месте (issue #360, простое сохранение / Ctrl+S) —
+    /// без создания новой версии. Разрешено только для активной версии: историческую версию
+    /// нельзя переписать, её можно лишь форкнуть через <see cref="CreateNewVersion"/>.
+    /// </summary>
+    public void UpdateContent(string content)
+    {
+        if (!IsActive)
+            throw new InvalidOperationException(
+                $"Нельзя править на месте неактивную версию v{Version}: сохраните как новую версию.");
+        Content = content;
+        TouchUpdatedAt();
     }
 
     /// <summary>

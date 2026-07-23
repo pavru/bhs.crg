@@ -70,6 +70,68 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
         Assert.False(old.IsActive);
     }
 
+    [Fact]
+    public async Task NewVersion_WithComment_PersistsCommentOnNewVersionOnly()
+    {
+        var dtId = await CreateDocTypeAsync("DT_UC");
+
+        using var scope = fixture.Services.CreateScope();
+        var original = await Mediator(scope).Send(new CreateTemplateCommand(dtId, "Шаблон", "v1"));
+
+        using var scope2 = fixture.Services.CreateScope();
+        var newVersion = await Mediator(scope2).Send(
+            new UpdateTemplateCommand(original.Id, "v2 content", "переход на новый штамп"));
+
+        Assert.Equal(2, newVersion.Version);
+        Assert.Equal("переход на новый штамп", newVersion.Comment);
+
+        // Примечание живёт только на новой версии, исходная без него.
+        using var scope3 = fixture.Services.CreateScope();
+        var templates = await Mediator(scope3).Send(new ListTemplatesQuery(dtId));
+        Assert.Null(templates.First(t => t.Id == original.Id).Comment);
+    }
+
+    // ── SaveContent (in-place, issue #360) ────────────────────────────────────
+
+    [Fact]
+    public async Task SaveContent_UpdatesActiveVersionInPlace_NoNewVersion()
+    {
+        var dtId = await CreateDocTypeAsync("DT_SC");
+
+        using var scope = fixture.Services.CreateScope();
+        var original = await Mediator(scope).Send(new CreateTemplateCommand(dtId, "Шаблон", "v1"));
+
+        using var scope2 = fixture.Services.CreateScope();
+        var saved = await Mediator(scope2).Send(new SaveTemplateContentCommand(original.Id, "v1 edited"));
+
+        // Тот же Id, та же версия — правка на месте.
+        Assert.Equal(original.Id, saved.Id);
+        Assert.Equal(1, saved.Version);
+        Assert.Equal("v1 edited", saved.Content);
+        Assert.True(saved.IsActive);
+
+        using var scope3 = fixture.Services.CreateScope();
+        var templates = await Mediator(scope3).Send(new ListTemplatesQuery(dtId));
+        Assert.Single(templates); // новой версии не появилось
+    }
+
+    [Fact]
+    public async Task SaveContent_OnInactiveVersion_Throws()
+    {
+        var dtId = await CreateDocTypeAsync("DT_SCI");
+
+        using var scope = fixture.Services.CreateScope();
+        var original = await Mediator(scope).Send(new CreateTemplateCommand(dtId, "Шаблон", "v1"));
+
+        // Форкаем новую версию — исходная становится исторической (неактивной).
+        using var scope2 = fixture.Services.CreateScope();
+        await Mediator(scope2).Send(new UpdateTemplateCommand(original.Id, "v2"));
+
+        using var scope3 = fixture.Services.CreateScope();
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Mediator(scope3).Send(new SaveTemplateContentCommand(original.Id, "hack")));
+    }
+
     // ── Delete ────────────────────────────────────────────────────────────────
 
     [Fact]

@@ -40,11 +40,22 @@ export function useDeleteTemplate() {
   });
 }
 
-export function useUpdateTemplate() {
+/** Простое сохранение (issue #360, Ctrl+S) — правит содержимое активной версии на месте, без новой версии. */
+export function useSaveTemplateContent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, content }: { id: string; content: string }) =>
-      apiClient.put<Template>(`/templates/${id}`, { content }).then((r) => r.data),
+      apiClient.put<Template>(`/templates/${id}/content`, { content }).then((r) => r.data),
+    onSuccess: (t) => qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] }),
+  });
+}
+
+/** Явное «Сохранить как новую версию» (issue #360) — форк новой версии + опц. примечание. */
+export function useCreateTemplateVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, content, comment }: { id: string; content: string; comment?: string | null }) =>
+      apiClient.post<Template>(`/templates/${id}/versions`, { content, comment }).then((r) => r.data),
     onSuccess: (t) => qc.invalidateQueries({ queryKey: ['templates', t.documentTypeId] }),
   });
 }

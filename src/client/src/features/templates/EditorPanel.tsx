@@ -4,10 +4,12 @@ import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import Editor from '@monaco-editor/react';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { Button } from '@/shared/ui/Button';
-import { BookOpen, Save, Star, CheckCircle } from 'lucide-react';
+import { Modal } from '@/shared/ui/Modal';
+import { TextField } from '@/shared/ui/TextField';
+import { BookOpen, Save, Star, CheckCircle, ChevronDown, GitBranch, History } from 'lucide-react';
 import type { Template, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields } from '@/shared/api/schema';
-import { useUpdateTemplate, useSetTemplateDefault } from '@/shared/api/templates';
+import { useSaveTemplateContent, useCreateTemplateVersion, useSetTemplateDefault } from '@/shared/api/templates';
 import { TemplateParamsPanel } from './TemplateParamsPanel';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { flattenFields } from './templateBlank';
@@ -86,6 +88,37 @@ function RequisitePicker({ docType, allDocTypes, onInsert }: {
   );
 }
 
+// ─── New-version dialog ───────────────────────────────────────────────────────
+
+function NewVersionDialog({ nextVersion, saving, onCancel, onConfirm }: {
+  nextVersion: number;
+  saving: boolean;
+  onCancel: () => void;
+  onConfirm: (comment: string) => void;
+}) {
+  const [comment, setComment] = useState('');
+  return (
+    <Modal open onOpenChange={o => { if (!o) onCancel(); }} title="Сохранить как новую версию"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="text" onClick={onCancel}>Отмена</Button>
+          <Button type="button" variant="filled" loading={saving} icon={<GitBranch size={12} />}
+            onClick={() => onConfirm(comment)}>
+            {saving ? 'Создание…' : `Создать v${nextVersion}`}
+          </Button>
+        </div>
+      }>
+      <div className="space-y-4 px-1">
+        <p className="text-sm text-fg2">
+          Будет создана <strong>версия v{nextVersion}</strong>. Текущая версия сохранится в истории.
+        </p>
+        <TextField label="Примечание к версии (необязательно)" value={comment}
+          onChange={e => setComment(e.target.value)} autoFocus />
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Editor panel ─────────────────────────────────────────────────────────────
 
 interface EditorPanelProps {
@@ -102,9 +135,17 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const [error, setError] = useState('');
+  const [saveMenuOpen, setSaveMenuOpen] = useState(false);
+  const [newVersionOpen, setNewVersionOpen] = useState(false);
+  const saveMenuRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
-  const updateMutation = useUpdateTemplate();
+  const saveContentMutation = useSaveTemplateContent();
+  const newVersionMutation = useCreateTemplateVersion();
   const defaultMutation = useSetTemplateDefault();
+
+  // Есть ли несохранённые правки (dirty). После сохранения onSaved() подставляет
+  // обновлённый шаблон с тем же content → снова false.
+  const dirty = content !== template.content;
 
   // When true, the next template.id change came from our own save — skip content reset
   // so Monaco keeps its cursor position and scroll offset.
@@ -123,8 +164,14 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
     setContent(template.content);
   }, [template.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Простое сохранение (Ctrl+S) — правит текущую версию на месте. Историческую
+  // (неактивную) версию так править нельзя — её можно только форкнуть.
   async function handleSave() {
     if (savingRef.current) return; // a save is already in flight — ignore duplicate trigger
+    if (!template.isActive) {
+      setError('Историческая версия — сохраните как новую версию');
+      return;
+    }
     // Read live content from Monaco so this function is safe to call from the
     // window-level Ctrl+S handler (avoids stale-closure on `content`).
     const currentContent = editorRef.current?.getValue() ?? content;
@@ -132,7 +179,7 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
     setError('');
     setSaving(true);
     try {
-      const updated = await updateMutation.mutateAsync({ id: template.id, content: currentContent });
+      const updated = await saveContentMutation.mutateAsync({ id: template.id, content: currentContent });
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
       justSavedRef.current = true; // prevent useEffect from resetting cursor
@@ -145,10 +192,44 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
     }
   }
 
+  // Явное «Сохранить как новую версию» — форк новой версии, опц. с примечанием.
+  async function handleSaveAsNewVersion(comment: string) {
+    if (savingRef.current) return;
+    const currentContent = editorRef.current?.getValue() ?? content;
+    savingRef.current = true;
+    setError('');
+    setSaving(true);
+    try {
+      const updated = await newVersionMutation.mutateAsync({
+        id: template.id, content: currentContent, comment: comment.trim() || null,
+      });
+      setSavedMsg(true);
+      setTimeout(() => setSavedMsg(false), 2000);
+      justSavedRef.current = true;
+      onSaved(updated);
+      setNewVersionOpen(false);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Ошибка сохранения');
+    } finally {
+      setSaving(false);
+      savingRef.current = false;
+    }
+  }
+
   // Keep a stable ref so the Monaco command (registered once at mount) always
   // calls the latest handleSave without capturing a stale closure.
   const handleSaveRef = useRef(handleSave);
   useEffect(() => { handleSaveRef.current = handleSave; });
+
+  // Закрытие меню сохранения по клику вне.
+  useEffect(() => {
+    if (!saveMenuOpen) return;
+    function onClick(e: MouseEvent) {
+      if (saveMenuRef.current && !saveMenuRef.current.contains(e.target as Node)) setSaveMenuOpen(false);
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [saveMenuOpen]);
 
   // Prevent the browser's native Ctrl+S / Cmd+S ("Save page") using capture phase —
   // this runs before any other handler, including the browser's own shortcut.
@@ -212,9 +293,21 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
           </a>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-fg4">v{template.version}</span>
-          {template.isActive && (
+          {/* Индикатор версии + dirty-точка */}
+          <span className="text-xs text-fg4 flex items-center gap-1" title={
+            dirty ? 'Есть несохранённые правки' : 'Сохранено'
+          }>
+            v{template.version}
+            {dirty
+              ? <span className="w-1.5 h-1.5 rounded-full bg-warning" aria-label="есть правки" />
+              : <span className="w-1.5 h-1.5 rounded-full bg-success/60" aria-label="сохранено" />}
+          </span>
+          {template.isActive ? (
             <span className="text-xs text-success flex items-center gap-1"><CheckCircle size={12} /> активный</span>
+          ) : (
+            <span className="text-xs text-fg4 flex items-center gap-1" title="Не активная версия — правится только форком в новую">
+              <History size={12} /> историческая
+            </span>
           )}
           {template.isDefault ? (
             <span className="text-xs text-yellow-600 flex items-center gap-1">
@@ -227,11 +320,43 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
             </button>
           )}
           {savedMsg && <span className="text-xs text-success">Сохранено ✓</span>}
-          {error && <span className="text-xs text-danger max-w-xs truncate">{error}</span>}
-          <Button variant="filled" size="sm" onClick={handleSave} loading={saving}
-            icon={<Save size={12} />} title="Сохранить (Ctrl+S)">
-            {saving ? 'Сохранение…' : 'Сохранить'}
-          </Button>
+          {error && <span className="text-xs text-danger max-w-xs truncate" title={error}>{error}</span>}
+
+          {/* Сплит-кнопка: слева in-place (Ctrl+S), справа каретка → меню «новая версия» */}
+          <div className="relative flex items-center" ref={saveMenuRef}>
+            {template.isActive ? (
+              <button type="button" onClick={handleSave} disabled={saving}
+                title="Сохранить в текущую версию (Ctrl+S)"
+                className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-brand text-on-brand shadow-[var(--f-shadow4)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
+                <Save size={12} /> {saving ? 'Сохранение…' : 'Сохранить'}
+              </button>
+            ) : (
+              // Историческую версию in-place не сохранить — левая кнопка ведёт на форк.
+              <button type="button" onClick={() => setNewVersionOpen(true)} disabled={saving}
+                title="Историческая версия — сохранить как новую"
+                className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 text-xs font-medium rounded-l-full bg-brand text-on-brand shadow-[var(--f-shadow4)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
+                <GitBranch size={12} /> Сохранить как новую
+              </button>
+            )}
+            <button type="button" onClick={() => setSaveMenuOpen(v => !v)} disabled={saving}
+              title="Ещё варианты сохранения"
+              className="inline-flex items-center h-8 px-1.5 rounded-r-full border-l border-on-brand/25 bg-brand text-on-brand shadow-[var(--f-shadow4)] hover:bg-brand-hover active:bg-brand-pressed disabled:opacity-40 transition-colors">
+              <ChevronDown size={13} />
+            </button>
+            {saveMenuOpen && (
+              <div className="absolute top-full right-0 mt-1 z-50 w-72 bg-surface border border-stroke rounded-lg shadow-lg py-1">
+                <button type="button"
+                  onClick={() => { setSaveMenuOpen(false); setNewVersionOpen(true); }}
+                  className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-base transition-colors">
+                  <GitBranch size={14} className="text-brand shrink-0 mt-0.5" />
+                  <span>
+                    <span className="block text-sm text-fg1">Сохранить как новую версию…</span>
+                    <span className="block text-xs text-fg4">Создаст v{template.version + 1}, сохранит историю текущей</span>
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -270,6 +395,15 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
           { scope: 'System', scopeId: null, label: 'системных' },
         ]}
       />
+
+      {newVersionOpen && (
+        <NewVersionDialog
+          nextVersion={template.version + 1}
+          saving={saving}
+          onCancel={() => setNewVersionOpen(false)}
+          onConfirm={handleSaveAsNewVersion}
+        />
+      )}
     </div>
   );
 }
