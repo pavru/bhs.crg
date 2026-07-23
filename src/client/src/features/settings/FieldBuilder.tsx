@@ -108,6 +108,8 @@ interface FieldCardProps {
   keyConflict: boolean;
   /** Поле ещё НЕ сохранено (issue #355): ключ авто-следует за именем. У сохранённого — заморожен. */
   isNew: boolean;
+  /** Смена ключа СОХРАНЁННОГО поля (issue #357) — для предложения миграции данных на сохранении схемы. */
+  onKeyRename?: (from: string, to: string) => void;
   open: boolean;
   onToggleOpen: () => void;
   onChange: (patch: Partial<SchemaField>) => void;
@@ -128,7 +130,7 @@ interface FieldCardProps {
  *  редактор (все ветки типов/опций/тэгов). Индекс-независима — переиспользуется в плоском и
  *  группированном представлении (issue #197 Фаза C). */
 export function FieldCard({
-  field, reg, keyConflict, isNew, open, onToggleOpen, onChange, onRemove,
+  field, reg, keyConflict, isNew, onKeyRename, open, onToggleOpen, onChange, onRemove,
   onMoveUp, onMoveDown, isFirst, isLast, dragging, onDragStart, onDragEnd, onDragOver, onDrop,
 }: FieldCardProps) {
   const { primitiveTypes, enumTypes, tagRegistry } = reg;
@@ -211,7 +213,7 @@ export function FieldCard({
         <div className="relative">
           <input
             value={field.key}
-            onChange={e => onChange({ key: e.target.value })}
+            onChange={e => { onChange({ key: e.target.value }); if (!isNew) onKeyRename?.(originalKey, e.target.value); }}
             readOnly={keyLocked}
             placeholder="КлючПоля"
             spellCheck={false}

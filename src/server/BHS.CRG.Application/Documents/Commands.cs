@@ -44,6 +44,11 @@ public record AuditFinding(Guid InstanceId, string InstanceName, string Code, st
 /// админа. Те же расхождения, что и типовой аудит, но для конкретного инстанса.
 public record AuditInstanceQuery(Guid InstanceId) : IRequest<IReadOnlyList<AuditFinding>>;
 
+/// Миграция ключа поля в данных всех инстансов типа (и подтипов) при переименовании ключа в схеме
+/// (issue #357): переносит значение старый→новый ключ (только в пустую цель), атомарно. Возвращает
+/// число перенесённых инстансов. Композиция «rename в схеме × rename в данных» (переиспользует JsonPathEditor).
+public record MigrateFieldKeyCommand(Guid TypeId, string OldKey, string NewKey) : IRequest<int>;
+
 /// Применение исправлений аудита (issue #350). Мутирует реквизиты инстансов по JSON-пути, атомарно
 /// (одна SaveChanges). Батч = список фиксов; фронт разворачивает «применить ко всем» в per-instance.
 public record ApplyAuditFixesCommand(IReadOnlyList<AuditFix> Fixes) : IRequest<ApplyAuditFixesResult>;
