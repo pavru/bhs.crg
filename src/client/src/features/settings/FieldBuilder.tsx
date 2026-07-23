@@ -1,11 +1,12 @@
 import { useId, useMemo, useState } from 'react';
-import { Plus, Trash2, ArrowUp, ArrowDown, Cpu, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, ArrowUp, ArrowDown, Cpu, GripVertical, ChevronDown, ChevronUp, Lock, Link2 } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Button } from '@/shared/ui/Button';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import type { DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import type { SchemaField, FieldGroup } from '@/shared/api/schema';
-import { TYPE_LABELS, toCamelKey } from './schemaConstants';
+import { TYPE_LABELS, toCamelKey, nextAutoKey } from './schemaConstants';
 import { useTagRegistry, fieldTags, type TagDefinition } from '@/shared/api/tags';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
 
@@ -105,6 +106,8 @@ interface FieldCardProps {
   field: SchemaField;
   reg: FieldRegistries;
   keyConflict: boolean;
+  /** Поле ещё НЕ сохранено (issue #355): ключ авто-следует за именем. У сохранённого — заморожен. */
+  isNew: boolean;
   open: boolean;
   onToggleOpen: () => void;
   onChange: (patch: Partial<SchemaField>) => void;
@@ -125,12 +128,21 @@ interface FieldCardProps {
  *  редактор (все ветки типов/опций/тэгов). Индекс-независима — переиспользуется в плоском и
  *  группированном представлении (issue #197 Фаза C). */
 export function FieldCard({
-  field, reg, keyConflict, open, onToggleOpen, onChange, onRemove,
+  field, reg, keyConflict, isNew, open, onToggleOpen, onChange, onRemove,
   onMoveUp, onMoveDown, isFirst, isLast, dragging, onDragStart, onDragEnd, onDragOver, onDrop,
 }: FieldCardProps) {
   const { primitiveTypes, enumTypes, tagRegistry } = reg;
   const tags = field.tags ?? [];
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Стабильность ключа (issue #355): у сохранённого поля ключ заморожен (read-only + замок), меняется
+  // только явной разблокировкой с предупреждением о дрейфе данных. originalKey фиксируем на монтировании
+  // (для сохранённого = персистентный ключ) — по нему показываем warning, пока ключ изменён.
+  const [keyUnlocked, setKeyUnlocked] = useState(false);
+  const [confirmUnlock, setConfirmUnlock] = useState(false);
+  const [originalKey] = useState(field.key);
+  const keyLocked = !isNew && !keyUnlocked;
+  const keyChanged = !isNew && field.key !== originalKey;
+  const keyAutoNew = isNew && !!field.title.trim() && field.key === toCamelKey(field.title);
   const pickTypes = useMemo(() => buildFieldTypeOptions(reg),
     [reg.compositeTypes, reg.primitiveTypes, reg.enumTypes, reg.allDocTypes]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -151,10 +163,11 @@ export function FieldCard({
   // Легаси enum-поле (issue #59): options инлайн, typeId не выбран.
   const isLegacyEnum = field.type === 'enum' && !field.typeId && (field.options?.length ?? 0) > 0;
   const enumTypeDef = field.type === 'enum' ? enumTypes.find(et => et.id === field.typeId) : undefined;
-  // Ключ «автоматический», пока совпадает с toCamelKey(title) — тогда перегенерируем при вводе названия.
+  // Ключ следует за именем только у НОВОГО поля, пока не тронут вручную (issue #355). У сохранённого —
+  // заморожен: переименование НЕ меняет ключ (иначе данные документов осиротеют).
   const updateTitle = (title: string) => {
-    const isKeyAuto = !field.key.trim() || field.key === toCamelKey(field.title);
-    onChange({ title, ...(isKeyAuto ? { key: toCamelKey(title) } : {}) });
+    const key = nextAutoKey(field.key, field.title, title, isNew);
+    onChange({ title, ...(key !== field.key ? { key } : {}) });
   };
 
   return (
@@ -194,22 +207,32 @@ export function FieldCard({
           placeholder="Название"
           className="border border-stroke-strong rounded-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"
         />
-        {/* Key */}
+        {/* Key — стабильный идентификатор хранения (issue #355) */}
         <div className="relative">
           <input
             value={field.key}
             onChange={e => onChange({ key: e.target.value })}
+            readOnly={keyLocked}
             placeholder="КлючПоля"
             spellCheck={false}
-            className={`w-full border rounded-md px-3 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 ${
-              keyConflict
-                ? 'border-danger focus-visible:ring-danger'
-                : 'border-stroke-strong focus-visible:ring-brand'
-            } bg-surface`}
+            title={keyLocked ? 'Идентификатор хранения — заморожен. Нажмите замок, чтобы изменить.' : undefined}
+            className={`w-full border rounded-md pl-3 pr-7 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-2 ${
+              keyConflict ? 'border-danger focus-visible:ring-danger' : 'border-stroke-strong focus-visible:ring-brand'
+            } ${keyLocked ? 'bg-muted/60 text-fg3 cursor-default' : 'bg-surface'}`}
           />
-          {keyConflict && (
+          {keyConflict ? (
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-danger">!</span>
-          )}
+          ) : keyLocked ? (
+            <button type="button" onClick={() => setConfirmUnlock(true)}
+              title="Изменить ключ (осторожно: осиротит данные документов)"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-fg4 hover:text-fg2">
+              <Lock size={13} />
+            </button>
+          ) : keyAutoNew ? (
+            <span title="Ключ авто-генерируется из названия" className="absolute right-2 top-1/2 -translate-y-1/2 text-fg4 pointer-events-none">
+              <Link2 size={13} />
+            </span>
+          ) : null}
         </div>
         {/* Type — открывает searchable TypePicker (issue #197) */}
         <button type="button" onClick={() => setPickerOpen(true)} title="Выбрать тип поля"
@@ -243,6 +266,25 @@ export function FieldCard({
           </button>
         </div>
       </div>
+      {/* Предупреждение о дрейфе данных при изменённом ключе существующего поля (issue #355). */}
+      {keyChanged && (
+        <p className="text-xs text-danger flex items-start gap-1.5">
+          <Lock size={12} className="shrink-0 mt-0.5" />
+          <span>Ключ изменён с «<span className="font-mono">{originalKey}</span>» — данные существующих
+            документов останутся под старым ключом (осиротеют). Перенос старый→новый — через «Аудит»
+            (переименование осиротевшего ключа в поле схемы).</span>
+        </p>
+      )}
+      <ConfirmDialog
+        open={confirmUnlock}
+        onOpenChange={setConfirmUnlock}
+        title="Изменить ключ поля?"
+        description={<p>Ключ — идентификатор хранения. После смены данные всех существующих документов
+          этого типа осиротеют по старому ключу «<span className="font-mono">{originalKey}</span>».
+          Перенести их на новый ключ можно через «Аудит» (переименование осиротевшего ключа). Продолжить?</p>}
+        confirmLabel="Изменить ключ"
+        onConfirm={() => { setConfirmUnlock(false); setKeyUnlocked(true); }}
+      />
       {/* Default value editor */}
       {field.type !== 'complex' && field.type !== 'array' && field.type !== 'primitive'
         && field.type !== 'doc-ref' && field.type !== 'doc-array' && (
@@ -378,13 +420,16 @@ interface FieldBuilderProps {
   fields: SchemaField[];
   onChange: (fields: SchemaField[]) => void;
   disabledKeys?: Set<string>;
+  /** Ключи полей из СОХРАНЁННОЙ схемы (issue #355): их ключи заморожены. Пусто (по умолч.) = все поля
+   *  новые (форма создания типа) → ключ авто-следует за именем. */
+  persistedKeys?: Set<string>;
   compositeTypes: DocumentType[];
   primitiveTypes: PrimitiveTypeDef[];
   enumTypes: EnumTypeDef[];
   allDocTypes: DocumentType[];
 }
 
-export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, primitiveTypes, enumTypes, allDocTypes }: FieldBuilderProps) {
+export function FieldBuilder({ fields, onChange, disabledKeys, persistedKeys, compositeTypes, primitiveTypes, enumTypes, allDocTypes }: FieldBuilderProps) {
   const uid = useId();
   const { data: tagRegistry } = useTagRegistry();
   const reg: FieldRegistries = { compositeTypes, primitiveTypes, enumTypes, allDocTypes, tagRegistry };
@@ -410,6 +455,7 @@ export function FieldBuilder({ fields, onChange, disabledKeys, compositeTypes, p
           field={field}
           reg={reg}
           keyConflict={!!field.key && !!disabledKeys?.has(field.key.trim())}
+          isNew={!persistedKeys?.has(field.key.trim())}
           open={openIndex === i}
           onToggleOpen={() => setOpenIndex(o => o === i ? null : i)}
           onChange={patch => onChange(fields.map((f, idx) => idx === i ? { ...f, ...patch } : f))}

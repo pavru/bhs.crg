@@ -1,5 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { toCamelKey } from './schemaConstants';
+import { toCamelKey, nextAutoKey } from './schemaConstants';
+
+describe('nextAutoKey (issue #355)', () => {
+  it('новое поле: пустой ключ следует за именем', () => {
+    expect(nextAutoKey('', '', 'Номер', true)).toBe('Номер');
+  });
+  it('новое поле: ключ достраивается по мере ввода имени (пока совпадает с камелизацией старого)', () => {
+    expect(nextAutoKey('Номер', 'Номер', 'Номер документа', true)).toBe('НомерДокумента');
+  });
+  it('новое поле с РУЧНО заданным ключом: не трогаем при переименовании', () => {
+    expect(nextAutoKey('myKey', 'Номер', 'Номер документа', true)).toBe('myKey');
+  });
+  it('СОХРАНЁННОЕ поле: ключ заморожен, переименование его не меняет', () => {
+    expect(nextAutoKey('Номер', 'Номер', 'Новое имя', false)).toBe('Номер');
+  });
+});
 
 describe('toCamelKey', () => {
   it('склеивает слова, каждое с заглавной буквы', () => {
