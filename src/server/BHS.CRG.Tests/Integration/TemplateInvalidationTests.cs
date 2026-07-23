@@ -79,6 +79,86 @@ public class TemplateInvalidationTests(IntegrationTestFixture fixture) : IAsyncL
         return (await repo.GetByIdAsync(instanceId))!.Status;
     }
 
+    private async Task<Guid?> PinAsync(Guid instanceId)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IDomainObjectRepository>();
+        return (await repo.GetByIdAsync(instanceId))!.TemplateId;
+    }
+
+    private async Task<bool> TemplateExistsAsync(Guid dtId, Guid templateId)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var list = await Mediator(scope).Send(new ListTemplatesQuery(dtId));
+        return list.Any(t => t.Id == templateId);
+    }
+
+    // ── Удаление версий (issue #364) ─────────────────────────────────────────
+
+    [Fact]
+    public async Task DeleteVersion_PinnedWithoutReassign_Throws_AndKeepsTemplate()
+    {
+        var dtId = await CreateDocTypeAsync("DT_DEL1");
+        var t = await CreateTemplateAsync(dtId, "Шаблон");
+        var setId = await CreateSetAsync();
+        var docId = await AddGeneratedDocAsync(setId, dtId, pinTemplateId: t.Id);
+
+        using (var scope = fixture.Services.CreateScope())
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                Mediator(scope).Send(new DeleteTemplateCommand(t.Id, ReassignUsersToDefault: false)));
+
+        Assert.True(await TemplateExistsAsync(dtId, t.Id));           // не удалён
+        Assert.Equal(t.Id, await PinAsync(docId));                    // пин на месте
+        Assert.Equal(DocumentStatus.Generated, await StatusAsync(docId)); // PDF не тронут
+    }
+
+    [Fact]
+    public async Task DeleteVersion_PinnedWithReassign_UnpinsResetsAndDeletes()
+    {
+        var dtId = await CreateDocTypeAsync("DT_DEL2");
+        var t = await CreateTemplateAsync(dtId, "Шаблон");
+        var setId = await CreateSetAsync();
+        var docId = await AddGeneratedDocAsync(setId, dtId, pinTemplateId: t.Id);
+
+        using (var scope = fixture.Services.CreateScope())
+            await Mediator(scope).Send(new DeleteTemplateCommand(t.Id, ReassignUsersToDefault: true));
+
+        Assert.False(await TemplateExistsAsync(dtId, t.Id));  // удалён
+        Assert.Null(await PinAsync(docId));                   // пин снят → резолв в дефолт
+        Assert.Equal(DocumentStatus.Draft, await StatusAsync(docId)); // сброшен в черновик
+    }
+
+    [Fact]
+    public async Task DeleteVersion_Unused_Deletes()
+    {
+        var dtId = await CreateDocTypeAsync("DT_DEL3");
+        var t = await CreateTemplateAsync(dtId, "Шаблон");
+
+        using (var scope = fixture.Services.CreateScope())
+            await Mediator(scope).Send(new DeleteTemplateCommand(t.Id)); // reassign по умолчанию false — ок, не используется
+
+        Assert.False(await TemplateExistsAsync(dtId, t.Id));
+    }
+
+    [Fact]
+    public async Task Usage_ReportsPinCountsPerVersion()
+    {
+        var dtId = await CreateDocTypeAsync("DT_USE");
+        var t1 = await CreateTemplateAsync(dtId, "Первый");
+        var t2 = await CreateTemplateAsync(dtId, "Второй");
+        var setId = await CreateSetAsync();
+        await AddGeneratedDocAsync(setId, dtId, pinTemplateId: t1.Id);
+        await AddGeneratedDocAsync(setId, dtId, pinTemplateId: t1.Id);
+        await AddGeneratedDocAsync(setId, dtId); // no-pin — не должен считаться
+
+        using var scope = fixture.Services.CreateScope();
+        var usage = await Mediator(scope).Send(new GetTemplatesUsageQuery(dtId));
+
+        Assert.Equal(2, usage[t1.Id].Count);
+        Assert.Equal(2, usage[t1.Id].Names.Count);
+        Assert.False(usage.ContainsKey(t2.Id)); // без пинов — отсутствует
+    }
+
     // ── In-place правка ──────────────────────────────────────────────────────
 
     [Fact]

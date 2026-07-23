@@ -5,9 +5,10 @@ import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
+import { useToast } from '@/shared/ui/Toast';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
-import { useListTemplates, useCreateTemplate, useDeleteTemplate, useDuplicateTemplate } from '@/shared/api/templates';
+import { useListTemplates, useCreateTemplate, useDeleteTemplate, useDuplicateTemplate, useTemplatesUsage } from '@/shared/api/templates';
 import type { Template, DocumentType } from '@/shared/api/types';
 import { useMaxTemplateVersions } from '@/features/settings/SettingsPage';
 import { buildBlankTypst } from './templateBlank';
@@ -78,8 +79,10 @@ export function TemplatesPage() {
 
   const { data: docTypes = [] } = useListDocumentTypes();
   const { data: templates = [], isLoading: templatesLoading } = useListTemplates(selectedTypeId || undefined);
+  const { data: usage = {} } = useTemplatesUsage(selectedTypeId || undefined);
   const deleteMutation = useDeleteTemplate();
   const duplicateMutation = useDuplicateTemplate();
+  const toast = useToast();
 
   const selectedDocType = docTypes.find(dt => dt.id === selectedTypeId) ?? null;
   const groups = groupTemplates(templates);
@@ -112,21 +115,33 @@ export function TemplatesPage() {
     setDeleteTarget(t);
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!deleteTarget) return;
-    if (selectedTemplate?.id === deleteTarget.id) setSelectedTemplate(null);
-    deleteMutation.mutate({ id: deleteTarget.id, documentTypeId: deleteTarget.documentTypeId });
+    const target = deleteTarget;
+    if (selectedTemplate?.id === target.id) setSelectedTemplate(null);
+    // Если версия запиннута — сбрасываем документы на дефолт (reassign). Иначе обычное удаление.
+    const reassign = (usage[target.id]?.count ?? 0) > 0;
+    try {
+      await deleteMutation.mutateAsync({ id: target.id, documentTypeId: target.documentTypeId, reassign });
+      if (reassign) toast.info(`${ruCount(usage[target.id].count, 'документ', 'документа', 'документов')} переведено в черновик — вернулись на шаблон по умолчанию`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Не удалось удалить версию');
+    }
   }
 
   function handleDeleteGroup(group: TemplateGroup) {
     setDeleteGroupTarget(group);
   }
 
-  function confirmDeleteGroup() {
+  async function confirmDeleteGroup() {
     if (!deleteGroupTarget) return;
     if (selectedTemplate?.name === deleteGroupTarget.name) setSelectedTemplate(null);
-    for (const t of deleteGroupTarget.versions) {
-      deleteMutation.mutate({ id: t.id, documentTypeId: t.documentTypeId });
+    // Удаление всего шаблона: снимаем пины у всех документов (→ дефолт) и удаляем все версии.
+    try {
+      for (const t of deleteGroupTarget.versions)
+        await deleteMutation.mutateAsync({ id: t.id, documentTypeId: t.documentTypeId, reassign: true });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Не удалось удалить шаблон');
     }
   }
 
@@ -212,6 +227,7 @@ export function TemplatesPage() {
             selectedTemplate={selectedTemplate}
             maxVersions={maxVersions}
             documentTypeId={selectedTypeId}
+            usage={usage}
             onSelect={setSelectedTemplate}
             onNew={() => setNewModalOpen(true)}
             onDelete={handleDelete}
@@ -252,6 +268,7 @@ export function TemplatesPage() {
       {cleanupGroup && (
         <VersionCleanupModal
           group={cleanupGroup}
+          usage={usage}
           onClose={() => setCleanupGroup(null)}
           onDeleted={handleCleanupDeleted}
         />
@@ -261,6 +278,19 @@ export function TemplatesPage() {
         open={!!deleteTarget}
         onOpenChange={o => { if (!o) setDeleteTarget(null); }}
         title={`Удалить версию v${deleteTarget?.version ?? ''} шаблона «${deleteTarget?.name ?? ''}»?`}
+        description={deleteTarget && (usage[deleteTarget.id]?.count ?? 0) > 0 ? (
+          <div className="space-y-2">
+            <p>
+              Версия используется в <strong>{ruCount(usage[deleteTarget.id].count, 'документе', 'документах', 'документах')}</strong>.
+              Они вернутся на шаблон по умолчанию и станут черновиками — PDF придётся перегенерировать. Необратимо.
+            </p>
+            <CascadeList items={[
+              ...usage[deleteTarget.id].names,
+              ...(usage[deleteTarget.id].count > usage[deleteTarget.id].names.length
+                ? [`…и ещё ${usage[deleteTarget.id].count - usage[deleteTarget.id].names.length}`] : []),
+            ]} />
+          </div>
+        ) : undefined}
         confirmLabel="Удалить версию"
         onConfirm={confirmDelete}
       />

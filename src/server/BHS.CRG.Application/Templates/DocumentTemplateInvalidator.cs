@@ -1,4 +1,3 @@
-using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
@@ -40,7 +39,7 @@ public class DocumentTemplateInvalidator(
         var docs = await objRepo.GetDocumentsOfTypeAsync(tpl.DocumentTypeId, ct);
         var isDefaultActive = tpl.IsDefault && tpl.IsActive;
         var affected = docs
-            .Where(o => PinsTemplate(o, templateId) || (isDefaultActive && HasNoPin(o)))
+            .Where(o => o.PinsTemplate(templateId) || (isDefaultActive && o.HasNoTemplatePin))
             .ToList();
         return await ResetAllAsync(affected, ct);
     }
@@ -48,17 +47,9 @@ public class DocumentTemplateInvalidator(
     public async Task<int> OnDefaultChangedAsync(Guid documentTypeId, CancellationToken ct = default)
     {
         var docs = await objRepo.GetDocumentsOfTypeAsync(documentTypeId, ct);
-        var affected = docs.Where(HasNoPin).ToList();
+        var affected = docs.Where(o => o.HasNoTemplatePin).ToList();
         return await ResetAllAsync(affected, ct);
     }
-
-    // Документ запиннут на версию — явным одиночным TemplateId или в наборе TemplateIds.
-    private static bool PinsTemplate(DomainObject o, Guid templateId)
-        => o.TemplateId == templateId || ParseIds(o.TemplateIds).Contains(templateId);
-
-    // Нет пина — резолвится в default-active шаблон типа.
-    private static bool HasNoPin(DomainObject o)
-        => o.TemplateId is null && ParseIds(o.TemplateIds).Count == 0;
 
     // Сброс: только не-черновики (у остальных сбрасывать нечего). SaveChanges один раз (атомарно),
     // удаление блобов — ПОСЛЕ коммита (конвенция reset-хендлеров: откат не осиротит файлы).
@@ -77,16 +68,5 @@ public class DocumentTemplateInvalidator(
         await objRepo.SaveChangesAsync(ct);
         foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
         return count;
-    }
-
-    private static List<Guid> ParseIds(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return [];
-        try
-        {
-            var arr = JsonSerializer.Deserialize<List<Guid>>(json);
-            return arr ?? [];
-        }
-        catch (JsonException) { return []; }
     }
 }

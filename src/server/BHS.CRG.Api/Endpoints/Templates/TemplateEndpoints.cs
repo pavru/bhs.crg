@@ -42,10 +42,20 @@ public static class TemplateEndpoints
         admin.MapPost("/{id:guid}/duplicate", async (Guid id, DuplicateTemplateRequest? req, IMediator m)
             => Results.Ok(await m.Send(new DuplicateTemplateCommand(id, req?.Name))));
 
-        admin.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        // Использование версий шаблона (issue #364) — сколько документов запиннуто на каждую версию.
+        g.MapGet("/usage", async (Guid documentTypeId, IMediator m)
+            => Results.Ok(await m.Send(new GetTemplatesUsageQuery(documentTypeId))));
+
+        // Удаление версии (issue #364). reassign=true → снять пин у документов (→ дефолт) + сброс в Draft;
+        // reassign=false и версия используется → 409 (защита bulk/случайного удаления).
+        admin.MapDelete("/{id:guid}", async (Guid id, bool? reassign, IMediator m) =>
         {
-            await m.Send(new DeleteTemplateCommand(id));
-            return Results.NoContent();
+            try
+            {
+                await m.Send(new DeleteTemplateCommand(id, reassign ?? false));
+                return Results.NoContent();
+            }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         admin.MapPut("/{id:guid}/set-default", async (Guid id, IMediator m)

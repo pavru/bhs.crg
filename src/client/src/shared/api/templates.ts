@@ -31,12 +31,31 @@ export function useDuplicateTemplate() {
   });
 }
 
+/** Использование версии шаблона (issue #364): сколько документов запиннуто + примеры имён. */
+export interface TemplateUsage { count: number; names: string[] }
+
+/** Карта использования версий типа (templateId → usage). Версии без пинов отсутствуют (= 0). */
+export function useTemplatesUsage(documentTypeId: string | undefined) {
+  return useQuery({
+    queryKey: ['template-usage', documentTypeId],
+    enabled: !!documentTypeId,
+    queryFn: () =>
+      apiClient
+        .get<Record<string, TemplateUsage>>('/templates/usage', { params: { documentTypeId } })
+        .then((r) => r.data),
+  });
+}
+
 export function useDeleteTemplate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, documentTypeId }: { id: string; documentTypeId: string }) =>
-      apiClient.delete(`/templates/${id}`).then(() => documentTypeId),
-    onSuccess: (documentTypeId) => qc.invalidateQueries({ queryKey: ['templates', documentTypeId] }),
+    // reassign=true — снять пин у документов (→ дефолт) + сброс в Draft; иначе бэк откажет (409), если версия используется.
+    mutationFn: ({ id, documentTypeId, reassign }: { id: string; documentTypeId: string; reassign?: boolean }) =>
+      apiClient.delete(`/templates/${id}`, { params: reassign ? { reassign: true } : undefined }).then(() => documentTypeId),
+    onSuccess: (documentTypeId) => {
+      qc.invalidateQueries({ queryKey: ['templates', documentTypeId] });
+      qc.invalidateQueries({ queryKey: ['template-usage', documentTypeId] });
+    },
   });
 }
 

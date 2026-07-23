@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Star, ChevronDown, ChevronUp, AlertTriangle, Copy } from 'lucide-react';
+import { Plus, Trash2, Star, ChevronDown, ChevronUp, AlertTriangle, Copy, Lock, FileText, ExternalLink } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
+import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import type { PickType } from '@/shared/ui/TypePicker';
 import type { Template, DocumentType } from '@/shared/api/types';
-import { useDeleteTemplate } from '@/shared/api/templates';
+import { useDeleteTemplate, type TemplateUsage } from '@/shared/api/templates';
+import { ruCount } from '@/shared/utils/pluralize';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
+
+/** Карта использования версий (templateId → usage); пустой объект, пока не загружено. */
+export type TemplateUsageMap = Record<string, TemplateUsage>;
 // ─── Template grouping ────────────────────────────────────────────────────────
 
 export interface TemplateGroup {
@@ -28,14 +33,23 @@ export function groupTemplates(templates: Template[]): TemplateGroup[] {
 
 // ─── Version cleanup modal ────────────────────────────────────────────────────
 
-export function VersionCleanupModal({ group, onClose, onDeleted }: {
+export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
   group: TemplateGroup;
+  usage?: TemplateUsageMap;
   onClose: () => void;
   onDeleted: (deletedIds: Set<string>) => void;
 }) {
   const deleteMutation = useDeleteTemplate();
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
+
+  // Причина защиты версии от массового удаления (issue #364): рабочая / по умолчанию / запиннута.
+  function protectReason(t: Template, isLatest: boolean): string | null {
+    if (usage[t.id]?.count) return `🔒 используется в ${ruCount(usage[t.id].count, 'докум.', 'докум.', 'докум.')} — по одной`;
+    if (t.isDefault) return '★ по умолчанию';
+    if (isLatest) return 'рабочая версия';
+    return null;
+  }
 
   const allDefault = group.versions.length > 0 && group.versions.every(t => t.isDefault);
   const protectedIds = new Set<string>();
@@ -44,6 +58,10 @@ export function VersionCleanupModal({ group, onClose, onDeleted }: {
     for (const t of group.versions) {
       if (t.isDefault) protectedIds.add(t.id);
     }
+  }
+  // Запиннутые версии массово не удаляем — только индивидуально с предупреждением.
+  for (const t of group.versions) {
+    if (usage[t.id]?.count) protectedIds.add(t.id);
   }
 
   const [toDeleteIds, setToDeleteIds] = useState<Set<string>>(
@@ -92,7 +110,8 @@ export function VersionCleanupModal({ group, onClose, onDeleted }: {
       <div className="space-y-4">
         <p className="text-sm text-fg2">
           Шаблон <strong>«{group.name}»</strong> — {group.versions.length} версий.
-          Отметьте версии для удаления. Активные и дефолтные защищены.
+          Отметьте версии для удаления. Рабочая, по умолчанию и запиннутые документами версии защищены —
+          запиннутые удаляются по одной, с предупреждением.
         </p>
         <div className="border border-stroke rounded-lg overflow-hidden">
           {group.versions.map((t, i) => {
@@ -117,7 +136,12 @@ export function VersionCleanupModal({ group, onClose, onDeleted }: {
                   {i === 0 && !t.isActive && <span className="text-xs text-fg4 shrink-0">последняя</span>}
                   {t.comment && <span className="text-xs text-fg4 truncate" title={t.comment}>{t.comment}</span>}
                 </span>
-                {protected_ && <span className="text-xs text-fg4 shrink-0">защищена</span>}
+                {protected_ && (
+                  <span className="flex items-center gap-1 text-xs text-fg4 shrink-0">
+                    {usage[t.id]?.count ? <Lock size={11} className="text-fg3" /> : null}
+                    {protectReason(t, i === 0) ?? 'защищена'}
+                  </span>
+                )}
                 {!protected_ && checked && <span className="text-xs text-danger shrink-0">удалить</span>}
               </label>
             );
@@ -150,11 +174,12 @@ export function DocTypeSelector({ docTypes, selected, onSelect }: {
 
 // ─── Grouped sidebar ──────────────────────────────────────────────────────────
 
-export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documentTypeId, onSelect, onNew, onDelete, onDeleteGroup, onDuplicate, onCleanup }: {
+export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documentTypeId, usage = {}, onSelect, onNew, onDelete, onDeleteGroup, onDuplicate, onCleanup }: {
   groups: TemplateGroup[];
   selectedTemplate: Template | null;
   maxVersions: number;
   documentTypeId: string;
+  usage?: TemplateUsageMap;
   onSelect: (t: Template) => void;
   onNew: () => void;
   onDelete: (t: Template) => void;
@@ -252,33 +277,47 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
 
               {isExpanded && (
                 <div className="border-b border-muted">
-                  {group.versions.map(t => (
+                  {group.versions.map(t => {
+                    const used = usage[t.id]?.count ?? 0;
+                    // Удалять индивидуально нельзя рабочую/дефолтную версию (защита active/default — на уровне UI).
+                    const deleteBlocked = t.isActive || t.isDefault;
+                    return (
                     <div key={t.id}
                       className={`flex items-center group/ver transition-colors pl-5
                         ${selectedTemplate?.id === t.id ? 'bg-brand-subtle' : 'hover:bg-base'}`}>
                       <button
                         onClick={() => onSelect(t)}
-                        className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 text-left
+                        className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 text-left min-w-0
                           ${selectedTemplate?.id === t.id ? 'text-brand-hover' : 'text-fg2'}`}
                       >
                         <span className="text-xs font-mono shrink-0 w-6">v{t.version}</span>
                         <span className="flex items-center gap-1 flex-1 min-w-0">
                           {t.isActive && <span className="text-xs text-success shrink-0">активный</span>}
                           {t.isDefault && <span className="text-xs text-yellow-600 shrink-0">по умолч.</span>}
+                          {used > 0 && (
+                            <span className="flex items-center gap-0.5 text-xs text-fg4 shrink-0" title={`Используется в ${used} докум.`}>
+                              <FileText size={10} /> {used}
+                            </span>
+                          )}
                           {t.comment && (
                             <span className="text-xs text-fg4 truncate" title={t.comment}>{t.comment}</span>
                           )}
                         </span>
                       </button>
-                      <button
-                        onClick={() => onDelete(t)}
-                        className="px-2 py-1.5 text-stroke-strong hover:text-danger opacity-0 group-hover/ver:opacity-100 transition-all shrink-0"
-                        title="Удалить версию"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                      <div className="pr-1 opacity-0 group-hover/ver:opacity-100 focus-within:opacity-100 transition-all shrink-0">
+                        <RowActionsMenu ariaLabel={`Действия версии v${t.version}`} actions={[
+                          { key: 'open', label: 'Открыть', icon: <ExternalLink size={13} />, onSelect: () => onSelect(t) },
+                          {
+                            key: 'delete', label: 'Удалить версию…', danger: true, icon: <Trash2 size={13} />,
+                            disabled: deleteBlocked,
+                            badge: used > 0 ? `${used} докум.` : undefined,
+                            onSelect: () => onDelete(t),
+                          },
+                        ]} />
+                      </div>
                     </div>
-                  ))}
+                    );
+                  })}
                   {tooMany && (
                     <div className="mx-3 mb-2 mt-1 px-2 py-1.5 bg-warning-subtle border border-warning-border rounded-md flex items-center gap-2">
                       <AlertTriangle size={11} className="text-warning shrink-0" />
