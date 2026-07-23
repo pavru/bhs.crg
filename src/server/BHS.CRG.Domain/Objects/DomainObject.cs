@@ -120,6 +120,35 @@ public class DomainObject : Entity
     public void SetSortOrder(int order) { Doc.SortOrder = order; TouchUpdatedAt(); }
     public void SetTemplate(Guid? templateId) { Doc.TemplateId = templateId; TouchUpdatedAt(); }
     public void SetTemplateIds(string? json) { Doc.TemplateIds = json; TouchUpdatedAt(); }
+
+    // ── Пины шаблонов (issue #362/#364) — единая точка семантики «на что запиннут документ» ──
+    private List<Guid> ParsedTemplateIds()
+    {
+        if (string.IsNullOrWhiteSpace(Doc.TemplateIds)) return [];
+        try { return JsonSerializer.Deserialize<List<Guid>>(Doc.TemplateIds) ?? []; }
+        catch (JsonException) { return []; }
+    }
+
+    /// <summary>Документ запиннут на версию — явным одиночным <see cref="TemplateId"/> или в наборе <see cref="TemplateIds"/>.</summary>
+    public bool PinsTemplate(Guid templateId) => Doc.TemplateId == templateId || ParsedTemplateIds().Contains(templateId);
+
+    /// <summary>Нет пина — документ резолвится в default-active шаблон типа.</summary>
+    public bool HasNoTemplatePin => Doc.TemplateId is null && ParsedTemplateIds().Count == 0;
+
+    /// <summary>Убирает пин на версию (issue #364): из одиночного <see cref="TemplateId"/> и из набора
+    /// <see cref="TemplateIds"/> (пустой набор → null). После снятия документ резолвится в дефолт.</summary>
+    public void UnpinTemplate(Guid templateId)
+    {
+        var changed = false;
+        if (Doc.TemplateId == templateId) { Doc.TemplateId = null; changed = true; }
+        var ids = ParsedTemplateIds();
+        if (ids.Remove(templateId))
+        {
+            Doc.TemplateIds = ids.Count == 0 ? null : JsonSerializer.Serialize(ids);
+            changed = true;
+        }
+        if (changed) TouchUpdatedAt();
+    }
     public void SetTemplateParams(string? json) { Doc.TemplateParams = json; TouchUpdatedAt(); }
     public void UpdatePluginData(JsonDocument pluginData) { Doc.PluginData = pluginData; TouchUpdatedAt(); }
 

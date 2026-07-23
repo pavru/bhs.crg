@@ -7,12 +7,15 @@ namespace BHS.CRG.Application.Templates;
 public class TemplateHandlers(
     IRepository<Template> repo,
     IRepository<TemplateAsset> templateAssetRepo,
+    IDomainObjectRepository objRepo,
+    IBlobStorage blobStorage,
     IDocumentTemplateInvalidator invalidator) :
     IRequestHandler<CreateTemplateCommand, Template>,
     IRequestHandler<UpdateTemplateCommand, TemplateMutationResult>,
     IRequestHandler<SaveTemplateContentCommand, TemplateMutationResult>,
     IRequestHandler<DuplicateTemplateCommand, Template>,
     IRequestHandler<DeleteTemplateCommand>,
+    IRequestHandler<GetTemplatesUsageQuery, IReadOnlyDictionary<Guid, TemplateUsage>>,
     IRequestHandler<GetActiveTemplateQuery, Template?>,
     IRequestHandler<ListTemplatesQuery, IReadOnlyList<Template>>,
     IRequestHandler<UpdateTemplateParametersCommand, Template>,
@@ -92,8 +95,41 @@ public class TemplateHandlers(
     public async Task Handle(DeleteTemplateCommand cmd, CancellationToken ct)
     {
         var t = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+
+        // Документы, запиннутые на удаляемую версию, надо разрулить — иначе они осиротеют.
+        var docs = await objRepo.GetDocumentsOfTypeAsync(t.DocumentTypeId, ct);
+        var pinned = docs.Where(o => o.PinsTemplate(t.Id)).ToList();
+
+        if (pinned.Count > 0 && !cmd.ReassignUsersToDefault)
+            throw new InvalidOperationException(
+                $"Версия используется в {pinned.Count} докум. Удаление снимет привязку (документы вернутся на шаблон по умолчанию).");
+
+        // Снимаем пин (→ резолв в дефолт) + сбрасываем PDF (контекст резолва сменится). Блобы — после коммита.
+        var blobs = new List<string>();
+        foreach (var o in pinned)
+        {
+            o.UnpinTemplate(t.Id);
+            blobs.AddRange(o.ResetToDraft());
+            objRepo.Update(o);
+        }
         repo.Remove(t);
         await repo.SaveChangesAsync(ct);
+        foreach (var path in blobs) await blobStorage.DeleteAsync(path, ct);
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, TemplateUsage>> Handle(GetTemplatesUsageQuery q, CancellationToken ct)
+    {
+        var docs = await objRepo.GetDocumentsOfTypeAsync(q.DocumentTypeId, ct);
+        // Проходим версии типа один раз, накапливая пины по templateId (+ примеры имён).
+        var templates = await repo.FindAsync(t => t.DocumentTypeId == q.DocumentTypeId, ct);
+        var acc = new Dictionary<Guid, (int Count, List<string> Names)>();
+        foreach (var t in templates)
+        {
+            var users = docs.Where(o => o.PinsTemplate(t.Id)).ToList();
+            if (users.Count == 0) continue;
+            acc[t.Id] = (users.Count, users.Take(5).Select(o => o.DisplayName ?? "(без имени)").ToList());
+        }
+        return acc.ToDictionary(kv => kv.Key, kv => new TemplateUsage(kv.Value.Count, kv.Value.Names));
     }
 
     public async Task<Template?> Handle(GetActiveTemplateQuery q, CancellationToken ct)
