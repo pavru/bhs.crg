@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Loader2, FileText, Download, Eye, Pencil, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Circle, CircleDot, Mail, Database, X, Info, ChevronDown, ChevronRight, Stethoscope } from 'lucide-react';
+import { Loader2, FileText, Download, Eye, Pencil, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Circle, CircleDot, Mail, Database, X, Info, ChevronDown, ChevronRight, Stethoscope, FunctionSquare } from 'lucide-react';
 import { Markdown } from '@/shared/ui/Markdown';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useEmailDocument } from '@/shared/api/documentSets';
@@ -301,6 +301,7 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   function sectionStats(fields: SchemaField[]) {
     let total = 0, filled = 0, missing = 0;
     for (const f of fields) {
+      if (f.computed) continue; // расчётные поля не заполняются пользователем — вне прогресса (#368)
       total++;
       if (hasValue(values[f.key]) || sourceBoundFields.has(f.key) || baseCoveredFields.has(f.key)) filled++;
       if (isFieldMissing(f, values[f.key])) missing++;
@@ -390,6 +391,23 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
       f.type === 'doc-array' || f.type === 'image' || f.type === 'file' || f.type === 'text';
 
     function renderCell(field: SchemaField) {
+          // Расчётное поле (issue #368) — не ввод: read-only fx-дисплей, значение считается при генерации.
+          if (field.computed) {
+            return (
+              <div key={field.key}>
+                <label className="mb-1 flex items-center gap-1 text-xs font-medium text-fg2">
+                  <span className="truncate">{field.title}</span>
+                  <span className="inline-flex items-center gap-0.5 text-[10px] text-brand shrink-0">
+                    <FunctionSquare size={11} /> вычисляется
+                  </span>
+                </label>
+                <div className="w-full rounded-md border border-dashed border-stroke bg-muted/30 px-3 py-1.5 text-sm text-fg4"
+                  title={field.expression}>
+                  Значение вычисляется при генерации
+                </div>
+              </div>
+            );
+          }
           const raw = values[field.key];
           const missing = showValidation && isFieldMissing(field, raw);
           const bound = sourceBoundFields.has(field.key);

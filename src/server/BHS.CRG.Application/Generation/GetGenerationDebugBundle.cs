@@ -67,6 +67,8 @@ public class GetGenerationDebugBundleHandler(
         await qualityLinkResolver.InjectAsync(context, view, ct);
         // Тот же второй проход, что и при генерации — разрешаем $ref, добавленные наборами данных.
         await entityResolver.ResolveContextRefsAsync(context, view.DocumentSetId, ct);
+        // Расчётные поля (issue #368) — чтобы data.json отладочного бандла содержал их значения.
+        await entityResolver.ResolveComputedFieldsAsync(context, view, new List<ResolutionDiagnostic>(), ct);
         context.Set("params", TemplateParams.Effective(template.Parameters,
             TemplateParams.OverridesForTemplate(instance.TemplateParams, template.Id)));
 

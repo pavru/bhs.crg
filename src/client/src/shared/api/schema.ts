@@ -14,6 +14,11 @@ export interface SchemaField {
   defaultValue?: unknown;
   /** Functional tags binding this field to hard-coded behaviour (registry: GET /api/tags). */
   tags?: string[];
+  /** Расчётное поле (issue #368): значение вычисляется `expression` по другим полям при генерации,
+   *  вручную не вводится и не хранится. `type` = тип результата. */
+  computed?: boolean;
+  /** JS/Jint-выражение расчётного поля (читает соседние поля через get("ключ")). */
+  expression?: string;
 }
 
 /** Опции отображения картинки (width/height/align/fit). Задаются в значении инстанса (issue #246). */
@@ -116,6 +121,8 @@ export function parseSchemaFields(schema: Record<string, unknown>): SchemaField[
     required: f.required ?? false,
     defaultValue: f.defaultValue,
     tags: f.tags,
+    computed: f.computed,
+    expression: f.expression,
   }));
 }
 

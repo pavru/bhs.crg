@@ -14,7 +14,7 @@ namespace BHS.CRG.Infrastructure.Generation;
 /// C#-аналог NewElementResolverStyles.xsl: разрешает $ref-объекты в реквизитах,
 /// подмешивает данные сущностей каталога в контекст генерации.
 /// </summary>
-public class EntityResolver(AppDbContext db) : IEntityResolver
+public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEvaluator) : IEntityResolver
 {
     // Максимальная глубина рекурсивного разворачивания вложенных ссылок (защита от патологически
     // глубоких структур). Ортогональна allowInstanceRefs (защита от циклов по документам).
@@ -135,6 +135,20 @@ public class EntityResolver(AppDbContext db) : IEntityResolver
             var match = f.Options.FirstOrDefault(o => o.Code == code);
             if (match is not null) ctx.Set(f.Key, match.Label);
         }
+    }
+
+    /// <summary>
+    /// Вычисляет расчётные поля верхнего уровня (issue #368) через <see cref="ComputedFieldResolver"/>:
+    /// движок делегирован <see cref="IExpressionEvaluator"/> (Jint), обход/топосорт/диагностика — в
+    /// Application-резолвере. enumTypesById передаём, чтобы формула видела enum-siblings как label.
+    /// </summary>
+    public async Task ResolveComputedFieldsAsync(GenerationContext ctx, DocumentView instance,
+        List<ResolutionDiagnostic> diagnostics, CancellationToken ct = default)
+    {
+        var allDocTypes = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+        var enumTypesById = await db.EnumTypes.AsNoTracking().ToDictionaryAsync(e => e.Id, ct);
+        var fields = DocumentTypeSchemaReader.EffectiveFields(instance.DocumentTypeId, allDocTypes, enumTypesById);
+        ComputedFieldResolver.ResolveRoot(ctx, fields, expressionEvaluator, diagnostics);
     }
 
     /// <summary>

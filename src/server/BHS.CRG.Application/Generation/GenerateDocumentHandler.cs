@@ -81,6 +81,9 @@ public class GenerateDocumentHandler(
             // Наборы данных могли добавить ссылки на каталог ($ref) в составные поля —
             // разрешаем их вторым проходом (для уже разрешённых данных идемпотентно).
             await entityResolver.ResolveContextRefsAsync(context, view.DocumentSetId, ct);
+            // Расчётные поля (issue #368): вычисляем ПОСЛЕ финализации входов (enum-labels/refs),
+            // ДО проверок полноты. Цикл → Error (прервёт генерацию ниже), ошибка формулы → Warning.
+            await entityResolver.ResolveComputedFieldsAsync(context, view, diagnostics, ct);
             // Проверка разрешения ссылок перед генерацией: оставшиеся $ref — ошибки,
             // при их наличии прерываем генерацию с диагностикой.
             ResolutionScanner.ScanLeftoverRefs(context, diagnostics);

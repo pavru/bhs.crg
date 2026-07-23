@@ -69,6 +69,40 @@ public class EntityResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
 
     private static JsonElement E(GenerationContext ctx, string key) => (JsonElement)ctx.Data[key]!;
 
+    // ── Расчётные поля (issue #368) ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Computed_RootField_EvaluatedIntoContext()
+    {
+        var setId = await SetupSetAsync();
+        var schema = JsonSerializer.SerializeToDocument(new
+        {
+            fields = new object[]
+            {
+                new { key = "Кол", type = "number" },
+                new { key = "Цена", type = "number" },
+                new { key = "Итого", type = "number", computed = true, expression = "get(\"Кол\") * get(\"Цена\")" },
+            },
+        });
+        Guid typeId;
+        using (var scope = fixture.Services.CreateScope())
+            typeId = (await M(scope).Send(new CreateDocumentTypeCommand(
+                "DOC_CALC", "DOC_CALC", DocumentTypeKind.Document, null, schema))).Id;
+
+        var docId = await DocAsync(setId, typeId, "{'Кол':3,'Цена':100}");
+
+        using var s = fixture.Services.CreateScope();
+        var inst = await M(s).Send(new GetDocumentInstanceQuery(docId));
+        var resolver = s.ServiceProvider.GetRequiredService<IEntityResolver>();
+        var view = DocumentView.From(inst!);
+        var ctx = await resolver.ResolveAsync(view);
+        var diags = new List<ResolutionDiagnostic>();
+        await resolver.ResolveComputedFieldsAsync(ctx, view, diags);
+
+        Assert.Empty(diags);
+        Assert.Equal(300.0, Convert.ToDouble(ctx.Data["Итого"]));
+    }
+
     // ── Регрессия: поведение, которое должно сохраниться ─────────────────────────
 
     [Fact]
