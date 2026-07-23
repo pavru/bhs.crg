@@ -31,8 +31,35 @@ public class DocumentTypeHandlers(
     IRequestHandler<GetDocumentTypeUsageQuery, DocumentTypeUsage>,
     IRequestHandler<AuditDocumentTypeQuery, DocumentTypeAuditReport>,
     IRequestHandler<AuditInstanceQuery, IReadOnlyList<AuditFinding>>,
+    IRequestHandler<MigrateFieldKeyCommand, int>,
     IRequestHandler<ApplyAuditFixesCommand, ApplyAuditFixesResult>
 {
+    public async Task<int> Handle(MigrateFieldKeyCommand cmd, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(cmd.OldKey) || string.IsNullOrWhiteSpace(cmd.NewKey) || cmd.OldKey == cmd.NewKey)
+            return 0;
+        var all = await repo.GetAllAsync(ct);
+        var byId = all.ToDictionary(t => t.Id);
+        var typeIds = all.Where(t => Schema.DocumentTypeSchemaReader.IsSameOrDescendant(t.Id, cmd.TypeId, byId))
+            .Select(t => t.Id).ToList();
+        var instances = (await objectRepo.FindAsync(o => typeIds.Contains(o.CompositeTypeId), ct)).ToList();
+
+        var migrated = 0;
+        foreach (var inst in instances)
+        {
+            var root = System.Text.Json.Nodes.JsonNode.Parse(inst.Data.RootElement.GetRawText()) as System.Text.Json.Nodes.JsonObject;
+            if (root is null) continue;
+            if (Schema.JsonPathEditor.Rename(root, cmd.OldKey, cmd.NewKey, out _, out _))
+            {
+                inst.SetData(System.Text.Json.JsonDocument.Parse(root.ToJsonString()));
+                objectRepo.Update(inst);
+                migrated++;
+            }
+        }
+        if (migrated > 0) await objectRepo.SaveChangesAsync(ct); // атомарно
+        return migrated;
+    }
+
     public async Task<IReadOnlyList<AuditFinding>> Handle(AuditInstanceQuery q, CancellationToken ct)
     {
         var inst = await objectRepo.GetByIdAsync(q.InstanceId, ct)

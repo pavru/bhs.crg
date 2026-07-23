@@ -127,6 +127,19 @@ export function useApplyAuditFixes(typeId: string | undefined) {
   });
 }
 
+/** Миграция ключа поля в данных инстансов при переименовании ключа в схеме (issue #357). */
+export function useMigrateFieldKey(typeId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ oldKey, newKey }: { oldKey: string; newKey: string }) =>
+      apiClient.post<{ migrated: number }>(`/document-types/${typeId}/migrate-field-key`, { oldKey, newKey }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['document-type-audit', typeId] });
+      qc.invalidateQueries({ queryKey: ['document-sets'] });
+    },
+  });
+}
+
 export function useDeleteDocumentType() {
   const qc = useQueryClient();
   return useMutation({

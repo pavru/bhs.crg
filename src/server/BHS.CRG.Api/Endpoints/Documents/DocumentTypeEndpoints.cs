@@ -83,6 +83,10 @@ public static class DocumentTypeEndpoints
         admin.MapPost("/{id:guid}/audit/apply", async (Guid id, ApplyAuditFixesRequest req, IMediator m)
             => Results.Ok(await m.Send(new ApplyAuditFixesCommand(req.Fixes))));
 
+        // Миграция ключа поля в данных инстансов при переименовании ключа в схеме (issue #357).
+        admin.MapPost("/{id:guid}/migrate-field-key", async (Guid id, MigrateFieldKeyRequest req, IMediator m)
+            => Results.Ok(new { migrated = await m.Send(new MigrateFieldKeyCommand(id, req.OldKey, req.NewKey)) }));
+
         // Использование типа (issue #275) — проактивный показ «чем занят тип» до попытки удаления.
         admin.MapGet("/{id:guid}/usage", async (Guid id, IMediator m) =>
         {
@@ -104,4 +108,5 @@ public static class DocumentTypeEndpoints
     record SetAllowsProxyRequest(bool AllowsProxy);
     record SetGroupRequest(string? Group);
     record ApplyAuditFixesRequest(IReadOnlyList<AuditFix> Fixes);
+    record MigrateFieldKeyRequest(string OldKey, string NewKey);
 }

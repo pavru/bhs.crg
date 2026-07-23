@@ -13,7 +13,7 @@ import { FieldCard, fieldTypeSummary, type FieldRegistries } from './FieldBuilde
  * группы (в конец) / «Без группы» (разгруппировать). Порядок групп — стрелками на шапке группы.
  */
 export function GroupedFieldsEditor({
-  fields, onFieldsChange, groups, onGroupsChange, ungroupedOrder = [], onUngroupedOrderChange, parentEffectiveFields, disabledKeys, persistedKeys, reg,
+  fields, onFieldsChange, groups, onGroupsChange, ungroupedOrder = [], onUngroupedOrderChange, parentEffectiveFields, disabledKeys, persistedKeys, onKeyRename, reg,
 }: {
   fields: SchemaField[];
   onFieldsChange: (f: SchemaField[]) => void;
@@ -26,6 +26,8 @@ export function GroupedFieldsEditor({
   disabledKeys?: Set<string>;
   /** Ключи полей из СОХРАНЁННОЙ схемы (issue #355) — их ключи заморожены. */
   persistedKeys?: Set<string>;
+  /** Смена ключа сохранённого поля (issue #357) — для миграции данных на сохранении. */
+  onKeyRename?: (from: string, to: string) => void;
   reg: FieldRegistries;
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -186,6 +188,7 @@ export function GroupedFieldsEditor({
           reg={reg}
           keyConflict={!!own.key && !!disabledKeys?.has(own.key.trim())}
           isNew={!persistedKeys?.has(own.key.trim())}
+          onKeyRename={onKeyRename}
           open={openIndex === idx}
           onToggleOpen={() => setOpenIndex(o => o === idx ? null : idx)}
           onChange={patch => patchOwn(own, patch)}

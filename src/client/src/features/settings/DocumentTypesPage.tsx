@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Plus, ChevronRight, Trash2, Copy, Folder, FileText, Boxes, EyeOff, Check,
@@ -20,6 +20,7 @@ import {
   useCreateDocumentType,
   useUpdateDocumentType,
   useUpdateDocumentTypeSchema,
+  useMigrateFieldKey,
   useDeleteDocumentType,
   useDocumentTypeUsage,
   useSetDocumentTypeAbstract,
@@ -457,6 +458,12 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
   const [error, setError] = useState('');
   const [dirty, setDirty] = useState(false);
   const mutation = useUpdateDocumentTypeSchema();
+  // Миграция ключа (issue #357): накапливаем переименования ключей сохранённых полей (origKey→newKey),
+  // после успешного сохранения схемы предлагаем перенести данные документов старый→новый.
+  const renamesRef = useRef<Map<string, string>>(new Map());
+  const migrateKey = useMigrateFieldKey(docType.id);
+  const schemaToast = useToast();
+  const [pendingMigration, setPendingMigration] = useState<{ from: string; to: string }[] | null>(null);
 
   const compositeTypes = allDocTypes.filter(dt => dt.kind === 'Composite');
   const parentType = docType.parentId ? allDocTypes.find(dt => dt.id === docType.parentId) ?? null : null;
@@ -520,6 +527,12 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
       setDirty(false);
       // Проверка сборки блоков после сохранения (issue #309, фаза 2) — не блокирует save.
       if (typstRenders.length > 0) void blocksCheck.run(typstRenders);
+      // issue #357: у сохранённого поля сменился ключ (persistedKeys — старые ключи в этом замыкании) →
+      // предложить перенос данных документов старый→новый. Схема уже сохранена (ключ переехал в ней).
+      const renames = [...renamesRef.current]
+        .filter(([from, to]) => from !== to && persistedKeys.has(from) && fields.some(f => f.key.trim() === to));
+      renamesRef.current.clear();
+      if (renames.length) setPendingMigration(renames.map(([from, to]) => ({ from, to })));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка сохранения');
       throw err;
@@ -590,6 +603,7 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
               parentEffectiveFields={activeInheritedFields}
               disabledKeys={inheritedKeys}
               persistedKeys={persistedKeys}
+              onKeyRename={(from, to) => renamesRef.current.set(from, to)}
               reg={reg}
             />}
       </div>
@@ -701,6 +715,33 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
       )}
 
       {!showJson && error && <p className="text-xs text-danger pt-1">{error}</p>}
+
+      {/* Предложение миграции данных при переименовании ключа сохранённого поля (issue #357). */}
+      <ConfirmDialog
+        open={!!pendingMigration}
+        onOpenChange={o => { if (!o) setPendingMigration(null); }}
+        title="Перенести данные документов на новый ключ?"
+        description={pendingMigration && (
+          <div className="space-y-1">
+            <p>Ключ(и) поля изменены. Перенести значения существующих документов этого типа со старого ключа на новый?</p>
+            <ul className="text-xs font-mono text-fg3">
+              {pendingMigration.map(r => <li key={r.from}>{r.from} → {r.to}</li>)}
+            </ul>
+            <p className="text-xs text-fg4">Без переноса старые значения останутся под прежним ключом (осиротеют) — их потом покажет «Аудит».</p>
+          </div>
+        )}
+        confirmLabel="Перенести данные"
+        onConfirm={async () => {
+          const renames = pendingMigration ?? [];
+          setPendingMigration(null);
+          let total = 0;
+          for (const r of renames) {
+            try { total += (await migrateKey.mutateAsync({ oldKey: r.from, newKey: r.to })).migrated; }
+            catch { schemaToast.error(`Не удалось перенести «${r.from}»`); }
+          }
+          schemaToast.success(`Перенесено документов: ${total}`);
+        }}
+      />
     </div>
   );
 }
