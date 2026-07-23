@@ -103,6 +103,50 @@ public class EntityResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         Assert.Equal(300.0, Convert.ToDouble(ctx.Data["Итого"]));
     }
 
+    [Fact]
+    public async Task Computed_NestedComposite_EvaluatedInOwnScope()
+    {
+        var setId = await SetupSetAsync();
+        // Составной тип «Строка сметы» с расчётным полем Сумма = Кол * Цена (в СВОЁМ скоупе).
+        var rowSchema = JsonSerializer.SerializeToDocument(new
+        {
+            fields = new object[]
+            {
+                new { key = "Кол", type = "number" },
+                new { key = "Цена", type = "number" },
+                new { key = "Сумма", type = "number", computed = true, expression = "get(\"Кол\") * get(\"Цена\")" },
+            },
+        });
+        Guid rowTypeId;
+        using (var scope = fixture.Services.CreateScope())
+            rowTypeId = (await M(scope).Send(new CreateDocumentTypeCommand(
+                "СтрокаСметы", "СтрокаСметы", DocumentTypeKind.Composite, null, rowSchema))).Id;
+
+        // Тип документа с complex-полем «Строка» этого составного типа.
+        var docSchema = JsonSerializer.SerializeToDocument(new
+        {
+            fields = new object[] { new { key = "Строка", type = "complex", typeId = rowTypeId.ToString() } },
+        });
+        Guid docTypeId;
+        using (var scope = fixture.Services.CreateScope())
+            docTypeId = (await M(scope).Send(new CreateDocumentTypeCommand(
+                "СмётаДок", "СмётаДок", DocumentTypeKind.Document, null, docSchema))).Id;
+
+        var docId = await DocAsync(setId, docTypeId, "{'Строка':{'Кол':4,'Цена':25}}");
+
+        using var s = fixture.Services.CreateScope();
+        var inst = await M(s).Send(new GetDocumentInstanceQuery(docId));
+        var resolver = s.ServiceProvider.GetRequiredService<IEntityResolver>();
+        var view = DocumentView.From(inst!);
+        var ctx = await resolver.ResolveAsync(view);
+        var diags = new List<ResolutionDiagnostic>();
+        await resolver.ResolveComputedFieldsAsync(ctx, view, diags);
+
+        Assert.Empty(diags);
+        var row = E(ctx, "Строка");
+        Assert.Equal(100.0, row.GetProperty("Сумма").GetDouble()); // 4 * 25 вычислено во вложенном объекте
+    }
+
     // ── Регрессия: поведение, которое должно сохраниться ─────────────────────────
 
     [Fact]

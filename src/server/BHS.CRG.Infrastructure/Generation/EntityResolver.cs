@@ -145,10 +145,9 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
     public async Task ResolveComputedFieldsAsync(GenerationContext ctx, DocumentView instance,
         List<ResolutionDiagnostic> diagnostics, CancellationToken ct = default)
     {
+        // Фаза 2 (#370): весь тип-граф — верхний уровень + вложенные составные, каждый в своём скоупе.
         var allDocTypes = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
-        var enumTypesById = await db.EnumTypes.AsNoTracking().ToDictionaryAsync(e => e.Id, ct);
-        var fields = DocumentTypeSchemaReader.EffectiveFields(instance.DocumentTypeId, allDocTypes, enumTypesById);
-        ComputedFieldResolver.ResolveRoot(ctx, fields, expressionEvaluator, diagnostics);
+        ComputedFieldResolver.ResolveTree(ctx, instance.DocumentTypeId, allDocTypes, expressionEvaluator, diagnostics);
     }
 
     /// <summary>
