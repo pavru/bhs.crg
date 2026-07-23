@@ -33,4 +33,12 @@ public interface IEntityResolver
     /// совпадения в реестре остаётся как есть. Только верхнеуровневые скалярные поля.
     /// </summary>
     Task ResolveEnumLabelsAsync(GenerationContext ctx, DocumentView instance, CancellationToken ct = default);
+
+    /// <summary>
+    /// Вычисляет расчётные поля (issue #368, фаза 1 — верхний уровень) и инжектит их значения в контекст.
+    /// Вызывать ПОСЛЕ ResolveEnumLabels/ResolveContextRefs (входы формул финальны), ДО ScanMissingRequired/
+    /// TypeStamper. Диагностики: цикл → Error, ошибка выражения → Warning (генерацию не блокирует).
+    /// </summary>
+    Task ResolveComputedFieldsAsync(GenerationContext ctx, DocumentView instance,
+        List<ResolutionDiagnostic> diagnostics, CancellationToken ct = default);
 }

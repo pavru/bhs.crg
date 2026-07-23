@@ -32,6 +32,7 @@ public class ValidateInstanceResolutionHandler(
         await entityResolver.ApplyDefaultsAsync(context, view, ct);
         await entityResolver.ResolveEnumLabelsAsync(context, view, ct);
         await entityResolver.ResolveContextRefsAsync(context, view.DocumentSetId, ct);
+        await entityResolver.ResolveComputedFieldsAsync(context, view, diagnostics, ct); // issue #368
         ResolutionScanner.ScanLeftoverRefs(context, diagnostics);
         // Полнота обязательных (issue #296, фаза 0b) — та же проверка, что при генерации.
         var byId = (await docTypeRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);

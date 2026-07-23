@@ -1,5 +1,5 @@
-import { useId, useMemo, useState } from 'react';
-import { Plus, Trash2, ArrowUp, ArrowDown, Cpu, GripVertical, ChevronDown, ChevronUp, Lock, Link2 } from 'lucide-react';
+import { useId, useMemo, useRef, useState } from 'react';
+import { Plus, Trash2, ArrowUp, ArrowDown, Cpu, GripVertical, ChevronDown, ChevronUp, Lock, Link2, FunctionSquare } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -108,6 +108,8 @@ interface FieldCardProps {
   keyConflict: boolean;
   /** Поле ещё НЕ сохранено (issue #355): ключ авто-следует за именем. У сохранённого — заморожен. */
   isNew: boolean;
+  /** Соседние поля (для пикера ссылок расчётного поля, issue #368) — без самого себя. */
+  siblingFields?: { key: string; title: string; type: string }[];
   /** Смена ключа СОХРАНЁННОГО поля (issue #357) — для предложения миграции данных на сохранении схемы. */
   onKeyRename?: (from: string, to: string) => void;
   open: boolean;
@@ -126,11 +128,74 @@ interface FieldCardProps {
   onDrop?: (e: React.DragEvent) => void;
 }
 
+// Типы, у которых допустимо расчётное поле (issue #368) — скалярный результат формулы.
+const COMPUTABLE_TYPES = new Set(['string', 'text', 'number', 'date', 'boolean']);
+function SchemaFieldKinds_isComputable(type: string): boolean { return COMPUTABLE_TYPES.has(type); }
+
+/** Редактор формулы расчётного поля (issue #368): текст выражения (JS/Jint) + пикер «Вставить поле»
+ *  (вставляет get("ключ") по образцу «Вставить реквизит» в редакторе шаблона). */
+function ComputedFieldEditor({ field, siblingFields, onChange }: {
+  field: SchemaField;
+  siblingFields: { key: string; title: string; type: string }[];
+  onChange: (patch: Partial<SchemaField>) => void;
+}) {
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const [pickOpen, setPickOpen] = useState(false);
+  const refs = siblingFields.filter(f => f.key.trim());
+
+  function insertRef(key: string) {
+    const snippet = `get("${key}")`;
+    const cur = field.expression ?? '';
+    const ta = taRef.current;
+    if (!ta) { onChange({ expression: cur + snippet }); setPickOpen(false); return; }
+    const start = ta.selectionStart ?? cur.length;
+    const end = ta.selectionEnd ?? cur.length;
+    onChange({ expression: cur.slice(0, start) + snippet + cur.slice(end) });
+    setPickOpen(false);
+    requestAnimationFrame(() => { ta.focus(); const p = start + snippet.length; ta.setSelectionRange(p, p); });
+  }
+
+  return (
+    <div className="rounded-md border border-brand/30 bg-brand-subtle/40 p-2 space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-fg3 font-medium">Формула (JavaScript)</span>
+        <div className="relative">
+          <button type="button" onClick={() => setPickOpen(o => !o)}
+            className="text-[11px] px-2 py-0.5 rounded border border-stroke-strong text-brand hover:bg-brand/10">
+            + Вставить поле
+          </button>
+          {pickOpen && (
+            <div className="absolute right-0 top-full mt-1 z-50 w-64 max-h-56 overflow-auto bg-surface border border-stroke rounded-lg shadow-lg py-1">
+              {refs.length === 0
+                ? <p className="px-3 py-2 text-xs text-fg4">Нет других полей</p>
+                : refs.map(f => (
+                  <button key={f.key} type="button" onClick={() => insertRef(f.key)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-base">
+                    <code className="text-[11px] font-mono text-brand shrink-0 max-w-[45%] truncate">{f.key}</code>
+                    <span className="text-xs text-fg3 truncate flex-1">{f.title || '—'}</span>
+                    <span className="text-[10px] text-fg4 shrink-0">{f.type}</span>
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <textarea ref={taRef} value={field.expression ?? ''} spellCheck={false} rows={2}
+        onChange={e => onChange({ expression: e.target.value })}
+        placeholder={'get("Количество") * get("Цена")'}
+        className="w-full font-mono text-xs border border-stroke-strong rounded px-2 py-1.5 bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand resize-y" />
+      <p className="text-[11px] text-fg4">
+        Читайте поля через <code className="font-mono">get("Ключ")</code>. Значения перечислений видны как отображаемое имя.
+      </p>
+    </div>
+  );
+}
+
 /** Одно СВОЁ поле: свёрнутая шапка (drag-ручка + сводка + chip типа + chevron) → раскрытый
  *  редактор (все ветки типов/опций/тэгов). Индекс-независима — переиспользуется в плоском и
  *  группированном представлении (issue #197 Фаза C). */
 export function FieldCard({
-  field, reg, keyConflict, isNew, onKeyRename, open, onToggleOpen, onChange, onRemove,
+  field, reg, keyConflict, isNew, siblingFields, onKeyRename, open, onToggleOpen, onChange, onRemove,
   onMoveUp, onMoveDown, isFirst, isLast, dragging, onDragStart, onDragEnd, onDragOver, onDrop,
 }: FieldCardProps) {
   const { primitiveTypes, enumTypes, tagRegistry } = reg;
@@ -242,16 +307,22 @@ export function FieldCard({
           <span className="truncate text-left">{fieldTypeSummary(field, reg)}</span>
           <ChevronDown size={14} className="text-fg4 shrink-0" />
         </button>
-        {/* Required */}
-        <label className="flex items-center justify-center gap-1.5 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={field.required}
-            onChange={e => onChange({ required: e.target.checked })}
-            className="w-4 h-4 rounded border-stroke-strong text-brand"
-          />
-          <span className="text-xs text-fg3">да</span>
-        </label>
+        {/* Required (у расчётного поля неприменимо — заменяется меткой ƒ) */}
+        {field.computed ? (
+          <span className="flex items-center justify-center gap-1 text-[11px] text-brand" title="Расчётное поле — значение вычисляется формулой">
+            <FunctionSquare size={12} /> вычисл.
+          </span>
+        ) : (
+          <label className="flex items-center justify-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={field.required}
+              onChange={e => onChange({ required: e.target.checked })}
+              className="w-4 h-4 rounded border-stroke-strong text-brand"
+            />
+            <span className="text-xs text-fg3">да</span>
+          </label>
+        )}
         {/* Actions */}
         <div className="flex items-center justify-end gap-0.5">
           <button type="button" onClick={onMoveUp} disabled={isFirst}
@@ -287,8 +358,30 @@ export function FieldCard({
         confirmLabel="Изменить ключ"
         onConfirm={() => { setConfirmUnlock(false); setKeyUnlocked(true); }}
       />
+      {/* Расчётное поле (issue #368): switch «Вычисляемое» — мода, не тип. Значение считается
+          формулой при генерации; «обязательное»/«по умолчанию» скрываются. */}
+      {SchemaFieldKinds_isComputable(field.type) && (
+        <>
+          <label className="flex items-center gap-2 cursor-pointer w-fit">
+            <input
+              type="checkbox"
+              checked={!!field.computed}
+              onChange={e => onChange(e.target.checked
+                ? { computed: true, required: false, defaultValue: undefined }
+                : { computed: undefined, expression: undefined })}
+              className="w-4 h-4 rounded border-stroke-strong text-brand"
+            />
+            <span className="text-xs text-fg2 flex items-center gap-1">
+              <FunctionSquare size={13} className="text-brand" /> Вычисляемое (формула)
+            </span>
+          </label>
+          {field.computed && (
+            <ComputedFieldEditor field={field} siblingFields={siblingFields ?? []} onChange={onChange} />
+          )}
+        </>
+      )}
       {/* Default value editor */}
-      {field.type !== 'complex' && field.type !== 'array' && field.type !== 'primitive'
+      {!field.computed && field.type !== 'complex' && field.type !== 'array' && field.type !== 'primitive'
         && field.type !== 'doc-ref' && field.type !== 'doc-array' && (
         <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] flex items-center gap-2">
           <span className="text-xs text-fg4 shrink-0 w-28">Значение по умолч.:</span>
@@ -458,6 +551,7 @@ export function FieldBuilder({ fields, onChange, disabledKeys, persistedKeys, co
           reg={reg}
           keyConflict={!!field.key && !!disabledKeys?.has(field.key.trim())}
           isNew={!persistedKeys?.has(field.key.trim())}
+          siblingFields={fields.filter((_, idx) => idx !== i).map(f => ({ key: f.key, title: f.title, type: f.type }))}
           open={openIndex === i}
           onToggleOpen={() => setOpenIndex(o => o === i ? null : i)}
           onChange={patch => onChange(fields.map((f, idx) => idx === i ? { ...f, ...patch } : f))}

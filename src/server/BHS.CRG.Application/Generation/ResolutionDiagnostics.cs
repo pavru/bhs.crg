@@ -46,6 +46,7 @@ public static class ResolutionScanner
         foreach (var f in effectiveFields)
         {
             if (!f.Required) continue;
+            if (f.Computed) continue; // расчётные поля производные — «обязательность» к ним не применима (#368)
             ctx.Data.TryGetValue(f.Key, out var v);
             if (IsEmpty(v))
                 diagnostics.Add(new ResolutionDiagnostic(DiagnosticSeverity.Error, f.Key,

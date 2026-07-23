@@ -15,8 +15,12 @@ public record EnumOptionInfo(string Code, string Label);
 /// <param name="Options">Варианты для type="enum" (issue #59) — из собственного инлайн `options`
 /// (легаси: код==имя) либо резолвлены из EnumType по `typeId`. Null — не enum-поле, либо enumTypesById
 /// не передан вызывающим кодом.</param>
+/// <param name="Computed">Расчётное поле (issue #368): значение вычисляется выражением <paramref name="Expression"/>
+/// по другим полям при генерации, вручную не вводится и не хранится. <paramref name="Type"/> = тип результата.</param>
+/// <param name="Expression">JS/Jint-выражение расчётного поля (читает соседние поля через get("ключ")). Null — не computed.</param>
 public record SchemaFieldInfo(string Key, string Type, Guid? TypeId, string? Title = null,
-    JsonElement? DefaultValue = null, IReadOnlyList<EnumOptionInfo>? Options = null, bool Required = false);
+    JsonElement? DefaultValue = null, IReadOnlyList<EnumOptionInfo>? Options = null, bool Required = false,
+    bool Computed = false, string? Expression = null);
 
 /// <summary>Скалярное ли поле (пригодное для табличного распознавания/материализации из плоских колонок).</summary>
 public static class SchemaFieldKinds
@@ -155,7 +159,11 @@ public static class DocumentTypeSchemaReader
                 // обоих представлений, без принудительной миграции).
                 IReadOnlyList<EnumOptionInfo>? options = type == "enum" ? ParseEnumOptions(f, typeId, enumTypesById) : null;
                 var required = f.TryGetProperty("required", out var rq) && rq.ValueKind == JsonValueKind.True;
-                fields.Add(new SchemaFieldInfo(key, type, typeId, title, defaultValue, options, required));
+                // Расчётное поле (issue #368): флаг computed + expression; type остаётся типом результата.
+                var computed = f.TryGetProperty("computed", out var cp) && cp.ValueKind == JsonValueKind.True;
+                var expression = f.TryGetProperty("expression", out var ep) && ep.ValueKind == JsonValueKind.String
+                    ? ep.GetString() : null;
+                fields.Add(new SchemaFieldInfo(key, type, typeId, title, defaultValue, options, required, computed, expression));
             }
 
         if (root.TryGetProperty("excludedFields", out var ex) && ex.ValueKind == JsonValueKind.Array)

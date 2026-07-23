@@ -199,6 +199,8 @@ builder.Services.AddScoped<IRepository<MaterialQualityLink>, Repository<Material
 builder.Services.AddScoped<BackupService>();
 
 // ── Generation ────────────────────────────────────────────────────────────────
+builder.Services.AddSingleton<BHS.CRG.Application.Generation.IExpressionEvaluator,
+    BHS.CRG.Infrastructure.Generation.JintExpressionEvaluator>();
 builder.Services.AddScoped<IEntityResolver, EntityResolver>();
 builder.Services.AddScoped<BHS.CRG.Application.Documents.ILevelProfileService, BHS.CRG.Infrastructure.Generation.LevelProfileService>();
 builder.Services.AddScoped<IMetadataExtractor, MetadataExtractor>();

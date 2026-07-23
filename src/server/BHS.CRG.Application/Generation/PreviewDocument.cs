@@ -84,6 +84,7 @@ public class PreviewDocumentHandler(
             await entityResolver.ResolveEnumLabelsAsync(context, view, ct);
             await qualityLinkResolver.InjectAsync(context, view, ct);
             await entityResolver.ResolveContextRefsAsync(context, view.DocumentSetId, ct);
+            await entityResolver.ResolveComputedFieldsAsync(context, view, diagnostics, ct); // issue #368
             ResolutionScanner.ScanLeftoverRefs(context, diagnostics);
             if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
                 return PreviewDocumentResult.Fail("Не все ссылки разрешены — предпросмотр недоступен.", diagnostics);
