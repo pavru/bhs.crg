@@ -545,7 +545,9 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
       ? primitives.filter(t => !q || `${t.name} ${t.code}`.toLowerCase().includes(q))
           .map(t => ({ id: t.id, name: t.name, code: t.code, chip: BASE_TYPE_LABEL[t.baseType] ?? t.baseType, preview: humanConstraintPreview(t.baseType, t.constraints), icon: baseTypeIcon(t.baseType) }))
       : enums.filter(t => !q || `${t.name} ${t.code}`.toLowerCase().includes(q))
-          .map(t => ({ id: t.id, name: t.name, code: t.code, chip: 'Перечисление', preview: humanEnumPreview(t.values), icon: ListIcon }));
+          // Чип во вкладке «Перечисления» = счётчик вариантов (безликое «Перечисление» = шум);
+          // в primitive-режиме чип — базовый тип. Единый смысл: одна вторичная метка, различающая строки.
+          .map(t => ({ id: t.id, name: t.name, code: t.code, chip: `${t.values.length} вар.`, preview: humanEnumPreview(t.values), icon: ListIcon }));
 
   const tab = (m: Mode, label: string) => (
     <button type="button" onClick={() => onMode(m)}
@@ -573,11 +575,13 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
                 active ? 'bg-brand-subtle text-brand-hover' : 'hover:bg-muted'}`}>
               <Icon size={17} className={`shrink-0 ${active ? 'text-brand-hover' : 'text-fg4'}`} />
               <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-1.5">
-                  <span className={`text-sm font-medium truncate ${active ? 'text-brand-hover' : 'text-fg1'}`}>{t.name}</span>
-                  <span className="text-[11px] text-fg4 font-mono shrink-0">{t.code}</span>
+                {/* Строка 1 — только имя, полный приоритет ширины. */}
+                <span className={`block text-sm font-medium truncate ${active ? 'text-brand-hover' : 'text-fg1'}`}>{t.name}</span>
+                {/* Строка 2 — код (mono, capped) · превью; оба truncate, длинный код не ломает строку 1. */}
+                <span className="flex items-baseline gap-1 min-w-0 text-fg4">
+                  <span className="font-mono text-[11px] truncate max-w-[45%] shrink-0" title={t.code}>{t.code}</span>
+                  {t.preview && <span className="text-xs truncate min-w-0">{`· ${t.preview}`}</span>}
                 </span>
-                <span className="block text-xs text-fg4 truncate">{t.preview}</span>
               </span>
               <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{t.chip}</span>
             </button>
