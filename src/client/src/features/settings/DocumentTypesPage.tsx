@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Plus, ChevronRight, Trash2, Copy, Folder, FileText, Boxes, EyeOff, Check,
@@ -40,7 +40,7 @@ import {
 } from '@/shared/api/schema';
 import { TypstRendersEditor } from './TypstRendersEditor';
 import { useTypstBlocksCheck, TypstBlocksPanel, blocksCheckProblemsByFn } from './TypstBlocksCheck';
-import { schemaToJson, validateFields, TYPE_LABELS, toCamelKey } from './schemaConstants';
+import { schemaToJson, validateFields, TYPE_LABELS, nextAutoKey } from './schemaConstants';
 import { useTagRegistry, typeTags as typeTagDefs, FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { GroupedFieldsEditor } from './GroupedFieldsEditor';
 import { JsonPreview, FieldBuilder, DefaultValueCell, type FieldRegistries } from './FieldBuilder';
@@ -222,12 +222,11 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
 
   const dirty = name !== docType.name || code !== docType.code || parentId !== (docType.parentId ?? '');
 
-  // См. FieldBuilder.updateTitle — тот же принцип: код перегенерируется, пока совпадает
-  // с авто-значением текущего названия (или пуст); ручная правка кода отключает автогенерацию.
+  // Код типа стабилен после создания (issue #355): у существующего типа переименование НЕ меняет код
+  // (иначе ломаются ссылки/резолв, #59). Авто-код — только у нового (без id).
   function handleNameChange(v: string) {
-    const isCodeAuto = !code.trim() || code === toCamelKey(name);
+    setCode(nextAutoKey(code, name, v, !docType.id));
     setName(v);
-    if (isCodeAuto) setCode(toCamelKey(v));
   }
 
   // Сохранение параметров: бросает при ошибке — чтобы общий «Сохранить»/гард прервались (issue #197).
@@ -306,9 +305,8 @@ function CreateForm({
   const mutation = useCreateDocumentType();
 
   function handleNameChange(v: string) {
-    const isCodeAuto = !code.trim() || code === toCamelKey(name);
+    setCode(nextAutoKey(code, name, v, true)); // форма создания — тип всегда новый
     setName(v);
-    if (isCodeAuto) setCode(toCamelKey(v));
   }
 
   const sameKindTypes = allDocTypes.filter(dt => dt.kind === kind);
@@ -436,6 +434,9 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
   const { data: enumTypes = [] } = useListEnumTypes();
   const schemaDef = docType.schema as unknown as SchemaDefinition;
   const [fields, setFields] = useState<SchemaField[]>(() => parseSchemaFields(docType.schema));
+  // Ключи полей из СОХРАНЁННОЙ схемы (issue #355): их ключи заморожены (переименование не меняет ключ).
+  // Новое поле (ключа нет в наборе) — ключ авто-следует за именем. Пересчитывается при сохранении/сбросе.
+  const persistedKeys = useMemo(() => new Set(parseSchemaFields(docType.schema).map(f => f.key)), [docType.schema]);
   const [groups, setGroups] = useState<FieldGroup[]>(() => normalizeGroupMembership(schemaDef.groups ?? []));
   const [excludedFields, setExcludedFields] = useState<string[]>(() => schemaDef.excludedFields ?? []);
   const [fieldOverrides, setFieldOverrides] = useState<Record<string, { required?: boolean; defaultValue?: unknown }>>(
@@ -588,6 +589,7 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
               onUngroupedOrderChange={o => { setUngroupedOrder(o); setDirty(true); }}
               parentEffectiveFields={activeInheritedFields}
               disabledKeys={inheritedKeys}
+              persistedKeys={persistedKeys}
               reg={reg}
             />}
       </div>

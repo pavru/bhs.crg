@@ -31,6 +31,18 @@ export function toCamelKey(title: string): string {
     .join('');
 }
 
+/**
+ * Ключ/код при переименовании сущности (issue #355). Авто-генерация — свойство НОВОЙ (ещё не
+ * сохранённой) сущности: ключ следует за именем только пока `isNew` И ключ не тронут вручную (всё ещё
+ * совпадает с камелизацией ТЕКУЩЕГО имени `currentTitle`). Тогда возвращаем ключ из НОВОГО имени
+ * `newTitle`. Иначе — у сохранённой сущности или после ручной правки ключа — ключ ЗАМОРОЖЕН (как есть),
+ * чтобы переименование не осиротило данные.
+ */
+export function nextAutoKey(currentKey: string, currentTitle: string, newTitle: string, isNew: boolean): string {
+  const isAuto = isNew && (!currentKey.trim() || currentKey === toCamelKey(currentTitle));
+  return isAuto ? toCamelKey(newTitle) : currentKey;
+}
+
 // ─── Validation ───────────────────────────────────────────────────────────────
 
 export function validateFields(fields: SchemaField[]): string | null {

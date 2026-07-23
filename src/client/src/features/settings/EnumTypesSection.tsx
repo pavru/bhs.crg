@@ -4,7 +4,7 @@ import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { useCreateEnumType, buildEnumTypeDto } from '@/shared/api/enumTypes';
 import type { EnumOptionDef, EnumTypeDef } from '@/shared/api/types';
-import { toCamelKey } from './schemaConstants';
+import { nextAutoKey } from './schemaConstants';
 
 // Реестр перечислений (issue #59) переведён в list-detail (issue #210) — редактор живёт в
 // PrimitiveTypesPage (EnumTypeDetail). Здесь остаются переиспользуемые куски: редактор вариантов
@@ -86,9 +86,8 @@ export function EnumForm({ onSaved, onCancel }: { onSaved: () => void; onCancel:
   const create = useCreateEnumType();
 
   function handleNameChange(v: string) {
-    const isCodeAuto = !code.trim() || code === toCamelKey(name);
+    setCode(nextAutoKey(code, name, v, true)); // форма создания — enum-тип всегда новый (issue #355)
     setName(v);
-    if (isCodeAuto) setCode(toCamelKey(v));
   }
 
   async function handleSave() {
