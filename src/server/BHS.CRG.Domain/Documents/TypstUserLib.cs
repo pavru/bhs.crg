@@ -14,4 +14,7 @@ public class TypstUserLib : Entity
         => new() { Id = SingletonId, Content = content };
 
     public void UpdateContent(string content) { Content = content; TouchUpdatedAt(); }
+
+    public static TypstUserLib Restore(string content, DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        => new() { Id = SingletonId, Content = content, CreatedAt = createdAt, UpdatedAt = updatedAt };
 }

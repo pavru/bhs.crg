@@ -66,6 +66,9 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         var catalogEntities = await db.CatalogEntities.AsNoTracking().ToListAsync(ct);
         var commonDataEntries = await db.DomainObjects.AsNoTracking().Where(o => o.Facet == null).ToListAsync(ct);
         var primitiveTypes = await db.PrimitiveTypes.AsNoTracking().ToListAsync(ct);
+        var enumTypes = await db.EnumTypes.AsNoTracking().ToListAsync(ct);
+        var templateAssets = await db.TemplateAssets.AsNoTracking().ToListAsync(ct);
+        var userLib = await db.TypstUserLibs.AsNoTracking().FirstOrDefaultAsync(ct);
 
         return new BackupManifest(
             SchemaVersion: CurrentSchemaVersion,
@@ -89,7 +92,16 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             PrimitiveTypes: primitiveTypes.Select(p => new BackupPrimitiveType(
                 p.Id, p.Name, p.Code, p.BaseType, p.Description,
                 p.Constraints.RootElement.Clone(),
-                p.CreatedAt, p.UpdatedAt, p.Group)).ToArray());
+                p.CreatedAt, p.UpdatedAt, p.Group)).ToArray(),
+            EnumTypes: enumTypes.Select(e => new BackupEnumType(
+                e.Id, e.Name, e.Code, e.Description, e.Values.RootElement.Clone(),
+                e.CreatedAt, e.UpdatedAt, e.Group)).ToArray(),
+            TemplateAssets: templateAssets.Select(a => new BackupTemplateAsset(
+                a.Id, a.Scope.ToString(), a.ScopeId, a.Kind.ToString(),
+                a.Name, a.FileName, a.MimeType, a.BlobPath, a.FontFamilyName,
+                a.CreatedAt, a.UpdatedAt)).ToArray(),
+            TypstUserLib: userLib is null ? null
+                : new BackupTypstUserLib(userLib.Content, userLib.CreatedAt, userLib.UpdatedAt));
     }
 
     // ── Import ────────────────────────────────────────────────────────────────
@@ -152,8 +164,11 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         {
             var stats = new RestoreStats();
             await RestorePrimitiveTypesAsync(manifest.PrimitiveTypes ?? [], stats, warnings, ct);
+            await RestoreEnumTypesAsync(manifest.EnumTypes ?? [], stats, warnings, ct);
             await RestoreDocumentTypesAsync(manifest.DocumentTypes, stats, warnings, ct);
             await RestoreTemplatesAsync(manifest.Templates, stats, warnings, ct);
+            await RestoreTemplateAssetsAsync(manifest.TemplateAssets ?? [], stats, warnings, ct);
+            await RestoreTypstUserLibAsync(manifest.TypstUserLib, stats, ct);
             await RestoreCatalogEntitiesAsync(manifest.CatalogEntities, stats, warnings, ct);
             await RestoreCommonDataEntriesAsync(manifest.CommonDataEntries, stats, warnings, ct);
             await tx.CommitAsync(ct);
@@ -163,7 +178,10 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 stats.TemplatesCreated, stats.TemplatesUpdated,
                 stats.CatalogEntitiesCreated, stats.CatalogEntitiesUpdated,
                 stats.CommonDataEntriesCreated, stats.CommonDataEntriesUpdated,
-                stats.PrimitiveTypesCreated, stats.PrimitiveTypesUpdated);
+                stats.PrimitiveTypesCreated, stats.PrimitiveTypesUpdated,
+                stats.EnumTypesCreated, stats.EnumTypesUpdated,
+                stats.TemplateAssetsCreated, stats.TemplateAssetsUpdated,
+                stats.TypstUserLibRestored);
         }
         catch (Exception ex)
         {
@@ -182,6 +200,9 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             CollectBlobPaths(e.Data, paths);
         foreach (var e in manifest.CatalogEntities)
             CollectBlobPaths(e.Data, paths);
+        // Файлы ассетов шаблонов (issue #403) — графика/шрифты в blob-хранилище.
+        foreach (var a in manifest.TemplateAssets ?? [])
+            if (!string.IsNullOrEmpty(a.BlobPath)) paths.Add(a.BlobPath);
         return paths;
     }
 
@@ -222,6 +243,9 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             "gif"  => "image/gif",
             "webp" => "image/webp",
             "svg"  => "image/svg+xml",
+            "ttf"  => "font/ttf",
+            "otf"  => "font/otf",
+            "ttc"  => "font/collection",
             _ => "application/octet-stream",
         };
 
@@ -242,6 +266,79 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         }
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
+    }
+
+    private async Task RestoreEnumTypesAsync(
+        BackupEnumType[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
+    {
+        var existingIds = await db.EnumTypes.Select(e => e.Id).ToHashSetAsync(ct);
+        foreach (var item in items)
+        {
+            var entity = EnumType.Restore(
+                item.Id, item.Name, item.Code, item.Description,
+                JsonDocument.Parse(item.Values.GetRawText()),
+                item.CreatedAt, item.UpdatedAt, item.Group);
+            db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
+            if (existingIds.Contains(item.Id)) stats.EnumTypesUpdated++; else stats.EnumTypesCreated++;
+        }
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+    }
+
+    private async Task RestoreTemplateAssetsAsync(
+        BackupTemplateAsset[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
+    {
+        var existingIds = await db.TemplateAssets.Select(e => e.Id).ToHashSetAsync(ct);
+        // scopeId ссылается на шаблон/тип документа (для System — null); проверяем валидность ссылки,
+        // чтобы не оставить осиротевший ассет (зеркалим защиту из RestoreTemplatesAsync).
+        var validTemplateIds = await db.Templates.Select(e => e.Id).ToHashSetAsync(ct);
+        var validDocTypeIds = await db.DocumentTypes.Select(e => e.Id).ToHashSetAsync(ct);
+        foreach (var item in items)
+        {
+            if (!Enum.TryParse<TemplateAssetScope>(item.Scope, out var scope))
+            {
+                warnings.Add($"Ассет шаблона «{item.Name}»: неизвестная область «{item.Scope}», пропущен.");
+                continue;
+            }
+            if (!Enum.TryParse<TemplateAssetKind>(item.Kind, out var kind))
+            {
+                warnings.Add($"Ассет шаблона «{item.Name}»: неизвестный вид «{item.Kind}», пропущен.");
+                continue;
+            }
+            var scopeOk = scope switch
+            {
+                TemplateAssetScope.Template => item.ScopeId is { } sid && validTemplateIds.Contains(sid),
+                TemplateAssetScope.DocumentType => item.ScopeId is { } sid && validDocTypeIds.Contains(sid),
+                _ => true, // System — scopeId == null
+            };
+            if (!scopeOk)
+            {
+                warnings.Add($"Ассет шаблона «{item.Name}»: цель области ({item.Scope} {item.ScopeId}) не найдена, пропущен.");
+                continue;
+            }
+            var entity = TemplateAsset.Restore(
+                item.Id, scope, item.ScopeId, kind,
+                item.Name, item.FileName, item.MimeType, item.BlobPath, item.FontFamilyName,
+                item.CreatedAt, item.UpdatedAt);
+            db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
+            if (existingIds.Contains(item.Id)) stats.TemplateAssetsUpdated++; else stats.TemplateAssetsCreated++;
+        }
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+    }
+
+    private async Task RestoreTypstUserLibAsync(
+        BackupTypstUserLib? item, RestoreStats stats, CancellationToken ct)
+    {
+        if (item is null) return; // старый бэкап без userlib — нечего восстанавливать
+        var existing = await db.TypstUserLibs.FirstOrDefaultAsync(l => l.Id == TypstUserLib.SingletonId, ct);
+        if (existing is not null)
+            existing.UpdateContent(item.Content);
+        else
+            db.TypstUserLibs.Add(TypstUserLib.Restore(item.Content, item.CreatedAt, item.UpdatedAt));
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+        stats.TypstUserLibRestored = true;
     }
 
     private async Task RestoreDocumentTypesAsync(
@@ -356,8 +453,11 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     private sealed class RestoreStats
     {
         public int PrimitiveTypesCreated, PrimitiveTypesUpdated;
+        public int EnumTypesCreated, EnumTypesUpdated;
         public int DocumentTypesCreated, DocumentTypesUpdated;
         public int TemplatesCreated, TemplatesUpdated;
+        public int TemplateAssetsCreated, TemplateAssetsUpdated;
+        public bool TypstUserLibRestored;
         public int CatalogEntitiesCreated, CatalogEntitiesUpdated;
         public int CommonDataEntriesCreated, CommonDataEntriesUpdated;
     }

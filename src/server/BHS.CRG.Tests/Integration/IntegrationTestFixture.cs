@@ -53,6 +53,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
                 constructions,
                 templates,
                 template_assets,
+                typst_user_lib,
                 document_types,
                 catalog_entities,
                 primitive_types,
