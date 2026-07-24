@@ -10,7 +10,12 @@ public record BackupManifest(
     BackupTemplate[] Templates,
     BackupCatalogEntity[] CatalogEntities,
     BackupCommonDataEntry[] CommonDataEntries,
-    BackupPrimitiveType[]? PrimitiveTypes = null);
+    BackupPrimitiveType[]? PrimitiveTypes = null,
+    // Аддитивные (nullable, в конце) — не ломают чтение прежних v2-копий и не требуют bump схемы:
+    // конфигурация, от которой зависит генерация, но которая раньше в бэкап не попадала (issue #403).
+    BackupEnumType[]? EnumTypes = null,
+    BackupTemplateAsset[]? TemplateAssets = null,
+    BackupTypstUserLib? TypstUserLib = null);
 
 public record BackupPrimitiveType(
     Guid Id, string Name, string Code, string BaseType, string? Description,
@@ -37,6 +42,22 @@ public record BackupCommonDataEntry(
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
     string[]? Aliases = null);
 
+// Переиспользуемое перечисление (issue #59) — схемы типов ссылаются на него через typeId; без него
+// генерация не резолвит код→имя enum-полей.
+public record BackupEnumType(
+    Guid Id, string Name, string Code, string? Description, JsonElement Values,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string? Group = null);
+
+// Ассет Typst-шаблона (issue #62) — графика/шрифт; сам файл лежит в blob-хранилище (BlobPath собирается
+// в архив как остальные блобы).
+public record BackupTemplateAsset(
+    Guid Id, string Scope, Guid? ScopeId, string Kind,
+    string Name, string FileName, string MimeType, string BlobPath, string? FontFamilyName,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+// Общая Typst-библиотека (userlib.typ) — синглтон, подмешивается при компиляции всех шаблонов.
+public record BackupTypstUserLib(string Content, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
 public record RestoreReport(
     bool Success,
     string? ConversionNotice,
@@ -50,4 +71,9 @@ public record RestoreReport(
     int CommonDataEntriesCreated,
     int CommonDataEntriesUpdated,
     int PrimitiveTypesCreated = 0,
-    int PrimitiveTypesUpdated = 0);
+    int PrimitiveTypesUpdated = 0,
+    int EnumTypesCreated = 0,
+    int EnumTypesUpdated = 0,
+    int TemplateAssetsCreated = 0,
+    int TemplateAssetsUpdated = 0,
+    bool TypstUserLibRestored = false);

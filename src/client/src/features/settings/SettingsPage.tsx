@@ -79,8 +79,10 @@ function RestoreResultModal({
 }) {
   const total =
     (report.primitiveTypesCreated ?? 0) + (report.primitiveTypesUpdated ?? 0) +
+    (report.enumTypesCreated ?? 0) + (report.enumTypesUpdated ?? 0) +
     report.documentTypesCreated + report.documentTypesUpdated +
     report.templatesCreated + report.templatesUpdated +
+    (report.templateAssetsCreated ?? 0) + (report.templateAssetsUpdated ?? 0) +
     report.catalogEntitiesCreated + report.catalogEntitiesUpdated +
     report.commonDataEntriesCreated + report.commonDataEntriesUpdated;
 
@@ -123,16 +125,23 @@ function RestoreResultModal({
             <tbody className="divide-y divide-muted">
               <StatRow label="Типы полей"
                 created={report.primitiveTypesCreated ?? 0} updated={report.primitiveTypesUpdated ?? 0} />
+              <StatRow label="Перечисления"
+                created={report.enumTypesCreated ?? 0} updated={report.enumTypesUpdated ?? 0} />
               <StatRow label="Типы документов"
                 created={report.documentTypesCreated} updated={report.documentTypesUpdated} />
               <StatRow label="Шаблоны"
                 created={report.templatesCreated} updated={report.templatesUpdated} />
+              <StatRow label="Ассеты шаблонов"
+                created={report.templateAssetsCreated ?? 0} updated={report.templateAssetsUpdated ?? 0} />
               <StatRow label="Записи каталога"
                 created={report.catalogEntitiesCreated} updated={report.catalogEntitiesUpdated} />
               <StatRow label="Общие данные"
                 created={report.commonDataEntriesCreated} updated={report.commonDataEntriesUpdated} />
             </tbody>
           </table>
+          {report.typstUserLibRestored && (
+            <p className="px-4 py-2 text-xs text-fg3 border-t border-stroke">Библиотека Typst (userlib) восстановлена.</p>
+          )}
         </div>
       )}
 

@@ -253,6 +253,11 @@ export interface RestoreReport {
   commonDataEntriesUpdated: number;
   primitiveTypesCreated: number;
   primitiveTypesUpdated: number;
+  enumTypesCreated?: number;
+  enumTypesUpdated?: number;
+  templateAssetsCreated?: number;
+  templateAssetsUpdated?: number;
+  typstUserLibRestored?: boolean;
 }
 
 // ─── DataSets ─────────────────────────────────────────────────────────────────
