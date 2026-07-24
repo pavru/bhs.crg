@@ -69,7 +69,8 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
   const inlineMap = parseInlineMapping(token);
   const refMap = parseRefMapping(token);
   const [modeOverride, setModeOverride] = useState<'ref' | 'inline' | null>(null);
-  const mode = modeOverride ?? (inlineMap ? 'inline' : 'ref');
+  // Дефолт для пустого токена — «Встроенный» (issue #395); существующий ref-токен всё равно открывается как ref.
+  const mode = modeOverride ?? (inlineMap ? 'inline' : refMap ? 'ref' : 'inline');
   const [refModeOverride, setRefModeOverride] = useState<'name' | 'identity' | null>(null);
   const refModeVal = refModeOverride ?? (refMap?.identityColumns ? 'identity' : 'name');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
