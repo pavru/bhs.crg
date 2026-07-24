@@ -91,7 +91,12 @@ function FilterConditionRow({
       {/* Operator */}
       <select
         value={cond.op}
-        onChange={e => onChange({ ...cond, op: e.target.value as FilterOp, value: undefined })}
+        // Значение НЕ сбрасываем при смене оператора (issue #401) — очищаем только при переходе
+        // на оператор без значения (isEmpty и т.п.), чтобы не тащить мусор в сериализацию.
+        onChange={e => {
+          const op = e.target.value as FilterOp;
+          onChange({ ...cond, op, ...(FILTER_OPS_NO_VALUE.includes(op) ? { value: undefined } : {}) });
+        }}
         className={`${FIELD_CLS} shrink-0`}
         style={{ width: '148px' }}
       >
