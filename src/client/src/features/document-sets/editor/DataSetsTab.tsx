@@ -28,6 +28,31 @@ function isSameOrDescendant(childId: string, ancestorId: string, allDocTypes: Do
 const MATERIALIZABLE_FIELD_TYPES: readonly string[] = ['array', 'doc-array', 'complex', 'doc-ref'];
 
 /**
+ * Эвристика режима составного поля при авто-маппинге (issue #374, фаза 3). Колонки кроют под-поля
+ * составного типа → предложить @@inline (собрать объект); иначе колонка под имя самого поля → @@ref
+ * по имени (найти в каталоге). Ничего не подошло — поле пропускаем (ручной выбор). Возвращает
+ * { ключСоставногоПоля → токен }.
+ */
+function suggestComplexTokens(columnNames: string[], complexFields: SchemaField[], allDocTypes: DocumentType[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  const norm = (s: string) => s.trim().toLowerCase();
+  const findCol = (key: string, title: string) =>
+    columnNames.find(c => norm(c) === norm(key) || (!!title && norm(c) === norm(title)))
+    ?? columnNames.find(c => norm(c).includes(norm(key)) || norm(key).includes(norm(c)));
+  for (const f of complexFields) {
+    if (!f.typeId) continue;
+    const ct = allDocTypes.find(dt => dt.id === f.typeId);
+    const subs = ct ? resolveEffectiveFields(ct, allDocTypes).filter(sf => isScalarField(sf) && !sf.computed) : [];
+    const fields: Record<string, string> = {};
+    for (const sf of subs) { const col = findCol(sf.key, sf.title); if (col) fields[sf.key] = col; }
+    if (Object.keys(fields).length > 0) { out[f.key] = buildInlineMapping(f.typeId, fields); continue; }
+    const nameCol = findCol(f.key, f.title);
+    if (nameCol) out[f.key] = buildRefMappingByName(f.typeId, nameCol);
+  }
+  return out;
+}
+
+/**
  * Маппинг одного составного поля (issue #374): сегмент «🔗 По ссылке | {} Встроенный». Рекурсивен —
  * в inline-режиме составные ПОД-поля получают свой такой же сегмент (сворачиваемые под-группы), что
  * даёт вложенный @@inline. Токен поля (@@ref/@@inline) — единственный вход/выход, режимы выводятся
@@ -367,7 +392,10 @@ function AddBindingPanel({
         sourceId: id,
         fields: scalarFields.map(f => ({ key: f.key, title: f.title })),
       });
-      setMappingState(m);
+      // Составные поля бэкенд-авто-маппинг не покрывает — предлагаем режим эвристикой (issue #374, Ф3).
+      const cols = parseSourceColumnNames(allSources.find(s => s.id === id)?.cachedSchema ?? null);
+      const complexSug = suggestComplexTokens(cols, schemaFields.filter(f => f.type === 'complex' && f.typeId), allDocTypes);
+      setMappingState({ ...m, ...complexSug });
     } catch { /* авто-маппинг необязателен */ }
   }
 
@@ -502,7 +530,10 @@ function BindingRow({
       sourceId: source.id,
       fields: scalarFields.map(f => ({ key: f.key, title: f.title })),
     });
-    setMappingState(m);
+    // Составные поля — эвристика режима (issue #374, Ф3).
+    const cols = parseSourceColumnNames(source.cachedSchema);
+    const complexSug = suggestComplexTokens(cols, schemaFields.filter(f => f.type === 'complex' && f.typeId), allDocTypes);
+    setMappingState({ ...m, ...complexSug });
   }
 
   async function handleSave() {
