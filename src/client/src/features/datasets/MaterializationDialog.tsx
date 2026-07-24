@@ -8,7 +8,7 @@ import type { PickType } from '@/shared/ui/TypePicker';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useSetMaterialization, useMaterializePreview } from '@/shared/api/datasets';
 import { MappingEditor } from '@/features/document-sets/editor/DataSetsTab';
-import { VariantSegmentedSwitch } from '@/features/document-sets/fields/ComplexFields';
+import { VariantPicker } from '@/features/document-sets/fields/ComplexFields';
 import { resolveEffectiveFields } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
@@ -102,16 +102,16 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
           ) : (
             <div className="rounded-lg border border-stroke p-3 space-y-3">
               {isUnion && (
-                <div className="flex items-center justify-between gap-2">
-                  <VariantSegmentedSwitch
+                <div className="space-y-1.5">
+                  <span className="text-[11px] text-fg4 flex items-center gap-1"
+                    title="Заполняется ровно один из вариантов">
+                    <Info size={11} /> выберите вариант — заполняется ровно один
+                  </span>
+                  <VariantPicker
                     options={effectiveFields.map(f => ({ key: f.key, label: f.title, filled: !!mapping[f.key] || !!variantStash[f.key] }))}
                     active={activeVariant}
                     onSelect={switchVariant}
                   />
-                  <span className="text-[11px] text-fg4 flex items-center gap-1 shrink-0"
-                    title="Заполняется ровно один из вариантов">
-                    <Info size={11} /> заполните одно из
-                  </span>
                 </div>
               )}
               <MappingEditor
