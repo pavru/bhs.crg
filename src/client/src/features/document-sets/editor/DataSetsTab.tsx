@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Database, Pencil, Trash2, Plus, LayoutTemplate, PlayCircle, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Database, Pencil, Trash2, Plus, LayoutTemplate, PlayCircle, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
 import { dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
 import { ApplyTemplateDialog } from './ApplyTemplateDialog';
 import {
@@ -26,6 +26,136 @@ function isSameOrDescendant(childId: string, ancestorId: string, allDocTypes: Do
 
 /** Типы полей, куда можно направить материализованный источник (составная сущность/массив/ссылка). */
 const MATERIALIZABLE_FIELD_TYPES: readonly string[] = ['array', 'doc-array', 'complex', 'doc-ref'];
+
+/**
+ * Маппинг одного составного поля (issue #374): сегмент «🔗 По ссылке | {} Встроенный». Рекурсивен —
+ * в inline-режиме составные ПОД-поля получают свой такой же сегмент (сворачиваемые под-группы), что
+ * даёт вложенный @@inline. Токен поля (@@ref/@@inline) — единственный вход/выход, режимы выводятся
+ * из токена (+ локальный override для переключения при пустом маппинге).
+ */
+function CompositeFieldMapping({ field, token, onChange, columnNames, allDocTypes, depth = 0 }: {
+  field: SchemaField;
+  token: string | undefined;
+  onChange: (token: string | undefined) => void;
+  columnNames: string[];
+  allDocTypes: DocumentType[];
+  depth?: number;
+}) {
+  const inlineMap = parseInlineMapping(token);
+  const refMap = parseRefMapping(token);
+  const [modeOverride, setModeOverride] = useState<'ref' | 'inline' | null>(null);
+  const mode = modeOverride ?? (inlineMap ? 'inline' : 'ref');
+  const [refModeOverride, setRefModeOverride] = useState<'name' | 'identity' | null>(null);
+  const refModeVal = refModeOverride ?? (refMap?.identityColumns ? 'identity' : 'name');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const compositeType = field.typeId ? allDocTypes.find(dt => dt.id === field.typeId) ?? null : null;
+  const eff = compositeType ? resolveEffectiveFields(compositeType, allDocTypes).filter(sf => !sf.computed) : [];
+  const identityFields = eff.filter(sf => isScalarField(sf) && sf.tags?.includes(FUNCTIONAL_TAG.identity));
+  const scalarSubs = eff.filter(sf => isScalarField(sf) && sf.type !== 'file');
+  const compositeSubs = eff.filter(sf => sf.type === 'complex' && sf.typeId);
+
+  const idCols = refMap?.identityColumns ?? {};
+  const inlineFields = inlineMap?.fields ?? {};
+
+  const setRefName = (col: string) => onChange(col ? buildRefMappingByName(field.typeId!, col) : undefined);
+  const setRefIdentity = (idKey: string, col: string) => {
+    const cols = { ...idCols }; if (col) cols[idKey] = col; else delete cols[idKey];
+    onChange(Object.keys(cols).length ? buildRefMappingByIdentity(field.typeId!, cols) : undefined);
+  };
+  const setSub = (subKey: string, subToken: string | undefined) => {
+    const fields = { ...inlineFields };
+    if (subToken) fields[subKey] = subToken; else delete fields[subKey];
+    onChange(Object.keys(fields).length ? buildInlineMapping(field.typeId!, fields) : undefined);
+  };
+  const segBtn = (m: 'ref' | 'inline', label: string) => (
+    <button type="button" onClick={() => { setModeOverride(m); onChange(undefined); }}
+      className={`px-2 py-0.5 transition-colors ${mode === m ? 'bg-brand text-on-brand' : 'text-fg3 hover:bg-muted'}`}>{label}</button>
+  );
+
+  return (
+    <div className="space-y-1 rounded-md border border-stroke/60 p-1.5">
+      <div className="flex items-center gap-2">
+        <span className="text-xs truncate text-fg2 flex-1" title={`${field.title} (${field.key}) — составное поле`}>{field.title}</span>
+        <div className="flex rounded-md border border-stroke overflow-hidden text-[11px] shrink-0">
+          {segBtn('ref', '🔗 По ссылке')}{segBtn('inline', '{} Встроенный')}
+        </div>
+      </div>
+      {mode === 'ref' ? (
+        <>
+          <div className="flex items-center gap-2">
+            {refModeVal === 'name' ? (
+              <select value={refMap?.identityColumns ? '' : (refMap?.column ?? '')} onChange={e => setRefName(e.target.value)}
+                className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1" title="Колонка с именем записи каталога">
+                <option value="">— не привязано —</option>
+                {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            ) : <span className="flex-1" />}
+            {identityFields.length > 0 ? (
+              <select value={refModeVal} onChange={e => { setRefModeOverride(e.target.value as 'name' | 'identity'); onChange(undefined); }}
+                className="w-36 shrink-0 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1" title="Как искать запись каталога">
+                <option value="name">по имени</option><option value="identity">по идентификатору</option>
+              </select>
+            ) : <span className="w-36 shrink-0 text-xs text-fg4 px-2 text-right" title="У типа нет полей-идентификаторов — только по имени">по имени</span>}
+          </div>
+          {refModeVal === 'identity' && (
+            <div className="pl-2 space-y-1 border-l border-stroke">
+              {identityFields.map(idf => (
+                <div key={idf.key} className="flex items-center gap-2">
+                  <span className="w-32 shrink-0 text-[11px] text-fg4 truncate" title={idf.key}>{idf.title}</span>
+                  <select value={idCols[idf.key] ?? ''} onChange={e => setRefIdentity(idf.key, e.target.value)}
+                    className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1" title={`Колонка для identity-поля «${idf.title}»`}>
+                    <option value="">— колонка —</option>{columnNames.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-[10px] text-fg4">Ищет существующий объект в каталоге — общие/переиспользуемые данные.</p>
+        </>
+      ) : (
+        <>
+          <div className="pl-2 space-y-1 border-l border-brand/40">
+            {scalarSubs.map(sf => (
+              <div key={sf.key} className="flex items-center gap-2">
+                <span className="w-32 shrink-0 text-[11px] text-fg3 truncate" title={`${sf.title} (${sf.key})`}>{sf.title}</span>
+                <select value={inlineFields[sf.key] ?? ''} onChange={e => setSub(sf.key, e.target.value || undefined)}
+                  className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1" title={`Колонка для под-поля «${sf.title}»`}>
+                  <option value="">— не привязано —</option>{columnNames.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            ))}
+            {compositeSubs.map(sf => {
+              const open = expanded.has(sf.key);
+              return (
+                <div key={sf.key}>
+                  <button type="button"
+                    onClick={() => setExpanded(p => { const n = new Set(p); n.has(sf.key) ? n.delete(sf.key) : n.add(sf.key); return n; })}
+                    className="flex items-center gap-1 py-0.5 text-[11px] text-fg3 hover:text-fg1">
+                    {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    <span className="truncate">{sf.title}</span>
+                    {inlineFields[sf.key] && <span className="text-brand">•</span>}
+                    <span className="text-fg4">(составное)</span>
+                  </button>
+                  {open && (
+                    <div className="pl-3">
+                      <CompositeFieldMapping field={sf} token={inlineFields[sf.key]} onChange={t => setSub(sf.key, t)}
+                        columnNames={columnNames} allDocTypes={allDocTypes} depth={depth + 1} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {scalarSubs.length === 0 && compositeSubs.length === 0 && (
+              <p className="text-[11px] text-fg4">У типа нет под-полей для маппинга.</p>
+            )}
+          </div>
+          <p className="text-[10px] text-fg4">Собирает объект из колонок — разовые данные этого документа.</p>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function MappingEditor({
   source,
@@ -67,25 +197,11 @@ export function MappingEditor({
     return resolveEffectiveFields(elementType, allDocTypes);
   }, [targetFieldKey, tabularFields, allDocTypes, schemaFields]);
 
-  // UI-режим резолва ref-поля (по имени/по идентификатору) — держим отдельно, т.к. пустой маппинг
-  // (ещё не выбраны колонки) не отличает режимы; при загрузке выводится из самого маппинга.
-  const [refMode, setRefMode] = useState<Record<string, 'name' | 'identity'>>({});
-  // Режим составного поля (issue #374): ссылка на каталог vs встроенный объект из колонок.
-  const [compMode, setCompMode] = useState<Record<string, 'ref' | 'inline'>>({});
-
   const scalarMappable = effectiveFields.filter(f => isScalarField(f) && f.type !== 'file');
-  // Составные поля заполняются ссылкой на запись каталога (по значению колонки).
+  // Составные поля: ссылка на каталог ИЛИ встроенный объект — редактор в CompositeFieldMapping (issue #374).
   const complexMappable = effectiveFields.filter(f => f.type === 'complex' && f.typeId);
   // Файловые поля заполняются вложением, синтезированным из колонки-пути (+ опц. колонка-размер) той же строки.
   const fileMappable = effectiveFields.filter(f => f.type === 'file');
-
-  // Identity-поля типа-цели (тэг `identity`, в порядке схемы) — по ним резолвится составной ключ (#243).
-  function identityFieldsFor(typeId: string): SchemaField[] {
-    const ct = allDocTypes.find(dt => dt.id === typeId);
-    if (!ct) return [];
-    return resolveEffectiveFields(ct, allDocTypes)
-      .filter(f => isScalarField(f) && f.tags?.includes(FUNCTIONAL_TAG.identity));
-  }
 
   function setTarget(t: string) {
     // При смене цели сбрасываем маппинг
@@ -97,55 +213,16 @@ export function MappingEditor({
     else delete next[fieldKey];
     onChange(next, targetFieldKey);
   }
-  // Резолв ref-поля по имени: одна колонка.
-  function setRefName(f: SchemaField, column: string) {
-    const next = { ...mapping };
-    if (column) next[f.key] = buildRefMappingByName(f.typeId!, column);
-    else delete next[f.key];
-    onChange(next, targetFieldKey);
-  }
-  // Резолв ref-поля по идентификатору: колонка на одно identity-поле (частичный маппинг допустим,
-  // пустые компоненты просто не дадут матча на бэке — строгий composite-ключ).
-  function setRefIdentityCol(f: SchemaField, current: Record<string, string>, idKey: string, column: string) {
-    const cols = { ...current };
-    if (column) cols[idKey] = column; else delete cols[idKey];
-    const next = { ...mapping };
-    if (Object.keys(cols).length > 0) next[f.key] = buildRefMappingByIdentity(f.typeId!, cols);
-    else delete next[f.key];
-    onChange(next, targetFieldKey);
-  }
-  // Переключение режима ref-поля (по имени ↔ по идентификатору) — сбрасываем текущий маппинг поля;
-  // режим держим в UI-стейте, т.к. пустой маппинг сам по себе не хранит выбор.
-  function switchRefMode(f: SchemaField, mode: 'name' | 'identity') {
-    setRefMode(prev => ({ ...prev, [f.key]: mode }));
-    const next = { ...mapping };
-    delete next[f.key];
-    onChange(next, targetFieldKey);
-  }
   function setFile(f: SchemaField, column: string, sizeColumn: string) {
     const next = { ...mapping };
     if (column) next[f.key] = buildFileMapping({ column, sizeColumn });
     else delete next[f.key];
     onChange(next, targetFieldKey);
   }
-  // Скалярные под-поля составного типа (для inline-режима) — что можно замапить из колонок (issue #374).
-  function inlineSubFields(typeId: string): SchemaField[] {
-    const ct = allDocTypes.find(dt => dt.id === typeId);
-    return ct ? resolveEffectiveFields(ct, allDocTypes).filter(sf => isScalarField(sf) && !sf.computed) : [];
-  }
-  function setInlineSub(f: SchemaField, current: Record<string, string>, subKey: string, column: string) {
-    const fields = { ...current };
-    if (column) fields[subKey] = column; else delete fields[subKey];
+  // Токен составного поля (@@ref/@@inline) от CompositeFieldMapping (issue #374).
+  function setComplexToken(fieldKey: string, token: string | undefined) {
     const next = { ...mapping };
-    if (Object.keys(fields).length > 0) next[f.key] = buildInlineMapping(f.typeId!, fields);
-    else delete next[f.key];
-    onChange(next, targetFieldKey);
-  }
-  // Переключение составного поля ref ↔ inline — сбрасываем маппинг поля (режимы несовместимы по форме).
-  function switchCompMode(f: SchemaField, mode: 'ref' | 'inline') {
-    setCompMode(prev => ({ ...prev, [f.key]: mode }));
-    const next = { ...mapping };
-    delete next[f.key];
+    if (token) next[fieldKey] = token; else delete next[fieldKey];
     onChange(next, targetFieldKey);
   }
 
@@ -192,106 +269,11 @@ export function MappingEditor({
               </select>
             </div>
           ))}
-          {complexMappable.map(f => {
-            const inlineMap = parseInlineMapping(mapping[f.key]);
-            const cMode = compMode[f.key] ?? (inlineMap ? 'inline' : 'ref');
-            const refMap = parseRefMapping(mapping[f.key]);
-            const idFields = identityFieldsFor(f.typeId!);
-            const hasIdentity = idFields.length > 0;
-            // Режим ref: явный UI-выбор → иначе из маппинга (identityColumns → identity, иначе name).
-            const mode = refMode[f.key] ?? (refMap?.identityColumns ? 'identity' : 'name');
-            const idCols = refMap?.identityColumns ?? {};
-            const inlineFields = inlineMap?.fields ?? {};
-            const segBtn = (m: 'ref' | 'inline', label: string) => (
-              <button type="button" onClick={() => switchCompMode(f, m)}
-                className={`px-2 py-0.5 transition-colors ${cMode === m ? 'bg-brand text-on-brand' : 'text-fg3 hover:bg-muted'}`}>
-                {label}
-              </button>
-            );
-            return (
-              <div key={f.key} className="space-y-1 rounded-md border border-stroke/60 p-1.5">
-                {/* Шапка: имя поля + сегмент режима «По ссылке | Встроенный» (issue #374). */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs truncate text-fg2 flex-1" title={`${f.title} (${f.key}) — составное поле`}>
-                    {f.title}
-                  </span>
-                  <div className="flex rounded-md border border-stroke overflow-hidden text-[11px] shrink-0">
-                    {segBtn('ref', '🔗 По ссылке')}
-                    {segBtn('inline', '{} Встроенный')}
-                  </div>
-                </div>
-
-                {cMode === 'ref' ? (
-                  <>
-                    <div className="flex items-center gap-2">
-                      {mode === 'name' ? (
-                        <select value={refMap?.identityColumns ? '' : (refMap?.column ?? '')}
-                          onChange={e => setRefName(f, e.target.value)}
-                          className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
-                          title="Колонка с именем записи каталога">
-                          <option value="">— не привязано —</option>
-                          {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      ) : (
-                        <span className="flex-1" />
-                      )}
-                      {hasIdentity ? (
-                        <select value={mode} onChange={e => switchRefMode(f, e.target.value as 'name' | 'identity')}
-                          className="w-36 shrink-0 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
-                          title="Как искать запись каталога">
-                          <option value="name">по имени</option>
-                          <option value="identity">по идентификатору</option>
-                        </select>
-                      ) : (
-                        <span className="w-36 shrink-0 text-xs text-fg4 px-2 text-right" title="У типа нет полей-идентификаторов — только по имени">по имени</span>
-                      )}
-                    </div>
-                    {mode === 'identity' && (
-                      <div className="pl-2 space-y-1 border-l border-stroke">
-                        {idFields.map(idf => (
-                          <div key={idf.key} className="flex items-center gap-2">
-                            <span className="w-32 shrink-0 text-[11px] text-fg4 truncate" title={idf.key}>{idf.title}</span>
-                            <select value={idCols[idf.key] ?? ''}
-                              onChange={e => setRefIdentityCol(f, idCols, idf.key, e.target.value)}
-                              className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
-                              title={`Колонка для identity-поля «${idf.title}»`}>
-                              <option value="">— колонка —</option>
-                              {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <p className="text-[10px] text-fg4">Ищет существующий объект в каталоге — общие/переиспользуемые данные.</p>
-                  </>
-                ) : (
-                  <>
-                    {/* Inline: под-поля составного типа ← колонки той же строки. */}
-                    <div className="pl-2 space-y-1 border-l border-brand/40">
-                      {inlineSubFields(f.typeId!).map(sf => (
-                        <div key={sf.key} className="flex items-center gap-2">
-                          <span className="w-32 shrink-0 text-[11px] text-fg3 truncate" title={`${sf.title} (${sf.key})`}>{sf.title}</span>
-                          <select value={inlineFields[sf.key] ?? ''}
-                            onChange={e => setInlineSub(f, inlineFields, sf.key, e.target.value)}
-                            className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
-                            title={`Колонка для под-поля «${sf.title}»`}>
-                            <option value="">— не привязано —</option>
-                            {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </div>
-                      ))}
-                      {inlineSubFields(f.typeId!).length === 0 && (
-                        <p className="text-[11px] text-fg4">У типа нет скалярных под-полей для маппинга.</p>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-fg4">
-                      Собирает объект в этом документе из колонок — разовые данные{targetFieldKey ? ' (на каждую строку)' : ''}.
-                    </p>
-                  </>
-                )}
-              </div>
-            );
-          })}
+          {complexMappable.map(f => (
+            <CompositeFieldMapping key={f.key} field={f} token={mapping[f.key]}
+              onChange={t => setComplexToken(f.key, t)}
+              columnNames={columnNames} allDocTypes={allDocTypes} />
+          ))}
           {fileMappable.map(f => {
             const fileMap = parseFileMapping(mapping[f.key]);
             return (
