@@ -92,21 +92,22 @@ public class DataSetBindingService(
                     var data = new Dictionary<string, object?>();
                     foreach (var (fieldKey, colName) in mapping)
                         if (!string.IsNullOrEmpty(colName))
-                            data[fieldKey] = DataSetDtoMapper.PreviewCell(colName, row);
+                            data[fieldKey] = await DataSetDtoMapper.PreviewCellAsync(colName, row, ct);
 
                     results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
                         "scalar", null, rows.Count, data, null));
                 }
                 else
                 {
-                    var mapped = rows.Select(row =>
+                    var mapped = new List<Dictionary<string, object?>>();
+                    foreach (var row in rows)
                     {
                         var obj = new Dictionary<string, object?>();
                         foreach (var (fieldKey, colName) in mapping)
                             if (!string.IsNullOrEmpty(colName))
-                                obj[fieldKey] = DataSetDtoMapper.PreviewCell(colName, row);
-                        return obj;
-                    }).ToList();
+                                obj[fieldKey] = await DataSetDtoMapper.PreviewCellAsync(colName, row, ct);
+                        mapped.Add(obj);
+                    }
 
                     results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
                         "tabular", binding.TargetFieldKey, mapped.Count, mapped, null));

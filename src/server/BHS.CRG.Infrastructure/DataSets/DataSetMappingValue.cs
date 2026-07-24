@@ -36,10 +36,20 @@ public record DataSetRefMapping(
 /// </summary>
 public record DataSetFileMapping(string Column, string? SizeColumn);
 
+/// <summary>
+/// Inline-маппинг составного поля (issue #374): значение поля собирается КАК ВСТРОЕННЫЙ ОБЪЕКТ из
+/// колонок ТОЙ ЖЕ строки (в отличие от <see cref="DataSetRefMapping"/> — без cross-table lookup).
+/// <see cref="Fields"/> — под-поле → токен (та же грамматика маппинга: имя колонки / <c>@@ref:…</c> /
+/// вложенный <c>@@inline:…</c>) — рекурсивно. <see cref="TypeId"/> — объявленный составной тип поля.
+/// Кодируется строкой <c>@@inline:{"typeId":"&lt;guid&gt;","fields":{"Подполе":"Колонка",…}}</c>.
+/// </summary>
+public record DataSetInlineMapping(Guid TypeId, Dictionary<string, string> Fields);
+
 public static class DataSetMappingValue
 {
     public const string RefPrefix = "@@ref:";
     public const string FilePrefix = "@@file:";
+    public const string InlinePrefix = "@@inline:";
 
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
@@ -57,6 +67,25 @@ public static class DataSetMappingValue
             var noSource = string.IsNullOrWhiteSpace(parsed?.Column)
                 && (parsed?.IdentityColumns is null || parsed.IdentityColumns.Count == 0);
             return parsed is null || parsed.TypeId == Guid.Empty || noSource ? null : parsed;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public static bool IsInline(string? value) =>
+        value is not null && value.StartsWith(InlinePrefix, StringComparison.Ordinal);
+
+    public static DataSetInlineMapping? ParseInline(string? value)
+    {
+        if (!IsInline(value)) return null;
+        try
+        {
+            var json = value![InlinePrefix.Length..];
+            var parsed = JsonSerializer.Deserialize<DataSetInlineMapping>(json, JsonOpts);
+            // Валиден, если задан хотя бы один под-маппинг (иначе строить нечего).
+            return parsed is null || parsed.Fields is null || parsed.Fields.Count == 0 ? null : parsed;
         }
         catch
         {

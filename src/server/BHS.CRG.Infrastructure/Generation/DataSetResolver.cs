@@ -80,7 +80,7 @@ public class DataSetResolver(
                         var row = rows[0];
                         foreach (var (fieldKey, mapVal) in mapping)
                         {
-                            var value = await MapValueAsync(mapVal, row, ownerId, scopeLevel, scopeId, diagnostics, fieldKey, ct);
+                            var value = await ApplyMappedAsync(mapVal, row, ownerId, scopeLevel, scopeId, diagnostics, fieldKey, ct);
                             if (value is not null)
                                 ctx.Set(fieldKey, value);
                         }
@@ -118,7 +118,7 @@ public class DataSetResolver(
                         foreach (var (fieldKey, mapVal) in mapping)
                         {
                             var path = $"{binding.TargetFieldKey}[{rowIndex}].{fieldKey}";
-                            var value = await MapValueAsync(mapVal, row, ownerId, scopeLevel, scopeId, diagnostics, path, ct);
+                            var value = await ApplyMappedAsync(mapVal, row, ownerId, scopeLevel, scopeId, diagnostics, path, ct);
                             if (value is not null)
                                 obj[fieldKey] = value;
                         }
@@ -158,13 +158,12 @@ public class DataSetResolver(
     }
 
     /// <summary>
-    /// Преобразует одно значение маппинга: обычная колонка → строка;
-    /// ссылочный маппинг (@@ref) → объект {$ref:catalog, entryId} по найденной записи каталога.
-    /// Поиск существующего объекта делегируется единому <see cref="IObjectResolver"/> (issue #183):
-    /// матч по конкретному полю (@@ref с match) или по имени/алиасам (пустой match). Нет матча →
-    /// WARNING + поле не добавляется (создание объектов не выполняется — резолвер read-only).
+    /// Применяет одно значение маппинга через общий <see cref="DataSetMappingApplier"/> (issue #374):
+    /// колонка/@@file/@@inline — общие ветки, @@ref делегируется <see cref="ResolveRefAsync"/> (резолв в
+    /// существующую запись каталога). Inline строит встроенный объект; его @@ref-под-поля дают $ref,
+    /// доразрешаемый 2-м проходом резолвера.
     /// </summary>
-    private async Task<object?> MapValueAsync(
+    private Task<object?> ApplyMappedAsync(
         string mapVal,
         IReadOnlyDictionary<string, string?> row,
         Guid ownerId,
@@ -173,15 +172,24 @@ public class DataSetResolver(
         List<ResolutionDiagnostic>? diagnostics,
         string path,
         CancellationToken ct)
+        => DataSetMappingApplier.ApplyAsync(mapVal, row,
+            (rm, r, p, c) => ResolveRefAsync(rm, r, ownerId, scopeLevel, scopeId, diagnostics, p, c), path, ct);
+
+    /// <summary>
+    /// @@ref: резолвит строку в существующий объект каталога через единый <see cref="IObjectResolver"/>
+    /// (issue #183) — по имени/алиасам или составному identity-ключу. Нет матча → WARNING + null (создание
+    /// объектов не выполняется, резолвер read-only). Возвращает {$ref:catalog, entryId} по найденной записи.
+    /// </summary>
+    private async Task<object?> ResolveRefAsync(
+        DataSetRefMapping refMap,
+        IReadOnlyDictionary<string, string?> row,
+        Guid ownerId,
+        CatalogScope scopeLevel,
+        Guid? scopeId,
+        List<ResolutionDiagnostic>? diagnostics,
+        string path,
+        CancellationToken ct)
     {
-        var fileMap = DataSetMappingValue.ParseFile(mapVal);
-        if (fileMap is not null)
-            return DataSetMappingValue.ResolveFileValue(fileMap, row);
-
-        var refMap = DataSetMappingValue.ParseRef(mapVal);
-        if (refMap is null)
-            return row.TryGetValue(mapVal, out var val) ? val : null;
-
         // Ссылочное поле: резолвим строку в существующий объект каталога по одной из двух стратегий
         // (issue #243): Identity (составной ключ identity-полей) либо Name (по имени/алиасам); legacy
         // с непустым match — Field (произвольное поле, из UI больше не создаётся, читается вечно).
