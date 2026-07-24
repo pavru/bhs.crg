@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Info } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { dtCard, dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
@@ -7,7 +8,9 @@ import type { PickType } from '@/shared/ui/TypePicker';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useSetMaterialization, useMaterializePreview } from '@/shared/api/datasets';
 import { MappingEditor } from '@/features/document-sets/editor/DataSetsTab';
+import { VariantSegmentedSwitch } from '@/features/document-sets/fields/ComplexFields';
 import { resolveEffectiveFields } from '@/shared/api/schema';
+import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 import type { DataSetSource } from '@/shared/api/types';
 
@@ -27,6 +30,31 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
   const effectiveFields = selectedType ? resolveEffectiveFields(selectedType, allDocTypes) : [];
   // Live-превью по ТЕКУЩИМ (несохранённым) типу+маппингу (issue #294): обновляется на каждую правку.
   const preview = useMaterializePreview(source.id, typeId || undefined, mapping, showPreview && !!typeId);
+
+  // Union-тип (issue #320/#391): «заполняется ровно один вариант» — маппим один активный вариант,
+  // а не все поля union разом. Материализатор кладёт один ключ на строку → корректный union-экземпляр.
+  const isUnion = !!selectedType
+    && ((selectedType.schema as { tags?: string[] }).tags ?? []).includes(FUNCTIONAL_TAG.typeUnion);
+  const presentVariant = isUnion ? effectiveFields.find(f => mapping[f.key])?.key : undefined;
+  const firstVariant = effectiveFields[0]?.key ?? '';
+  const [activeVariant, setActiveVariant] = useState<string>('');
+  // Стэш неактивных вариантов — недеструктивное переключение (как в UnionFieldGroup): persist хранит
+  // ОДИН ключ, токен другого варианта живёт в локальном стэше до закрытия диалога.
+  const [variantStash, setVariantStash] = useState<Record<string, string>>({});
+  // Подхватываем активный вариант из загруженного маппинга / при смене типа сбрасываем на первый.
+  useEffect(() => {
+    if (!isUnion) return;
+    setActiveVariant(presentVariant ?? firstVariant);
+  }, [isUnion, presentVariant, firstVariant]);
+
+  function switchVariant(key: string) {
+    if (key === activeVariant) return;
+    const curToken = mapping[activeVariant];
+    setVariantStash(prev => ({ ...prev, [activeVariant]: curToken ?? '' }));
+    const restored = variantStash[key];
+    setMapping(restored ? { [key]: restored } : {}); // union: ровно один ключ
+    setActiveVariant(key);
+  }
 
   function handleSave() {
     save.mutate(
@@ -65,17 +93,30 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
               section: t.kind === 'Composite' ? 'Составные типы' : 'Типы документов',
             }))}
             value={typeId || undefined}
-            onChange={id => { setTypeId(id ?? ''); setMapping({}); }} />
+            onChange={id => { setTypeId(id ?? ''); setMapping({}); setVariantStash({}); }} />
         </div>
 
         {selectedType && (
           effectiveFields.length === 0 ? (
             <p className="text-xs text-warning">У типа «{selectedType.name}» нет полей — задайте поля типу, чтобы было куда маппить.</p>
           ) : (
-            <div className="rounded-lg border border-stroke p-3">
+            <div className="rounded-lg border border-stroke p-3 space-y-3">
+              {isUnion && (
+                <div className="flex items-center justify-between gap-2">
+                  <VariantSegmentedSwitch
+                    options={effectiveFields.map(f => ({ key: f.key, label: f.title, filled: !!mapping[f.key] || !!variantStash[f.key] }))}
+                    active={activeVariant}
+                    onSelect={switchVariant}
+                  />
+                  <span className="text-[11px] text-fg4 flex items-center gap-1 shrink-0"
+                    title="Заполняется ровно один из вариантов">
+                    <Info size={11} /> заполните одно из
+                  </span>
+                </div>
+              )}
               <MappingEditor
                 source={source}
-                schemaFields={effectiveFields}
+                schemaFields={isUnion ? effectiveFields.filter(f => f.key === activeVariant) : effectiveFields}
                 tabularFields={[]}
                 allDocTypes={allDocTypes}
                 mapping={mapping}

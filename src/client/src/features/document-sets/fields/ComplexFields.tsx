@@ -915,7 +915,7 @@ function isVariantFilled(v: unknown): boolean {
   return String(v).trim() !== '';
 }
 
-function VariantSegmentedSwitch({ options, active, onSelect }: {
+export function VariantSegmentedSwitch({ options, active, onSelect }: {
   options: { key: string; label: string; filled: boolean }[];
   active: string; onSelect: (key: string) => void;
 }) {
