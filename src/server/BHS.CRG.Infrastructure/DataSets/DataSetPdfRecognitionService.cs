@@ -6,6 +6,7 @@ using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Notifications;
+using BHS.CRG.Domain.Schema;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Recognition;
 using Microsoft.EntityFrameworkCore;
@@ -796,11 +797,17 @@ public class DataSetPdfRecognitionService(
             catch (Exception ex) { throw new ArgumentException($"Не удалось выделить страницы документа: {ex.Message}"); }
         }
 
+        // Промпт по тэгу (issue #389): кабельный журнал — свой промпт (двойная форма По проекту/Проложен),
+        // иначе общий табличный. Раньше всегда BuildTablePrompt — из-за чего терялась фактическая секция.
+        var tablePrompt = tag == FunctionalTag.GostDocCableJournal
+            ? (Func<IReadOnlyList<RecognitionField>, string>)RecognitionShared.BuildCableJournalPrompt
+            : RecognitionShared.BuildTablePrompt;
+
         RecognitionResult result;
         try
         {
             result = await recognizer.RecognizeAsync(subPdf, "application/pdf",
-                GostTableFields.RecognitionFieldsFor(columns), RecognitionShared.BuildTablePrompt, ct: ct);
+                GostTableFields.RecognitionFieldsFor(columns), tablePrompt, ct: ct);
         }
         catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
         {
