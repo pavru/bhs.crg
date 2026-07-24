@@ -10,7 +10,7 @@ import {
 import type { DocumentInstance, DocumentType, DataSetSource, DataSetBinding, DataSetBindingPreviewResult } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
-import { parseSourceColumnNames, parseRefMapping, buildRefMappingByName, buildRefMappingByIdentity, parseFileMapping, buildFileMapping } from '@/shared/api/datasetHelpers';
+import { parseSourceColumnNames, parseRefMapping, buildRefMappingByName, buildRefMappingByIdentity, parseFileMapping, buildFileMapping, parseInlineMapping, buildInlineMapping } from '@/shared/api/datasetHelpers';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 /** Совместимость по наследованию: childId == ancestorId либо childId — потомок ancestorId по parentId. */
@@ -70,6 +70,8 @@ export function MappingEditor({
   // UI-режим резолва ref-поля (по имени/по идентификатору) — держим отдельно, т.к. пустой маппинг
   // (ещё не выбраны колонки) не отличает режимы; при загрузке выводится из самого маппинга.
   const [refMode, setRefMode] = useState<Record<string, 'name' | 'identity'>>({});
+  // Режим составного поля (issue #374): ссылка на каталог vs встроенный объект из колонок.
+  const [compMode, setCompMode] = useState<Record<string, 'ref' | 'inline'>>({});
 
   const scalarMappable = effectiveFields.filter(f => isScalarField(f) && f.type !== 'file');
   // Составные поля заполняются ссылкой на запись каталога (по значению колонки).
@@ -126,6 +128,26 @@ export function MappingEditor({
     else delete next[f.key];
     onChange(next, targetFieldKey);
   }
+  // Скалярные под-поля составного типа (для inline-режима) — что можно замапить из колонок (issue #374).
+  function inlineSubFields(typeId: string): SchemaField[] {
+    const ct = allDocTypes.find(dt => dt.id === typeId);
+    return ct ? resolveEffectiveFields(ct, allDocTypes).filter(sf => isScalarField(sf) && !sf.computed) : [];
+  }
+  function setInlineSub(f: SchemaField, current: Record<string, string>, subKey: string, column: string) {
+    const fields = { ...current };
+    if (column) fields[subKey] = column; else delete fields[subKey];
+    const next = { ...mapping };
+    if (Object.keys(fields).length > 0) next[f.key] = buildInlineMapping(f.typeId!, fields);
+    else delete next[f.key];
+    onChange(next, targetFieldKey);
+  }
+  // Переключение составного поля ref ↔ inline — сбрасываем маппинг поля (режимы несовместимы по форме).
+  function switchCompMode(f: SchemaField, mode: 'ref' | 'inline') {
+    setCompMode(prev => ({ ...prev, [f.key]: mode }));
+    const next = { ...mapping };
+    delete next[f.key];
+    onChange(next, targetFieldKey);
+  }
 
   return (
     <div className="space-y-3 text-sm">
@@ -171,56 +193,101 @@ export function MappingEditor({
             </div>
           ))}
           {complexMappable.map(f => {
+            const inlineMap = parseInlineMapping(mapping[f.key]);
+            const cMode = compMode[f.key] ?? (inlineMap ? 'inline' : 'ref');
             const refMap = parseRefMapping(mapping[f.key]);
             const idFields = identityFieldsFor(f.typeId!);
             const hasIdentity = idFields.length > 0;
-            // Режим: явный UI-выбор → иначе из маппинга (identityColumns → identity, иначе name).
+            // Режим ref: явный UI-выбор → иначе из маппинга (identityColumns → identity, иначе name).
             const mode = refMode[f.key] ?? (refMap?.identityColumns ? 'identity' : 'name');
             const idCols = refMap?.identityColumns ?? {};
+            const inlineFields = inlineMap?.fields ?? {};
+            const segBtn = (m: 'ref' | 'inline', label: string) => (
+              <button type="button" onClick={() => switchCompMode(f, m)}
+                className={`px-2 py-0.5 transition-colors ${cMode === m ? 'bg-brand text-on-brand' : 'text-fg3 hover:bg-muted'}`}>
+                {label}
+              </button>
+            );
             return (
-              <div key={f.key} className="space-y-1">
+              <div key={f.key} className="space-y-1 rounded-md border border-stroke/60 p-1.5">
+                {/* Шапка: имя поля + сегмент режима «По ссылке | Встроенный» (issue #374). */}
                 <div className="flex items-center gap-2">
-                  <span className="w-40 text-xs truncate shrink-0 text-fg2" title={`${f.title} (${f.key}) — ссылка на каталог`}>
-                    {f.title} <span className="text-fg4">↗</span>
+                  <span className="text-xs truncate text-fg2 flex-1" title={`${f.title} (${f.key}) — составное поле`}>
+                    {f.title}
                   </span>
-                  {/* Колонка — в общей позиции (как у остальных строк); режим резолва — справа. */}
-                  {mode === 'name' ? (
-                    <select value={refMap?.identityColumns ? '' : (refMap?.column ?? '')}
-                      onChange={e => setRefName(f, e.target.value)}
-                      className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
-                      title="Колонка с именем записи каталога">
-                      <option value="">— не привязано —</option>
-                      {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  ) : (
-                    <span className="flex-1" />
-                  )}
-                  {hasIdentity ? (
-                    <select value={mode} onChange={e => switchRefMode(f, e.target.value as 'name' | 'identity')}
-                      className="w-36 shrink-0 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
-                      title="Как искать запись каталога">
-                      <option value="name">по имени</option>
-                      <option value="identity">по идентификатору</option>
-                    </select>
-                  ) : (
-                    <span className="w-36 shrink-0 text-xs text-fg4 px-2 text-right" title="У типа нет полей-идентификаторов — только по имени">по имени</span>
-                  )}
+                  <div className="flex rounded-md border border-stroke overflow-hidden text-[11px] shrink-0">
+                    {segBtn('ref', '🔗 По ссылке')}
+                    {segBtn('inline', '{} Встроенный')}
+                  </div>
                 </div>
-                {mode === 'identity' && (
-                  <div className="ml-40 pl-2 space-y-1 border-l border-stroke">
-                    {idFields.map(idf => (
-                      <div key={idf.key} className="flex items-center gap-2">
-                        <span className="w-32 shrink-0 text-[11px] text-fg4 truncate" title={idf.key}>{idf.title}</span>
-                        <select value={idCols[idf.key] ?? ''}
-                          onChange={e => setRefIdentityCol(f, idCols, idf.key, e.target.value)}
+
+                {cMode === 'ref' ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      {mode === 'name' ? (
+                        <select value={refMap?.identityColumns ? '' : (refMap?.column ?? '')}
+                          onChange={e => setRefName(f, e.target.value)}
                           className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
-                          title={`Колонка для identity-поля «${idf.title}»`}>
-                          <option value="">— колонка —</option>
+                          title="Колонка с именем записи каталога">
+                          <option value="">— не привязано —</option>
                           {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
+                      ) : (
+                        <span className="flex-1" />
+                      )}
+                      {hasIdentity ? (
+                        <select value={mode} onChange={e => switchRefMode(f, e.target.value as 'name' | 'identity')}
+                          className="w-36 shrink-0 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
+                          title="Как искать запись каталога">
+                          <option value="name">по имени</option>
+                          <option value="identity">по идентификатору</option>
+                        </select>
+                      ) : (
+                        <span className="w-36 shrink-0 text-xs text-fg4 px-2 text-right" title="У типа нет полей-идентификаторов — только по имени">по имени</span>
+                      )}
+                    </div>
+                    {mode === 'identity' && (
+                      <div className="pl-2 space-y-1 border-l border-stroke">
+                        {idFields.map(idf => (
+                          <div key={idf.key} className="flex items-center gap-2">
+                            <span className="w-32 shrink-0 text-[11px] text-fg4 truncate" title={idf.key}>{idf.title}</span>
+                            <select value={idCols[idf.key] ?? ''}
+                              onChange={e => setRefIdentityCol(f, idCols, idf.key, e.target.value)}
+                              className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
+                              title={`Колонка для identity-поля «${idf.title}»`}>
+                              <option value="">— колонка —</option>
+                              {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    )}
+                    <p className="text-[10px] text-fg4">Ищет существующий объект в каталоге — общие/переиспользуемые данные.</p>
+                  </>
+                ) : (
+                  <>
+                    {/* Inline: под-поля составного типа ← колонки той же строки. */}
+                    <div className="pl-2 space-y-1 border-l border-brand/40">
+                      {inlineSubFields(f.typeId!).map(sf => (
+                        <div key={sf.key} className="flex items-center gap-2">
+                          <span className="w-32 shrink-0 text-[11px] text-fg3 truncate" title={`${sf.title} (${sf.key})`}>{sf.title}</span>
+                          <select value={inlineFields[sf.key] ?? ''}
+                            onChange={e => setInlineSub(f, inlineFields, sf.key, e.target.value)}
+                            className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
+                            title={`Колонка для под-поля «${sf.title}»`}>
+                            <option value="">— не привязано —</option>
+                            {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                      ))}
+                      {inlineSubFields(f.typeId!).length === 0 && (
+                        <p className="text-[11px] text-fg4">У типа нет скалярных под-полей для маппинга.</p>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-fg4">
+                      Собирает объект в этом документе из колонок — разовые данные{targetFieldKey ? ' (на каждую строку)' : ''}.
+                    </p>
+                  </>
                 )}
               </div>
             );
