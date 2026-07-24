@@ -41,8 +41,9 @@ export function PasteMappingModal({
   const [skipHeader, setSkipHeader] = useState(false);
   // Сопоставление: ПОЛЕ таблицы → индекс колонки Excel-данных (источник). '' = пропустить.
   const [fieldCol, setFieldCol] = useState<Record<string, number>>({});
-  // Для полей-ссылок (complex): чем сопоставлять — 'name' (имя+алиасы) или 'key' (identity-поля).
-  const [matchFields, setMatchFields] = useState<Record<string, 'name' | 'key'>>({});
+  // Для составных (complex) полей: 'name' (имя+алиасы) / 'key' (identity-поля) — резолв ссылки на
+  // каталог; 'inline' (issue #374) — собрать встроенный объект из значения без поиска.
+  const [matchFields, setMatchFields] = useState<Record<string, 'name' | 'key' | 'inline'>>({});
 
   // Метаданные составного типа поля: identity-поля (тэг identity) + поле для inline-фолбэка.
   function complexMeta(field: SchemaField) {
@@ -126,6 +127,11 @@ export function PasteMappingModal({
           const strat = matchFields[fieldKey];
           if (!strat || !field.typeId) return;
           const { identityKeys, fallbackKey } = complexMeta(field);
+          // Встроенный режим (issue #374): собрать объект из значения сразу, без поиска в каталоге.
+          if (strat === 'inline') {
+            rows[ri][fieldKey] = fallbackKey ? { [fallbackKey]: raw } : {};
+            return;
+          }
           const start = flat.length;
           if (strat === 'name') {
             flat.push({ typeId: field.typeId, strategy: 'Name', value: raw });
@@ -215,12 +221,13 @@ export function PasteMappingModal({
           <ul className="space-y-1.5">
             <li className="text-fg2">🔗 Связано с каталогом: <span className="font-medium text-fg1">{pending.linked}</span></li>
             <li className="text-fg2">
-              📝 Вставлено как данные (совпадений не найдено): <span className="font-medium text-fg1">{pending.inline}</span>
+              📝 Встроенные данные (без связи с каталогом): <span className="font-medium text-fg1">{pending.inline}</span>
             </li>
           </ul>
           {pending.inline > 0 && (
             <p className="text-xs text-fg4">
-              Несопоставленные ячейки-ссылки сохранены как обычные данные — их можно дозаполнить/связать вручную после вставки.
+              Встроенные ячейки — обычные данные в документе (выбран режим «Встроенно» либо совпадение
+              в каталоге не найдено). Их можно дозаполнить/связать вручную после вставки.
             </p>
           )}
         </div>
@@ -299,11 +306,12 @@ export function PasteMappingModal({
                     <td className="border border-stroke px-2 py-1.5">
                       {needsMatch && ci != null && (
                         <select value={matchFields[f.key] ?? ''}
-                          onChange={e => { clearPending(); setMatchFields(prev => ({ ...prev, [f.key]: e.target.value as 'name' | 'key' })); }}
+                          onChange={e => { clearPending(); setMatchFields(prev => ({ ...prev, [f.key]: e.target.value as 'name' | 'key' | 'inline' })); }}
                           className={selectCls}>
                           <option value="">— выберите —</option>
-                          <option value="name">Наименование</option>
-                          {hasIdentity && <option value="key">Ключ</option>}
+                          <option value="name">🔗 Наименование</option>
+                          {hasIdentity && <option value="key">🔗 Ключ</option>}
+                          <option value="inline">{'{}'} Встроенно (без поиска)</option>
                         </select>
                       )}
                     </td>
