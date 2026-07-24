@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Info } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -63,9 +63,17 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     );
   }
 
-  const previewCols = preview.data
-    ? [...new Set(preview.data.rows.flatMap(r => Object.keys(r)))]
-    : [];
+  // Модель предпросмотра (issue #393): разворачиваем вложенные объекты в колонки-листья (столбец на
+  // лист = прямое «колонка источника → поле»); single-child unwrap разматывает общий верхний ключ
+  // (кейс union — поля варианта показываются напрямую, имя — подписью над таблицей); двухэтажная шапка.
+  const previewModel = useMemo(
+    () => buildPreviewModel(
+      (preview.data?.rows ?? []) as Record<string, unknown>[],
+      key => effectiveFields.find(f => f.key === key)?.title,
+    ),
+    [preview.data, effectiveFields],
+  );
+  const previewHasGroups = previewModel.groups.some(g => g.parentKey !== '');
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Материализация источника «${source.name}»`} wide
@@ -141,22 +149,47 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                 ) : preview.data?.error ? (
                   <p className="text-xs text-danger p-3">{preview.data.error}</p>
                 ) : preview.data && preview.data.rows.length > 0 ? (
-                  <table className={dtTable}>
-                    <thead>
-                      <tr>
-                        {previewCols.map(c => <th key={c} className={dtTh}>{c}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preview.data.rows.map((row, i) => (
-                        <tr key={i} className={dtRow}>
-                          {previewCols.map(c => (
-                            <td key={c} className={`${dtTd} text-fg2 align-top`}>{renderCell(row[c])}</td>
+                  previewModel.leaves.length === 0 ? (
+                    <p className="text-xs text-fg4 p-3">Нет заполненных полей — задайте маппинг.</p>
+                  ) : (
+                    <>
+                      {previewModel.unwrappedLabel && (
+                        <p className="text-[11px] text-fg4 px-2 pt-2">Вариант: <span className="text-fg2">{previewModel.unwrappedLabel}</span></p>
+                      )}
+                      <table className={dtTable}>
+                        <thead>
+                          {/* Верхний этаж: группы-родители (colSpan) + листья-без-родителя (rowSpan 2, если есть вложенность). */}
+                          <tr>
+                            {previewModel.groups.map(g => g.parentKey === ''
+                              ? g.leaves.map(l => (
+                                  <th key={l.key} rowSpan={previewHasGroups ? 2 : 1} className={dtTh} title={l.key}>{leafLabel(l)}</th>
+                                ))
+                              : (
+                                <th key={g.parentKey} colSpan={g.leaves.length} className={`${dtTh} text-center`} title={g.parentKey}>
+                                  {lastSeg(g.parentKey)}
+                                </th>
+                              ))}
+                          </tr>
+                          {/* Нижний этаж: только листья сгруппированных родителей (нет вложенности — нет ряда). */}
+                          {previewHasGroups && (
+                            <tr>
+                              {previewModel.groups.filter(g => g.parentKey !== '').flatMap(g =>
+                                g.leaves.map(l => <th key={l.key} className={dtTh} title={l.key}>{leafLabel(l)}</th>))}
+                            </tr>
+                          )}
+                        </thead>
+                        <tbody>
+                          {previewModel.rows.map((row, i) => (
+                            <tr key={i} className={dtRow}>
+                              {previewModel.leaves.map(l => (
+                                <td key={l.key} className={`${dtTd} text-fg2 align-top`}>{renderCell(getPath(row, l.path))}</td>
+                              ))}
+                            </tr>
                           ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                        </tbody>
+                      </table>
+                    </>
+                  )
                 ) : (
                   <p className="text-xs text-fg4 p-3">Нет строк.</p>
                 )}
@@ -173,6 +206,100 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
 function renderCell(v: unknown) {
   if (v == null) return <span className="text-fg4">—</span>;
   if (isFileAttachment(v)) return <span>{v.fileName} <span className="text-fg4">({formatBytes(v.size)})</span></span>;
+  // Массивы/doc-array — сводкой (issue #393): «одна материализованная строка = один ряд», не разворачиваем.
+  if (Array.isArray(v)) return <span className="text-fg4">▦ {v.length} элем.</span>;
   if (typeof v === 'object') return <span className="text-fg4">{JSON.stringify(v)}</span>;
   return String(v);
 }
+
+// ── Модель предпросмотра: разворот вложенного в колонки-листья (issue #393) ────────────────────
+export interface LeafCol { path: string[]; key: string }
+export interface LeafGroup { parentKey: string; leaves: LeafCol[] }
+export interface PreviewModel {
+  rows: Record<string, unknown>[];
+  leaves: LeafCol[];
+  groups: LeafGroup[];
+  /** Подпись размотанного верхнего ключа (кейс union) над таблицей, либо '' . */
+  unwrappedLabel: string;
+}
+
+/** Собирает модель предпросмотра из сырых материализованных строк (чистая, тестируемая). */
+export function buildPreviewModel(
+  rawRows: Record<string, unknown>[],
+  titleFor: (key: string) => string | undefined = () => undefined,
+): PreviewModel {
+  const { rows, unwrapped } = unwrapSingleChild(rawRows);
+  // Порядок листьев — натуральный (DFS): у согласованных строк материализатора соседи-поля одного
+  // родителя уже идут подряд и совпадают с порядком полей типа (что и ждёт пользователь).
+  const leaves = collectLeaves(rows);
+  const unwrappedLabel = unwrapped
+    .map((seg, i) => (i === 0 ? titleFor(seg) ?? seg : seg))
+    .join(' → ');
+  return { rows, leaves, groups: coalesceByParent(leaves), unwrappedLabel };
+}
+
+/** Составной объект, разворачиваемый в колонки (не null, не массив, не файл-вложение). */
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return v != null && typeof v === 'object' && !Array.isArray(v) && !isFileAttachment(v);
+}
+
+/** Пока ВСЕ строки лежат под одним общим верхним ключом-объектом — разматываем его (кейс union:
+ * поля варианта наружу, имя ключа — в подпись над таблицей). Возвращает размотанные строки + цепочку ключей. */
+function unwrapSingleChild(rows: Record<string, unknown>[]): { rows: Record<string, unknown>[]; unwrapped: string[] } {
+  const unwrapped: string[] = [];
+  let cur = rows;
+  while (cur.length > 0) {
+    const keys0 = Object.keys(cur[0] ?? {});
+    if (keys0.length !== 1) break;
+    const k = keys0[0];
+    if (!cur.every(r => {
+      const ks = Object.keys(r ?? {});
+      return ks.length === 1 && ks[0] === k && isPlainObject(r[k]);
+    })) break;
+    unwrapped.push(k);
+    cur = cur.map(r => r[k] as Record<string, unknown>);
+  }
+  return { rows: cur, unwrapped };
+}
+
+/** Обходит строки, собирая пути листьев (значения-НЕ-объекты) в порядке первого появления. */
+function collectLeaves(rows: Record<string, unknown>[]): LeafCol[] {
+  const seen = new Set<string>();
+  const cols: LeafCol[] = [];
+  function walk(obj: Record<string, unknown>, prefix: string[]) {
+    for (const [k, v] of Object.entries(obj)) {
+      const path = [...prefix, k];
+      if (isPlainObject(v)) walk(v, path);
+      else {
+        const key = path.join('.');
+        if (!seen.has(key)) { seen.add(key); cols.push({ path, key }); }
+      }
+    }
+  }
+  for (const r of rows) walk(r ?? {}, []);
+  return cols;
+}
+
+/** Схлопывает подряд идущие листья с общим родителем в группы (родитель '' = лист без родителя). */
+function coalesceByParent(leaves: LeafCol[]): LeafGroup[] {
+  const groups: LeafGroup[] = [];
+  for (const l of leaves) {
+    const pk = l.path.slice(0, -1).join('.');
+    const last = groups[groups.length - 1];
+    if (last && last.parentKey === pk) last.leaves.push(l);
+    else groups.push({ parentKey: pk, leaves: [l] });
+  }
+  return groups;
+}
+
+export function getPath(row: Record<string, unknown>, path: string[]): unknown {
+  let cur: unknown = row;
+  for (const seg of path) {
+    if (!isPlainObject(cur)) return undefined;
+    cur = cur[seg];
+  }
+  return cur;
+}
+
+const leafLabel = (l: LeafCol) => l.path[l.path.length - 1];
+const lastSeg = (key: string) => key.split('.').pop() ?? key;
