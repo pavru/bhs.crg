@@ -222,11 +222,13 @@ export function MappingEditor({
     return resolveEffectiveFields(elementType, allDocTypes);
   }, [targetFieldKey, tabularFields, allDocTypes, schemaFields]);
 
-  const scalarMappable = effectiveFields.filter(f => isScalarField(f) && f.type !== 'file');
+  // Расчётные поля (computed, #368) вычисляются при генерации — из маппинга исключаем (issue #397);
+  // тот же принцип уже действует в CompositeFieldMapping для под-полей.
+  const scalarMappable = effectiveFields.filter(f => isScalarField(f) && f.type !== 'file' && !f.computed);
   // Составные поля: ссылка на каталог ИЛИ встроенный объект — редактор в CompositeFieldMapping (issue #374).
-  const complexMappable = effectiveFields.filter(f => f.type === 'complex' && f.typeId);
+  const complexMappable = effectiveFields.filter(f => f.type === 'complex' && f.typeId && !f.computed);
   // Файловые поля заполняются вложением, синтезированным из колонки-пути (+ опц. колонка-размер) той же строки.
-  const fileMappable = effectiveFields.filter(f => f.type === 'file');
+  const fileMappable = effectiveFields.filter(f => f.type === 'file' && !f.computed);
 
   function setTarget(t: string) {
     // При смене цели сбрасываем маппинг
