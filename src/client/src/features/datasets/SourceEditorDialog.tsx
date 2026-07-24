@@ -69,13 +69,18 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
   const update = useUpdateDataSetSource();
   const isPending = create.isPending || update.isPending;
 
+  // Готовые кандидаты — без нераспознанных таблиц (issue #385): их создать нельзя, пока таблица
+  // не распознана (это делается в списке кандидатов под источниками кнопкой «Распознать таблицу»).
+  const readyCandidates = candidates.filter(c => c.firstPageIndex == null);
+  const pendingTableCount = candidates.length - readyCandidates.length;
+
   // Новый источник из кандидата (лист/«весь файл»/PDF-проекция): как только приедут кандидаты —
-  // подставить первый и его имя.
+  // подставить первый готовый и его имя.
   useEffect(() => {
-    if (initial || !usesCandidates || candidates.length === 0) return;
-    setSheetOrPath(prev => prev || candidates[0].sheetOrPath);
-    setName(prev => prev || candidates[0].name);
-  }, [initial, usesCandidates, candidates]);
+    if (initial || !usesCandidates || readyCandidates.length === 0) return;
+    setSheetOrPath(prev => prev || readyCandidates[0].sheetOrPath);
+    setName(prev => prev || readyCandidates[0].name);
+  }, [initial, usesCandidates, readyCandidates]);
 
   // Текущее значение может отсутствовать в списке (архив обновился) — не терять его молча.
   const entryOptions = entryPath && !zipEntries.includes(entryPath) ? [entryPath, ...zipEntries] : zipEntries;
@@ -159,12 +164,18 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
             <label className="block text-sm font-medium text-fg1 mb-1">Данные набора</label>
             <Select value={sheetOrPath || undefined} placeholder="— выберите —" aria-label="Данные набора"
               onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
-              {candidates.map(c => (
+              {readyCandidates.map(c => (
                 <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</SelectItem>
               ))}
             </Select>
-            {candidates.length === 0 && (
-              <p className="text-xs text-fg4 mt-1">Набор ещё не распознан — сначала запустите «Распознать».</p>
+            {readyCandidates.length === 0 && (
+              <p className="text-xs text-fg4 mt-1">
+                {pendingTableCount > 0
+                  ? 'Все проекции набора уже добавлены. Таблицы документов сначала распознайте — кнопка «Распознать таблицу» в списке кандидатов под источниками.'
+                  : candidates.length === 0
+                    ? 'Нет доступных проекций. Если набор ещё не распознан — запустите «Распознать»; таблицы документов распознаются отдельно (кнопка ✂ разбиения).'
+                    : 'Все проекции набора уже добавлены как источники.'}
+              </p>
             )}
             {selectedCandidate && selectedCandidate.columns.length > 0 && (
               <p className="text-xs text-fg4 mt-1">Колонки: {selectedCandidate.columns.join(', ')}</p>

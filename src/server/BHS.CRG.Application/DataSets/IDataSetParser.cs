@@ -8,7 +8,10 @@ public record DataSetSourceInfo(
     string Name,
     string SheetOrPath,
     IReadOnlyList<DataSetColumnInfo> Columns,
-    int RowCount
+    int RowCount,
+    // Кандидат-таблица, ещё НЕ распознанная (issue #385): указывает страницу документа для запуска
+    // «Распознать таблицу». null — обычный готовый кандидат (создаётся сразу).
+    int? FirstPageIndex = null
 );
 
 public record DataSetParseResult(

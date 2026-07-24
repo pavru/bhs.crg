@@ -77,6 +77,7 @@ public static class DataSetEndpoints
                 sheetOrPath = c.SheetOrPath,
                 columns = c.Columns.Select(col => col.Name).ToList(),
                 rowCount = c.RowCount,
+                firstPageIndex = c.FirstPageIndex, // задан → таблица требует распознавания (issue #385)
             }));
         });
 

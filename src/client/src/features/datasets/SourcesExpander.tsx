@@ -10,6 +10,7 @@ import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
   usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizeFile,
   isManualGroupingConflict, exportDataSetSource, useSourceCandidates, useCreateDataSetSource, useRenameSource,
+  useRecognizeDocumentTable,
 } from '@/shared/api/datasets';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
@@ -314,6 +315,7 @@ export function SourcesPanel({
   // группировки; XLSX — листы; CSV — «весь файл»; JSON — верхнеуровневые массивы.
   const { data: candidates = [] } = useSourceCandidates(file.id);
   const createSource = useCreateDataSetSource();
+  const recognizeTable = useRecognizeDocumentTable(file.id); // «Распознать таблицу» кандидата (issue #385)
   const availableCandidates = candidates.filter(c => !sources.some(s => s.sheetOrPath === c.sheetOrPath));
 
   return (
@@ -339,16 +341,32 @@ export function SourcesPanel({
         {availableCandidates.length > 0 && (
           <div className="rounded-md border border-dashed border-stroke-strong bg-base px-3 py-2 space-y-1 mt-1">
             <p className="text-[11px] text-fg4">{isPdf ? 'Доступно из распознанного набора:' : 'Доступно из набора:'}</p>
-            {availableCandidates.map(c => (
-              <div key={c.sheetOrPath} className="flex items-center gap-2 text-xs">
-                <span className="text-fg2">{c.name} <span className="text-fg4">· {c.rowCount} строк</span></span>
-                <button type="button" disabled={createSource.isPending}
-                  onClick={() => createSource.mutate({ fileId: file.id, name: c.name, sheetOrPath: c.sheetOrPath })}
-                  className="flex items-center gap-0.5 text-brand hover:text-brand-hover disabled:opacity-50">
-                  <Plus size={11} /> Создать
-                </button>
-              </div>
-            ))}
+            {availableCandidates.map(c => {
+              // Таблица документа ещё не распознана (issue #385): сначала «Распознать таблицу»
+              // (фоновая задача) — после завершения кандидат станет готовым «Создать».
+              const pending = c.firstPageIndex != null;
+              return (
+                <div key={c.sheetOrPath} className="flex items-center gap-2 text-xs">
+                  <span className="text-fg2">
+                    {c.name} <span className="text-fg4">· {pending ? 'таблица не распознана' : `${c.rowCount} строк`}</span>
+                  </span>
+                  {pending ? (
+                    <button type="button" disabled={recognizeTable.isPending}
+                      onClick={() => recognizeTable.mutate(c.firstPageIndex!)}
+                      title="Распознать таблицу этого документа — затем можно создать источник"
+                      className="flex items-center gap-0.5 text-brand hover:text-brand-hover disabled:opacity-50">
+                      <ScanText size={11} /> Распознать таблицу
+                    </button>
+                  ) : (
+                    <button type="button" disabled={createSource.isPending}
+                      onClick={() => createSource.mutate({ fileId: file.id, name: c.name, sheetOrPath: c.sheetOrPath })}
+                      className="flex items-center gap-0.5 text-brand hover:text-brand-hover disabled:opacity-50">
+                      <Plus size={11} /> Создать
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
