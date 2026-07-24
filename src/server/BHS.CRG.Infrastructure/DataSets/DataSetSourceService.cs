@@ -218,16 +218,17 @@ public class DataSetSourceService(
             var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
             var take = maxRows <= 0 ? 50 : maxRows;
 
-            var mapped = rows.Take(take).Select(row =>
+            var mapped = new List<Dictionary<string, object?>>();
+            foreach (var row in rows.Take(take))
             {
                 var obj = new Dictionary<string, object?>();
                 foreach (var (fieldKey, mapVal) in effMapping)
                 {
-                    var v = DataSetDtoMapper.PreviewCell(mapVal, row);
+                    var v = await DataSetDtoMapper.PreviewCellAsync(mapVal, row, ct);
                     if (v is not null) obj[fieldKey] = v;
                 }
-                return obj;
-            }).ToList();
+                mapped.Add(obj);
+            }
 
             return new MaterializePreviewDto(effTypeId, rows.Count, mapped, null);
         }

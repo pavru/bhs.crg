@@ -46,29 +46,21 @@ public static class DataSetDtoMapper
     public static object? DeserializeJson(string? json) =>
         json is null ? null : JsonSerializer.Deserialize<object>(json);
 
-    // Значение ячейки для предпросмотра. Для ссылочного маппинга (@@ref) показываем
-    // искомое значение колонки с маркером — фактический резолвинг в каталог выполняется
-    // при генерации. Для файлового маппинга (@@file) — уже полноценный объект-вложение
-    // (используется напрямую и при синхронизации CommonDataEntry.Data, не только для показа).
-    public static object? PreviewCell(string mapVal, IReadOnlyDictionary<string, string?>? row)
-    {
-        var fileMap = DataSetMappingValue.ParseFile(mapVal);
-        if (fileMap is not null)
-            return row is null ? null : DataSetMappingValue.ResolveFileValue(fileMap, row);
+    // Значение ячейки для предпросмотра — через общий DataSetMappingApplier (issue #374). Для ссылочного
+    // маппинга (@@ref) показываем искомое значение колонки с маркером «🔗 …» — фактический резолвинг в
+    // каталог выполняется при генерации. Для @@file — полноценный объект-вложение; для @@inline —
+    // встроенный объект (под-поля рекурсивно, @@ref-под-поля тоже как маркеры).
+    public static Task<object?> PreviewCellAsync(string mapVal, IReadOnlyDictionary<string, string?>? row, CancellationToken ct = default)
+        => DataSetMappingApplier.ApplyAsync(mapVal, row, PreviewRefMarker, path: "", ct);
 
-        var refMap = DataSetMappingValue.ParseRef(mapVal);
-        if (refMap is not null)
-        {
-            string? v;
-            if (refMap.IsIdentity)
-                v = string.Join(" · ", refMap.IdentityColumns!.Values
-                    .Select(c => row != null && row.TryGetValue(c, out var cv) ? cv : null)
-                    .Where(s => !string.IsNullOrWhiteSpace(s)));
-            else
-                v = row != null && refMap.Column != null && row.TryGetValue(refMap.Column, out var lv) ? lv : null;
-            return string.IsNullOrWhiteSpace(v) ? null : $"🔗 {v}";
-        }
-        return row != null && row.TryGetValue(mapVal, out var val) ? val : null;
+    private static Task<object?> PreviewRefMarker(DataSetRefMapping refMap, IReadOnlyDictionary<string, string?> row, string path, CancellationToken ct)
+    {
+        var v = refMap.IsIdentity
+            ? string.Join(" · ", refMap.IdentityColumns!.Values
+                .Select(c => row.TryGetValue(c, out var cv) ? cv : null)
+                .Where(s => !string.IsNullOrWhiteSpace(s)))
+            : refMap.Column != null && row.TryGetValue(refMap.Column, out var lv) ? lv : null;
+        return Task.FromResult<object?>(string.IsNullOrWhiteSpace(v) ? null : $"🔗 {v}");
     }
 
     public static DataSetFileDto MapFile(DataSetFile f) => new(
