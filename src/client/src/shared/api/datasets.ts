@@ -335,7 +335,14 @@ export function useSetDataSetSourceProcessing() {
   }>({
     mutationFn: ({ id, ...data }) =>
       apiClient.put(`/datasets/sources/${id}/processing`, data).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+    // Инвалидируем и предпросмотр источника (issue #399): счётчик строк и превью считаются пост-пайплайна
+    // через usePreviewDataSetSource (['datasets','preview',sourceId,...]) — без этого фильтр не виден до
+    // перемонтирования. Префикс-матч покрывает maxRows=1 (счётчик) и maxRows=50 (превью).
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+      qc.invalidateQueries({ queryKey: ['datasets', 'preview', id] });
+      qc.invalidateQueries({ queryKey: ['datasets', 'materialize-preview', id] });
+    },
   });
 }
 
@@ -396,7 +403,12 @@ export function useApplyProcessingTemplate() {
   return useMutation<DataSetSource, Error, { sourceId: string; templateId: string }>({
     mutationFn: ({ sourceId, templateId }) =>
       apiClient.post(`/datasets/sources/${sourceId}/apply-template/${templateId}`).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+    // Тот же пробел, что в useSetDataSetSourceProcessing (issue #399) — освежаем предпросмотр источника.
+    onSuccess: (_data, { sourceId }) => {
+      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+      qc.invalidateQueries({ queryKey: ['datasets', 'preview', sourceId] });
+      qc.invalidateQueries({ queryKey: ['datasets', 'materialize-preview', sourceId] });
+    },
   });
 }
 
