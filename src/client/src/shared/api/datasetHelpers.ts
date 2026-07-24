@@ -109,6 +109,37 @@ export function buildFileMapping(m: FileMapping): string {
   return FILE_PREFIX + JSON.stringify({ column: m.column, sizeColumn: m.sizeColumn || undefined });
 }
 
+// ─── Inline-маппинг составного поля (issue #374) ──────────────────────────────
+// Составное поле собирается КАК ВСТРОЕННЫЙ ОБЪЕКТ из колонок той же строки (без поиска в каталоге).
+// fields: под-поле → токен (та же грамматика: колонка / @@ref / вложенный @@inline). Кодируется
+// "@@inline:{json}". Формат разделяется с backend (DataSetMappingValue.ParseInline).
+
+const INLINE_PREFIX = '@@inline:';
+
+export interface InlineMapping {
+  typeId: string;
+  fields: Record<string, string>;
+}
+
+export function isInlineMappingValue(value: string | undefined | null): boolean {
+  return typeof value === 'string' && value.startsWith(INLINE_PREFIX);
+}
+
+export function parseInlineMapping(value: string | undefined | null): InlineMapping | null {
+  if (!isInlineMappingValue(value)) return null;
+  try {
+    const p = JSON.parse((value as string).slice(INLINE_PREFIX.length)) as Partial<InlineMapping>;
+    if (!p.typeId || !p.fields || Object.keys(p.fields).length === 0) return null;
+    return { typeId: p.typeId, fields: p.fields };
+  } catch {
+    return null;
+  }
+}
+
+export function buildInlineMapping(typeId: string, fields: Record<string, string>): string {
+  return INLINE_PREFIX + JSON.stringify({ typeId, fields });
+}
+
 // ─── Слияние результата preview биндингов в значения формы ─────────────────────
 // Клиентское зеркало серверного CommonDataBindingMerge (Application/Documents) — те же правила:
 // пустое скалярное значение не затирает существующее, табличное поле пишется целиком (даже []).
