@@ -288,10 +288,12 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
 // ─── Create form ───────────────────────────────────────────────────────────────
 
 function CreateForm({
-  kind, onClose, allDocTypes,
+  kind, onClose, onCreated, allDocTypes,
 }: {
   kind: DocumentTypeKind;
   onClose: () => void;
+  /** Созданный тип — страница выбирает его в list-detail (issue #383: открыть на редактирование). */
+  onCreated: (created: DocumentType) => void;
   allDocTypes: DocumentType[];
 }) {
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
@@ -324,12 +326,13 @@ function CreateForm({
     const conflict = fields.find(f => inheritedKeys.has(f.key.trim()));
     if (conflict) { setError(`Ключ "${conflict.key}" уже есть в родительском типе`); return; }
     try {
-      await mutation.mutateAsync({
+      const created = await mutation.mutateAsync({
         name, code, kind,
         parentId: parentId || null,
         schema: schemaToJson(fields, [], {}),
         isAbstract: kind === 'Document' ? isAbstract : false,
       });
+      onCreated(created); // выбрать созданный тип → откроется detail-редактор (issue #383)
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка сохранения');
@@ -997,7 +1000,8 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
         title={kind === 'Document' ? 'Новый тип документа' : 'Новый составной тип'}
         wide flushBody>
         {createOpen && (
-          <CreateForm kind={kind} onClose={() => setCreateOpen(false)} allDocTypes={allDocTypes} />
+          <CreateForm kind={kind} onClose={() => setCreateOpen(false)}
+            onCreated={created => setSelectedId(created.id)} allDocTypes={allDocTypes} />
         )}
       </Modal>
     </>
