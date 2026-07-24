@@ -43,6 +43,8 @@ export function useActiveJobs(): ActiveJob[] {
     for (const id of prevIds.current) if (!current.has(id)) { completed = true; break; }
     if (completed) {
       qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+      // Кандидаты источника меняются после распознавания таблицы (issue #385) — обновляем их тоже.
+      qc.invalidateQueries({ queryKey: ['datasets', 'source-candidates'] });
       qc.invalidateQueries({ queryKey: ['notifications'] });
     }
     prevIds.current = current;

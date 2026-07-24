@@ -160,6 +160,9 @@ export interface SourceCandidate {
   sheetOrPath: string;
   columns: string[];
   rowCount: number;
+  /** Задан → таблица документа ещё НЕ распознана (issue #385): сначала «Распознать таблицу»
+   *  (страница документа), после чего кандидат становится готовым. null/undefined — готов сразу. */
+  firstPageIndex?: number | null;
 }
 
 /** Детект кандидатов на источник (без персиста) — подсказки в один клик в диалоге создания. */

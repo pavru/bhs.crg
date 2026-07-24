@@ -84,11 +84,22 @@ public class DataSetSourceService(
         {
             if (g.Kind != GostGroupKind.Document || g.Id == Guid.Empty) continue;
             var hasTableTag = (g.Tags ?? []).Any(t => GostTableFields.ColumnsForTag(t) is not null);
-            if (!hasTableTag || string.IsNullOrEmpty(g.TableData)) continue;
+            if (!hasTableTag) continue;
             var marker = $"{PdfProfiles.GostTableMarkerPrefix}{g.Id}";
             if (existing.Contains(marker)) continue;
             var name = string.IsNullOrWhiteSpace(g.Name) ? "Таблица" : $"Таблица — {g.Name}";
-            candidates.Add(new DataSetSourceInfo(name, marker, ColumnsFromSchemaJson(g.TableColumns), RowCountOf(g.TableData)));
+            if (!string.IsNullOrEmpty(g.TableData))
+            {
+                // Таблица распознана → готовый кандидат (создаётся сразу).
+                candidates.Add(new DataSetSourceInfo(name, marker, ColumnsFromSchemaJson(g.TableColumns), RowCountOf(g.TableData)));
+            }
+            else
+            {
+                // Таблица ещё НЕ распознана (issue #385): кандидат с FirstPageIndex — фронт покажет
+                // «Распознать таблицу»; после распознавания станет обычным готовым кандидатом.
+                var firstPage = g.Pages.Count > 0 ? g.Pages.Min(p => p.PageIndex) : 0;
+                candidates.Add(new DataSetSourceInfo(name, marker, [], 0, firstPage));
+            }
         }
         return candidates;
     }
