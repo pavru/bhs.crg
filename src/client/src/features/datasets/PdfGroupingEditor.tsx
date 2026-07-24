@@ -148,11 +148,13 @@ function PageViewer({ fileId, pageIndex, onClose }: { fileId: string; pageIndex:
         <div className="flex items-center justify-center py-16 text-fg4"><Loader2 size={20} className="animate-spin" /></div>
       ) : (
         <>
-          <div className="overflow-auto max-h-[78vh] rounded border border-stroke bg-base flex justify-center">
+          {/* Центрируем img через mx-auto (НЕ flex justify-center): при зуме, когда картинка шире/выше
+              контейнера, auto-поля схлопываются в 0 → доступен скролл ко ВСЕМ краям (иначе левый/верхний
+              край центрированного флекс-элемента недостижим и лист «обрезается»). */}
+          <div className="overflow-auto max-h-[78vh] rounded border border-stroke bg-base">
             <img src={url} alt={`Лист ${pageIndex + 1}`}
               onClick={() => setZoomed(z => !z)}
-              className={zoomed ? 'max-w-none cursor-zoom-out' : 'max-w-full object-contain cursor-zoom-in'}
-              style={{ maxHeight: zoomed ? undefined : '78vh' }} />
+              className={`block mx-auto ${zoomed ? 'max-w-none cursor-zoom-out' : 'max-w-full max-h-[78vh] object-contain cursor-zoom-in'}`} />
           </div>
           <p className="text-xs text-fg4 mt-2 text-center">Клик по изображению — переключить масштаб (вписать ↔ 100%).</p>
         </>
