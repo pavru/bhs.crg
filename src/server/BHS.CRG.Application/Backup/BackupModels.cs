@@ -65,7 +65,8 @@ public record BackupTypstUserLib(string Content, DateTimeOffset CreatedAt, DateT
 public record BackupRecognitionProfile(
     Guid Id, string Name, string? Code, string Kind,
     JsonElement Fields, JsonElement? Shape, bool IsBuiltIn, bool IsModified,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
+    JsonElement? RowColumns = null, string? BuiltInHash = null);
 
 public record RestoreReport(
     bool Success,

@@ -243,15 +243,16 @@ public class DataSetPdfRecognitionService(
         await stream.CopyToAsync(ms, ct);
         var bytes = ms.ToArray();
 
-        // Счёт распознаётся одним вызовом, поэтому поля берём из ДВУХ профилей — шапки и товаров.
-        var headerFields = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.InvoiceHeader, ct)).ToRecognitionFields();
-        var lineItemFields = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.InvoiceLineItems, ct)).ToRecognitionFields();
+        // Счёт — ОДИН вызов: шапка (скаляры) и товары (колонки строк) лежат в одном профиле.
+        var invoiceProfile = await profiles.GetBuiltInAsync(BuiltInProfileCodes.Invoice, ct);
+        var headerFields = invoiceProfile.ToRecognitionFields();
+        var lineItemFields = invoiceProfile.ToRowColumns();
 
         RecognitionResult result;
         try
         {
             result = await recognizer.RecognizeAsync(bytes, "application/pdf",
-                InvoiceFields.Compose(headerFields, lineItemFields), RecognitionShared.BuildInvoicePrompt, ct: ct);
+                RecognitionKinds.ComposeCallFields(invoiceProfile), RecognitionShared.BuildInvoicePrompt, ct: ct);
         }
         catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
         {
@@ -788,7 +789,7 @@ public class DataSetPdfRecognitionService(
         }
         else
         {
-            columns = builtIn.ToRecognitionFields();
+            columns = builtIn.ToRowColumns();
         }
 
         // Под-PDF документа для vision: переиспользуем уже вырезанный при распознавании блок (group.BlobPath,
@@ -824,7 +825,7 @@ public class DataSetPdfRecognitionService(
         try
         {
             result = await recognizer.RecognizeAsync(subPdf, "application/pdf",
-                GostTableFields.RecognitionFieldsFor(columns), tablePrompt, ct: ct);
+                RecognitionKinds.ComposeCallFields(builtIn.Kind, [], columns), tablePrompt, ct: ct);
         }
         catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
         {

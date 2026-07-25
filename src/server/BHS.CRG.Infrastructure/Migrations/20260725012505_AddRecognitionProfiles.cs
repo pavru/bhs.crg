@@ -21,9 +21,12 @@ namespace BHS.CRG.Infrastructure.Migrations
                     Code = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
                     Kind = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     Fields = table.Column<JsonDocument>(type: "jsonb", nullable: false),
+                    RowColumns = table.Column<JsonDocument>(type: "jsonb", nullable: true),
                     Shape = table.Column<JsonDocument>(type: "jsonb", nullable: true),
                     IsBuiltIn = table.Column<bool>(type: "boolean", nullable: false),
                     IsModified = table.Column<bool>(type: "boolean", nullable: false),
+                    BuiltInHash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    BuiltInOutdated = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },

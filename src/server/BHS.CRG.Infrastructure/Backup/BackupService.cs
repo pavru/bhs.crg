@@ -107,7 +107,8 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             RecognitionProfiles: recognitionProfiles.Select(p => new BackupRecognitionProfile(
                 p.Id, p.Name, p.Code, p.Kind.ToString(),
                 p.Fields.RootElement.Clone(), p.Shape?.RootElement.Clone(),
-                p.IsBuiltIn, p.IsModified, p.CreatedAt, p.UpdatedAt)).ToArray());
+                p.IsBuiltIn, p.IsModified, p.CreatedAt, p.UpdatedAt,
+                p.RowColumns?.RootElement.Clone(), p.BuiltInHash)).ToArray());
     }
 
     // ── Import ────────────────────────────────────────────────────────────────
@@ -297,6 +298,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         BackupRecognitionProfile[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
     {
         var existingIds = await db.RecognitionProfiles.Select(e => e.Id).ToHashSetAsync(ct);
+        var skippedBuiltIn = 0;
         foreach (var item in items)
         {
             if (!Enum.TryParse<RecognitionProfileKind>(item.Kind, out var kind))
@@ -304,14 +306,28 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 warnings.Add($"Профиль распознавания «{item.Name}»: неизвестный вид «{item.Kind}», пропущен.");
                 continue;
             }
+            // Ловушка машины времени: копия несёт ЗАВОДСКОЙ профиль в старой редакции и при
+            // восстановлении в более новую версию затёрла бы улучшенный дефолт. Нетронутые встроенные
+            // пропускаем — их переутвердит сидер при старте; восстанавливаем только правленные
+            // пользователем (в них есть что терять) и полностью пользовательские профили.
+            if (item is { IsBuiltIn: true, IsModified: false })
+            {
+                skippedBuiltIn++;
+                continue;
+            }
             var entity = RecognitionProfile.Restore(
                 item.Id, item.Name, item.Code, kind,
                 JsonDocument.Parse(item.Fields.GetRawText()),
+                item.RowColumns is { } rc ? JsonDocument.Parse(rc.GetRawText()) : null,
                 item.Shape is { } sh ? JsonDocument.Parse(sh.GetRawText()) : null,
-                item.IsBuiltIn, item.IsModified, item.CreatedAt, item.UpdatedAt);
+                item.IsBuiltIn, item.IsModified, item.BuiltInHash, builtInOutdated: false,
+                item.CreatedAt, item.UpdatedAt);
             db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
             if (existingIds.Contains(item.Id)) stats.RecognitionProfilesUpdated++; else stats.RecognitionProfilesCreated++;
         }
+        if (skippedBuiltIn > 0)
+            warnings.Add($"Профили распознавания: {skippedBuiltIn} встроенных пропущено (не правились) — " +
+                         "они переутверждаются системой при старте, чтобы копия не откатила их к старой редакции.");
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
     }

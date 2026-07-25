@@ -18,9 +18,12 @@ public class RecognitionProfileConfiguration : IEntityTypeConfiguration<Recognit
         // Enum'ы храним строками (конвенция проекта — см. архитектурный отчёт, пункт 1).
         b.Property(e => e.Kind).HasConversion<string>().HasMaxLength(32).IsRequired();
         b.Property(e => e.Fields).HasColumnType("jsonb").IsRequired();
+        b.Property(e => e.RowColumns).HasColumnType("jsonb");
         b.Property(e => e.Shape).HasColumnType("jsonb");
         b.Property(e => e.IsBuiltIn).IsRequired();
         b.Property(e => e.IsModified).IsRequired();
+        b.Property(e => e.BuiltInHash).HasMaxLength(64);
+        b.Property(e => e.BuiltInOutdated).IsRequired();
         b.HasIndex(e => e.Kind);
     }
 }

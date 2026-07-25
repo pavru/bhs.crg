@@ -127,12 +127,17 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using (var scope = fixture.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            // ResetDatabaseAsync профили не чистит (это конфигурация) — снимаем пользовательские,
+            // оставшиеся от прошлых прогонов, иначе счётчик восстановленных накапливается.
+            db.RecognitionProfiles.RemoveRange(db.RecognitionProfiles.Where(p => p.Code == null));
+            await db.SaveChangesAsync();
             await RecognitionProfileSeeder.SeedAsync(db);
             db.ChangeTracker.Clear();
             var custom = RecognitionProfile.Create(
                 "Список деталей шкафа", RecognitionProfileKind.Table,
-                RecognitionProfileJson.WriteFields([new RecognitionProfileField("Поз", "Позиция", "string")]),
-                RecognitionProfileJson.WriteShape(new RecognitionTableShape(TwoTierHeader: true)));
+                fields: RecognitionProfileJson.WriteFields([]),
+                rowColumns: RecognitionProfileJson.WriteFields([new RecognitionProfileField("Поз", "Позиция", "string")]),
+                shape: RecognitionProfileJson.WriteShape(new RecognitionTableShape(TwoTierHeader: true)));
             db.RecognitionProfiles.Add(custom);
             await db.SaveChangesAsync();
         }
@@ -159,7 +164,7 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
             report = await Backup(scope).ImportAsync(new MemoryStream(zipBytes));
 
         Assert.True(report.Success);
-        Assert.True(report.RecognitionProfilesCreated >= BuiltInRecognitionProfiles.All.Count + 1);
+        Assert.Equal(1, report.RecognitionProfilesCreated);   // только пользовательский
 
         using (var scope = fixture.Services.CreateScope())
         {
@@ -171,7 +176,14 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
             Assert.Null(restored.Code);          // пользовательский — кода нет
             Assert.False(restored.IsBuiltIn);
             Assert.True(RecognitionProfileJson.ReadShape(restored.Shape)!.TwoTierHeader);
-            // встроенные тоже вернулись — вместе с кодом, иначе сидинг создал бы дубли
+            Assert.Contains(RecognitionProfileJson.ReadFields(restored.RowColumns), f => f.Name == "Поз");
+
+            // Ловушка машины времени: НЕТРОНУТЫЕ встроенные профили копия НЕ восстанавливает — иначе
+            // старая копия откатила бы улучшенный дефолт. Их переутверждает сидер при старте.
+            Assert.Empty(await db.RecognitionProfiles.AsNoTracking()
+                .Where(p => p.Code != null).ToListAsync());
+
+            await RecognitionProfileSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>());
             Assert.NotNull(await db.RecognitionProfiles.AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Code == BuiltInProfileCodes.CableJournal));
         }

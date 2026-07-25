@@ -1,4 +1,4 @@
-using BHS.CRG.Application.Recognition;
+﻿using BHS.CRG.Application.Recognition;
 using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Recognition;
@@ -50,12 +50,12 @@ public class RecognitionProfileSeederTests(IntegrationTestFixture fixture)
         db.ChangeTracker.Clear();
 
         var profile = await db.RecognitionProfiles.FirstAsync(p => p.Code == BuiltInProfileCodes.SpecificationTable);
-        var original = RecognitionProfileJson.ReadFields(profile.Fields).Count;
+        var original = RecognitionProfileJson.ReadFields(profile.RowColumns).Count;
 
-        // Пользователь добавил свою колонку.
-        var edited = RecognitionProfileJson.ReadFields(profile.Fields).ToList();
+        // Пользователь добавил свою колонку (у табличного профиля колонки живут в RowColumns).
+        var edited = RecognitionProfileJson.ReadFields(profile.RowColumns).ToList();
         edited.Add(new RecognitionProfileField("МойСтолбец", "Добавлено пользователем", "string"));
-        profile.Update(profile.Name, RecognitionProfileJson.WriteFields(edited), null);
+        profile.Update(profile.Name, profile.Fields, RecognitionProfileJson.WriteFields(edited), profile.Shape);
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
@@ -65,7 +65,7 @@ public class RecognitionProfileSeederTests(IntegrationTestFixture fixture)
         var afterSeed = await db.RecognitionProfiles.AsNoTracking()
             .FirstAsync(p => p.Code == BuiltInProfileCodes.SpecificationTable);
         Assert.True(afterSeed.IsModified);
-        Assert.Contains(RecognitionProfileJson.ReadFields(afterSeed.Fields), f => f.Name == "МойСтолбец");
+        Assert.Contains(RecognitionProfileJson.ReadFields(afterSeed.RowColumns), f => f.Name == "МойСтолбец");
 
         // «Сбросить к заводским» → ближайший сидинг возвращает дефолт.
         var toReset = await db.RecognitionProfiles.FirstAsync(p => p.Code == BuiltInProfileCodes.SpecificationTable);
@@ -78,8 +78,43 @@ public class RecognitionProfileSeederTests(IntegrationTestFixture fixture)
         var restored = await db.RecognitionProfiles.AsNoTracking()
             .FirstAsync(p => p.Code == BuiltInProfileCodes.SpecificationTable);
         Assert.False(restored.IsModified);
-        Assert.DoesNotContain(RecognitionProfileJson.ReadFields(restored.Fields), f => f.Name == "МойСтолбец");
-        Assert.Equal(original, RecognitionProfileJson.ReadFields(restored.Fields).Count);
+        Assert.DoesNotContain(RecognitionProfileJson.ReadFields(restored.RowColumns), f => f.Name == "МойСтолбец");
+        Assert.Equal(original, RecognitionProfileJson.ReadFields(restored.RowColumns).Count);
+    }
+
+    [Fact]
+    public async Task Seed_MarksBuiltInOutdated_WhenFactoryMovedOnUnderUserEdit()
+    {
+        // Без этой отметки IsModified замораживал бы профиль ЦЕЛИКОМ и молча: правка одного описания
+        // отключала бы будущие улучшения всех остальных полей, и пользователь бы об этом не узнал.
+        using var scope = fixture.Services.CreateScope();
+        var db = Db(scope);
+        await RecognitionProfileSeeder.SeedAsync(db);
+        db.ChangeTracker.Clear();
+
+        var profile = await db.RecognitionProfiles.FirstAsync(p => p.Code == BuiltInProfileCodes.CoverTitle);
+        var edited = RecognitionProfileJson.ReadFields(profile.Fields).ToList();
+        edited[0] = edited[0] with { Description = "уточнено пользователем" };
+        profile.Update(profile.Name, RecognitionProfileJson.WriteFields(edited), null, null);
+        // Симулируем «заводской ушёл вперёд в новой версии»: хеш сида больше не совпадает с текущим.
+        db.Entry(profile).Property(nameof(profile.BuiltInHash)).CurrentValue = "OUTDATED";
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        await RecognitionProfileSeeder.SeedAsync(db);
+        db.ChangeTracker.Clear();
+
+        var after = await db.RecognitionProfiles.AsNoTracking().FirstAsync(p => p.Code == BuiltInProfileCodes.CoverTitle);
+        Assert.True(after.IsModified);        // правка сохранена
+        Assert.True(after.BuiltInOutdated);   // но расхождение с заводским теперь видно
+        Assert.Equal("уточнено пользователем", RecognitionProfileJson.ReadFields(after.Fields)[0].Description);
+
+        // Возвращаем профиль в заводское состояние, чтобы не мешать другим тестам.
+        var toReset = await db.RecognitionProfiles.FirstAsync(p => p.Code == BuiltInProfileCodes.CoverTitle);
+        toReset.ResetToBuiltIn();
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        await RecognitionProfileSeeder.SeedAsync(db);
     }
 
     [Fact]

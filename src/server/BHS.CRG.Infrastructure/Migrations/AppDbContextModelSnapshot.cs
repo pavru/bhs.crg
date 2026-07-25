@@ -951,6 +951,13 @@ namespace BHS.CRG.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("BuiltInHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<bool>("BuiltInOutdated")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Code")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -977,6 +984,9 @@ namespace BHS.CRG.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
+
+                    b.Property<JsonDocument>("RowColumns")
+                        .HasColumnType("jsonb");
 
                     b.Property<JsonDocument>("Shape")
                         .HasColumnType("jsonb");

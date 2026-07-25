@@ -14,7 +14,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BHS.CRG.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260725010713_AddRecognitionProfiles")]
+    [Migration("20260725012505_AddRecognitionProfiles")]
     partial class AddRecognitionProfiles
     {
         /// <inheritdoc />
@@ -954,6 +954,13 @@ namespace BHS.CRG.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("BuiltInHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<bool>("BuiltInOutdated")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Code")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -980,6 +987,9 @@ namespace BHS.CRG.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
+
+                    b.Property<JsonDocument>("RowColumns")
+                        .HasColumnType("jsonb");
 
                     b.Property<JsonDocument>("Shape")
                         .HasColumnType("jsonb");
