@@ -316,6 +316,16 @@ export function useSetDocumentProfile(fileId: string) {
   });
 }
 
+/** Профили распознавания НАБОРА (issue #412): {вид: id профиля}; null снимает привязку вида. */
+export function useSetFileRecognitionProfiles(fileId: string) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, Record<string, string | null>>({
+    mutationFn: (profiles) =>
+      apiClient.put(`/datasets/files/${fileId}/recognition-profiles`, { profiles }).then(() => undefined),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['datasets', 'files'] }); },
+  });
+}
+
 /** Точечное перераспознавание ОДНОГО документа (не всего альбома) — фоновая задача, 202+jobId. */
 export function useRecognizeDocument(fileId: string) {
   const qc = useQueryClient();

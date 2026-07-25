@@ -31,6 +31,8 @@ export interface RecognitionKindInfo {
   isTabular: boolean;
   /** Поля, на которых завязан код: удалять/переименовывать нельзя. */
   systemFieldNames: string[];
+  /** Куда привязывается: 'File' (набор целиком) или 'PageGroup' (группа листов). */
+  scope: 'File' | 'PageGroup';
 }
 
 export interface RecognitionProfile {

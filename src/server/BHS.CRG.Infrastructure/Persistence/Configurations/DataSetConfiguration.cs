@@ -1,4 +1,4 @@
-using BHS.CRG.Domain.DataSets;
+﻿using BHS.CRG.Domain.DataSets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -12,6 +12,7 @@ public class DataSetFileConfiguration : IEntityTypeConfiguration<DataSetFile>
         b.Property(e => e.PreprocessingProfile).HasMaxLength(64);
         b.Property(e => e.Grouping).HasColumnType("jsonb");
         b.Property(e => e.InvoiceRawData).HasColumnType("jsonb");
+        b.Property(e => e.RecognitionProfiles).HasColumnType("jsonb");
         b.Property(e => e.RecognitionStale).HasDefaultValue(false);
         b.HasKey(e => e.Id);
         b.Property(e => e.Name).HasMaxLength(512).IsRequired();

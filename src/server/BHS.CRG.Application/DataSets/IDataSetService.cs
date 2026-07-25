@@ -98,6 +98,9 @@ public interface IDataSetService
 
     /// <summary>Привязать профиль распознавания к группе листов (issue #410); null — снять привязку.</summary>
     Task<GostGroupingDto?> SetDocumentProfileAsync(Guid fileId, int firstPageIndex, Guid? profileId, CancellationToken ct);
+
+    /// <summary>Привязать профили распознавания к НАБОРУ (issue #412): {вид: id профиля}, null снимает.</summary>
+    Task<bool> SetFileRecognitionProfilesAsync(Guid fileId, IReadOnlyDictionary<string, Guid?> map, CancellationToken ct);
     /// <summary>Распознать таблицу помеченного документа ГОСТ-профиля (спецификация/кабельный журнал):
     /// пишет строки как СЫРЬЁ на группу (Grouping) — доступна как кандидат «Таблица …», источник создаёт
     /// пользователь (issue #42). Источника НЕ создаёт. firstPageIndex — любая страница документа.</summary>

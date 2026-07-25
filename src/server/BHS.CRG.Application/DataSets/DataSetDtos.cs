@@ -1,4 +1,4 @@
-namespace BHS.CRG.Application.DataSets;
+﻿namespace BHS.CRG.Application.DataSets;
 
 // ── Output DTOs (JSON shapes consumed by the SPA) ───────────────────────────────
 
@@ -15,7 +15,9 @@ public record MaterializePreviewDto(Guid? TypeId, int TotalRows, IReadOnlyList<D
 public record DataSetFileDto(
     Guid Id, string Name, string Format, string Scope, Guid? ScopeId,
     IReadOnlyList<DataSetSourceDto> Sources, DateTimeOffset CreatedAt,
-    string? PreprocessingProfile = null);
+    string? PreprocessingProfile = null,
+    /// <summary>Профили распознавания набора: {вид: id профиля} (issue #412); null — все встроенные.</summary>
+    IReadOnlyDictionary<string, Guid>? RecognitionProfiles = null);
 
 public record BindingFileDto(Guid Id, string Name, string Format, string Scope, Guid? ScopeId);
 

@@ -40,6 +40,18 @@ public class DataSetFile : Entity
     /// Пишется распознаванием; источники «Шапка»/«Товары» — кандидаты, проецируются пользователем.</summary>
     public string? InvoiceRawData { get; private set; }
 
+    /// <summary>
+    /// Профили распознавания, привязанные к НАБОРУ (issue #412) — JSON-карта {вид: id профиля}, напр.
+    /// <c>{"TitleBlock":"…","CoverTitle":"…"}</c>. Нужна для не-табличных видов, которые работают на
+    /// уровне файла целиком (штамп, обложка/титул, счёт), — в отличие от таблиц, где профиль
+    /// привязывается к конкретной группе листов (issue #410).
+    ///
+    /// <see cref="PreprocessingProfile"/> при этом остаётся: он выбирает СЦЕНАРИЙ («ГОСТ-альбом» или
+    /// «счёт»), а эта карта — ПАРАМЕТРЫ применяемых в сценарии промптов. Null/нет ключа — берётся
+    /// встроенный профиль вида.
+    /// </summary>
+    public string? RecognitionProfiles { get; private set; }
+
     private DataSetFile() { }
 
     public static DataSetFile Create(string name, DataSetFormat format, string blobPath,
@@ -75,6 +87,15 @@ public class DataSetFile : Entity
     public void SetPreprocessingProfile(string? profile)
     {
         PreprocessingProfile = string.IsNullOrWhiteSpace(profile) ? null : profile.Trim();
+        TouchUpdatedAt();
+    }
+
+    /// <summary>Задать карту профилей распознавания набора (issue #412). Пустая карта → null,
+    /// чтобы «нет привязок» имело единственное представление.</summary>
+    public void SetRecognitionProfiles(string? profilesJson)
+    {
+        RecognitionProfiles = string.IsNullOrWhiteSpace(profilesJson) || profilesJson.Trim() == "{}"
+            ? null : profilesJson;
         TouchUpdatedAt();
     }
 

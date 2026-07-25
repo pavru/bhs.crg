@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.DataSets;
@@ -65,7 +65,9 @@ public static class DataSetDtoMapper
 
     public static DataSetFileDto MapFile(DataSetFile f) => new(
         f.Id, f.Name, f.Format.ToString(), f.Scope.ToString(), f.ScopeId,
-        f.Sources.Select(MapSource).ToList(), f.CreatedAt, f.PreprocessingProfile);
+        f.Sources.Select(MapSource).ToList(), f.CreatedAt, f.PreprocessingProfile,
+        f.RecognitionProfiles is null ? null
+            : JsonSerializer.Deserialize<Dictionary<string, Guid>>(f.RecognitionProfiles));
 
     public static DataSetSourceDto MapSource(DataSetSource s) => new(
         s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, s.CachedSchema, s.CachedRowCount,

@@ -90,6 +90,9 @@ public class DataSetService(
 
     public Task<GostGroupingDto?> SetDocumentProfileAsync(Guid fileId, int firstPageIndex, Guid? profileId, CancellationToken ct) =>
         pdfRecognition.SetDocumentProfileAsync(fileId, firstPageIndex, profileId, ct);
+
+    public Task<bool> SetFileRecognitionProfilesAsync(Guid fileId, IReadOnlyDictionary<string, Guid?> map, CancellationToken ct) =>
+        pdfRecognition.SetFileRecognitionProfilesAsync(fileId, map, ct);
     public Task<GostGroupingDto?> RecognizeDocumentTableAsync(Guid fileId, int firstPageIndex, CancellationToken ct) =>
         pdfRecognition.RecognizeDocumentTableAsync(fileId, firstPageIndex, ct);
 
