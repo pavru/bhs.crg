@@ -200,6 +200,20 @@ builder.Services.AddScoped<IRepository<MaterialQualityLink>, Repository<Material
 // ── Backup ────────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<BackupService>();
 
+// ── Снимок данных для внешних потребителей + MCP (issue #415) ─────────────────
+builder.Services.AddScoped<BHS.CRG.Application.DataSnapshots.IDataSnapshotService,
+    BHS.CRG.Infrastructure.DataSets.DataSnapshotService>();
+// MCP-сервер: ВТОРОЙ тонкий адаптер над тем же ядром, in-process с API — переиспользует ту же
+// аутентификацию, DI и scoping DbContext. Только чтение: инструментов записи в этом срезе нет.
+builder.Services
+    .AddMcpServer(o =>
+    {
+        o.ServerInfo = new() { Name = "bhs-crg", Version = "1.0.0" };
+    })
+    .WithHttpTransport()
+    .WithTools<BHS.CRG.Api.Mcp.DataSnapshotTools>()
+    .WithResources<BHS.CRG.Api.Mcp.DataSnapshotResources>();
+
 // ── Профили распознавания (issue #406) ────────────────────────────────────────
 builder.Services.AddScoped<BHS.CRG.Application.Recognition.IRecognitionProfileProvider,
     BHS.CRG.Infrastructure.Recognition.RecognitionProfileProvider>();
@@ -367,6 +381,10 @@ app.MapCatalogEndpoints();
 app.MapPrimitiveTypeEndpoints();
 app.MapEnumTypeEndpoints();
 app.MapRecognitionProfileEndpoints();
+
+// MCP-эндпоинт (issue #415) — под той же аутентификацией, что и REST: агент действует ОТ ИМЕНИ
+// пользователя своим JWT, поэтому отдельной модели доступа не заводим.
+app.MapMcp("/mcp").RequireAuthorization();
 app.MapDocumentTypeEndpoints();
 app.MapCommonDataEndpoints();
 app.MapTemplateEndpoints();
