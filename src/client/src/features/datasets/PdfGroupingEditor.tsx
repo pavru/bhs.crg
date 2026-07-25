@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, Save, ZoomIn, Table2, RefreshCw } from 'lucide-react';
 import {
-  useFilePages, useApplyGrouping, useRecognizeDocumentTable, useRecognizeDocument,
+  useFilePages, useApplyGrouping, useRecognizeDocumentTable, useRecognizeDocument, useSetDocumentProfile,
   loadPageThumbnailUrl, loadPageImageUrl,
 } from '@/shared/api/datasets';
+import { useListRecognitionProfiles } from '@/shared/api/recognitionProfiles';
 import type { GostGroupingGroup, GostGroupKind } from '@/shared/api/types';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -27,6 +28,8 @@ interface EditableGroup {
   name: string | null;
   pageIndices: number[];
   tags: string[];
+  /** Привязанный профиль распознавания (issue #410); правится точечным PUT, а не сохранением разбиения. */
+  profileId: string | null;
 }
 
 /** Подпись группы для меню переноса и заголовка. */
@@ -48,10 +51,11 @@ function makeGroups(groups: GostGroupingGroup[]): EditableGroup[] {
     name: g.name,
     pageIndices: [...g.pageIndices].sort((a, b) => a - b),
     tags: g.tags ?? [],
+    profileId: g.profileId ?? null,
   }));
   // Обложка и титульный лист всегда присутствуют как группы (пустые — как цель для переноса).
   const ensure = (kind: Exclude<GostGroupKind, 'Document'>): EditableGroup[] =>
-    mapped.some(g => g.kind === kind) ? [] : [{ id: crypto.randomUUID(), kind, code: DEFAULT_CODE, name: null, pageIndices: [], tags: [] }];
+    mapped.some(g => g.kind === kind) ? [] : [{ id: crypto.randomUUID(), kind, code: DEFAULT_CODE, name: null, pageIndices: [], tags: [], profileId: null }];
   const cover = mapped.filter(g => g.kind === 'Cover');
   const title = mapped.filter(g => g.kind === 'TitlePage');
   const docs = mapped.filter(g => g.kind === 'Document');
@@ -213,6 +217,7 @@ function SelectionActionBar({
 function GroupSection({
   fileId, group, otherGroups, selected, suspiciousOnly, dirty,
   onToggle, onRename, onMoveSelected, onSplitSelected, onDisband, onView, onSetTag,
+  onSetProfile, tableProfiles, savingProfile,
   onRecognizeTable, onRecognizeDoc, tableBusyPage, docBusyPage,
 }: {
   fileId: string;
@@ -228,6 +233,9 @@ function GroupSection({
   onDisband: (groupId: string) => void;
   onView: (pageIndex: number) => void;
   onSetTag: (groupId: string, tag: string) => void;
+  onSetProfile: (firstPageIndex: number, profileId: string | null) => void;
+  tableProfiles: { id: string; name: string }[];
+  savingProfile: boolean;
   onRecognizeTable: (firstPageIndex: number) => void;
   onRecognizeDoc: (firstPageIndex: number) => void;
   tableBusyPage: number | null;
@@ -298,7 +306,17 @@ function GroupSection({
             <option value="">— тип таблицы</option>
             {TABLE_TAGS.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
           </select>
-          {currentTag && (
+          {/* Профиль распознавания (issue #410): для ПРОИЗВОЛЬНОЙ таблицы, у которой типа/тэга нет.
+              Привязка снимает требование тэга — иначе такую таблицу не распознать вовсе. */}
+          <select value={group.profileId ?? ''}
+            onChange={e => onSetProfile(firstPage, e.target.value || null)}
+            disabled={savingProfile}
+            title="Профиль распознавания — набор колонок для произвольной таблицы (задаётся в «Профили распознавания»)"
+            className="text-[11px] border border-stroke rounded px-1 py-0.5 bg-surface text-fg3 max-w-[190px] disabled:opacity-50">
+            <option value="">— профиль таблицы</option>
+            {tableProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          {(currentTag || group.profileId) && (
             <button onClick={() => onRecognizeTable(firstPage)} disabled={dirty || tableBusyPage === firstPage}
               title={dirty ? 'Сначала сохраните разбиение' : 'Распознать таблицу этого документа как отдельный источник данных'}
               className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-stroke text-fg2 hover:bg-base disabled:opacity-50">
@@ -348,6 +366,13 @@ export function PdfGroupingEditor() {
   const applyMutation = useApplyGrouping(fileId!);
   const recognizeTable = useRecognizeDocumentTable(fileId!);
   const recognizeDoc = useRecognizeDocument(fileId!);
+  // Привязка профиля — точечный PUT (issue #410): не проходит через сохранение разбиения, поэтому
+  // не стирает уже распознанное сырьё таблицы и не требует предварительного сохранения.
+  const setProfile = useSetDocumentProfile(fileId!);
+  const { data: allProfiles = [] } = useListRecognitionProfiles();
+  const tableProfiles = allProfiles
+    .filter(p => p.kindInfo.isTabular)
+    .map(p => ({ id: p.id, name: p.name }));
 
   const [groups, setGroups] = useState<EditableGroup[] | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -406,7 +431,7 @@ export function PdfGroupingEditor() {
     mutateGroups(prev => {
       const cleared = removeFromAllGroups(prev, selected);
       if (targetGroupId === 'new') {
-        return [...cleared, { id: crypto.randomUUID(), kind: 'Document', code: DEFAULT_CODE, name: null, pageIndices: [...selected].sort((a, b) => a - b), tags: [] }];
+        return [...cleared, { id: crypto.randomUUID(), kind: 'Document', code: DEFAULT_CODE, name: null, pageIndices: [...selected].sort((a, b) => a - b), tags: [], profileId: null }];
       }
       return cleared.map(g => g.id === targetGroupId
         ? { ...g, pageIndices: [...g.pageIndices, ...selected].sort((a, b) => a - b) }
@@ -500,6 +525,9 @@ export function PdfGroupingEditor() {
             onToggle={toggle} onRename={handleRename} onMoveSelected={handleMoveSelected}
             onSplitSelected={handleSplitSelected} onDisband={handleDisband} onView={setViewerPage}
             onSetTag={handleSetTag}
+            onSetProfile={(page, profileId) => setProfile.mutate({ firstPageIndex: page, profileId })}
+            tableProfiles={tableProfiles}
+            savingProfile={setProfile.isPending}
             onRecognizeTable={p => recognizeTable.mutate(p)}
             onRecognizeDoc={p => recognizeDoc.mutate(p)}
             tableBusyPage={recognizeTable.isPending ? (recognizeTable.variables ?? null) : null}

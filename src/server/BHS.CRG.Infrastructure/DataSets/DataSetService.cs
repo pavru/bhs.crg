@@ -1,4 +1,4 @@
-using BHS.CRG.Application.DataSets;
+﻿using BHS.CRG.Application.DataSets;
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
@@ -87,6 +87,9 @@ public class DataSetService(
         pdfRecognition.ApplyGroupingAsync(fileId, input, ct);
     public Task<GostGroupingDto?> SetDocumentTagsAsync(Guid fileId, int firstPageIndex, IReadOnlyList<string> tags, CancellationToken ct) =>
         pdfRecognition.SetDocumentTagsAsync(fileId, firstPageIndex, tags, ct);
+
+    public Task<GostGroupingDto?> SetDocumentProfileAsync(Guid fileId, int firstPageIndex, Guid? profileId, CancellationToken ct) =>
+        pdfRecognition.SetDocumentProfileAsync(fileId, firstPageIndex, profileId, ct);
     public Task<GostGroupingDto?> RecognizeDocumentTableAsync(Guid fileId, int firstPageIndex, CancellationToken ct) =>
         pdfRecognition.RecognizeDocumentTableAsync(fileId, firstPageIndex, ct);
 

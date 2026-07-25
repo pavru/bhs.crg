@@ -303,6 +303,19 @@ export function useSetDocumentTags(fileId: string) {
   });
 }
 
+/** Привязка профиля распознавания к группе листов (issue #410); profileId=null снимает привязку. */
+export function useSetDocumentProfile(fileId: string) {
+  const qc = useQueryClient();
+  return useMutation<GostGrouping, unknown, { firstPageIndex: number; profileId: string | null }>({
+    mutationFn: ({ firstPageIndex, profileId }) =>
+      apiClient.put(`/datasets/files/${fileId}/document-profile`, { firstPageIndex, profileId }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['datasets', 'files', fileId, 'pages'] });
+      qc.invalidateQueries({ queryKey: ['datasets', 'source-candidates', fileId] });
+    },
+  });
+}
+
 /** Точечное перераспознавание ОДНОГО документа (не всего альбома) — фоновая задача, 202+jobId. */
 export function useRecognizeDocument(fileId: string) {
   const qc = useQueryClient();

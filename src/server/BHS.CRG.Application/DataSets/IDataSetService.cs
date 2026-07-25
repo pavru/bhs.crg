@@ -1,4 +1,4 @@
-namespace BHS.CRG.Application.DataSets;
+﻿namespace BHS.CRG.Application.DataSets;
 
 /// <summary>
 /// Application-level operations for data sets, bindings and binding templates.
@@ -95,6 +95,9 @@ public interface IDataSetService
     Task<GostGroupingDto?> ApplyGroupingAsync(Guid fileId, ApplyGroupingInput input, CancellationToken ct);
     /// <summary>Лёгкая установка тэгов документа (тип таблицы) без пересборки разбиения.</summary>
     Task<GostGroupingDto?> SetDocumentTagsAsync(Guid fileId, int firstPageIndex, IReadOnlyList<string> tags, CancellationToken ct);
+
+    /// <summary>Привязать профиль распознавания к группе листов (issue #410); null — снять привязку.</summary>
+    Task<GostGroupingDto?> SetDocumentProfileAsync(Guid fileId, int firstPageIndex, Guid? profileId, CancellationToken ct);
     /// <summary>Распознать таблицу помеченного документа ГОСТ-профиля (спецификация/кабельный журнал):
     /// пишет строки как СЫРЬЁ на группу (Grouping) — доступна как кандидат «Таблица …», источник создаёт
     /// пользователь (issue #42). Источника НЕ создаёт. firstPageIndex — любая страница документа.</summary>

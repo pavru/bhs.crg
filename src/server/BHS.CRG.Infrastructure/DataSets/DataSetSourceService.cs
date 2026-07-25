@@ -85,8 +85,9 @@ public class DataSetSourceService(
         foreach (var g in grouping.Groups)
         {
             if (g.Kind != GostGroupKind.Document || g.Id == Guid.Empty) continue;
-            var hasTableTag = (g.Tags ?? []).Any(profiles.IsTableTag);
-            if (!hasTableTag) continue;
+            // Табличность — общий предикат (issue #410): привязан профиль ИЛИ есть табличный тэг.
+            // Проверка только по тэгу скрывала бы кандидата произвольной таблицы.
+            if (!await profiles.IsTableGroupAsync(g.ProfileId, g.Tags, ct)) continue;
             var marker = $"{PdfProfiles.GostTableMarkerPrefix}{g.Id}";
             if (existing.Contains(marker)) continue;
             var name = string.IsNullOrWhiteSpace(g.Name) ? "Таблица" : $"Таблица — {g.Name}";

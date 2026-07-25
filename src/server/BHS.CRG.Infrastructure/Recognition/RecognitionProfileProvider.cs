@@ -30,6 +30,21 @@ public class RecognitionProfileProvider(AppDbContext db) : IRecognitionProfilePr
 
     public bool IsTableTag(string tag) => BuiltInRecognitionProfiles.CodeForTag(tag) is not null;
 
+    public async Task<bool> IsTableGroupAsync(
+        Guid? profileId, IReadOnlyList<string>? tags, CancellationToken ct = default)
+    {
+        // Привязанный профиль перекрывает тэг: он и есть способ сделать табличной группу, у которой
+        // функционального тэга нет и быть не может (произвольная таблица).
+        if (profileId is { } pid)
+        {
+            var profile = await db.RecognitionProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == pid, ct);
+            // Профиль удалён — деградируем к тэгу, а не считаем группу нетабличной: иначе удаление
+            // профиля молча снесло бы источники, которые ещё держатся на тэге.
+            if (profile is not null) return RecognitionKinds.Describe(profile.Kind).RowsKey is not null;
+        }
+        return (tags ?? []).Any(IsTableTag);
+    }
+
     public async Task<IReadOnlyList<RecognitionProfile>> ListByKindAsync(
         RecognitionProfileKind kind, CancellationToken ct = default)
         => await db.RecognitionProfiles.AsNoTracking()

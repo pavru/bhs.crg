@@ -40,11 +40,17 @@ public record GostGroupingData(IReadOnlyList<GostGroupingGroup> Groups, bool Man
 /// <param name="TableColumns">Схема строк таблицы (JSON [{name,sampleValues}]) — для кандидата/проекции.</param>
 /// <param name="TableStale">true — состав страниц группы изменился после распознавания таблицы: строки
 /// относятся к прежним границам, нужно перераспознать. Тэги переносятся всегда, TableData — с этим флагом.</param>
+/// <param name="ProfileId">Профиль распознавания, привязанный к этой группе (issue #410) — высший
+/// уровень цепочки приоритета колонок: профиль → тип, объявивший тэг (#29) → встроенный профиль по
+/// тэгу. Привязанный профиль СНИМАЕТ требование тэга: именно так распознаются произвольные таблицы,
+/// для которых функционального тэга не существует. Null — привязки нет, работает прежняя цепочка.
+/// Пользовательская настройка: переносится при ре-распознавании и ручной правке наравне с Id.</param>
 public record GostGroupingGroup(
     GostGroupKind Kind, string? Code, string? Name, IReadOnlyList<GostGroupingPage> Pages,
     IReadOnlyList<string>? Tags = null, Guid Id = default,
     string? BlobPath = null, long? BlobSize = null,
-    string? TableData = null, string? TableColumns = null, bool TableStale = false);
+    string? TableData = null, string? TableColumns = null, bool TableStale = false,
+    Guid? ProfileId = null);
 
 /// <param name="PageIndex">Индекс страницы исходного PDF (0-based).</param>
 /// <param name="Fields">Распознанные поля штампа этой страницы (без служебных ТипСтраницы/Форма).</param>

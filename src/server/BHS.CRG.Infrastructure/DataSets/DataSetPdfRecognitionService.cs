@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Notifications;
@@ -635,11 +635,16 @@ public class DataSetPdfRecognitionService(
             .ToList();
         if (tableSources.Count == 0) return 0;
 
-        // Стабильные id текущих документов, всё ещё помеченных табличным тэгом (issue #28).
-        var validGroups = unified.Groups
-            .Where(g => g.Kind == GostGroupKind.Document && g.Pages.Count > 0
-                        && (g.Tags ?? []).Any(profiles.IsTableTag))
-            .ToDictionary(g => g.Id);
+        // Стабильные id текущих документов, всё ещё ТАБЛИЧНЫХ (issue #28). Предикат — общий резолвер
+        // (issue #410): «привязан профиль ИЛИ есть табличный тэг». Критично: не попавшая сюда группа
+        // считается осиротевшей, и её источник удаляется ВМЕСТЕ С ПРИВЯЗКАМИ — оставь здесь проверку
+        // только по тэгу, и источники произвольных таблиц сносились бы при каждой ре-группировке.
+        var validGroups = new Dictionary<Guid, GostGroupingGroup>();
+        foreach (var g in unified.Groups)
+        {
+            if (g.Kind != GostGroupKind.Document || g.Pages.Count == 0) continue;
+            if (await IsTableGroupAsync(g, ct)) validGroups[g.Id] = g;
+        }
 
         var removed = 0;
         foreach (var ts in tableSources)
@@ -684,7 +689,7 @@ public class DataSetPdfRecognitionService(
         var pageCount = await GetPdfPageCountAsync(file.BlobPath, ct);
         var grouping = ParseGrouping(file.Grouping);
         var groups = (grouping?.Groups ?? [])
-            .Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags))
+            .Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId))
             .ToList();
         return new GostGroupingDto(groups, grouping?.ManuallyEdited ?? false, pageCount);
     }
@@ -741,10 +746,101 @@ public class DataSetPdfRecognitionService(
         file.SetGrouping(JsonSerializer.Serialize(new GostGroupingData(updated, grouping.ManuallyEdited)));
         await db.SaveChangesAsync(ct);
 
+        return await ToGroupingDtoAsync(file, updated, grouping.ManuallyEdited, ct);
+    }
+
+    /// <summary>
+    /// Спецификация распознавания таблицы группы — ЕДИНСТВЕННОЕ место, где решается «таблична ли
+    /// группа и по каким колонкам её читать» (issue #410). Раньше этот предикат был размазан по пяти
+    /// точкам в виде «есть известный табличный тэг», и одна из них (<c>ReprojectTableSourcesAsync</c>)
+    /// на его основании УДАЛЯЕТ источники: разъехавшись, они молча сносили бы данные.
+    ///
+    /// Приоритет: профиль на группе → тип, объявивший тэг (#29) → встроенный профиль по тэгу.
+    /// null — группа не табличная (ни профиля, ни тэга).
+    /// </summary>
+    public async Task<(IReadOnlyList<RecognitionField> Columns, RecognitionProfileKind Kind, RecognitionTableShape? Shape)?>
+        ResolveTableSpecAsync(GostGroupingGroup group, CancellationToken ct)
+    {
+        // 1. Профиль, привязанный к группе — высший приоритет и единственный путь для произвольных
+        //    таблиц (тэга у них нет). Если профиль удалён — деградируем к остальной цепочке.
+        if (group.ProfileId is { } pid && await profiles.GetByIdAsync(pid, ct) is { } bound
+            && RecognitionKinds.Describe(bound.Kind).RowsKey is not null)
+            return (bound.ToRowColumns(), bound.Kind, bound.Shape);
+
+        var tag = (group.Tags ?? []).FirstOrDefault(profiles.IsTableTag);
+        if (tag is null) return null;
+
+        var builtIn = (await profiles.GetForTagAsync(tag, ct))!;
+
+        // 2. Тип документа, объявивший тэг (#29): таблица распознаётся прямо в ключи полей типа и
+        //    материализуется в него (#19).
+        var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
+        var targetType = allTypes.FirstOrDefault(t => SchemaTags.TypeHasTag(t, allTypes, tag));
+        if (targetType is not null)
+        {
+            var typesById = allTypes.ToDictionary(t => t.Id);
+            var typeFields = DocumentTypeSchemaReader.EffectiveFields(targetType.Id, typesById)
+                .Where(f => SchemaFieldKinds.IsScalar(f.Type))
+                .ToList();
+            if (typeFields.Count == 0)
+                throw new ArgumentException($"У типа «{targetType.Name}» нет скалярных полей для распознавания таблицы.");
+            return (
+                typeFields.Select(f => new RecognitionField(f.Key, f.Title ?? f.Key, MapRecognitionType(f.Type))).ToList(),
+                builtIn.Kind, builtIn.Shape);
+        }
+
+        // 3. Встроенный профиль по тэгу.
+        return (builtIn.ToRowColumns(), builtIn.Kind, builtIn.Shape);
+    }
+
+    /// <summary>Таблична ли группа — тот же единый предикат, без разбора колонок.</summary>
+    public Task<bool> IsTableGroupAsync(GostGroupingGroup group, CancellationToken ct)
+        => profiles.IsTableGroupAsync(group.ProfileId, group.Tags, ct);
+
+    /// <summary>Привязка профиля распознавания к группе листов (issue #410). Точечно, как и тэги:
+    /// <c>g with { … }</c> сохраняет прочие поля группы, включая уже распознанное сырьё таблицы.
+    /// Выставляет <c>TableStale</c> — смена параметров обесценивает распознанные строки, но НЕ
+    /// перезапускает распознавание: это дорогой LLM-вызов, пользователь решает сам.
+    /// profileId = null снимает привязку (возврат к цепочке «тип → встроенный профиль по тэгу»).</summary>
+    public async Task<GostGroupingDto?> SetDocumentProfileAsync(
+        Guid fileId, int firstPageIndex, Guid? profileId, CancellationToken ct)
+    {
+        var file = await db.DataSetFiles.FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file == null) return null;
+        if (file.Format != DataSetFormat.Pdf)
+            throw new ArgumentException("Профиль распознавания задаётся только для PDF-набора.");
+
+        var grouping = ParseGrouping(file.Grouping)
+            ?? throw new ArgumentException("Группировка ещё не распознана.");
+
+        if (profileId is { } pid)
+        {
+            var profile = await profiles.GetByIdAsync(pid, ct)
+                ?? throw new ArgumentException("Профиль распознавания не найден.");
+            if (RecognitionKinds.Describe(profile.Kind).RowsKey is null)
+                throw new ArgumentException(
+                    $"Профиль «{profile.Name}» не табличный — к группе листов привязывается профиль таблицы.");
+        }
+
+        var updated = grouping.Groups
+            .Select(g => g.Kind == GostGroupKind.Document && g.Pages.Any(p => p.PageIndex == firstPageIndex)
+                ? g with { ProfileId = profileId, TableStale = g.TableStale || !string.IsNullOrEmpty(g.TableData) }
+                : g)
+            .ToList();
+        file.SetGrouping(JsonSerializer.Serialize(new GostGroupingData(updated, grouping.ManuallyEdited)));
+        await db.SaveChangesAsync(ct);
+
+        return await ToGroupingDtoAsync(file, updated, grouping.ManuallyEdited, ct);
+    }
+
+    private async Task<GostGroupingDto> ToGroupingDtoAsync(
+        Domain.DataSets.DataSetFile file, IReadOnlyList<GostGroupingGroup> groups, bool manuallyEdited, CancellationToken ct)
+    {
         var pageCount = await GetPdfPageCountAsync(file.BlobPath, ct);
         return new GostGroupingDto(
-            updated.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags)).ToList(),
-            grouping.ManuallyEdited, pageCount);
+            groups.Select(g => new GostGroupingGroupDto(
+                g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId)).ToList(),
+            manuallyEdited, pageCount);
     }
 
     public async Task<GostGroupingDto?> RecognizeDocumentTableAsync(Guid fileId, int firstPageIndex, CancellationToken ct)
@@ -760,37 +856,15 @@ public class DataSetPdfRecognitionService(
         if (group is null)
             throw new ArgumentException("Документ с указанной страницей не найден в группировке.");
 
-        // Тэг таблицы документа → целевой ТИП, объявивший этот тэг (issue #29, «тип объявляет тэг»):
-        // таблица распознаётся в поля типа и материализуется в него (#19). Fallback — легаси
-        // хардкод-колонки GostTableFields, пока целевой тип не объявлен (переходный период).
-        var tag = (group.Tags ?? []).FirstOrDefault(profiles.IsTableTag);
-        if (tag is null)
-            throw new ArgumentException("У документа не задан тип таблицы (спецификация/кабельный журнал).");
-
-        // Встроенный профиль по тэгу — низший уровень цепочки приоритета (issue #406) и источник
-        // как колонок-фолбэка, так и вида (Kind), который выбирает применяемый промпт.
-        var builtIn = (await profiles.GetForTagAsync(tag, ct))!;
-
-        var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
-        var targetType = allTypes.FirstOrDefault(t => SchemaTags.TypeHasTag(t, allTypes, tag));
-
-        IReadOnlyList<RecognitionField> columns;
-        if (targetType is not null)
-        {
-            var typesById = allTypes.ToDictionary(t => t.Id);
-            var typeFields = DocumentTypeSchemaReader.EffectiveFields(targetType.Id, typesById)
-                .Where(f => SchemaFieldKinds.IsScalar(f.Type))
-                .ToList();
-            if (typeFields.Count == 0)
-                throw new ArgumentException($"У типа «{targetType.Name}» нет скалярных полей для распознавания таблицы.");
-            columns = typeFields
-                .Select(f => new RecognitionField(f.Key, f.Title ?? f.Key, MapRecognitionType(f.Type)))
-                .ToList();
-        }
-        else
-        {
-            columns = builtIn.ToRowColumns();
-        }
+        // ЕДИНАЯ цепочка приоритета (issue #410), а не параллельные механизмы:
+        //   профиль, привязанный к группе  →  тип, объявивший тэг (#29)  →  встроенный профиль по тэгу.
+        // Привязанный профиль СНИМАЕТ требование тэга — именно этим разблокируются произвольные
+        // таблицы, для которых функционального тэга не существует и не может существовать.
+        var spec = await ResolveTableSpecAsync(group, ct)
+            ?? throw new ArgumentException(
+                "У документа не задан ни профиль распознавания, ни тип таблицы — " +
+                "привяжите профиль в свойствах группы либо укажите тип таблицы.");
+        var (columns, kind, shape) = spec;
 
         // Под-PDF документа для vision: переиспользуем уже вырезанный при распознавании блок (group.BlobPath,
         // issue #38) — не режем заново. Fallback — вырезать из полного PDF (старые наборы без BlobPath).
@@ -815,9 +889,8 @@ public class DataSetPdfRecognitionService(
         // Промпт выбирает ВИД профиля (issue #406; прежде — прямое сравнение с тэгом, issue #389):
         // кабельный журнал имеет свой промпт (двойная форма По проекту/Проложен), иначе общий
         // табличный. Флаги формы — параметр профиля; у встроенных они дефолтные, т.е. промпт прежний.
-        var shape = builtIn.Shape;
         Func<IReadOnlyList<RecognitionField>, string> tablePrompt =
-            builtIn.Kind == RecognitionProfileKind.CableJournal
+            kind == RecognitionProfileKind.CableJournal
                 ? f => RecognitionShared.BuildCableJournalPrompt(f, shape)
                 : f => RecognitionShared.BuildTablePrompt(f, shape);
 
@@ -825,7 +898,7 @@ public class DataSetPdfRecognitionService(
         try
         {
             result = await recognizer.RecognizeAsync(subPdf, "application/pdf",
-                RecognitionKinds.ComposeCallFields(builtIn.Kind, [], columns), tablePrompt, ct: ct);
+                RecognitionKinds.ComposeCallFields(kind, [], columns), tablePrompt, ct: ct);
         }
         catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
         {
@@ -861,7 +934,7 @@ public class DataSetPdfRecognitionService(
 
         var pageCount = await GetPdfPageCountAsync(file.BlobPath, ct);
         return new GostGroupingDto(
-            updated.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags)).ToList(),
+            updated.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId)).ToList(),
             updated.ManuallyEdited, pageCount);
     }
 
@@ -985,7 +1058,7 @@ public class DataSetPdfRecognitionService(
         await notifications.PublishAsync(NotificationSeverity.Info, "Документ перераспознан",
             $"«{(string.IsNullOrWhiteSpace(freshName) ? freshShifr : freshName)}» — обновлены поля {target.Pages.Count} листов.", "Распознавание PDF", ct: ct);
         return new GostGroupingDto(
-            unified.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags)).ToList(),
+            unified.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId)).ToList(),
             unified.ManuallyEdited, pageCount);
     }
 
@@ -1036,7 +1109,7 @@ public class DataSetPdfRecognitionService(
 
         var pageCount = GetPdfPageCount(bytes);
         return new GostGroupingDto(
-            unified.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags)).ToList(),
+            unified.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId)).ToList(),
             true, pageCount);
     }
 
