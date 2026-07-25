@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
-  BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, Scissors, Type, SlidersHorizontal,
+  BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, Scissors, Type, SlidersHorizontal, Link2,
 } from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
+import { ruCount } from '@/shared/utils/pluralize';
 import { useSourceRecognizing } from '@/shared/api/jobs';
 import { FileProfilesDialog } from './FileProfilesDialog';
 import {
@@ -171,6 +172,14 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
                 <Boxes size={10} /> материализация
               </span>
             )}
+            {/* Счётчик привязок (issue #417): удаление источника не должно быть вслепую.
+                null = не считали (ответ мутации) — тогда чип не показываем, чтобы не мигал ложный ноль. */}
+            {!!src.bindingCount && (
+              <span title={`На источник ссылаются привязки документов (${src.bindingCount}). При удалении они перестанут работать.`}
+                className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-fg3 align-middle">
+                <Link2 size={10} /> {ruCount(src.bindingCount, 'привязка', 'привязки', 'привязок')}
+              </span>
+            )}
             <SourceRowCountBadge sourceId={src.id} />
           </div>
           <div className="font-mono text-fg4 mt-0.5">{src.sheetOrPath}</div>
@@ -230,7 +239,9 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
         open={confirmDelete}
         onOpenChange={o => { if (!o) setConfirmDelete(false); }}
         title={`Удалить источник «${src.name}»?`}
-        description={<p>Если источник используется в привязках документов — удаление будет отклонено.</p>}
+        description={src.bindingCount
+          ? <p>На источник ссылаются <b>{ruCount(src.bindingCount, 'привязка', 'привязки', 'привязок')}</b> документов — удаление будет отклонено, пока они существуют.</p>
+          : <p>Если источник используется в привязках документов — удаление будет отклонено.</p>}
         confirmLabel="Удалить источник"
         onConfirm={() => deleteMutation.mutateAsync({ id: src.id })}
       />
