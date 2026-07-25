@@ -198,6 +198,10 @@ builder.Services.AddScoped<IRepository<MaterialQualityLink>, Repository<Material
 // ── Backup ────────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<BackupService>();
 
+// ── Профили распознавания (issue #406) ────────────────────────────────────────
+builder.Services.AddScoped<BHS.CRG.Application.Recognition.IRecognitionProfileProvider,
+    BHS.CRG.Infrastructure.Recognition.RecognitionProfileProvider>();
+
 // ── Generation ────────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<BHS.CRG.Application.Generation.IExpressionEvaluator,
     BHS.CRG.Infrastructure.Generation.JintExpressionEvaluator>();
@@ -299,6 +303,9 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
+
+    // Встроенные профили распознавания (issue #406) — идемпотентно; правленые пользователем не трогает.
+    await BHS.CRG.Infrastructure.Recognition.RecognitionProfileSeeder.SeedAsync(db);
 
     // Разовый перенос размеров изображений из схем типов в значения инстансов (issue #246).
     // Идемпотентно: после первого прогона схемы очищены, карта пустеет — обход не запускается.

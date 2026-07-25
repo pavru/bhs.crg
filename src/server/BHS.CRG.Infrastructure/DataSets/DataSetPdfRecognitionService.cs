@@ -3,9 +3,11 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.QualityDocs;
+using BHS.CRG.Application.Recognition;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Notifications;
+using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Domain.Schema;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Recognition;
@@ -28,6 +30,7 @@ public class DataSetPdfRecognitionService(
     IBlobStorage blob,
     IDocumentRecognizer recognizer,
     INotificationService notifications,
+    IRecognitionProfileProvider profiles,
     ILogger<DataSetPdfRecognitionService> logger
 )
 {
@@ -191,7 +194,7 @@ public class DataSetPdfRecognitionService(
             throw new ArgumentException($"Не удалось подготовить страницы PDF: {ex.Message}");
         }
 
-        var fields = GostTitleBlockFields.All;
+        var fields = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.TitleBlock, ct)).ToRecognitionFields();
         var rows = new List<IReadOnlyDictionary<string, string?>>();
         for (var i = 0; i < pages.Count; i++)
         {
@@ -240,17 +243,22 @@ public class DataSetPdfRecognitionService(
         await stream.CopyToAsync(ms, ct);
         var bytes = ms.ToArray();
 
+        // Счёт распознаётся одним вызовом, поэтому поля берём из ДВУХ профилей — шапки и товаров.
+        var headerFields = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.InvoiceHeader, ct)).ToRecognitionFields();
+        var lineItemFields = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.InvoiceLineItems, ct)).ToRecognitionFields();
+
         RecognitionResult result;
         try
         {
-            result = await recognizer.RecognizeAsync(bytes, "application/pdf", InvoiceFields.All, RecognitionShared.BuildInvoicePrompt, ct: ct);
+            result = await recognizer.RecognizeAsync(bytes, "application/pdf",
+                InvoiceFields.Compose(headerFields, lineItemFields), RecognitionShared.BuildInvoicePrompt, ct: ct);
         }
         catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
         {
             throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
         }
 
-        var headerRow = InvoiceRecognitionSplitter.SplitHeader(result.Values);
+        var headerRow = InvoiceRecognitionSplitter.SplitHeader(result.Values, headerFields);
         // Сломанный/не-JSON ответ модели по товарам — InvoiceRecognitionSplitter молча вернёт []
         // (шапка уже распозналась независимо, та же философия, что и у постраничного профиля).
         var lineItemRows = InvoiceRecognitionSplitter.SplitLineItems(result.Values);
@@ -260,7 +268,7 @@ public class DataSetPdfRecognitionService(
         var header = file.Sources.FirstOrDefault(s => s.SheetOrPath == PdfProfiles.InvoiceHeaderMarker);
         if (header is not null)
         {
-            var headerColumns = InvoiceFields.HeaderFields
+            var headerColumns = headerFields
                 .Select(f => new DataSetColumnInfo(f.Path, [headerRow.GetValueOrDefault(f.Path) ?? ""]))
                 .ToArray();
             header.UpdateCache(DataSetDtoMapper.SerializeSchema(headerColumns), 1, JsonSerializer.Serialize(new[] { headerRow }));
@@ -268,7 +276,7 @@ public class DataSetPdfRecognitionService(
         var lineItems = file.Sources.FirstOrDefault(s => s.SheetOrPath == PdfProfiles.InvoiceLineItemsMarker);
         if (lineItems is not null)
         {
-            var lineItemColumns = InvoiceFields.LineItemColumns
+            var lineItemColumns = lineItemFields
                 .Select(f => new DataSetColumnInfo(f.Path,
                     lineItemRows.Take(3).Select(r => r.GetValueOrDefault(f.Path) ?? "").ToArray()))
                 .ToArray();
@@ -352,8 +360,9 @@ public class DataSetPdfRecognitionService(
             logger.LogWarning(ex, "Не удалось проверить текстовый слой PDF источника {SourceId} — второй проход штампа отключён", file.Id);
         }
 
-        var fields = GostTitleBlockFields.AllWithClassifiers;
-        var stampFields = GostTitleBlockFields.All;
+        var stampFields = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.TitleBlock, ct)).ToRecognitionFields();
+        var fields = GostTitleBlockFields.WithClassifiers(stampFields);
+        var coverFields = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.CoverTitle, ct)).ToRecognitionFields();
         var rows = new List<IReadOnlyDictionary<string, string?>>();
         var failedPages = 0; // листы, распознавание которых не удалось (строка осталась пустой) — для уведомления
         for (var i = 0; i < pngPages.Count; i++)
@@ -409,7 +418,7 @@ public class DataSetPdfRecognitionService(
                 try
                 {
                     var coverResult = await recognizer.RecognizeAsync(
-                        pngPages[i], "image/png", GostCoverTitleFields.All, RecognitionShared.BuildCoverTitlePrompt, ct: ct);
+                        pngPages[i], "image/png", coverFields, RecognitionShared.BuildCoverTitlePrompt, ct: ct);
                     values = new Dictionary<string, string?>(coverResult.Values)
                     {
                         [GostTitleBlockFields.PageTypePath] = pageType,
@@ -526,8 +535,10 @@ public class DataSetPdfRecognitionService(
     // Таблицы — отдельно (ReprojectTableSourcesAsync). Источники, которых нет — не создаёт (кандидаты).
     private async Task RefreshProjectionSourcesAsync(Guid fileId, ProjectedRows projected, CancellationToken ct)
     {
-        var coverColumnPaths = GostCoverTitleFields.All.Select(f => f.Path).ToArray();
-        var documentsColumnPaths = GostTitleBlockFields.All.Select(f => f.Path)
+        var coverColumnPaths = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.CoverTitle, ct))
+            .Fields.Select(f => f.Name).ToArray();
+        var documentsColumnPaths = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.TitleBlock, ct))
+            .Fields.Select(f => f.Name)
             .Concat(["КоличествоЛистов", "ФайлПуть", "РазмерБайт"]).ToArray();
 
         static DataSetColumnInfo[] Cols(IReadOnlyList<string> paths, IReadOnlyList<IReadOnlyDictionary<string, string?>> data) =>
@@ -626,7 +637,7 @@ public class DataSetPdfRecognitionService(
         // Стабильные id текущих документов, всё ещё помеченных табличным тэгом (issue #28).
         var validGroups = unified.Groups
             .Where(g => g.Kind == GostGroupKind.Document && g.Pages.Count > 0
-                        && (g.Tags ?? []).Any(t => GostTableFields.ColumnsForTag(t) is not null))
+                        && (g.Tags ?? []).Any(profiles.IsTableTag))
             .ToDictionary(g => g.Id);
 
         var removed = 0;
@@ -720,7 +731,7 @@ public class DataSetPdfRecognitionService(
         if (grouping is null)
             throw new ArgumentException("Группировка ещё не распознана.");
         // Оставляем только известные тэги типа таблицы (не даём проставить произвольные).
-        var clean = tags.Where(t => GostTableFields.ColumnsForTag(t) is not null).Distinct().ToList();
+        var clean = tags.Where(profiles.IsTableTag).Distinct().ToList();
         var updated = grouping.Groups
             .Select(g => g.Kind == GostGroupKind.Document && g.Pages.Any(p => p.PageIndex == firstPageIndex)
                 ? g with { Tags = clean.Count > 0 ? clean : null }
@@ -751,19 +762,22 @@ public class DataSetPdfRecognitionService(
         // Тэг таблицы документа → целевой ТИП, объявивший этот тэг (issue #29, «тип объявляет тэг»):
         // таблица распознаётся в поля типа и материализуется в него (#19). Fallback — легаси
         // хардкод-колонки GostTableFields, пока целевой тип не объявлен (переходный период).
-        var tag = (group.Tags ?? []).FirstOrDefault(t => GostTableFields.ColumnsForTag(t) is not null);
+        var tag = (group.Tags ?? []).FirstOrDefault(profiles.IsTableTag);
         if (tag is null)
             throw new ArgumentException("У документа не задан тип таблицы (спецификация/кабельный журнал).");
+
+        // Встроенный профиль по тэгу — низший уровень цепочки приоритета (issue #406) и источник
+        // как колонок-фолбэка, так и вида (Kind), который выбирает применяемый промпт.
+        var builtIn = (await profiles.GetForTagAsync(tag, ct))!;
 
         var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
         var targetType = allTypes.FirstOrDefault(t => SchemaTags.TypeHasTag(t, allTypes, tag));
 
         IReadOnlyList<RecognitionField> columns;
-        List<SchemaFieldInfo> typeFields = [];
         if (targetType is not null)
         {
             var typesById = allTypes.ToDictionary(t => t.Id);
-            typeFields = DocumentTypeSchemaReader.EffectiveFields(targetType.Id, typesById)
+            var typeFields = DocumentTypeSchemaReader.EffectiveFields(targetType.Id, typesById)
                 .Where(f => SchemaFieldKinds.IsScalar(f.Type))
                 .ToList();
             if (typeFields.Count == 0)
@@ -774,7 +788,7 @@ public class DataSetPdfRecognitionService(
         }
         else
         {
-            columns = GostTableFields.ColumnsForTag(tag)!;
+            columns = builtIn.ToRecognitionFields();
         }
 
         // Под-PDF документа для vision: переиспользуем уже вырезанный при распознавании блок (group.BlobPath,
@@ -797,11 +811,14 @@ public class DataSetPdfRecognitionService(
             catch (Exception ex) { throw new ArgumentException($"Не удалось выделить страницы документа: {ex.Message}"); }
         }
 
-        // Промпт по тэгу (issue #389): кабельный журнал — свой промпт (двойная форма По проекту/Проложен),
-        // иначе общий табличный. Раньше всегда BuildTablePrompt — из-за чего терялась фактическая секция.
-        var tablePrompt = tag == FunctionalTag.GostDocCableJournal
-            ? (Func<IReadOnlyList<RecognitionField>, string>)RecognitionShared.BuildCableJournalPrompt
-            : RecognitionShared.BuildTablePrompt;
+        // Промпт выбирает ВИД профиля (issue #406; прежде — прямое сравнение с тэгом, issue #389):
+        // кабельный журнал имеет свой промпт (двойная форма По проекту/Проложен), иначе общий
+        // табличный. Флаги формы — параметр профиля; у встроенных они дефолтные, т.е. промпт прежний.
+        var shape = builtIn.Shape;
+        Func<IReadOnlyList<RecognitionField>, string> tablePrompt =
+            builtIn.Kind == RecognitionProfileKind.CableJournal
+                ? f => RecognitionShared.BuildCableJournalPrompt(f, shape)
+                : f => RecognitionShared.BuildTablePrompt(f, shape);
 
         RecognitionResult result;
         try
@@ -895,7 +912,8 @@ public class DataSetPdfRecognitionService(
 
         // Перераспознаём страницы документа (пасс-1 grounding + пасс-2 кроп штампа — тот же путь, что для
         // листов-документов в RecognizeGostSetAsync).
-        var fields = GostTitleBlockFields.AllWithClassifiers;
+        var stampFields = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.TitleBlock, ct)).ToRecognitionFields();
+        var fields = GostTitleBlockFields.WithClassifiers(stampFields);
         var freshRows = new Dictionary<int, IReadOnlyDictionary<string, string?>>();
         var done = 0;
         foreach (var p in target.Pages)
@@ -933,7 +951,7 @@ public class DataSetPdfRecognitionService(
                     var form = values.GetValueOrDefault(GostTitleBlockFields.StampFormPath);
                     var region = GostTitleBlockRegion.ComputeBottomRightRegion(size.Width, size.Height, form);
                     var cropPng = await Task.Run(() => PdfRasterizer.ToPngRegion(bytes, idx, region), ct);
-                    var cropResult = await recognizer.RecognizeAsync(cropPng, "image/png", GostTitleBlockFields.All, RecognitionShared.BuildTitleBlockPrompt, ct: ct);
+                    var cropResult = await recognizer.RecognizeAsync(cropPng, "image/png", stampFields, RecognitionShared.BuildTitleBlockPrompt, ct: ct);
                     values = GostStampPassMerge.Merge(values, cropResult.Values);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)

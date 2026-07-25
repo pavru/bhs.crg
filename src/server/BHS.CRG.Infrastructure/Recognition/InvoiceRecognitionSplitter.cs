@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BHS.CRG.Application.QualityDocs;
 
 namespace BHS.CRG.Infrastructure.Recognition;
 
@@ -10,7 +11,12 @@ namespace BHS.CRG.Infrastructure.Recognition;
 public static class InvoiceRecognitionSplitter
 {
     public static Dictionary<string, string?> SplitHeader(IReadOnlyDictionary<string, string?> values)
-        => InvoiceFields.HeaderFields.ToDictionary(f => f.Path, f => values.GetValueOrDefault(f.Path));
+        => SplitHeader(values, InvoiceFields.HeaderFields);
+
+    /// <summary>То же с полями ПРОФИЛЯ шапки (issue #406) — набор полей больше не жёстко зашит.</summary>
+    public static Dictionary<string, string?> SplitHeader(
+        IReadOnlyDictionary<string, string?> values, IReadOnlyList<RecognitionField> headerFields)
+        => headerFields.ToDictionary(f => f.Path, f => values.GetValueOrDefault(f.Path));
 
     /// <summary>Сломанный/не-JSON ответ модели по товарам — не падаем, возвращаем пустой список
     /// (шапка при этом уже распознана независимо).</summary>

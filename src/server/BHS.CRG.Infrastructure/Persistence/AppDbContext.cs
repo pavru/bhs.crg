@@ -24,6 +24,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DocumentType> DocumentTypes => Set<DocumentType>();
     public DbSet<Template> Templates => Set<Template>();
     public DbSet<TemplateAsset> TemplateAssets => Set<TemplateAsset>();
+    public DbSet<BHS.CRG.Domain.Recognition.RecognitionProfile> RecognitionProfiles => Set<BHS.CRG.Domain.Recognition.RecognitionProfile>();
     public DbSet<Construction> Constructions => Set<Construction>();
     public DbSet<Section> Sections => Set<Section>();
     public DbSet<DocumentSet> DocumentSets => Set<DocumentSet>();

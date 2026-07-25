@@ -54,5 +54,11 @@ public static class GostTitleBlockFields
     /// <summary>Графы штампа + оба классификатора страницы — используется профилем "3 источника"
     /// (обложка/титульный лист/документы). Обычный <see cref="All"/> остаётся для legacy-источников
     /// с постраничным реестром (маркер "titleblock-registry"), не трогаем их поведение.</summary>
-    public static readonly IReadOnlyList<RecognitionField> AllWithClassifiers = [.. All, PageTypeField, StampFormField];
+    public static readonly IReadOnlyList<RecognitionField> AllWithClassifiers = WithClassifiers(All);
+
+    /// <summary>Подмешивает классификаторы страницы к полям ПРОФИЛЯ штампа (issue #406).
+    /// Классификаторы намеренно не входят в профиль: это не параметры пользователя, а внутренняя
+    /// маршрутизация (выбор источника обложка/титул/документы и определение границы документа).</summary>
+    public static IReadOnlyList<RecognitionField> WithClassifiers(IReadOnlyList<RecognitionField> stampFields)
+        => [.. stampFields, PageTypeField, StampFormField];
 }

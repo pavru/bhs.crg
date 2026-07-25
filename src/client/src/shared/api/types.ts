@@ -258,6 +258,8 @@ export interface RestoreReport {
   templateAssetsCreated?: number;
   templateAssetsUpdated?: number;
   typstUserLibRestored?: boolean;
+  recognitionProfilesCreated?: number;
+  recognitionProfilesUpdated?: number;
 }
 
 // ─── DataSets ─────────────────────────────────────────────────────────────────

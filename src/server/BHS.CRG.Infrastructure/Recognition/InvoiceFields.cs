@@ -35,12 +35,18 @@ public static class InvoiceFields
     public const string LineItemsPath = "Товары";
 
     /// <summary>Все поля для одного вызова распознавания — шапка + таблица товаров одним полем.</summary>
-    public static readonly IReadOnlyList<RecognitionField> All =
+    public static readonly IReadOnlyList<RecognitionField> All = Compose(HeaderFields, LineItemColumns);
+
+    /// <summary>Собирает поля одного вызова из полей ДВУХ профилей — шапки и товаров (issue #406):
+    /// счёт распознаётся целиком за один вызов, поэтому колонки товаров уходят синтетическим
+    /// полем-массивом. Само поле-массив в профиль не входит — это форма ответа, а не параметр.</summary>
+    public static IReadOnlyList<RecognitionField> Compose(
+        IReadOnlyList<RecognitionField> headerFields, IReadOnlyList<RecognitionField> lineItemColumns) =>
     [
-        .. HeaderFields,
+        .. headerFields,
         new(LineItemsPath,
             "Таблица товаров/услуг — JSON-массив объектов с полями "
-            + string.Join('/', LineItemColumns.Select(f => f.Path)),
+            + string.Join('/', lineItemColumns.Select(f => f.Path)),
             "json-array"),
     ];
 }

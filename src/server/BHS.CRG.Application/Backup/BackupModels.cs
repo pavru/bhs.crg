@@ -15,7 +15,8 @@ public record BackupManifest(
     // конфигурация, от которой зависит генерация, но которая раньше в бэкап не попадала (issue #403).
     BackupEnumType[]? EnumTypes = null,
     BackupTemplateAsset[]? TemplateAssets = null,
-    BackupTypstUserLib? TypstUserLib = null);
+    BackupTypstUserLib? TypstUserLib = null,
+    BackupRecognitionProfile[]? RecognitionProfiles = null);
 
 public record BackupPrimitiveType(
     Guid Id, string Name, string Code, string BaseType, string? Description,
@@ -58,6 +59,14 @@ public record BackupTemplateAsset(
 // Общая Typst-библиотека (userlib.typ) — синглтон, подмешивается при компиляции всех шаблонов.
 public record BackupTypstUserLib(string Content, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
+// Профиль распознавания (issue #406) — параметры к хардкод-промптам. Конфигурация, влияющая на
+// извлекаемые данные, поэтому в бэкапе. Встроенные несут Code (ключ ре-сидинга) и IsModified:
+// восстановленный правленый профиль не должен быть затёрт сидингом на целевой системе.
+public record BackupRecognitionProfile(
+    Guid Id, string Name, string? Code, string Kind,
+    JsonElement Fields, JsonElement? Shape, bool IsBuiltIn, bool IsModified,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
 public record RestoreReport(
     bool Success,
     string? ConversionNotice,
@@ -76,4 +85,6 @@ public record RestoreReport(
     int EnumTypesUpdated = 0,
     int TemplateAssetsCreated = 0,
     int TemplateAssetsUpdated = 0,
-    bool TypstUserLibRestored = false);
+    bool TypstUserLibRestored = false,
+    int RecognitionProfilesCreated = 0,
+    int RecognitionProfilesUpdated = 0);
