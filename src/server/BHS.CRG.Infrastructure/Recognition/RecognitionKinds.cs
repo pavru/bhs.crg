@@ -4,6 +4,12 @@ using BHS.CRG.Domain.Recognition;
 
 namespace BHS.CRG.Infrastructure.Recognition;
 
+/// <summary>К чему применяется вид профиля: к НАБОРУ целиком (штамп/обложка/счёт — они читают весь
+/// файл) или к отдельной ГРУППЕ ЛИСТОВ (таблицы документа). Определяет, куда профиль вообще можно
+/// привязать; «есть ли табличная часть» для этого не годится — у счёта она есть, но привязывается он
+/// к файлу.</summary>
+public enum RecognitionProfileScope { File = 1, PageGroup = 2 }
+
 /// <summary>
 /// Что вид профиля означает ДЛЯ КОДА (issue #406) — реестр в духе <c>TagRegistry</c>. Без него
 /// проверки вида (`if (kind == Table)`) расползлись бы по сервисам и фронту, и вид перестал бы быть
@@ -21,6 +27,7 @@ namespace BHS.CRG.Infrastructure.Recognition;
 /// печатаются ДВАЖДЫ (по одной + склейкой в описании массива), у счёта — только склейкой в описании
 /// «Товары». Менять здесь = менять промпт, т.е. качество распознавания; отдельное решение.</param>
 /// <param name="Label">Человекочитаемое имя вида — для выбора при создании профиля.</param>
+/// <param name="Scope">Куда привязывается профиль этого вида: к набору или к группе листов.</param>
 public record RecognitionKindDescriptor(
     RecognitionProfileKind Kind,
     string? RowsKey,
@@ -28,7 +35,8 @@ public record RecognitionKindDescriptor(
     bool HasScalarFields,
     IReadOnlyList<string> SystemFieldNames,
     bool ListRowColumnsAsFields = false,
-    string Label = "");
+    string Label = "",
+    RecognitionProfileScope Scope = RecognitionProfileScope.File);
 
 public static class RecognitionKinds
 {
@@ -55,12 +63,14 @@ public static class RecognitionKinds
         [RecognitionProfileKind.Table] = new(
             RecognitionProfileKind.Table, RowsKey: GostTableFields.RowsPath,
             SupportsShape: true, HasScalarFields: false, [], ListRowColumnsAsFields: true,
-            Label: "Таблица документа"),
+            Label: "Таблица документа",
+            Scope: RecognitionProfileScope.PageGroup),
 
         [RecognitionProfileKind.CableJournal] = new(
             RecognitionProfileKind.CableJournal, RowsKey: GostTableFields.RowsPath,
             SupportsShape: true, HasScalarFields: false, [], ListRowColumnsAsFields: true,
-            Label: "Кабельный журнал"),
+            Label: "Кабельный журнал",
+            Scope: RecognitionProfileScope.PageGroup),
     };
 
     public static RecognitionKindDescriptor Describe(RecognitionProfileKind kind) =>
@@ -75,6 +85,10 @@ public static class RecognitionKinds
 
     /// <summary>Табличные виды — те, у которых распознаётся массив строк.</summary>
     public static bool IsTabular(RecognitionProfileKind kind) => Describe(kind).RowsKey is not null;
+
+    /// <summary>Привязывается ли вид к группе листов (а не к набору целиком).</summary>
+    public static bool IsGroupScoped(RecognitionProfileKind kind)
+        => Describe(kind).Scope == RecognitionProfileScope.PageGroup;
 
     /// <summary>Собирает полный список полей ОДНОГО вызова распознавания: скаляры профиля +
     /// синтетическое поле-массив под строки (если вид табличный). Само поле-массив в профиль не

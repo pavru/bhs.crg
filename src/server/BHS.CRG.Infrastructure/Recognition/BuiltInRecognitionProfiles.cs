@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Recognition;
@@ -65,6 +65,18 @@ public static class BuiltInRecognitionProfiles
         FunctionalTag.GostDocSpecification => BuiltInProfileCodes.SpecificationTable,
         FunctionalTag.GostDocCableJournal => BuiltInProfileCodes.CableJournal,
         _ => null,
+    };
+
+    /// <summary>Код встроенного профиля по виду — фолбэк, когда к набору/группе профиль не привязан.
+    /// Встроенные профили и виды соотносятся 1:1, поэтому карта однозначна.</summary>
+    public static string CodeForKind(RecognitionProfileKind kind) => kind switch
+    {
+        RecognitionProfileKind.TitleBlock => BuiltInProfileCodes.TitleBlock,
+        RecognitionProfileKind.CoverTitle => BuiltInProfileCodes.CoverTitle,
+        RecognitionProfileKind.Invoice => BuiltInProfileCodes.Invoice,
+        RecognitionProfileKind.Table => BuiltInProfileCodes.SpecificationTable,
+        RecognitionProfileKind.CableJournal => BuiltInProfileCodes.CableJournal,
+        _ => throw new InvalidOperationException($"Нет встроенного профиля для вида {kind}."),
     };
 
     /// <summary>Хеш заводского содержимого — по нему сидер понимает, что дефолт ушёл вперёд, пока

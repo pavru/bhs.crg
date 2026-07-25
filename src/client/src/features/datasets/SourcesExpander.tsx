@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
-  BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, Scissors, Type,
+  BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, Scissors, Type, SlidersHorizontal,
 } from 'lucide-react';
 import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
 import { useSourceRecognizing } from '@/shared/api/jobs';
+import { FileProfilesDialog } from './FileProfilesDialog';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
   usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizeFile,
@@ -252,6 +253,7 @@ export function FileRecognizeActions({ file }: { file: DataSetFile }) {
   const recognizeFile = useRecognizeFile();
   const [recognizeConflict, setRecognizeConflict] = useState(false);
   const [profileDialog, setProfileDialog] = useState(false);
+  const [fileProfilesDialog, setFileProfilesDialog] = useState(false);
   const navigate = useNavigate();
   const isPdf = file.format === 'Pdf';
   const profile = file.preprocessingProfile;
@@ -285,7 +287,13 @@ export function FileRecognizeActions({ file }: { file: DataSetFile }) {
           <Scissors size={15} />
         </IconButton>
       )}
+      {/* Профили распознавания набора (issue #412) — параметры к промптам штампа/обложки/счёта. */}
+      <IconButton label="Профили распознавания набора — какими параметрами читать штамп, обложку, счёт" size="sm"
+        onClick={() => setFileProfilesDialog(true)}>
+        <SlidersHorizontal size={15} />
+      </IconButton>
       {profileDialog && <PdfSourceDialog fileId={file.id} onClose={() => setProfileDialog(false)} />}
+      {fileProfilesDialog && <FileProfilesDialog file={file} onClose={() => setFileProfilesDialog(false)} />}
       <ConfirmDialog open={recognizeConflict} onOpenChange={o => { if (!o) setRecognizeConflict(false); }}
         title="Разбиение было скорректировано вручную"
         description={<p>Повторное автораспознавание сотрёт ручные правки разбиения на документы. Продолжить?</p>}

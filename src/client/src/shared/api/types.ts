@@ -340,6 +340,8 @@ export interface DataSetFile {
   createdAt: string;
   /** Профиль препроцессинга PDF (issue #38): 'gost-titleblock' | 'invoice' | null (ещё не выбран). */
   preprocessingProfile?: string | null;
+  /** Профили распознавания набора: {вид: id профиля} (issue #412); нет ключа — встроенный. */
+  recognitionProfiles?: Record<string, string> | null;
 }
 
 /** Привязка набора данных к объекту — только Mapping. Filter/Transformation/Sort — на DataSetSource.

@@ -1,4 +1,4 @@
-using BHS.CRG.Application.Recognition;
+﻿using BHS.CRG.Application.Recognition;
 using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -58,5 +58,5 @@ public class RecognitionProfileProvider(AppDbContext db) : IRecognitionProfilePr
 
     private static RecognitionKindInfo ToInfo(RecognitionKindDescriptor d) => new(
         d.Kind.ToString(), d.Label, d.SupportsShape, d.HasScalarFields,
-        IsTabular: d.RowsKey is not null, d.SystemFieldNames);
+        IsTabular: d.RowsKey is not null, d.SystemFieldNames, d.Scope.ToString());
 }

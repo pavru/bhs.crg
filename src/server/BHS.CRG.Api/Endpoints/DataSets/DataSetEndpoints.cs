@@ -309,6 +309,19 @@ public static class DataSetEndpoints
             catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
+        // Профили распознавания НАБОРА (issue #412): штамп/обложка-титул/счёт — они работают на уровне
+        // файла целиком, в отличие от таблиц (те привязываются к группе листов).
+        g.MapPut("/files/{fileId:guid}/recognition-profiles", async (
+            Guid fileId, SetFileProfilesRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            try
+            {
+                var ok = await svc.SetFileRecognitionProfilesAsync(fileId, req.Profiles ?? new Dictionary<string, Guid?>(), ct);
+                return ok ? Results.NoContent() : Results.NotFound();
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+
         // Распознать таблицу помеченного документа (спецификация/кабельный журнал) → отдельный табличный
         // источник. Vision-вызов (минуты на большом документе) → фоновая задача, 202+jobId сразу.
         g.MapPost("/files/{fileId:guid}/recognize-table", async (
@@ -409,6 +422,7 @@ public static class DataSetEndpoints
     private record SetDocumentTagsRequest(int FirstPageIndex, string[]? Tags);
     private record RecognizeTableRequest(int FirstPageIndex);
     private record SetDocumentProfileRequest(int FirstPageIndex, Guid? ProfileId);
+    private record SetFileProfilesRequest(Dictionary<string, Guid?>? Profiles);
 
     private static Guid UserId(ClaimsPrincipal user)
         => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub")!);

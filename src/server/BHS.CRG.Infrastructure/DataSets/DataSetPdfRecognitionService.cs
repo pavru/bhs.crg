@@ -194,7 +194,7 @@ public class DataSetPdfRecognitionService(
             throw new ArgumentException($"Не удалось подготовить страницы PDF: {ex.Message}");
         }
 
-        var fields = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.TitleBlock, ct)).ToRecognitionFields();
+        var fields = (await ProfileForFileAsync(source.File, RecognitionProfileKind.TitleBlock, ct)).ToRecognitionFields();
         var rows = new List<IReadOnlyDictionary<string, string?>>();
         for (var i = 0; i < pages.Count; i++)
         {
@@ -244,7 +244,7 @@ public class DataSetPdfRecognitionService(
         var bytes = ms.ToArray();
 
         // Счёт — ОДИН вызов: шапка (скаляры) и товары (колонки строк) лежат в одном профиле.
-        var invoiceProfile = await profiles.GetBuiltInAsync(BuiltInProfileCodes.Invoice, ct);
+        var invoiceProfile = await ProfileForFileAsync(file, RecognitionProfileKind.Invoice, ct);
         var headerFields = invoiceProfile.ToRecognitionFields();
         var lineItemFields = invoiceProfile.ToRowColumns();
 
@@ -361,9 +361,9 @@ public class DataSetPdfRecognitionService(
             logger.LogWarning(ex, "Не удалось проверить текстовый слой PDF источника {SourceId} — второй проход штампа отключён", file.Id);
         }
 
-        var stampFields = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.TitleBlock, ct)).ToRecognitionFields();
+        var stampFields = (await ProfileForFileAsync(file, RecognitionProfileKind.TitleBlock, ct)).ToRecognitionFields();
         var fields = GostTitleBlockFields.WithClassifiers(stampFields);
-        var coverFields = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.CoverTitle, ct)).ToRecognitionFields();
+        var coverFields = (await ProfileForFileAsync(file, RecognitionProfileKind.CoverTitle, ct)).ToRecognitionFields();
         var rows = new List<IReadOnlyDictionary<string, string?>>();
         var failedPages = 0; // листы, распознавание которых не удалось (строка осталась пустой) — для уведомления
         for (var i = 0; i < pngPages.Count; i++)
@@ -493,7 +493,7 @@ public class DataSetPdfRecognitionService(
         file.SetGrouping(JsonSerializer.Serialize(withBlobs));
 
         var projected = GostGroupingProjection.Project(withBlobs);
-        await RefreshProjectionSourcesAsync(file.Id, projected, ct);
+        await RefreshProjectionSourcesAsync(file, projected, ct);
         var invalidatedTables = await ReprojectTableSourcesAsync(file.Id, withBlobs, ct);
 
         await db.SaveChangesAsync(ct);
@@ -534,11 +534,15 @@ public class DataSetPdfRecognitionService(
 
     // Переспроецирует СУЩЕСТВУЮЩИЕ источники-проекции набора (обложка/титул/документы) из новой группировки.
     // Таблицы — отдельно (ReprojectTableSourcesAsync). Источники, которых нет — не создаёт (кандидаты).
-    private async Task RefreshProjectionSourcesAsync(Guid fileId, ProjectedRows projected, CancellationToken ct)
+    private async Task RefreshProjectionSourcesAsync(
+        Domain.DataSets.DataSetFile file, ProjectedRows projected, CancellationToken ct)
     {
-        var coverColumnPaths = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.CoverTitle, ct))
+        var fileId = file.Id;
+        // Колонки проекций берём из ТЕХ ЖЕ профилей, которыми распознавали, — иначе добавленное
+        // пользователем поле не доехало бы до схемы источника.
+        var coverColumnPaths = (await ProfileForFileAsync(file, RecognitionProfileKind.CoverTitle, ct))
             .Fields.Select(f => f.Name).ToArray();
-        var documentsColumnPaths = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.TitleBlock, ct))
+        var documentsColumnPaths = (await ProfileForFileAsync(file, RecognitionProfileKind.TitleBlock, ct))
             .Fields.Select(f => f.Name)
             .Concat(["КоличествоЛистов", "ФайлПуть", "РазмерБайт"]).ToArray();
 
@@ -750,6 +754,64 @@ public class DataSetPdfRecognitionService(
     }
 
     /// <summary>
+    /// Профиль НЕ-табличного вида для набора (issue #412): привязанный к файлу → встроенный по виду.
+    /// Штамп, обложка/титул и счёт работают на уровне файла целиком, поэтому их профиль живёт на
+    /// наборе, а не на группе листов (в отличие от таблиц, issue #410).
+    ///
+    /// Привязка с чужим или удалённым профилем деградирует к встроенному, а не роняет распознавание:
+    /// потерять альбом из-за удалённого профиля хуже, чем распознать его дефолтными параметрами.
+    /// </summary>
+    /// <summary>Привязка профилей распознавания к НАБОРУ (issue #412): карта {вид: id профиля}.
+    /// Значение null снимает привязку конкретного вида. Распознавание не перезапускает — параметры
+    /// применятся при следующем запуске (он дорогой, решает пользователь).</summary>
+    public async Task<bool> SetFileRecognitionProfilesAsync(
+        Guid fileId, IReadOnlyDictionary<string, Guid?> map, CancellationToken ct)
+    {
+        var file = await db.DataSetFiles.FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file == null) return false;
+
+        var current = ParseFileProfileMap(file.RecognitionProfiles);
+        foreach (var (kindName, profileId) in map)
+        {
+            if (!Enum.TryParse<RecognitionProfileKind>(kindName, out var kind))
+                throw new ArgumentException($"Неизвестный вид профиля «{kindName}».");
+            if (RecognitionKinds.IsGroupScoped(kind))
+                throw new ArgumentException(
+                    $"Профиль вида «{RecognitionKinds.Describe(kind).Label}» привязывается к группе листов, а не к набору.");
+
+            if (profileId is null) { current.Remove(kindName); continue; }
+
+            var profile = await profiles.GetByIdAsync(profileId.Value, ct)
+                ?? throw new ArgumentException("Профиль распознавания не найден.");
+            if (profile.Kind != kind)
+                throw new ArgumentException(
+                    $"Профиль «{profile.Name}» имеет вид «{RecognitionKinds.Describe(profile.Kind).Label}» — он не подходит для «{RecognitionKinds.Describe(kind).Label}».");
+            current[kindName] = profileId.Value;
+        }
+
+        file.SetRecognitionProfiles(current.Count > 0 ? JsonSerializer.Serialize(current) : null);
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    private async Task<ResolvedRecognitionProfile> ProfileForFileAsync(
+        Domain.DataSets.DataSetFile file, RecognitionProfileKind kind, CancellationToken ct)
+    {
+        var bound = ParseFileProfileMap(file.RecognitionProfiles).GetValueOrDefault(kind.ToString());
+        if (bound is { } id && await profiles.GetByIdAsync(id, ct) is { } p && p.Kind == kind) return p;
+        return await profiles.GetBuiltInAsync(BuiltInRecognitionProfiles.CodeForKind(kind), ct);
+    }
+
+    /// <summary>Карта {вид: id профиля} набора. Сломанный JSON — пустая карта (не падаем: распознавание
+    /// важнее привязки, оно продолжится на встроенных профилях).</summary>
+    public static Dictionary<string, Guid> ParseFileProfileMap(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        try { return JsonSerializer.Deserialize<Dictionary<string, Guid>>(json) ?? []; }
+        catch (JsonException) { return []; }
+    }
+
+    /// <summary>
     /// Спецификация распознавания таблицы группы — ЕДИНСТВЕННОЕ место, где решается «таблична ли
     /// группа и по каким колонкам её читать» (issue #410). Раньше этот предикат был размазан по пяти
     /// точкам в виде «есть известный табличный тэг», и одна из них (<c>ReprojectTableSourcesAsync</c>)
@@ -817,9 +879,11 @@ public class DataSetPdfRecognitionService(
         {
             var profile = await profiles.GetByIdAsync(pid, ct)
                 ?? throw new ArgumentException("Профиль распознавания не найден.");
-            if (RecognitionKinds.Describe(profile.Kind).RowsKey is null)
+            // Проверяем ОБЛАСТЬ, а не «есть ли табличная часть»: у счёта она есть, но привязывается
+            // он к набору целиком, а не к группе листов.
+            if (!RecognitionKinds.IsGroupScoped(profile.Kind))
                 throw new ArgumentException(
-                    $"Профиль «{profile.Name}» не табличный — к группе листов привязывается профиль таблицы.");
+                    $"Профиль «{profile.Name}» привязывается к набору, а не к группе листов.");
         }
 
         var updated = grouping.Groups
@@ -986,7 +1050,7 @@ public class DataSetPdfRecognitionService(
 
         // Перераспознаём страницы документа (пасс-1 grounding + пасс-2 кроп штампа — тот же путь, что для
         // листов-документов в RecognizeGostSetAsync).
-        var stampFields = (await profiles.GetBuiltInAsync(BuiltInProfileCodes.TitleBlock, ct)).ToRecognitionFields();
+        var stampFields = (await ProfileForFileAsync(file, RecognitionProfileKind.TitleBlock, ct)).ToRecognitionFields();
         var fields = GostTitleBlockFields.WithClassifiers(stampFields);
         var freshRows = new Dictionary<int, IReadOnlyDictionary<string, string?>>();
         var done = 0;
