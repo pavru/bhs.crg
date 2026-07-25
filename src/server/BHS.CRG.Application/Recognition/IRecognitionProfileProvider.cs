@@ -23,6 +23,14 @@ public interface IRecognitionProfileProvider
     /// <summary>Есть ли для тэга табличный профиль — предикат «это тэг таблицы».</summary>
     bool IsTableTag(string tag);
 
+    /// <summary>
+    /// Таблична ли группа листов: привязан ТАБЛИЧНЫЙ профиль ИЛИ есть табличный тэг (issue #410).
+    /// Единственная реализация предиката на всю систему — он используется и для показа кандидата
+    /// источника, и для решения «источник осиротел» (там по нему УДАЛЯЮТСЯ данные), поэтому две
+    /// разошедшиеся копии молча сносили бы источники произвольных таблиц.
+    /// </summary>
+    Task<bool> IsTableGroupAsync(Guid? profileId, IReadOnlyList<string>? tags, CancellationToken ct = default);
+
     /// <summary>Все профили заданного вида (для выбора в UI).</summary>
     Task<IReadOnlyList<RecognitionProfile>> ListByKindAsync(RecognitionProfileKind kind, CancellationToken ct = default);
 

@@ -318,6 +318,9 @@ export interface GostGroupingGroup {
   pageIndices: number[];
   /** Функциональные тэги документа (тип таблицы — спецификация/кабельный журнал). */
   tags?: string[] | null;
+  /** Привязанный профиль распознавания (issue #410): снимает требование тэга — так распознаются
+   *  произвольные таблицы, для которых функционального тэга не существует. */
+  profileId?: string | null;
 }
 
 export interface GostGrouping {

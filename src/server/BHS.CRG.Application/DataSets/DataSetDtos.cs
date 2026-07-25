@@ -79,9 +79,10 @@ public record GostGroupingDto(IReadOnlyList<GostGroupingGroupDto> Groups, bool M
 
 /// <summary>Одна группа страниц. Для документа Code/Name как в реестре; для обложки/титула — null.
 /// PageIndices — 0-based индексы исходного PDF. Tags — функциональные тэги документа (тип таблицы).</summary>
+/// <param name="ProfileId">Привязанный профиль распознавания (issue #410); null — привязки нет.</param>
 public record GostGroupingGroupDto(
     GostGroupKind Kind, string? Code, string? Name, IReadOnlyList<int> PageIndices,
-    IReadOnlyList<string>? Tags = null);
+    IReadOnlyList<string>? Tags = null, Guid? ProfileId = null);
 
 // ── Input DTOs (assembled by the HTTP layer, free of ASP.NET types) ─────────────
 

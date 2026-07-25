@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Jobs;
@@ -296,6 +296,19 @@ public static class DataSetEndpoints
             catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
+        // Привязка профиля распознавания к группе листов (issue #410) — тоже точечно, без пересборки
+        // разбиения: иначе правка параметров стирала бы уже распознанное сырьё таблицы.
+        g.MapPut("/files/{fileId:guid}/document-profile", async (
+            Guid fileId, SetDocumentProfileRequest req, IDataSetService svc, CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await svc.SetDocumentProfileAsync(fileId, req.FirstPageIndex, req.ProfileId, ct);
+                return result is null ? Results.NotFound() : Results.Ok(result);
+            }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+
         // Распознать таблицу помеченного документа (спецификация/кабельный журнал) → отдельный табличный
         // источник. Vision-вызов (минуты на большом документе) → фоновая задача, 202+jobId сразу.
         g.MapPost("/files/{fileId:guid}/recognize-table", async (
@@ -395,6 +408,7 @@ public static class DataSetEndpoints
     private record ApplyGroupingGroupRequest(GostGroupKind Kind, string? Code, string? Name, int[] PageIndices, string[]? Tags);
     private record SetDocumentTagsRequest(int FirstPageIndex, string[]? Tags);
     private record RecognizeTableRequest(int FirstPageIndex);
+    private record SetDocumentProfileRequest(int FirstPageIndex, Guid? ProfileId);
 
     private static Guid UserId(ClaimsPrincipal user)
         => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub")!);

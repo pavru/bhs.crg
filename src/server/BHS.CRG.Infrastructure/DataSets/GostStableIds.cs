@@ -54,7 +54,10 @@ public static class GostStableIds
             // табличное сырьё (TableData/Columns) тоже, но если состав страниц изменился — помечаем stale.
             // Порог доминирования: сырьё переносим только при существенном пересечении (иначе чужая группа
             // унаследовала бы таблицу). При ручной правке (carryUserData=false) тэги во fresh авторитетны.
-            var carried = g with { Id = id };
+            // Привязка профиля — пользовательская НАСТРОЙКА группы, а не распознанное сырьё: переносим
+            // ВСЕГДА (наравне с Id), независимо от carryUserData. Свежая группировка её не несёт, и без
+            // явного переноса привязка молча терялась бы при любой ре-группировке.
+            var carried = g with { Id = id, ProfileId = g.ProfileId ?? matched?.ProfileId };
             if (matched is not null && carryUserData)
             {
                 var freshPages = g.Pages.Select(p => p.PageIndex).ToHashSet();
