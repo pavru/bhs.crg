@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.QualityDocs;
+using BHS.CRG.Application.Recognition;
 
 namespace BHS.CRG.Infrastructure.Recognition;
 
@@ -106,15 +107,21 @@ public static class RecognitionShared
     /// <summary>Промпт для распознавания ТАБЛИЦЫ документа ГОСТ (спецификация/ведомость или кабельный
     /// журнал) — весь под-документ одним вызовом, строки таблицы одним полем-массивом (см. GostTableFields).</summary>
     public static string BuildTablePrompt(IReadOnlyList<RecognitionField> fields)
+        => BuildTablePrompt(fields, null);
+
+    /// <summary>То же с параметрами ФОРМЫ таблицы из профиля (issue #406). Пустая/дефолтная форма даёт
+    /// побуквенно прежний промпт — переезд на профили не меняет поведения.</summary>
+    public static string BuildTablePrompt(IReadOnlyList<RecognitionField> fields, RecognitionTableShape? shape)
     {
         var sb = new StringBuilder();
         sb.AppendLine("Ты извлекаешь ТАБЛИЦУ из документа проектной/рабочей документации по ГОСТ");
         sb.AppendLine("(спецификация/ведомость материалов и оборудования либо кабельный журнал).");
+        AppendShapeHints(sb, shape);
         AppendCommonInstructions(sb, fields);
         sb.AppendLine();
         sb.Append("Поле ").Append(GostTableFields.RowsPath)
           .AppendLine(" — верни ЗНАЧЕНИЕМ этого ключа настоящий JSON-массив объектов (не строку),");
-        sb.AppendLine("по одному объекту на СТРОКУ таблицы. Заголовки/итоги/пустые строки НЕ включай.");
+        sb.Append("по одному объекту на СТРОКУ таблицы. ").AppendLine(RowSkipRule(shape));
         sb.AppendLine("Ключи объектов — из перечисленных выше колонок; пустая ячейка — пустая строка.");
         return sb.ToString();
     }
@@ -124,6 +131,10 @@ public static class RecognitionShared
     /// иначе модель берёт только проектную секцию и теряет фактическую. Покрывает формы ГОСТ 21.613/
     /// 21.608/21.607/Р 70444: секции маппятся в пары *Проект / *Факт.</summary>
     public static string BuildCableJournalPrompt(IReadOnlyList<RecognitionField> fields)
+        => BuildCableJournalPrompt(fields, null);
+
+    /// <inheritdoc cref="BuildCableJournalPrompt(IReadOnlyList{RecognitionField})"/>
+    public static string BuildCableJournalPrompt(IReadOnlyList<RecognitionField> fields, RecognitionTableShape? shape)
     {
         var sb = new StringBuilder();
         sb.AppendLine("Ты извлекаешь ТАБЛИЦУ кабельного (кабеле-проводникового) журнала проектной/рабочей");
@@ -138,14 +149,36 @@ public static class RecognitionShared
         sb.AppendLine("- Если секция ОДНА (нет деления проект/факт) — заполняй *Проект, а *Факт оставь ПУСТЫМИ.");
         sb.AppendLine("- НЕ дублируй проектное значение в факт, если фактического столбца в таблице нет.");
         sb.AppendLine("- Участок — № группы (внутреннее освещение) или пролёт опор (наружное); для силового обычно пусто.");
+        AppendShapeHints(sb, shape);
         AppendCommonInstructions(sb, fields);
         sb.AppendLine();
         sb.Append("Поле ").Append(GostTableFields.RowsPath)
           .AppendLine(" — верни ЗНАЧЕНИЕМ этого ключа настоящий JSON-массив объектов (не строку),");
-        sb.AppendLine("по одному объекту на СТРОКУ таблицы (одна строка = одна кабельная линия). Заголовки/итоги/пустые строки НЕ включай.");
+        sb.Append("по одному объекту на СТРОКУ таблицы (одна строка = одна кабельная линия). ")
+          .AppendLine(RowSkipRule(shape));
         sb.AppendLine("Ключи объектов — из перечисленных выше колонок; пустая ячейка — пустая строка.");
         return sb.ToString();
     }
+
+    /// <summary>Структурные подсказки о форме таблицы из профиля (issue #406). Закрытый набор фраз —
+    /// пользователь задаёт флаги, текст пишем мы. Дефолтная/пустая форма не добавляет ничего.</summary>
+    private static void AppendShapeHints(StringBuilder sb, RecognitionTableShape? shape)
+    {
+        if (shape is null) return;
+        if (shape.TwoTierHeader)
+            sb.AppendLine("Шапка таблицы ДВУХЭТАЖНАЯ: колонки сгруппированы под общими заголовками — " +
+                          "разворачивай их в плоский набор колонок, перечисленный ниже.");
+        if (shape.PairedSections)
+            sb.AppendLine("В таблице ПАРНЫЕ секции с повторяющимися подколонками (напр. «по проекту» и " +
+                          "«фактически») — различай их по именам колонок ниже, не сливай в одну.");
+    }
+
+    /// <summary>Правило про служебные строки. Дефолт (и отсутствие формы) — прежняя формулировка
+    /// дословно, чтобы промпт не изменился.</summary>
+    private static string RowSkipRule(RecognitionTableShape? shape)
+        => shape is null || shape.SkipTotals
+            ? "Заголовки/итоги/пустые строки НЕ включай."
+            : "Заголовки и пустые строки НЕ включай, а ИТОГОВЫЕ строки включай наравне с обычными.";
 
     private static void AppendCommonInstructions(StringBuilder sb, IReadOnlyList<RecognitionField> fields)
     {

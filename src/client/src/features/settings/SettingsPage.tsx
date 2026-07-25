@@ -83,6 +83,7 @@ function RestoreResultModal({
     report.documentTypesCreated + report.documentTypesUpdated +
     report.templatesCreated + report.templatesUpdated +
     (report.templateAssetsCreated ?? 0) + (report.templateAssetsUpdated ?? 0) +
+    (report.recognitionProfilesCreated ?? 0) + (report.recognitionProfilesUpdated ?? 0) +
     report.catalogEntitiesCreated + report.catalogEntitiesUpdated +
     report.commonDataEntriesCreated + report.commonDataEntriesUpdated;
 
@@ -133,6 +134,8 @@ function RestoreResultModal({
                 created={report.templatesCreated} updated={report.templatesUpdated} />
               <StatRow label="Ассеты шаблонов"
                 created={report.templateAssetsCreated ?? 0} updated={report.templateAssetsUpdated ?? 0} />
+              <StatRow label="Профили распознавания"
+                created={report.recognitionProfilesCreated ?? 0} updated={report.recognitionProfilesUpdated ?? 0} />
               <StatRow label="Записи каталога"
                 created={report.catalogEntitiesCreated} updated={report.catalogEntitiesUpdated} />
               <StatRow label="Общие данные"

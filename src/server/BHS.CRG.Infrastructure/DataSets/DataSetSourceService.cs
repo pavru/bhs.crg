@@ -1,7 +1,8 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.Recognition;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Objects;
@@ -19,7 +20,8 @@ namespace BHS.CRG.Infrastructure.DataSets;
 public class DataSetSourceService(
     AppDbContext db,
     IBlobStorage blob,
-    DataSetParserFactory parserFactory)
+    DataSetParserFactory parserFactory,
+    IRecognitionProfileProvider profiles)
 {
     private record CachedColumnInfo(string Name, string[] SampleValues);
 
@@ -83,7 +85,7 @@ public class DataSetSourceService(
         foreach (var g in grouping.Groups)
         {
             if (g.Kind != GostGroupKind.Document || g.Id == Guid.Empty) continue;
-            var hasTableTag = (g.Tags ?? []).Any(t => GostTableFields.ColumnsForTag(t) is not null);
+            var hasTableTag = (g.Tags ?? []).Any(profiles.IsTableTag);
             if (!hasTableTag) continue;
             var marker = $"{PdfProfiles.GostTableMarkerPrefix}{g.Id}";
             if (existing.Contains(marker)) continue;
@@ -318,7 +320,7 @@ public class DataSetSourceService(
         var source = file.AddSource(name, marker, group.TableColumns ?? "[]", RowCountOf(group.TableData), null, group.TableData);
         // Материализация в целевой тип по табличному тэгу (issue #29/#19): строки распознаны прямо в ключи
         // полей типа, поэтому маппинг тождественный (колонка→одноимённое поле).
-        var tag = (group.Tags ?? []).FirstOrDefault(t => GostTableFields.ColumnsForTag(t) is not null);
+        var tag = (group.Tags ?? []).FirstOrDefault(profiles.IsTableTag);
         if (tag is not null)
         {
             var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);

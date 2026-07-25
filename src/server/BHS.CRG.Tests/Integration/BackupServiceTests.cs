@@ -1,10 +1,13 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Templates;
+using BHS.CRG.Application.Recognition;
+using BHS.CRG.Domain.Recognition;
+using BHS.CRG.Infrastructure.Recognition;
 using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -112,6 +115,77 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
             using var rms = new MemoryStream();
             await restored.CopyToAsync(rms);
             Assert.Equal(AssetBytes, rms.ToArray());
+        }
+    }
+
+    [Fact]
+    public async Task Export_Import_RoundTrips_RecognitionProfiles()
+    {
+        // Профили — конфигурация, влияющая на извлекаемые данные (issue #406), поэтому обязаны быть
+        // в бэкапе. Важен и флаг IsModified: восстановленный правленый профиль не должен быть затёрт
+        // сидингом на целевой системе.
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            // ResetDatabaseAsync профили не чистит (это конфигурация) — снимаем пользовательские,
+            // оставшиеся от прошлых прогонов, иначе счётчик восстановленных накапливается.
+            db.RecognitionProfiles.RemoveRange(db.RecognitionProfiles.Where(p => p.Code == null));
+            await db.SaveChangesAsync();
+            await RecognitionProfileSeeder.SeedAsync(db);
+            db.ChangeTracker.Clear();
+            var custom = RecognitionProfile.Create(
+                "Список деталей шкафа", RecognitionProfileKind.Table,
+                fields: RecognitionProfileJson.WriteFields([]),
+                rowColumns: RecognitionProfileJson.WriteFields([new RecognitionProfileField("Поз", "Позиция", "string")]),
+                shape: RecognitionProfileJson.WriteShape(new RecognitionTableShape(TwoTierHeader: true)));
+            db.RecognitionProfiles.Add(custom);
+            await db.SaveChangesAsync();
+        }
+
+        byte[] zipBytes;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var (zip, _) = await Backup(scope).ExportAsync();
+            using var ms = new MemoryStream();
+            await zip.CopyToAsync(ms);
+            zipBytes = ms.ToArray();
+        }
+
+        // Чистое окружение: сносим профили (ResetDatabaseAsync их не трогает — это конфигурация).
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.RecognitionProfiles.RemoveRange(db.RecognitionProfiles);
+            await db.SaveChangesAsync();
+        }
+
+        RestoreReport report;
+        using (var scope = fixture.Services.CreateScope())
+            report = await Backup(scope).ImportAsync(new MemoryStream(zipBytes));
+
+        Assert.True(report.Success);
+        Assert.Equal(1, report.RecognitionProfilesCreated);   // только пользовательский
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var restored = await db.RecognitionProfiles.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Name == "Список деталей шкафа");
+            Assert.NotNull(restored);
+            Assert.Equal(RecognitionProfileKind.Table, restored!.Kind);
+            Assert.Null(restored.Code);          // пользовательский — кода нет
+            Assert.False(restored.IsBuiltIn);
+            Assert.True(RecognitionProfileJson.ReadShape(restored.Shape)!.TwoTierHeader);
+            Assert.Contains(RecognitionProfileJson.ReadFields(restored.RowColumns), f => f.Name == "Поз");
+
+            // Ловушка машины времени: НЕТРОНУТЫЕ встроенные профили копия НЕ восстанавливает — иначе
+            // старая копия откатила бы улучшенный дефолт. Их переутверждает сидер при старте.
+            Assert.Empty(await db.RecognitionProfiles.AsNoTracking()
+                .Where(p => p.Code != null).ToListAsync());
+
+            await RecognitionProfileSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>());
+            Assert.NotNull(await db.RecognitionProfiles.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Code == BuiltInProfileCodes.CableJournal));
         }
     }
 

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Notifications;
@@ -111,7 +111,7 @@ public class DataSetGostRecognitionTests(IntegrationTestFixture fixture) : IAsyn
 
         var notifications = new RecordingNotificationService();
         var svc = new DataSetPdfRecognitionService(
-            db, blob, new ScriptedRecognizer(script), notifications, NullLogger<DataSetPdfRecognitionService>.Instance);
+            db, blob, new ScriptedRecognizer(script), notifications, new RecognitionProfileProvider(db), NullLogger<DataSetPdfRecognitionService>.Instance);
         await svc.RecognizePdfSourceAsync(documents.Id, confirm: true, default);
 
         // Обложка и титул — по одной строке каждая.
@@ -185,7 +185,7 @@ public class DataSetGostRecognitionTests(IntegrationTestFixture fixture) : IAsyn
         await db.SaveChangesAsync();
 
         var svc = new DataSetPdfRecognitionService(
-            db, blob, new ScriptedRecognizer(script), new RecordingNotificationService(), NullLogger<DataSetPdfRecognitionService>.Instance);
+            db, blob, new ScriptedRecognizer(script), new RecordingNotificationService(), new RecognitionProfileProvider(db), NullLogger<DataSetPdfRecognitionService>.Instance);
         await svc.RecognizePdfSourceAsync(documents.Id, confirm: true, default);
 
         var grouping = JsonSerializer.Deserialize<GostGroupingData>(db.DataSetFiles.Find(documents.FileId)!.Grouping!)!;
@@ -220,13 +220,13 @@ public class DataSetGostRecognitionTests(IntegrationTestFixture fixture) : IAsyn
         await db.SaveChangesAsync();
 
         var svc = new DataSetPdfRecognitionService(db, blob, new ScriptedRecognizer(script),
-            new RecordingNotificationService(), NullLogger<DataSetPdfRecognitionService>.Instance);
+            new RecordingNotificationService(), new RecognitionProfileProvider(db), NullLogger<DataSetPdfRecognitionService>.Instance);
         await svc.RecognizePdfSourceAsync(documents.Id, confirm: true, default);
 
         // Перераспознаём ТОЛЬКО документ на стр.2 (новое имя); документ на стр.3 не трогаем.
         var svc2 = new DataSetPdfRecognitionService(db, blob,
             new ScriptedRecognizer([P("Документ", "Форма3", "01-ЭМ", "Схема 1 (испр.)")]),
-            new RecordingNotificationService(), NullLogger<DataSetPdfRecognitionService>.Instance);
+            new RecordingNotificationService(), new RecognitionProfileProvider(db), NullLogger<DataSetPdfRecognitionService>.Instance);
         await svc2.RecognizeDocumentAsync(file.Id, firstPageIndex: 2, default);
 
         var grouping = JsonSerializer.Deserialize<GostGroupingData>(db.DataSetFiles.Find(documents.FileId)!.Grouping!)!;

@@ -1,10 +1,11 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
+using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Domain.Templates;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -69,6 +70,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         var enumTypes = await db.EnumTypes.AsNoTracking().ToListAsync(ct);
         var templateAssets = await db.TemplateAssets.AsNoTracking().ToListAsync(ct);
         var userLib = await db.TypstUserLibs.AsNoTracking().FirstOrDefaultAsync(ct);
+        var recognitionProfiles = await db.RecognitionProfiles.AsNoTracking().ToListAsync(ct);
 
         return new BackupManifest(
             SchemaVersion: CurrentSchemaVersion,
@@ -101,7 +103,12 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 a.Name, a.FileName, a.MimeType, a.BlobPath, a.FontFamilyName,
                 a.CreatedAt, a.UpdatedAt)).ToArray(),
             TypstUserLib: userLib is null ? null
-                : new BackupTypstUserLib(userLib.Content, userLib.CreatedAt, userLib.UpdatedAt));
+                : new BackupTypstUserLib(userLib.Content, userLib.CreatedAt, userLib.UpdatedAt),
+            RecognitionProfiles: recognitionProfiles.Select(p => new BackupRecognitionProfile(
+                p.Id, p.Name, p.Code, p.Kind.ToString(),
+                p.Fields.RootElement.Clone(), p.Shape?.RootElement.Clone(),
+                p.IsBuiltIn, p.IsModified, p.CreatedAt, p.UpdatedAt,
+                p.RowColumns?.RootElement.Clone(), p.BuiltInHash)).ToArray());
     }
 
     // ── Import ────────────────────────────────────────────────────────────────
@@ -165,6 +172,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             var stats = new RestoreStats();
             await RestorePrimitiveTypesAsync(manifest.PrimitiveTypes ?? [], stats, warnings, ct);
             await RestoreEnumTypesAsync(manifest.EnumTypes ?? [], stats, warnings, ct);
+            await RestoreRecognitionProfilesAsync(manifest.RecognitionProfiles ?? [], stats, warnings, ct);
             await RestoreDocumentTypesAsync(manifest.DocumentTypes, stats, warnings, ct);
             await RestoreTemplatesAsync(manifest.Templates, stats, warnings, ct);
             await RestoreTemplateAssetsAsync(manifest.TemplateAssets ?? [], stats, warnings, ct);
@@ -181,7 +189,8 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 stats.PrimitiveTypesCreated, stats.PrimitiveTypesUpdated,
                 stats.EnumTypesCreated, stats.EnumTypesUpdated,
                 stats.TemplateAssetsCreated, stats.TemplateAssetsUpdated,
-                stats.TypstUserLibRestored);
+                stats.TypstUserLibRestored,
+                stats.RecognitionProfilesCreated, stats.RecognitionProfilesUpdated);
         }
         catch (Exception ex)
         {
@@ -281,6 +290,44 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
             if (existingIds.Contains(item.Id)) stats.EnumTypesUpdated++; else stats.EnumTypesCreated++;
         }
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+    }
+
+    private async Task RestoreRecognitionProfilesAsync(
+        BackupRecognitionProfile[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
+    {
+        var existingIds = await db.RecognitionProfiles.Select(e => e.Id).ToHashSetAsync(ct);
+        var skippedBuiltIn = 0;
+        foreach (var item in items)
+        {
+            if (!Enum.TryParse<RecognitionProfileKind>(item.Kind, out var kind))
+            {
+                warnings.Add($"Профиль распознавания «{item.Name}»: неизвестный вид «{item.Kind}», пропущен.");
+                continue;
+            }
+            // Ловушка машины времени: копия несёт ЗАВОДСКОЙ профиль в старой редакции и при
+            // восстановлении в более новую версию затёрла бы улучшенный дефолт. Нетронутые встроенные
+            // пропускаем — их переутвердит сидер при старте; восстанавливаем только правленные
+            // пользователем (в них есть что терять) и полностью пользовательские профили.
+            if (item is { IsBuiltIn: true, IsModified: false })
+            {
+                skippedBuiltIn++;
+                continue;
+            }
+            var entity = RecognitionProfile.Restore(
+                item.Id, item.Name, item.Code, kind,
+                JsonDocument.Parse(item.Fields.GetRawText()),
+                item.RowColumns is { } rc ? JsonDocument.Parse(rc.GetRawText()) : null,
+                item.Shape is { } sh ? JsonDocument.Parse(sh.GetRawText()) : null,
+                item.IsBuiltIn, item.IsModified, item.BuiltInHash, builtInOutdated: false,
+                item.CreatedAt, item.UpdatedAt);
+            db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
+            if (existingIds.Contains(item.Id)) stats.RecognitionProfilesUpdated++; else stats.RecognitionProfilesCreated++;
+        }
+        if (skippedBuiltIn > 0)
+            warnings.Add($"Профили распознавания: {skippedBuiltIn} встроенных пропущено (не правились) — " +
+                         "они переутверждаются системой при старте, чтобы копия не откатила их к старой редакции.");
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
     }
@@ -454,6 +501,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     {
         public int PrimitiveTypesCreated, PrimitiveTypesUpdated;
         public int EnumTypesCreated, EnumTypesUpdated;
+        public int RecognitionProfilesCreated, RecognitionProfilesUpdated;
         public int DocumentTypesCreated, DocumentTypesUpdated;
         public int TemplatesCreated, TemplatesUpdated;
         public int TemplateAssetsCreated, TemplateAssetsUpdated;
