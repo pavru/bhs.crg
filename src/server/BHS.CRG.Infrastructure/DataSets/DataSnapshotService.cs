@@ -1,0 +1,165 @@
+using System.Text.Json;
+using BHS.CRG.Application.Common;
+using BHS.CRG.Application.DataSnapshots;
+using BHS.CRG.Domain.DataSets;
+using BHS.CRG.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace BHS.CRG.Infrastructure.DataSets;
+
+/// <inheritdoc />
+public class DataSnapshotService(
+    AppDbContext db,
+    IBlobStorage blob,
+    DataSetParserFactory parserFactory) : IDataSnapshotService
+{
+    private static readonly JsonSerializerOptions SchemaJson = new() { PropertyNameCaseInsensitive = true };
+
+    private record CachedColumn(string Name, string[] SampleValues);
+
+    public async Task<IReadOnlyList<DatasetSummary>> ListDatasetsAsync(
+        string? scope, Guid? scopeId, CancellationToken ct = default)
+    {
+        var q = db.DataSetFiles.AsNoTracking().Include(f => f.Sources).AsQueryable();
+        if (!string.IsNullOrWhiteSpace(scope) && Enum.TryParse<Domain.Catalog.CatalogScope>(scope, true, out var s))
+        {
+            q = q.Where(f => f.Scope == s);
+            if (scopeId is { } sid) q = q.Where(f => f.ScopeId == sid);
+        }
+
+        var files = await q.OrderBy(f => f.Name).ToListAsync(ct);
+        return [.. files.Select(f => new DatasetSummary(
+            f.Id, f.Name, f.Format.ToString(), f.Scope.ToString(), f.ScopeId,
+            f.Sources.Count,
+            f.RecognitionStale || f.Sources.Any(s => s.RecognitionStale)))];
+    }
+
+    public async Task<DatasetDetail?> GetDatasetAsync(Guid datasetId, CancellationToken ct = default)
+    {
+        var file = await db.DataSetFiles.AsNoTracking().Include(f => f.Sources)
+            .FirstOrDefaultAsync(f => f.Id == datasetId, ct);
+        if (file is null) return null;
+
+        var grouping = GostGroupingSerialization.Parse(file.Grouping);
+        var sources = file.Sources
+            .OrderBy(s => s.Name)
+            .Select(s => new SourceSummary(
+                s.Id, s.Name, OriginOf(s), s.CachedRowCount,
+                IsStale(file, s, grouping, out _),
+                ColumnNames(s.CachedSchema),
+                SheetOf(s, grouping)))
+            .ToList();
+
+        return new DatasetDetail(
+            file.Id, file.Name, file.Format.ToString(), file.Scope.ToString(), file.ScopeId,
+            file.RecognitionStale, file.PreprocessingProfile, sources);
+    }
+
+    public async Task<SourceDetail?> GetSourceAsync(Guid sourceId, CancellationToken ct = default)
+    {
+        var source = await db.DataSetSources.AsNoTracking().Include(s => s.File)
+            .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        if (source?.File is null) return null;
+
+        var grouping = GostGroupingSerialization.Parse(source.File.Grouping);
+        var stale = IsStale(source.File, source, grouping, out var reason);
+
+        return new SourceDetail(
+            source.Id, source.FileId, source.File.Name, source.Name,
+            OriginOf(source), source.CachedRowCount, stale, reason,
+            source.UpdatedAt,
+            Columns(source.CachedSchema),
+            SheetOf(source, grouping));
+    }
+
+    public async Task<RowsPage?> GetRowsAsync(
+        Guid sourceId, int offset, int limit, CancellationToken ct = default)
+    {
+        var source = await db.DataSetSources.AsNoTracking().Include(s => s.File)
+            .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        if (source?.File is null) return null;
+
+        offset = Math.Max(0, offset);
+        limit = Math.Clamp(limit <= 0 ? IDataSnapshotService.DefaultRowsPerPage : limit,
+            1, IDataSnapshotService.MaxRowsPerPage);
+
+        // Строки ПОСЛЕ всей обработки источника (фильтр/вычисляемые колонки/сортировка) — тот же путь,
+        // которым их видит генерация, поэтому внешний анализ и генерация смотрят на одни данные.
+        var all = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
+        var page = all.Skip(offset).Take(limit).ToList();
+
+        // Ключи колонок берём из СХЕМЫ, а не из первой строки: строка может не содержать пустых ячеек,
+        // и агент, ориентируясь на неё, потерял бы колонку целиком.
+        var columns = ColumnNames(source.CachedSchema);
+        if (columns.Count == 0 && all.Count > 0)
+            columns = [.. all.SelectMany(r => r.Keys).Distinct()];
+
+        return new RowsPage(
+            source.Id, offset, limit, all.Count,
+            Truncated: offset + page.Count < all.Count,
+            columns, page);
+    }
+
+    // ── Достоверность снимка ─────────────────────────────────────────────────────
+
+    /// <summary>Распознанные источники помечены маркером — это и есть признак вероятностного
+    /// происхождения данных (см. <see cref="PdfProfiles.IsRecognitionMarker"/>).</summary>
+    private static DataOrigin OriginOf(DataSetSource s) =>
+        PdfProfiles.IsRecognitionMarker(s.SheetOrPath) ? DataOrigin.Recognized : DataOrigin.Parsed;
+
+    /// <summary>Устарели ли данные источника. Три независимых причины, и каждая означает, что сверка
+    /// по этим строкам может быть неверной, — поэтому возвращаем ещё и человекочитаемую причину.</summary>
+    private static bool IsStale(
+        DataSetFile file, DataSetSource source, GostGroupingData? grouping, out string? reason)
+    {
+        if (file.RecognitionStale)
+        {
+            reason = "Файл набора заменён после распознавания — данные относятся к прежнему содержимому.";
+            return true;
+        }
+        if (source.RecognitionStale)
+        {
+            reason = "Источник помечен устаревшим — данные требуют повторного распознавания.";
+            return true;
+        }
+        if (TableGroupOf(source, grouping) is { TableStale: true })
+        {
+            reason = "Состав страниц документа изменился после распознавания таблицы — строки относятся к прежним границам.";
+            return true;
+        }
+        reason = null;
+        return false;
+    }
+
+    /// <summary>Группа-документ, из которой спроецирован табличный источник (маркер несёт её id).</summary>
+    private static GostGroupingGroup? TableGroupOf(DataSetSource source, GostGroupingData? grouping)
+    {
+        if (grouping is null) return null;
+        if (!source.SheetOrPath.StartsWith(PdfProfiles.GostTableMarkerPrefix, StringComparison.Ordinal)) return null;
+        var idStr = source.SheetOrPath[PdfProfiles.GostTableMarkerPrefix.Length..];
+        return Guid.TryParse(idStr, out var gid) ? grouping.Groups.FirstOrDefault(g => g.Id == gid) : null;
+    }
+
+    private static SheetAnchor? SheetOf(DataSetSource source, GostGroupingData? grouping)
+    {
+        var group = TableGroupOf(source, grouping);
+        return group is null ? null
+            : new SheetAnchor(group.Code, group.Name, [.. group.Pages.Select(p => p.PageIndex).OrderBy(i => i)]);
+    }
+
+    private static IReadOnlyList<ColumnInfo> Columns(string? schemaJson)
+    {
+        var cols = Parse(schemaJson);
+        return [.. cols.Select(c => new ColumnInfo(c.Name, c.SampleValues))];
+    }
+
+    private static IReadOnlyList<string> ColumnNames(string? schemaJson) =>
+        [.. Parse(schemaJson).Select(c => c.Name)];
+
+    private static CachedColumn[] Parse(string? schemaJson)
+    {
+        if (string.IsNullOrWhiteSpace(schemaJson)) return [];
+        try { return JsonSerializer.Deserialize<CachedColumn[]>(schemaJson, SchemaJson) ?? []; }
+        catch (JsonException) { return []; }
+    }
+}
