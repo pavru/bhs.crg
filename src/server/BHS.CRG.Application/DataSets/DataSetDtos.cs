@@ -7,7 +7,11 @@ public record DataSetSourceDto(
     string CachedSchema, int CachedRowCount,
     object? RowFilter, object? ComputedColumns, object? SortSpec,
     IReadOnlyList<string>? Tags, bool RecognitionStale = false,
-    Guid? MaterializeTypeId = null, Dictionary<string, string>? MaterializeMapping = null);
+    Guid? MaterializeTypeId = null, Dictionary<string, string>? MaterializeMapping = null,
+    /// <summary>Сколько привязок ссылается на источник (issue #417) — чтобы удаление не было вслепую.
+    /// null = «не считали» (ответ одиночной мутации): UI не должен показывать из-за этого ложный ноль,
+    /// актуальное число приезжает со списком.</summary>
+    int? BindingCount = null);
 
 /// <summary>Материализованный предпросмотр источника: строки, развёрнутые в объекты формы типа (issue #19).</summary>
 public record MaterializePreviewDto(Guid? TypeId, int TotalRows, IReadOnlyList<Dictionary<string, object?>> Rows, string? Error);

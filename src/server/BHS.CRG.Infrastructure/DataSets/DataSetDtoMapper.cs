@@ -63,18 +63,25 @@ public static class DataSetDtoMapper
         return Task.FromResult<object?>(string.IsNullOrWhiteSpace(v) ? null : $"🔗 {v}");
     }
 
-    public static DataSetFileDto MapFile(DataSetFile f) => new(
+    /// <param name="bindingCounts">Число привязок по id источника (issue #417). null — не считали.</param>
+    public static DataSetFileDto MapFile(DataSetFile f, IReadOnlyDictionary<Guid, int>? bindingCounts = null) => new(
         f.Id, f.Name, f.Format.ToString(), f.Scope.ToString(), f.ScopeId,
-        f.Sources.Select(MapSource).ToList(), f.CreatedAt, f.PreprocessingProfile,
+        f.Sources.Select(s => MapSource(s, BindingCountOf(bindingCounts, s.Id))).ToList(),
+        f.CreatedAt, f.PreprocessingProfile,
         f.RecognitionProfiles is null ? null
             : JsonSerializer.Deserialize<Dictionary<string, Guid>>(f.RecognitionProfiles));
 
-    public static DataSetSourceDto MapSource(DataSetSource s) => new(
+    public static DataSetSourceDto MapSource(DataSetSource s, int? bindingCount = null) => new(
         s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, s.CachedSchema, s.CachedRowCount,
         DeserializeJson(s.RowFilter), DeserializeJson(s.ComputedColumns), DeserializeJson(s.SortSpec),
         s.Tags is null ? null : JsonSerializer.Deserialize<List<string>>(s.Tags), s.RecognitionStale,
         s.MaterializeTypeId,
-        s.MaterializeMapping is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(s.MaterializeMapping));
+        s.MaterializeMapping is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(s.MaterializeMapping),
+        bindingCount);
+
+    /// <summary>null, если счётчики не запрашивали (одиночная мутация), иначе 0 для источника без привязок.</summary>
+    private static int? BindingCountOf(IReadOnlyDictionary<Guid, int>? counts, Guid sourceId)
+        => counts is null ? null : counts.GetValueOrDefault(sourceId);
 
     public static DataSetBindingDto MapBinding(DataSetBinding b) => new(
         b.Id, b.OwnerId, b.SourceId, b.TargetFieldKey,

@@ -31,7 +31,14 @@ public class DataSetSourceService(
     public async Task<IReadOnlyList<DataSetSourceDto>> ListSourcesAsync(Guid fileId, CancellationToken ct)
     {
         var sources = await db.DataSetSources.Where(s => s.FileId == fileId).AsNoTracking().ToListAsync(ct);
-        return sources.Select(DataSetDtoMapper.MapSource).ToList();
+        var ids = sources.Select(s => s.Id).ToList();
+        var bindingCounts = ids.Count == 0
+            ? new Dictionary<Guid, int>()
+            : await db.DataSetBindings.AsNoTracking()
+                .Where(b => ids.Contains(b.SourceId))
+                .GroupBy(b => b.SourceId)
+                .ToDictionaryAsync(g => g.Key, g => g.Count(), ct);
+        return sources.Select(s => DataSetDtoMapper.MapSource(s, bindingCounts.GetValueOrDefault(s.Id))).ToList();
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-using BHS.CRG.Application.Common;
+﻿using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Domain.Catalog;
@@ -29,7 +29,18 @@ public class DataSetFileService(
             q = q.Where(f => f.Scope == s && f.ScopeId == scopeId);
 
         var files = await q.OrderBy(f => f.Name).ToListAsync(ct);
-        return files.Select(DataSetDtoMapper.MapFile).ToList();
+
+        // Число привязок на источник (issue #417) — ОДНИМ групповым запросом по всем источникам
+        // выборки: на альбоме с десятком источников запрос-на-источник дал бы N+1.
+        var sourceIds = files.SelectMany(f => f.Sources.Select(x => x.Id)).ToList();
+        var bindingCounts = sourceIds.Count == 0
+            ? new Dictionary<Guid, int>()
+            : await db.DataSetBindings.AsNoTracking()
+                .Where(b => sourceIds.Contains(b.SourceId))
+                .GroupBy(b => b.SourceId)
+                .ToDictionaryAsync(g => g.Key, g => g.Count(), ct);
+
+        return files.Select(f => DataSetDtoMapper.MapFile(f, bindingCounts)).ToList();
     }
 
     public async Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(Guid setId, CancellationToken ct)
@@ -49,7 +60,7 @@ public class DataSetFileService(
             .OrderBy(f => f.Scope).ThenBy(f => f.Name)
             .ToListAsync(ct);
 
-        return files.Select(DataSetDtoMapper.MapFile).ToList();
+        return files.Select(f => DataSetDtoMapper.MapFile(f)).ToList();
     }
 
     public async Task<DataSetFileDto> UploadFileAsync(UploadFileInput input, CancellationToken ct)
