@@ -20,13 +20,15 @@ namespace BHS.CRG.Infrastructure.Recognition;
 /// Унаследованная асимметрия существующих промптов, сохранена дословно: у таблиц документа колонки
 /// печатаются ДВАЖДЫ (по одной + склейкой в описании массива), у счёта — только склейкой в описании
 /// «Товары». Менять здесь = менять промпт, т.е. качество распознавания; отдельное решение.</param>
+/// <param name="Label">Человекочитаемое имя вида — для выбора при создании профиля.</param>
 public record RecognitionKindDescriptor(
     RecognitionProfileKind Kind,
     string? RowsKey,
     bool SupportsShape,
     bool HasScalarFields,
     IReadOnlyList<string> SystemFieldNames,
-    bool ListRowColumnsAsFields = false);
+    bool ListRowColumnsAsFields = false,
+    string Label = "");
 
 public static class RecognitionKinds
 {
@@ -39,23 +41,26 @@ public static class RecognitionKinds
     {
         [RecognitionProfileKind.TitleBlock] = new(
             RecognitionProfileKind.TitleBlock, RowsKey: null,
-            SupportsShape: false, HasScalarFields: true, TitleBlockSystemFields),
+            SupportsShape: false, HasScalarFields: true, TitleBlockSystemFields,
+            Label: "Штамп чертежа (основная надпись)"),
 
         [RecognitionProfileKind.CoverTitle] = new(
             RecognitionProfileKind.CoverTitle, RowsKey: null,
-            SupportsShape: false, HasScalarFields: true, []),
+            SupportsShape: false, HasScalarFields: true, [], Label: "Обложка / титульный лист"),
 
         [RecognitionProfileKind.Invoice] = new(
             RecognitionProfileKind.Invoice, RowsKey: InvoiceFields.LineItemsPath,
-            SupportsShape: false, HasScalarFields: true, []),
+            SupportsShape: false, HasScalarFields: true, [], Label: "Счёт на оплату"),
 
         [RecognitionProfileKind.Table] = new(
             RecognitionProfileKind.Table, RowsKey: GostTableFields.RowsPath,
-            SupportsShape: true, HasScalarFields: false, [], ListRowColumnsAsFields: true),
+            SupportsShape: true, HasScalarFields: false, [], ListRowColumnsAsFields: true,
+            Label: "Таблица документа"),
 
         [RecognitionProfileKind.CableJournal] = new(
             RecognitionProfileKind.CableJournal, RowsKey: GostTableFields.RowsPath,
-            SupportsShape: true, HasScalarFields: false, [], ListRowColumnsAsFields: true),
+            SupportsShape: true, HasScalarFields: false, [], ListRowColumnsAsFields: true,
+            Label: "Кабельный журнал"),
     };
 
     public static RecognitionKindDescriptor Describe(RecognitionProfileKind kind) =>

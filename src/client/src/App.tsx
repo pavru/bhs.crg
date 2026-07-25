@@ -15,6 +15,7 @@ import { DocumentSetsPage } from '@/features/document-sets/DocumentSetsPage';
 import { SystemCommonDataPage } from '@/features/common-data/SystemCommonDataPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { PrimitiveTypesPage } from '@/features/settings/PrimitiveTypesPage';
+import { RecognitionProfilesPage } from '@/features/settings/RecognitionProfilesPage';
 import { UsersPage } from '@/features/settings/UsersPage';
 import { DataSetsPage } from '@/features/datasets/DataSetsPage';
 import { PdfGroupingEditor } from '@/features/datasets/PdfGroupingEditor';
@@ -59,6 +60,7 @@ export default function App() {
                   <Route path="composite-types/*" element={<DocumentTypesPage kind="Composite" />} />
                   <Route path="templates/*" element={<TemplatesPage />} />
                   <Route path="field-types" element={<PrimitiveTypesPage />} />
+                  <Route path="recognition-profiles" element={<RecognitionProfilesPage />} />
                   <Route path="users" element={<UsersPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>

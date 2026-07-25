@@ -25,4 +25,15 @@ public interface IRecognitionProfileProvider
 
     /// <summary>Все профили заданного вида (для выбора в UI).</summary>
     Task<IReadOnlyList<RecognitionProfile>> ListByKindAsync(RecognitionProfileKind kind, CancellationToken ct = default);
+
+    /// <summary>Описание вида для UI и валидации — единственный источник знания о том, что вид
+    /// означает (какие части профиля применимы, какие поля защищены). Бросает для неизвестного вида.</summary>
+    RecognitionKindInfo DescribeKind(RecognitionProfileKind kind);
+
+    /// <summary>Все известные виды — для выбора при создании профиля.</summary>
+    IReadOnlyList<RecognitionKindInfo> ListKinds();
+
+    /// <summary>Переутвердить встроенные профили из кода (после «сбросить к заводским», чтобы
+    /// заводское содержимое вернулось сразу, а не на следующем старте).</summary>
+    Task ReseedBuiltInAsync(CancellationToken ct = default);
 }
