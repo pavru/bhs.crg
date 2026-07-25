@@ -34,4 +34,14 @@ public class RecognitionProfileProvider(AppDbContext db) : IRecognitionProfilePr
         RecognitionProfileKind kind, CancellationToken ct = default)
         => await db.RecognitionProfiles.AsNoTracking()
             .Where(p => p.Kind == kind).OrderBy(p => p.Name).ToListAsync(ct);
+
+    public RecognitionKindInfo DescribeKind(RecognitionProfileKind kind) => ToInfo(RecognitionKinds.Describe(kind));
+
+    public IReadOnlyList<RecognitionKindInfo> ListKinds() => [.. RecognitionKinds.All.Select(ToInfo)];
+
+    public Task ReseedBuiltInAsync(CancellationToken ct = default) => RecognitionProfileSeeder.SeedAsync(db, ct);
+
+    private static RecognitionKindInfo ToInfo(RecognitionKindDescriptor d) => new(
+        d.Kind.ToString(), d.Label, d.SupportsShape, d.HasScalarFields,
+        IsTabular: d.RowsKey is not null, d.SystemFieldNames);
 }
