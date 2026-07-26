@@ -217,6 +217,7 @@ builder.Services
     .WithHttpTransport()
     .WithTools<BHS.CRG.Api.Mcp.DataSnapshotTools>()
     .WithTools<BHS.CRG.Api.Mcp.DomainSnapshotTools>()
+    .WithTools<BHS.CRG.Api.Mcp.DocumentActionTools>()
     .WithResources<BHS.CRG.Api.Mcp.DataSnapshotResources>()
     .WithResources<BHS.CRG.Api.Mcp.DomainSnapshotResources>();
 
