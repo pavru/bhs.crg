@@ -2,6 +2,7 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
@@ -201,6 +202,62 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
             await Svc(scope).ListCatalogEntriesAsync("Construction", constructionId, null, null);
 
             Assert.Equal(before, (await repo.GetAllAsync()).Count);
+        }
+    }
+
+    /// <summary>
+    /// Карта связей должна повторять правило генерации: узкий уровень побеждает широкий. Разойдись
+    /// она с QualityLinkResolver — агент видел бы не тот сертификат, что попадёт в документ.
+    /// </summary>
+    [Fact]
+    public async Task MaterialQualityLinks_NarrowerScopeWins_AndCarriesProvenance()
+    {
+        var (constructionId, setId, _, _, scope) = await SeedAsync();
+        using (scope)
+        {
+            var m = M(scope);
+            var certType = await m.Send(new CreateDocumentTypeCommand(
+                "Сертификат", Code("CERT"), DocumentTypeKind.Document, null,
+                JsonDocument.Parse("""{"fields":[]}""")));
+
+            async Task<Guid> CertAsync(string name) => (await m.Send(new CreateQualityDocumentCommand(
+                certType.Id, name, JsonDocument.Parse("{}"),
+                CatalogScope.System, null, QualityDocSource.Manual, null, null, null))).Id;
+
+            var wide = await CertAsync("Сертификат общий");
+            var narrow = await CertAsync("Сертификат комплекта");
+            var only = await CertAsync("Сертификат стройки");
+
+            // Один и тот же материал заведён и на System, и на комплекте — победить обязан комплект.
+            await m.Send(new SetMaterialLinksCommand(CatalogScope.System, null, ["кабель-ввгнг-3х2.5"], wide));
+            await m.Send(new SetMaterialLinksCommand(CatalogScope.Set, setId, ["кабель-ввгнг-3х2.5"], narrow));
+            await m.Send(new SetMaterialLinksCommand(CatalogScope.Construction, constructionId, ["лоток-200"], only));
+
+            var links = await Svc(scope).ListMaterialQualityLinksAsync(setId);
+
+            var cable = Assert.Single(links, l => l.MaterialKey == "кабель-ввгнг-3х2.5");
+            Assert.Equal(narrow, cable.QualityDocumentId);
+            Assert.Equal("Сертификат комплекта", cable.QualityDocumentName);
+            Assert.Equal("Set", cable.Scope);
+            Assert.Equal(setId, cable.ScopeId);
+
+            // Уровень в ответе — не украшение: связь стройки действует на комплекте, и без провенанса
+            // «почему тут этот сертификат» непроверяемо.
+            var tray = Assert.Single(links, l => l.MaterialKey == "лоток-200");
+            Assert.Equal("Construction", tray.Scope);
+            Assert.Equal(constructionId, tray.ScopeId);
+            Assert.Equal("Сертификат", tray.QualityDocumentTypeName);
+        }
+    }
+
+    [Fact]
+    public async Task MaterialQualityLinks_EmptyWhenNoneAndForMissingSet()
+    {
+        var (_, setId, _, _, scope) = await SeedAsync();
+        using (scope)
+        {
+            Assert.Empty(await Svc(scope).ListMaterialQualityLinksAsync(setId));
+            Assert.Empty(await Svc(scope).ListMaterialQualityLinksAsync(Guid.NewGuid()));
         }
     }
 

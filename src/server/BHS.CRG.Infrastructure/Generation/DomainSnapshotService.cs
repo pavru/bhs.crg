@@ -168,6 +168,50 @@ public class DomainSnapshotService(
             : new DocumentTypeSchemaInfo(t.Id, t.Code, t.Name, t.Kind.ToString(), t.ParentId, t.Schema.RootElement.Clone());
     }
 
+    public async Task<IReadOnlyList<MaterialQualityLinkInfo>> ListMaterialQualityLinksAsync(
+        Guid setId, CancellationToken ct = default)
+    {
+        var set = await mediator.Send(new GetDocumentSetQuery(setId), ct);
+        if (set is null) return [];
+
+        var section = await sections.GetByIdAsync(set.SectionId, ct);
+        var constructionId = section?.ConstructionId;
+
+        // Порядок = приоритет: первый победивший ключ остаётся. Тот же, что у QualityLinkResolver —
+        // расхождение здесь означало бы, что агент видит не то, что попадёт в документ.
+        var levels = new (CatalogScope Scope, Guid? ScopeId)[]
+        {
+            (CatalogScope.Set, setId),
+            (CatalogScope.Section, set.SectionId),
+            (CatalogScope.Construction, constructionId),
+            (CatalogScope.System, null),
+        };
+
+        var winners = new Dictionary<string, (Guid DocId, CatalogScope Scope, Guid? ScopeId)>();
+        foreach (var (scope, scopeId) in levels)
+        {
+            if (scope != CatalogScope.System && scopeId is null) continue; // разорванная цепочка — уровня просто нет
+            foreach (var l in await mediator.Send(new ListMaterialLinksQuery(scope, scopeId), ct))
+                winners.TryAdd(l.MaterialKey, (l.QualityDocumentId, scope, scopeId));
+        }
+        if (winners.Count == 0) return [];
+
+        var docs = (await mediator.Send(new ListQualityDocumentsQuery(null, null, null), ct))
+            .ToDictionary(d => d.Id);
+        var typeMap = await TypeMapAsync(docs.Values.Select(d => d.DocumentTypeId), ct);
+
+        return [.. winners
+            .OrderBy(kv => kv.Key)
+            .Select(kv =>
+            {
+                var doc = docs.GetValueOrDefault(kv.Value.DocId);
+                var typeName = doc is null ? "" : typeMap.GetValueOrDefault(doc.DocumentTypeId)?.Name ?? "";
+                return new MaterialQualityLinkInfo(
+                    kv.Key, kv.Value.DocId, doc?.DisplayName ?? "", typeName,
+                    kv.Value.Scope.ToString(), kv.Value.ScopeId);
+            })];
+    }
+
     public async Task<IReadOnlyList<QualityDocumentSummary>> ListQualityDocumentsAsync(
         string? scope, Guid? scopeId, string? search, CancellationToken ct = default)
     {

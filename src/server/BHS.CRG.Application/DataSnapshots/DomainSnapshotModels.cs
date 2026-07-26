@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace BHS.CRG.Application.DataSnapshots;
 
@@ -63,3 +63,16 @@ public record QualityDocumentSummary(
 /// реквизиты документа для внешнего читателя не интерпретируемы.</param>
 public record DocumentTypeSchemaInfo(
     Guid Id, string Code, string Name, string Kind, Guid? ParentId, JsonElement Schema);
+
+/// <summary>
+/// Действующая связь «материал → документ качества» для комплекта (issue #423).
+/// </summary>
+/// <param name="MaterialKey">Нормализованный артикул или наименование — он же связывает карту
+/// со строками наборов данных.</param>
+/// <param name="Scope">Уровень, с которого связь пришла. Провенанс обязателен: связь может быть
+/// заведена на System и неожиданно действовать на конкретном комплекте, и без уровня «почему тут
+/// этот сертификат» непроверяемо.</param>
+public record MaterialQualityLinkInfo(
+    string MaterialKey,
+    Guid QualityDocumentId, string QualityDocumentName, string QualityDocumentTypeName,
+    string Scope, Guid? ScopeId);

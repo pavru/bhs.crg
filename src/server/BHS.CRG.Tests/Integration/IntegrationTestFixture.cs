@@ -1,4 +1,4 @@
-using BHS.CRG.Application.Common;
+﻿using BHS.CRG.Application.Common;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -43,6 +43,10 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.ExecuteSqlRawAsync(@"
             TRUNCATE TABLE
+                material_quality_links,
+                quality_documents,
+                notifications,
+                jobs,
                 subscriptions,
                 document_set_outputs,
                 generated_files,

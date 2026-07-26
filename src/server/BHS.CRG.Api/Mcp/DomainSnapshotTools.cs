@@ -110,6 +110,23 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         [Description("Идентификатор типа документа.")] Guid typeId, CancellationToken ct)
         => await domain.GetDocumentTypeAsync(typeId, ct);
 
+    [McpServerTool(Name = "list_material_quality_links", ReadOnly = true, Idempotent = true,
+        Destructive = false, Title = "Связи материал → документ качества")]
+    [Description("""
+        Действующая карта «материал → документ качества» для комплекта: какой сертификат система
+        подставит какому материалу. Ровно то, что попадёт в документ при генерации.
+
+        Ключ материала — нормализованный артикул или наименование; он же связывает карту со строками
+        наборов данных, поэтому расхождение «в реестре указан один сертификат, а привязан другой»
+        находится сопоставлением этой карты с get_rows.
+
+        Уровень в ответе — откуда связь пришла (Set / Section / Construction / System). Связь может
+        быть заведена на System и неожиданно действовать на конкретном комплекте.
+        """)]
+    public async Task<IReadOnlyList<MaterialQualityLinkInfo>> ListMaterialQualityLinksAsync(
+        [Description("Идентификатор комплекта документов.")] Guid setId, CancellationToken ct)
+        => await domain.ListMaterialQualityLinksAsync(setId, ct);
+
     [McpServerTool(Name = "list_quality_documents", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Документы качества")]
     [Description("""
