@@ -210,6 +210,36 @@ export function useRemoveDecision() {
   });
 }
 
+// ─── Связанные проблемы уровня (#452) ─────────────────────────────────────────
+
+/** Сверка, относящаяся к уровню иерархии, с числом НЕразобранных находок. */
+export interface RelatedReconciliation {
+  id: string;
+  name: string;
+  unresolvedFindings: number;
+  lastRunAt: string | null;
+}
+
+export interface RelatedProblems {
+  /** Что показывать в счётчике: только неразобранное — бейдж обязан обнуляться действиями человека. */
+  needsAttention: number;
+  unresolvedFindings: number;
+  unreviewedObservations: number;
+  /** Есть ли расхождение, посчитанное САМОЙ системой: красный цвет зарезервирован за арифметикой. */
+  hasArithmeticProblems: boolean;
+  reconciliations: RelatedReconciliation[];
+}
+
+export function useRelatedProblems(scope: 'Construction' | 'Section' | 'Set', scopeId: string | undefined) {
+  return useQuery({
+    queryKey: [...KEY, 'related', scope, scopeId ?? null],
+    enabled: !!scopeId,
+    queryFn: async () => (await apiClient.get<RelatedProblems>('/reconciliations/related', {
+      params: { scope, scopeId },
+    })).data,
+  });
+}
+
 // ─── Алиасы позиций (#446) ────────────────────────────────────────────────────
 
 export type AliasStatus = 'Proposed' | 'Confirmed' | 'Rejected';

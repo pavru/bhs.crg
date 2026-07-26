@@ -253,6 +253,8 @@ builder.Services.AddScoped<IEntityResolver, EntityResolver>();
 // Сверка на непротиворечивость (issue #431): арифметику считает код, ИИ в пути сравнения нет.
 builder.Services.AddScoped<BHS.CRG.Application.Reconciliation.IReconciliationRunner,
     BHS.CRG.Infrastructure.Reconciliation.ReconciliationRunner>();
+builder.Services.AddScoped<BHS.CRG.Application.Reconciliation.IProblemAttribution,
+    BHS.CRG.Infrastructure.Reconciliation.ProblemAttributionService>();
 builder.Services.AddScoped<BHS.CRG.Application.Documents.ILevelProfileService, BHS.CRG.Infrastructure.Generation.LevelProfileService>();
 builder.Services.AddScoped<IMetadataExtractor, MetadataExtractor>();
 builder.Services.AddScoped<IDataSetResolver, DataSetResolver>();
