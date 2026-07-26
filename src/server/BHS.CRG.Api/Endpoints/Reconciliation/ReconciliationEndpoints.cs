@@ -1,6 +1,8 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using System.Text.Json;
+using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Reconciliation;
+using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Reconciliation;
 using MediatR;
@@ -72,6 +74,43 @@ public static class ReconciliationEndpoints
         user.MapGet("/{id:guid}/findings", async (Guid id, Guid? runId, IMediator m) =>
             Results.Ok((await m.Send(new ListFindingsQuery(id, runId))).Select(ToDto)));
 
+        // ── Отчёт ───────────────────────────────────────────────────────────────
+
+        // Отчёт собирается по КОМПЛЕКТУ, а не по сверке: наружу уходит один файл про комплект, как и
+        // тот, что сегодня ведут руками. Сверок на комплекте может быть несколько.
+        user.MapGet("/report/{setId:guid}", async (
+            Guid setId, string? format, IMediator m, IDomainSnapshotService domain, CancellationToken ct) =>
+        {
+            var set = await domain.GetDocumentSetAsync(setId, ct);
+            if (set is null) return Results.NotFound();
+
+            var sheets = new List<SpreadsheetExporter.Sheet>();
+
+            foreach (var definition in await m.Send(new ListReconciliationsQuery(null, null), ct))
+            {
+                var runs = await m.Send(new ListReconciliationRunsQuery(definition.Id, 1), ct);
+                var findings = await m.Send(new ListFindingsQuery(definition.Id), ct);
+                sheets.Add(ToSheet(DiscrepancyReport.Findings(definition.Name, runs.FirstOrDefault(), findings)));
+            }
+
+            var observations = await m.Send(
+                new ListObservationsQuery(CatalogScope.Set, setId, null), ct);
+            sheets.Add(ToSheet(DiscrepancyReport.Observations(observations)));
+
+            // Комплект без сверок: пустой лист с шапкой, а не ошибка — «расхождений нет» тоже
+            // результат, и его тоже показывают заказчику.
+            if (sheets.Count == 1)
+                sheets.Insert(0, ToSheet(DiscrepancyReport.Findings("Сверок не настроено", null, [])));
+
+            var fmt = SpreadsheetExporter.ParseFormat(format);
+            if (fmt == SpreadsheetFormat.Csv)
+                return Results.BadRequest(new { error = "Отчёт состоит из нескольких вкладок — выгрузите его в XLSX." });
+
+            var (bytes, ext, contentType) = SpreadsheetExporter.ExportSheets(fmt, sheets);
+            var name = $"Отчёт о расхождениях — {set.ConstructionName} {set.Name}.{ext}";
+            return Results.File(bytes, contentType, name);
+        });
+
         // ── Решения ─────────────────────────────────────────────────────────────
 
         user.MapPut("/{id:guid}/decisions", async (Guid id, DecisionReq req, IMediator m, ClaimsPrincipal u) =>
@@ -88,6 +127,10 @@ public static class ReconciliationEndpoints
             return Results.NoContent();
         });
     }
+
+    /// <summary>Смысловой лист → лист выгрузки: сборка отчёта не знает про NPOI, выгрузка — про домен.</summary>
+    private static SpreadsheetExporter.Sheet ToSheet(ReportSheet s)
+        => new(s.Name, s.Columns, s.Rows, s.Preamble);
 
     // ── DTO ─────────────────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using CsvHelper;
 using NPOI.HSSF.UserModel;
@@ -35,6 +35,58 @@ public static class SpreadsheetExporter
         _ => (Workbook(new XSSFWorkbook(), columns, rows, sheetName), "xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
     };
+
+    /// <summary>
+    /// Один лист выгрузки. <paramref name="Preamble"/> — строки над таблицей: отчёт уходит из системы и
+    /// живёт своей жизнью, а без них через неделю не понять, к чему он относился и насколько свеж.
+    /// </summary>
+    public record Sheet(
+        string Name,
+        IReadOnlyList<string> Columns,
+        IReadOnlyList<IReadOnlyList<string?>> Rows,
+        IReadOnlyList<string>? Preamble = null);
+
+    /// <summary>
+    /// Многолистовая выгрузка (issue #444). Вкладки отвечают на разные вопросы — находки арифметики и
+    /// утверждения агента, — и сваливать их на один лист значило бы выдать одно за другое.
+    ///
+    /// Только XLS/XLSX: у CSV вкладок нет, и молча склеить их в один файл — потерять эту границу.
+    /// </summary>
+    public static (byte[] Bytes, string Extension, string ContentType) ExportSheets(
+        SpreadsheetFormat format, IReadOnlyList<Sheet> sheets)
+    {
+        if (format == SpreadsheetFormat.Csv)
+            throw new ArgumentException("CSV не поддерживает вкладки — выгрузите отчёт в XLSX.", nameof(format));
+
+        IWorkbook wb = format == SpreadsheetFormat.Xls ? new HSSFWorkbook() : new XSSFWorkbook();
+        foreach (var sheet in sheets) WriteSheet(wb, sheet);
+
+        using var ms = new MemoryStream();
+        wb.Write(ms, leaveOpen: true);
+        return format == SpreadsheetFormat.Xls
+            ? (ms.ToArray(), "xls", "application/vnd.ms-excel")
+            : (ms.ToArray(), "xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+
+    private static void WriteSheet(IWorkbook wb, Sheet s)
+    {
+        var sheet = wb.CreateSheet(SafeSheetName(s.Name));
+        var r = 0;
+
+        foreach (var line in s.Preamble ?? [])
+            sheet.CreateRow(r++).CreateCell(0).SetCellValue(line);
+        if (s.Preamble is { Count: > 0 }) r++; // пустая строка между шапкой и таблицей
+
+        var header = sheet.CreateRow(r++);
+        for (var c = 0; c < s.Columns.Count; c++) header.CreateCell(c).SetCellValue(s.Columns[c]);
+
+        foreach (var row in s.Rows)
+        {
+            var line = sheet.CreateRow(r++);
+            for (var c = 0; c < s.Columns.Count; c++)
+                line.CreateCell(c).SetCellValue(c < row.Count ? row[c] ?? "" : "");
+        }
+    }
 
     private static byte[] Csv(IReadOnlyList<string> columns, IReadOnlyList<IReadOnlyList<string?>> rows)
     {
