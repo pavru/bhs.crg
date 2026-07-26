@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using BHS.CRG.Api.Mcp;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.Reconciliation;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Reconciliation;
@@ -138,6 +139,36 @@ public class AgentObservationsTests(IntegrationTestFixture fixture) : IAsyncLife
             SetId, "текстом", "Ссылка обычным текстом", refs, CancellationToken.None);
 
         Assert.Equal(JsonValueKind.String, reported.References.ValueKind);
+    }
+
+    /// <summary>
+    /// Колокольчик — про «пришло что-то важное». Повтор с тем же ключом звонить не должен: это
+    /// обновление известного утверждения, и звонок наказывал бы агента за повторный анализ, ради
+    /// которого стабильный ключ и вводился (#457).
+    /// </summary>
+    [Fact]
+    public async Task Notification_OnlyForNewAndSevere()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var notifications = scope.ServiceProvider.GetRequiredService<INotificationService>();
+        var tools = Tools(scope);
+        var user = Guid.NewGuid();
+
+        async Task<int> CountAsync() =>
+            (await notifications.GetAsync(user)).Count(n => n.Source == "Сверка");
+
+        await tools.ReportObservationAsync(SetId, "мелочь", "Внимание", Refs(),
+            CancellationToken.None, severity: "Warning");
+        Assert.Equal(0, await CountAsync()); // рангом ниже — только счётчики
+
+        await tools.ReportObservationAsync(SetId, "важное", "Существенное расхождение", Refs(),
+            CancellationToken.None, severity: "Error");
+        Assert.Equal(1, await CountAsync());
+
+        await tools.ReportObservationAsync(SetId, "важное", "Существенное расхождение (уточнено)",
+            Refs(), CancellationToken.None, severity: "Error");
+        Assert.Equal(1, await CountAsync());
     }
 
     [Fact]
