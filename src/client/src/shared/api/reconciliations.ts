@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { filenameFromContentDisposition } from './attachments';
 
 /**
  * Сверка на непротиворечивость (issue #414, фаза Ф1).
@@ -212,4 +213,25 @@ export function runSummary(run: ReconciliationRun): string {
   return problems === 0
     ? `Расхождений нет (позиций: ${run.matchCount})`
     : `Требует внимания: ${problems} из ${problems + run.matchCount}`;
+}
+
+/**
+ * «Отчёт о расхождениях» по комплекту — тот артефакт, который сегодня ведут руками (#444).
+ * Две вкладки: находки сверки и замечания внешнего анализа. CSV нет намеренно — у него нет вкладок,
+ * а склеить их в один лист значило бы выдать утверждения агента за результат системы.
+ */
+export async function downloadDiscrepancyReport(setId: string, setName: string) {
+  const response = await apiClient.get(`/reconciliations/report/${setId}`, {
+    params: { format: 'xlsx' }, responseType: 'blob',
+  });
+  const disposition = response.headers['content-disposition'] as string | undefined;
+  const filename = filenameFromContentDisposition(disposition, `Отчёт о расхождениях — ${setName}.xlsx`);
+  const url = URL.createObjectURL(response.data as Blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }

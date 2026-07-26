@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import {
-  Plus, Play, AlertTriangle, CheckCircle2, CircleSlash, History, Scale, Bot,
+  Plus, Play, AlertTriangle, CheckCircle2, CircleSlash, History, Scale, Bot, FileSpreadsheet,
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { useListConstructions } from '@/shared/api/constructions';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
@@ -12,7 +13,7 @@ import { ListDetailShell, NavSearchInput, NavItem, NavSection } from '@/shared/u
 import { useAuth } from '@/shared/hooks/useAuth';
 import {
   useReconciliations, useReconciliationRuns, useFindings, useRunReconciliation,
-  useDeleteReconciliation, useSetDecision, useRemoveDecision,
+  useDeleteReconciliation, useSetDecision, useRemoveDecision, downloadDiscrepancyReport,
   STATUS_LABELS, DECISION_LABELS, needsAttention, runSummary,
   type Finding, type ReconciliationRun,
 } from '@/shared/api/reconciliations';
@@ -119,6 +120,29 @@ export function ReconciliationsPage() {
 
   const { data: items = [], isLoading } = useReconciliations();
   const { data: observations = [] } = useObservations();
+  const { data: constructions = [] } = useListConstructions();
+
+  // Отчёт собирается по КОМПЛЕКТУ — как и тот, что сегодня ведут руками.
+  const sets = useMemo(
+    () => constructions.flatMap(c => (c.sections ?? []).flatMap(sec =>
+      (sec.documentSets ?? []).map(ds => ({ id: ds.id, label: `${c.name} / ${sec.name} / ${ds.name}` })))),
+    [constructions]);
+  const [reportSetId, setReportSetId] = useState<string>('');
+  const [reportBusy, setReportBusy] = useState(false);
+
+  async function downloadReport() {
+    const target = sets.find(s => s.id === reportSetId) ?? sets[0];
+    if (!target) return;
+    setReportBusy(true);
+    try {
+      await downloadDiscrepancyReport(target.id, target.label);
+      toast.success('Отчёт выгружен');
+    } catch {
+      toast.error('Не удалось выгрузить отчёт');
+    } finally {
+      setReportBusy(false);
+    }
+  }
   const { data: runs = [] } = useReconciliationRuns(selectedId);
   const { data: findings = [], isLoading: findingsLoading } = useFindings(selectedId, runId);
 
@@ -241,9 +265,24 @@ export function ReconciliationsPage() {
       <ListDetailShell
         title="Сверка"
         subtitle="Сопоставление источников по доменному ключу"
-        headerAction={isAdmin ? (
-          <Button variant="filled" onClick={() => setEditing('new')}><Plus size={14} /> Создать</Button>
-        ) : undefined}
+        headerAction={
+          <div className="flex items-center gap-2">
+            {sets.length > 0 && (
+              <>
+                <Select value={reportSetId || sets[0].id} onValueChange={setReportSetId}
+                  aria-label="Комплект для отчёта" className="w-72">
+                  {sets.map(s => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+                </Select>
+                <Button onClick={downloadReport} loading={reportBusy}>
+                  <FileSpreadsheet size={14} /> Отчёт
+                </Button>
+              </>
+            )}
+            {isAdmin && (
+              <Button variant="filled" onClick={() => setEditing('new')}><Plus size={14} /> Создать</Button>
+            )}
+          </div>
+        }
         nav={nav}
         detail={detail}
       />
