@@ -33,10 +33,25 @@ public record DocumentSummary(
 /// <param name="Requisites">Реквизиты сырым JSON. Ключи объясняет схема типа — см.
 /// <see cref="DocumentTypeSchemaInfo"/>: слабо-типизированный блоб компенсируется schema-as-resource,
 /// а не попыткой заранее развернуть его в фиксированную форму.</param>
+/// <param name="RefsResolved">Развёрнуты ли ссылки на каталог, наследование и перечисления (#421).
+/// Флаг обязателен: две формы реквизитов выглядят одинаково по типу и по-разному по смыслу, и молчаливое
+/// различие привело бы к выводам о «незаполненных» полях, которые на деле унаследованы.</param>
 public record DocumentDetail(
     Guid Id, string Name, Guid TypeId, string TypeCode, string TypeName, string Status,
     Guid? SetId, string? SetName,
-    JsonElement Requisites);
+    JsonElement Requisites, bool RefsResolved);
+
+/// <summary>Запись каталога (общие данные): организация, лицо, объект строительства и т.п.</summary>
+/// <param name="Scope">Уровень видимости: System / Construction / Section / Set.</param>
+public record CatalogEntrySummary(
+    Guid Id, string Name, Guid TypeId, string TypeCode, string TypeName,
+    string Scope, Guid? ScopeId);
+
+/// <param name="Data">Данные записи как хранятся. Вложенные ссылки остаются ссылками — их
+/// <c>entryId</c> самодостаточен, и агент проходит цепочку тем же инструментом.</param>
+public record CatalogEntryDetail(
+    Guid Id, string Name, Guid TypeId, string TypeCode, string TypeName,
+    string Scope, Guid? ScopeId, JsonElement Data);
 
 /// <param name="HasScan">Есть ли прикреплённый скан — сам файл через MCP не отдаётся.</param>
 public record QualityDocumentSummary(

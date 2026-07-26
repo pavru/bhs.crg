@@ -2,6 +2,7 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
@@ -16,7 +17,9 @@ public class DomainSnapshotService(
     IDomainObjectRepository objects,
     IRepository<DocumentType> types,
     IRepository<Section> sections,
-    IRepository<Construction> constructions) : IDomainSnapshotService
+    IRepository<Construction> constructions,
+    IRepository<DomainObject> domainObjects,
+    IEntityResolver entityResolver) : IDomainSnapshotService
 {
     private static readonly JsonElement EmptyObject = JsonDocument.Parse("{}").RootElement.Clone();
 
@@ -68,7 +71,8 @@ public class DomainSnapshotService(
             [.. docs.OrderBy(d => d.SortOrder).Select(d => ToSummary(d, typeMap))]);
     }
 
-    public async Task<DocumentDetail?> GetDocumentAsync(Guid documentId, CancellationToken ct = default)
+    public async Task<DocumentDetail?> GetDocumentAsync(Guid documentId, bool resolveRefs = true,
+        CancellationToken ct = default)
     {
         var doc = await mediator.Send(new GetDocumentInstanceQuery(documentId), ct);
         if (doc is null) return null;
@@ -80,12 +84,81 @@ public class DomainSnapshotService(
         if (doc.ScopeLevel == CatalogScope.Set && doc.ScopeId is { } sid)
             set = await mediator.Send(new GetDocumentSetQuery(sid), ct);
 
+        var requisites = resolveRefs
+            ? await ResolvedRequisitesAsync(doc, ct)
+            : doc.Data.RootElement.Clone();
+
         return new DocumentDetail(
             doc.Id, doc.DisplayName ?? "", doc.CompositeTypeId,
             type?.Code ?? "", type?.Name ?? "",
             doc.Facet?.Status.ToString() ?? "",
             set?.Id, set?.Name,
-            doc.Data.RootElement.Clone());
+            requisites, resolveRefs);
+    }
+
+    /// <summary>
+    /// Та же цепочка резолва, что и у генерации PDF, — БЕЗ инъекции наборов данных и документов
+    /// качества. Они вносят неограниченное число строк, а форма ответа не выражает <c>truncated</c>:
+    /// вышла бы ровно та тихая неполнота, от которой защищает страничность строк источников.
+    ///
+    /// Наследование <c>_baseRef</c> здесь не менее важно самих ссылок: без него документ, унаследованный
+    /// от базового, показывает лишь собственные переопределения — и внешний читатель отчитается о
+    /// «незаполненных» полях, которые на самом деле заполнены.
+    /// </summary>
+    private async Task<JsonElement> ResolvedRequisitesAsync(DomainObject doc, CancellationToken ct)
+    {
+        var view = DocumentView.From(doc);
+        var ctx = await entityResolver.ResolveAsync(view, ct);
+        await entityResolver.ApplyDefaultsAsync(ctx, view, ct);
+        await entityResolver.ResolveEnumLabelsAsync(ctx, view, ct);
+        await entityResolver.ResolveComputedFieldsAsync(ctx, view, [], ct);
+        return JsonSerializer.SerializeToElement(ctx.Data);
+    }
+
+    public async Task<IReadOnlyList<CatalogEntrySummary>> ListCatalogEntriesAsync(
+        string? scope, Guid? scopeId, Guid? typeId, string? search, CancellationToken ct = default)
+    {
+        CatalogScope? parsed = Enum.TryParse<CatalogScope>(scope, true, out var s) ? s : null;
+
+        // Намеренно мимо ListCommonDataEntriesQuery: тот дёргает EnsureProfileAsync и СОЗДАЁТ
+        // объект-профиль уровня. Чтение через MCP не имеет права писать в БД.
+        var entries = await domainObjects.FindAsync(e => e.Facet == null
+            && (!parsed.HasValue || e.ScopeLevel == parsed.Value)
+            && (!scopeId.HasValue || e.ScopeId == scopeId.Value)
+            && (!typeId.HasValue || e.CompositeTypeId == typeId.Value), ct);
+
+        if (!string.IsNullOrWhiteSpace(search))
+            entries = [.. entries.Where(e =>
+                e.DisplayName is not null &&
+                e.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase))];
+
+        var typeMap = await TypeMapAsync(entries.Select(e => e.CompositeTypeId), ct);
+        return [.. entries
+            .OrderBy(e => e.DisplayName)
+            .Select(e =>
+            {
+                var t = typeMap.GetValueOrDefault(e.CompositeTypeId);
+                return new CatalogEntrySummary(
+                    e.Id, NameOf(e, t), e.CompositeTypeId,
+                    t?.Code ?? "", t?.Name ?? "",
+                    e.ScopeLevel.ToString(), e.ScopeId);
+            })];
+    }
+
+    public async Task<CatalogEntryDetail?> GetCatalogEntryAsync(Guid entryId, CancellationToken ct = default)
+    {
+        var entry = await domainObjects.GetByIdAsync(entryId, ct);
+        // Документ — не запись каталога: отдать его здесь значило бы дать второй, менее полный путь
+        // к тому, что уже отдаёт get_document.
+        if (entry is null || entry.Facet is not null) return null;
+
+        var typeMap = await TypeMapAsync([entry.CompositeTypeId], ct);
+        var type = typeMap.GetValueOrDefault(entry.CompositeTypeId);
+        return new CatalogEntryDetail(
+            entry.Id, NameOf(entry, type), entry.CompositeTypeId,
+            type?.Code ?? "", type?.Name ?? "",
+            entry.ScopeLevel.ToString(), entry.ScopeId,
+            entry.Data.RootElement.Clone());
     }
 
     public async Task<DocumentTypeSchemaInfo?> GetDocumentTypeAsync(Guid typeId, CancellationToken ct = default)
@@ -109,6 +182,11 @@ public class DomainSnapshotService(
             !string.IsNullOrEmpty(d.ScanBlobPath),
             d.Requisites?.RootElement.Clone() ?? EmptyObject))];
     }
+
+    /// <summary>Имени может не быть вовсе — так заводятся профили уровней (issue #258). Безымянная
+    /// строка в списке нечитаема, поэтому подставляем имя типа: оно и есть весь смысл такой записи.</summary>
+    private static string NameOf(DomainObject e, DocumentType? type)
+        => string.IsNullOrWhiteSpace(e.DisplayName) ? type?.Name ?? "" : e.DisplayName;
 
     private DocumentSummary ToSummary(DomainObject d, IReadOnlyDictionary<Guid, DocumentType> typeMap)
     {
