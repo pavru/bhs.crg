@@ -1,5 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Notifications;
+using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Reconciliation;
 using MediatR;
@@ -24,7 +26,11 @@ public record ReviewObservationCommand(Guid Id, ObservationStatus Status, string
 
 public record DeleteObservationCommand(Guid Id) : IRequest;
 
-public class ObservationHandlers(IRepository<AgentObservation> repo) :
+public class ObservationHandlers(
+    IRepository<AgentObservation> repo,
+    IRepository<Domain.Documents.DocumentSet> sets,
+    IRepository<Domain.Documents.Section> sections,
+    INotificationService notifications) :
     IRequestHandler<ListObservationsQuery, IReadOnlyList<AgentObservation>>,
     IRequestHandler<ReportObservationCommand, AgentObservation>,
     IRequestHandler<ReviewObservationCommand, AgentObservation>,
@@ -49,6 +55,7 @@ public class ObservationHandlers(IRepository<AgentObservation> repo) :
         var existing = await FindByKeyAsync(cmd.Scope, cmd.ScopeId, cmd.Key, ct);
 
         AgentObservation observation;
+        var isNew = existing is null;
         if (existing is null)
         {
             observation = AgentObservation.Create(cmd.Scope, cmd.ScopeId, cmd.Key, cmd.Title,
@@ -63,6 +70,14 @@ public class ObservationHandlers(IRepository<AgentObservation> repo) :
         }
 
         await repo.SaveChangesAsync(ct);
+
+        // Уведомляем только о НОВОМ и только о существенном (#457). Повтор с тем же ключом — это
+        // обновление уже известного утверждения, и звонить о нём значит наказывать агента за
+        // повторный анализ, ради которого стабильный ключ и вводился. Замечания рангом ниже видны
+        // счётчиками; колокольчик — про «пришло что-то важное».
+        if (isNew && cmd.Severity == ObservationSeverity.Error)
+            await NotifyAsync(observation, ct);
+
         return observation;
     }
 
@@ -80,6 +95,36 @@ public class ObservationHandlers(IRepository<AgentObservation> repo) :
         var observation = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
         repo.Remove(observation);
         await repo.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Уведомление общесистемное, без адресата: замечание относится к КОМПЛЕКТУ, а не к тому, от чьего
+    /// имени работал агент, — увидеть его должен тот, кто ведёт комплект.
+    /// </summary>
+    private async Task NotifyAsync(AgentObservation o, CancellationToken ct)
+    {
+        var link = await SetLinkAsync(o, ct);
+        await notifications.PublishAsync(
+            NotificationSeverity.Warning,
+            "Внешний анализ: замечание",
+            o.Title,
+            source: "Сверка",
+            userId: null,
+            linkUrl: link,
+            linkLabel: link is null ? null : "Открыть проблемы комплекта",
+            ct: ct);
+    }
+
+    /// <summary>Ссылка ведёт в панель проблем комплекта; без стройки маршрут не собрать, поэтому
+    /// поднимаемся по цепочке. Не собралась — уведомление всё равно нужно, просто без ссылки.</summary>
+    private async Task<string?> SetLinkAsync(AgentObservation o, CancellationToken ct)
+    {
+        if (o.Scope != CatalogScope.Set || o.ScopeId is not { } setId) return null;
+        var set = await sets.GetByIdAsync(setId, ct);
+        if (set is null) return null;
+        var section = await sections.GetByIdAsync(set.SectionId, ct);
+        return section is null ? null
+            : $"/document-sets/{section.ConstructionId}/sets/{setId}/issues";
     }
 
     /// <summary>Поиск по естественному ключу в два шага: <c>FindAsync</c> репозитория не отслеживает
