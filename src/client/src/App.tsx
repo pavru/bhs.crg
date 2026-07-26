@@ -16,6 +16,7 @@ import { SystemCommonDataPage } from '@/features/common-data/SystemCommonDataPag
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { PrimitiveTypesPage } from '@/features/settings/PrimitiveTypesPage';
 import { RecognitionProfilesPage } from '@/features/settings/RecognitionProfilesPage';
+import { ReconciliationsPage } from '@/features/reconciliations/ReconciliationsPage';
 import { UsersPage } from '@/features/settings/UsersPage';
 import { DataSetsPage } from '@/features/datasets/DataSetsPage';
 import { PdfGroupingEditor } from '@/features/datasets/PdfGroupingEditor';
@@ -54,6 +55,7 @@ export default function App() {
                 <Route path="datasets" element={<DataSetsPage />} />
                 <Route path="datasets/files/:fileId/grouping" element={<PdfGroupingEditor />} />
                 <Route path="quality-docs" element={<QualityDocsPage />} />
+                <Route path="reconciliations" element={<ReconciliationsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route element={<AdminRoute />}>
                   <Route path="document-types/*" element={<DocumentTypesPage kind="Document" />} />
