@@ -119,6 +119,16 @@ public static class ReconciliationEndpoints
             return Results.Ok(ToDto(await m.Send(new GetRelatedProblemsQuery(s, scopeId))));
         });
 
+        // Счётчики для маркеров: свой уровень + разбивка по детям одним ответом (#454).
+        user.MapGet("/summary", async (string scope, Guid? scopeId, IMediator m) =>
+        {
+            if (!Enum.TryParse<CatalogScope>(scope, true, out var s))
+                return Results.BadRequest(new { error = $"Неизвестная область: «{scope}»." });
+            if (s != CatalogScope.System && scopeId is null)
+                return Results.BadRequest(new { error = "Для этой области нужен scopeId." });
+            return Results.Ok(ToDto(await m.Send(new GetProblemSummaryQuery(s, scopeId))));
+        });
+
         // ── Отчёт ───────────────────────────────────────────────────────────────
 
         // Отчёт собирается по КОМПЛЕКТУ, а не по сверке: наружу уходит один файл про комплект, как и
@@ -196,6 +206,13 @@ public static class ReconciliationEndpoints
     /// <summary>Решение адресуется ключом позиции, а не идентификатором находки: находка живёт один
     /// прогон, решение обязано пережить любое их число.</summary>
     private record DecisionReq(string Key, string Kind, string? Note);
+
+    private static object ToDto(ProblemSummary p) => new
+    {
+        p.NeedsAttention,
+        p.HasArithmeticProblems,
+        children = p.Children.Select(c => new { c.ScopeId, c.NeedsAttention, c.HasArithmeticProblems }),
+    };
 
     private static object ToDto(RelatedProblems p) => new
     {
