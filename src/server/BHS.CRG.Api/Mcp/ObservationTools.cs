@@ -75,6 +75,10 @@ public class ObservationTools(IMediator mediator, IHttpContextAccessor http)
 
         Ссылки (references) обязательны: идентификаторы документов, источник со строками — то, по чему
         человек проверит утверждение глазами. Утверждение без опоры это мнение, а не находка.
+
+        Если при повторном анализе утверждение ПЕРЕСТАЛО быть верным — не пересылайте его прежним
+        текстом: отзовите через retract_observation. Пересланное устаревшее утверждение человек примет
+        за актуальное.
         """)]
     public async Task<ObservationInfo> ReportObservationAsync(
         [Description("Идентификатор комплекта документов, к которому относится замечание.")]
@@ -111,5 +115,37 @@ public class ObservationTools(IMediator mediator, IHttpContextAccessor http)
             sev, JsonDocument.Parse(refs.GetRawText()), CurrentUser), ct);
 
         return ToInfo(observation);
+    }
+
+    [McpServerTool(Name = "retract_observation", ReadOnly = false, Idempotent = true, Destructive = false,
+        Title = "Отозвать замечание")]
+    [Description("""
+        Отозвать собственное замечание: перепроверили, и утверждение больше не воспроизводится —
+        например, человек исправил документ.
+
+        Это НЕ подтверждение и не закрытие. Замечание остаётся в журнале со статусом «отозвано», а
+        закрывает его человек: иначе вы получили бы способ молча убирать собственные находки.
+
+        Отзывайте вместо повторной пересылки устаревшего текста: пересланное утверждение человек
+        примет за актуальное. Если условие воспроизведётся снова — просто сообщите замечание тем же
+        ключом, отзыв снимется.
+
+        В примечании скажите, ЧТО изменилось: без этого человек не поймёт, проверять ли за вами.
+        """)]
+    public async Task<ObservationInfo> RetractObservationAsync(
+        [Description("Идентификатор комплекта, к которому относится замечание.")] Guid setId,
+        [Description("Тот же устойчивый ключ, которым замечание сообщалось.")] string key,
+        CancellationToken ct,
+        [Description("Что изменилось: почему утверждение больше не верно.")] string? note = null)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            throw new McpException("Нужен ключ замечания — тот же, которым оно сообщалось.");
+
+        var observation = await mediator.Send(
+            new RetractObservationCommand(CatalogScope.Set, setId, key.Trim(), note, CurrentUser), ct);
+
+        return observation is null
+            ? throw new McpException($"Замечание с ключом «{key}» в этом комплекте не найдено.")
+            : ToInfo(observation);
     }
 }

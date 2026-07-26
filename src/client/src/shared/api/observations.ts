@@ -10,7 +10,8 @@ import { apiClient } from './client';
  */
 
 export type ObservationSeverity = 'Info' | 'Warning' | 'Error';
-export type ObservationStatus = 'New' | 'Confirmed' | 'Rejected';
+/** `Retracted` — агент сам сказал, что утверждение больше не воспроизводится (#459). */
+export type ObservationStatus = 'New' | 'Confirmed' | 'Rejected' | 'Retracted';
 
 /** На что опирается утверждение — то, по чему человек проверит его глазами. */
 export interface ObservationReferences {
@@ -79,6 +80,7 @@ export const OBSERVATION_STATUS_LABELS: Record<ObservationStatus, string> = {
   New: 'Не разобрано',
   Confirmed: 'Подтверждено',
   Rejected: 'Отклонено',
+  Retracted: 'Агент отозвал',
 };
 
 /** Ждёт человека. Разобранное остаётся в журнале как память, но в работу не просится. */

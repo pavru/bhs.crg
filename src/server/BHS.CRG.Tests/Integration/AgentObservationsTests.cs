@@ -171,6 +171,77 @@ public class AgentObservationsTests(IntegrationTestFixture fixture) : IAsyncLife
         Assert.Equal(1, await CountAsync());
     }
 
+    /// <summary>
+    /// Отзыв — свидетельство агента ПРОТИВ собственного утверждения, а не самоодобрение (#459).
+    /// Замечание при этом не исчезает: закрывает его человек.
+    /// </summary>
+    [Fact]
+    public async Task Retract_MarksRetracted_AndDropsFromCounters()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var tools = Tools(scope);
+
+        await tools.ReportObservationAsync(SetId, "нумерация", "Пропущен подпункт 3.3", Refs(),
+            CancellationToken.None);
+        Assert.Equal(1, (await m.Send(new GetRelatedProblemsQuery(CatalogScope.Set, SetId))).NeedsAttention);
+
+        var retracted = await tools.RetractObservationAsync(
+            SetId, "нумерация", CancellationToken.None, note: "Пробел закрыт, подпункты 3.1–3.3 подряд");
+
+        Assert.Equal("Retracted", retracted.Status);
+        // Разбирать больше нечего, а неснимаемый счётчик обесценивает бейдж.
+        Assert.Equal(0, (await m.Send(new GetRelatedProblemsQuery(CatalogScope.Set, SetId))).NeedsAttention);
+        // Но из журнала оно НЕ исчезло: закрывает человек.
+        Assert.Single(await tools.ListObservationsAsync(CancellationToken.None, scopeId: SetId));
+    }
+
+    /// <summary>Условие воспроизвелось снова — утверждение снова живо.</summary>
+    [Fact]
+    public async Task ReportingAgain_ClearsRetraction()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var tools = Tools(scope);
+
+        await tools.ReportObservationAsync(SetId, "нумерация", "Пропущен 3.3", Refs(), CancellationToken.None);
+        await tools.RetractObservationAsync(SetId, "нумерация", CancellationToken.None, note: "исправлено");
+        await tools.ReportObservationAsync(SetId, "нумерация", "Снова пропущен 3.3", Refs(), CancellationToken.None);
+
+        var again = Assert.Single(await tools.ListObservationsAsync(CancellationToken.None, scopeId: SetId));
+        Assert.Equal("New", again.Status);
+        Assert.Null(again.ReviewNote);
+        Assert.Equal(1, (await m.Send(new GetRelatedProblemsQuery(CatalogScope.Set, SetId))).NeedsAttention);
+    }
+
+    /// <summary>
+    /// Разбор ЧЕЛОВЕКА повторное сообщение не сбрасывает — в отличие от отзыва, который был словом
+    /// агента. Иначе повторный анализ возвращал бы в работу закрытое человеком.
+    /// </summary>
+    [Fact]
+    public async Task HumanVerdict_IsNotClearedByRepeatedReport()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var tools = Tools(scope);
+
+        var o = await tools.ReportObservationAsync(SetId, "к", "Замечание", Refs(), CancellationToken.None);
+        await m.Send(new ReviewObservationCommand(o.Id, ObservationStatus.Rejected, "не ошибка", "alex"));
+        await tools.ReportObservationAsync(SetId, "к", "Замечание снова", Refs(), CancellationToken.None);
+
+        var again = Assert.Single(await tools.ListObservationsAsync(CancellationToken.None, scopeId: SetId));
+        Assert.Equal("Rejected", again.Status);
+        Assert.Equal("не ошибка", again.ReviewNote);
+    }
+
+    [Fact]
+    public async Task Retract_UnknownKey_IsRejectedClearly()
+    {
+        using var scope = fixture.Services.CreateScope();
+        await Assert.ThrowsAsync<McpException>(() =>
+            Tools(scope).RetractObservationAsync(SetId, "нет-такого", CancellationToken.None));
+    }
+
     [Fact]
     public async Task List_ShowsUnreviewedAndSevereFirst()
     {

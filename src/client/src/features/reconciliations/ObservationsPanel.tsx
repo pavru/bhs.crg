@@ -30,6 +30,8 @@ const STATUS_STYLE: Record<ObservationStatus, string> = {
   New: 'bg-brand-subtle text-brand',
   Confirmed: 'bg-muted text-fg2',
   Rejected: 'bg-muted text-fg4',
+  // Отозвано агентом: не исчезает и не выглядит разобранным — закрывает всё равно человек.
+  Retracted: 'bg-warning-subtle text-warning',
 };
 
 /**
