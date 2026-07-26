@@ -110,19 +110,35 @@ public static class ReconciliationEndpoints
             catch (KeyNotFoundException) { return Results.NotFound(); }
         });
 
+        // ── Связанные проблемы уровня ───────────────────────────────────────────
+
+        user.MapGet("/related", async (string scope, Guid scopeId, IMediator m) =>
+        {
+            if (!Enum.TryParse<CatalogScope>(scope, true, out var s) || s == CatalogScope.System)
+                return Results.BadRequest(new { error = "Ожидается Construction, Section или Set." });
+            return Results.Ok(ToDto(await m.Send(new GetRelatedProblemsQuery(s, scopeId))));
+        });
+
         // ── Отчёт ───────────────────────────────────────────────────────────────
 
         // Отчёт собирается по КОМПЛЕКТУ, а не по сверке: наружу уходит один файл про комплект, как и
         // тот, что сегодня ведут руками. Сверок на комплекте может быть несколько.
         user.MapGet("/report/{setId:guid}", async (
-            Guid setId, string? format, IMediator m, IDomainSnapshotService domain, CancellationToken ct) =>
+            Guid setId, string? format, IMediator m, IDomainSnapshotService domain,
+            IProblemAttribution attribution, CancellationToken ct) =>
         {
             var set = await domain.GetDocumentSetAsync(setId, ct);
             if (set is null) return Results.NotFound();
 
             var sheets = new List<SpreadsheetExporter.Sheet>();
 
-            foreach (var definition in await m.Send(new ListReconciliationsQuery(null, null), ct))
+            // Только сверки, относящиеся к этому комплекту (#452). Раньше сюда шли ВСЕ сверки
+            // системы, и отчёт «по комплекту» мог содержать листы про чужие данные.
+            var related = await attribution.ReconciliationIdsForAsync(CatalogScope.Set, setId, ct);
+            var definitions = (await m.Send(new ListReconciliationsQuery(null, null), ct))
+                .Where(d => related.Contains(d.Id));
+
+            foreach (var definition in definitions)
             {
                 var runs = await m.Send(new ListReconciliationRunsQuery(definition.Id, 1), ct);
                 var findings = await m.Send(new ListFindingsQuery(definition.Id), ct);
@@ -136,7 +152,8 @@ public static class ReconciliationEndpoints
             // Комплект без сверок: пустой лист с шапкой, а не ошибка — «расхождений нет» тоже
             // результат, и его тоже показывают заказчику.
             if (sheets.Count == 1)
-                sheets.Insert(0, ToSheet(DiscrepancyReport.Findings("Сверок не настроено", null, [])));
+                sheets.Insert(0, ToSheet(DiscrepancyReport.Findings(
+                    "К этому комплекту сверки не относятся", null, [])));
 
             var fmt = SpreadsheetExporter.ParseFormat(format);
             if (fmt == SpreadsheetFormat.Csv)
@@ -179,6 +196,20 @@ public static class ReconciliationEndpoints
     /// <summary>Решение адресуется ключом позиции, а не идентификатором находки: находка живёт один
     /// прогон, решение обязано пережить любое их число.</summary>
     private record DecisionReq(string Key, string Kind, string? Note);
+
+    private static object ToDto(RelatedProblems p) => new
+    {
+        p.NeedsAttention,
+        p.UnresolvedFindings,
+        p.UnreviewedObservations,
+        // Красный цвет зарезервирован за арифметикой системы: двести утверждений агента — это не то
+        // же самое, что одно расхождение в числах.
+        p.HasArithmeticProblems,
+        reconciliations = p.Reconciliations.Select(r => new
+        {
+            r.Id, r.Name, r.UnresolvedFindings, r.LastRunAt,
+        }),
+    };
 
     private static object ToDto(ReconciliationAlias a) => new
     {

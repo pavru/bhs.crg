@@ -3,6 +3,7 @@ import { Routes, Route, useNavigate, useParams, useSearchParams, Link } from 're
 import {
   Plus, Trash2, Download, Pencil, FolderOpen, Eye, GripVertical, Copy, FolderInput, FolderOutput,
   ArrowUp, ArrowDown, Layers, Building2, FileText, Search, X, Mail, Database, Table2, Users,
+  AlertTriangle,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -18,6 +19,8 @@ import { CopyDocumentDialog } from './CopyDocumentDialog';
 import { MoveDocumentDialog } from './MoveDocumentDialog';
 import { CatalogResource } from './catalog/CatalogResource';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
+import { SetProblemsPanel } from './SetProblemsPanel';
+import { useRelatedProblems } from '@/shared/api/reconciliations';
 import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -42,16 +45,17 @@ import { useAuth } from '@/shared/hooks/useAuth';
 
 // ─── Set detail (documents) ───────────────────────────────────────────────────
 
-type SetPanel = 'documents' | 'catalog' | 'datasets' | 'subscribers';
+type SetPanel = 'documents' | 'catalog' | 'datasets' | 'subscribers' | 'issues';
 
 function SetDetail() {
   const { constructionId, setId, panel } = useParams<{ constructionId: string; setId: string; panel?: string }>();
   const navigate = useNavigate();
-  const activePanel: SetPanel = (['catalog', 'datasets', 'subscribers'].includes(panel ?? '') ? panel : 'documents') as SetPanel;
+  const activePanel: SetPanel = (['catalog', 'datasets', 'subscribers', 'issues'].includes(panel ?? '') ? panel : 'documents') as SetPanel;
   const { data: set, isLoading } = useGetDocumentSet(setId);
   const { data: construction } = useGetConstruction(constructionId!);
   const { data: allConstructions = [] } = useListConstructions();
   const { data: availableInstances = [] } = useGetAvailableInstances(setId);
+  const { data: problems } = useRelatedProblems('Set', setId);
   const { data: docTypes = [] } = useListDocumentTypes();
   const [addDocOpen, setAddDocOpen] = useState(false);
   const [editInstance, setEditInstance] = useState<DocumentInstance | null>(null);
@@ -199,6 +203,10 @@ function SetDetail() {
       <NavItem icon={<Database size={17} />} label="Каталог" active={activePanel === 'catalog'} onClick={() => goPanel('catalog')} />
       <NavItem icon={<Table2 size={17} />} label="Наборы данных" active={activePanel === 'datasets'} onClick={() => goPanel('datasets')} />
       <NavItem icon={<Users size={17} />} label="Подписчики" active={activePanel === 'subscribers'} onClick={() => goPanel('subscribers')} />
+      {/* Проблемы живут здесь, а не в разделе «Сверка»: комплект — тот уровень, где их разбирают. */}
+      <NavItem icon={<AlertTriangle size={17} />} label="Проблемы"
+        count={problems?.needsAttention || undefined}
+        active={activePanel === 'issues'} onClick={() => goPanel('issues')} />
     </div>
   );
 
@@ -354,6 +362,9 @@ function SetDetail() {
         ? <CatalogResource scope="Set" scopeId={setId ?? null} allDocTypes={docTypes} />
         : activePanel === 'datasets'
         ? <DataSetsResource scope="Set" scopeId={setId} />
+        : activePanel === 'issues'
+        ? <SetProblemsPanel setId={setId!} setName={set.name}
+            documentNames={new Map(set.instances.map(i => [i.id, i.name ?? '(без имени)']))} />
         : <div className="mx-auto max-w-5xl">
             {activePanel === 'documents' ? documentsContent
               : <SubscribersResource scope="Set" scopeId={setId!} />}
