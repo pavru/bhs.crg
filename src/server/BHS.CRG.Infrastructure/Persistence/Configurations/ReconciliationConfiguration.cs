@@ -72,3 +72,26 @@ public class ReconciliationDecisionConfiguration : IEntityTypeConfiguration<Reco
             .HasForeignKey(e => e.DefinitionId).OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+public class AgentObservationConfiguration : IEntityTypeConfiguration<AgentObservation>
+{
+    public void Configure(EntityTypeBuilder<AgentObservation> b)
+    {
+        b.ToTable("agent_observations");
+        b.HasKey(e => e.Id);
+        b.Property(e => e.Scope).HasConversion<int>();
+        b.Property(e => e.Key).HasMaxLength(256).IsRequired();
+        b.Property(e => e.Title).HasMaxLength(512).IsRequired();
+        b.Property(e => e.Detail).HasMaxLength(8192);
+        b.Property(e => e.Severity).HasConversion<int>();
+        b.Property(e => e.Status).HasConversion<int>();
+        b.Property(e => e.References).HasColumnType("jsonb").IsRequired();
+        b.Property(e => e.ReportedBy).HasMaxLength(256);
+        b.Property(e => e.ReviewedBy).HasMaxLength(256);
+        b.Property(e => e.ReviewNote).HasMaxLength(2048);
+
+        // Одно замечание на утверждение в пределах области: повторный анализ обновляет запись, а не
+        // плодит дубли — иначе журнал перестаёт быть памятью.
+        b.HasIndex(e => new { e.Scope, e.ScopeId, e.Key }).IsUnique();
+    }
+}
