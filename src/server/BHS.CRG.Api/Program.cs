@@ -220,6 +220,7 @@ builder.Services
     .WithTools<BHS.CRG.Api.Mcp.DocumentActionTools>()
     .WithResources<BHS.CRG.Api.Mcp.DataSnapshotResources>()
     .WithResources<BHS.CRG.Api.Mcp.DomainSnapshotResources>()
+    .WithPrompts<BHS.CRG.Api.Mcp.ReconciliationPrompts>()
     // Шаблоны уезжают в resources/templates/list; здесь — реальные объекты для прикрепления (#427).
     .WithListResourcesHandler(BHS.CRG.Api.Mcp.McpResourceCatalog.ListAsync);
 
