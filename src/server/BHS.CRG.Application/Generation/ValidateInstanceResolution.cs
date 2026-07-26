@@ -16,6 +16,7 @@ public record ValidateInstanceResolutionQuery(Guid InstanceId) : IRequest<IReadO
 public class ValidateInstanceResolutionHandler(
     IRepository<DomainObject> instanceRepo,
     IRepository<DocumentType> docTypeRepo,
+    IRepository<Domain.Catalog.PrimitiveType> primitiveRepo,
     IEntityResolver entityResolver,
     IDataSetResolver dataSetResolver
 ) : IRequestHandler<ValidateInstanceResolutionQuery, IReadOnlyList<ResolutionDiagnostic>>
@@ -36,7 +37,14 @@ public class ValidateInstanceResolutionHandler(
         ResolutionScanner.ScanLeftoverRefs(context, diagnostics);
         // Полнота обязательных (issue #296, фаза 0b) — та же проверка, что при генерации.
         var byId = (await docTypeRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
-        ResolutionScanner.ScanMissingRequired(context, DocumentTypeSchemaReader.EffectiveFields(instance.CompositeTypeId, byId), diagnostics);
+        var fields = DocumentTypeSchemaReader.EffectiveFields(instance.CompositeTypeId, byId);
+        ResolutionScanner.ScanMissingRequired(context, fields, diagnostics);
+
+        // Соответствие значений объявленному типу (issue #461) — предупреждениями: данные накоплены,
+        // и половина документов перестала бы выпускаться в тот же день.
+        var primitives = (await primitiveRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
+        ValueTypeScanner.Scan(context, fields, byId, primitives, diagnostics);
+
         return diagnostics;
     }
 }
