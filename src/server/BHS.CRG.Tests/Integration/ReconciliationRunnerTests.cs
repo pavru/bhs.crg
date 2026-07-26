@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Reconciliation;
@@ -22,7 +22,7 @@ public class ReconciliationRunnerTests(IntegrationTestFixture fixture) : IAsyncL
     public async Task InitializeAsync() => await fixture.ResetDatabaseAsync();
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private static JsonSerializerOptions Json => ReconciliationSpecJson.Options;
 
     /// <summary>CSV-источник. Разделитель — запятая: парсер определяет таб/запятую.</summary>
     private static async Task<Guid> SeedCsvAsync(IServiceScope scope, string name, string csv, string[] columns)

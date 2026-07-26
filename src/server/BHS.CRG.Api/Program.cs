@@ -14,6 +14,7 @@ using BHS.CRG.Api.Endpoints.Email;
 using BHS.CRG.Api.Endpoints.Subscriptions;
 using BHS.CRG.Api.Endpoints.Generation;
 using BHS.CRG.Api.Endpoints.QualityDocs;
+using BHS.CRG.Api.Endpoints.Reconciliation;
 using BHS.CRG.Api.Endpoints.Resolution;
 using BHS.CRG.Api.Endpoints.Templates;
 using BHS.CRG.Api.Hubs;
@@ -192,6 +193,16 @@ builder.Services.AddScoped<IRepository<TemplateAsset>, Repository<TemplateAsset>
 builder.Services.AddScoped<BHS.CRG.Application.Templates.IDocumentTemplateInvalidator,
     BHS.CRG.Application.Templates.DocumentTemplateInvalidator>();
 builder.Services.AddScoped<IRepository<GeneratedFile>, Repository<GeneratedFile>>();
+
+// Сверка на непротиворечивость (issue #433).
+builder.Services.AddScoped<IRepository<BHS.CRG.Domain.Reconciliation.ReconciliationDefinition>,
+    Repository<BHS.CRG.Domain.Reconciliation.ReconciliationDefinition>>();
+builder.Services.AddScoped<IRepository<BHS.CRG.Domain.Reconciliation.ReconciliationRun>,
+    Repository<BHS.CRG.Domain.Reconciliation.ReconciliationRun>>();
+builder.Services.AddScoped<IRepository<BHS.CRG.Domain.Reconciliation.ReconciliationFinding>,
+    Repository<BHS.CRG.Domain.Reconciliation.ReconciliationFinding>>();
+builder.Services.AddScoped<IRepository<BHS.CRG.Domain.Reconciliation.ReconciliationDecision>,
+    Repository<BHS.CRG.Domain.Reconciliation.ReconciliationDecision>>();
 builder.Services.AddScoped<IRepository<DocumentSetOutput>, Repository<DocumentSetOutput>>();
 builder.Services.AddScoped<IRepository<TypstUserLib>, Repository<TypstUserLib>>();
 builder.Services.AddScoped<IRepository<QualityDocument>, Repository<QualityDocument>>();
@@ -411,6 +422,7 @@ app.MapDataSetEndpoints();
 app.MapDataSetBindingEndpoints();
 app.MapDataSetBindingTemplateEndpoints();
 app.MapQualityDocEndpoints();
+app.MapReconciliationEndpoints();
 app.MapObjectResolveEndpoints();
 app.MapSettingsEndpoints();
 app.MapEmailEndpoints();
