@@ -1,5 +1,7 @@
 using BHS.CRG.Infrastructure.Reconciliation;
 
+using BHS.CRG.Infrastructure.Common;
+
 namespace BHS.CRG.Tests.Reconciliation;
 
 /// <summary>

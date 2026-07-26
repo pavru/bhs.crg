@@ -58,6 +58,17 @@ public class DataSetResolver(
         async Task<Dictionary<Guid, DocumentType>> TypesAsync() =>
             typesById ??= await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
 
+        // Примитивы нужны, чтобы понять базовый тип поля при приведении значения (#466) — тоже лениво.
+        Dictionary<Guid, PrimitiveType>? primitivesById = null;
+        async Task<Dictionary<Guid, PrimitiveType>> PrimitivesAsync() =>
+            primitivesById ??= await db.PrimitiveTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+
+        // Поля типа по ключу — для приведения значения к объявленному типу.
+        async Task<Dictionary<string, SchemaFieldInfo>> FieldsOfAsync(Guid? id) => id is { } tid
+            ? DocumentTypeSchemaReader.EffectiveFields(tid, await TypesAsync())
+                .GroupBy(f => f.Key).ToDictionary(g => g.Key, g => g.First())
+            : [];
+
         foreach (var binding in bindings)
         {
             try
@@ -78,9 +89,12 @@ public class DataSetResolver(
                     if (rows.Count > 0)
                     {
                         var row = rows[0];
+                        var ownFields = await FieldsOfAsync(typeId);
+                        var primitives = await PrimitivesAsync();
                         foreach (var (fieldKey, mapVal) in mapping)
                         {
                             var value = await ApplyMappedAsync(mapVal, row, ownerId, scopeLevel, scopeId, diagnostics, fieldKey, ct);
+                            value = DataSetValueCoercion.Coerce(value, ownFields.GetValueOrDefault(fieldKey), primitives, await TypesAsync());
                             if (value is not null)
                                 ctx.Set(fieldKey, value);
                         }
@@ -112,6 +126,9 @@ public class DataSetResolver(
                     // проход EntityResolver разрешил добавленные ссылки $ref на каталог.
                     var mapped = new List<Dictionary<string, object?>>();
                     var rowIndex = 0;
+                    var rowFields = await FieldsOfAsync(rowTypeId);
+                    var rowPrimitives = await PrimitivesAsync();
+                    var rowTypes = await TypesAsync();
                     foreach (var row in rows)
                     {
                         var obj = new Dictionary<string, object?>();
@@ -119,6 +136,8 @@ public class DataSetResolver(
                         {
                             var path = $"{binding.TargetFieldKey}[{rowIndex}].{fieldKey}";
                             var value = await ApplyMappedAsync(mapVal, row, ownerId, scopeLevel, scopeId, diagnostics, path, ct);
+                            // Число в числовом поле, а не текст ячейки (#466).
+                            value = DataSetValueCoercion.Coerce(value, rowFields.GetValueOrDefault(fieldKey), rowPrimitives, rowTypes);
                             if (value is not null)
                                 obj[fieldKey] = value;
                         }
