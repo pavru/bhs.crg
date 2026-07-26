@@ -24,6 +24,14 @@ public record ReportObservationCommand(
 public record ReviewObservationCommand(Guid Id, ObservationStatus Status, string? Note, string? ReviewedBy)
     : IRequest<AgentObservation>;
 
+/// <summary>
+/// Агент отзывает собственное утверждение: перепроверил, условие больше не воспроизводится (#459).
+/// Адресуется КЛЮЧОМ и областью, как и сообщение: идентификатора замечания у агента нет, да и не
+/// должно быть — он мыслит утверждениями, а не записями.
+/// </summary>
+public record RetractObservationCommand(CatalogScope Scope, Guid? ScopeId, string Key, string? Note, string? By)
+    : IRequest<AgentObservation?>;
+
 public record DeleteObservationCommand(Guid Id) : IRequest;
 
 public class ObservationHandlers(
@@ -34,6 +42,7 @@ public class ObservationHandlers(
     IRequestHandler<ListObservationsQuery, IReadOnlyList<AgentObservation>>,
     IRequestHandler<ReportObservationCommand, AgentObservation>,
     IRequestHandler<ReviewObservationCommand, AgentObservation>,
+    IRequestHandler<RetractObservationCommand, AgentObservation?>,
     IRequestHandler<DeleteObservationCommand>
 {
     public async Task<IReadOnlyList<AgentObservation>> Handle(ListObservationsQuery q, CancellationToken ct)
@@ -85,6 +94,17 @@ public class ObservationHandlers(
     {
         var observation = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
         observation.Review(cmd.Status, cmd.Note, cmd.ReviewedBy);
+        repo.Update(observation);
+        await repo.SaveChangesAsync(ct);
+        return observation;
+    }
+
+    public async Task<AgentObservation?> Handle(RetractObservationCommand cmd, CancellationToken ct)
+    {
+        var observation = await FindByKeyAsync(cmd.Scope, cmd.ScopeId, cmd.Key, ct);
+        if (observation is null) return null; // отзывать нечего — не ошибка, состояние уже такое
+
+        observation.Retract(cmd.Note, cmd.By);
         repo.Update(observation);
         await repo.SaveChangesAsync(ct);
         return observation;

@@ -26,12 +26,15 @@ public class McpToolContractTests
     /// замечаний (#440) — именно утверждение, требующее подтверждения человеком, а не результат
     /// проверки. Подтверждать замечания агент не может, такого инструмента нет.
     ///
+    /// <c>retract_observation</c> (#459) — агент отзывает СОБСТВЕННОЕ утверждение: это свидетельство
+    /// против себя, а не самоодобрение, поэтому оно ему доступно, в отличие от подтверждения.
+    ///
     /// <c>propose_alias</c> (#448) — предложение, что две позиции суть одно; на сверку оно не влияет,
     /// пока человек не подтвердит. Подтверждения агентом нет и здесь: неподтверждённый алиас в пути
     /// сравнения означал бы модель внутри арифметики.
     /// </summary>
     private static readonly string[] WriteTools =
-        ["generate_document", "report_observation", "propose_alias"];
+        ["generate_document", "report_observation", "retract_observation", "propose_alias"];
 
     private static IEnumerable<(string Name, McpServerToolAttribute Attr)> AllTools() =>
         ToolTypes

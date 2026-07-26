@@ -8,10 +8,25 @@ namespace BHS.CRG.Domain.Reconciliation;
 public enum ObservationSeverity { Info, Warning, Error }
 
 /// <summary>
-/// Что человек решил про замечание. Подтверждает и отклоняет ТОЛЬКО человек: агент не подтверждает
-/// собственное утверждение — прямое следствие «предложить → подтвердить → персистить» из issue #414.
+/// Состояние замечания. Подтверждает и отклоняет ТОЛЬКО человек: агент не подтверждает собственное
+/// утверждение — прямое следствие «предложить → подтвердить → персистить» из issue #414.
 /// </summary>
-public enum ObservationStatus { New, Confirmed, Rejected }
+public enum ObservationStatus
+{
+    New,
+    Confirmed,
+    Rejected,
+
+    /// <summary>
+    /// Агент перепроверил и утверждение больше не воспроизводится (issue #459). Это НЕ вердикт о
+    /// собственной правоте, а свидетельство ПРОТИВ собственного утверждения, поэтому агенту оно
+    /// доступно, в отличие от подтверждения.
+    ///
+    /// Замечание при этом не исчезает: закрывать его всё равно человеку — иначе агент получил бы
+    /// способ молча убирать неудобные находки, и журнал перестал бы быть памятью.
+    /// </summary>
+    Retracted,
+}
 
 /// <summary>
 /// Замечание внешнего ИИ-агента (issue #440) — результат «человеческого» анализа, который до сих пор
@@ -74,6 +89,16 @@ public class AgentObservation : Entity
     public void Report(string title, string? detail, ObservationSeverity severity,
         JsonDocument references, string? reportedBy)
     {
+        // Условие воспроизвелось снова — утверждение снова живо. Разбор человека при этом НЕ
+        // сбрасываем: подтверждённое и отклонённое остаются такими, отзыв же был словом агента.
+        if (Status == ObservationStatus.Retracted)
+        {
+            Status = ObservationStatus.New;
+            ReviewNote = null;
+            ReviewedBy = null;
+            ReviewedAt = null;
+        }
+
         Title = title;
         Detail = detail;
         Severity = severity;
@@ -87,6 +112,19 @@ public class AgentObservation : Entity
         Status = status;
         ReviewNote = note;
         ReviewedBy = reviewedBy;
+        ReviewedAt = DateTimeOffset.UtcNow;
+        TouchUpdatedAt();
+    }
+
+    /// <summary>
+    /// Агент отзывает собственное утверждение: перепроверил, условие больше не выполняется.
+    /// Разбор человека, если он был, сохраняем — отзыв не отменяет того, что человек уже решил.
+    /// </summary>
+    public void Retract(string? note, string? by)
+    {
+        Status = ObservationStatus.Retracted;
+        ReviewNote = note;
+        ReviewedBy = by;
         ReviewedAt = DateTimeOffset.UtcNow;
         TouchUpdatedAt();
     }
