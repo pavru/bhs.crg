@@ -50,6 +50,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         => Set<BHS.CRG.Domain.Reconciliation.ReconciliationFinding>();
     public DbSet<BHS.CRG.Domain.Reconciliation.ReconciliationDecision> ReconciliationDecisions
         => Set<BHS.CRG.Domain.Reconciliation.ReconciliationDecision>();
+    public DbSet<BHS.CRG.Domain.Reconciliation.AgentObservation> AgentObservations
+        => Set<BHS.CRG.Domain.Reconciliation.AgentObservation>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder builder)

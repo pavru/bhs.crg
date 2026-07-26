@@ -1,24 +1,32 @@
-using System.Reflection;
+﻿using System.Reflection;
 using BHS.CRG.Api.Mcp;
 using ModelContextProtocol.Server;
 
 namespace BHS.CRG.Tests.Mcp;
 
 /// <summary>
-/// MCP-сервер был целиком читающим (#415–#423), и с #425 у него ровно ОДИН записывающий инструмент —
-/// <c>generate_document</c>. Инвариант закрепляем тестом: аннотация <c>ReadOnly</c> — это то, по чему
-/// клиент решает, спрашивать ли подтверждение у пользователя. Новый записывающий инструмент, забывший
-/// снять флаг, выполнялся бы молча; читающий, случайно потерявший его, дёргал бы подтверждение зря.
+/// Записывающие инструменты MCP перечислены ЯВНО. Аннотация <c>ReadOnly</c> — это то, по чему клиент
+/// решает, спрашивать ли подтверждение у пользователя: новый записывающий инструмент, забывший снять
+/// флаг, выполнялся бы молча, а читающий, случайно потерявший его, дёргал бы подтверждение зря.
+///
+/// Список намеренно ведётся руками: добавление права записи агенту — решение, а не побочный эффект
+/// правки, и оно обязано быть заметно в дифе.
 /// </summary>
 public class McpToolContractTests
 {
     private static readonly Type[] ToolTypes =
     [
         typeof(DataSnapshotTools), typeof(DomainSnapshotTools), typeof(DocumentActionTools),
+        typeof(ObservationTools),
     ];
 
-    /// <summary>Единственный инструмент, которому позволено менять состояние системы.</summary>
-    private const string WriteTool = "generate_document";
+    /// <summary>
+    /// Инструменты, которым позволено менять состояние системы. <c>generate_document</c> выпускает PDF
+    /// своего документа (#425); <c>report_observation</c> записывает утверждение агента в журнал
+    /// замечаний (#440) — именно утверждение, требующее подтверждения человеком, а не результат
+    /// проверки. Подтверждать замечания агент не может, такого инструмента нет.
+    /// </summary>
+    private static readonly string[] WriteTools = ["generate_document", "report_observation"];
 
     private static IEnumerable<(string Name, McpServerToolAttribute Attr)> AllTools() =>
         ToolTypes
@@ -28,14 +36,25 @@ public class McpToolContractTests
             .Select(x => (x.Attr!.Name ?? x.Method.Name, x.Attr!));
 
     [Fact]
-    public void OnlyGenerateDocument_IsWritable()
+    public void OnlyDeclaredTools_AreWritable()
     {
         var tools = AllTools().ToList();
         Assert.NotEmpty(tools);
 
-        var writable = tools.Where(t => t.Attr.ReadOnly != true).Select(t => t.Name).ToList();
-        Assert.Equal([WriteTool], writable);
+        var writable = tools.Where(t => t.Attr.ReadOnly != true).Select(t => t.Name).Order().ToList();
+        Assert.Equal(WriteTools.Order(), writable);
     }
+
+    /// <summary>
+    /// Подтверждение замечания — решение ЧЕЛОВЕКА (#414: предложить → подтвердить → персистить).
+    /// Появись такой инструмент, агент подтверждал бы собственные утверждения, и журнал перестал бы
+    /// отличать проверенное от заявленного.
+    /// </summary>
+    [Fact]
+    public void NoTool_ReviewsObservations()
+        => Assert.Empty(AllTools()
+            .Where(t => t.Name.Contains("review") || t.Name.Contains("confirm"))
+            .Select(t => t.Name));
 
     /// <summary>
     /// Разрушительным не является ни один: выпуск заменяет файлы СВОЕГО документа и ничего чужого не

@@ -1,0 +1,94 @@
+using System.Text.Json;
+using BHS.CRG.Application.Common;
+using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Reconciliation;
+using MediatR;
+
+namespace BHS.CRG.Application.Reconciliation;
+
+public record ListObservationsQuery(CatalogScope? Scope, Guid? ScopeId, ObservationStatus? Status)
+    : IRequest<IReadOnlyList<AgentObservation>>;
+
+/// <summary>
+/// Сообщить замечание. Повторное сообщение с тем же ключом в той же области — обновление, а не вторая
+/// запись: иначе повторный анализ забил бы журнал дублями.
+/// </summary>
+public record ReportObservationCommand(
+    CatalogScope Scope, Guid? ScopeId, string Key, string Title, string? Detail,
+    ObservationSeverity Severity, JsonDocument References, string? ReportedBy)
+    : IRequest<AgentObservation>;
+
+/// <summary>Разбор замечания человеком. Через MCP недоступно — агент не подтверждает себя сам.</summary>
+public record ReviewObservationCommand(Guid Id, ObservationStatus Status, string? Note, string? ReviewedBy)
+    : IRequest<AgentObservation>;
+
+public record DeleteObservationCommand(Guid Id) : IRequest;
+
+public class ObservationHandlers(IRepository<AgentObservation> repo) :
+    IRequestHandler<ListObservationsQuery, IReadOnlyList<AgentObservation>>,
+    IRequestHandler<ReportObservationCommand, AgentObservation>,
+    IRequestHandler<ReviewObservationCommand, AgentObservation>,
+    IRequestHandler<DeleteObservationCommand>
+{
+    public async Task<IReadOnlyList<AgentObservation>> Handle(ListObservationsQuery q, CancellationToken ct)
+    {
+        var items = await repo.FindAsync(o =>
+            (!q.Scope.HasValue || o.Scope == q.Scope.Value) &&
+            (!q.ScopeId.HasValue || o.ScopeId == q.ScopeId.Value) &&
+            (!q.Status.HasValue || o.Status == q.Status.Value), ct);
+
+        // Неразобранные и более существенные — выше: журнал читают сверху вниз.
+        return [.. items
+            .OrderBy(o => o.Status == ObservationStatus.New ? 0 : 1)
+            .ThenByDescending(o => (int)o.Severity)
+            .ThenByDescending(o => o.UpdatedAt)];
+    }
+
+    public async Task<AgentObservation> Handle(ReportObservationCommand cmd, CancellationToken ct)
+    {
+        var existing = await FindByKeyAsync(cmd.Scope, cmd.ScopeId, cmd.Key, ct);
+
+        AgentObservation observation;
+        if (existing is null)
+        {
+            observation = AgentObservation.Create(cmd.Scope, cmd.ScopeId, cmd.Key, cmd.Title,
+                cmd.Detail, cmd.Severity, cmd.References, cmd.ReportedBy);
+            await repo.AddAsync(observation, ct);
+        }
+        else
+        {
+            observation = existing;
+            observation.Report(cmd.Title, cmd.Detail, cmd.Severity, cmd.References, cmd.ReportedBy);
+            repo.Update(observation);
+        }
+
+        await repo.SaveChangesAsync(ct);
+        return observation;
+    }
+
+    public async Task<AgentObservation> Handle(ReviewObservationCommand cmd, CancellationToken ct)
+    {
+        var observation = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        observation.Review(cmd.Status, cmd.Note, cmd.ReviewedBy);
+        repo.Update(observation);
+        await repo.SaveChangesAsync(ct);
+        return observation;
+    }
+
+    public async Task Handle(DeleteObservationCommand cmd, CancellationToken ct)
+    {
+        var observation = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        repo.Remove(observation);
+        await repo.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Поиск по естественному ключу в два шага: <c>FindAsync</c> репозитория не отслеживает
+    /// сущности, и правка полученной копии столкнулась бы с уже отслеживаемым экземпляром.</summary>
+    private async Task<AgentObservation?> FindByKeyAsync(
+        CatalogScope scope, Guid? scopeId, string key, CancellationToken ct)
+    {
+        var id = (await repo.FindAsync(o => o.Scope == scope && o.ScopeId == scopeId && o.Key == key, ct))
+            .Select(o => (Guid?)o.Id).FirstOrDefault();
+        return id is null ? null : await repo.GetByIdAsync(id.Value, ct);
+    }
+}
