@@ -18,6 +18,7 @@ const SECTION_TITLES: Record<string, string> = {
   'common-data': 'Общие данные',
   'datasets': 'Наборы данных',
   'quality-docs': 'Документы качества',
+  'reconciliations': 'Сверка',
   'templates': 'Шаблоны',
   'document-types': 'Типы документов',
   'composite-types': 'Составные типы',

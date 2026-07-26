@@ -1,4 +1,4 @@
-import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText } from 'lucide-react';
+import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Scale } from 'lucide-react';
 
 /** Пункты навигации — общий источник для сайдбара (AppShell) и командной палитры (Ctrl+K). */
 export interface NavItem { to: string; label: string; icon: typeof FolderOpen }
@@ -8,6 +8,7 @@ export const workNav: NavItem[] = [
   { to: '/common-data',   label: 'Общие данные',       icon: Database   },
   { to: '/datasets',      label: 'Наборы данных',      icon: Layers     },
   { to: '/quality-docs',  label: 'Документы качества', icon: ShieldCheck },
+  { to: '/reconciliations', label: 'Сверка',             icon: Scale      },
 ];
 
 export const settingsNav: NavItem[] = [
