@@ -43,6 +43,10 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.ExecuteSqlRawAsync(@"
             TRUNCATE TABLE
+                reconciliation_findings,
+                reconciliation_decisions,
+                reconciliation_runs,
+                reconciliations,
                 material_quality_links,
                 quality_documents,
                 notifications,
