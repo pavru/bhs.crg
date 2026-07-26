@@ -4,6 +4,7 @@ import { Markdown } from '@/shared/ui/Markdown';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useEmailDocument } from '@/shared/api/documentSets';
 import { EmailSendDialog } from '../EmailSendDialog';
+import { DocumentObservationsChip } from './DocumentObservations';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import {
@@ -1127,6 +1128,9 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLORS[instance.status] ?? 'bg-brand-subtle text-brand'}`}>
             {STATUS_LABELS[instance.status] ?? instance.status}
           </span>
+          {/* Замечания внешнего анализа, упоминающие ЭТОТ документ (issue #456). Находок сверки
+              здесь нет: их связь с документом слабее, чем выглядит. */}
+          <DocumentObservationsChip setId={instance.documentSetId} documentId={instance.id} />
           {/* Источники данных (issue #296, фаза 3): пакетные операции уровня документа — обзор
               привязок, «Проверить данные», «Из шаблона». Точечная привязка — на самих полях. */}
           <Button variant="text" size="sm" icon={<Database size={15} />} onClick={() => setDataSourcesOpen(true)}
