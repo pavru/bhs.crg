@@ -2,6 +2,7 @@ export * from './constants';
 export * from './FileField';
 export * from './ImageField';
 export * from './PrimitiveInput';
+export * from './collectConstraintViolations';
 export * from './RefPickerModal';
 export * from './InstancePickerModal';
 export * from './DocRefCatalogPickerField';
