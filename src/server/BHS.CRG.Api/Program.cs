@@ -234,6 +234,7 @@ builder.Services
     .WithTools<BHS.CRG.Api.Mcp.DomainSnapshotTools>()
     .WithTools<BHS.CRG.Api.Mcp.DocumentActionTools>()
     .WithTools<BHS.CRG.Api.Mcp.ObservationTools>()
+    .WithTools<BHS.CRG.Api.Mcp.ReconciliationTools>()
     .WithResources<BHS.CRG.Api.Mcp.DataSnapshotResources>()
     .WithResources<BHS.CRG.Api.Mcp.DomainSnapshotResources>()
     .WithPrompts<BHS.CRG.Api.Mcp.ReconciliationPrompts>()
