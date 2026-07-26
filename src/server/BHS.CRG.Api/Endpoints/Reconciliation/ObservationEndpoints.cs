@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using BHS.CRG.Application.Reconciliation;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Reconciliation;
@@ -56,7 +56,9 @@ public static class ObservationEndpoints
         o.Detail,
         severity = o.Severity.ToString(),
         status = o.Status.ToString(),
-        references = o.References.RootElement,
+        // Разворачиваем и на чтении: иначе уже записанные строкой ссылки остались бы
+        // непроверяемыми (#442).
+        references = ObservationReferences.Unwrap(o.References.RootElement),
         o.ReportedBy,
         o.ReviewedBy,
         o.ReviewNote,
