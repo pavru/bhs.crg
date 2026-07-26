@@ -219,7 +219,9 @@ builder.Services
     .WithTools<BHS.CRG.Api.Mcp.DomainSnapshotTools>()
     .WithTools<BHS.CRG.Api.Mcp.DocumentActionTools>()
     .WithResources<BHS.CRG.Api.Mcp.DataSnapshotResources>()
-    .WithResources<BHS.CRG.Api.Mcp.DomainSnapshotResources>();
+    .WithResources<BHS.CRG.Api.Mcp.DomainSnapshotResources>()
+    // Шаблоны уезжают в resources/templates/list; здесь — реальные объекты для прикрепления (#427).
+    .WithListResourcesHandler(BHS.CRG.Api.Mcp.McpResourceCatalog.ListAsync);
 
 // ── Профили распознавания (issue #406) ────────────────────────────────────────
 builder.Services.AddScoped<BHS.CRG.Application.Recognition.IRecognitionProfileProvider,
