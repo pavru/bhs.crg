@@ -17,7 +17,7 @@ public class McpToolContractTests
     private static readonly Type[] ToolTypes =
     [
         typeof(DataSnapshotTools), typeof(DomainSnapshotTools), typeof(DocumentActionTools),
-        typeof(ObservationTools),
+        typeof(ObservationTools), typeof(ReconciliationTools),
     ];
 
     /// <summary>
@@ -25,8 +25,13 @@ public class McpToolContractTests
     /// своего документа (#425); <c>report_observation</c> записывает утверждение агента в журнал
     /// замечаний (#440) — именно утверждение, требующее подтверждения человеком, а не результат
     /// проверки. Подтверждать замечания агент не может, такого инструмента нет.
+    ///
+    /// <c>propose_alias</c> (#448) — предложение, что две позиции суть одно; на сверку оно не влияет,
+    /// пока человек не подтвердит. Подтверждения агентом нет и здесь: неподтверждённый алиас в пути
+    /// сравнения означал бы модель внутри арифметики.
     /// </summary>
-    private static readonly string[] WriteTools = ["generate_document", "report_observation"];
+    private static readonly string[] WriteTools =
+        ["generate_document", "report_observation", "propose_alias"];
 
     private static IEnumerable<(string Name, McpServerToolAttribute Attr)> AllTools() =>
         ToolTypes
@@ -51,9 +56,10 @@ public class McpToolContractTests
     /// отличать проверенное от заявленного.
     /// </summary>
     [Fact]
-    public void NoTool_ReviewsObservations()
+    public void NoTool_ReviewsOrConfirms()
         => Assert.Empty(AllTools()
-            .Where(t => t.Name.Contains("review") || t.Name.Contains("confirm"))
+            .Where(t => t.Name.Contains("review") || t.Name.Contains("confirm")
+                     || t.Name.Contains("approve"))
             .Select(t => t.Name));
 
     /// <summary>
