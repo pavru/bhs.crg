@@ -23,8 +23,29 @@ public enum ToleranceKind { Absolute, Percent }
 /// стороны обязаны перечислять их согласованно, иначе ключи не сойдутся.</param>
 /// <param name="ValueColumn">Колонка количества. Строки с одинаковым ключом суммируются: в кабельном
 /// журнале одна марка идёт десятком линий, и сравнивать надо итог по марке, а не отдельные строки.</param>
+/// <param name="Sources">Свод по нескольким источникам (issue #450): «сумма по четырём листам шкафов
+/// против сводной спецификации». Задан — <paramref name="SourceId"/> и колонки рядом игнорируются.</param>
 /// <param name="LabelColumn">Чем позицию назвать человеку. Пусто — берётся первая ключевая колонка.</param>
 public record ReconciliationSide(
+    Guid SourceId,
+    IReadOnlyList<string> KeyColumns,
+    string ValueColumn,
+    string? LabelColumn = null,
+    IReadOnlyList<SideSource>? Sources = null)
+{
+    /// <summary>
+    /// Источники стороны с их колонками. Пусто — сторона одиночная, как и была: спеки уже лежат в БД
+    /// со старым полем, и ломать их ради формы записи нельзя.
+    /// </summary>
+    public IReadOnlyList<SideSource> EffectiveSources =>
+        Sources is { Count: > 0 } ? Sources : [new SideSource(SourceId, KeyColumns, ValueColumn, LabelColumn)];
+}
+
+/// <summary>
+/// Один источник в составе стороны (issue #450). Колонки у каждого СВОИ: листы шкафов называют их
+/// по-разному, и требовать единообразия значило бы заставить пользователя править исходники ради сверки.
+/// </summary>
+public record SideSource(
     Guid SourceId,
     IReadOnlyList<string> KeyColumns,
     string ValueColumn,

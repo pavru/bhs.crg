@@ -14,7 +14,7 @@ import { useAuth } from '@/shared/hooks/useAuth';
 import {
   useReconciliations, useReconciliationRuns, useFindings, useRunReconciliation,
   useDeleteReconciliation, useSetDecision, useRemoveDecision, downloadDiscrepancyReport,
-  useAliases, useCreateAlias, isUnmatched,
+  useAliases, useCreateAlias, isUnmatched, provenanceSummary,
   STATUS_LABELS, DECISION_LABELS, needsAttention, runSummary,
   type Finding, type ReconciliationRun,
 } from '@/shared/api/reconciliations';
@@ -83,8 +83,8 @@ function FindingRow({ f, onDecide, linkable, checked, onToggle }: {
       </div>
       <div className="flex items-center gap-3 mt-0.5 text-[11px] text-fg4">
         {/* Провенанс: без него находку нельзя проверить глазами по документу. */}
-        {left && <span>слева: {left.column}, строк {left.rows.length}</span>}
-        {right && <span>справа: {right.column}, строк {right.rows.length}</span>}
+        {provenanceSummary(left) && <span>слева: {provenanceSummary(left)}</span>}
+        {provenanceSummary(right) && <span>справа: {provenanceSummary(right)}</span>}
         {f.decision && (
           <span className="text-fg3">
             {DECISION_LABELS[f.decision.kind]}

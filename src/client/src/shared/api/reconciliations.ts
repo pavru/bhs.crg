@@ -15,13 +15,29 @@ export type FindingStatus = 'Match' | 'Mismatch' | 'MissingLeft' | 'MissingRight
 export type DecisionKind = 'Accepted' | 'Suppressed';
 export type RunStatus = 'Running' | 'Completed' | 'Failed';
 
-/** Одна сторона: источник и что из него брать. Строки с одним ключом суммируются. */
-export interface ReconciliationSide {
+/**
+ * Один источник в составе стороны. Колонки у каждого СВОИ: листы шкафов называют их по-разному, и
+ * требовать единообразия значило бы заставить править исходники ради сверки.
+ */
+export interface SideSource {
   sourceId: string;
   /** Колонки доменного ключа. Порядок значим — стороны обязаны перечислять их согласованно. */
   keyColumns: string[];
   valueColumn: string;
   labelColumn?: string | null;
+}
+
+/** Одна сторона: её источники. Строки с одним ключом суммируются по ВСЕМ источникам стороны. */
+export interface ReconciliationSide extends SideSource {
+  /** Свод по нескольким источникам (#450). Пусто — сторона одиночная, как в старых спеках. */
+  sources?: SideSource[] | null;
+}
+
+/** Источники стороны с учётом старой формы записи: спеки в БД её ещё используют. */
+export function sidePartsOf(side: ReconciliationSide): SideSource[] {
+  return side.sources && side.sources.length > 0
+    ? side.sources
+    : [{ sourceId: side.sourceId, keyColumns: side.keyColumns, valueColumn: side.valueColumn }];
 }
 
 export interface ComparisonRule {
@@ -75,6 +91,23 @@ export interface FindingSideProvenance {
   column: string;
   /** Номера строк источника, сложившихся в эту позицию. */
   rows: number[];
+  /** Все источники свода (#450). Пусто — находка записана до свода, читаем поля выше. */
+  parts?: { sourceId: string; column: string; rows: number[] }[] | null;
+}
+
+/**
+ * Сколько строк и из скольких источников собралась сторона. Свод из четырёх листов, показанный одним
+ * первым источником, был бы молча неполон.
+ */
+export function provenanceSummary(side: FindingSideProvenance | null): string | null {
+  if (!side) return null;
+  const parts = side.parts && side.parts.length > 0
+    ? side.parts
+    : [{ sourceId: side.sourceId, column: side.column, rows: side.rows }];
+  const rows = parts.reduce((n, p) => n + (p.rows?.length ?? 0), 0);
+  return parts.length > 1
+    ? `${parts.length} источника, строк ${rows}`
+    : `${parts[0].column}, строк ${rows}`;
 }
 
 export interface Finding {
