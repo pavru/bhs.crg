@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Api.Mcp;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
 using MediatR;
@@ -52,6 +53,39 @@ public class DocumentValidationMcpTests(IntegrationTestFixture fixture) : IAsync
         Assert.Equal("НомерАкта", d.Path);
         // Код различает вид проблемы — по нему агент отличает «не заполнено» от «ссылка битая».
         Assert.Equal("missing-required", d.Code);
+    }
+
+    /// <summary>
+    /// Проверка и выпуск обязаны отвечать на один вопрос одинаково: раньше ValueTypeScanner был
+    /// подключён только к проверке, и человек выпускал документ, о расхождениях в котором его
+    /// предупреждали в другом месте (#464).
+    /// </summary>
+    [Fact]
+    public async Task Generation_SeesSameValueTypeWarnings_AsValidation()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+
+        var primitives = scope.ServiceProvider
+            .GetRequiredService<IRepository<BHS.CRG.Domain.Catalog.PrimitiveType>>();
+        var integer = BHS.CRG.Domain.Catalog.PrimitiveType.Create(
+            "Цело число", "Integer_" + Guid.NewGuid().ToString("N")[..6], "number", null,
+            JsonDocument.Parse("""{"integer":true}"""));
+        await primitives.AddAsync(integer);
+        await primitives.SaveChangesAsync();
+
+        var docId = await SeedDocumentAsync(m, $$"""
+            {"fields":[{"key":"Номер","title":"Номер","type":"primitive","typeId":"{{integer.Id}}"}]}
+            """);
+        await m.Send(new UpdateRequisitesCommand(docId, JsonDocument.Parse("""{"Номер":"2.1"}""")));
+
+        var validation = await Tools(scope).ValidateDocumentAsync(docId, CancellationToken.None);
+        Assert.Equal(0, validation.ErrorCount);
+        var warning = Assert.Single(validation.Diagnostics);
+        Assert.Equal("value-type", warning.Code);
+
+        // Предупреждение выпуск НЕ блокирует — обязательность и типы разные вещи, данные накоплены.
+        Assert.Equal(0, validation.ErrorCount);
     }
 
     [Fact]
