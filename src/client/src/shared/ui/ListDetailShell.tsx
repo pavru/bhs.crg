@@ -73,8 +73,14 @@ export function NavSection({ label }: { label: string }) {
  * `chevron` — «ребёнок» (уводит вглубь/роут): счётчик перед chevron, НИКОГДА не подсвечивается;
  * без `chevron` — ресурс/контент уровня (меняет detail на месте): тональный бейдж-счётчик, подсветка при active.
  */
-export function NavItem({ icon, label, count, active, chevron, onClick }: {
+export function NavItem({ icon, label, count, active, chevron, onClick, alert, alertDanger }: {
   icon: ReactNode; label: string; count?: number; active?: boolean; chevron?: boolean; onClick: () => void;
+  /** Сколько проблем ждёт разбора ниже по иерархии. Ноль/пусто — маркер не рисуется: он существует,
+   *  чтобы отличать «есть что разобрать» от «пусто», а нарисованный ноль этой задачи не решает. */
+  alert?: number;
+  /** Расхождение, посчитанное СИСТЕМОЙ. Красный зарезервирован за арифметикой: двести утверждений
+   *  агента — не то же самое, что одно расхождение в числах. */
+  alertDanger?: boolean;
 }) {
   const highlight = active && !chevron;
   return (
@@ -83,6 +89,13 @@ export function NavItem({ icon, label, count, active, chevron, onClick }: {
         highlight ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
       <span className={`shrink-0 ${highlight ? 'text-brand-hover' : 'text-fg4'}`}>{icon}</span>
       <span className="flex-1 truncate text-sm">{label}</span>
+      {alert != null && alert > 0 && (
+        <span title={`Требует разбора: ${alert}`}
+          className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 ${
+            alertDanger ? 'bg-danger-subtle text-danger' : 'bg-warning-subtle text-warning'}`}>
+          {alert > 99 ? '99+' : alert}
+        </span>
+      )}
       {chevron ? (
         <>
           {count != null && <span className="text-xs text-fg4 shrink-0">{count}</span>}

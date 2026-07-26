@@ -205,6 +205,40 @@ public class ProblemAttributionTests(IntegrationTestFixture fixture) : IAsyncLif
         Assert.Equal(0, (await m.Send(new GetRelatedProblemsQuery(CatalogScope.Construction, other))).NeedsAttention);
     }
 
+    /// <summary>
+    /// Свод для маркеров: свой уровень И разбивка по детям одним ответом. Запрос-на-ребёнка
+    /// превратил бы страницу раздела с десятью комплектами в десять обращений.
+    /// </summary>
+    [Fact]
+    public async Task Summary_CarriesChildrenBreakdown()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var (c, section, set) = await SeedHierarchyAsync(m);
+        var quiet = await m.Send(new CreateDocumentSetCommand(section, "Тихий комплект"));
+
+        db.Add(AgentObservation.Create(CatalogScope.Set, set, "k", "Замечание", null,
+            ObservationSeverity.Warning, JsonDocument.Parse("""{"note":"x"}"""), "агент"));
+        await db.SaveChangesAsync();
+
+        var atSection = await m.Send(new GetProblemSummaryQuery(CatalogScope.Section, section));
+        Assert.Equal(1, atSection.NeedsAttention);
+        Assert.Equal(set, Assert.Single(atSection.Children).ScopeId);
+        // Нулевой маркер не рисуется, поэтому и в ответе его нет.
+        Assert.DoesNotContain(atSection.Children, x => x.ScopeId == quiet.Id);
+
+        var atConstruction = await m.Send(new GetProblemSummaryQuery(CatalogScope.Construction, c));
+        Assert.Equal(section, Assert.Single(atConstruction.Children).ScopeId);
+
+        // Красный зарезервирован за арифметикой: утверждение агента её не заменяет.
+        Assert.False(atConstruction.HasArithmeticProblems);
+
+        var atSystem = await m.Send(new GetProblemSummaryQuery(CatalogScope.System, null));
+        Assert.Equal(c, Assert.Single(atSystem.Children).ScopeId);
+        Assert.Equal(1, atSystem.NeedsAttention);
+    }
+
     /// <summary>Счётчик обязан обнуляться действиями человека — иначе он не сигнал, а украшение.</summary>
     [Fact]
     public async Task NeedsAttention_CountsOnlyUnreviewed()

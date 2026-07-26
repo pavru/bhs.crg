@@ -20,7 +20,7 @@ import { MoveDocumentDialog } from './MoveDocumentDialog';
 import { CatalogResource } from './catalog/CatalogResource';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
 import { SetProblemsPanel } from './SetProblemsPanel';
-import { useRelatedProblems } from '@/shared/api/reconciliations';
+import { useRelatedProblems, useProblemSummary, problemOf } from '@/shared/api/reconciliations';
 import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -494,11 +494,13 @@ function SetDetail() {
 type SectionPanel = 'catalog' | 'datasets' | 'subscribers';
 
 function SectionDetail() {
+
   const { constructionId, sectionId, panel } = useParams<{ constructionId: string; sectionId: string; panel?: string }>();
   const navigate = useNavigate();
   const activePanel: SectionPanel = (['datasets', 'subscribers'].includes(panel ?? '') ? panel : 'catalog') as SectionPanel;
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
   const { data: docTypes = [] } = useListDocumentTypes();
+  const { data: problems } = useProblemSummary('Section', sectionId);
 
   const [addSetOpen, setAddSetOpen] = useState(false);
   const [newSetName, setNewSetName] = useState('');
@@ -550,10 +552,14 @@ function SectionDetail() {
     <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
       <NavSection label="Комплекты" />
       {section.documentSets.length === 0 && <p className="px-3 py-1.5 text-xs text-fg4">Нет комплектов</p>}
-      {section.documentSets.map(ds => (
-        <NavItem key={ds.id} icon={<FolderOpen size={17} />} label={ds.name} count={ds.documentCount ?? 0} chevron
-          onClick={() => navigate(`/document-sets/${constructionId}/sets/${ds.id}`)} />
-      ))}
+      {section.documentSets.map(ds => {
+        const p = problemOf(problems, ds.id);
+        return (
+          <NavItem key={ds.id} icon={<FolderOpen size={17} />} label={ds.name} count={ds.documentCount ?? 0} chevron
+            alert={p?.needsAttention} alertDanger={p?.hasArithmeticProblems}
+            onClick={() => navigate(`/document-sets/${constructionId}/sets/${ds.id}`)} />
+        );
+      })}
       <button type="button" onClick={() => setAddSetOpen(true)}
         className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-brand hover:bg-brand-subtle transition-colors">
         <Plus size={16} className="shrink-0" /> Добавить комплект
@@ -659,11 +665,13 @@ function SectionDetail() {
 type ConstructionPanel = 'catalog' | 'datasets' | 'subscribers';
 
 function ConstructionDetail() {
+
   const { constructionId, panel } = useParams<{ constructionId: string; panel?: string }>();
   const navigate = useNavigate();
   const activePanel: ConstructionPanel = (['datasets', 'subscribers'].includes(panel ?? '') ? panel : 'catalog') as ConstructionPanel;
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
   const { data: docTypes = [] } = useListDocumentTypes();
+  const { data: problems } = useProblemSummary('Construction', constructionId);
   const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
   const [sectionError, setSectionError] = useState('');
@@ -704,10 +712,14 @@ function ConstructionDetail() {
     <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2 space-y-0.5">
       <NavSection label="Разделы" />
       {construction.sections.length === 0 && <p className="px-3 py-1.5 text-xs text-fg4">Нет разделов</p>}
-      {construction.sections.map(s => (
-        <NavItem key={s.id} icon={<Layers size={17} />} label={s.name} count={s.documentSets.length} chevron
-          onClick={() => navigate(`/document-sets/${constructionId}/sections/${s.id}`)} />
-      ))}
+      {construction.sections.map(s => {
+        const p = problemOf(problems, s.id);
+        return (
+          <NavItem key={s.id} icon={<Layers size={17} />} label={s.name} count={s.documentSets.length} chevron
+            alert={p?.needsAttention} alertDanger={p?.hasArithmeticProblems}
+            onClick={() => navigate(`/document-sets/${constructionId}/sections/${s.id}`)} />
+        );
+      })}
       <button type="button" onClick={() => setAddSectionOpen(true)}
         className="w-full flex items-center gap-2.5 px-3 h-9 rounded-full text-left text-sm text-brand hover:bg-brand-subtle transition-colors">
         <Plus size={16} className="shrink-0" /> Добавить раздел
@@ -872,12 +884,14 @@ function DocumentSearchPanel() {
 // ─── Constructions list ───────────────────────────────────────────────────────
 
 function ConstructionsList() {
+
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [createError, setCreateError] = useState('');
 
   const { data: constructions = [], isLoading } = useListConstructions();
+  const { data: problems } = useProblemSummary('System');
   const createMutation = useCreateConstruction();
   const deleteMutation = useDeleteConstruction();
   const renameMutation = useRenameConstruction();
@@ -950,6 +964,12 @@ function ConstructionsList() {
                 <div className="flex items-center gap-4 text-xs text-fg4">
                   <span>{ruCount(c.sections.length, 'раздел', 'раздела', 'разделов')}</span>
                   <span>{ruCount(setsCount, 'комплект', 'комплекта', 'комплектов')}</span>
+                  {/* Строкой, а не пилюлей: красные пилюли на карточках дают «ёлку» раньше всего. */}
+                  {(problemOf(problems, c.id)?.needsAttention ?? 0) > 0 && (
+                    <span className="text-warning">
+                      требует разбора: {problemOf(problems, c.id)!.needsAttention}
+                    </span>
+                  )}
                 </div>
                 {c.sections.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">

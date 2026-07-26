@@ -240,6 +240,37 @@ export function useRelatedProblems(scope: 'Construction' | 'Section' | 'Set', sc
   });
 }
 
+/** Счётчик проблем одного объекта иерархии. */
+export interface ProblemCount {
+  scopeId: string;
+  needsAttention: number;
+  hasArithmeticProblems: boolean;
+}
+
+/** Свой уровень + разбивка по детям: страница обходится ОДНИМ запросом (#454). */
+export interface ProblemSummary {
+  needsAttention: number;
+  hasArithmeticProblems: boolean;
+  children: ProblemCount[];
+}
+
+export function useProblemSummary(
+  scope: 'System' | 'Construction' | 'Section' | 'Set', scopeId?: string,
+) {
+  return useQuery({
+    queryKey: [...KEY, 'summary', scope, scopeId ?? null],
+    enabled: scope === 'System' || !!scopeId,
+    queryFn: async () => (await apiClient.get<ProblemSummary>('/reconciliations/summary', {
+      params: { scope, scopeId },
+    })).data,
+  });
+}
+
+/** Счётчик ребёнка по идентификатору — маркер рисуется только когда есть что разбирать. */
+export function problemOf(summary: ProblemSummary | undefined, scopeId: string): ProblemCount | undefined {
+  return summary?.children.find(c => c.scopeId === scopeId);
+}
+
 // ─── Алиасы позиций (#446) ────────────────────────────────────────────────────
 
 export type AliasStatus = 'Proposed' | 'Confirmed' | 'Rejected';

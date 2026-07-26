@@ -34,6 +34,19 @@ public record RelatedReconciliation(Guid Id, string Name, int UnresolvedFindings
 
 public record GetRelatedProblemsQuery(CatalogScope Scope, Guid ScopeId) : IRequest<RelatedProblems>;
 
+/// <param name="NeedsAttention">Сколько ждёт разбора человеком на этом уровне и ниже.</param>
+/// <param name="HasArithmeticProblems">Есть ли расхождение, посчитанное системой (а не заявленное агентом).</param>
+public record ProblemCount(Guid ScopeId, int NeedsAttention, bool HasArithmeticProblems);
+
+/// <param name="Children">Разбивка по непосредственным детям уровня: разделы у стройки, комплекты у
+/// раздела, стройки у System. Отдаём вместе со своим счётчиком, чтобы страница обходилась ОДНИМ
+/// запросом — иначе раздел с десятью комплектами сделал бы десять.</param>
+public record ProblemSummary(
+    int NeedsAttention, bool HasArithmeticProblems, IReadOnlyList<ProblemCount> Children);
+
+/// <param name="ScopeId">Пусто при <c>System</c>: детьми тогда становятся все стройки.</param>
+public record GetProblemSummaryQuery(CatalogScope Scope, Guid? ScopeId) : IRequest<ProblemSummary>;
+
 /// <summary>
 /// Какие сверки относятся к уровню иерархии (issue #452).
 ///
