@@ -1,4 +1,4 @@
-using BHS.CRG.Domain.Catalog;
+﻿using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Templates;
@@ -42,6 +42,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<BHS.CRG.Domain.Settings.IntegrationSettingsEntity> IntegrationSettings => Set<BHS.CRG.Domain.Settings.IntegrationSettingsEntity>();
     public DbSet<BHS.CRG.Domain.Notifications.Notification> Notifications => Set<BHS.CRG.Domain.Notifications.Notification>();
     public DbSet<BHS.CRG.Domain.Jobs.Job> Jobs => Set<BHS.CRG.Domain.Jobs.Job>();
+    public DbSet<BHS.CRG.Domain.Reconciliation.ReconciliationDefinition> Reconciliations
+        => Set<BHS.CRG.Domain.Reconciliation.ReconciliationDefinition>();
+    public DbSet<BHS.CRG.Domain.Reconciliation.ReconciliationRun> ReconciliationRuns
+        => Set<BHS.CRG.Domain.Reconciliation.ReconciliationRun>();
+    public DbSet<BHS.CRG.Domain.Reconciliation.ReconciliationFinding> ReconciliationFindings
+        => Set<BHS.CRG.Domain.Reconciliation.ReconciliationFinding>();
+    public DbSet<BHS.CRG.Domain.Reconciliation.ReconciliationDecision> ReconciliationDecisions
+        => Set<BHS.CRG.Domain.Reconciliation.ReconciliationDecision>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder builder)
