@@ -41,8 +41,11 @@ public class ReconciliationRunner(
             var spec = definition.Spec.Deserialize<ReconciliationSpec>(Json)
                 ?? throw new InvalidOperationException("Спека сверки пуста или нечитаема.");
 
-            var left = await TotalsAsync(spec.Left, ct);
-            var right = await TotalsAsync(spec.Right, ct);
+            // Алиасы применяются на СВЁРТКЕ, до сравнения: иначе сопоставление ключей ничего не
+            // даст — количества так и останутся в двух разных позициях.
+            var aliases = await AliasesAsync(ct);
+            var left = await TotalsAsync(spec.Left, aliases, ct);
+            var right = await TotalsAsync(spec.Right, aliases, ct);
 
             var findings = Compare(run.Id, spec, left, right).ToList();
             db.AddRange(findings);
@@ -67,7 +70,28 @@ public class ReconciliationRunner(
     /// Строки источника после всей его обработки — тот же путь, которым их видит генерация. Иначе
     /// сверка судила бы о данных, отличных от попадающих в документ.
     /// </summary>
-    private async Task<SideTotals> TotalsAsync(ReconciliationSide side, CancellationToken ct)
+    /// <summary>
+    /// Только ПОДТВЕРЖДЁННЫЕ алиасы. Предложенный, но не подтверждённый, попав в путь сравнения, и
+    /// есть модель внутри арифметики — риск P1 из #414: отчёт начал бы меняться сам по себе.
+    /// </summary>
+    private async Task<AliasResolver> AliasesAsync(CancellationToken ct)
+    {
+        var confirmed = await db.Set<ReconciliationAlias>().AsNoTracking()
+            .Where(a => a.Status == AliasStatus.Confirmed)
+            .Select(a => new { a.AliasKey, a.CanonicalKey })
+            .ToListAsync(ct);
+
+        if (confirmed.Count == 0) return AliasResolver.Empty;
+
+        // Один вариант сводится ровно к одному канону: два разных канона у одного ключа сделали бы
+        // результат зависящим от порядка выборки.
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var a in confirmed) map.TryAdd(a.AliasKey, a.CanonicalKey);
+        return new AliasResolver(map);
+    }
+
+    private async Task<SideTotals> TotalsAsync(
+        ReconciliationSide side, AliasResolver aliases, CancellationToken ct)
     {
         var source = await db.DataSetSources.AsNoTracking().Include(s => s.File)
             .FirstOrDefaultAsync(s => s.Id == side.SourceId, ct)
@@ -82,8 +106,9 @@ public class ReconciliationRunner(
         for (var i = 0; i < rows.Count; i++)
         {
             var row = rows[i];
-            var key = ReconciliationKeys.Build(side.KeyColumns.Select(c => row.GetValueOrDefault(c)));
-            if (ReconciliationKeys.IsEmpty(key)) continue; // сопоставлять нечего — это шум, не находка
+            var rawKey = ReconciliationKeys.Build(side.KeyColumns.Select(c => row.GetValueOrDefault(c)));
+            if (ReconciliationKeys.IsEmpty(rawKey)) continue; // сопоставлять нечего — это шум, не находка
+            var key = aliases.Resolve(rawKey);
 
             // Отсутствие значения не то же самое, что ноль: незаполненная ячейка не делает позицию
             // нулевой, но и не отменяет её присутствия в документе.

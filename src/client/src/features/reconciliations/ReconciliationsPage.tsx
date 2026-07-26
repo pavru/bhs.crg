@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  Plus, Play, AlertTriangle, CheckCircle2, CircleSlash, History, Scale, Bot, FileSpreadsheet,
+  Plus, Play, AlertTriangle, CheckCircle2, CircleSlash, History, Scale, Bot, FileSpreadsheet, Link2,
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -14,12 +14,14 @@ import { useAuth } from '@/shared/hooks/useAuth';
 import {
   useReconciliations, useReconciliationRuns, useFindings, useRunReconciliation,
   useDeleteReconciliation, useSetDecision, useRemoveDecision, downloadDiscrepancyReport,
+  useAliases, useCreateAlias, isUnmatched,
   STATUS_LABELS, DECISION_LABELS, needsAttention, runSummary,
   type Finding, type ReconciliationRun,
 } from '@/shared/api/reconciliations';
 import { ReconciliationEditor } from './ReconciliationEditor';
 import { DecisionDialog } from './DecisionDialog';
 import { ObservationsPanel } from './ObservationsPanel';
+import { AliasesPanel } from './AliasesPanel';
 import { useObservations, isUnreviewed } from '@/shared/api/observations';
 
 /**
@@ -55,12 +57,20 @@ function num(v: number | null): string {
   return v == null ? '—' : String(Math.round(v * 1000) / 1000);
 }
 
-function FindingRow({ f, onDecide }: { f: Finding; onDecide: (f: Finding) => void }) {
+function FindingRow({ f, onDecide, linkable, checked, onToggle }: {
+  f: Finding; onDecide: (f: Finding) => void;
+  linkable: boolean; checked: boolean; onToggle: () => void;
+}) {
   const left = f.provenance.left;
   const right = f.provenance.right;
   return (
     <div className="px-3 py-2 border-b border-stroke hover:bg-muted/40 group">
       <div className="flex items-center gap-2">
+        {/* Связывать имеет смысл только позиции, не нашедшие пары: у остальных пара уже есть. */}
+        {linkable && (
+          <input type="checkbox" checked={checked} onChange={onToggle}
+            aria-label={`Выбрать «${f.label}» для связывания`} className="shrink-0 accent-brand" />
+        )}
         <StatusBadge f={f} />
         <span className="flex-1 truncate text-sm text-fg1" title={f.label}>{f.label}</span>
         <span className="text-sm tabular-nums text-fg2 shrink-0">
@@ -116,11 +126,15 @@ export function ReconciliationsPage() {
   const [deciding, setDeciding] = useState<Finding | null>(null);
   const [onlyAttention, setOnlyAttention] = useState(false);
   // Замечания агента — вторая секция того же раздела: оба отвечают «что не так с комплектом».
-  const [view, setView] = useState<'reconciliation' | 'observations'>('reconciliation');
+  const [view, setView] = useState<'reconciliation' | 'observations' | 'aliases'>('reconciliation');
+  // Связывание позиций: выбираем ровно две несопоставленные находки.
+  const [linking, setLinking] = useState<string[]>([]);
 
   const { data: items = [], isLoading } = useReconciliations();
   const { data: observations = [] } = useObservations();
   const { data: constructions = [] } = useListConstructions();
+  const { data: aliases = [] } = useAliases();
+  const createAlias = useCreateAlias();
 
   // Отчёт собирается по КОМПЛЕКТУ — как и тот, что сегодня ведут руками.
   const sets = useMemo(
@@ -191,11 +205,17 @@ export function ReconciliationsPage() {
           count={observations.filter(isUnreviewed).length}
           active={view === 'observations'}
           onClick={() => setView('observations')} />
+        <NavItem icon={<Link2 size={16} />} label="Алиасы позиций"
+          count={aliases.filter(a => a.status === 'Proposed').length}
+          active={view === 'aliases'}
+          onClick={() => setView('aliases')} />
       </div>
     </>
   );
 
-  const detail = view === 'observations' ? <ObservationsPanel /> : !selected ? (
+  const detail = view === 'observations' ? <ObservationsPanel />
+    : view === 'aliases' ? <AliasesPanel />
+    : !selected ? (
     <EmptyState icon={<Scale size={32} />} title="Выберите сверку"
       description="Сверка сопоставляет два источника по доменному ключу и показывает расхождения." />
   ) : (
@@ -246,6 +266,30 @@ export function ReconciliationsPage() {
         </div>
       )}
 
+      {linking.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-stroke bg-brand-subtle shrink-0">
+          <Link2 size={14} className="text-brand shrink-0" />
+          <span className="text-xs text-brand flex-1 truncate">
+            {linking.length === 1
+              ? 'Выберите вторую позицию, чтобы связать их как одну'
+              : findings.filter(f => linking.includes(f.id)).map(f => f.label).join('  →  ')}
+          </span>
+          <Button variant="text" size="sm" onClick={() => setLinking([])}>Отмена</Button>
+          <Button variant="filled" size="sm" disabled={linking.length !== 2}
+            onClick={async () => {
+              const [a, b] = linking.map(id => findings.find(f => f.id === id)!);
+              await createAlias.mutateAsync({
+                aliasKey: a.key, aliasLabel: a.label,
+                canonicalKey: b.key, canonicalLabel: b.label,
+              });
+              setLinking([]);
+              toast.success('Связано. Прогоните сверку, чтобы позиции слились');
+            }}>
+            Связать
+          </Button>
+        </div>
+      )}
+
       <div className="flex-1 min-h-0 overflow-y-auto">
         {findingsLoading && <p className="px-4 py-3 text-sm text-fg4">Загрузка…</p>}
         {!findingsLoading && shown.length === 0 && (
@@ -255,7 +299,15 @@ export function ReconciliationsPage() {
               : onlyAttention ? 'Всё разобрано.' : 'Находок нет.'}
           </p>
         )}
-        {shown.map(f => <FindingRow key={f.id} f={f} onDecide={setDeciding} />)}
+        {shown.map(f => (
+          <FindingRow key={f.id} f={f} onDecide={setDeciding}
+            linkable={isUnmatched(f)}
+            checked={linking.includes(f.id)}
+            onToggle={() => setLinking(prev => prev.includes(f.id)
+              ? prev.filter(x => x !== f.id)
+              // Больше двух — уже не пара: держим последние две.
+              : [...prev, f.id].slice(-2))} />
+        ))}
       </div>
     </div>
   );

@@ -177,6 +177,75 @@ export function useRemoveDecision() {
   });
 }
 
+// ─── Алиасы позиций (#446) ────────────────────────────────────────────────────
+
+export type AliasStatus = 'Proposed' | 'Confirmed' | 'Rejected';
+
+/**
+ * Утверждение, что два по-разному записанных наименования обозначают одно и то же.
+ * В сравнении участвуют ТОЛЬКО подтверждённые: неподтверждённый алиас в пути сравнения и есть
+ * модель внутри арифметики — отчёт начал бы меняться сам по себе.
+ */
+export interface ReconciliationAlias {
+  id: string;
+  aliasKey: string;
+  aliasLabel: string;
+  canonicalKey: string;
+  canonicalLabel: string;
+  status: AliasStatus;
+  note: string | null;
+  proposedBy: string | null;
+  confirmedBy: string | null;
+  updatedAt: string;
+}
+
+export const ALIAS_STATUS_LABELS: Record<AliasStatus, string> = {
+  Proposed: 'Предложено',
+  Confirmed: 'Применяется',
+  Rejected: 'Отклонено',
+};
+
+export function useAliases(status?: AliasStatus) {
+  return useQuery({
+    queryKey: [...KEY, 'aliases', status ?? null],
+    queryFn: async () => (await apiClient.get<ReconciliationAlias[]>('/reconciliations/aliases', {
+      params: { status },
+    })).data,
+  });
+}
+
+export function useCreateAlias() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      aliasKey: string; aliasLabel: string; canonicalKey: string; canonicalLabel: string; note?: string | null;
+    }) => (await apiClient.post<ReconciliationAlias>('/reconciliations/aliases', body)).data,
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: KEY }); },
+  });
+}
+
+export function useReviewAlias() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status, note }: { id: string; status: AliasStatus; note?: string | null }) =>
+      (await apiClient.put<ReconciliationAlias>(`/reconciliations/aliases/${id}`, { status, note })).data,
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: KEY }); },
+  });
+}
+
+export function useDeleteAlias() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => { await apiClient.delete(`/reconciliations/aliases/${id}`); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: KEY }); },
+  });
+}
+
+/** Кандидат на связывание: позиция, не нашедшая пары на другой стороне. */
+export function isUnmatched(f: Finding): boolean {
+  return f.status === 'MissingLeft' || f.status === 'MissingRight';
+}
+
 // ─── Представление ────────────────────────────────────────────────────────────
 
 export const STATUS_LABELS: Record<FindingStatus, string> = {

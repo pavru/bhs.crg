@@ -74,6 +74,42 @@ public static class ReconciliationEndpoints
         user.MapGet("/{id:guid}/findings", async (Guid id, Guid? runId, IMediator m) =>
             Results.Ok((await m.Send(new ListFindingsQuery(id, runId))).Select(ToDto)));
 
+        // ── Алиасы позиций ──────────────────────────────────────────────────────
+
+        user.MapGet("/aliases", async (string? status, IMediator m) =>
+        {
+            AliasStatus? st = Enum.TryParse<AliasStatus>(status, true, out var v) ? v : null;
+            return Results.Ok((await m.Send(new ListAliasesQuery(st))).Select(ToDto));
+        });
+
+        user.MapPost("/aliases", async (AliasReq req, IMediator m, ClaimsPrincipal u) =>
+        {
+            var by = u.FindFirst("displayName")?.Value ?? u.FindFirstValue(ClaimTypes.Email);
+            try
+            {
+                // Человек связывает позиции сам — подтверждать отдельным шагом незачем.
+                return Results.Ok(ToDto(await m.Send(new ProposeAliasCommand(
+                    req.AliasKey, req.AliasLabel, req.CanonicalKey, req.CanonicalLabel,
+                    req.Note, by, Confirm: true))));
+            }
+            catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+
+        user.MapPut("/aliases/{id:guid}", async (Guid id, AliasReviewReq req, IMediator m, ClaimsPrincipal u) =>
+        {
+            if (!Enum.TryParse<AliasStatus>(req.Status, true, out var status))
+                return Results.BadRequest(new { error = $"Неизвестный статус: «{req.Status}»." });
+            var by = u.FindFirst("displayName")?.Value ?? u.FindFirstValue(ClaimTypes.Email);
+            try { return Results.Ok(ToDto(await m.Send(new ReviewAliasCommand(id, status, req.Note, by)))); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+        });
+
+        user.MapDelete("/aliases/{id:guid}", async (Guid id, IMediator m) =>
+        {
+            try { await m.Send(new DeleteAliasCommand(id)); return Results.NoContent(); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+        });
+
         // ── Отчёт ───────────────────────────────────────────────────────────────
 
         // Отчёт собирается по КОМПЛЕКТУ, а не по сверке: наружу уходит один файл про комплект, как и
@@ -134,11 +170,29 @@ public static class ReconciliationEndpoints
 
     // ── DTO ─────────────────────────────────────────────────────────────────────
 
+    private record AliasReq(string AliasKey, string AliasLabel, string CanonicalKey,
+        string CanonicalLabel, string? Note);
+    private record AliasReviewReq(string Status, string? Note);
+
     private record CreateReq(string Name, string Scope, Guid? ScopeId, JsonElement Spec);
     private record UpdateReq(string Name, JsonElement Spec);
     /// <summary>Решение адресуется ключом позиции, а не идентификатором находки: находка живёт один
     /// прогон, решение обязано пережить любое их число.</summary>
     private record DecisionReq(string Key, string Kind, string? Note);
+
+    private static object ToDto(ReconciliationAlias a) => new
+    {
+        a.Id,
+        a.AliasKey,
+        a.AliasLabel,
+        a.CanonicalKey,
+        a.CanonicalLabel,
+        status = a.Status.ToString(),
+        a.Note,
+        a.ProposedBy,
+        a.ConfirmedBy,
+        a.UpdatedAt,
+    };
 
     private static object ToDto(ReconciliationDefinition d) => new
     {

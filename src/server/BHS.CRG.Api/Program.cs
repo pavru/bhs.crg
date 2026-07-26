@@ -205,6 +205,8 @@ builder.Services.AddScoped<IRepository<BHS.CRG.Domain.Reconciliation.Reconciliat
     Repository<BHS.CRG.Domain.Reconciliation.ReconciliationDecision>>();
 builder.Services.AddScoped<IRepository<BHS.CRG.Domain.Reconciliation.AgentObservation>,
     Repository<BHS.CRG.Domain.Reconciliation.AgentObservation>>();
+builder.Services.AddScoped<IRepository<BHS.CRG.Domain.Reconciliation.ReconciliationAlias>,
+    Repository<BHS.CRG.Domain.Reconciliation.ReconciliationAlias>>();
 builder.Services.AddScoped<IRepository<DocumentSetOutput>, Repository<DocumentSetOutput>>();
 builder.Services.AddScoped<IRepository<TypstUserLib>, Repository<TypstUserLib>>();
 builder.Services.AddScoped<IRepository<QualityDocument>, Repository<QualityDocument>>();
