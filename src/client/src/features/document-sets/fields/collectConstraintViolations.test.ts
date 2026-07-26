@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { collectConstraintViolations } from './collectConstraintViolations';
+import {
+  collectConstraintViolations, describeViolationPath, violationRootKey,
+} from './collectConstraintViolations';
 import type { DocumentType, PrimitiveTypeDef } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 
@@ -81,5 +83,43 @@ describe('collectConstraintViolations', () => {
   it('неизвестный тип строки таблицы не роняет обход', () => {
     expect(collectConstraintViolations(
       { Работы: [{ Что: 1 }] }, [field('Работы', 'array', 'нет-такого')], types, primitives)).toEqual({});
+  });
+});
+
+/**
+ * Технический путь адресует точно, но читателю не говорит ничего: ключей он не видел, а поле может
+ * лежать в свёрнутой группе (#469).
+ */
+describe('describeViolationPath', () => {
+  const ADDR = 'addr-type';
+  const withAddr = [
+    docType(ADDR, [field('Web', 'primitive', HIER)]),
+    ...types,
+  ];
+  const fields = [
+    { ...field('ЮридическийАдрес', 'complex', ADDR), title: 'Юридический адрес' } as SchemaField,
+    { ...field('Работы', 'array', WORK), title: 'Работы' } as SchemaField,
+  ];
+
+  it('переводит путь в заголовки', () => {
+    expect(describeViolationPath('ЮридическийАдрес.Web', fields, withAddr))
+      .toBe('Юридический адрес → Web');
+  });
+
+  it('строку таблицы нумерует с единицы — как её видит человек', () => {
+    expect(describeViolationPath('Работы[2].ПорядковыйНомер', fields, withAddr))
+      .toBe('Работы №3 → ПорядковыйНомер');
+  });
+
+  it('неизвестный ключ отдаёт как есть, а не теряет', () => {
+    expect(describeViolationPath('НетТакого', fields, withAddr)).toBe('НетТакого');
+  });
+});
+
+describe('violationRootKey', () => {
+  it('корень пути — поле, по которому ищется группа формы', () => {
+    expect(violationRootKey('ЮридическийАдрес.Web')).toBe('ЮридическийАдрес');
+    expect(violationRootKey('Работы[2].Номер')).toBe('Работы');
+    expect(violationRootKey('Номер')).toBe('Номер');
   });
 });
