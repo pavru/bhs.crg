@@ -195,6 +195,68 @@ public class ReconciliationRunnerTests(IntegrationTestFixture fixture) : IAsyncL
     }
 
     /// <summary>Неудача обязана быть видимой: пустой журнал молча читался бы как «расхождений нет».</summary>
+    /// <summary>
+    /// Алиас сводит две по-разному названные позиции в одну и СКЛАДЫВАЕТ количества. Применяется на
+    /// свёртке: сопоставление ключей после сравнения ничего бы не дало.
+    /// </summary>
+    [Fact]
+    public async Task ConfirmedAlias_MergesPositions_AndSumsQuantities()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Слева одна и та же позиция записана двумя именами, справа — одним.
+        var left = await SeedCsvAsync(scope, "Журнал",
+            """
+            Марка,Сечение,Кол
+            Органайзер СвязьСтройДеталь,1U,4
+            Hyperline CM-1U-ML,1U,6
+            """,
+            ["Марка", "Сечение", "Кол"]);
+        var right = await SeedCsvAsync(scope, "Реестр",
+            """
+            Марка,Сечение,Кол
+            Hyperline CM-1U-ML,1U,10
+            """,
+            ["Марка", "Сечение", "Кол"]);
+
+        var spec = new ReconciliationSpec(
+            new ReconciliationSide(left, ["Марка", "Сечение"], "Кол"),
+            new ReconciliationSide(right, ["Марка", "Сечение"], "Кол"),
+            new ComparisonRule(ComparisonOperator.Equal));
+        var definition = ReconciliationDefinition.Create("Органайзеры", CatalogScope.System, null,
+            JsonSerializer.SerializeToDocument(spec, Json));
+        db.Add(definition);
+        await db.SaveChangesAsync();
+
+        var runner = scope.ServiceProvider.GetRequiredService<IReconciliationRunner>();
+
+        // Без алиаса — две находки-сироты.
+        var before = await FindingsAsync(scope, (await runner.RunAsync(definition.Id)).Id);
+        Assert.Equal(2, before.Count);
+        Assert.Contains(before, f => f.Status == FindingStatus.MissingRight);
+
+        var variant = before.Single(f => f.Status == FindingStatus.MissingRight).Key;
+        var canonical = before.Single(f => f.Status != FindingStatus.MissingRight).Key;
+
+        // Предложенный, но НЕ подтверждённый алиас на сравнение влиять не должен: это была бы модель
+        // внутри арифметики (риск P1 в #414).
+        var alias = ReconciliationAlias.Propose(variant, "Органайзер", canonical, "Hyperline", null, "агент");
+        db.Add(alias);
+        await db.SaveChangesAsync();
+        Assert.Equal(2, (await FindingsAsync(scope, (await runner.RunAsync(definition.Id)).Id)).Count);
+
+        alias.Review(AliasStatus.Confirmed, "Одно и то же", "alex");
+        db.Update(alias);
+        await db.SaveChangesAsync();
+
+        var after = await FindingsAsync(scope, (await runner.RunAsync(definition.Id)).Id);
+        var merged = Assert.Single(after);
+        Assert.Equal(FindingStatus.Match, merged.Status);
+        Assert.Equal(10, merged.LeftValue);   // 4 + 6 сложились в одну позицию
+        Assert.Equal(10, merged.RightValue);
+    }
+
     [Fact]
     public async Task BrokenSpec_FailsRunVisibly_InsteadOfEmptyResult()
     {

@@ -44,6 +44,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         await db.Database.ExecuteSqlRawAsync(@"
             TRUNCATE TABLE
                 agent_observations,
+                reconciliation_aliases,
                 reconciliation_findings,
                 reconciliation_decisions,
                 reconciliation_runs,

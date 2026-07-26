@@ -95,3 +95,24 @@ public class AgentObservationConfiguration : IEntityTypeConfiguration<AgentObser
         b.HasIndex(e => new { e.Scope, e.ScopeId, e.Key }).IsUnique();
     }
 }
+
+public class ReconciliationAliasConfiguration : IEntityTypeConfiguration<ReconciliationAlias>
+{
+    public void Configure(EntityTypeBuilder<ReconciliationAlias> b)
+    {
+        b.ToTable("reconciliation_aliases");
+        b.HasKey(e => e.Id);
+        b.Property(e => e.AliasKey).HasMaxLength(1024).IsRequired();
+        b.Property(e => e.CanonicalKey).HasMaxLength(1024).IsRequired();
+        b.Property(e => e.AliasLabel).HasMaxLength(1024).IsRequired();
+        b.Property(e => e.CanonicalLabel).HasMaxLength(1024).IsRequired();
+        b.Property(e => e.Status).HasConversion<int>();
+        b.Property(e => e.Note).HasMaxLength(2048);
+        b.Property(e => e.ProposedBy).HasMaxLength(256);
+        b.Property(e => e.ConfirmedBy).HasMaxLength(256);
+
+        // Один вариант сводится ровно к одному канону: два разных канона у одного ключа сделали бы
+        // результат прогона зависящим от порядка выборки.
+        b.HasIndex(e => e.AliasKey).IsUnique();
+    }
+}

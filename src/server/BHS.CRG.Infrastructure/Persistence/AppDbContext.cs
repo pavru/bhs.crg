@@ -52,6 +52,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         => Set<BHS.CRG.Domain.Reconciliation.ReconciliationDecision>();
     public DbSet<BHS.CRG.Domain.Reconciliation.AgentObservation> AgentObservations
         => Set<BHS.CRG.Domain.Reconciliation.AgentObservation>();
+    public DbSet<BHS.CRG.Domain.Reconciliation.ReconciliationAlias> ReconciliationAliases
+        => Set<BHS.CRG.Domain.Reconciliation.ReconciliationAlias>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder builder)
