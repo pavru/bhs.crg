@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Security.Claims;
 using System.Text.Json;
 using BHS.CRG.Application.Reconciliation;
@@ -35,7 +35,8 @@ public class ObservationTools(IMediator mediator, IHttpContextAccessor http)
 
     private static ObservationInfo ToInfo(AgentObservation o) => new(
         o.Id, o.Scope.ToString(), o.ScopeId, o.Key, o.Title, o.Detail,
-        o.Severity.ToString(), o.Status.ToString(), o.References.RootElement.Clone(),
+        o.Severity.ToString(), o.Status.ToString(),
+        ObservationReferences.Unwrap(o.References.RootElement).Clone(),
         o.ReportedBy, o.ReviewedBy, o.ReviewNote, o.UpdatedAt);
 
     [McpServerTool(Name = "list_observations", ReadOnly = true, Idempotent = true, Destructive = false,
@@ -96,8 +97,9 @@ public class ObservationTools(IMediator mediator, IHttpContextAccessor http)
             throw new McpException("Ключ обязателен: без него повторный анализ создаст дубль.");
         if (string.IsNullOrWhiteSpace(title))
             throw new McpException("Суть замечания обязательна.");
-        if (references.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
-            || (references.ValueKind == JsonValueKind.Object && !references.EnumerateObject().Any()))
+        // Модель одинаково охотно шлёт и объект, и строку с тем же объектом внутри — разворачиваем.
+        var refs = ObservationReferences.Unwrap(references);
+        if (ObservationReferences.IsEmpty(refs))
             throw new McpException(
                 "Ссылки обязательны: замечание без адреса непроверяемо. Укажите документы либо источник со строками.");
 
@@ -106,7 +108,7 @@ public class ObservationTools(IMediator mediator, IHttpContextAccessor http)
 
         var observation = await mediator.Send(new ReportObservationCommand(
             CatalogScope.Set, setId, key.Trim(), title.Trim(), detail,
-            sev, JsonDocument.Parse(references.GetRawText()), CurrentUser), ct);
+            sev, JsonDocument.Parse(refs.GetRawText()), CurrentUser), ct);
 
         return ToInfo(observation);
     }

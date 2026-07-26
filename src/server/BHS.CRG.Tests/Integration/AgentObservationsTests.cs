@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Api.Mcp;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Reconciliation;
@@ -100,6 +100,44 @@ public class AgentObservationsTests(IntegrationTestFixture fixture) : IAsyncLife
         Assert.Equal("Rejected", again.Status);
         Assert.Equal("Согласовано, давальческий", again.ReviewNote);
         Assert.Equal("alex", again.ReviewedBy);
+    }
+
+    /// <summary>
+    /// Модель одинаково охотно шлёт объект и строку с тем же объектом внутри. На рабочих данных
+    /// случилось второе — тринадцать замечаний легли со ссылками-строкой, и потребитель, ждавший
+    /// объект, не увидел ни одной ссылки: находки стали непроверяемы из-за формата.
+    /// </summary>
+    [Fact]
+    public async Task StringifiedReferences_AreUnwrapped()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var tools = Tools(scope);
+
+        var stringified = JsonDocument.Parse(
+            JsonSerializer.Serialize("""{"documentIds":["d1"],"note":"акт 5"}""")).RootElement;
+
+        var reported = await tools.ReportObservationAsync(
+            SetId, "строкой", "Ссылки пришли строкой", stringified, CancellationToken.None);
+
+        Assert.Equal(JsonValueKind.Object, reported.References.ValueKind);
+        Assert.Equal("d1", reported.References.GetProperty("documentIds")[0].GetString());
+
+        // И на чтении тоже — иначе уже записанные строкой остались бы сломанными.
+        var listed = Assert.Single(await tools.ListObservationsAsync(CancellationToken.None, scopeId: SetId));
+        Assert.Equal(JsonValueKind.Object, listed.References.ValueKind);
+    }
+
+    /// <summary>Строка, не содержащая JSON, — это заметка, а не ссылки: её не выбрасываем.</summary>
+    [Fact]
+    public async Task PlainTextReferences_AreKept()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var refs = JsonDocument.Parse(JsonSerializer.Serialize("смотрел лист 3 глазами")).RootElement;
+
+        var reported = await Tools(scope).ReportObservationAsync(
+            SetId, "текстом", "Ссылка обычным текстом", refs, CancellationToken.None);
+
+        Assert.Equal(JsonValueKind.String, reported.References.ValueKind);
     }
 
     [Fact]

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  Plus, Play, AlertTriangle, CheckCircle2, CircleSlash, History, Scale,
+  Plus, Play, AlertTriangle, CheckCircle2, CircleSlash, History, Scale, Bot,
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
@@ -8,7 +8,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { useToast } from '@/shared/ui/Toast';
-import { ListDetailShell, NavSearchInput, NavItem } from '@/shared/ui/ListDetailShell';
+import { ListDetailShell, NavSearchInput, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
 import { useAuth } from '@/shared/hooks/useAuth';
 import {
   useReconciliations, useReconciliationRuns, useFindings, useRunReconciliation,
@@ -18,6 +18,8 @@ import {
 } from '@/shared/api/reconciliations';
 import { ReconciliationEditor } from './ReconciliationEditor';
 import { DecisionDialog } from './DecisionDialog';
+import { ObservationsPanel } from './ObservationsPanel';
+import { useObservations, isUnreviewed } from '@/shared/api/observations';
 
 /**
  * Сверка на непротиворечивость (issue #414, фаза Ф1 — экран находок #436).
@@ -112,8 +114,11 @@ export function ReconciliationsPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deciding, setDeciding] = useState<Finding | null>(null);
   const [onlyAttention, setOnlyAttention] = useState(false);
+  // Замечания агента — вторая секция того же раздела: оба отвечают «что не так с комплектом».
+  const [view, setView] = useState<'reconciliation' | 'observations'>('reconciliation');
 
   const { data: items = [], isLoading } = useReconciliations();
+  const { data: observations = [] } = useObservations();
   const { data: runs = [] } = useReconciliationRuns(selectedId);
   const { data: findings = [], isLoading: findingsLoading } = useFindings(selectedId, runId);
 
@@ -145,19 +150,28 @@ export function ReconciliationsPage() {
     <>
       <NavSearchInput value={search} onChange={setSearch} placeholder="Поиск сверки…" />
       <div className="flex-1 overflow-y-auto px-2 pb-2">
+        <NavSection label="Сверки" />
         {filtered.map(i => (
           <NavItem key={i.id} icon={<Scale size={16} />} label={i.name}
-            active={i.id === selectedId}
-            onClick={() => { setSelectedId(i.id); setRunId(null); }} />
+            active={view === 'reconciliation' && i.id === selectedId}
+            onClick={() => { setView('reconciliation'); setSelectedId(i.id); setRunId(null); }} />
         ))}
         {filtered.length === 0 && !isLoading && (
           <p className="px-3 py-2 text-sm text-fg4">Сверок нет</p>
         )}
+
+        {/* Отдельной секцией, а не в общем списке: находка сверки — результат арифметики,
+            замечание — утверждение агента. Смешать значит выдать одно за другое. */}
+        <NavSection label="Внешний анализ" />
+        <NavItem icon={<Bot size={16} />} label="Замечания агента"
+          count={observations.filter(isUnreviewed).length}
+          active={view === 'observations'}
+          onClick={() => setView('observations')} />
       </div>
     </>
   );
 
-  const detail = !selected ? (
+  const detail = view === 'observations' ? <ObservationsPanel /> : !selected ? (
     <EmptyState icon={<Scale size={32} />} title="Выберите сверку"
       description="Сверка сопоставляет два источника по доменному ключу и показывает расхождения." />
   ) : (
