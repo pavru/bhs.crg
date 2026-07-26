@@ -203,6 +203,10 @@ builder.Services.AddScoped<BackupService>();
 // ── Снимок данных для внешних потребителей + MCP (issue #415) ─────────────────
 builder.Services.AddScoped<BHS.CRG.Application.DataSnapshots.IDataSnapshotService,
     BHS.CRG.Infrastructure.DataSets.DataSnapshotService>();
+builder.Services.AddScoped<BHS.CRG.Application.DataSnapshots.IDomainSnapshotService,
+    BHS.CRG.Infrastructure.Generation.DomainSnapshotService>();
+// MCP-инструментам домена нужен ClaimsPrincipal (act-as-user): агент работает от имени пользователя.
+builder.Services.AddHttpContextAccessor();
 // MCP-сервер: ВТОРОЙ тонкий адаптер над тем же ядром, in-process с API — переиспользует ту же
 // аутентификацию, DI и scoping DbContext. Только чтение: инструментов записи в этом срезе нет.
 builder.Services
@@ -212,7 +216,9 @@ builder.Services
     })
     .WithHttpTransport()
     .WithTools<BHS.CRG.Api.Mcp.DataSnapshotTools>()
-    .WithResources<BHS.CRG.Api.Mcp.DataSnapshotResources>();
+    .WithTools<BHS.CRG.Api.Mcp.DomainSnapshotTools>()
+    .WithResources<BHS.CRG.Api.Mcp.DataSnapshotResources>()
+    .WithResources<BHS.CRG.Api.Mcp.DomainSnapshotResources>();
 
 // ── Профили распознавания (issue #406) ────────────────────────────────────────
 builder.Services.AddScoped<BHS.CRG.Application.Recognition.IRecognitionProfileProvider,
