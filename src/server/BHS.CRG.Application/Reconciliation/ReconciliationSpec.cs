@@ -46,3 +46,20 @@ public record ReconciliationSpec(
     ReconciliationSide Left,
     ReconciliationSide Right,
     ComparisonRule Comparison);
+
+/// <summary>
+/// Единые настройки (де)сериализации спеки. Одни на всех — движок, обработчики, тесты и эндпоинты:
+/// разойдись они, спека, записанная одним путём, перестала бы читаться другим, и прогон падал бы уже
+/// на рабочих данных.
+///
+/// Перечисления строками намеренно: спека лежит в БД, и «GreaterOrEqual» в jsonb читается глазами, а
+/// «1» требует заглянуть в исходники.
+/// </summary>
+public static class ReconciliationSpecJson
+{
+    public static readonly System.Text.Json.JsonSerializerOptions Options =
+        new(System.Text.Json.JsonSerializerDefaults.Web)
+        {
+            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+        };
+}

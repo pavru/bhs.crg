@@ -1,4 +1,4 @@
-using BHS.CRG.Infrastructure.Reconciliation;
+﻿using BHS.CRG.Infrastructure.Reconciliation;
 
 namespace BHS.CRG.Tests.Reconciliation;
 
@@ -21,6 +21,18 @@ public class ReconciliationKeysTests
     [InlineData("лоток 200", "лоток 300")]
     public void DifferentSubstance_DifferentKey(string a, string b)
         => Assert.NotEqual(ReconciliationKeys.NormalizePart(a), ReconciliationKeys.NormalizePart(b));
+
+    /// <summary>
+    /// Смешанная раскладка — не выдуманный случай: в рабочем кабельном журнале «ВВГнг(A)-LS» с
+    /// латинской A и «ВВГнг(А)-LS» с кириллической стоят в соседних строках. Без сведения омоглифов
+    /// одна марка дала бы две находки-сироты.
+    /// </summary>
+    [Theory]
+    [InlineData("ВВГнг(A)-LS", "ВВГнг(А)-LS")]   // A латинская против кириллической
+    [InlineData("КВВГ", "KBBГ")]                 // К и В латинские
+    [InlineData("ПвПу2г", "ПвПy2г")]             // y латинская
+    public void MixedLayout_FoldsToSameKey(string latin, string cyrillic)
+        => Assert.Equal(ReconciliationKeys.NormalizePart(latin), ReconciliationKeys.NormalizePart(cyrillic));
 
     [Fact]
     public void CompositeKey_DoesNotCollideAcrossColumnBoundary()

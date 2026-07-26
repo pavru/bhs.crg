@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Reconciliation;
 using BHS.CRG.Domain.DataSets;
@@ -15,7 +15,7 @@ public class ReconciliationRunner(
     IBlobStorage blob,
     DataSetParserFactory parserFactory) : IReconciliationRunner
 {
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private static JsonSerializerOptions Json => ReconciliationSpecJson.Options;
 
     /// <summary>Сторона, сведённая к «ключ → итог»: значения строк с одним ключом просуммированы,
     /// номера исходных строк сохранены для провенанса.</summary>
