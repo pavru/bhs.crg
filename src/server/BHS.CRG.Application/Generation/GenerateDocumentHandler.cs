@@ -17,6 +17,7 @@ public class GenerateDocumentHandler(
     IRepository<GeneratedFile> fileRepo,
     IRepository<Template> templateRepo,
     IRepository<DocumentType> docTypeRepo,
+    IRepository<Domain.Catalog.PrimitiveType> primitiveRepo,
     IRepository<TypstUserLib> userLibRepo,
     IEntityResolver entityResolver,
     IDataSetResolver dataSetResolver,
@@ -89,8 +90,15 @@ public class GenerateDocumentHandler(
             ResolutionScanner.ScanLeftoverRefs(context, diagnostics);
             // Полнота обязательных (issue #296, фаза 0b): проверяем ПОСЛЕ полного резолва (реквизиты +
             // привязки + база + дефолты) — обязательность = инвариант генерации, а не сохранения.
-            ResolutionScanner.ScanMissingRequired(context,
-                DocumentTypeSchemaReader.EffectiveFields(instance.CompositeTypeId, allDocTypes.ToDictionary(t => t.Id)), diagnostics);
+            var typesById = allDocTypes.ToDictionary(t => t.Id);
+            var effectiveFields = DocumentTypeSchemaReader.EffectiveFields(instance.CompositeTypeId, typesById);
+            ResolutionScanner.ScanMissingRequired(context, effectiveFields, diagnostics);
+
+            // ТА ЖЕ проверка значений, что и при «проверить документ» (#464): иначе проверка и выпуск
+            // отвечают на один вопрос по-разному, и человек выпускает то, о чём его предупреждали.
+            var primitives = (await primitiveRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
+            ValueTypeScanner.Scan(context, effectiveFields, typesById, primitives, diagnostics);
+
             if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
                 throw new ResolutionValidationException(diagnostics);
 
@@ -157,8 +165,18 @@ public class GenerateDocumentHandler(
             await instanceRepo.SaveChangesAsync(ct);
 
             var first = generated[0];
-            await notifications.PublishAsync(NotificationSeverity.Info, "Документ сгенерирован",
-                generated.Count == 1 ? $"«{instance.DisplayName}» — {cmd.Format}." : $"«{instance.DisplayName}» — сгенерировано файлов: {generated.Count}.",
+
+            // Предупреждения раньше собирались и молча выбрасывались: уведомление говорило «готово», а
+            // о полутора сотнях расхождений человек не узнавал — молчание читается как «всё в порядке».
+            var warnings = diagnostics.Count(d => d.Severity == DiagnosticSeverity.Warning);
+            var what = generated.Count == 1
+                ? $"«{instance.DisplayName}» — {cmd.Format}."
+                : $"«{instance.DisplayName}» — сгенерировано файлов: {generated.Count}.";
+            if (warnings > 0) what += $" Предупреждений: {warnings} — проверьте документ.";
+
+            await notifications.PublishAsync(
+                warnings > 0 ? NotificationSeverity.Warning : NotificationSeverity.Info,
+                "Документ сгенерирован", what,
                 "Генерация", userId: cmd.UserId,
                 linkUrl: $"/api/generate/download/{instance.Id}/{first.TemplateId}/{ext}",
                 linkLabel: generated.Count == 1 ? $"Скачать {ext.ToUpperInvariant()}" : "Открыть",
