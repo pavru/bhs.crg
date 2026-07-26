@@ -77,3 +77,38 @@ function fieldsOf(typeId: string | null | undefined, allDocTypes: DocumentType[]
   const t = allDocTypes.find(x => x.id === typeId);
   return t ? resolveEffectiveFields(t, allDocTypes) : [];
 }
+
+/**
+ * Путь нарушения человеческими названиями: «Адреса → Юридический адрес → Сайт» вместо
+ * «ЮридическийАдрес.Web».
+ *
+ * Технический путь адресует место точно, но читателю не говорит ничего: ключи он не видел никогда, а
+ * поле может лежать в свёрнутой группе. Заголовки — то, что у него перед глазами.
+ */
+export function describeViolationPath(
+  path: string,
+  fields: SchemaField[],
+  allDocTypes: DocumentType[],
+): string {
+  const parts: string[] = [];
+  let current = fields;
+
+  for (const segment of path.split('.')) {
+    // Индекс строки таблицы показываем номером, а не нулевой базой: в форме строки нумеруются с единицы.
+    const m = /^(.+?)\[(\d+)\]$/.exec(segment);
+    const key = m ? m[1] : segment;
+    const f = current.find(x => x.key === key);
+    if (!f) { parts.push(key); break; }
+
+    parts.push(m ? `${f.title ?? key} №${Number(m[2]) + 1}` : (f.title ?? key));
+    current = fieldsOf(f.typeId, allDocTypes);
+    if (current.length === 0) break;
+  }
+
+  return parts.join(' → ');
+}
+
+/** Корневое поле нарушения — по нему находится группа формы, которую надо раскрыть. */
+export function violationRootKey(path: string): string {
+  return path.split(/[.[]/)[0];
+}

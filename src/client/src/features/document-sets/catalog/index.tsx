@@ -30,7 +30,7 @@ import {
   SCOPE_COLORS, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
   PrimitiveInput, FileField, ImageField, AutoFieldsSection,
   BaseInstanceChip, SCOPE_TIER, type BaseCandidate,
-  SectionRail, collectConstraintViolations,
+  SectionRail, collectConstraintViolations, describeViolationPath, violationRootKey,
 } from '../fields';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 
@@ -307,9 +307,14 @@ export function CatalogEntryForm({
     const violations = collectConstraintViolations(values, effectiveFields, allDocTypes, primitiveTypes);
     const firstBad = Object.entries(violations)[0];
     if (firstBad) {
+      const [path, message] = firstBad;
       setConstraintErrors(violations);
-      // Адрес обязателен: нарушение внутри вложенного объекта не видно, пока его не раскроешь.
-      setError(`${firstBad[0]} — ${firstBad[1]}`);
+      // Технический путь адресует точно, но читателю не говорит ничего: ключей он не видел, а поле
+      // может лежать в свёрнутой группе. Показываем заголовки и сразу раскрываем группу с прокруткой —
+      // иначе «сохранить нельзя» превращается в поиск вслепую.
+      setError(`${describeViolationPath(path, effectiveFields, allDocTypes)} — ${message}`);
+      const section = sections.find(s => s.fields.some(f => f.key === violationRootKey(path)));
+      if (section) goToSection(section.key);
       return;
     }
 
@@ -657,6 +662,10 @@ export function CatalogEntryForm({
                     ? <ChevronUp size={13} className="text-fg4 shrink-0" />
                     : <ChevronDown size={13} className="text-fg4 shrink-0" />}
                   <span className="text-xs font-semibold uppercase tracking-wide text-fg2 flex-1">{section.title}</span>
+                  {/* Метка на заголовке: свёрнутая группа иначе прячет причину отказа. */}
+                  {section.fields.some(f => Object.keys(constraintErrors).some(k => violationRootKey(k) === f.key)) && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" title="Есть ошибка формата" />
+                  )}
                   <span className="text-xs text-fg4">{section.fields.length} п.</span>
                 </button>
                 {isExpanded && <div className="px-3 py-3">{renderFields(section.fields)}</div>}
