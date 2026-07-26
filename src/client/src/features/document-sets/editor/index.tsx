@@ -27,6 +27,7 @@ import { ContainerFieldBinding } from './ContainerFieldBinding';
 import {
   STATUS_LABELS, STATUS_COLORS,
   validateConstraint, isMissing, PrimitiveInput, FileField, ImageField,
+  collectConstraintViolations,
   DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup, AutoFieldsSection,
   SCOPE_TIER, ancestorTypeIds, parseBaseRef, BaseInstanceChip, BaseCandidatePicker, type BaseCandidate,
 } from '../fields';
@@ -322,17 +323,16 @@ function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, ot
   async function handleSaveCore(): Promise<boolean> {
     setError('');
     // Формат/ограничения — блокируют (нельзя хранить мусор).
-    const constraintViolations: Record<string, string> = {};
-    for (const f of schemaFields) {
-      const def = getPrimitiveDef(f);
-      if (def) {
-        const err = validateConstraint(values[f.key], def);
-        if (err) constraintViolations[f.key] = err;
-      }
-    }
+    // По ВСЕМУ документу, включая строки таблиц и составные поля (#463). Раньше проверялся только
+    // верхний уровень — так в поле «Цело число» и оказался «3.3».
+    const constraintViolations = collectConstraintViolations(values, schemaFields, allDocTypes, primitiveTypes);
     if (Object.keys(constraintViolations).length > 0) {
       setConstraintErrors(constraintViolations);
-      setError('Исправьте ошибки формата в полях');
+      const nested = Object.keys(constraintViolations).filter(k => k.includes('.') || k.includes('['));
+      setError(nested.length > 0
+        // Адрес обязателен: нарушение внутри строки таблицы не видно, пока строку не откроешь.
+        ? `Исправьте ошибки формата: ${Object.entries(constraintViolations)[0][0]} — ${Object.values(constraintViolations)[0]}`
+        : 'Исправьте ошибки формата в полях');
       return false;
     }
     // Незаполненные обязательные не блокируют — но показываем маркеры (не «тихо»).
