@@ -30,7 +30,7 @@ import {
   SCOPE_COLORS, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
   PrimitiveInput, FileField, ImageField, AutoFieldsSection,
   BaseInstanceChip, SCOPE_TIER, type BaseCandidate,
-  SectionRail,
+  SectionRail, collectConstraintViolations,
 } from '../fields';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 
@@ -104,6 +104,9 @@ export function CatalogEntryForm({
   const [typeId, setTypeId] = useState(entry?.compositeTypeId ?? '');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [values, setValues] = useState<Record<string, unknown>>(() => entry?.data ?? {});
+  // Нарушения ограничений по путям («ЮридическийАдрес.Web»); сбрасываются при правке значения,
+  // иначе претензия висела бы на исправленном поле.
+  const [constraintErrors, setConstraintErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [recognizing, setRecognizing] = useState(false);
@@ -251,6 +254,13 @@ export function CatalogEntryForm({
       if (val === undefined) { const n = { ...p }; delete n[key]; return n; }
       return { ...p, [key]: val };
     });
+    // Претензия к прежнему значению больше не актуальна: следующая проверка на сохранении рассудит.
+    setConstraintErrors(prev => {
+      if (!Object.keys(prev).some(k => k === key || k.startsWith(`${key}.`) || k.startsWith(`${key}[`)))
+        return prev;
+      return Object.fromEntries(Object.entries(prev)
+        .filter(([k]) => k !== key && !k.startsWith(`${key}.`) && !k.startsWith(`${key}[`)));
+    });
   }
   function toggleGroup(key: string) {
     setExpandedGroups(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
@@ -289,6 +299,20 @@ export function CatalogEntryForm({
     e.preventDefault();
     setError('');
     if (!displayName.trim() || !typeId) { setError('Укажите название и тип'); return; }
+
+    // Ограничения примитивов проверялись только в редакторе ДОКУМЕНТОВ (#463); записи каталога
+    // сохранялись без единой проверки, и невалидное значение всплывало позже — уже на документе,
+    // куда запись подмешивается по ссылке. Тот же сбор, что и там: вторая реализация правил
+    // разошлась бы с первой.
+    const violations = collectConstraintViolations(values, effectiveFields, allDocTypes, primitiveTypes);
+    const firstBad = Object.entries(violations)[0];
+    if (firstBad) {
+      setConstraintErrors(violations);
+      // Адрес обязателен: нарушение внутри вложенного объекта не видно, пока его не раскроешь.
+      setError(`${firstBad[0]} — ${firstBad[1]}`);
+      return;
+    }
+
     try {
       if (entry) {
         await updateMutation.mutateAsync({ id: entry.id, displayName, data: JSON.stringify(values), aliases });
@@ -434,9 +458,15 @@ export function CatalogEntryForm({
                   <FileField value={val} onChange={v => setValue(field.key, v)} />
                 </div>
               ) : (
-                <PrimitiveInput field={field} value={val} label={field.title}
-                  hint={getPrimitiveDef(field)?.name} onChange={v => setValue(field.key, v)} invalid={false}
-                  primitiveTypeDef={getPrimitiveDef(field)} enumTypeDef={getEnumDef(field)} />
+                <>
+                  <PrimitiveInput field={field} value={val} label={field.title}
+                    hint={getPrimitiveDef(field)?.name} onChange={v => setValue(field.key, v)}
+                    invalid={!!constraintErrors[field.key]}
+                    primitiveTypeDef={getPrimitiveDef(field)} enumTypeDef={getEnumDef(field)} />
+                  {constraintErrors[field.key] && (
+                    <p className="text-xs text-danger mt-0.5">{constraintErrors[field.key]}</p>
+                  )}
+                </>
               )}
             </div>
           );
