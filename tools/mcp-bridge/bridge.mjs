@@ -69,8 +69,16 @@ async function ensureToken() {
 
 let sessionId = null;
 
-async function post(message) {
-  const send = async () => fetch(MCP_URL, {
+/**
+ * Рукопожатие клиента, запомненное для повторного проигрывания. Приложение при разработке
+ * перезапускается постоянно; после перезапуска мало получить новую сессию — новый экземпляр не примет
+ * ни одного вызова, пока не увидит initialize. Клиент шлёт его лишь однажды, поэтому повторить может
+ * только мост.
+ */
+let handshake = null;
+
+async function rawPost(message) {
+  return fetch(MCP_URL, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${await ensureToken()}`,
@@ -80,16 +88,64 @@ async function post(message) {
     },
     body: JSON.stringify(message),
   });
+}
 
-  let res = await send();
+/**
+ * Сервер не принял нашу сессию — признак, что приложение перезапустилось под нами. Смотрим и на код,
+ * и на текст: обычный 400 из-за неверных аргументов инструмента переигрывать рукопожатие не должен.
+ */
+const sessionLost = (status, body) =>
+  status === 404 || (status === 400 && /session/i.test(body));
+
+/** Заново здороваемся с приложением и восстанавливаем сессию. */
+async function replayHandshake() {
+  sessionId = null;
+  if (!handshake) return false;
+
+  const res = await rawPost(handshake);
+  if (!res.ok) return false;
+  sessionId = res.headers.get('mcp-session-id') ?? null;
+  await res.text(); // тело рукопожатия клиенту не нужно — он его уже видел
+
+  // Без этого уведомления сервер считает рукопожатие незавершённым и отказывает вызовам.
+  await rawPost({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} })
+    .then(r => r.text())
+    .catch(() => {});
+  return !!sessionId;
+}
+
+/** Ответ приложения с уже прочитанным телом: тело читается один раз, иначе повтор его теряет. */
+async function read(res) {
+  return {
+    ok: res.ok,
+    status: res.status,
+    contentType: res.headers.get('content-type'),
+    body: await res.text(),
+    sessionId: res.headers.get('mcp-session-id'),
+  };
+}
+
+async function post(message) {
+  let out = await read(await rawPost(message));
+
   // Токен мог быть отозван (смена пароля/секрета) до истечения срока — один повтор со свежим входом.
-  if (res.status === 401) {
+  if (out.status === 401) {
     log('получен 401 — вхожу заново');
     token = null;
-    res = await send();
+    out = await read(await rawPost(message));
   }
-  if (!sessionId) sessionId = res.headers.get('mcp-session-id') ?? null;
-  return res;
+
+  // Приложение перезапустилось. Мёртвый (или уже сброшенный) идентификатор сессии отравлял бы мост
+  // НАВСЕГДА: повторные попытки агента идут через тот же мост и упираются в то же состояние.
+  // Условие сознательно НЕ требует непустого sessionId — после обрыва соединения он уже сброшен,
+  // и именно в этом случае восстановление нужнее всего.
+  if (sessionLost(out.status, out.body) && handshake && message.method !== 'initialize') {
+    log('сессия не принята (приложение перезапущено?) — здороваюсь заново');
+    if (await replayHandshake()) out = await read(await rawPost(message));
+  }
+
+  if (!sessionId) sessionId = out.sessionId ?? null;
+  return out;
 }
 
 /** Ответ приходит либо чистым JSON, либо потоком SSE (несколько сообщений за раз). */
@@ -143,28 +199,36 @@ async function handle(line) {
   const request = safeParse(text);
   if (!request) return;
 
-  try {
-    const res = await post(request);
-    const body = await res.text();
+  // Рукопожатие запоминаем, чтобы переиграть его после перезапуска приложения.
+  if (request.method === 'initialize') handshake = request;
 
-    if (!res.ok) {
-      log(`приложение ответило ${res.status}: ${body.slice(0, 200)}`);
+  try {
+    const { ok, status, contentType, body } = await post(request);
+
+    if (!ok) {
+      log(`приложение ответило ${status}: ${body.slice(0, 200)}`);
       // Уведомление (без id) ответа не ждёт — промолчать правильнее, чем слать мусор.
       if (request.id !== undefined) {
         write({
           jsonrpc: '2.0',
           id: request.id,
-          error: { code: -32603, message: `BHS.CRG вернул ${res.status}: ${body.slice(0, 300)}` },
+          error: { code: -32603, message: `BHS.CRG вернул ${status}: ${body.slice(0, 300)}` },
         });
       }
       return;
     }
 
-    for (const msg of extractMessages(res.headers.get('content-type'), body)) write(msg);
+    for (const msg of extractMessages(contentType, body)) write(msg);
   } catch (e) {
-    log('ошибка обращения к приложению:', e.message);
+    // Соединение оборвалось — приложение не запущено либо перезапускается. Сбрасываем сессию, чтобы
+    // следующая попытка начиналась с чистого рукопожатия, а не с мёртвого идентификатора.
+    sessionId = null;
+    const reason = /fetch failed|ECONNREFUSED|ECONNRESET/i.test(e.message ?? '')
+      ? `BHS.CRG недоступен на ${BASE} — приложение не запущено или перезапускается`
+      : e.message;
+    log('ошибка обращения к приложению:', reason);
     if (request.id !== undefined) {
-      write({ jsonrpc: '2.0', id: request.id, error: { code: -32603, message: e.message } });
+      write({ jsonrpc: '2.0', id: request.id, error: { code: -32603, message: reason } });
     }
   }
 }
