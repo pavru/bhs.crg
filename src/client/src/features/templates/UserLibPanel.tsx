@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
+import type * as monacoEditor from 'monaco-editor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { useTheme } from '@/shared/ui/ThemeProvider';
 import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
@@ -17,6 +18,11 @@ export function UserLibPanel() {
   const [content, setContent] = useState('');
   const [savedMsg, setSavedMsg] = useState(false);
   const [error, setError] = useState('');
+  const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
+  // Библиотека — это список функций; развёрнутой она читается как простыня, и нужную приходится
+  // искать прокруткой. Сворачиваем ОДИН раз при первой загрузке: повтор на каждое изменение
+  // схлопывал бы блок прямо во время правки.
+  const foldedOnce = useRef(false);
 
   useEffect(() => { setContent(serverContent); }, [serverContent]);
 
@@ -30,6 +36,40 @@ export function UserLibPanel() {
       setError(err instanceof Error ? err.message : 'Ошибка сохранения');
     }
   }
+
+  // Ctrl+S — тем же способом, что в редакторе шаблонов: перехват на окне в фазе capture, чтобы
+  // опередить браузерное «Сохранить страницу», и по e.code, потому что на русской раскладке
+  // e.key даёт «ы». Команду Monaco НЕ регистрируем: она сработала бы вторым, параллельным
+  // сохранением (обработчик окна делает preventDefault, но не stopPropagation).
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') {
+        e.preventDefault();
+        if (editorRef.current?.hasTextFocus()) void handleSaveRef.current();
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, []);
+
+  /**
+   * Свернуть тела функций, оставив видимыми объявления. Именно foldLevel1, а не foldAll: последний
+   * схлопнул бы и вложенные блоки, а нужен как раз перечень сигнатур.
+   *
+   * Область свёртки Monaco считает после разбора модели, поэтому запускаем следующим тиком — сразу
+   * после монтирования сворачивать ещё нечего.
+   */
+  function foldFunctions() {
+    if (foldedOnce.current || !editorRef.current || !serverContent.trim()) return;
+    foldedOnce.current = true;
+    const editor = editorRef.current;
+    setTimeout(() => editor.getAction('editor.foldLevel1')?.run(), 0);
+  }
+
+  // Монтирование и приход содержимого не упорядочены — пробуем на обоих.
+  useEffect(foldFunctions, [serverContent]);
 
   if (isLoading) {
     return <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка...</div>;
@@ -59,6 +99,7 @@ export function UserLibPanel() {
           value={content}
           onChange={(val) => setContent(val ?? '')}
           beforeMount={registerTypstLanguage}
+          onMount={editor => { editorRef.current = editor; foldFunctions(); }}
           options={{
             minimap: { enabled: false },
             fontSize: 13,
