@@ -27,9 +27,15 @@ public class DomainSnapshotResources(IDomainSnapshotService domain)
 
     [McpServerResource(UriTemplate = "bhs://document/{documentId}", Name = "document",
         Title = "Документ", MimeType = "application/json")]
-    [Description("Реквизиты документа; ключи объясняет схема его типа.")]
+    [Description("Реквизиты документа с развёрнутыми ссылками; ключи объясняет схема его типа.")]
     public async Task<ResourceContents> GetDocumentAsync(Guid documentId, CancellationToken ct)
-        => McpJsonResource.Json($"bhs://document/{documentId}", await domain.GetDocumentAsync(documentId, ct));
+        => McpJsonResource.Json($"bhs://document/{documentId}", await domain.GetDocumentAsync(documentId, ct: ct));
+
+    [McpServerResource(UriTemplate = "bhs://catalog-entry/{entryId}", Name = "catalog-entry",
+        Title = "Запись каталога", MimeType = "application/json")]
+    [Description("Организация, лицо или объект из каталога общих данных.")]
+    public async Task<ResourceContents> GetCatalogEntryAsync(Guid entryId, CancellationToken ct)
+        => McpJsonResource.Json($"bhs://catalog-entry/{entryId}", await domain.GetCatalogEntryAsync(entryId, ct));
 
     [McpServerResource(UriTemplate = "bhs://document-type/{typeId}", Name = "document-type",
         Title = "Схема типа документа", MimeType = "application/json")]

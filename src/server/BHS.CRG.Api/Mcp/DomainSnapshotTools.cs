@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Security.Claims;
 using BHS.CRG.Application.DataSnapshots;
 using ModelContextProtocol.Server;
@@ -55,12 +55,50 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
     [McpServerTool(Name = "get_document", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Документ с реквизитами")]
     [Description("""
-        Реквизиты документа сырым JSON. Ключи объясняет схема его типа — вызовите get_document_type
-        с полем typeId из ответа, иначе значения не интерпретируемы.
+        Реквизиты документа. Ключи объясняет схема его типа — вызовите get_document_type с полем
+        typeId из ответа, иначе значения не интерпретируемы.
+
+        По умолчанию ссылки развёрнуты: организации и лица приходят данными, а не идентификаторами,
+        унаследованные поля подмешаны, коды перечислений заменены именами — то есть реквизиты в том
+        виде, в котором попадают в PDF. Поле refsResolved говорит, какую форму вы держите.
+
+        Табличных данных здесь нет: наборы данных и документы качества сюда не подмешиваются, потому
+        что число строк не ограничено. За таблицами — get_rows, там есть признак усечения.
         """)]
     public async Task<DocumentDetail?> GetDocumentAsync(
-        [Description("Идентификатор документа.")] Guid documentId, CancellationToken ct)
-        => await domain.GetDocumentAsync(documentId, ct);
+        [Description("Идентификатор документа.")] Guid documentId,
+        CancellationToken ct,
+        [Description("""
+            Развернуть ссылки, наследование и перечисления (по умолчанию да). Укажите false, чтобы
+            получить форму хранения: для сравнения тождества сопоставить entryId надёжнее, чем имена.
+            """)] bool resolveRefs = true)
+        => await domain.GetDocumentAsync(documentId, resolveRefs, ct);
+
+    [McpServerTool(Name = "list_catalog_entries", ReadOnly = true, Idempotent = true, Destructive = false,
+        Title = "Каталог: записи")]
+    [Description("""
+        Записи каталога (общие данные): организации, лица, объекты строительства. Отвечает на вопросы
+        про сам каталог — заведена ли такая организация, какие лица есть на стройке, — а не про
+        конкретный документ.
+        """)]
+    public async Task<IReadOnlyList<CatalogEntrySummary>> ListCatalogEntriesAsync(
+        CancellationToken ct,
+        [Description("Фильтр уровня: System, Construction, Section, Set.")] string? scope = null,
+        [Description("Идентификатор уровня (если указан scope).")] Guid? scopeId = null,
+        [Description("Фильтр по типу записи.")] Guid? typeId = null,
+        [Description("Поиск по наименованию.")] string? search = null)
+        => await domain.ListCatalogEntriesAsync(scope, scopeId, typeId, search, ct);
+
+    [McpServerTool(Name = "get_catalog_entry", ReadOnly = true, Idempotent = true, Destructive = false,
+        Title = "Каталог: запись")]
+    [Description("""
+        Запись каталога с её данными. Сюда же ведёт ссылка из реквизитов, полученных с
+        resolveRefs=false: поле entryId такой ссылки — идентификатор для этого инструмента.
+        Вложенные ссылки внутри записи проходятся тем же способом.
+        """)]
+    public async Task<CatalogEntryDetail?> GetCatalogEntryAsync(
+        [Description("Идентификатор записи каталога.")] Guid entryId, CancellationToken ct)
+        => await domain.GetCatalogEntryAsync(entryId, ct);
 
     [McpServerTool(Name = "get_document_type", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Схема типа документа")]

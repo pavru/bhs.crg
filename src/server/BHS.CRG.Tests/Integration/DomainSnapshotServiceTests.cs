@@ -1,7 +1,10 @@
 ﻿using System.Text.Json;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -22,6 +25,8 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
 
     private static IMediator M(IServiceScope s) => s.ServiceProvider.GetRequiredService<IMediator>();
 
+    private static string Code(string prefix) => $"{prefix}_{Guid.NewGuid():N}"[..12];
+
     /// <summary>Стройка → раздел → комплект → документ типа с одним полем.</summary>
     private async Task<(Guid constructionId, Guid setId, Guid docId, Guid typeId, IServiceScope scope)> SeedAsync()
     {
@@ -29,9 +34,8 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         var m = M(scope);
         var userId = Guid.NewGuid();
 
-        var code = $"AOSR_{Guid.NewGuid():N}"[..12];
         var type = await m.Send(new CreateDocumentTypeCommand(
-            "Акт освидетельствования", code, DocumentTypeKind.Document, null,
+            "Акт освидетельствования", Code("AOSR"), DocumentTypeKind.Document, null,
             JsonDocument.Parse("""{"fields":[{"key":"НомерАкта","title":"Номер акта","type":"string"}]}""")));
 
         var construction = await m.Send(new CreateConstructionCommand("ДНС Сити", userId));
@@ -109,6 +113,97 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         }
     }
 
+    /// <summary>
+    /// Две формы реквизитов (issue #421): хранимая — точнее для сравнения тождества (entryId надёжнее
+    /// строк имён), разрешённая — то, что попадает в PDF и что вообще читаемо человеком.
+    /// </summary>
+    [Fact]
+    public async Task GetDocument_ResolvesCatalogRef_ButKeepsItRawOnRequest()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var orgType = await m.Send(new CreateDocumentTypeCommand(
+            "Организация", Code("ORG"), DocumentTypeKind.Composite, null,
+            JsonDocument.Parse("""{"fields":[{"key":"Наименование","title":"Наименование","type":"string"}]}""")));
+        var docType = await m.Send(new CreateDocumentTypeCommand(
+            "Акт", Code("ACT"), DocumentTypeKind.Document, null,
+            JsonDocument.Parse("""{"fields":[{"key":"Подрядчик","title":"Подрядчик","type":"complex"}]}""")));
+
+        var construction = await m.Send(new CreateConstructionCommand("ДНС Сити", Guid.NewGuid()));
+        var section = await m.Send(new CreateSectionCommand(construction.Id, "ЭОМ"));
+        var set = await m.Send(new CreateDocumentSetCommand(section.Id, "ЭОМ-1"));
+
+        var org = await m.Send(new CreateCommonDataEntryCommand(
+            "ООО Ромашка", orgType.Id,
+            JsonDocument.Parse("""{"Наименование":"ООО Ромашка"}"""),
+            CatalogScope.Construction, construction.Id));
+
+        var doc = await m.Send(new AddDocumentToSetCommand(set.Id, docType.Id));
+        var refJson = $"{{\"Подрядчик\":{{\"$ref\":\"catalog\",\"scope\":\"Construction\",\"entryId\":\"{org.Id}\"}}}}";
+        await m.Send(new UpdateRequisitesCommand(doc.Id, JsonDocument.Parse(refJson)));
+
+        var svc = Svc(scope);
+
+        var raw = await svc.GetDocumentAsync(doc.Id, resolveRefs: false);
+        Assert.False(raw!.RefsResolved);
+        var rawRef = raw.Requisites.GetProperty("Подрядчик");
+        Assert.Equal("catalog", rawRef.GetProperty("$ref").GetString());
+        Assert.Equal(org.Id.ToString(), rawRef.GetProperty("entryId").GetString());
+
+        var resolved = await svc.GetDocumentAsync(doc.Id);
+        Assert.True(resolved!.RefsResolved);
+        var value = resolved.Requisites.GetProperty("Подрядчик");
+        Assert.False(value.TryGetProperty("$ref", out _));
+        Assert.Equal("ООО Ромашка", value.GetProperty("Наименование").GetString());
+    }
+
+    [Fact]
+    public async Task CatalogEntries_AreReadableOnTheirOwn()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var orgType = await m.Send(new CreateDocumentTypeCommand(
+            "Организация", Code("ORG"), DocumentTypeKind.Composite, null,
+            JsonDocument.Parse("""{"fields":[{"key":"Наименование","title":"Наименование","type":"string"}]}""")));
+        var construction = await m.Send(new CreateConstructionCommand("ДНС Сити", Guid.NewGuid()));
+        var org = await m.Send(new CreateCommonDataEntryCommand(
+            "ООО Ромашка", orgType.Id,
+            JsonDocument.Parse("""{"Наименование":"ООО Ромашка"}"""),
+            CatalogScope.Construction, construction.Id));
+
+        var svc = Svc(scope);
+
+        var entry = await svc.GetCatalogEntryAsync(org.Id);
+        Assert.Equal("ООО Ромашка", entry!.Name);
+        Assert.Equal("Construction", entry.Scope);
+        Assert.Equal("Организация", entry.TypeName);
+
+        Assert.Single(await svc.ListCatalogEntriesAsync("Construction", construction.Id, null, "ромашк"),
+            e => e.Id == org.Id);
+        Assert.Empty(await svc.ListCatalogEntriesAsync(null, null, null, "не-существует"));
+    }
+
+    /// <summary>
+    /// ListCommonDataEntriesQuery по пути дёргает EnsureProfileAsync и СОЗДАЁТ объект-профиль уровня.
+    /// Чтение через MCP писать в БД не имеет права — поэтому список каталога идёт мимо этого запроса.
+    /// </summary>
+    [Fact]
+    public async Task ListCatalogEntries_DoesNotWriteToDatabase()
+    {
+        var (constructionId, _, _, _, scope) = await SeedAsync();
+        using (scope)
+        {
+            var repo = scope.ServiceProvider.GetRequiredService<IRepository<DomainObject>>();
+            var before = (await repo.GetAllAsync()).Count;
+
+            await Svc(scope).ListCatalogEntriesAsync("Construction", constructionId, null, null);
+
+            Assert.Equal(before, (await repo.GetAllAsync()).Count);
+        }
+    }
+
     [Fact]
     public async Task Missing_ReturnsNull_NotThrows()
     {
@@ -118,5 +213,14 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         Assert.Null(await svc.GetDocumentSetAsync(Guid.NewGuid()));
         Assert.Null(await svc.GetDocumentAsync(Guid.NewGuid()));
         Assert.Null(await svc.GetDocumentTypeAsync(Guid.NewGuid()));
+        Assert.Null(await svc.GetCatalogEntryAsync(Guid.NewGuid()));
+    }
+
+    /// <summary>Документ — не запись каталога: иначе появился бы второй, менее полный путь к get_document.</summary>
+    [Fact]
+    public async Task GetCatalogEntry_RejectsDocument()
+    {
+        var (_, _, docId, _, scope) = await SeedAsync();
+        using (scope) Assert.Null(await Svc(scope).GetCatalogEntryAsync(docId));
     }
 }
