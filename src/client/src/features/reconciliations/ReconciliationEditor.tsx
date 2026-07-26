@@ -6,10 +6,12 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { useToast } from '@/shared/ui/Toast';
 import { useListDataSetFiles } from '@/shared/api/datasets';
 import type { DataSetSource } from '@/shared/api/types';
+import { Plus, Trash2 } from 'lucide-react';
 import {
   useCreateReconciliation, useUpdateReconciliation,
-  OPERATOR_LABELS,
-  type ComparisonOperator, type Reconciliation, type ReconciliationSide, type ToleranceKind,
+  OPERATOR_LABELS, sidePartsOf,
+  type ComparisonOperator, type Reconciliation, type ReconciliationSide, type SideSource,
+  type ToleranceKind,
 } from '@/shared/api/reconciliations';
 
 /**
@@ -20,7 +22,7 @@ import {
  * за реальное расхождение.
  */
 
-const EMPTY_SIDE: ReconciliationSide = { sourceId: '', keyColumns: [], valueColumn: '' };
+const EMPTY_PART: SideSource = { sourceId: '', keyColumns: [], valueColumn: '' };
 
 function columnsOf(source: DataSetSource | undefined): string[] {
   if (!source?.cachedSchema) return [];
@@ -34,39 +36,43 @@ function columnsOf(source: DataSetSource | undefined): string[] {
   }
 }
 
-function SideEditor({ title, side, onChange, sources }: {
-  title: string;
-  side: ReconciliationSide;
-  onChange: (s: ReconciliationSide) => void;
+function PartEditor({ part, onChange, onRemove, sources, index }: {
+  part: SideSource;
+  onChange: (p: SideSource) => void;
+  onRemove?: () => void;
   sources: { source: DataSetSource; fileName: string }[];
+  index: number;
 }) {
-  const current = sources.find(s => s.source.id === side.sourceId)?.source;
+  const current = sources.find(s => s.source.id === part.sourceId)?.source;
   const columns = columnsOf(current);
 
   function toggleKey(col: string) {
     // Порядок значим: стороны обязаны перечислять ключевые колонки согласованно, иначе ключи не сойдутся.
     onChange({
-      ...side,
-      keyColumns: side.keyColumns.includes(col)
-        ? side.keyColumns.filter(c => c !== col)
-        : [...side.keyColumns, col],
+      ...part,
+      keyColumns: part.keyColumns.includes(col)
+        ? part.keyColumns.filter(c => c !== col)
+        : [...part.keyColumns, col],
     });
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-stroke p-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-fg4">{title}</div>
+    <div className="space-y-2 rounded-md bg-muted/40 p-2">
+      <div className="flex items-center gap-2">
+        <Select value={part.sourceId} onValueChange={v => onChange({ ...EMPTY_PART, sourceId: v })}
+          placeholder="Источник данных" aria-label={`Источник ${index + 1}`} className="flex-1">
+          {sources.map(({ source, fileName }) => (
+            <SelectItem key={source.id} value={source.id}>{fileName} — {source.name}</SelectItem>
+          ))}
+        </Select>
+        {onRemove && (
+          <Button variant="text" size="sm" danger onClick={onRemove} aria-label="Убрать источник">
+            <Trash2 size={14} />
+          </Button>
+        )}
+      </div>
 
-      <Select value={side.sourceId} onValueChange={v => onChange({ ...EMPTY_SIDE, sourceId: v })}
-        placeholder="Источник данных" aria-label={`${title}: источник`}>
-        {sources.map(({ source, fileName }) => (
-          <SelectItem key={source.id} value={source.id}>
-            {fileName} — {source.name}
-          </SelectItem>
-        ))}
-      </Select>
-
-      {side.sourceId && columns.length === 0 && (
+      {part.sourceId && columns.length === 0 && (
         <p className="text-xs text-danger">У источника нет разобранной схемы — колонки не выбрать.</p>
       )}
 
@@ -74,17 +80,17 @@ function SideEditor({ title, side, onChange, sources }: {
         <>
           <div>
             <div className="text-xs text-fg3 mb-1">
-              Ключевые колонки {side.keyColumns.length > 0 && (
-                <span className="text-fg4">— порядок: {side.keyColumns.join(' + ')}</span>
+              Ключевые колонки {part.keyColumns.length > 0 && (
+                <span className="text-fg4">— порядок: {part.keyColumns.join(' + ')}</span>
               )}
             </div>
             <div className="flex flex-wrap gap-1">
               {columns.map(c => {
-                const on = side.keyColumns.includes(c);
+                const on = part.keyColumns.includes(c);
                 return (
                   <button key={c} type="button" onClick={() => toggleKey(c)}
                     className={`text-xs px-2 py-1 rounded-full transition-colors ${
-                      on ? 'bg-brand-subtle text-brand font-medium' : 'bg-muted text-fg3 hover:text-fg1'}`}>
+                      on ? 'bg-brand-subtle text-brand font-medium' : 'bg-base text-fg3 hover:text-fg1'}`}>
                     {c}
                   </button>
                 );
@@ -92,14 +98,41 @@ function SideEditor({ title, side, onChange, sources }: {
             </div>
           </div>
 
-          <div>
-            <div className="text-xs text-fg3 mb-1">Колонка количества (строки с одним ключом суммируются)</div>
-            <Select value={side.valueColumn} onValueChange={v => onChange({ ...side, valueColumn: v })}
-              placeholder="Выберите колонку" aria-label={`${title}: количество`}>
-              {columns.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-            </Select>
-          </div>
+          <Select value={part.valueColumn} onValueChange={v => onChange({ ...part, valueColumn: v })}
+            placeholder="Колонка количества" aria-label={`Количество ${index + 1}`}>
+            {columns.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          </Select>
         </>
+      )}
+    </div>
+  );
+}
+
+function SideEditor({ title, parts, onChange, sources }: {
+  title: string;
+  parts: SideSource[];
+  onChange: (p: SideSource[]) => void;
+  sources: { source: DataSetSource; fileName: string }[];
+}) {
+  return (
+    <div className="space-y-2 rounded-lg border border-stroke p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-fg4">{title}</span>
+        <Button variant="text" size="sm" onClick={() => onChange([...parts, EMPTY_PART])}>
+          <Plus size={14} /> Источник
+        </Button>
+      </div>
+
+      {parts.map((part, i) => (
+        <PartEditor key={i} part={part} index={i} sources={sources}
+          onChange={p => onChange(parts.map((x, xi) => xi === i ? p : x))}
+          onRemove={parts.length > 1 ? () => onChange(parts.filter((_, xi) => xi !== i)) : undefined} />
+      ))}
+
+      {parts.length > 1 && (
+        <p className="text-[11px] text-fg4">
+          Количества по одной позиции складываются по всем источникам стороны.
+        </p>
       )}
     </div>
   );
@@ -114,8 +147,10 @@ export function ReconciliationEditor({ existing, onClose }: {
   const update = useUpdateReconciliation();
 
   const [name, setName] = useState(existing?.name ?? '');
-  const [left, setLeft] = useState<ReconciliationSide>(existing?.spec.left ?? EMPTY_SIDE);
-  const [right, setRight] = useState<ReconciliationSide>(existing?.spec.right ?? EMPTY_SIDE);
+  const [left, setLeft] = useState<SideSource[]>(
+    existing ? sidePartsOf(existing.spec.left) : [EMPTY_PART]);
+  const [right, setRight] = useState<SideSource[]>(
+    existing ? sidePartsOf(existing.spec.right) : [EMPTY_PART]);
   const [operator, setOperator] = useState<ComparisonOperator>(
     existing?.spec.comparison.operator ?? 'GreaterOrEqual');
   const [tolerance, setTolerance] = useState(String(existing?.spec.comparison.tolerance ?? 0));
@@ -129,13 +164,16 @@ export function ReconciliationEditor({ existing, onClose }: {
     () => files.flatMap(f => (f.sources ?? []).map(s => ({ source: s, fileName: f.name }))),
     [files]);
 
-  const valid = name.trim() !== ''
-    && left.sourceId && left.valueColumn && left.keyColumns.length > 0
-    && right.sourceId && right.valueColumn && right.keyColumns.length > 0;
+  const complete = (parts: SideSource[]) =>
+    parts.length > 0 && parts.every(p => p.sourceId && p.valueColumn && p.keyColumns.length > 0);
+  const valid = name.trim() !== '' && complete(left) && complete(right);
 
   async function save() {
+    // Первый источник дублируется в поля стороны: их читают спеки прежней формы, и терять
+    // совместимость ради формы записи незачем.
+    const side = (parts: SideSource[]): ReconciliationSide => ({ ...parts[0], sources: parts });
     const spec = {
-      left, right,
+      left: side(left), right: side(right),
       comparison: { operator, tolerance: Number(tolerance) || 0, toleranceKind },
     };
     setBusy(true);
@@ -163,8 +201,8 @@ export function ReconciliationEditor({ existing, onClose }: {
           hint="Например: Кабель — проложено против реестра материалов" />
 
         <div className="grid grid-cols-2 gap-3">
-          <SideEditor title="Слева" side={left} onChange={setLeft} sources={sources} />
-          <SideEditor title="Справа" side={right} onChange={setRight} sources={sources} />
+          <SideEditor title="Слева" parts={left} onChange={setLeft} sources={sources} />
+          <SideEditor title="Справа" parts={right} onChange={setRight} sources={sources} />
         </div>
 
         <div className="rounded-lg border border-stroke p-3 space-y-3">

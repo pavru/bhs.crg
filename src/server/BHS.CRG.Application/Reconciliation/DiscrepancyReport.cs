@@ -133,21 +133,35 @@ public static class DiscrepancyReport
             rows, preamble);
     }
 
-    /// <summary>Провенанс находки человеческим текстом: голый JSON в отчёте бесполезен.</summary>
+    /// <summary>
+    /// Провенанс находки человеческим текстом: голый JSON в отчёте бесполезен.
+    ///
+    /// Предпочитаем список частей: свод из четырёх листов, показанный одним первым источником, был бы
+    /// молча неполон — а провенанс существует ровно затем, чтобы находку можно было проверить глазами.
+    /// Прежняя форма читается для находок, записанных до #450.
+    /// </summary>
     private static string Provenance(JsonDocument provenance)
     {
         var parts = new List<string>();
-        foreach (var side in (string[])["left", "right"])
+        foreach (var (key, caption) in new[] { ("left", "слева"), ("right", "справа") })
         {
-            if (!provenance.RootElement.TryGetProperty(side, out var s)
-                || s.ValueKind != JsonValueKind.Object) continue;
+            if (!provenance.RootElement.TryGetProperty(key, out var side)
+                || side.ValueKind != JsonValueKind.Object) continue;
 
-            var column = s.TryGetProperty("column", out var c) ? c.GetString() : null;
-            var rows = s.TryGetProperty("rows", out var r) && r.ValueKind == JsonValueKind.Array
-                ? r.GetArrayLength() : 0;
-            parts.Add($"{(side == "left" ? "слева" : "справа")}: {column}, строк {rows}");
+            var described = side.TryGetProperty("parts", out var list) && list.ValueKind == JsonValueKind.Array
+                ? string.Join(", ", list.EnumerateArray().Select(Describe))
+                : Describe(side);
+            if (!string.IsNullOrWhiteSpace(described)) parts.Add($"{caption}: {described}");
         }
         return string.Join("; ", parts);
+    }
+
+    private static string Describe(JsonElement part)
+    {
+        var column = part.TryGetProperty("column", out var c) ? c.GetString() : null;
+        var rows = part.TryGetProperty("rows", out var r) && r.ValueKind == JsonValueKind.Array
+            ? r.GetArrayLength() : 0;
+        return $"{column}, строк {rows}";
     }
 
     /// <summary>Ссылки замечания человеческим текстом.</summary>

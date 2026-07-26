@@ -257,6 +257,94 @@ public class ReconciliationRunnerTests(IntegrationTestFixture fixture) : IAsyncL
         Assert.Equal(10, merged.RightValue);
     }
 
+    /// <summary>
+    /// Свод по нескольким источникам (issue #450) — «сумма по четырём листам шкафов против сводной».
+    /// У каждого источника СВОИ колонки: листы называют их по-разному, и требовать единообразия
+    /// значило бы заставить править исходники ради сверки.
+    /// </summary>
+    [Fact]
+    public async Task MultipleSources_AreSummedIntoOnePosition()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var sheet1 = await SeedCsvAsync(scope, "Шкаф 1", """
+            Марка,Кол
+            Автомат C16,3
+            """, ["Марка", "Кол"]);
+        var sheet2 = await SeedCsvAsync(scope, "Шкаф 2", """
+            Позиция,Штук
+            Автомат C16,5
+            """, ["Позиция", "Штук"]);
+        var summary = await SeedCsvAsync(scope, "Сводная", """
+            Марка,Кол
+            Автомат C16,8
+            """, ["Марка", "Кол"]);
+
+        var spec = new ReconciliationSpec(
+            new ReconciliationSide(Guid.Empty, [], "", null,
+            [
+                new SideSource(sheet1, ["Марка"], "Кол"),
+                new SideSource(sheet2, ["Позиция"], "Штук"),
+            ]),
+            new ReconciliationSide(summary, ["Марка"], "Кол"),
+            new ComparisonRule(ComparisonOperator.Equal));
+
+        var definition = ReconciliationDefinition.Create("Свод шкафов", CatalogScope.System, null,
+            JsonSerializer.SerializeToDocument(spec, Json));
+        db.Add(definition);
+        await db.SaveChangesAsync();
+
+        var run = await scope.ServiceProvider.GetRequiredService<IReconciliationRunner>()
+            .RunAsync(definition.Id);
+        Assert.Equal(ReconciliationRunStatus.Completed, run.Status);
+
+        var finding = Assert.Single(await FindingsAsync(scope, run.Id));
+        Assert.Equal(FindingStatus.Match, finding.Status);
+        Assert.Equal(8, finding.LeftValue); // 3 + 5 из двух листов
+        Assert.Equal(8, finding.RightValue);
+
+        // Позиция, собранная из двух листов, обязана назвать оба: иначе расхождение не проверить.
+        var parts = finding.Provenance.RootElement.GetProperty("left").GetProperty("parts");
+        Assert.Equal(2, parts.GetArrayLength());
+        Assert.Contains(parts.EnumerateArray(), p => p.GetProperty("column").GetString() == "Кол");
+        Assert.Contains(parts.EnumerateArray(), p => p.GetProperty("column").GetString() == "Штук");
+    }
+
+    /// <summary>Спеки уже лежат в БД с одиночным источником — ломать их ради формы записи нельзя.</summary>
+    [Fact]
+    public async Task LegacySingleSourceSpec_StillWorks()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var left = await SeedCsvAsync(scope, "Слева", """
+            Марка,Кол
+            А,5
+            """, ["Марка", "Кол"]);
+        var right = await SeedCsvAsync(scope, "Справа", """
+            Марка,Кол
+            А,5
+            """, ["Марка", "Кол"]);
+
+        // Спека В ТОЧНОСТИ прежней формы — без поля sources.
+        var raw = $$$"""
+            {"left":{"sourceId":"{{{left}}}","keyColumns":["Марка"],"valueColumn":"Кол"},
+             "right":{"sourceId":"{{{right}}}","keyColumns":["Марка"],"valueColumn":"Кол"},
+             "comparison":{"operator":"Equal","tolerance":0,"toleranceKind":"Absolute"}}
+            """;
+        var definition = ReconciliationDefinition.Create("Старая спека", CatalogScope.System, null,
+            JsonDocument.Parse(raw));
+        db.Add(definition);
+        await db.SaveChangesAsync();
+
+        var run = await scope.ServiceProvider.GetRequiredService<IReconciliationRunner>()
+            .RunAsync(definition.Id);
+
+        Assert.Equal(ReconciliationRunStatus.Completed, run.Status);
+        Assert.Equal(FindingStatus.Match, Assert.Single(await FindingsAsync(scope, run.Id)).Status);
+    }
+
     [Fact]
     public async Task BrokenSpec_FailsRunVisibly_InsteadOfEmptyResult()
     {

@@ -19,11 +19,12 @@ public class ReconciliationRunner(
 
     /// <summary>Сторона, сведённая к «ключ → итог»: значения строк с одним ключом просуммированы,
     /// номера исходных строк сохранены для провенанса.</summary>
+    /// <summary>Строки одного источника, попавшие в позицию: своей колонкой и своими номерами.</summary>
+    private sealed record PartRows(Guid SourceId, string ValueColumn, List<int> Rows);
+
     private sealed record SideTotals(
-        Guid SourceId,
-        string ValueColumn,
         Dictionary<string, double> Values,
-        Dictionary<string, List<int>> Rows,
+        Dictionary<string, List<PartRows>> Parts,
         Dictionary<string, string> Labels);
 
     public async Task<ReconciliationRun> RunAsync(Guid definitionId, CancellationToken ct = default)
@@ -90,43 +91,54 @@ public class ReconciliationRunner(
         return new AliasResolver(map);
     }
 
+    /// <summary>
+    /// Свод стороны: количества по одному ключу суммируются по ВСЕМ её источникам (issue #450) —
+    /// «сумма по четырём листам шкафов». У каждого источника свои колонки.
+    ///
+    /// Строки берутся после всей обработки источника — тем же путём, которым их видит генерация.
+    /// </summary>
     private async Task<SideTotals> TotalsAsync(
         ReconciliationSide side, AliasResolver aliases, CancellationToken ct)
     {
-        var source = await db.DataSetSources.AsNoTracking().Include(s => s.File)
-            .FirstOrDefaultAsync(s => s.Id == side.SourceId, ct)
-            ?? throw new InvalidOperationException($"Источник {side.SourceId} не найден.");
-
-        var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
-
         var values = new Dictionary<string, double>();
-        var rowNumbers = new Dictionary<string, List<int>>();
+        var parts = new Dictionary<string, List<PartRows>>();
         var labels = new Dictionary<string, string>();
 
-        for (var i = 0; i < rows.Count; i++)
+        foreach (var part in side.EffectiveSources)
         {
-            var row = rows[i];
-            var rawKey = ReconciliationKeys.Build(side.KeyColumns.Select(c => row.GetValueOrDefault(c)));
-            if (ReconciliationKeys.IsEmpty(rawKey)) continue; // сопоставлять нечего — это шум, не находка
-            var key = aliases.Resolve(rawKey);
+            var source = await db.DataSetSources.AsNoTracking().Include(s => s.File)
+                .FirstOrDefaultAsync(s => s.Id == part.SourceId, ct)
+                ?? throw new InvalidOperationException($"Источник {part.SourceId} не найден.");
 
-            // Отсутствие значения не то же самое, что ноль: незаполненная ячейка не делает позицию
-            // нулевой, но и не отменяет её присутствия в документе.
-            values[key] = values.GetValueOrDefault(key)
-                + (QuantityParser.Parse(row.GetValueOrDefault(side.ValueColumn)) ?? 0);
+            var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
 
-            if (!rowNumbers.TryGetValue(key, out var list)) rowNumbers[key] = list = [];
-            list.Add(i);
-
-            if (!labels.ContainsKey(key))
+            for (var i = 0; i < rows.Count; i++)
             {
-                var labelColumn = side.LabelColumn ?? side.KeyColumns.FirstOrDefault();
-                var label = labelColumn is null ? null : row.GetValueOrDefault(labelColumn);
-                labels[key] = string.IsNullOrWhiteSpace(label) ? key : label;
+                var row = rows[i];
+                var rawKey = ReconciliationKeys.Build(part.KeyColumns.Select(c => row.GetValueOrDefault(c)));
+                if (ReconciliationKeys.IsEmpty(rawKey)) continue; // сопоставлять нечего — это шум, не находка
+                var key = aliases.Resolve(rawKey);
+
+                // Отсутствие значения не то же самое, что ноль: незаполненная ячейка не делает позицию
+                // нулевой, но и не отменяет её присутствия в документе.
+                values[key] = values.GetValueOrDefault(key)
+                    + (QuantityParser.Parse(row.GetValueOrDefault(part.ValueColumn)) ?? 0);
+
+                if (!parts.TryGetValue(key, out var list)) parts[key] = list = [];
+                var slot = list.FirstOrDefault(p => p.SourceId == part.SourceId);
+                if (slot is null) list.Add(slot = new PartRows(part.SourceId, part.ValueColumn, []));
+                slot.Rows.Add(i);
+
+                if (!labels.ContainsKey(key))
+                {
+                    var labelColumn = part.LabelColumn ?? part.KeyColumns.FirstOrDefault();
+                    var label = labelColumn is null ? null : row.GetValueOrDefault(labelColumn);
+                    labels[key] = string.IsNullOrWhiteSpace(label) ? key : label;
+                }
             }
         }
 
-        return new SideTotals(source.Id, side.ValueColumn, values, rowNumbers, labels);
+        return new SideTotals(values, parts, labels);
     }
 
     private static IEnumerable<ReconciliationFinding> Compare(
@@ -170,8 +182,13 @@ public class ReconciliationRunner(
         };
     }
 
-    /// <summary>Файл, источник, колонка и номера строк по каждой стороне — то, что модель честно
-    /// может дать. До ячейки не дотягиваем и не обещаем (P3 в #414).</summary>
+    /// <summary>
+    /// Провенанс: по каждой стороне — все источники, из которых собралась позиция. Свод из четырёх
+    /// листов обязан назвать все четыре, иначе расхождение не проверить глазами, а это единственное,
+    /// ради чего провенанс существует.
+    ///
+    /// До ячейки не дотягиваем и не обещаем (P3 в #414): строки из PDF приходят от зрительной модели.
+    /// </summary>
     private static JsonDocument Provenance(string key, SideTotals left, SideTotals right)
         => JsonSerializer.SerializeToDocument(new
         {
@@ -180,7 +197,17 @@ public class ReconciliationRunner(
         }, Json);
 
     private static object? SideProvenance(string key, SideTotals side)
-        => side.Rows.TryGetValue(key, out var rows)
-            ? new { sourceId = side.SourceId, column = side.ValueColumn, rows }
-            : null;
+    {
+        if (!side.Parts.TryGetValue(key, out var parts) || parts.Count == 0) return null;
+
+        var list = parts.Select(p => new { sourceId = p.SourceId, column = p.ValueColumn, rows = p.Rows }).ToList();
+        // Одиночный источник пишем и прежней формой: её читают уже сохранённые находки, экран и отчёт.
+        return new
+        {
+            sourceId = parts[0].SourceId,
+            column = parts[0].ValueColumn,
+            rows = parts[0].Rows,
+            parts = list,
+        };
+    }
 }
