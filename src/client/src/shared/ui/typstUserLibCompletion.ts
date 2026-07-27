@@ -7,22 +7,30 @@ import { useTypstUserLib } from '@/shared/api/typstUserLib';
  * (шаблоны, Typst-блоки типов, сам userlib). Зеркалит паттерн `it.`-провайдера: модульный список
  * обновляется хуком из загруженного userlib, провайдер регистрируется один раз и читает его лениво.
  */
-interface UserLibDef { name: string; params: string; isFunction: boolean; }
+interface UserLibDef { name: string; params: string; isFunction: boolean; source: string; }
 
 let _defs: UserLibDef[] = [];
 let _registered = false;
 
-/** Парсит `#let name(params) = …` (функция) и `#let name = …` (значение) из содержимого userlib.typ. */
-export function setUserLibDefs(content: string): void {
+/**
+ * Парсит `#let name(params) = …` (функция) и `#let name = …` (значение) из точки входа И файлов
+ * дерева (issue #473). Источник запоминаем: подсказка «из какого файла функция» — единственное, что
+ * отвечает на вопрос «где её править», когда файлов два десятка.
+ */
+export function setUserLibDefs(entrypoint: string, files: { path: string; content: string }[] = []): void {
   const defs: UserLibDef[] = [];
   const seen = new Set<string>();
   // Имя — Typst-идентификатор (буквы/цифры/_/-), опциональные (params) → функция.
   const re = /#let\s+([\p{L}_][\p{L}\p{N}_-]*)\s*(\(([^)]*)\))?/gu;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(content)) !== null) {
-    if (seen.has(m[1])) continue;
-    seen.add(m[1]);
-    defs.push({ name: m[1], params: m[3] ?? '', isFunction: m[2] != null });
+
+  for (const { path, content } of [{ path: 'userlib.typ', content: entrypoint }, ...files]) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(content)) !== null) {
+      if (seen.has(m[1])) continue;
+      seen.add(m[1]);
+      defs.push({ name: m[1], params: m[3] ?? '', isFunction: m[2] != null, source: path });
+    }
   }
   _defs = defs;
 }
@@ -64,7 +72,7 @@ export function registerUserLibCompletion(monaco: typeof Monaco): void {
             ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
             : undefined,
           range,
-          detail: 'userlib.typ',
+          detail: d.source,
           documentation: d.isFunction ? `#let ${d.name}(${d.params}) = …` : `#let ${d.name} = …`,
         })),
       };
@@ -75,5 +83,5 @@ export function registerUserLibCompletion(monaco: typeof Monaco): void {
 /** Хук: подтягивает userlib.typ и обновляет список автокомплита. Вызывать в компонентах-хостах Typst-редакторов. */
 export function useUserLibCompletion(): void {
   const { data } = useTypstUserLib();
-  useEffect(() => { setUserLibDefs(data ?? ''); }, [data]);
+  useEffect(() => { setUserLibDefs(data?.content ?? '', data?.files ?? []); }, [data]);
 }

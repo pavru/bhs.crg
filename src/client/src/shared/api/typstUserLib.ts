@@ -3,12 +3,34 @@ import { apiClient } from './client';
 
 const QK = ['typst-userlib'] as const;
 
+/** Файл дерева библиотеки (issue #473). Путь — относительный, от папки `userlib/`. */
+export interface UserLibFile { path: string; content: string; }
+
+export interface UserLibError { path: string; line: number; column: number; message: string; }
+export interface UserLibWarning { path: string; message: string; }
+
+/**
+ * Итог проверки на сервере. `ok: false` означает, что библиотека НЕ собирается — а её импортирует
+ * каждый шаблон, поэтому встала генерация всех документов.
+ *
+ * Проверка компилирует зонд, который лишь импортирует точку входа: ловятся синтаксис и битые пути
+ * импортов, но НЕ поведение. Поэтому состояние называется «библиотека собирается», а не «шаблоны
+ * работают» — второе было бы обещанием, которого проверка не даёт.
+ */
+export interface UserLibCheck {
+  ok: boolean;
+  errors: UserLibError[];
+  warnings: UserLibWarning[];
+}
+
+export interface UserLibState { content: string; files: UserLibFile[]; }
+
 export function useTypstUserLib() {
   return useQuery({
     queryKey: QK,
     queryFn: async () => {
-      const r = await apiClient.get<{ content: string }>('/typst-userlib');
-      return r.data.content;
+      const r = await apiClient.get<UserLibState>('/typst-userlib');
+      return { content: r.data.content, files: r.data.files ?? [] } satisfies UserLibState;
     },
   });
 }
@@ -25,12 +47,17 @@ export function useSystemTypstLib() {
   });
 }
 
+/**
+ * Сохранение библиотеки ЦЕЛИКОМ (issue #473). Пофайлового сохранения нет намеренно: правка файла и
+ * правка зовущего его файла обязаны лечь вместе, иначе между двумя запросами библиотека не
+ * собирается — а её читает генерация каждого документа.
+ */
 export function useSaveTypstUserLib() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (content: string) => {
-      const r = await apiClient.put<{ content: string }>('/typst-userlib', { content });
-      return r.data.content;
+    mutationFn: async (state: UserLibState) => {
+      const r = await apiClient.put<UserLibState & { check: UserLibCheck }>('/typst-userlib', state);
+      return r.data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QK }),
   });
