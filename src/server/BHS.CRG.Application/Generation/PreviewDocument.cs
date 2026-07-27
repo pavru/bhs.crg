@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Application.Templates;
@@ -35,7 +35,7 @@ public class PreviewDocumentHandler(
     IRepository<DomainObject> instanceRepo,
     IRepository<Template> templateRepo,
     IRepository<DocumentType> docTypeRepo,
-    IRepository<TypstUserLib> userLibRepo,
+    IUserLibProvider userLib,
     IEntityResolver entityResolver,
     IDataSetResolver dataSetResolver,
     IQualityLinkResolver qualityLinkResolver,
@@ -93,8 +93,7 @@ public class PreviewDocumentHandler(
             TypeStamper.Stamp(context, instance.CompositeTypeId, allDocTypes.ToDictionary(t => t.Id));
 
             var preamble = TypstPreambleBuilder.Build(allDocTypes);
-            var lib = (await userLibRepo.GetAllAsync(ct)).FirstOrDefault();
-            var userLib = lib is not null && !string.IsNullOrWhiteSpace(lib.Content) ? lib.Content : null;
+            var libSnapshot = await userLib.GetAsync(ct);
 
             context.Set("params", TemplateParams.Effective(template.Parameters,
                 TemplateParams.OverridesForTemplate(instance.TemplateParams, template.Id)));
@@ -103,8 +102,9 @@ public class PreviewDocumentHandler(
             var generator = generatorFactory.Create(OutputFormat.Pdf);
             var request = new GenerationRequest(template.Content, OutputFormat.Pdf, context,
                 TypeBlocksContent: string.IsNullOrEmpty(preamble) ? null : preamble,
-                UserLibContent: userLib,
-                TemplateAssets: assets);
+                UserLibContent: string.IsNullOrWhiteSpace(libSnapshot.Entrypoint) ? null : libSnapshot.Entrypoint,
+                TemplateAssets: assets,
+                UserLibFiles: libSnapshot.Files.Count > 0 ? libSnapshot.Files : null);
             var bytes = await generator.GenerateAsync(request, ct);
             return PreviewDocumentResult.Ok(bytes);
         }

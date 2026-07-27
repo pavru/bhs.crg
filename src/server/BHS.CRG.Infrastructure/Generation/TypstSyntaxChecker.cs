@@ -17,9 +17,7 @@ public class TypstSyntaxChecker : ITypstSyntaxChecker
     private static readonly string TypstPath =
         Environment.GetEnvironmentVariable("TYPST_PATH") ?? "typst";
 
-    // Короткий формат диагностики: путь:строка:колонка: severity: сообщение.
-    private static readonly Regex ShortDiag =
-        new(@"typeblocks\.typ:(\d+):(\d+):\s*(error|warning):\s*(.*)", RegexOptions.Compiled);
+    private const string FileName = "typeblocks.typ";
 
     public async Task<IReadOnlyList<TypstSyntaxError>> CheckAsync(string typeBlocksContent, CancellationToken ct)
     {
@@ -53,12 +51,13 @@ public class TypstSyntaxChecker : ITypstSyntaxChecker
             await process.WaitForExitAsync(ct);
             var stderr = await stderrTask;
 
-            var errors = new List<TypstSyntaxError>();
-            foreach (Match m in ShortDiag.Matches(stderr))
-                if (m.Groups[3].Value == "error")
-                    errors.Add(new TypstSyntaxError(
-                        int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value), m.Groups[4].Value.Trim()));
-            return errors;
+            // Разбор общий с проверкой библиотеки (issue #473); отбор по имени файла — здесь, а не в
+            // самом шаблоне: координаты этого контракта заявлены ВНУТРИ typeblocks.typ, и ошибка из
+            // harness'а с чужими номерами строк уехала бы по line-map не туда.
+            return TypstShortDiagnostics.Parse(stderr)
+                .Where(d => d.Severity == "error" && d.File.EndsWith(FileName, StringComparison.Ordinal))
+                .Select(d => new TypstSyntaxError(d.Line, d.Column, d.Message))
+                .ToList();
         }
         finally
         {

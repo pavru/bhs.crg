@@ -14,5 +14,7 @@ public record GenerationRequest(
     GenerationContext Context,
     string? TypeBlocksContent = null,
     string? UserLibContent = null,
-    ResolvedTemplateAssets? TemplateAssets = null
+    ResolvedTemplateAssets? TemplateAssets = null,
+    // Дерево библиотеки (issue #473) — материализуется в подпапку userlib/ рядом с точкой входа.
+    IReadOnlyList<UserLibFile>? UserLibFiles = null
 );

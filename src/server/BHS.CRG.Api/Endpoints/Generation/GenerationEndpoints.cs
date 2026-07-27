@@ -192,6 +192,14 @@ public static class GenerationEndpoints
                     await WriteEntry(zip, "data.json", dataJson);
                     await WriteEntry(zip, "typeblocks.typ", typeBlocks);
                     await WriteEntry(zip, "userlib.typ", userLib);
+
+                    // Дерево библиотеки (issue #473) — той же раскладкой, что при генерации: точка
+                    // входа реэкспортирует эти файлы, и без них внешняя компиляция упадёт на первом
+                    // же вложенном импорте.
+                    foreach (var libFile in bundle.UserLibFiles)
+                        await WriteEntry(zip,
+                            $"{BHS.CRG.Application.Templates.UserLibPath.FolderName}/{libFile.Path}",
+                            libFile.Content);
                     if (fontsDirDbg is not null)
                         await WriteEntry(zip, "README.txt",
                             "У шаблона есть шрифтовые ассеты — компилируйте с --font-path:\r\n\r\n" +
