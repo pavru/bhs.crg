@@ -63,10 +63,17 @@ var builder = WebApplication.CreateBuilder(args);
 // Потолок тела запроса и разбора multipart — по НАШИМ пределам (issue #482). По умолчанию Kestrel
 // режет на 30 000 000 байт, из-за чего заявленные «50 МБ» были недостижимы, а пользователь получал
 // 500 с английским текстом фреймворка вместо внятного отказа.
-builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = BHS.CRG.Api.Endpoints.Common.UploadLimits.Max);
+//
+// Глобально ставим ОБЫЧНЫЙ предел, а не наибольший: file.Length известен только после того, как
+// форма прочитана и часть выгружена во временный файл, поэтому глобальные 500 МБ позволили бы
+// любому пользователю заставить сервер выписать на диск сотни мегабайт перед отказом.
+// Восстановление бэкапа поднимает предел себе само.
+builder.WebHost.ConfigureKestrel(
+    o => o.Limits.MaxRequestBodySize = BHS.CRG.Api.Endpoints.Common.UploadLimits.OrdinaryRequest);
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
 {
-    o.MultipartBodyLengthLimit = BHS.CRG.Api.Endpoints.Common.UploadLimits.Max;
+    // Разбор формы — по наибольшему: он вторичный предохранитель, режет всё равно Kestrel.
+    o.MultipartBodyLengthLimit = BHS.CRG.Api.Endpoints.Common.UploadLimits.MaxAnywhere;
 });
 var cfg = builder.Configuration;
 
@@ -417,8 +424,10 @@ app.UseExceptionHandler(exApp => exApp.Run(async ctx =>
     };
     await ctx.Response.WriteAsJsonAsync(new
     {
+        // Без числа и без слова «файл»: сюда попадают запросы к разным эндпоинтам с разными
+        // пределами, и тело может вообще не быть файлом. Назвать чужой предел — хуже, чем не назвать.
         error = tooLarge
-            ? $"Файл превышает {BHS.CRG.Api.Endpoints.Common.UploadLimits.Max / (1024 * 1024)} МБ"
+            ? "Запрос превышает допустимый размер."
             : ex?.Message ?? "Internal server error",
     });
 }));
