@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
@@ -7,6 +7,8 @@ using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Schema;
 using Microsoft.EntityFrameworkCore;
+
+using BHS.CRG.Api.Endpoints.Common;
 
 namespace BHS.CRG.Api.Endpoints.Documents;
 
@@ -34,9 +36,7 @@ public static class PrintFormEndpoints
                 if (instance is null || instance.ScopeId != setId)
                     return Results.NotFound();
 
-                const long maxSize = 50 * 1024 * 1024;
-                if (file.Length > maxSize)
-                    return Results.BadRequest(new { error = "Файл превышает 50 МБ" });
+                if (UploadLimits.Exceeded(file, UploadLimits.PrintForm) is { } tooLarge) return tooLarge;
 
                 // Читаем байты один раз — нужны и для upload, и для метаданных
                 byte[] bytes;

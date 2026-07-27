@@ -1,4 +1,6 @@
-using BHS.CRG.Infrastructure.Backup;
+﻿using BHS.CRG.Infrastructure.Backup;
+
+using BHS.CRG.Api.Endpoints.Common;
 
 namespace BHS.CRG.Api.Endpoints.Backup;
 
@@ -16,6 +18,7 @@ public static class BackupEndpoints
 
         g.MapPost("/restore", async (IFormFile file, BackupService svc, CancellationToken ct) =>
         {
+            if (UploadLimits.Exceeded(file, UploadLimits.BackupArchive) is { } tooLarge) return tooLarge;
             try
             {
                 using var stream = file.OpenReadStream();

@@ -59,6 +59,15 @@ using Microsoft.IdentityModel.Tokens;
 using Minio;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Потолок тела запроса и разбора multipart — по НАШИМ пределам (issue #482). По умолчанию Kestrel
+// режет на 30 000 000 байт, из-за чего заявленные «50 МБ» были недостижимы, а пользователь получал
+// 500 с английским текстом фреймворка вместо внятного отказа.
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = BHS.CRG.Api.Endpoints.Common.UploadLimits.Max);
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
+{
+    o.MultipartBodyLengthLimit = BHS.CRG.Api.Endpoints.Common.UploadLimits.Max;
+});
 var cfg = builder.Configuration;
 
 builder.Services.ConfigureHttpJsonOptions(opt =>
@@ -395,14 +404,23 @@ app.UseExceptionHandler(exApp => exApp.Run(async ctx =>
     var feature = ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>();
     var ex = feature?.Error;
     ctx.Response.ContentType = "application/json";
+    // Тело больше потолка приходит как BadHttpRequestException(413) и без этой ветки уезжало бы в
+    // 500 с английским текстом фреймворка (issue #482).
+    var tooLarge = ex is Microsoft.AspNetCore.Http.BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge };
     ctx.Response.StatusCode = ex switch
     {
+        _ when tooLarge => StatusCodes.Status413PayloadTooLarge,
         KeyNotFoundException => 404,
         UnauthorizedAccessException => 403,
         ArgumentException => 400,
         _ => 500,
     };
-    await ctx.Response.WriteAsJsonAsync(new { error = ex?.Message ?? "Internal server error" });
+    await ctx.Response.WriteAsJsonAsync(new
+    {
+        error = tooLarge
+            ? $"Файл превышает {BHS.CRG.Api.Endpoints.Common.UploadLimits.Max / (1024 * 1024)} МБ"
+            : ex?.Message ?? "Internal server error",
+    });
 }));
 
 app.UseCors();
