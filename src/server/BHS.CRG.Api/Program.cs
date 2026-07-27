@@ -59,6 +59,22 @@ using Microsoft.IdentityModel.Tokens;
 using Minio;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Потолок тела запроса и разбора multipart — по НАШИМ пределам (issue #482). По умолчанию Kestrel
+// режет на 30 000 000 байт, из-за чего заявленные «50 МБ» были недостижимы, а пользователь получал
+// 500 с английским текстом фреймворка вместо внятного отказа.
+//
+// Глобально ставим ОБЫЧНЫЙ предел, а не наибольший: file.Length известен только после того, как
+// форма прочитана и часть выгружена во временный файл, поэтому глобальные 500 МБ позволили бы
+// любому пользователю заставить сервер выписать на диск сотни мегабайт перед отказом.
+// Восстановление бэкапа поднимает предел себе само.
+builder.WebHost.ConfigureKestrel(
+    o => o.Limits.MaxRequestBodySize = BHS.CRG.Api.Endpoints.Common.UploadLimits.OrdinaryRequest);
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
+{
+    // Разбор формы — по наибольшему: он вторичный предохранитель, режет всё равно Kestrel.
+    o.MultipartBodyLengthLimit = BHS.CRG.Api.Endpoints.Common.UploadLimits.MaxAnywhere;
+});
 var cfg = builder.Configuration;
 
 builder.Services.ConfigureHttpJsonOptions(opt =>
@@ -395,14 +411,25 @@ app.UseExceptionHandler(exApp => exApp.Run(async ctx =>
     var feature = ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>();
     var ex = feature?.Error;
     ctx.Response.ContentType = "application/json";
+    // Тело больше потолка приходит как BadHttpRequestException(413) и без этой ветки уезжало бы в
+    // 500 с английским текстом фреймворка (issue #482).
+    var tooLarge = ex is Microsoft.AspNetCore.Http.BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge };
     ctx.Response.StatusCode = ex switch
     {
+        _ when tooLarge => StatusCodes.Status413PayloadTooLarge,
         KeyNotFoundException => 404,
         UnauthorizedAccessException => 403,
         ArgumentException => 400,
         _ => 500,
     };
-    await ctx.Response.WriteAsJsonAsync(new { error = ex?.Message ?? "Internal server error" });
+    await ctx.Response.WriteAsJsonAsync(new
+    {
+        // Без числа и без слова «файл»: сюда попадают запросы к разным эндпоинтам с разными
+        // пределами, и тело может вообще не быть файлом. Назвать чужой предел — хуже, чем не назвать.
+        error = tooLarge
+            ? "Запрос превышает допустимый размер."
+            : ex?.Message ?? "Internal server error",
+    });
 }));
 
 app.UseCors();

@@ -1,4 +1,6 @@
-using BHS.CRG.Application.Common;
+﻿using BHS.CRG.Application.Common;
+
+using BHS.CRG.Api.Endpoints.Common;
 
 namespace BHS.CRG.Api.Endpoints.Attachments;
 
@@ -21,8 +23,7 @@ public static class AttachmentEndpoints
         {
             if (!AllowedTypes.Contains(file.ContentType))
                 return Results.BadRequest(new { error = $"Формат не поддерживается: {file.ContentType}" });
-            if (file.Length > 50 * 1024 * 1024)
-                return Results.BadRequest(new { error = "Файл превышает 50 МБ" });
+            if (UploadLimits.Exceeded(file, UploadLimits.Attachment) is { } tooLarge) return tooLarge;
 
             try
             {

@@ -222,7 +222,7 @@ cat backup_YYYY-MM-DD.sql | docker compose -f deploy/docker-compose.yml exec -T 
 | Генерация PDF с ошибкой шрифтов | В образ включены DejaVu/Liberation/Noto. Если шаблон требует особый шрифт — добавьте его в `Dockerfile.api` |
 | Распознавание не работает | Модель Ollama не загружена (`ollama pull`) или не задан API‑ключ. Это опциональная функция |
 | Веб‑интерфейс открывается, но «не видит» сервер | Проверьте, что сервис `web` проксирует на `api:8080` (см. `deploy/nginx.conf`) |
-| Не загружаются крупные файлы | Увеличьте `client_max_body_size` в `deploy/nginx.conf` |
+| Не загружаются крупные файлы | `client_max_body_size` в `deploy/nginx.conf` согласован с `UploadLimits.MaxAnywhere` (508m). Меняя один порог, меняйте оба: порог nginx ниже нашего делает предел приложения недостижимым, а отказ приходит HTML-страницей nginx без поля `error` — интерфейс покажет голое сообщение axios |
 
 Полезные команды:
 ```bash

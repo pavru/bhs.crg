@@ -1,8 +1,10 @@
-using BHS.CRG.Application.Common;
+﻿using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Templates;
 using BHS.CRG.Infrastructure.Templates;
 using MediatR;
+
+using BHS.CRG.Api.Endpoints.Common;
 
 namespace BHS.CRG.Api.Endpoints.Templates;
 
@@ -38,8 +40,7 @@ public static class TemplateAssetEndpoints
             var ext = Path.GetExtension(file.FileName);
             if (!ExtMap.TryGetValue(ext, out var info))
                 return Results.BadRequest(new { error = $"Формат не поддерживается: {ext}" });
-            if (file.Length > 20 * 1024 * 1024)
-                return Results.BadRequest(new { error = "Файл превышает 20 МБ" });
+            if (UploadLimits.Exceeded(file, UploadLimits.TemplateAsset) is { } tooLarge) return tooLarge;
             if (string.IsNullOrWhiteSpace(name))
                 return Results.BadRequest(new { error = "Укажите имя ассета" });
 
@@ -65,8 +66,7 @@ public static class TemplateAssetEndpoints
             var ext = Path.GetExtension(file.FileName);
             if (!ExtMap.TryGetValue(ext, out var info))
                 return Results.BadRequest(new { error = $"Формат не поддерживается: {ext}" });
-            if (file.Length > 20 * 1024 * 1024)
-                return Results.BadRequest(new { error = "Файл превышает 20 МБ" });
+            if (UploadLimits.Exceeded(file, UploadLimits.TemplateAsset) is { } tooLarge) return tooLarge;
 
             byte[] bytes;
             using (var ms = new MemoryStream())

@@ -4,6 +4,8 @@ using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Domain.Jobs;
 
+using BHS.CRG.Api.Endpoints.Common;
+
 namespace BHS.CRG.Api.Endpoints.DataSets;
 
 public static class DataSetEndpoints
@@ -28,6 +30,8 @@ public static class DataSetEndpoints
             var form = await request.ReadFormAsync(ct);
             var file = form.Files.GetFile("file");
             if (file == null) return Results.BadRequest(new { error = "Файл не указан" });
+            // Проверки размера тут не было вовсе, а файл читается ЦЕЛИКОМ в память (ReadBytesAsync).
+            if (UploadLimits.Exceeded(file, UploadLimits.DataSetFile) is { } tooLarge) return tooLarge;
 
             var input = new UploadFileInput(
                 await ReadBytesAsync(file, ct), file.FileName, file.ContentType,
@@ -44,6 +48,7 @@ public static class DataSetEndpoints
             var form = await request.ReadFormAsync(ct);
             var file = form.Files.GetFile("file");
             if (file == null) return Results.BadRequest(new { error = "Файл не указан" });
+            if (UploadLimits.Exceeded(file, UploadLimits.DataSetFile) is { } tooLarge) return tooLarge;
 
             var input = new ReplaceFileInput(
                 await ReadBytesAsync(file, ct), file.FileName, file.ContentType, form["name"].FirstOrDefault());
