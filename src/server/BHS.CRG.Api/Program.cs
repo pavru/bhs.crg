@@ -209,6 +209,7 @@ builder.Services.AddScoped<IRepository<BHS.CRG.Domain.Reconciliation.Reconciliat
     Repository<BHS.CRG.Domain.Reconciliation.ReconciliationAlias>>();
 builder.Services.AddScoped<IRepository<DocumentSetOutput>, Repository<DocumentSetOutput>>();
 builder.Services.AddScoped<IRepository<TypstUserLib>, Repository<TypstUserLib>>();
+builder.Services.AddScoped<IRepository<TypstUserLibFile>, Repository<TypstUserLibFile>>();
 builder.Services.AddScoped<IRepository<QualityDocument>, Repository<QualityDocument>>();
 builder.Services.AddScoped<IRepository<MaterialQualityLink>, Repository<MaterialQualityLink>>();
 
@@ -300,6 +301,10 @@ builder.Services.AddHttpClient<IFileUrlFetcher, HttpFileUrlFetcher>()
 builder.Services.AddSingleton<TypstGenerator>();
 builder.Services.AddSingleton<IDocumentGeneratorFactory, DocumentGeneratorFactory>();
 builder.Services.AddSingleton<ITypstSyntaxChecker, TypstSyntaxChecker>();
+builder.Services.AddSingleton<BHS.CRG.Application.Templates.IUserLibChecker, UserLibChecker>();
+// Единая точка чтения библиотеки (issue #473) — раньше три места читали её каждое по-своему.
+builder.Services.AddScoped<BHS.CRG.Application.Templates.IUserLibProvider,
+    BHS.CRG.Application.Templates.UserLibProvider>();
 
 // ── DataSets ──────────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IDataSetParser, CsvDataSetParser>();

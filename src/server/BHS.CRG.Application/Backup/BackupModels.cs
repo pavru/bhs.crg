@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace BHS.CRG.Application.Backup;
 
@@ -16,6 +16,7 @@ public record BackupManifest(
     BackupEnumType[]? EnumTypes = null,
     BackupTemplateAsset[]? TemplateAssets = null,
     BackupTypstUserLib? TypstUserLib = null,
+    IReadOnlyList<BackupTypstUserLibFile>? TypstUserLibFiles = null,
     BackupRecognitionProfile[]? RecognitionProfiles = null);
 
 public record BackupPrimitiveType(
@@ -59,6 +60,12 @@ public record BackupTemplateAsset(
 // Общая Typst-библиотека (userlib.typ) — синглтон, подмешивается при компиляции всех шаблонов.
 public record BackupTypstUserLib(string Content, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
+// Файл дерева библиотеки (issue #473). Добавлено АДДИТИВНО, без подъёма версии схемы: иначе
+// копии предыдущей версии перестали бы восстанавливаться (конвенция #403). Старый бэкап просто
+// не несёт этой секции — дерево останется пустым, а точка входа восстановится как раньше.
+public record BackupTypstUserLibFile(
+    Guid Id, string Path, string Content, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
 // Профиль распознавания (issue #406) — параметры к хардкод-промптам. Конфигурация, влияющая на
 // извлекаемые данные, поэтому в бэкапе. Встроенные несут Code (ключ ре-сидинга) и IsModified:
 // восстановленный правленый профиль не должен быть затёрт сидингом на целевой системе.
@@ -87,5 +94,6 @@ public record RestoreReport(
     int TemplateAssetsCreated = 0,
     int TemplateAssetsUpdated = 0,
     bool TypstUserLibRestored = false,
+    int TypstUserLibFilesRestored = 0,
     int RecognitionProfilesCreated = 0,
     int RecognitionProfilesUpdated = 0);

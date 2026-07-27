@@ -1,4 +1,4 @@
-using System.Text.Encodings.Web;
+﻿using System.Text.Encodings.Web;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Templates;
@@ -20,7 +20,10 @@ public record GenerationDebugBundle(
     string DataJson,
     string TypeBlocks,
     string UserLib,
-    ResolvedTemplateAssets TemplateAssets);
+    ResolvedTemplateAssets TemplateAssets,
+    // Дерево библиотеки (issue #473). Без него бандл ломается на первом же вложенном импорте —
+    // точка входа реэкспортирует файлы, которых в пакете бы не оказалось.
+    IReadOnlyList<UserLibFile> UserLibFiles);
 
 public record GetGenerationDebugBundleQuery(Guid InstanceId) : IRequest<GenerationDebugBundle?>;
 
@@ -28,7 +31,7 @@ public class GetGenerationDebugBundleHandler(
     IRepository<DomainObject> instanceRepo,
     IRepository<Template> templateRepo,
     IRepository<DocumentType> docTypeRepo,
-    IRepository<TypstUserLib> userLibRepo,
+    IUserLibProvider userLib,
     IEntityResolver entityResolver,
     IDataSetResolver dataSetResolver,
     IQualityLinkResolver qualityLinkResolver,
@@ -79,10 +82,10 @@ public class GetGenerationDebugBundleHandler(
         var dataJson = JsonSerializer.Serialize(context.Data, JsonOpts);
         var typeBlocks = TypstPreambleBuilder.Build(allDocTypes);
 
-        var allLibs = await userLibRepo.GetAllAsync(ct);
-        var userLib = allLibs.FirstOrDefault()?.Content ?? "";
+        var libSnapshot = await userLib.GetAsync(ct);
 
         var templateAssets = await templateAssetResolver.ResolveAsync(template.Id, instance.CompositeTypeId, ct);
-        return new GenerationDebugBundle(template.Content, dataJson, typeBlocks, userLib, templateAssets);
+        return new GenerationDebugBundle(template.Content, dataJson, typeBlocks,
+            libSnapshot.Entrypoint, templateAssets, libSnapshot.Files);
     }
 }

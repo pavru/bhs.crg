@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Notifications;
@@ -18,7 +18,7 @@ public class GenerateDocumentHandler(
     IRepository<Template> templateRepo,
     IRepository<DocumentType> docTypeRepo,
     IRepository<Domain.Catalog.PrimitiveType> primitiveRepo,
-    IRepository<TypstUserLib> userLibRepo,
+    IUserLibProvider userLib,
     IEntityResolver entityResolver,
     IDataSetResolver dataSetResolver,
     IQualityLinkResolver qualityLinkResolver,
@@ -108,15 +108,18 @@ public class GenerateDocumentHandler(
 
             string? typeBlocksContent = null;
             string? userLibContent = null;
+            IReadOnlyList<UserLibFile>? userLibFiles = null;
             if (cmd.Format == OutputFormat.Pdf)
             {
                 var preamble = TypstPreambleBuilder.Build(allDocTypes);
                 if (!string.IsNullOrEmpty(preamble))
                     typeBlocksContent = preamble;
 
-                var lib = (await userLibRepo.GetAllAsync(ct)).FirstOrDefault();
-                if (lib is not null && !string.IsNullOrWhiteSpace(lib.Content))
-                    userLibContent = lib.Content;
+                var snapshot = await userLib.GetAsync(ct);
+                if (!string.IsNullOrWhiteSpace(snapshot.Entrypoint))
+                    userLibContent = snapshot.Entrypoint;
+                if (snapshot.Files.Count > 0)
+                    userLibFiles = snapshot.Files;
             }
 
             var ext = cmd.Format == OutputFormat.Pdf ? "pdf" : "docx";
@@ -141,7 +144,7 @@ public class GenerateDocumentHandler(
                 var generator = generatorFactory.Create(cmd.Format);
                 var request = new GenerationRequest(template.Content, cmd.Format, context,
                     TypeBlocksContent: typeBlocksContent, UserLibContent: userLibContent,
-                    TemplateAssets: templateAssets);
+                    TemplateAssets: templateAssets, UserLibFiles: userLibFiles);
                 var bytes = await generator.GenerateAsync(request, ct);
 
                 // Обратная запись метаданных — только с ПЕРВОГО файла (репрезентативно: число листов и т.п.).

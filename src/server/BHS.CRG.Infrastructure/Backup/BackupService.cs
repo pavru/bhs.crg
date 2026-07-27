@@ -70,6 +70,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         var enumTypes = await db.EnumTypes.AsNoTracking().ToListAsync(ct);
         var templateAssets = await db.TemplateAssets.AsNoTracking().ToListAsync(ct);
         var userLib = await db.TypstUserLibs.AsNoTracking().FirstOrDefaultAsync(ct);
+        var userLibFiles = await db.TypstUserLibFiles.AsNoTracking().OrderBy(f => f.Path).ToListAsync(ct);
         var recognitionProfiles = await db.RecognitionProfiles.AsNoTracking().ToListAsync(ct);
 
         return new BackupManifest(
@@ -104,6 +105,9 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 a.CreatedAt, a.UpdatedAt)).ToArray(),
             TypstUserLib: userLib is null ? null
                 : new BackupTypstUserLib(userLib.Content, userLib.CreatedAt, userLib.UpdatedAt),
+            TypstUserLibFiles: userLibFiles
+                .Select(f => new BackupTypstUserLibFile(f.Id, f.Path, f.Content, f.CreatedAt, f.UpdatedAt))
+                .ToList(),
             RecognitionProfiles: recognitionProfiles.Select(p => new BackupRecognitionProfile(
                 p.Id, p.Name, p.Code, p.Kind.ToString(),
                 p.Fields.RootElement.Clone(), p.Shape?.RootElement.Clone(),
@@ -177,6 +181,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             await RestoreTemplatesAsync(manifest.Templates, stats, warnings, ct);
             await RestoreTemplateAssetsAsync(manifest.TemplateAssets ?? [], stats, warnings, ct);
             await RestoreTypstUserLibAsync(manifest.TypstUserLib, stats, ct);
+            await RestoreTypstUserLibFilesAsync(manifest.TypstUserLibFiles, stats, ct);
             await RestoreCatalogEntitiesAsync(manifest.CatalogEntities, stats, warnings, ct);
             await RestoreCommonDataEntriesAsync(manifest.CommonDataEntries, stats, warnings, ct);
             await tx.CommitAsync(ct);
@@ -190,6 +195,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 stats.EnumTypesCreated, stats.EnumTypesUpdated,
                 stats.TemplateAssetsCreated, stats.TemplateAssetsUpdated,
                 stats.TypstUserLibRestored,
+                stats.TypstUserLibFilesRestored,
                 stats.RecognitionProfilesCreated, stats.RecognitionProfilesUpdated);
         }
         catch (Exception ex)
@@ -388,6 +394,27 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         stats.TypstUserLibRestored = true;
     }
 
+    /// <summary>
+    /// Дерево библиотеки (issue #473). Восстановление ЗАМЕЩАЮЩЕЕ: дерево — единое целое, и оставить
+    /// на целевой системе файлы, которых в копии нет, значит собрать библиотеку, которой никогда не
+    /// существовало (лишний файл переопределил бы одноимённую функцию молча).
+    /// </summary>
+    private async Task RestoreTypstUserLibFilesAsync(
+        IReadOnlyList<BackupTypstUserLibFile>? items, RestoreStats stats, CancellationToken ct)
+    {
+        if (items is null) return; // бэкап предыдущей версии — секции просто нет, дерево не трогаем
+
+        var existing = await db.TypstUserLibFiles.ToListAsync(ct);
+        db.TypstUserLibFiles.RemoveRange(existing);
+        foreach (var item in items)
+            db.TypstUserLibFiles.Add(TypstUserLibFile.Restore(
+                item.Id, item.Path, item.Content, item.CreatedAt, item.UpdatedAt));
+
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+        stats.TypstUserLibFilesRestored = items.Count;
+    }
+
     private async Task RestoreDocumentTypesAsync(
         BackupDocumentType[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
     {
@@ -506,6 +533,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         public int TemplatesCreated, TemplatesUpdated;
         public int TemplateAssetsCreated, TemplateAssetsUpdated;
         public bool TypstUserLibRestored;
+        public int TypstUserLibFilesRestored;
         public int CatalogEntitiesCreated, CatalogEntitiesUpdated;
         public int CommonDataEntriesCreated, CommonDataEntriesUpdated;
     }

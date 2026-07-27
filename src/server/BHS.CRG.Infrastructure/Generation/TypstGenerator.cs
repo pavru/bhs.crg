@@ -69,11 +69,11 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
             if (!File.Exists(typeBlocksPath))
                 throw new InvalidOperationException($"Failed to write {TypeBlocksFileName} to {tmpDir}");
 
-            // userlib.typ — пользовательские вспомогательные функции; всегда присутствует в tmpDir
-            var userLibContent = string.IsNullOrEmpty(request.UserLibContent)
-                ? "// user typst library is empty"
-                : request.UserLibContent;
-            await File.WriteAllTextAsync(Path.Combine(tmpDir, UserLibFileName), userLibContent, Encoding.UTF8, ct);
+            // userlib.typ — точка входа пользовательской библиотеки; всегда присутствует в tmpDir.
+            // Рядом раскладывается дерево userlib/ (issue #473), структуру которого задаёт пользователь;
+            // точка входа реэкспортирует его, поэтому шаблон с дословным `#import "userlib.typ": *`
+            // (#353) видит всё вложенное и переписывать историю шаблонов не нужно.
+            await UserLibMaterializer.WriteAsync(tmpDir, request.UserLibContent, request.UserLibFiles, ct);
 
             // Ассеты шаблона (issue #62) — уже свёрнутые по приоритету Template>DocumentType>System
             // резолвером (ITemplateAssetResolver). Картинки — в assets/ по стабильному Name (шаблон

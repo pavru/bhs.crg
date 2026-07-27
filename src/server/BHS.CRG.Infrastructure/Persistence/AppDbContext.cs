@@ -32,6 +32,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DocumentSetOutput> DocumentSetOutputs => Set<DocumentSetOutput>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<TypstUserLib> TypstUserLibs => Set<TypstUserLib>();
+    public DbSet<TypstUserLibFile> TypstUserLibFiles => Set<TypstUserLibFile>();
     public DbSet<DataSetFile> DataSetFiles => Set<DataSetFile>();
     public DbSet<DataSetSource> DataSetSources => Set<DataSetSource>();
     public DbSet<DataSetBinding> DataSetBindings => Set<DataSetBinding>();
