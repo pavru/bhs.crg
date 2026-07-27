@@ -23,7 +23,8 @@ export function UserLibFileList({
   dirty: Set<string>;
   check: UserLibCheck | null;
   onSelect: (path: string) => void;
-  onCreate: () => void;
+  /** Создать файл; аргумент — папка, в которой создаём (пусто = корень дерева). */
+  onCreate: (folder?: string) => void;
   onRename: (path: string) => void;
   onDelete: (path: string) => void;
 }) {
@@ -46,7 +47,7 @@ export function UserLibFileList({
 
       <div className="flex items-center justify-between pr-2">
         <NavSection label="Файлы библиотеки" />
-        <button type="button" onClick={onCreate} title="Создать файл"
+        <button type="button" onClick={() => onCreate()} title="Создать файл"
           className="h-6 w-6 inline-flex items-center justify-center rounded text-fg3 hover:text-fg1 hover:bg-muted transition-colors">
           <Plus size={14} />
         </button>
@@ -57,9 +58,19 @@ export function UserLibFileList({
           Пока всё в одном файле. Создайте файл, чтобы вынести часть функций.
         </p>
       ) : rows.map(row => row.kind === 'folder' ? (
-        <div key={`d:${row.path}`} className="flex items-center gap-1.5 py-1 text-xs text-fg4"
+        /* «+» на папке — то же правило, что у заголовка секции, уровнем ниже: «создать в этом
+           контейнере». Кебаб был бы хуже — единственный пункт под безликим глифом и лишний клик.
+           Это ускоритель, а не единственный путь: создание через шапку секции остаётся. */
+        <div key={`d:${row.path}`} className="group/dir flex items-center gap-1.5 py-1 pr-2 text-xs text-fg4"
           style={{ paddingLeft: `${0.75 + row.depth}rem` }}>
-          <Folder size={12} className="shrink-0" />{row.label}
+          <Folder size={12} className="shrink-0" />
+          <span className="truncate flex-1">{row.label}</span>
+          <button type="button" onClick={() => onCreate(row.path)} title={`Создать файл в «${row.path}»`}
+            className="h-5 w-5 shrink-0 inline-flex items-center justify-center rounded text-fg4
+                       hover:text-fg1 hover:bg-muted opacity-0 group-hover/dir:opacity-100
+                       focus-visible:opacity-100 transition-colors">
+            <Plus size={12} />
+          </button>
         </div>
       ) : (
         <FileRow

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { validatePath } from './userLibTree';
@@ -22,6 +22,23 @@ export function UserLibPathDialog({
   const [path, setPath] = useState(initialPath);
   const [touched, setTouched] = useState(false);
   const error = validatePath(path, existing, mode === 'rename' ? initialPath : undefined);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Курсор в КОНЕЦ, без выделения (issue #479). Обычный автофокус выделяет содержимое целиком, и
+  // подставленный префикс «gost/21.613/» стёрся бы первым же нажатием — то есть ровно та опечатка,
+  // от которой подстановка и должна избавлять.
+  //
+  // Через кадр, а не в самом эффекте: ловушка фокуса модалки Radix расставляет фокус в СВОЁМ
+  // эффекте, и поставленный раньше просто перехватывается — проверено, поле оставалось без фокуса.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   return (
     <Modal open onOpenChange={o => { if (!o) onCancel(); }} title={mode === 'create' ? 'Новый файл библиотеки' : 'Изменить путь'}>
@@ -31,7 +48,7 @@ export function UserLibPathDialog({
             Путь внутри <code className="font-mono">userlib/</code>
           </label>
           <input
-            id="userlib-path" autoFocus value={path}
+            id="userlib-path" ref={inputRef} value={path}
             onChange={e => { setPath(e.target.value); setTouched(true); }}
             onKeyDown={e => { if (e.key === 'Enter' && !error) onSubmit(path.trim().replace(/\\/g, '/')); }}
             placeholder="gost/forms/f3.typ"

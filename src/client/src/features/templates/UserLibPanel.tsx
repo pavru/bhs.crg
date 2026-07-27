@@ -168,7 +168,7 @@ export function UserLibPanel() {
         <UserLibFileList
           files={files} selected={selected} dirty={dirty} check={check}
           onSelect={setSelected}
-          onCreate={() => setPathDialog({ mode: 'create', path: '' })}
+          onCreate={folder => setPathDialog({ mode: 'create', path: folder ? `${folder}/` : '' })}
           onRename={p => setPathDialog({ mode: 'rename', path: p })}
           onDelete={p => setDeleting(p)}
         />
