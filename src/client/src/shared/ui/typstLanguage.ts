@@ -1,5 +1,6 @@
 import type * as Monaco from 'monaco-editor';
 import { registerUserLibCompletion } from './typstUserLibCompletion';
+import { registerAssetCompletion } from './typstAssetCompletion';
 
 let registered = false;
 
@@ -105,4 +106,6 @@ export function registerTypstLanguage(monaco: typeof Monaco) {
 
   // Автокомплит функций из userlib.typ (issue #326) — единая точка для всех Typst-редакторов.
   registerUserLibCompletion(monaco);
+  // Ассеты (issue #476): пути картинок в image("…"), семейства в #set text(font: "…").
+  registerAssetCompletion(monaco);
 }

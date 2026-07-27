@@ -4,6 +4,7 @@ import type * as monacoEditor from 'monaco-editor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { useTheme } from '@/shared/ui/ThemeProvider';
 import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
+import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Save, AlertCircle, AlertTriangle } from 'lucide-react';
@@ -26,6 +27,7 @@ const NO_FILES: UserLibFile[] = [];
 export function UserLibPanel() {
   const { resolvedTheme } = useTheme();
   useUserLibCompletion();
+  useAssetCompletion();
   const { data, isLoading } = useTypstUserLib();
   const saveMutation = useSaveTypstUserLib();
 

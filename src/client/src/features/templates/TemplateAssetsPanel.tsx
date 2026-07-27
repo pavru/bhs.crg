@@ -1,17 +1,60 @@
 import { useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Image as ImageIcon, Type as FontIcon, Upload, RefreshCw, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Image as ImageIcon, Type as FontIcon, Upload, RefreshCw, Trash2, Copy, Check } from 'lucide-react';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { IconButton } from '@/shared/ui/Button';
 import {
   useListTemplateAssets, useUploadTemplateAsset, useReplaceTemplateAsset, useDeleteTemplateAsset,
   type TemplateAssetDto, type TemplateAssetScope,
 } from '@/shared/api/templateAssets';
+import { assetReference } from '@/shared/api/templateAssetRef';
 
 const ACCEPT = '.png,.jpg,.jpeg,.webp,.gif,.svg,.ttf,.otf,.ttc';
 
 function apiError(e: unknown, fallback: string): string {
   const err = e as { response?: { data?: { error?: string } }; message?: string };
   return err?.response?.data?.error || err?.message || fallback;
+}
+
+/**
+ * Ассет строкой, которой на него ССЫЛАЮТСЯ, а не под которой он хранится (issue #476).
+ *
+ * Раньше строка давала `name` жирным и `fileName` приглушённым, а то, что пишут в Typst-коде,
+ * пользователь собирал в уме из двух кусков. Формы ссылки у картинки и шрифта разные: путь
+ * `assets/Имя.png` против имени семейства — файл шрифта при генерации переименовывается в
+ * `font_0.ttf`, и сослаться на него нельзя.
+ */
+function AssetReference({ asset }: { asset: TemplateAssetDto }) {
+  const [copied, setCopied] = useState(false);
+  const reference = assetReference(asset);
+
+  if (reference === null) {
+    // Семейство не распозналось при загрузке — сослаться на шрифт нечем, и молчать об этом нельзя:
+    // «имя ассета» тут не работает, а выглядело бы рабочим.
+    return (
+      <span className="text-xs truncate flex-1 min-w-0">
+        <span className="text-fg1">{asset.name}</span>
+        <span className="text-danger"> — семейство не распознано, шрифт не подключится</span>
+      </span>
+    );
+  }
+
+  return (
+    <button type="button" title={`${asset.fileName} — скопировать ссылку`}
+      onClick={() => {
+        void navigator.clipboard?.writeText(reference);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1200);
+      }}
+      className="flex-1 min-w-0 flex items-start gap-1.5 text-left group/ref">
+      {/* Переносим, а не обрезаем: панель живёт в узкой колонке, и «assets/Г…» не отвечает на
+          вопрос, ради которого строку и переделали, — что писать в шаблоне. Имя файла ушло в
+          подсказку: теперь оно не конкурирует за ширину с тем, на что реально ссылаются. */}
+      <code className="text-xs font-mono text-fg1 break-all leading-snug">{reference}</code>
+      {copied
+        ? <Check size={11} className="text-success shrink-0 mt-0.5" />
+        : <Copy size={11} className="text-fg4 opacity-0 group-hover/ref:opacity-100 shrink-0 mt-0.5" />}
+    </button>
+  );
 }
 
 // ─── One asset row ──────────────────────────────────────────────────────────────
@@ -37,10 +80,7 @@ function AssetRow({ asset }: { asset: TemplateAssetDto }) {
       {asset.kind === 'Image'
         ? <ImageIcon size={13} className="text-brand shrink-0" />
         : <FontIcon size={13} className="text-purple-500 shrink-0" />}
-      <span className="text-xs font-medium text-fg1 shrink-0">{asset.name}</span>
-      <span className="text-xs text-fg4 truncate flex-1">
-        {asset.fileName}{asset.fontFamilyName ? ` — ${asset.fontFamilyName}` : ''}
-      </span>
+      <AssetReference asset={asset} />
       {error && <span className="text-xs text-danger shrink-0">{error}</span>}
       <IconButton label="Заменить файл" size="sm" onClick={() => replaceInputRef.current?.click()}
         disabled={replaceMutation.isPending}
