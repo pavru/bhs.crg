@@ -17,7 +17,6 @@ using BHS.CRG.Api.Endpoints.QualityDocs;
 using BHS.CRG.Api.Endpoints.Reconciliation;
 using BHS.CRG.Api.Endpoints.Resolution;
 using BHS.CRG.Api.Endpoints.Templates;
-using BHS.CRG.Api.Hubs;
 using BHS.CRG.Application.Catalog;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
@@ -356,8 +355,7 @@ var pluginOpts = cfg.GetSection("Plugins").Get<PluginHostOptions>() ?? new();
 builder.Services.AddSingleton(pluginOpts);
 builder.Services.AddSingleton<IPluginHost, PluginHost>();
 
-// ── SignalR + CORS ────────────────────────────────────────────────────────────
-builder.Services.AddSignalR();
+// ── CORS ──────────────────────────────────────────────────────────────────────
 builder.Services.AddCors(opt => opt.AddDefaultPolicy(p =>
     p.WithOrigins(cfg["AllowedOrigins"]?.Split(',') ?? ["http://localhost:5173"])
      .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
@@ -484,7 +482,6 @@ app.MapGet("/api/version", () =>
 app.MapNotificationsEndpoints();
 app.MapJobsEndpoints();
 app.MapTagsEndpoints();
-app.MapHub<GenerationHub>("/hubs/generation");
 
 app.Run();
 

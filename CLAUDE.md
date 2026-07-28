@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Слой | Технология |
 |---|---|
 | Frontend | React 19 + TypeScript, Radix UI, Tailwind v4, React Query, Monaco (редактор Typst-шаблонов) |
-| Backend | ASP.NET Core 10 (Minimal APIs), EF Core 10 (Npgsql), MediatR, SignalR |
+| Backend | ASP.NET Core 10 (Minimal APIs), EF Core 10 (Npgsql), MediatR |
 | Auth | ASP.NET Identity + JWT, роли Admin/User (без SSO / корп. интеграций) |
 | БД | PostgreSQL 16 |
 | Blob-хранилище | MinIO (self-hosted) |
@@ -153,7 +153,8 @@ GET    /api/generate/plugins
 POST   /api/generate/plugins/{pluginId}/search  { entityType, query }
 POST   /api/generate/plugins/{pluginId}/fetch   { entityType, externalId }
 
-WS     /hubs/generation             (SignalR, auth via ?access_token=)
+GET    /api/jobs/active             → активные фоновые задачи (сборка комплекта, распознавание)
+                                      Ход долгих операций доставляется ПОЛЛИНГОМ, не сокетом.
 ```
 
 ### Архитектура
