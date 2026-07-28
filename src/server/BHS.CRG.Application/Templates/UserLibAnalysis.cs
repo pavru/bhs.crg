@@ -32,13 +32,19 @@ public static class UserLibAnalysis
     private static readonly Regex ImportOrIncludeRe =
         new(@"#(?:import|include)\s+""([^""]+)""", RegexOptions.Compiled);
 
-    // Только #import — для проверки одноимённых объявлений (issue #507). Проверено на Typst 0.15.1:
-    // «#include "inc.typ"» с последующим вызовом объявленной там функции падает с «unknown variable»,
-    // то есть include ПОДКЛЮЧАЕТ ФАЙЛ, но имён в область не приносит и перекрыть ничего не может.
-    // Считая его наравне с import, мы обещали бы «Typst молча возьмёт объявление из файла,
-    // импортированного последним» там, где ничего не перекрывается.
-    private static readonly Regex ImportOnlyRe =
-        new(@"#import\s+""([^""]+)""", RegexOptions.Compiled);
+    // Только «#import ...: *» — для проверки одноимённых объявлений (issues #507, #508). Перекрыть
+    // имя может лишь то, что попало в общую область целиком. Проверено на Typst 0.15.1:
+    //
+    //   #include "frag.typ"              — файл подключён, но имён не приносит («unknown variable»);
+    //   #import "frag.typ" as t          — приносит только «t», свой #let shout ничего не перекрывает;
+    //   #import "frag.typ": pad          — приносит только «pad», «shout» остаётся неизвестным.
+    //
+    // Считая эти формы наравне с «: *», мы обещали бы «Typst молча возьмёт объявление из файла,
+    // импортированного последним» там, где ничего не перекрывается. Осознанный пробел: перекрытие
+    // ИМЕНЕМ ИЗ СПИСКА («: pad» против своего «#let pad») мы не ловим — для этого нужен разбор
+    // списка имён, а не путей; лучше промолчать, чем сказать неправду.
+    private static readonly Regex WildcardImportRe =
+        new(@"#import\s+""([^""]+)""\s*:\s*\*", RegexOptions.Compiled);
 
     /// <summary>
     /// Текст без комментариев. Снимаем их ДО разбора импортов (issue #498): импорты теперь ведёт
@@ -146,13 +152,12 @@ public static class UserLibAnalysis
         Walk(entrypointContent, files, ImportOrIncludeRe);
 
     /// <summary>
-    /// Пути, достижимые ТОЛЬКО по <c>#import</c> (issue #507) — то есть те, чьи имена действительно
-    /// попадают в общую область и могут перекрыть друг друга. <c>#include</c> подключает файл, но
-    /// имён не приносит: проверено на Typst 0.15.1, вызов объявленной во включённом файле функции
-    /// падает с «unknown variable».
+    /// Пути, достижимые по <c>#import …: *</c> (issues #507, #508) — то есть те, чьи имена целиком
+    /// попадают в общую область и могут перекрыть друг друга. Ни <c>#include</c>, ни импорт с
+    /// псевдонимом, ни выборочный импорт этого не делают — проверено на Typst 0.15.1.
     /// </summary>
     public static HashSet<string> ImportedFrom(string entrypointContent, IReadOnlyList<UserLibFile> files) =>
-        Walk(entrypointContent, files, ImportOnlyRe);
+        Walk(entrypointContent, files, WildcardImportRe);
 
     private static HashSet<string> Walk(
         string entrypointContent, IReadOnlyList<UserLibFile> files, Regex referenceRe)
@@ -211,6 +216,21 @@ public static class UserLibAnalysis
         }
 
         return reachable;
+    }
+
+    /// <summary>
+    /// Путь из диагностики Typst — в путь, которым оперирует интерфейс: точка входа как есть, файлы
+    /// дерева без префикса <c>userlib/</c> (префикс постоянный и ничего не сообщает).
+    /// <c>null</c> — путь не наш: так выглядит диагностика из файла пакета <c>@preview</c> или из
+    /// служебного файла генерации.
+    /// </summary>
+    public static string? ToLibPath(string diagnosticPath)
+    {
+        var file = diagnosticPath.Replace('\\', '/');
+        var prefix = UserLibPath.FolderName + "/";
+        var idx = file.IndexOf(prefix, StringComparison.Ordinal);
+        if (idx >= 0) return file[(idx + prefix.Length)..];
+        return file.EndsWith(EntrypointName, StringComparison.Ordinal) ? EntrypointName : null;
     }
 
     /// <summary>

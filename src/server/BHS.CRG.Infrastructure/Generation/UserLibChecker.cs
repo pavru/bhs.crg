@@ -84,8 +84,18 @@ public class UserLibChecker : IUserLibChecker
                 .Where(d => d.Severity == "error" && !d.File.EndsWith(probePath, StringComparison.Ordinal))
                 .Select(d =>
                 {
-                    var path = ToLibPath(d.File);
-                    var inBuild = path == UserLibAnalysis.EntrypointName || reachable.Contains(path);
+                    // Путь, который не удалось привести к дереву (диагностика из файла пакета
+                    // @preview, из служебного файла генерации), считаем ВХОДЯЩИМ в сборку —
+                    // issue #508. Обратное умолчание давало худший исход: неизвестное показывалось
+                    // бы мягкой жёлтой полосой «в сборку не входит», а Ok оставался бы true, то есть
+                    // при сломанном пакете админу сообщали бы, что библиотека собирается, тогда как
+                    // встала генерация всех документов. Молчаливое зелёное — ровно то, против чего
+                    // вся эта проверка.
+                    var mapped = UserLibAnalysis.ToLibPath(d.File);
+                    var path = mapped ?? d.File;
+                    var inBuild = mapped is null
+                        || path == UserLibAnalysis.EntrypointName
+                        || reachable.Contains(path);
                     return new UserLibError(path, d.Line, d.Column, d.Message, inBuild);
                 })
                 .ToList();
@@ -98,17 +108,4 @@ public class UserLibChecker : IUserLibChecker
         }
     }
 
-    /// <summary>
-    /// Путь из диагностики — в путь, которым оперирует интерфейс: точка входа как есть, файлы дерева
-    /// без префикса <c>userlib/</c> (префикс постоянный и ничего не сообщает).
-    /// </summary>
-    private static string ToLibPath(string file)
-    {
-        var prefix = UserLibPath.FolderName + "/";
-        var idx = file.IndexOf(prefix, StringComparison.Ordinal);
-        if (idx >= 0) return file[(idx + prefix.Length)..];
-        return file.EndsWith(UserLibAnalysis.EntrypointName, StringComparison.Ordinal)
-            ? UserLibAnalysis.EntrypointName
-            : file;
-    }
 }

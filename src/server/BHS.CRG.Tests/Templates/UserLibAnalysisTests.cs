@@ -279,7 +279,7 @@ public class UserLibAnalysisTests
         Assert.Empty(UserLibAnalysis.Warnings(entry, files));
     }
 
-    /// <summary>Импортированный файл, наоборот, имена приносит — и перекрытие остаётся видимым.</summary>
+    /// <summary>Импортированный «: *» файл, наоборот, имена приносит — и перекрытие остаётся видимым.</summary>
     [Fact]
     public void ImportedFile_StillShadowsNames()
     {
@@ -287,6 +287,36 @@ public class UserLibAnalysisTests
         var entry = "#import \"userlib/frag.typ\": *\n#let shout(s) = upper(s)";
         Assert.NotEmpty(UserLibAnalysis.Warnings(entry, files));
     }
+
+    /// <summary>
+    /// Импорт с псевдонимом и выборочный импорт приносят только псевдоним и только названные имена —
+    /// проверено на Typst 0.15.1: «#import "frag.typ" as t» рядом со своим «#let shout» собирается, а
+    /// после «#import "frag.typ": pad» имя «shout» неизвестно. Считая их наравне с «: *», мы обещали
+    /// бы перекрытие там, где его нет (issue #508); форма с псевдонимом естественнее всего выглядит
+    /// как раз в точке входа, которую мы с #506 стали проверять.
+    /// </summary>
+    [Theory]
+    [InlineData("#import \"userlib/frag.typ\" as t")]
+    [InlineData("#import \"userlib/frag.typ\": pad")]
+    public void AliasedOrSelectiveImport_DoesNotShadowNames(string importLine)
+    {
+        var files = new[] { F("frag.typ", "#let shout(s) = upper(s)\n#let pad(s) = s") };
+        var entry = importLine + "\n#let shout(s) = lower(s)";
+        Assert.Empty(UserLibAnalysis.Warnings(entry, files));
+    }
+
+    /// <summary>
+    /// Путь из диагностики Typst — в путь интерфейса. Неизвестный путь (файл пакета <c>@preview</c>)
+    /// даёт null, и проверяющий по нему считает ошибку ВХОДЯЩЕЙ в сборку: обратное умолчание
+    /// показывало бы сломанный пакет мягкой полосой «в сборку не входит» при Ok = true (issue #508).
+    /// </summary>
+    [Theory]
+    [InlineData("C:/tmp/userlib-check-1/userlib/gost/f3.typ", "gost/f3.typ")]
+    [InlineData(@"C:\tmp\userlib-check-1\userlib\gost\f3.typ", "gost/f3.typ")]
+    [InlineData("C:/tmp/userlib-check-1/userlib.typ", "userlib.typ")]
+    [InlineData("C:/Users/x/AppData/Local/typst/packages/preview/cetz/0.3.1/src/draw.typ", null)]
+    public void ToLibPath_MapsTreePathsAndRejectsForeignOnes(string diagnostic, string? expected)
+        => Assert.Equal(expected, UserLibAnalysis.ToLibPath(diagnostic));
 
     /// <summary>
     /// Внутри сырого блока не код: библиотека вправе показывать там синтаксис с непарным «/*». Без
