@@ -253,28 +253,78 @@ public static class UserLibAnalysis
         return reachable;
     }
 
+    // Загрузчики данных и ресурсов: их аргумент — тоже путь, и тоже может указывать наружу дерева
+    // (issue #512). «image("/assets/logo.png")» на верхнем уровне файла падает у проверки с
+    // «file not found»: настоящих ассетов у неё нет, только пустая папка.
+    private static readonly Regex ResourceCallRe =
+        new(@"\b(?:image|read|json|csv|xml|yaml|toml|cbor|bytes)\s*\(\s*""([^""]+)""", RegexOptions.Compiled);
+
     /// <summary>
     /// Ссылается ли файл дерева НАРУЖУ — на то, чего в проверке нет и быть не может: артефакты
-    /// генерации (<c>/typeblocks.typ</c>, системная библиотека) или что-то выше дерева (issue #511).
+    /// генерации (<c>/typeblocks.typ</c>, данные, ассеты, системная библиотека) или что-то выше
+    /// дерева (issue #511). Считаются и импорты, и загрузчики ресурсов (issue #512).
     ///
     /// Такие файлы проверять нечем: заглушка пуста, и выборочный импорт из неё даёт «unresolved
-    /// import» — ложную ошибку на каждом сохранении. Компилировать их не будем; это возвращает их к
-    /// состоянию «не проверяем», в котором они и были до #506, но без вранья на экране.
-    /// Координаты пакетов (<c>@preview/…</c>) наружу не считаются: они резолвятся сами.
+    /// import», а <c>image()</c> — «file not found»; и то и другое было бы ложной ошибкой на каждом
+    /// сохранении. Координаты пакетов (<c>@preview/…</c>) наружу не считаются: они резолвятся сами.
     /// </summary>
-    public static bool ReferencesOutsideTree(UserLibFile file)
+    private static bool ReferencesOutsideTree(UserLibFile file)
     {
         var dir = file.Path.Contains('/') ? file.Path[..file.Path.LastIndexOf('/')] : string.Empty;
-        foreach (Match m in ImportOrIncludeRe.Matches(StripComments(file.Content)))
+        var content = StripComments(file.Content);
+
+        foreach (var raw in ImportOrIncludeRe.Matches(content).Select(m => m.Groups[1].Value)
+                     .Concat(ResourceCallRe.Matches(content).Select(m => m.Groups[1].Value)))
         {
-            var raw = m.Groups[1].Value.Replace('\\', '/');
-            if (raw.StartsWith('@')) continue;
-            var target = raw.StartsWith('/') ? AbsoluteToTreePath(raw) : ResolveRelative(dir, raw);
+            var path = raw.Replace('\\', '/');
+            if (path.StartsWith('@')) continue;
+            var target = path.StartsWith('/') ? AbsoluteToTreePath(path) : ResolveRelative(dir, path);
             // null — путь не приводится к дереву. Несуществующий файл ДЕРЕВА сюда не попадает: он
             // приводится и остаётся настоящей битой ссылкой, о которой проверка обязана сказать.
             if (target is null) return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Файлы, которые проверке компилировать нечем: сами ссылаются наружу дерева ЛИБО тянут за собой
+    /// такой файл по цепочке импортов (issue #512).
+    ///
+    /// Транзитивность здесь обязательна: импорт в зонде тянет весь замкнутый круг зависимостей, и
+    /// одного «этот файл чист» мало — компилятор всё равно дойдёт до грязного и выдаст на него
+    /// «unresolved import». Пофайловая проверка из #511 на этом и ломалась.
+    /// </summary>
+    public static HashSet<string> FilesCheckCannotCompile(IReadOnlyList<UserLibFile> files)
+    {
+        var tainted = new HashSet<string>(
+            files.Where(ReferencesOutsideTree).Select(f => f.Path), StringComparer.Ordinal);
+
+        // Кого тянет за собой каждый файл — только внутри дерева; наружные уже учтены выше.
+        var imports = files.ToDictionary(
+            f => f.Path,
+            f => ImportOrIncludeRe.Matches(StripComments(f.Content))
+                .Select(m => m.Groups[1].Value.Replace('\\', '/'))
+                .Where(raw => !raw.StartsWith('@'))
+                .Select(raw => raw.StartsWith('/')
+                    ? AbsoluteToTreePath(raw)
+                    : ResolveRelative(f.Path.Contains('/') ? f.Path[..f.Path.LastIndexOf('/')] : string.Empty, raw))
+                .Where(t => t is not null)
+                .Select(t => t!)
+                .ToList(),
+            StringComparer.Ordinal);
+
+        // Заражение расходится ПРОТИВ стрелок импорта, до неподвижной точки. Цикл импортов её не
+        // ломает: множество только растёт и ограничено числом файлов.
+        bool grew;
+        do
+        {
+            grew = false;
+            foreach (var (path, targets) in imports)
+                if (!tainted.Contains(path) && targets.Any(tainted.Contains))
+                    grew = tainted.Add(path);
+        } while (grew);
+
+        return tainted;
     }
 
     /// <summary>
@@ -367,8 +417,13 @@ public static class UserLibAnalysis
         // молча берёт последнее связывание, шаблоны получают старую копию, и никто не предупредил.
         // Заметьте, закомментированный оригинал мы уже не считали объявлением (#500), то есть
         // молчали как раз про более вероятную ошибку — незакомментированный.
+        // Файл дерева, занявший имя точки входа, из перебора исключаем (issue #512): новые такие пути
+        // запрещены, но старая запись могла приехать из бэкапа — и тогда замечание указывало бы
+        // файлу на самого себя, «объявлено ещё в: userlib.typ».
         var scanned = new[] { new UserLibFile(EntrypointName, entrypointContent) }
-            .Concat(files.Where(f => reachable.Contains(f.Path)).OrderBy(f => f.Path, StringComparer.Ordinal));
+            .Concat(files
+                .Where(f => reachable.Contains(f.Path) && !UserLibPath.TakesEntrypointName(f.Path))
+                .OrderBy(f => f.Path, StringComparer.Ordinal));
 
         var declarations = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var file in scanned)

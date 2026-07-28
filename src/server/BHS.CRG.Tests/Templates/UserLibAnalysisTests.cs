@@ -318,11 +318,60 @@ public class UserLibAnalysisTests
     [Theory]
     [InlineData("#import \"/typeblocks.typ\": place-table", true)]
     [InlineData("#import \"../../data.json\": *", true)]
+    // Загрузчики ресурсов — тоже путь наружу (issue #512): ассетов у проверки нет, только пустая папка.
+    [InlineData("#let logo = image(\"/assets/logo.png\")", true)]
+    [InlineData("#let d = json(\"/data.json\")", true)]
     [InlineData("#import \"/userlib/util/text.typ\": *", false)]
     [InlineData("#import \"missing.typ\": *", false)]
     [InlineData("#import \"@preview/cetz:0.3.1\": *", false)]
-    public void ReferencesOutsideTree_DetectsWhatCheckCannotProvide(string content, bool expected)
-        => Assert.Equal(expected, UserLibAnalysis.ReferencesOutsideTree(F("gost/f3.typ", content)));
+    public void FilesCheckCannotCompile_DetectsWhatCheckCannotProvide(string content, bool expected)
+    {
+        var untestable = UserLibAnalysis.FilesCheckCannotCompile([F("gost/f3.typ", content)]);
+        Assert.Equal(expected, untestable.Contains("gost/f3.typ"));
+    }
+
+    /// <summary>
+    /// Заражение идёт по цепочке импортов (issue #512): импорт в зонде тянет весь замкнутый круг
+    /// зависимостей, поэтому «сам файл чист» ничего не значит — компилятор всё равно дойдёт до
+    /// грязного и выдаст «unresolved import» уже на него. Пофайловая проверка из #511 на этом и
+    /// ломалась.
+    /// </summary>
+    [Fact]
+    public void FilesCheckCannotCompile_SpreadsThroughImports()
+    {
+        var files = new[]
+        {
+            F("util/blocks.typ", "#import \"/typeblocks.typ\": place-table"),
+            F("gost/f3.typ", "#import \"../util/blocks.typ\": *"),
+            F("gost/f4.typ", "#let clean() = []"),
+        };
+        var untestable = UserLibAnalysis.FilesCheckCannotCompile(files);
+        Assert.Equal(["gost/f3.typ", "util/blocks.typ"], untestable.OrderBy(x => x));
+    }
+
+    /// <summary>Взаимный импорт не должен зациклить распространение.</summary>
+    [Fact]
+    public void FilesCheckCannotCompile_TerminatesOnImportCycle()
+    {
+        var files = new[]
+        {
+            F("a.typ", "#import \"b.typ\": *"),
+            F("b.typ", "#import \"a.typ\": *\n#import \"/typeblocks.typ\": t"),
+        };
+        Assert.Equal(["a.typ", "b.typ"], UserLibAnalysis.FilesCheckCannotCompile(files).OrderBy(x => x));
+    }
+
+    /// <summary>
+    /// Старая запись с именем точки входа могла приехать из бэкапа (новые запрещены). В переборе
+    /// дубликатов её не учитываем — иначе замечание указывало бы файлу на самого себя (issue #512).
+    /// </summary>
+    [Fact]
+    public void LegacyTreeFileNamedLikeEntrypoint_IsNotComparedWithItself()
+    {
+        var files = new[] { F(UserLibAnalysis.EntrypointName, "#let shout(s) = upper(s)") };
+        var entry = "#import \"userlib/userlib.typ\": *\n#let shout(s) = lower(s)";
+        Assert.Empty(UserLibAnalysis.Warnings(entry, files));
+    }
 
     [Theory]
     [InlineData("#import \"userlib/frag.typ\" as t")]

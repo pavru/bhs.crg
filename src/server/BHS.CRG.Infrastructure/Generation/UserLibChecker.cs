@@ -60,14 +60,19 @@ public class UserLibChecker : IUserLibChecker
             // сломано. Импорт с псевдонимом, а не «: *», — чтобы зонд не создавал столкновений имён,
             // которых в настоящей генерации нет.
             //
-            // Кроме файлов, ссылающихся НАРУЖУ (issue #511): в проверке нет ни настоящего
-            // typeblocks.typ, ни данных, а выборочный импорт из пустой заглушки — «unresolved
-            // import», то есть ложная ошибка на каждом сохранении. Такие файлы возвращаются к
-            // состоянию «не проверяем», в котором они и были до #506, — молчание тут честнее.
-            // Цепочку от точки входа компилируем всегда: это и есть настоящая сборка библиотеки.
+            // Кроме файлов, ссылающихся НАРУЖУ, и тех, кто тянет такие за собой (issues #511, #512):
+            // в проверке нет ни настоящего typeblocks.typ, ни данных, ни ассетов, а выборочный импорт
+            // из пустой заглушки даёт «unresolved import», image() — «file not found»; и то и другое
+            // было бы ложной ошибкой на каждом сохранении. Такие файлы возвращаются к состоянию «не
+            // проверяем», в котором они и были до #506, — молчание тут честнее.
+            //
+            // Цепочку от точки входа компилируем ВСЕГДА: это и есть настоящая сборка библиотеки. Если
+            // она сама зависит от артефактов генерации, ложная ошибка на них остаётся — но так было и
+            // до #510, когда рядом не лежало даже заглушек.
+            var untestable = UserLibAnalysis.FilesCheckCannotCompile(files);
             var probe = new StringBuilder($"#import \"{UserLibAnalysis.EntrypointName}\": *\n");
             for (var i = 0; i < files.Count; i++)
-                if (!UserLibAnalysis.ReferencesOutsideTree(files[i]))
+                if (!untestable.Contains(files[i].Path))
                     probe.Append($"#import \"{UserLibPath.FolderName}/{files[i].Path}\" as _probe{i}\n");
             probe.Append("x\n");
             await File.WriteAllTextAsync(Path.Combine(tmp, UserLibAnalysis.ProbeName), probe.ToString(), Encoding.UTF8, ct);

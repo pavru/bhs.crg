@@ -80,19 +80,23 @@ public static class UserLibPath
             error = "Имя файла пустое.";
             return false;
         }
-        // Точка входа адресуется этой же строкой, и файл дерева с таким путём становится с ней
-        // неразличим (issue #510): его ошибки садились бы на строку точки входа, помечались бы
-        // «входит в сборку» даже будучи неподключёнными, а замечание о дубликате имён указывало бы
-        // на два файла одним и тем же именем.
-        if (string.Equals(path, UserLibAnalysis.EntrypointName, StringComparison.OrdinalIgnoreCase))
-        {
-            error = $"«{UserLibAnalysis.EntrypointName}» — имя точки входа; файл дерева нельзя назвать так же.";
-            return false;
-        }
 
         normalized = path;
         return true;
     }
+
+    /// <summary>
+    /// Занимает ли путь имя точки входа. Такой файл дерева с ней неразличим (issue #510): его
+    /// диагностика приводится к той же строке, поэтому ошибки садились бы на строку точки входа и
+    /// помечались бы «входит в сборку» даже будучи неподключёнными.
+    ///
+    /// Проверяется НЕ в <see cref="TryNormalize"/>, а при появлении нового пути (issue #512): раньше
+    /// такой путь был законным, и запись могла прийти из восстановления бэкапа. Отвергая её при
+    /// каждом сохранении, мы сделали бы библиотеку несохраняемой целиком — пользователь не смог бы
+    /// даже переименовать виновника. Регистр не значим: на Windows это один и тот же файл.
+    /// </summary>
+    public static bool TakesEntrypointName(string path) =>
+        string.Equals(path, UserLibAnalysis.EntrypointName, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Нормализованный путь или исключение — для мест, где отказ уже отсеян валидацией.</summary>
     public static string Normalize(string raw) =>
