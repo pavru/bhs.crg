@@ -29,8 +29,16 @@ public static class UserLibAnalysis
     // не пользователь, разница была неважна. Теперь диалог удаления — единственная защита, и на
     // файле, на который ссылались только через #include, он говорил бы «ссылок нет», после чего
     // библиотека переставала бы собираться.
-    private static readonly Regex ImportRe =
+    private static readonly Regex ImportOrIncludeRe =
         new(@"#(?:import|include)\s+""([^""]+)""", RegexOptions.Compiled);
+
+    // Только #import — для проверки одноимённых объявлений (issue #507). Проверено на Typst 0.15.1:
+    // «#include "inc.typ"» с последующим вызовом объявленной там функции падает с «unknown variable»,
+    // то есть include ПОДКЛЮЧАЕТ ФАЙЛ, но имён в область не приносит и перекрыть ничего не может.
+    // Считая его наравне с import, мы обещали бы «Typst молча возьмёт объявление из файла,
+    // импортированного последним» там, где ничего не перекрывается.
+    private static readonly Regex ImportOnlyRe =
+        new(@"#import\s+""([^""]+)""", RegexOptions.Compiled);
 
     /// <summary>
     /// Текст без комментариев. Снимаем их ДО разбора импортов (issue #498): импорты теперь ведёт
@@ -130,10 +138,24 @@ public static class UserLibAnalysis
         new(@"(?m)^#let\s+([\p{L}\p{N}_][\p{L}\p{N}_-]*)", RegexOptions.Compiled);
 
     /// <summary>
-    /// Пути, достижимые из точки входа по цепочке импортов. Пути в результате — относительные от
-    /// <c>userlib/</c>, как и у самих файлов.
+    /// Пути, ПОДКЛЮЧЁННЫЕ к точке входа — по <c>#import</c> и по <c>#include</c>. Это «входит в
+    /// сборку»: такой файл компилятор разбирает, и синтаксическая ошибка в нём останавливает
+    /// генерацию всех документов. Пути в результате — относительные от <c>userlib/</c>.
     /// </summary>
-    public static HashSet<string> ReachableFrom(string entrypointContent, IReadOnlyList<UserLibFile> files)
+    public static HashSet<string> ReachableFrom(string entrypointContent, IReadOnlyList<UserLibFile> files) =>
+        Walk(entrypointContent, files, ImportOrIncludeRe);
+
+    /// <summary>
+    /// Пути, достижимые ТОЛЬКО по <c>#import</c> (issue #507) — то есть те, чьи имена действительно
+    /// попадают в общую область и могут перекрыть друг друга. <c>#include</c> подключает файл, но
+    /// имён не приносит: проверено на Typst 0.15.1, вызов объявленной во включённом файле функции
+    /// падает с «unknown variable».
+    /// </summary>
+    public static HashSet<string> ImportedFrom(string entrypointContent, IReadOnlyList<UserLibFile> files) =>
+        Walk(entrypointContent, files, ImportOnlyRe);
+
+    private static HashSet<string> Walk(
+        string entrypointContent, IReadOnlyList<UserLibFile> files, Regex referenceRe)
     {
         var byPath = files.ToDictionary(f => f.Path, StringComparer.Ordinal);
         var reachable = new HashSet<string>(StringComparer.Ordinal);
@@ -149,7 +171,7 @@ public static class UserLibAnalysis
         while (queue.Count > 0)
         {
             var (baseDir, content) = queue.Dequeue();
-            foreach (Match m in ImportRe.Matches(StripComments(content)))
+            foreach (Match m in referenceRe.Matches(StripComments(content)))
             {
                 var raw = m.Groups[1].Value.Replace('\\', '/');
                 if (raw.StartsWith('@')) continue;   // координата пакета — не наш файл
@@ -252,7 +274,9 @@ public static class UserLibAnalysis
         string entrypointContent, IReadOnlyList<UserLibFile> files)
     {
         var warnings = new List<UserLibWarning>();
-        var reachable = ReachableFrom(entrypointContent, files);
+        // Именно ИМПОРТИРОВАННЫЕ, не просто подключённые (issue #507): перекрыть имя может только то,
+        // что попало в общую область через `: *`, а #include имён не приносит.
+        var reachable = ImportedFrom(entrypointContent, files);
 
         // Дубликаты ищем среди подключённых: одинаковые имена перекрывают друг друга ровно тогда,
         // когда оба файла попали в одну область через `: *` из точки входа.

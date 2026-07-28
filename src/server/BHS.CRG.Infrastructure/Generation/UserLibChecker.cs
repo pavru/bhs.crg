@@ -71,16 +71,23 @@ public class UserLibChecker : IUserLibChecker
             // документов, а в неподключённом — только шаблонов, импортирующих его напрямую. Сказать
             // «генерация не пройдёт» про второй значило бы солгать.
             var reachable = UserLibAnalysis.ReachableFrom(entrypointContent, files);
+
+            // Ошибки самого зонда пользователю не показать — он его не писал и не увидит. Сравнение
+            // ПОЛНЫМ путём, а не по имени (issue #507): Typst печатает абсолютный путь, поэтому
+            // прежнее «Path != "check.typ"» не совпадало никогда и фильтр был мёртвым — а зонд
+            // подрос до строки на каждый файл дерева, и его ошибка приезжала бы админу сырым путём
+            // во временную папку, вдобавок помеченная «в сборку не входит». По имени сравнивать
+            // нельзя: «userlib/check.typ» — законное имя файла дерева, и его ошибки мы бы съели.
+            var probePath = tmp.Replace('\\', '/').TrimEnd('/') + "/check.typ";
+
             var errors = TypstShortDiagnostics.Parse(stderr)
-                .Where(d => d.Severity == "error")
+                .Where(d => d.Severity == "error" && !d.File.EndsWith(probePath, StringComparison.Ordinal))
                 .Select(d =>
                 {
                     var path = ToLibPath(d.File);
                     var inBuild = path == UserLibAnalysis.EntrypointName || reachable.Contains(path);
                     return new UserLibError(path, d.Line, d.Column, d.Message, inBuild);
                 })
-                // Ошибки самого зонда пользователю не показать — он его не писал и не увидит.
-                .Where(e => e.Path != "check.typ")
                 .ToList();
 
             return new UserLibCheckResult(errors, warnings);

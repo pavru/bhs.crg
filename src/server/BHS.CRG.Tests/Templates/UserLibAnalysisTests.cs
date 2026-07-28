@@ -263,6 +263,32 @@ public class UserLibAnalysisTests
     }
 
     /// <summary>
+    /// …но имён <c>#include</c> в область НЕ приносит: проверено на Typst 0.15.1 — вызов объявленной
+    /// во включённом файле функции падает с «unknown variable». Считая его наравне с импортом, мы
+    /// обещали бы «Typst молча возьмёт объявление из файла, импортированного последним» там, где
+    /// ничего не перекрывается (issue #507).
+    /// </summary>
+    [Fact]
+    public void IncludedFile_DoesNotShadowNames()
+    {
+        var files = new[] { F("frag.typ", "#let shout(s) = upper(s)") };
+        var entry = "#include \"userlib/frag.typ\"\n#let shout(s) = upper(s)";
+
+        Assert.Equal(["frag.typ"], UserLibAnalysis.ReachableFrom(entry, files));   // в сборку входит
+        Assert.Empty(UserLibAnalysis.ImportedFrom(entry, files));                  // имён не приносит
+        Assert.Empty(UserLibAnalysis.Warnings(entry, files));
+    }
+
+    /// <summary>Импортированный файл, наоборот, имена приносит — и перекрытие остаётся видимым.</summary>
+    [Fact]
+    public void ImportedFile_StillShadowsNames()
+    {
+        var files = new[] { F("frag.typ", "#let shout(s) = upper(s)") };
+        var entry = "#import \"userlib/frag.typ\": *\n#let shout(s) = upper(s)";
+        Assert.NotEmpty(UserLibAnalysis.Warnings(entry, files));
+    }
+
+    /// <summary>
     /// Внутри сырого блока не код: библиотека вправе показывать там синтаксис с непарным «/*». Без
     /// этого блок открывал бы мнимый комментарий и съедал остаток файла — тот же класс, что «/*» в
     /// строке (#501) и вложенные комментарии (#504) (issue #506).
