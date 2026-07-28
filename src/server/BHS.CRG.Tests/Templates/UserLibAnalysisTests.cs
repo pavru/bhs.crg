@@ -167,6 +167,30 @@ public class UserLibAnalysisTests
         Assert.Equal(["a.typ"], UserLibAnalysis.ReachableFrom(entry, files));
     }
 
+    /// <summary>
+    /// Блочные комментарии Typst вложенные, и закомментировать область, где комментарий уже есть, —
+    /// обычное действие редактора. Нежадное регулярное выражение закрывало блок на первом внутреннем
+    /// «*/», оставляя импорт живым: файл числился подключённым, а его имена шли в проверку
+    /// дубликатов — то самое, от чего избавлялись в #498 (issue #504).
+    /// </summary>
+    [Fact]
+    public void NestedBlockComment_ClosesAtItsOwnEnd()
+    {
+        var files = new[] { F("a.typ", "#let f() = []") };
+        Assert.Empty(UserLibAnalysis.ReachableFrom(
+            "/* черновик /* внутри */ #import \"userlib/a.typ\": * */", files));
+        Assert.Equal(["a.typ"], UserLibAnalysis.ReachableFrom(
+            "/* /* */ */\n#import \"userlib/a.typ\": *", files));
+    }
+
+    /// <summary>Переводы строк из комментариев сохраняются: «#let» считается только в начале строки.</summary>
+    [Fact]
+    public void DeclarationAfterMultilineComment_IsCounted()
+    {
+        var names = UserLibAnalysis.TopLevelNames("#let a() = []\n/* пояснение\n   в две строки */\n#let b() = []");
+        Assert.Equal(["a", "b"], names);
+    }
+
     [Fact]
     public void PackageImports_AreIgnored()
         => Assert.Empty(UserLibAnalysis.ReachableFrom("#import \"@preview/cetz:0.3.1\": *", []));

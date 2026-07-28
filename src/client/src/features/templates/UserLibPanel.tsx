@@ -10,7 +10,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Save, AlertCircle, AlertTriangle } from 'lucide-react';
 import {
   useTypstUserLib, useSaveTypstUserLib,
-  type UserLibFile, type UserLibCheck,
+  type UserLibFile, type UserLibCheck, type UserLibError,
 } from '@/shared/api/typstUserLib';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { UserLibFileList } from './UserLibFileList';
@@ -21,12 +21,14 @@ import { ENTRYPOINT, referencingFiles, mergeFiles, mergeText, treeKey } from './
 
 /** Пустое дерево модульной константой: инлайновый `[]` — новая ссылка на каждый рендер (#305). */
 const NO_FILES: UserLibFile[] = [];
+/** По той же причине: `errors` — зависимость эффекта маркеров, инлайновый `[]` гонял бы его на каждое нажатие клавиши. */
+const NO_ERRORS: UserLibError[] = [];
 
 export function UserLibPanel() {
   const { resolvedTheme } = useTheme();
   useUserLibCompletion();
   useAssetCompletion();
-  const { data, isLoading, dataUpdatedAt } = useTypstUserLib();
+  const { data, isLoading, isFetching, dataUpdatedAt, refetch } = useTypstUserLib();
   const saveMutation = useSaveTypstUserLib();
 
   const [entry, setEntry] = useState('');
@@ -156,7 +158,7 @@ export function UserLibPanel() {
   // держали красную полосу, а она гасит блок замечаний, пряча уже свежие.
   const serverKey = useMemo(() => treeKey(serverEntry, serverFiles), [serverEntry, serverFiles]);
   const checkApplies = check !== null && (checkedKey === serverKey || checkAt > dataUpdatedAt);
-  const errors = checkApplies ? check.errors : [];
+  const errors = checkApplies ? check.errors : NO_ERRORS;
 
   /** Ошибка в открытом файле — маркерами Monaco: там, где она есть. */
   useEffect(() => {
@@ -194,6 +196,27 @@ export function UserLibPanel() {
 
   if (isLoading) {
     return <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка...</div>;
+  }
+
+  // Чтение не удалось — показываем это, а не пустую панель (issue #504). Без ветки библиотека
+  // выглядела как пустая: редактор чист, дерево пусто, «Изменено» нет, и ничто не говорит о сбое —
+  // а «Сохранить всё» отправляло бы `{ content: '', files: [] }`, после чего сохранение целым
+  // деревом (иначе половина рефакторинга легла бы без второй) удаляет ВСЕ файлы и стирает точку
+  // входа. Одна неудачная загрузка при перезапуске API — и библиотеки нет.
+  if (!data) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-sm">
+        <AlertCircle size={20} className="text-danger" />
+        <p className="text-fg2">Не удалось загрузить библиотеку.</p>
+        <p className="text-fg4 text-xs max-w-sm text-center">
+          Правка недоступна, пока библиотека не прочитана: сохранение заменяет дерево целиком и
+          стёрло бы его.
+        </p>
+        <Button variant="outlined" size="sm" onClick={() => void refetch()} loading={isFetching}>
+          Повторить
+        </Button>
+      </div>
+    );
   }
 
   // Замечания до первого сохранения приходят из ответа чтения — чтобы дубликаты имён были видны и

@@ -135,6 +135,22 @@ describe('referencingFiles', () => {
     const entry = '#let note = [Кабель "ВВГнг проложен]\n#import "userlib/a.typ": *';
     expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
   });
+
+  /**
+   * Блочные комментарии Typst вложенные, и закомментировать область, где комментарий уже есть, —
+   * обычное действие редактора. Нежадное регулярное выражение закрывало блок на первом внутреннем
+   * `*\/`, оставляя импорт живым: файл числился подключённым, а его имена шли в проверку дубликатов
+   * (#504).
+   */
+  it('вложенный блочный комментарий закрывается на своём «*/»', () => {
+    const entry = '/* черновик /* внутри */ #import "userlib/a.typ": * */';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual([]);
+  });
+
+  it('после закрытия вложенного блока разбор продолжается', () => {
+    const entry = '/* /* */ */\n#import "userlib/a.typ": *';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
 });
 
 /**
