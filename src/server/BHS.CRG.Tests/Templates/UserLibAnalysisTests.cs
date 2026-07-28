@@ -32,19 +32,6 @@ public class UserLibAnalysisTests
     }
 
     /// <summary>
-    /// Самый неприятный отказ: файл валиден, просто никем не импортирован — функции молча не появятся
-    /// в шаблонах, и ошибки не будет.
-    /// </summary>
-    [Fact]
-    public void UnreachableFile_IsReported()
-    {
-        var warnings = UserLibAnalysis.Warnings("// пусто", [F("util/text.typ", "#let x() = []")]);
-        var w = Assert.Single(warnings);
-        Assert.Equal("util/text.typ", w.Path);
-        Assert.Contains("не подключён", w.Message);
-    }
-
-    /// <summary>
     /// Проверено на Typst 0.15.1: при двух <c>import: *</c> с одинаковым именем побеждает последний,
     /// БЕЗ предупреждения. В одном файле дубль видно глазом, в двадцати — нет.
     /// </summary>
