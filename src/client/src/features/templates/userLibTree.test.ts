@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  buildRows, referencingFiles, resolveRelative, validatePath, mergeFiles, mergeText, treeKey,
+  buildRows, referencingFiles, resolveRelative, validatePath,
+  mergeFiles, mergeText, treeKey, checkStillApplies,
 } from './userLibTree';
 import type { UserLibFile } from '@/shared/api/typstUserLib';
 
@@ -151,6 +152,24 @@ describe('referencingFiles', () => {
     const entry = '/* /* */ */\n#import "userlib/a.typ": *';
     expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
   });
+
+  /**
+   * Ведущий «/» Typst считает от корня проекта, а не от папки файла (проверено на 0.15.1: такой
+   * импорт из файла дерева компилируется). Разрешая его как относительный, мы приставляли папку
+   * файла и ссылку молча не находили — удаление проходило бы без предупреждения (#505).
+   */
+  it('импорт от корня проекта из файла дерева считается ссылкой', () => {
+    const files = [
+      f('gost/f3.typ', '#import "/userlib/util/text.typ": *'),
+      f('util/text.typ', '#let shout(s) = upper(s)'),
+    ];
+    expect(referencingFiles(files, 'util/text.typ', '')).toEqual(['gost/f3.typ']);
+  });
+
+  it('путь от корня мимо userlib/ нашим файлом не считается', () => {
+    const files = [f('gost/f3.typ', '#import "/typeblocks.typ": *'), f('typeblocks.typ', '')];
+    expect(referencingFiles(files, 'typeblocks.typ', '')).toEqual([]);
+  });
 });
 
 /**
@@ -235,6 +254,29 @@ describe('treeKey', () => {
 
   it('новый файл меняет отпечаток', () =>
     expect(treeKey('E', [f('a.typ', 'A')])).not.toBe(treeKey('E', [f('a.typ', 'A'), f('b.typ', '')])));
+});
+
+/**
+ * Предикат вынесен из панели именно затем, чтобы это проверялось тестом: живой проверкой два его
+ * условия неразличимы — экран одинаково молчит и когда отпечатки совпали, и когда сработало
+ * временное условие (#505).
+ */
+describe('checkStillApplies', () => {
+  const base = { checkedKey: 'K', checkedAt: 100, serverKey: 'K', dataUpdatedAt: 200 };
+
+  it('проверки в этом сеансе не было — не относится', () =>
+    expect(checkStillApplies({ ...base, checkedKey: null })).toBe(false));
+
+  it('отпечатки совпали — относится, даже если чтение свежее', () =>
+    expect(checkStillApplies(base)).toBe(true));
+
+  /** Сосед сохранил своё между нашим PUT и перечитыванием: наша проверка описывает не то дерево. */
+  it('отпечатки разошлись, чтение свежее проверки — не относится', () =>
+    expect(checkStillApplies({ ...base, serverKey: 'иной' })).toBe(false));
+
+  /** Перечитывание после сохранения не дошло: проверка описывает дерево свежее прочитанного. */
+  it('отпечатки разошлись, но проверка свежее чтения — относится', () =>
+    expect(checkStillApplies({ ...base, serverKey: 'иной', checkedAt: 300 })).toBe(true));
 });
 
 describe('mergeText', () => {

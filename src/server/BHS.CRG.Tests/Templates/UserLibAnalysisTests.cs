@@ -191,6 +191,38 @@ public class UserLibAnalysisTests
         Assert.Equal(["a", "b"], names);
     }
 
+    /// <summary>
+    /// Ведущий «/» Typst считает от корня проекта, а не от папки файла — компилятор зовётся с --root
+    /// на временную папку, где дерево лежит в подпапке userlib/. Проверено на Typst 0.15.1: такой
+    /// импорт из файла дерева компилируется. Разрешая его как относительный, мы приставляли папку
+    /// файла («gost/userlib/util/text.typ») и ссылку молча не находили — файл числился
+    /// неподключённым, а его одноимённые объявления выпадали из проверки (issue #505).
+    /// </summary>
+    [Fact]
+    public void RootAbsoluteImport_FromTreeFile_IsResolved()
+    {
+        var files = new[]
+        {
+            F("gost/f3.typ", "#import \"/userlib/util/text.typ\": *"),
+            F("util/text.typ", "#let shout(s) = upper(s)"),
+        };
+        var reachable = UserLibAnalysis.ReachableFrom("#import \"userlib/gost/f3.typ\": *", files);
+        Assert.Equal(["gost/f3.typ", "util/text.typ"], reachable.OrderBy(x => x));
+    }
+
+    /// <summary>Путь от корня мимо userlib/ ведёт к служебным файлам генерации — они не наши.</summary>
+    [Fact]
+    public void RootAbsoluteImport_OutsideTree_IsNotOurFile()
+    {
+        var files = new[]
+        {
+            F("gost/f3.typ", "#import \"/typeblocks.typ\": *"),
+            F("typeblocks.typ", "#let t() = []"),
+        };
+        var reachable = UserLibAnalysis.ReachableFrom("#import \"userlib/gost/f3.typ\": *", files);
+        Assert.Equal(["gost/f3.typ"], reachable);
+    }
+
     [Fact]
     public void PackageImports_AreIgnored()
         => Assert.Empty(UserLibAnalysis.ReachableFrom("#import \"@preview/cetz:0.3.1\": *", []));

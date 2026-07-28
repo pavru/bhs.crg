@@ -124,6 +124,32 @@ export function treeKey(entry: string, files: UserLibFile[]): string {
   return JSON.stringify([entry, sorted.map(f => [f.path, f.content])]);
 }
 
+/**
+ * Относится ли последняя проверка собираемости к тому, что сейчас на сервере (issue #505 — вынесено
+ * из панели, чтобы это можно было проверить тестом, а не только глазами).
+ *
+ * Основание — отпечаток: проверка есть чистая функция дерева, поэтому её вывод в силе, пока дерево
+ * то же самое. Время — только запасной случай «перечитывание после сохранения не дошло»: тогда
+ * проверка описывает дерево свежее прочитанного, и верить надо ей.
+ *
+ * Порядок важен и держится на том, что время проверки снимается ДО запроса сохранения: сохранение
+ * само запускает перечитывание и ждёт его, поэтому отметка, снятая после, всегда была бы позже
+ * `dataUpdatedAt` — и временное условие оказывалось бы истинным после КАЖДОГО сохранения, подменяя
+ * собой сравнение отпечатков. Тогда чужое сохранение, легшее между нашим PUT и перечитыванием,
+ * выдавалось бы за проверенное нами.
+ */
+export function checkStillApplies(args: {
+  /** Отпечаток дерева, проверенного последним; null — проверки в этом сеансе не было. */
+  checkedKey: string | null;
+  checkedAt: number;
+  serverKey: string;
+  dataUpdatedAt: number;
+}): boolean {
+  const { checkedKey, checkedAt, serverKey, dataUpdatedAt } = args;
+  if (checkedKey === null) return false;
+  return checkedKey === serverKey || checkedAt > dataUpdatedAt;
+}
+
 /** То же для точки входа: правил локально — правка остаётся, не правил — берём серверную. */
 export function mergeText(local: string, base: string | null, server: string): string {
   return base === null || local === base ? server : local;
@@ -153,10 +179,29 @@ export function referencingFiles(files: UserLibFile[], target: string, entrypoin
     if (file.path === target) continue;
     const dir = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : '';
     for (const raw of importPaths(file.content)) {
-      if (resolveRelative(dir, raw) === target) { result.push(file.path); break; }
+      if (resolveFromTreeFile(dir, raw) === target) { result.push(file.path); break; }
     }
   }
   return result;
+}
+
+/**
+ * Разрешение импорта, написанного В ФАЙЛЕ ДЕРЕВА. Отдельно от `resolveRelative`, потому что путь с
+ * ведущим «/» Typst считает от КОРНЯ проекта, а не от папки файла (компилятор зовётся с `--root` на
+ * временную папку, где дерево лежит в подпапке `userlib/`). Проверено на Typst 0.15.1: такой импорт
+ * из файла дерева компилируется.
+ *
+ * Без этого «/userlib/util/text.typ» разрешался бы как относительный и получал бы приставку из папки
+ * файла («gost/userlib/util/text.typ»), то есть ссылка молча не находилась бы: удаление и
+ * переименование проходили бы без «На файл ссылаются…», а сохранённая библиотека переставала бы
+ * собираться — вместе с генерацией всех документов (issue #505). Точка входа лежит в корне, там
+ * ведущий «/» и так безвреден, а вот у файлов дерева база своя.
+ */
+function resolveFromTreeFile(dir: string, raw: string): string | null {
+  if (!raw.startsWith('/')) return resolveRelative(dir, raw);
+  const fromRoot = resolveRelative('', raw);
+  const prefix = USERLIB_FOLDER + '/';
+  return fromRoot?.startsWith(prefix) ? fromRoot.slice(prefix.length) : null;
 }
 
 /**

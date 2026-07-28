@@ -134,7 +134,15 @@ public static class UserLibAnalysis
                 }
                 else
                 {
-                    target = ResolveRelative(baseDir, raw);
+                    // Ведущий «/» Typst считает от КОРНЯ проекта, а не от папки файла: компилятор
+                    // зовётся с --root на временную папку, где дерево лежит в подпапке userlib/.
+                    // Проверено на Typst 0.15.1 — такой импорт из файла дерева компилируется.
+                    // Разрешая его как относительный, мы приставляли папку файла
+                    // («gost/userlib/util/text.typ») и ссылку молча не находили: файл числился
+                    // неподключённым, его одноимённые объявления выпадали из проверки, а удаление
+                    // проходило без предупреждения (issue #505). У точки входа база — корень, там
+                    // ведущий «/» и так безвреден.
+                    target = raw.StartsWith('/') ? AbsoluteToTreePath(raw) : ResolveRelative(baseDir, raw);
                 }
 
                 if (target is null || !byPath.TryGetValue(target, out var file)) continue;
@@ -146,6 +154,19 @@ public static class UserLibAnalysis
         }
 
         return reachable;
+    }
+
+    /// <summary>
+    /// Путь от корня проекта («/userlib/util/text.typ») — в координаты дерева («util/text.typ»).
+    /// Всё, что вне <c>userlib/</c>, нашим файлом не является.
+    /// </summary>
+    private static string? AbsoluteToTreePath(string raw)
+    {
+        var fromRoot = ResolveRelative(string.Empty, raw);
+        var prefix = UserLibPath.FolderName + "/";
+        return fromRoot is not null && fromRoot.StartsWith(prefix, StringComparison.Ordinal)
+            ? fromRoot[prefix.Length..]
+            : null;
     }
 
     /// <summary>Разрешение относительного пути «../../util/text.typ» от папки файла.</summary>

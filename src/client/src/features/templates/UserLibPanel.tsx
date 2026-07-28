@@ -15,7 +15,9 @@ import {
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { UserLibFileList } from './UserLibFileList';
 import { UserLibPathDialog } from './UserLibPathDialog';
-import { ENTRYPOINT, referencingFiles, mergeFiles, mergeText, treeKey } from './userLibTree';
+import {
+  ENTRYPOINT, referencingFiles, mergeFiles, mergeText, treeKey, checkStillApplies,
+} from './userLibTree';
 
 // ─── User Typst library: точка входа + дерево файлов (issue #473) ─────────────
 
@@ -36,7 +38,7 @@ export function UserLibPanel() {
   const [selected, setSelected] = useState(ENTRYPOINT);
   const [check, setCheck] = useState<UserLibCheck | null>(null);
   const [checkAt, setCheckAt] = useState(0);
-  const [checkedKey, setCheckedKey] = useState('');
+  const [checkedKey, setCheckedKey] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState(false);
   const [error, setError] = useState('');
   const [pathDialog, setPathDialog] = useState<{ mode: 'create' | 'rename'; path: string } | null>(null);
@@ -101,9 +103,14 @@ export function UserLibPanel() {
   const handleSave = useCallback(async () => {
     setError('');
     try {
+      // Время снимаем ДО запроса (issue #505): сохранение само запускает перечитывание, и
+      // mutateAsync ждёт его — onSuccess возвращает промис invalidateQueries. Отметка, снятая после
+      // await, всегда оказывалась бы позже dataUpdatedAt, и условие «проверка свежее чтения» было бы
+      // истинным после КАЖДОГО сохранения, подменяя собой сравнение отпечатков.
+      const startedAt = Date.now();
       const res = await saveMutation.mutateAsync({ content: entry, files });
       setCheck(res.check);
-      setCheckAt(Date.now());
+      setCheckAt(startedAt);
       setCheckedKey(treeKey(res.content, res.files));   // дерево, к которому относится эта проверка
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
@@ -157,7 +164,8 @@ export function UserLibPanel() {
   // ровно то молчаливое зелёное, против которого написан баннер ниже. И наоборот: устаревшие ошибки
   // держали красную полосу, а она гасит блок замечаний, пряча уже свежие.
   const serverKey = useMemo(() => treeKey(serverEntry, serverFiles), [serverEntry, serverFiles]);
-  const checkApplies = check !== null && (checkedKey === serverKey || checkAt > dataUpdatedAt);
+  const checkApplies = check !== null
+    && checkStillApplies({ checkedKey, checkedAt: checkAt, serverKey, dataUpdatedAt });
   const errors = checkApplies ? check.errors : NO_ERRORS;
 
   /** Ошибка в открытом файле — маркерами Monaco: там, где она есть. */
