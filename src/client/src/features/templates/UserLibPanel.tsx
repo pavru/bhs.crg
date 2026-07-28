@@ -155,13 +155,16 @@ export function UserLibPanel() {
   }
 
   const errors = check?.errors ?? [];
-  const warnings = check?.warnings ?? [];
+  // До первого сохранения (в том числе сразу после перезагрузки) замечания берём из ответа чтения —
+  // иначе неподключённый файл снова становился бы молчаливым отказом (issue #492).
+  const warnings = check?.warnings ?? data?.warnings ?? [];
 
   return (
     <div className="flex h-full min-h-0">
       <aside className="w-72 shrink-0 border-r border-stroke flex flex-col bg-base">
         <UserLibFileList
-          files={files} selected={selected} dirty={dirty} check={check}
+          files={files} selected={selected} dirty={dirty}
+          check={check ?? (data ? { ok: true, errors: [], warnings: data.warnings } : null)}
           onSelect={setSelected}
           onCreate={folder => setPathDialog({ mode: 'create', path: folder ? `${folder}/` : '' })}
           onRename={p => setPathDialog({ mode: 'rename', path: p })}

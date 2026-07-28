@@ -64,7 +64,7 @@ export function buildRows(files: UserLibFile[]): TreeRow[] {
  * сказать поимённо, что сломается. Автоматически переписывать чужие импорты не беремся: это
  * текстовая трансформация пользовательского кода, ошибиться в ней тоньше, чем не делать.
  */
-export function referencingFiles(files: UserLibFile[], target: string, entrypoint = ''): string[] {
+export function referencingFiles(files: UserLibFile[], target: string, entrypoint: string): string[] {
   const result: string[] = [];
 
   // Точку входа проверяем ПЕРВОЙ и отдельно: она чаще всех и ссылается, а адресует иначе — из корня,
@@ -72,8 +72,11 @@ export function referencingFiles(files: UserLibFile[], target: string, entrypoin
   // Пока приложение само правило точку входа (#473), её отсутствие здесь было безобидным; после
   // отказа от автоматики (#492) молчание об этой ссылке означало бы, что пользователь переименует
   // файл и узнает о поломке только когда встанет генерация всех документов.
-  const prefix = USERLIB_FOLDER + '/';
-  if (importPaths(entrypoint).some(raw => raw.startsWith(prefix) && raw.slice(prefix.length) === target))
+  // Путь НОРМАЛИЗУЕМ, а не сравниваем префиксом: пока строку писало приложение, она всегда была
+  // канонической, но теперь импорты ведёт пользователь (#492), и «./userlib/f3.typ» — обычная
+  // запись. Без нормализации ссылка не нашлась бы, и удаление файла прошло бы без предупреждения.
+  const full = USERLIB_FOLDER + '/' + target;
+  if (importPaths(entrypoint).some(raw => resolveRelative('', raw) === full))
     result.push(ENTRYPOINT);
 
   for (const file of files) {

@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 
 namespace BHS.CRG.Application.Templates;
 
@@ -65,9 +65,15 @@ public static class UserLibAnalysis
                 string? target;
                 if (baseDir is null)
                 {
-                    // из точки входа: интересуют только ссылки внутрь дерева
-                    if (!raw.StartsWith(entryImportsPrefix, StringComparison.Ordinal)) continue;
-                    target = raw[entryImportsPrefix.Length..];
+                    // Из точки входа интересуют только ссылки внутрь дерева. Сначала НОРМАЛИЗУЕМ:
+                    // пока строку писало приложение, она всегда была канонической, но теперь импорты
+                    // ведёт пользователь (#492), и «./userlib/f3.typ» — совершенно обычная запись.
+                    // Без нормализации подключённый файл объявлялся бы неподключённым, а попытка
+                    // «починить» это вторым импортом дала бы предупреждение о дубликате имён.
+                    var normalized = ResolveRelative(string.Empty, raw);
+                    if (normalized is null || !normalized.StartsWith(entryImportsPrefix, StringComparison.Ordinal))
+                        continue;
+                    target = normalized[entryImportsPrefix.Length..];
                 }
                 else
                 {

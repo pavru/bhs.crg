@@ -47,12 +47,12 @@ describe('referencingFiles', () => {
       f('gost/forms/f3.typ', '#import "../../util/text.typ": shout'),
       f('util/text.typ', '#let shout(s) = upper(s)'),
     ];
-    expect(referencingFiles(files, 'util/text.typ')).toEqual(['gost/forms/f3.typ']);
+    expect(referencingFiles(files, 'util/text.typ', '')).toEqual(['gost/forms/f3.typ']);
   });
 
   it('координаты пакетов не считаются ссылкой на файл', () => {
     const files = [f('a.typ', '#import "@preview/cetz:0.3.1": canvas')];
-    expect(referencingFiles(files, 'cetz')).toEqual([]);
+    expect(referencingFiles(files, 'cetz', '')).toEqual([]);
   });
 
   /**
@@ -72,11 +72,20 @@ describe('referencingFiles', () => {
     expect(referencingFiles(files, 'a.typ', '#import "userlib/b.typ": *')).toEqual([]);
   });
 
-  it('без точки входа поведение прежнее', () =>
-    expect(referencingFiles([f('a.typ', '#import "b.typ": *')], 'b.typ')).toEqual(['a.typ']));
+  it('пустая точка входа — только файлы дерева', () =>
+    expect(referencingFiles([f('a.typ', '#import "b.typ": *')], 'b.typ', '')).toEqual(['a.typ']));
+
+  /**
+   * Пока строку писало приложение, она всегда была канонической. Теперь импорты ведёт пользователь
+   * (#492), и «./userlib/…» — обычная запись; без нормализации ссылка не нашлась бы, а удаление
+   * файла прошло бы без предупреждения.
+   */
+  it('точка входа с «./» тоже считается ссылающейся', () =>
+    expect(referencingFiles([f('gost/f3.typ', '')], 'gost/f3.typ', '#import "./userlib/gost/f3.typ": *'))
+      .toEqual(['userlib.typ']));
 
   it('никто не ссылается — пусто', () =>
-    expect(referencingFiles([f('a.typ', ''), f('b.typ', '')], 'a.typ')).toEqual([]));
+    expect(referencingFiles([f('a.typ', ''), f('b.typ', '')], 'a.typ', '')).toEqual([]));
 });
 
 describe('validatePath', () => {
