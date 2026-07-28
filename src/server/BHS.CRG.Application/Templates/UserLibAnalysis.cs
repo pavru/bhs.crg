@@ -114,9 +114,16 @@ public static class UserLibAnalysis
         return parts.Count == 0 ? null : string.Join('/', parts);
     }
 
-    /// <summary>Имена, объявленные в файле на верхнем уровне (то, что уходит наружу при <c>: *</c>).</summary>
+    /// <summary>
+    /// Имена, объявленные в файле на верхнем уровне (то, что уходит наружу при <c>: *</c>).
+    ///
+    /// Комментарии снимаем, как и при разборе импортов (issue #500): закомментированное объявление
+    /// не объявляет ничего. Иначе перенос функции в другой файл с закомментированным оригиналом —
+    /// обычный приём — давал бы ложное «объявлено ещё в» на имя, объявленное ровно один раз.
+    /// </summary>
     public static IReadOnlyList<string> TopLevelNames(string content) =>
-        TopLevelLetRe.Matches(content).Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal).ToList();
+        TopLevelLetRe.Matches(CommentRe.Replace(content, string.Empty))
+            .Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal).ToList();
 
     /// <summary>
     /// Замечания по дереву — одноимённые объявления. Порядок устойчив: список показывается

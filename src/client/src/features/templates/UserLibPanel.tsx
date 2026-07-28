@@ -44,7 +44,22 @@ export function UserLibPanel() {
   const serverEntry = data?.content ?? '';
   const serverFiles = data?.files ?? NO_FILES;
 
-  useEffect(() => { setEntry(serverEntry); setFiles(serverFiles); }, [serverEntry, serverFiles]);
+  // Перечитывание НЕ затирает несохранённое (issue #500): запрос обновляется по фокусу окна, и
+  // безусловная синхронизация молча уносила бы правки во всех файлах — вместе с точками-маркерами,
+  // по которым это можно было бы заметить. Пока есть несохранённое, серверные данные ждут.
+  //
+  // ПЕРВИЧНУЮ загрузку страж пропускать не должен: до неё локальное состояние пусто, а значит всё
+  // серверное числится «изменённым» — страж заблокировал бы сам себя, и панель осталась бы пустой
+  // с индикатором «Изменено: 14». Поэтому первый приход данных всегда садится в состояние.
+  const dirtyRef = useRef(false);
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (!data) return;
+    if (seeded.current && dirtyRef.current) return;
+    seeded.current = true;
+    setEntry(serverEntry);
+    setFiles(serverFiles);
+  }, [data, serverEntry, serverFiles]);
 
   // Несохранённые файлы — точка-маркер на строке, идиома вкладок редактора.
   const dirty = useMemo(() => {
@@ -57,6 +72,7 @@ export function UserLibPanel() {
   }, [entry, files, serverEntry, serverFiles]);
 
   const isDirty = dirty.size > 0;
+  dirtyRef.current = isDirty;
 
   // Выбранный файл мог исчезнуть, пока мы его смотрели: соседняя вкладка сохранила дерево без него,
   // и refetch подменил files. Вычисляем активный файл ПРИ ОТРИСОВКЕ, а не поправляем эффектом:
@@ -176,7 +192,11 @@ export function UserLibPanel() {
   // updateCurrent перебирает files и не находит совпадения (issue #496).
   const alive = (path: string) => path === ENTRYPOINT || files.some(f => f.path === path);
   const errors = check?.errors ?? [];
-  const warnings = check?.warnings ?? data?.warnings ?? [];
+  // Замечания берём из ЧТЕНИЯ, а не из последней проверки (issue #500): после сохранения запрос
+  // перечитывается, поэтому data всегда описывает сохранённое состояние не хуже check. Обратный
+  // порядок давал залипание: раз сохранив в этой вкладке, мы навсегда закрывали пустым check.warnings
+  // всё, что появилось у соседей.
+  const warnings = data?.warnings ?? check?.warnings ?? [];
 
   return (
     <div className="flex h-full min-h-0">
@@ -227,6 +247,16 @@ export function UserLibPanel() {
               ))}
               {errors.length > 3 && <p className="text-fg3">…и ещё {errors.length - 3}</p>}
             </div>
+          </div>
+        )}
+        {/* Ошибки живут только в ответе на сохранение: проверка запускает Typst, и гонять его на
+            каждое чтение (в том числе на каждый фокус окна) — плохой размен. Поэтому после
+            перезагрузки мы про собираемость НЕ ЗНАЕМ — и говорим это прямо, а не показываем пустоту,
+            которая читалась бы как «всё в порядке» (issue #500). */}
+        {check === null && (
+          <div className="px-4 py-1.5 border-b border-stroke text-xs text-fg3 flex items-center gap-2">
+            <AlertCircle size={12} className="shrink-0 text-fg4" />
+            Собираемость библиотеки не проверялась в этом сеансе — сохраните, чтобы проверить.
           </div>
         )}
         {errors.length === 0 && warnings.length > 0 && (

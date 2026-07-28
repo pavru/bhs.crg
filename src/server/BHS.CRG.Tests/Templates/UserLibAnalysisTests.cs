@@ -110,6 +110,29 @@ public class UserLibAnalysisTests
         Assert.Empty(UserLibAnalysis.ReachableFrom("/* #import \"userlib/gost/f3.typ\": * */", files));
     }
 
+    /// <summary>
+    /// Закомментированное объявление не объявляет ничего (#500). Иначе перенос функции в другой файл
+    /// с закомментированным оригиналом — обычный приём — давал бы ложное «объявлено ещё в».
+    /// </summary>
+    [Fact]
+    public void CommentedOutDeclaration_IsNotADuplicate()
+    {
+        var files = new[]
+        {
+            F("util/case.typ", "#let shout(s) = upper(s)"),
+            F("util/text.typ", """
+                /*
+                #let shout(s) = upper(s)
+                */
+                """),
+        };
+        var entry = """
+            #import "userlib/util/case.typ": *
+            #import "userlib/util/text.typ": *
+            """;
+        Assert.Empty(UserLibAnalysis.Warnings(entry, files));
+    }
+
     [Fact]
     public void PackageImports_AreIgnored()
         => Assert.Empty(UserLibAnalysis.ReachableFrom("#import \"@preview/cetz:0.3.1\": *", []));
