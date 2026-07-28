@@ -13,10 +13,16 @@ public static class TypstUserLibEndpoints
         g.MapGet("/", async (IUserLibProvider provider, CancellationToken ct) =>
         {
             var snapshot = await provider.GetAsync(ct);
+            // Замечания отдаём и при чтении (issue #492): именно они заменили автоматическое
+            // дописывание импортов. Приходя только в ответе на сохранение, они исчезали после
+            // перезагрузки страницы — и неподключённый файл снова становился молчаливым отказом.
+            // Разбор дерева чистый, Typst не запускает, так что чтение от этого не дорожает.
             return Results.Ok(new
             {
                 content = snapshot.Entrypoint,
                 files = snapshot.Files.Select(f => new { path = f.Path, content = f.Content }),
+                warnings = UserLibAnalysis.Warnings(snapshot.Entrypoint, snapshot.Files)
+                    .Select(w => new { path = w.Path, message = w.Message }),
             });
         });
 

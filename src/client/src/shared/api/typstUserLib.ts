@@ -25,12 +25,21 @@ export interface UserLibCheck {
 
 export interface UserLibState { content: string; files: UserLibFile[]; }
 
+/**
+ * Чтение библиотеки. Замечания приходят и здесь, а не только в ответе на сохранение (issue #492):
+ * именно они заменили автоматическое дописывание импортов, и, исчезая после перезагрузки страницы,
+ * возвращали неподключённый файл в разряд молчаливых отказов.
+ */
+export interface UserLibRead extends UserLibState { warnings: UserLibWarning[]; }
+
 export function useTypstUserLib() {
   return useQuery({
     queryKey: QK,
     queryFn: async () => {
-      const r = await apiClient.get<UserLibState>('/typst-userlib');
-      return { content: r.data.content, files: r.data.files ?? [] } satisfies UserLibState;
+      const r = await apiClient.get<UserLibRead>('/typst-userlib');
+      return {
+        content: r.data.content, files: r.data.files ?? [], warnings: r.data.warnings ?? [],
+      } satisfies UserLibRead;
     },
   });
 }

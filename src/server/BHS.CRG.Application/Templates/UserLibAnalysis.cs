@@ -65,9 +65,15 @@ public static class UserLibAnalysis
                 string? target;
                 if (baseDir is null)
                 {
-                    // из точки входа: интересуют только ссылки внутрь дерева
-                    if (!raw.StartsWith(entryImportsPrefix, StringComparison.Ordinal)) continue;
-                    target = raw[entryImportsPrefix.Length..];
+                    // Из точки входа интересуют только ссылки внутрь дерева. Сначала НОРМАЛИЗУЕМ:
+                    // пока строку писало приложение, она всегда была канонической, но теперь импорты
+                    // ведёт пользователь (#492), и «./userlib/f3.typ» — совершенно обычная запись.
+                    // Без нормализации подключённый файл объявлялся бы неподключённым, а попытка
+                    // «починить» это вторым импортом дала бы предупреждение о дубликате имён.
+                    var normalized = ResolveRelative(string.Empty, raw);
+                    if (normalized is null || !normalized.StartsWith(entryImportsPrefix, StringComparison.Ordinal))
+                        continue;
+                    target = normalized[entryImportsPrefix.Length..];
                 }
                 else
                 {
@@ -141,11 +147,4 @@ public static class UserLibAnalysis
 
         return warnings;
     }
-
-    /// <summary>
-    /// Строка реэкспорта для только что созданного файла — чтобы он не остался молча неподключённым.
-    /// Путь пишется от корня временной папки, как его видит точка входа.
-    /// </summary>
-    public static string ReExportLine(string path) =>
-        $"#import \"{UserLibPath.FolderName}/{path}\": *";
 }

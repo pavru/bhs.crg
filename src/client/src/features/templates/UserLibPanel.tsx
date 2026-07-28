@@ -15,9 +15,7 @@ import {
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { UserLibFileList } from './UserLibFileList';
 import { UserLibPathDialog } from './UserLibPathDialog';
-import {
-  ENTRYPOINT, withReExport, withoutReExport, renameReExport, referencingFiles,
-} from './userLibTree';
+import { ENTRYPOINT, referencingFiles } from './userLibTree';
 
 // ─── User Typst library: точка входа + дерево файлов (issue #473) ─────────────
 
@@ -136,21 +134,18 @@ export function UserLibPanel() {
 
   function handleCreate(path: string) {
     setFiles(prev => [...prev, { path, content: `// ${path}\n` }]);
-    // Реэкспорт дописываем сами: иначе самый частый отказ — молчаливый, файл валиден, но не
-    // подключён, и его функции просто не появляются в шаблонах.
-    setEntry(prev => withReExport(prev, path));
+    // Точку входа НЕ трогаем (issue #492): импорты — забота пользователя. Молчаливым этот отказ
+    // не остаётся: проверка при сохранении называет неподключённый файл прямо.
     setSelected(path);
   }
 
   function handleRename(from: string, to: string) {
     setFiles(prev => prev.map(f => (f.path === from ? { ...f, path: to } : f)));
-    setEntry(prev => renameReExport(prev, from, to));
     if (selected === from) setSelected(to);
   }
 
   function handleDelete(path: string) {
     setFiles(prev => prev.filter(f => f.path !== path));
-    setEntry(prev => withoutReExport(prev, path));
     if (selected === path) setSelected(ENTRYPOINT);
     setDeleting(null);
   }
@@ -160,13 +155,16 @@ export function UserLibPanel() {
   }
 
   const errors = check?.errors ?? [];
-  const warnings = check?.warnings ?? [];
+  // До первого сохранения (в том числе сразу после перезагрузки) замечания берём из ответа чтения —
+  // иначе неподключённый файл снова становился бы молчаливым отказом (issue #492).
+  const warnings = check?.warnings ?? data?.warnings ?? [];
 
   return (
     <div className="flex h-full min-h-0">
       <aside className="w-72 shrink-0 border-r border-stroke flex flex-col bg-base">
         <UserLibFileList
-          files={files} selected={selected} dirty={dirty} check={check}
+          files={files} selected={selected} dirty={dirty}
+          check={check ?? (data ? { ok: true, errors: [], warnings: data.warnings } : null)}
           onSelect={setSelected}
           onCreate={folder => setPathDialog({ mode: 'create', path: folder ? `${folder}/` : '' })}
           onRename={p => setPathDialog({ mode: 'rename', path: p })}
@@ -260,7 +258,7 @@ export function UserLibPanel() {
           mode={pathDialog.mode}
           initialPath={pathDialog.path}
           existing={files.map(f => f.path)}
-          referencing={pathDialog.mode === 'rename' ? referencingFiles(files, pathDialog.path) : []}
+          referencing={pathDialog.mode === 'rename' ? referencingFiles(files, pathDialog.path, entry) : []}
           onCancel={() => setPathDialog(null)}
           onSubmit={path => {
             if (pathDialog.mode === 'create') handleCreate(path);
@@ -275,11 +273,15 @@ export function UserLibPanel() {
         onOpenChange={open => { if (!open) setDeleting(null); }}
         title={`Удалить «${deleting ?? ''}»?`}
         description={
-          deleting && referencingFiles(files, deleting).length > 0
-            ? `На файл ссылаются: ${referencingFiles(files, deleting).join(', ')}. `
-              + 'Пока импорт не убран, генерация ВСЕХ документов не пройдёт — библиотеку читает каждый шаблон.'
-            : 'Строка подключения в точке входа будет убрана вместе с файлом. '
-              + 'Изменение вступит в силу после сохранения.'
+          // Импорты приложение больше не правит (#492), поэтому обещать «строка подключения будет
+          // убрана» нельзя — она останется и сломает сборку библиотеки, а с ней генерацию всех
+          // документов. Говорим ровно то, что произойдёт.
+          deleting && referencingFiles(files, deleting, entry).length > 0
+            ? `На файл ссылаются: ${referencingFiles(files, deleting, entry).join(', ')}. `
+              + 'Импорты останутся — уберите их вручную, иначе библиотека перестанет собираться, '
+              + 'а с ней встанет генерация ВСЕХ документов.'
+            : 'Файл будет удалён после сохранения. Импорты приложение не правит — если на файл '
+              + 'где-то ссылаются, уберите ссылку сами.'
         }
         confirmLabel="Удалить"
         onConfirm={() => { if (deleting) handleDelete(deleting); }}

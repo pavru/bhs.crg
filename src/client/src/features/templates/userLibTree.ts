@@ -59,48 +59,26 @@ export function buildRows(files: UserLibFile[]): TreeRow[] {
   return rows;
 }
 
-/** Строка реэкспорта — та же, что дописывает сервер в своих подсказках. */
-export function reExportLine(path: string): string {
-  return `#import "${USERLIB_FOLDER}/${path}": *`;
-}
-
-/**
- * Точка входа с дописанной строкой реэкспорта.
- *
- * Дописываем при создании файла, потому что иначе самый частый отказ — МОЛЧАЛИВЫЙ: файл валиден,
- * просто не подключён, ошибки нет, а функций в шаблонах не появляется.
- */
-export function withReExport(entrypoint: string, path: string): string {
-  const line = reExportLine(path);
-  if (entrypoint.includes(line)) return entrypoint;
-  const body = entrypoint.replace(/\s*$/, '');
-  return body.length === 0 ? `${line}\n` : `${body}\n${line}\n`;
-}
-
-/** Убрать строку реэкспорта — при удалении файла, иначе останется битый импорт. */
-export function withoutReExport(entrypoint: string, path: string): string {
-  const line = reExportLine(path);
-  return entrypoint
-    .split('\n')
-    .filter(l => l.trim() !== line)
-    .join('\n');
-}
-
-/** Переписать строку реэкспорта при смене пути файла. */
-export function renameReExport(entrypoint: string, from: string, to: string): string {
-  const before = reExportLine(from);
-  return entrypoint.includes(before)
-    ? entrypoint.split('\n').map(l => (l.trim() === before ? l.replace(before, reExportLine(to)) : l)).join('\n')
-    : withReExport(entrypoint, to);
-}
-
 /**
  * Файлы, ссылающиеся на данный относительным импортом — чтобы перед удалением или сменой пути
  * сказать поимённо, что сломается. Автоматически переписывать чужие импорты не беремся: это
  * текстовая трансформация пользовательского кода, ошибиться в ней тоньше, чем не делать.
  */
-export function referencingFiles(files: UserLibFile[], target: string): string[] {
+export function referencingFiles(files: UserLibFile[], target: string, entrypoint: string): string[] {
   const result: string[] = [];
+
+  // Точку входа проверяем ПЕРВОЙ и отдельно: она чаще всех и ссылается, а адресует иначе — из корня,
+  // через префикс `userlib/`, тогда как файлы дерева ссылаются друг на друга относительно себя.
+  // Пока приложение само правило точку входа (#473), её отсутствие здесь было безобидным; после
+  // отказа от автоматики (#492) молчание об этой ссылке означало бы, что пользователь переименует
+  // файл и узнает о поломке только когда встанет генерация всех документов.
+  // Путь НОРМАЛИЗУЕМ, а не сравниваем префиксом: пока строку писало приложение, она всегда была
+  // канонической, но теперь импорты ведёт пользователь (#492), и «./userlib/f3.typ» — обычная
+  // запись. Без нормализации ссылка не нашлась бы, и удаление файла прошло бы без предупреждения.
+  const full = USERLIB_FOLDER + '/' + target;
+  if (importPaths(entrypoint).some(raw => resolveRelative('', raw) === full))
+    result.push(ENTRYPOINT);
+
   for (const file of files) {
     if (file.path === target) continue;
     const dir = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : '';

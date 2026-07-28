@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  buildRows, withReExport, withoutReExport, renameReExport,
-  referencingFiles, resolveRelative, validatePath, reExportLine,
+  buildRows, referencingFiles, resolveRelative, validatePath,
 } from './userLibTree';
 import type { UserLibFile } from '@/shared/api/typstUserLib';
 
@@ -30,38 +29,6 @@ describe('buildRows', () => {
   });
 });
 
-/**
- * Самый частый отказ при разрезании — молчаливый: файл валиден, но не подключён, и его функции
- * просто не появляются в шаблонах. Поэтому строку реэкспорта дописываем сами.
- */
-describe('реэкспорт в точке входа', () => {
-  it('дописывает строку при создании файла', () => {
-    expect(withReExport('#let get(p) = none', 'gost/f3.typ'))
-      .toBe('#let get(p) = none\n#import "userlib/gost/f3.typ": *\n');
-  });
-
-  it('не дублирует уже имеющуюся строку', () => {
-    const once = withReExport('', 'a.typ');
-    expect(withReExport(once, 'a.typ')).toBe(once);
-  });
-
-  it('убирает строку при удалении файла — иначе останется битый импорт', () => {
-    const entry = withReExport('#let x = 1', 'a.typ');
-    expect(withoutReExport(entry, 'a.typ')).not.toContain(reExportLine('a.typ'));
-  });
-
-  it('переписывает строку при смене пути', () => {
-    const entry = withReExport('', 'a.typ');
-    const renamed = renameReExport(entry, 'a.typ', 'util/a.typ');
-    expect(renamed).toContain(reExportLine('util/a.typ'));
-    expect(renamed).not.toContain(reExportLine('a.typ'));
-  });
-
-  it('файл без реэкспорта при переименовании его получает', () => {
-    expect(renameReExport('#let x = 1', 'a.typ', 'b.typ')).toContain(reExportLine('b.typ'));
-  });
-});
-
 describe('resolveRelative', () => {
   it('поднимается по «..» от папки файла', () =>
     expect(resolveRelative('gost/forms', '../../util/text.typ')).toBe('util/text.typ'));
@@ -80,16 +47,45 @@ describe('referencingFiles', () => {
       f('gost/forms/f3.typ', '#import "../../util/text.typ": shout'),
       f('util/text.typ', '#let shout(s) = upper(s)'),
     ];
-    expect(referencingFiles(files, 'util/text.typ')).toEqual(['gost/forms/f3.typ']);
+    expect(referencingFiles(files, 'util/text.typ', '')).toEqual(['gost/forms/f3.typ']);
   });
 
   it('координаты пакетов не считаются ссылкой на файл', () => {
     const files = [f('a.typ', '#import "@preview/cetz:0.3.1": canvas')];
-    expect(referencingFiles(files, 'cetz')).toEqual([]);
+    expect(referencingFiles(files, 'cetz', '')).toEqual([]);
   });
 
+  /**
+   * Точка входа ссылается иначе — из корня, через префикс `userlib/`. Пока приложение само правило
+   * её при переименовании (#473), молчание об этой ссылке было безобидным; после отказа от
+   * автоматики (#492) оно означало бы, что пользователь переименует файл и узнает о поломке, только
+   * когда встанет генерация всех документов.
+   */
+  it('точка входа считается ссылающейся и называется первой', () => {
+    const files = [f('gost/f3.typ', '#let place-f3() = []')];
+    const entry = '#import "userlib/gost/f3.typ": *';
+    expect(referencingFiles(files, 'gost/f3.typ', entry)).toEqual(['userlib.typ']);
+  });
+
+  it('точка входа без ссылки на этот файл не попадает в список', () => {
+    const files = [f('a.typ', ''), f('b.typ', '')];
+    expect(referencingFiles(files, 'a.typ', '#import "userlib/b.typ": *')).toEqual([]);
+  });
+
+  it('пустая точка входа — только файлы дерева', () =>
+    expect(referencingFiles([f('a.typ', '#import "b.typ": *')], 'b.typ', '')).toEqual(['a.typ']));
+
+  /**
+   * Пока строку писало приложение, она всегда была канонической. Теперь импорты ведёт пользователь
+   * (#492), и «./userlib/…» — обычная запись; без нормализации ссылка не нашлась бы, а удаление
+   * файла прошло бы без предупреждения.
+   */
+  it('точка входа с «./» тоже считается ссылающейся', () =>
+    expect(referencingFiles([f('gost/f3.typ', '')], 'gost/f3.typ', '#import "./userlib/gost/f3.typ": *'))
+      .toEqual(['userlib.typ']));
+
   it('никто не ссылается — пусто', () =>
-    expect(referencingFiles([f('a.typ', ''), f('b.typ', '')], 'a.typ')).toEqual([]));
+    expect(referencingFiles([f('a.typ', ''), f('b.typ', '')], 'a.typ', '')).toEqual([]));
 });
 
 describe('validatePath', () => {

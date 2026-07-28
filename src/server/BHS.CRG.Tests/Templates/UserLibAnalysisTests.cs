@@ -97,11 +97,21 @@ public class UserLibAnalysisTests
         Assert.Equal(["outer"], names);
     }
 
+    /// <summary>
+    /// Пока строку писало приложение, она всегда была канонической. Теперь импорты ведёт пользователь
+    /// (#492), и «./userlib/…» — обычная запись. Без нормализации подключённый файл объявлялся бы
+    /// неподключённым, а попытка починить это вторым импортом дала бы предупреждение о дубликате.
+    /// </summary>
+    [Fact]
+    public void EntrypointImportWithDotSlash_IsReachable()
+    {
+        var files = new[] { F("gost/f3.typ", "#let place-f3() = []") };
+        var entry = "#import \"./userlib/gost/f3.typ\": *";
+        Assert.Equal(["gost/f3.typ"], UserLibAnalysis.ReachableFrom(entry, files));
+        Assert.Empty(UserLibAnalysis.Warnings(entry, files));
+    }
+
     [Fact]
     public void PackageImports_AreIgnored()
         => Assert.Empty(UserLibAnalysis.ReachableFrom("#import \"@preview/cetz:0.3.1\": *", []));
-
-    [Fact]
-    public void ReExportLine_PointsAtTheFileFromEntrypoint()
-        => Assert.Equal("#import \"userlib/gost/f3.typ\": *", UserLibAnalysis.ReExportLine("gost/f3.typ"));
 }
