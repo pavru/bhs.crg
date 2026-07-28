@@ -2,7 +2,7 @@ import { FileCode, Folder, LogIn, Plus, AlertCircle, AlertTriangle } from 'lucid
 import { NavSection } from '@/shared/ui/ListDetailShell';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { buildRows, ENTRYPOINT } from './userLibTree';
-import type { UserLibFile, UserLibCheck } from '@/shared/api/typstUserLib';
+import type { UserLibFile, UserLibError, UserLibWarning } from '@/shared/api/typstUserLib';
 
 /**
  * Список файлов библиотеки (issue #473).
@@ -15,13 +15,17 @@ import type { UserLibFile, UserLibCheck } from '@/shared/api/typstUserLib';
  * Пунктов удаления/переименования у неё просто НЕТ, а не задизейблены.
  */
 export function UserLibFileList({
-  files, selected, dirty, check, onSelect, onCreate, onRename, onDelete,
+  files, selected, dirty, errors, warnings, onSelect, onCreate, onRename, onDelete,
 }: {
   files: UserLibFile[];
   selected: string;
   /** Пути с несохранёнными правками — точка-маркер, как на вкладках редактора. */
   dirty: Set<string>;
-  check: UserLibCheck | null;
+  /** Ошибки и замечания порознь, а не одним `check`: до первого сохранения замечания приходят из
+   *  чтения, а ошибок мы не знаем вовсе — подставлять вместо них `ok: true` значило бы утверждать,
+   *  что библиотека собирается, ничего не компилируя (issue #496). */
+  errors: UserLibError[];
+  warnings: UserLibWarning[];
   onSelect: (path: string) => void;
   /** Создать файл; аргумент — папка, в которой создаём (пусто = корень дерева). */
   onCreate: (folder?: string) => void;
@@ -31,8 +35,8 @@ export function UserLibFileList({
   const rows = buildRows(files);
   const errorsBy = new Map<string, number>();
   const warningsBy = new Map<string, number>();
-  for (const e of check?.errors ?? []) errorsBy.set(e.path, (errorsBy.get(e.path) ?? 0) + 1);
-  for (const w of check?.warnings ?? []) warningsBy.set(w.path, (warningsBy.get(w.path) ?? 0) + 1);
+  for (const e of errors) errorsBy.set(e.path, (errorsBy.get(e.path) ?? 0) + 1);
+  for (const w of warnings) warningsBy.set(w.path, (warningsBy.get(w.path) ?? 0) + 1);
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto pb-2">
