@@ -15,7 +15,7 @@ import {
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { UserLibFileList } from './UserLibFileList';
 import { UserLibPathDialog } from './UserLibPathDialog';
-import { ENTRYPOINT, referencingFiles } from './userLibTree';
+import { ENTRYPOINT, referencingFiles, mergeFiles, mergeText } from './userLibTree';
 
 // ─── User Typst library: точка входа + дерево файлов (issue #473) ─────────────
 
@@ -26,13 +26,14 @@ export function UserLibPanel() {
   const { resolvedTheme } = useTheme();
   useUserLibCompletion();
   useAssetCompletion();
-  const { data, isLoading } = useTypstUserLib();
+  const { data, isLoading, dataUpdatedAt } = useTypstUserLib();
   const saveMutation = useSaveTypstUserLib();
 
   const [entry, setEntry] = useState('');
   const [files, setFiles] = useState<UserLibFile[]>(NO_FILES);
   const [selected, setSelected] = useState(ENTRYPOINT);
   const [check, setCheck] = useState<UserLibCheck | null>(null);
+  const [checkAt, setCheckAt] = useState(0);
   const [savedMsg, setSavedMsg] = useState(false);
   const [error, setError] = useState('');
   const [pathDialog, setPathDialog] = useState<{ mode: 'create' | 'rename'; path: string } | null>(null);
@@ -46,19 +47,21 @@ export function UserLibPanel() {
 
   // Перечитывание НЕ затирает несохранённое (issue #500): запрос обновляется по фокусу окна, и
   // безусловная синхронизация молча уносила бы правки во всех файлах — вместе с точками-маркерами,
-  // по которым это можно было бы заметить. Пока есть несохранённое, серверные данные ждут.
+  // по которым это можно было бы заметить.
   //
-  // ПЕРВИЧНУЮ загрузку страж пропускать не должен: до неё локальное состояние пусто, а значит всё
-  // серверное числится «изменённым» — страж заблокировал бы сам себя, и панель осталась бы пустой
-  // с индикатором «Изменено: 14». Поэтому первый приход данных всегда садится в состояние.
-  const dirtyRef = useRef(false);
-  const seeded = useRef(false);
+  // Сливаем ПО БАЗЕ — предыдущему снимку сервера, — а не держим глухой заслон «есть несохранённое,
+  // значит серверные данные ждут» (issue #501): заслон закрывался бы навсегда от чужого нового
+  // файла, потому что тот сам числится «изменённым», в списке не виден, а «Сохранить всё» отправило
+  // бы дерево без него — и сервер удалил бы его как лишний.
+  const baseRef = useRef<{ entry: string; files: UserLibFile[] } | null>(null);
   useEffect(() => {
     if (!data) return;
-    if (seeded.current && dirtyRef.current) return;
-    seeded.current = true;
-    setEntry(serverEntry);
-    setFiles(serverFiles);
+    const base = baseRef.current;
+    baseRef.current = { entry: serverEntry, files: serverFiles };
+    // Через функциональный setState, а не по entry/files из замыкания: они не в зависимостях (иначе
+    // эффект бежал бы на каждое нажатие клавиши), и читать их отсюда значило бы читать устаревшее.
+    setEntry(prev => mergeText(prev, base?.entry ?? null, serverEntry));
+    setFiles(prev => mergeFiles(prev, base?.files ?? null, serverFiles));
   }, [data, serverEntry, serverFiles]);
 
   // Несохранённые файлы — точка-маркер на строке, идиома вкладок редактора.
@@ -72,7 +75,6 @@ export function UserLibPanel() {
   }, [entry, files, serverEntry, serverFiles]);
 
   const isDirty = dirty.size > 0;
-  dirtyRef.current = isDirty;
 
   // Выбранный файл мог исчезнуть, пока мы его смотрели: соседняя вкладка сохранила дерево без него,
   // и refetch подменил files. Вычисляем активный файл ПРИ ОТРИСОВКЕ, а не поправляем эффектом:
@@ -98,6 +100,7 @@ export function UserLibPanel() {
     try {
       const res = await saveMutation.mutateAsync({ content: entry, files });
       setCheck(res.check);
+      setCheckAt(Date.now());
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
     } catch (err: unknown) {
@@ -192,11 +195,12 @@ export function UserLibPanel() {
   // updateCurrent перебирает files и не находит совпадения (issue #496).
   const alive = (path: string) => path === ENTRYPOINT || files.some(f => f.path === path);
   const errors = check?.errors ?? [];
-  // Замечания берём из ЧТЕНИЯ, а не из последней проверки (issue #500): после сохранения запрос
-  // перечитывается, поэтому data всегда описывает сохранённое состояние не хуже check. Обратный
-  // порядок давал залипание: раз сохранив в этой вкладке, мы навсегда закрывали пустым check.warnings
-  // всё, что появилось у соседей.
-  const warnings = data?.warnings ?? check?.warnings ?? [];
+  // Замечания — из того источника, который СВЕЖЕЕ (issue #500, #501). Порядком «сначала check» мы
+  // залипали: раз сохранив в этой вкладке, навсегда закрывали пустым check.warnings всё, что
+  // появилось у соседей. Но и «сначала data» слепо брать нельзя: чтение после сохранения может не
+  // дойти (сеть, перезапуск сервера), и тогда мы держали бы на экране замечания ДО правки, выбросив
+  // точный ответ проверки. Обе даты — с этих же часов, сравнимы.
+  const warnings = check && checkAt > dataUpdatedAt ? check.warnings : data?.warnings ?? [];
 
   return (
     <div className="flex h-full min-h-0">

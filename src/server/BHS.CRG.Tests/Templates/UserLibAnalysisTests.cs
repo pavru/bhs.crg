@@ -133,6 +133,40 @@ public class UserLibAnalysisTests
         Assert.Empty(UserLibAnalysis.Warnings(entry, files));
     }
 
+    /// <summary>
+    /// Строковые литералы переживают снятие комментариев (#501). Иначе «/*» внутри строки открывал бы
+    /// мнимый блок и уносил импорты ниже: файлы числились бы неподключёнными, и их одноимённые
+    /// объявления — которые Typst молча разрешает в пользу последнего импорта — переставали бы
+    /// показываться.
+    /// </summary>
+    [Fact]
+    public void SlashStarInsideString_DoesNotSwallowImportBelow()
+    {
+        var files = new[] { F("a.typ", "#let f() = []") };
+        var entry = """
+            #let fence = "/*"
+            #import "userlib/a.typ": *
+            /* настоящий комментарий */
+            """;
+        Assert.Equal(["a.typ"], UserLibAnalysis.ReachableFrom(entry, files));
+    }
+
+    [Fact]
+    public void DoubleSlashInsideString_DoesNotSwallowRestOfLine()
+    {
+        var names = UserLibAnalysis.TopLevelNames("#let site = \"https://typst.app\"\n#let after() = []");
+        Assert.Equal(["site", "after"], names);
+    }
+
+    /// <summary>Непарная кавычка в разметке не должна проглотить полфайла до следующей кавычки.</summary>
+    [Fact]
+    public void UnbalancedQuote_DoesNotSwallowImportBelow()
+    {
+        var files = new[] { F("a.typ", "#let f() = []") };
+        var entry = "#let note = [Кабель \"ВВГнг проложен]\n#import \"userlib/a.typ\": *";
+        Assert.Equal(["a.typ"], UserLibAnalysis.ReachableFrom(entry, files));
+    }
+
     [Fact]
     public void PackageImports_AreIgnored()
         => Assert.Empty(UserLibAnalysis.ReachableFrom("#import \"@preview/cetz:0.3.1\": *", []));

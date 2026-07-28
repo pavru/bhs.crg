@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  buildRows, referencingFiles, resolveRelative, validatePath,
+  buildRows, referencingFiles, resolveRelative, validatePath, mergeFiles, mergeText,
 } from './userLibTree';
 import type { UserLibFile } from '@/shared/api/typstUserLib';
 
@@ -110,6 +110,91 @@ describe('referencingFiles', () => {
 
   it('никто не ссылается — пусто', () =>
     expect(referencingFiles([f('a.typ', ''), f('b.typ', '')], 'a.typ', '')).toEqual([]));
+
+  /**
+   * Строковые литералы переживают снятие комментариев (#501): иначе `/*` внутри строки открывал бы
+   * мнимый блок и уносил импорты ниже — та же потеря диагностики, что и в предыдущем случае, этажом
+   * ниже.
+   */
+  it('«/*» внутри строки не съедает импорт ниже', () => {
+    const entry = [
+      '#let fence = "/*"',
+      '#import "userlib/a.typ": *',
+      '/* настоящий комментарий */',
+    ].join('\n');
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
+
+  it('«//» в ссылке не съедает остаток своей строки', () => {
+    const entry = '#let site = "https://typst.app"\n#import "userlib/a.typ": *';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
+
+  /** Непарная кавычка в разметке не должна проглотить полфайла до следующей кавычки. */
+  it('непарная кавычка не ломает разбор ниже', () => {
+    const entry = '#let note = [Кабель "ВВГнг проложен]\n#import "userlib/a.typ": *';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
+});
+
+/**
+ * Слияние по базе — вместо заслона «есть несохранённое, серверные данные ждут» (#501): тот заслон
+ * закрывался бы навсегда от чужого нового файла, а «Сохранить всё» отправило бы дерево без него.
+ */
+describe('mergeFiles', () => {
+  const base = [f('a.typ', 'A'), f('b.typ', 'B')];
+
+  it('первая загрузка — целиком серверное дерево', () =>
+    expect(mergeFiles([], null, base)).toEqual(base));
+
+  it('локальная правка переживает перечитывание', () => {
+    const local = [f('a.typ', 'A-правка'), f('b.typ', 'B')];
+    expect(mergeFiles(local, base, base)).toEqual(local);
+  });
+
+  it('чужой новый файл приходит, наша правка остаётся', () => {
+    const local = [f('a.typ', 'A-правка'), f('b.typ', 'B')];
+    const server = [...base, f('c.typ', 'C')];
+    expect(mergeFiles(local, base, server))
+      .toEqual([f('a.typ', 'A-правка'), f('b.typ', 'B'), f('c.typ', 'C')]);
+  });
+
+  it('чужая правка нетронутого нами файла принимается', () => {
+    const server = [f('a.typ', 'A'), f('b.typ', 'B-сосед')];
+    expect(mergeFiles(base, base, server)).toEqual(server);
+  });
+
+  it('удалённый локально файл не воскресает', () => {
+    const local = [f('a.typ', 'A')];
+    expect(mergeFiles(local, base, base)).toEqual(local);
+  });
+
+  it('созданный локально файл не пропадает', () => {
+    const local = [...base, f('new.typ', 'N')];
+    expect(mergeFiles(local, base, base)).toEqual(local);
+  });
+
+  /** Удаление соседом против нашей несохранённой правки: терять несохранённое хуже. */
+  it('файл, удалённый на сервере, остаётся при нашей правке', () => {
+    const local = [f('a.typ', 'A-правка'), f('b.typ', 'B')];
+    expect(mergeFiles(local, base, [f('b.typ', 'B')])).toEqual([f('b.typ', 'B'), f('a.typ', 'A-правка')]);
+  });
+
+  it('файл, удалённый на сервере и не правленный нами, уходит', () =>
+    expect(mergeFiles(base, base, [f('b.typ', 'B')])).toEqual([f('b.typ', 'B')]));
+
+  /** React StrictMode прогоняет эффект дважды — второй прогон не должен ничего менять. */
+  it('повторное слияние с тем же сервером устойчиво', () => {
+    const local = [f('a.typ', 'A-правка'), f('b.typ', 'B')];
+    const once = mergeFiles(local, base, base);
+    expect(mergeFiles(once, base, base)).toEqual(once);
+  });
+});
+
+describe('mergeText', () => {
+  it('первая загрузка — серверный текст', () => expect(mergeText('', null, 'S')).toBe('S'));
+  it('не правили — берём серверный', () => expect(mergeText('B', 'B', 'S')).toBe('S'));
+  it('правили — правка остаётся', () => expect(mergeText('моё', 'B', 'S')).toBe('моё'));
 });
 
 describe('validatePath', () => {

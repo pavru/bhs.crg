@@ -30,8 +30,18 @@ public static class UserLibAnalysis
     // Комментарии Typst — строчные и блочные. Снимаем их ДО разбора импортов (issue #498): импорты
     // теперь ведёт пользователь (#492), и временно закомментированная строка не должна считаться
     // живой ссылкой — иначе файл числится подключённым и попадает в проверку одноимённых объявлений.
+    //
+    // Строки в кавычках — первой альтернативой и СОХРАНЯЮТСЯ (issue #501): иначе `/*` внутри строки
+    // открывал бы мнимый блок и съедал всё до следующего `*/`, а `//` в ссылке («https://…») —
+    // остаток своей строки; в обоих случаях импорты в этом промежутке пропадали бы молча. Перенос
+    // внутри строкового литерала запрещён намеренно: на непарной кавычке в разметке альтернатива
+    // тогда просто не совпадает, и разбор идёт дальше, вместо того чтобы проглотить полфайла.
     private static readonly Regex CommentRe =
-        new(@"/\*[\s\S]*?\*/|//[^\n]*", RegexOptions.Compiled);
+        new(@"""(?:[^""\\\n]|\\.)*""|/\*[\s\S]*?\*/|//[^\n]*", RegexOptions.Compiled);
+
+    /// <summary>Текст без комментариев; строковые литералы остаются на месте — в них лежат пути импортов.</summary>
+    private static string StripComments(string content) =>
+        CommentRe.Replace(content, m => m.Value[0] == '"' ? m.Value : string.Empty);
 
     // Объявления верхнего уровня: строка начинается с #let/#show-независимого let. Вложенные let
     // (внутри тела функции) наружу не экспортируются, поэтому берём только неотступленные.
@@ -58,7 +68,7 @@ public static class UserLibAnalysis
         while (queue.Count > 0)
         {
             var (baseDir, content) = queue.Dequeue();
-            foreach (Match m in ImportRe.Matches(CommentRe.Replace(content, string.Empty)))
+            foreach (Match m in ImportRe.Matches(StripComments(content)))
             {
                 var raw = m.Groups[1].Value.Replace('\\', '/');
                 if (raw.StartsWith('@')) continue;   // координата пакета — не наш файл
@@ -122,7 +132,7 @@ public static class UserLibAnalysis
     /// обычный приём — давал бы ложное «объявлено ещё в» на имя, объявленное ровно один раз.
     /// </summary>
     public static IReadOnlyList<string> TopLevelNames(string content) =>
-        TopLevelLetRe.Matches(CommentRe.Replace(content, string.Empty))
+        TopLevelLetRe.Matches(StripComments(content))
             .Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal).ToList();
 
     /// <summary>
