@@ -84,6 +84,16 @@ describe('referencingFiles', () => {
     expect(referencingFiles([f('gost/f3.typ', '')], 'gost/f3.typ', '#import "./userlib/gost/f3.typ": *'))
       .toEqual(['userlib.typ']));
 
+  /**
+   * Импорты ведёт пользователь (#492), поэтому временно закомментировать строку — обычное действие.
+   * Считая её живой, мы обещали бы «на файл ссылаются» там, где ссылки нет (#498).
+   */
+  it('закомментированный импорт не считается ссылкой', () => {
+    expect(referencingFiles([f('a.typ', '// #import "b.typ": *')], 'b.typ', '')).toEqual([]);
+    expect(referencingFiles([f('a.typ', '/* #import "b.typ": * */')], 'b.typ', '')).toEqual([]);
+    expect(referencingFiles([], 'gost/f3.typ', '// #import "userlib/gost/f3.typ": *')).toEqual([]);
+  });
+
   it('никто не ссылается — пусто', () =>
     expect(referencingFiles([f('a.typ', ''), f('b.typ', '')], 'a.typ', '')).toEqual([]));
 });

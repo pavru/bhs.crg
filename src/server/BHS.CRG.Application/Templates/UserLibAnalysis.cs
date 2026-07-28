@@ -27,6 +27,12 @@ public static class UserLibAnalysis
     private static readonly Regex ImportRe =
         new(@"#import\s+""([^""]+)""", RegexOptions.Compiled);
 
+    // Комментарии Typst — строчные и блочные. Снимаем их ДО разбора импортов (issue #498): импорты
+    // теперь ведёт пользователь (#492), и временно закомментированная строка не должна считаться
+    // живой ссылкой — иначе файл числится подключённым и попадает в проверку одноимённых объявлений.
+    private static readonly Regex CommentRe =
+        new(@"/\*[\s\S]*?\*/|//[^\n]*", RegexOptions.Compiled);
+
     // Объявления верхнего уровня: строка начинается с #let/#show-независимого let. Вложенные let
     // (внутри тела функции) наружу не экспортируются, поэтому берём только неотступленные.
     private static readonly Regex TopLevelLetRe =
@@ -52,7 +58,7 @@ public static class UserLibAnalysis
         while (queue.Count > 0)
         {
             var (baseDir, content) = queue.Dequeue();
-            foreach (Match m in ImportRe.Matches(content))
+            foreach (Match m in ImportRe.Matches(CommentRe.Replace(content, string.Empty)))
             {
                 var raw = m.Groups[1].Value.Replace('\\', '/');
                 if (raw.StartsWith('@')) continue;   // координата пакета — не наш файл
