@@ -15,9 +15,7 @@ import {
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { UserLibFileList } from './UserLibFileList';
 import { UserLibPathDialog } from './UserLibPathDialog';
-import {
-  ENTRYPOINT, withReExport, withoutReExport, renameReExport, referencingFiles,
-} from './userLibTree';
+import { ENTRYPOINT, referencingFiles } from './userLibTree';
 
 // ─── User Typst library: точка входа + дерево файлов (issue #473) ─────────────
 
@@ -136,21 +134,18 @@ export function UserLibPanel() {
 
   function handleCreate(path: string) {
     setFiles(prev => [...prev, { path, content: `// ${path}\n` }]);
-    // Реэкспорт дописываем сами: иначе самый частый отказ — молчаливый, файл валиден, но не
-    // подключён, и его функции просто не появляются в шаблонах.
-    setEntry(prev => withReExport(prev, path));
+    // Точку входа НЕ трогаем (issue #492): импорты — забота пользователя. Молчаливым этот отказ
+    // не остаётся: проверка при сохранении называет неподключённый файл прямо.
     setSelected(path);
   }
 
   function handleRename(from: string, to: string) {
     setFiles(prev => prev.map(f => (f.path === from ? { ...f, path: to } : f)));
-    setEntry(prev => renameReExport(prev, from, to));
     if (selected === from) setSelected(to);
   }
 
   function handleDelete(path: string) {
     setFiles(prev => prev.filter(f => f.path !== path));
-    setEntry(prev => withoutReExport(prev, path));
     if (selected === path) setSelected(ENTRYPOINT);
     setDeleting(null);
   }

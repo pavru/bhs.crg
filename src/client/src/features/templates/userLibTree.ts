@@ -59,41 +59,6 @@ export function buildRows(files: UserLibFile[]): TreeRow[] {
   return rows;
 }
 
-/** Строка реэкспорта — та же, что дописывает сервер в своих подсказках. */
-export function reExportLine(path: string): string {
-  return `#import "${USERLIB_FOLDER}/${path}": *`;
-}
-
-/**
- * Точка входа с дописанной строкой реэкспорта.
- *
- * Дописываем при создании файла, потому что иначе самый частый отказ — МОЛЧАЛИВЫЙ: файл валиден,
- * просто не подключён, ошибки нет, а функций в шаблонах не появляется.
- */
-export function withReExport(entrypoint: string, path: string): string {
-  const line = reExportLine(path);
-  if (entrypoint.includes(line)) return entrypoint;
-  const body = entrypoint.replace(/\s*$/, '');
-  return body.length === 0 ? `${line}\n` : `${body}\n${line}\n`;
-}
-
-/** Убрать строку реэкспорта — при удалении файла, иначе останется битый импорт. */
-export function withoutReExport(entrypoint: string, path: string): string {
-  const line = reExportLine(path);
-  return entrypoint
-    .split('\n')
-    .filter(l => l.trim() !== line)
-    .join('\n');
-}
-
-/** Переписать строку реэкспорта при смене пути файла. */
-export function renameReExport(entrypoint: string, from: string, to: string): string {
-  const before = reExportLine(from);
-  return entrypoint.includes(before)
-    ? entrypoint.split('\n').map(l => (l.trim() === before ? l.replace(before, reExportLine(to)) : l)).join('\n')
-    : withReExport(entrypoint, to);
-}
-
 /**
  * Файлы, ссылающиеся на данный относительным импортом — чтобы перед удалением или сменой пути
  * сказать поимённо, что сломается. Автоматически переписывать чужие импорты не беремся: это

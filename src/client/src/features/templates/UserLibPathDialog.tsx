@@ -56,7 +56,7 @@ export function UserLibPathDialog({
                        outline-none focus:ring-2 focus:ring-brand/40"
           />
           <p className="mt-1 text-xs text-fg4">
-            Папки создаются сами из «/» в пути. Файл подключится к точке входа автоматически.
+            Папки создаются сами из «/» в пути. Подключить файл в «userlib.typ» нужно самостоятельно.
           </p>
           {touched && error && <p className="mt-1 text-xs text-danger">{error}</p>}
         </div>

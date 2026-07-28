@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  buildRows, withReExport, withoutReExport, renameReExport,
-  referencingFiles, resolveRelative, validatePath, reExportLine,
+  buildRows, referencingFiles, resolveRelative, validatePath,
 } from './userLibTree';
 import type { UserLibFile } from '@/shared/api/typstUserLib';
 
@@ -27,38 +26,6 @@ describe('buildRows', () => {
     const a = buildRows([f('b.typ'), f('a.typ')]).map(r => r.path);
     const b = buildRows([f('a.typ'), f('b.typ')]).map(r => r.path);
     expect(a).toEqual(b);
-  });
-});
-
-/**
- * Самый частый отказ при разрезании — молчаливый: файл валиден, но не подключён, и его функции
- * просто не появляются в шаблонах. Поэтому строку реэкспорта дописываем сами.
- */
-describe('реэкспорт в точке входа', () => {
-  it('дописывает строку при создании файла', () => {
-    expect(withReExport('#let get(p) = none', 'gost/f3.typ'))
-      .toBe('#let get(p) = none\n#import "userlib/gost/f3.typ": *\n');
-  });
-
-  it('не дублирует уже имеющуюся строку', () => {
-    const once = withReExport('', 'a.typ');
-    expect(withReExport(once, 'a.typ')).toBe(once);
-  });
-
-  it('убирает строку при удалении файла — иначе останется битый импорт', () => {
-    const entry = withReExport('#let x = 1', 'a.typ');
-    expect(withoutReExport(entry, 'a.typ')).not.toContain(reExportLine('a.typ'));
-  });
-
-  it('переписывает строку при смене пути', () => {
-    const entry = withReExport('', 'a.typ');
-    const renamed = renameReExport(entry, 'a.typ', 'util/a.typ');
-    expect(renamed).toContain(reExportLine('util/a.typ'));
-    expect(renamed).not.toContain(reExportLine('a.typ'));
-  });
-
-  it('файл без реэкспорта при переименовании его получает', () => {
-    expect(renameReExport('#let x = 1', 'a.typ', 'b.typ')).toContain(reExportLine('b.typ'));
   });
 });
 
