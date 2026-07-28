@@ -22,16 +22,156 @@ public static class UserLibAnalysis
     /// <summary>Имя точки входа — то же, что видит шаблон.</summary>
     public const string EntrypointName = "userlib.typ";
 
-    // #import "путь": ... — путь в двойных кавычках. Пакетные координаты («@ns/name:1.0.0») сюда не
-    // подходят и не должны: дерево локальное.
-    private static readonly Regex ImportRe =
-        new(@"#import\s+""([^""]+)""", RegexOptions.Compiled);
+    /// <summary>Имя файла-зонда, который проверка кладёт рядом с деревом.</summary>
+    public const string ProbeName = "check.typ";
 
-    // Комментарии Typst — строчные и блочные. Снимаем их ДО разбора импортов (issue #498): импорты
-    // теперь ведёт пользователь (#492), и временно закомментированная строка не должна считаться
-    // живой ссылкой — иначе файл числится подключённым и попадает в проверку одноимённых объявлений.
-    private static readonly Regex CommentRe =
-        new(@"/\*[\s\S]*?\*/|//[^\n]*", RegexOptions.Compiled);
+    /// <summary>
+    /// Диагностика самого зонда — её пользователю не показать: он его не писал и не увидит
+    /// (issue #509). Совпасть должны И имя файла, И имя папки, в которой он лежит
+    /// (<paramref name="checkDirName"/> — «userlib-check-{guid}», её мы только что создали).
+    ///
+    /// Одного имени мало (issue #510): «check.typ» — обычное имя, оно вполне может встретиться внутри
+    /// пакета <c>@preview</c>, а Typst показывает ошибки типов и утверждений как раз в файлах пакета.
+    /// Такую ошибку мы бы выбросили, и раз <c>Ok</c> считается только по входящим в сборку, панель
+    /// показала бы, что библиотека собирается, при вставшей генерации всех документов.
+    ///
+    /// С полным путём временной папки сравнивать нельзя: Typst печатает путь канонизированным, а
+    /// папка канонизируется иначе (короткие имена 8.3 в Windows, «/private/var/…» в macOS) — фильтр
+    /// молча переставал бы совпадать. Имя папки от канонизации не зависит.
+    /// </summary>
+    public static bool IsProbePath(string diagnosticPath, string checkDirName)
+    {
+        var parts = diagnosticPath.Replace('\\', '/').TrimEnd('/').Split('/');
+        return parts.Length >= 2
+            && parts[^1] == ProbeName
+            && parts[^2] == checkDirName;
+    }
+
+    // #import "путь" / #include "путь" — путь в двойных кавычках. Пакетные координаты
+    // («@ns/name:1.0.0») сюда не подходят и не должны: дерево локальное.
+    //
+    // #include учитываем наравне с #import (issue #506): это тоже ссылка на файл, и пока импорты вёл
+    // не пользователь, разница была неважна. Теперь диалог удаления — единственная защита, и на
+    // файле, на который ссылались только через #include, он говорил бы «ссылок нет», после чего
+    // библиотека переставала бы собираться.
+    private static readonly Regex ImportOrIncludeRe =
+        new(@"#(?:import|include)\s+""([^""]+)""", RegexOptions.Compiled);
+
+    // Только «#import ...: *» — для проверки одноимённых объявлений (issues #507, #508). Перекрыть
+    // имя может лишь то, что попало в общую область целиком. Проверено на Typst 0.15.1:
+    //
+    //   #include "frag.typ"              — файл подключён, но имён не приносит («unknown variable»);
+    //   #import "frag.typ" as t          — приносит только «t», свой #let shout ничего не перекрывает;
+    //   #import "frag.typ": pad          — приносит только «pad», «shout» остаётся неизвестным;
+    //   #import "frag.typ" as t: *       — приносит ВСЁ, псевдоним тут ничего не отменяет (issue #511).
+    //
+    // Считая эти формы наравне с «: *», мы обещали бы «Typst молча возьмёт объявление из файла,
+    // импортированного последним» там, где ничего не перекрывается. Осознанный пробел: перекрытие
+    // ИМЕНЕМ ИЗ СПИСКА («: pad» против своего «#let pad») мы не ловим — для этого нужен разбор
+    // списка имён, а не путей; лучше промолчать, чем сказать неправду.
+    private static readonly Regex WildcardImportRe =
+        new(@"#import\s+""([^""]+)""\s*(?:as\s+[^\s:]+\s*)?:\s*\*", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Текст без комментариев. Снимаем их ДО разбора импортов (issue #498): импорты теперь ведёт
+    /// пользователь (#492), и временно закомментированная строка не должна считаться живой ссылкой —
+    /// иначе файл числится подключённым и попадает в проверку одноимённых объявлений.
+    ///
+    /// Проходом, а не регулярным выражением (issue #504): блочные комментарии Typst ВЛОЖЕННЫЕ, а
+    /// нежадное <c>/\*[\s\S]*?\*/</c> закрывает блок на первом же внутреннем <c>*/</c> — в
+    /// <c>/* /* */ #import … */</c> импорт оставался бы живым. Закомментировать область, внутри
+    /// которой уже есть комментарий, — обычное действие редактора.
+    ///
+    /// Строковые литералы СОХРАНЯЮТСЯ (issue #501): в них лежат пути импортов, а «/*» внутри строки
+    /// иначе открывал бы мнимый блок, «//» в ссылке («https://…») съедал бы остаток строки. Перенос
+    /// внутри литерала не допускается намеренно: непарную кавычку в разметке считаем обычным
+    /// символом и идём дальше, вместо того чтобы проглотить полфайла до следующей кавычки.
+    ///
+    /// Переводы строк из комментариев сохраняются: <c>#let</c> считается только в начале строки.
+    /// Зеркало клиентского <c>userLibTree.stripComments</c> — расхождение в понимании одного файла
+    /// недопустимо.
+    /// </summary>
+    private static string StripComments(string content)
+    {
+        var sb = new System.Text.StringBuilder(content.Length);
+        var depth = 0;
+        var i = 0;
+
+        while (i < content.Length)
+        {
+            if (depth > 0)
+            {
+                if (Starts(content, i, "/*")) { depth++; i += 2; }
+                else if (Starts(content, i, "*/")) { depth--; i += 2; }
+                else { if (content[i] == '\n') sb.Append('\n'); i++; }
+                continue;
+            }
+            if (Starts(content, i, "/*")) { depth = 1; i += 2; continue; }
+            if (Starts(content, i, "//"))
+            {
+                while (i < content.Length && content[i] != '\n') i++;
+                continue;
+            }
+            if (content[i] == '`')
+            {
+                var end = RawSpanEnd(content, i);
+                if (end > i)
+                {
+                    // Содержимое СНИМАЕМ, как комментарий (строки, наоборот, сохраняем — в них пути
+                    // импортов). Внутри сырого блока не код: «#import» там показан, а не выполнен, и
+                    // считать его ссылкой значило бы обещать «на файл ссылаются» там, где её нет.
+                    for (var k = i; k < end; k++) if (content[k] == '\n') sb.Append('\n');
+                    i = end;
+                    continue;
+                }
+                // Прогон без пары переносим ЦЕЛИКОМ (issue #509). Вернувшись в сканер на второй
+                // кавычке, мы открыли бы мнимый одинарный блок до следующей кавычки в файле.
+                while (i < content.Length && content[i] == '`') { sb.Append('`'); i++; }
+                continue;
+            }
+            if (content[i] == '"')
+            {
+                var j = i + 1;
+                while (j < content.Length && content[j] != '"' && content[j] != '\n')
+                    j += content[j] == '\\' ? 2 : 1;
+                if (j < content.Length && content[j] == '"')
+                {
+                    sb.Append(content, i, j - i + 1);
+                    i = j + 1;
+                    continue;
+                }
+            }
+            sb.Append(content[i]);
+            i++;
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Конец сырого блока Typst, начатого в позиции <paramref name="i"/> (issue #506): один и тот же
+    /// прогон обратных кавычек открывает и закрывает его. Внутри — не код: библиотека вправе
+    /// показывать там синтаксис с непарным «/*», и без этой ветки такой блок открывал бы мнимый
+    /// комментарий и съедал остаток файла — тот же класс, что «/*» в строке (#501) и вложенные
+    /// комментарии (#504), этажом ниже.
+    ///
+    /// Ровно две кавычки — ПУСТОЙ сырой литерал, законченный сам по себе (проверено на Typst 0.15.1:
+    /// файл с ним компилируется). Ища ему пару, мы находили её в следующем сыром блоке файла и
+    /// съедали всё между ними — вместе с импортами (issue #509). Прогон без пары возвращает
+    /// <paramref name="i"/>: вызывающий переносит его целиком как текст.
+    /// </summary>
+    private static int RawSpanEnd(string content, int i)
+    {
+        var n = 0;
+        while (i + n < content.Length && content[i + n] == '`') n++;
+        if (n == 2) return i + 2;
+        var fence = new string('`', n);
+        var close = content.IndexOf(fence, i + n, StringComparison.Ordinal);
+        return close < 0 ? i : close + n;
+    }
+
+    private static bool Starts(string s, int i, string token) =>
+        i + token.Length <= s.Length && string.CompareOrdinal(s, i, token, 0, token.Length) == 0;
 
     // Объявления верхнего уровня: строка начинается с #let/#show-независимого let. Вложенные let
     // (внутри тела функции) наружу не экспортируются, поэтому берём только неотступленные.
@@ -39,10 +179,23 @@ public static class UserLibAnalysis
         new(@"(?m)^#let\s+([\p{L}\p{N}_][\p{L}\p{N}_-]*)", RegexOptions.Compiled);
 
     /// <summary>
-    /// Пути, достижимые из точки входа по цепочке импортов. Пути в результате — относительные от
-    /// <c>userlib/</c>, как и у самих файлов.
+    /// Пути, ПОДКЛЮЧЁННЫЕ к точке входа — по <c>#import</c> и по <c>#include</c>. Это «входит в
+    /// сборку»: такой файл компилятор разбирает, и синтаксическая ошибка в нём останавливает
+    /// генерацию всех документов. Пути в результате — относительные от <c>userlib/</c>.
     /// </summary>
-    public static HashSet<string> ReachableFrom(string entrypointContent, IReadOnlyList<UserLibFile> files)
+    public static HashSet<string> ReachableFrom(string entrypointContent, IReadOnlyList<UserLibFile> files) =>
+        Walk(entrypointContent, files, ImportOrIncludeRe);
+
+    /// <summary>
+    /// Пути, достижимые по <c>#import …: *</c> (issues #507, #508) — то есть те, чьи имена целиком
+    /// попадают в общую область и могут перекрыть друг друга. Ни <c>#include</c>, ни импорт с
+    /// псевдонимом, ни выборочный импорт этого не делают — проверено на Typst 0.15.1.
+    /// </summary>
+    public static HashSet<string> ImportedFrom(string entrypointContent, IReadOnlyList<UserLibFile> files) =>
+        Walk(entrypointContent, files, WildcardImportRe);
+
+    private static HashSet<string> Walk(
+        string entrypointContent, IReadOnlyList<UserLibFile> files, Regex referenceRe)
     {
         var byPath = files.ToDictionary(f => f.Path, StringComparer.Ordinal);
         var reachable = new HashSet<string>(StringComparer.Ordinal);
@@ -58,7 +211,7 @@ public static class UserLibAnalysis
         while (queue.Count > 0)
         {
             var (baseDir, content) = queue.Dequeue();
-            foreach (Match m in ImportRe.Matches(CommentRe.Replace(content, string.Empty)))
+            foreach (Match m in referenceRe.Matches(StripComments(content)))
             {
                 var raw = m.Groups[1].Value.Replace('\\', '/');
                 if (raw.StartsWith('@')) continue;   // координата пакета — не наш файл
@@ -78,7 +231,15 @@ public static class UserLibAnalysis
                 }
                 else
                 {
-                    target = ResolveRelative(baseDir, raw);
+                    // Ведущий «/» Typst считает от КОРНЯ проекта, а не от папки файла: компилятор
+                    // зовётся с --root на временную папку, где дерево лежит в подпапке userlib/.
+                    // Проверено на Typst 0.15.1 — такой импорт из файла дерева компилируется.
+                    // Разрешая его как относительный, мы приставляли папку файла
+                    // («gost/userlib/util/text.typ») и ссылку молча не находили: файл числился
+                    // неподключённым, его одноимённые объявления выпадали из проверки, а удаление
+                    // проходило без предупреждения (issue #505). У точки входа база — корень, там
+                    // ведущий «/» и так безвреден.
+                    target = raw.StartsWith('/') ? AbsoluteToTreePath(raw) : ResolveRelative(baseDir, raw);
                 }
 
                 if (target is null || !byPath.TryGetValue(target, out var file)) continue;
@@ -90,6 +251,108 @@ public static class UserLibAnalysis
         }
 
         return reachable;
+    }
+
+    // Загрузчики данных и ресурсов: их аргумент — тоже путь, и тоже может указывать наружу дерева
+    // (issue #512). «image("/assets/logo.png")» на верхнем уровне файла падает у проверки с
+    // «file not found»: настоящих ассетов у неё нет, только пустая папка.
+    private static readonly Regex ResourceCallRe =
+        new(@"\b(?:image|read|json|csv|xml|yaml|toml|cbor|bytes)\s*\(\s*""([^""]+)""", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Ссылается ли файл дерева НАРУЖУ — на то, чего в проверке нет и быть не может: артефакты
+    /// генерации (<c>/typeblocks.typ</c>, данные, ассеты, системная библиотека) или что-то выше
+    /// дерева (issue #511). Считаются и импорты, и загрузчики ресурсов (issue #512).
+    ///
+    /// Такие файлы проверять нечем: заглушка пуста, и выборочный импорт из неё даёт «unresolved
+    /// import», а <c>image()</c> — «file not found»; и то и другое было бы ложной ошибкой на каждом
+    /// сохранении. Координаты пакетов (<c>@preview/…</c>) наружу не считаются: они резолвятся сами.
+    /// </summary>
+    private static bool ReferencesOutsideTree(UserLibFile file)
+    {
+        var dir = file.Path.Contains('/') ? file.Path[..file.Path.LastIndexOf('/')] : string.Empty;
+        var content = StripComments(file.Content);
+
+        foreach (var raw in ImportOrIncludeRe.Matches(content).Select(m => m.Groups[1].Value)
+                     .Concat(ResourceCallRe.Matches(content).Select(m => m.Groups[1].Value)))
+        {
+            var path = raw.Replace('\\', '/');
+            if (path.StartsWith('@')) continue;
+            var target = path.StartsWith('/') ? AbsoluteToTreePath(path) : ResolveRelative(dir, path);
+            // null — путь не приводится к дереву. Несуществующий файл ДЕРЕВА сюда не попадает: он
+            // приводится и остаётся настоящей битой ссылкой, о которой проверка обязана сказать.
+            if (target is null) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Файлы, которые проверке компилировать нечем: сами ссылаются наружу дерева ЛИБО тянут за собой
+    /// такой файл по цепочке импортов (issue #512).
+    ///
+    /// Транзитивность здесь обязательна: импорт в зонде тянет весь замкнутый круг зависимостей, и
+    /// одного «этот файл чист» мало — компилятор всё равно дойдёт до грязного и выдаст на него
+    /// «unresolved import». Пофайловая проверка из #511 на этом и ломалась.
+    /// </summary>
+    public static HashSet<string> FilesCheckCannotCompile(IReadOnlyList<UserLibFile> files)
+    {
+        var tainted = new HashSet<string>(
+            files.Where(ReferencesOutsideTree).Select(f => f.Path), StringComparer.Ordinal);
+
+        // Кого тянет за собой каждый файл — только внутри дерева; наружные уже учтены выше.
+        var imports = files.ToDictionary(
+            f => f.Path,
+            f => ImportOrIncludeRe.Matches(StripComments(f.Content))
+                .Select(m => m.Groups[1].Value.Replace('\\', '/'))
+                .Where(raw => !raw.StartsWith('@'))
+                .Select(raw => raw.StartsWith('/')
+                    ? AbsoluteToTreePath(raw)
+                    : ResolveRelative(f.Path.Contains('/') ? f.Path[..f.Path.LastIndexOf('/')] : string.Empty, raw))
+                .Where(t => t is not null)
+                .Select(t => t!)
+                .ToList(),
+            StringComparer.Ordinal);
+
+        // Заражение расходится ПРОТИВ стрелок импорта, до неподвижной точки. Цикл импортов её не
+        // ломает: множество только растёт и ограничено числом файлов.
+        bool grew;
+        do
+        {
+            grew = false;
+            foreach (var (path, targets) in imports)
+                if (!tainted.Contains(path) && targets.Any(tainted.Contains))
+                    grew = tainted.Add(path);
+        } while (grew);
+
+        return tainted;
+    }
+
+    /// <summary>
+    /// Путь из диагностики Typst — в путь, которым оперирует интерфейс: точка входа как есть, файлы
+    /// дерева без префикса <c>userlib/</c> (префикс постоянный и ничего не сообщает).
+    /// <c>null</c> — путь не наш: так выглядит диагностика из файла пакета <c>@preview</c> или из
+    /// служебного файла генерации.
+    /// </summary>
+    public static string? ToLibPath(string diagnosticPath)
+    {
+        var file = diagnosticPath.Replace('\\', '/');
+        var prefix = UserLibPath.FolderName + "/";
+        var idx = file.IndexOf(prefix, StringComparison.Ordinal);
+        if (idx >= 0) return file[(idx + prefix.Length)..];
+        return file.EndsWith(EntrypointName, StringComparison.Ordinal) ? EntrypointName : null;
+    }
+
+    /// <summary>
+    /// Путь от корня проекта («/userlib/util/text.typ») — в координаты дерева («util/text.typ»).
+    /// Всё, что вне <c>userlib/</c>, нашим файлом не является.
+    /// </summary>
+    private static string? AbsoluteToTreePath(string raw)
+    {
+        var fromRoot = ResolveRelative(string.Empty, raw);
+        var prefix = UserLibPath.FolderName + "/";
+        return fromRoot is not null && fromRoot.StartsWith(prefix, StringComparison.Ordinal)
+            ? fromRoot[prefix.Length..]
+            : null;
     }
 
     /// <summary>Разрешение относительного пути «../../util/text.typ» от папки файла.</summary>
@@ -114,9 +377,16 @@ public static class UserLibAnalysis
         return parts.Count == 0 ? null : string.Join('/', parts);
     }
 
-    /// <summary>Имена, объявленные в файле на верхнем уровне (то, что уходит наружу при <c>: *</c>).</summary>
+    /// <summary>
+    /// Имена, объявленные в файле на верхнем уровне (то, что уходит наружу при <c>: *</c>).
+    ///
+    /// Комментарии снимаем, как и при разборе импортов (issue #500): закомментированное объявление
+    /// не объявляет ничего. Иначе перенос функции в другой файл с закомментированным оригиналом —
+    /// обычный приём — давал бы ложное «объявлено ещё в» на имя, объявленное ровно один раз.
+    /// </summary>
     public static IReadOnlyList<string> TopLevelNames(string content) =>
-        TopLevelLetRe.Matches(content).Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal).ToList();
+        TopLevelLetRe.Matches(StripComments(content))
+            .Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal).ToList();
 
     /// <summary>
     /// Замечания по дереву — одноимённые объявления. Порядок устойчив: список показывается
@@ -133,12 +403,30 @@ public static class UserLibAnalysis
         string entrypointContent, IReadOnlyList<UserLibFile> files)
     {
         var warnings = new List<UserLibWarning>();
-        var reachable = ReachableFrom(entrypointContent, files);
+        // Именно ИМПОРТИРОВАННЫЕ, не просто подключённые (issue #507): перекрыть имя может только то,
+        // что попало в общую область через `: *`, а #include имён не приносит.
+        var reachable = ImportedFrom(entrypointContent, files);
 
-        // Дубликаты ищем только среди подключённых: одинаковые имена перекрывают друг друга ровно
-        // тогда, когда оба файла попали в одну область через `: *` из точки входа.
+        // Дубликаты ищем среди подключённых: одинаковые имена перекрывают друг друга ровно тогда,
+        // когда оба файла попали в одну область через `: *` из точки входа.
+        //
+        // Сама точка входа — ПЕРВАЯ в этом списке (issue #506). Её собственные объявления живут в той
+        // же области, что и вытащенные из дерева, и шаблон получает их вместе. Без неё дыра
+        // приходилась ровно на тот приём, ради которого дерево и заводилось: вынес функцию из
+        // userlib.typ в util/text.typ, дописал импорт, а оригинальный `#let` убрать забыл — Typst
+        // молча берёт последнее связывание, шаблоны получают старую копию, и никто не предупредил.
+        // Заметьте, закомментированный оригинал мы уже не считали объявлением (#500), то есть
+        // молчали как раз про более вероятную ошибку — незакомментированный.
+        // Файл дерева, занявший имя точки входа, из перебора исключаем (issue #512): новые такие пути
+        // запрещены, но старая запись могла приехать из бэкапа — и тогда замечание указывало бы
+        // файлу на самого себя, «объявлено ещё в: userlib.typ».
+        var scanned = new[] { new UserLibFile(EntrypointName, entrypointContent) }
+            .Concat(files
+                .Where(f => reachable.Contains(f.Path) && !UserLibPath.TakesEntrypointName(f.Path))
+                .OrderBy(f => f.Path, StringComparer.Ordinal));
+
         var declarations = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        foreach (var file in files.Where(f => reachable.Contains(f.Path)).OrderBy(f => f.Path, StringComparer.Ordinal))
+        foreach (var file in scanned)
             foreach (var name in TopLevelNames(file.Content))
                 (declarations.TryGetValue(name, out var list) ? list : declarations[name] = []).Add(file.Path);
 

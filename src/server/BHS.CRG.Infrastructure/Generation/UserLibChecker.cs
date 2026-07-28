@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Templates;
 
 namespace BHS.CRG.Infrastructure.Generation;
@@ -33,10 +34,48 @@ public class UserLibChecker : IUserLibChecker
         {
             await UserLibMaterializer.WriteAsync(tmp, entrypointContent, files, ct);
 
+            // Рядом с деревом кладём ЗАГЛУШКИ того, что при генерации лежит там же (issue #510).
+            // С #506 зонд компилирует и неподключённые файлы — а это ровно те, которые шаблоны
+            // импортируют напрямую, и потому чаще прочих обращаются к «/typeblocks.typ», данным или
+            // системной библиотеке. Без заглушек такой файл получал бы «file not found» на каждом
+            // сохранении и навсегда садился под жёлтую полосу «не собирается», хотя генерируется он
+            // прекрасно. Остаётся честный остаток: чтение ПОЛЕЙ данных на верхнем уровне упрётся в
+            // пустой объект — настоящих данных у проверки нет и быть не может.
+            await File.WriteAllTextAsync(
+                Path.Combine(tmp, TypstGenerator.TypeBlocksFileName), string.Empty, Encoding.UTF8, ct);
+            await File.WriteAllTextAsync(
+                Path.Combine(tmp, TypstGenerator.DataFileName), "{}", Encoding.UTF8, ct);
+            await File.WriteAllTextAsync(
+                Path.Combine(tmp, SystemTypstLib.FileName), SystemTypstLib.Content, Encoding.UTF8, ct);
+            Directory.CreateDirectory(Path.Combine(tmp, TypstGenerator.AssetsSubdir));
+
             // Зонд импортирует точку входа так же, как это делает шаблон. Строка текста — чтобы у
             // документа была страница и Typst не ругался на пустой вывод.
-            await File.WriteAllTextAsync(Path.Combine(tmp, "check.typ"),
-                $"#import \"{UserLibAnalysis.EntrypointName}\": *\nx\n", Encoding.UTF8, ct);
+            //
+            // И отдельно — КАЖДЫЙ файл дерева (issue #506). Typst разбирает только то, до чего дошёл
+            // по импортам, поэтому неподключённый файл вообще не проверялся: панель говорила «всё в
+            // порядке», а шаблон, импортирующий этот файл напрямую (так делает один из наших), падал
+            // при генерации. Про НЕПОДКЛЮЧЁННОСТЬ мы намеренно молчим (#494) — это обычный ход
+            // работы; но про сломанный файл молчать нельзя, правило прежнее: говорим о том, что
+            // сломано. Импорт с псевдонимом, а не «: *», — чтобы зонд не создавал столкновений имён,
+            // которых в настоящей генерации нет.
+            //
+            // Кроме файлов, ссылающихся НАРУЖУ, и тех, кто тянет такие за собой (issues #511, #512):
+            // в проверке нет ни настоящего typeblocks.typ, ни данных, ни ассетов, а выборочный импорт
+            // из пустой заглушки даёт «unresolved import», image() — «file not found»; и то и другое
+            // было бы ложной ошибкой на каждом сохранении. Такие файлы возвращаются к состоянию «не
+            // проверяем», в котором они и были до #506, — молчание тут честнее.
+            //
+            // Цепочку от точки входа компилируем ВСЕГДА: это и есть настоящая сборка библиотеки. Если
+            // она сама зависит от артефактов генерации, ложная ошибка на них остаётся — но так было и
+            // до #510, когда рядом не лежало даже заглушек.
+            var untestable = UserLibAnalysis.FilesCheckCannotCompile(files);
+            var probe = new StringBuilder($"#import \"{UserLibAnalysis.EntrypointName}\": *\n");
+            for (var i = 0; i < files.Count; i++)
+                if (!untestable.Contains(files[i].Path))
+                    probe.Append($"#import \"{UserLibPath.FolderName}/{files[i].Path}\" as _probe{i}\n");
+            probe.Append("x\n");
+            await File.WriteAllTextAsync(Path.Combine(tmp, UserLibAnalysis.ProbeName), probe.ToString(), Encoding.UTF8, ct);
 
             var psi = new ProcessStartInfo
             {
@@ -46,7 +85,7 @@ public class UserLibChecker : IUserLibChecker
                 UseShellExecute = false,
                 WorkingDirectory = tmp,
             };
-            foreach (var a in new[] { "compile", "check.typ", "out.pdf", "--diagnostic-format", "short", "--root", tmp })
+            foreach (var a in new[] { "compile", UserLibAnalysis.ProbeName, "out.pdf", "--diagnostic-format", "short", "--root", tmp })
                 psi.ArgumentList.Add(a);
 
             using var process = Process.Start(psi)
@@ -56,11 +95,38 @@ public class UserLibChecker : IUserLibChecker
             await process.WaitForExitAsync(ct);
             var stderr = await stderrTask;
 
+            // Помечаем, входит ли файл в сборку: ошибка в подключённом останавливает генерацию ВСЕХ
+            // документов, а в неподключённом — только шаблонов, импортирующих его напрямую. Сказать
+            // «генерация не пройдёт» про второй значило бы солгать.
+            var reachable = UserLibAnalysis.ReachableFrom(entrypointContent, files);
+
             var errors = TypstShortDiagnostics.Parse(stderr)
                 .Where(d => d.Severity == "error")
-                .Select(d => new UserLibError(ToLibPath(d.File), d.Line, d.Column, d.Message))
-                // Ошибки самого зонда пользователю не показать — он его не писал и не увидит.
-                .Where(e => e.Path != "check.typ")
+                // Ошибки самого зонда пользователю не показать — он его не писал и не увидит
+                // (issue #509). Отбираем по ИМЕНИ среди путей, не приводимых к дереву: «userlib/
+                // check.typ» — законное имя файла дерева, но оно приводится и сюда не попадает.
+                // Сравнение с путём временной папки, стоявшее здесь до того, зависело от того, как
+                // хост канонизирует эту папку (короткие имена 8.3, «/private/var/…»), и молча
+                // переставало совпадать — а с #508 непривязанный путь считается входящим в сборку,
+                // так что ошибка зонда приезжала бы красной полосой «генерация не пройдёт».
+                .Where(d => !(UserLibAnalysis.ToLibPath(d.File) is null
+                    && UserLibAnalysis.IsProbePath(d.File, Path.GetFileName(tmp))))
+                .Select(d =>
+                {
+                    // Путь, который не удалось привести к дереву (диагностика из файла пакета
+                    // @preview, из служебного файла генерации), считаем ВХОДЯЩИМ в сборку —
+                    // issue #508. Обратное умолчание давало худший исход: неизвестное показывалось
+                    // бы мягкой жёлтой полосой «в сборку не входит», а Ok оставался бы true, то есть
+                    // при сломанном пакете админу сообщали бы, что библиотека собирается, тогда как
+                    // встала генерация всех документов. Молчаливое зелёное — ровно то, против чего
+                    // вся эта проверка.
+                    var mapped = UserLibAnalysis.ToLibPath(d.File);
+                    var path = mapped ?? d.File;
+                    var inBuild = mapped is null
+                        || path == UserLibAnalysis.EntrypointName
+                        || reachable.Contains(path);
+                    return new UserLibError(path, d.Line, d.Column, d.Message, inBuild);
+                })
                 .ToList();
 
             return new UserLibCheckResult(errors, warnings);
@@ -71,17 +137,4 @@ public class UserLibChecker : IUserLibChecker
         }
     }
 
-    /// <summary>
-    /// Путь из диагностики — в путь, которым оперирует интерфейс: точка входа как есть, файлы дерева
-    /// без префикса <c>userlib/</c> (префикс постоянный и ничего не сообщает).
-    /// </summary>
-    private static string ToLibPath(string file)
-    {
-        var prefix = UserLibPath.FolderName + "/";
-        var idx = file.IndexOf(prefix, StringComparison.Ordinal);
-        if (idx >= 0) return file[(idx + prefix.Length)..];
-        return file.EndsWith(UserLibAnalysis.EntrypointName, StringComparison.Ordinal)
-            ? UserLibAnalysis.EntrypointName
-            : file;
-    }
 }

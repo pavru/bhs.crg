@@ -83,6 +83,25 @@ public class UserLibPathTests
         Assert.True(UserLibPath.DiffersOnlyByCase("Gost/f3.typ", "gost/f3.typ"));
     }
 
+    /// <summary>
+    /// Точка входа адресуется той же строкой, поэтому файл дерева с таким путём становится с ней
+    /// неразличим (issue #510): его ошибки садились бы на строку точки входа и помечались бы
+    /// «входит в сборку» даже будучи неподключёнными. Регистр не спасает — на Windows это один файл.
+    ///
+    /// Отдельно от <see cref="UserLibPath.TryNormalize"/> (issue #512): структурно путь законен, и
+    /// старая запись могла приехать из бэкапа — отвергать её на каждом сохранении значило бы сделать
+    /// библиотеку несохраняемой целиком. Запрет применяется к НОВЫМ путям, в эндпоинте.
+    /// </summary>
+    [Theory]
+    [InlineData("userlib.typ", true)]
+    [InlineData("UserLib.typ", true)]
+    [InlineData("gost/userlib.typ", false)]   // во вложенной папке путь другой — конфликта нет
+    public void TakesEntrypointName_IsCaseInsensitiveAndRootOnly(string path, bool expected)
+        => Assert.Equal(expected, UserLibPath.TakesEntrypointName(path));
+
+    [Fact]
+    public void PathOfTheEntrypoint_IsStructurallyValid() => Assert.Null(ErrorFor("userlib.typ"));
+
     [Fact]
     public void IsInFolder_MatchesOnlyWholeSegments()
     {

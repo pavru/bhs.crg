@@ -38,6 +38,9 @@ public static class TypstUserLibEndpoints
         {
             if (req.Files is { } incoming)
             {
+                var stored = await fileRepo.GetAllAsync(ct);
+                var storedPaths = stored.Select(f => f.Path).ToHashSet(StringComparer.Ordinal);
+
                 var seen = new HashSet<string>(StringComparer.Ordinal);
                 var normalized = new List<UserLibFile>(incoming.Count);
                 foreach (var f in incoming)
@@ -46,6 +49,15 @@ public static class TypstUserLibEndpoints
                         return Results.BadRequest(new { error = $"«{f.Path}»: {error}" });
                     if (!seen.Add(path))
                         return Results.BadRequest(new { error = $"Путь «{path}» встречается дважды." });
+                    // Имя точки входа занимать нельзя (issue #510), но проверяем только НОВЫЕ пути
+                    // (issue #512): раньше такой путь был законным и мог приехать из бэкапа, а отказ
+                    // на каждом сохранении сделал бы библиотеку несохраняемой целиком — пользователь
+                    // не смог бы даже переименовать виновника.
+                    if (UserLibPath.TakesEntrypointName(path) && !storedPaths.Contains(path))
+                        return Results.BadRequest(new
+                        {
+                            error = $"«{path}» — имя точки входа; файл дерева нельзя назвать так же.",
+                        });
                     normalized.Add(new UserLibFile(path, f.Content ?? string.Empty));
                 }
 
@@ -59,7 +71,7 @@ public static class TypstUserLibEndpoints
                         error = $"Пути различаются только регистром: {string.Join(", ", caseClash.Select(f => f.Path))}.",
                     });
 
-                await ApplyTreeAsync(fileRepo, normalized, ct);
+                await ApplyTreeAsync(fileRepo, stored, normalized, ct);
             }
 
             var lib = (await libRepo.GetAllAsync(ct)).FirstOrDefault();
@@ -100,7 +112,10 @@ public static class TypstUserLibEndpoints
                 check = new
                 {
                     ok = check.Ok,
-                    errors = check.Errors.Select(e => new { path = e.Path, line = e.Line, column = e.Column, message = e.Message }),
+                    errors = check.Errors.Select(e => new
+                    {
+                        path = e.Path, line = e.Line, column = e.Column, message = e.Message, inBuild = e.InBuild,
+                    }),
                     warnings = check.Warnings.Select(w => new { path = w.Path, message = w.Message }),
                 },
             });
@@ -113,9 +128,10 @@ public static class TypstUserLibEndpoints
     /// идентификаторы, по которым файл узнаётся между сохранениями.
     /// </summary>
     private static async Task ApplyTreeAsync(
-        IRepository<TypstUserLibFile> fileRepo, IReadOnlyList<UserLibFile> desired, CancellationToken ct)
+        IRepository<TypstUserLibFile> fileRepo, IReadOnlyList<TypstUserLibFile> stored,
+        IReadOnlyList<UserLibFile> desired, CancellationToken ct)
     {
-        var existing = (await fileRepo.GetAllAsync(ct)).ToDictionary(f => f.Path, StringComparer.Ordinal);
+        var existing = stored.ToDictionary(f => f.Path, StringComparer.Ordinal);
         var desiredPaths = desired.Select(f => f.Path).ToHashSet(StringComparer.Ordinal);
 
         foreach (var file in desired)

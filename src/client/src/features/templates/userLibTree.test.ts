@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildRows, referencingFiles, resolveRelative, validatePath,
+  mergeFiles, mergeText, treeKey, checkStillApplies,
 } from './userLibTree';
 import type { UserLibFile } from '@/shared/api/typstUserLib';
 
@@ -94,8 +95,232 @@ describe('referencingFiles', () => {
     expect(referencingFiles([], 'gost/f3.typ', '// #import "userlib/gost/f3.typ": *')).toEqual([]);
   });
 
+  /**
+   * Снимая сперва ВСЕ блочные комментарии, а потом строчные, мы позволяли `/*` внутри строчного
+   * открыть мнимый блок и съесть живой импорт ниже — удаление файла прошло бы без предупреждения,
+   * и фронт разошёлся бы с сервером в понимании одного и того же файла (#500).
+   */
+  it('«/*» внутри строчного комментария не съедает импорт ниже', () => {
+    const entry = [
+      '// старый вариант ниже /*',
+      '#import "userlib/a.typ": *',
+      '// */',
+    ].join('\n');
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
+
   it('никто не ссылается — пусто', () =>
     expect(referencingFiles([f('a.typ', ''), f('b.typ', '')], 'a.typ', '')).toEqual([]));
+
+  /**
+   * Строковые литералы переживают снятие комментариев (#501): иначе `/*` внутри строки открывал бы
+   * мнимый блок и уносил импорты ниже — та же потеря диагностики, что и в предыдущем случае, этажом
+   * ниже.
+   */
+  it('«/*» внутри строки не съедает импорт ниже', () => {
+    const entry = [
+      '#let fence = "/*"',
+      '#import "userlib/a.typ": *',
+      '/* настоящий комментарий */',
+    ].join('\n');
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
+
+  it('«//» в ссылке не съедает остаток своей строки', () => {
+    const entry = '#let site = "https://typst.app"\n#import "userlib/a.typ": *';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
+
+  /** Непарная кавычка в разметке не должна проглотить полфайла до следующей кавычки. */
+  it('непарная кавычка не ломает разбор ниже', () => {
+    const entry = '#let note = [Кабель "ВВГнг проложен]\n#import "userlib/a.typ": *';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
+
+  /**
+   * Блочные комментарии Typst вложенные, и закомментировать область, где комментарий уже есть, —
+   * обычное действие редактора. Нежадное регулярное выражение закрывало блок на первом внутреннем
+   * `*\/`, оставляя импорт живым: файл числился подключённым, а его имена шли в проверку дубликатов
+   * (#504).
+   */
+  it('вложенный блочный комментарий закрывается на своём «*/»', () => {
+    const entry = '/* черновик /* внутри */ #import "userlib/a.typ": * */';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual([]);
+  });
+
+  it('после закрытия вложенного блока разбор продолжается', () => {
+    const entry = '/* /* */ */\n#import "userlib/a.typ": *';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
+
+  /**
+   * Ведущий «/» Typst считает от корня проекта, а не от папки файла (проверено на 0.15.1: такой
+   * импорт из файла дерева компилируется). Разрешая его как относительный, мы приставляли папку
+   * файла и ссылку молча не находили — удаление проходило бы без предупреждения (#505).
+   */
+  it('импорт от корня проекта из файла дерева считается ссылкой', () => {
+    const files = [
+      f('gost/f3.typ', '#import "/userlib/util/text.typ": *'),
+      f('util/text.typ', '#let shout(s) = upper(s)'),
+    ];
+    expect(referencingFiles(files, 'util/text.typ', '')).toEqual(['gost/f3.typ']);
+  });
+
+  /**
+   * `#include` — тоже ссылка на файл. Диалог удаления теперь единственная защита (#492), и на файле,
+   * на который ссылались только так, он говорил бы «ссылок нет», после чего библиотека переставала
+   * бы собираться (#506).
+   */
+  it('#include считается ссылкой наравне с #import', () =>
+    expect(referencingFiles([f('a.typ', '#include "b.typ"')], 'b.typ', '')).toEqual(['a.typ']));
+
+  /**
+   * Внутри сырого блока не код: библиотека вправе показывать там синтаксис с непарным `/*`. Без
+   * этого такой блок открывал бы мнимый комментарий и съедал остаток файла — тот же класс, что `/*`
+   * в строке (#501) и вложенные комментарии (#504) (#506).
+   */
+  it('непарный «/*» в сыром блоке не съедает импорт ниже', () => {
+    const entry = '#let doc = ```typst\n/* пример комментария\n```\n#import "userlib/a.typ": *';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
+
+  it('импорт внутри сырого блока ссылкой не считается', () => {
+    const entry = '#let doc = `#import "userlib/a.typ": *`';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual([]);
+  });
+
+  it('незакрытый прогон кавычек не проглатывает остаток файла', () => {
+    const entry = '#let tick = `\n#import "userlib/a.typ": *';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
+
+  /**
+   * Пустой сырой литерал «``» закончен сам по себе (проверено на Typst 0.15.1). Ища ему пару, разбор
+   * находил её в следующем сыром блоке файла и съедал всё между ними — вместе с импортами, после
+   * чего диалог удаления сказал бы «ссылок нет» на импортированный файл (#509).
+   */
+  it('пустой сырой литерал не съедает импорт под собой', () => {
+    const entry = '#let t = ``\n#import "userlib/a.typ": *\n#let u = `x`';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
+
+  it('путь от корня мимо userlib/ нашим файлом не считается', () => {
+    const files = [f('gost/f3.typ', '#import "/typeblocks.typ": *'), f('typeblocks.typ', '')];
+    expect(referencingFiles(files, 'typeblocks.typ', '')).toEqual([]);
+  });
+});
+
+/**
+ * Слияние по базе — вместо заслона «есть несохранённое, серверные данные ждут» (#501): тот заслон
+ * закрывался бы навсегда от чужого нового файла, а «Сохранить всё» отправило бы дерево без него.
+ */
+describe('mergeFiles', () => {
+  const base = [f('a.typ', 'A'), f('b.typ', 'B')];
+
+  it('первая загрузка — целиком серверное дерево', () =>
+    expect(mergeFiles([], null, base)).toEqual(base));
+
+  it('локальная правка переживает перечитывание', () => {
+    const local = [f('a.typ', 'A-правка'), f('b.typ', 'B')];
+    expect(mergeFiles(local, base, base)).toEqual(local);
+  });
+
+  it('чужой новый файл приходит, наша правка остаётся', () => {
+    const local = [f('a.typ', 'A-правка'), f('b.typ', 'B')];
+    const server = [...base, f('c.typ', 'C')];
+    expect(mergeFiles(local, base, server))
+      .toEqual([f('a.typ', 'A-правка'), f('b.typ', 'B'), f('c.typ', 'C')]);
+  });
+
+  it('чужая правка нетронутого нами файла принимается', () => {
+    const server = [f('a.typ', 'A'), f('b.typ', 'B-сосед')];
+    expect(mergeFiles(base, base, server)).toEqual(server);
+  });
+
+  it('удалённый локально файл не воскресает', () => {
+    const local = [f('a.typ', 'A')];
+    expect(mergeFiles(local, base, base)).toEqual(local);
+  });
+
+  it('созданный локально файл не пропадает', () => {
+    const local = [...base, f('new.typ', 'N')];
+    expect(mergeFiles(local, base, base)).toEqual(local);
+  });
+
+  /**
+   * Обычный ход: создали файл, нажали Ctrl+S и продолжили печатать, пока перечитывание в пути. База
+   * этого файла ещё не знает, сервер уже знает — и серверная копия молча уносила бы набранное с
+   * момента сохранения, причём без точки-маркера (#502).
+   */
+  it('печать поверх только что сохранённого файла не теряется', () => {
+    const local = [f('a.typ', 'A'), f('new.typ', '// new\n#let g() = []')];
+    const server = [f('a.typ', 'A'), f('new.typ', '// new\n')];
+    expect(mergeFiles(local, base.slice(0, 1), server)).toEqual(local);
+  });
+
+  /** Удаление соседом против нашей несохранённой правки: терять несохранённое хуже. */
+  it('файл, удалённый на сервере, остаётся при нашей правке', () => {
+    const local = [f('a.typ', 'A-правка'), f('b.typ', 'B')];
+    expect(mergeFiles(local, base, [f('b.typ', 'B')])).toEqual([f('b.typ', 'B'), f('a.typ', 'A-правка')]);
+  });
+
+  it('файл, удалённый на сервере и не правленный нами, уходит', () =>
+    expect(mergeFiles(base, base, [f('b.typ', 'B')])).toEqual([f('b.typ', 'B')]));
+
+  /** React StrictMode прогоняет эффект дважды — второй прогон не должен ничего менять. */
+  it('повторное слияние с тем же сервером устойчиво', () => {
+    const local = [f('a.typ', 'A-правка'), f('b.typ', 'B')];
+    const once = mergeFiles(local, base, base);
+    expect(mergeFiles(once, base, base)).toEqual(once);
+  });
+});
+
+/**
+ * Отпечаток проверенного дерева: по нему видно, относится ли последняя проверка собираемости к тому,
+ * что сейчас на сервере. По времени это не решается — сохранение само запускает перечитывание.
+ */
+describe('treeKey', () => {
+  it('порядок файлов не значим — сервер волен вернуть их иначе', () =>
+    expect(treeKey('E', [f('b.typ', 'B'), f('a.typ', 'A')]))
+      .toBe(treeKey('E', [f('a.typ', 'A'), f('b.typ', 'B')])));
+
+  it('правка содержимого меняет отпечаток', () =>
+    expect(treeKey('E', [f('a.typ', 'A')])).not.toBe(treeKey('E', [f('a.typ', 'A2')])));
+
+  it('правка точки входа меняет отпечаток', () =>
+    expect(treeKey('E', [f('a.typ', 'A')])).not.toBe(treeKey('E2', [f('a.typ', 'A')])));
+
+  it('новый файл меняет отпечаток', () =>
+    expect(treeKey('E', [f('a.typ', 'A')])).not.toBe(treeKey('E', [f('a.typ', 'A'), f('b.typ', '')])));
+});
+
+/**
+ * Предикат вынесен из панели именно затем, чтобы это проверялось тестом: живой проверкой два его
+ * условия неразличимы — экран одинаково молчит и когда отпечатки совпали, и когда сработало
+ * временное условие (#505).
+ */
+describe('checkStillApplies', () => {
+  const base = { checkedKey: 'K', checkedAt: 100, serverKey: 'K', dataUpdatedAt: 200 };
+
+  it('проверки в этом сеансе не было — не относится', () =>
+    expect(checkStillApplies({ ...base, checkedKey: null })).toBe(false));
+
+  it('отпечатки совпали — относится, даже если чтение свежее', () =>
+    expect(checkStillApplies(base)).toBe(true));
+
+  /** Сосед сохранил своё между нашим PUT и перечитыванием: наша проверка описывает не то дерево. */
+  it('отпечатки разошлись, чтение свежее проверки — не относится', () =>
+    expect(checkStillApplies({ ...base, serverKey: 'иной' })).toBe(false));
+
+  /** Перечитывание после сохранения не дошло: проверка описывает дерево свежее прочитанного. */
+  it('отпечатки разошлись, но проверка свежее чтения — относится', () =>
+    expect(checkStillApplies({ ...base, serverKey: 'иной', checkedAt: 300 })).toBe(true));
+});
+
+describe('mergeText', () => {
+  it('первая загрузка — серверный текст', () => expect(mergeText('', null, 'S')).toBe('S'));
+  it('не правили — берём серверный', () => expect(mergeText('B', 'B', 'S')).toBe('S'));
+  it('правили — правка остаётся', () => expect(mergeText('моё', 'B', 'S')).toBe('моё'));
 });
 
 describe('validatePath', () => {
@@ -108,6 +333,15 @@ describe('validatePath', () => {
   ])('отклоняет %s (%s)', (path) => expect(validatePath(path, [])).not.toBeNull());
 
   it('принимает обычный путь', () => expect(validatePath('gost/forms/f3.typ', [])).toBeNull());
+
+  /** Точка входа адресуется той же строкой — файл дерева с таким путём был бы с ней неразличим (#510). */
+  it('отклоняет путь точки входа', () => {
+    expect(validatePath('userlib.typ', [])).not.toBeNull();
+    expect(validatePath('UserLib.typ', [])).not.toBeNull();
+  });
+
+  it('во вложенной папке то же имя допустимо', () =>
+    expect(validatePath('gost/userlib.typ', [])).toBeNull());
 
   it('ловит дубль пути', () => expect(validatePath('a.typ', ['a.typ'])).not.toBeNull());
 

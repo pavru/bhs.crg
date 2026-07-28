@@ -85,6 +85,19 @@ public static class UserLibPath
         return true;
     }
 
+    /// <summary>
+    /// Занимает ли путь имя точки входа. Такой файл дерева с ней неразличим (issue #510): его
+    /// диагностика приводится к той же строке, поэтому ошибки садились бы на строку точки входа и
+    /// помечались бы «входит в сборку» даже будучи неподключёнными.
+    ///
+    /// Проверяется НЕ в <see cref="TryNormalize"/>, а при появлении нового пути (issue #512): раньше
+    /// такой путь был законным, и запись могла прийти из восстановления бэкапа. Отвергая её при
+    /// каждом сохранении, мы сделали бы библиотеку несохраняемой целиком — пользователь не смог бы
+    /// даже переименовать виновника. Регистр не значим: на Windows это один и тот же файл.
+    /// </summary>
+    public static bool TakesEntrypointName(string path) =>
+        string.Equals(path, UserLibAnalysis.EntrypointName, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Нормализованный путь или исключение — для мест, где отказ уже отсеян валидацией.</summary>
     public static string Normalize(string raw) =>
         TryNormalize(raw, out var normalized, out var error)
