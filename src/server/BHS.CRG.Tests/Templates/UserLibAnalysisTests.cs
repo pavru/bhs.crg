@@ -223,6 +223,61 @@ public class UserLibAnalysisTests
         Assert.Equal(["gost/f3.typ"], reachable);
     }
 
+    /// <summary>
+    /// Объявления самой точки входа живут в той же области, что вытащенные из дерева, и шаблон
+    /// получает их вместе. Дыра приходилась ровно на приём, ради которого дерево и заводилось: вынес
+    /// функцию в файл, дописал импорт, а оригинальный «#let» убрать забыл — Typst молча берёт
+    /// последнее связывание, шаблоны получают старую копию (issue #506).
+    /// </summary>
+    [Fact]
+    public void DuplicateBetweenEntrypointAndTreeFile_IsReported()
+    {
+        var files = new[] { F("util/text.typ", "#let shout(s) = upper(s)") };
+        var entry = "#import \"userlib/util/text.typ\": *\n#let shout(s) = upper(s)";
+
+        var duplicates = UserLibAnalysis.Warnings(entry, files).ToList();
+
+        Assert.Equal(2, duplicates.Count);
+        Assert.Contains(duplicates, w => w.Path == UserLibAnalysis.EntrypointName);
+        Assert.Contains(duplicates, w => w.Path == "util/text.typ");
+        Assert.All(duplicates, d => Assert.Contains("«shout»", d.Message));
+    }
+
+    /// <summary>Перенос БЕЗ оставленного оригинала — обычный успешный случай, он молчит.</summary>
+    [Fact]
+    public void EntrypointWithoutOwnDeclarations_IsSilent()
+    {
+        var files = new[] { F("util/text.typ", "#let shout(s) = upper(s)") };
+        Assert.Empty(UserLibAnalysis.Warnings("#import \"userlib/util/text.typ\": *", files));
+    }
+
+    /// <summary>
+    /// <c>#include</c> — тоже ссылка на файл. Диалог удаления теперь единственная защита (#492), и на
+    /// файле, на который ссылались только так, он говорил бы «ссылок нет» (issue #506).
+    /// </summary>
+    [Fact]
+    public void IncludeCountsAsReference()
+    {
+        var files = new[] { F("a.typ", "#let f() = []") };
+        Assert.Equal(["a.typ"], UserLibAnalysis.ReachableFrom("#include \"userlib/a.typ\"", files));
+    }
+
+    /// <summary>
+    /// Внутри сырого блока не код: библиотека вправе показывать там синтаксис с непарным «/*». Без
+    /// этого блок открывал бы мнимый комментарий и съедал остаток файла — тот же класс, что «/*» в
+    /// строке (#501) и вложенные комментарии (#504) (issue #506).
+    /// </summary>
+    [Fact]
+    public void RawBlock_IsNotParsedAsCode()
+    {
+        var files = new[] { F("a.typ", "#let f() = []") };
+        var entry = "#let doc = ```typst\n/* пример комментария\n```\n#import \"userlib/a.typ\": *";
+        Assert.Equal(["a.typ"], UserLibAnalysis.ReachableFrom(entry, files));
+
+        Assert.Empty(UserLibAnalysis.ReachableFrom("#let doc = `#import \"userlib/a.typ\": *`", files));
+        Assert.Equal(["a.typ"], UserLibAnalysis.ReachableFrom("#let tick = `\n#import \"userlib/a.typ\": *", files));
+    }
+
     [Fact]
     public void PackageImports_AreIgnored()
         => Assert.Empty(UserLibAnalysis.ReachableFrom("#import \"@preview/cetz:0.3.1\": *", []));

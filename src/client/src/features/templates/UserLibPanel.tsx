@@ -167,6 +167,10 @@ export function UserLibPanel() {
   const checkApplies = check !== null
     && checkStillApplies({ checkedKey, checkedAt: checkAt, serverKey, dataUpdatedAt });
   const errors = checkApplies ? check.errors : NO_ERRORS;
+  // Ошибки сборки и ошибки неподключённых файлов разводим (issue #506): первые останавливают
+  // генерацию ВСЕХ документов, вторые — только шаблонов, импортирующих такой файл напрямую.
+  const buildErrors = errors.filter(e => e.inBuild);
+  const orphanErrors = errors.filter(e => !e.inBuild);
 
   /** Ошибка в открытом файле — маркерами Monaco: там, где она есть. */
   useEffect(() => {
@@ -285,19 +289,24 @@ export function UserLibPanel() {
 
         {/* Постоянное состояние, а не всплывающее сообщение: пока библиотека не собирается, стоит
             генерация ВСЕХ документов, и больше этого нигде не видно. Зелёной строки на каждое
-            сохранение нет — «всё хорошо» каждый раз это шум. */}
-        {errors.length > 0 && (
-          <div className="px-4 py-2 bg-danger-subtle border-b border-stroke flex items-start gap-2">
-            <AlertCircle size={14} className="text-danger shrink-0 mt-0.5" />
-            <div className="min-w-0 text-xs">
-              <p className="text-danger font-medium">Библиотека не собирается — генерация документов не пройдёт.</p>
-              {errors.slice(0, 3).map((e, i) => (
-                <DiagnosticLine key={i} path={e.path} alive={alive(e.path)}
-                  text={`${e.path}:${e.line} — ${e.message}`} onGo={setSelected} />
-              ))}
-              {errors.length > 3 && <p className="text-fg3">…и ещё {errors.length - 3}</p>}
-            </div>
-          </div>
+            сохранение нет — «всё хорошо» каждый раз это шум.
+
+            Две полосы, а не одна (issue #506): сломанный файл, не подключённый к точке входа, сборке
+            библиотеки не мешает, и говорить про него «генерация документов не пройдёт» — неправда.
+            Но и молчать нельзя: шаблон вправе импортировать файл дерева напрямую, и один из наших
+            так и делает. Typst останавливается на первом сломанном модуле, поэтому за одно
+            сохранение виден один такой файл; починив его, следующее сохранение покажет следующий. */}
+        {buildErrors.length > 0 && (
+          <DiagnosticBlock tone="danger"
+            title="Библиотека не собирается — генерация документов не пройдёт."
+            items={buildErrors.map(e => ({ path: e.path, text: `${e.path}:${e.line} — ${e.message}` }))}
+            alive={alive} onGo={setSelected} />
+        )}
+        {orphanErrors.length > 0 && (
+          <DiagnosticBlock tone="warning"
+            title="Файл не собирается. В сборку библиотеки он не входит, но шаблон, импортирующий его напрямую, не сгенерируется."
+            items={orphanErrors.map(e => ({ path: e.path, text: `${e.path}:${e.line} — ${e.message}` }))}
+            alive={alive} onGo={setSelected} />
         )}
         {/* Ошибки живут только в ответе на сохранение: проверка запускает Typst, и гонять его на
             каждое чтение (в том числе на каждый фокус окна) — плохой размен. Поэтому после
@@ -312,16 +321,9 @@ export function UserLibPanel() {
           </div>
         )}
         {errors.length === 0 && warnings.length > 0 && (
-          <div className="px-4 py-2 bg-warning-subtle border-b border-stroke flex items-start gap-2">
-            <AlertTriangle size={14} className="text-warning shrink-0 mt-0.5" />
-            <div className="min-w-0 text-xs">
-              {warnings.slice(0, 3).map((w, i) => (
-                <DiagnosticLine key={i} path={w.path} alive={alive(w.path)}
-                  text={`${w.path} — ${w.message}`} onGo={setSelected} />
-              ))}
-              {warnings.length > 3 && <p className="text-fg3">…и ещё {warnings.length - 3}</p>}
-            </div>
-          </div>
+          <DiagnosticBlock tone="warning"
+            items={warnings.map(w => ({ path: w.path, text: `${w.path} — ${w.message}` }))}
+            alive={alive} onGo={setSelected} />
         )}
 
         <div className="flex-1 min-h-0 overflow-hidden">
@@ -382,6 +384,35 @@ export function UserLibPanel() {
         confirmLabel="Удалить"
         onConfirm={() => { if (deleting) handleDelete(deleting); }}
       />
+    </div>
+  );
+}
+
+/**
+ * Полоса диагностики: заголовок (если есть) и до трёх строк со счётчиком остальных. Три полосы
+ * устроены одинаково — ошибки сборки, ошибки неподключённых файлов и замечания (issue #506).
+ */
+function DiagnosticBlock({ tone, title, items, alive, onGo }: {
+  tone: 'danger' | 'warning';
+  title?: string;
+  items: { path: string; text: string }[];
+  alive: (path: string) => boolean;
+  onGo: (path: string) => void;
+}) {
+  const Icon = tone === 'danger' ? AlertCircle : AlertTriangle;
+  return (
+    <div className={`px-4 py-2 border-b border-stroke flex items-start gap-2 ${
+      tone === 'danger' ? 'bg-danger-subtle' : 'bg-warning-subtle'}`}>
+      <Icon size={14} className={`shrink-0 mt-0.5 ${tone === 'danger' ? 'text-danger' : 'text-warning'}`} />
+      <div className="min-w-0 text-xs">
+        {title && (
+          <p className={`font-medium ${tone === 'danger' ? 'text-danger' : 'text-warning'}`}>{title}</p>
+        )}
+        {items.slice(0, 3).map((it, i) => (
+          <DiagnosticLine key={i} path={it.path} alive={alive(it.path)} text={it.text} onGo={onGo} />
+        ))}
+        {items.length > 3 && <p className="text-fg3">…и ещё {items.length - 3}</p>}
+      </div>
     </div>
   );
 }

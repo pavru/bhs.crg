@@ -100,7 +100,10 @@ public static class TypstUserLibEndpoints
                 check = new
                 {
                     ok = check.Ok,
-                    errors = check.Errors.Select(e => new { path = e.Path, line = e.Line, column = e.Column, message = e.Message }),
+                    errors = check.Errors.Select(e => new
+                    {
+                        path = e.Path, line = e.Line, column = e.Column, message = e.Message, inBuild = e.InBuild,
+                    }),
                     warnings = check.Warnings.Select(w => new { path = w.Path, message = w.Message }),
                 },
             });

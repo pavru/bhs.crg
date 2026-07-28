@@ -213,7 +213,10 @@ function resolveFromTreeFile(dir: string, raw: string): string | null {
  */
 function importPaths(content: string): string[] {
   const out: string[] = [];
-  const re = /#import\s+"([^"]+)"/g;
+  // #include — тоже ссылка на файл (issue #506). Пока импорты вёл не пользователь, разница была
+  // неважна; теперь диалог удаления — единственная защита, и на файле, на который ссылались только
+  // через #include, он говорил бы «ссылок нет».
+  const re = /#(?:import|include)\s+"([^"]+)"/g;
   content = stripComments(content);
   let m: RegExpExecArray | null;
   while ((m = re.exec(content)) !== null) {
@@ -258,6 +261,17 @@ function stripComments(content: string): string {
       while (i < content.length && content[i] !== '\n') i++;
       continue;
     }
+    if (content[i] === '`') {
+      const end = rawSpanEnd(content, i);
+      if (end > i) {
+        // Содержимое СНИМАЕМ, как комментарий (строки, наоборот, сохраняем — в них пути импортов).
+        // Внутри сырого блока не код: «#import» там показан, а не выполнен, и считать его ссылкой
+        // значило бы обещать «на файл ссылаются» там, где ссылки нет.
+        for (const ch of content.slice(i, end)) if (ch === '\n') out += '\n';
+        i = end;
+        continue;
+      }
+    }
     if (content[i] === '"') {
       let j = i + 1;
       while (j < content.length && content[j] !== '"' && content[j] !== '\n') {
@@ -270,6 +284,23 @@ function stripComments(content: string): string {
   }
 
   return out;
+}
+
+/**
+ * Конец сырого блока Typst, начатого в позиции `i` (issue #506): один и тот же прогон обратных
+ * кавычек открывает и закрывает его. Внутри — не код: библиотека вправе показывать в нём синтаксис
+ * с непарным `/*`, и без этой ветки такой блок открывал бы мнимый комментарий и съедал остаток
+ * файла — тот же класс, что `/*` в строке (#501) и вложенные комментарии (#504), этажом ниже.
+ *
+ * Незакрытый прогон возвращает `i`: тогда кавычка считается обычным символом, как и непарная
+ * двойная, — молча проглотить полфайла хуже, чем разобрать лишнее.
+ */
+function rawSpanEnd(content: string, i: number): number {
+  let n = 0;
+  while (content[i + n] === '`') n++;
+  const fence = '`'.repeat(n);
+  const close = content.indexOf(fence, i + n);
+  return close < 0 ? i : close + n;
 }
 
 /** Разрешение «../../util/text.typ» от папки файла. Возвращает null, если путь уходит выше дерева. */

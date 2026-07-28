@@ -35,8 +35,19 @@ public class UserLibChecker : IUserLibChecker
 
             // Зонд импортирует точку входа так же, как это делает шаблон. Строка текста — чтобы у
             // документа была страница и Typst не ругался на пустой вывод.
-            await File.WriteAllTextAsync(Path.Combine(tmp, "check.typ"),
-                $"#import \"{UserLibAnalysis.EntrypointName}\": *\nx\n", Encoding.UTF8, ct);
+            //
+            // И отдельно — КАЖДЫЙ файл дерева (issue #506). Typst разбирает только то, до чего дошёл
+            // по импортам, поэтому неподключённый файл вообще не проверялся: панель говорила «всё в
+            // порядке», а шаблон, импортирующий этот файл напрямую (так делает один из наших), падал
+            // при генерации. Про НЕПОДКЛЮЧЁННОСТЬ мы намеренно молчим (#494) — это обычный ход
+            // работы; но про сломанный файл молчать нельзя, правило прежнее: говорим о том, что
+            // сломано. Импорт с псевдонимом, а не «: *», — чтобы зонд не создавал столкновений имён,
+            // которых в настоящей генерации нет.
+            var probe = new StringBuilder($"#import \"{UserLibAnalysis.EntrypointName}\": *\n");
+            for (var i = 0; i < files.Count; i++)
+                probe.Append($"#import \"{UserLibPath.FolderName}/{files[i].Path}\" as _probe{i}\n");
+            probe.Append("x\n");
+            await File.WriteAllTextAsync(Path.Combine(tmp, "check.typ"), probe.ToString(), Encoding.UTF8, ct);
 
             var psi = new ProcessStartInfo
             {
@@ -56,9 +67,18 @@ public class UserLibChecker : IUserLibChecker
             await process.WaitForExitAsync(ct);
             var stderr = await stderrTask;
 
+            // Помечаем, входит ли файл в сборку: ошибка в подключённом останавливает генерацию ВСЕХ
+            // документов, а в неподключённом — только шаблонов, импортирующих его напрямую. Сказать
+            // «генерация не пройдёт» про второй значило бы солгать.
+            var reachable = UserLibAnalysis.ReachableFrom(entrypointContent, files);
             var errors = TypstShortDiagnostics.Parse(stderr)
                 .Where(d => d.Severity == "error")
-                .Select(d => new UserLibError(ToLibPath(d.File), d.Line, d.Column, d.Message))
+                .Select(d =>
+                {
+                    var path = ToLibPath(d.File);
+                    var inBuild = path == UserLibAnalysis.EntrypointName || reachable.Contains(path);
+                    return new UserLibError(path, d.Line, d.Column, d.Message, inBuild);
+                })
                 // Ошибки самого зонда пользователю не показать — он его не писал и не увидит.
                 .Where(e => e.Path != "check.typ")
                 .ToList();

@@ -6,7 +6,14 @@ const QK = ['typst-userlib'] as const;
 /** Файл дерева библиотеки (issue #473). Путь — относительный, от папки `userlib/`. */
 export interface UserLibFile { path: string; content: string; }
 
-export interface UserLibError { path: string; line: number; column: number; message: string; }
+/**
+ * `inBuild` — входит ли файл в сборку библиотеки (достижим по импортам от точки входа). Ошибка в
+ * подключённом файле останавливает генерацию ВСЕХ документов, в неподключённом — только шаблонов,
+ * импортирующих его напрямую (issue #506).
+ */
+export interface UserLibError {
+  path: string; line: number; column: number; message: string; inBuild: boolean;
+}
 export interface UserLibWarning { path: string; message: string; }
 
 /**

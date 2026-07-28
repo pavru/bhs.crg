@@ -22,10 +22,15 @@ public static class UserLibAnalysis
     /// <summary>Имя точки входа — то же, что видит шаблон.</summary>
     public const string EntrypointName = "userlib.typ";
 
-    // #import "путь": ... — путь в двойных кавычках. Пакетные координаты («@ns/name:1.0.0») сюда не
-    // подходят и не должны: дерево локальное.
+    // #import "путь" / #include "путь" — путь в двойных кавычках. Пакетные координаты
+    // («@ns/name:1.0.0») сюда не подходят и не должны: дерево локальное.
+    //
+    // #include учитываем наравне с #import (issue #506): это тоже ссылка на файл, и пока импорты вёл
+    // не пользователь, разница была неважна. Теперь диалог удаления — единственная защита, и на
+    // файле, на который ссылались только через #include, он говорил бы «ссылок нет», после чего
+    // библиотека переставала бы собираться.
     private static readonly Regex ImportRe =
-        new(@"#import\s+""([^""]+)""", RegexOptions.Compiled);
+        new(@"#(?:import|include)\s+""([^""]+)""", RegexOptions.Compiled);
 
     /// <summary>
     /// Текст без комментариев. Снимаем их ДО разбора импортов (issue #498): импорты теперь ведёт
@@ -67,6 +72,19 @@ public static class UserLibAnalysis
                 while (i < content.Length && content[i] != '\n') i++;
                 continue;
             }
+            if (content[i] == '`')
+            {
+                var end = RawSpanEnd(content, i);
+                if (end > i)
+                {
+                    // Содержимое СНИМАЕМ, как комментарий (строки, наоборот, сохраняем — в них пути
+                    // импортов). Внутри сырого блока не код: «#import» там показан, а не выполнен, и
+                    // считать его ссылкой значило бы обещать «на файл ссылаются» там, где её нет.
+                    for (var k = i; k < end; k++) if (content[k] == '\n') sb.Append('\n');
+                    i = end;
+                    continue;
+                }
+            }
             if (content[i] == '"')
             {
                 var j = i + 1;
@@ -84,6 +102,23 @@ public static class UserLibAnalysis
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Конец сырого блока Typst, начатого в позиции <paramref name="i"/> (issue #506): один и тот же
+    /// прогон обратных кавычек открывает и закрывает его. Внутри — не код: библиотека вправе
+    /// показывать там синтаксис с непарным «/*», и без этой ветки такой блок открывал бы мнимый
+    /// комментарий и съедал остаток файла — тот же класс, что «/*» в строке (#501) и вложенные
+    /// комментарии (#504), этажом ниже. Незакрытый прогон возвращает <paramref name="i"/>: кавычка
+    /// тогда считается обычным символом, как и непарная двойная.
+    /// </summary>
+    private static int RawSpanEnd(string content, int i)
+    {
+        var n = 0;
+        while (i + n < content.Length && content[i + n] == '`') n++;
+        var fence = new string('`', n);
+        var close = content.IndexOf(fence, i + n, StringComparison.Ordinal);
+        return close < 0 ? i : close + n;
     }
 
     private static bool Starts(string s, int i, string token) =>
@@ -219,10 +254,21 @@ public static class UserLibAnalysis
         var warnings = new List<UserLibWarning>();
         var reachable = ReachableFrom(entrypointContent, files);
 
-        // Дубликаты ищем только среди подключённых: одинаковые имена перекрывают друг друга ровно
-        // тогда, когда оба файла попали в одну область через `: *` из точки входа.
+        // Дубликаты ищем среди подключённых: одинаковые имена перекрывают друг друга ровно тогда,
+        // когда оба файла попали в одну область через `: *` из точки входа.
+        //
+        // Сама точка входа — ПЕРВАЯ в этом списке (issue #506). Её собственные объявления живут в той
+        // же области, что и вытащенные из дерева, и шаблон получает их вместе. Без неё дыра
+        // приходилась ровно на тот приём, ради которого дерево и заводилось: вынес функцию из
+        // userlib.typ в util/text.typ, дописал импорт, а оригинальный `#let` убрать забыл — Typst
+        // молча берёт последнее связывание, шаблоны получают старую копию, и никто не предупредил.
+        // Заметьте, закомментированный оригинал мы уже не считали объявлением (#500), то есть
+        // молчали как раз про более вероятную ошибку — незакомментированный.
+        var scanned = new[] { new UserLibFile(EntrypointName, entrypointContent) }
+            .Concat(files.Where(f => reachable.Contains(f.Path)).OrderBy(f => f.Path, StringComparer.Ordinal));
+
         var declarations = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        foreach (var file in files.Where(f => reachable.Contains(f.Path)).OrderBy(f => f.Path, StringComparer.Ordinal))
+        foreach (var file in scanned)
             foreach (var name in TopLevelNames(file.Content))
                 (declarations.TryGetValue(name, out var list) ? list : declarations[name] = []).Add(file.Path);
 

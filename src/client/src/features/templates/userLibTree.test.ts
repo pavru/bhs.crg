@@ -166,6 +166,34 @@ describe('referencingFiles', () => {
     expect(referencingFiles(files, 'util/text.typ', '')).toEqual(['gost/f3.typ']);
   });
 
+  /**
+   * `#include` — тоже ссылка на файл. Диалог удаления теперь единственная защита (#492), и на файле,
+   * на который ссылались только так, он говорил бы «ссылок нет», после чего библиотека переставала
+   * бы собираться (#506).
+   */
+  it('#include считается ссылкой наравне с #import', () =>
+    expect(referencingFiles([f('a.typ', '#include "b.typ"')], 'b.typ', '')).toEqual(['a.typ']));
+
+  /**
+   * Внутри сырого блока не код: библиотека вправе показывать там синтаксис с непарным `/*`. Без
+   * этого такой блок открывал бы мнимый комментарий и съедал остаток файла — тот же класс, что `/*`
+   * в строке (#501) и вложенные комментарии (#504) (#506).
+   */
+  it('непарный «/*» в сыром блоке не съедает импорт ниже', () => {
+    const entry = '#let doc = ```typst\n/* пример комментария\n```\n#import "userlib/a.typ": *';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
+
+  it('импорт внутри сырого блока ссылкой не считается', () => {
+    const entry = '#let doc = `#import "userlib/a.typ": *`';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual([]);
+  });
+
+  it('незакрытый прогон кавычек не проглатывает остаток файла', () => {
+    const entry = '#let tick = `\n#import "userlib/a.typ": *';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
+
   it('путь от корня мимо userlib/ нашим файлом не считается', () => {
     const files = [f('gost/f3.typ', '#import "/typeblocks.typ": *'), f('typeblocks.typ', '')];
     expect(referencingFiles(files, 'typeblocks.typ', '')).toEqual([]);
