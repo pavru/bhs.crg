@@ -17,14 +17,11 @@ import { containsRef } from './brokenRefs';
 // самими вкладками. Перенос без изменения поведения — вкладки ничего не разделяли между
 // собой, кроме мелких помощников, которые уехали в отдельный модуль.
 
+/** Парсит JSON-строку массива id (templateIds) в массив; безопасно к битому/пустому значению. */
 function parseIdArray(json: string | null): string[] {
   if (!json) return [];
   try { const a = JSON.parse(json); return Array.isArray(a) ? a as string[] : []; } catch { return []; }
 }
-
-/// Плашка для doc-ref/doc-array поля, которое заполняется привязанным источником данных:
-/// ручные ссылки скрываем, т.к. при генерации источник перезаписывает поле целиком
-/// (см. issue #17 — «источник ИЛИ ссылки», взаимоисключающе).
 
 function DiagnosticsPanel({ diagnostics, objectName }: { diagnostics: ResolutionDiagnostic[]; objectName: string }) {
   if (diagnostics.length === 0) {
@@ -269,8 +266,3 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
     </div>
   );
 }
-
-// ─── DataSets tab ─────────────────────────────────────────────────────────────
-
-
-// ─── Instance name editor ─────────────────────────────────────────────────────

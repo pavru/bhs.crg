@@ -29,6 +29,9 @@ export type SaveRef = { current: (() => Promise<boolean>) | null };
 // самими вкладками. Перенос без изменения поведения — вкладки ничего не разделяли между
 // собой, кроме мелких помощников, которые уехали в отдельный модуль.
 
+/// Плашка для doc-ref/doc-array поля, которое заполняется привязанным источником данных:
+/// ручные ссылки скрываем, т.к. при генерации источник перезаписывает поле целиком
+/// (см. issue #17 — «источник ИЛИ ссылки», взаимоисключающе).
 function SourceBoundDocField() {
   return (
     <div className="flex items-center gap-2 border border-brand/40 rounded-lg px-3 py-2 bg-brand/5">
@@ -55,9 +58,11 @@ function BoundStateHint({ loading, error }: { loading: boolean; error: boolean }
 // «Maximum update depth exceeded» до догрузки запроса (симптом «пустой экран при открытии документа»).
 const EMPTY: never[] = [];
 
-// Есть ли в значениях хоть одна ссылка ($ref) — гейт для авто-проверки битых ссылок (issue #332):
-// без ref-полей резолв нечего проверять, лишний запрос не шлём.
 
+// ─── Базовый экземпляр (issue #71) ────────────────────────────────────────────
+// Документ дочернего типа может наследоваться от базы — документа комплекта ЛИБО записи общих данных.
+// Кандидаты берутся по всей цепочке типов-предков и по скоп-близости (комплект > раздел > стройка >
+// система), внутри уровня — по близости наследования. Ссылка хранится как _baseRef {kind,id}.
 export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docType, otherInstances, onDirty, saveRef, onBaseState, baseControlRef }: {
   instance: DocumentInstance; setId: string; schemaFields: SchemaField[];
   allDocTypes: DocumentType[]; docType: DocumentType | undefined;
