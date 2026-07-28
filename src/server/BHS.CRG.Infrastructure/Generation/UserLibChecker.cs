@@ -59,9 +59,16 @@ public class UserLibChecker : IUserLibChecker
             // работы; но про сломанный файл молчать нельзя, правило прежнее: говорим о том, что
             // сломано. Импорт с псевдонимом, а не «: *», — чтобы зонд не создавал столкновений имён,
             // которых в настоящей генерации нет.
+            //
+            // Кроме файлов, ссылающихся НАРУЖУ (issue #511): в проверке нет ни настоящего
+            // typeblocks.typ, ни данных, а выборочный импорт из пустой заглушки — «unresolved
+            // import», то есть ложная ошибка на каждом сохранении. Такие файлы возвращаются к
+            // состоянию «не проверяем», в котором они и были до #506, — молчание тут честнее.
+            // Цепочку от точки входа компилируем всегда: это и есть настоящая сборка библиотеки.
             var probe = new StringBuilder($"#import \"{UserLibAnalysis.EntrypointName}\": *\n");
             for (var i = 0; i < files.Count; i++)
-                probe.Append($"#import \"{UserLibPath.FolderName}/{files[i].Path}\" as _probe{i}\n");
+                if (!UserLibAnalysis.ReferencesOutsideTree(files[i]))
+                    probe.Append($"#import \"{UserLibPath.FolderName}/{files[i].Path}\" as _probe{i}\n");
             probe.Append("x\n");
             await File.WriteAllTextAsync(Path.Combine(tmp, UserLibAnalysis.ProbeName), probe.ToString(), Encoding.UTF8, ct);
 

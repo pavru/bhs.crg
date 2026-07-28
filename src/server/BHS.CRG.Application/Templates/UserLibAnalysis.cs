@@ -62,14 +62,15 @@ public static class UserLibAnalysis
     //
     //   #include "frag.typ"              — файл подключён, но имён не приносит («unknown variable»);
     //   #import "frag.typ" as t          — приносит только «t», свой #let shout ничего не перекрывает;
-    //   #import "frag.typ": pad          — приносит только «pad», «shout» остаётся неизвестным.
+    //   #import "frag.typ": pad          — приносит только «pad», «shout» остаётся неизвестным;
+    //   #import "frag.typ" as t: *       — приносит ВСЁ, псевдоним тут ничего не отменяет (issue #511).
     //
     // Считая эти формы наравне с «: *», мы обещали бы «Typst молча возьмёт объявление из файла,
     // импортированного последним» там, где ничего не перекрывается. Осознанный пробел: перекрытие
     // ИМЕНЕМ ИЗ СПИСКА («: pad» против своего «#let pad») мы не ловим — для этого нужен разбор
     // списка имён, а не путей; лучше промолчать, чем сказать неправду.
     private static readonly Regex WildcardImportRe =
-        new(@"#import\s+""([^""]+)""\s*:\s*\*", RegexOptions.Compiled);
+        new(@"#import\s+""([^""]+)""\s*(?:as\s+[^\s:]+\s*)?:\s*\*", RegexOptions.Compiled);
 
     /// <summary>
     /// Текст без комментариев. Снимаем их ДО разбора импортов (issue #498): импорты теперь ведёт
@@ -250,6 +251,30 @@ public static class UserLibAnalysis
         }
 
         return reachable;
+    }
+
+    /// <summary>
+    /// Ссылается ли файл дерева НАРУЖУ — на то, чего в проверке нет и быть не может: артефакты
+    /// генерации (<c>/typeblocks.typ</c>, системная библиотека) или что-то выше дерева (issue #511).
+    ///
+    /// Такие файлы проверять нечем: заглушка пуста, и выборочный импорт из неё даёт «unresolved
+    /// import» — ложную ошибку на каждом сохранении. Компилировать их не будем; это возвращает их к
+    /// состоянию «не проверяем», в котором они и были до #506, но без вранья на экране.
+    /// Координаты пакетов (<c>@preview/…</c>) наружу не считаются: они резолвятся сами.
+    /// </summary>
+    public static bool ReferencesOutsideTree(UserLibFile file)
+    {
+        var dir = file.Path.Contains('/') ? file.Path[..file.Path.LastIndexOf('/')] : string.Empty;
+        foreach (Match m in ImportOrIncludeRe.Matches(StripComments(file.Content)))
+        {
+            var raw = m.Groups[1].Value.Replace('\\', '/');
+            if (raw.StartsWith('@')) continue;
+            var target = raw.StartsWith('/') ? AbsoluteToTreePath(raw) : ResolveRelative(dir, raw);
+            // null — путь не приводится к дереву. Несуществующий файл ДЕРЕВА сюда не попадает: он
+            // приводится и остаётся настоящей битой ссылкой, о которой проверка обязана сказать.
+            if (target is null) return true;
+        }
+        return false;
     }
 
     /// <summary>

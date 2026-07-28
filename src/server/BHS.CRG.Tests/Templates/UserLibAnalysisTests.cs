@@ -295,6 +295,35 @@ public class UserLibAnalysisTests
     /// бы перекрытие там, где его нет (issue #508); форма с псевдонимом естественнее всего выглядит
     /// как раз в точке входа, которую мы с #506 стали проверять.
     /// </summary>
+    /// <summary>
+    /// А вот псевдоним ВМЕСТЕ с «: *» экспортирует всё — проверено на Typst 0.15.1: «#import
+    /// "frag.typ" as t: *» и следом вызов «shout» компилируется. Регулярное выражение, требовавшее
+    /// «"путь": *» подряд, эту форму не ловило, и перекрытие имён проходило молча (issue #511).
+    /// </summary>
+    [Fact]
+    public void AliasedWildcardImport_StillShadowsNames()
+    {
+        var files = new[] { F("frag.typ", "#let shout(s) = upper(s)") };
+        var entry = "#import \"userlib/frag.typ\" as t: *\n#let shout(s) = lower(s)";
+        Assert.Equal(["frag.typ"], UserLibAnalysis.ImportedFrom(entry, files));
+        Assert.NotEmpty(UserLibAnalysis.Warnings(entry, files));
+    }
+
+    /// <summary>
+    /// Файл, ссылающийся на артефакты генерации, проверке недоступен: настоящего typeblocks.typ у неё
+    /// нет, а выборочный импорт из пустой заглушки даёт «unresolved import» — ложную ошибку на
+    /// каждом сохранении (issue #511). Битая ссылка ВНУТРИ дерева наружной не считается: о ней
+    /// проверка обязана сказать.
+    /// </summary>
+    [Theory]
+    [InlineData("#import \"/typeblocks.typ\": place-table", true)]
+    [InlineData("#import \"../../data.json\": *", true)]
+    [InlineData("#import \"/userlib/util/text.typ\": *", false)]
+    [InlineData("#import \"missing.typ\": *", false)]
+    [InlineData("#import \"@preview/cetz:0.3.1\": *", false)]
+    public void ReferencesOutsideTree_DetectsWhatCheckCannotProvide(string content, bool expected)
+        => Assert.Equal(expected, UserLibAnalysis.ReferencesOutsideTree(F("gost/f3.typ", content)));
+
     [Theory]
     [InlineData("#import \"userlib/frag.typ\" as t")]
     [InlineData("#import \"userlib/frag.typ\": pad")]

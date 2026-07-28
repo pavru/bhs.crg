@@ -115,7 +115,11 @@ export function UserLibPanel() {
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Ошибка сохранения');
+      // Текст сервера, а не axios'ово «Request failed with status code 400» (issue #511): отказ
+      // сохранения объясняется именно там — какой путь и чем не годится, — и без этого библиотека
+      // выглядит несохраняемой без причины.
+      const fromServer = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(fromServer ?? (err instanceof Error ? err.message : 'Ошибка сохранения'));
     }
   }, [entry, files, saveMutation]);
 
@@ -278,7 +282,9 @@ export function UserLibPanel() {
           </p>
           <div className="flex items-center gap-2 shrink-0">
             {savedMsg && !isDirty && <span className="text-xs text-success">Сохранено</span>}
-            {error && <span className="text-xs text-danger max-w-xs truncate">{error}</span>}
+            {/* Полный текст под курсором: строка в шапке узкая, а объяснение отказа сервера
+                («какой путь и чем не годится») в неё не помещается (issue #511). */}
+            {error && <span className="text-xs text-danger max-w-xs truncate" title={error}>{error}</span>}
             {isDirty && <span className="text-xs text-fg3">Изменено: {dirty.size}</span>}
             <Button variant="filled" size="sm" onClick={handleSave} loading={saveMutation.isPending}
               icon={<Save size={12} />}>
