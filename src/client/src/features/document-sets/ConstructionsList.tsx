@@ -225,5 +225,3 @@ export function ConstructionsList() {
     </div>
   );
 }
-
-// ─── Page entry ───────────────────────────────────────────────────────────────

@@ -478,5 +478,3 @@ export function SetDetail() {
     </>
   );
 }
-
-// ─── Section detail (sets as children + section resources) ────────────────────

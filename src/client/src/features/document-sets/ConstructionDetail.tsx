@@ -182,5 +182,3 @@ export function ConstructionDetail() {
     </>
   );
 }
-
-// ─── Document search (across kits) ─────────────────────────────────────────────
