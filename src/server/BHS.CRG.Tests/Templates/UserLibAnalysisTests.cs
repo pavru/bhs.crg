@@ -310,6 +310,45 @@ public class UserLibAnalysisTests
     /// даёт null, и проверяющий по нему считает ошибку ВХОДЯЩЕЙ в сборку: обратное умолчание
     /// показывало бы сломанный пакет мягкой полосой «в сборку не входит» при Ok = true (issue #508).
     /// </summary>
+    /// <summary>
+    /// Пустой сырой литерал «``» закончен сам по себе (проверено на Typst 0.15.1: файл с ним
+    /// компилируется). Ища ему пару, разбор находил её в следующем сыром блоке файла и съедал всё
+    /// между ними — вместе с импортами: файл переставал числиться подключённым, его дубликаты
+    /// пропадали из проверки, а диалог удаления говорил «ссылок нет» (issue #509).
+    /// </summary>
+    [Fact]
+    public void EmptyRawLiteral_DoesNotSwallowImportBelow()
+    {
+        var files = new[] { F("util/text.typ", "#let shout(s) = upper(s)") };
+        var entry = "#let t = ``\n#import \"userlib/util/text.typ\": *\n#let u = `x`";
+        Assert.Equal(["util/text.typ"], UserLibAnalysis.ReachableFrom(entry, files));
+    }
+
+    /// <summary>Одиночная кавычка без пары — обычный символ, а не начало блока до конца файла.</summary>
+    [Fact]
+    public void UnpairedBacktick_DoesNotSwallowImportBelow()
+    {
+        var files = new[] { F("a.typ", "#let f() = []") };
+        Assert.Equal(["a.typ"], UserLibAnalysis.ReachableFrom("#let tick = `\n#import \"userlib/a.typ\": *", files));
+    }
+
+    /// <summary>
+    /// Диагностику зонда отбираем по ИМЕНИ и только среди путей, не приводимых к дереву: сравнение с
+    /// путём временной папки зависело от канонизации хоста (короткие имена 8.3, «/private/var/…») и
+    /// молча переставало совпадать. «userlib/check.typ» — законное имя файла дерева, оно приводится
+    /// и под фильтр не попадает (issue #509).
+    /// </summary>
+    [Theory]
+    [InlineData(@"C:\Users\ADMINI~1\AppData\Local\Temp\userlib-check-1\check.typ", true)]
+    [InlineData("/private/var/folders/x/userlib-check-1/check.typ", true)]
+    [InlineData("C:/tmp/userlib-check-1/userlib/gost/f3.typ", false)]
+    public void IsProbePath_MatchesOnlyTheProbeFileName(string path, bool expected)
+        => Assert.Equal(expected, UserLibAnalysis.IsProbePath(path));
+
+    [Fact]
+    public void TreeFileNamedLikeProbe_IsStillOurFile()
+        => Assert.Equal("check.typ", UserLibAnalysis.ToLibPath("C:/tmp/userlib-check-1/userlib/check.typ"));
+
     [Theory]
     [InlineData("C:/tmp/userlib-check-1/userlib/gost/f3.typ", "gost/f3.typ")]
     [InlineData(@"C:\tmp\userlib-check-1\userlib\gost\f3.typ", "gost/f3.typ")]

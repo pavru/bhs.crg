@@ -194,6 +194,16 @@ describe('referencingFiles', () => {
     expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
   });
 
+  /**
+   * Пустой сырой литерал «``» закончен сам по себе (проверено на Typst 0.15.1). Ища ему пару, разбор
+   * находил её в следующем сыром блоке файла и съедал всё между ними — вместе с импортами, после
+   * чего диалог удаления сказал бы «ссылок нет» на импортированный файл (#509).
+   */
+  it('пустой сырой литерал не съедает импорт под собой', () => {
+    const entry = '#let t = ``\n#import "userlib/a.typ": *\n#let u = `x`';
+    expect(referencingFiles([f('a.typ', '')], 'a.typ', entry)).toEqual(['userlib.typ']);
+  });
+
   it('путь от корня мимо userlib/ нашим файлом не считается', () => {
     const files = [f('gost/f3.typ', '#import "/typeblocks.typ": *'), f('typeblocks.typ', '')];
     expect(referencingFiles(files, 'typeblocks.typ', '')).toEqual([]);

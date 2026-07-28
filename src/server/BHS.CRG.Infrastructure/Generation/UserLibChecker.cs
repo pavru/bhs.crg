@@ -47,7 +47,7 @@ public class UserLibChecker : IUserLibChecker
             for (var i = 0; i < files.Count; i++)
                 probe.Append($"#import \"{UserLibPath.FolderName}/{files[i].Path}\" as _probe{i}\n");
             probe.Append("x\n");
-            await File.WriteAllTextAsync(Path.Combine(tmp, "check.typ"), probe.ToString(), Encoding.UTF8, ct);
+            await File.WriteAllTextAsync(Path.Combine(tmp, UserLibAnalysis.ProbeName), probe.ToString(), Encoding.UTF8, ct);
 
             var psi = new ProcessStartInfo
             {
@@ -57,7 +57,7 @@ public class UserLibChecker : IUserLibChecker
                 UseShellExecute = false,
                 WorkingDirectory = tmp,
             };
-            foreach (var a in new[] { "compile", "check.typ", "out.pdf", "--diagnostic-format", "short", "--root", tmp })
+            foreach (var a in new[] { "compile", UserLibAnalysis.ProbeName, "out.pdf", "--diagnostic-format", "short", "--root", tmp })
                 psi.ArgumentList.Add(a);
 
             using var process = Process.Start(psi)
@@ -72,16 +72,16 @@ public class UserLibChecker : IUserLibChecker
             // «генерация не пройдёт» про второй значило бы солгать.
             var reachable = UserLibAnalysis.ReachableFrom(entrypointContent, files);
 
-            // Ошибки самого зонда пользователю не показать — он его не писал и не увидит. Сравнение
-            // ПОЛНЫМ путём, а не по имени (issue #507): Typst печатает абсолютный путь, поэтому
-            // прежнее «Path != "check.typ"» не совпадало никогда и фильтр был мёртвым — а зонд
-            // подрос до строки на каждый файл дерева, и его ошибка приезжала бы админу сырым путём
-            // во временную папку, вдобавок помеченная «в сборку не входит». По имени сравнивать
-            // нельзя: «userlib/check.typ» — законное имя файла дерева, и его ошибки мы бы съели.
-            var probePath = tmp.Replace('\\', '/').TrimEnd('/') + "/check.typ";
-
             var errors = TypstShortDiagnostics.Parse(stderr)
-                .Where(d => d.Severity == "error" && !d.File.EndsWith(probePath, StringComparison.Ordinal))
+                .Where(d => d.Severity == "error")
+                // Ошибки самого зонда пользователю не показать — он его не писал и не увидит
+                // (issue #509). Отбираем по ИМЕНИ среди путей, не приводимых к дереву: «userlib/
+                // check.typ» — законное имя файла дерева, но оно приводится и сюда не попадает.
+                // Сравнение с путём временной папки, стоявшее здесь до того, зависело от того, как
+                // хост канонизирует эту папку (короткие имена 8.3, «/private/var/…»), и молча
+                // переставало совпадать — а с #508 непривязанный путь считается входящим в сборку,
+                // так что ошибка зонда приезжала бы красной полосой «генерация не пройдёт».
+                .Where(d => !(UserLibAnalysis.ToLibPath(d.File) is null && UserLibAnalysis.IsProbePath(d.File)))
                 .Select(d =>
                 {
                     // Путь, который не удалось привести к дереву (диагностика из файла пакета
