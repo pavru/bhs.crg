@@ -73,7 +73,6 @@ function DocumentSearchPanel() {
   );
 }
 
-// ─── Constructions list ───────────────────────────────────────────────────────
 
 export function ConstructionsList() {
 
