@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  buildRows, referencingFiles, resolveRelative, validatePath, mergeFiles, mergeText,
+  buildRows, referencingFiles, resolveRelative, validatePath, mergeFiles, mergeText, treeKey,
 } from './userLibTree';
 import type { UserLibFile } from '@/shared/api/typstUserLib';
 
@@ -174,6 +174,17 @@ describe('mergeFiles', () => {
     expect(mergeFiles(local, base, base)).toEqual(local);
   });
 
+  /**
+   * Обычный ход: создали файл, нажали Ctrl+S и продолжили печатать, пока перечитывание в пути. База
+   * этого файла ещё не знает, сервер уже знает — и серверная копия молча уносила бы набранное с
+   * момента сохранения, причём без точки-маркера (#502).
+   */
+  it('печать поверх только что сохранённого файла не теряется', () => {
+    const local = [f('a.typ', 'A'), f('new.typ', '// new\n#let g() = []')];
+    const server = [f('a.typ', 'A'), f('new.typ', '// new\n')];
+    expect(mergeFiles(local, base.slice(0, 1), server)).toEqual(local);
+  });
+
   /** Удаление соседом против нашей несохранённой правки: терять несохранённое хуже. */
   it('файл, удалённый на сервере, остаётся при нашей правке', () => {
     const local = [f('a.typ', 'A-правка'), f('b.typ', 'B')];
@@ -189,6 +200,25 @@ describe('mergeFiles', () => {
     const once = mergeFiles(local, base, base);
     expect(mergeFiles(once, base, base)).toEqual(once);
   });
+});
+
+/**
+ * Отпечаток проверенного дерева: по нему видно, относится ли последняя проверка собираемости к тому,
+ * что сейчас на сервере. По времени это не решается — сохранение само запускает перечитывание.
+ */
+describe('treeKey', () => {
+  it('порядок файлов не значим — сервер волен вернуть их иначе', () =>
+    expect(treeKey('E', [f('b.typ', 'B'), f('a.typ', 'A')]))
+      .toBe(treeKey('E', [f('a.typ', 'A'), f('b.typ', 'B')])));
+
+  it('правка содержимого меняет отпечаток', () =>
+    expect(treeKey('E', [f('a.typ', 'A')])).not.toBe(treeKey('E', [f('a.typ', 'A2')])));
+
+  it('правка точки входа меняет отпечаток', () =>
+    expect(treeKey('E', [f('a.typ', 'A')])).not.toBe(treeKey('E2', [f('a.typ', 'A')])));
+
+  it('новый файл меняет отпечаток', () =>
+    expect(treeKey('E', [f('a.typ', 'A')])).not.toBe(treeKey('E', [f('a.typ', 'A'), f('b.typ', '')])));
 });
 
 describe('mergeText', () => {

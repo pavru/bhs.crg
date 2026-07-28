@@ -15,7 +15,7 @@ import {
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
 import { UserLibFileList } from './UserLibFileList';
 import { UserLibPathDialog } from './UserLibPathDialog';
-import { ENTRYPOINT, referencingFiles, mergeFiles, mergeText } from './userLibTree';
+import { ENTRYPOINT, referencingFiles, mergeFiles, mergeText, treeKey } from './userLibTree';
 
 // ─── User Typst library: точка входа + дерево файлов (issue #473) ─────────────
 
@@ -34,6 +34,7 @@ export function UserLibPanel() {
   const [selected, setSelected] = useState(ENTRYPOINT);
   const [check, setCheck] = useState<UserLibCheck | null>(null);
   const [checkAt, setCheckAt] = useState(0);
+  const [checkedKey, setCheckedKey] = useState('');
   const [savedMsg, setSavedMsg] = useState(false);
   const [error, setError] = useState('');
   const [pathDialog, setPathDialog] = useState<{ mode: 'create' | 'rename'; path: string } | null>(null);
@@ -101,6 +102,7 @@ export function UserLibPanel() {
       const res = await saveMutation.mutateAsync({ content: entry, files });
       setCheck(res.check);
       setCheckAt(Date.now());
+      setCheckedKey(treeKey(res.content, res.files));   // дерево, к которому относится эта проверка
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2000);
     } catch (err: unknown) {
@@ -143,19 +145,32 @@ export function UserLibPanel() {
   }, [serverEntry]);
   useEffect(() => { foldFunctions(); }, [foldFunctions]);
 
+  // Относится ли последняя проверка к тому, что сейчас на сервере (issue #502). Проверка — чистая
+  // функция дерева, поэтому её вывод в силе, пока сохранённое дерево то же самое; отпечаток и
+  // сравниваем. Второе условие — на случай, когда перечитывание после сохранения не дошло: тогда
+  // проверка описывает дерево СВЕЖЕЕ прочитанного, и верить надо ей.
+  //
+  // Без этого мы показывали «всё в порядке» после того, как сосед сломал библиотеку: ошибки брались
+  // из своей давней успешной проверки, и ни красной строки, ни строки «не проверялась» не было —
+  // ровно то молчаливое зелёное, против которого написан баннер ниже. И наоборот: устаревшие ошибки
+  // держали красную полосу, а она гасит блок замечаний, пряча уже свежие.
+  const serverKey = useMemo(() => treeKey(serverEntry, serverFiles), [serverEntry, serverFiles]);
+  const checkApplies = check !== null && (checkedKey === serverKey || checkAt > dataUpdatedAt);
+  const errors = checkApplies ? check.errors : [];
+
   /** Ошибка в открытом файле — маркерами Monaco: там, где она есть. */
   useEffect(() => {
     const monaco = (window as unknown as { monaco?: typeof monacoEditor }).monaco;
     const model = editorRef.current?.getModel();
     if (!monaco || !model) return;
-    const mine = (check?.errors ?? []).filter(e => e.path === active);
+    const mine = errors.filter(e => e.path === active);
     monaco.editor.setModelMarkers(model, 'userlib', mine.map(e => ({
       severity: monaco.MarkerSeverity.Error,
       message: e.message,
       startLineNumber: Math.max(1, e.line), startColumn: Math.max(1, e.column),
       endLineNumber: Math.max(1, e.line), endColumn: Math.max(1, e.column) + 1,
     })));
-  }, [check, active]);
+  }, [errors, active]);
 
   function handleCreate(path: string) {
     setFiles(prev => [...prev, { path, content: `// ${path}\n` }]);
@@ -194,13 +209,13 @@ export function UserLibPanel() {
   // это просто текст. Иначе клик открыл бы пустой редактор, и набранное молча пропадало бы —
   // updateCurrent перебирает files и не находит совпадения (issue #496).
   const alive = (path: string) => path === ENTRYPOINT || files.some(f => f.path === path);
-  const errors = check?.errors ?? [];
-  // Замечания — из того источника, который СВЕЖЕЕ (issue #500, #501). Порядком «сначала check» мы
-  // залипали: раз сохранив в этой вкладке, навсегда закрывали пустым check.warnings всё, что
-  // появилось у соседей. Но и «сначала data» слепо брать нельзя: чтение после сохранения может не
-  // дойти (сеть, перезапуск сервера), и тогда мы держали бы на экране замечания ДО правки, выбросив
-  // точный ответ проверки. Обе даты — с этих же часов, сравнимы.
-  const warnings = check && checkAt > dataUpdatedAt ? check.warnings : data?.warnings ?? [];
+
+  // Замечания — по тому же признаку (issue #500, #502). Порядком «сначала check» мы залипали: раз
+  // сохранив в этой вкладке, навсегда закрывали пустым check.warnings всё, что появилось у соседей.
+  // Но и «сначала data» слепо брать нельзя: чтение после сохранения может не дойти (сеть,
+  // перезапуск сервера), и тогда мы держали бы на экране замечания ДО правки, выбросив точный ответ
+  // проверки.
+  const warnings = checkApplies ? check.warnings : data?.warnings ?? [];
 
   return (
     <div className="flex h-full min-h-0">
@@ -257,10 +272,12 @@ export function UserLibPanel() {
             каждое чтение (в том числе на каждый фокус окна) — плохой размен. Поэтому после
             перезагрузки мы про собираемость НЕ ЗНАЕМ — и говорим это прямо, а не показываем пустоту,
             которая читалась бы как «всё в порядке» (issue #500). */}
-        {check === null && (
+        {!checkApplies && (
           <div className="px-4 py-1.5 border-b border-stroke text-xs text-fg3 flex items-center gap-2">
             <AlertCircle size={12} className="shrink-0 text-fg4" />
-            Собираемость библиотеки не проверялась в этом сеансе — сохраните, чтобы проверить.
+            {check === null
+              ? 'Собираемость библиотеки не проверялась в этом сеансе — сохраните, чтобы проверить.'
+              : 'Библиотека изменилась после последней проверки — сохраните, чтобы проверить собираемость.'}
           </div>
         )}
         {errors.length === 0 && warnings.length > 0 && (
