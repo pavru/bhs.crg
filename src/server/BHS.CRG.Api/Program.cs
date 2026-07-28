@@ -17,7 +17,6 @@ using BHS.CRG.Api.Endpoints.QualityDocs;
 using BHS.CRG.Api.Endpoints.Reconciliation;
 using BHS.CRG.Api.Endpoints.Resolution;
 using BHS.CRG.Api.Endpoints.Templates;
-using BHS.CRG.Api.Hubs;
 using BHS.CRG.Application.Catalog;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
@@ -156,14 +155,9 @@ builder.Services.AddAuthentication(opt =>
         };
         opt.Events = new JwtBearerEvents
         {
-            OnMessageReceived = ctx =>
-            {
-                var token = ctx.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(token) &&
-                    ctx.HttpContext.Request.Path.StartsWithSegments("/hubs"))
-                    ctx.Token = token;
-                return Task.CompletedTask;
-            },
+            // Токен принимаем ТОЛЬКО из заголовка Authorization. Приём из query-строки существовал
+            // ради рукопожатия SignalR (#486) — вместе с хабом убран: токен в строке запроса
+            // оседает в логах доступа и заголовке Referer, а нужды в нём больше нет.
             // Проверка SecurityStamp (issue #148 follow-up): токен со «старым» стампом
             // (после сброса/смены пароля или logout-all) отклоняется, даже не истёкший.
             OnTokenValidated = async ctx =>
@@ -356,8 +350,7 @@ var pluginOpts = cfg.GetSection("Plugins").Get<PluginHostOptions>() ?? new();
 builder.Services.AddSingleton(pluginOpts);
 builder.Services.AddSingleton<IPluginHost, PluginHost>();
 
-// ── SignalR + CORS ────────────────────────────────────────────────────────────
-builder.Services.AddSignalR();
+// ── CORS ──────────────────────────────────────────────────────────────────────
 builder.Services.AddCors(opt => opt.AddDefaultPolicy(p =>
     p.WithOrigins(cfg["AllowedOrigins"]?.Split(',') ?? ["http://localhost:5173"])
      .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
@@ -484,7 +477,6 @@ app.MapGet("/api/version", () =>
 app.MapNotificationsEndpoints();
 app.MapJobsEndpoints();
 app.MapTagsEndpoints();
-app.MapHub<GenerationHub>("/hubs/generation");
 
 app.Run();
 
