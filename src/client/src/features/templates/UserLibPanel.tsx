@@ -134,8 +134,10 @@ export function UserLibPanel() {
 
   function handleCreate(path: string) {
     setFiles(prev => [...prev, { path, content: `// ${path}\n` }]);
-    // Точку входа НЕ трогаем (issue #492): импорты — забота пользователя. Молчаливым этот отказ
-    // не остаётся: проверка при сохранении называет неподключённый файл прямо.
+    // Точку входа НЕ трогаем (issue #492): импорты — забота пользователя. Про неподключённый файл
+    // приложение молчит намеренно (issue #494): пока импорт дописывало оно само, «не подключён»
+    // означало сбой, а теперь это обычный ход работы — файл создан, функции пишутся, подключат
+    // позже. Сообщаем о том, что сломано (ошибки сборки), и молчим о том, что не закончено.
     setSelected(path);
   }
 
@@ -154,17 +156,21 @@ export function UserLibPanel() {
     return <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка...</div>;
   }
 
-  const errors = check?.errors ?? [];
-  // До первого сохранения (в том числе сразу после перезагрузки) замечания берём из ответа чтения —
-  // иначе неподключённый файл снова становился бы молчаливым отказом (issue #492).
-  const warnings = check?.warnings ?? data?.warnings ?? [];
+  // Замечания до первого сохранения приходят из ответа чтения — чтобы дубликаты имён были видны и
+  // после перезагрузки страницы, а не только сразу после сохранения (issue #492).
+  //
+  // ФИЛЬТРУЕМ по локально существующим путям (issue #496): замечания описывают состояние НА СЕРВЕРЕ,
+  // и если файл удалён или переименован локально, ссылка вела бы в никуда — редактор открывался бы
+  // пустым, а набранное молча пропадало, потому что updateCurrent не находит такого файла.
+  const alive = (path: string) => path === ENTRYPOINT || files.some(f => f.path === path);
+  const errors = (check?.errors ?? []).filter(e => alive(e.path));
+  const warnings = (check?.warnings ?? data?.warnings ?? []).filter(w => alive(w.path));
 
   return (
     <div className="flex h-full min-h-0">
       <aside className="w-72 shrink-0 border-r border-stroke flex flex-col bg-base">
         <UserLibFileList
-          files={files} selected={selected} dirty={dirty}
-          check={check ?? (data ? { ok: true, errors: [], warnings: data.warnings } : null)}
+          files={files} selected={selected} dirty={dirty} errors={errors} warnings={warnings}
           onSelect={setSelected}
           onCreate={folder => setPathDialog({ mode: 'create', path: folder ? `${folder}/` : '' })}
           onRename={p => setPathDialog({ mode: 'rename', path: p })}
