@@ -72,7 +72,14 @@ public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : 
 
 public class BlobStorageOptions
 {
-    public string Endpoint { get; set; } = "localhost:9000";
+    /// <summary>
+    /// Именно IPv4-литерал, а не «localhost» (issue #484): на Windows localhost резолвится сначала
+    /// в IPv6, где порт-прокси Docker Desktop не слушает и при этом МОЛЧИТ вместо отказа —
+    /// первое обращение к хранилищу висело 21 секунду до таймаута TCP. В контейнере адрес всё
+    /// равно задаётся переменной окружения (minio:9000), а этот дефолт страхует конфигурации,
+    /// где секция BlobStorage не заполнена.
+    /// </summary>
+    public string Endpoint { get; set; } = "127.0.0.1:9000";
     public string AccessKey { get; set; } = "minioadmin";
     public string SecretKey { get; set; } = "minioadmin";
     public string Bucket { get; set; } = "bhs-crg";
