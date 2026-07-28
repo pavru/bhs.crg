@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace BHS.CRG.Application.Templates;
 
@@ -141,11 +141,4 @@ public static class UserLibAnalysis
 
         return warnings;
     }
-
-    /// <summary>
-    /// Строка реэкспорта для только что созданного файла — чтобы он не остался молча неподключённым.
-    /// Путь пишется от корня временной папки, как его видит точка входа.
-    /// </summary>
-    public static string ReExportLine(string path) =>
-        $"#import \"{UserLibPath.FolderName}/{path}\": *";
 }

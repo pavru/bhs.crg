@@ -64,8 +64,18 @@ export function buildRows(files: UserLibFile[]): TreeRow[] {
  * сказать поимённо, что сломается. Автоматически переписывать чужие импорты не беремся: это
  * текстовая трансформация пользовательского кода, ошибиться в ней тоньше, чем не делать.
  */
-export function referencingFiles(files: UserLibFile[], target: string): string[] {
+export function referencingFiles(files: UserLibFile[], target: string, entrypoint = ''): string[] {
   const result: string[] = [];
+
+  // Точку входа проверяем ПЕРВОЙ и отдельно: она чаще всех и ссылается, а адресует иначе — из корня,
+  // через префикс `userlib/`, тогда как файлы дерева ссылаются друг на друга относительно себя.
+  // Пока приложение само правило точку входа (#473), её отсутствие здесь было безобидным; после
+  // отказа от автоматики (#492) молчание об этой ссылке означало бы, что пользователь переименует
+  // файл и узнает о поломке только когда встанет генерация всех документов.
+  const prefix = USERLIB_FOLDER + '/';
+  if (importPaths(entrypoint).some(raw => raw.startsWith(prefix) && raw.slice(prefix.length) === target))
+    result.push(ENTRYPOINT);
+
   for (const file of files) {
     if (file.path === target) continue;
     const dir = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : '';

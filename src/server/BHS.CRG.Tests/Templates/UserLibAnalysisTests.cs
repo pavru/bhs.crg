@@ -1,4 +1,4 @@
-using BHS.CRG.Application.Templates;
+﻿using BHS.CRG.Application.Templates;
 
 namespace BHS.CRG.Tests.Templates;
 
@@ -100,8 +100,4 @@ public class UserLibAnalysisTests
     [Fact]
     public void PackageImports_AreIgnored()
         => Assert.Empty(UserLibAnalysis.ReachableFrom("#import \"@preview/cetz:0.3.1\": *", []));
-
-    [Fact]
-    public void ReExportLine_PointsAtTheFileFromEntrypoint()
-        => Assert.Equal("#import \"userlib/gost/f3.typ\": *", UserLibAnalysis.ReExportLine("gost/f3.typ"));
 }

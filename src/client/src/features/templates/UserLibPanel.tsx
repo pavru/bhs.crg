@@ -255,7 +255,7 @@ export function UserLibPanel() {
           mode={pathDialog.mode}
           initialPath={pathDialog.path}
           existing={files.map(f => f.path)}
-          referencing={pathDialog.mode === 'rename' ? referencingFiles(files, pathDialog.path) : []}
+          referencing={pathDialog.mode === 'rename' ? referencingFiles(files, pathDialog.path, entry) : []}
           onCancel={() => setPathDialog(null)}
           onSubmit={path => {
             if (pathDialog.mode === 'create') handleCreate(path);
@@ -270,11 +270,15 @@ export function UserLibPanel() {
         onOpenChange={open => { if (!open) setDeleting(null); }}
         title={`Удалить «${deleting ?? ''}»?`}
         description={
-          deleting && referencingFiles(files, deleting).length > 0
-            ? `На файл ссылаются: ${referencingFiles(files, deleting).join(', ')}. `
-              + 'Пока импорт не убран, генерация ВСЕХ документов не пройдёт — библиотеку читает каждый шаблон.'
-            : 'Строка подключения в точке входа будет убрана вместе с файлом. '
-              + 'Изменение вступит в силу после сохранения.'
+          // Импорты приложение больше не правит (#492), поэтому обещать «строка подключения будет
+          // убрана» нельзя — она останется и сломает сборку библиотеки, а с ней генерацию всех
+          // документов. Говорим ровно то, что произойдёт.
+          deleting && referencingFiles(files, deleting, entry).length > 0
+            ? `На файл ссылаются: ${referencingFiles(files, deleting, entry).join(', ')}. `
+              + 'Импорты останутся — уберите их вручную, иначе библиотека перестанет собираться, '
+              + 'а с ней встанет генерация ВСЕХ документов.'
+            : 'Файл будет удалён после сохранения. Импорты приложение не правит — если на файл '
+              + 'где-то ссылаются, уберите ссылку сами.'
         }
         confirmLabel="Удалить"
         onConfirm={() => { if (deleting) handleDelete(deleting); }}

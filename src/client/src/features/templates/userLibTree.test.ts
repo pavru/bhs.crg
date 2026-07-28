@@ -55,6 +55,26 @@ describe('referencingFiles', () => {
     expect(referencingFiles(files, 'cetz')).toEqual([]);
   });
 
+  /**
+   * Точка входа ссылается иначе — из корня, через префикс `userlib/`. Пока приложение само правило
+   * её при переименовании (#473), молчание об этой ссылке было безобидным; после отказа от
+   * автоматики (#492) оно означало бы, что пользователь переименует файл и узнает о поломке, только
+   * когда встанет генерация всех документов.
+   */
+  it('точка входа считается ссылающейся и называется первой', () => {
+    const files = [f('gost/f3.typ', '#let place-f3() = []')];
+    const entry = '#import "userlib/gost/f3.typ": *';
+    expect(referencingFiles(files, 'gost/f3.typ', entry)).toEqual(['userlib.typ']);
+  });
+
+  it('точка входа без ссылки на этот файл не попадает в список', () => {
+    const files = [f('a.typ', ''), f('b.typ', '')];
+    expect(referencingFiles(files, 'a.typ', '#import "userlib/b.typ": *')).toEqual([]);
+  });
+
+  it('без точки входа поведение прежнее', () =>
+    expect(referencingFiles([f('a.typ', '#import "b.typ": *')], 'b.typ')).toEqual(['a.typ']));
+
   it('никто не ссылается — пусто', () =>
     expect(referencingFiles([f('a.typ', ''), f('b.typ', '')], 'a.typ')).toEqual([]));
 });
