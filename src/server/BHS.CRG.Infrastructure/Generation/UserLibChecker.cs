@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Templates;
 
 namespace BHS.CRG.Infrastructure.Generation;
@@ -32,6 +33,21 @@ public class UserLibChecker : IUserLibChecker
         try
         {
             await UserLibMaterializer.WriteAsync(tmp, entrypointContent, files, ct);
+
+            // Рядом с деревом кладём ЗАГЛУШКИ того, что при генерации лежит там же (issue #510).
+            // С #506 зонд компилирует и неподключённые файлы — а это ровно те, которые шаблоны
+            // импортируют напрямую, и потому чаще прочих обращаются к «/typeblocks.typ», данным или
+            // системной библиотеке. Без заглушек такой файл получал бы «file not found» на каждом
+            // сохранении и навсегда садился под жёлтую полосу «не собирается», хотя генерируется он
+            // прекрасно. Остаётся честный остаток: чтение ПОЛЕЙ данных на верхнем уровне упрётся в
+            // пустой объект — настоящих данных у проверки нет и быть не может.
+            await File.WriteAllTextAsync(
+                Path.Combine(tmp, TypstGenerator.TypeBlocksFileName), string.Empty, Encoding.UTF8, ct);
+            await File.WriteAllTextAsync(
+                Path.Combine(tmp, TypstGenerator.DataFileName), "{}", Encoding.UTF8, ct);
+            await File.WriteAllTextAsync(
+                Path.Combine(tmp, SystemTypstLib.FileName), SystemTypstLib.Content, Encoding.UTF8, ct);
+            Directory.CreateDirectory(Path.Combine(tmp, TypstGenerator.AssetsSubdir));
 
             // Зонд импортирует точку входа так же, как это делает шаблон. Строка текста — чтобы у
             // документа была страница и Typst не ругался на пустой вывод.
@@ -81,7 +97,8 @@ public class UserLibChecker : IUserLibChecker
                 // хост канонизирует эту папку (короткие имена 8.3, «/private/var/…»), и молча
                 // переставало совпадать — а с #508 непривязанный путь считается входящим в сборку,
                 // так что ошибка зонда приезжала бы красной полосой «генерация не пройдёт».
-                .Where(d => !(UserLibAnalysis.ToLibPath(d.File) is null && UserLibAnalysis.IsProbePath(d.File)))
+                .Where(d => !(UserLibAnalysis.ToLibPath(d.File) is null
+                    && UserLibAnalysis.IsProbePath(d.File, Path.GetFileName(tmp))))
                 .Select(d =>
                 {
                     // Путь, который не удалось привести к дереву (диагностика из файла пакета

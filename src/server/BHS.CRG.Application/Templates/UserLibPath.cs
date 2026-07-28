@@ -80,6 +80,15 @@ public static class UserLibPath
             error = "Имя файла пустое.";
             return false;
         }
+        // Точка входа адресуется этой же строкой, и файл дерева с таким путём становится с ней
+        // неразличим (issue #510): его ошибки садились бы на строку точки входа, помечались бы
+        // «входит в сборку» даже будучи неподключёнными, а замечание о дубликате имён указывало бы
+        // на два файла одним и тем же именем.
+        if (string.Equals(path, UserLibAnalysis.EntrypointName, StringComparison.OrdinalIgnoreCase))
+        {
+            error = $"«{UserLibAnalysis.EntrypointName}» — имя точки входа; файл дерева нельзя назвать так же.";
+            return false;
+        }
 
         normalized = path;
         return true;

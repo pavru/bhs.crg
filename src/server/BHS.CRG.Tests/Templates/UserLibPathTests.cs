@@ -83,6 +83,20 @@ public class UserLibPathTests
         Assert.True(UserLibPath.DiffersOnlyByCase("Gost/f3.typ", "gost/f3.typ"));
     }
 
+    /// <summary>
+    /// Точка входа адресуется той же строкой, поэтому файл дерева с таким путём становится с ней
+    /// неразличим (issue #510): его ошибки садились бы на строку точки входа и помечались бы
+    /// «входит в сборку» даже будучи неподключёнными. Регистр не спасает — на Windows это один файл.
+    /// </summary>
+    [Theory]
+    [InlineData("userlib.typ")]
+    [InlineData("UserLib.typ")]
+    public void PathOfTheEntrypoint_IsRejected(string path) => Assert.NotNull(ErrorFor(path));
+
+    /// <summary>А во вложенной папке имя не конфликтует — путь другой.</summary>
+    [Fact]
+    public void EntrypointNameInsideFolder_IsAllowed() => Assert.Null(ErrorFor("gost/userlib.typ"));
+
     [Fact]
     public void IsInFolder_MatchesOnlyWholeSegments()
     {

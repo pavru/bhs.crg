@@ -334,6 +334,15 @@ describe('validatePath', () => {
 
   it('принимает обычный путь', () => expect(validatePath('gost/forms/f3.typ', [])).toBeNull());
 
+  /** Точка входа адресуется той же строкой — файл дерева с таким путём был бы с ней неразличим (#510). */
+  it('отклоняет путь точки входа', () => {
+    expect(validatePath('userlib.typ', [])).not.toBeNull();
+    expect(validatePath('UserLib.typ', [])).not.toBeNull();
+  });
+
+  it('во вложенной папке то же имя допустимо', () =>
+    expect(validatePath('gost/userlib.typ', [])).toBeNull());
+
   it('ловит дубль пути', () => expect(validatePath('a.typ', ['a.typ'])).not.toBeNull());
 
   /** На Linux это разные файлы, на Windows — один; разошлось бы только в продакшене. */

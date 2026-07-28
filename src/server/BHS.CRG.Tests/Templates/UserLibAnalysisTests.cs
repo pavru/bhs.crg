@@ -342,8 +342,12 @@ public class UserLibAnalysisTests
     [InlineData(@"C:\Users\ADMINI~1\AppData\Local\Temp\userlib-check-1\check.typ", true)]
     [InlineData("/private/var/folders/x/userlib-check-1/check.typ", true)]
     [InlineData("C:/tmp/userlib-check-1/userlib/gost/f3.typ", false)]
-    public void IsProbePath_MatchesOnlyTheProbeFileName(string path, bool expected)
-        => Assert.Equal(expected, UserLibAnalysis.IsProbePath(path));
+    // Одного имени мало (issue #510): «check.typ» вполне встречается внутри пакета @preview, а
+    // именно туда Typst показывает ошибки типов — выбросив их, мы объявили бы сломанную библиотеку
+    // собирающейся.
+    [InlineData("C:/Users/x/AppData/Local/typst/packages/preview/cetz/0.3.1/src/check.typ", false)]
+    public void IsProbePath_RequiresBothTheFileNameAndItsFolder(string path, bool expected)
+        => Assert.Equal(expected, UserLibAnalysis.IsProbePath(path, "userlib-check-1"));
 
     [Fact]
     public void TreeFileNamedLikeProbe_IsStillOurFile()

@@ -337,6 +337,11 @@ export function validatePath(path: string, existing: string[], selfPath?: string
   if (!trimmed.toLowerCase().endsWith('.typ')) return 'Файл библиотеки должен иметь расширение «.typ».';
   if (trimmed.split('/').some(s => s === '' || s === '.' || s === '..'))
     return 'Пустые сегменты и «.»/«..» в пути запрещены.';
+  // Точка входа адресуется этой же строкой, и файл дерева с таким путём становится с ней неразличим
+  // (issue #510): его ошибки садились бы на строку точки входа, а замечание о дубликате имён
+  // указывало бы на два файла одним именем.
+  if (trimmed.toLowerCase() === ENTRYPOINT)
+    return `«${ENTRYPOINT}» — имя точки входа; файл дерева нельзя назвать так же.`;
   if (existing.some(p => p === trimmed && p !== selfPath)) return 'Такой файл уже есть.';
   // Регистр значим на Linux и не значим на Windows — расхождение вылезло бы только в продакшене.
   if (existing.some(p => p.toLowerCase() === trimmed.toLowerCase() && p !== trimmed && p !== selfPath))

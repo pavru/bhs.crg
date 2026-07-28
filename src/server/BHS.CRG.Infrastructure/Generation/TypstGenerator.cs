@@ -10,6 +10,7 @@ namespace BHS.CRG.Infrastructure.Generation;
 public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
 {
     public const string TypeBlocksFileName = "typeblocks.typ";
+    public const string DataFileName = "data.json";
     public const string UserLibFileName = "userlib.typ";
     public const string AssetsSubdir = "assets";
     public const string FontsSubdir = "fonts";
@@ -46,7 +47,7 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
             }, ct);
             dataJson = node.ToJsonString();
 
-            await File.WriteAllTextAsync(Path.Combine(tmpDir, "data.json"), dataJson, ct);
+            await File.WriteAllTextAsync(Path.Combine(tmpDir, DataFileName), dataJson, ct);
 
             // template.typ пишется ДОСЛОВНО (issue #353): стандартные импорты живут в самом шаблоне
             // (добавляются при его создании), компиляция их не подставляет → номера строк ошибок = строки редактора.
