@@ -89,16 +89,28 @@ export function referencingFiles(files: UserLibFile[], target: string, entrypoin
   return result;
 }
 
-/** Пути из `#import "…"`; координаты пакетов (`@ns/name`) — не наши файлы. */
+/**
+ * Пути из `#import "…"`; координаты пакетов (`@ns/name`) — не наши файлы.
+ *
+ * Комментарии снимаем ДО разбора (issue #498): теперь импорты ведёт пользователь (#492), и временно
+ * закомментировать строку — обычное действие. Без этого удаление файла обещало бы «на файл
+ * ссылаются», а переименование предупреждало бы об импорте, которого нет.
+ */
 function importPaths(content: string): string[] {
   const out: string[] = [];
   const re = /#import\s+"([^"]+)"/g;
+  content = stripComments(content);
   let m: RegExpExecArray | null;
   while ((m = re.exec(content)) !== null) {
     const raw = m[1].replace(/\\/g, '/');
     if (!raw.startsWith('@')) out.push(raw);
   }
   return out;
+}
+
+/** Typst-комментарии: строчные `//…` и блочные `/* … *\/`. */
+function stripComments(content: string): string {
+  return content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
 }
 
 /** Разрешение «../../util/text.typ» от папки файла. Возвращает null, если путь уходит выше дерева. */

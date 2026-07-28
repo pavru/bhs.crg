@@ -98,6 +98,18 @@ public class UserLibAnalysisTests
         Assert.Empty(UserLibAnalysis.Warnings(entry, files));
     }
 
+    /// <summary>
+    /// Импорты ведёт пользователь (#492), и закомментировать строку — обычное действие. Считая её
+    /// живой, мы держали бы файл «подключённым» и тащили его в проверку одноимённых объявлений (#498).
+    /// </summary>
+    [Fact]
+    public void CommentedOutImport_IsNotAReference()
+    {
+        var files = new[] { F("gost/f3.typ", "#let place-f3() = []") };
+        Assert.Empty(UserLibAnalysis.ReachableFrom("// #import \"userlib/gost/f3.typ\": *", files));
+        Assert.Empty(UserLibAnalysis.ReachableFrom("/* #import \"userlib/gost/f3.typ\": * */", files));
+    }
+
     [Fact]
     public void PackageImports_AreIgnored()
         => Assert.Empty(UserLibAnalysis.ReachableFrom("#import \"@preview/cetz:0.3.1\": *", []));

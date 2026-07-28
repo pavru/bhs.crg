@@ -57,13 +57,19 @@ export function UserLibPanel() {
   }, [entry, files, serverEntry, serverFiles]);
 
   const isDirty = dirty.size > 0;
-  const currentContent = selected === ENTRYPOINT
+
+  // Выбранный файл мог исчезнуть, пока мы его смотрели: соседняя вкладка сохранила дерево без него,
+  // и refetch подменил files. Вычисляем активный файл ПРИ ОТРИСОВКЕ, а не поправляем эффектом:
+  // иначе один кадр редактор показывал бы пустоту, а нажатия в него пропадали бы молча —
+  // updateCurrent перебирает files и не находит такого пути (issue #498).
+  const active = selected === ENTRYPOINT || files.some(f => f.path === selected) ? selected : ENTRYPOINT;
+  const currentContent = active === ENTRYPOINT
     ? entry
-    : files.find(f => f.path === selected)?.content ?? '';
+    : files.find(f => f.path === active)?.content ?? '';
 
   function updateCurrent(value: string) {
-    if (selected === ENTRYPOINT) setEntry(value);
-    else setFiles(prev => prev.map(f => (f.path === selected ? { ...f, content: value } : f)));
+    if (active === ENTRYPOINT) setEntry(value);
+    else setFiles(prev => prev.map(f => (f.path === active ? { ...f, content: value } : f)));
   }
 
   /**
@@ -123,14 +129,14 @@ export function UserLibPanel() {
     const monaco = (window as unknown as { monaco?: typeof monacoEditor }).monaco;
     const model = editorRef.current?.getModel();
     if (!monaco || !model) return;
-    const mine = (check?.errors ?? []).filter(e => e.path === selected);
+    const mine = (check?.errors ?? []).filter(e => e.path === active);
     monaco.editor.setModelMarkers(model, 'userlib', mine.map(e => ({
       severity: monaco.MarkerSeverity.Error,
       message: e.message,
       startLineNumber: Math.max(1, e.line), startColumn: Math.max(1, e.column),
       endLineNumber: Math.max(1, e.line), endColumn: Math.max(1, e.column) + 1,
     })));
-  }, [check, selected]);
+  }, [check, active]);
 
   function handleCreate(path: string) {
     setFiles(prev => [...prev, { path, content: `// ${path}\n` }]);
@@ -159,18 +165,24 @@ export function UserLibPanel() {
   // Замечания до первого сохранения приходят из ответа чтения — чтобы дубликаты имён были видны и
   // после перезагрузки страницы, а не только сразу после сохранения (issue #492).
   //
-  // ФИЛЬТРУЕМ по локально существующим путям (issue #496): замечания описывают состояние НА СЕРВЕРЕ,
-  // и если файл удалён или переименован локально, ссылка вела бы в никуда — редактор открывался бы
-  // пустым, а набранное молча пропадало, потому что updateCurrent не находит такого файла.
+  // Диагностика описывает СОХРАНЁННОЕ состояние и НЕ фильтруется (issue #498). Прошлая попытка
+  // убрать записи о локально удалённых файлах давала худший исход, чем чинила: переименовал
+  // сломанный файл — и красная строка исчезла, хотя сохранённая библиотека по-прежнему не
+  // собирается и генерация всех документов стоит. Это ровно то «молчаливое зелёное», против
+  // которого написан комментарий в UserLibFileList.
+  //
+  // Безопасным делаем ПЕРЕХОД: строка ведёт в файл, только если он есть в локальном дереве, иначе
+  // это просто текст. Иначе клик открыл бы пустой редактор, и набранное молча пропадало бы —
+  // updateCurrent перебирает files и не находит совпадения (issue #496).
   const alive = (path: string) => path === ENTRYPOINT || files.some(f => f.path === path);
-  const errors = (check?.errors ?? []).filter(e => alive(e.path));
-  const warnings = (check?.warnings ?? data?.warnings ?? []).filter(w => alive(w.path));
+  const errors = check?.errors ?? [];
+  const warnings = check?.warnings ?? data?.warnings ?? [];
 
   return (
     <div className="flex h-full min-h-0">
       <aside className="w-72 shrink-0 border-r border-stroke flex flex-col bg-base">
         <UserLibFileList
-          files={files} selected={selected} dirty={dirty} errors={errors} warnings={warnings}
+          files={files} selected={active} dirty={dirty} errors={errors} warnings={warnings}
           onSelect={setSelected}
           onCreate={folder => setPathDialog({ mode: 'create', path: folder ? `${folder}/` : '' })}
           onRename={p => setPathDialog({ mode: 'rename', path: p })}
@@ -182,12 +194,12 @@ export function UserLibPanel() {
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex items-center justify-between px-4 py-2 border-b border-stroke bg-surface gap-3">
           <p className="text-xs text-fg3 truncate">
-            {selected === ENTRYPOINT ? (
+            {active === ENTRYPOINT ? (
               <>Доступен в каждом шаблоне через{' '}
                 <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-fg2">#import "userlib.typ": *</code>
               </>
             ) : (
-              <>Файл библиотеки — <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-fg2">userlib/{selected}</code></>
+              <>Файл библиотеки — <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-fg2">userlib/{active}</code></>
             )}
           </p>
           <div className="flex items-center gap-2 shrink-0">
@@ -210,10 +222,8 @@ export function UserLibPanel() {
             <div className="min-w-0 text-xs">
               <p className="text-danger font-medium">Библиотека не собирается — генерация документов не пройдёт.</p>
               {errors.slice(0, 3).map((e, i) => (
-                <button key={i} type="button" onClick={() => setSelected(e.path)}
-                  className="block text-left text-fg2 hover:text-fg1 hover:underline">
-                  {e.path}:{e.line} — {e.message}
-                </button>
+                <DiagnosticLine key={i} path={e.path} alive={alive(e.path)}
+                  text={`${e.path}:${e.line} — ${e.message}`} onGo={setSelected} />
               ))}
               {errors.length > 3 && <p className="text-fg3">…и ещё {errors.length - 3}</p>}
             </div>
@@ -224,10 +234,8 @@ export function UserLibPanel() {
             <AlertTriangle size={14} className="text-warning shrink-0 mt-0.5" />
             <div className="min-w-0 text-xs">
               {warnings.slice(0, 3).map((w, i) => (
-                <button key={i} type="button" onClick={() => setSelected(w.path)}
-                  className="block text-left text-fg2 hover:text-fg1 hover:underline">
-                  {w.path} — {w.message}
-                </button>
+                <DiagnosticLine key={i} path={w.path} alive={alive(w.path)}
+                  text={`${w.path} — ${w.message}`} onGo={setSelected} />
               ))}
               {warnings.length > 3 && <p className="text-fg3">…и ещё {warnings.length - 3}</p>}
             </div>
@@ -236,7 +244,7 @@ export function UserLibPanel() {
 
         <div className="flex-1 min-h-0 overflow-hidden">
           <Editor
-            key={selected}
+            key={active}
             height="100%"
             defaultLanguage="typst"
             theme={resolvedTheme === 'dark' ? 'vs-dark' : 'vs'}
@@ -293,5 +301,22 @@ export function UserLibPanel() {
         onConfirm={() => { if (deleting) handleDelete(deleting); }}
       />
     </div>
+  );
+}
+
+/**
+ * Строка диагностики. Ведёт в файл, только если он есть в локальном дереве: после локального
+ * удаления или переименования переход открыл бы пустой редактор, и набранное молча пропадало бы
+ * (issue #496). Саму запись при этом не прячем — она про сохранённое состояние (issue #498).
+ */
+function DiagnosticLine({ path, text, alive, onGo }: {
+  path: string; text: string; alive: boolean; onGo: (path: string) => void;
+}) {
+  if (!alive) return <p className="text-fg3" title="Файла нет в текущем дереве — сохраните изменения">{text}</p>;
+  return (
+    <button type="button" onClick={() => onGo(path)}
+      className="block text-left text-fg2 hover:text-fg1 hover:underline">
+      {text}
+    </button>
   );
 }
