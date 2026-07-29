@@ -18,6 +18,14 @@ export function extensionOf(fileName: string): string {
 }
 
 /**
+ * Форма пути к ассету — ЗЕРКАЛО серверного `AssetPath.FromRoot` и `TypstGenerator.AssetsSubdir`.
+ * Через границу процессов константу не разделить, поэтому она продублирована осознанно и с именем:
+ * молчаливым дублем был прежний инлайновый `assets/…`, и разъехаться он мог незаметно. Обе стороны
+ * прибиты тестами на точную строку — сервер `AssetPathTests`, клиент `templateAssetRef.test.ts`.
+ */
+const ASSETS_DIR = 'assets';
+
+/**
  * Путь картинки внутри временной папки генерации — ровно то, что пишут в `image("…")`.
  *
  * ОТ КОРНЯ, с ведущим «/» (issue #513): Typst резолвит путь относительно файла, В КОТОРОМ НАПИСАН
@@ -26,7 +34,7 @@ export function extensionOf(fileName: string): string {
  * не нашла бы файл.
  */
 export function imageAssetPath(asset: Pick<TemplateAssetDto, 'name' | 'fileName'>): string {
-  return `/assets/${asset.name}${extensionOf(asset.fileName)}`;
+  return `/${ASSETS_DIR}/${asset.name}${extensionOf(asset.fileName)}`;
 }
 
 /**

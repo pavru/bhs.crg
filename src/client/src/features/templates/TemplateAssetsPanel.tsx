@@ -20,7 +20,7 @@ function apiError(e: unknown, fallback: string): string {
  *
  * Раньше строка давала `name` жирным и `fileName` приглушённым, а то, что пишут в Typst-коде,
  * пользователь собирал в уме из двух кусков. Формы ссылки у картинки и шрифта разные: путь
- * `assets/Имя.png` против имени семейства — файл шрифта при генерации переименовывается в
+ * `/assets/Имя.png` против имени семейства — файл шрифта при генерации переименовывается в
  * `font_0.ttf`, и сослаться на него нельзя.
  */
 function AssetReference({ asset }: { asset: TemplateAssetDto }) {
@@ -46,7 +46,7 @@ function AssetReference({ asset }: { asset: TemplateAssetDto }) {
         setTimeout(() => setCopied(false), 1200);
       }}
       className="flex-1 min-w-0 flex items-start gap-1.5 text-left group/ref">
-      {/* Переносим, а не обрезаем: панель живёт в узкой колонке, и «assets/Г…» не отвечает на
+      {/* Переносим, а не обрезаем: панель живёт в узкой колонке, и «/assets/Г…» не отвечает на
           вопрос, ради которого строку и переделали, — что писать в шаблоне. Имя файла ушло в
           подсказку: теперь оно не конкурирует за ширину с тем, на что реально ссылаются. */}
       <code className="text-xs font-mono text-fg1 break-all leading-snug">{reference}</code>
