@@ -18,18 +18,18 @@ describe('extensionOf', () => {
 });
 
 describe('imageAssetPath', () => {
-  /** Материализуется как assets/{Имя}{расширение}: имя пользовательское, расширение из файла. */
+  /** Материализуется как /assets/{Имя}{расширение}: имя пользовательское, расширение из файла. */
   it('склеивает имя ассета с расширением файла', () =>
-    expect(imageAssetPath({ name: 'Логотип', fileName: 'logo-v2.png' })).toBe('assets/Логотип.png'));
+    expect(imageAssetPath({ name: 'Логотип', fileName: 'logo-v2.png' })).toBe('/assets/Логотип.png'));
 
   it('имя с пробелами и точками не ломает путь', () =>
     expect(imageAssetPath({ name: 'ГОСТ 21.101. Форма 3', fileName: 'f3.svg' }))
-      .toBe('assets/ГОСТ 21.101. Форма 3.svg'));
+      .toBe('/assets/ГОСТ 21.101. Форма 3.svg'));
 });
 
 describe('assetReference', () => {
   it('картинка адресуется путём', () =>
-    expect(assetReference(asset({}))).toBe('assets/Логотип.png'));
+    expect(assetReference(asset({}))).toBe('/assets/Логотип.png'));
 
   /** Шрифт Typst находит по семейству; имя файла на диске меняется на font_N и не значит ничего. */
   it('шрифт адресуется именем семейства, а не именем ассета', () =>

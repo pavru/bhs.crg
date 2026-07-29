@@ -43,7 +43,7 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
                 Directory.CreateDirectory(assetsDir);
                 var name = $"att_{attCount++}.{ext}";
                 File.WriteAllBytes(Path.Combine(assetsDir, name), bytes);
-                return $"{AssetsSubdir}/{name}";
+                return AssetPath.FromRoot(AssetsSubdir, name);
             }, ct);
             dataJson = node.ToJsonString();
 
@@ -78,7 +78,7 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
 
             // Ассеты шаблона (issue #62) — уже свёрнутые по приоритету Template>DocumentType>System
             // резолвером (ITemplateAssetResolver). Картинки — в assets/ по стабильному Name (шаблон
-            // обращается через image("assets/{Name}.{ext}")); шрифты — в отдельную fonts/, путь к
+            // обращается через image("/assets/{Name}.{ext}")); шрифты — в отдельную fonts/, путь к
             // которой передаётся компилятору через --font-path (сам файл на диске может называться
             // как угодно — Typst резолвит шрифт по имени семейства, зашитому в файл, не по filename).
             string? fontsDirForCli = null;

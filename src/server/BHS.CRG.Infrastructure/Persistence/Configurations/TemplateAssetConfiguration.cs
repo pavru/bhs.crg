@@ -19,7 +19,7 @@ public class TemplateAssetConfiguration : IEntityTypeConfiguration<TemplateAsset
         b.Property(e => e.BlobPath).HasMaxLength(1024).IsRequired();
         b.Property(e => e.FontFamilyName).HasMaxLength(256);
         b.HasIndex(e => new { e.Scope, e.ScopeId });
-        // Уникальность Name только для Image — там это реальный ключ поиска (image("assets/{Name}.{ext}")).
+        // Уникальность Name только для Image — там это реальный ключ поиска (image("/assets/{Name}.{ext}")).
         // Для Font Name — информационное поле (Typst резолвит по FontFamilyName из файла), уникальность не нужна.
         b.HasIndex(e => new { e.Scope, e.ScopeId, e.Kind, e.Name })
             .IsUnique()

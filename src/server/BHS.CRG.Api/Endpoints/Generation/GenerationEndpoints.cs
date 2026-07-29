@@ -142,7 +142,7 @@ public static class GenerationEndpoints
                     Directory.CreateDirectory(assetsDirDbg);
                     var name = $"att_{attCountDbg++}.{ext}";
                     File.WriteAllBytes(Path.Combine(assetsDirDbg, name), bytes);
-                    return $"assets/{name}";
+                    return AssetPath.FromRoot("assets", name);
                 }, ct);
                 dataJson = dataNode.ToJsonString(prettyOpts);
 

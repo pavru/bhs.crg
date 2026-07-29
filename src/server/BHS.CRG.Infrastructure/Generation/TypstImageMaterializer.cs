@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using BHS.CRG.Application.Generation;
 
 namespace BHS.CRG.Infrastructure.Generation;
 
@@ -111,7 +112,7 @@ public static class TypstImageMaterializer
         Directory.CreateDirectory(ctx.AssetsDir);
         var name = $"img_{ctx.Count++}.{ExtFor(mime)}";
         File.WriteAllBytes(Path.Combine(ctx.AssetsDir, name), bytes);
-        return $"{ctx.AssetsSubdir}/{name}";
+        return AssetPath.FromRoot(ctx.AssetsSubdir, name);
     }
 
     private static string ExtFor(string mime) => mime.ToLowerInvariant() switch
