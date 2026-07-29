@@ -7,7 +7,10 @@ namespace BHS.CRG.Infrastructure.Generation;
 /// <summary>
 /// Материализует поля-вложения контекста (<c>{$type:"file", blobPath, fileName, mimeType, size}</c>)
 /// в файлы каталога компиляции: скачивает blob из хранилища и заменяет значение объектом
-/// <c>{src, fileName, mimeType, pageCount}</c>, где <c>src</c> — относительный путь к файлу.
+/// <c>{src, fileName, mimeType, pageCount}</c>, где <c>src</c> — путь ОТ КОРНЯ пакета файлов
+/// (<c>/assets/att_0.pdf</c>, см. <see cref="Application.Generation.AssetPath"/>): Typst резолвит
+/// путь относительно файла, в котором написан вызов, поэтому относительная форма работала бы только
+/// в файле из корня (issue #513).
 /// В шаблоне: <c>image(it.Поле.src)</c> — картинка или 1-я страница PDF; <c>image(src, page: n)</c> —
 /// конкретная страница; цикл по <c>pageCount</c> — весь PDF. Typst 0.13+ вставляет страницы PDF
 /// нативно, с сохранением текстового слоя.
@@ -21,8 +24,10 @@ public sealed class TypstFileMaterializer(IBlobStorage blob)
 
     /// <summary>
     /// Обходит дерево, материализуя file-узлы. <paramref name="place"/> сохраняет байты вложения
-    /// (на диск при генерации / в словарь для debug-bundle) и возвращает относительный путь для
-    /// <c>src</c>. Имена файлов генерируются приёмником — не из <c>fileName</c> (защита от path traversal).
+    /// (на диск при генерации / в словарь для debug-bundle) и возвращает путь для <c>src</c> —
+    /// ОТ КОРНЯ пакета файлов, через <see cref="Application.Generation.AssetPath.FromRoot"/>
+    /// (issue #513); относительный путь новый вызывающий писать не должен, он воспроизвёл бы ту же
+    /// поломку. Имена файлов генерируются приёмником — не из <c>fileName</c> (защита от path traversal).
     /// </summary>
     public async Task MaterializeAsync(JsonNode? root, Func<byte[], string, string> place, CancellationToken ct = default)
         => await WalkAsync(root, place, ct);

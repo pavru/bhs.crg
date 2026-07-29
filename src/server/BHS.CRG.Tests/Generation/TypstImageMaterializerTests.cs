@@ -42,19 +42,19 @@ public class TypstImageMaterializerTests
 
             // размер взят из значения-объекта
             var logo = root.GetProperty("Логотип");
-            Assert.StartsWith("assets/img_", logo.GetProperty("src").GetString());
+            Assert.StartsWith("/assets/img_", logo.GetProperty("src").GetString());
             Assert.Equal("4cm", logo.GetProperty("width").GetString());
             Assert.Equal("center", logo.GetProperty("align").GetString());
             Assert.Equal(JsonValueKind.Null, logo.GetProperty("height").ValueKind);
 
             // голая строка → объект без размера (все опции null)
             var seal = root.GetProperty("Печать");
-            Assert.StartsWith("assets/img_", seal.GetProperty("src").GetString());
+            Assert.StartsWith("/assets/img_", seal.GetProperty("src").GetString());
             Assert.Equal(JsonValueKind.Null, seal.GetProperty("width").ValueKind);
             Assert.Equal(JsonValueKind.Null, seal.GetProperty("align").ValueKind);
 
-            Assert.StartsWith("assets/img_", root.GetProperty("Орг").GetProperty("СканПечати").GetProperty("src").GetString());
-            Assert.StartsWith("assets/img_", root.GetProperty("Материалы")[0].GetProperty("Фото").GetProperty("src").GetString());
+            Assert.StartsWith("/assets/img_", root.GetProperty("Орг").GetProperty("СканПечати").GetProperty("src").GetString());
+            Assert.StartsWith("/assets/img_", root.GetProperty("Материалы")[0].GetProperty("Фото").GetProperty("src").GetString());
             // не-картиночные строки не тронуты
             Assert.Equal("ООО", root.GetProperty("Орг").GetProperty("Имя").GetString());
             Assert.Equal("нет", root.GetProperty("Материалы")[1].GetProperty("Фото").GetString());

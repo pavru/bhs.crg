@@ -7,7 +7,7 @@ namespace BHS.CRG.Domain.Templates;
 public enum TemplateAssetScope { Template = 1, DocumentType = 2, System = 3 }
 
 /// <summary>Тип ассета — определяет, как он подключается при генерации: Image через
-/// image("assets/{Name}.{ext}") в коде шаблона, Font через --font-path компилятора Typst.</summary>
+/// image("/assets/{Name}.{ext}") в коде шаблона, Font через --font-path компилятора Typst.</summary>
 public enum TemplateAssetKind { Image = 1, Font = 2 }
 
 /// <summary>
@@ -24,7 +24,7 @@ public class TemplateAsset : Entity
 
     public TemplateAssetKind Kind { get; private set; }
 
-    /// <summary>Для Image — стабильный ключ, используемый в коде шаблона (image("assets/{Name}.{ext}")).
+    /// <summary>Для Image — стабильный ключ, используемый в коде шаблона (image("/assets/{Name}.{ext}")).
     /// Для Font — информационное поле (не ключ поиска): Typst резолвит шрифт по имени семейства,
     /// встроенному в сам файл (см. FontFamilyName), а не по этому имени.</summary>
     public string Name { get; private set; } = default!;

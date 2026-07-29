@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using BHS.CRG.Application.Generation;
 using BHS.CRG.Infrastructure.Generation;
 using BHS.CRG.Tests.Integration;
 using PdfSharpCore.Pdf;
@@ -14,7 +15,12 @@ public class TypstFileMaterializerTests
     private static (List<(byte[] bytes, string ext)> placed, Func<byte[], string, string> place) Recorder()
     {
         var placed = new List<(byte[], string)>();
-        Func<byte[], string, string> place = (b, ext) => { placed.Add((b, ext)); return $"assets/att_{placed.Count - 1}.{ext}"; };
+        // Путь от корня, как его строит генератор (issue #513): «/assets/att_N.ext».
+        Func<byte[], string, string> place = (b, ext) =>
+        {
+            placed.Add((b, ext));
+            return AssetPath.FromRoot("assets", $"att_{placed.Count - 1}.{ext}");
+        };
         return (placed, place);
     }
 
@@ -34,7 +40,7 @@ public class TypstFileMaterializerTests
         await new TypstFileMaterializer(blob).MaterializeAsync(root, place);
 
         var f = root["Файл"]!.AsObject();
-        Assert.Equal("assets/att_0.png", f["src"]!.GetValue<string>());
+        Assert.Equal("/assets/att_0.png", f["src"]!.GetValue<string>());
         Assert.Equal("Схема.png", f["fileName"]!.GetValue<string>());
         Assert.Equal("image/png", f["mimeType"]!.GetValue<string>());
         Assert.False(f.ContainsKey("$type"));   // внутренние поля вычищены
@@ -55,7 +61,7 @@ public class TypstFileMaterializerTests
         await new TypstFileMaterializer(blob).MaterializeAsync(root, place);
 
         var el = root["Приложения"]!.AsArray()[0]!.AsObject();
-        Assert.Equal("assets/att_0.jpg", el["src"]!.GetValue<string>());
+        Assert.Equal("/assets/att_0.jpg", el["src"]!.GetValue<string>());
     }
 
     [Fact]
@@ -85,7 +91,7 @@ public class TypstFileMaterializerTests
 
         var f = root["Файл"]!.AsObject();
         Assert.Equal(3, f["pageCount"]!.GetValue<int>());
-        Assert.Equal("assets/att_0.pdf", f["src"]!.GetValue<string>());
+        Assert.Equal("/assets/att_0.pdf", f["src"]!.GetValue<string>());
     }
 
     [Fact]
