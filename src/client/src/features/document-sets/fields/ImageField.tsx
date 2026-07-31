@@ -1,6 +1,22 @@
 import { useState } from 'react';
 import { Image as ImageIcon, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { formatBytes } from '@/shared/api/attachments';
 import type { ImageValue } from '@/shared/api/schema';
+
+/**
+ * Предел размера картинки (issue #521). Значение поля лежит data-URI прямо в реквизитах, своего
+ * эндпоинта у него нет — поэтому проверка клиентская, и это ТОТ САМЫЙ случай, когда дублировать
+ * нечего: на сервере числа для этого поля не существует.
+ *
+ * УДАЛИТЬ вместе с переездом картинок в блоб-хранилище (issue #522): там появится эндпоинт со своим
+ * пределом (`UploadLimits.Attachment`), и константа мгновенно станет второй истиной — ровно тем
+ * дефектом, ради которого лимиты сводили в #482.
+ *
+ * Уменьшать здесь ничего не будем намеренно: пока оригинал лежит в JSONB, положить его больше некуда,
+ * а документы исполнительные — печать и подпись попадают в PDF, который подписывают и сдают.
+ * Уменьшение появится в #523, когда станет производной от сохранённого оригинала.
+ */
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 /**
  * Поле-изображение. Значение — объект `{ src: data-URI, width?, height?, align?, fit? }` (issue #246):
@@ -27,6 +43,10 @@ export function ImageField({ value, onChange }: {
     if (!file) return;
     setError('');
 
+    // Размер проверяем ДО чтения: незачем гонять FileReader по файлу, который всё равно отвергнем.
+    const tooBig = checkImageSize(file.size);
+    if (tooBig) { setError(tooBig); return; }
+
     const reader = new FileReader();
     reader.onerror = () => setError(`Не удалось прочитать файл «${file.name}».`);
     reader.onload = () => {
@@ -51,7 +71,10 @@ export function ImageField({ value, onChange }: {
         <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-stroke-strong rounded-lg py-6 cursor-pointer hover:border-brand hover:bg-brand-subtle transition-colors">
           <ImageIcon size={20} className="text-fg4" />
           <span className="text-sm text-fg3">Нажмите для выбора изображения</span>
-          <span className="text-xs text-fg4">PNG, JPG, SVG, WEBP</span>
+          {/* Предел называем ДО выбора файла, а не после отказа (issue #521): по образцу аватара,
+              где о правиле сказано заранее («Изображение уменьшится автоматически»). Узнать об
+              ограничении, уже выбрав файл, — значит проделать работу впустую. */}
+          <span className="text-xs text-fg4">PNG, JPG, SVG, WEBP · до {formatBytes(MAX_IMAGE_BYTES)}</span>
           <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
         </label>
         {error && <p className="text-xs text-danger mt-1">{error}</p>}
@@ -103,6 +126,17 @@ export function ImageField({ value, onChange }: {
       )}
     </div>
   );
+}
+
+/**
+ * Причина отказа по размеру или null (issue #521). Отказ, а не уменьшение: см. комментарий у
+ * <code>MAX_IMAGE_BYTES</code>. Числа в сообщении обязательны — «файл слишком большой» не говорит
+ * человеку, насколько именно и что делать.
+ */
+export function checkImageSize(size: number, max = MAX_IMAGE_BYTES): string | null {
+  return size > max
+    ? `Файл ${formatBytes(size)} — предел ${formatBytes(max)}. Уменьшите изображение и выберите снова.`
+    : null;
 }
 
 /**

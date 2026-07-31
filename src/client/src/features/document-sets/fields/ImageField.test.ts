@@ -1,5 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { checkImageResult } from './ImageField';
+import { checkImageResult, checkImageSize } from './ImageField';
+
+/**
+ * Отказ по размеру — вместо уменьшения (issue #521). Уменьшение сейчас необратимо: оригинал лежит
+ * data-URI в JSONB, положить его больше некуда, а печать и подпись попадают в подписываемый PDF.
+ */
+describe('checkImageSize', () => {
+  const MB = 1024 * 1024;
+
+  it('в пределах — молчит', () => expect(checkImageSize(5 * MB)).toBeNull());
+  it('ровно предел — пропускает', () => expect(checkImageSize(20 * MB)).toBeNull());
+
+  /** «Файл слишком большой» не говорит, насколько именно и что делать, — числа обязательны. */
+  it('сверх предела — называет оба числа', () => {
+    const msg = checkImageSize(42 * MB);
+    expect(msg).toContain('42');
+    expect(msg).toContain('20');
+  });
+});
 
 /**
  * Проверка прочитанного файла ДО записи в значение (issue #519). Раньше в значение уходило что
