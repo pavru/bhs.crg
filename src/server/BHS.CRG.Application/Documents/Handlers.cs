@@ -740,7 +740,6 @@ public class CommonDataHandlers(
     IRequestHandler<UpdateCommonDataEntryCommand, DomainObject>,
     IRequestHandler<DeleteCommonDataEntryCommand>,
     IRequestHandler<ListCommonDataEntriesQuery, IReadOnlyList<DomainObject>>,
-    IRequestHandler<GetCommonDataEntryQuery, DomainObject?>,
     IRequestHandler<ResolveCommonDataForSetQuery, IReadOnlyList<CommonDataEntryWithScope>>,
     IRequestHandler<ResolveCommonDataForScopeQuery, IReadOnlyList<CommonDataEntryWithScope>>
 {
@@ -784,9 +783,6 @@ public class CommonDataHandlers(
         repo.Remove(entry);
         await repo.SaveChangesAsync(ct);
     }
-
-    public async Task<DomainObject?> Handle(GetCommonDataEntryQuery q, CancellationToken ct)
-        => await repo.GetByIdAsync(q.Id, ct);
 
     public async Task<IReadOnlyList<DomainObject>> Handle(ListCommonDataEntriesQuery q, CancellationToken ct)
     {

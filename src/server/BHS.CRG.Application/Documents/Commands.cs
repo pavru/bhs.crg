@@ -141,16 +141,6 @@ public record UpdateCommonDataEntryCommand(Guid Id, string DisplayName, JsonDocu
 
 public record DeleteCommonDataEntryCommand(Guid Id) : IRequest;
 
-/// <summary>
-/// Одна запись общих данных по идентификатору (issue #520).
-///
-/// Раньше эндпоинт <c>/{id}</c> звал список без фильтров и искал нужную запись в памяти — то есть
-/// вычитывал весь каталог (у нас это мегабайты картинок) ради одной записи. С отсечением тяжёлых
-/// листьев в списке такой обходной путь стал бы вдобавок НЕВЕРНЫМ: по нему пришла бы обрезанная
-/// запись, а этот эндпоинт кормит редактор.
-/// </summary>
-public record GetCommonDataEntryQuery(Guid Id) : IRequest<DomainObject?>;
-
 public record ListCommonDataEntriesQuery(
     CatalogScope? Scope = null,
     Guid? ScopeId = null,

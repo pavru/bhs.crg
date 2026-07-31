@@ -23,8 +23,7 @@ public static class CommonDataEndpoints
                 _              => null,
             };
             return Results.Ok((await m.Send(new ListCommonDataEntriesQuery(parsedScope, scopeId, typeId)))
-                .Select(CommonDataEntryDto.From)
-                .Select(Elide));
+                .Select(CommonDataEntryDto.From));
         });
 
         // Resolve all relevant entries for a document set (full hierarchy)
@@ -32,7 +31,7 @@ public static class CommonDataEndpoints
         {
             try
             {
-                return Results.Ok((await m.Send(new ResolveCommonDataForSetQuery(setId, typeId))).Select(Elide));
+                return Results.Ok(await m.Send(new ResolveCommonDataForSetQuery(setId, typeId)));
             }
             catch (KeyNotFoundException ex) { return Results.NotFound(ex.Message); }
         });
@@ -49,14 +48,13 @@ public static class CommonDataEndpoints
                 _              => null,
             };
             if (parsed is null) return Results.BadRequest($"Unknown scope '{scope}'.");
-            return Results.Ok((await m.Send(new ResolveCommonDataForScopeQuery(parsed.Value, scopeId, typeId)))
-                .Select(Elide));
+            return Results.Ok(await m.Send(new ResolveCommonDataForScopeQuery(parsed.Value, scopeId, typeId)));
         });
 
-        // По идентификатору — ПОЛНАЯ запись, без отсечения: этот путь кормит редактор (issue #520).
         g.MapGet("/{id:guid}", async (Guid id, IMediator m) =>
         {
-            var entry = await m.Send(new GetCommonDataEntryQuery(id));
+            var all = await m.Send(new ListCommonDataEntriesQuery());
+            var entry = all.FirstOrDefault(e => e.Id == id);
             return entry is null ? Results.NotFound() : Results.Ok(CommonDataEntryDto.From(entry));
         });
 
@@ -92,17 +90,6 @@ public static class CommonDataEndpoints
             catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
     }
-
-    /// <summary>
-    /// Списочный ответ без тяжёлой полезной нагрузки (issue #520). Вызывается ЯВНО в трёх списочных
-    /// местах и никогда внутри <see cref="CommonDataEntryDto.From"/>: тот обслуживает и чтение одной
-    /// записи, и ответы POST/PUT — отсечение там молча обрезало бы редактор и round-trip записи.
-    /// </summary>
-    private static CommonDataEntryDto Elide(CommonDataEntryDto dto) =>
-        dto with { Data = HeavyLeafElision.WithoutHeavyLeaves(dto.Data) };
-
-    private static CommonDataEntryWithScope Elide(CommonDataEntryWithScope entry) =>
-        entry with { Data = HeavyLeafElision.WithoutHeavyLeaves(entry.Data) };
 
     record CreateRequest(string DisplayName, Guid CompositeTypeId, string Data, string Scope, Guid? ScopeId, string[]? Aliases);
     record UpdateRequest(string DisplayName, string Data, string[]? Aliases);
