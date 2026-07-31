@@ -129,8 +129,8 @@ public static class GenerationEndpoints
                     WriteIndented = true,
                     Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
                 };
-                dataJson = BHS.CRG.Infrastructure.Generation.TypstImageMaterializer
-                    .MaterializeJson(bundle.DataJson, tmpDir, "assets", prettyOpts);
+                dataJson = await BHS.CRG.Infrastructure.Generation.TypstImageMaterializer
+                    .MaterializeJsonAsync(bundle.DataJson, tmpDir, blob, "assets", prettyOpts, ct);
 
                 // Вложения ({$type:"file"}) скачиваем в те же assets/ (att_N) — bundle воспроизводит ВХОД
                 // для внешнего `typst compile`. blob-доступ на сервере есть; так внешний Typst найдёт файлы.

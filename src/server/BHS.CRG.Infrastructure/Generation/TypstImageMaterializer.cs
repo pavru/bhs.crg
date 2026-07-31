@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
 
 namespace BHS.CRG.Infrastructure.Generation;
@@ -15,55 +16,68 @@ namespace BHS.CRG.Infrastructure.Generation;
 /// опций нет. Раньше опции задавались в схеме типа и подмешивались по имени поля.
 /// </para>
 /// В шаблоне такое поле используется через хелпер <c>img(it.Поле)</c> (или <c>image(it.Поле.src)</c>).
+/// <para>
+/// С issue #522 значение бывает ещё и ссылкой на блоб — <c>{ $type:"image", blobPath, width?, ... }</c>.
+/// Байты тогда берутся из хранилища, а не из строки; на выходе форма та же, и шаблоны об этом не знают.
+/// Дискриминатор именно <c>"image"</c>, а не <c>"file"</c>: узел вложения обслуживает
+/// <see cref="TypstFileMaterializer"/>, и его контракт (<c>fileName/mimeType/pageCount</c>) другой —
+/// свести их значило бы отнять у поля-картинки <c>width/align/fit</c> и сломать <c>img()</c>.
+/// </para>
 /// </summary>
 public static class TypstImageMaterializer
 {
     /// <summary>
     /// Возвращает JSON для data.json, попутно записав изображения в <paramref name="targetDir"/>/<paramref name="assetsSubdir"/>.
     /// </summary>
-    public static string Materialize(IReadOnlyDictionary<string, object?> data, string targetDir,
-        string assetsSubdir = "assets", JsonSerializerOptions? outputOptions = null)
-        => MaterializeNode(JsonSerializer.SerializeToNode(data) ?? new JsonObject(), targetDir, assetsSubdir, outputOptions);
+    public static Task<string> MaterializeAsync(IReadOnlyDictionary<string, object?> data, string targetDir,
+        IBlobStorage? blob = null, string assetsSubdir = "assets", JsonSerializerOptions? outputOptions = null,
+        CancellationToken ct = default)
+        => MaterializeNodeAsync(JsonSerializer.SerializeToNode(data) ?? new JsonObject(),
+            targetDir, blob, assetsSubdir, outputOptions, ct);
 
     /// <summary>То же, но на входе готовый JSON-текст (для отладочного комплекта).</summary>
-    public static string MaterializeJson(string json, string targetDir,
-        string assetsSubdir = "assets", JsonSerializerOptions? outputOptions = null)
-        => MaterializeNode(JsonNode.Parse(json) ?? new JsonObject(), targetDir, assetsSubdir, outputOptions);
+    public static Task<string> MaterializeJsonAsync(string json, string targetDir,
+        IBlobStorage? blob = null, string assetsSubdir = "assets", JsonSerializerOptions? outputOptions = null,
+        CancellationToken ct = default)
+        => MaterializeNodeAsync(JsonNode.Parse(json) ?? new JsonObject(),
+            targetDir, blob, assetsSubdir, outputOptions, ct);
 
-    private static string MaterializeNode(JsonNode root, string targetDir, string assetsSubdir,
-        JsonSerializerOptions? outputOptions)
+    private static async Task<string> MaterializeNodeAsync(JsonNode root, string targetDir, IBlobStorage? blob,
+        string assetsSubdir, JsonSerializerOptions? outputOptions, CancellationToken ct)
     {
-        var ctx = new Context(Path.Combine(targetDir, assetsSubdir), assetsSubdir);
-        Walk(root, ctx);
+        var ctx = new Context(Path.Combine(targetDir, assetsSubdir), assetsSubdir, blob);
+        await WalkAsync(root, ctx, ct);
         return outputOptions is null ? root.ToJsonString() : root.ToJsonString(outputOptions);
     }
 
-    private sealed class Context(string assetsDir, string assetsSubdir)
+    private sealed class Context(string assetsDir, string assetsSubdir, IBlobStorage? blob)
     {
         public string AssetsDir { get; } = assetsDir;
         public string AssetsSubdir { get; } = assetsSubdir;
+        /// <summary>Хранилище для узлов-ссылок; null — их просто не будет чем прочитать (тесты без блобов).</summary>
+        public IBlobStorage? Blob { get; } = blob;
         public int Count;
     }
 
-    private static void Walk(JsonNode? node, Context ctx)
+    private static async Task WalkAsync(JsonNode? node, Context ctx, CancellationToken ct)
     {
         switch (node)
         {
             case JsonObject obj:
                 foreach (var key in obj.Select(kv => kv.Key).ToList())
-                    Replace(ctx, v => obj[key] = v, obj[key]);
+                    await ReplaceAsync(ctx, v => obj[key] = v, obj[key], ct);
                 break;
             case JsonArray arr:
                 for (var i = 0; i < arr.Count; i++)
                 {
                     var idx = i;
-                    Replace(ctx, v => arr[idx] = v, arr[idx]);
+                    await ReplaceAsync(ctx, v => arr[idx] = v, arr[idx], ct);
                 }
                 break;
         }
     }
 
-    private static void Replace(Context ctx, Action<JsonNode?> set, JsonNode? child)
+    private static async Task ReplaceAsync(Context ctx, Action<JsonNode?> set, JsonNode? child, CancellationToken ct)
     {
         // Голая data-URI строка (легаси / только что загруженная) — без размера.
         if (child is JsonValue val && val.TryGetValue<string>(out var s) && ImageValues.IsDataImage(s))
@@ -72,6 +86,14 @@ public static class TypstImageMaterializer
             if (path is not null) set(BuildImageNode(path, null));
             return;
         }
+        // Ссылка на блоб {$type:"image", blobPath, width?, ...} — issue #522. Байты берём из
+        // хранилища; форма на выходе та же, что и у data-URI, поэтому шаблоны не различают.
+        if (child is JsonObject blobNode && ImageValues.TryGetImageBlobPath(blobNode, out var blobPath))
+        {
+            var path = await WriteBlobImageAsync(blobPath, ctx, ct);
+            if (path is not null) set(BuildImageNode(path, blobNode));
+            return; // не спускаемся внутрь — это лист-значение
+        }
         // Объект-значение картинки {src, width, ...} — размер из него самого (issue #246).
         if (child is JsonObject obj && ImageValues.TryGetImageObjectSrc(obj, out var src))
         {
@@ -79,7 +101,34 @@ public static class TypstImageMaterializer
             if (path is not null) set(BuildImageNode(path, obj));
             return; // не спускаемся внутрь — это лист-значение
         }
-        Walk(child, ctx);
+        await WalkAsync(child, ctx, ct);
+    }
+
+    /// <summary>
+    /// Байты картинки из блоб-хранилища в файл каталога компиляции (issue #522). Хранилища нет или
+    /// блоб не читается — узел оставляем как есть: генерация не должна падать целиком из-за одной
+    /// картинки, а пустой src в шаблоне даст понятную ошибку Typst с именем файла.
+    /// </summary>
+    private static async Task<string?> WriteBlobImageAsync(string blobPath, Context ctx, CancellationToken ct)
+    {
+        if (ctx.Blob is null) return null;
+        try
+        {
+            await using var stream = await ctx.Blob.DownloadAsync(blobPath, ct);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms, ct);
+
+            Directory.CreateDirectory(ctx.AssetsDir);
+            var ext = Path.GetExtension(blobPath).TrimStart('.');
+            if (ext.Length == 0) ext = "png";
+            var name = $"img_{ctx.Count++}.{ext}";
+            await File.WriteAllBytesAsync(Path.Combine(ctx.AssetsDir, name), ms.ToArray(), ct);
+            return AssetPath.FromRoot(ctx.AssetsSubdir, name);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     // Изображение отдаём объектом {src, width, height, align, fit}; размерные ключи — из значения-объекта
