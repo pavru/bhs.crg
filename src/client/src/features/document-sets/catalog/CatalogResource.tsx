@@ -6,7 +6,9 @@ import { Button } from '@/shared/ui/Button';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { useListCommonData, useDeleteCommonDataEntry, useCommonDataForScope } from '@/shared/api/commonData';
+import {
+  useListCommonData, useDeleteCommonDataEntry, useCommonDataForScope, useCommonDataEntry,
+} from '@/shared/api/commonData';
 import type { CommonDataEntry, CatalogScope, DocumentType } from '@/shared/api/types';
 import { SCOPE_LABELS } from '@/shared/api/types';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
@@ -228,7 +230,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
       </Modal>
       <Modal open={!!editEntry} onOpenChange={o => { if (!o) setEditEntry(null); }} title="Редактировать запись" wide flushBody>
         {editEntry && (
-          <CatalogEntryForm entry={editEntry} compositeTypes={compositeTypes} documentTypes={documentTypes}
+          <EditEntryForm id={editEntry.id} compositeTypes={compositeTypes} documentTypes={documentTypes}
             allDocTypes={allDocTypes} scope={scope} scopeId={scopeId} onClose={() => setEditEntry(null)} />
         )}
       </Modal>
@@ -259,6 +261,28 @@ function TypeNavItem({ icon, label, count, active, doc, muted, profile, onClick 
 
 /** Detail профиля уровня (issue #258): бейдж «уровень», объяснитель «данные во всех документах»,
  *  ключ доступа в шаблоне со «Скопировать», превью полей + «Редактировать» (открывает форму записи). */
+/**
+ * Редактирование записи — по ПОЛНОЙ записи из `/{id}`, а не по той, что пришла со списком
+ * (issue #520). Списочный ответ отдаётся без тяжёлой полезной нагрузки картинок, а форма засевает
+ * свои значения из `entry.data` и отправляет их обратно при сохранении: открой мы её на списочной
+ * копии — сохранение стёрло бы печати и факсимиле.
+ */
+function EditEntryForm({ id, onClose, ...rest }: {
+  id: string;
+  compositeTypes: DocumentType[];
+  documentTypes: DocumentType[];
+  allDocTypes: DocumentType[];
+  scope: CatalogScope;
+  scopeId: string | null;
+  onClose: () => void;
+}) {
+  const { data: entry, isLoading } = useCommonDataEntry(id);
+  if (isLoading || !entry) {
+    return <div className="p-8 text-center text-sm text-fg4">Загрузка записи…</div>;
+  }
+  return <CatalogEntryForm entry={entry} onClose={onClose} {...rest} />;
+}
+
 function ProfileDetail({ scope, type, object, templateKey, onEdit }: {
   scope: CatalogScope; type: DocumentType; object?: CommonDataEntry; templateKey: string; onEdit: () => void;
 }) {
