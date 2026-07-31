@@ -4,6 +4,7 @@ import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { moveItem } from '@/shared/utils/moveItem';
 import { useToast } from '@/shared/ui/Toast';
 import { ListDetailShell, NavSearchInput, NavSection, DetailHeader } from '@/shared/ui/ListDetailShell';
 import {
@@ -44,11 +45,8 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
   function remove(i: number) { onChange(fields.filter((_, fi) => fi !== i)); }
   // Порядок значим: в этом порядке поля печатаются в промпт.
   function move(from: number, to: number) {
-    if (from === to || to < 0 || to >= fields.length) return;
-    const next = [...fields];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    onChange(next);
+    const next = moveItem(fields, from, to);
+    if (next !== fields) onChange(next);
   }
 
   const cols = 'grid grid-cols-[1fr_1.6fr_110px_auto] gap-1.5 items-center';
