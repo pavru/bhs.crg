@@ -9,6 +9,9 @@ import type { Template, TemplateParam } from '@/shared/api/types';
 /** Строка редактора: параметр плюс устойчивый идентификатор — он нужен ключом списка при перестановке. */
 type Row = { id: string; p: TemplateParam };
 
+/** Свой тип перетаскиваемых данных: текстовый сделал бы ручку источником текста для всей страницы. */
+const DRAG_MIME = 'application/x-crg-template-param';
+
 export function parseTemplateParams(json: string | null): TemplateParam[] {
   if (!json) return [];
   try { const a = JSON.parse(json); return Array.isArray(a) ? (a as TemplateParam[]) : []; } catch { return []; }
@@ -75,9 +78,11 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
 
                   setData обязателен: span — не изначально перетаскиваемый элемент, и Firefox
                   отменяет перетаскивание, если dragstart не положил ничего в dataTransfer
-                  (issue #517). */}
+                  (issue #517). Тип СВОЙ, не text/plain: с текстовым типом ручка становится
+                  источником перетаскивания для всей страницы, и отпущенная над редактором Typst
+                  прямо над панелью вставила бы в шаблон номер строки (issue #518). */}
               <span className="text-fg4 cursor-grab shrink-0" draggable
-                onDragStart={e => { e.dataTransfer.setData('text/plain', String(i)); setDragIdx(i); }}
+                onDragStart={e => { e.dataTransfer.setData(DRAG_MIME, String(i)); setDragIdx(i); }}
                 onDragEnd={() => setDragIdx(null)} title="Перетащить">
                 <GripVertical size={13} />
               </span>

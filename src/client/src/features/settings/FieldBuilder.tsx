@@ -610,7 +610,17 @@ export function FieldBuilder({ fields, onChange, disabledKeys, persistedKeys, co
     const next = moveItem(fields, from, to);
     if (next === fields) return;
     onChange(next);
-    setOpenIndex(o => o === from ? to : o);   // раскрытая карточка едет вместе со своим полем
+    // Раскрытая карточка едет вместе со своим полем. Пересчитывать надо ВСЕ индексы между from и to,
+    // а не только сам перемещаемый: перетаскивание здесь через несколько позиций, и соседи сдвигаются
+    // (issue #518). Прежнее «o === from ? to : o» было верно лишь для обмена соседей: перетащив A
+    // на место D при раскрытой B, пользователь видел раскрытой уже C.
+    setOpenIndex(o => {
+      if (o === null) return o;
+      if (o === from) return to;
+      if (from < o && o <= to) return o - 1;
+      if (to <= o && o < from) return o + 1;
+      return o;
+    });
   };
 
   return (
