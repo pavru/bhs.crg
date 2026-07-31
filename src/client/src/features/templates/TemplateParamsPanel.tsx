@@ -6,6 +6,9 @@ import { useUpdateTemplateParameters } from '@/shared/api/templates';
 import { moveItem } from '@/shared/utils/moveItem';
 import type { Template, TemplateParam } from '@/shared/api/types';
 
+/** Строка редактора: параметр плюс устойчивый идентификатор — он нужен ключом списка при перестановке. */
+type Row = { id: string; p: TemplateParam };
+
 export function parseTemplateParams(json: string | null): TemplateParam[] {
   if (!json) return [];
   try { const a = JSON.parse(json); return Array.isArray(a) ? (a as TemplateParam[]) : []; } catch { return []; }
@@ -19,15 +22,23 @@ export function parseTemplateParams(json: string | null): TemplateParam[] {
  */
 export function TemplateParamsPanel({ template, onSaved }: { template: Template; onSaved: (t: Template) => void }) {
   const [open, setOpen] = useState(false);
-  const [params, setParams] = useState<TemplateParam[]>(() => parseTemplateParams(template.parameters));
+  // Строка — это {id, параметр}. Идентификатор нужен КЛЮЧОМ списка: по индексу React оставляет узел
+  // на месте и подменяет в нём данные, поэтому фокус остаётся привязан к ПОЗИЦИИ, а не к строке.
+  // Проверено: с ключом-индексом два нажатия Enter на «Ниже» возвращали исходный порядок — первое
+  // двигало параметр вниз, второе двигало вниз того, кто занял освободившееся место (issue #517).
+  const [rows, setRows] = useState<Row[]>(
+    () => parseTemplateParams(template.parameters).map(p => ({ id: crypto.randomUUID(), p })));
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const update = useUpdateTemplateParameters();
 
-  function save(next: TemplateParam[]) {
-    setParams(next);
-    update.mutate({ id: template.id, parameters: next.length ? JSON.stringify(next) : null }, { onSuccess: onSaved });
+  function save(next: Row[]) {
+    setRows(next);
+    const params = next.map(r => r.p);
+    update.mutate({ id: template.id, parameters: params.length ? JSON.stringify(params) : null },
+      { onSuccess: onSaved });
   }
-  const patch = (i: number, p: Partial<TemplateParam>) => save(params.map((x, idx) => (idx === i ? { ...x, ...p } : x)));
+  const patch = (i: number, p: Partial<TemplateParam>) =>
+    save(rows.map((x, idx) => (idx === i ? { ...x, p: { ...x.p, ...p } } : x)));
 
   // Порядок объявления = порядок полей при заполнении документа (DocumentTemplateParams перебирает
   // массив как есть), поэтому им надо управлять. Значения на документах хранятся ПО ИМЕНИ параметра,
@@ -36,8 +47,8 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
   // moveItem на «некуда двигать» возвращает тот же массив: сравниваем по ссылке, чтобы клик по
   // «выше» у первой строки не гонял сохранение впустую.
   function move(from: number, to: number) {
-    const next = moveItem(params, from, to);
-    if (next !== params) save(next);
+    const next = moveItem(rows, from, to);
+    if (next !== rows) save(next);
   }
 
   return (
@@ -45,7 +56,7 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
       <button onClick={() => setOpen(v => !v)} aria-expanded={open}
         className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-base transition-colors text-left">
         <SlidersHorizontal size={13} className="text-fg4" />
-        <span className="text-xs font-medium text-fg2 flex-1">Параметры шаблона{params.length > 0 ? ` (${params.length})` : ''}</span>
+        <span className="text-xs font-medium text-fg2 flex-1">Параметры шаблона{rows.length > 0 ? ` (${rows.length})` : ''}</span>
         {open ? <ChevronUp size={13} className="text-fg4" /> : <ChevronDown size={13} className="text-fg4" />}
       </button>
       {open && (
@@ -54,15 +65,20 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
             Доступны в Typst как <code className="text-fg3">data.params.имя</code>. Значение по умолчанию можно
             переопределить на конкретном документе.
           </p>
-          {params.map((p, i) => (
-            <div key={i}
+          {rows.map(({ id, p }, i) => (
+            <div key={id}
               className={`flex items-center gap-1.5 rounded ${dragIdx === i ? 'ring-1 ring-brand' : ''}`}
               onDragOver={dragIdx !== null ? e => e.preventDefault() : undefined}
-              onDrop={dragIdx !== null ? () => { move(dragIdx, i); setDragIdx(null); } : undefined}>
+              onDrop={dragIdx !== null ? e => { e.preventDefault(); move(dragIdx, i); setDragIdx(null); } : undefined}>
               {/* Перетаскивание и стрелки вместе — как в списке вариантов перечисления: мышью
-                  быстрее через несколько строк, стрелками доступно с клавиатуры. */}
+                  быстрее через несколько строк, стрелками доступно с клавиатуры.
+
+                  setData обязателен: span — не изначально перетаскиваемый элемент, и Firefox
+                  отменяет перетаскивание, если dragstart не положил ничего в dataTransfer
+                  (issue #517). */}
               <span className="text-fg4 cursor-grab shrink-0" draggable
-                onDragStart={() => setDragIdx(i)} onDragEnd={() => setDragIdx(null)} title="Перетащить">
+                onDragStart={e => { e.dataTransfer.setData('text/plain', String(i)); setDragIdx(i); }}
+                onDragEnd={() => setDragIdx(null)} title="Перетащить">
                 <GripVertical size={13} />
               </span>
               <input value={p.name} onChange={e => patch(i, { name: e.target.value })} placeholder="имя"
@@ -80,14 +96,14 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
               <span className="flex items-center gap-0.5 shrink-0">
                 <button onClick={() => move(i, i - 1)} disabled={i === 0} title="Выше"
                   className="p-0.5 text-fg4 hover:text-fg2 disabled:opacity-25"><ArrowUp size={12} /></button>
-                <button onClick={() => move(i, i + 1)} disabled={i === params.length - 1} title="Ниже"
+                <button onClick={() => move(i, i + 1)} disabled={i === rows.length - 1} title="Ниже"
                   className="p-0.5 text-fg4 hover:text-fg2 disabled:opacity-25"><ArrowDown size={12} /></button>
-                <button onClick={() => save(params.filter((_, idx) => idx !== i))} title="Удалить параметр"
+                <button onClick={() => save(rows.filter((_, idx) => idx !== i))} title="Удалить параметр"
                   className="p-1 text-stroke-strong hover:text-danger"><Trash2 size={12} /></button>
               </span>
             </div>
           ))}
-          <button onClick={() => save([...params, { name: '', label: '', type: 'string', default: '' }])}
+          <button onClick={() => save([...rows, { id: crypto.randomUUID(), p: { name: '', label: '', type: 'string', default: '' } }])}
             className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
             <Plus size={12} /> Добавить параметр
           </button>

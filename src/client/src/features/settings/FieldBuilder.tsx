@@ -9,6 +9,7 @@ import type { SchemaField, FieldGroup } from '@/shared/api/schema';
 import { TYPE_LABELS, toCamelKey, nextAutoKey } from './schemaConstants';
 import { useTagRegistry, fieldTags, type TagDefinition } from '@/shared/api/tags';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
+import { moveItem } from '@/shared/utils/moveItem';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
 
 export function JsonPreview({
@@ -606,12 +607,10 @@ export function FieldBuilder({ fields, onChange, disabledKeys, persistedKeys, co
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const move = (from: number, to: number) => {
-    if (from === to) return;
-    const next = [...fields];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
+    const next = moveItem(fields, from, to);
+    if (next === fields) return;
     onChange(next);
-    setOpenIndex(o => o === from ? to : o);
+    setOpenIndex(o => o === from ? to : o);   // раскрытая карточка едет вместе со своим полем
   };
 
   return (

@@ -3,6 +3,7 @@ import { Plus, Trash2, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { useCreateEnumType, buildEnumTypeDto } from '@/shared/api/enumTypes';
+import { moveItem } from '@/shared/utils/moveItem';
 import type { EnumOptionDef, EnumTypeDef } from '@/shared/api/types';
 import { nextAutoKey } from './schemaConstants';
 
@@ -30,11 +31,8 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
   }
   // Порядок вариантов = порядок в выпадающем списке документа (хранится порядком массива).
   function move(from: number, to: number) {
-    if (from === to || to < 0 || to >= values.length) return;
-    const next = [...values];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    onChange(next);
+    const next = moveItem(values, from, to);
+    if (next !== values) onChange(next);
   }
   const cols = 'grid grid-cols-[20px_1fr_1.4fr_auto] gap-1.5 items-center';
   return (
