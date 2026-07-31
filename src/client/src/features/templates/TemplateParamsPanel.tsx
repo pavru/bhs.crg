@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, SlidersHorizontal, Plus, Trash2 } from 'lucide-react';
+import {
+  ChevronDown, ChevronUp, SlidersHorizontal, Plus, Trash2, GripVertical, ArrowUp, ArrowDown,
+} from 'lucide-react';
 import { useUpdateTemplateParameters } from '@/shared/api/templates';
+import { moveItem } from '@/shared/utils/moveItem';
 import type { Template, TemplateParam } from '@/shared/api/types';
 
 export function parseTemplateParams(json: string | null): TemplateParam[] {
@@ -17,6 +20,7 @@ export function parseTemplateParams(json: string | null): TemplateParam[] {
 export function TemplateParamsPanel({ template, onSaved }: { template: Template; onSaved: (t: Template) => void }) {
   const [open, setOpen] = useState(false);
   const [params, setParams] = useState<TemplateParam[]>(() => parseTemplateParams(template.parameters));
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
   const update = useUpdateTemplateParameters();
 
   function save(next: TemplateParam[]) {
@@ -24,6 +28,17 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
     update.mutate({ id: template.id, parameters: next.length ? JSON.stringify(next) : null }, { onSuccess: onSaved });
   }
   const patch = (i: number, p: Partial<TemplateParam>) => save(params.map((x, idx) => (idx === i ? { ...x, ...p } : x)));
+
+  // Порядок объявления = порядок полей при заполнении документа (DocumentTemplateParams перебирает
+  // массив как есть), поэтому им надо управлять. Значения на документах хранятся ПО ИМЕНИ параметра,
+  // а не по позиции, — перестановка их не задевает.
+  //
+  // moveItem на «некуда двигать» возвращает тот же массив: сравниваем по ссылке, чтобы клик по
+  // «выше» у первой строки не гонял сохранение впустую.
+  function move(from: number, to: number) {
+    const next = moveItem(params, from, to);
+    if (next !== params) save(next);
+  }
 
   return (
     <div className="border-t border-stroke bg-surface">
@@ -40,7 +55,16 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
             переопределить на конкретном документе.
           </p>
           {params.map((p, i) => (
-            <div key={i} className="flex items-center gap-1.5">
+            <div key={i}
+              className={`flex items-center gap-1.5 rounded ${dragIdx === i ? 'ring-1 ring-brand' : ''}`}
+              onDragOver={dragIdx !== null ? e => e.preventDefault() : undefined}
+              onDrop={dragIdx !== null ? () => { move(dragIdx, i); setDragIdx(null); } : undefined}>
+              {/* Перетаскивание и стрелки вместе — как в списке вариантов перечисления: мышью
+                  быстрее через несколько строк, стрелками доступно с клавиатуры. */}
+              <span className="text-fg4 cursor-grab shrink-0" draggable
+                onDragStart={() => setDragIdx(i)} onDragEnd={() => setDragIdx(null)} title="Перетащить">
+                <GripVertical size={13} />
+              </span>
               <input value={p.name} onChange={e => patch(i, { name: e.target.value })} placeholder="имя"
                 className="w-24 text-xs border border-stroke-strong rounded px-1.5 py-1 bg-surface text-fg1" />
               <input value={p.label} onChange={e => patch(i, { label: e.target.value })} placeholder="подпись"
@@ -53,8 +77,14 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
                 <option value="boolean">да/нет</option>
               </select>
               <ParamDefault type={p.type} value={p.default} onChange={v => patch(i, { default: v })} />
-              <button onClick={() => save(params.filter((_, idx) => idx !== i))} title="Удалить параметр"
-                className="p-1 text-stroke-strong hover:text-danger shrink-0"><Trash2 size={12} /></button>
+              <span className="flex items-center gap-0.5 shrink-0">
+                <button onClick={() => move(i, i - 1)} disabled={i === 0} title="Выше"
+                  className="p-0.5 text-fg4 hover:text-fg2 disabled:opacity-25"><ArrowUp size={12} /></button>
+                <button onClick={() => move(i, i + 1)} disabled={i === params.length - 1} title="Ниже"
+                  className="p-0.5 text-fg4 hover:text-fg2 disabled:opacity-25"><ArrowDown size={12} /></button>
+                <button onClick={() => save(params.filter((_, idx) => idx !== i))} title="Удалить параметр"
+                  className="p-1 text-stroke-strong hover:text-danger"><Trash2 size={12} /></button>
+              </span>
             </div>
           ))}
           <button onClick={() => save([...params, { name: '', label: '', type: 'string', default: '' }])}
