@@ -11,18 +11,30 @@ export function ImageField({ value, onChange }: {
   value: unknown; onChange: (val: ImageValue | null) => void;
 }) {
   const [sizeOpen, setSizeOpen] = useState(false);
+  const [error, setError] = useState('');
   const img = normalize(value);
   const hasSize = !!(img && (img.width || img.height || img.align || img.fit));
 
+  /**
+   * Прочитанное проверяем ДО записи в значение (issue #519). Раньше в него уходило что угодно:
+   * `accept="image/*"` — только фильтр диалога, он обходится выбором «Все файлы», а `normalize()`
+   * отбраковывал результат уже при отрисовке. Человек видел «нажал, и ничего не произошло», при этом
+   * мусорная data-URI оставалась в реквизитах и уезжала в базу при сохранении.
+   */
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    e.target.value = '';   // сбрасываем всегда, иначе повторный выбор того же файла не сработает
     if (!file) return;
+    setError('');
+
     const reader = new FileReader();
+    reader.onerror = () => setError(`Не удалось прочитать файл «${file.name}».`);
     reader.onload = () => {
-      if (typeof reader.result === 'string') onChange({ ...(img ?? {}), src: reader.result });
+      const checked = checkImageResult(reader.result, file.name);
+      if ('error' in checked) { setError(checked.error); return; }
+      onChange({ ...(img ?? {}), src: checked.src });
     };
     reader.readAsDataURL(file);
-    e.target.value = '';
   }
 
   const patch = (p: Partial<ImageValue>) => {
@@ -35,12 +47,15 @@ export function ImageField({ value, onChange }: {
 
   if (!img) {
     return (
-      <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-stroke-strong rounded-lg py-6 cursor-pointer hover:border-brand hover:bg-brand-subtle transition-colors">
-        <ImageIcon size={20} className="text-fg4" />
-        <span className="text-sm text-fg3">Нажмите для выбора изображения</span>
-        <span className="text-xs text-fg4">PNG, JPG, SVG, WEBP</span>
-        <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
-      </label>
+      <>
+        <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-stroke-strong rounded-lg py-6 cursor-pointer hover:border-brand hover:bg-brand-subtle transition-colors">
+          <ImageIcon size={20} className="text-fg4" />
+          <span className="text-sm text-fg3">Нажмите для выбора изображения</span>
+          <span className="text-xs text-fg4">PNG, JPG, SVG, WEBP</span>
+          <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
+        </label>
+        {error && <p className="text-xs text-danger mt-1">{error}</p>}
+      </>
     );
   }
 
@@ -88,6 +103,22 @@ export function ImageField({ value, onChange }: {
       )}
     </div>
   );
+}
+
+/**
+ * Прочитанное — картинка или причина отказа (issue #519).
+ *
+ * Судим по самой data-URI, а не по `file.type`: это ровно то, что потом проверит `normalize()`, и
+ * два разных мерила разошлись бы. Пустой `file.type` (Windows отдаёт его, например, для `.tif`)
+ * даёт `data:application/octet-stream` — такой файл поле всё равно не покажет, поэтому честнее
+ * сказать об этом вслух и подсказать выход, чем молча оставить поле пустым.
+ */
+export function checkImageResult(result: unknown, fileName: string): { src: string } | { error: string } {
+  if (typeof result !== 'string')
+    return { error: `Не удалось прочитать файл «${fileName}».` };
+  if (!result.startsWith('data:image'))
+    return { error: `«${fileName}» — не изображение или его тип не распознан. Сохраните файл как PNG или JPG.` };
+  return { src: result };
 }
 
 /** Приводит значение к объекту {src, ...} или null. Понимает легаси-строку data-URI. */
