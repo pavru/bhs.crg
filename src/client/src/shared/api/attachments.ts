@@ -46,6 +46,23 @@ export async function uploadAttachment(file: File): Promise<FileAttachment> {
   return { $type: 'file', ...data };
 }
 
+/**
+ * Загрузка картинки поля-изображения (issue #522). Эндпоинт тот же, что у вложений, а форма значения
+ * другая: `$type: "image"` вместо `"file"`.
+ *
+ * Дискриминатор обязан отличаться: узел вложения материализуется другим путём и несёт другой контракт
+ * (`fileName`/`mimeType`/`pageCount`), тогда как картинке нужны `width`/`align`/`fit`. Свести их
+ * значило бы сломать хелпер `img()` во всех шаблонах.
+ */
+export async function uploadImage(file: File): Promise<{
+  $type: 'image'; blobPath: string; fileName: string; mimeType: string;
+}> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await apiClient.post<Omit<FileAttachment, '$type'>>('/attachments', formData);
+  return { $type: 'image', blobPath: data.blobPath, fileName: data.fileName, mimeType: data.mimeType };
+}
+
 export async function uploadPrintForm(
   file: File,
   setId: string,

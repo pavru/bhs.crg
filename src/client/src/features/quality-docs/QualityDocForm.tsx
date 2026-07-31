@@ -15,6 +15,7 @@ import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import {
   PrimitiveInput, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField, ImageField, FileField,
 } from '@/features/document-sets/fields';
+import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 
 /** Разворачивает поля типа в плоские «листья» (путь через точку) для распознавания. */
 export function flattenLeaves(fields: SchemaField[], allDocTypes: DocumentType[], prefix = '', depth = 0): RecognitionFieldReq[] {
@@ -69,6 +70,9 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
   );
   const [uploading, setUploading] = useState(false);
   const [recognizing, setRecognizing] = useState(false);
+  // Картинка поля ещё едет в хранилище — сохранять рано: значение появится только после (issue #522).
+  // Своё `uploading` выше — про скан документа качества, это разные загрузки.
+  const imageUploading = useUploadsInFlight();
   const [error, setError] = useState('');
 
   const create = useCreateQualityDoc();
@@ -221,7 +225,8 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
 
       {error && <p className="text-sm text-danger">{error}</p>}
       <div className="flex items-center gap-2 pt-1">
-        <Button variant="filled" onClick={handleSave} loading={busy} disabled={busy || recognizing || !typeId}>
+        <Button variant="filled" onClick={handleSave} loading={busy}
+          disabled={busy || recognizing || uploading || imageUploading || !typeId} title={imageUploading ? "Дождитесь загрузки изображения" : undefined}>
           {busy ? 'Сохранение…' : isEdit ? 'Сохранить' : 'Создать'}
         </Button>
         <Button variant="text" onClick={onCancel}>Отмена</Button>

@@ -15,6 +15,7 @@ import { containsRef } from './brokenRefs';
 import { BrokenCountBadge } from './BrokenCountBadge';
 import { RequisitesTab } from './RequisitesTab';
 import { GenerationTab } from './GenerationTab';
+import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 
 // ── Редактор экземпляра документа: оболочка вкладок ──────────────────────────
 // Сами вкладки вынесены по файлам (#490).
@@ -82,6 +83,8 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
   const [switching, setSwitching] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  // Картинка ещё едет в хранилище — сохранять рано: значение поля появится только после (issue #522).
+  const uploading = useUploadsInFlight();
   // Актуальная функция сохранения активной редактируемой вкладки.
   const saveRef = useRef<(() => Promise<boolean>) | null>(null);
   // «Основа» (issue #223): состояние-зеркало базы для chip шапки — источник правды `_baseRef` живёт в
@@ -200,10 +203,12 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           {editable && (
             <div className="flex items-center gap-2 shrink-0">
               {savedFlash && <span className="text-sm text-success hidden sm:inline">Сохранено</span>}
-              <Button variant="text" onClick={() => void doSave()} disabled={saving}>
+              <Button variant="text" onClick={() => void doSave()} disabled={saving || uploading}
+                title={uploading ? "Дождитесь загрузки изображения" : undefined}>
                 {saving ? 'Сохранение…' : 'Сохранить'}
               </Button>
-              <Button variant="filled" onClick={() => void doSaveAndClose()} loading={saving} title="Ctrl+Enter">
+              <Button variant="filled" onClick={() => void doSaveAndClose()} loading={saving} disabled={uploading}
+                title={uploading ? 'Дождитесь загрузки изображения' : 'Ctrl+Enter'}>
                 Сохранить и закрыть
               </Button>
             </div>

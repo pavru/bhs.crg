@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { Image as ImageIcon, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
-import { formatBytes } from '@/shared/api/attachments';
-import type { ImageValue } from '@/shared/api/schema';
+import { useEffect, useState } from 'react';
+import { Image as ImageIcon, Trash2, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { formatBytes, uploadImage, loadAttachmentObjectUrl } from '@/shared/api/attachments';
+import { beginUpload, endUpload } from '@/shared/ui/uploadsInFlight';
+import { apiError } from '@/shared/utils/apiError';
+import type { ImageValue, ImageBlobValue, ImageOptions } from '@/shared/api/schema';
 
 /**
  * Предел размера картинки (issue #521). Значение поля лежит data-URI прямо в реквизитах, своего
@@ -33,11 +35,19 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
  * (голая data-URI строка) читается как `{ src }` без размера.
  */
 export function ImageField({ value, onChange }: {
-  value: unknown; onChange: (val: ImageValue | null) => void;
+  value: unknown; onChange: (val: ImageValue | ImageBlobValue | null) => void;
 }) {
   const [sizeOpen, setSizeOpen] = useState(false);
   const [error, setError] = useState('');
+  /** Локальное превью выбранного файла — показывается СРАЗУ, пока байты едут в хранилище. */
+  const [pending, setPending] = useState<string | null>(null);
   const img = normalize(value);
+  const shownSrc = useImageSrc(img, pending);
+  // Превью держим ровно до того мига, как картинка поехала из хранилища: дальше это лишняя копия
+  // в памяти (у печати — мегабайты) и повод показывать не то, что на самом деле сохранено.
+  useEffect(() => {
+    if (pending && shownSrc && shownSrc !== pending) setPending(null);
+  }, [pending, shownSrc]);
   const hasSize = !!(img && (img.width || img.height || img.align || img.fit));
 
   /**
@@ -56,25 +66,47 @@ export function ImageField({ value, onChange }: {
     const tooBig = checkImageSize(file.size);
     if (tooBig) { setError(tooBig); return; }
 
+    // Тип проверяем по прочитанному, как и раньше (issue #519): accept — только фильтр диалога.
+    // Читаем ради проверки и локального превью; в значение уходит ссылка на блоб, а не байты.
     const reader = new FileReader();
     reader.onerror = () => setError(`Не удалось прочитать файл «${file.name}».`);
     reader.onload = () => {
       const checked = checkImageResult(reader.result, file.name);
       if ('error' in checked) { setError(checked.error); return; }
-      onChange({ ...(img ?? {}), src: checked.src });
+      setPending(checked.src);   // видно немедленно, ещё до загрузки
+      void upload(file);
     };
     reader.readAsDataURL(file);
   }
 
-  const patch = (p: Partial<ImageValue>) => {
+  /**
+   * Байты уезжают в хранилище, в значении остаётся ссылка (issue #522). Опции размера переносим со
+   * старого значения — смена картинки не должна сбрасывать заданную ширину и выравнивание.
+   */
+  async function upload(file: File) {
+    beginUpload();
+    try {
+      const node = await uploadImage(file);
+      const opts: ImageOptions = img ?? {};
+      onChange({ ...node, ...opts });
+    } catch (e) {
+      // Превью убираем: иначе человек уверен, что картинка на месте, а её нет (issue #522).
+      setPending(null);
+      setError(apiError(e, 'Не удалось загрузить изображение'));
+    } finally {
+      endUpload();
+    }
+  }
+
+  const patch = (p: ImageOptions) => {
     if (!img) return;
-    const next: ImageValue = { ...img, ...p };
+    const next = { ...img, ...p };
     // Пустые строки в опциях убираем, чтобы значение не тащило пустышки.
     (['width', 'height', 'align', 'fit'] as const).forEach(k => { if (!next[k]) delete next[k]; });
     onChange(next);
   };
 
-  if (!img) {
+  if (!img && !pending) {
     return (
       <>
         <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-stroke-strong rounded-lg py-6 cursor-pointer hover:border-brand hover:bg-brand-subtle transition-colors">
@@ -93,23 +125,32 @@ export function ImageField({ value, onChange }: {
 
   return (
     <div className="space-y-2">
-      <div className="border border-stroke rounded-lg overflow-hidden bg-base flex items-center justify-center p-2 max-h-52">
-        <img src={img.src} alt="" className="max-h-48 max-w-full object-contain" />
+      {/* Пока байты едут — показываем ЛОКАЛЬНОЕ превью с индикатором в углу, а не пустую рамку:
+          файл уже в браузере, и ждать нечего (issue #522). */}
+      <div className="relative border border-stroke rounded-lg overflow-hidden bg-base flex items-center justify-center p-2 max-h-52">
+        {shownSrc
+          ? <img src={shownSrc} alt="" className="max-h-48 max-w-full object-contain" />
+          : <span className="py-8 text-xs text-fg4">Загрузка изображения…</span>}
+        {pending && (
+          <span className="absolute top-1.5 right-1.5 rounded bg-surface/90 p-1" title="Загружается в хранилище">
+            <Loader2 size={13} className="animate-spin text-brand" />
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-4">
-        <button type="button" onClick={() => onChange(null)}
+        <button type="button" onClick={() => { setPending(null); onChange(null); }}
           className="flex items-center gap-1.5 text-xs text-danger hover:text-danger transition-colors">
           <Trash2 size={12} /> Удалить изображение
         </button>
-        <button type="button" onClick={() => setSizeOpen(o => !o)}
+        <button type="button" onClick={() => setSizeOpen(o => !o)} disabled={!img}
           className="flex items-center gap-1 text-xs text-fg3 hover:text-fg1 transition-colors">
           {sizeOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           Размер и выравнивание{!sizeOpen && hasSize ? ' ·' : ''}
         </button>
       </div>
 
-      {sizeOpen && (
+      {sizeOpen && img && (
         <div className="flex flex-wrap items-center gap-2 pl-1">
           <input value={img.width ?? ''} onChange={e => patch({ width: e.target.value })}
             placeholder="ширина (напр. 4cm)"
@@ -174,12 +215,54 @@ export function checkImageResult(result: unknown, fileName: string): { src: stri
   return { src: result };
 }
 
-/** Приводит значение к объекту {src, ...} или null. Понимает легаси-строку data-URI. */
-function normalize(value: unknown): ImageValue | null {
+/**
+ * Приводит значение к объекту или null. Понимает три формы: голую строку data-URI (легаси), объект
+ * `{src: data-URI, …}` и ссылку на блоб `{$type:"image", blobPath, …}` (issue #522).
+ *
+ * Читать старые формы не перестанем никогда: восстановление бэкапа заново впрыскивает их, а архивы
+ * восстановимы неограниченно долго.
+ */
+function normalize(value: unknown): ImageValue | ImageBlobValue | null {
   if (typeof value === 'string') return value.startsWith('data:image') ? { src: value } : null;
   if (value && typeof value === 'object') {
-    const src = (value as { src?: unknown }).src;
-    if (typeof src === 'string' && src.startsWith('data:image')) return value as ImageValue;
+    const o = value as Record<string, unknown>;
+    if (o['$type'] === 'image' && typeof o.blobPath === 'string' && o.blobPath) return value as ImageBlobValue;
+    if (typeof o.src === 'string' && o.src.startsWith('data:image')) return value as ImageValue;
   }
   return null;
+}
+
+/** Ссылка на блоб? Форма значения после переезда (issue #522). */
+function isBlobValue(v: ImageValue | ImageBlobValue | null): v is ImageBlobValue {
+  return !!v && '$type' in v && v.$type === 'image';
+}
+
+/**
+ * Что показать: локальное превью (пока байты едут), сама data-URI (старая форма) либо скачанный из
+ * хранилища объект-URL (новая). Блоб тянем один раз на путь и освобождаем URL при смене.
+ */
+function useImageSrc(value: ImageValue | ImageBlobValue | null, pending: string | null): string | null {
+  const blobPath = isBlobValue(value) ? value.blobPath : null;
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!blobPath) { setBlobUrl(null); return; }
+    let cancelled = false;
+    let url: string | null = null;
+    loadAttachmentObjectUrl(blobPath)
+      .then(res => {
+        if (cancelled) { URL.revokeObjectURL(res.url); return; }
+        url = res.url;
+        setBlobUrl(res.url);
+      })
+      .catch(() => { if (!cancelled) setBlobUrl(null); });
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
+  }, [blobPath]);
+
+  // Порядок важен: как только картинка приехала ИЗ ХРАНИЛИЩА, показываем её, а не локальное превью.
+  // Иначе поле до конца жизни показывало бы копию из памяти, и «а читается ли блоб» никто бы не
+  // проверил — узнали бы при генерации документа.
+  if (isBlobValue(value)) return blobUrl ?? pending;
+  if (pending) return pending;
+  return value?.src ?? null;
 }
