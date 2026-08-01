@@ -62,11 +62,31 @@ public class DataSetValueCoercionTests
         Assert.Same(obj, Coerce(obj, Field("number")));
     }
 
+    /// <summary>
+    /// Пустая ячейка в ЧИСЛОВОМ поле — отсутствие значения, а не значение неверного типа (#544).
+    /// Возвращаем null: вызывающие пишут значение под `if (value is not null)`, поэтому ключа не
+    /// будет вовсе. Прежде она оседала пустой строкой, и на протоколе измерений изоляции из 473
+    /// числовых ячеек 238 давали предупреждение «ожидается число, а хранится строка» — за таким
+    /// списком уже не разглядеть настоящую проблему.
+    /// </summary>
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public void EmptyCell_IsUntouched(string cell)
-        => Assert.Equal(cell, Coerce(cell, Field("number")));
+    public void EmptyCell_InNumericField_BecomesNothing(string cell)
+    {
+        Assert.Null(Coerce(cell, Field("number")));
+        Assert.Null(Coerce(cell, Field("primitive", NumberTypeId)));
+    }
+
+    /// <summary>А в строковом поле пустая ячейка законна — там ничего не меняем.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void EmptyCell_InTextField_IsUntouched(string cell)
+    {
+        Assert.Equal(cell, Coerce(cell, Field("string")));
+        Assert.Equal(cell, Coerce(cell, Field("primitive", StringTypeId)));
+    }
 
     private static DocumentType Composite(Guid id, string name, string fieldsJson)
     {
@@ -103,5 +123,64 @@ public class DataSetValueCoercionTests
 
         var nested = (Dictionary<string, object?>)result["КабельПроложено"]!;
         Assert.Equal(48.5d, Assert.IsType<double>(nested["ДлинаЛинии"]));
+    }
+
+    /// <summary>
+    /// В собранном inline-объекте пустая числовая ячейка тоже не оставляет ключа (#544). Ключ со
+    /// значением none опаснее отсутствующего: `it.at("X", default: "") != ""` его пропустит, а
+    /// следом сломается конкатенация.
+    /// </summary>
+    [Fact]
+    public void EmptyCell_InNestedObject_LeavesNoKey()
+    {
+        var rowTypeId = Guid.NewGuid();
+        var types = new Dictionary<Guid, DocumentType>
+        {
+            [rowTypeId] = Composite(rowTypeId, "Строка",
+                """{"fields":[{"key":"Длина","type":"number"},{"key":"Марка","type":"string"}]}"""),
+        };
+        var obj = new Dictionary<string, object?> { ["Длина"] = "", ["Марка"] = "" };
+
+        var result = DataSetValueCoercion.CoerceObject(obj, rowTypeId, Primitives, types);
+
+        Assert.NotNull(result);
+        Assert.False(result.ContainsKey("Длина"));
+        Assert.Equal("", result["Марка"]);
+    }
+
+    /// <summary>
+    /// Объект, у которого не осталось ни одного значения, — это отсутствие объекта, а не пустой
+    /// объект (#544): вызывающие пишут его под `if (value is not null)`, поэтому ключа не будет.
+    /// Иначе строка отдавала бы шаблону `{}`, и обращение к вложенному полю падало бы вместо пустого
+    /// места. То же правило, по которому собирает объекты DataSetMappingApplier.
+    /// </summary>
+    [Fact]
+    public void ObjectLeftWithoutValues_BecomesNothing()
+    {
+        var rowTypeId = Guid.NewGuid();
+        var types = new Dictionary<Guid, DocumentType>
+        {
+            [rowTypeId] = Composite(rowTypeId, "Строка", """{"fields":[{"key":"Длина","type":"number"}]}"""),
+        };
+
+        Assert.Null(DataSetValueCoercion.CoerceObject(
+            new Dictionary<string, object?> { ["Длина"] = "" }, rowTypeId, Primitives, types));
+    }
+
+    /// <summary>@@ref-объект схемных ключей не содержит — его не должно ни обрезать, ни выбросить.</summary>
+    [Fact]
+    public void RefObject_IsLeftAlone()
+    {
+        var rowTypeId = Guid.NewGuid();
+        var types = new Dictionary<Guid, DocumentType>
+        {
+            [rowTypeId] = Composite(rowTypeId, "Строка", """{"fields":[{"key":"Длина","type":"number"}]}"""),
+        };
+        var obj = new Dictionary<string, object?> { ["$ref"] = "catalog:123" };
+
+        var result = DataSetValueCoercion.CoerceObject(obj, rowTypeId, Primitives, types);
+
+        Assert.NotNull(result);
+        Assert.Equal("catalog:123", result["$ref"]);
     }
 }

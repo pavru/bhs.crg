@@ -43,16 +43,33 @@ public static class DataSetValueCoercion
             return CoerceObject(nested, field.TypeId, primitivesById, typesById, depth);
 
         // Приводим только сырой текст ячейки: ссылки (@@ref) и файлы уже имеют свою форму.
-        if (value is not string text || string.IsNullOrWhiteSpace(text)) return value;
-        if (!IsNumeric(field, primitivesById)) return value;
+        if (value is not string text) return value;
+        if (!IsNumeric(field, primitivesById)) return value;   // в строковом поле пустая строка законна
+
+        // Пустая ячейка — ОТСУТСТВИЕ значения, а не значение неверного типа (issue #544). Раньше она
+        // возвращалась как есть и оседала пустой строкой в поле, объявленном числом: на протоколе
+        // измерений изоляции из 473 числовых ячеек 238 были такими, и проверка выдавала 238
+        // предупреждений «ожидается число, а хранится строка» — за ними уже ничего не разглядеть.
+        //
+        // Возвращаем null: вызывающие пишут значение под `if (value is not null)`, поэтому ключа
+        // просто не будет. Именно отсутствие ключа, а не null: домашняя идиома шаблонов —
+        // `it.at("X", default: "")` и `dig(it, "X", default: …)` — отсутствующий ключ обрабатывает
+        // верно, а на null сломалась бы (`it.at("Телефон", default: "") != ""` пройдёт проверку и
+        // упадёт на `"тел.: " + none`).
+        if (string.IsNullOrWhiteSpace(text)) return null;
 
         // Не разобралось — оставляем строку. Молча подменить на ноль нельзя: ноль это заявленное
         // количество, а неразобранное — неизвестность; расхождение останется видимым в проверке.
         return QuantityParser.TryParse(text, out var number) ? number : value;
     }
 
-    /// <summary>Обход собранного объекта по схеме его типа.</summary>
-    public static Dictionary<string, object?> CoerceObject(
+    /// <summary>
+    /// Обход собранного объекта по схеме его типа. Ключи, для которых приведение дало null (пустая
+    /// числовая ячейка, issue #544), удаляются; объект, оставшийся БЕЗ значений, возвращается как
+    /// null — «нет значений» на всех уровнях выглядит одинаково, и это то же правило, по которому
+    /// собирает объекты <c>DataSetMappingApplier</c> (<c>obj.Count == 0 ? null : obj</c>).
+    /// </summary>
+    public static Dictionary<string, object?>? CoerceObject(
         Dictionary<string, object?> obj, Guid? typeId,
         IReadOnlyDictionary<Guid, PrimitiveType> primitivesById,
         IReadOnlyDictionary<Guid, DocumentType>? typesById, int depth = 0)
@@ -63,10 +80,18 @@ public static class DataSetValueCoercion
             .GroupBy(f => f.Key).ToDictionary(g => g.Key, g => g.First());
 
         foreach (var key in obj.Keys.ToList())
-            if (fields.TryGetValue(key, out var f))
-                obj[key] = Coerce(obj[key], f, primitivesById, typesById, depth + 1);
+        {
+            if (!fields.TryGetValue(key, out var f)) continue;
+            var coerced = Coerce(obj[key], f, primitivesById, typesById, depth + 1);
+            // Ключ с null УДАЛЯЕМ, а не оставляем (issue #544): шаблоны читают вложенные поля через
+            // at/dig с умолчанием, и ключ со значением none проходит их проверки, а потом ломает
+            // конкатенацию. Правило шире, чем пустая числовая ячейка: любой null здесь означает
+            // «значения нет», и вложенный объект, у которого не осталось значений, тоже null.
+            if (coerced is null) obj.Remove(key);
+            else obj[key] = coerced;
+        }
 
-        return obj;
+        return obj.Count == 0 ? null : obj;
     }
 
     private static bool IsNumeric(
