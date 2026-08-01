@@ -60,10 +60,10 @@ export function TypePickerField({
   // оболочка (border-2 + подпись цветом бренда), как у `DateField`.
   const triggerClass = framed
     ? `w-full h-14 px-4 rounded-md bg-transparent text-sm text-left outline-none ` +
-      `disabled:opacity-50 disabled:pointer-events-none ${showClear ? 'pr-12' : ''}`
+      `disabled:opacity-50 disabled:pointer-events-none`
     : `w-full ${size === 'sm' ? 'h-8' : 'h-9'} px-3 rounded-md border border-stroke-strong bg-surface ` +
       `text-sm text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ` +
-      `data-[state=open]:ring-2 disabled:opacity-50 disabled:pointer-events-none ${showClear ? 'pr-11' : ''}`;
+      `data-[state=open]:ring-2 disabled:opacity-50 disabled:pointer-events-none`;
 
   const trigger = (
     <button
@@ -82,6 +82,9 @@ export function TypePickerField({
         {selected ? selected.name : placeholder}
       </span>
       {showCode && <span className="text-[11px] font-mono text-fg4 shrink-0">{code}</span>}
+      {/* Место под крестик резервируем В ПОТОКЕ, а не правым паддингом: паддинг сдвинул бы влево и
+          саму лупу (она такой же элемент потока), и у края поля осталась бы дыра. */}
+      {showClear && <span aria-hidden className="w-[22px] shrink-0" />}
       <Search size={15} className="shrink-0 text-fg4" />
     </button>
   );
@@ -92,26 +95,33 @@ export function TypePickerField({
   const clear = showClear && (
     <button type="button" aria-label="Очистить" title="Очистить"
       onClick={() => onChange(null)}
-      className={`absolute ${framed ? 'right-8' : 'right-7'} top-1/2 -translate-y-1/2 z-10 text-fg4 ` +
+      className={`absolute ${framed ? 'right-10' : 'right-9'} top-1/2 -translate-y-1/2 z-10 text-fg4 ` +
         `opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-fg2 transition-opacity ` +
         `focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-sm`}>
       <X size={14} />
     </button>
   );
 
+  // Фокус слушаем на обёртке, а не на самом триггере: крестик — его сосед и визуально часть того же
+  // поля, поэтому переход Tab'ом на него не должен гасить рамку. Приём тот же, что в `DateField`.
+  const body = (
+    <div className="relative flex w-full"
+      onFocus={() => setFocused(true)}
+      onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
+      {trigger}
+      {clear}
+    </div>
+  );
+
   return (
     <>
       {framed ? (
         <OutlinedField label={label} required={required} raise="always" focused={focused}
-          labelId={labelId} containerClassName={`group relative ${className}`}>
-          {trigger}
-          {clear}
+          labelId={labelId} containerClassName={`group ${className}`}>
+          {body}
         </OutlinedField>
       ) : (
-        <div className={`group relative inline-flex ${className}`}>
-          {trigger}
-          {clear}
-        </div>
+        <div className={`group ${className}`}>{body}</div>
       )}
 
       <TypePicker
