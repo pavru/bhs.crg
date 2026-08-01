@@ -167,18 +167,19 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-x-4">
-        <div>
-          <label className="block text-xs font-medium text-fg2 mb-1">Тип документа</label>
-          <TypePickerField className="w-full" aria-label="Тип документа" title="Тип документа"
-            placeholder="Выберите тип…"
-            types={qualityTypes.map<PickType>(dt => ({ id: dt.id, name: dt.name, code: dt.code, section: 'Документы качества' }))}
-            value={typeId || undefined}
-            onChange={id => { if (id) setTypeId(id); }} />
-        </div>
-        <TextField label="Название в библиотеке" value={displayName}
-          onChange={e => setDisplayName(e.target.value)} hint="авто из номера" />
+      {/* Тип документа — своей строкой, а не в паре с названием (issue #565): он решает, какие поля
+          нарисуются ниже, то есть управляет всей остальной формой. Соседство с рядовым текстовым
+          полем читалось как «два равных реквизита». */}
+      <div>
+        <label className="block text-xs font-medium text-fg2 mb-1">Тип документа</label>
+        <TypePickerField className="w-full" aria-label="Тип документа" title="Тип документа"
+          placeholder="Выберите тип…"
+          types={qualityTypes.map<PickType>(dt => ({ id: dt.id, name: dt.name, code: dt.code, section: 'Документы качества' }))}
+          value={typeId || undefined}
+          onChange={id => { if (id) setTypeId(id); }} />
       </div>
+      <TextField label="Название в библиотеке" value={displayName}
+        onChange={e => setDisplayName(e.target.value)} hint="авто из номера" />
 
       {/* Кнопка, открывающая файловый диалог, — скрытый input + `Button` (как в `DataSetsResource`):
           сам `<label for>` не даёт ни формы-пилюли, ни кольца фокуса. «Распознать скан» — tonal, а не
