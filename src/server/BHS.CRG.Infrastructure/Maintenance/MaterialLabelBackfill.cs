@@ -126,11 +126,10 @@ public class MaterialLabelBackfill(
     /// </summary>
     private async Task<List<string>> IdentityKeysAsync(CancellationToken ct)
     {
-        var composites = await db.DocumentTypes.AsNoTracking()
-            .Where(t => t.Kind == DocumentTypeKind.Composite)
+        var allTypes = await db.DocumentTypes.AsNoTracking()
             .OrderBy(t => t.Name)   // детерминированный порядок: от него зависит порядок слов в имени
             .ToListAsync(ct);
-        return MaterialIdentity.KeysOf(composites).ToList();
+        return MaterialIdentity.KeysOf(allTypes).ToList();
     }
 
     /// <summary>

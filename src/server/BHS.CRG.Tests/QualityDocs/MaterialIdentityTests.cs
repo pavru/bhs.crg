@@ -48,4 +48,30 @@ public class MaterialIdentityTests
     [Fact]
     public void KeysOf_NoMaterialType_IsEmpty()
         => Assert.Empty(MaterialIdentity.KeysOf([Unit, Org]));
+
+    /// <summary>
+    /// Подтип материала — тоже материал: поле документа качества он наследует, а собственное поле
+    /// идентичности («ДлинаБарабана» у кабеля) добавляет. Клиент решает это через
+    /// resolveEffectiveFields; разойдись семантики — подтип показывался бы на вкладке, но при
+    /// генерации не сопоставлялся.
+    /// </summary>
+    [Fact]
+    public void KeysOf_SubtypeInheritsMaterialityAndAddsOwnKeys()
+    {
+        var cable = Composite("Кабель", """
+            { "fields": [ { "key": "МаркаКабеля", "tags": ["identity"] } ] }
+            """);
+        cable.SetParent(Material.Id);
+        var all = new List<DocumentType> { Unit, Org, Material, cable };
+
+        Assert.True(MaterialIdentity.IsMaterial(cable, all));
+        Assert.Contains("МаркаКабеля", MaterialIdentity.KeysOf(all));
+        Assert.Contains("Наименование", MaterialIdentity.KeysOf(all));
+        Assert.DoesNotContain("ЕдиницаИзмерения", MaterialIdentity.KeysOf(all));
+    }
+
+    [Fact]
+    public void QualityDocFieldOf_FindsTargetFieldByTag()
+        => Assert.Equal("ДокументПодтверждающийКачество",
+            MaterialIdentity.QualityDocFieldOf([Unit, Org, Material]));
 }

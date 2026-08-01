@@ -16,17 +16,15 @@ public class QualityLinkResolver(AppDbContext db) : IQualityLinkResolver
     {
         // Поля идентичности материала и целевое поле ссылки берём по функциональным тэгам
         // (material.identity / material.qualityDocLink) из составных типов, а не по именам.
-        var composites = await db.DocumentTypes.AsNoTracking()
-            .Where(t => t.Kind == DocumentTypeKind.Composite)
-            .ToListAsync(ct);
+        // Все типы, а не только составные: цепочка наследования разрешается по списку, и обрыв
+        // цепочки молча отнял бы у подтипа унаследованные тэги.
+        var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
 
         // Только у типов, способных нести документ качества (issue #569): тэг identity носят и
         // единица измерения, и организация, а сопоставление по «шт» приклеило бы один сертификат
         // ко всем материалам с этой единицей.
-        var identityFields = MaterialIdentity.KeysOf(composites);
-        var targetField = composites
-            .SelectMany(t => SchemaTags.FieldKeysWithTag(t.Schema, FunctionalTag.MaterialQualityDocLink))
-            .FirstOrDefault();
+        var identityFields = MaterialIdentity.KeysOf(allTypes);
+        var targetField = MaterialIdentity.QualityDocFieldOf(allTypes);
 
         if (identityFields.Length == 0 || targetField is null) return; // тэги не настроены — нечего подмешивать
 
