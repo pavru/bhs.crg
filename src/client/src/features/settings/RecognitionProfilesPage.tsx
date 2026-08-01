@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, ArrowUp, ArrowDown, Lock, RotateCcw, ScanText, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Lock, RotateCcw, ScanText, AlertTriangle } from 'lucide-react';
+import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { Modal } from '@/shared/ui/Modal';
@@ -91,16 +92,8 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
               {FIELD_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
             <span className="flex items-center gap-0.5">
-              {/* aria-disabled, а не disabled (issue #517) — см. ValuesEditor: браузер снимает
-                  фокус с погасшей кнопки, и на последнем шаге перестановки клавиатурой
-                  пользователь терял место. */}
-              <button type="button" onClick={() => { if (i > 0) move(i, i - 1); }} aria-disabled={i === 0}
-                className="p-0.5 text-fg4 hover:text-fg2 aria-disabled:opacity-25 aria-disabled:hover:text-fg4"
-                title="Выше"><ArrowUp size={12} /></button>
-              <button type="button" onClick={() => { if (i < fields.length - 1) move(i, i + 1); }}
-                aria-disabled={i === fields.length - 1}
-                className="p-0.5 text-fg4 hover:text-fg2 aria-disabled:opacity-25 aria-disabled:hover:text-fg4"
-                title="Ниже"><ArrowDown size={12} /></button>
+              <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
+                isFirst={i === 0} isLast={i === fields.length - 1} />
               <button type="button" onClick={() => remove(i)} disabled={locked}
                 className="p-0.5 text-fg4 hover:text-danger disabled:opacity-25"
                 title={locked ? 'Обязательное поле — удалить нельзя' : 'Удалить'}><Trash2 size={13} /></button>

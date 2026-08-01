@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { GripVertical, Layers, Trash2, ArrowUp, ArrowDown, Plus, Lock } from 'lucide-react';
+import { GripVertical, Layers, Trash2, Plus, Lock } from 'lucide-react';
+import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Button } from '@/shared/ui/Button';
 import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/shared/api/schema';
 import { FieldCard, fieldTypeSummary, type FieldRegistries } from './FieldBuilder';
@@ -294,10 +295,8 @@ export function GroupedFieldsEditor({
               />
               <span className="text-xs text-fg4 shrink-0">{members.length}</span>
               <div className="flex items-center gap-0.5 shrink-0">
-                <button type="button" onClick={() => moveGroup(group.key, -1)} disabled={gi === 0}
-                  className="p-1 text-fg4 hover:text-fg2 disabled:opacity-20" title="Выше"><ArrowUp size={13} /></button>
-                <button type="button" onClick={() => moveGroup(group.key, 1)} disabled={gi === groups.length - 1}
-                  className="p-1 text-fg4 hover:text-fg2 disabled:opacity-20" title="Ниже"><ArrowDown size={13} /></button>
+                <MoveButtons onUp={() => moveGroup(group.key, -1)} onDown={() => moveGroup(group.key, 1)}
+                  isFirst={gi === 0} isLast={gi === groups.length - 1} size={13} />
                 <button type="button" onClick={() => deleteGroup(group.key)}
                   className="p-1 text-fg4 hover:text-danger" title="Удалить группу (поля → «Без группы»)"><Trash2 size={13} /></button>
               </div>

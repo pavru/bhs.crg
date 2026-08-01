@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import {
-  ChevronDown, ChevronUp, SlidersHorizontal, Plus, Trash2, GripVertical, ArrowUp, ArrowDown,
-} from 'lucide-react';
+import { ChevronDown, ChevronUp, SlidersHorizontal, Plus, Trash2, GripVertical } from 'lucide-react';
+import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { useUpdateTemplateParameters } from '@/shared/api/templates';
 import { moveItem } from '@/shared/utils/moveItem';
 import type { Template, TemplateParam } from '@/shared/api/types';
@@ -99,10 +98,8 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
               </select>
               <ParamDefault type={p.type} value={p.default} onChange={v => patch(i, { default: v })} />
               <span className="flex items-center gap-0.5 shrink-0">
-                <button onClick={() => move(i, i - 1)} disabled={i === 0} title="Выше"
-                  className="p-0.5 text-fg4 hover:text-fg2 disabled:opacity-25"><ArrowUp size={12} /></button>
-                <button onClick={() => move(i, i + 1)} disabled={i === rows.length - 1} title="Ниже"
-                  className="p-0.5 text-fg4 hover:text-fg2 disabled:opacity-25"><ArrowDown size={12} /></button>
+                <MoveButtons onUp={() => move(i, i - 1)} onDown={() => move(i, i + 1)}
+                  isFirst={i === 0} isLast={i === rows.length - 1} />
                 <button onClick={() => save(rows.filter((_, idx) => idx !== i))} title="Удалить параметр"
                   className="p-1 text-stroke-strong hover:text-danger"><Trash2 size={12} /></button>
               </span>
