@@ -11,6 +11,7 @@ import {
 import { IntegrationSettingsSection } from './IntegrationSettingsSection';
 import { EmailSettingsSection } from './EmailSettingsSection';
 import { CollapsibleSection } from './CollapsibleSection';
+import { ImageMaintenanceSection } from './ImageMaintenanceSection';
 
 // ─── Settings hook (re-exported for use by other pages) ───────────────────────
 
@@ -381,6 +382,8 @@ export function SettingsPage() {
       <EmailSettingsSection />
 
       {/* ── Backup & Restore ───────────────────────────────────────────────── */}
+      <ImageMaintenanceSection />
+
       <CollapsibleSection title="Резервное копирование" storageKey="backup" defaultOpen={false}>
         <p className="text-xs text-fg3">
           Резервная копия включает: типы документов, шаблоны, каталог сущностей и общие данные.
