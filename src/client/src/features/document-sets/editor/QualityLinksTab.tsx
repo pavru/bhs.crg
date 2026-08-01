@@ -83,11 +83,13 @@ function normalizeKey(s: string | null | undefined): string {
   return s.split(/\s+/).filter(Boolean).join(' ').replace(/[.\s]+$/, '').toLowerCase();
 }
 
-interface MaterialRow { key: string; label: string; idValues: string[] }
+export interface MaterialRow { key: string; label: string; idValues: string[] }
 
 // ─── Модалка выбора/создания документа для связывания ───────────────────────────
 
-function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, materials, onPick }: {
+/** Выбор/создание документа качества для набора материалов. Переиспользуется экраном контроля
+ *  связок (issue #555) — там материал приходит из самой связки, а не из набора данных. */
+export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, materials, onPick }: {
   open: boolean; onClose: () => void; allDocTypes: DocumentType[];
   scope: CatalogScope; scopeId: string | null; materials: MaterialRow[];
   onPick: (docId: string) => void;
