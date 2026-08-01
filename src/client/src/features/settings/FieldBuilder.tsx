@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Plus, Trash2, ArrowUp, ArrowDown, Cpu, GripVertical, ChevronDown, ChevronUp, Lock, Link2, FunctionSquare } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Button } from '@/shared/ui/Button';
@@ -6,7 +6,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import type { DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import type { SchemaField, FieldGroup } from '@/shared/api/schema';
-import { TYPE_LABELS, toCamelKey, nextAutoKey } from './schemaConstants';
+import { TYPE_LABELS, toCamelKey, nextAutoKey, nextSavedKey } from './schemaConstants';
 import { useTagRegistry, fieldTags, type TagDefinition } from '@/shared/api/tags';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
 import { moveItem } from '@/shared/utils/moveItem';
@@ -108,8 +108,8 @@ interface FieldCardProps {
   field: SchemaField;
   reg: FieldRegistries;
   keyConflict: boolean;
-  /** Поле ещё НЕ сохранено (issue #355): ключ авто-следует за именем. У сохранённого — заморожен. */
-  isNew: boolean;
+  /** Ключи полей из СОХРАНЁННОЙ схемы (issue #355). Не передан — все поля считаются новыми. */
+  persistedKeys?: Set<string>;
   /** Соседние поля (для пикера ссылок + детекции циклов расчётного поля, issue #368) — без самого себя. */
   siblingFields?: { key: string; title: string; type: string; computed?: boolean; expression?: string }[];
   /** Смена ключа СОХРАНЁННОГО поля (issue #357) — для предложения миграции данных на сохранении схемы. */
@@ -268,20 +268,39 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
  *  редактор (все ветки типов/опций/тэгов). Индекс-независима — переиспользуется в плоском и
  *  группированном представлении (issue #197 Фаза C). */
 export function FieldCard({
-  field, reg, keyConflict, isNew, siblingFields, onKeyRename, open, onToggleOpen, onChange, onRemove,
+  field, reg, keyConflict, persistedKeys, siblingFields, onKeyRename, open, onToggleOpen, onChange, onRemove,
   onMoveUp, onMoveDown, isFirst, isLast, dragging, onDragStart, onDragEnd, onDragOver, onDrop,
 }: FieldCardProps) {
   const { primitiveTypes, enumTypes, tagRegistry } = reg;
   const tags = field.tags ?? [];
   const [pickerOpen, setPickerOpen] = useState(false);
   // Стабильность ключа (issue #355): у сохранённого поля ключ заморожен (read-only + замок), меняется
-  // только явной разблокировкой с предупреждением о дрейфе данных. originalKey фиксируем на монтировании
-  // (для сохранённого = персистентный ключ) — по нему показываем warning, пока ключ изменён.
+  // только явной разблокировкой с предупреждением о дрейфе данных.
   const [keyUnlocked, setKeyUnlocked] = useState(false);
   const [confirmUnlock, setConfirmUnlock] = useState(false);
-  const [originalKey] = useState(field.key);
+
+  // savedKey — ключ, под которым поле лежит в СОХРАНЁННОЙ схеме, или null для ещё не сохранённого.
+  // Это база сравнения, и она обязана быть СОБСТВЕННЫМ состоянием карточки (issue #527). Прежде
+  // «новизна» выводилась из ТЕКУЩЕГО ключа (`!persistedKeys.has(field.key)`), а база фиксировалась на
+  // монтировании — и то и другое ломалось ровно наоборот:
+  //   • новое поле после сохранения становилось «сохранённым», а база оставалась пустой строкой с
+  //     момента добавления → карточка вечно показывала «ключ изменён с «»» (сам issue #527);
+  //   • у сохранённого поля первое же нажатие клавиши уводило ключ из persistedKeys, поле начинало
+  //     считаться новым, и onKeyRename переставал вызываться со второго символа — в renamesRef
+  //     оседал обрезок вроде «Печат», не совпадавший с итоговым ключом, и перенос данных при
+  //     переименовании молча НЕ предлагался.
+  const [savedKey, setSavedKey] = useState<string | null>(() => nextSavedKey(null, field.key, persistedKeys));
+  useEffect(() => {
+    setSavedKey(k => nextSavedKey(k, field.key, persistedKeys));
+    // Намеренно только по persistedKeys: набор сохранённых ключей меняется после записи схемы, а
+    // печать в поле ключа базу сравнения сдвигать не должна — иначе предупреждение исчезнет ровно
+    // тогда, когда оно и нужно.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistedKeys]);
+
+  const isNew = savedKey === null;
   const keyLocked = !isNew && !keyUnlocked;
-  const keyChanged = !isNew && field.key !== originalKey;
+  const keyChanged = savedKey !== null && field.key !== savedKey;
   const keyAutoNew = isNew && !!field.title.trim() && field.key === toCamelKey(field.title);
   const pickTypes = useMemo(() => buildFieldTypeOptions(reg),
     [reg.compositeTypes, reg.primitiveTypes, reg.enumTypes, reg.allDocTypes]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -351,7 +370,7 @@ export function FieldCard({
         <div className="relative">
           <input
             value={field.key}
-            onChange={e => { onChange({ key: e.target.value }); if (!isNew) onKeyRename?.(originalKey, e.target.value); }}
+            onChange={e => { onChange({ key: e.target.value }); if (savedKey !== null) onKeyRename?.(savedKey, e.target.value); }}
             readOnly={keyLocked}
             placeholder="КлючПоля"
             spellCheck={false}
@@ -416,7 +435,7 @@ export function FieldCard({
       {keyChanged && (
         <p className="text-xs text-danger flex items-start gap-1.5">
           <Lock size={12} className="shrink-0 mt-0.5" />
-          <span>Ключ изменён с «<span className="font-mono">{originalKey}</span>» — данные существующих
+          <span>Ключ изменён с «<span className="font-mono">{savedKey}</span>» — данные существующих
             документов останутся под старым ключом (осиротеют). Перенос старый→новый — через «Аудит»
             (переименование осиротевшего ключа в поле схемы).</span>
         </p>
@@ -426,7 +445,7 @@ export function FieldCard({
         onOpenChange={setConfirmUnlock}
         title="Изменить ключ поля?"
         description={<p>Ключ — идентификатор хранения. После смены данные всех существующих документов
-          этого типа осиротеют по старому ключу «<span className="font-mono">{originalKey}</span>».
+          этого типа осиротеют по старому ключу «<span className="font-mono">{savedKey}</span>».
           Перенести их на новый ключ можно через «Аудит» (переименование осиротевшего ключа). Продолжить?</p>}
         confirmLabel="Изменить ключ"
         onConfirm={() => { setConfirmUnlock(false); setKeyUnlocked(true); }}
@@ -631,7 +650,7 @@ export function FieldBuilder({ fields, onChange, disabledKeys, persistedKeys, co
           field={field}
           reg={reg}
           keyConflict={!!field.key && !!disabledKeys?.has(field.key.trim())}
-          isNew={!persistedKeys?.has(field.key.trim())}
+          persistedKeys={persistedKeys}
           siblingFields={fields.filter((_, idx) => idx !== i).map(f => ({ key: f.key, title: f.title, type: f.type, computed: f.computed, expression: f.expression }))}
           open={openIndex === i}
           onToggleOpen={() => setOpenIndex(o => o === i ? null : i)}

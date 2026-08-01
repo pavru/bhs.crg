@@ -187,7 +187,7 @@ export function GroupedFieldsEditor({
           field={own}
           reg={reg}
           keyConflict={!!own.key && !!disabledKeys?.has(own.key.trim())}
-          isNew={!persistedKeys?.has(own.key.trim())}
+          persistedKeys={persistedKeys}
           onKeyRename={onKeyRename}
           open={openIndex === idx}
           onToggleOpen={() => setOpenIndex(o => o === idx ? null : idx)}
