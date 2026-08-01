@@ -22,4 +22,13 @@ public class MatchKeyNormalizerTests
     [Fact]
     public void Normalize_TrailingDotAndPlain_AreEqual()
         => Assert.Equal(MatchKeyNormalizer.Normalize("Кабель."), MatchKeyNormalizer.Normalize("кабель"));
+
+    /// <summary>
+    /// Легаси-маркер ссылки — оформление превью, а не значение поля. Ключ связи создаётся из строки
+    /// превью (с маркером), а на генерации резолвер видит разрешённое значение (без него): если бы
+    /// нормализация их не сводила, документ качества молча не попал бы в PDF при здоровой связи в UI.
+    /// </summary>
+    [Fact]
+    public void Normalize_RefMarker_IsIgnored()
+        => Assert.Equal(MatchKeyNormalizer.Normalize("шт"), MatchKeyNormalizer.Normalize("🔗 шт"));
 }

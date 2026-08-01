@@ -15,8 +15,12 @@ public static class MatchKeyNormalizer
     public static string Normalize(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return "";
+        // легаси-маркер ссылки «🔗 …» — оформление, а не значение: он приходит только из превью
+        // наборов данных, тогда как резолвер на генерации видит уже разрешённое значение без него.
+        // Если ключ связи был создан из помеченного поля, без этой чистки он не совпал бы никогда.
+        var unmarked = value.Contains("🔗", StringComparison.Ordinal) ? value.Replace("🔗", " ") : value;
         // схлопываем любые пробельные последовательности (в т.ч. окружающие) в одиночный пробел
-        var collapsed = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        var collapsed = string.Join(' ', unmarked.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         // срезаем завершающие точки/пробелы: «шт.» == «шт»
         return collapsed.TrimEnd('.', ' ').ToLowerInvariant();
     }

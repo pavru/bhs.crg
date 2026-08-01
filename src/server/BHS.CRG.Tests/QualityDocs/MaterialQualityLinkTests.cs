@@ -98,6 +98,35 @@ public class MaterialQualityLinkTests
     }
 
     /// <summary>
+    /// Легаси-маркер ссылки в метку не попадает. Составные поля когда-то хранились строкой «🔗 …»,
+    /// и на рабочей базе он оказался у ВСЕХ 113 меток — имя склеивается из полей идентичности, одно
+    /// из которых приносит этот значок в каждую.
+    /// </summary>
+    [Fact]
+    public void LegacyRefMarker_IsStrippedFromLabel()
+    {
+        var link = MaterialQualityLink.Create(CatalogScope.System, null, "шт", Guid.NewGuid());
+        link.DescribeMaterial("🔗 шт · Панель монтажная EKF 710х480");
+
+        Assert.Equal("шт · Панель монтажная EKF 710х480", link.MaterialLabel);
+    }
+
+    /// <summary>
+    /// Метка из одного маркера — пустая метка. Проверка на пустоту идёт ПОСЛЕ чистки, иначе такая
+    /// строка прошла бы её и затёрла уже добытое имя.
+    /// </summary>
+    [Fact]
+    public void MarkerOnlyLabel_DoesNotEraseExistingName()
+    {
+        var link = MaterialQualityLink.Create(CatalogScope.System, null, "шт", Guid.NewGuid());
+        link.DescribeMaterial("Панель монтажная EKF");
+
+        link.DescribeMaterial("🔗 ");
+
+        Assert.Equal("Панель монтажная EKF", link.MaterialLabel);
+    }
+
+    /// <summary>
     /// Метка обрезается до предела колонки (512). Она склеивается из ВСЕХ полей идентичности и
     /// систематически длиннее ключа; переполнение уронило бы весь пакет привязки на 22001 —
     /// несоразмерная плата за декоративный снимок.

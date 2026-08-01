@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SearchInput } from '@/shared/ui/SearchInput';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
@@ -15,6 +16,10 @@ import {
 import type { DocumentInstance, DocumentType, CatalogScope } from '@/shared/api/types';
 import { typeHasTag, findTaggedFieldPath, resolveEffectiveFields } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
+import {
+  assessBulkLink, collectStrings, docHaystackStems, relevance, weighted,
+  type BulkLinkAssessment,
+} from './qualityMatch';
 import { QualityDocForm } from '@/features/quality-docs/QualityDocForm';
 import { recognizeAndUpdate } from '@/features/quality-docs/recognizeImported';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
@@ -40,42 +45,7 @@ function isExpired(doc: QualityDocument, allDocTypes: DocumentType[]): boolean {
   return d < today;
 }
 // ─── Оценка релевантности документа материалу ──────────────────────────────────
-const STOP = new Set(['для', 'или', 'при', 'без', 'шт', 'штук', 'тип', 'сертификат', 'декларация', 'соответствия']);
-function normText(s: string): string {
-  return s.toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/g, ' ').trim();
-}
-function tokenize(s: string): string[] {
-  return normText(s).split(/\s+/).filter(t => t.length >= 3 && !STOP.has(t));
-}
-/** Грубая основа слова: срезаем окончание (русская морфология) — «выключатель»≈«выключатели». */
-function stem(t: string): string { return t.length > 6 ? t.slice(0, 6) : t; }
-function collectStrings(v: unknown, out: string[]): void {
-  if (typeof v === 'string') out.push(v);
-  else if (Array.isArray(v)) for (const x of v) collectStrings(x, out);
-  else if (v && typeof v === 'object') for (const x of Object.values(v)) collectStrings(x, out);
-}
-/** Все строковые реквизиты документа + название — «стог» для сопоставления. */
-function docHaystackStems(doc: QualityDocument): Set<string> {
-  const parts: string[] = [doc.displayName];
-  collectStrings(doc.requisites as Record<string, unknown>, parts);
-  return new Set(tokenize(parts.join(' ')).map(stem));
-}
-interface WeightedToken { t: string; w: number }
-function weighted(query: string): WeightedToken[] {
-  const seen = new Set<string>(); const out: WeightedToken[] = [];
-  for (const t of tokenize(query)) {
-    if (seen.has(t)) continue; seen.add(t);
-    // числа/модели и длинные слова важнее общих коротких слов
-    out.push({ t, w: /\d/.test(t) ? 3 : t.length >= 6 ? 2 : 1 });
-  }
-  return out;
-}
-function relevance(tokens: WeightedToken[], hayStems: Set<string>): number {
-  if (tokens.length === 0) return 0;
-  let matched = 0, total = 0;
-  for (const { t, w } of tokens) { total += w; if (hayStems.has(stem(t))) matched += w; }
-  return total ? matched / total : 0;
-}
+// Сопоставление материала с документом — общий модуль qualityMatch (issue #552).
 
 /** Совпадает с backend MatchKeyNormalizer: схлоп пробелов → срез хвостовых точек/пробелов → регистр. */
 function normalizeKey(s: string | null | undefined): string {
@@ -92,7 +62,7 @@ export interface MaterialRow { key: string; label: string; idValues: string[] }
 export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, materials, onPick }: {
   open: boolean; onClose: () => void; allDocTypes: DocumentType[];
   scope: CatalogScope; scopeId: string | null; materials: MaterialRow[];
-  onPick: (docId: string) => void;
+  onPick: (doc: QualityDocument) => void;
 }) {
   const count = materials.length;
   const [tab, setTab] = useState<'pick' | 'search' | 'create'>('pick');
@@ -137,7 +107,7 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
       d,
       expired: isExpired(d, allDocTypes),
       validUntil: getValidUntil(d, allDocTypes),
-      score: relevance(queryTokens, docHaystackStems(d)), // релевантность 0..1 по всем реквизитам
+      score: relevance(queryTokens, docHaystackStems(d.displayName, d.requisites)), // релевантность 0..1 по всем реквизитам
     }));
     return arr.sort((a, b) => b.score - a.score);
   }, [docs, allDocTypes, queryTokens]);
@@ -169,7 +139,7 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
       let doc = await importQualityDocFromUrl({ url: c.url, title: c.title, documentTypeId: searchType, scope, scopeId });
       // Автоматически распознаём скан импортированного документа (best-effort).
       try { doc = await recognizeAndUpdate(doc, allDocTypes); } catch { /* распознавание не критично */ }
-      onPick(doc.id);
+      onPick(doc);
     } catch (e: unknown) {
       setSearchError(e instanceof Error ? e.message : 'Не удалось импортировать');
     } finally { setImportingUrl(null); }
@@ -212,7 +182,7 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
               <div className="max-h-80 overflow-y-auto divide-y divide-muted border border-stroke rounded-md">
                 {visible.map(({ d, expired, validUntil, score }) => (
                   <div key={d.id} className="flex items-center gap-2 px-3 py-2 hover:bg-brand-subtle transition-colors">
-                    <button onClick={() => onPick(d.id)} className="flex-1 flex items-center gap-2 min-w-0 text-left">
+                    <button onClick={() => onPick(d)} className="flex-1 flex items-center gap-2 min-w-0 text-left">
                       <ShieldCheck size={14} className={expired ? 'text-fg4 shrink-0' : 'text-brand shrink-0'} />
                       <span className="flex-1 text-sm text-fg1 truncate">{d.displayName}</span>
                       {queryTokens.length > 0 && score > 0 && (
@@ -279,7 +249,7 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
 
       {tab === 'create' && (
         <QualityDocForm allDocTypes={allDocTypes} scope={scope} scopeId={scopeId}
-          onSaved={doc => onPick(doc.id)} onCancel={() => setTab('pick')} />
+          onSaved={doc => onPick(doc)} onCancel={() => setTab('pick')} />
       )}
 
     </Modal>
@@ -294,6 +264,11 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   const [scope, setScope] = useState<CatalogScope>('System');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Сводка перед массовой привязкой (issue #552) — показывается, только если что-то не сходится.
+  const [pendingLink, setPendingLink] = useState<{
+    docId: string; docName: string; chosen: MaterialRow[];
+    assessment: BulkLinkAssessment<MaterialRow>;
+  } | null>(null);
   const [suggestions, setSuggestions] = useState<LinkSuggestion[] | null>(null);
   const [suggestSel, setSuggestSel] = useState<Set<string>>(new Set());
   const [suggesting, setSuggesting] = useState(false);
@@ -344,7 +319,10 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       const idValues = identityKeys
         .map(k => rec[k])
         .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
-        .map(v => v.trim());
+        // Легаси-маркер ссылки («🔗 …» — так когда-то хранились составные поля) не относится к
+        // значению: с ним подпись на экране и ключ связи расходились бы с тем, что видит резолвер.
+        .map(v => v.replace(/🔗/g, '').replace(/\s+/g, ' ').trim())
+        .filter(v => v.length > 0);
       if (idValues.length === 0) return;
       const key = normalizeKey(idValues[0]);
       if (!key || seen.has(key)) return;
@@ -376,7 +354,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   // Авто-подсказки: лучший непросроченный документ из библиотеки по релевантности.
   const SUGGEST_MIN = 0.34;
   const libHays = useMemo(
-    () => [...docById.values()].map(d => ({ doc: d, expired: isExpired(d, allDocTypes), stems: docHaystackStems(d) })),
+    () => [...docById.values()].map(d => ({ doc: d, expired: isExpired(d, allDocTypes), stems: docHaystackStems(d.displayName, d.requisites) })),
     [docById, allDocTypes],
   );
   const suggestionByKey = useMemo(() => {
@@ -399,12 +377,42 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
     setSelected(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   }
 
-  async function handlePick(docId: string) {
+  /** Название документа + все его строковые реквизиты — «стог», с которым сравниваем материал. */
+  function docHaystackText(doc: QualityDocument): string[] {
+    const parts: string[] = [doc.displayName];
+    collectStrings(doc.requisites as Record<string, unknown>, parts);
+    return parts;
+  }
+
+  /**
+   * Выбран документ для привязки. Прежде чем связывать — СВОДКА (issue #552).
+   *
+   * Отсюда и родились 68 неверных связок из 69: отметить весь список материалов и ткнуть один
+   * сертификат можно было без единого сигнала, а после привязки все строки выглядели одинаково
+   * благополучно. Запрещать нельзя — у артикулов сравнивать нечего, и запрет ломал бы честный
+   * сценарий; поэтому предупреждаем и показываем, чего именно не сходится.
+   */
+  async function handlePick(doc: QualityDocument) {
+    const chosen = materials.filter(m => selected.has(m.key));
+    const assessment = assessBulkLink(chosen, m => m.label, docHaystackText(doc));
+
+    if (assessment.mismatched.length > 0) {
+      setPickerOpen(false);
+      setPendingLink({ docId: doc.id, docName: doc.displayName, chosen, assessment });
+      return;
+    }
+    await linkChosen(doc.id, chosen);
+  }
+
+  async function linkChosen(docId: string, chosen: MaterialRow[]) {
     // Метку материала кладём в связку сразу (issue #554): человеческое имя есть только здесь —
     // строки наборов данных не хранятся, и на экране контроля восстановить его будет неоткуда.
-    const materials_ = materials.filter(m => selected.has(m.key)).map(m => ({ key: m.key, label: m.label }));
-    await setLinks.mutateAsync({ scope, scopeId: scope === 'Set' ? setId : null, materials: materials_, qualityDocumentId: docId });
+    await setLinks.mutateAsync({
+      scope, scopeId: scope === 'Set' ? setId : null,
+      materials: chosen.map(m => ({ key: m.key, label: m.label })), qualityDocumentId: docId,
+    });
     setPickerOpen(false);
+    setPendingLink(null);
     setSelected(new Set());
   }
 
@@ -557,6 +565,38 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
         генерации — переживает переимпорт набора данных. Подсказки из библиотеки — по релевантности
         (без просроченных); «Принять предложения» привязывает их одним нажатием.
       </p>
+
+      {/* Сводка перед массовой привязкой (issue #552). Появляется, ТОЛЬКО если что-то не сходится:
+          у артикулов сравнивать нечего, и показывать её всегда значило бы приучить нажимать «да». */}
+      <ConfirmDialog
+        open={!!pendingLink} onOpenChange={o => { if (!o) setPendingLink(null); }}
+        title="Материалы не похожи на этот документ"
+        description={pendingLink ? (
+          <div className="space-y-2">
+            <p>
+              Документ <b>{pendingLink.docName}</b>: из {pendingLink.chosen.length} выбранных
+              материалов ему соответствуют {pendingLink.assessment.fits.length},
+              {' '}не похожи — <b>{pendingLink.assessment.mismatched.length}</b>
+              {pendingLink.assessment.unverifiable.length > 0
+                && `, ещё ${pendingLink.assessment.unverifiable.length} проверить нечем (только артикул)`}.
+            </p>
+            <ul className="text-xs text-fg3 space-y-0.5 max-h-40 overflow-y-auto">
+              {pendingLink.assessment.mismatched.slice(0, 8).map(m => (
+                <li key={m.key} className="truncate">• {m.label}</li>
+              ))}
+              {pendingLink.assessment.mismatched.length > 8 && (
+                <li>… и ещё {pendingLink.assessment.mismatched.length - 8}</li>
+              )}
+            </ul>
+            <p className="text-xs text-fg4">
+              Проверка приблизительная — она сравнивает слова материала с текстом документа. Если
+              документ действительно тот, привязывайте.
+            </p>
+          </div>
+        ) : ''}
+        confirmLabel="Всё равно привязать" errorTitle="Не удалось привязать"
+        onConfirm={() => { if (pendingLink) return linkChosen(pendingLink.docId, pendingLink.chosen); }}
+      />
 
       <LinkPickerModal open={pickerOpen} onClose={() => setPickerOpen(false)} allDocTypes={allDocTypes}
         scope={scope} scopeId={scope === 'Set' ? setId : null}
