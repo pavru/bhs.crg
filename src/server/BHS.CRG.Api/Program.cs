@@ -6,6 +6,7 @@ using BHS.CRG.Api.Endpoints.Account;
 using BHS.CRG.Api.Endpoints.Attachments;
 using BHS.CRG.Api.Endpoints.Auth;
 using BHS.CRG.Api.Endpoints.Backup;
+using BHS.CRG.Api.Endpoints.Maintenance;
 using BHS.CRG.Api.Endpoints.Catalog;
 using BHS.CRG.Api.Endpoints.Recognition;
 using BHS.CRG.Api.Endpoints.DataSets;
@@ -225,6 +226,7 @@ builder.Services.AddScoped<IRepository<MaterialQualityLink>, Repository<Material
 
 // ── Backup ────────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<BackupService>();
+builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.ImageBlobMigration>();
 
 // ── Снимок данных для внешних потребителей + MCP (issue #415) ─────────────────
 builder.Services.AddScoped<BHS.CRG.Application.DataSnapshots.IDataSnapshotService,
@@ -435,6 +437,7 @@ app.MapAuthEndpoints();
 app.MapAccountEndpoints();
 app.MapUserEndpoints();
 app.MapBackupEndpoints();
+app.MapMaintenanceEndpoints();
 app.MapCatalogEndpoints();
 app.MapPrimitiveTypeEndpoints();
 app.MapEnumTypeEndpoints();

@@ -15,6 +15,7 @@ import { containsRef } from './brokenRefs';
 import { BrokenCountBadge } from './BrokenCountBadge';
 import { RequisitesTab } from './RequisitesTab';
 import { GenerationTab } from './GenerationTab';
+import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 
 // ── Редактор экземпляра документа: оболочка вкладок ──────────────────────────
 // Сами вкладки вынесены по файлам (#490).
@@ -82,6 +83,8 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
   const [switching, setSwitching] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  // Картинка ещё едет в хранилище — сохранять рано: значение поля появится только после (issue #522).
+  const uploading = useUploadsInFlight();
   // Актуальная функция сохранения активной редактируемой вкладки.
   const saveRef = useRef<(() => Promise<boolean>) | null>(null);
   // «Основа» (issue #223): состояние-зеркало базы для chip шапки — источник правды `_baseRef` живёт в
@@ -144,7 +147,10 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
     setTab(next);
     setPendingTab(null);
   }
+  // Тот же запрет, что у кнопок и горячей клавиши: диалог «есть несохранённое» при переключении
+  // вкладки сохранял бы документ без ещё не доехавшей картинки (issue #532).
   async function saveThenSwitch() {
+    if (uploading) return;
     if (!pendingTab) return;
     setSwitching(true);
     try {
@@ -158,7 +164,9 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
     <div className="flex flex-col min-h-0 flex-1"
       onKeyDown={e => {
         // Ctrl/⌘+Enter — сохранить и закрыть (issue #107 F7); работает из любого поля вкладки реквизитов.
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && editable && !saving) {
+        // uploading — не косметика: горячая клавиша объявлена в подсказке самой кнопки, и без
+        // проверки она сохраняла бы документ БЕЗ картинки, пока та ещё едет (issue #532).
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && editable && !saving && !uploading) {
           e.preventDefault();
           void doSaveAndClose();
         }
@@ -200,10 +208,12 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           {editable && (
             <div className="flex items-center gap-2 shrink-0">
               {savedFlash && <span className="text-sm text-success hidden sm:inline">Сохранено</span>}
-              <Button variant="text" onClick={() => void doSave()} disabled={saving}>
+              <Button variant="text" onClick={() => void doSave()} disabled={saving || uploading}
+                title={uploading ? "Дождитесь загрузки изображения" : undefined}>
                 {saving ? 'Сохранение…' : 'Сохранить'}
               </Button>
-              <Button variant="filled" onClick={() => void doSaveAndClose()} loading={saving} title="Ctrl+Enter">
+              <Button variant="filled" onClick={() => void doSaveAndClose()} loading={saving} disabled={uploading}
+                title={uploading ? 'Дождитесь загрузки изображения' : 'Ctrl+Enter'}>
                 Сохранить и закрыть
               </Button>
             </div>

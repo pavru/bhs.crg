@@ -36,6 +36,21 @@ export interface ImageValue extends ImageOptions {
   src: string;
 }
 
+/**
+ * Значение поля-картинки, лежащей в блоб-хранилище (issue #522). Новая форма записи; читать data-URI
+ * (`ImageValue`) при этом не перестаём никогда — восстановление бэкапа заново впрыскивает старую
+ * форму, а архивы восстановимы неограниченно долго.
+ *
+ * Дискриминатор `"image"`, не `"file"`: узел вложения (`FileAttachment`) обслуживается другим путём
+ * и несёт другой контракт — свести их значило бы отнять у картинки опции размера.
+ */
+export interface ImageBlobValue extends ImageOptions {
+  $type: 'image';
+  blobPath: string;
+  fileName: string;
+  mimeType: string;
+}
+
 export interface FieldGroup {
   key: string;
   title: string;

@@ -33,6 +33,7 @@ import {
   SectionRail, collectConstraintViolations, describeViolationPath, violationRootKey,
 } from '../fields';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 
 // Отчёт «Проверить связки» (issue #99): статус каждого @@ref-поля.
 const CHECK_STATUS: Record<string, { label: string; cls: string }> = {
@@ -112,6 +113,9 @@ export function CatalogEntryForm({
   const [recognizing, setRecognizing] = useState(false);
   const [showAllProxyFields, setShowAllProxyFields] = useState(false); // прокси: раскрыть все поля для переопределения (issue #89)
   const [pendingBase, setPendingBase] = useState<BaseCandidate | null>(null); // подтверждение замены основы
+  // Пока картинка едет в хранилище, значение поля ещё не проставлено — сохранив сейчас, человек
+  // потерял бы её молча: на экране она уже видна (issue #522).
+  const uploading = useUploadsInFlight();
   const createMutation = useCreateCommonDataEntry();
   const updateMutation = useUpdateCommonDataEntry();
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
@@ -681,7 +685,8 @@ export function CatalogEntryForm({
       </div>
       <div className="shrink-0 px-6 py-3 border-t border-stroke flex justify-end gap-2">
         <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
-        <Button type="submit" variant="filled" loading={isPending} disabled={isPending || recognizing}>
+        <Button type="submit" variant="filled" loading={isPending} disabled={isPending || recognizing || uploading}
+          title={uploading ? "Дождитесь загрузки изображения" : undefined}>
           {isPending ? 'Сохранение…' : entry ? 'Сохранить' : 'Создать'}
         </Button>
       </div>
