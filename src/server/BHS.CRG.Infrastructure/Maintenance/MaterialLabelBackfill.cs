@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Schema;
@@ -12,8 +13,10 @@ namespace BHS.CRG.Infrastructure.Maintenance;
 /// <param name="LinksWithoutLabel">Связок без имени на входе.</param>
 /// <param name="Named">Скольким имя нашлось.</param>
 /// <param name="NotFound">Скольким не нашлось — материала больше нет ни в одном подключённом наборе.</param>
-/// <param name="DocumentsScanned">Сколько документов пришлось прочитать (файлы наборов разбираются заново).</param>
-public record MaterialLabelReport(int LinksWithoutLabel, int Named, int NotFound, int DocumentsScanned);
+/// <param name="DocumentsScanned">Сколько документов удалось прочитать (файлы наборов разбираются заново).</param>
+/// <param name="DocumentsFailed">Сколько прочитать НЕ удалось — их материалы в поиске не участвовали.</param>
+public record MaterialLabelReport(
+    int LinksWithoutLabel, int Named, int NotFound, int DocumentsScanned, int DocumentsFailed = 0);
 
 /// <summary>
 /// Разовое восстановление человеческих имён материалов у уже заведённых связей (issue #561).
@@ -23,9 +26,11 @@ public record MaterialLabelReport(int LinksWithoutLabel, int Named, int NotFound
 /// — это боковая панель ВРУ), то есть инструмент поиска дефекта нечитаем ровно там, где нужнее всего:
 /// 41 ключ из 113 — голые артикулы, и неверные связки (#552) сидят именно среди них.
 ///
-/// Имя вычисляется ровно так же, как его считает вкладка «Документы качества» внутри документа:
-/// строки привязанных наборов → поля с тэгом <see cref="FunctionalTag.Identity"/> → ключ из ПЕРВОГО
-/// значения, имя — склейка всех через « · ».
+/// Имя собирается из тех же полей, что читает вкладка «Документы качества» внутри документа — по
+/// тэгу <see cref="FunctionalTag.Identity"/>, — и из тех же ДВУХ источников: строк привязанных
+/// наборов данных И массивов материалов в самих реквизитах документа. Порядок склейки значений
+/// детерминирован (типы по имени), но может отличаться от клиентского: там он задан порядком типов
+/// в ответе API. Для сопоставления это неважно — ключи те же.
 ///
 /// НЕ EF-миграция: читает и разбирает файлы наборов из блоб-хранилища, которого на старте приложения
 /// может не быть. Момент выбирает администратор и видит отчёт — как у переноса картинок (#522).
@@ -50,56 +55,116 @@ public class MaterialLabelBackfill(
         var identityKeys = await IdentityKeysAsync(ct);
         if (identityKeys.Count == 0) return new MaterialLabelReport(links.Count, 0, links.Count, 0);
 
-        // Документы, у которых есть привязки наборов: только их и читаем.
-        var ownerIds = await db.DataSetBindings.Select(b => b.OwnerId).Distinct().ToListAsync(ct);
-
         var named = 0;
+        var scanned = 0;
+        var failed = 0;
+
+        // Источник 1 — массивы материалов в самих реквизитах документов. Дешёвый: только чтение БД,
+        // без блобов. Пропустить его нельзя: связки, заведённые из этой половины, иначе навсегда
+        // остались бы с ключом, да ещё и попали бы в отчёт как «материала больше нет».
+        foreach (var data in await db.DomainObjects.AsNoTracking().Select(o => o.Data).ToListAsync(ct))
+        {
+            ct.ThrowIfCancellationRequested();
+            named += Apply(MaterialsInRequisites(data, identityKeys), byKey);
+        }
+
+        // Источник 2 — строки привязанных наборов данных. Дорогой: файлы скачиваются и разбираются.
+        var ownerIds = await db.DataSetBindings.Select(b => b.OwnerId).Distinct().ToListAsync(ct);
         foreach (var ownerId in ownerIds)
         {
             ct.ThrowIfCancellationRequested();
             IReadOnlyList<BindingPreviewDto> preview;
             // Файл мог исчезнуть, набор — перестать разбираться: один сломанный документ не должен
-            // отменять дозаполнение всех остальных.
-            try { preview = await bindings.PreviewBindingsAsync(ownerId, ct); }
-            catch (Exception) { continue; }
+            // отменять дозаполнение остальных. Но и молчать нельзя — иначе «материала больше нет»
+            // сказали бы про материал, который просто не удалось прочитать.
+            try { preview = await bindings.PreviewBindingsAsync(ownerId, ct); scanned++; }
+            catch (Exception) { failed++; continue; }
 
-            foreach (var (keys, label) in MaterialsOf(preview, identityKeys))
+            named += Apply(MaterialsOf(preview, identityKeys), byKey);
+
+            // Сохраняем по документу, а не одним махом в конце: проход длинный, и если параллельно
+            // снимут связку (экран массового разрыва — ровно тот инструмент, которым админ только что
+            // пользовался), единый SaveChanges упал бы и выбросил ВЕСЬ результат (урок #532).
+            if (!dryRun) await db.SaveChangesAsync(ct);
+        }
+
+        if (!dryRun) await db.SaveChangesAsync(ct);
+        else db.ChangeTracker.Clear();   // сухой прогон не оставляет следов
+
+        return new MaterialLabelReport(links.Count, named, links.Count - named, scanned, failed);
+    }
+
+    /// <summary>Проставляет имена связкам, чей ключ совпал с любым из значений идентичности строки.</summary>
+    private static int Apply(
+        IEnumerable<(IReadOnlyList<string> Keys, string Label)> materials,
+        Dictionary<string, List<MaterialQualityLink>> byKey)
+    {
+        var named = 0;
+        foreach (var (keys, label) in materials)
+        {
+            // Сопоставляем по ЛЮБОМУ значению идентичности — так матчит резолвер связок
+            // (QualityLinkResolver.TryMatch). Перебираем ВСЕ совпавшие ключи, а не только первый:
+            // связки одного материала могли быть заведены и по артикулу, и по наименованию, и
+            // остановка на первом оставила бы вторую группу без имени навсегда.
+            foreach (var key in keys)
             {
-                // Сопоставляем по ЛЮБОМУ значению идентичности — ровно так матчит резолвер связок
-                // (QualityLinkResolver.TryMatch). Хранимый ключ построен по первому непустому полю, а
-                // порядок полей мы здесь воспроизвести не можем: он зависит от порядка типов у клиента.
-                foreach (var key in keys)
+                if (!byKey.TryGetValue(key, out var found)) continue;
+                foreach (var link in found)
                 {
-                    if (!byKey.TryGetValue(key, out var found)) continue;
-                    foreach (var link in found)
-                    {
-                        if (link.MaterialLabel is not null) continue;
-                        link.DescribeMaterial(label);
-                        named++;
-                    }
-                    break;
+                    if (link.MaterialLabel is not null) continue;
+                    link.DescribeMaterial(label);
+                    named++;
                 }
             }
         }
-
-        if (!dryRun && named > 0) await db.SaveChangesAsync(ct);
-        else db.ChangeTracker.Clear();   // сухой прогон не оставляет следов
-
-        return new MaterialLabelReport(links.Count, named, links.Count - named, ownerIds.Count);
+        return named;
     }
 
     /// <summary>
     /// Ключи полей идентичности по всем составным типам — тем же способом, что и резолвер связок
     /// (<c>SchemaTags.FieldKeysWithTag</c>): по тэгу, а не по именам полей.
     /// </summary>
-    private async Task<HashSet<string>> IdentityKeysAsync(CancellationToken ct)
+    private async Task<List<string>> IdentityKeysAsync(CancellationToken ct)
     {
         var composites = await db.DocumentTypes.AsNoTracking()
             .Where(t => t.Kind == DocumentTypeKind.Composite)
+            .OrderBy(t => t.Name)   // детерминированный порядок: от него зависит порядок слов в имени
             .ToListAsync(ct);
         return composites
             .SelectMany(t => SchemaTags.FieldKeysWithTag(t.Schema, FunctionalTag.Identity))
-            .ToHashSet();
+            .Distinct()
+            .ToList();
+    }
+
+    /// <summary>
+    /// Материалы из реквизитов документа: массивы объектов верхнего уровня, у элементов которых есть
+    /// поля идентичности. Тем же способом их собирает вкладка привязок.
+    /// </summary>
+    private static IEnumerable<(IReadOnlyList<string> Keys, string Label)> MaterialsInRequisites(
+        JsonDocument? data, IReadOnlyList<string> identityKeys)
+    {
+        if (data is null) yield break;
+        var root = data.RootElement;
+        if (root.ValueKind != JsonValueKind.Object) yield break;
+
+        foreach (var property in root.EnumerateObject())
+        {
+            if (property.Value.ValueKind != JsonValueKind.Array) continue;
+            foreach (var element in property.Value.EnumerateArray())
+            {
+                if (element.ValueKind != JsonValueKind.Object) continue;
+                var values = identityKeys
+                    .Select(k => element.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String
+                        ? v.GetString() : null)
+                    .Where(v => !string.IsNullOrWhiteSpace(v))
+                    .Select(v => v!.Trim())
+                    .ToList();
+                if (values.Count == 0) continue;
+
+                var keys = values.Select(MatchKeyNormalizer.Normalize).Where(k => k.Length > 0).ToList();
+                if (keys.Count > 0) yield return (keys, string.Join(" · ", values));
+            }
+        }
     }
 
     /// <summary>
@@ -107,7 +172,7 @@ public class MaterialLabelBackfill(
     /// заведена по любому полю идентичности, и совпасть должен любой из них.
     /// </summary>
     private static IEnumerable<(IReadOnlyList<string> Keys, string Label)> MaterialsOf(
-        IReadOnlyList<BindingPreviewDto> preview, HashSet<string> identityKeys)
+        IReadOnlyList<BindingPreviewDto> preview, IReadOnlyList<string> identityKeys)
     {
         foreach (var binding in preview)
         {

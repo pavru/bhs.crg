@@ -39,7 +39,7 @@ public static class MaintenanceEndpoints
             return Results.Ok(new
             {
                 report.LinksWithoutLabel, report.Named, report.NotFound,
-                report.DocumentsScanned, dryRun = isDryRun,
+                report.DocumentsScanned, report.DocumentsFailed, dryRun = isDryRun,
             });
         });
     }

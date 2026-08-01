@@ -11,6 +11,7 @@ interface Report {
   named: number;
   notFound: number;
   documentsScanned: number;
+  documentsFailed: number;
   dryRun: boolean;
 }
 
@@ -47,8 +48,11 @@ export function MaterialLabelSection() {
     setConfirmOpen(false);
     setBusy(true); setError('');
     try {
-      setDone(await run(false));
-      setReport(await run(true));   // пересчёт: показываем, что осталось
+      const result = await run(false);
+      setDone(result);
+      // Пересчёта НЕ делаем: проход читает и разбирает файлы наборов, и повторять его ради
+      // косметики значит гонять всю работу второй раз. Остаток считаем арифметикой.
+      setReport({ ...result, named: 0, notFound: result.notFound, dryRun: true });
     } catch (e) {
       setError(apiError(e, 'Не удалось выполнить'));
     } finally { setBusy(false); }
@@ -95,6 +99,12 @@ export function MaterialLabelSection() {
               <ul className="text-xs text-fg2 space-y-1">
                 <li>Связок без имени: <b>{report.linksWithoutLabel}</b></li>
                 <li>Имя найдётся: <b>{report.named}</b> (прочитано документов: {report.documentsScanned})</li>
+                {report.documentsFailed > 0 && (
+                  <li className="text-warning">
+                    Не удалось прочитать документов: {report.documentsFailed} — их материалы в поиске
+                    не участвовали.
+                  </li>
+                )}
                 {report.notFound > 0 && (
                   <li className="text-fg3">
                     Останутся с ключом: {report.notFound} — этих материалов больше нет ни в одном
