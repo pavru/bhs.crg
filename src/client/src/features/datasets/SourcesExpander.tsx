@@ -203,7 +203,7 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
           onSave={f => save({ rowFilter: f })} onClose={() => setFilterOpen(false)} />
       )}
       {transformsOpen && (
-        <ComputedColumnsDialog initial={src.computedColumns}
+        <ComputedColumnsDialog initial={src.computedColumns} sourceColumns={columns}
           onSave={c => save({ computedColumns: c })} onClose={() => setTransformsOpen(false)} />
       )}
       {sortOpen && (
