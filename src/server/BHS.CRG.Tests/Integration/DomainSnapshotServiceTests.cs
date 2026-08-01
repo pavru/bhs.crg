@@ -229,9 +229,9 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
             var only = await CertAsync("Сертификат стройки");
 
             // Один и тот же материал заведён и на System, и на комплекте — победить обязан комплект.
-            await m.Send(new SetMaterialLinksCommand(CatalogScope.System, null, ["кабель-ввгнг-3х2.5"], wide));
-            await m.Send(new SetMaterialLinksCommand(CatalogScope.Set, setId, ["кабель-ввгнг-3х2.5"], narrow));
-            await m.Send(new SetMaterialLinksCommand(CatalogScope.Construction, constructionId, ["лоток-200"], only));
+            await m.Send(new SetMaterialLinksCommand(CatalogScope.System, null, [new MaterialLinkInput("кабель-ввгнг-3х2.5")], wide));
+            await m.Send(new SetMaterialLinksCommand(CatalogScope.Set, setId, [new MaterialLinkInput("кабель-ввгнг-3х2.5")], narrow));
+            await m.Send(new SetMaterialLinksCommand(CatalogScope.Construction, constructionId, [new MaterialLinkInput("лоток-200")], only));
 
             var links = await Svc(scope).ListMaterialQualityLinksAsync(setId);
 

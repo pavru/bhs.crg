@@ -24,7 +24,19 @@ export interface MaterialQualityLink {
   scope: CatalogScope;
   scopeId?: string | null;
   materialKey: string;
+  /** Человеческое имя материала на момент привязки (issue #554). Пусто у старых связок. */
+  materialLabel?: string | null;
   qualityDocumentId: string;
+  qualityDocumentName: string;
+  qualityDocumentType?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Материал для привязки: ключ и, если есть под рукой, человеческое имя. */
+export interface MaterialLinkInput {
+  key: string;
+  label?: string | null;
 }
 
 // ─── Library ────────────────────────────────────────────────────────────────
@@ -124,10 +136,11 @@ export async function suggestLinks(req: { setId: string; materials: { key: strin
 
 // ─── Links ──────────────────────────────────────────────────────────────────
 
-export function useListMaterialLinks(params: { scope: CatalogScope; scopeId?: string; enabled?: boolean }) {
+/** Без `scope` — связки ВСЕХ областей (для экрана контроля, issue #554). */
+export function useListMaterialLinks(params: { scope?: CatalogScope; scopeId?: string; enabled?: boolean } = {}) {
   const { scope, scopeId, enabled = true } = params;
   return useQuery({
-    queryKey: ['quality-doc-links', scope, scopeId ?? null],
+    queryKey: ['quality-doc-links', scope ?? null, scopeId ?? null],
     queryFn: () => apiClient.get<MaterialQualityLink[]>('/quality-docs/links', { params: { scope, scopeId } }).then(r => r.data),
     enabled,
   });
@@ -136,7 +149,7 @@ export function useListMaterialLinks(params: { scope: CatalogScope; scopeId?: st
 export function useSetMaterialLinks() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { scope: CatalogScope; scopeId?: string | null; materialKeys: string[]; qualityDocumentId: string }) =>
+    mutationFn: (payload: { scope: CatalogScope; scopeId?: string | null; materials: MaterialLinkInput[]; qualityDocumentId: string }) =>
       apiClient.post<{ linked: number }>('/quality-docs/links', payload).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['quality-doc-links'] }),
   });

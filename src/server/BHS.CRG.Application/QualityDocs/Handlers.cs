@@ -16,7 +16,7 @@ public class QualityDocHandlers(
     IRequestHandler<ListQualityDocumentsQuery, IReadOnlyList<QualityDocument>>,
     IRequestHandler<SetMaterialLinksCommand, int>,
     IRequestHandler<RemoveMaterialLinkCommand>,
-    IRequestHandler<ListMaterialLinksQuery, IReadOnlyList<MaterialQualityLink>>
+    IRequestHandler<ListMaterialLinksQuery, IReadOnlyList<MaterialLinkRow>>
 {
     public async Task<QualityDocument> Handle(CreateQualityDocumentCommand cmd, CancellationToken ct)
     {
@@ -78,20 +78,25 @@ public class QualityDocHandlers(
     public async Task<int> Handle(SetMaterialLinksCommand cmd, CancellationToken ct)
     {
         var existing = await linkRepo.FindAsync(l => l.Scope == cmd.Scope && l.ScopeId == cmd.ScopeId, ct);
+        // ToDictionary бросил бы на дубле ключа; с #554 дублей не бывает — уникальный индекс.
         var byKey = existing.ToDictionary(l => l.MaterialKey);
         var count = 0;
-        foreach (var rawKey in cmd.MaterialKeys)
+        foreach (var material in cmd.Materials)
         {
-            var key = MatchKeyNormalizer.Normalize(rawKey);
+            var key = MatchKeyNormalizer.Normalize(material.Key);
             if (key.Length == 0) continue;
             if (byKey.TryGetValue(key, out var link))
             {
                 link.Retarget(cmd.QualityDocumentId);
+                // Метку обновляем, но пустой не затираем: перепривязка с экрана контроля идёт без
+                // имени, и она не должна отнимать имя, добытое при первой привязке.
+                link.DescribeMaterial(material.Label);
                 linkRepo.Update(link);
             }
             else
             {
-                await linkRepo.AddAsync(MaterialQualityLink.Create(cmd.Scope, cmd.ScopeId, key, cmd.QualityDocumentId), ct);
+                await linkRepo.AddAsync(MaterialQualityLink.Create(
+                    cmd.Scope, cmd.ScopeId, key, cmd.QualityDocumentId, material.Label), ct);
             }
             count++;
         }
@@ -106,6 +111,34 @@ public class QualityDocHandlers(
         await linkRepo.SaveChangesAsync(ct);
     }
 
-    public Task<IReadOnlyList<MaterialQualityLink>> Handle(ListMaterialLinksQuery q, CancellationToken ct)
-        => linkRepo.FindAsync(l => l.Scope == q.Scope && l.ScopeId == q.ScopeId, ct);
+    public async Task<IReadOnlyList<MaterialLinkRow>> Handle(ListMaterialLinksQuery q, CancellationToken ct)
+    {
+        // Область необязательна: без неё отдаём связки ВСЕХ областей (экран контроля смотрит поперёк).
+        var links = q.Scope is { } scope
+            ? await linkRepo.FindAsync(l => l.Scope == scope && l.ScopeId == q.ScopeId, ct)
+            : await linkRepo.GetAllAsync(ct);
+        if (links.Count == 0) return [];
+
+        // Имя документа — вторым запросом по нужным id, а не обходом в памяти всей библиотеки.
+        var docIds = links.Select(l => l.QualityDocumentId).Distinct().ToList();
+        var docs = await repo.FindAsync(d => docIds.Contains(d.Id), ct);
+        var byId = docs.ToDictionary(d => d.Id);
+
+        return links
+            .Select(l =>
+            {
+                byId.TryGetValue(l.QualityDocumentId, out var doc);
+                return new MaterialLinkRow(
+                    l.Id, l.MaterialKey, l.MaterialLabel, l.Scope, l.ScopeId, l.QualityDocumentId,
+                    // Документа может не быть только у связки, пережившей ручную чистку БД: внешний
+                    // ключ с каскадом (#554) такие больше не оставляет. Честнее пустого имени.
+                    doc?.DisplayName ?? "(документ удалён)",
+                    doc?.Requisites.RootElement.TryGetProperty("ТипДокумента", out var t) == true
+                        ? t.GetString() : null,
+                    l.CreatedAt, l.UpdatedAt);
+            })
+            .OrderBy(r => r.QualityDocumentName)
+            .ThenBy(r => r.MaterialLabel ?? r.MaterialKey)
+            .ToList();
+    }
 }
