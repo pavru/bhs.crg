@@ -227,6 +227,7 @@ builder.Services.AddScoped<IRepository<MaterialQualityLink>, Repository<Material
 // ── Backup ────────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.ImageBlobMigration>();
+builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.MaterialLabelBackfill>();
 
 // ── Снимок данных для внешних потребителей + MCP (issue #415) ─────────────────
 builder.Services.AddScoped<BHS.CRG.Application.DataSnapshots.IDataSnapshotService,
