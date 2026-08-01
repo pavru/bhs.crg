@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Pencil, Trash2, ShieldCheck, FileText, Search, Globe, ExternalLink, Download, Loader2,
   AlertTriangle, Clock, CircleSlash, Link2,
@@ -16,12 +17,12 @@ import {
   importQualityDocFromUrl, type QualityDocument, type SearchCandidate, type MaterialQualityLink,
 } from '@/shared/api/qualityDocs';
 import type { CatalogScope } from '@/shared/api/types';
-import { resolveEffectiveFields, findTaggedFieldPath } from '@/shared/api/schema';
+import { resolveEffectiveFields, findTaggedFieldPath, typeHasTag } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import type { DocumentType } from '@/shared/api/types';
 import { QualityDocForm } from './QualityDocForm';
 import { recognizeAndUpdate } from './recognizeImported';
-import { QualityDocLinks, nameOf, matchesLink } from './QualityDocLinks';
+import { QualityDocLinks, matchesLink } from './QualityDocLinks';
 import { docState, EXPIRING_SOON_DAYS, type DocState } from './docState';
 
 const SCOPE_LABEL: Record<string, string> = { System: 'Общая', Construction: 'Стройка', Section: 'Раздел', Set: 'Комплект' };
@@ -117,7 +118,8 @@ export function QualityDocsPage() {
               const Icon = meta.icon;
               return (
                 <NavItem key={s} icon={<Icon size={15} />} label={meta.label}
-                  count={items.length} active={stateFilter === s}
+                  active={stateFilter === s}
+                  count={meta.danger ? undefined : items.length}
                   alert={meta.danger ? items.length : undefined} alertDanger={meta.danger}
                   onClick={() => { setStateFilter(stateFilter === s ? null : s); setSelected(null); }} />
               );
@@ -190,7 +192,10 @@ export function QualityDocsPage() {
           <Link2 size={14} className="text-fg4" />
           Связки материалов · {linksByDoc.get(current.id)?.length ?? 0}
         </h3>
-        <QualityDocLinks links={linksByDoc.get(current.id) ?? []} allDocTypes={docTypes} search={search} />
+        {/* Фильтруем строки ТОЛЬКО если запрос попал в связки. Иначе человек, нашедший документ по
+            его собственному имени, увидел бы «ни одна связка не подходит» под заголовком «Связки · 69». */}
+        <QualityDocLinks links={linksByDoc.get(current.id) ?? []} allDocTypes={docTypes}
+          search={(linksByDoc.get(current.id) ?? []).some(l => matchesLink(l, search.trim().toLowerCase())) ? search : ''} />
       </div>
     </div>
   );
@@ -273,15 +278,16 @@ function DocRequisites({ doc, docTypes }: { doc: QualityDocument; docTypes: Docu
     if (!dt) return [];
     return resolveEffectiveFields(dt, docTypes)
       .filter(f => f.type === 'string' || f.type === 'text')
-      .map(f => ({ title: f.title || f.key, value: doc.requisites[f.key] }))
-      .filter((r): r is { title: string; value: string } => typeof r.value === 'string' && r.value.trim() !== '');
+      .map(f => ({ key: f.key, title: f.title || f.key, value: doc.requisites[f.key] }))
+      .filter((r): r is { key: string; title: string; value: string } =>
+        typeof r.value === 'string' && r.value.trim() !== '');
   }, [doc, docTypes]);
 
   if (rows.length === 0) return null;
   return (
     <dl className="rounded-lg border border-stroke bg-base px-3 py-2 text-xs space-y-1">
       {rows.map(r => (
-        <div key={r.title} className="flex gap-2">
+        <div key={r.key} className="flex gap-2">
           <dt className="text-fg4 shrink-0 w-40">{r.title}</dt>
           <dd className="text-fg2 min-w-0 break-words">{r.value}</dd>
         </div>
@@ -294,14 +300,19 @@ function DocRequisites({ doc, docTypes }: { doc: QualityDocument; docTypes: Docu
 function WebSearchModal({ open, onClose, docTypes }: {
   open: boolean; onClose: () => void; docTypes: DocumentType[];
 }) {
+  const qc = useQueryClient();
   const [query, setQuery] = useState('');
   const [candidates, setCandidates] = useState<SearchCandidate[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [importingUrl, setImportingUrl] = useState<string | null>(null);
   const [error, setError] = useState('');
 
+  // Тип берём ТОЛЬКО среди помеченных тэгом «документ качества»: без него q[0] это первый попавшийся
+  // тип документа (например АОСР), и импорт молча создал бы «документ качества» чужого типа, чья
+  // схема потом кормит распознавание. Тот же фильтр — в LinkPickerModal.
   const defaultTypeId = useMemo(() => {
-    const q = docTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract);
+    const q = docTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract
+      && typeHasTag(dt, FUNCTIONAL_TAG.typeQualityDocument, docTypes));
     return q.find(d => /сертификат/i.test(d.name))?.id ?? q[0]?.id ?? '';
   }, [docTypes]);
 
@@ -309,7 +320,11 @@ function WebSearchModal({ open, onClose, docTypes }: {
     if (!query.trim()) return;
     setSearching(true); setError(''); setCandidates(null);
     try { setCandidates(await searchQualityDocs(query.trim())); }
-    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Не удалось выполнить поиск'); }
+    catch (e: unknown) {
+      // Сервер объясняет причину («поиск не настроен») — она полезнее, чем «status code 503».
+      const resp = (e as { response?: { data?: { error?: string } } })?.response;
+      setError(resp?.data?.error ?? (e instanceof Error ? e.message : 'Ошибка поиска'));
+    }
     finally { setSearching(false); }
   }
 
@@ -321,7 +336,13 @@ function WebSearchModal({ open, onClose, docTypes }: {
         url: c.url, documentTypeId: defaultTypeId, title: c.title || c.url,
         scope: 'System' as CatalogScope, scopeId: null,
       });
-      await recognizeAndUpdate(created, docTypes);
+      // Распознавание — best-effort: документ уже импортирован, и падение распознавателя (например,
+      // выключенная Ollama) не должно выглядеть как «не удалось импортировать» — человек нажал бы ещё
+      // раз и завёл дубль.
+      try { await recognizeAndUpdate(created, docTypes); } catch { /* распознавание не критично */ }
+      // Без инвалидации список слева не обновится до перефокуса окна (staleTime 30 с), и тот же
+      // документ импортировали бы повторно.
+      qc.invalidateQueries({ queryKey: ['quality-docs'] });
     } catch (e: unknown) {
       const resp = (e as { response?: { data?: { error?: string } } })?.response;
       setError(resp?.data?.error ?? (e instanceof Error ? e.message : 'Не удалось импортировать'));
@@ -373,4 +394,3 @@ function WebSearchModal({ open, onClose, docTypes }: {
   );
 }
 
-export { nameOf };
