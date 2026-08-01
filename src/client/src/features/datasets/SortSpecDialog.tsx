@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
+import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Modal } from '@/shared/ui/Modal';
 import { rowKey, withRowUid, withRowUids } from '@/shared/utils/rowIdentity';
 import type { SortColumn, SortSpec } from '@/shared/api/types';
@@ -47,18 +48,8 @@ function SortRow({
           </button>
         ))}
       </div>
-      {/* aria-disabled, а не disabled (issue #517): фокус с погасшей кнопки браузер снимает, и
-          на последнем шаге перестановки клавиатурой пользователь терял место. */}
-      <button type="button" onClick={() => { if (!isFirst) onMoveUp(); }} aria-disabled={isFirst}
-        className="p-1 rounded text-fg4 hover:text-fg2 aria-disabled:opacity-25 aria-disabled:hover:text-fg4 shrink-0"
-        title="Выше приоритетом">
-        <ArrowUp size={12} />
-      </button>
-      <button type="button" onClick={() => { if (!isLast) onMoveDown(); }} aria-disabled={isLast}
-        className="p-1 rounded text-fg4 hover:text-fg2 aria-disabled:opacity-25 aria-disabled:hover:text-fg4 shrink-0"
-        title="Ниже приоритетом">
-        <ArrowDown size={12} />
-      </button>
+      <MoveButtons onUp={onMoveUp} onDown={onMoveDown} isFirst={isFirst} isLast={isLast}
+        className="rounded shrink-0" upTitle="Выше приоритетом" downTitle="Ниже приоритетом" />
       <button type="button" onClick={onRemove} className="p-1 rounded text-fg4 hover:text-danger shrink-0" title="Удалить">
         <Trash2 size={12} />
       </button>

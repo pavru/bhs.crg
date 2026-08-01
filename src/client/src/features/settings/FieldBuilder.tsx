@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Plus, Trash2, ArrowUp, ArrowDown, Cpu, GripVertical, ChevronDown, ChevronUp, Lock, Link2, FunctionSquare } from 'lucide-react';
+import { Plus, Trash2, Cpu, GripVertical, ChevronDown, ChevronUp, Lock, Link2, FunctionSquare } from 'lucide-react';
+import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -434,14 +435,8 @@ export function FieldCard({
         )}
         {/* Actions */}
         <div className="flex items-center justify-end gap-0.5">
-          <button type="button" onClick={onMoveUp} disabled={isFirst}
-            className="p-1 text-fg4 hover:text-fg2 disabled:opacity-25">
-            <ArrowUp size={12} />
-          </button>
-          <button type="button" onClick={onMoveDown} disabled={isLast}
-            className="p-1 text-fg4 hover:text-fg2 disabled:opacity-25">
-            <ArrowDown size={12} />
-          </button>
+          <MoveButtons onUp={() => onMoveUp?.()} onDown={() => onMoveDown?.()}
+            isFirst={!!isFirst} isLast={!!isLast} />
           <button type="button" onClick={onRemove}
             className="p-1 text-fg4 hover:text-danger">
             <Trash2 size={12} />

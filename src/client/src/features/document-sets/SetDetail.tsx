@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
-import { Plus, Trash2, Download, Pencil, FolderOpen, Eye, GripVertical, Copy, FolderInput, FolderOutput, ArrowUp, ArrowDown, Layers, FileText, Mail, Database, Table2, Users, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Download, Pencil, FolderOpen, Eye, GripVertical, Copy, FolderInput, FolderOutput, Layers, FileText, Mail, Database, Table2, Users, AlertTriangle } from 'lucide-react';
+import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -271,14 +272,10 @@ export function SetDetail() {
                           <GripVertical size={14} />
                         </button>
                         <div className="flex flex-col items-center -my-1">
-                          <button onClick={() => moveDoc(index, -1)} disabled={index === 0 || reorderMutation.isPending}
-                            className="p-0.5 text-fg4 hover:text-brand disabled:opacity-25 disabled:hover:text-fg4 transition-colors" title="Выше">
-                            <ArrowUp size={13} />
-                          </button>
-                          <button onClick={() => moveDoc(index, 1)} disabled={index === lastIndex || reorderMutation.isPending}
-                            className="p-0.5 text-fg4 hover:text-brand disabled:opacity-25 disabled:hover:text-fg4 transition-colors" title="Ниже">
-                            <ArrowDown size={13} />
-                          </button>
+                          <MoveButtons onUp={() => moveDoc(index, -1)} onDown={() => moveDoc(index, 1)}
+                            isFirst={index === 0} isLast={index === lastIndex}
+                            busy={reorderMutation.isPending} size={13}
+                            className="hover:text-brand transition-colors" />
                         </div>
                       </div>
                     </td>
