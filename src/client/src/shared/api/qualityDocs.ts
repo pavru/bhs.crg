@@ -155,6 +155,16 @@ export function useSetMaterialLinks() {
   });
 }
 
+/** Пакетный разрыв (issue #556): 69 связок одного документа нельзя снимать 69 запросами. */
+export function useRemoveMaterialLinks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) =>
+      apiClient.post<{ removed: number }>('/quality-docs/links/delete', { ids }).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['quality-doc-links'] }),
+  });
+}
+
 export function useRemoveMaterialLink() {
   const qc = useQueryClient();
   return useMutation({

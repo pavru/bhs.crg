@@ -4,7 +4,9 @@ import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/ui/Toast';
-import { useRemoveMaterialLink, useSetMaterialLinks, type MaterialQualityLink } from '@/shared/api/qualityDocs';
+import {
+  useRemoveMaterialLink, useRemoveMaterialLinks, useSetMaterialLinks, type MaterialQualityLink,
+} from '@/shared/api/qualityDocs';
 import { LinkPickerModal } from '@/features/document-sets/editor/QualityLinksTab';
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
 
@@ -31,9 +33,14 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
 }) {
   const toast = useToast();
   const removeLink = useRemoveMaterialLink();
+  const removeLinks = useRemoveMaterialLinks();
   const setLinks = useSetMaterialLinks();
   const [breaking, setBreaking] = useState<MaterialQualityLink | null>(null);
   const [relinking, setRelinking] = useState<MaterialQualityLink | null>(null);
+  // Массовые действия (issue #556): чинить 68 неверных связок по одной неприемлемо.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkRelink, setBulkRelink] = useState(false);
+  const [bulkBreak, setBulkBreak] = useState(false);
 
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -46,6 +53,30 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
   async function breakLink(link: MaterialQualityLink) {
     await removeLink.mutateAsync(link.id);
     toast.success(`Связь снята: ${nameOf(link)}`);
+  }
+
+  const chosen = useMemo(() => links.filter(l => selected.has(l.id)), [links, selected]);
+
+  function toggle(id: string) {
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+
+  async function relinkMany(docId: string) {
+    // Ложится на существующий контракт: массив ключей + один документ, существующие связки
+    // ПЕРЕНАЦЕЛИВАЮТСЯ (Retarget), а не дублируются.
+    await setLinks.mutateAsync({
+      scope: chosen[0].scope, scopeId: chosen[0].scopeId ?? null,
+      materials: chosen.map(l => ({ key: l.materialKey })), qualityDocumentId: docId,
+    });
+    const n = chosen.length;
+    setBulkRelink(false); setSelected(new Set());
+    toast.success(`Перепривязано материалов: ${n}`);
+  }
+
+  async function breakMany() {
+    const { removed } = await removeLinks.mutateAsync(chosen.map(l => l.id));
+    setSelected(new Set());
+    toast.success(`Снято связей: ${removed}`);
   }
 
   async function relink(docId: string) {
@@ -74,7 +105,8 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
       )}
       {shown.map(link => (
         <div key={link.id} className="group flex items-start gap-3 rounded-md px-3 py-2 hover:bg-base">
-          <Link2 size={13} className="text-fg4 shrink-0 mt-1" />
+          <input type="checkbox" checked={selected.has(link.id)} onChange={() => toggle(link.id)}
+            aria-label={`Выбрать ${nameOf(link)}`} className="mt-1 shrink-0" />
           <div className="min-w-0 flex-1">
             {/* Метка первой строкой во всю ширину: имена материалов доходят до сотни знаков,
                 колонки на четверть экрана здесь противопоказаны. Ключ — второй строкой и
@@ -92,6 +124,36 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
           </div>
         </div>
       ))}
+
+      {selected.size > 0 && (
+        <div className="sticky bottom-0 flex items-center gap-2 rounded-md border border-stroke bg-surface px-3 py-2 shadow-sm">
+          <span className="text-sm text-fg2">Выбрано: {selected.size}</span>
+          <Button variant="filled" size="sm" icon={<Replace size={13} />}
+            onClick={() => setBulkRelink(true)}>Перепривязать ({selected.size})</Button>
+          <Button variant="outlined" size="sm" icon={<Unlink size={13} />}
+            onClick={() => setBulkBreak(true)}>Разорвать ({selected.size})</Button>
+          <button type="button" onClick={() => setSelected(new Set())}
+            className="ml-auto text-xs text-fg4 hover:text-fg2">Снять выбор</button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={bulkBreak} onOpenChange={setBulkBreak}
+        title={`Разорвать связи: ${selected.size}?`}
+        description={<p>Выбранные материалы останутся без документов качества — при генерации поле
+          документа качества будет пустым.</p>}
+        confirmLabel="Разорвать"
+        onConfirm={() => breakMany()}
+      />
+
+      {bulkRelink && chosen.length > 0 && (
+        <LinkPickerModal
+          open onClose={() => setBulkRelink(false)} allDocTypes={allDocTypes}
+          scope={chosen[0].scope as CatalogScope} scopeId={chosen[0].scopeId ?? null}
+          materials={chosen.map(l => ({ key: l.materialKey, label: nameOf(l), idValues: [nameOf(l)] }))}
+          onPick={docId => void relinkMany(docId)}
+        />
+      )}
 
       <ConfirmDialog
         open={!!breaking} onOpenChange={o => { if (!o) setBreaking(null); }}
