@@ -127,7 +127,7 @@ export function TypePicker({ open, onOpenChange, types, onSelect, recentKey, tit
                   className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                     active === 0 ? 'bg-tonal text-on-tonal' : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
                   <Ban size={16} className={active === 0 ? 'text-on-tonal' : 'text-fg4'} />
-                  <span className="flex-1 truncate">{noneOption!.label}</span>
+                  <span className="flex-1 truncate" title={noneOption!.label}>{noneOption!.label}</span>
                 </button>
               </li>
             )}
@@ -148,7 +148,7 @@ export function TypePicker({ open, onOpenChange, types, onSelect, recentKey, tit
                           className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                             i === active ? 'bg-tonal text-on-tonal' : 'text-fg1 hover:bg-black/5 dark:hover:bg-white/10'}`}>
                           <Icon size={16} className={i === active ? 'text-on-tonal' : 'text-fg3'} />
-                          <span className="flex-1 truncate">{t.name}</span>
+                          <span className="flex-1 truncate" title={showCode ? `${t.name} (${code})` : t.name}>{t.name}</span>
                           {showCode && <span className={`text-[11px] font-mono shrink-0 ${i === active ? 'text-on-tonal/80' : 'text-fg4'}`}>{code}</span>}
                         </button>
                       </li>

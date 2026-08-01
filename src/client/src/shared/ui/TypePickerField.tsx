@@ -46,12 +46,15 @@ export function TypePickerField({
         data-state={open ? 'open' : 'closed'}
       >
         <Icon size={16} className={`shrink-0 ${selected ? 'text-fg3' : 'text-fg4'}`} />
-        <span className={`flex-1 truncate ${selected ? 'text-fg1' : 'text-fg4'}`}>
+        {/* Подсказка — на самом обрезаемом тексте, а не на кнопке (issue #548): подсказку кнопки
+            наследуют и крестик, и шеврон, и на «Очистить» всплывало бы имя типа. */}
+        <span className={`flex-1 truncate ${selected ? 'text-fg1' : 'text-fg4'}`}
+          title={selected ? (showCode ? `${selected.name} (${code})` : selected.name) : undefined}>
           {selected ? selected.name : placeholder}
         </span>
         {showCode && <span className="text-[11px] font-mono text-fg4 shrink-0">{code}</span>}
         {clearable && selected && !disabled && (
-          <span role="button" tabIndex={-1} aria-label="Очистить"
+          <span role="button" tabIndex={-1} aria-label="Очистить" title="Очистить"
             onClick={e => { e.stopPropagation(); onChange(null); }}
             className="shrink-0 text-fg4 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-fg2 transition-opacity">
             <X size={14} />
