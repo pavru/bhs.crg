@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Boxes, Search, X } from 'lucide-react';
 import { TypePicker, typeIcon, type PickType } from './TypePicker';
 import { OutlinedField } from './OutlinedField';
@@ -47,6 +47,7 @@ export function TypePickerField({
 }) {
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const labelId = useId();
   const selected = value ? types.find(t => t.id === value) : undefined;
   const Icon = selected ? typeIcon(selected) : Boxes;
@@ -67,8 +68,8 @@ export function TypePickerField({
 
   const trigger = (
     <button
+      ref={triggerRef}
       type="button" disabled={disabled} onClick={() => setOpen(true)}
-      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
       aria-haspopup="dialog" aria-expanded={open}
       aria-label={framed ? undefined : ariaLabel} aria-labelledby={framed ? labelId : undefined}
       className={`inline-flex items-center gap-2 ${triggerClass}`}
@@ -92,11 +93,23 @@ export function TypePickerField({
   // «Очистить» — отдельная кнопка РЯДОМ с триггером, а не `<span role="button">` внутри него
   // (issue #565): вложенный интерактив невалиден, и с клавиатуры до него было не добраться.
   // Лишняя остановка Tab здесь правильная — действие полноценное.
+  //
+  // Фокус после нажатия возвращаем на триггер (issue #572): кнопка исчезает вместе со значением, а
+  // удалённому элементу браузер не шлёт blur — обработчик обёртки не срабатывал, поле навсегда
+  // оставалось «в фокусе» (бренд-рамка без фокуса), а сам фокус падал на <body>, и следующий Tab
+  // начинался с начала страницы.
   const clear = showClear && (
     <button type="button" aria-label="Очистить" title="Очистить"
-      onClick={() => onChange(null)}
+      onClick={() => { onChange(null); triggerRef.current?.focus(); }}
       className={`absolute ${framed ? 'right-10' : 'right-9'} top-1/2 -translate-y-1/2 z-10 text-fg4 ` +
-        `opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-fg2 transition-opacity ` +
+        // Прозрачность НЕ отменяет попадания, а крестик лежит поверх триггера: без
+        // pointer-events-none нажатие у правого края на тач-устройстве молча очищало бы значение
+        // вместо открытия пикера (в диалоге материализации — вместе со всем маппингом).
+        // Где hover'а нет, показываем его сразу, иначе до него было бы не добраться.
+        `opacity-0 pointer-events-none transition-opacity hover:text-fg2 ` +
+        `group-hover:opacity-100 group-hover:pointer-events-auto ` +
+        `group-focus-within:opacity-100 group-focus-within:pointer-events-auto ` +
+        `[@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:pointer-events-auto ` +
         `focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-sm`}>
       <X size={14} />
     </button>
