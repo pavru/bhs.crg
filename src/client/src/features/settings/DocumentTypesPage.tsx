@@ -253,13 +253,10 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
         <TextField label="Код" value={code} onChange={e => setCode(e.target.value)}
           required spellCheck={false} className="font-mono" />
       </div>
-      <div>
-        <label className="block text-xs font-medium text-fg2 mb-1">Родительский тип</label>
-        <TypePickerField className="w-full" aria-label="Родительский тип" title="Родительский тип"
-          placeholder="— без родителя —" clearable={{ label: 'Без родителя' }}
-          types={toParentPickTypes(eligibleParents)} value={parentId || undefined}
-          onChange={id => setParentId(id ?? '')} />
-      </div>
+      <TypePickerField className="w-full" label="Родительский тип" title="Родительский тип"
+        placeholder="— без родителя —" clearable={{ label: 'Без родителя' }}
+        types={toParentPickTypes(eligibleParents)} value={parentId || undefined}
+        onChange={id => setParentId(id ?? '')} />
       {/* Прокси/абстрактность — отдельные мгновенные переключатели (не часть формы «Сохранить
           параметры»): каждый — своя мутация, применяется сразу по щелчку (issue #197 Фаза C). */}
       <div className="flex flex-col gap-2 pt-1">
@@ -358,15 +355,10 @@ function CreateForm({
       )}
 
       {sameKindTypes.length > 0 && (
-        <div>
-          <label className="block text-sm font-medium text-fg2 mb-1">
-            Родительский тип (наследование)
-          </label>
-          <TypePickerField className="w-full" aria-label="Родительский тип" title="Родительский тип"
-            placeholder="— без родителя —" clearable={{ label: 'Без родителя' }}
-            types={toParentPickTypes(sameKindTypes)} value={parentId || undefined}
-            onChange={id => setParentId(id ?? '')} />
-        </div>
+        <TypePickerField className="w-full" label="Родительский тип (наследование)" title="Родительский тип"
+          placeholder="— без родителя —" clearable={{ label: 'Без родителя' }}
+          types={toParentPickTypes(sameKindTypes)} value={parentId || undefined}
+          onChange={id => setParentId(id ?? '')} />
       )}
 
       {parentEffectiveFields.length > 0 && (

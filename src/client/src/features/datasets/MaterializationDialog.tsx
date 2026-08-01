@@ -91,18 +91,15 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
           Маппинг задаётся здесь один раз — поля документов совместимого типа ссылаются на источник без маппинга.
         </p>
 
-        <div>
-          <label className="block text-sm font-medium text-fg1 mb-1">Тип для материализации</label>
-          <TypePickerField className="w-full" aria-label="Тип для материализации" title="Тип для материализации"
-            placeholder="— не материализовать —" clearable={{ label: 'Не материализовать' }}
-            recentKey="materialize-type"
-            types={allDocTypes.filter(t => !t.isAbstract).map<PickType>(t => ({
-              id: t.id, name: t.name, code: t.code,
-              section: t.kind === 'Composite' ? 'Составные типы' : 'Типы документов',
-            }))}
-            value={typeId || undefined}
-            onChange={id => { setTypeId(id ?? ''); setMapping({}); setVariantStash({}); }} />
-        </div>
+        <TypePickerField className="w-full" label="Тип для материализации" title="Тип для материализации"
+          placeholder="— не материализовать —" clearable={{ label: 'Не материализовать' }}
+          recentKey="materialize-type"
+          types={allDocTypes.filter(t => !t.isAbstract).map<PickType>(t => ({
+            id: t.id, name: t.name, code: t.code,
+            section: t.kind === 'Composite' ? 'Составные типы' : 'Типы документов',
+          }))}
+          value={typeId || undefined}
+          onChange={id => { setTypeId(id ?? ''); setMapping({}); setVariantStash({}); }} />
 
         {selectedType && (
           effectiveFields.length === 0 ? (
