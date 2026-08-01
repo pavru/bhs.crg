@@ -22,7 +22,7 @@ public static class MaintenanceEndpoints
         {
             var isDryRun = dryRun ?? true;
             var report = await migration.RunAsync(isDryRun, ct);
-            return Results.Ok(new { report.Objects, report.Images, report.Bytes, dryRun = isDryRun });
+            return Results.Ok(new { report.Objects, report.Images, report.Bytes, report.Failed, dryRun = isDryRun });
         });
     }
 }

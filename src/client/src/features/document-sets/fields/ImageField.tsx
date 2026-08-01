@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image as ImageIcon, Trash2, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { formatBytes, uploadImage, loadAttachmentObjectUrl } from '@/shared/api/attachments';
 import { beginUpload, endUpload } from '@/shared/ui/uploadsInFlight';
@@ -41,6 +41,12 @@ export function ImageField({ value, onChange }: {
   const [error, setError] = useState('');
   /** Локальное превью выбранного файла — показывается СРАЗУ, пока байты едут в хранилище. */
   const [pending, setPending] = useState<string | null>(null);
+  /**
+   * Номер актуального выбора (issue #532). Загрузка асинхронна, а поле за это время могут очистить
+   * или выбрать другой файл: без маркера удалённая картинка «воскресала» бы, когда доедет запоздавший
+   * ответ, а из двух загрузок побеждала бы та, что ответила последней, — не та, что выбрана последней.
+   */
+  const pick = useRef(0);
   const img = normalize(value);
   const shownSrc = useImageSrc(img, pending);
   // Превью держим ровно до того мига, как картинка поехала из хранилища: дальше это лишняя копия
@@ -61,20 +67,27 @@ export function ImageField({ value, onChange }: {
     e.target.value = '';   // сбрасываем всегда, иначе повторный выбор того же файла не сработает
     if (!file) return;
     setError('');
+    const mine = ++pick.current;
 
     // Размер проверяем ДО чтения: незачем гонять FileReader по файлу, который всё равно отвергнем.
     const tooBig = checkImageSize(file.size);
     if (tooBig) { setError(tooBig); return; }
 
+    // Счётчик занятости включаем с МОМЕНТА ВЫБОРА, а не после чтения (issue #532): чтение файла на
+    // 10 МБ занимает заметное время, и до его конца кнопка сохранения оставалась бы активной при
+    // ещё пустом значении.
+    beginUpload();
+
     // Тип проверяем по прочитанному, как и раньше (issue #519): accept — только фильтр диалога.
     // Читаем ради проверки и локального превью; в значение уходит ссылка на блоб, а не байты.
     const reader = new FileReader();
-    reader.onerror = () => setError(`Не удалось прочитать файл «${file.name}».`);
+    reader.onerror = () => { endUpload(); setError(`Не удалось прочитать файл «${file.name}».`); };
     reader.onload = () => {
       const checked = checkImageResult(reader.result, file.name);
-      if ('error' in checked) { setError(checked.error); return; }
+      if ('error' in checked) { endUpload(); setError(checked.error); return; }
+      if (pick.current !== mine) { endUpload(); return; }   // выбор уже сменился, пока читали
       setPending(checked.src);   // видно немедленно, ещё до загрузки
-      void upload(file);
+      void upload(file, mine);
     };
     reader.readAsDataURL(file);
   }
@@ -83,13 +96,16 @@ export function ImageField({ value, onChange }: {
    * Байты уезжают в хранилище, в значении остаётся ссылка (issue #522). Опции размера переносим со
    * старого значения — смена картинки не должна сбрасывать заданную ширину и выравнивание.
    */
-  async function upload(file: File) {
-    beginUpload();
+  async function upload(file: File, mine: number) {
     try {
       const node = await uploadImage(file);
+      // Запоздавший ответ не должен ни воскрешать удалённую картинку, ни перебивать более свежий
+      // выбор: значение меняем, только если это всё ещё ТОТ выбор (issue #532).
+      if (pick.current !== mine) return;
       const opts: ImageOptions = img ?? {};
       onChange({ ...node, ...opts });
     } catch (e) {
+      if (pick.current !== mine) return;
       // Превью убираем: иначе человек уверен, что картинка на месте, а её нет (issue #522).
       setPending(null);
       setError(apiError(e, 'Не удалось загрузить изображение'));
@@ -139,7 +155,7 @@ export function ImageField({ value, onChange }: {
       </div>
 
       <div className="flex items-center gap-4">
-        <button type="button" onClick={() => { setPending(null); onChange(null); }}
+        <button type="button" onClick={() => { pick.current++; setPending(null); onChange(null); }}
           className="flex items-center gap-1.5 text-xs text-danger hover:text-danger transition-colors">
           <Trash2 size={12} /> Удалить изображение
         </button>

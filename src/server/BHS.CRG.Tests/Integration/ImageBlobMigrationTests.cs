@@ -105,4 +105,29 @@ public class ImageBlobMigrationTests(IntegrationTestFixture fx)
 
         Assert.Equal(2, report.Images);
     }
+
+    /// <summary>
+    /// Битый base64 в системе ожидаем — материализатор Typst его молча пропускает. Отказ ОДНОЙ
+    /// картинки не должен губить весь прогон: соседняя обязана переехать, а отказ — попасть в отчёт
+    /// (issue #532).
+    /// </summary>
+    [Fact]
+    public async Task BrokenImage_DoesNotKillTheRun()
+    {
+        var id = await SeedAsync(
+            "{\"Битая\":\"data:image/png;base64,не-base64!!\","
+            + "\"Целая\":\"" + Png + "\"}");
+
+        using var scope = fx.Services.CreateScope();
+        var report = await MigrationFor(scope).RunAsync(dryRun: false);
+
+        Assert.Equal(1, report.Images);   // целая переехала
+        Assert.Equal(1, report.Failed);   // битая честно посчитана
+
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var saved = await db.DomainObjects.FindAsync(id);
+        var root = saved!.Data.RootElement;
+        Assert.Equal("image", root.GetProperty("Целая").GetProperty("$type").GetString());
+        Assert.StartsWith("data:image", root.GetProperty("Битая").GetString());   // оставлена как была
+    }
 }

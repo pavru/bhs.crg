@@ -13,7 +13,8 @@ namespace BHS.CRG.Infrastructure.Maintenance;
 /// <param name="Objects">Записей затронуто.</param>
 /// <param name="Images">Картинок перенесено.</param>
 /// <param name="Bytes">Освобождено из JSONB (размер самих data-URI).</param>
-public record ImageMigrationReport(int Objects, int Images, long Bytes);
+/// <param name="Failed">Картинок не удалось перенести (битый base64, недоступное хранилище).</param>
+public record ImageMigrationReport(int Objects, int Images, long Bytes, int Failed = 0);
 
 /// <summary>
 /// Разовый перенос картинок из JSONB в блоб-хранилище (issue #522).
@@ -35,17 +36,23 @@ public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
         var images = 0;
         var bytes = 0L;
 
-        // Фильтруем в памяти: записей каталога десятки, а выразить «в JSONB есть data:image» через
-        // EF пришлось бы сырым SQL — цена не окупается.
-        var all = await db.DomainObjects.ToListAsync(ct);
-        var candidates = all.Where(o => o.Data.RootElement.GetRawText().Contains("data:image", StringComparison.Ordinal));
+        // Отбор ИДЁТ В БАЗЕ (issue #532). Читать всё в память нельзя: в этой же таблице лежат
+        // экземпляры документов, то есть ровно те многомегабайтные JSONB, ради которых миграция и
+        // затевается, — мы бы вытащили их целиком, да ещё и пересобрали в строку на каждую запись.
+        var sql = "SELECT \"Id\" FROM domain_objects WHERE \"Data\"::text LIKE '%data:image%'";
+        var ids = await db.Database.SqlQueryRaw<Guid>(sql).ToListAsync(ct);
 
-        foreach (var obj in candidates)
+        var failed = 0;
+        foreach (var id in ids)
         {
+            var obj = await db.DomainObjects.FirstOrDefaultAsync(o => o.Id == id, ct);
+            if (obj is null) continue;   // запись успели удалить, пока шёл перенос
+
             var node = JsonNode.Parse(obj.Data.RootElement.GetRawText());
             if (node is null) continue;
 
             var moved = await MoveAsync(node, dryRun, ct);
+            failed += moved.Failed;
             if (moved.Count == 0) continue;
 
             objects++;
@@ -56,17 +63,49 @@ public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
             {
                 obj.SetData(JsonDocument.Parse(node.ToJsonString()));
                 db.DomainObjects.Update(obj);
+                // Сохраняем ПОЗАПИСНО (issue #532): один общий SaveChanges держал бы весь перенос
+                // одной транзакцией, а правки, сделанные людьми во время прогона, затирались бы
+                // снимком, снятым до его начала.
+                await db.SaveChangesAsync(ct);
             }
         }
 
-        if (!dryRun && objects > 0) await db.SaveChangesAsync(ct);
-        return new ImageMigrationReport(objects, images, bytes);
+        // Документы качества хранят реквизиты в своей таблице, и поле-картинка там тоже бывает
+        // (QualityDocForm рисует ImageField). Без этого прохода отчёт «переносить больше нечего»
+        // означал бы «в domain_objects нечего», а человек прочитал бы его как «JSONB чист» (#532).
+        var qualitySql = "SELECT \"Id\" FROM quality_documents WHERE \"Requisites\"::text LIKE '%data:image%'";
+        foreach (var id in await db.Database.SqlQueryRaw<Guid>(qualitySql).ToListAsync(ct))
+        {
+            var doc = await db.QualityDocuments.FirstOrDefaultAsync(d => d.Id == id, ct);
+            if (doc is null) continue;
+
+            var node = JsonNode.Parse(doc.Requisites.RootElement.GetRawText());
+            if (node is null) continue;
+
+            var moved = await MoveAsync(node, dryRun, ct);
+            failed += moved.Failed;
+            if (moved.Count == 0) continue;
+
+            objects++;
+            images += moved.Count;
+            bytes += moved.Bytes;
+
+            if (!dryRun)
+            {
+                doc.Update(doc.DocumentTypeId, doc.DisplayName, JsonDocument.Parse(node.ToJsonString()));
+                db.QualityDocuments.Update(doc);
+                await db.SaveChangesAsync(ct);
+            }
+        }
+
+        return new ImageMigrationReport(objects, images, bytes, failed);
     }
 
-    private async Task<(int Count, long Bytes)> MoveAsync(JsonNode node, bool dryRun, CancellationToken ct)
+    private async Task<(int Count, long Bytes, int Failed)> MoveAsync(JsonNode node, bool dryRun, CancellationToken ct)
     {
         var count = 0;
         var bytes = 0L;
+        var failed = 0;
 
         // Возвращаем ПАРУ «узнали ли картинку» и «чем заменить»: без первого флага сухой прогон
         // считал каждую картинку дважды — замены нет, обход спускается внутрь узла {src, ...} и
@@ -82,31 +121,44 @@ public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
             };
             if (dataUri is null) return (false, null);
 
-            count++;
-            bytes += dataUri.Length;
-            if (dryRun) return (true, null);
+            if (dryRun) { count++; bytes += dataUri.Length; return (true, null); }
 
-            var comma = dataUri.IndexOf(',', StringComparison.Ordinal);
-            var mime = dataUri[5..dataUri.IndexOf(';', StringComparison.Ordinal)];
-            var raw = System.Convert.FromBase64String(dataUri[(comma + 1)..]);
-            var ext = mime switch
+            // Отказ ОДНОЙ картинки не должен губить весь прогон (issue #532): битый base64 в системе
+            // ожидаем — материализатор Typst его молча пропускает, — а перебой в хранилище на девятой
+            // записи из десяти оставил бы восемь перенесённых и ни одной сохранённой.
+            try
             {
-                "image/png" => "png", "image/jpeg" => "jpg", "image/gif" => "gif",
-                "image/webp" => "webp", "image/svg+xml" => "svg", _ => "bin",
-            };
-            var path = await blob.UploadAsync($"image.{ext}", new MemoryStream(raw), mime, ct);
+                var comma = dataUri.IndexOf(',', StringComparison.Ordinal);
+                var mime = dataUri[5..dataUri.IndexOf(';', StringComparison.Ordinal)];
+                var raw = System.Convert.FromBase64String(dataUri[(comma + 1)..]);
+                var ext = mime switch
+                {
+                    "image/png" => "png", "image/jpeg" => "jpg", "image/gif" => "gif",
+                    "image/webp" => "webp", "image/svg+xml" => "svg", _ => "bin",
+                };
+                var path = await blob.UploadAsync($"image.{ext}", new MemoryStream(raw), mime, ct);
 
-            var replacement = new JsonObject
+                var replacement = new JsonObject
+                {
+                    ["$type"] = ImageValues.BlobTypeMarker,
+                    ["blobPath"] = path,
+                    ["fileName"] = $"image.{ext}",
+                    ["mimeType"] = mime,
+                };
+                // Опции размера переносим как есть — иначе печать «поедет» в вёрстке документа.
+                foreach (var key in ImageValues.OptionKeys)
+                    if (options?[key] is JsonValue opt) replacement[key] = opt.DeepClone();
+
+                count++;
+                bytes += dataUri.Length;
+                return (true, replacement);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception)
             {
-                ["$type"] = ImageValues.BlobTypeMarker,
-                ["blobPath"] = path,
-                ["fileName"] = $"image.{ext}",
-                ["mimeType"] = mime,
-            };
-            // Опции размера переносим как есть — иначе печать «поедет» в вёрстке документа.
-            foreach (var key in ImageValues.OptionKeys)
-                if (options?[key] is JsonValue opt) replacement[key] = opt.DeepClone();
-            return (true, replacement);
+                failed++;
+                return (true, null);   // узел оставляем как был — заберём следующим прогоном
+            }
         }
 
         async Task WalkAsync(JsonNode? current)
@@ -133,6 +185,6 @@ public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
         }
 
         await WalkAsync(node);
-        return (count, bytes);
+        return (count, bytes, failed);
     }
 }

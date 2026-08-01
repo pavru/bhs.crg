@@ -35,7 +35,12 @@ public static class ImageValues
     public static bool TryGetImageBlobPath(JsonObject obj, out string blobPath)
     {
         blobPath = "";
-        if (obj["$type"]?.GetValue<string>() != BlobTypeMarker) return false;
+        // TryGetValue, а не GetValue: этот разбор идёт по ВСЕМУ контексту генерации, включая данные
+        // наборов и плагинов, а там «$type» может оказаться числом или объектом — GetValue бросил бы
+        // InvalidOperationException и уронил генерацию PDF вместо того, чтобы пропустить чужой узел
+        // (issue #532).
+        if (obj["$type"] is not JsonValue t || !t.TryGetValue<string>(out var marker) || marker != BlobTypeMarker)
+            return false;
         if (obj["blobPath"] is not JsonValue v || !v.TryGetValue<string>(out var p) || p.Length == 0) return false;
         blobPath = p;
         return true;

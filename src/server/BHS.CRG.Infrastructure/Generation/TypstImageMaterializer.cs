@@ -90,7 +90,8 @@ public static class TypstImageMaterializer
         // хранилища; форма на выходе та же, что и у data-URI, поэтому шаблоны не различают.
         if (child is JsonObject blobNode && ImageValues.TryGetImageBlobPath(blobNode, out var blobPath))
         {
-            var path = await WriteBlobImageAsync(blobPath, ctx, ct);
+            var mime = blobNode["mimeType"] is JsonValue mv && mv.TryGetValue<string>(out var m) ? m : null;
+            var path = await WriteBlobImageAsync(blobPath, mime, ctx, ct);
             if (path is not null) set(BuildImageNode(path, blobNode));
             return; // не спускаемся внутрь — это лист-значение
         }
@@ -109,7 +110,8 @@ public static class TypstImageMaterializer
     /// блоб не читается — узел оставляем как есть: генерация не должна падать целиком из-за одной
     /// картинки, а пустой src в шаблоне даст понятную ошибку Typst с именем файла.
     /// </summary>
-    private static async Task<string?> WriteBlobImageAsync(string blobPath, Context ctx, CancellationToken ct)
+    private static async Task<string?> WriteBlobImageAsync(
+        string blobPath, string? mimeType, Context ctx, CancellationToken ct)
     {
         if (ctx.Blob is null) return null;
         try
@@ -119,11 +121,19 @@ public static class TypstImageMaterializer
             await stream.CopyToAsync(ms, ct);
 
             Directory.CreateDirectory(ctx.AssetsDir);
-            var ext = Path.GetExtension(blobPath).TrimStart('.');
+            // Расширение — из ЗАЯВЛЕННОГО типа, а путь блоба только запасной вариант (issue #532):
+            // путь может оканчиваться чем угодно, а Typst выбирает декодер по расширению файла.
+            // «bin» из ExtFor означает «тип незнакомый» — тогда решает путь блоба, и лишь затем png.
+            var byMime = mimeType is null ? "bin" : ExtFor(mimeType);
+            var ext = byMime != "bin" ? byMime : Path.GetExtension(blobPath).TrimStart('.');
             if (ext.Length == 0) ext = "png";
             var name = $"img_{ctx.Count++}.{ext}";
             await File.WriteAllBytesAsync(Path.Combine(ctx.AssetsDir, name), ms.ToArray(), ct);
             return AssetPath.FromRoot(ctx.AssetsSubdir, name);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;   // отмену не глотаем: иначе «отменённая» генерация тихо доедет до PDF без картинок
         }
         catch (Exception)
         {

@@ -147,7 +147,10 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
     setTab(next);
     setPendingTab(null);
   }
+  // Тот же запрет, что у кнопок и горячей клавиши: диалог «есть несохранённое» при переключении
+  // вкладки сохранял бы документ без ещё не доехавшей картинки (issue #532).
   async function saveThenSwitch() {
+    if (uploading) return;
     if (!pendingTab) return;
     setSwitching(true);
     try {
@@ -161,7 +164,9 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
     <div className="flex flex-col min-h-0 flex-1"
       onKeyDown={e => {
         // Ctrl/⌘+Enter — сохранить и закрыть (issue #107 F7); работает из любого поля вкладки реквизитов.
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && editable && !saving) {
+        // uploading — не косметика: горячая клавиша объявлена в подсказке самой кнопки, и без
+        // проверки она сохраняла бы документ БЕЗ картинки, пока та ещё едет (issue #532).
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && editable && !saving && !uploading) {
           e.preventDefault();
           void doSaveAndClose();
         }
