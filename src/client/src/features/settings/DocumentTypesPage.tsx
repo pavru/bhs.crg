@@ -594,9 +594,13 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
             </button>
           )}
         </div>
-        {showJson
-          ? <JsonPreview fields={fields} groups={groups} excludedFields={excludedFields} fieldOverrides={fieldOverrides} />
-          : <GroupedFieldsEditor
+        {showJson && <JsonPreview fields={fields} groups={groups} excludedFields={excludedFields} fieldOverrides={fieldOverrides} />}
+        {/* Редактор ПРЯЧЕМ, а не размонтируем (issue #527): в нём живёт состояние карточек полей —
+            база сравнения ключа, снятый замок, раскрытая карточка. Заглянув в JSON посреди
+            переименования, пользователь возвращался к полю, которое снова считается новым: замок
+            снят молча, предупреждение о дрейфе данных пропало, перенос данных уже не предложится. */}
+        <div className={showJson ? 'hidden' : undefined}>
+            <GroupedFieldsEditor
               fields={fields}
               onFieldsChange={f => { setFields(f); setDirty(true); }}
               groups={groups}
@@ -608,7 +612,8 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
               persistedKeys={persistedKeys}
               onKeyRename={(from, to) => renamesRef.current.set(from, to)}
               reg={reg}
-            />}
+            />
+        </div>
       </div>
 
       {!showJson && applicableTypeTags.length > 0 && (

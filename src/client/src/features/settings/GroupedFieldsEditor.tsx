@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { GripVertical, Layers, Trash2, ArrowUp, ArrowDown, Plus, Lock } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
-import type { SchemaField, FieldGroup } from '@/shared/api/schema';
+import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/shared/api/schema';
 import { FieldCard, fieldTypeSummary, type FieldRegistries } from './FieldBuilder';
 
 /**
@@ -117,7 +117,7 @@ export function GroupedFieldsEditor({
   }
 
   function addField() {
-    onFieldsChange([...fields, { key: '', title: '', type: 'string', required: false }]);
+    onFieldsChange([...fields, withFieldUid({ key: '', title: '', type: 'string', required: false })]);
     setOpenIndex(fields.length);
   }
 
@@ -181,13 +181,13 @@ export function GroupedFieldsEditor({
     const idx = fields.indexOf(own);
     const dp = memberDropProps(own.key, containerKey);
     return (
-      <div key={`own-${idx}`}>
+      <div key={own[FIELD_UID] ?? `own-${idx}`}>
         {lineBefore(own.key) && <DropLine />}
         <FieldCard
           field={own}
           reg={reg}
           keyConflict={!!own.key && !!disabledKeys?.has(own.key.trim())}
-          isNew={!persistedKeys?.has(own.key.trim())}
+          persistedKeys={persistedKeys}
           onKeyRename={onKeyRename}
           open={openIndex === idx}
           onToggleOpen={() => setOpenIndex(o => o === idx ? null : idx)}

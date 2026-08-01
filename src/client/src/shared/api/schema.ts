@@ -1,6 +1,27 @@
 import type { DocumentType } from './types';
 
+/**
+ * Личность поля в редакторе схемы (issue #527). Ключ поля личностью быть не может — его как раз и
+ * переименовывают, а индекс в массиве не переживает удаление и перетаскивание: React переиспользует
+ * экземпляр карточки под уже ДРУГОЕ поле, и состояние карточки (база сравнения ключа, снятый замок)
+ * достаётся чужому полю — вплоть до предложения перенести данные удалённого поля в соседнее.
+ *
+ * Символьный ключ, а не обычное свойство: `JSON.stringify` символы не сериализует, поэтому uid не
+ * протечёт ни в сохраняемую схему, ни в предпросмотр JSON, а расширение объекта (`{...f, ...patch}`)
+ * его при этом сохраняет.
+ */
+export const FIELD_UID: unique symbol = Symbol('fieldUid');
+
+let uidCounter = 0;
+
+/** Поле с личностью: уже помеченное возвращается как есть (личность обязана переживать правки). */
+export function withFieldUid<T extends SchemaField>(field: T): T {
+  return field[FIELD_UID] ? field : { ...field, [FIELD_UID]: `f${++uidCounter}` };
+}
+
 export interface SchemaField {
+  /** Личность поля в редакторе (см. FIELD_UID). В сохранённой схеме отсутствует. */
+  [FIELD_UID]?: string;
   key: string;
   title: string;
   /** Primitive type, 'enum' for a fixed list, 'complex' for composite type, 'primitive' for user-defined constrained type, 'array' for repeating rows, 'doc-ref'/'doc-array' for document instance links */
@@ -130,7 +151,7 @@ export function groupEffectiveFields(
 export function parseSchemaFields(schema: Record<string, unknown>): SchemaField[] {
   const fields = schema?.fields;
   if (!Array.isArray(fields)) return [];
-  return (fields as Partial<SchemaField>[]).map(f => ({
+  return (fields as Partial<SchemaField>[]).map(f => withFieldUid({
     key: f.key ?? '',
     title: f.title ?? '',
     type: (f.type as SchemaField['type']) ?? 'string',
