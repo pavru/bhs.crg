@@ -1,11 +1,15 @@
 import { useState } from 'react';
-import { Boxes, ChevronDown, X } from 'lucide-react';
+import { Boxes, Search, X } from 'lucide-react';
 import { TypePicker, typeIcon, type PickType } from './TypePicker';
 
 /**
  * Триггер-поле над `TypePicker` (issue #266): закрытый вид читается как form-поле в тон нашего
- * `Select` (значок семейства + имя выбранного типа + код по showCode + chevron), клик/Enter/Space
- * открывают богатую модалку выбора. Единый контрол для ЛЮБОГО выбора типа (документа/поля/родителя),
+ * `Select` (значок семейства + имя выбранного типа + код по showCode + лупа), клик/Enter/Space
+ * открывают богатую модалку выбора.
+ *
+ * Замыкающий значок — ЛУПА, а не шеврон (issue #565). Обещание о том, что произойдёт по клику,
+ * несёт именно он: шеврон в MD3 означает приклеенное меню, а у нас открывается модалка с поиском,
+ * группами и «недавними». Оболочку поля при этом можно носить честно — врал только значок. Единый контрол для ЛЮБОГО выбора типа (документа/поля/родителя),
  * чтобы не плодить свои триггеры на каждом сайте. Триггер — настоящий `<button aria-haspopup>`, фокус
  * возвращается на него по Esc (Radix Dialog). Не-типовые короткие списки (роль/scope) — обычный Select.
  */
@@ -60,7 +64,7 @@ export function TypePickerField({
             <X size={14} />
           </span>
         )}
-        <ChevronDown size={15} className="shrink-0 text-fg4" />
+        <Search size={15} className="shrink-0 text-fg4" />
       </button>
 
       <TypePicker
