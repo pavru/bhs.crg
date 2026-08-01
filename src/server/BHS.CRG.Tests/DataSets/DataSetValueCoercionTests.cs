@@ -143,7 +143,44 @@ public class DataSetValueCoercionTests
 
         var result = DataSetValueCoercion.CoerceObject(obj, rowTypeId, Primitives, types);
 
+        Assert.NotNull(result);
         Assert.False(result.ContainsKey("Длина"));
         Assert.Equal("", result["Марка"]);
+    }
+
+    /// <summary>
+    /// Объект, у которого не осталось ни одного значения, — это отсутствие объекта, а не пустой
+    /// объект (#544): вызывающие пишут его под `if (value is not null)`, поэтому ключа не будет.
+    /// Иначе строка отдавала бы шаблону `{}`, и обращение к вложенному полю падало бы вместо пустого
+    /// места. То же правило, по которому собирает объекты DataSetMappingApplier.
+    /// </summary>
+    [Fact]
+    public void ObjectLeftWithoutValues_BecomesNothing()
+    {
+        var rowTypeId = Guid.NewGuid();
+        var types = new Dictionary<Guid, DocumentType>
+        {
+            [rowTypeId] = Composite(rowTypeId, "Строка", """{"fields":[{"key":"Длина","type":"number"}]}"""),
+        };
+
+        Assert.Null(DataSetValueCoercion.CoerceObject(
+            new Dictionary<string, object?> { ["Длина"] = "" }, rowTypeId, Primitives, types));
+    }
+
+    /// <summary>@@ref-объект схемных ключей не содержит — его не должно ни обрезать, ни выбросить.</summary>
+    [Fact]
+    public void RefObject_IsLeftAlone()
+    {
+        var rowTypeId = Guid.NewGuid();
+        var types = new Dictionary<Guid, DocumentType>
+        {
+            [rowTypeId] = Composite(rowTypeId, "Строка", """{"fields":[{"key":"Длина","type":"number"}]}"""),
+        };
+        var obj = new Dictionary<string, object?> { ["$ref"] = "catalog:123" };
+
+        var result = DataSetValueCoercion.CoerceObject(obj, rowTypeId, Primitives, types);
+
+        Assert.NotNull(result);
+        Assert.Equal("catalog:123", result["$ref"]);
     }
 }

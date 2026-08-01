@@ -63,8 +63,13 @@ public static class DataSetValueCoercion
         return QuantityParser.TryParse(text, out var number) ? number : value;
     }
 
-    /// <summary>Обход собранного объекта по схеме его типа.</summary>
-    public static Dictionary<string, object?> CoerceObject(
+    /// <summary>
+    /// Обход собранного объекта по схеме его типа. Ключи, для которых приведение дало null (пустая
+    /// числовая ячейка, issue #544), удаляются; объект, оставшийся БЕЗ значений, возвращается как
+    /// null — «нет значений» на всех уровнях выглядит одинаково, и это то же правило, по которому
+    /// собирает объекты <c>DataSetMappingApplier</c> (<c>obj.Count == 0 ? null : obj</c>).
+    /// </summary>
+    public static Dictionary<string, object?>? CoerceObject(
         Dictionary<string, object?> obj, Guid? typeId,
         IReadOnlyDictionary<Guid, PrimitiveType> primitivesById,
         IReadOnlyDictionary<Guid, DocumentType>? typesById, int depth = 0)
@@ -78,14 +83,15 @@ public static class DataSetValueCoercion
         {
             if (!fields.TryGetValue(key, out var f)) continue;
             var coerced = Coerce(obj[key], f, primitivesById, typesById, depth + 1);
-            // Пустая ячейка в числовом поле даёт null — ключ УДАЛЯЕМ, а не оставляем с null
-            // (issue #544): шаблоны читают вложенные поля через at/dig с умолчанием, и ключ со
-            // значением none проходит их проверки, а потом ломает конкатенацию.
+            // Ключ с null УДАЛЯЕМ, а не оставляем (issue #544): шаблоны читают вложенные поля через
+            // at/dig с умолчанием, и ключ со значением none проходит их проверки, а потом ломает
+            // конкатенацию. Правило шире, чем пустая числовая ячейка: любой null здесь означает
+            // «значения нет», и вложенный объект, у которого не осталось значений, тоже null.
             if (coerced is null) obj.Remove(key);
             else obj[key] = coerced;
         }
 
-        return obj;
+        return obj.Count == 0 ? null : obj;
     }
 
     private static bool IsNumeric(

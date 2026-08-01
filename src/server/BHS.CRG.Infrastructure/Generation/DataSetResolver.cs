@@ -141,9 +141,13 @@ public class DataSetResolver(
                             if (value is not null)
                                 obj[fieldKey] = value;
                         }
-                        // Приоритет ниже маппинга: значение из строки (уже в obj) > defaultValue схемы.
+                        // Приоритет ниже маппинга: замапленное поле умолчание НЕ подменяет — даже когда
+                        // ячейка пуста. Проверять наличие ключа для этого нельзя (issue #544): пустая
+                        // числовая ячейка ключа больше не создаёт, и намеренно оставленный пробел в
+                        // документе стал бы значением из схемы — для протокола измерений это означало бы
+                        // напечатанный ноль там, где измерения просто не было.
                         foreach (var f in rowDefaults)
-                            if (!obj.ContainsKey(f.Key))
+                            if (!mapping.ContainsKey(f.Key) && !obj.ContainsKey(f.Key))
                                 obj[f.Key] = f.DefaultValue!.Value;
                         mapped.Add(obj);
                         rowIndex++;
