@@ -53,6 +53,24 @@ function suggestComplexTokens(columnNames: string[], complexFields: SchemaField[
 }
 
 /**
+ * Раскладка подписи строки маппинга (issue #524). Названия полей НЕ обрезаем: в протоколах измерений
+ * они различаются ХВОСТОМ — «Сопротивление изоляции L1-L2 (МОм)» против «…L2-L3…», — и обрезка по
+ * ширине превращала десяток строк в неотличимые друг от друга «Сопротивление изоляции …».
+ * Всплывающая подсказка не спасала: она показывает по одной строке за раз, а колонку выбирают,
+ * сравнивая строки между собой.
+ *
+ * Только ПЕРЕНОС: ширина, размер и цвет задаются на месте. Смешивать их здесь нельзя — в Tailwind
+ * побеждает не порядок классов в атрибуте, а порядок правил в стилях: `text-fg2` из общей строки
+ * перебил бы локальный `text-fg4`, а `shrink-0` — локальный `flex-1` (у shorthand `flex` проигрывает
+ * именно flex-shrink).
+ *
+ * Гибкой подписи нужен ещё и `min-w-0`: его прежде давал сам `truncate` (overflow: hidden опускает
+ * min-width: auto до нуля). Без него минимум ячейки — самое длинное СЛОВО заголовка, и в узкой
+ * модалке строка вылезала бы за свою рамку вместо переноса.
+ */
+const MAP_LABEL = 'leading-snug break-words';
+
+/**
  * Маппинг одного составного поля (issue #374): сегмент «🔗 По ссылке | {} Встроенный». Рекурсивен —
  * в inline-режиме составные ПОД-поля получают свой такой же сегмент (сворачиваемые под-группы), что
  * даёт вложенный @@inline. Токен поля (@@ref/@@inline) — единственный вход/выход, режимы выводятся
@@ -102,7 +120,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
   return (
     <div className="space-y-1 rounded-md border border-stroke/60 p-1.5">
       <div className="flex items-center gap-2">
-        <span className="text-xs truncate text-fg2 flex-1" title={`${field.title} (${field.key}) — составное поле`}>{field.title}</span>
+        <span className={`flex-1 min-w-0 text-xs text-fg2 ${MAP_LABEL}`} title={`${field.title} (${field.key}) — составное поле`}>{field.title}</span>
         <div className="flex rounded-md border border-stroke overflow-hidden text-[11px] shrink-0">
           {segBtn('ref', '🔗 По ссылке')}{segBtn('inline', '{} Встроенный')}
         </div>
@@ -128,7 +146,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
             <div className="pl-2 space-y-1 border-l border-stroke">
               {identityFields.map(idf => (
                 <div key={idf.key} className="flex items-center gap-2">
-                  <span className="w-32 shrink-0 text-[11px] text-fg4 truncate" title={idf.key}>{idf.title}</span>
+                  <span className={`w-40 shrink-0 text-[11px] text-fg4 ${MAP_LABEL}`} title={idf.key}>{idf.title}</span>
                   <select value={idCols[idf.key] ?? ''} onChange={e => setRefIdentity(idf.key, e.target.value)}
                     className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1" title={`Колонка для identity-поля «${idf.title}»`}>
                     <option value="">— колонка —</option>{columnNames.map(c => <option key={c} value={c}>{c}</option>)}
@@ -144,7 +162,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
           <div className="pl-2 space-y-1 border-l border-brand/40">
             {scalarSubs.map(sf => (
               <div key={sf.key} className="flex items-center gap-2">
-                <span className="w-32 shrink-0 text-[11px] text-fg3 truncate" title={`${sf.title} (${sf.key})`}>{sf.title}</span>
+                <span className={`w-40 shrink-0 text-[11px] text-fg3 ${MAP_LABEL}`} title={`${sf.title} (${sf.key})`}>{sf.title}</span>
                 <select value={inlineFields[sf.key] ?? ''} onChange={e => setSub(sf.key, e.target.value || undefined)}
                   className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1" title={`Колонка для под-поля «${sf.title}»`}>
                   <option value="">— не привязано —</option>{columnNames.map(c => <option key={c} value={c}>{c}</option>)}
@@ -159,7 +177,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
                     onClick={() => setExpanded(p => { const n = new Set(p); n.has(sf.key) ? n.delete(sf.key) : n.add(sf.key); return n; })}
                     className="flex items-center gap-1 py-0.5 text-[11px] text-fg3 hover:text-fg1">
                     {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                    <span className="truncate">{sf.title}</span>
+                    <span className={`text-left ${MAP_LABEL}`} title={`${sf.title} (${sf.key}) — составное поле`}>{sf.title}</span>
                     {inlineFields[sf.key] && <span className="text-brand">•</span>}
                     <span className="text-fg4">(составное)</span>
                   </button>
@@ -284,7 +302,7 @@ export function MappingEditor({
         <div className="space-y-1.5">
           {scalarMappable.map(f => (
             <div key={f.key} className="flex items-center gap-2">
-              <span className="w-40 text-xs truncate shrink-0 text-fg2" title={`${f.title} (${f.key})`}>
+              <span className={`w-56 shrink-0 text-xs text-fg2 ${MAP_LABEL}`} title={`${f.title} (${f.key})`}>
                 {f.title}
               </span>
               <select
@@ -306,7 +324,7 @@ export function MappingEditor({
             const fileMap = parseFileMapping(mapping[f.key]);
             return (
               <div key={f.key} className="flex items-center gap-2">
-                <span className="w-40 text-xs truncate shrink-0 text-fg2" title={`${f.title} (${f.key}) — файл-вложение`}>
+                <span className={`w-56 shrink-0 text-xs text-fg2 ${MAP_LABEL}`} title={`${f.title} (${f.key}) — файл-вложение`}>
                   {f.title} <span className="text-fg4">📎</span>
                 </span>
                 <select
