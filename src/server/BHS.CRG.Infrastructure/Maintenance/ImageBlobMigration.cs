@@ -13,8 +13,11 @@ namespace BHS.CRG.Infrastructure.Maintenance;
 /// <param name="Objects">Записей затронуто.</param>
 /// <param name="Images">Картинок перенесено.</param>
 /// <param name="Bytes">Освобождено из JSONB (размер самих data-URI).</param>
-/// <param name="Failed">Картинок не удалось перенести (битый base64, недоступное хранилище).</param>
-public record ImageMigrationReport(int Objects, int Images, long Bytes, int Failed = 0);
+/// <param name="Failed">Картинок не удалось обработать (битый base64, недоступное хранилище).</param>
+/// <param name="Downscaled">Картинок уменьшено (оригинал при этом сохранён).</param>
+/// <param name="SavedBytes">Сколько весили уменьшенные картинки и сколько весят копии — разница.</param>
+public record ImageMigrationReport(
+    int Objects, int Images, long Bytes, int Failed = 0, int Downscaled = 0, long SavedBytes = 0);
 
 /// <summary>
 /// Разовый перенос картинок из JSONB в блоб-хранилище (issue #522).
@@ -98,7 +101,36 @@ public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
             }
         }
 
-        return new ImageMigrationReport(objects, images, bytes, failed);
+        // Второй проход — УМЕНЬШЕНИЕ уже переехавших картинок (issue #523). Отдельно от переноса,
+        // потому что это разные вопросы: перенос убирает двоичное из JSONB, уменьшение сокращает сам
+        // блоб. Оригинал сохраняется — уменьшение остаётся производной и здесь.
+        var downscaled = 0;
+        var saved = 0L;
+        var blobSql = "SELECT \"Id\" FROM domain_objects WHERE \"Data\"::text LIKE '%\"$type\": \"image\"%' OR \"Data\"::text LIKE '%\"$type\":\"image\"%'";
+        foreach (var id in await db.Database.SqlQueryRaw<Guid>(blobSql).ToListAsync(ct))
+        {
+            var obj = await db.DomainObjects.FirstOrDefaultAsync(o => o.Id == id, ct);
+            if (obj is null) continue;
+
+            var node = JsonNode.Parse(obj.Data.RootElement.GetRawText());
+            if (node is null) continue;
+
+            var shrunk = await ShrinkAsync(node, dryRun, ct);
+            failed += shrunk.Failed;
+            if (shrunk.Count == 0) continue;
+
+            downscaled += shrunk.Count;
+            saved += shrunk.Saved;
+
+            if (!dryRun)
+            {
+                obj.SetData(JsonDocument.Parse(node.ToJsonString()));
+                db.DomainObjects.Update(obj);
+                await db.SaveChangesAsync(ct);
+            }
+        }
+
+        return new ImageMigrationReport(objects, images, bytes, failed, downscaled, saved);
     }
 
     private async Task<(int Count, long Bytes, int Failed)> MoveAsync(JsonNode node, bool dryRun, CancellationToken ct)
@@ -186,5 +218,75 @@ public class ImageBlobMigration(AppDbContext db, IBlobStorage blob)
 
         await WalkAsync(node);
         return (count, bytes, failed);
+    }
+
+    /// <summary>
+    /// Уменьшает уже переехавшие картинки, сохраняя оригинал (issue #523).
+    ///
+    /// Узел, у которого уже есть <c>originalBlobPath</c>, пропускаем — он уже уменьшен, и повторный
+    /// прогон обязан быть безвредным. Сухой прогон СЧИТАЕТ ЧЕСТНО: скачивает и уменьшает, но ничего
+    /// не сохраняет. Иначе экран подтверждения показывал бы выдуманные числа, а решать по ним
+    /// человеку.
+    /// </summary>
+    private async Task<(int Count, long Saved, int Failed)> ShrinkAsync(
+        JsonNode node, bool dryRun, CancellationToken ct)
+    {
+        var count = 0;
+        var saved = 0L;
+        var failed = 0;
+
+        async Task WalkAsync(JsonNode? current)
+        {
+            switch (current)
+            {
+                case JsonObject obj:
+                    if (obj["$type"] is JsonValue t && t.TryGetValue<string>(out var marker) && marker == "image")
+                    {
+                        if (obj["originalBlobPath"] is not null) return;   // уже уменьшена
+                        if (obj["blobPath"] is not JsonValue bv || !bv.TryGetValue<string>(out var path)) return;
+
+                        try
+                        {
+                            byte[] source;
+                            await using (var stream = await blob.DownloadAsync(path, ct))
+                            {
+                                using var ms = new MemoryStream();
+                                await stream.CopyToAsync(ms, ct);
+                                source = ms.ToArray();
+                            }
+
+                            var mime = obj["mimeType"] is JsonValue mv && mv.TryGetValue<string>(out var m) ? m : "image/png";
+                            var down = ImageDownscaler.Downscale(source, mime);
+                            // Копию берём только если легче — то же правило, что и при загрузке.
+                            if (down.Bytes is null || down.Bytes.Length >= source.Length) return;
+
+                            count++;
+                            saved += source.Length - down.Bytes.Length;
+                            if (dryRun) return;
+
+                            var ext = down.MimeType == "image/png" ? "png" : "jpg";
+                            var newPath = await blob.UploadAsync($"image_{down.Width}.{ext}",
+                                new MemoryStream(down.Bytes), down.MimeType, ct);
+
+                            obj["originalBlobPath"] = path;   // оригинал остаётся под рукой
+                            obj["blobPath"] = newPath;
+                            obj["mimeType"] = down.MimeType;
+                        }
+                        catch (OperationCanceledException) { throw; }
+                        catch (Exception) { failed++; }
+                        return;
+                    }
+                    foreach (var key in obj.Select(kv => kv.Key).ToList())
+                        await WalkAsync(obj[key]);
+                    break;
+                case JsonArray arr:
+                    foreach (var item in arr.ToList())
+                        await WalkAsync(item);
+                    break;
+            }
+        }
+
+        await WalkAsync(node);
+        return (count, saved, failed);
     }
 }
