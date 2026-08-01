@@ -1,272 +1,396 @@
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, ShieldCheck, FileText, Search, Globe, ExternalLink, Download, Loader2, ChevronRight, ChevronDown } from 'lucide-react';
+import {
+  Plus, Pencil, Trash2, ShieldCheck, FileText, Search, Globe, ExternalLink, Download, Loader2,
+  AlertTriangle, Clock, CircleSlash, Link2,
+} from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
-import { Button, IconButton } from '@/shared/ui/Button';
-import { Select, SelectItem } from '@/shared/ui/Select';
-import { SearchInput } from '@/shared/ui/SearchInput';
+import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
+import { ListDetailShell, NavSearchInput, NavSection, NavItem } from '@/shared/ui/ListDetailShell';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import {
-  useListQualityDocs, useDeleteQualityDoc, searchQualityDocs, importQualityDocFromUrl,
-  type QualityDocument, type SearchCandidate,
+  useListQualityDocs, useDeleteQualityDoc, useListMaterialLinks, searchQualityDocs,
+  importQualityDocFromUrl, type QualityDocument, type SearchCandidate, type MaterialQualityLink,
 } from '@/shared/api/qualityDocs';
 import type { CatalogScope } from '@/shared/api/types';
-import { typeHasTag, findTaggedFieldPath } from '@/shared/api/schema';
+import { resolveEffectiveFields, findTaggedFieldPath, typeHasTag } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import type { DocumentType } from '@/shared/api/types';
 import { QualityDocForm } from './QualityDocForm';
 import { recognizeAndUpdate } from './recognizeImported';
+import { QualityDocLinks, matchesLink } from './QualityDocLinks';
+import { docState, EXPIRING_SOON_DAYS, type DocState } from './docState';
 
 const SCOPE_LABEL: Record<string, string> = { System: 'Общая', Construction: 'Стройка', Section: 'Раздел', Set: 'Комплект' };
 const SOURCE_LABEL: Record<string, string> = { file: 'Файл', fgis: 'ФГИС', manufacturer: 'Произв.', web: 'Веб' };
-const NO_MANUFACTURER = '— без производителя —';
 
 function readPath(obj: Record<string, unknown>, path: string[]): unknown {
   return path.reduce<unknown>((o, k) => (o && typeof o === 'object') ? (o as Record<string, unknown>)[k] : undefined, obj);
 }
-/** Производитель документа качества по функциональному тэгу quality.manufacturer. */
-function getManufacturer(doc: QualityDocument, docTypes: DocumentType[]): string {
+/** Значение реквизита по функциональному тэгу (имена полей не хардкодим — для того тэги и заведены). */
+function byTag(doc: QualityDocument, docTypes: DocumentType[], tag: string): string {
   const dt = docTypes.find(t => t.id === doc.documentTypeId);
-  const path = dt ? findTaggedFieldPath(dt, FUNCTIONAL_TAG.qualityManufacturer, docTypes) : null;
-  const v = path ? readPath(doc.requisites, path) : undefined;
-  const s = typeof v === 'string' ? v.trim() : '';
-  return s || NO_MANUFACTURER;
-}
-/** Номер документа по функциональному тэгу doc.number. */
-function getDocNumber(doc: QualityDocument, docTypes: DocumentType[]): string {
-  const dt = docTypes.find(t => t.id === doc.documentTypeId);
-  const path = dt ? findTaggedFieldPath(dt, FUNCTIONAL_TAG.docNumber, docTypes) : null;
+  const path = dt ? findTaggedFieldPath(dt, tag, docTypes) : null;
   const v = path ? readPath(doc.requisites, path) : undefined;
   return typeof v === 'string' ? v.trim() : '';
 }
 
+const STATE_META: Record<DocState, { label: string; icon: typeof AlertTriangle; danger: boolean }> = {
+  expired: { label: 'Просрочен, связки живы', icon: AlertTriangle, danger: true },
+  expiring: { label: `Истекает ≤ ${EXPIRING_SOON_DAYS} дней`, icon: Clock, danger: false },
+  unlinked: { label: 'Без связок', icon: CircleSlash, danger: false },
+};
+
 export function QualityDocsPage() {
-  const qc = useQueryClient();
   const [search, setSearch] = useState('');
-  const [scopeFilter, setScopeFilter] = useState<'all' | 'System'>('all');
+  const [selected, setSelected] = useState<string | null>(null);
+  const [stateFilter, setStateFilter] = useState<DocState | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [webOpen, setWebOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<QualityDocument | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<QualityDocument | null>(null);
-  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set()); // по умолчанию все свёрнуты
 
-  // веб-поиск
-  const [webQuery, setWebQuery] = useState('');
+  const { data: docTypes = [] } = useListDocumentTypes();
+  const { data: docs = [], isLoading } = useListQualityDocs({});
+  // Связки ВСЕХ областей одним запросом (issue #554): экран смотрит поперёк областей.
+  const { data: links = [] } = useListMaterialLinks();
+  const del = useDeleteQualityDoc();
+
+  const linksByDoc = useMemo(() => {
+    const m = new Map<string, MaterialQualityLink[]>();
+    for (const l of links) {
+      const arr = m.get(l.qualityDocumentId); if (arr) arr.push(l); else m.set(l.qualityDocumentId, [l]);
+    }
+    return m;
+  }, [links]);
+
+  const states = useMemo(() => {
+    const m = new Map<DocState, QualityDocument[]>();
+    for (const d of docs) {
+      const s = docState(byTag(d, docTypes, FUNCTIONAL_TAG.qualityValidUntil) || null, linksByDoc.get(d.id)?.length ?? 0);
+      if (!s) continue;
+      const arr = m.get(s); if (arr) arr.push(d); else m.set(s, [d]);
+    }
+    return m;
+  }, [docs, docTypes, linksByDoc]);
+
+  /**
+   * Поиск переопределяет список: документ остаётся, если совпало его имя/номер ИЛИ хоть одна его
+   * связка. Иначе поиск по материалу молча прятал бы ровно то, что нашёл.
+   */
+  const visibleDocs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const inState = stateFilter ? (states.get(stateFilter) ?? []) : docs;
+    if (!q) return inState;
+    return inState.filter(d =>
+      d.displayName.toLowerCase().includes(q)
+      || byTag(d, docTypes, FUNCTIONAL_TAG.docNumber).toLowerCase().includes(q)
+      || (linksByDoc.get(d.id) ?? []).some(l => matchesLink(l, q)));
+  }, [docs, docTypes, search, stateFilter, states, linksByDoc]);
+
+  const current = selected ? docs.find(d => d.id === selected) ?? null : null;
+
+  // Если ни у одного документа срок не резолвится тэгом, состояния по сроку посчитать нельзя —
+  // и об этом надо сказать, а не показывать пустоту (в живой базе ровно так: реквизит
+  // «ПериодДействия» есть, а поля с тэгом quality.validUntil в схеме нет, см. #558).
+  const validUntilKnown = useMemo(
+    () => docs.some(d => byTag(d, docTypes, FUNCTIONAL_TAG.qualityValidUntil) !== ''),
+    [docs, docTypes]);
+
+  const nav = (
+    <>
+      <div className="p-3 border-b border-stroke shrink-0">
+        <NavSearchInput value={search} onChange={setSearch} placeholder="Материал или документ…" />
+      </div>
+      {/* Список скроллится САМ: без этого длинный перечень растит страницу и уносит шапку. */}
+      <div className="flex-1 overflow-y-auto p-2">
+        {[...states.keys()].length > 0 && (
+          <>
+            <NavSection label="Требует внимания" />
+            {(['expired', 'expiring', 'unlinked'] as DocState[]).map(s => {
+              const items = states.get(s);
+              if (!items?.length) return null;
+              const meta = STATE_META[s];
+              const Icon = meta.icon;
+              return (
+                <NavItem key={s} icon={<Icon size={15} />} label={meta.label}
+                  active={stateFilter === s}
+                  count={meta.danger ? undefined : items.length}
+                  alert={meta.danger ? items.length : undefined} alertDanger={meta.danger}
+                  onClick={() => { setStateFilter(stateFilter === s ? null : s); setSelected(null); }} />
+              );
+            })}
+          </>
+        )}
+        {!validUntilKnown && (
+          <p className="text-[11px] text-warning px-3 py-2 leading-snug">
+            Срок действия документов системе неизвестен: ни одно поле типа не помечено тэгом
+            «срок действия». Поэтому состояния «просрочен» и «истекает» не считаются — и по той же
+            причине просроченные документы не прячутся из подсказок.
+          </p>
+        )}
+        <NavSection label={stateFilter ? STATE_META[stateFilter].label : 'Документы'} />
+        {visibleDocs.map(d => (
+          <NavItem key={d.id} icon={<ShieldCheck size={15} />} label={d.displayName}
+            count={linksByDoc.get(d.id)?.length ?? 0}
+            active={selected === d.id} onClick={() => setSelected(d.id)} />
+        ))}
+        {visibleDocs.length === 0 && (
+          <p className="text-xs text-fg4 px-3 py-4 text-center">Ничего не найдено.</p>
+        )}
+      </div>
+    </>
+  );
+
+  const actions: RowAction[] = current ? [
+    ...(current.scanBlobPath
+      ? [{ key: 'scan', label: 'Открыть скан', icon: <FileText size={13} />,
+        onSelect: () => void openAttachmentInNewTab(current.scanBlobPath!) }]
+      : []),
+    { key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => setEditDoc(current) },
+    { key: 'delete', label: 'Удалить документ', icon: <Trash2 size={13} />, danger: true,
+      onSelect: () => setDeleteTarget(current) },
+  ] : [];
+
+  const detail = !current ? (
+    <div className="flex-1 min-w-0 flex items-center justify-center">
+    <EmptyState icon={<ShieldCheck size={30} />}
+      title={docs.length === 0 ? 'Документов качества пока нет' : 'Выберите документ'}
+      description={docs.length === 0
+        ? 'Добавьте первый документ — можно загрузить скан и распознать реквизиты, либо найти в интернете.'
+        : 'Слева — библиотека и связанные с документами материалы. Здесь видно, что именно висит на выбранном документе.'}
+      action={docs.length === 0
+        ? <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>Добавить документ</Button>
+        : undefined} />
+    </div>
+  ) : (
+    <div className="flex-1 min-w-0 overflow-y-auto px-6 py-4 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          {/* Имени мало: в библиотеке два документа с одинаковым названием и разным содержимым. */}
+          <h2 className="text-lg font-semibold text-fg1 break-words">{current.displayName}</h2>
+          <p className="text-xs text-fg3 mt-0.5">
+            {[typeNameOf(current, docTypes),
+              byTag(current, docTypes, FUNCTIONAL_TAG.docNumber) && `№ ${byTag(current, docTypes, FUNCTIONAL_TAG.docNumber)}`,
+              byTag(current, docTypes, FUNCTIONAL_TAG.qualityValidUntil) && `до ${formatDate(byTag(current, docTypes, FUNCTIONAL_TAG.qualityValidUntil))}`,
+              byTag(current, docTypes, FUNCTIONAL_TAG.qualityManufacturer),
+              SCOPE_LABEL[current.scope] ?? current.scope,
+            ].filter(Boolean).join(' · ')}
+          </p>
+        </div>
+        <RowActionsMenu actions={actions} ariaLabel="Действия над документом" />
+      </div>
+
+      <DocRequisites doc={current} docTypes={docTypes} />
+
+      <div>
+        <h3 className="text-sm font-medium text-fg2 mb-2 flex items-center gap-2">
+          <Link2 size={14} className="text-fg4" />
+          Связки материалов · {linksByDoc.get(current.id)?.length ?? 0}
+        </h3>
+        {/* Фильтруем строки ТОЛЬКО если запрос попал в связки. Иначе человек, нашедший документ по
+            его собственному имени, увидел бы «ни одна связка не подходит» под заголовком «Связки · 69». */}
+        <QualityDocLinks links={linksByDoc.get(current.id) ?? []} allDocTypes={docTypes}
+          search={(linksByDoc.get(current.id) ?? []).some(l => matchesLink(l, search.trim().toLowerCase())) ? search : ''} />
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+    <ListDetailShell
+      title="Документы качества"
+      subtitle="Библиотека сертификатов и деклараций; связки материалов — на карточке документа"
+      titleIcon={<ShieldCheck size={20} className="text-brand" />}
+      headerAction={
+        <div className="flex items-center gap-2">
+          <Button variant="outlined" icon={<Globe size={15} />} onClick={() => setWebOpen(true)}>
+            Найти в интернете
+          </Button>
+          <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
+            Добавить документ
+          </Button>
+        </div>
+      }
+      nav={isLoading ? <p className="text-sm text-fg4 p-4">Загрузка…</p> : nav}
+      detail={detail}
+    />
+    {/* Модалки — СНАРУЖИ shell: его проп overlay заменяет собой весь сплит, а не накладывается. */}
+          <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новый документ качества" wide>
+            {createOpen && (
+              <QualityDocForm allDocTypes={docTypes} scope={'System' as CatalogScope} scopeId={null}
+                onSaved={() => setCreateOpen(false)} onCancel={() => setCreateOpen(false)} />
+            )}
+          </Modal>
+
+          <Modal open={!!editDoc} onOpenChange={o => { if (!o) setEditDoc(null); }} title="Документ качества" wide>
+            {editDoc && (
+              <QualityDocForm allDocTypes={docTypes} scope={editDoc.scope} scopeId={editDoc.scopeId ?? null} initial={editDoc}
+                onSaved={() => setEditDoc(null)} onCancel={() => setEditDoc(null)} />
+            )}
+          </Modal>
+
+          <WebSearchModal open={webOpen} onClose={() => setWebOpen(false)} docTypes={docTypes} />
+
+          <ConfirmDialog
+            open={!!deleteTarget}
+            onOpenChange={o => { if (!o) setDeleteTarget(null); }}
+            title={`Удалить «${deleteTarget?.displayName ?? ''}»?`}
+            description={
+              <p>Связи с материалами также будут удалены
+                {deleteTarget ? ` (${linksByDoc.get(deleteTarget.id)?.length ?? 0})` : ''}.</p>
+            }
+            confirmLabel="Удалить"
+            onConfirm={async () => {
+              if (!deleteTarget) return;
+              await del.mutateAsync(deleteTarget.id);
+              if (selected === deleteTarget.id) setSelected(null);
+            }}
+          />
+    </>
+  );
+}
+
+function typeNameOf(doc: QualityDocument, docTypes: DocumentType[]): string {
+  return docTypes.find(t => t.id === doc.documentTypeId)?.name ?? '';
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('ru-RU');
+}
+
+/**
+ * Реквизиты документа рядом со списком связок — в первую очередь ради «Продукции»: увидев
+ * «Выключатели автоматические, модель AV-125» над перечнем светильников и розеток, человек делает
+ * вывод сам. Система при этом ничего не утверждает и не может ошибиться.
+ *
+ * Поля берём из схемы типа, а не по именам: имя реквизита хардкодить нельзя — в живых данных
+ * «ТипДокумента» местами противоречит самому типу документа (issue #554).
+ */
+function DocRequisites({ doc, docTypes }: { doc: QualityDocument; docTypes: DocumentType[] }) {
+  const rows = useMemo(() => {
+    const dt = docTypes.find(t => t.id === doc.documentTypeId);
+    if (!dt) return [];
+    return resolveEffectiveFields(dt, docTypes)
+      .filter(f => f.type === 'string' || f.type === 'text')
+      .map(f => ({ key: f.key, title: f.title || f.key, value: doc.requisites[f.key] }))
+      .filter((r): r is { key: string; title: string; value: string } =>
+        typeof r.value === 'string' && r.value.trim() !== '');
+  }, [doc, docTypes]);
+
+  if (rows.length === 0) return null;
+  return (
+    <dl className="rounded-lg border border-stroke bg-base px-3 py-2 text-xs space-y-1">
+      {rows.map(r => (
+        <div key={r.key} className="flex gap-2">
+          <dt className="text-fg4 shrink-0 w-40">{r.title}</dt>
+          <dd className="text-fg2 min-w-0 break-words">{r.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** Веб-поиск документов (ФГИС → производитель → веб) — вынесен в модалку из шапки страницы. */
+function WebSearchModal({ open, onClose, docTypes }: {
+  open: boolean; onClose: () => void; docTypes: DocumentType[];
+}) {
+  const qc = useQueryClient();
+  const [query, setQuery] = useState('');
   const [candidates, setCandidates] = useState<SearchCandidate[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [importingUrl, setImportingUrl] = useState<string | null>(null);
-  const [searchError, setSearchError] = useState('');
+  const [error, setError] = useState('');
 
-  const { data: docTypes = [] } = useListDocumentTypes();
-  const { data: docs = [], isLoading } = useListQualityDocs({
-    scope: scopeFilter === 'System' ? 'System' : undefined,
-    search: search || undefined,
-  });
-  const del = useDeleteQualityDoc();
-
-  const groups = useMemo(() => {
-    const m = new Map<string, QualityDocument[]>();
-    for (const d of docs) {
-      const k = getManufacturer(d, docTypes);
-      const arr = m.get(k); if (arr) arr.push(d); else m.set(k, [d]);
-    }
-    // «без производителя» — в конец, остальные по алфавиту
-    return [...m.entries()].sort((a, b) =>
-      a[0] === NO_MANUFACTURER ? 1 : b[0] === NO_MANUFACTURER ? -1 : a[0].localeCompare(b[0], 'ru'));
-  }, [docs, docTypes]);
-  const toggleGroup = (k: string) =>
-    setOpenGroups(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
-
-  const typeName = (id: string) => docTypes.find(d => d.id === id)?.name ?? '—';
+  // Тип берём ТОЛЬКО среди помеченных тэгом «документ качества»: без него q[0] это первый попавшийся
+  // тип документа (например АОСР), и импорт молча создал бы «документ качества» чужого типа, чья
+  // схема потом кормит распознавание. Тот же фильтр — в LinkPickerModal.
   const defaultTypeId = useMemo(() => {
-    const q = docTypes.filter(d => d.kind === 'Document' && !d.isAbstract && typeHasTag(d, FUNCTIONAL_TAG.typeQualityDocument, docTypes));
+    const q = docTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract
+      && typeHasTag(dt, FUNCTIONAL_TAG.typeQualityDocument, docTypes));
     return q.find(d => /сертификат/i.test(d.name))?.id ?? q[0]?.id ?? '';
   }, [docTypes]);
 
-  async function handleWebSearch() {
-    if (!webQuery.trim()) return;
-    setSearching(true); setSearchError(''); setCandidates(null);
-    try { setCandidates(await searchQualityDocs(webQuery.trim())); }
+  async function run() {
+    if (!query.trim()) return;
+    setSearching(true); setError(''); setCandidates(null);
+    try { setCandidates(await searchQualityDocs(query.trim())); }
     catch (e: unknown) {
+      // Сервер объясняет причину («поиск не настроен») — она полезнее, чем «status code 503».
       const resp = (e as { response?: { data?: { error?: string } } })?.response;
-      setSearchError(resp?.data?.error ?? (e instanceof Error ? e.message : 'Ошибка поиска'));
-    } finally { setSearching(false); }
+      setError(resp?.data?.error ?? (e instanceof Error ? e.message : 'Ошибка поиска'));
+    }
+    finally { setSearching(false); }
   }
 
-  async function handleImport(c: SearchCandidate) {
-    if (!defaultTypeId) { setSearchError('Не найден тип «документ качества».'); return; }
-    setImportingUrl(c.url); setSearchError('');
+  async function importOne(c: SearchCandidate) {
+    if (!defaultTypeId) { setError('Не найден тип «документ качества».'); return; }
+    setImportingUrl(c.url); setError('');
     try {
-      const doc = await importQualityDocFromUrl({ url: c.url, title: c.title, documentTypeId: defaultTypeId, scope: 'System' as CatalogScope, scopeId: null });
-      // Автоматически распознаём скан импортированного документа (best-effort).
-      try { await recognizeAndUpdate(doc, docTypes); } catch { /* распознавание не критично */ }
+      const created = await importQualityDocFromUrl({
+        url: c.url, documentTypeId: defaultTypeId, title: c.title || c.url,
+        scope: 'System' as CatalogScope, scopeId: null,
+      });
+      // Распознавание — best-effort: документ уже импортирован, и падение распознавателя (например,
+      // выключенная Ollama) не должно выглядеть как «не удалось импортировать» — человек нажал бы ещё
+      // раз и завёл дубль.
+      try { await recognizeAndUpdate(created, docTypes); } catch { /* распознавание не критично */ }
+      // Без инвалидации список слева не обновится до перефокуса окна (staleTime 30 с), и тот же
+      // документ импортировали бы повторно.
       qc.invalidateQueries({ queryKey: ['quality-docs'] });
     } catch (e: unknown) {
       const resp = (e as { response?: { data?: { error?: string } } })?.response;
-      setSearchError(resp?.data?.error ?? (e instanceof Error ? e.message : 'Не удалось импортировать'));
+      setError(resp?.data?.error ?? (e instanceof Error ? e.message : 'Не удалось импортировать'));
     } finally { setImportingUrl(null); }
   }
 
   return (
-    <div className="px-6 py-4">
-      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-        <h1 className="text-xl font-semibold text-fg1 flex items-center gap-2">
-          <ShieldCheck size={20} className="text-brand" /> Документы качества
-        </h1>
-        <Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
-          Добавить документ
+    <Modal open={open} onOpenChange={o => { if (!o) onClose(); }} title="Поиск документов в интернете" wide>
+      <div className="flex items-center gap-2 flex-wrap">
+        <input value={query} onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') void run(); }}
+          placeholder="Напр.: Выключатель автоматический EKF AV-10"
+          className="flex-1 min-w-[260px] border border-stroke-strong rounded-md px-3 py-2 text-sm bg-surface text-fg1" />
+        <Button variant="filled" onClick={run} disabled={searching || !query.trim()}
+          loading={searching} icon={<Search size={14} />}>
+          Найти
         </Button>
       </div>
-
-      {/* Веб-поиск (ФГИС → производитель → веб) */}
-      <div className="border border-stroke rounded-lg p-4 mb-4 bg-surface">
-        <div className="flex items-center gap-2 mb-2">
-          <Globe size={15} className="text-brand" />
-          <span className="text-sm font-medium text-fg2">Поиск документов в интернете</span>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <input value={webQuery} onChange={e => setWebQuery(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') void handleWebSearch(); }}
-            placeholder="Напр.: Выключатель автоматический EKF AV-10"
-            className="flex-1 min-w-[260px] border border-stroke-strong rounded-md px-3 py-2 text-sm bg-surface text-fg1" />
-          <Button variant="filled" onClick={handleWebSearch} disabled={searching || !webQuery.trim()}
-            loading={searching} icon={<Search size={14} />}>
-            Найти
-          </Button>
-        </div>
-        {searchError && <p className="text-sm text-danger mt-2">{searchError}</p>}
-        {candidates && (
-          candidates.length === 0
-            ? <p className="text-sm text-fg4 mt-3">Ничего не найдено.</p>
-            : (
-              <div className="mt-3 divide-y divide-muted border border-stroke rounded-md max-h-96 overflow-y-auto">
-                {candidates.map(c => (
-                  <div key={c.url} className="flex items-start gap-3 px-3 py-2">
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0 mt-0.5">{SOURCE_LABEL[c.source] ?? c.source}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-fg1 truncate">{c.title || c.url}</p>
-                      {c.snippet && <p className="text-xs text-fg4 line-clamp-2">{c.snippet}</p>}
-                      <a href={c.url} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-brand-hover inline-flex items-center gap-1 mt-0.5">
-                        <ExternalLink size={11} /> Открыть
-                      </a>
-                    </div>
-                    <button onClick={() => handleImport(c)} disabled={importingUrl === c.url}
-                      title="Скачать файл по ссылке и добавить в библиотеку (если это прямой PDF/скан)"
-                      className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border border-stroke hover:bg-base disabled:opacity-50 shrink-0">
-                      {importingUrl === c.url ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} В библиотеку
-                    </button>
+      {error && <p className="text-sm text-danger mt-2">{error}</p>}
+      {candidates && (
+        candidates.length === 0
+          ? <p className="text-sm text-fg4 mt-3">Ничего не найдено.</p>
+          : (
+            <div className="mt-3 divide-y divide-muted border border-stroke rounded-md max-h-96 overflow-y-auto">
+              {candidates.map(c => (
+                <div key={c.url} className="flex items-start gap-3 px-3 py-2">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0 mt-0.5">
+                    {SOURCE_LABEL[c.source] ?? c.source}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-fg1 truncate">{c.title || c.url}</p>
+                    {c.snippet && <p className="text-xs text-fg4 line-clamp-2">{c.snippet}</p>}
+                    <a href={c.url} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-brand-hover inline-flex items-center gap-1 mt-0.5">
+                      <ExternalLink size={11} /> Открыть
+                    </a>
                   </div>
-                ))}
-              </div>
-            )
-        )}
-      </div>
-
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="flex-1 min-w-[220px] max-w-md">
-          <SearchInput value={search} onChange={setSearch} placeholder="Поиск по названию..." />
-        </div>
-        <Select value={scopeFilter} onValueChange={v => setScopeFilter(v as 'all' | 'System')}
-          aria-label="Область" className="w-48">
-          <SelectItem value="all">Все области</SelectItem>
-          <SelectItem value="System">Только общие (System)</SelectItem>
-        </Select>
-      </div>
-
-      <div className="border border-stroke rounded-lg overflow-hidden bg-surface">
-        {isLoading ? (
-          <p className="text-sm text-fg4 text-center py-8">Загрузка...</p>
-        ) : docs.length === 0 ? (
-          <EmptyState className="m-4 border-0" icon={<ShieldCheck size={30} />} title="Документов качества пока нет"
-            description="Добавьте первый документ — можно загрузить скан и распознать реквизиты, либо найти в интернете."
-            action={<Button variant="filled" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>Добавить документ</Button>} />
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-base border-b border-stroke">
-              <tr>
-                <th className="px-4 py-2.5 text-left font-medium text-fg3">Название</th>
-                <th className="px-4 py-2.5 text-left font-medium text-fg3 w-56">Тип</th>
-                <th className="px-4 py-2.5 text-left font-medium text-fg3 w-28">Область</th>
-                <th className="px-4 py-2.5 text-center font-medium text-fg3 w-20">Скан</th>
-                <th className="px-4 py-2.5 w-24"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-muted">
-              {groups.map(([manuf, items]) => {
-                const open = openGroups.has(manuf);
-                return (
-                  <Fragment key={manuf}>
-                    <tr className="bg-base/60 hover:bg-base">
-                      <td colSpan={5} className="p-0">
-                        <button type="button" onClick={() => toggleGroup(manuf)} aria-expanded={open}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-fg2 text-left select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand">
-                          {open ? <ChevronDown size={14} className="text-fg4 shrink-0" /> : <ChevronRight size={14} className="text-fg4 shrink-0" />}
-                          <span className="truncate">{manuf}</span>
-                          <span className="text-xs text-fg4 font-normal">({items.length})</span>
-                        </button>
-                      </td>
-                    </tr>
-                    {open && items.map(d => (
-                      <tr key={d.id} className="group hover:bg-base">
-                        <td className="px-4 py-2.5 text-fg1 font-medium pl-9">
-                          {d.displayName}
-                          {(() => { const n = getDocNumber(d, docTypes); return n ? <span className="ml-2 text-xs text-fg4 font-normal">№ {n}</span> : null; })()}
-                        </td>
-                        <td className="px-4 py-2.5 text-fg3">{typeName(d.documentTypeId)}</td>
-                        <td className="px-4 py-2.5 text-fg4 text-xs">{SCOPE_LABEL[d.scope] ?? d.scope}</td>
-                        <td className="px-4 py-2.5 text-center">
-                          {d.scanBlobPath
-                            ? <button onClick={() => void openAttachmentInNewTab(d.scanBlobPath!)} title="Просмотр скана (в новой вкладке)"
-                                className="text-success hover:text-brand transition-colors"><FileText size={14} className="inline" /></button>
-                            : <span className="text-fg4">—</span>}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-                            <IconButton label="Редактировать" size="sm" onClick={() => setEditDoc(d)}>
-                              <Pencil size={14} />
-                            </IconButton>
-                            <IconButton label="Удалить" size="sm" danger onClick={() => setDeleteTarget(d)}
-                              disabled={del.isPending}>
-                              <Trash2 size={14} />
-                            </IconButton>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      <Modal open={createOpen} onOpenChange={setCreateOpen} title="Новый документ качества" wide>
-        {createOpen && (
-          <QualityDocForm allDocTypes={docTypes} scope={'System' as CatalogScope} scopeId={null}
-            onSaved={() => setCreateOpen(false)} onCancel={() => setCreateOpen(false)} />
-        )}
-      </Modal>
-
-
-      <Modal open={!!editDoc} onOpenChange={o => { if (!o) setEditDoc(null); }} title="Документ качества" wide>
-        {editDoc && (
-          <QualityDocForm allDocTypes={docTypes} scope={editDoc.scope} scopeId={editDoc.scopeId ?? null} initial={editDoc}
-            onSaved={() => setEditDoc(null)} onCancel={() => setEditDoc(null)} />
-        )}
-      </Modal>
-
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={o => { if (!o) setDeleteTarget(null); }}
-        title={`Удалить «${deleteTarget?.displayName ?? ''}»?`}
-        description={<p>Связи с материалами также будут удалены.</p>}
-        confirmLabel="Удалить"
-        onConfirm={() => { if (deleteTarget) return del.mutateAsync(deleteTarget.id); }}
-      />
-    </div>
+                  <button onClick={() => importOne(c)} disabled={importingUrl === c.url}
+                    title="Скачать файл по ссылке и добавить в библиотеку (если это прямой PDF/скан)"
+                    className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border border-stroke hover:bg-base disabled:opacity-50 shrink-0">
+                    {importingUrl === c.url ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} В библиотеку
+                  </button>
+                </div>
+              ))}
+            </div>
+          )
+      )}
+    </Modal>
   );
 }
+
