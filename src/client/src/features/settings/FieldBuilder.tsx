@@ -5,7 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import type { DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
-import type { SchemaField, FieldGroup } from '@/shared/api/schema';
+import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/shared/api/schema';
 import { TYPE_LABELS, toCamelKey, nextAutoKey, nextSavedKey } from './schemaConstants';
 import { useTagRegistry, fieldTags, type TagDefinition } from '@/shared/api/tags';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
@@ -290,8 +290,10 @@ export function FieldCard({
   //     оседал обрезок вроде «Печат», не совпадавший с итоговым ключом, и перенос данных при
   //     переименовании молча НЕ предлагался.
   const [savedKey, setSavedKey] = useState<string | null>(() => nextSavedKey(null, field.key, persistedKeys));
+  const prevPersisted = useRef(persistedKeys);
   useEffect(() => {
-    setSavedKey(k => nextSavedKey(k, field.key, persistedKeys));
+    setSavedKey(k => nextSavedKey(k, field.key, persistedKeys, prevPersisted.current));
+    prevPersisted.current = persistedKeys;
     // Намеренно только по persistedKeys: набор сохранённых ключей меняется после записи схемы, а
     // печать в поле ключа базу сравнения сдвигать не должна — иначе предупреждение исчезнет ровно
     // тогда, когда оно и нужно.
@@ -621,7 +623,7 @@ export function FieldBuilder({ fields, onChange, disabledKeys, persistedKeys, co
   const { data: tagRegistry } = useTagRegistry();
   const reg: FieldRegistries = { compositeTypes, primitiveTypes, enumTypes, allDocTypes, tagRegistry };
 
-  const add = () => onChange([...fields, { key: '', title: '', type: 'string', required: false }]);
+  const add = () => onChange([...fields, withFieldUid({ key: '', title: '', type: 'string', required: false })]);
   // Раскрытие карточки (одна за раз) и drag-and-drop переупорядочивания (issue #197 Фаза B).
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -646,7 +648,7 @@ export function FieldBuilder({ fields, onChange, disabledKeys, persistedKeys, co
     <div className="space-y-2">
       {fields.map((field, i) => (
         <FieldCard
-          key={`${uid}-${i}`}
+          key={field[FIELD_UID] ?? `${uid}-${i}`}
           field={field}
           reg={reg}
           keyConflict={!!field.key && !!disabledKeys?.has(field.key.trim())}

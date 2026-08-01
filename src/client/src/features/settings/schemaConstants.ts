@@ -58,13 +58,20 @@ export function nextAutoKey(currentKey: string, currentTitle: string, newTitle: 
  * это и есть сам issue #527, «ключ изменён с «»» на поле, которое никто не переименовывал.
  */
 export function nextSavedKey(
-  savedKey: string | null, currentKey: string, persistedKeys: Set<string> | undefined,
+  savedKey: string | null,
+  currentKey: string,
+  persistedKeys: Set<string> | undefined,
+  prevPersistedKeys?: Set<string>,
 ): string | null {
   const key = currentKey.trim();
   if (!persistedKeys?.has(key)) return savedKey;   // такого ключа в сохранённой схеме нет
-  // Старая база всё ещё в схеме — значит записи НАШЕГО ключа не было, а совпадение с сохранённым
-  // ключом это чужое поле (набранный дубликат). Переезжать на него нельзя: заморозили бы ввод.
-  if (savedKey !== null && persistedKeys.has(savedKey)) return savedKey;
+  // Ключ был сохранён и ДО этой перезагрузки схемы — значит записали не нас, а совпадение это чужое
+  // поле: пользователь набрал ключ, который уже занят (валидация схемы такое сохранить не даст).
+  // Присвоив его, карточка заморозила бы ввод и — хуже — записала бы перенос данных ОТ чужого поля:
+  // подтверждение диалога перенесло бы его реальные данные под наш ключ.
+  // prevPersistedKeys не передан — это первичная оценка при монтировании, там совпадение с сохранённым
+  // ключом означает ровно «поле уже сохранено».
+  if (prevPersistedKeys?.has(key)) return savedKey;
   return key;
 }
 
