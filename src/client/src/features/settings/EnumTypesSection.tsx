@@ -4,6 +4,7 @@ import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { useCreateEnumType, buildEnumTypeDto } from '@/shared/api/enumTypes';
 import { moveItem } from '@/shared/utils/moveItem';
+import { rowKey, withRowUid } from '@/shared/utils/rowIdentity';
 import type { EnumOptionDef, EnumTypeDef } from '@/shared/api/types';
 import { nextAutoKey } from './schemaConstants';
 
@@ -44,7 +45,7 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
         <span />
       </div>
       {values.map((v, i) => (
-        <div key={i} className={`${cols} rounded ${dragIdx === i ? 'ring-1 ring-brand' : ''}`}
+        <div key={rowKey(v, i)} className={`${cols} rounded ${dragIdx === i ? 'ring-1 ring-brand' : ''}`}
           onDragOver={dragIdx !== null ? e => e.preventDefault() : undefined}
           onDrop={dragIdx !== null ? () => { move(dragIdx, i); setDragIdx(null); } : undefined}>
           <span className="flex justify-center text-fg4 cursor-grab" draggable
@@ -65,7 +66,7 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
         </div>
       ))}
       <button type="button"
-        onClick={() => onChange([...values, { code: '', label: '' }])}
+        onClick={() => onChange([...values, withRowUid({ code: '', label: '' })])}
         className="flex items-center gap-1 text-sm text-brand hover:text-brand-hover pt-0.5">
         <Plus size={13} /> Добавить вариант
       </button>

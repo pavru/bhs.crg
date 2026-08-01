@@ -5,6 +5,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { moveItem } from '@/shared/utils/moveItem';
+import { rowKey, withRowUid, withRowUids } from '@/shared/utils/rowIdentity';
 import { useToast } from '@/shared/ui/Toast';
 import { ListDetailShell, NavSearchInput, NavSection, DetailHeader } from '@/shared/ui/ListDetailShell';
 import {
@@ -61,7 +62,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
       {fields.map((f, i) => {
         const locked = systemNames.includes(f.name.trim());
         return (
-          <div key={i} className={cols}>
+          <div key={rowKey(f, i)} className={cols}>
             <div className="relative">
               <input value={f.name} onChange={e => update(i, { name: e.target.value })}
                 readOnly={locked} placeholder="Позиция"
@@ -92,7 +93,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
           </div>
         );
       })}
-      <button type="button" onClick={() => onChange([...fields, { name: '', description: '', type: 'string' }])}
+      <button type="button" onClick={() => onChange([...fields, withRowUid({ name: '', description: '', type: 'string' })])}
         className="flex items-center gap-1 text-sm text-brand hover:text-brand-hover pt-0.5">
         <Plus size={13} /> {addLabel}
       </button>
@@ -133,8 +134,9 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
   const del = useDeleteRecognitionProfile();
 
   const [name, setName] = useState(profile.name);
-  const [fields, setFields] = useState<RecognitionProfileField[]>(profile.fields);
-  const [rowColumns, setRowColumns] = useState<RecognitionProfileField[]>(profile.rowColumns);
+  // Личности строк — здесь, у владельца состояния (issue #517).
+  const [fields, setFields] = useState<RecognitionProfileField[]>(() => withRowUids(profile.fields));
+  const [rowColumns, setRowColumns] = useState<RecognitionProfileField[]>(() => withRowUids(profile.rowColumns));
   const [shape, setShape] = useState<RecognitionTableShape>(profile.shape ?? EMPTY_SHAPE);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -143,8 +145,8 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
   // Сервер — источник истины после сохранения/сброса: подхватываем его ответ.
   useEffect(() => {
     setName(profile.name);
-    setFields(profile.fields);
-    setRowColumns(profile.rowColumns);
+    setFields(withRowUids(profile.fields));
+    setRowColumns(withRowUids(profile.rowColumns));
     setShape(profile.shape ?? EMPTY_SHAPE);
     setError('');
   }, [profile]);
@@ -188,8 +190,8 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
         }
         dirty={dirty} saving={update.isPending} onSaveAll={save}
         onRevert={() => {
-          setName(profile.name); setFields(profile.fields);
-          setRowColumns(profile.rowColumns); setShape(profile.shape ?? EMPTY_SHAPE);
+          setName(profile.name); setFields(withRowUids(profile.fields));
+          setRowColumns(withRowUids(profile.rowColumns)); setShape(profile.shape ?? EMPTY_SHAPE);
         }}
         actions={
           <>
