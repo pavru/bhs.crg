@@ -202,7 +202,9 @@ export function QualityDocsPage() {
         </h3>
         {/* Фильтруем строки ТОЛЬКО если запрос попал в связки. Иначе человек, нашедший документ по
             его собственному имени, увидел бы «ни одна связка не подходит» под заголовком «Связки · 69». */}
-        <QualityDocLinks links={linksByDoc.get(current.id) ?? []} allDocTypes={docTypes}
+        {/* key — чтобы выбор строк не переезжал на другой документ: иначе панель показывала бы
+            «Выбрано: 3» без единой отмеченной строки, а разрыв ушёл бы с пустым списком. */}
+        <QualityDocLinks key={current.id} links={linksByDoc.get(current.id) ?? []} allDocTypes={docTypes}
           search={(linksByDoc.get(current.id) ?? []).some(l => matchesLink(l, search.trim().toLowerCase())) ? search : ''} />
       </div>
     </div>

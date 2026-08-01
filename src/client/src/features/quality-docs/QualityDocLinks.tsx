@@ -4,6 +4,7 @@ import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/ui/Toast';
+import { apiError } from '@/shared/utils/apiError';
 import {
   useRemoveMaterialLink, useRemoveMaterialLinks, useSetMaterialLinks, type MaterialQualityLink,
 } from '@/shared/api/qualityDocs';
@@ -51,44 +52,75 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
   }, [links, search]);
 
   async function breakLink(link: MaterialQualityLink) {
-    await removeLink.mutateAsync(link.id);
-    toast.success(`Связь снята: ${nameOf(link)}`);
+    try {
+      await removeLink.mutateAsync(link.id);
+      toast.success(`Связь снята: ${nameOf(link)}`);
+    } catch (e) {
+      toast.error(apiError(e, 'Не удалось разорвать связь'));
+    }
   }
 
-  const chosen = useMemo(() => links.filter(l => selected.has(l.id)), [links, selected]);
+  // Действуем над ВИДИМЫМИ строками: иначе поиск, сузивший список, оставил бы в наборе строки,
+  // которых человек уже не видит, а диалог показывает только число — поймать ошибку было бы нечем.
+  const chosen = useMemo(() => shown.filter(l => selected.has(l.id)), [shown, selected]);
+
+  /** Все выбранные связки одной области — тогда пикер можно показать в ней же. */
+  const sameScope = chosen.every(l => l.scope === chosen[0]?.scope && (l.scopeId ?? null) === (chosen[0]?.scopeId ?? null));
 
   function toggle(id: string) {
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   }
 
   async function relinkMany(docId: string) {
-    // Ложится на существующий контракт: массив ключей + один документ, существующие связки
-    // ПЕРЕНАЦЕЛИВАЮТСЯ (Retarget), а не дублируются.
-    await setLinks.mutateAsync({
-      scope: chosen[0].scope, scopeId: chosen[0].scopeId ?? null,
-      materials: chosen.map(l => ({ key: l.materialKey })), qualityDocumentId: docId,
-    });
+    // Перепривязка идёт ПО ГРУППАМ ОБЛАСТЕЙ. Команда апсертит по тройке (область, объект области,
+    // ключ) — если выбраны связки разных областей и отправить их одной областью, чужие не
+    // перенацелятся, зато родятся дубли, а при генерации победит узкая (несменённая) связка. То есть
+    // ровно тот дефект, ради починки которого экран и делался.
+    const byScope = new Map<string, MaterialQualityLink[]>();
+    for (const l of chosen) {
+      const k = `${l.scope}|${l.scopeId ?? ''}`;
+      const arr = byScope.get(k); if (arr) arr.push(l); else byScope.set(k, [l]);
+    }
     const n = chosen.length;
-    setBulkRelink(false); setSelected(new Set());
-    toast.success(`Перепривязано материалов: ${n}`);
+    try {
+      for (const group of byScope.values()) {
+        await setLinks.mutateAsync({
+          scope: group[0].scope, scopeId: group[0].scopeId ?? null,
+          materials: group.map(l => ({ key: l.materialKey })), qualityDocumentId: docId,
+        });
+      }
+      setBulkRelink(false); setSelected(new Set());
+      toast.success(`Перепривязано материалов: ${n}`);
+    } catch (e) {
+      // Молчаливый отказ здесь теряет сразу N перепривязок — человек нажал бы ещё раз.
+      toast.error(apiError(e, 'Не удалось перепривязать'));
+    }
   }
 
   async function breakMany() {
-    const { removed } = await removeLinks.mutateAsync(chosen.map(l => l.id));
-    setSelected(new Set());
-    toast.success(`Снято связей: ${removed}`);
+    try {
+      const { removed } = await removeLinks.mutateAsync(chosen.map(l => l.id));
+      setSelected(new Set());
+      toast.success(`Снято связей: ${removed}`);
+    } catch (e) {
+      toast.error(apiError(e, 'Не удалось разорвать связи'));
+    }
   }
 
   async function relink(docId: string) {
     if (!relinking) return;
+    try {
     // Метку не шлём: здесь человеческого имени под рукой нет, а пустая метка не затирает
     // добытую при первой привязке (issue #554).
-    await setLinks.mutateAsync({
-      scope: relinking.scope, scopeId: relinking.scopeId ?? null,
-      materials: [{ key: relinking.materialKey }], qualityDocumentId: docId,
-    });
-    setRelinking(null);
-    toast.success('Материал перепривязан');
+      await setLinks.mutateAsync({
+        scope: relinking.scope, scopeId: relinking.scopeId ?? null,
+        materials: [{ key: relinking.materialKey }], qualityDocumentId: docId,
+      });
+      setRelinking(null);
+      toast.success('Материал перепривязан');
+    } catch (e) {
+      toast.error(apiError(e, 'Не удалось перепривязать'));
+    }
   }
 
   if (links.length === 0) {
@@ -125,13 +157,15 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
         </div>
       ))}
 
-      {selected.size > 0 && (
+      {/* Число — по ВИДИМЫМ выбранным: действия работают именно над ними, и подпись обязана
+          совпадать с тем, что произойдёт. Скрытые поиском строки в счёт не идут. */}
+      {chosen.length > 0 && (
         <div className="sticky bottom-0 flex items-center gap-2 rounded-md border border-stroke bg-surface px-3 py-2 shadow-sm">
-          <span className="text-sm text-fg2">Выбрано: {selected.size}</span>
+          <span className="text-sm text-fg2">Выбрано: {chosen.length}</span>
           <Button variant="filled" size="sm" icon={<Replace size={13} />}
-            onClick={() => setBulkRelink(true)}>Перепривязать ({selected.size})</Button>
+            onClick={() => setBulkRelink(true)}>Перепривязать ({chosen.length})</Button>
           <Button variant="outlined" size="sm" icon={<Unlink size={13} />}
-            onClick={() => setBulkBreak(true)}>Разорвать ({selected.size})</Button>
+            onClick={() => setBulkBreak(true)}>Разорвать ({chosen.length})</Button>
           <button type="button" onClick={() => setSelected(new Set())}
             className="ml-auto text-xs text-fg4 hover:text-fg2">Снять выбор</button>
         </div>
@@ -139,7 +173,7 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
 
       <ConfirmDialog
         open={bulkBreak} onOpenChange={setBulkBreak}
-        title={`Разорвать связи: ${selected.size}?`}
+        title={`Разорвать связи: ${chosen.length}?`}
         description={<p>Выбранные материалы останутся без документов качества — при генерации поле
           документа качества будет пустым.</p>}
         confirmLabel="Разорвать"
@@ -149,7 +183,10 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
       {bulkRelink && chosen.length > 0 && (
         <LinkPickerModal
           open onClose={() => setBulkRelink(false)} allDocTypes={allDocTypes}
-          scope={chosen[0].scope as CatalogScope} scopeId={chosen[0].scopeId ?? null}
+          /* Область нужна пикеру, чтобы показать библиотеку; при разнородном выборе берём общую —
+             она видна отовсюду. На запись это не влияет: там области разбираются по группам. */
+          scope={(sameScope ? chosen[0].scope : 'System') as CatalogScope}
+          scopeId={sameScope ? chosen[0].scopeId ?? null : null}
           materials={chosen.map(l => ({ key: l.materialKey, label: nameOf(l), idValues: [nameOf(l)] }))}
           onPick={docId => void relinkMany(docId)}
         />
