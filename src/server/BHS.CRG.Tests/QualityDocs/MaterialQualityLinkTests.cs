@@ -112,6 +112,21 @@ public class MaterialQualityLinkTests
     }
 
     /// <summary>
+    /// Метка из одного маркера — пустая метка. Проверка на пустоту идёт ПОСЛЕ чистки, иначе такая
+    /// строка прошла бы её и затёрла уже добытое имя.
+    /// </summary>
+    [Fact]
+    public void MarkerOnlyLabel_DoesNotEraseExistingName()
+    {
+        var link = MaterialQualityLink.Create(CatalogScope.System, null, "шт", Guid.NewGuid());
+        link.DescribeMaterial("Панель монтажная EKF");
+
+        link.DescribeMaterial("🔗 ");
+
+        Assert.Equal("Панель монтажная EKF", link.MaterialLabel);
+    }
+
+    /// <summary>
     /// Метка обрезается до предела колонки (512). Она склеивается из ВСЕХ полей идентичности и
     /// систематически длиннее ключа; переполнение уронило бы весь пакет привязки на 22001 —
     /// несоразмерная плата за декоративный снимок.

@@ -188,7 +188,7 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
           scope={(sameScope ? chosen[0].scope : 'System') as CatalogScope}
           scopeId={sameScope ? chosen[0].scopeId ?? null : null}
           materials={chosen.map(l => ({ key: l.materialKey, label: nameOf(l), idValues: [nameOf(l)] }))}
-          onPick={docId => void relinkMany(docId)}
+          onPick={doc => void relinkMany(doc.id)}
         />
       )}
 
@@ -211,7 +211,7 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
           open onClose={() => setRelinking(null)} allDocTypes={allDocTypes}
           scope={relinking.scope as CatalogScope} scopeId={relinking.scopeId ?? null}
           materials={[{ key: relinking.materialKey, label: nameOf(relinking), idValues: [nameOf(relinking)] }]}
-          onPick={docId => void relink(docId)}
+          onPick={doc => void relink(doc.id)}
         />
       )}
     </div>

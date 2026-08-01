@@ -62,7 +62,7 @@ export interface MaterialRow { key: string; label: string; idValues: string[] }
 export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, materials, onPick }: {
   open: boolean; onClose: () => void; allDocTypes: DocumentType[];
   scope: CatalogScope; scopeId: string | null; materials: MaterialRow[];
-  onPick: (docId: string) => void;
+  onPick: (doc: QualityDocument) => void;
 }) {
   const count = materials.length;
   const [tab, setTab] = useState<'pick' | 'search' | 'create'>('pick');
@@ -139,7 +139,7 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
       let doc = await importQualityDocFromUrl({ url: c.url, title: c.title, documentTypeId: searchType, scope, scopeId });
       // Автоматически распознаём скан импортированного документа (best-effort).
       try { doc = await recognizeAndUpdate(doc, allDocTypes); } catch { /* распознавание не критично */ }
-      onPick(doc.id);
+      onPick(doc);
     } catch (e: unknown) {
       setSearchError(e instanceof Error ? e.message : 'Не удалось импортировать');
     } finally { setImportingUrl(null); }
@@ -182,7 +182,7 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
               <div className="max-h-80 overflow-y-auto divide-y divide-muted border border-stroke rounded-md">
                 {visible.map(({ d, expired, validUntil, score }) => (
                   <div key={d.id} className="flex items-center gap-2 px-3 py-2 hover:bg-brand-subtle transition-colors">
-                    <button onClick={() => onPick(d.id)} className="flex-1 flex items-center gap-2 min-w-0 text-left">
+                    <button onClick={() => onPick(d)} className="flex-1 flex items-center gap-2 min-w-0 text-left">
                       <ShieldCheck size={14} className={expired ? 'text-fg4 shrink-0' : 'text-brand shrink-0'} />
                       <span className="flex-1 text-sm text-fg1 truncate">{d.displayName}</span>
                       {queryTokens.length > 0 && score > 0 && (
@@ -249,7 +249,7 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
 
       {tab === 'create' && (
         <QualityDocForm allDocTypes={allDocTypes} scope={scope} scopeId={scopeId}
-          onSaved={doc => onPick(doc.id)} onCancel={() => setTab('pick')} />
+          onSaved={doc => onPick(doc)} onCancel={() => setTab('pick')} />
       )}
 
     </Modal>
@@ -319,7 +319,10 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       const idValues = identityKeys
         .map(k => rec[k])
         .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
-        .map(v => v.trim());
+        // Легаси-маркер ссылки («🔗 …» — так когда-то хранились составные поля) не относится к
+        // значению: с ним подпись на экране и ключ связи расходились бы с тем, что видит резолвер.
+        .map(v => v.replace(/🔗/g, '').replace(/\s+/g, ' ').trim())
+        .filter(v => v.length > 0);
       if (idValues.length === 0) return;
       const key = normalizeKey(idValues[0]);
       if (!key || seen.has(key)) return;
@@ -389,19 +392,16 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
    * благополучно. Запрещать нельзя — у артикулов сравнивать нечего, и запрет ломал бы честный
    * сценарий; поэтому предупреждаем и показываем, чего именно не сходится.
    */
-  async function handlePick(docId: string) {
+  async function handlePick(doc: QualityDocument) {
     const chosen = materials.filter(m => selected.has(m.key));
-    const doc = docById.get(docId);
-    const assessment = doc
-      ? assessBulkLink(chosen, m => m.label, docHaystackText(doc))
-      : null;
+    const assessment = assessBulkLink(chosen, m => m.label, docHaystackText(doc));
 
-    if (assessment && assessment.mismatched.length > 0) {
+    if (assessment.mismatched.length > 0) {
       setPickerOpen(false);
-      setPendingLink({ docId, docName: doc!.displayName, chosen, assessment });
+      setPendingLink({ docId: doc.id, docName: doc.displayName, chosen, assessment });
       return;
     }
-    await linkChosen(docId, chosen);
+    await linkChosen(doc.id, chosen);
   }
 
   async function linkChosen(docId: string, chosen: MaterialRow[]) {
@@ -594,7 +594,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
             </p>
           </div>
         ) : ''}
-        confirmLabel="Всё равно привязать"
+        confirmLabel="Всё равно привязать" errorTitle="Не удалось привязать"
         onConfirm={() => { if (pendingLink) return linkChosen(pendingLink.docId, pendingLink.chosen); }}
       />
 

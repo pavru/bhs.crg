@@ -70,11 +70,15 @@ public class MaterialQualityLink : Entity
 
     private static string? Trim(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value)) return null;
         // Легаси-маркер ссылки «🔗» в значении поля (составные поля когда-то хранились строкой
         // «🔗 …», см. каталог): в человеческом имени материала он мусор — имя склеивается из полей
         // идентичности, и один из них приносит этот значок в КАЖДУЮ метку.
-        var trimmed = value.Replace("🔗", "").Replace("  ", " ").Trim();
+        //
+        // Чистим ДО проверки на пустоту: иначе метка из одного маркера прошла бы её и затёрла
+        // добытое имя пустой строкой — ровно то, что запрещает DescribeMaterial.
+        var trimmed = string.Join(' ', (value ?? "").Replace("🔗", " ")
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        if (trimmed.Length == 0) return null;
         return trimmed.Length <= MaxLabelLength ? trimmed : trimmed[..(MaxLabelLength - 1)] + "…";
     }
 }

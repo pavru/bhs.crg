@@ -16,8 +16,19 @@ export function tokenize(s: string): string[] {
   return normText(s).split(/\s+/).filter(t => t.length >= 3 && !STOP.has(t));
 }
 
-/** Грубая основа слова: срезаем окончание (русская морфология) — «выключатель»≈«выключатели». */
-export function stem(t: string): string { return t.length > 6 ? t.slice(0, 6) : t; }
+/**
+ * Грубая основа слова: снимаем ОДНУ конечную гласную (или мягкий знак) и ограничиваем длину.
+ *
+ * Срезом «длиннее шести» ограничиться нельзя: он не сводит короткие существительные, а именно они
+ * и составляют номенклатуру — «кабель»/«кабели», «лампа»/«лампы», «муфта»/«муфты» — все ровно по
+ * шесть букв и остаются разными словами. Померено на 113 живых связках: вариант без снятия
+ * окончания ложно тревожит ТРИ верные связки («Кабель ВВГнг … РЭМЗ» ↔ «РЭМЗ — Кабели силовые»,
+ * термоусадка EKF ↔ информационное письмо EKF) и при этом не ловит ни одной неверной сверх текущих.
+ */
+export function stem(t: string): string {
+  const base = t.length >= 5 && /[аеиоуыюяьй]$/.test(t) ? t.slice(0, -1) : t;
+  return base.length > 6 ? base.slice(0, 6) : base;
+}
 
 /** Все строковые значения объекта — «стог» для сопоставления. */
 export function collectStrings(v: unknown, out: string[]): void {
@@ -79,6 +90,16 @@ function isWordy(token: string): boolean {
   return token.length >= 4 && !/\d/.test(token);
 }
 
+/**
+ * Сколько словесных признаков должно быть у САМОГО документа, чтобы по нему вообще можно было судить.
+ *
+ * Симметрично материалу: у нераспознанного документа («[PDF] Информационное письмо» — название и
+ * пустые реквизиты) слов почти нет, и тогда «не похоже» получают ВСЕ материалы подряд, включая
+ * верные. Живые 17 документов дают 12…280 словесных основ, а единственный нераспознанный — 2, так
+ * что порог отделяет вырожденный случай, не задевая содержательные.
+ */
+const MIN_DOC_WORDS = 5;
+
 export function assessBulkLink<T>(
   materials: readonly T[],
   nameOf: (m: T) => string,
@@ -86,6 +107,10 @@ export function assessBulkLink<T>(
 ): BulkLinkAssessment<T> {
   const hay = new Set(tokenize(docText.join(' ')).map(stem));
   const result: BulkLinkAssessment<T> = { fits: [], unverifiable: [], mismatched: [] };
+
+  // Документ нечем проверять — весь выбор непроверяем, предупреждать не о чем.
+  const docWords = new Set([...hay].filter(isWordy));
+  if (docWords.size < MIN_DOC_WORDS) return { fits: [], unverifiable: [...materials], mismatched: [] };
 
   for (const m of materials) {
     const tokens = weighted(nameOf(m)).filter(x => isWordy(x.t));
