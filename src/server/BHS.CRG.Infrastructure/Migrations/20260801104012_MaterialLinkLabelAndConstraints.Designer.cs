@@ -14,7 +14,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BHS.CRG.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260801101502_MaterialLinkLabelAndConstraints")]
+    [Migration("20260801104012_MaterialLinkLabelAndConstraints")]
     partial class MaterialLinkLabelAndConstraints
     {
         /// <inheritdoc />
@@ -628,6 +628,8 @@ namespace BHS.CRG.Infrastructure.Migrations
 
                     b.HasIndex("Scope", "ScopeId", "MaterialKey")
                         .IsUnique();
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("Scope", "ScopeId", "MaterialKey"), false);
 
                     b.ToTable("material_quality_links", (string)null);
                 });

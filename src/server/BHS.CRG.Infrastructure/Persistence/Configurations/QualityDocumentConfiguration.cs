@@ -38,7 +38,10 @@ public class MaterialQualityLinkConfiguration : IEntityTypeConfiguration<Materia
         // Уникальность — инвариант «на материал в области ровно одна связь» (issue #554). До сих пор он
         // держался только кодом команды (Retarget вместо второй записи), а SetMaterialLinksCommand
         // строит словарь по ключу и на дубле БРОСАЕТ. Дубль рождался гонкой двух параллельных POST.
-        b.HasIndex(e => new { e.Scope, e.ScopeId, e.MaterialKey }).IsUnique();
+        // AreNullsDistinct(false) — без него ограничение НЕ ДЕЙСТВУЕТ там, где лежат все данные:
+        // PostgreSQL считает NULL-ы различными, а у System-связок ScopeId равен NULL (все 113 живых
+        // связок именно такие). Уникальность без этого была бы видимостью инварианта.
+        b.HasIndex(e => new { e.Scope, e.ScopeId, e.MaterialKey }).IsUnique().AreNullsDistinct(false);
         b.HasIndex(e => e.QualityDocumentId);
 
         // Внешний ключ без навигации: связка ссылается на документ голым Guid, и чистка при удалении

@@ -6,7 +6,8 @@ namespace BHS.CRG.Application.QualityDocs;
 
 public class QualityDocHandlers(
     IRepository<QualityDocument> repo,
-    IRepository<MaterialQualityLink> linkRepo
+    IRepository<MaterialQualityLink> linkRepo,
+    IRepository<DocumentType> typeRepo
 ) :
     IRequestHandler<CreateQualityDocumentCommand, QualityDocument>,
     IRequestHandler<UpdateQualityDocumentCommand, QualityDocument>,
@@ -78,8 +79,10 @@ public class QualityDocHandlers(
     public async Task<int> Handle(SetMaterialLinksCommand cmd, CancellationToken ct)
     {
         var existing = await linkRepo.FindAsync(l => l.Scope == cmd.Scope && l.ScopeId == cmd.ScopeId, ct);
-        // ToDictionary бросил бы на дубле ключа; с #554 дублей не бывает — уникальный индекс.
         var byKey = existing.ToDictionary(l => l.MaterialKey);
+        // Ключи, созданные ЭТИМ пакетом: их нельзя отдавать в Update — сущность ещё в состоянии Added,
+        // и EF выпустил бы UPDATE по несуществующей строке («expected to affect 1 row, actually 0»).
+        var created = new HashSet<string>();
         var count = 0;
         foreach (var material in cmd.Materials)
         {
@@ -91,12 +94,19 @@ public class QualityDocHandlers(
                 // Метку обновляем, но пустой не затираем: перепривязка с экрана контроля идёт без
                 // имени, и она не должна отнимать имя, добытое при первой привязке.
                 link.DescribeMaterial(material.Label);
-                linkRepo.Update(link);
+                if (!created.Contains(key)) linkRepo.Update(link);
             }
             else
             {
-                await linkRepo.AddAsync(MaterialQualityLink.Create(
-                    cmd.Scope, cmd.ScopeId, key, cmd.QualityDocumentId, material.Label), ct);
+                var link2 = MaterialQualityLink.Create(
+                    cmd.Scope, cmd.ScopeId, key, cmd.QualityDocumentId, material.Label);
+                await linkRepo.AddAsync(link2, ct);
+                // Кладём созданное в карту: два материала ОДНОГО пакета могут нормализоваться в один
+                // ключ («шт.» и «шт»), и без этого оба ушли бы в Add — с уникальным индексом (#554)
+                // SaveChanges бросил бы и откатил ВЕСЬ пакет. Достижимо из-за клиентской копии
+                // нормализатора, которая может разойтись с серверной.
+                byKey[key] = link2;
+                created.Add(key);
             }
             count++;
         }
@@ -114,15 +124,28 @@ public class QualityDocHandlers(
     public async Task<IReadOnlyList<MaterialLinkRow>> Handle(ListMaterialLinksQuery q, CancellationToken ct)
     {
         // Область необязательна: без неё отдаём связки ВСЕХ областей (экран контроля смотрит поперёк).
-        var links = q.Scope is { } scope
-            ? await linkRepo.FindAsync(l => l.Scope == scope && l.ScopeId == q.ScopeId, ct)
-            : await linkRepo.GetAllAsync(ct);
+        // Но заданный ScopeId уважаем и без Scope — иначе запрос «связки этого комплекта» молча
+        // вернул бы вообще все, с кодом 200.
+        var links = (q.Scope, q.ScopeId) switch
+        {
+            ({ } scope, var scopeId) => await linkRepo.FindAsync(l => l.Scope == scope && l.ScopeId == scopeId, ct),
+            (null, { } scopeId) => await linkRepo.FindAsync(l => l.ScopeId == scopeId, ct),
+            _ => await linkRepo.GetAllAsync(ct),
+        };
         if (links.Count == 0) return [];
 
         // Имя документа — вторым запросом по нужным id, а не обходом в памяти всей библиотеки.
         var docIds = links.Select(l => l.QualityDocumentId).Distinct().ToList();
         var docs = await repo.FindAsync(d => docIds.Contains(d.Id), ct);
         var byId = docs.ToDictionary(d => d.Id);
+
+        // Вид документа берём из РЕЕСТРА ТИПОВ, а не из реквизита «ТипДокумента»: реквизит — свободный
+        // текст из распознавания, в живой базе три вида записаны шестью способами («Сертификат»,
+        // «СЕРТИФИКАТ СООТВЕТСТВИЯ», …), и у одного документа он ПРОТИВОРЕЧИТ собственному типу.
+        // Тот же источник, что и у снапшота (DomainSnapshotService.ListMaterialQualityLinksAsync).
+        var typeIds = docs.Select(d => d.DocumentTypeId).Distinct().ToList();
+        var typeName = (await typeRepo.FindAsync(t => typeIds.Contains(t.Id), ct))
+            .ToDictionary(t => t.Id, t => t.Name);
 
         return links
             .Select(l =>
@@ -133,8 +156,7 @@ public class QualityDocHandlers(
                     // Документа может не быть только у связки, пережившей ручную чистку БД: внешний
                     // ключ с каскадом (#554) такие больше не оставляет. Честнее пустого имени.
                     doc?.DisplayName ?? "(документ удалён)",
-                    doc?.Requisites.RootElement.TryGetProperty("ТипДокумента", out var t) == true
-                        ? t.GetString() : null,
+                    doc is not null && typeName.TryGetValue(doc.DocumentTypeId, out var type) ? type : null,
                     l.CreatedAt, l.UpdatedAt);
             })
             .OrderBy(r => r.QualityDocumentName)

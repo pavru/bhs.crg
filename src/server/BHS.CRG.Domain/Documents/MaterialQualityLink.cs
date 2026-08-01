@@ -63,6 +63,15 @@ public class MaterialQualityLink : Entity
         TouchUpdatedAt();
     }
 
+    /// <summary>Предел колонки — 512 (issue #554). Метка это склейка ВСЕХ полей идентичности, она
+    /// систематически длиннее ключа; переполнение уронило бы весь пакет привязки на 22001 — несоразмерная
+    /// плата за декоративный снимок, поэтому обрезаем здесь.</summary>
+    public const int MaxLabelLength = 512;
+
     private static string? Trim(string? value)
-        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var trimmed = value.Trim();
+        return trimmed.Length <= MaxLabelLength ? trimmed : trimmed[..(MaxLabelLength - 1)] + "…";
+    }
 }

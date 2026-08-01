@@ -626,6 +626,8 @@ namespace BHS.CRG.Infrastructure.Migrations
                     b.HasIndex("Scope", "ScopeId", "MaterialKey")
                         .IsUnique();
 
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("Scope", "ScopeId", "MaterialKey"), false);
+
                     b.ToTable("material_quality_links", (string)null);
                 });
 

@@ -96,4 +96,27 @@ public class MaterialQualityLinkTests
 
         Assert.Equal("Боковая панель ВРУ", link.MaterialLabel);
     }
+
+    /// <summary>
+    /// Метка обрезается до предела колонки (512). Она склеивается из ВСЕХ полей идентичности и
+    /// систематически длиннее ключа; переполнение уронило бы весь пакет привязки на 22001 —
+    /// несоразмерная плата за декоративный снимок.
+    /// </summary>
+    [Fact]
+    public void OverlongLabel_IsTruncatedToColumnLimit()
+    {
+        var link = Link(new string('я', 900));
+
+        Assert.NotNull(link.MaterialLabel);
+        Assert.Equal(MaterialQualityLink.MaxLabelLength, link.MaterialLabel!.Length);
+        Assert.EndsWith("…", link.MaterialLabel);
+    }
+
+    [Fact]
+    public void LabelAtTheLimit_IsKeptWhole()
+    {
+        var label = new string('я', MaterialQualityLink.MaxLabelLength);
+
+        Assert.Equal(label, Link(label).MaterialLabel);
+    }
 }
