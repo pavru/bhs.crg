@@ -114,6 +114,10 @@ interface FieldCardProps {
   siblingFields?: { key: string; title: string; type: string; computed?: boolean; expression?: string }[];
   /** Смена ключа СОХРАНЁННОГО поля (issue #357) — для предложения миграции данных на сохранении схемы. */
   onKeyRename?: (from: string, to: string) => void;
+  /** Поле только что добавлено (issue #526): курсор ставится в «Название», чтобы можно было сразу печатать. */
+  autoFocus?: boolean;
+  /** Курсор поставлен — контейнеру пора забыть о добавлении (иначе фокус вернётся при перерисовке). */
+  onAutoFocused?: () => void;
   open: boolean;
   onToggleOpen: () => void;
   onChange: (patch: Partial<SchemaField>) => void;
@@ -268,12 +272,22 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
  *  редактор (все ветки типов/опций/тэгов). Индекс-независима — переиспользуется в плоском и
  *  группированном представлении (issue #197 Фаза C). */
 export function FieldCard({
-  field, reg, keyConflict, persistedKeys, siblingFields, onKeyRename, open, onToggleOpen, onChange, onRemove,
+  field, reg, keyConflict, persistedKeys, siblingFields, onKeyRename, autoFocus, onAutoFocused,
+  open, onToggleOpen, onChange, onRemove,
   onMoveUp, onMoveDown, isFirst, isLast, dragging, onDragStart, onDragEnd, onDragOver, onDrop,
 }: FieldCardProps) {
   const { primitiveTypes, enumTypes, tagRegistry } = reg;
   const tags = field.tags ?? [];
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Курсор в «Название» сразу после добавления поля (issue #526): иначе после нажатия «Добавить поле»
+  // приходится ещё раз целиться мышью в развернувшуюся карточку.
+  const titleRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!autoFocus) return;
+    titleRef.current?.focus();
+    onAutoFocused?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFocus]);
   // Стабильность ключа (issue #355): у сохранённого поля ключ заморожен (read-only + замок), меняется
   // только явной разблокировкой с предупреждением о дрейфе данных.
   const [keyUnlocked, setKeyUnlocked] = useState(false);
@@ -363,6 +377,7 @@ export function FieldCard({
       <div className="grid grid-cols-[1fr_1fr_160px_72px_76px] gap-2 items-center">
         {/* Title */}
         <input
+          ref={titleRef}
           value={field.title}
           onChange={e => updateTitle(e.target.value)}
           placeholder="Название"
@@ -623,7 +638,13 @@ export function FieldBuilder({ fields, onChange, disabledKeys, persistedKeys, co
   const { data: tagRegistry } = useTagRegistry();
   const reg: FieldRegistries = { compositeTypes, primitiveTypes, enumTypes, allDocTypes, tagRegistry };
 
-  const add = () => onChange([...fields, withFieldUid({ key: '', title: '', type: 'string', required: false })]);
+  const [justAdded, setJustAdded] = useState<string | null>(null);
+  const add = () => {
+    const field = withFieldUid({ key: '', title: '', type: 'string', required: false });
+    onChange([...fields, field]);
+    setOpenIndex(fields.length);          // без раскрытой карточки ставить курсор некуда
+    setJustAdded(field[FIELD_UID]);
+  };
   // Раскрытие карточки (одна за раз) и drag-and-drop переупорядочивания (issue #197 Фаза B).
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -653,6 +674,8 @@ export function FieldBuilder({ fields, onChange, disabledKeys, persistedKeys, co
           reg={reg}
           keyConflict={!!field.key && !!disabledKeys?.has(field.key.trim())}
           persistedKeys={persistedKeys}
+          autoFocus={!!justAdded && field[FIELD_UID] === justAdded}
+          onAutoFocused={() => setJustAdded(null)}
           siblingFields={fields.filter((_, idx) => idx !== i).map(f => ({ key: f.key, title: f.title, type: f.type, computed: f.computed, expression: f.expression }))}
           open={openIndex === i}
           onToggleOpen={() => setOpenIndex(o => o === i ? null : i)}

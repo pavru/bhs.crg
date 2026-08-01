@@ -31,6 +31,7 @@ export function GroupedFieldsEditor({
   reg: FieldRegistries;
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [justAdded, setJustAdded] = useState<string | null>(null);   // uid только что добавленного поля (issue #526)
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null); // ключ группы (или '__ungrouped__') под курсором
   const [dropBeforeKey, setDropBeforeKey] = useState<string | null>(null); // поле, ПЕРЕД которым ляжет; null = в конец контейнера
@@ -117,8 +118,10 @@ export function GroupedFieldsEditor({
   }
 
   function addField() {
-    onFieldsChange([...fields, withFieldUid({ key: '', title: '', type: 'string', required: false })]);
+    const field = withFieldUid({ key: '', title: '', type: 'string', required: false });
+    onFieldsChange([...fields, field]);
     setOpenIndex(fields.length);
+    setJustAdded(field[FIELD_UID]);   // курсор в «Название» (issue #526)
   }
 
   // ── Операции над группами ─────────────────────────────────────────────────
@@ -188,6 +191,8 @@ export function GroupedFieldsEditor({
           reg={reg}
           keyConflict={!!own.key && !!disabledKeys?.has(own.key.trim())}
           persistedKeys={persistedKeys}
+          autoFocus={!!justAdded && own[FIELD_UID] === justAdded}
+          onAutoFocused={() => setJustAdded(null)}
           onKeyRename={onKeyRename}
           open={openIndex === idx}
           onToggleOpen={() => setOpenIndex(o => o === idx ? null : idx)}
