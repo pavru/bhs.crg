@@ -49,8 +49,7 @@ export function DecisionDialog({ finding, onClose, onSave, onRemove }: {
         </div>
 
         <div>
-          <label className="block text-xs text-fg3 mb-1">Решение</label>
-          <Select value={kind} onValueChange={v => setKind(v as DecisionKind)} aria-label="Решение">
+          <Select label="Решение" value={kind} onValueChange={v => setKind(v as DecisionKind)}>
             <SelectItem value="Accepted">{DECISION_LABELS.Accepted}</SelectItem>
             <SelectItem value="Suppressed">{DECISION_LABELS.Suppressed}</SelectItem>
           </Select>

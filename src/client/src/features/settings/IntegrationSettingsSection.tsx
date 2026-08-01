@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
+import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import {
   useIntegrationSettings,
@@ -80,10 +81,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const inputCls =
-  'w-full px-2.5 py-1.5 text-sm rounded-md border border-stroke bg-surface text-fg1 ' +
-  'focus:outline-none focus:border-brand placeholder:text-fg4';
-
 function EngineCard({
   meta, form, onChange, reorder, modelOptions,
 }: {
@@ -126,20 +123,20 @@ function EngineCard({
         // в список добавляем текущее значение, чтобы кастомная модель из конфига не потерялась
         const opts = Array.from(new Set([...(modelOptions ?? []), form.model].filter(Boolean)));
         return (
-          <Field label={meta.modelLabel}>
-            {opts.length === 0 ? (
+          opts.length === 0 ? (
+            <Field label={meta.modelLabel}>
               <div className="text-xs text-fg4 px-2.5 py-2 rounded-md border border-dashed border-stroke">
                 {meta.key === 'Ollama'
                   ? <>Нет скачанных моделей. Выполните <code className="font-mono text-fg3">ollama pull qwen2.5vl:7b</code></>
                   : 'Список моделей недоступен'}
               </div>
-            ) : (
-              <Select value={form.model || undefined} placeholder="— выберите —" aria-label={meta.modelLabel}
-                onValueChange={m => onChange({ ...form, model: m })}>
-                {opts.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-              </Select>
-            )}
-          </Field>
+            </Field>
+          ) : (
+            <Select label={meta.modelLabel} value={form.model || undefined} placeholder="— выберите —"
+              onValueChange={m => onChange({ ...form, model: m })}>
+              {opts.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            </Select>
+          )
         );
       })()}
 
@@ -175,16 +172,13 @@ function DomainList({ label, hint, value, onChange }: {
   }, [value]);
 
   return (
-    <Field label={label}>
-      <p className="text-xs text-fg4 mb-1">{hint}</p>
-      <textarea
-        value={text}
-        onChange={e => { setText(e.target.value); onChange(e.target.value.split('\n').map(s => s.trim()).filter(Boolean)); }}
-        rows={Math.min(Math.max(text.split('\n').length + 1, 3), 12)}
-        className={`${inputCls} font-mono resize-y`}
-        spellCheck={false}
-      />
-    </Field>
+    <TextAreaField
+      label={label} hint={hint} value={text}
+      onChange={e => { setText(e.target.value); onChange(e.target.value.split('\n').map(s => s.trim()).filter(Boolean)); }}
+      rows={Math.min(Math.max(text.split('\n').length + 1, 3), 12)}
+      className="font-mono resize-y"
+      spellCheck={false}
+    />
   );
 }
 

@@ -401,7 +401,12 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                       allDocTypes={allDocTypes} bindings={dsBindings} />
                   </div>
                 )}
-                {field.type !== 'boolean' && field.type !== 'complex' && field.type !== 'array' && (
+                {/* Текст подписывает себя сам (issue #574): подпись живёт в вырезе рамки, как у
+                    соседних однострочных полей. Своя подпись здесь дала бы вторую — над полем.
+                    Кроме привязанного к источнику: там контрол read-only и подпись сверху идёт
+                    вместе с бейджем привязки — как и у простых полей ниже. */}
+                {field.type !== 'boolean' && field.type !== 'complex' && field.type !== 'array'
+                  && !(field.type === 'text' && !bound) && (
                   <label className="block text-xs font-medium text-fg2 mb-1 pr-5">
                     {field.title}
                     {field.required && <span className="ml-0.5 text-danger">*</span>}
@@ -456,6 +461,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     } : undefined} />
                 ) : (
                   <PrimitiveInput field={field} value={displayValue}
+                    label={field.type === 'text' && !bound ? field.title : undefined}
                     onChange={v => setValue(field.key, v, primitiveDef)}
                     invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} readOnly={bound} />
                 )}

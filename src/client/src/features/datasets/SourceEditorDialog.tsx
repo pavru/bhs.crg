@@ -161,8 +161,7 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
 
         {isPdf ? (
           <div>
-            <label className="block text-sm font-medium text-fg1 mb-1">Данные набора</label>
-            <Select value={sheetOrPath || undefined} placeholder="— выберите —" aria-label="Данные набора"
+            <Select label="Данные набора" value={sheetOrPath || undefined} placeholder="— выберите —"
               onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
               {readyCandidates.map(c => (
                 <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</SelectItem>
@@ -184,8 +183,7 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
         ) : tabular ? (
           needsSheet ? (
             <div>
-              <label className="block text-sm font-medium text-fg1 mb-1">Лист</label>
-              <Select value={sheetOrPath || undefined} placeholder="— выберите лист —" aria-label="Лист"
+              <Select label="Лист" value={sheetOrPath || undefined} placeholder="— выберите лист —"
                 onValueChange={setSheetOrPath}>
                 {candidates.map(c => (
                   <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</SelectItem>
@@ -208,9 +206,9 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
           <>
             {isZip && (
               <div>
-                <label className="block text-sm font-medium text-fg1 mb-1">Файл в архиве</label>
-                <Select value={entryPath || undefined} placeholder="— выберите XML-файл в архиве —"
-                  aria-label="Файл в архиве" onValueChange={setEntryPath} className="font-mono">
+                <Select label="Файл в архиве" value={entryPath || undefined}
+                  placeholder="— выберите XML-файл в архиве —"
+                  onValueChange={setEntryPath} className="font-mono">
                   {entryOptions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                 </Select>
                 {entryOptions.length === 0 && (
