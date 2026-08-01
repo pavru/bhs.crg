@@ -7,6 +7,8 @@ import {
   getDefaultValues,
   isFieldMissing,
   isScalarField,
+  isMaterialType,
+  materialIdentityKeys,
   type SchemaField,
 } from './schema';
 import type { DocumentType } from './types';
@@ -199,4 +201,37 @@ describe('isScalarField', () => {
     '%s is scalar', t => expect(isScalarField(field('A', { type: t }))).toBe(true));
   it.each(['array', 'complex', 'doc-ref', 'doc-array'] as const)(
     '%s is not scalar', t => expect(isScalarField(field('A', { type: t }))).toBe(false));
+});
+
+// ── materialIdentityKeys (issue #569) ─────────────────────────────────────────
+
+describe('materialIdentityKeys', () => {
+  /**
+   * Разбор живого случая: в реестре 151 материал, а вкладка показывала 4 — «шт», «упак», «м»,
+   * «компл». Тэг identity носит и «Единица измерения» (законно — она опознаётся наименованием), а
+   * набор данных приносит колонку с тем же ключом. Пока ключи собирались по ВСЕМ составным типам,
+   * ключом каждой строки становилась единица, и 147 строк отбрасывались как дубли.
+   */
+  const material = { ...dt({ fields: [
+    field('Наименование', { tags: ['identity'] }),
+    field('Артикул', { tags: ['identity'] }),
+    field('ДокументПодтверждающийКачество', { type: 'complex', tags: ['material.qualityDocLink'] }),
+  ] }), kind: 'Composite' as const };
+  const unit = { ...dt({ fields: [field('ЕдиницаИзмерения', { tags: ['identity'] })] }), kind: 'Composite' as const };
+  const org = { ...dt({ fields: [field('Сокращённое', { tags: ['identity'] })] }), kind: 'Composite' as const };
+
+  it('берёт поля только у типов, способных нести документ качества', () => {
+    expect(materialIdentityKeys([unit, org, material])).toEqual(['Наименование', 'Артикул']);
+  });
+
+  it('единица измерения и организация материалом не считаются', () => {
+    const all = [unit, org, material];
+    expect(isMaterialType(material, all)).toBe(true);
+    expect(isMaterialType(unit, all)).toBe(false);
+    expect(isMaterialType(org, all)).toBe(false);
+  });
+
+  it('порядок типов не влияет на состав ключей', () => {
+    expect(materialIdentityKeys([material, unit, org])).toEqual(materialIdentityKeys([unit, material, org]));
+  });
 });

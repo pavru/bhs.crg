@@ -14,7 +14,9 @@ import {
   type LinkSuggestion, type SearchCandidate, type QualityDocument,
 } from '@/shared/api/qualityDocs';
 import type { DocumentInstance, DocumentType, CatalogScope } from '@/shared/api/types';
-import { typeHasTag, findTaggedFieldPath, resolveEffectiveFields } from '@/shared/api/schema';
+import {
+  typeHasTag, findTaggedFieldPath, resolveEffectiveFields, isMaterialType, materialIdentityKeys,
+} from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import {
   assessBulkLink, collectStrings, docHaystackStems, relevance, weighted,
@@ -300,16 +302,8 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
     return m;
   }, [linksSystem, linksSet]);
 
-  // Ключи полей-идентификаторов — из тэга identity (без хардкода имён).
-  const identityKeys = useMemo(() => {
-    const keys: string[] = [];
-    for (const t of allDocTypes) {
-      if (t.kind !== 'Composite') continue;
-      for (const f of resolveEffectiveFields(t, allDocTypes))
-        if (f.tags?.includes(FUNCTIONAL_TAG.identity)) keys.push(f.key);
-    }
-    return Array.from(new Set(keys));
-  }, [allDocTypes]);
+  // Ключи полей-идентификаторов МАТЕРИАЛА — по тэгам, без хардкода имён (issue #569).
+  const identityKeys = useMemo(() => materialIdentityKeys(allDocTypes), [allDocTypes]);
 
   // Материалы из набора данных (превью) И из реквизитов (массивы материал-типа).
   const materials = useMemo<MaterialRow[]>(() => {
@@ -338,7 +332,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       for (const f of resolveEffectiveFields(docType, allDocTypes)) {
         if (f.type !== 'array' || !f.typeId) continue;
         const ct = allDocTypes.find(t => t.id === f.typeId);
-        if (!ct || !resolveEffectiveFields(ct, allDocTypes).some(cf => cf.tags?.includes(FUNCTIONAL_TAG.identity))) continue;
+        if (!ct || !isMaterialType(ct, allDocTypes)) continue;
         const arr = instance.requisites[f.key];
         if (Array.isArray(arr)) for (const el of arr) if (el && typeof el === 'object') add(el as Record<string, unknown>);
       }

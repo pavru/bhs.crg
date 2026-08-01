@@ -121,19 +121,15 @@ public class MaterialLabelBackfill(
     }
 
     /// <summary>
-    /// Ключи полей идентичности по всем составным типам — тем же способом, что и резолвер связок
-    /// (<c>SchemaTags.FieldKeysWithTag</c>): по тэгу, а не по именам полей.
+    /// Ключи полей идентичности МАТЕРИАЛА — тем же способом, что и резолвер связок
+    /// (<see cref="MaterialIdentity"/>): по тэгу, а не по именам полей.
     /// </summary>
     private async Task<List<string>> IdentityKeysAsync(CancellationToken ct)
     {
-        var composites = await db.DocumentTypes.AsNoTracking()
-            .Where(t => t.Kind == DocumentTypeKind.Composite)
+        var allTypes = await db.DocumentTypes.AsNoTracking()
             .OrderBy(t => t.Name)   // детерминированный порядок: от него зависит порядок слов в имени
             .ToListAsync(ct);
-        return composites
-            .SelectMany(t => SchemaTags.FieldKeysWithTag(t.Schema, FunctionalTag.Identity))
-            .Distinct()
-            .ToList();
+        return MaterialIdentity.KeysOf(allTypes).ToList();
     }
 
     /// <summary>
