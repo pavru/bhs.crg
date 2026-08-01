@@ -28,5 +28,19 @@ public static class MaintenanceEndpoints
                 report.Downscaled, report.SavedBytes, dryRun = isDryRun,
             });
         });
+
+        // Дозаполнение человеческих имён материалов у связок, заведённых до появления метки (#561).
+        // Читает и разбирает файлы наборов, поэтому тоже действие администратора, а не миграция.
+        g.MapPost("/material-links/backfill-labels", async (
+            MaterialLabelBackfill backfill, bool? dryRun, CancellationToken ct) =>
+        {
+            var isDryRun = dryRun ?? true;
+            var report = await backfill.RunAsync(isDryRun, ct);
+            return Results.Ok(new
+            {
+                report.LinksWithoutLabel, report.Named, report.NotFound,
+                report.DocumentsScanned, dryRun = isDryRun,
+            });
+        });
     }
 }
