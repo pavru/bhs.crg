@@ -40,6 +40,9 @@ export function TypePickerField({
       <button
         type="button" disabled={disabled} onClick={() => setOpen(true)}
         aria-haspopup="dialog" aria-label={ariaLabel} aria-expanded={open}
+        /* Полное имя подсказкой (issue #548): в поле оно обрезается, а типы различаются хвостом —
+           «…(силовая линия)» против «…(ЭОМ)», — и по видимому тексту неразличимы. */
+        title={selected ? (showCode ? `${selected.name} (${code})` : selected.name) : undefined}
         className={`group inline-flex items-center gap-2 ${h} px-3 rounded-md border border-stroke-strong ` +
           `bg-surface text-sm text-left transition-colors focus:outline-none focus-visible:ring-2 ` +
           `focus-visible:ring-brand data-[state=open]:ring-2 disabled:opacity-50 disabled:pointer-events-none ${className}`}
