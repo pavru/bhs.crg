@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Loader2, ShieldCheck, Upload, Eye } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
@@ -16,6 +16,9 @@ import {
   PrimitiveInput, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField, ImageField, FileField,
 } from '@/features/document-sets/fields';
 import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
+
+/** Поля, занимающие обе колонки сетки — тот же набор, что в редакторе реквизитов (`RequisitesTab`). */
+const WIDE_TYPES = new Set(['complex', 'array', 'doc-ref', 'doc-array', 'image', 'file', 'text']);
 
 /** Разворачивает поля типа в плоские «листья» (путь через точку) для распознавания. */
 export function flattenLeaves(fields: SchemaField[], allDocTypes: DocumentType[], prefix = '', depth = 0): RecognitionFieldReq[] {
@@ -70,6 +73,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
   );
   const [uploading, setUploading] = useState(false);
   const [recognizing, setRecognizing] = useState(false);
+  const scanInputRef = useRef<HTMLInputElement>(null);
   // Картинка поля ещё едет в хранилище — сохранять рано: значение появится только после (issue #522).
   // Своё `uploading` выше — про скан документа качества, это разные загрузки.
   const imageUploading = useUploadsInFlight();
@@ -163,7 +167,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-x-4">
         <div>
           <label className="block text-xs font-medium text-fg2 mb-1">Тип документа</label>
           <TypePickerField className="w-full" aria-label="Тип документа" title="Тип документа"
@@ -176,50 +180,59 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
           onChange={e => setDisplayName(e.target.value)} hint="авто из номера" />
       </div>
 
+      {/* Кнопка, открывающая файловый диалог, — скрытый input + `Button` (как в `DataSetsResource`):
+          сам `<label for>` не даёт ни формы-пилюли, ни кольца фокуса. «Распознать скан» — tonal, а не
+          заливка: единственная filled в модалке — «Сохранить» (иерархия MD3, см. `Button.tsx`). */}
       <div className="flex items-center gap-2 flex-wrap">
-        <label className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-stroke rounded-md cursor-pointer hover:bg-base">
-          {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+        <input ref={scanInputRef} type="file" className="hidden" accept="image/*,application/pdf,.tif,.tiff"
+          onChange={e => {
+            const f = e.target.files?.[0];
+            e.target.value = ''; // иначе повторный выбор того же файла не даёт onChange
+            if (f) void handleScan(f);
+          }} />
+        <Button variant="outlined" size="sm" icon={<Upload size={14} />} loading={uploading}
+          onClick={() => scanInputRef.current?.click()}>
           Скан-копия
-          <input type="file" className="hidden" accept="image/*,application/pdf,.tif,.tiff"
-            onChange={e => { const f = e.target.files?.[0]; if (f) void handleScan(f); }} />
-        </label>
-        {scan && <span className="text-xs text-fg3 truncate max-w-[180px]">{scan.fileName}</span>}
+        </Button>
+        {scan && <span className="text-xs text-fg3 truncate max-w-[180px]" title={scan.fileName}>{scan.fileName}</span>}
         {scan && (
-          <button type="button" onClick={() => void openAttachmentInNewTab(scan.blobPath)}
-            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border border-stroke hover:bg-base">
-            <Eye size={14} /> Просмотр
-          </button>
+          <Button variant="text" size="sm" icon={<Eye size={14} />}
+            onClick={() => void openAttachmentInNewTab(scan.blobPath)}>
+            Просмотр
+          </Button>
         )}
         {scan && (
-          <button onClick={handleRecognize} disabled={recognizing}
-            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-brand-subtle text-brand hover:bg-brand-subtle disabled:opacity-50">
-            {recognizing ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+          <Button variant="tonal" size="sm" icon={<ShieldCheck size={14} />} loading={recognizing}
+            onClick={handleRecognize}>
             Распознать скан
-          </button>
+          </Button>
         )}
       </div>
 
-      <div className="space-y-2 border-t border-muted pt-3">
+      {/* Раскладка как в редакторе реквизитов: простые поля по два в ряд, широкие — на обе колонки.
+          Ключ схемы в подписи не показываем — он нужен настройщику типа, а не тому, кто заполняет. */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4 border-t border-muted pt-3">
         {fields.map(f => {
           const v = values[f.key];
+          const cls = WIDE_TYPES.has(f.type) ? 'col-span-2' : 'col-span-1 min-w-0';
           const label = (
             <label className="block text-xs font-medium text-fg2 mb-1">{f.title}
-              <span className="ml-2 text-[10px] text-fg4 font-mono">{f.key}</span></label>
+              {f.required && <span className="ml-0.5 text-danger">*</span>}</label>
           );
           if (f.type === 'complex')
-            return <div key={f.key}>{label}<ComplexFieldGroup field={f} allDocTypes={allDocTypes} value={v}
+            return <div key={f.key} className={cls}>{label}<ComplexFieldGroup field={f} allDocTypes={allDocTypes} value={v}
               onChange={x => setValue(f.key, x)} showValidation={false} docRefMode="catalog" scope={scope} scopeId={scopeId} /></div>;
           if (f.type === 'array')
-            return <div key={f.key}>{label}<ArrayFieldEditor field={f} allDocTypes={allDocTypes} value={v}
+            return <div key={f.key} className={cls}>{label}<ArrayFieldEditor field={f} allDocTypes={allDocTypes} value={v}
               onChange={x => setValue(f.key, x)} showValidation={false} docRefMode="catalog" scope={scope} scopeId={scopeId} /></div>;
           if (f.type === 'doc-ref')
-            return <div key={f.key}>{label}<DocRefCatalogPickerField field={f} allDocTypes={allDocTypes} value={v}
+            return <div key={f.key} className={cls}>{label}<DocRefCatalogPickerField field={f} allDocTypes={allDocTypes} value={v}
               onChange={x => setValue(f.key, x ?? undefined)} scope={scope} scopeId={scopeId} /></div>;
           if (f.type === 'image')
-            return <div key={f.key}>{label}<ImageField value={v} onChange={x => setValue(f.key, x)} /></div>;
+            return <div key={f.key} className={cls}>{label}<ImageField value={v} onChange={x => setValue(f.key, x)} /></div>;
           if (f.type === 'file')
-            return <div key={f.key}>{label}<FileField value={v} onChange={x => setValue(f.key, x ?? undefined)} /></div>;
-          return <div key={f.key}><PrimitiveInput field={f} value={v} label={f.title} onChange={x => setValue(f.key, x)} invalid={false} /></div>;
+            return <div key={f.key} className={cls}>{label}<FileField value={v} onChange={x => setValue(f.key, x ?? undefined)} /></div>;
+          return <div key={f.key} className={cls}><PrimitiveInput field={f} value={v} label={f.title} onChange={x => setValue(f.key, x)} invalid={false} /></div>;
         })}
       </div>
 
