@@ -1,0 +1,103 @@
+/**
+ * Сопоставление материала с документом качества (issue #552).
+ *
+ * Вынесено из `QualityLinksTab`, чтобы оценку массовой привязки можно было проверить тестами:
+ * именно массовая привязка без единого сигнала и породила 68 неверных связок из 69 на одном
+ * сертификате.
+ */
+
+const STOP = new Set(['для', 'или', 'при', 'без', 'шт', 'штук', 'тип', 'сертификат', 'декларация', 'соответствия']);
+
+export function normText(s: string): string {
+  return s.toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/g, ' ').trim();
+}
+
+export function tokenize(s: string): string[] {
+  return normText(s).split(/\s+/).filter(t => t.length >= 3 && !STOP.has(t));
+}
+
+/** Грубая основа слова: срезаем окончание (русская морфология) — «выключатель»≈«выключатели». */
+export function stem(t: string): string { return t.length > 6 ? t.slice(0, 6) : t; }
+
+/** Все строковые значения объекта — «стог» для сопоставления. */
+export function collectStrings(v: unknown, out: string[]): void {
+  if (typeof v === 'string') out.push(v);
+  else if (Array.isArray(v)) for (const x of v) collectStrings(x, out);
+  else if (v && typeof v === 'object') for (const x of Object.values(v)) collectStrings(x, out);
+}
+
+export interface WeightedToken { t: string; w: number }
+
+export function weighted(query: string): WeightedToken[] {
+  const seen = new Set<string>(); const out: WeightedToken[] = [];
+  for (const t of tokenize(query)) {
+    if (seen.has(t)) continue; seen.add(t);
+    // числа/модели и длинные слова важнее общих коротких слов
+    out.push({ t, w: /\d/.test(t) ? 3 : t.length >= 6 ? 2 : 1 });
+  }
+  return out;
+}
+
+export function relevance(tokens: WeightedToken[], hayStems: Set<string>): number {
+  if (tokens.length === 0) return 0;
+  let matched = 0, total = 0;
+  for (const { t, w } of tokens) { total += w; if (hayStems.has(stem(t))) matched += w; }
+  return total ? matched / total : 0;
+}
+
+/** Материал подходит документу, если совпала хотя бы такая доля веса слов. */
+export const FITS_THRESHOLD = 0.34;
+
+/**
+ * Как выбранные материалы соотносятся с одним документом.
+ *
+ * Три группы, а не «процент», и это принципиально. Прогон по 113 живым связкам показал: 58 из них
+ * дают ровно 0 %, и почти все нули — артикулы (`mb15-07-01m-54`), где сопоставлять просто нечего.
+ * Красить такой ноль тревогой значит приучить человека игнорировать сигнал на самой аккуратной
+ * половине данных. Поэтому «непроверяемо» отделено от «не похоже»:
+ *
+ * <ul>
+ *   <li><b>fits</b> — слова материала нашлись в документе;</li>
+ *   <li><b>unverifiable</b> — у материала нет слов для сравнения (один артикул/цифры);</li>
+ *   <li><b>mismatched</b> — слова ЕСТЬ, и ни одно не совпало. Только это и есть повод предупредить.</li>
+ * </ul>
+ */
+export interface BulkLinkAssessment<T> {
+  fits: T[];
+  unverifiable: T[];
+  mismatched: T[];
+}
+
+/**
+ * Слово, по которому вообще можно судить о совпадении: чисто буквенное и не короткое.
+ *
+ * Артикул `mb15-07-01m-54` распадается на «слова» вроде `mb15` и `01m` — они выглядят токенами, но
+ * сравнивать по ним нечего: ни один сертификат их не содержит, и материал был бы объявлен «не
+ * похожим» без всяких оснований. Именно на этом ломается наивная проверка «релевантность = 0».
+ */
+function isWordy(token: string): boolean {
+  return token.length >= 4 && !/\d/.test(token);
+}
+
+export function assessBulkLink<T>(
+  materials: readonly T[],
+  nameOf: (m: T) => string,
+  docText: readonly string[],
+): BulkLinkAssessment<T> {
+  const hay = new Set(tokenize(docText.join(' ')).map(stem));
+  const result: BulkLinkAssessment<T> = { fits: [], unverifiable: [], mismatched: [] };
+
+  for (const m of materials) {
+    const tokens = weighted(nameOf(m)).filter(x => isWordy(x.t));
+    if (tokens.length === 0) { result.unverifiable.push(m); continue; }
+    (relevance(tokens, hay) >= FITS_THRESHOLD ? result.fits : result.mismatched).push(m);
+  }
+  return result;
+}
+
+/** Название документа + все его строковые реквизиты — стог основ слов. */
+export function docHaystackStems(displayName: string, requisites: unknown): Set<string> {
+  const parts: string[] = [displayName];
+  collectStrings(requisites, parts);
+  return new Set(tokenize(parts.join(' ')).map(stem));
+}
