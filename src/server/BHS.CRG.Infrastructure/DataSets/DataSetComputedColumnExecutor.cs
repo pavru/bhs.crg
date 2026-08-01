@@ -63,15 +63,21 @@ public static class DataSetComputedColumnExecutor
                         .TimeoutInterval(TimeSpan.FromSeconds(1))
                         .LimitRecursion(32));
 
-                    foreach (var (col, val) in dict)
-                        engine.SetValue(SanitizeKey(col), val ?? "");
-
+                    // Помощники — ПЕРЕД колонками, чтобы колонка с именем «get» или «cols» затеняла
+                    // их, а не наоборот. Порядок тут не косметика: до #539 такая колонка была
+                    // обычной переменной, и обратный порядок молча поменял бы смысл уже сохранённых
+                    // выражений. Ценой того, что на источнике с колонкой «get» помощник недоступен —
+                    // но там он и не нужен, имя колонки и так годится в переменные.
+                    //
                     // Отсутствующая колонка и колонка с пустым значением — разные вещи: первая даёт
                     // null (можно проверить), вторая — пустую строку, как и переменная.
                     engine.SetValue("get", new Func<string, string?>(
                         name => dict.TryGetValue(name, out var v) ? v ?? "" : null));
 
                     engine.SetValue("cols", PositionalCells(columnOrder, dict));
+
+                    foreach (var (col, val) in dict)
+                        engine.SetValue(SanitizeKey(col), val ?? "");
 
                     var result = engine.Evaluate(def.Expr);
                     dict[def.Alias] = result.IsNull() || result.IsUndefined()

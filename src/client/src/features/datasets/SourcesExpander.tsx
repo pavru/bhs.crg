@@ -202,8 +202,12 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
         <RowFilterDialog columns={columns} initial={src.rowFilter}
           onSave={f => save({ rowFilter: f })} onClose={() => setFilterOpen(false)} />
       )}
+      {/* Диалогу отдаём только колонки САМОГО источника, без вычисляемых псевдонимов (issue #539):
+          фишка несёт номер позиции, а позиции вычисляемых колонок меняются по ходу — при вычислении
+          N-й предыдущие уже есть, а следующих ещё нет, и номер врал бы. Сослаться на предыдущую
+          вычисляемую колонку по-прежнему можно, просто вручную. */}
       {transformsOpen && (
-        <ComputedColumnsDialog initial={src.computedColumns} sourceColumns={columns}
+        <ComputedColumnsDialog initial={src.computedColumns} sourceColumns={cols}
           onSave={c => save({ computedColumns: c })} onClose={() => setTransformsOpen(false)} />
       )}
       {sortOpen && (

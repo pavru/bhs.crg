@@ -217,4 +217,20 @@ public class DataSetComputedColumnExecutorTests
             """[{"alias":"X","expr":"cols.slice(1).join('-')"}]""", rows);
         Assert.Equal("1-2-3", result[0]["X"]);
     }
+
+    /// <summary>
+    /// Колонка, названная как помощник, остаётся ОБЫЧНОЙ переменной. До #539 она ею и была, и
+    /// перебей её помощник — сохранённое выражение молча начало бы возвращать другое (для «get» —
+    /// вообще текст «function delegate() { [native code] }»).
+    /// </summary>
+    [Theory]
+    [InlineData("get")]
+    [InlineData("cols")]
+    public void ColumnNamedLikeHelper_StillWinsAsVariable(string name)
+    {
+        var rows = Rows([(name, "ЗНАЧЕНИЕ")]);
+        var result = DataSetComputedColumnExecutor.Apply(
+            $$"""[{"alias":"X","expr":"{{name}}"}]""", rows);
+        Assert.Equal("ЗНАЧЕНИЕ", result[0]["X"]);
+    }
 }

@@ -32,4 +32,19 @@ describe('columnAccessor', () => {
   it('пустой заголовок не притворяется идентификатором', () => {
     expect(columnAccessor('')).toBe('get("")');
   });
+
+  it('ключевые слова и литералы — через get, хотя выглядят идентификаторами', () => {
+    // «for» ломает разбор выражения (вся колонка молча пустеет), «null» даёт литерал вместо ячейки.
+    expect(columnAccessor('for')).toBe('get("for")');
+    expect(columnAccessor('new')).toBe('get("new")');
+    expect(columnAccessor('class')).toBe('get("class")');
+    expect(columnAccessor('null')).toBe('get("null")');
+    expect(columnAccessor('true')).toBe('get("true")');
+    expect(columnAccessor('undefined')).toBe('get("undefined")');
+  });
+
+  it('похожее на ключевое слово, но не оно — как есть', () => {
+    expect(columnAccessor('format')).toBe('format');
+    expect(columnAccessor('Null')).toBe('Null');
+  });
 });
