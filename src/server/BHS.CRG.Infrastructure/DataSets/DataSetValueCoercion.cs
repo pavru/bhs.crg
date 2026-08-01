@@ -43,8 +43,20 @@ public static class DataSetValueCoercion
             return CoerceObject(nested, field.TypeId, primitivesById, typesById, depth);
 
         // Приводим только сырой текст ячейки: ссылки (@@ref) и файлы уже имеют свою форму.
-        if (value is not string text || string.IsNullOrWhiteSpace(text)) return value;
-        if (!IsNumeric(field, primitivesById)) return value;
+        if (value is not string text) return value;
+        if (!IsNumeric(field, primitivesById)) return value;   // в строковом поле пустая строка законна
+
+        // Пустая ячейка — ОТСУТСТВИЕ значения, а не значение неверного типа (issue #544). Раньше она
+        // возвращалась как есть и оседала пустой строкой в поле, объявленном числом: на протоколе
+        // измерений изоляции из 473 числовых ячеек 238 были такими, и проверка выдавала 238
+        // предупреждений «ожидается число, а хранится строка» — за ними уже ничего не разглядеть.
+        //
+        // Возвращаем null: вызывающие пишут значение под `if (value is not null)`, поэтому ключа
+        // просто не будет. Именно отсутствие ключа, а не null: домашняя идиома шаблонов —
+        // `it.at("X", default: "")` и `dig(it, "X", default: …)` — отсутствующий ключ обрабатывает
+        // верно, а на null сломалась бы (`it.at("Телефон", default: "") != ""` пройдёт проверку и
+        // упадёт на `"тел.: " + none`).
+        if (string.IsNullOrWhiteSpace(text)) return null;
 
         // Не разобралось — оставляем строку. Молча подменить на ноль нельзя: ноль это заявленное
         // количество, а неразобранное — неизвестность; расхождение останется видимым в проверке.
@@ -63,8 +75,15 @@ public static class DataSetValueCoercion
             .GroupBy(f => f.Key).ToDictionary(g => g.Key, g => g.First());
 
         foreach (var key in obj.Keys.ToList())
-            if (fields.TryGetValue(key, out var f))
-                obj[key] = Coerce(obj[key], f, primitivesById, typesById, depth + 1);
+        {
+            if (!fields.TryGetValue(key, out var f)) continue;
+            var coerced = Coerce(obj[key], f, primitivesById, typesById, depth + 1);
+            // Пустая ячейка в числовом поле даёт null — ключ УДАЛЯЕМ, а не оставляем с null
+            // (issue #544): шаблоны читают вложенные поля через at/dig с умолчанием, и ключ со
+            // значением none проходит их проверки, а потом ломает конкатенацию.
+            if (coerced is null) obj.Remove(key);
+            else obj[key] = coerced;
+        }
 
         return obj;
     }
