@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Pencil, Trash2, ShieldCheck, FileText, Search, Globe, ExternalLink, Download, Loader2,
-  AlertTriangle, Clock, CircleSlash, Link2,
+  AlertTriangle, Clock, CircleSlash, Link2, Unlink,
 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -13,7 +13,7 @@ import { ListDetailShell, NavSearchInput, NavSection, NavItem } from '@/shared/u
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import {
-  useListQualityDocs, useDeleteQualityDoc, useListMaterialLinks, searchQualityDocs,
+  useListQualityDocs, useDeleteQualityDoc, useListMaterialLinks, useRemoveMaterialLinks, searchQualityDocs,
   importQualityDocFromUrl, type QualityDocument, type SearchCandidate, type MaterialQualityLink,
 } from '@/shared/api/qualityDocs';
 import type { CatalogScope } from '@/shared/api/types';
@@ -59,6 +59,8 @@ export function QualityDocsPage() {
   // Связки ВСЕХ областей одним запросом (issue #554): экран смотрит поперёк областей.
   const { data: links = [] } = useListMaterialLinks();
   const del = useDeleteQualityDoc();
+  const removeLinks = useRemoveMaterialLinks();
+  const [breakAll, setBreakAll] = useState<QualityDocument | null>(null);
 
   const linksByDoc = useMemo(() => {
     const m = new Map<string, MaterialQualityLink[]>();
@@ -152,6 +154,12 @@ export function QualityDocsPage() {
         onSelect: () => void openAttachmentInNewTab(current.scanBlobPath!) }]
       : []),
     { key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => setEditDoc(current) },
+    // «Разорвать все» — пунктом меню, а не кнопкой (issue #556): действие редкое и опасное, под руку
+    // попадаться не должно.
+    ...((linksByDoc.get(current.id)?.length ?? 0) > 0
+      ? [{ key: 'unlink-all', label: `Разорвать все связки (${linksByDoc.get(current.id)!.length})`,
+        icon: <Unlink size={13} />, danger: true, onSelect: () => setBreakAll(current) }]
+      : []),
     { key: 'delete', label: 'Удалить документ', icon: <Trash2 size={13} />, danger: true,
       onSelect: () => setDeleteTarget(current) },
   ] : [];
@@ -194,7 +202,9 @@ export function QualityDocsPage() {
         </h3>
         {/* Фильтруем строки ТОЛЬКО если запрос попал в связки. Иначе человек, нашедший документ по
             его собственному имени, увидел бы «ни одна связка не подходит» под заголовком «Связки · 69». */}
-        <QualityDocLinks links={linksByDoc.get(current.id) ?? []} allDocTypes={docTypes}
+        {/* key — чтобы выбор строк не переезжал на другой документ: иначе панель показывала бы
+            «Выбрано: 3» без единой отмеченной строки, а разрыв ушёл бы с пустым списком. */}
+        <QualityDocLinks key={current.id} links={linksByDoc.get(current.id) ?? []} allDocTypes={docTypes}
           search={(linksByDoc.get(current.id) ?? []).some(l => matchesLink(l, search.trim().toLowerCase())) ? search : ''} />
       </div>
     </div>
@@ -235,6 +245,18 @@ export function QualityDocsPage() {
           </Modal>
 
           <WebSearchModal open={webOpen} onClose={() => setWebOpen(false)} docTypes={docTypes} />
+
+          <ConfirmDialog
+            open={!!breakAll} onOpenChange={o => { if (!o) setBreakAll(null); }}
+            title={`Разорвать все связки документа (${breakAll ? linksByDoc.get(breakAll.id)?.length ?? 0 : 0})?`}
+            description={<p>Материалы останутся без документа качества — при генерации поле документа
+              качества будет пустым. Сам документ останется в библиотеке.</p>}
+            confirmLabel="Разорвать все"
+            onConfirm={async () => {
+              if (!breakAll) return;
+              await removeLinks.mutateAsync((linksByDoc.get(breakAll.id) ?? []).map(l => l.id));
+            }}
+          />
 
           <ConfirmDialog
             open={!!deleteTarget}

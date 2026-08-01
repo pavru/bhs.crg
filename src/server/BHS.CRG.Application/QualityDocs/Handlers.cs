@@ -17,6 +17,7 @@ public class QualityDocHandlers(
     IRequestHandler<ListQualityDocumentsQuery, IReadOnlyList<QualityDocument>>,
     IRequestHandler<SetMaterialLinksCommand, int>,
     IRequestHandler<RemoveMaterialLinkCommand>,
+    IRequestHandler<RemoveMaterialLinksCommand, int>,
     IRequestHandler<ListMaterialLinksQuery, IReadOnlyList<MaterialLinkRow>>
 {
     public async Task<QualityDocument> Handle(CreateQualityDocumentCommand cmd, CancellationToken ct)
@@ -119,6 +120,18 @@ public class QualityDocHandlers(
         var link = await linkRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
         linkRepo.Remove(link);
         await linkRepo.SaveChangesAsync(ct);
+    }
+
+    public async Task<int> Handle(RemoveMaterialLinksCommand cmd, CancellationToken ct)
+    {
+        if (cmd.Ids.Count == 0) return 0;
+        var ids = cmd.Ids.Distinct().ToList();
+        var links = await linkRepo.FindAsync(l => ids.Contains(l.Id), ct);
+        foreach (var link in links) linkRepo.Remove(link);
+        await linkRepo.SaveChangesAsync(ct);
+        // Возвращаем СНЯТОЕ, а не запрошенное: часть строк могла исчезнуть в параллельной сессии, и
+        // «сняли 69» при фактических 68 было бы неправдой в отчёте пользователю.
+        return links.Count;
     }
 
     public async Task<IReadOnlyList<MaterialLinkRow>> Handle(ListMaterialLinksQuery q, CancellationToken ct)

@@ -103,6 +103,15 @@ public static class QualityDocEndpoints
             return Results.Ok(new { linked = n });
         });
 
+        // POST, а не DELETE с телом: тело у DELETE в клиентах и прокси ненадёжно. Симметрично POST /links.
+        g.MapPost("/links/delete", async (RemoveLinksReq req, IMediator m) =>
+        {
+            if (req.Ids is not { Length: > 0 })
+                return Results.BadRequest(new { error = "Не переданы связи для разрыва (поле ids)." });
+            var n = await m.Send(new RemoveMaterialLinksCommand(req.Ids));
+            return Results.Ok(new { removed = n });
+        });
+
         g.MapDelete("/links/{id:guid}", async (Guid id, IMediator m) =>
         {
             await m.Send(new RemoveMaterialLinkCommand(id));
@@ -166,6 +175,7 @@ public static class QualityDocEndpoints
     private record SetLinksReq(string Scope, Guid? ScopeId, MaterialReq[]? Materials, Guid QualityDocumentId);
     /// <summary>Ключ идентичности материала и, если есть под рукой, человеческое имя (issue #554).</summary>
     private record MaterialReq(string Key, string? Label);
+    private record RemoveLinksReq(Guid[]? Ids);
     private record RecognizeReq(string BlobPath, string MimeType, RecognizeFieldReq[]? Fields, bool? Silent, string? PromptKind);
     private record RecognizeFieldReq(string Path, string Title, string Type, string[]? Options);
     private record SuggestReq(Guid SetId, SuggestMaterialReq[]? Materials);
