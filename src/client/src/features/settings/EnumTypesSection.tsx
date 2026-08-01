@@ -47,9 +47,12 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
       {values.map((v, i) => (
         <div key={rowKey(v, i)} className={`${cols} rounded ${dragIdx === i ? 'ring-1 ring-brand' : ''}`}
           onDragOver={dragIdx !== null ? e => e.preventDefault() : undefined}
-          onDrop={dragIdx !== null ? () => { move(dragIdx, i); setDragIdx(null); } : undefined}>
+          onDrop={dragIdx !== null ? e => { e.preventDefault(); move(dragIdx, i); setDragIdx(null); } : undefined}>
           <span className="flex justify-center text-fg4 cursor-grab" draggable
-            onDragStart={() => setDragIdx(i)} onDragEnd={() => setDragIdx(null)} title="Перетащить">
+            /* Пустой payload Firefox считает отсутствием перетаскивания и отменяет его — кладём
+               заглушку (та же ловушка описана в TemplateParamsPanel). */
+            onDragStart={e => { e.dataTransfer.setData('text/plain', ''); setDragIdx(i); }}
+            onDragEnd={() => setDragIdx(null)} title="Перетащить">
             <GripVertical size={14} />
           </span>
           <input value={v.code} onChange={e => update(i, { code: e.target.value })} placeholder="APPROVED"
@@ -57,10 +60,16 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
           <input value={v.label} onChange={e => update(i, { label: e.target.value })} placeholder="Согласован"
             className="border border-stroke-strong rounded px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-brand bg-surface" />
           <span className="flex items-center gap-0.5">
-            <button type="button" onClick={() => move(i, i - 1)} disabled={i === 0}
-              className="p-0.5 text-fg4 hover:text-fg2 disabled:opacity-25" title="Выше"><ArrowUp size={12} /></button>
-            <button type="button" onClick={() => move(i, i + 1)} disabled={i === values.length - 1}
-              className="p-0.5 text-fg4 hover:text-fg2 disabled:opacity-25" title="Ниже"><ArrowDown size={12} /></button>
+            {/* aria-disabled, а не disabled (issue #517): браузер снимает фокус с кнопки, которая
+                стала disabled, и пользователь, доведя строку клавиатурой до края, терял место —
+                последний шаг ровно того сценария, ради которого всё это. */}
+            <button type="button" onClick={() => { if (i > 0) move(i, i - 1); }} aria-disabled={i === 0}
+              className="p-0.5 text-fg4 hover:text-fg2 aria-disabled:opacity-25 aria-disabled:hover:text-fg4"
+              title="Выше"><ArrowUp size={12} /></button>
+            <button type="button" onClick={() => { if (i < values.length - 1) move(i, i + 1); }}
+              aria-disabled={i === values.length - 1}
+              className="p-0.5 text-fg4 hover:text-fg2 aria-disabled:opacity-25 aria-disabled:hover:text-fg4"
+              title="Ниже"><ArrowDown size={12} /></button>
             <button type="button" onClick={() => remove(i)} className="p-0.5 text-fg4 hover:text-danger" title="Удалить"><Trash2 size={13} /></button>
           </span>
         </div>

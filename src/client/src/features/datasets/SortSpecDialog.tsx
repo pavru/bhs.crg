@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
+import { rowKey, withRowUid, withRowUids } from '@/shared/utils/rowIdentity';
 import type { SortColumn, SortSpec } from '@/shared/api/types';
 
 function SortRow({
@@ -46,12 +47,16 @@ function SortRow({
           </button>
         ))}
       </div>
-      <button type="button" onClick={onMoveUp} disabled={isFirst}
-        className="p-1 rounded text-fg4 hover:text-fg2 disabled:opacity-25 shrink-0" title="Выше приоритетом">
+      {/* aria-disabled, а не disabled (issue #517): фокус с погасшей кнопки браузер снимает, и
+          на последнем шаге перестановки клавиатурой пользователь терял место. */}
+      <button type="button" onClick={() => { if (!isFirst) onMoveUp(); }} aria-disabled={isFirst}
+        className="p-1 rounded text-fg4 hover:text-fg2 aria-disabled:opacity-25 aria-disabled:hover:text-fg4 shrink-0"
+        title="Выше приоритетом">
         <ArrowUp size={12} />
       </button>
-      <button type="button" onClick={onMoveDown} disabled={isLast}
-        className="p-1 rounded text-fg4 hover:text-fg2 disabled:opacity-25 shrink-0" title="Ниже приоритетом">
+      <button type="button" onClick={() => { if (!isLast) onMoveDown(); }} aria-disabled={isLast}
+        className="p-1 rounded text-fg4 hover:text-fg2 aria-disabled:opacity-25 aria-disabled:hover:text-fg4 shrink-0"
+        title="Ниже приоритетом">
         <ArrowDown size={12} />
       </button>
       <button type="button" onClick={onRemove} className="p-1 rounded text-fg4 hover:text-danger shrink-0" title="Удалить">
@@ -72,10 +77,11 @@ export function SortSpecDialog({
   onSave: (spec: SortSpec | null) => void;
   onClose: () => void;
 }) {
-  const [levels, setLevels] = useState<SortColumn[]>(initial ?? []);
+  // Личности строк (issue #517): без них повторный Enter по «Ниже» двигает уже другой уровень.
+  const [levels, setLevels] = useState<SortColumn[]>(() => withRowUids(initial ?? []));
 
   function addLevel() {
-    setLevels(prev => [...prev, { column: '', direction: 'asc' }]);
+    setLevels(prev => [...prev, withRowUid({ column: '', direction: 'asc' as const })]);
   }
   function updateLevel(i: number, l: SortColumn) {
     setLevels(prev => prev.map((p, idx) => idx === i ? l : p));
@@ -135,7 +141,7 @@ export function SortSpecDialog({
         )}
         {levels.map((l, i) => (
           <SortRow
-            key={i}
+            key={rowKey(l, i)}
             level={l}
             columns={columns}
             onChange={next => updateLevel(i, next)}
