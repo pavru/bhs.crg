@@ -78,15 +78,28 @@ public static class QualityDocEndpoints
         });
 
         // ── Связи материал → документ ───────────────────────────────────────────
-        g.MapGet("/links", async (string scope, Guid? scopeId, IMediator m) =>
+        // scope НЕОБЯЗАТЕЛЕН (issue #554): без него — связки всех областей, для экрана контроля.
+        g.MapGet("/links", async (string? scope, Guid? scopeId, IMediator m) =>
         {
-            var links = await m.Send(new ListMaterialLinksQuery(ParseScope(scope), scopeId));
-            return Results.Ok(links.Select(l => new { l.Id, Scope = l.Scope.ToString(), l.ScopeId, l.MaterialKey, l.QualityDocumentId }));
+            var links = await m.Send(new ListMaterialLinksQuery(scope is null ? null : ParseScope(scope), scopeId));
+            return Results.Ok(links.Select(l => new
+            {
+                l.Id, Scope = l.Scope.ToString(), l.ScopeId, l.MaterialKey, l.MaterialLabel,
+                l.QualityDocumentId, l.QualityDocumentName, l.QualityDocumentType, l.CreatedAt, l.UpdatedAt,
+            }));
         });
 
         g.MapPost("/links", async (SetLinksReq req, IMediator m) =>
         {
-            var n = await m.Send(new SetMaterialLinksCommand(ParseScope(req.Scope), req.ScopeId, req.MaterialKeys, req.QualityDocumentId));
+            // Материалы приходят парами «ключ + имя»; имя необязательно (перепривязка идёт без него).
+            // Пустой список — ОШИБКА, а не «привязали ноль»: контракт сменился с materialKeys на
+            // materials, и клиент из старого кеша прислал бы прежнюю форму, получил 200 и решил, что
+            // привязка прошла. Молчаливый ноль в этой подсистеме уже испортил данные (#552).
+            if (req.Materials is not { Length: > 0 })
+                return Results.BadRequest(new { error = "Не переданы материалы для привязки (поле materials)." });
+
+            var materials = req.Materials.Select(x => new MaterialLinkInput(x.Key, x.Label)).ToList();
+            var n = await m.Send(new SetMaterialLinksCommand(ParseScope(req.Scope), req.ScopeId, materials, req.QualityDocumentId));
             return Results.Ok(new { linked = n });
         });
 
@@ -150,7 +163,9 @@ public static class QualityDocEndpoints
         string Scope, Guid? ScopeId, string? Source, string? ScanBlobPath, string? ScanFileName, string? ScanMimeType);
     private record UpdateReq(Guid DocumentTypeId, string DisplayName, JsonElement Requisites);
     private record ScanReq(string? ScanBlobPath, string? ScanFileName, string? ScanMimeType);
-    private record SetLinksReq(string Scope, Guid? ScopeId, string[] MaterialKeys, Guid QualityDocumentId);
+    private record SetLinksReq(string Scope, Guid? ScopeId, MaterialReq[]? Materials, Guid QualityDocumentId);
+    /// <summary>Ключ идентичности материала и, если есть под рукой, человеческое имя (issue #554).</summary>
+    private record MaterialReq(string Key, string? Label);
     private record RecognizeReq(string BlobPath, string MimeType, RecognizeFieldReq[]? Fields, bool? Silent, string? PromptKind);
     private record RecognizeFieldReq(string Path, string Title, string Type, string[]? Options);
     private record SuggestReq(Guid SetId, SuggestMaterialReq[]? Materials);

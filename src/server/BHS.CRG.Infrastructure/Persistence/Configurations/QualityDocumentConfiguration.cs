@@ -31,9 +31,24 @@ public class MaterialQualityLinkConfiguration : IEntityTypeConfiguration<Materia
         b.ToTable("material_quality_links");
         b.HasKey(e => e.Id);
         b.Property(e => e.MaterialKey).HasMaxLength(512).IsRequired();
+        b.Property(e => e.MaterialLabel).HasMaxLength(512);
         b.Property(e => e.Scope).HasConversion<string>().HasMaxLength(32).IsRequired();
         b.Property(e => e.QualityDocumentId).IsRequired();
-        b.HasIndex(e => new { e.Scope, e.ScopeId, e.MaterialKey });
+
+        // Уникальность — инвариант «на материал в области ровно одна связь» (issue #554). До сих пор он
+        // держался только кодом команды (Retarget вместо второй записи), а SetMaterialLinksCommand
+        // строит словарь по ключу и на дубле БРОСАЕТ. Дубль рождался гонкой двух параллельных POST.
+        // AreNullsDistinct(false) — без него ограничение НЕ ДЕЙСТВУЕТ там, где лежат все данные:
+        // PostgreSQL считает NULL-ы различными, а у System-связок ScopeId равен NULL (все 113 живых
+        // связок именно такие). Уникальность без этого была бы видимостью инварианта.
+        b.HasIndex(e => new { e.Scope, e.ScopeId, e.MaterialKey }).IsUnique().AreNullsDistinct(false);
         b.HasIndex(e => e.QualityDocumentId);
+
+        // Внешний ключ без навигации: связка ссылается на документ голым Guid, и чистка при удалении
+        // документа жила руками в обработчике. Восстановление бэкапа или прямой SQL оставляли висячие
+        // связки — экран контроля показал бы строку с пустым именем.
+        b.HasOne<QualityDocument>().WithMany()
+            .HasForeignKey(e => e.QualityDocumentId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

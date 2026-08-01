@@ -398,7 +398,10 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   }
 
   async function handlePick(docId: string) {
-    await setLinks.mutateAsync({ scope, scopeId: scope === 'Set' ? setId : null, materialKeys: [...selected], qualityDocumentId: docId });
+    // Метку материала кладём в связку сразу (issue #554): человеческое имя есть только здесь —
+    // строки наборов данных не хранятся, и на экране контроля восстановить его будет неоткуда.
+    const materials_ = materials.filter(m => selected.has(m.key)).map(m => ({ key: m.key, label: m.label }));
+    await setLinks.mutateAsync({ scope, scopeId: scope === 'Set' ? setId : null, materials: materials_, qualityDocumentId: docId });
     setPickerOpen(false);
     setSelected(new Set());
   }
@@ -414,30 +417,31 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
 
   // Принять предложенный документ для одной строки / для всех с подсказкой.
   async function acceptSuggestion(mat: MaterialRow, docId: string) {
-    await setLinks.mutateAsync({ scope, scopeId: scope === 'Set' ? setId : null, materialKeys: [mat.key], qualityDocumentId: docId });
+    await setLinks.mutateAsync({ scope, scopeId: scope === 'Set' ? setId : null, materials: [{ key: mat.key, label: mat.label }], qualityDocumentId: docId });
   }
   async function acceptAllSuggestions() {
-    const byDoc = new Map<string, string[]>();
+    const byDoc = new Map<string, { key: string; label: string }[]>();
     for (const mat of materials) {
       const s = suggestionByKey.get(mat.key);
       if (!s) continue;
-      const arr = byDoc.get(s.doc.id) ?? []; arr.push(mat.key); byDoc.set(s.doc.id, arr);
+      const arr = byDoc.get(s.doc.id) ?? []; arr.push({ key: mat.key, label: mat.label }); byDoc.set(s.doc.id, arr);
     }
-    for (const [docId, keys] of byDoc)
-      await setLinks.mutateAsync({ scope, scopeId: scope === 'Set' ? setId : null, materialKeys: keys, qualityDocumentId: docId });
+    for (const [docId, items] of byDoc)
+      await setLinks.mutateAsync({ scope, scopeId: scope === 'Set' ? setId : null, materials: items, qualityDocumentId: docId });
   }
 
   async function applySuggestions() {
     const chosen = (suggestions ?? []).filter(s => suggestSel.has(s.materialKey));
     // группируем по документу — один вызов на документ
-    const byDoc = new Map<string, string[]>();
+    const byDoc = new Map<string, { key: string; label?: string }[]>();
     for (const s of chosen) {
       const arr = byDoc.get(s.qualityDocumentId) ?? [];
-      arr.push(s.materialKey);
+      // у подсказки имя материала своё — оно же показывалось человеку в списке предложений
+      arr.push({ key: s.materialKey, label: s.materialName });
       byDoc.set(s.qualityDocumentId, arr);
     }
-    for (const [docId, keys] of byDoc)
-      await setLinks.mutateAsync({ scope, scopeId: scope === 'Set' ? setId : null, materialKeys: keys, qualityDocumentId: docId });
+    for (const [docId, items] of byDoc)
+      await setLinks.mutateAsync({ scope, scopeId: scope === 'Set' ? setId : null, materials: items, qualityDocumentId: docId });
     setSuggestions(null);
   }
 
