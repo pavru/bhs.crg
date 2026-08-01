@@ -20,9 +20,10 @@ public class QualityLinkResolver(AppDbContext db) : IQualityLinkResolver
             .Where(t => t.Kind == DocumentTypeKind.Composite)
             .ToListAsync(ct);
 
-        var identityFields = composites
-            .SelectMany(t => SchemaTags.FieldKeysWithTag(t.Schema, FunctionalTag.Identity))
-            .Distinct().ToArray();
+        // Только у типов, способных нести документ качества (issue #569): тэг identity носят и
+        // единица измерения, и организация, а сопоставление по «шт» приклеило бы один сертификат
+        // ко всем материалам с этой единицей.
+        var identityFields = MaterialIdentity.KeysOf(composites);
         var targetField = composites
             .SelectMany(t => SchemaTags.FieldKeysWithTag(t.Schema, FunctionalTag.MaterialQualityDocLink))
             .FirstOrDefault();
