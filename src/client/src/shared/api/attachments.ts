@@ -54,13 +54,22 @@ export async function uploadAttachment(file: File): Promise<FileAttachment> {
  * (`fileName`/`mimeType`/`pageCount`), тогда как картинке нужны `width`/`align`/`fit`. Свести их
  * значило бы сломать хелпер `img()` во всех шаблонах.
  */
-export async function uploadImage(file: File): Promise<{
-  $type: 'image'; blobPath: string; fileName: string; mimeType: string;
-}> {
+export interface UploadedImage {
+  $type: 'image';
+  blobPath: string;
+  originalBlobPath?: string;
+  fileName: string;
+  mimeType: string;
+  /** Сколько весил выбранный файл и сколько весит рабочая копия — для честной строки об уменьшении. */
+  sourceBytes: number;
+  storedBytes: number;
+}
+
+export async function uploadImage(file: File): Promise<UploadedImage> {
   const formData = new FormData();
   formData.append('file', file);
-  const { data } = await apiClient.post<Omit<FileAttachment, '$type'>>('/attachments', formData);
-  return { $type: 'image', blobPath: data.blobPath, fileName: data.fileName, mimeType: data.mimeType };
+  const { data } = await apiClient.post<Omit<UploadedImage, '$type'>>('/attachments/image', formData);
+  return { $type: 'image', ...data };
 }
 
 export async function uploadPrintForm(

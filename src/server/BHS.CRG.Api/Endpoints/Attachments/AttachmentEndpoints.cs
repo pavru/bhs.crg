@@ -1,4 +1,5 @@
 ﻿using BHS.CRG.Application.Common;
+using BHS.CRG.Infrastructure.Generation;
 
 using BHS.CRG.Api.Endpoints.Common;
 
@@ -38,6 +39,53 @@ public static class AttachmentEndpoints
                     title: "Ошибка загрузки файла",
                     statusCode: 500);
             }
+        }).DisableAntiforgery();
+
+        // Картинка поля-изображения (issue #523). Отдельно от общего вложения, потому что здесь
+        // рождается ПРОИЗВОДНАЯ: оригинал кладём как есть, а рабочей делаем уменьшенную копию.
+        // Оригинал остаётся — документы исполнительные, и «уменьшили без спроса и без возврата» для
+        // печати недопустимо; иметь оригинал под рукой дороже пары мегабайт в хранилище.
+        g.MapPost("/image", async (IFormFile file, IBlobStorage blob, CancellationToken ct) =>
+        {
+            if (!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                return Results.BadRequest(new { error = $"Это не изображение: {file.ContentType}" });
+            if (UploadLimits.Exceeded(file, UploadLimits.Attachment) is { } tooLarge) return tooLarge;
+
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms, ct);
+            var source = ms.ToArray();
+
+            var originalPath = await blob.UploadAsync(
+                file.FileName, new MemoryStream(source), file.ContentType, ct);
+
+            var down = ImageDownscaler.Downscale(source, file.ContentType);
+            // Копию берём, ТОЛЬКО если она легче исходника. Уменьшение пикселей не гарантирует
+            // уменьшения байтов: хорошо сжимаемый PNG (схема, скан с большими однотонными полями)
+            // после пересжатия в JPEG может стать в разы ТЯЖЕЛЕЕ — поймано на живой проверке, где
+            // 0,15 МБ превратились в 2,82 МБ. Смысл всей операции — вес, а не число пикселей.
+            if (down.Bytes is not null && down.Bytes.Length >= source.Length) down = down with { Bytes = null };
+            if (down.Bytes is null)
+            {
+                // Уменьшать не понадобилось (или формат не распознан) — рабочей остаётся сама
+                // загруженная картинка, второй копии не заводим.
+                return Results.Ok(new
+                {
+                    blobPath = originalPath, originalBlobPath = (string?)null,
+                    fileName = file.FileName, mimeType = file.ContentType,
+                    sourceBytes = source.LongLength, storedBytes = source.LongLength,
+                });
+            }
+
+            var ext = down.MimeType == "image/png" ? "png" : "jpg";
+            var smallName = Path.GetFileNameWithoutExtension(file.FileName) + "_" + down.Width + "." + ext;
+            var smallPath = await blob.UploadAsync(smallName, new MemoryStream(down.Bytes), down.MimeType, ct);
+
+            return Results.Ok(new
+            {
+                blobPath = smallPath, originalBlobPath = originalPath,
+                fileName = file.FileName, mimeType = down.MimeType,
+                sourceBytes = source.LongLength, storedBytes = (long)down.Bytes.Length,
+            });
         }).DisableAntiforgery();
 
         g.MapGet("/", async (string path, IBlobStorage blob, CancellationToken ct) =>

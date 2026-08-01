@@ -39,6 +39,8 @@ export function ImageField({ value, onChange }: {
 }) {
   const [sizeOpen, setSizeOpen] = useState(false);
   const [error, setError] = useState('');
+  /** Итог уменьшения — показываем ОДИН раз после загрузки: человеку важен вес, а не пиксели. */
+  const [shrunk, setShrunk] = useState<string | null>(null);
   /** Локальное превью выбранного файла — показывается СРАЗУ, пока байты едут в хранилище. */
   const [pending, setPending] = useState<string | null>(null);
   /**
@@ -67,6 +69,7 @@ export function ImageField({ value, onChange }: {
     e.target.value = '';   // сбрасываем всегда, иначе повторный выбор того же файла не сработает
     if (!file) return;
     setError('');
+    setShrunk(null);
     const mine = ++pick.current;
 
     // Размер проверяем ДО чтения: незачем гонять FileReader по файлу, который всё равно отвергнем.
@@ -98,12 +101,17 @@ export function ImageField({ value, onChange }: {
    */
   async function upload(file: File, mine: number) {
     try {
-      const node = await uploadImage(file);
+      const { sourceBytes, storedBytes, ...node } = await uploadImage(file);
       // Запоздавший ответ не должен ни воскрешать удалённую картинку, ни перебивать более свежий
       // выбор: значение меняем, только если это всё ещё ТОТ выбор (issue #532).
       if (pick.current !== mine) return;
       const opts: ImageOptions = img ?? {};
       onChange({ ...node, ...opts });
+      // Пишем РЕЗУЛЬТАТ, а не «уменьшено до 2400 px»: пиксели человеку ничего не говорят, вес говорит.
+      // Оригинал при этом сохранён — строка сообщает о копии, а не о потере (issue #523).
+      setShrunk(storedBytes < sourceBytes
+        ? `Уменьшено: ${formatBytes(sourceBytes)} → ${formatBytes(storedBytes)}`
+        : null);
     } catch (e) {
       if (pick.current !== mine) return;
       // Превью убираем: иначе человек уверен, что картинка на месте, а её нет (issue #522).
@@ -155,7 +163,7 @@ export function ImageField({ value, onChange }: {
       </div>
 
       <div className="flex items-center gap-4">
-        <button type="button" onClick={() => { pick.current++; setPending(null); onChange(null); }}
+        <button type="button" onClick={() => { pick.current++; setPending(null); setShrunk(null); onChange(null); }}
           className="flex items-center gap-1.5 text-xs text-danger hover:text-danger transition-colors">
           <Trash2 size={12} /> Удалить изображение
         </button>
@@ -165,6 +173,8 @@ export function ImageField({ value, onChange }: {
           Размер и выравнивание{!sizeOpen && hasSize ? ' ·' : ''}
         </button>
       </div>
+
+      {shrunk && <p className="text-[11px] text-fg4">{shrunk}</p>}
 
       {sizeOpen && img && (
         <div className="flex flex-wrap items-center gap-2 pl-1">

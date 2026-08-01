@@ -46,7 +46,10 @@ export interface ImageValue extends ImageOptions {
  */
 export interface ImageBlobValue extends ImageOptions {
   $type: 'image';
+  /** Рабочая картинка: уменьшенная копия, если уменьшение понадобилось (issue #523). */
   blobPath: string;
+  /** Оригинал как загрузили. Есть только если копия отличается от него. */
+  originalBlobPath?: string;
   fileName: string;
   mimeType: string;
 }
