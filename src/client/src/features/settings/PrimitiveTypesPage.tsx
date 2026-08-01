@@ -35,6 +35,7 @@ import { formatDateRu } from '@/shared/utils/date';
 import { useTagRegistry, fieldTags } from '@/shared/api/tags';
 import { GroupPicker } from './TypeGroupAccordion';
 import { ValuesEditor, EnumForm, humanEnumPreview } from './EnumTypesSection';
+import { withRowUids } from '@/shared/utils/rowIdentity';
 import {
   TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry, LeaveGuardDialog,
 } from './typeEditorShell';
@@ -465,7 +466,9 @@ function EnumTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSaveAll
 }) {
   const [name, setName] = useState(type.name);
   const [description, setDescription] = useState(type.description ?? '');
-  const [values, setValues] = useState<EnumOptionDef[]>(type.values ?? []);
+  // Личности строк заводим здесь, у владельца состояния (issue #517) — иначе перестановка
+  // двигает не тот вариант.
+  const [values, setValues] = useState<EnumOptionDef[]>(() => withRowUids(type.values ?? []));
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -493,7 +496,7 @@ function EnumTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSaveAll
       setError(e instanceof Error ? e.message : 'Ошибка сохранения'); throw e;
     }
   }
-  const reset = () => { setName(type.name); setDescription(type.description ?? ''); setValues(type.values ?? []); setError(''); };
+  const reset = () => { setName(type.name); setDescription(type.description ?? ''); setValues(withRowUids(type.values ?? [])); setError(''); };
   useRegisterEditor('enum', localDirty, save, reset);
 
   return (

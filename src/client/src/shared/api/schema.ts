@@ -1,23 +1,16 @@
 import type { DocumentType } from './types';
+import { ROW_UID, withRowUid } from '@/shared/utils/rowIdentity';
 
 /**
- * Личность поля в редакторе схемы (issue #527). Ключ поля личностью быть не может — его как раз и
- * переименовывают, а индекс в массиве не переживает удаление и перетаскивание: React переиспользует
- * экземпляр карточки под уже ДРУГОЕ поле, и состояние карточки (база сравнения ключа, снятый замок)
- * достаётся чужому полю — вплоть до предложения перенести данные удалённого поля в соседнее.
- *
- * Символьный ключ, а не обычное свойство: `JSON.stringify` символы не сериализует, поэтому uid не
- * протечёт ни в сохраняемую схему, ни в предпросмотр JSON, а расширение объекта (`{...f, ...patch}`)
- * его при этом сохраняет.
+ * Личность поля в редакторе схемы — частный случай личности строки списка (issue #527, #517).
+ * Почему не ключ поля и не индекс — см. [[ROW_UID]]: ключ как раз переименовывают, а индекс не
+ * переживает удаление и перетаскивание, и состояние карточки достаётся чужому полю.
  */
-export const FIELD_UID: unique symbol = Symbol('fieldUid');
+export const FIELD_UID: typeof ROW_UID = ROW_UID;
 
-let uidCounter = 0;
-
-/** Поле с личностью: уже помеченное возвращается как есть (личность обязана переживать правки). */
+/** Поле с личностью: уже помеченное возвращается как есть. */
 export function withFieldUid<T extends SchemaField>(field: T): T & { [FIELD_UID]: string } {
-  type Identified = T & { [FIELD_UID]: string };
-  return field[FIELD_UID] ? field as Identified : { ...field, [FIELD_UID]: `f${++uidCounter}` };
+  return withRowUid(field) as T & { [FIELD_UID]: string };
 }
 
 export interface SchemaField {

@@ -5,6 +5,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { moveItem } from '@/shared/utils/moveItem';
+import { rowKey, withRowUid, withRowUids } from '@/shared/utils/rowIdentity';
 import { useToast } from '@/shared/ui/Toast';
 import { ListDetailShell, NavSearchInput, NavSection, DetailHeader } from '@/shared/ui/ListDetailShell';
 import {
@@ -31,6 +32,15 @@ const FIELD_TYPES = [
 const EMPTY_SHAPE: RecognitionTableShape = { twoTierHeader: false, pairedSections: false, skipTotals: true };
 
 // ─── Редактор списка полей/колонок ─────────────────────────────────────────────
+
+/**
+ * Состояние строк при синхронизации с сервером: если пришло то же самое, оставляем СВОИ строки.
+ * Иначе каждое обновление профиля выдавало бы новые личности, а с ними — новые ключи React: строки
+ * пересоздавались бы целиком, роняя каретку в поле, куда пользователь только что кликнул.
+ */
+function keepIfSame(prev: RecognitionProfileField[], incoming: RecognitionProfileField[]): RecognitionProfileField[] {
+  return JSON.stringify(prev) === JSON.stringify(incoming) ? prev : withRowUids(incoming);
+}
 
 function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
   fields: RecognitionProfileField[];
@@ -61,7 +71,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
       {fields.map((f, i) => {
         const locked = systemNames.includes(f.name.trim());
         return (
-          <div key={i} className={cols}>
+          <div key={rowKey(f, i)} className={cols}>
             <div className="relative">
               <input value={f.name} onChange={e => update(i, { name: e.target.value })}
                 readOnly={locked} placeholder="Позиция"
@@ -81,10 +91,16 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
               {FIELD_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
             <span className="flex items-center gap-0.5">
-              <button type="button" onClick={() => move(i, i - 1)} disabled={i === 0}
-                className="p-0.5 text-fg4 hover:text-fg2 disabled:opacity-25" title="Выше"><ArrowUp size={12} /></button>
-              <button type="button" onClick={() => move(i, i + 1)} disabled={i === fields.length - 1}
-                className="p-0.5 text-fg4 hover:text-fg2 disabled:opacity-25" title="Ниже"><ArrowDown size={12} /></button>
+              {/* aria-disabled, а не disabled (issue #517) — см. ValuesEditor: браузер снимает
+                  фокус с погасшей кнопки, и на последнем шаге перестановки клавиатурой
+                  пользователь терял место. */}
+              <button type="button" onClick={() => { if (i > 0) move(i, i - 1); }} aria-disabled={i === 0}
+                className="p-0.5 text-fg4 hover:text-fg2 aria-disabled:opacity-25 aria-disabled:hover:text-fg4"
+                title="Выше"><ArrowUp size={12} /></button>
+              <button type="button" onClick={() => { if (i < fields.length - 1) move(i, i + 1); }}
+                aria-disabled={i === fields.length - 1}
+                className="p-0.5 text-fg4 hover:text-fg2 aria-disabled:opacity-25 aria-disabled:hover:text-fg4"
+                title="Ниже"><ArrowDown size={12} /></button>
               <button type="button" onClick={() => remove(i)} disabled={locked}
                 className="p-0.5 text-fg4 hover:text-danger disabled:opacity-25"
                 title={locked ? 'Обязательное поле — удалить нельзя' : 'Удалить'}><Trash2 size={13} /></button>
@@ -92,7 +108,7 @@ function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
           </div>
         );
       })}
-      <button type="button" onClick={() => onChange([...fields, { name: '', description: '', type: 'string' }])}
+      <button type="button" onClick={() => onChange([...fields, withRowUid({ name: '', description: '', type: 'string' })])}
         className="flex items-center gap-1 text-sm text-brand hover:text-brand-hover pt-0.5">
         <Plus size={13} /> {addLabel}
       </button>
@@ -133,8 +149,9 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
   const del = useDeleteRecognitionProfile();
 
   const [name, setName] = useState(profile.name);
-  const [fields, setFields] = useState<RecognitionProfileField[]>(profile.fields);
-  const [rowColumns, setRowColumns] = useState<RecognitionProfileField[]>(profile.rowColumns);
+  // Личности строк — здесь, у владельца состояния (issue #517).
+  const [fields, setFields] = useState<RecognitionProfileField[]>(() => withRowUids(profile.fields));
+  const [rowColumns, setRowColumns] = useState<RecognitionProfileField[]>(() => withRowUids(profile.rowColumns));
   const [shape, setShape] = useState<RecognitionTableShape>(profile.shape ?? EMPTY_SHAPE);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -143,8 +160,8 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
   // Сервер — источник истины после сохранения/сброса: подхватываем его ответ.
   useEffect(() => {
     setName(profile.name);
-    setFields(profile.fields);
-    setRowColumns(profile.rowColumns);
+    setFields(prev => keepIfSame(prev, profile.fields));
+    setRowColumns(prev => keepIfSame(prev, profile.rowColumns));
     setShape(profile.shape ?? EMPTY_SHAPE);
     setError('');
   }, [profile]);
@@ -188,8 +205,8 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
         }
         dirty={dirty} saving={update.isPending} onSaveAll={save}
         onRevert={() => {
-          setName(profile.name); setFields(profile.fields);
-          setRowColumns(profile.rowColumns); setShape(profile.shape ?? EMPTY_SHAPE);
+          setName(profile.name); setFields(withRowUids(profile.fields));
+          setRowColumns(withRowUids(profile.rowColumns)); setShape(profile.shape ?? EMPTY_SHAPE);
         }}
         actions={
           <>
