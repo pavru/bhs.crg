@@ -34,6 +34,33 @@ public static class ImageDownscaler
     /// <summary>Качество JPEG для копий без прозрачности. 90 — предел, за которым размер растёт быстрее пользы.</summary>
     private const int JpegQuality = 90;
 
+    /// <summary>Потолок площади: 8000×8000 с запасом покрывает скан A0 при 600 dpi.</summary>
+    public const long MaxPixels = 64_000_000;
+
+    /// <summary>
+    /// Причина отказа, если картинка слишком велика В ПИКСЕЛЯХ, иначе null (issue #534).
+    ///
+    /// Предел в байтах её не ограничивает: PNG на 10 МБ разворачивается в памяти в гигабайты
+    /// (20000×20000 ≈ 1,6 ГБ), и любой вошедший пользователь мог бы уронить процесс. Размеры читаем
+    /// из заголовка — <c>SKCodec</c> не декодирует пиксели.
+    /// </summary>
+    public static string? PixelCountExceeded(byte[] source, long maxPixels = MaxPixels)
+    {
+        try
+        {
+            using var codec = SKCodec.Create(new MemoryStream(source));
+            if (codec is null) return null;   // не распознали — уменьшать всё равно не будем
+            var pixels = (long)codec.Info.Width * codec.Info.Height;
+            return pixels > maxPixels
+                ? $"Изображение {codec.Info.Width}×{codec.Info.Height} слишком велико для обработки."
+                : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// Уменьшенная копия или «не понадобилось». Нераспознанный формат (в том числе SVG — он
     /// векторный и легковесен) возвращается как «не понадобилось»: портить то, чего не поняли, хуже,
@@ -58,12 +85,19 @@ public static class ImageDownscaler
         var width = Math.Max(1, (int)Math.Round(bitmap.Width * scale));
         var height = Math.Max(1, (int)Math.Round(bitmap.Height * scale));
 
-        using var resized = bitmap.Resize(new SKImageInfo(width, height), SKSamplingOptions.Default);
+        // Mitchell, а НЕ SKSamplingOptions.Default (issue #534): Default — это Nearest, то есть
+        // выбрасывание строк и столбцов. На чертеже с линиями в 1 пиксель это уничтожает ровно то,
+        // ради чего мы вообще подбирали порог 2400 px: линия, попавшая на выброшенную строку,
+        // исчезает целиком. Побочно nearest даёт и БОЛЬШИЙ файл — резкие края хуже сжимаются.
+        var sampling = new SKSamplingOptions(SKCubicResampler.Mitchell);
+        using var resized = bitmap.Resize(new SKImageInfo(width, height), sampling);
         if (resized is null) return new DownscaleResult(null, mimeType, bitmap.Width, bitmap.Height, bitmap.Width, bitmap.Height);
 
         // Прозрачность решает формат, а не исходный тип: PNG без альфы незачем держать PNG'ом, а
         // картинку С альфой нельзя отдавать в JPEG — печать ляжет на белом прямоугольнике.
-        var hasAlpha = HasTransparency(resized);
+        // Судим по ИСХОДНОЙ картинке: после Resize AlphaType всегда Premul, и быстрый выход по
+        // «непрозрачно» не срабатывал бы никогда — попиксельный обход шёл бы на каждую загрузку.
+        var hasAlpha = !bitmap.Info.IsOpaque && HasTransparency(resized);
         using var image = SKImage.FromBitmap(resized);
         using var data = hasAlpha
             ? image.Encode(SKEncodedImageFormat.Png, 100)
@@ -75,12 +109,16 @@ public static class ImageDownscaler
             width, height, bitmap.Width, bitmap.Height);
     }
 
+    /// <summary>
+    /// Есть ли хоть один непрозрачный пиксель. Читаем буфер целиком, а не через GetPixel: тот на
+    /// каждый пиксель уходит в нативный вызов, и на 2400×1800 обход занимал десятки миллисекунд.
+    /// </summary>
     private static bool HasTransparency(SKBitmap bitmap)
     {
         if (bitmap.AlphaType == SKAlphaType.Opaque) return false;
-        for (var y = 0; y < bitmap.Height; y++)
-            for (var x = 0; x < bitmap.Width; x++)
-                if (bitmap.GetPixel(x, y).Alpha < 255) return true;
+        var pixels = bitmap.Pixels;
+        foreach (var p in pixels)
+            if (p.Alpha < 255) return true;
         return false;
     }
 }

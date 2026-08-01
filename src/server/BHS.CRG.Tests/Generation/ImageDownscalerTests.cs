@@ -93,4 +93,53 @@ public class ImageDownscalerTests
         Assert.Equal(3000, result.SourceHeight);
         Assert.True(result.Width <= ImageDownscaler.MaxSide);
     }
+
+    /// <summary>
+    /// Тонкие линии обязаны пережить уменьшение (issue #534). С sampling по умолчанию (Nearest)
+    /// картинка с линиями в 1 пиксель выходила ПУСТОЙ: строки и столбцы просто выбрасывались. Это
+    /// ровно тот вред, ради предотвращения которого подбирался порог 2400 px, — и его не ловил ни
+    /// один тест, потому что размеры и вес при этом выглядели правильно.
+    /// </summary>
+    [Fact]
+    public void ThinLines_SurviveDownscale()
+    {
+        const int w = 4800, h = 3400;
+        byte[] source;
+        using (var bitmap = new SKBitmap(w, h, SKColorType.Rgb888x, SKAlphaType.Opaque))
+        {
+            using (var canvas = new SKCanvas(bitmap))
+            {
+                canvas.Clear(SKColors.White);
+                using var paint = new SKPaint { Color = SKColors.Black };
+                for (var x = 1; x < w; x += 2) canvas.DrawRect(x, 0, 1, h, paint);   // линии в 1 px
+            }
+            using var image = SKImage.FromBitmap(bitmap);
+            using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+            source = data.ToArray();
+        }
+
+        var result = ImageDownscaler.Downscale(source, "image/png");
+        Assert.NotNull(result.Bytes);
+
+        using var small = SKBitmap.Decode(result.Bytes);
+        var dark = 0;
+        for (var x = 0; x < small.Width; x++)
+            if (small.GetPixel(x, small.Height / 2).Red < 200) dark++;
+        Assert.True(dark > small.Width / 4,
+            $"после уменьшения осталось {dark} тёмных пикселей из {small.Width} — линии потеряны");
+    }
+
+    /// <summary>
+    /// Предел в байтах не ограничивает пиксели: PNG на единицы мегабайт разворачивается в памяти в
+    /// гигабайты, и любой вошедший пользователь мог бы уронить процесс. Размеры читаются из
+    /// заголовка, без декодирования (issue #534).
+    /// </summary>
+    [Fact]
+    public void HugeDimensions_AreRefusedBeforeDecoding()
+    {
+        // 12000×12000 = 144 млн пикселей при пределе 64 млн; сами байты крошечные — картинка пустая.
+        var huge = Png(12000, 12000);
+        Assert.NotNull(ImageDownscaler.PixelCountExceeded(huge));
+        Assert.Null(ImageDownscaler.PixelCountExceeded(Png(2000, 2000)));
+    }
 }

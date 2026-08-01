@@ -227,11 +227,20 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         {
             case JsonValueKind.Object:
                 if (element.TryGetProperty("$type", out var typeEl) &&
+                    typeEl.ValueKind == JsonValueKind.String &&
                     typeEl.GetString() is "file" or "image" &&
                     element.TryGetProperty("blobPath", out var pathEl) &&
                     pathEl.GetString() is { Length: > 0 } path)
                 {
                     paths.Add(path);
+                    // И ОРИГИНАЛ картинки, если он есть (issue #534). Уменьшение — производная, и
+                    // всё обещание «оригинал сохранён» держится на этом блобе; без него
+                    // восстановление из архива оставило бы ссылку на несуществующий файл.
+                    if (element.TryGetProperty("originalBlobPath", out var origEl) &&
+                        origEl.GetString() is { Length: > 0 } original)
+                    {
+                        paths.Add(original);
+                    }
                 }
                 else
                 {

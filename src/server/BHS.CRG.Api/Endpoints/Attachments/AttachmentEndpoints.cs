@@ -47,16 +47,35 @@ public static class AttachmentEndpoints
         // печати недопустимо; иметь оригинал под рукой дороже пары мегабайт в хранилище.
         g.MapPost("/image", async (IFormFile file, IBlobStorage blob, CancellationToken ct) =>
         {
-            if (!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-                return Results.BadRequest(new { error = $"Это не изображение: {file.ContentType}" });
+            // Тот же белый список, что у обычного вложения (issue #534): «image/*» пропускал бы tiff,
+            // bmp, heic, avif — их декодер не понимает, картинка легла бы как есть, а отказ всплыл бы
+            // только при генерации PDF, далеко от загрузки. ContentType бывает null, если часть
+            // multipart пришла без заголовка, — тогда это тоже отказ, а не 500.
+            var contentType = file.ContentType ?? "";
+            if (!AllowedTypes.Contains(contentType) || !contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                return Results.BadRequest(new { error = $"Это не поддерживаемое изображение: {contentType}" });
             if (UploadLimits.Exceeded(file, UploadLimits.Attachment) is { } tooLarge) return tooLarge;
 
             using var ms = new MemoryStream();
             await file.CopyToAsync(ms, ct);
             var source = ms.ToArray();
 
-            var originalPath = await blob.UploadAsync(
-                file.FileName, new MemoryStream(source), file.ContentType, ct);
+            // Предел в байтах не ограничивает ПИКСЕЛИ: 10 МБ PNG разворачивается в гигабайты в
+            // памяти (20000×20000 ≈ 1,6 ГБ), и любой вошедший пользователь мог бы уронить процесс.
+            // Размеры читаем из заголовка, не декодируя (issue #534).
+            if (ImageDownscaler.PixelCountExceeded(source) is { } tooManyPixels)
+                return Results.BadRequest(new { error = tooManyPixels });
+
+            string originalPath;
+            try
+            {
+                originalPath = await blob.UploadAsync(
+                    file.FileName, new MemoryStream(source), contentType, ct);
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem(detail: ex.Message, title: "Ошибка загрузки файла", statusCode: 500);
+            }
 
             var down = ImageDownscaler.Downscale(source, file.ContentType);
             // Копию берём, ТОЛЬКО если она легче исходника. Уменьшение пикселей не гарантирует
@@ -78,14 +97,27 @@ public static class AttachmentEndpoints
 
             var ext = down.MimeType == "image/png" ? "png" : "jpg";
             var smallName = Path.GetFileNameWithoutExtension(file.FileName) + "_" + down.Width + "." + ext;
-            var smallPath = await blob.UploadAsync(smallName, new MemoryStream(down.Bytes), down.MimeType, ct);
-
-            return Results.Ok(new
+            try
             {
-                blobPath = smallPath, originalBlobPath = originalPath,
-                fileName = file.FileName, mimeType = down.MimeType,
-                sourceBytes = source.LongLength, storedBytes = (long)down.Bytes.Length,
-            });
+                var smallPath = await blob.UploadAsync(smallName, new MemoryStream(down.Bytes), down.MimeType, ct);
+                return Results.Ok(new
+                {
+                    blobPath = smallPath, originalBlobPath = originalPath,
+                    fileName = file.FileName, mimeType = down.MimeType,
+                    sourceBytes = source.LongLength, storedBytes = (long)down.Bytes.Length,
+                });
+            }
+            catch (Exception)
+            {
+                // Копия не легла — оригинал уже в хранилище, и бросать его сиротой нельзя: он никому
+                // не известен, удалить его потом будет некому. Работаем на оригинале (issue #534).
+                return Results.Ok(new
+                {
+                    blobPath = originalPath, originalBlobPath = (string?)null,
+                    fileName = file.FileName, mimeType = contentType,
+                    sourceBytes = source.LongLength, storedBytes = source.LongLength,
+                });
+            }
         }).DisableAntiforgery();
 
         g.MapGet("/", async (string path, IBlobStorage blob, CancellationToken ct) =>
