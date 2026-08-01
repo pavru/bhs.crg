@@ -15,8 +15,9 @@ export const FIELD_UID: unique symbol = Symbol('fieldUid');
 let uidCounter = 0;
 
 /** Поле с личностью: уже помеченное возвращается как есть (личность обязана переживать правки). */
-export function withFieldUid<T extends SchemaField>(field: T): T {
-  return field[FIELD_UID] ? field : { ...field, [FIELD_UID]: `f${++uidCounter}` };
+export function withFieldUid<T extends SchemaField>(field: T): T & { [FIELD_UID]: string } {
+  type Identified = T & { [FIELD_UID]: string };
+  return field[FIELD_UID] ? field as Identified : { ...field, [FIELD_UID]: `f${++uidCounter}` };
 }
 
 export interface SchemaField {
