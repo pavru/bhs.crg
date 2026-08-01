@@ -1,4 +1,5 @@
 import type { DocumentType } from './types';
+import { FUNCTIONAL_TAG } from './tags';
 import { ROW_UID, withRowUid } from '@/shared/utils/rowIdentity';
 
 /**
@@ -279,4 +280,28 @@ export function isFieldMissing(field: SchemaField, value: unknown): boolean {
     return value == null || (typeof value === 'object' && Object.keys(value as object).length === 0);
   }
   return value == null || String(value).trim() === '';
+}
+
+/**
+ * Тип-МАТЕРИАЛ — тот, что может нести документ качества (issue #569).
+ *
+ * Тэг identity носят и другие справочные типы: единица измерения опознаётся своим наименованием,
+ * организация — сокращённым названием. Пока поля идентичности собирались по ВСЕМ составным типам,
+ * строка набора данных с колонкой «ЕдиницаИзмерения» получала ключ «шт» — и 151 материал реестра
+ * схлопывался в четыре единицы измерения.
+ */
+export function isMaterialType(t: DocumentType, allDocTypes: DocumentType[]): boolean {
+  return resolveEffectiveFields(t, allDocTypes)
+    .some(f => f.tags?.includes(FUNCTIONAL_TAG.materialQualityDocLink));
+}
+
+/** Ключи полей идентичности у типов-материалов — по тэгам, без хардкода имён полей. */
+export function materialIdentityKeys(allDocTypes: DocumentType[]): string[] {
+  const keys: string[] = [];
+  for (const t of allDocTypes) {
+    if (t.kind !== 'Composite' || !isMaterialType(t, allDocTypes)) continue;
+    for (const f of resolveEffectiveFields(t, allDocTypes))
+      if (f.tags?.includes(FUNCTIONAL_TAG.identity)) keys.push(f.key);
+  }
+  return Array.from(new Set(keys));
 }
