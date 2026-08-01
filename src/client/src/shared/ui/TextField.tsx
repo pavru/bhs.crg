@@ -1,12 +1,13 @@
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
+import { OutlinedField } from './OutlinedField';
 
 /**
- * MD3 outlined-текстовое поле (issue #110/#178) с плавающей подписью. Реализован НАСТОЯЩИЙ
- * вырез рамки (MD3 notch) через fieldset+legend: контейнер прозрачный, верхняя рамка реально
- * прерывается под меткой. Благодаря этому поле корректно выглядит на ЛЮБОМ фоне (surface/base/
- * карточка), а не только на surface. Тема light/dark — через токены.
+ * MD3 outlined-текстовое поле (issue #110/#178) с плавающей подписью. Рамку с настоящим вырезом,
+ * метку и подпись под полем рисует общая оболочка `OutlinedField` (#565) — здесь остаётся сам
+ * `<input>` и его состояния.
  *
- * Требует placeholder=" " (пробел) — по нему :placeholder-shown отличает пустое поле.
+ * Требует placeholder=" " (пробел) — по нему :placeholder-shown отличает пустое поле, и на этом же
+ * держится всплывание метки в режиме `raise="auto"`.
  */
 export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'placeholder'> {
   label: string;
@@ -26,44 +27,18 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
 ) {
   const autoId = useId();
   const inputId = id ?? autoId;
-  const bad = !!error || invalid;
-  const borderColor = bad
-    ? 'border-danger peer-focus:border-danger'
-    : 'border-stroke-strong peer-focus:border-brand';
-  const labelColor = bad ? 'text-danger peer-focus:text-danger' : 'text-fg4 peer-focus:text-brand';
 
   return (
-    <div className={containerClassName}>
-      <div className="relative">
-        <input
-          ref={ref} id={inputId} placeholder=" " required={required}
-          className={`peer w-full h-14 rounded-md bg-transparent text-sm text-fg1 px-4 ` +
-            `outline-none disabled:opacity-50 ${trailing ? 'pr-11' : ''} ${className}`}
-          {...rest}
-        />
-        {/* Рамка с вырезом: fieldset даёт границу, legend прорезает верх под плавающей меткой. */}
-        {/* peer-* реагируют только на СОСЕДЕЙ input'а, поэтому реакцию на фокус/заполнение
-            вешаем на fieldset (он сосед) и целим вложенный legend через [&>legend]. */}
-        <fieldset aria-hidden
-          className={`pointer-events-none absolute inset-x-0 bottom-0 top-[-5px] m-0 rounded-md border px-3 transition-colors ${borderColor} peer-focus:border-2 ` +
-            `peer-focus:[&>legend]:max-w-full peer-[:not(:placeholder-shown)]:[&>legend]:max-w-full`}>
-          <legend className="h-2.5 w-auto max-w-[0.01px] whitespace-nowrap p-0 text-xs invisible transition-[max-width] duration-100">
-            <span className="inline-block px-1 opacity-0">{label}{required ? ' *' : ''}</span>
-          </legend>
-        </fieldset>
-        <label
-          htmlFor={inputId}
-          className={`absolute left-3 top-1/2 -translate-y-1/2 px-1 text-sm pointer-events-none transition-all ${labelColor} ` +
-            `block max-w-[calc(100%-1.5rem)] truncate ` +
-            `peer-focus:top-0 peer-focus:text-xs peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-xs`}
-        >
-          {label}{required && <span className="ml-0.5 text-danger">*</span>}
-        </label>
-        {trailing && <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">{trailing}</div>}
-      </div>
-      {error
-        ? <p className="mt-1 px-1 text-xs text-danger">{error}</p>
-        : hint ? <p className="mt-1 px-1 text-xs text-fg4">{hint}</p> : null}
-    </div>
+    <OutlinedField
+      label={label} required={required} invalid={invalid} error={error} hint={hint}
+      htmlFor={inputId} trailing={trailing} containerClassName={containerClassName}
+    >
+      <input
+        ref={ref} id={inputId} placeholder=" " required={required}
+        className={`peer w-full h-14 rounded-md bg-transparent text-sm text-fg1 px-4 ` +
+          `outline-none disabled:opacity-50 ${trailing ? 'pr-11' : ''} ${className}`}
+        {...rest}
+      />
+    </OutlinedField>
   );
 });
