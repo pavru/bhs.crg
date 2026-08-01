@@ -71,7 +71,10 @@ public class MaterialQualityLink : Entity
     private static string? Trim(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
-        var trimmed = value.Trim();
+        // Легаси-маркер ссылки «🔗» в значении поля (составные поля когда-то хранились строкой
+        // «🔗 …», см. каталог): в человеческом имени материала он мусор — имя склеивается из полей
+        // идентичности, и один из них приносит этот значок в КАЖДУЮ метку.
+        var trimmed = value.Replace("🔗", "").Replace("  ", " ").Trim();
         return trimmed.Length <= MaxLabelLength ? trimmed : trimmed[..(MaxLabelLength - 1)] + "…";
     }
 }
