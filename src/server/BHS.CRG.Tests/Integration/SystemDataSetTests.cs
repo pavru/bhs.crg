@@ -240,4 +240,70 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
         await Assert.ThrowsAsync<ArgumentException>(
             () => svc.ListSystemCandidatesAsync("Ерунда", null, default));
     }
+
+    /// <summary>
+    /// Число строк системного источника считается на чтении (issue #613). Кэш, записанный при
+    /// создании, обновлять нечем — файла нет, определение источника не редактируется, — поэтому
+    /// «N строк» в списках и в MCP-срезе обязано пересчитываться, иначе оно молча врёт после
+    /// первого же добавленного в комплект документа.
+    /// </summary>
+    [Fact]
+    public async Task SetDocuments_RowCount_IsLiveEverywhereItIsShown()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var m = M(scope);
+        var (setId, namedId, _, _) = await SeedSetAsync(scope);
+
+        var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
+        var source = await svc.CreateSourceAsync(file.Id,
+            new CreateSourceInput("Документы", SystemDataSets.SetDocumentsMarker, null), default);
+        Assert.Equal(2, source.CachedRowCount);
+
+        var typeId = (await m.Send(new GetDocumentInstanceQuery(namedId)))!.CompositeTypeId;
+        await m.Send(new AddDocumentToSetCommand(setId, typeId));
+
+        // Список источников набора и оба списка наборов — из них берут подпись выпадающие списки привязок.
+        Assert.Equal(3, Assert.Single(await svc.ListSourcesAsync(file.Id, default)).CachedRowCount);
+        Assert.Equal(3, Assert.Single(
+            Assert.Single(await svc.ListFilesAsync("Set", setId, default)).Sources).CachedRowCount);
+        Assert.Equal(3, Assert.Single(
+            (await svc.ListAvailableFilesAsync(setId, default)).Single(f => f.Id == file.Id).Sources).CachedRowCount);
+
+        // MCP-срез: внешний агент не должен видеть число, расходящееся с выдачей get_rows.
+        var snapshots = scope.ServiceProvider.GetRequiredService<IDataSnapshotService>();
+        Assert.Equal(3, (await snapshots.GetSourceAsync(source.Id))!.RowCount);
+        Assert.Equal(3, Assert.Single((await snapshots.GetDatasetAsync(file.Id))!.Sources).RowCount);
+        Assert.Equal(3, (await snapshots.GetRowsAsync(source.Id, 0, 50))!.TotalRows);
+    }
+
+    /// <summary>
+    /// Шаблон обработки применим и к системному источнику, но его extraction — не лист файла, а
+    /// выбор консолидации: подменять маркер нельзя (парсера у формата System нет, прежде здесь
+    /// падало «Нет парсера для формата System»). Фильтр/колонки/сортировка при этом переносятся.
+    /// </summary>
+    [Fact]
+    public async Task SetDocuments_ProcessingTemplate_AppliesWithoutTouchingExtraction()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var (setId, _, _, _) = await SeedSetAsync(scope);
+
+        var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
+        var source = await svc.CreateSourceAsync(file.Id,
+            new CreateSourceInput("Документы", SystemDataSets.SetDocumentsMarker, null), default);
+
+        // Шаблон «из файловой жизни»: с извлечением (лист) и фильтром.
+        var template = await svc.CreateProcessingTemplateAsync(new CreateProcessingTemplateInput(
+            "Только с номером", "Лист1", null,
+            JsonSerializer.Deserialize<object>(
+                """{"type":"condition","column":"НомерДокумента","op":"is_not_empty"}"""),
+            null, null), default);
+
+        var updated = await svc.ApplyProcessingTemplateAsync(source.Id, template.Id, default);
+
+        Assert.Equal(SystemDataSets.SetDocumentsMarker, updated!.SheetOrPath);
+        var preview = await svc.PreviewSourceAsync(source.Id, 50, default);
+        Assert.Equal("7И-СОТВ 1", Assert.Single(preview!.Rows)[preview.Columns.ToList().IndexOf("НомерДокумента")]);
+    }
 }

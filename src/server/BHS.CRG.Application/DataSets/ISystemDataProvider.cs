@@ -36,8 +36,13 @@ public interface ISystemDataProvider
 public class SystemDataProviderRegistry(IEnumerable<ISystemDataProvider> providers)
 {
     public ISystemDataProvider Get(string marker)
-        => providers.FirstOrDefault(p => p.Handles(marker))
+        => TryGet(marker)
             ?? throw new InvalidOperationException($"Нет провайдера системных данных для «{marker}»");
+
+    /// <summary>null, если провайдера нет — для мест, где неизвестный маркер не повод падать
+    /// (пересчёт строк в списке: консолидацию могли убрать, а источник остался).</summary>
+    public ISystemDataProvider? TryGet(string marker)
+        => providers.FirstOrDefault(p => p.Handles(marker));
 
     public IReadOnlyList<ISystemDataProvider> All => [.. providers];
 }

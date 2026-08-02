@@ -343,6 +343,10 @@ export function SourcesPanel({
   const createSource = useCreateDataSetSource();
   const recognizeTable = useRecognizeDocumentTable(file.id); // «Распознать таблицу» кандидата (issue #385)
   const availableCandidates = candidates.filter(c => !sources.some(s => s.sheetOrPath === c.sheetOrPath));
+  // Системный набор на уровне, где консолидаций не бывает (issue #613): такие наборы остались от
+  // версий до гейта #606 — предлагать «добавить источник» здесь значит вести в тупик, поэтому
+  // говорим прямо, что набор пустой и его можно удалить.
+  const systemDeadEnd = isSystem && sources.length === 0 && availableCandidates.length === 0;
 
   return (
     <div>
@@ -350,7 +354,7 @@ export function SourcesPanel({
         <span className="text-xs font-semibold uppercase tracking-wide text-fg4">
           Источники{sources.length > 0 ? ` · ${sources.length}` : ''}
         </span>
-        {canManageExtraction && (
+        {canManageExtraction && !systemDeadEnd && (
           <Button variant="outlined" size="sm" icon={<Plus size={14} />} onClick={() => setEditing('new')}>
             Добавить источник
           </Button>
@@ -359,9 +363,11 @@ export function SourcesPanel({
       <div className="space-y-2">
         {sources.length === 0 && (
           <p className="text-xs text-fg4 py-1">
-            {isSystem
-              ? 'Источников пока нет — добавьте консолидацию из данных системы.'
-              : 'Источников пока нет — добавьте из набора или распознайте PDF.'}
+            {systemDeadEnd
+              ? 'Консолидаций из данных системы на этом уровне нет — набор можно удалить.'
+              : isSystem
+                ? 'Источников пока нет — добавьте консолидацию из данных системы.'
+                : 'Источников пока нет — добавьте из набора или распознайте PDF.'}
           </p>
         )}
         {sources.map(src => (
