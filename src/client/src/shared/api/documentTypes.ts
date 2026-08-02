@@ -148,6 +148,30 @@ export function useDeleteDocumentType() {
   });
 }
 
+/**
+ * Что случится с картой привязок, если сохранить черновик схемы (issue #584): изменится ли составной
+ * ключ идентичности и сколько связок «материал → документ качества» это осиротит.
+ *
+ * Считает сервер — он же строит ключ на генерации. Спрашивать клиента значило бы предупреждать по
+ * одному правилу, а ломать по другому.
+ */
+export interface IdentityImpact {
+  changed: boolean;
+  /** Компоненты ключа сейчас — в порядке склейки. */
+  before: string[];
+  /** Компоненты ключа после сохранения. */
+  after: string[];
+  /** Сколько связок перестанут находиться (либо все, либо ни одной — ключ у материалов общий). */
+  affectedLinks: number;
+}
+
+export function useIdentityImpact() {
+  return useMutation({
+    mutationFn: ({ id, schema }: { id: string; schema: string }) =>
+      apiClient.post<IdentityImpact>(`/document-types/${id}/identity-impact`, { schema }).then(r => r.data),
+  });
+}
+
 export function useUpdateDocumentTypeSchema() {
   const qc = useQueryClient();
   return useMutation({

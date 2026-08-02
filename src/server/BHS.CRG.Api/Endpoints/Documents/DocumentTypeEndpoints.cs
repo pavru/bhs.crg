@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Documents;
 using MediatR;
 
@@ -56,6 +57,12 @@ public static class DocumentTypeEndpoints
             try { return Results.Ok(await m.Send(new UpdateDocumentTypeSchemaCommand(id, JsonDocument.Parse(req.Schema)))); }
             catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
+
+        // Последствия правки полей-идентификаторов (issue #584): изменится ли составной ключ и
+        // сколько связок «материал → документ качества» это осиротит. Не мутирует — предпросчёт по
+        // черновику схемы, тот же, что уйдёт в PUT /schema.
+        admin.MapPost("/{id:guid}/identity-impact", async (Guid id, UpdateSchemaRequest req, IMediator m)
+            => Results.Ok(await m.Send(new IdentityImpactQuery(id, JsonDocument.Parse(req.Schema)))));
 
         // Проверка сборки Typst-блоков (issue #309, фаза 2): глобально по всем типам, с draft-overlay
         // редактируемого типа (тело = его несохранённый массив typstRenders). Ловит циклы/дубликаты

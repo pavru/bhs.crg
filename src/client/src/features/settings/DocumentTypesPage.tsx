@@ -26,7 +26,10 @@ import {
   useSetDocumentTypeAbstract,
   useSetDocumentTypeAllowsProxy,
   useSetDocumentTypeGroup,
+  useIdentityImpact,
+  type IdentityImpact,
 } from '@/shared/api/documentTypes';
+import { ruCount, ruPlural } from '@/shared/utils/pluralize';
 import { GroupPicker } from './TypeGroupAccordion';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
@@ -459,6 +462,11 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
   const migrateKey = useMigrateFieldKey(docType.id);
   const schemaToast = useToast();
   const [pendingMigration, setPendingMigration] = useState<{ from: string; to: string }[] | null>(null);
+  // Гейт правки полей-идентификаторов (issue #584): держим решение пользователя как промис, потому
+  // что спрашивать надо ВНУТРИ save() — до записи схемы, а не после, когда связки уже осиротели.
+  const identityImpact = useIdentityImpact();
+  const [identityGate, setIdentityGate] = useState<
+    { impact: IdentityImpact; decide: (proceed: boolean) => void } | null>(null);
 
   const compositeTypes = allDocTypes.filter(dt => dt.kind === 'Composite');
   const parentType = docType.parentId ? allDocTypes.find(dt => dt.id === docType.parentId) ?? null : null;
@@ -517,8 +525,28 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
     const crossDup = definedFnNames.find(n => foreignFnNames.has(n));
     if (crossDup) { const m = `Имя функции "${crossDup}" уже используется в другом типе`; setError(m); throw new Error(m); }
 
+    const schemaJson = schemaToJson(fields, excludedFields, fieldOverrides, groups, typstRenders, docTypeTags, ungroupedOrder, help);
+
+    // Правка полей-идентификаторов осиротит связки «материал → документ качества» (issue #584):
+    // ключ составной, и добавление поля, снятие тэга или перенумерация меняют ключи ВСЕХ материалов
+    // разом. Молча этого делать нельзя — документ выпустился бы без сертификатов при здоровом виде
+    // в UI. Отказ сервера считать последствия сохранение не блокирует: предупреждение — не гейт
+    // целостности, а помощь, и ронять из-за него правку схемы неправильно.
     try {
-      await mutation.mutateAsync({ id: docType.id, schema: schemaToJson(fields, excludedFields, fieldOverrides, groups, typstRenders, docTypeTags, ungroupedOrder, help) });
+      const impact = await identityImpact.mutateAsync({ id: docType.id, schema: schemaJson });
+      if (impact.changed && impact.affectedLinks > 0) {
+        const proceed = await new Promise<boolean>(decide => setIdentityGate({ impact, decide }));
+        if (!proceed) {
+          const m = 'Сохранение отменено: правка полей-идентификаторов не подтверждена';
+          setError(m); throw new Error(m);
+        }
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.startsWith('Сохранение отменено')) throw err;
+    }
+
+    try {
+      await mutation.mutateAsync({ id: docType.id, schema: schemaJson });
       setDirty(false);
       // Проверка сборки блоков после сохранения (issue #309, фаза 2) — не блокирует save.
       if (typstRenders.length > 0) void blocksCheck.run(typstRenders);
@@ -715,6 +743,38 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
       )}
 
       {!showJson && error && <p className="text-xs text-danger pt-1">{error}</p>}
+
+      {/* Гейт правки полей-идентификаторов (issue #584): показываем, во что превратится ключ и
+          сколько связок перестанут находиться. Отмена диалога = отказ, поэтому решение отдаём в
+          decide и в onOpenChange тоже. */}
+      <ConfirmDialog
+        open={!!identityGate}
+        onOpenChange={o => { if (!o) { identityGate?.decide(false); setIdentityGate(null); } }}
+        title="Изменение полей-идентификаторов осиротит связки"
+        errorTitle="Изменение полей-идентификаторов осиротит связки"
+        description={identityGate && (
+          <div className="space-y-2">
+            <p>
+              Ключ материала склеивается из всех полей с тэгом «Идентификатор». После сохранения он
+              станет другим у ВСЕХ материалов, и{' '}
+              <b>{ruCount(identityGate.impact.affectedLinks, 'связка', 'связки', 'связок')}</b>{' '}
+              «материал → документ качества»{' '}
+              {ruPlural(identityGate.impact.affectedLinks, 'перестанет', 'перестанут', 'перестанут')}{' '}
+              находиться. Сертификаты просто не попадут в документ — ошибки при этом не будет.
+            </p>
+            <div className="text-xs font-mono text-fg3 space-y-0.5">
+              <p>было: {identityGate.impact.before.join(' | ') || '—'}</p>
+              <p>станет: {identityGate.impact.after.join(' | ') || '—'}</p>
+            </div>
+            <p className="text-xs text-fg4">
+              Связки придётся завести заново — на вкладке «Документы качества» в документе.
+            </p>
+          </div>
+        )}
+        confirmLabel="Сохранить схему"
+        requireCheckbox="Понимаю, что связки материалов перестанут находиться"
+        onConfirm={() => { identityGate?.decide(true); setIdentityGate(null); }}
+      />
 
       {/* Предложение миграции данных при переименовании ключа сохранённого поля (issue #357). */}
       <ConfirmDialog
