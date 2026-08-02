@@ -87,8 +87,10 @@ public class QualityDocHandlers(
         var count = 0;
         foreach (var material in cmd.Materials)
         {
-            var key = MatchKeyNormalizer.Normalize(material.Key);
-            if (key.Length == 0) continue;
+            // Канонизация ПО КОМПОНЕНТАМ: ключ пришёл составным (#582), и нормализация его целиком
+            // схлопнула бы пустые слоты — связка легла бы под ключ, которого резолвер не построит.
+            var key = IdentityKey.Canonicalize(material.Key);
+            if (IdentityKey.IsEmpty(key)) continue;
             if (byKey.TryGetValue(key, out var link))
             {
                 link.Retarget(cmd.QualityDocumentId);

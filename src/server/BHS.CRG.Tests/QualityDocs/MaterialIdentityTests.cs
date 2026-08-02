@@ -70,6 +70,56 @@ public class MaterialIdentityTests
         Assert.DoesNotContain("ЕдиницаИзмерения", MaterialIdentity.KeysOf(all));
     }
 
+    // ── Порядок компонентов составного ключа (issue #583) ─────────────────────
+
+    /// <summary>Номер у тэга задаёт порядок компонентов и бьёт порядок полей в схеме: порядок полей
+    /// существует ради формы ввода, и связывать с ним ключи значило бы менять ВСЕ ключи при
+    /// перестановке полей местами.</summary>
+    [Fact]
+    public void KeysOf_OrderFollowsTagParameter()
+    {
+        var material = Composite("Материал", """
+            { "fields": [
+                { "key": "Наименование", "tags": ["identity:2"] },
+                { "key": "Артикул", "tags": ["identity:1"] },
+                { "key": "Кач", "tags": ["material.qualityDocLink"] } ] }
+            """);
+        Assert.Equal(["Артикул", "Наименование"], MaterialIdentity.KeysOf([material]));
+    }
+
+    /// <summary>Номера сквозные: «identity:1» подтипа стоит перед «identity:2» базового типа —
+    /// иначе номер означал бы разное в зависимости от того, где объявлено поле.</summary>
+    [Fact]
+    public void KeysOf_NumbersAreComparedAcrossTypes()
+    {
+        var material = Composite("Материал", """
+            { "fields": [
+                { "key": "Наименование", "tags": ["identity:2"] },
+                { "key": "Кач", "tags": ["material.qualityDocLink"] } ] }
+            """);
+        var cable = Composite("Кабель", """
+            { "fields": [ { "key": "МаркаКабеля", "tags": ["identity:1"] } ] }
+            """);
+        cable.SetParent(material.Id);
+
+        Assert.Equal(["МаркаКабеля", "Наименование"], MaterialIdentity.KeysOf([material, cable]));
+    }
+
+    /// <summary>
+    /// Поле без номера идёт после нумерованных — так работают схемы, в которых номеров ещё нет.
+    /// </summary>
+    [Fact]
+    public void KeysOf_UnnumberedGoesAfterNumbered()
+    {
+        var material = Composite("Материал", """
+            { "fields": [
+                { "key": "Наименование", "tags": ["identity"] },
+                { "key": "Артикул", "tags": ["identity:1"] },
+                { "key": "Кач", "tags": ["material.qualityDocLink"] } ] }
+            """);
+        Assert.Equal(["Артикул", "Наименование"], MaterialIdentity.KeysOf([material]));
+    }
+
     [Fact]
     public void QualityDocFieldOf_FindsTargetFieldByTag()
         => Assert.Equal("ДокументПодтверждающийКачество",

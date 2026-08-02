@@ -30,7 +30,12 @@ public class MaterialQualityLinkConfiguration : IEntityTypeConfiguration<Materia
     {
         b.ToTable("material_quality_links");
         b.HasKey(e => e.Id);
-        b.Property(e => e.MaterialKey).HasMaxLength(512).IsRequired();
+        // 1024, а не 512: ключ стал СОСТАВНЫМ (#582) — склейка всех полей идентичности всех типов
+        // материала, а тэг допустим и на text-поле. Четыре описательных компонента упирались в 512,
+        // и упор этот — не молчаливый: SaveChanges бросает и отменяет весь пакет привязок.
+        // Выше не берём из-за btree: 1024 символа кириллицы ≈ 2 КБ, вместе с Scope и ScopeId это
+        // ещё внутри лимита ключа индекса.
+        b.Property(e => e.MaterialKey).HasMaxLength(1024).IsRequired();
         b.Property(e => e.MaterialLabel).HasMaxLength(512);
         b.Property(e => e.Scope).HasConversion<string>().HasMaxLength(32).IsRequired();
         b.Property(e => e.QualityDocumentId).IsRequired();

@@ -126,3 +126,38 @@ export function docHaystackStems(displayName: string, requisites: unknown): Set<
   collectStrings(requisites, parts);
   return new Set(tokenize(parts.join(' ')).map(stem));
 }
+
+/**
+ * Материалы, спорящие за одну связку (issue #585): совпадает ХОТЯ БЫ ОДНО значение идентичности
+ * (тот же артикул, то же наименование), а полный ключ разный — то есть это либо одна позиция,
+ * записанная в двух таблицах по-разному, либо два разных товара с общим артикулом.
+ *
+ * Различить их система не может и не должна: решение за пользователем — исправить материал или
+ * завести две связки. Её дело — показать, что выбор есть. До составного ключа (#582) такие строки
+ * молча делили одну связку, и побеждала та, чьё поле стояло в схеме раньше.
+ *
+ * Возвращает ключ строки → значения, которыми она пересекается с другими.
+ */
+export function collidingIdentities(
+  rows: readonly { key: string; idValues: string[] }[],
+  normalize: (s: string) => string,
+): Map<string, string[]> {
+  const keysByValue = new Map<string, Set<string>>();
+  for (const row of rows)
+    for (const value of row.idValues) {
+      const norm = normalize(value);
+      if (!norm) continue;
+      const keys = keysByValue.get(norm) ?? new Set<string>();
+      keys.add(row.key);
+      keysByValue.set(norm, keys);
+    }
+
+  const result = new Map<string, string[]>();
+  for (const row of rows) {
+    // Значение считается спорным, когда его делят РАЗНЫЕ полные ключи: одинаковые ключи — это одна
+    // и та же строка, встреченная дважды (набор данных и реквизиты), и спорить ей не с кем.
+    const shared = row.idValues.filter(v => (keysByValue.get(normalize(v))?.size ?? 0) > 1);
+    if (shared.length > 0) result.set(row.key, shared);
+  }
+  return result;
+}

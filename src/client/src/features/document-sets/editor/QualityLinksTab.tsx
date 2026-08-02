@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check } from 'lucide-react';
+import { Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -18,8 +18,9 @@ import {
   typeHasTag, findTaggedFieldPath, resolveEffectiveFields, isMaterialType, materialIdentityKeys,
 } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
+import { identityKey, isIdentityKeyEmpty, normalizeKey } from '@/shared/api/identityKey';
 import {
-  assessBulkLink, collectStrings, docHaystackStems, relevance, weighted,
+  assessBulkLink, collectStrings, collidingIdentities, docHaystackStems, relevance, weighted,
   type BulkLinkAssessment,
 } from './qualityMatch';
 import { QualityDocForm } from '@/features/quality-docs/QualityDocForm';
@@ -49,12 +50,10 @@ function isExpired(doc: QualityDocument, allDocTypes: DocumentType[]): boolean {
 // ─── Оценка релевантности документа материалу ──────────────────────────────────
 // Сопоставление материала с документом — общий модуль qualityMatch (issue #552).
 
-/** Совпадает с backend MatchKeyNormalizer: схлоп пробелов → срез хвостовых точек/пробелов → регистр. */
-function normalizeKey(s: string | null | undefined): string {
-  if (!s) return '';
-  return s.split(/\s+/).filter(Boolean).join(' ').replace(/[.\s]+$/, '').toLowerCase();
-}
-
+/**
+ * Строка материала на вкладке: `key` — составной ключ идентичности (им связка и заводится, и
+ * ищется), `label` — то же для человека, `idValues` — непустые значения для оценки релевантности.
+ */
 export interface MaterialRow { key: string; label: string; idValues: string[] }
 
 // ─── Модалка выбора/создания документа для связывания ───────────────────────────
@@ -310,16 +309,17 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
     const rows: MaterialRow[] = [];
     const seen = new Set<string>();
     const add = (rec: Record<string, unknown>) => {
-      const idValues = identityKeys
-        .map(k => rec[k])
-        .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
-        // Легаси-маркер ссылки («🔗 …» — так когда-то хранились составные поля) не относится к
-        // значению: с ним подпись на экране и ключ связи расходились бы с тем, что видит резолвер.
-        .map(v => v.replace(/🔗/g, '').replace(/\s+/g, ' ').trim())
+      // Значения берём ПО ВСЕМ полям идентичности, сохраняя позиции: ключ составной (#582), и
+      // выброшенное пустое значение сдвинуло бы все последующие компоненты.
+      const ordered = identityKeys.map(k => (typeof rec[k] === 'string' ? (rec[k] as string) : null));
+      // Легаси-маркер ссылки («🔗 …» — так когда-то хранились составные поля) не относится к
+      // значению: с ним подпись на экране и ключ связи расходились бы с тем, что видит резолвер.
+      const idValues = ordered
+        .map(v => (v ?? '').replace(/🔗/g, ' ').replace(/\s+/g, ' ').trim())
         .filter(v => v.length > 0);
       if (idValues.length === 0) return;
-      const key = normalizeKey(idValues[0]);
-      if (!key || seen.has(key)) return;
+      const key = identityKey(ordered);
+      if (isIdentityKeyEmpty(key) || seen.has(key)) return;
       seen.add(key);
       rows.push({ key, label: idValues.join(' · '), idValues });
     };
@@ -339,11 +339,14 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
     return rows;
   }, [preview, identityKeys, allDocTypes, instance]);
 
-  // Связь материала ищем по ЛЮБОМУ полю идентичности (артикул ИЛИ наименование).
-  const findLink = (m: MaterialRow) => {
-    for (const v of m.idValues) { const l = linkByKey.get(normalizeKey(v)); if (l) return l; }
-    return undefined;
-  };
+  // Строки, спорящие за одну связку (issue #585): совпало значение идентичности, но не ключ целиком.
+  const colliding = useMemo(() => collidingIdentities(materials, normalizeKey), [materials]);
+
+  // Связь ищем по СОСТАВНОМУ ключу материала — у него ровно один ключ (#582). Прежний перебор «любое
+  // поле идентичности» позволял двум связкам претендовать на один материал: на живых данных из 151
+  // строки реестра у 49 нашлась связка и по артикулу, и по наименованию, и во всех 49 сертификаты
+  // были разные — побеждала именная, потому что «Наименование» стоит в схеме раньше «Артикула».
+  const findLink = (m: MaterialRow) => linkByKey.get(m.key);
 
   // Авто-подсказки: лучший непросроченный документ из библиотеки по релевантности.
   const SUGGEST_MIN = 0.34;
@@ -495,7 +498,22 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
                         <input type="checkbox" checked={selected.has(m.key)} onChange={() => toggle(m.key)}
                           className="w-4 h-4 rounded border-stroke-strong text-brand" />
                       </td>
-                      <td className="px-2 py-1.5 text-fg1">{m.label}</td>
+                      <td className="px-2 py-1.5 text-fg1">
+                        <span className="flex items-center gap-1.5">
+                          <span className="truncate">{m.label}</span>
+                          {/* Строка спорит с другой за связку (issue #585): совпало значение, но не
+                              ключ целиком. Различить их система не может — решение за человеком. */}
+                          {colliding.has(m.key) && (
+                            <span
+                              title={`Совпадает с другой строкой по «${colliding.get(m.key)!.join('», «')}», но ключ целиком разный. `
+                                + 'Либо это одна позиция, записанная по-разному — тогда исправьте материал, '
+                                + 'либо разные товары — тогда заведите две связки.'}
+                              className="shrink-0 text-warning">
+                              <AlertTriangle size={13} />
+                            </span>
+                          )}
+                        </span>
+                      </td>
                       <td className="px-2 py-1.5">
                         {link ? (
                           <span className="flex items-center gap-1.5">

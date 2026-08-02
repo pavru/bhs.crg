@@ -2,6 +2,7 @@
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Notifications;
+using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
@@ -98,6 +99,12 @@ public class GenerateDocumentHandler(
             // отвечают на один вопрос по-разному, и человек выпускает то, о чём его предупреждали.
             var primitives = (await primitiveRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
             ValueTypeScanner.Scan(context, effectiveFields, typesById, primitives, diagnostics);
+
+            // Материалы без документа качества (issue #585) — предупреждением: выпуск не блокируем
+            // (на живом комплекте таких было 75 из 151), но и молчать нельзя — сегодня документ
+            // выходит без сертификатов, не оставляя следа.
+            QualityLinkScanner.Scan(context, MaterialIdentity.KeysOf(allDocTypes),
+                MaterialIdentity.QualityDocFieldOf(allDocTypes), diagnostics);
 
             if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
                 throw new ResolutionValidationException(diagnostics);

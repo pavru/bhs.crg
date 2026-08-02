@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assessBulkLink, relevance, weighted, tokenize, stem } from './qualityMatch';
+import { assessBulkLink, collidingIdentities, relevance, weighted, tokenize, stem } from './qualityMatch';
 
 /** Сертификат на автоматы EKF модели AV-125 — тот самый, на котором висело 69 связок (#552). */
 const AV125 = [
@@ -74,5 +74,40 @@ describe('assessBulkLink (issue #552)', () => {
     expect(stem('выключатели')).toBe(stem('выключатель'));
     const hay = new Set(tokenize('Выключатели автоматические').map(stem));
     expect(relevance(weighted('Выключатель автоматический'), hay)).toBeGreaterThan(0.9);
+  });
+});
+
+describe('collidingIdentities (issue #585)', () => {
+  const norm = (s: string) => s.trim().toLowerCase();
+  const row = (key: string, ...idValues: string[]) => ({ key, idValues });
+
+  it('одинаковый артикул при разных полных ключах — спор за связку', () => {
+    const rows = [
+      row('трубка тут нг 20/10 | t-1', 'Трубка ТУТ нг 20/10', 'T-1'),
+      row('термоусаживаемая трубка | t-1', 'Термоусаживаемая трубка', 'T-1'),
+    ];
+    const colliding = collidingIdentities(rows, norm);
+    expect([...colliding.keys()]).toHaveLength(2);
+    expect(colliding.get('трубка тут нг 20/10 | t-1')).toEqual(['T-1']);
+  });
+
+  it('разные материалы без общих значений не спорят', () => {
+    const rows = [row('трубка | t-1', 'Трубка', 'T-1'), row('кабель | k-9', 'Кабель', 'K-9')];
+    expect(collidingIdentities(rows, norm).size).toBe(0);
+  });
+
+  /**
+   * Одна и та же строка приходит дважды — из набора данных и из реквизитов. Ключ у неё один, спорить
+   * ей не с кем, и тревожить этим нельзя: иначе значок висел бы на половине реестра и его перестали
+   * бы замечать.
+   */
+  it('дубль одной строки спором не считается', () => {
+    const rows = [row('трубка | t-1', 'Трубка', 'T-1'), row('трубка | t-1', 'Трубка', 'T-1')];
+    expect(collidingIdentities(rows, norm).size).toBe(0);
+  });
+
+  it('пустые значения не сводят строки вместе', () => {
+    const rows = [row('трубка | ', 'Трубка', ''), row('кабель | ', 'Кабель', '   ')];
+    expect(collidingIdentities(rows, norm).size).toBe(0);
   });
 });

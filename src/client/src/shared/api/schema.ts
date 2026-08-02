@@ -1,5 +1,5 @@
 import type { DocumentType } from './types';
-import { FUNCTIONAL_TAG } from './tags';
+import { FUNCTIONAL_TAG, findTagEntry, hasTag, tagOrder } from './tags';
 import { ROW_UID, withRowUid } from '@/shared/utils/rowIdentity';
 
 /**
@@ -218,7 +218,7 @@ export function compositeFieldHasTag(docType: DocumentType, tag: string, allDocT
     if ((f.type !== 'array' && f.type !== 'complex') || !f.typeId) return false;
     const ct = allDocTypes.find(d => d.id === f.typeId);
     if (!ct) return false;
-    return resolveEffectiveFields(ct, allDocTypes).some(cf => cf.tags?.includes(tag));
+    return resolveEffectiveFields(ct, allDocTypes).some(cf => hasTag(cf.tags, tag));
   });
 }
 
@@ -229,13 +229,13 @@ export function compositeFieldHasTag(docType: DocumentType, tag: string, allDocT
  */
 export function findTaggedFieldPath(docType: DocumentType, tag: string, allDocTypes: DocumentType[]): string[] | null {
   const eff = resolveEffectiveFields(docType, allDocTypes);
-  const direct = eff.find(f => f.tags?.includes(tag));
+  const direct = eff.find(f => hasTag(f.tags, tag));
   if (direct) return [direct.key];
   for (const f of eff) {
     if (f.type === 'complex' && f.typeId) {
       const ct = allDocTypes.find(d => d.id === f.typeId);
       if (!ct) continue;
-      const inner = resolveEffectiveFields(ct, allDocTypes).find(cf => cf.tags?.includes(tag));
+      const inner = resolveEffectiveFields(ct, allDocTypes).find(cf => hasTag(cf.tags, tag));
       if (inner) return [f.key, inner.key];
     }
   }
@@ -249,7 +249,7 @@ export function typeHasTag(docType: DocumentType, tag: string, allDocTypes: Docu
   while (current && !visited.has(current.id)) {
     visited.add(current.id);
     const tags = (current.schema as unknown as SchemaDefinition)?.tags;
-    if (Array.isArray(tags) && tags.includes(tag)) return true;
+    if (Array.isArray(tags) && hasTag(tags, tag)) return true;
     current = current.parentId ? allDocTypes.find(t => t.id === current!.parentId) : undefined;
   }
   return false;
@@ -292,16 +292,38 @@ export function isFieldMissing(field: SchemaField, value: unknown): boolean {
  */
 export function isMaterialType(t: DocumentType, allDocTypes: DocumentType[]): boolean {
   return resolveEffectiveFields(t, allDocTypes)
-    .some(f => f.tags?.includes(FUNCTIONAL_TAG.materialQualityDocLink));
+    .some(f => hasTag(f.tags, FUNCTIONAL_TAG.materialQualityDocLink));
 }
 
-/** Ключи полей идентичности у типов-материалов — по тэгам, без хардкода имён полей. */
+/**
+ * Ключи полей идентичности у типов-материалов — по тэгам, без хардкода имён полей, В ПОРЯДКЕ
+ * КОМПОНЕНТОВ составного ключа (issue #583): сначала номер из параметра тэга («identity:1»), затем
+ * поля без номера.
+ *
+ * ЗЕРКАЛО серверного `MaterialIdentity.KeysOf` — вплоть до правил сортировки. Номер сравнивается
+ * сквозь типы (пользователь видит его как сквозную нумерацию компонентов), типы — построковым
+ * сравнением идентификаторов (сервер сортирует их так же, ordinal, ровно ради этого совпадения).
+ * Разойдись порядок — ключ связки, заведённой здесь, не совпал бы с ключом на генерации, и связка
+ * молча никогда бы не срабатывала.
+ */
 export function materialIdentityKeys(allDocTypes: DocumentType[]): string[] {
-  const keys: string[] = [];
-  for (const t of allDocTypes) {
-    if (t.kind !== 'Composite' || !isMaterialType(t, allDocTypes)) continue;
-    for (const f of resolveEffectiveFields(t, allDocTypes))
-      if (f.tags?.includes(FUNCTIONAL_TAG.identity)) keys.push(f.key);
-  }
-  return Array.from(new Set(keys));
+  const found: { key: string; order: number; typeIndex: number; fieldIndex: number }[] = [];
+  // Материал — тот, кто может нести документ качества, и только это (issue #569). Вид типа не
+  // проверяем: сервер его тоже не проверяет, а список типов обязан совпадать до последнего — из
+  // него складывается порядок компонентов ключа.
+  const materialTypes = allDocTypes
+    .filter(t => isMaterialType(t, allDocTypes))
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+  materialTypes.forEach((t, typeIndex) => {
+    resolveEffectiveFields(t, allDocTypes).forEach((f, fieldIndex) => {
+      const entry = findTagEntry(f.tags, FUNCTIONAL_TAG.identity);
+      if (entry === undefined) return;
+      // Поле без номера идёт ПОСЛЕ нумерованных — так существующие схемы работают без правки.
+      found.push({ key: f.key, order: tagOrder(entry) ?? Number.MAX_SAFE_INTEGER, typeIndex, fieldIndex });
+    });
+  });
+
+  found.sort((a, b) => a.order - b.order || a.typeIndex - b.typeIndex || a.fieldIndex - b.fieldIndex);
+  return Array.from(new Set(found.map(f => f.key)));
 }

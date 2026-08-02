@@ -8,7 +8,10 @@ import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import type { DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/shared/api/schema';
 import { TYPE_LABELS, toCamelKey, nextAutoKey, nextSavedKey } from './schemaConstants';
-import { useTagRegistry, fieldTags, type TagDefinition } from '@/shared/api/tags';
+import {
+  useTagRegistry, fieldTags, findTagEntry, hasTag, tagCode, tagOrder, withTagOrder,
+  type TagDefinition,
+} from '@/shared/api/tags';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
 import { moveItem } from '@/shared/utils/moveItem';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
@@ -322,9 +325,22 @@ export function FieldCard({
   const pickTypes = useMemo(() => buildFieldTypeOptions(reg),
     [reg.compositeTypes, reg.primitiveTypes, reg.enumTypes, reg.allDocTypes]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Тэг снимаем по КОДУ: в схеме он мог быть записан с параметром («identity:2», issue #583), и
+  // сравнение всей записи со строкой кода не сняло бы его вовсе.
   const toggleTag = (code: string) => {
-    const next = tags.includes(code) ? tags.filter(c => c !== code) : [...tags, code];
+    const next = hasTag(tags, code) ? tags.filter(c => tagCode(c) !== code) : [...tags, code];
     onChange({ tags: next.length ? next : undefined });
+  };
+  /**
+   * Номер компонента у уже проставленного тэга: пусто — без номера (поле идёт после нумерованных).
+   *
+   * Ввод ТЕКСТОВЫЙ с фильтром цифр, а не type="number": последний на промежуточно негодном вводе
+   * («1e») отдаёт пустую строку, и номер снимался бы молча — а снятый номер у identity меняет ключи
+   * всех материалов разом. Здесь пусто означает пусто: пользователь стёр цифры сам.
+   */
+  const setTagOrder = (code: string, raw: string) => {
+    const digits = raw.replace(/\D/g, '');
+    onChange({ tags: withTagOrder(tags, code, digits.length ? Number(digits) : null) });
   };
   // Для поля type="primitive" применимые тэги берём из самого типа поля (allowedTags),
   // для встроенных типов — из реестра по типу поля.
@@ -574,21 +590,38 @@ export function FieldCard({
           <span className="text-xs text-fg4 shrink-0 w-28 mt-1">Функц. тэги:</span>
           <div className="flex flex-wrap gap-1.5">
             {applicableTags.map(t => {
-              const on = tags.includes(t.code);
+              const entry = findTagEntry(tags, t.code);
+              const on = entry !== undefined;
               return (
-                <button
-                  key={t.code}
-                  type="button"
-                  title={t.description}
-                  onClick={() => toggleTag(t.code)}
-                  className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${
-                    on
-                      ? 'bg-purple-500/15 border-purple-400 text-purple-700'
-                      : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
-                  }`}
-                >
-                  {t.label}
-                </button>
+                <span key={t.code} className="inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    title={t.description}
+                    onClick={() => toggleTag(t.code)}
+                    className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                      on
+                        ? 'bg-purple-500/15 border-purple-400 text-purple-700'
+                        : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                  {/* Номер параметра — только у проставленного тэга, который его принимает (#583):
+                      у неотмеченного поля номер задавать не над чем. */}
+                  {on && t.parameter && (
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={2}
+                      value={tagOrder(entry) ?? ''}
+                      placeholder={t.parameter.label}
+                      title={t.parameter.description}
+                      onChange={e => setTagOrder(t.code, e.target.value)}
+                      className="w-11 px-1 py-0.5 rounded border border-purple-400 bg-surface
+                                 text-xs text-fg1 text-center"
+                    />
+                  )}
+                </span>
               );
             })}
           </div>
