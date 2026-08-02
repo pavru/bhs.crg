@@ -102,6 +102,11 @@ public static class QualityDocEndpoints
             }));
         });
 
+        // Сверка «реестр материалов ↔ карта качества» по комплекту (issue #589): ответ — десяток
+        // строк вместо двух выгруженных таблиц.
+        g.MapGet("/audit/{setId:guid}", async (Guid setId, IMediator m, CancellationToken ct)
+            => Results.Ok(await m.Send(new QualitySetAuditQuery(setId), ct)));
+
         g.MapPost("/links", async (SetLinksReq req, IMediator m) =>
         {
             // Материалы приходят парами «ключ + имя»; имя необязательно (перепривязка идёт без него).
