@@ -4,9 +4,10 @@
 /// Чтение домена для внешнего потребителя (issue #419). Собирает готовые к отдаче формы поверх
 /// существующих запросов и репозиториев — чтобы MCP-слой остался тонким адаптером, как и эндпоинты.
 ///
-/// Списки здесь навигационные и естественно ограничены (стройки, комплекты, документы комплекта),
-/// поэтому отдаются целиком — в отличие от строк источников (#415), где страничность обязательна:
-/// там молчаливое усечение делает сверку неверной.
+/// Навигационные списки (стройки, комплекты, документы комплекта) отдаются целиком: их длину задаёт
+/// структура стройки. Списки, растущие вместе с проектом — документы качества, записи каталога, карта
+/// материалов, — страничные, как и строки источников (#415): допущение «домен ограничен сам собой»
+/// не выдержало встречи с реальными данными (#576), а молчаливое усечение делает сверку неверной.
 /// </summary>
 public interface IDomainSnapshotService
 {
@@ -40,9 +41,11 @@ public interface IDomainSnapshotService
     /// <summary>Схема типа документа — ключ к интерпретации реквизитов.</summary>
     Task<DocumentTypeSchemaInfo?> GetDocumentTypeAsync(Guid typeId, CancellationToken ct = default);
 
-    /// <summary>Записи каталога (общие данные): организации, лица, объекты.</summary>
-    Task<IReadOnlyList<CatalogEntrySummary>> ListCatalogEntriesAsync(
-        string? scope, Guid? scopeId, Guid? typeId, string? search, CancellationToken ct = default);
+    /// <summary>Записи каталога (общие данные): организации, лица, объекты — страницей.</summary>
+    Task<SnapshotPage<CatalogEntrySummary>> ListCatalogEntriesAsync(
+        string? scope, Guid? scopeId, Guid? typeId, string? search,
+        int offset = 0, int limit = DomainSnapshotLimits.CatalogEntriesDefault,
+        CancellationToken ct = default);
 
     /// <summary>Запись каталога как хранится, либо null.</summary>
     Task<CatalogEntryDetail?> GetCatalogEntryAsync(Guid entryId, CancellationToken ct = default);
@@ -55,10 +58,14 @@ public interface IDomainSnapshotService
     /// перебирать четыре уровня и воспроизводить правило приоритета — значит просить его повторить
     /// логику системы и рано или поздно разойтись с ней.
     /// </summary>
-    Task<IReadOnlyList<MaterialQualityLinkInfo>> ListMaterialQualityLinksAsync(
-        Guid setId, CancellationToken ct = default);
+    Task<SnapshotPage<MaterialQualityLinkInfo>> ListMaterialQualityLinksAsync(
+        Guid setId,
+        int offset = 0, int limit = DomainSnapshotLimits.MaterialLinksDefault,
+        CancellationToken ct = default);
 
-    /// <summary>Документы качества (сертификаты/декларации) по области.</summary>
-    Task<IReadOnlyList<QualityDocumentSummary>> ListQualityDocumentsAsync(
-        string? scope, Guid? scopeId, string? search, CancellationToken ct = default);
+    /// <summary>Документы качества (сертификаты/декларации) по области — страницей.</summary>
+    Task<SnapshotPage<QualityDocumentSummary>> ListQualityDocumentsAsync(
+        string? scope, Guid? scopeId, string? search,
+        int offset = 0, int limit = DomainSnapshotLimits.QualityDocumentsDefault,
+        CancellationToken ct = default);
 }

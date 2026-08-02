@@ -181,9 +181,9 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         Assert.Equal("Construction", entry.Scope);
         Assert.Equal("Организация", entry.TypeName);
 
-        Assert.Single(await svc.ListCatalogEntriesAsync("Construction", construction.Id, null, "ромашк"),
+        Assert.Single((await svc.ListCatalogEntriesAsync("Construction", construction.Id, null, "ромашк")).Items,
             e => e.Id == org.Id);
-        Assert.Empty(await svc.ListCatalogEntriesAsync(null, null, null, "не-существует"));
+        Assert.Empty((await svc.ListCatalogEntriesAsync(null, null, null, "не-существует")).Items);
     }
 
     /// <summary>
@@ -233,7 +233,7 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
             await m.Send(new SetMaterialLinksCommand(CatalogScope.Set, setId, [new MaterialLinkInput("кабель-ввгнг-3х2.5")], narrow));
             await m.Send(new SetMaterialLinksCommand(CatalogScope.Construction, constructionId, [new MaterialLinkInput("лоток-200")], only));
 
-            var links = await Svc(scope).ListMaterialQualityLinksAsync(setId);
+            var links = (await Svc(scope).ListMaterialQualityLinksAsync(setId)).Items;
 
             var cable = Assert.Single(links, l => l.MaterialKey == "кабель-ввгнг-3х2.5");
             Assert.Equal(narrow, cable.QualityDocumentId);
@@ -256,8 +256,8 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         var (_, setId, _, _, scope) = await SeedAsync();
         using (scope)
         {
-            Assert.Empty(await Svc(scope).ListMaterialQualityLinksAsync(setId));
-            Assert.Empty(await Svc(scope).ListMaterialQualityLinksAsync(Guid.NewGuid()));
+            Assert.Empty((await Svc(scope).ListMaterialQualityLinksAsync(setId)).Items);
+            Assert.Empty((await Svc(scope).ListMaterialQualityLinksAsync(Guid.NewGuid())).Items);
         }
     }
 

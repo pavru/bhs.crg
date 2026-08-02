@@ -80,7 +80,7 @@ public class ReconciliationMcpTests(IntegrationTestFixture fixture) : IAsyncLife
         Assert.Single(await tools.ListReconciliationsAsync(CancellationToken.None), r => r.Id == definitionId);
 
         var findings = await tools.GetFindingsAsync(definitionId, CancellationToken.None);
-        var unmatched = findings.Where(f => f.Status.StartsWith("Missing")).ToList();
+        var unmatched = findings.Items.Where(f => f.Status.StartsWith("Missing")).ToList();
         Assert.Equal(2, unmatched.Count);
         // Ключ обязан приходить: написанный от руки не совпал бы ни с чем.
         Assert.All(unmatched, f => Assert.False(string.IsNullOrWhiteSpace(f.Key)));
@@ -100,7 +100,7 @@ public class ReconciliationMcpTests(IntegrationTestFixture fixture) : IAsyncLife
         var runner = scope.ServiceProvider.GetRequiredService<IReconciliationRunner>();
 
         var unmatched = (await tools.GetFindingsAsync(definitionId, CancellationToken.None))
-            .Where(f => f.Status.StartsWith("Missing")).ToList();
+            .Items.Where(f => f.Status.StartsWith("Missing")).ToList();
 
         var proposed = await tools.ProposeAliasAsync(
             unmatched[0].Key, unmatched[0].Label, unmatched[1].Key, unmatched[1].Label,
@@ -111,7 +111,7 @@ public class ReconciliationMcpTests(IntegrationTestFixture fixture) : IAsyncLife
         // Прогон не изменился — модель в путь сравнения не попала.
         await runner.RunAsync(definitionId);
         Assert.Equal(2, (await tools.GetFindingsAsync(definitionId, CancellationToken.None))
-            .Count(f => f.Status.StartsWith("Missing")));
+            .Items.Count(f => f.Status.StartsWith("Missing")));
 
         // Человек подтвердил — позиции слились.
         var alias = await db.Set<ReconciliationAlias>().SingleAsync();
@@ -120,7 +120,7 @@ public class ReconciliationMcpTests(IntegrationTestFixture fixture) : IAsyncLife
         await db.SaveChangesAsync();
 
         await runner.RunAsync(definitionId);
-        var merged = Assert.Single(await tools.GetFindingsAsync(definitionId, CancellationToken.None));
+        var merged = Assert.Single((await tools.GetFindingsAsync(definitionId, CancellationToken.None)).Items);
         Assert.Equal("Match", merged.Status);
         Assert.Equal(10, merged.LeftValue);
     }
@@ -134,7 +134,7 @@ public class ReconciliationMcpTests(IntegrationTestFixture fixture) : IAsyncLife
         var tools = Tools(scope);
 
         var unmatched = (await tools.GetFindingsAsync(definitionId, CancellationToken.None))
-            .Where(f => f.Status.StartsWith("Missing")).ToList();
+            .Items.Where(f => f.Status.StartsWith("Missing")).ToList();
         await tools.ProposeAliasAsync(unmatched[0].Key, "А", unmatched[1].Key, "Б", CancellationToken.None);
 
         var alias = await db.Set<ReconciliationAlias>().SingleAsync();

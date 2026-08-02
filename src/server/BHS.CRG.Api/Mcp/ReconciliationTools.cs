@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Security.Claims;
+using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Reconciliation;
 using BHS.CRG.Domain.Reconciliation;
 using MediatR;
@@ -33,6 +34,14 @@ public record AliasInfo(
 [McpServerToolType]
 public class ReconciliationTools(IMediator mediator, IHttpContextAccessor http)
 {
+    /// <summary>Находка — одна строка сравнения, но их столько же, сколько позиций в таблицах (#576).
+    /// Потолки живут здесь, а не в <see cref="DomainSnapshotLimits" />: то доменные выдачи, а сверка
+    /// со своей арифметикой — отдельная подсистема.</summary>
+    private const int FindingsDefaultLimit = 200;
+
+    /// <inheritdoc cref="FindingsDefaultLimit" />
+    private const int FindingsMaxLimit = 500;
+
     private string? CurrentUser =>
         http.HttpContext?.User is { } u
             ? u.FindFirst("displayName")?.Value ?? u.FindFirstValue(ClaimTypes.Email)
@@ -59,14 +68,29 @@ public class ReconciliationTools(IMediator mediator, IHttpContextAccessor http)
 
         Несопоставленные позиции и есть кандидаты на связывание: если две из них называются по-разному,
         но означают одно и то же, предложите пару через propose_alias, взяв ключи ОТСЮДА.
+
+        Выборка страничная: находок в прогоне столько же, сколько позиций в сверяемых таблицах.
+        Листайте по смещению, пока truncated=true, — по неполному списку «позиция отсутствует»
+        означает лишь «не дочитано».
         """)]
-    public async Task<IReadOnlyList<FindingInfo>> GetFindingsAsync(
-        [Description("Идентификатор сверки.")] Guid reconciliationId, CancellationToken ct)
-        => [.. (await mediator.Send(new ListFindingsQuery(reconciliationId), ct))
+    public async Task<SnapshotPage<FindingInfo>> GetFindingsAsync(
+        [Description("Идентификатор сверки.")] Guid reconciliationId,
+        CancellationToken ct,
+        [Description("Смещение от начала (0 — с первой находки).")] int offset = 0,
+        [Description("Сколько находок вернуть; по умолчанию 200, максимум 500.")]
+        int limit = FindingsDefaultLimit)
+    {
+        // Порядок арифметики сверки сохраняем как есть: он уже устойчив между прогонами, а своя
+        // сортировка развела бы страницы с тем, что человек видит в отчёте.
+        var all = (await mediator.Send(new ListFindingsQuery(reconciliationId), ct))
             .Select(v => new FindingInfo(
                 v.Finding.Key, v.Finding.Label, v.Finding.LeftValue, v.Finding.RightValue,
                 v.Finding.Status.ToString(), v.Resolved,
-                v.Decision?.Kind.ToString(), v.Decision?.Note))];
+                v.Decision?.Kind.ToString(), v.Decision?.Note))
+            .ToArray();
+
+        return SnapshotPage<FindingInfo>.Of(all, offset, limit, FindingsMaxLimit);
+    }
 
     [McpServerTool(Name = "list_aliases", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Алиасы позиций")]

@@ -115,8 +115,10 @@ public class DomainSnapshotService(
         return JsonSerializer.SerializeToElement(ctx.Data);
     }
 
-    public async Task<IReadOnlyList<CatalogEntrySummary>> ListCatalogEntriesAsync(
-        string? scope, Guid? scopeId, Guid? typeId, string? search, CancellationToken ct = default)
+    public async Task<SnapshotPage<CatalogEntrySummary>> ListCatalogEntriesAsync(
+        string? scope, Guid? scopeId, Guid? typeId, string? search,
+        int offset = 0, int limit = DomainSnapshotLimits.CatalogEntriesDefault,
+        CancellationToken ct = default)
     {
         CatalogScope? parsed = Enum.TryParse<CatalogScope>(scope, true, out var s) ? s : null;
 
@@ -133,8 +135,11 @@ public class DomainSnapshotService(
                 e.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase))];
 
         var typeMap = await TypeMapAsync(entries.Select(e => e.CompositeTypeId), ct);
-        return [.. entries
+        // Сортировка ДО нарезки, с идентификатором как вторым ключом: иначе «страница 2» второго
+        // вызова означала бы другие записи, а тёзки перекладывались бы между страницами.
+        var ordered = entries
             .OrderBy(e => e.DisplayName)
+            .ThenBy(e => e.Id)
             .Select(e =>
             {
                 var t = typeMap.GetValueOrDefault(e.CompositeTypeId);
@@ -142,7 +147,11 @@ public class DomainSnapshotService(
                     e.Id, NameOf(e, t), e.CompositeTypeId,
                     t?.Code ?? "", t?.Name ?? "",
                     e.ScopeLevel.ToString(), e.ScopeId);
-            })];
+            })
+            .ToArray();
+
+        return SnapshotPage<CatalogEntrySummary>.Of(
+            ordered, offset, limit, DomainSnapshotLimits.CatalogEntriesMax);
     }
 
     public async Task<CatalogEntryDetail?> GetCatalogEntryAsync(Guid entryId, CancellationToken ct = default)
@@ -168,11 +177,16 @@ public class DomainSnapshotService(
             : new DocumentTypeSchemaInfo(t.Id, t.Code, t.Name, t.Kind.ToString(), t.ParentId, t.Schema.RootElement.Clone());
     }
 
-    public async Task<IReadOnlyList<MaterialQualityLinkInfo>> ListMaterialQualityLinksAsync(
-        Guid setId, CancellationToken ct = default)
+    public async Task<SnapshotPage<MaterialQualityLinkInfo>> ListMaterialQualityLinksAsync(
+        Guid setId,
+        int offset = 0, int limit = DomainSnapshotLimits.MaterialLinksDefault,
+        CancellationToken ct = default)
     {
+        var empty = SnapshotPage<MaterialQualityLinkInfo>.Of(
+            [], offset, limit, DomainSnapshotLimits.MaterialLinksMax);
+
         var set = await mediator.Send(new GetDocumentSetQuery(setId), ct);
-        if (set is null) return [];
+        if (set is null) return empty;
 
         var section = await sections.GetByIdAsync(set.SectionId, ct);
         var constructionId = section?.ConstructionId;
@@ -194,13 +208,13 @@ public class DomainSnapshotService(
             foreach (var l in await mediator.Send(new ListMaterialLinksQuery(scope, scopeId), ct))
                 winners.TryAdd(l.MaterialKey, (l.QualityDocumentId, scope, scopeId));
         }
-        if (winners.Count == 0) return [];
+        if (winners.Count == 0) return empty;
 
         var docs = (await mediator.Send(new ListQualityDocumentsQuery(null, null, null), ct))
             .ToDictionary(d => d.Id);
         var typeMap = await TypeMapAsync(docs.Values.Select(d => d.DocumentTypeId), ct);
 
-        return [.. winners
+        var ordered = winners
             .OrderBy(kv => kv.Key)
             .Select(kv =>
             {
@@ -209,22 +223,37 @@ public class DomainSnapshotService(
                 return new MaterialQualityLinkInfo(
                     kv.Key, kv.Value.DocId, doc?.DisplayName ?? "", typeName,
                     kv.Value.Scope.ToString(), kv.Value.ScopeId);
-            })];
+            })
+            .ToArray();
+
+        return SnapshotPage<MaterialQualityLinkInfo>.Of(
+            ordered, offset, limit, DomainSnapshotLimits.MaterialLinksMax);
     }
 
-    public async Task<IReadOnlyList<QualityDocumentSummary>> ListQualityDocumentsAsync(
-        string? scope, Guid? scopeId, string? search, CancellationToken ct = default)
+    public async Task<SnapshotPage<QualityDocumentSummary>> ListQualityDocumentsAsync(
+        string? scope, Guid? scopeId, string? search,
+        int offset = 0, int limit = DomainSnapshotLimits.QualityDocumentsDefault,
+        CancellationToken ct = default)
     {
         CatalogScope? parsed = Enum.TryParse<CatalogScope>(scope, true, out var s) ? s : null;
         var docs = await mediator.Send(new ListQualityDocumentsQuery(parsed, scopeId, search), ct);
         var typeMap = await TypeMapAsync(docs.Select(d => d.DocumentTypeId), ct);
 
-        return [.. docs.Select(d => new QualityDocumentSummary(
-            d.Id, d.DisplayName, d.DocumentTypeId,
-            typeMap.GetValueOrDefault(d.DocumentTypeId)?.Name ?? "",
-            d.Scope.ToString(), d.ScopeId, d.Source.ToString(),
-            !string.IsNullOrEmpty(d.ScanBlobPath),
-            d.Requisites?.RootElement.Clone() ?? EmptyObject))];
+        // Имя, затем идентификатор: порядок запроса не обещан, а страничной выдаче нужен устойчивый —
+        // иначе один и тот же документ попадёт на две страницы, а другой не попадёт ни на одну.
+        var ordered = docs
+            .OrderBy(d => d.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(d => d.Id)
+            .Select(d => new QualityDocumentSummary(
+                d.Id, d.DisplayName, d.DocumentTypeId,
+                typeMap.GetValueOrDefault(d.DocumentTypeId)?.Name ?? "",
+                d.Scope.ToString(), d.ScopeId, d.Source.ToString(),
+                !string.IsNullOrEmpty(d.ScanBlobPath),
+                d.Requisites?.RootElement.Clone() ?? EmptyObject))
+            .ToArray();
+
+        return SnapshotPage<QualityDocumentSummary>.Of(
+            ordered, offset, limit, DomainSnapshotLimits.QualityDocumentsMax);
     }
 
     /// <summary>Имени может не быть вовсе — так заводятся профили уровней (issue #258). Безымянная

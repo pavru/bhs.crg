@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using BHS.CRG.Api.Mcp;
+using BHS.CRG.Application.DataSnapshots;
 using ModelContextProtocol.Server;
 
 namespace BHS.CRG.Tests.Mcp;
@@ -35,6 +36,44 @@ public class McpToolContractTests
     /// </summary>
     private static readonly string[] WriteTools =
         ["generate_document", "report_observation", "retract_observation", "propose_alias"];
+
+    /// <summary>
+    /// Инструменты, чья выдача растёт вместе со стройкой, а не задана её структурой (#576). Они
+    /// обязаны возвращать <see cref="SnapshotPage{T}" />: список без <c>truncated</c> либо упрётся
+    /// в лимит клиента целиком, либо — что хуже — приедет молча неполным, и недочитанные позиции
+    /// станут неотличимы от отсутствующих.
+    ///
+    /// Список ведётся руками по той же причине, что и <see cref="WriteTools" />: страничность здесь
+    /// решение о корректности, а не деталь оформления, и её потеря обязана быть видна в дифе.
+    /// Навигационные выдачи (стройки, комплекты, документы комплекта) сюда не входят намеренно.
+    /// </summary>
+    private static readonly string[] PagedTools =
+        ["get_reconciliation_findings", "get_rows", "list_catalog_entries",
+         "list_material_quality_links", "list_quality_documents"];
+
+    private static IEnumerable<(string Name, MethodInfo Method)> AllToolMethods() =>
+        ToolTypes
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+            .Select(m => (Method: m, Attr: m.GetCustomAttribute<McpServerToolAttribute>()))
+            .Where(x => x.Attr is not null)
+            .Select(x => (x.Attr!.Name ?? x.Method.Name, x.Method));
+
+    /// <summary>Страница узнаётся по типу результата: <c>Task&lt;SnapshotPage&lt;T&gt;&gt;</c> либо
+    /// <c>Task&lt;RowsPage?&gt;</c> — строки источников получили страничность раньше (#415).</summary>
+    private static bool ReturnsPage(MethodInfo m)
+    {
+        var t = m.ReturnType;
+        if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Task<>)) t = t.GetGenericArguments()[0];
+        return t == typeof(RowsPage)
+            || (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(SnapshotPage<>));
+    }
+
+    [Fact]
+    public void DeclaredPagedTools_ReturnPages()
+    {
+        var paged = AllToolMethods().Where(t => ReturnsPage(t.Method)).Select(t => t.Name).Order().ToList();
+        Assert.Equal(PagedTools.Order(), paged);
+    }
 
     private static IEnumerable<(string Name, McpServerToolAttribute Attr)> AllTools() =>
         ToolTypes

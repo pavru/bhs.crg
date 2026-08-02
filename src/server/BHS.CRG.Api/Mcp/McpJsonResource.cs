@@ -13,7 +13,7 @@ namespace BHS.CRG.Api.Mcp;
 /// </summary>
 public static class McpJsonResource
 {
-    private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions Options = McpSerialization.ResourceOptions;
 
     /// <summary>
     /// JSON-содержимое ресурса, либо ошибка «не найдено»: отдать <c>null</c> текстом значило бы
