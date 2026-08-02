@@ -8,6 +8,7 @@ import { Select, SelectItem } from '@/shared/ui/Select';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import type { PickType } from '@/shared/ui/TypePicker';
 import { usePreviewDataSetBindings } from '@/shared/api/datasets';
+import { useGetDocumentSet } from '@/shared/api/documentSets';
 import {
   useListQualityDocs, useListMaterialLinks, useSetMaterialLinks, useRemoveMaterialLink,
   suggestLinks, searchQualityDocs, importQualityDocFromUrl,
@@ -262,7 +263,11 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
 export function QualityLinksTab({ instance, setId, allDocTypes }: {
   instance: DocumentInstance; setId: string; allDocTypes: DocumentType[];
 }) {
-  const [scope, setScope] = useState<CatalogScope>('System');
+  // Дефолт — КОМПЛЕКТ (issue #587). Раньше стояла System, и привязка незаметно становилась
+  // общесистемной: все 113 связей комплекта 250701.ЭОМ-1 оказались на System, ни одной ниже.
+  // Узкая область — обратимая ошибка (не нашлась связка), широкая — тихая (чужой сертификат
+  // подставился в чужой документ).
+  const [scope, setScope] = useState<CatalogScope>('Set');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
   // Сводка перед массовой привязкой (issue #552) — показывается, только если что-то не сходится.
@@ -276,18 +281,41 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   const [viewDoc, setViewDoc] = useState<QualityDocument | null>(null);
 
   const { data: preview, isFetching, refetch } = usePreviewDataSetBindings({ ownerId: instance.id });
+  // Цепочка уровней комплекта (issue #587): раздел и стройка нужны и чтобы ЗАВЕСТИ связку выше
+  // комплекта, и чтобы УВИДЕТЬ заведённую там — резолвер их учитывает с самого начала.
+  const { data: set } = useGetDocumentSet(setId);
+  const sectionId = set?.sectionId ?? null;
+  const constructionId = set?.constructionId ?? null;
+  /** Уровень готов принимать связки: System живёт без id, остальным id обязателен. */
+  const scopeReady = scope === 'System' || !!(scope === 'Set' ? setId : scope === 'Section' ? sectionId : constructionId);
+  const scopeId = scope === 'Set' ? setId
+    : scope === 'Section' ? sectionId
+    : scope === 'Construction' ? constructionId
+    : null;
+
   const { data: linksSystem = [] } = useListMaterialLinks({ scope: 'System' });
+  // enabled по наличию id: запрос уровня без scopeId вернул бы связки ВСЕХ разделов/строек.
+  const { data: linksConstruction = [] } = useListMaterialLinks(
+    { scope: 'Construction', scopeId: constructionId ?? undefined, enabled: !!constructionId });
+  const { data: linksSection = [] } = useListMaterialLinks(
+    { scope: 'Section', scopeId: sectionId ?? undefined, enabled: !!sectionId });
   const { data: linksSet = [] } = useListMaterialLinks({ scope: 'Set', scopeId: setId });
   const { data: docsSystem = [] } = useListQualityDocs({ scope: 'System' });
+  const { data: docsConstruction = [] } = useListQualityDocs(
+    { scope: 'Construction', scopeId: constructionId ?? undefined, enabled: !!constructionId });
+  const { data: docsSection = [] } = useListQualityDocs(
+    { scope: 'Section', scopeId: sectionId ?? undefined, enabled: !!sectionId });
   const { data: docsSet = [] } = useListQualityDocs({ scope: 'Set', scopeId: setId });
   const setLinks = useSetMaterialLinks();
   const removeLink = useRemoveMaterialLink();
 
   const docById = useMemo(() => {
     const m = new Map<string, QualityDocument>();
-    [...docsSet, ...docsSystem].forEach(d => { if (!m.has(d.id)) m.set(d.id, d); });
+    // Порядок = приоритет: узкий уровень раньше широкого, первый победивший остаётся.
+    [...docsSet, ...docsSection, ...docsConstruction, ...docsSystem]
+      .forEach(d => { if (!m.has(d.id)) m.set(d.id, d); });
     return m;
-  }, [docsSystem, docsSet]);
+  }, [docsSystem, docsConstruction, docsSection, docsSet]);
   const docName = useMemo(() => {
     const m = new Map<string, string>();
     docById.forEach((d, id) => m.set(id, d.displayName));
@@ -296,10 +324,12 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
 
   const linkByKey = useMemo(() => {
     const m = new Map<string, { id: string; docId: string }>();
-    // Set приоритетнее System
-    [...linksSystem, ...linksSet].forEach(l => m.set(l.materialKey, { id: l.id, docId: l.qualityDocumentId }));
+    // Узкий уровень побеждает широкий — тот же приоритет, что у QualityLinkResolver на генерации
+    // (Set=1 … System=5). Здесь это порядок перезаписи: последний записавший и остаётся.
+    [...linksSystem, ...linksConstruction, ...linksSection, ...linksSet]
+      .forEach(l => m.set(l.materialKey, { id: l.id, docId: l.qualityDocumentId }));
     return m;
-  }, [linksSystem, linksSet]);
+  }, [linksSystem, linksConstruction, linksSection, linksSet]);
 
   // Ключи полей-идентификаторов МАТЕРИАЛА — по тэгам, без хардкода имён (issue #569).
   const identityKeys = useMemo(() => materialIdentityKeys(allDocTypes), [allDocTypes]);
@@ -402,10 +432,13 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   }
 
   async function linkChosen(docId: string, chosen: MaterialRow[]) {
+    // Уровень выбран, а его id ещё не доехал (комплект перезагружается) — связку класть некуда:
+    // с пустым scopeId она стала бы «на все разделы разом», чего в селекторе никто не выбирал.
+    if (!scopeReady) return;
     // Метку материала кладём в связку сразу (issue #554): человеческое имя есть только здесь —
     // строки наборов данных не хранятся, и на экране контроля восстановить его будет неоткуда.
     await setLinks.mutateAsync({
-      scope, scopeId: scope === 'Set' ? setId : null,
+      scope, scopeId,
       materials: chosen.map(m => ({ key: m.key, label: m.label })), qualityDocumentId: docId,
     });
     setPickerOpen(false);
@@ -424,9 +457,11 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
 
   // Принять предложенный документ для одной строки / для всех с подсказкой.
   async function acceptSuggestion(mat: MaterialRow, docId: string) {
-    await setLinks.mutateAsync({ scope, scopeId: scope === 'Set' ? setId : null, materials: [{ key: mat.key, label: mat.label }], qualityDocumentId: docId });
+    if (!scopeReady) return;
+    await setLinks.mutateAsync({ scope, scopeId, materials: [{ key: mat.key, label: mat.label }], qualityDocumentId: docId });
   }
   async function acceptAllSuggestions() {
+    if (!scopeReady) return;
     const byDoc = new Map<string, { key: string; label: string }[]>();
     for (const mat of materials) {
       const s = suggestionByKey.get(mat.key);
@@ -434,10 +469,11 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       const arr = byDoc.get(s.doc.id) ?? []; arr.push({ key: mat.key, label: mat.label }); byDoc.set(s.doc.id, arr);
     }
     for (const [docId, items] of byDoc)
-      await setLinks.mutateAsync({ scope, scopeId: scope === 'Set' ? setId : null, materials: items, qualityDocumentId: docId });
+      await setLinks.mutateAsync({ scope, scopeId, materials: items, qualityDocumentId: docId });
   }
 
   async function applySuggestions() {
+    if (!scopeReady) return;
     const chosen = (suggestions ?? []).filter(s => suggestSel.has(s.materialKey));
     // группируем по документу — один вызов на документ
     const byDoc = new Map<string, { key: string; label?: string }[]>();
@@ -448,7 +484,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       byDoc.set(s.qualityDocumentId, arr);
     }
     for (const [docId, items] of byDoc)
-      await setLinks.mutateAsync({ scope, scopeId: scope === 'Set' ? setId : null, materials: items, qualityDocumentId: docId });
+      await setLinks.mutateAsync({ scope, scopeId, materials: items, qualityDocumentId: docId });
     setSuggestions(null);
   }
 
@@ -465,10 +501,16 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
         <span className="text-xs text-fg4">{materials.length} материалов · привязано {linkedCount}</span>
         <div className="ml-auto flex items-center gap-2">
           <label className="text-xs text-fg3">Область связи:</label>
+          {/* Четыре уровня (issue #587) — ровно те, что разрешает резолвер. Раньше их было два, и
+              «общая» стояла по умолчанию: узкая ошибка обратима (связка не нашлась), широкая тиха
+              (чужой сертификат подставился в чужой документ). Уровень без известного id не
+              предлагаем — привязку было бы некуда положить. */}
           <Select value={scope} onValueChange={v => setScope(v as CatalogScope)}
-            aria-label="Область связи" className="w-52">
-            <SelectItem value="System">Общая (System)</SelectItem>
+            aria-label="Область связи" className="w-56">
             <SelectItem value="Set">Только этот комплект</SelectItem>
+            {sectionId && <SelectItem value="Section">Весь раздел</SelectItem>}
+            {constructionId && <SelectItem value="Construction">Вся стройка</SelectItem>}
+            <SelectItem value="System">Общая (System)</SelectItem>
           </Select>
         </div>
       </div>
@@ -611,7 +653,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       />
 
       <LinkPickerModal open={pickerOpen} onClose={() => setPickerOpen(false)} allDocTypes={allDocTypes}
-        scope={scope} scopeId={scope === 'Set' ? setId : null}
+        scope={scope} scopeId={scopeId}
         materials={materials.filter(m => selected.has(m.key))} onPick={handlePick} />
 
       <Modal open={viewDoc !== null} onOpenChange={o => { if (!o) setViewDoc(null); }} title="Документ качества" extraWide>

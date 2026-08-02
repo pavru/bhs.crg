@@ -80,7 +80,7 @@ public static class DocumentSetEndpoints
             var set = await m.Send(new GetDocumentSetQuery(id));
             if (set is null) return Results.NotFound();
             var docs = await objRepo.GetSetDocumentsAsync(id, tracked: false, ct);
-            return Results.Ok(DocumentSetDto.From(set, docs));
+            return Results.Ok(DocumentSetDto.From(set, await ConstructionOfAsync(m, set), docs));
         });
 
         g.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
@@ -204,7 +204,7 @@ public static class DocumentSetEndpoints
         {
             var set = await m.Send(new ReorderDocumentInstancesCommand(setId, orderedIds));
             var docs = await objRepo.GetSetDocumentsAsync(setId, tracked: false, ct);
-            return Results.Ok(DocumentSetDto.From(set, docs));
+            return Results.Ok(DocumentSetDto.From(set, await ConstructionOfAsync(m, set), docs));
         });
 
         // Запуск сборки всего комплекта (или подмножества) в один PDF — фоновая задача (генерация
@@ -268,6 +268,14 @@ public static class DocumentSetEndpoints
             return Results.File(stream, "application/pdf", $"{set?.Name ?? "Комплект"}.pdf");
         });
     }
+
+    /// <summary>
+    /// Стройка комплекта — через его раздел (issue #587). Клиенту она нужна, чтобы завести привязку
+    /// на уровень выше комплекта; собирать цепочку двумя лишними запросами ради одного значения
+    /// расточительно, а знать её ему всё равно надо.
+    /// </summary>
+    static async Task<Guid> ConstructionOfAsync(IMediator m, DocumentSet set)
+        => (await m.Send(new GetSectionQuery(set.SectionId)))?.ConstructionId ?? Guid.Empty;
 
     static Guid GetUserId(ClaimsPrincipal user)
         => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub")!);

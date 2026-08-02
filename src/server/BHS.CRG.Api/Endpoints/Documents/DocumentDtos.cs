@@ -28,12 +28,15 @@ public record GeneratedFileDto(Guid Id, Guid DocumentInstanceId, OutputFormat Fo
 }
 
 /// <summary>Комплект с документами — форма клиентского DocumentSet.</summary>
+/// <param name="ConstructionId">Стройка комплекта (issue #587). Нужна там, где привязка заводится не
+/// на комплект, а на уровень выше: цепочку «комплект → раздел → стройка» иначе пришлось бы собирать
+/// клиенту двумя лишними запросами ради одного значения.</param>
 public record DocumentSetDto(
-    Guid Id, string Name, Guid SectionId, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
+    Guid Id, string Name, Guid SectionId, Guid ConstructionId, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
     IReadOnlyList<InstanceDto> Instances)
 {
-    public static DocumentSetDto From(DocumentSet set, IReadOnlyList<DomainObject> documents) => new(
-        set.Id, set.Name, set.SectionId, set.CreatedAt, set.UpdatedAt,
+    public static DocumentSetDto From(DocumentSet set, Guid constructionId, IReadOnlyList<DomainObject> documents) => new(
+        set.Id, set.Name, set.SectionId, constructionId, set.CreatedAt, set.UpdatedAt,
         documents.OrderBy(d => d.SortOrder).Select(InstanceDto.From).ToList());
 }
 

@@ -123,6 +123,9 @@ export interface DocumentSet {
   id: string;
   name: string;
   sectionId: string;
+  /** Стройка комплекта — только у запроса одного комплекта (GET /document-sets/{id}); нужна там, где
+   *  привязка заводится на уровень выше комплекта (issue #587). */
+  constructionId?: string;
   createdAt: string;
   updatedAt: string;
   /** Полный состав документов — только у запроса одного комплекта (GET /document-sets/{id}). */
