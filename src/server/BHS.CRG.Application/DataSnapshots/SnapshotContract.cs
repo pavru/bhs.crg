@@ -1,4 +1,4 @@
-namespace BHS.CRG.Application.DataSnapshots;
+﻿namespace BHS.CRG.Application.DataSnapshots;
 
 /// <summary>
 /// Версия контракта выдач для внешнего агента (issue #590).
@@ -33,6 +33,11 @@ public static class SnapshotContract
     /// 3 — <c>validate_document</c> отдаёт диагностики ГРУППАМИ (<c>code</c>, <c>message</c>,
     /// <c>count</c>, <c>paths</c>) вместо плоского списка (#597): у элемента <c>diagnostics</c>
     /// больше нет поля <c>path</c>.
+    ///
+    /// 4 — в развёрнутых реквизитах <c>get_document</c> записи каталога вынесены в словарь
+    /// <c>entities</c>, по месту стоит <c>{"$entity":"…"}</c> (#594), а реквизиты других документов
+    /// заменены ссылкой <c>{"$document":"…","displayName":"…"}</c> (#595). Клиент, читавший поля
+    /// организации прямо в реквизитах, найдёт там ссылку.
     /// </summary>
-    public const int Version = 3;
+    public const int Version = 4;
 }

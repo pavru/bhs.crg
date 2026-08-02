@@ -68,6 +68,14 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         унаследованные поля подмешаны, коды перечислений заменены именами — то есть реквизиты в том
         виде, в котором попадают в PDF. Поле refsResolved говорит, какую форму вы держите.
 
+        Каждая запись каталога развёрнута ОДИН раз — в словаре entities, а по месту стоит
+        {"$entity":"<id>"}. Одна организация, упомянутая трижды, и есть одна организация: тождество
+        проверяется по идентификатору, а не сравнением карточек.
+
+        Реквизиты ДРУГИХ документов не разворачиваются: на их месте {"$document":"<id>",
+        "displayName":"…"}. Нужен сам документ — возьмите его отдельным вызовом или попросите
+        expandDocumentRefs=true.
+
         Табличных данных здесь нет: наборы данных и документы качества сюда не подмешиваются, потому
         что число строк не ограничено. За таблицами — get_rows, там есть признак усечения.
 
@@ -92,8 +100,14 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
             ["НомерДокумента","Подписи"]). Пусто — весь документ. Ключи берите из схемы типа
             (get_document_type); значения при этом те же, что и без ограничения, — разбор идёт
             полный, урезается только ответ.
-            """)] string[]? fields = null)
-        => await domain.GetDocumentAsync(documentId, resolveRefs, fields, ct);
+            """)] string[]? fields = null,
+        [Description("""
+            Развернуть реквизиты документов, на которые ссылается этот (по умолчанию нет — приходит
+            ссылка с наименованием). Полная копия чужого акта со всеми его организациями весит
+            больше, чем весь остальной ответ, поэтому просите её, только если сравниваете значения
+            внутри неё.
+            """)] bool expandDocumentRefs = false)
+        => await domain.GetDocumentAsync(documentId, resolveRefs, fields, expandDocumentRefs, ct);
 
     [McpServerTool(Name = "list_catalog_entries", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Каталог: записи")]

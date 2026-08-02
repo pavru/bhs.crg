@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Generation;
@@ -62,7 +62,7 @@ public class DataSetResolverDefaultsTests(IntegrationTestFixture fixture) : IAsy
         var dataSetResolver = scope.ServiceProvider.GetRequiredService<IDataSetResolver>();
 
         var view = DocumentView.From(inst!);
-        var ctx = await resolver.ResolveAsync(view, default);
+        var ctx = await resolver.ResolveAsync(view);
         await dataSetResolver.InjectAsync(ctx, view, null, default);
 
         var rows = (JsonElement)ctx.Data["Строки"]!;
@@ -106,7 +106,7 @@ public class DataSetResolverDefaultsTests(IntegrationTestFixture fixture) : IAsy
         var dataSetResolver = scope.ServiceProvider.GetRequiredService<IDataSetResolver>();
 
         var view = DocumentView.From(inst!);
-        var ctx = await resolver.ResolveAsync(view, default);
+        var ctx = await resolver.ResolveAsync(view);
         await dataSetResolver.InjectAsync(ctx, view, null, default);
 
         var rows = (JsonElement)ctx.Data["Строки"]!;
