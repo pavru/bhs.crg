@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Security.Claims;
 using System.Text.Json;
+using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Reconciliation;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Reconciliation;
@@ -28,6 +29,15 @@ public record ObservationInfo(
 [McpServerToolType]
 public class ObservationTools(IMediator mediator, IHttpContextAccessor http)
 {
+    /// <summary>Замечание несёт свой текст, подробности и ссылки — запись тяжелее строки сводки,
+    /// поэтому страница мельче навигационной. Потолок живёт здесь, а не в
+    /// <see cref="DomainSnapshotLimits" />: то доменные выдачи, а журнал замечаний — своя подсистема
+    /// (та же граница, что у сверки).</summary>
+    private const int ObservationsDefaultLimit = 100;
+
+    /// <inheritdoc cref="ObservationsDefaultLimit" />
+    private const int ObservationsMaxLimit = 500;
+
     private string? CurrentUser =>
         http.HttpContext?.User is { } u
             ? u.FindFirst("displayName")?.Value ?? u.FindFirstValue(ClaimTypes.Email)
@@ -47,17 +57,27 @@ public class ObservationTools(IMediator mediator, IHttpContextAccessor http)
 
         Отклонённые замечания читайте особенно внимательно — в reviewNote написано, почему это не
         ошибка, и повторять её не нужно.
+
+        Выборка страничная: журнал копится от прогона к прогону. Листайте по смещению, пока
+        truncated=true, — по недочитанному журналу уже разобранное выглядит как новое.
         """)]
-    public async Task<IReadOnlyList<ObservationInfo>> ListObservationsAsync(
+    public async Task<SnapshotPage<ObservationInfo>> ListObservationsAsync(
         CancellationToken ct,
         [Description("Область: System, Construction, Section, Set.")] string? scope = null,
         [Description("Идентификатор области.")] Guid? scopeId = null,
-        [Description("Фильтр разбора: New, Confirmed, Rejected.")] string? status = null)
+        [Description("Фильтр разбора: New, Confirmed, Rejected.")] string? status = null,
+        [Description("Смещение от начала (0 — с первого замечания).")] int offset = 0,
+        [Description("Сколько замечаний вернуть; по умолчанию 100, максимум 500.")]
+        int limit = ObservationsDefaultLimit)
     {
         CatalogScope? s = Enum.TryParse<CatalogScope>(scope, true, out var sv) ? sv : null;
         ObservationStatus? st = Enum.TryParse<ObservationStatus>(status, true, out var stv) ? stv : null;
         var items = await mediator.Send(new ListObservationsQuery(s, scopeId, st), ct);
-        return [.. items.Select(ToInfo)];
+
+        // Порядок задаёт сам запрос — он же у экрана журнала: свои страницы развели бы то, что видит
+        // агент, с тем, что видит человек.
+        return SnapshotPage<ObservationInfo>.Of(
+            [.. items.Select(ToInfo)], offset, limit, ObservationsMaxLimit);
     }
 
     [McpServerTool(Name = "report_observation", ReadOnly = false, Idempotent = true, Destructive = false,

@@ -55,7 +55,7 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         using (scope)
         {
             var list = await Svc(scope).ListConstructionsAsync(Guid.NewGuid());
-            var c = Assert.Single(list, x => x.Id == constructionId);
+            var c = Assert.Single(list.Items, x => x.Id == constructionId);
             Assert.Equal("ДНС Сити", c.Name);
             Assert.Equal(1, c.SectionCount);
             Assert.Equal(1, c.SetCount);

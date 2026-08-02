@@ -29,4 +29,15 @@ public static class DomainSnapshotLimits
 
     /// <inheritdoc cref="MaterialLinksDefault" />
     public const int MaterialLinksMax = 500;
+
+    /// <summary>
+    /// Навигационные списки — стройки, наборы данных (#590). Их длину задаёт структура стройки, а не
+    /// объём данных, поэтому потолок здесь не про экономию контекста: он про то, чтобы форма ответа
+    /// была ОДНА. Оболочка страницы есть и у них, но упереться в её границу на реальных данных
+    /// практически нечем — десятки записей против потолка в пятьсот.
+    /// </summary>
+    public const int NavigationDefault = 200;
+
+    /// <inheritdoc cref="NavigationDefault" />
+    public const int NavigationMax = 500;
 }

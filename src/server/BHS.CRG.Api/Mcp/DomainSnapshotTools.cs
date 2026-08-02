@@ -31,9 +31,15 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
     [Description("""
         Стройки (объекты строительства) — точка входа в домен. Возвращает идентификаторы и сводку:
         сколько разделов, комплектов и документов. Дальше — get_construction.
+
+        Ответ — страница {items, offset, limit, total, truncated}, как у всех списков.
         """)]
-    public async Task<IReadOnlyList<ConstructionSummary>> ListConstructionsAsync(CancellationToken ct)
-        => await domain.ListConstructionsAsync(CurrentUserId, ct);
+    public async Task<SnapshotPage<ConstructionSummary>> ListConstructionsAsync(
+        CancellationToken ct,
+        [Description("Смещение от начала (0 — с первой стройки).")] int offset = 0,
+        [Description("Сколько строек вернуть; по умолчанию 200, максимум 500.")]
+        int limit = DomainSnapshotLimits.NavigationDefault)
+        => await domain.ListConstructionsAsync(CurrentUserId, offset, limit, ct);
 
     [McpServerTool(Name = "get_construction", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Разделы и комплекты стройки")]

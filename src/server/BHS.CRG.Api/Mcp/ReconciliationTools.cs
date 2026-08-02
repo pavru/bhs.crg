@@ -42,6 +42,14 @@ public class ReconciliationTools(IMediator mediator, IHttpContextAccessor http)
     /// <inheritdoc cref="FindingsDefaultLimit" />
     private const int FindingsMaxLimit = 500;
 
+    /// <summary>Сверки и алиасы заводит человек руками, так что список короткий. Оболочка страницы у
+    /// них всё равно та же (#590): форма списочной выдачи одна на все инструменты, иначе клиент
+    /// читает не то поле и молча видит ноль записей.</summary>
+    private const int ListDefaultLimit = 200;
+
+    /// <inheritdoc cref="ListDefaultLimit" />
+    private const int ListMaxLimit = 500;
+
     private string? CurrentUser =>
         http.HttpContext?.User is { } u
             ? u.FindFirst("displayName")?.Value ?? u.FindFirstValue(ClaimTypes.Email)
@@ -53,10 +61,23 @@ public class ReconciliationTools(IMediator mediator, IHttpContextAccessor http)
 
     [McpServerTool(Name = "list_reconciliations", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Сверки")]
-    [Description("Настроенные сверки — точка входа: их идентификаторы нужны для чтения находок.")]
-    public async Task<IReadOnlyList<ReconciliationInfo>> ListReconciliationsAsync(CancellationToken ct)
-        => [.. (await mediator.Send(new ListReconciliationsQuery(null, null), ct))
-            .Select(d => new ReconciliationInfo(d.Id, d.Name, d.Scope.ToString(), d.ScopeId))];
+    [Description("""
+        Настроенные сверки — точка входа: их идентификаторы нужны для чтения находок.
+
+        Ответ — страница {items, offset, limit, total, truncated}, как у всех списков.
+        """)]
+    public async Task<SnapshotPage<ReconciliationInfo>> ListReconciliationsAsync(
+        CancellationToken ct,
+        [Description("Смещение от начала (0 — с первой сверки).")] int offset = 0,
+        [Description("Сколько сверок вернуть; по умолчанию 200, максимум 500.")]
+        int limit = ListDefaultLimit)
+    {
+        var all = (await mediator.Send(new ListReconciliationsQuery(null, null), ct))
+            .Select(d => new ReconciliationInfo(d.Id, d.Name, d.Scope.ToString(), d.ScopeId))
+            .ToArray();
+
+        return SnapshotPage<ReconciliationInfo>.Of(all, offset, limit, ListMaxLimit);
+    }
 
     [McpServerTool(Name = "get_reconciliation_findings", ReadOnly = true, Idempotent = true,
         Destructive = false, Title = "Находки сверки")]
@@ -99,9 +120,19 @@ public class ReconciliationTools(IMediator mediator, IHttpContextAccessor http)
 
         Отклонённое предложение — это ответ человека, а не повод повторить: он уже решил, что позиции
         разные. Повтор обесценивает список и тратит его внимание.
+
+        Ответ — страница {items, offset, limit, total, truncated}: досмотрите её до конца, иначе
+        «такого алиаса нет» будет означать лишь «не дочитано».
         """)]
-    public async Task<IReadOnlyList<AliasInfo>> ListAliasesAsync(CancellationToken ct)
-        => [.. (await mediator.Send(new ListAliasesQuery(null), ct)).Select(ToInfo)];
+    public async Task<SnapshotPage<AliasInfo>> ListAliasesAsync(
+        CancellationToken ct,
+        [Description("Смещение от начала (0 — с первого алиаса).")] int offset = 0,
+        [Description("Сколько алиасов вернуть; по умолчанию 200, максимум 500.")]
+        int limit = ListDefaultLimit)
+    {
+        var all = (await mediator.Send(new ListAliasesQuery(null), ct)).Select(ToInfo).ToArray();
+        return SnapshotPage<AliasInfo>.Of(all, offset, limit, ListMaxLimit);
+    }
 
     [McpServerTool(Name = "propose_alias", ReadOnly = false, Idempotent = true, Destructive = false,
         Title = "Предложить соответствие позиций")]

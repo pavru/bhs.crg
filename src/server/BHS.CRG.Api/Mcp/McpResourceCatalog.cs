@@ -46,7 +46,8 @@ public static class McpResourceCatalog
     {
         var resources = new List<Resource>();
 
-        var constructions = await domain.ListConstructionsAsync(Guid.Empty, ct);
+        var constructions = await ReadAllAsync(
+            (offset, token) => domain.ListConstructionsAsync(Guid.Empty, offset, ct: token), ct);
         foreach (var c in constructions)
         {
             resources.Add(New($"bhs://construction/{c.Id}", c.Name, "Стройка",
@@ -62,7 +63,8 @@ public static class McpResourceCatalog
                         $"{c.Name} / {section.Name}. Документов: {set.DocumentCount}."));
         }
 
-        foreach (var d in await datasets.ListDatasetsAsync(null, null, ct))
+        foreach (var d in await ReadAllAsync(
+                     (offset, token) => datasets.ListDatasetsAsync(null, null, offset, ct: token), ct))
             // Уровень — по той же причине, что контекст у комплекта: имена наборов повторяются, и без
             // него одноимённые записи в списке выбора неразличимы.
             resources.Add(New($"bhs://dataset/{d.Id}", d.Name, "Набор данных",
@@ -70,6 +72,25 @@ public static class McpResourceCatalog
                 + (d.Stale ? " Данные могли устареть." : "")));
 
         return resources;
+    }
+
+    /// <summary>
+    /// Дочитывает страничную выдачу до конца. Витрина обязана быть ПОЛНОЙ — молча обрезанный список
+    /// прикрепления спрятал бы объекты от пользователя, — а списки стали страничными все без
+    /// исключения (#590), в том числе те, чью длину задаёт структура стройки.
+    /// </summary>
+    private static async Task<IReadOnlyList<T>> ReadAllAsync<T>(
+        Func<int, CancellationToken, Task<SnapshotPage<T>>> fetch, CancellationToken ct)
+    {
+        var all = new List<T>();
+        while (true)
+        {
+            var page = await fetch(all.Count, ct);
+            all.AddRange(page.Items);
+            // Пустая страница при truncated=true означала бы, что смещение не двигается: выходим,
+            // иначе цикл вечный.
+            if (!page.Truncated || page.Items.Count == 0) return all;
+        }
     }
 
     private static Resource New(string uri, string name, string kind, string description) => new()

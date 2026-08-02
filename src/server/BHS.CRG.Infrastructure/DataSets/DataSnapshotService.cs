@@ -17,8 +17,10 @@ public class DataSnapshotService(
 
     private record CachedColumn(string Name, string[] SampleValues);
 
-    public async Task<IReadOnlyList<DatasetSummary>> ListDatasetsAsync(
-        string? scope, Guid? scopeId, CancellationToken ct = default)
+    public async Task<SnapshotPage<DatasetSummary>> ListDatasetsAsync(
+        string? scope, Guid? scopeId,
+        int offset = 0, int limit = DomainSnapshotLimits.NavigationDefault,
+        CancellationToken ct = default)
     {
         var q = db.DataSetFiles.AsNoTracking().Include(f => f.Sources).AsQueryable();
         if (!string.IsNullOrWhiteSpace(scope) && Enum.TryParse<Domain.Catalog.CatalogScope>(scope, true, out var s))
@@ -28,10 +30,12 @@ public class DataSnapshotService(
         }
 
         var files = await q.OrderBy(f => f.Name).ToListAsync(ct);
-        return [.. files.Select(f => new DatasetSummary(
+        var all = files.Select(f => new DatasetSummary(
             f.Id, f.Name, f.Format.ToString(), f.Scope.ToString(), f.ScopeId,
             f.Sources.Count,
-            f.RecognitionStale || f.Sources.Any(s => s.RecognitionStale)))];
+            f.RecognitionStale || f.Sources.Any(s => s.RecognitionStale))).ToArray();
+
+        return SnapshotPage<DatasetSummary>.Of(all, offset, limit, DomainSnapshotLimits.NavigationMax);
     }
 
     public async Task<DatasetDetail?> GetDatasetAsync(Guid datasetId, CancellationToken ct = default)

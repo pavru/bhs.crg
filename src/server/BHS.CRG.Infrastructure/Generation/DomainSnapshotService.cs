@@ -23,18 +23,22 @@ public class DomainSnapshotService(
 {
     private static readonly JsonElement EmptyObject = JsonDocument.Parse("{}").RootElement.Clone();
 
-    public async Task<IReadOnlyList<ConstructionSummary>> ListConstructionsAsync(
-        Guid userId, CancellationToken ct = default)
+    public async Task<SnapshotPage<ConstructionSummary>> ListConstructionsAsync(
+        Guid userId,
+        int offset = 0, int limit = DomainSnapshotLimits.NavigationDefault,
+        CancellationToken ct = default)
     {
         var list = await mediator.Send(new ListConstructionsQuery(userId), ct);
         var setIds = list.SelectMany(c => c.Sections).SelectMany(s => s.DocumentSets).Select(ds => ds.Id).ToList();
         var counts = await objects.CountDocumentsInSetsAsync(setIds, ct);
 
-        return [.. list.Select(c => new ConstructionSummary(
+        var all = list.Select(c => new ConstructionSummary(
             c.Id, c.Name,
             c.Sections.Count,
             c.Sections.Sum(s => s.DocumentSets.Count),
-            c.Sections.SelectMany(s => s.DocumentSets).Sum(ds => counts.GetValueOrDefault(ds.Id))))];
+            c.Sections.SelectMany(s => s.DocumentSets).Sum(ds => counts.GetValueOrDefault(ds.Id)))).ToArray();
+
+        return SnapshotPage<ConstructionSummary>.Of(all, offset, limit, DomainSnapshotLimits.NavigationMax);
     }
 
     public async Task<ConstructionDetail?> GetConstructionAsync(Guid constructionId, CancellationToken ct = default)
