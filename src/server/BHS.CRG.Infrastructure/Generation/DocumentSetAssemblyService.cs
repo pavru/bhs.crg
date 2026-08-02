@@ -2,6 +2,7 @@ using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Notifications;
+using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.Objects;
@@ -25,6 +26,7 @@ public class DocumentSetAssemblyService(
     IDomainObjectRepository objRepo,
     IRepository<DocumentType> docTypeRepo,
     IRepository<DocumentSetOutput> outputRepo,
+    IRepository<DataSetBinding> bindingRepo,
     IBlobStorage blob,
     INotificationService notifications)
 {
@@ -79,11 +81,41 @@ public class DocumentSetAssemblyService(
             throw new InvalidOperationException(
                 "Сборка прервана — не готовы документы:\n" + string.Join("\n", failures.Select(f => " • " + f)));
 
+        // Проход 1.5 (issue #580) — документы, читающие данные системы (реестр комплекта и подобные),
+        // перегенерируем ПОСЛЕ остальных. Их содержимое зависит от состава комплекта и от того, что в
+        // документах появилось при генерации (кол-во листов, дата): реестр обычно первый по порядку,
+        // то есть в проходе 1 он собрался бы по ещё пустым метаданным соседей.
+        var includedIdSet = included.Select(i => i.Id).ToHashSet();
+        var systemBound = (await bindingRepo.FindAsync(
+                b => b.Source.File.Format == DataSetFormat.System, ct))
+            .Select(b => b.OwnerId)
+            .Where(includedIdSet.Contains)
+            .Distinct()
+            .ToHashSet();
+
+        foreach (var inst in included.Where(i => systemBound.Contains(i.Id)))
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                await mediator.Send(new GenerateDocumentCommand(inst.Id, OutputFormat.Pdf,
+                    GeneratedBy: "Сборка комплекта", UserId: userId), ct);
+            }
+            catch (Exception ex)
+            {
+                failures.Add($"«{Name(inst)}» — {Summarize(ex)}");
+            }
+        }
+
+        if (failures.Count > 0)
+            throw new InvalidOperationException(
+                "Сборка прервана — не удалось обновить документы по данным системы:\n"
+                + string.Join("\n", failures.Select(f => " • " + f)));
+
         // Проход 2 — перечитываем документы комплекта (свежие файлы) и склеиваем PDF по порядку.
         set = await setRepo.GetByIdAsync(setId, ct) ?? throw new KeyNotFoundException("Комплект не найден");
-        var includedIds = included.Select(i => i.Id).ToHashSet();
         var ordered = (await objRepo.GetSetDocumentsAsync(setId, tracked: false, ct))
-            .Where(i => includedIds.Contains(i.Id)).OrderBy(i => i.SortOrder);
+            .Where(i => includedIdSet.Contains(i.Id)).OrderBy(i => i.SortOrder);
 
         var pdfBytes = new List<byte[]>();
         foreach (var inst in ordered)

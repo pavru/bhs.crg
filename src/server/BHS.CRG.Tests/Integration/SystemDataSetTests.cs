@@ -1,8 +1,10 @@
 using System.Text.Json;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -178,6 +180,31 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Equal(file.Id, again.Id);
 
         Assert.True(await svc.DeleteFileAsync(file.Id, default));
+    }
+
+    /// <summary>
+    /// Сборка комплекта отбирает документы, читающие данные системы, одним запросом через две
+    /// навигации (привязка → источник → набор). Если EF перестанет его транслировать, реестр молча
+    /// соберётся по устаревшим метаданным соседей — поэтому предикат проверяется отдельно.
+    /// </summary>
+    [Fact]
+    public async Task SystemBoundOwners_AreFoundByBindingQuery()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var m = M(scope);
+        var (setId, namedId, unnamedId, _) = await SeedSetAsync(scope);
+
+        var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
+        var source = await svc.CreateSourceAsync(file.Id,
+            new CreateSourceInput("Документы", "system:set-documents", null), default);
+        await svc.CreateBindingAsync(new CreateBindingInput(namedId, source.Id, "Строки", new()), default);
+
+        var bindings = await scope.ServiceProvider.GetRequiredService<IRepository<DataSetBinding>>()
+            .FindAsync(b => b.Source.File.Format == DataSetFormat.System, default);
+
+        Assert.Equal(namedId, Assert.Single(bindings).OwnerId);
+        Assert.DoesNotContain(bindings, b => b.OwnerId == unnamedId);
     }
 
     /// <summary>Консолидация «Документы комплекта» бессмысленна вне комплекта — кандидат не предлагается.</summary>
