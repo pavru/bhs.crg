@@ -70,6 +70,7 @@ public record GetConstructionQuery(Guid Id) : IRequest<Construction?>;
 public record ListConstructionsQuery(Guid UserId) : IRequest<IReadOnlyList<Construction>>;
 
 // --- Section ---
+public record GetSectionQuery(Guid Id) : IRequest<Section?>;
 public record CreateSectionCommand(Guid ConstructionId, string Name) : IRequest<Section>;
 public record RenameSectionCommand(Guid Id, string Name) : IRequest<Section>;
 public record DeleteSectionCommand(Guid Id) : IRequest;

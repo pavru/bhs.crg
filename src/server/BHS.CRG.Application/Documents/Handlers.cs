@@ -332,6 +332,7 @@ public class ConstructionHandlers(
     IRequestHandler<DeleteConstructionCommand>,
     IRequestHandler<GetConstructionQuery, Construction?>,
     IRequestHandler<ListConstructionsQuery, IReadOnlyList<Construction>>,
+    IRequestHandler<GetSectionQuery, Section?>,
     IRequestHandler<CreateSectionCommand, Section>,
     IRequestHandler<RenameSectionCommand, Section>,
     IRequestHandler<DeleteSectionCommand>
@@ -365,6 +366,9 @@ public class ConstructionHandlers(
 
     public Task<IReadOnlyList<Construction>> Handle(ListConstructionsQuery q, CancellationToken ct)
         => constructionRepo.GetAllAsync(ct);
+
+    public Task<Section?> Handle(GetSectionQuery q, CancellationToken ct)
+        => sectionRepo.GetByIdAsync(q.Id, ct);
 
     public async Task<Section> Handle(CreateSectionCommand cmd, CancellationToken ct)
     {
