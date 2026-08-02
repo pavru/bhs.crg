@@ -1,4 +1,4 @@
-using BHS.CRG.Application.Common;
+﻿using BHS.CRG.Application.Common;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
@@ -30,7 +30,7 @@ public class ValidateInstanceResolutionHandler(
 
         var diagnostics = new List<ResolutionDiagnostic>();
         var view = DocumentView.From(instance);
-        var context = await entityResolver.ResolveAsync(view, ct);
+        var context = await entityResolver.ResolveAsync(view, ct: ct);
         await dataSetResolver.InjectAsync(context, view, diagnostics, ct);
         await entityResolver.ApplyDefaultsAsync(context, view, ct);
         await entityResolver.ResolveEnumLabelsAsync(context, view, ct);

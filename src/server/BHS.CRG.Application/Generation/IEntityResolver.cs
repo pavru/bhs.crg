@@ -7,7 +7,18 @@ namespace BHS.CRG.Application.Generation;
 /// </summary>
 public interface IEntityResolver
 {
-    Task<GenerationContext> ResolveAsync(DocumentView instance, CancellationToken ct = default);
+    /// <param name="keepRefProvenance">
+    /// Пометить развёрнутые ссылки идентификатором того, ЧТО развернулось (issue #594, #595):
+    /// <see cref="RefProvenance.EntryIdKey"/> у записи каталога, <see cref="RefProvenance.InstanceIdKey"/>
+    /// у документа. Резолв в остальном тот же.
+    ///
+    /// По умолчанию выключено, и это не осторожность ради осторожности: генерация PDF отдаёт
+    /// результат резолва прямо в data.json шаблона, а sync-on-save общих данных — в БД. Служебный
+    /// ключ, никому там не нужный, попал бы и туда, и туда. Просит его внешнее чтение (MCP), где по
+    /// одинаковым карточкам иначе не понять, одна это организация или три разных.
+    /// </param>
+    Task<GenerationContext> ResolveAsync(DocumentView instance, bool keepRefProvenance = false,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Повторно разрешает $ref-ссылки в уже собранном контексте. Применяется после

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Application.Schema;
@@ -20,7 +20,8 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
     // глубоких структур). Ортогональна allowInstanceRefs (защита от циклов по документам).
     private const int MaxRefDepth = 8;
 
-    public async Task<GenerationContext> ResolveAsync(DocumentView instance, CancellationToken ct = default)
+    public async Task<GenerationContext> ResolveAsync(DocumentView instance, bool keepRefProvenance = false,
+        CancellationToken ct = default)
     {
         // Наследование от базового экземпляра (issue #71): если реквизиты несут "_baseRef", подмешиваем
         // реквизиты базы — документа комплекта ЛИБО записи общих данных (полиморфно, по скоп-близости) —
@@ -45,7 +46,7 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
         // резолвятся тем же проходом ниже.
         await InjectScopeProfilesAsync(ctx, instance.DocumentSetId, ct);
 
-        await ResolveContextRefsAsync(ctx, instance.DocumentSetId, ct);
+        await ResolveContextRefsAsync(ctx, instance.DocumentSetId, keepRefProvenance, ct);
         return ctx;
     }
 
@@ -84,13 +85,17 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
         ctx.Set("уровень", JsonSerializer.SerializeToElement(profiles));
     }
 
-    public async Task ResolveContextRefsAsync(GenerationContext ctx, Guid documentSetId, CancellationToken ct = default)
+    public Task ResolveContextRefsAsync(GenerationContext ctx, Guid documentSetId, CancellationToken ct = default)
+        => ResolveContextRefsAsync(ctx, documentSetId, keepRefProvenance: false, ct);
+
+    private async Task ResolveContextRefsAsync(GenerationContext ctx, Guid documentSetId,
+        bool keepRefProvenance, CancellationToken ct)
     {
         var scope = await ScopeChains.LoadAsync(db, documentSetId, ct);
         foreach (var key in ctx.Data.Keys.ToList())
         {
             if (ctx.Data[key] is not JsonElement el) continue;
-            ctx.Set(key, await ResolveNode(el, scope, depth: 0, allowInstanceRefs: true, ct));
+            ctx.Set(key, await ResolveNode(el, scope, depth: 0, allowInstanceRefs: true, keepRefProvenance, ct));
         }
     }
 
@@ -157,20 +162,23 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
     /// instance-ссылки (становится false внутри уже развёрнутого instance — один переход по
     /// документу, защита от циклов A→B→C).
     /// </summary>
-    private async Task<JsonElement> ResolveNode(JsonElement node, ScopeChain scope, int depth, bool allowInstanceRefs, CancellationToken ct)
+    private async Task<JsonElement> ResolveNode(JsonElement node, ScopeChain scope, int depth,
+        bool allowInstanceRefs, bool keepRefProvenance, CancellationToken ct)
     {
         if (depth >= MaxRefDepth) return node.Clone();
 
         switch (node.ValueKind)
         {
             case JsonValueKind.Object when node.TryGetProperty("$ref", out var refTypeProp):
-                return await ResolveRefObject(node, refTypeProp.GetString(), scope, depth, allowInstanceRefs, ct);
+                return await ResolveRefObject(node, refTypeProp.GetString(), scope, depth, allowInstanceRefs,
+                    keepRefProvenance, ct);
 
             case JsonValueKind.Object:
             {
                 var dict = new Dictionary<string, JsonElement>();
                 foreach (var prop in node.EnumerateObject())
-                    dict[prop.Name] = await ResolveNode(prop.Value, scope, depth + 1, allowInstanceRefs, ct);
+                    dict[prop.Name] = await ResolveNode(prop.Value, scope, depth + 1, allowInstanceRefs,
+                        keepRefProvenance, ct);
                 return JsonSerializer.SerializeToElement(dict);
             }
 
@@ -178,7 +186,7 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
             {
                 var list = new List<JsonElement>();
                 foreach (var item in node.EnumerateArray())
-                    list.Add(await ResolveNode(item, scope, depth + 1, allowInstanceRefs, ct));
+                    list.Add(await ResolveNode(item, scope, depth + 1, allowInstanceRefs, keepRefProvenance, ct));
                 return JsonSerializer.SerializeToElement(list);
             }
 
@@ -187,7 +195,8 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
         }
     }
 
-    private async Task<JsonElement> ResolveRefObject(JsonElement node, string? refType, ScopeChain scope, int depth, bool allowInstanceRefs, CancellationToken ct)
+    private async Task<JsonElement> ResolveRefObject(JsonElement node, string? refType, ScopeChain scope,
+        int depth, bool allowInstanceRefs, bool keepRefProvenance, CancellationToken ct)
     {
         switch (refType)
         {
@@ -197,12 +206,16 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
             {
                 var resolved = await ResolveEntryByIdAsync(entryId, scope, [], ct);
                 if (resolved.ValueKind == JsonValueKind.Undefined) return node.Clone();
-                var recursed = await ResolveNode(resolved, scope, depth + 1, allowInstanceRefs, ct);
+                var recursed = await ResolveNode(resolved, scope, depth + 1, allowInstanceRefs, keepRefProvenance, ct);
                 // Фактический тип записи каталога (issue #344) — для корректного instance-of на подтипах
                 // (поле «Организация», запись «Подрядчик»). Application развернёт _typeId в _type.
                 var typeId = await db.DomainObjects.Where(o => o.Id == entryId)
                     .Select(o => (Guid?)o.CompositeTypeId).FirstOrDefaultAsync(ct);
-                return typeId is { } tid ? WithTypeId(recursed, tid) : recursed;
+                var stamped = typeId is { } tid ? WithTypeId(recursed, tid) : recursed;
+                // Чья это карточка (issues #594, #595) — только по явной просьбе внешнего чтения.
+                return keepRefProvenance
+                    ? WithMeta(stamped, RefProvenance.EntryIdKey, entryId.ToString())
+                    : stamped;
             }
 
             // Протягивание одного поля из реквизитов другого документа — значение как есть, без рекурсии
@@ -224,8 +237,11 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
                 when allowInstanceRefs
                      && node.TryGetProperty("instanceId", out var docInstIdProp) && Guid.TryParse(docInstIdProp.GetString(), out var docInstId):
             {
-                var resolved = await ResolveDocumentInstanceAsync(docInstId, scope, depth, ct);
-                return resolved.ValueKind != JsonValueKind.Undefined ? resolved : node.Clone();
+                var resolved = await ResolveDocumentInstanceAsync(docInstId, scope, depth, keepRefProvenance, ct);
+                if (resolved.ValueKind == JsonValueKind.Undefined) return node.Clone();
+                return keepRefProvenance
+                    ? WithMeta(resolved, RefProvenance.InstanceIdKey, docInstId.ToString())
+                    : resolved;
             }
 
             // Обрыв цикла (issue #330): instance-ссылка при allowInstanceRefs=false — один документ уже
@@ -259,12 +275,16 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
     /// собственный тип объекта — агностичность к схеме полей цела). Только для инлайна ссылок (не для
     /// профилей уровней, которые зовут тот же загрузчик, иначе сырой маркер утёк бы в data.json).</summary>
     private static JsonElement WithTypeId(JsonElement obj, Guid typeId)
+        => WithMeta(obj, TypeStamper.TypeIdKey, typeId.ToString());
+
+    /// <summary>Добавляет служебный ключ к развёрнутому объекту, заменяя одноимённый, если он есть.</summary>
+    private static JsonElement WithMeta(JsonElement obj, string key, string value)
     {
         if (obj.ValueKind != JsonValueKind.Object) return obj;
         var dict = new Dictionary<string, JsonElement>();
         foreach (var p in obj.EnumerateObject())
-            if (p.Name != TypeStamper.TypeIdKey) dict[p.Name] = p.Value.Clone();
-        dict[TypeStamper.TypeIdKey] = JsonSerializer.SerializeToElement(typeId.ToString());
+            if (p.Name != key) dict[p.Name] = p.Value.Clone();
+        dict[key] = JsonSerializer.SerializeToElement(value);
         return JsonSerializer.SerializeToElement(dict);
     }
 
@@ -273,7 +293,8 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
     /// <c>allowInstanceRefs: false</c> — вложенные instance-ссылки дальше не разворачиваются
     /// (защита от циклов), а массивы/таблицы внутри обрабатываются как везде (это чинит баг B).
     /// </summary>
-    private async Task<JsonElement> ResolveDocumentInstanceAsync(Guid instanceId, ScopeChain scope, int depth, CancellationToken ct)
+    private async Task<JsonElement> ResolveDocumentInstanceAsync(Guid instanceId, ScopeChain scope, int depth,
+        bool keepRefProvenance, CancellationToken ct)
     {
         var obj = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
             .FirstOrDefaultAsync(o => o.Id == instanceId && o.ScopeLevel == CatalogScope.Set
@@ -285,7 +306,7 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
         var dict = new Dictionary<string, JsonElement>();
         foreach (var (k, v) in subCtx.Data)
             if (v is JsonElement je)
-                dict[k] = await ResolveNode(je, scope, depth + 1, allowInstanceRefs: false, ct);
+                dict[k] = await ResolveNode(je, scope, depth + 1, allowInstanceRefs: false, keepRefProvenance, ct);
 
         // Фактический тип развёрнутого документа-ссылки (issue #344) — Application развернёт в _type.
         dict[TypeStamper.TypeIdKey] = JsonSerializer.SerializeToElement(obj.CompositeTypeId.ToString());

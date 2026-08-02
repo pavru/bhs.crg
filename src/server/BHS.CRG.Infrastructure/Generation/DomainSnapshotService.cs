@@ -82,7 +82,7 @@ public class DomainSnapshotService(
     }
 
     public async Task<DocumentDetail?> GetDocumentAsync(Guid documentId, bool resolveRefs = true,
-        IReadOnlyCollection<string>? fields = null,
+        IReadOnlyCollection<string>? fields = null, bool expandDocumentRefs = false,
         CancellationToken ct = default)
     {
         var doc = await mediator.Send(new GetDocumentInstanceQuery(documentId), ct);
@@ -99,6 +99,17 @@ public class DomainSnapshotService(
             ? await ResolvedRequisitesAsync(doc, ct)
             : doc.Data.RootElement.Clone();
 
+        // Свёртка повторов — только у развёрнутой формы: в форме хранения ссылки и так ссылки.
+        IReadOnlyDictionary<string, JsonElement>? entities = null;
+        if (resolveRefs)
+        {
+            var folded = RequisiteFolding.Fold(
+                requisites, await DocumentNamesAsync(RequisiteFolding.DocumentIdsIn(requisites), ct),
+                expandDocumentRefs);
+            requisites = folded.Requisites;
+            entities = folded.Entities;
+        }
+
         var tableFields = await TableFieldsAsync(doc.Id, doc.CompositeTypeId, ct);
 
         var wanted = fields?.Where(f => !string.IsNullOrWhiteSpace(f)).Distinct().ToList();
@@ -108,7 +119,7 @@ public class DomainSnapshotService(
                 type?.Code ?? "", type?.Name ?? "",
                 doc.Facet?.Status.ToString() ?? "",
                 set?.Id, set?.Name,
-                requisites, resolveRefs, tableFields);
+                requisites, resolveRefs, tableFields, Entities: entities);
 
         // Проекция — ПОСЛЕ полного резолва: расчётное поле читает соседние, унаследованное приходит
         // от базового документа, и «считать только запрошенное» дало бы другое значение (#596).
@@ -117,17 +128,59 @@ public class DomainSnapshotService(
             .Select(f => f.Key)
             .ToHashSet(StringComparer.Ordinal);
 
+        var projected = Project(requisites, wanted);
+
         return new DocumentDetail(
             doc.Id, doc.DisplayName ?? "", doc.CompositeTypeId,
             type?.Code ?? "", type?.Name ?? "",
             doc.Facet?.Status.ToString() ?? "",
             set?.Id, set?.Name,
-            Project(requisites, wanted), resolveRefs,
+            projected, resolveRefs,
             [.. tableFields.Where(f => wanted.Contains(f.Key))],
             wanted,
             // Ключ не из схемы — почти наверняка опечатка, и умолчать о ней значит выдать её за
             // незаполненное поле.
-            [.. wanted.Where(f => !known.Contains(f))]);
+            [.. wanted.Where(f => !known.Contains(f))],
+            // Словарь тоже урезаем: карточка, на которую не осталось ссылок, — вес без адресата.
+            entities is null ? null : ReferencedOnly(entities, projected));
+    }
+
+    /// <summary>Оставляет в словаре только карточки, на которые ссылается урезанный документ (#594).
+    /// Ссылки внутри самих карточек считаются тоже — иначе вложенная организация исчезла бы из
+    /// словаря, оставив в карточке подписанта висячую ссылку.</summary>
+    private static IReadOnlyDictionary<string, JsonElement> ReferencedOnly(
+        IReadOnlyDictionary<string, JsonElement> entities, JsonElement requisites)
+    {
+        var reachable = new HashSet<string>();
+        var queue = new Queue<JsonElement>([requisites]);
+        while (queue.Count > 0)
+        {
+            var node = queue.Dequeue();
+            switch (node.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    if (node.TryGetProperty(RequisiteFolding.EntityRefKey, out var key)
+                        && key.GetString() is { } id && reachable.Add(id)
+                        && entities.TryGetValue(id, out var card))
+                        queue.Enqueue(card);
+                    foreach (var p in node.EnumerateObject()) queue.Enqueue(p.Value);
+                    break;
+                case JsonValueKind.Array:
+                    foreach (var item in node.EnumerateArray()) queue.Enqueue(item);
+                    break;
+            }
+        }
+        return entities.Where(e => reachable.Contains(e.Key)).ToDictionary(e => e.Key, e => e.Value);
+    }
+
+    /// <summary>Имена документов по идентификатору — одним запросом: голая ссылка без имени
+    /// заставляет агента идти за ним отдельным вызовом, ради экономии которых свёртка и делается.</summary>
+    private async Task<IReadOnlyDictionary<Guid, string>> DocumentNamesAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken ct)
+    {
+        if (ids.Count == 0) return new Dictionary<Guid, string>();
+        var found = await domainObjects.FindAsync(o => ids.Contains(o.Id), ct);
+        return found.Where(o => o.DisplayName is not null).ToDictionary(o => o.Id, o => o.DisplayName!);
     }
 
     /// <summary>Оставляет в реквизитах только запрошенные ключи верхнего уровня (issue #596).</summary>
@@ -202,7 +255,9 @@ public class DomainSnapshotService(
     private async Task<JsonElement> ResolvedRequisitesAsync(DomainObject doc, CancellationToken ct)
     {
         var view = DocumentView.From(doc);
-        var ctx = await entityResolver.ResolveAsync(view, ct);
+        // С провенансом (#594, #595): без идентификатора развёрнутой ссылки повторы не свернуть, а
+        // копию чужого документа не отличить от собственных полей.
+        var ctx = await entityResolver.ResolveAsync(view, keepRefProvenance: true, ct);
         await entityResolver.ApplyDefaultsAsync(ctx, view, ct);
         await entityResolver.ResolveEnumLabelsAsync(ctx, view, ct);
         await entityResolver.ResolveComputedFieldsAsync(ctx, view, [], ct);

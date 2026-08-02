@@ -45,13 +45,18 @@ public record DocumentSummary(
 /// без него тот же документ, прочитанный дважды с разной проекцией, выглядит изменившимся.</param>
 /// <param name="UnknownFields">Запрошенные ключи, которых нет в схеме типа. Молчать о них нельзя:
 /// опечатка в ключе иначе неотличима от незаполненного поля.</param>
+/// <param name="Entities">Развёрнутые записи каталога, по одной на запись (issue #594). В самих
+/// реквизитах на их месте стоит <c>{"$entity":"…"}</c>: карточка организации присутствовала в
+/// титульном листе трижды побайтово, а тождество приходилось проверять сравнением значений.
+/// Null — реквизиты не разворачивались (<c>resolveRefs=false</c>), сворачивать нечего.</param>
 public record DocumentDetail(
     Guid Id, string Name, Guid TypeId, string TypeCode, string TypeName, string Status,
     Guid? SetId, string? SetName,
     JsonElement Requisites, bool RefsResolved,
     IReadOnlyList<DocumentTableField> TableFields,
     IReadOnlyList<string>? ProjectedFields = null,
-    IReadOnlyList<string>? UnknownFields = null);
+    IReadOnlyList<string>? UnknownFields = null,
+    IReadOnlyDictionary<string, JsonElement>? Entities = null);
 
 /// <summary>
 /// Табличное поле документа: заглушка вместо строк плюс адрес, по которому строки лежат (#591).

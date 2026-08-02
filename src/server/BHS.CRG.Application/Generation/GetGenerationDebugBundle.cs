@@ -63,7 +63,7 @@ public class GetGenerationDebugBundleHandler(
 
         var allDocTypes = await docTypeRepo.GetAllAsync(ct);
         var view = DocumentView.From(instance);
-        var context = await entityResolver.ResolveAsync(view, ct);
+        var context = await entityResolver.ResolveAsync(view, ct: ct);
         await dataSetResolver.InjectAsync(context, view, null, ct);
         await entityResolver.ApplyDefaultsAsync(context, view, ct);
         await entityResolver.ResolveEnumLabelsAsync(context, view, ct);

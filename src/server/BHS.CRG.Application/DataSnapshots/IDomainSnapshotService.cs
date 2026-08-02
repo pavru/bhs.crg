@@ -52,8 +52,14 @@ public interface IDomainSnapshotService
     /// унаследованное приходит от базового документа — считать «только запрошенное» значило бы
     /// вернуть другое значение, а не то же самое дешевле.
     /// </param>
+    /// <param name="expandDocumentRefs">
+    /// Оставить развёрнутыми реквизиты ДРУГИХ документов, на которые ссылается этот (issue #595).
+    /// По умолчанию на их месте стоит ссылка <c>{$document, displayName}</c>: поле
+    /// «ОсновнойДокумент» несло полную копию акта со всеми его организациями, и реестр работ доходил
+    /// до 16 МБ. Копия нужна редко, а стоит дороже всего остального вместе.
+    /// </param>
     Task<DocumentDetail?> GetDocumentAsync(Guid documentId, bool resolveRefs = true,
-        IReadOnlyCollection<string>? fields = null,
+        IReadOnlyCollection<string>? fields = null, bool expandDocumentRefs = false,
         CancellationToken ct = default);
 
     /// <summary>Схема типа документа — ключ к интерпретации реквизитов.</summary>

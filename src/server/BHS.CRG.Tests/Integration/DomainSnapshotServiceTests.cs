@@ -158,7 +158,10 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         Assert.True(resolved!.RefsResolved);
         var value = resolved.Requisites.GetProperty("Подрядчик");
         Assert.False(value.TryGetProperty("$ref", out _));
-        Assert.Equal("ООО Ромашка", value.GetProperty("Наименование").GetString());
+        // Развёрнутая карточка лежит в словаре, по месту — ссылка на неё (issue #594).
+        Assert.Equal(org.Id.ToString(), value.GetProperty("$entity").GetString());
+        Assert.Equal("ООО Ромашка",
+            resolved.Entities![org.Id.ToString()].GetProperty("Наименование").GetString());
     }
 
     /// <summary>
@@ -273,6 +276,100 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         Assert.Equal("НмоерАкта", Assert.Single(projected.UnknownFields!));
         // Табличные поля тоже урезаются: их не просили.
         Assert.Empty(projected.TableFields);
+    }
+
+    /// <summary>
+    /// Одна организация, упомянутая дважды, — это одна организация (issue #594). В титульном листе
+    /// ЭОМ-1 карточка ООО «Инвест Строй» присутствовала трижды побайтово, и тождество приходилось
+    /// проверять сравнением значений.
+    /// </summary>
+    [Fact]
+    public async Task GetDocument_FoldsRepeatedEntities_IntoDictionary()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var orgType = await m.Send(new CreateDocumentTypeCommand(
+            "Организация", Code("ORG"), DocumentTypeKind.Composite, null,
+            JsonDocument.Parse("""{"fields":[{"key":"Наименование","type":"string"},{"key":"ИНН","type":"string"}]}""")));
+        var docType = await m.Send(new CreateDocumentTypeCommand(
+            "Акт", Code("ACT"), DocumentTypeKind.Document, null,
+            JsonDocument.Parse("""
+                {"fields":[{"key":"Заказчик","type":"complex"},{"key":"Подрядчик","type":"complex"}]}
+                """)));
+
+        var construction = await m.Send(new CreateConstructionCommand("ДНС Сити", Guid.NewGuid()));
+        var section = await m.Send(new CreateSectionCommand(construction.Id, "ЭОМ"));
+        var set = await m.Send(new CreateDocumentSetCommand(section.Id, "ЭОМ-1"));
+
+        var org = await m.Send(new CreateCommonDataEntryCommand(
+            "ООО Инвест Строй", orgType.Id,
+            JsonDocument.Parse("""{"Наименование":"ООО Инвест Строй","ИНН":"7701234567"}"""),
+            CatalogScope.Construction, construction.Id));
+
+        var doc = await m.Send(new AddDocumentToSetCommand(set.Id, docType.Id));
+        var orgRef = $$"""{"$ref":"catalog","entryId":"{{org.Id}}"}""";
+        var refJson = $$"""{"Заказчик":{{orgRef}},"Подрядчик":{{orgRef}}}""";
+        await m.Send(new UpdateRequisitesCommand(doc.Id, JsonDocument.Parse(refJson)));
+
+        var detail = await Svc(scope).GetDocumentAsync(doc.Id);
+
+        // По месту — ссылки, карточка одна и лежит под своим идентификатором.
+        Assert.Equal(org.Id.ToString(),
+            detail!.Requisites.GetProperty("Заказчик").GetProperty("$entity").GetString());
+        Assert.Equal(org.Id.ToString(),
+            detail.Requisites.GetProperty("Подрядчик").GetProperty("$entity").GetString());
+        var card = Assert.Single(detail.Entities!);
+        Assert.Equal(org.Id.ToString(), card.Key);
+        Assert.Equal("ООО Инвест Строй", card.Value.GetProperty("Наименование").GetString());
+
+        // Форма хранения сворачивать нечего: там ссылки и так ссылки.
+        var raw = await Svc(scope).GetDocumentAsync(doc.Id, resolveRefs: false);
+        Assert.Null(raw!.Entities);
+    }
+
+    /// <summary>
+    /// Реквизиты чужого документа по умолчанию не тянутся (issue #595): поле «ОсновнойДокумент» в
+    /// реестрах-приложениях несло полную копию акта со всеми его организациями — так реестр работ и
+    /// доходил до 16 МБ. По ссылке документ берут отдельным вызовом, если он правда нужен.
+    /// </summary>
+    [Fact]
+    public async Task GetDocument_ReplacesReferencedDocument_WithLink()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var actType = await m.Send(new CreateDocumentTypeCommand(
+            "Акт", Code("ACT"), DocumentTypeKind.Document, null,
+            JsonDocument.Parse("""{"fields":[{"key":"НомерАкта","type":"string"}]}""")));
+        var registryType = await m.Send(new CreateDocumentTypeCommand(
+            "Реестр", Code("REG"), DocumentTypeKind.Document, null,
+            JsonDocument.Parse("""{"fields":[{"key":"ОсновнойДокумент","type":"doc-ref"}]}""")));
+
+        var construction = await m.Send(new CreateConstructionCommand("ДНС Сити", Guid.NewGuid()));
+        var section = await m.Send(new CreateSectionCommand(construction.Id, "ЭОМ"));
+        var set = await m.Send(new CreateDocumentSetCommand(section.Id, "ЭОМ-1"));
+
+        var act = await m.Send(new AddDocumentToSetCommand(set.Id, actType.Id));
+        await m.Send(new UpdateRequisitesCommand(act.Id, JsonDocument.Parse("""{"НомерАкта":"5"}""")));
+        await m.Send(new RenameDocumentInstanceCommand(act.Id, "АОСР № 5"));
+
+        var registry = await m.Send(new AddDocumentToSetCommand(set.Id, registryType.Id));
+        var actRef = $$"""{"$ref":"instance","instanceId":"{{act.Id}}"}""";
+        await m.Send(new UpdateRequisitesCommand(registry.Id,
+            JsonDocument.Parse($$"""{"ОсновнойДокумент":{{actRef}}}""")));
+
+        var folded = await Svc(scope).GetDocumentAsync(registry.Id);
+        var link = folded!.Requisites.GetProperty("ОсновнойДокумент");
+        Assert.Equal(act.Id.ToString(), link.GetProperty("$document").GetString());
+        // Имя приходит вместе со ссылкой: голый идентификатор человеку ничего не говорит.
+        Assert.Equal("АОСР № 5", link.GetProperty("displayName").GetString());
+        Assert.False(link.TryGetProperty("НомерАкта", out _));
+
+        // По явной просьбе копия остаётся — иногда сравнивают именно значения внутри неё.
+        var expanded = await Svc(scope).GetDocumentAsync(registry.Id, expandDocumentRefs: true);
+        Assert.Equal("5", expanded!.Requisites.GetProperty("ОсновнойДокумент")
+            .GetProperty("НомерАкта").GetString());
     }
 
     [Fact]

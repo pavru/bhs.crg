@@ -78,7 +78,7 @@ public class PreviewDocumentHandler(
             // ── Пайплайн контекста — ЗЕРКАЛИТ GenerateDocumentHandler (менять синхронно; там нет тестов). ──
             var allDocTypes = await docTypeRepo.GetAllAsync(ct);
             var diagnostics = new List<ResolutionDiagnostic>();
-            var context = await entityResolver.ResolveAsync(view, ct);
+            var context = await entityResolver.ResolveAsync(view, ct: ct);
             await dataSetResolver.InjectAsync(context, view, diagnostics, ct);
             await entityResolver.ApplyDefaultsAsync(context, view, ct);
             await entityResolver.ResolveEnumLabelsAsync(context, view, ct);

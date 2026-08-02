@@ -71,7 +71,7 @@ public class GenerateDocumentHandler(
             var allDocTypes = await docTypeRepo.GetAllAsync(ct);
             var diagnostics = new List<ResolutionDiagnostic>();
             var view = DocumentView.From(instance);
-            var context = await entityResolver.ResolveAsync(view, ct);
+            var context = await entityResolver.ResolveAsync(view, ct: ct);
             await dataSetResolver.InjectAsync(context, view, diagnostics, ct);
             // Значения по умолчанию из схемы типа (issue #53) — для полей, оставшихся без значения
             // после реквизитов инстанса и биндингов (самый низкий приоритет).
