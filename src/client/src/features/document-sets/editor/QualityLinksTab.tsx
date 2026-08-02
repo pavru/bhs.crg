@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check } from 'lucide-react';
+import { Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -18,9 +18,9 @@ import {
   typeHasTag, findTaggedFieldPath, resolveEffectiveFields, isMaterialType, materialIdentityKeys,
 } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
-import { identityKey, isIdentityKeyEmpty } from '@/shared/api/identityKey';
+import { identityKey, isIdentityKeyEmpty, normalizeKey } from '@/shared/api/identityKey';
 import {
-  assessBulkLink, collectStrings, docHaystackStems, relevance, weighted,
+  assessBulkLink, collectStrings, collidingIdentities, docHaystackStems, relevance, weighted,
   type BulkLinkAssessment,
 } from './qualityMatch';
 import { QualityDocForm } from '@/features/quality-docs/QualityDocForm';
@@ -339,6 +339,9 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
     return rows;
   }, [preview, identityKeys, allDocTypes, instance]);
 
+  // Строки, спорящие за одну связку (issue #585): совпало значение идентичности, но не ключ целиком.
+  const colliding = useMemo(() => collidingIdentities(materials, normalizeKey), [materials]);
+
   // Связь ищем по СОСТАВНОМУ ключу материала — у него ровно один ключ (#582). Прежний перебор «любое
   // поле идентичности» позволял двум связкам претендовать на один материал: на живых данных из 151
   // строки реестра у 49 нашлась связка и по артикулу, и по наименованию, и во всех 49 сертификаты
@@ -495,7 +498,22 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
                         <input type="checkbox" checked={selected.has(m.key)} onChange={() => toggle(m.key)}
                           className="w-4 h-4 rounded border-stroke-strong text-brand" />
                       </td>
-                      <td className="px-2 py-1.5 text-fg1">{m.label}</td>
+                      <td className="px-2 py-1.5 text-fg1">
+                        <span className="flex items-center gap-1.5">
+                          <span className="truncate">{m.label}</span>
+                          {/* Строка спорит с другой за связку (issue #585): совпало значение, но не
+                              ключ целиком. Различить их система не может — решение за человеком. */}
+                          {colliding.has(m.key) && (
+                            <span
+                              title={`Совпадает с другой строкой по «${colliding.get(m.key)!.join('», «')}», но ключ целиком разный. `
+                                + 'Либо это одна позиция, записанная по-разному — тогда исправьте материал, '
+                                + 'либо разные товары — тогда заведите две связки.'}
+                              className="shrink-0 text-warning">
+                              <AlertTriangle size={13} />
+                            </span>
+                          )}
+                        </span>
+                      </td>
                       <td className="px-2 py-1.5">
                         {link ? (
                           <span className="flex items-center gap-1.5">
