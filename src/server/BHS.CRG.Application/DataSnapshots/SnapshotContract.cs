@@ -20,6 +20,11 @@ public static class SnapshotContract
     /// <summary>
     /// 1 — единая оболочка списков: у всех <c>list_*</c> инструментов ответ вида
     /// <c>{items, offset, limit, total, truncated}</c>, у строк источника — <see cref="RowsPage"/>.
+    ///
+    /// 2 — у источника вместо одного <c>rowCount</c> два числа с разными именами: <c>rawRowCount</c>
+    /// (до обработки) и <c>rowCount</c> (после фильтра, только в <c>get_source</c>) плюс
+    /// <c>filtered</c> (#592). Прежнее имя сменило смысл — ровно тот случай, ради которого версия и
+    /// заведена: клиент, читающий <c>rowCount</c> сводки источника, теперь не найдёт поля.
     /// </summary>
-    public const int Version = 1;
+    public const int Version = 2;
 }

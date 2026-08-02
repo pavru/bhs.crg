@@ -70,6 +70,11 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
 
         Табличных данных здесь нет: наборы данных и документы качества сюда не подмешиваются, потому
         что число строк не ограничено. За таблицами — get_rows, там есть признак усечения.
+
+        Зато есть tableFields — перечень табличных полей типа с адресом их строк: boundToDataset,
+        sourceId (и datasetId), rowCount после фильтра источника. boundToDataset=false означает
+        именно пустую таблицу; отсутствие ключа таблицы в реквизитах ничего не означает — их там не
+        бывает вовсе. За строками идите в get_rows по sourceId.
         """)]
     public async Task<DocumentDetail?> GetDocumentAsync(
         [Description("Идентификатор документа.")] Guid documentId,

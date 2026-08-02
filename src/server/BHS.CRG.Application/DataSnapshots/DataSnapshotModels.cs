@@ -33,17 +33,32 @@ public record DatasetDetail(
     bool Stale, string? RecognitionScenario,
     IReadOnlyList<SourceSummary> Sources);
 
+/// <param name="RawRowCount">Строк В ИСТОЧНИКЕ — до фильтра, вычисляемых колонок и сортировки.
+/// Именно сырьё, а не то, что увидит документ: раньше это число называлось <c>rowCount</c> и
+/// расходилось с <c>totalRows</c> выборки (48 против 44 на «Кабельном журнале без ГРЩ»), а по ответу
+/// разница была неразличима (#592).</param>
+/// <param name="Filtered">У источника задан фильтр строк — значит итоговых строк МЕНЬШЕ, чем
+/// <paramref name="RawRowCount"/>. Точное число даёт <c>get_source</c> либо <c>get_rows</c>: считать
+/// его для каждого источника набора значило бы скачать и разобрать файл столько раз, сколько в нём
+/// листов, ради навигационной выдачи.</param>
 public record SourceSummary(
-    Guid Id, string Name, DataOrigin Origin, int RowCount, bool Stale,
+    Guid Id, string Name, DataOrigin Origin, int RawRowCount, bool Filtered, bool Stale,
     IReadOnlyList<string> Columns, SheetAnchor? Sheet);
 
 /// <param name="StaleReason">Почему данные считаются устаревшими — чтобы агент мог решить сам,
 /// а не гадать по булеву флагу.</param>
 /// <param name="UpdatedAt">Когда кэш источника последний раз обновлялся (для распознанных — фактически
 /// момент распознавания).</param>
+/// <param name="RowCount">Строк ПОСЛЕ обработки — ровно столько отдаст <c>get_rows</c> и столько
+/// попадёт в документ.</param>
+/// <param name="RawRowCount">Строк до обработки. Две величины отдаются РАЗДЕЛЬНО (#592): одна
+/// величина без имени, чему она равна, уже стоила внешнему анализу неверного вывода — сорок восемь
+/// строк источника против сорока четырёх в выборке, и ни одно поле о разнице не говорило.</param>
+/// <param name="Filtered">У источника задан фильтр строк — объяснение разницы двух чисел.</param>
 public record SourceDetail(
     Guid Id, Guid DatasetId, string DatasetName, string Name,
-    DataOrigin Origin, int RowCount, bool Stale, string? StaleReason,
+    DataOrigin Origin, int RowCount, int RawRowCount, bool Filtered,
+    bool Stale, string? StaleReason,
     DateTimeOffset UpdatedAt,
     IReadOnlyList<ColumnInfo> Columns, SheetAnchor? Sheet);
 

@@ -273,7 +273,7 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
         // MCP-срез: внешний агент не должен видеть число, расходящееся с выдачей get_rows.
         var snapshots = scope.ServiceProvider.GetRequiredService<IDataSnapshotService>();
         Assert.Equal(3, (await snapshots.GetSourceAsync(source.Id))!.RowCount);
-        Assert.Equal(3, Assert.Single((await snapshots.GetDatasetAsync(file.Id))!.Sources).RowCount);
+        Assert.Equal(3, Assert.Single((await snapshots.GetDatasetAsync(file.Id))!.Sources).RawRowCount);
         Assert.Equal(3, (await snapshots.GetRowsAsync(source.Id, 0, 50))!.TotalRows);
     }
 

@@ -27,6 +27,11 @@ public class DataSetRowLoader(
     public async Task<List<IReadOnlyDictionary<string, string?>>> LoadRowsAsync(
         DataSetSource source,
         CancellationToken ct)
+        => [.. (await LoadAsync(source, ct)).Rows];
+
+    public async Task<LoadedRows> LoadAsync(
+        DataSetSource source,
+        CancellationToken ct)
     {
         List<IReadOnlyDictionary<string, string?>> parsedRows;
         if (source.File.Format == DataSetFormat.Pdf)
@@ -55,7 +60,7 @@ public class DataSetRowLoader(
         var rows = DataSetComputedColumnExecutor.Apply(source.ComputedColumns, parsedRows);
         rows = DataSetRowFilterExecutor.Apply(source.RowFilter, rows);
         rows = DataSetSortExecutor.Apply(source.SortSpec, rows);
-        return rows;
+        return new LoadedRows(rows, parsedRows.Count);
     }
 
     private static List<IReadOnlyDictionary<string, string?>> DeserializeCachedData(string? json)

@@ -146,6 +146,79 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
         }
     }
 
+    // ── Сколько строк: сырьё против выборки (issue #592) ─────────────────────────
+
+    /// <summary>
+    /// Источник с фильтром отдаёт МЕНЬШЕ строк, чем в нём лежит, и раньше об этом не говорило ни одно
+    /// поле ответа: «Кабельный журнал (без ГРЩ)» показывал 48 строк в описании и 44 в выборке.
+    /// Величины теперь названы по отдельности, и обе сходятся с get_rows.
+    /// </summary>
+    [Fact]
+    public async Task SourceDetail_SeparatesRawRowsFromFiltered()
+    {
+        var (_, sourceId, scope) = await SeedCsvAsync(10);
+        using (scope)
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var source = await db.DataSetSources.Include(s => s.File).FirstAsync(s => s.Id == sourceId);
+            // Оставляем только «Материал 1» — девять строк отсеиваются фильтром.
+            source.SetProcessing(
+                """{"type":"condition","column":"Наименование","operator":"equals","value":"Материал 1"}""",
+                null, null);
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+
+            var detail = await Svc(scope).GetSourceAsync(sourceId);
+
+            Assert.Equal(10, detail!.RawRowCount);
+            Assert.Equal(1, detail.RowCount);
+            Assert.True(detail.Filtered);
+            // Число из описания обязано совпадать с тем, что реально отдают строки.
+            Assert.Equal(detail.RowCount, (await Svc(scope).GetRowsAsync(sourceId, 0, 50))!.TotalRows);
+        }
+    }
+
+    /// <summary>Без фильтра расхождению взяться неоткуда — и признак не поднимается зря.</summary>
+    [Fact]
+    public async Task SourceDetail_WithoutFilter_ReportsSameCounts()
+    {
+        var (_, sourceId, scope) = await SeedCsvAsync(4);
+        using (scope)
+        {
+            var detail = await Svc(scope).GetSourceAsync(sourceId);
+
+            Assert.Equal(4, detail!.RawRowCount);
+            Assert.Equal(4, detail.RowCount);
+            Assert.False(detail.Filtered);
+        }
+    }
+
+    /// <summary>
+    /// В сводке набора точного числа нет намеренно: считать его для каждого листа значило бы скачать
+    /// и разобрать файл столько раз, сколько в нём источников. Поэтому величина названа сырьём, а
+    /// нужду сходить за точным числом обозначает filtered.
+    /// </summary>
+    [Fact]
+    public async Task DatasetSummary_ReportsRawRows_AndWarnsAboutFilter()
+    {
+        var (fileId, sourceId, scope) = await SeedCsvAsync(10);
+        using (scope)
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var source = await db.DataSetSources.Include(s => s.File).FirstAsync(s => s.Id == sourceId);
+            source.SetProcessing(
+                """{"type":"condition","column":"Наименование","operator":"equals","value":"Материал 1"}""",
+                null, null);
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+
+            var summary = Assert.Single((await Svc(scope).GetDatasetAsync(fileId))!.Sources);
+
+            Assert.Equal(10, summary.RawRowCount);
+            Assert.True(summary.Filtered);
+        }
+    }
+
     // ── Достоверность: происхождение и свежесть ──────────────────────────────────
 
     [Fact]

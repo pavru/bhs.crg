@@ -50,7 +50,12 @@ public class DataSnapshotService(
         var sources = file.Sources
             .OrderBy(s => s.Name)
             .Select(s => new SourceSummary(
-                s.Id, s.Name, OriginOf(s), liveRowCounts.TryGetValue(s.Id, out var live) ? live : s.CachedRowCount,
+                s.Id, s.Name, OriginOf(s),
+                // Сырьё, и названо сырьём (#592). Считать здесь строки ПОСЛЕ обработки значило бы
+                // скачать и разобрать файл по разу на каждый лист ради навигационной выдачи; точное
+                // число даёт get_source, а на его нужду указывает Filtered.
+                liveRowCounts.TryGetValue(s.Id, out var live) ? live : s.CachedRowCount,
+                HasFilter(s),
                 IsStale(file, s, grouping, out _),
                 ColumnNames(s.CachedSchema),
                 SheetOf(s, grouping)))
@@ -70,9 +75,14 @@ public class DataSnapshotService(
         var grouping = GostGroupingSerialization.Parse(source.File.Grouping);
         var stale = IsStale(source.File, source, grouping, out var reason);
 
+        // Обе величины — из ОДНОЙ загрузки: описание источника обязано сходиться с его же строками,
+        // а «сколько строк» без указания, до фильтра или после, уже произвело неверный анализ (#592).
+        var loaded = await rowLoader.LoadAsync(source, ct);
+
         return new SourceDetail(
             source.Id, source.FileId, source.File.Name, source.Name,
-            OriginOf(source), await systemCounts.CountAsync(source, source.File, ct) ?? source.CachedRowCount, stale, reason,
+            OriginOf(source), loaded.Rows.Count, loaded.RawRowCount, HasFilter(source),
+            stale, reason,
             source.UpdatedAt,
             Columns(source.CachedSchema),
             SheetOf(source, grouping));
@@ -115,6 +125,10 @@ public class DataSnapshotService(
         SystemDataSets.IsSystemMarker(s.SheetOrPath) ? DataOrigin.System
         : PdfProfiles.IsRecognitionMarker(s.SheetOrPath) ? DataOrigin.Recognized
         : DataOrigin.Parsed;
+
+    /// <summary>Отсеивает ли источник строки. Признак нужен там, где отдаётся только сырое число:
+    /// он объясняет, почему строк в выборке окажется меньше, — иначе разница выглядит потерей данных.</summary>
+    private static bool HasFilter(DataSetSource s) => !string.IsNullOrWhiteSpace(s.RowFilter);
 
     /// <summary>Устарели ли данные источника. Три независимых причины, и каждая означает, что сверка
     /// по этим строкам может быть неверной, — поэтому возвращаем ещё и человекочитаемую причину.</summary>
