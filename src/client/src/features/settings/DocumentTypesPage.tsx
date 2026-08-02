@@ -35,6 +35,7 @@ import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import type { DocumentType, DocumentTypeKind, EnumTypeDef } from '@/shared/api/types';
 import {
+  chainFieldKeys,
   parseSchemaFields,
   resolveEffectiveFields,
   type SchemaField,
@@ -473,15 +474,20 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
   const parentType = docType.parentId ? allDocTypes.find(dt => dt.id === docType.parentId) ?? null : null;
   const parentEffectiveFields = parentType ? resolveEffectiveFields(parentType, allDocTypes) : [];
   const inheritedKeys = new Set(parentEffectiveFields.map(f => f.key));
-  // Ссылки на несуществующие поля (issue #639). Сверяем с ПОЛНЫМ набором ключей — свои плюс все
-  // родительские ДО исключений: исключённый ключ ссылается на существующее родительское поле, в
-  // этом и смысл исключения.
-  const danglingRefs = danglingKeyRefs(groups, excludedFields,
-    [...inheritedKeys, ...fields.map(f => f.key)]);
+  // Ссылки на несуществующие поля (issue #639). Сверяем со ВСЕМИ ключами цепочки наследования ДО
+  // исключений, а не с эффективными полями родителя: исключение ссылается на поле, которое
+  // существует, — в этом его смысл, и по эффективному набору собственное исключение потомка
+  // выглядело бы висячим (см. chainFieldKeys).
+  const chainKeys = parentType ? chainFieldKeys(parentType, allDocTypes) : [];
+  const danglingRefs = danglingKeyRefs(
+    { groups, excludedFields, ungroupedOrder, fieldOverrideKeys: Object.keys(fieldOverrides) },
+    [...chainKeys, ...fields.map(f => f.key)]);
   const dropDanglingRefs = () => {
     const dead = new Set(danglingRefs.map(r => r.key));
     setGroups(gs => gs.map(g => ({ ...g, fieldKeys: g.fieldKeys.filter(k => !dead.has(k)) })));
     setExcludedFields(ks => ks.filter(k => !dead.has(k)));
+    setUngroupedOrder(ks => ks.filter(k => !dead.has(k)));
+    setFieldOverrides(o => Object.fromEntries(Object.entries(o).filter(([k]) => !dead.has(k))));
     setDirty(true);
   };
   const effectiveFields = resolveEffectiveFields(docType, allDocTypes);

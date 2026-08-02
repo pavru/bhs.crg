@@ -50,6 +50,18 @@ export function boundedEditDistance(a: string, b: string, limit: number): number
 const MIN_LENGTH_FOR_TYPO = 6;
 
 /**
+ * Ключи одного семейства, различающиеся номером на конце («Приложение1» и «Приложение2»), — это
+ * НЕ опечатка, а обычный способ нумеровать однотипные поля. По расстоянию они неотличимы от
+ * опечатки, и без этого исключения предупреждение висело бы на таких полях всегда, то есть
+ * перестало бы что-либо значить.
+ */
+function differsOnlyByTrailingDigits(a: string, b: string): boolean {
+  const strippedA = a.replace(/\d+$/, '');
+  const strippedB = b.replace(/\d+$/, '');
+  return strippedA === strippedB && (strippedA !== a || strippedB !== b);
+}
+
+/**
  * Ключ из `others`, подозрительно похожий на `key`, либо null.
  *
  * Похожими считаются два случая: совпадение без учёта регистра (разный регистр даёт РАЗНЫЕ ключи, и
@@ -73,6 +85,7 @@ export function similarKeyOf(key: string, others: readonly string[]): string | n
   for (const other of others) {
     const o = other.trim();
     if (!o || o === k || o.length < MIN_LENGTH_FOR_TYPO) continue;
+    if (differsOnlyByTrailingDigits(k, o)) continue;
     if (boundedEditDistance(lower, o.toLocaleLowerCase(), 1) >= 0) return o;
   }
   return null;
@@ -85,6 +98,24 @@ export interface DanglingKeyRef {
   groups: string[];
   /** Ключ перечислен в исключениях унаследованных полей. */
   excluded: boolean;
+  /** Ключ стоит в явном порядке секции «Без группы». */
+  ordered: boolean;
+  /** На ключ заведено переопределение (обязательность/значение по умолчанию). */
+  overridden: boolean;
+}
+
+/**
+ * Места, где схема хранит ГОЛЫЕ ключи полей. Все четыре — одного рода: ключ, которому не
+ * соответствует поле, не виден в интерфейсе никак, и потому живёт вечно.
+ *
+ * Переопределение на мёртвый ключ вдобавок заряжено: оно молча вступит в силу, если поле с таким
+ * ключом однажды заведут.
+ */
+export interface SchemaKeyRefs {
+  groups?: readonly FieldGroup[];
+  excludedFields?: readonly string[];
+  ungroupedOrder?: readonly string[];
+  fieldOverrideKeys?: readonly string[];
 }
 
 /**
@@ -97,29 +128,30 @@ export interface DanglingKeyRef {
  * `knownKeys` — свои поля плюс ПОЛНЫЙ набор родительских (до исключений): исключённый ключ ссылается
  * на существующее родительское поле, в этом и смысл исключения, и висячим он не является.
  */
-export function danglingKeyRefs(
-  groups: readonly FieldGroup[],
-  excludedFields: readonly string[],
-  knownKeys: Iterable<string>,
-): DanglingKeyRef[] {
+export function danglingKeyRefs(refs: SchemaKeyRefs, knownKeys: Iterable<string>): DanglingKeyRef[] {
   const known = new Set(knownKeys);
   const found = new Map<string, DanglingKeyRef>();
 
   const at = (key: string) => {
     let ref = found.get(key);
-    if (!ref) { ref = { key, groups: [], excluded: false }; found.set(key, ref); }
+    if (!ref) { ref = { key, groups: [], excluded: false, ordered: false, overridden: false }; found.set(key, ref); }
     return ref;
   };
 
-  for (const g of groups) {
+  for (const g of refs.groups ?? []) {
     for (const key of g.fieldKeys ?? []) {
       if (known.has(key)) continue;
       at(key).groups.push(g.title || '(без названия)');
     }
   }
-  for (const key of excludedFields) {
-    if (known.has(key)) continue;
-    at(key).excluded = true;
+  for (const key of refs.excludedFields ?? []) {
+    if (!known.has(key)) at(key).excluded = true;
+  }
+  for (const key of refs.ungroupedOrder ?? []) {
+    if (!known.has(key)) at(key).ordered = true;
+  }
+  for (const key of refs.fieldOverrideKeys ?? []) {
+    if (!known.has(key)) at(key).overridden = true;
   }
   return [...found.values()];
 }
@@ -128,5 +160,7 @@ export function danglingKeyRefs(
 export function danglingRefPlaces(ref: DanglingKeyRef): string {
   const places = ref.groups.map(g => `в группе «${g}»`);
   if (ref.excluded) places.push('в исключениях');
+  if (ref.ordered) places.push('в порядке полей');
+  if (ref.overridden) places.push('в переопределениях');
   return places.join(', ');
 }
