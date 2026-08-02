@@ -10,7 +10,8 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// <inheritdoc />
 public class DataSnapshotService(
     AppDbContext db,
-    IDataSetRowLoader rowLoader) : IDataSnapshotService
+    IDataSetRowLoader rowLoader,
+    SystemSourceCounter systemCounts) : IDataSnapshotService
 {
     private static readonly JsonSerializerOptions SchemaJson = new() { PropertyNameCaseInsensitive = true };
 
@@ -40,10 +41,12 @@ public class DataSnapshotService(
         if (file is null) return null;
 
         var grouping = GostGroupingSerialization.Parse(file.Grouping);
+        // Системный набор: число строк живое, кэш при создании — уже история (issue #613).
+        var liveRowCounts = await systemCounts.CountAsync([file], ct);
         var sources = file.Sources
             .OrderBy(s => s.Name)
             .Select(s => new SourceSummary(
-                s.Id, s.Name, OriginOf(s), s.CachedRowCount,
+                s.Id, s.Name, OriginOf(s), liveRowCounts.TryGetValue(s.Id, out var live) ? live : s.CachedRowCount,
                 IsStale(file, s, grouping, out _),
                 ColumnNames(s.CachedSchema),
                 SheetOf(s, grouping)))
@@ -65,7 +68,7 @@ public class DataSnapshotService(
 
         return new SourceDetail(
             source.Id, source.FileId, source.File.Name, source.Name,
-            OriginOf(source), source.CachedRowCount, stale, reason,
+            OriginOf(source), await systemCounts.CountAsync(source, source.File, ct) ?? source.CachedRowCount, stale, reason,
             source.UpdatedAt,
             Columns(source.CachedSchema),
             SheetOf(source, grouping));

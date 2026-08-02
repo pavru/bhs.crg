@@ -24,6 +24,7 @@ public class DataSetSourceService(
     DataSetParserFactory parserFactory,
     IDataSetRowLoader rowLoader,
     SystemDataProviderRegistry systemProviders,
+    SystemSourceCounter systemCounts,
     IRecognitionProfileProvider profiles)
 {
     private record CachedColumnInfo(string Name, string[] SampleValues);
@@ -41,7 +42,15 @@ public class DataSetSourceService(
                 .Where(b => ids.Contains(b.SourceId))
                 .GroupBy(b => b.SourceId)
                 .ToDictionaryAsync(g => g.Key, g => g.Count(), ct);
-        return sources.Select(s => DataSetDtoMapper.MapSource(s, bindingCounts.GetValueOrDefault(s.Id))).ToList();
+
+        // Системный набор: число строк живое (issue #613) — файл не запрашиваем, если нечего считать.
+        var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        var liveRowCounts = file is null
+            ? new Dictionary<Guid, int>()
+            : await systemCounts.CountAsync(file, sources, ct);
+
+        return sources.Select(s => DataSetDtoMapper.MapSource(
+            s, bindingCounts.GetValueOrDefault(s.Id), liveRowCounts.TryGetValue(s.Id, out var live) ? live : null)).ToList();
     }
 
     /// <summary>
@@ -595,8 +604,11 @@ public class DataSetSourceService(
             ?? throw new KeyNotFoundException($"DataSetProcessingTemplate {templateId} not found");
 
         // Extraction в шаблоне — опциональна: если задана, пере-парсим файл (имя источника не
-        // трогаем — оно своё у каждого источника, не часть рецепта).
-        if (!string.IsNullOrWhiteSpace(template.SheetOrPath))
+        // трогаем — оно своё у каждого источника, не часть рецепта). У системного источника
+        // extraction — это ВЫБОР КОНСОЛИДАЦИИ, а не лист файла: подменять его рецептом нельзя
+        // (парсера у формата System нет — прежде здесь падало «Нет парсера для формата System»).
+        // Обработку при этом переносим: фильтр/колонки/сортировка к живым строкам применимы (#613).
+        if (!string.IsNullOrWhiteSpace(template.SheetOrPath) && !source.File.IsSystem)
         {
             var (schema, rowCount) = await ParseForDefinitionAsync(
                 source.File.BlobPath, source.File.Format, template.SheetOrPath, template.ColumnExpressions, ct);
