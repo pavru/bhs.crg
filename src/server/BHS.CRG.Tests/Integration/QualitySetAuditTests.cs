@@ -106,6 +106,16 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
         Assert.StartsWith("Материалы[1]", implausible.Path);
     }
 
+    /// <summary>
+    /// Несуществующий комплект — отказ, а не «проблем нет». Пустой отчёт на опечатку в
+    /// идентификаторе читается как чистая совесть, и это ровно тот молчаливый ноль, из-за которого
+    /// неверные связки жили незамеченными.
+    /// </summary>
+    [Fact]
+    public async Task UnknownSet_IsRejected_NotReportedAsClean()
+        => await Assert.ThrowsAsync<KeyNotFoundException>(
+            () => InScopeAsync(m => m.Send(new QualitySetAuditQuery(Guid.NewGuid()))));
+
     [Fact]
     public async Task EmptySet_IsQuietAndSaysSo()
     {

@@ -25,9 +25,11 @@ import {
   type BulkLinkAssessment,
 } from './qualityMatch';
 import { QualityDocForm } from '@/features/quality-docs/QualityDocForm';
-import { docIdentityLine } from '@/features/quality-docs/docIdentity';
+import { docNumberOf } from '@/features/quality-docs/docIdentity';
+import { formatDateRu } from '@/shared/utils/date';
 import { recognizeAndUpdate } from '@/features/quality-docs/recognizeImported';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
+import { useToast } from '@/shared/ui/Toast';
 
 // ─── Срок действия документа качества (по функциональному тэгу quality.validUntil) ──
 function readPath(obj: Record<string, unknown>, path: string[]): unknown {
@@ -72,8 +74,13 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
   const [includeExpired, setIncludeExpired] = useState(false);
   // Единая строка поиска: фильтрует библиотеку и используется для веб-поиска.
   const [query, setQuery] = useState('');
-  // Грузим всю библиотеку по области; релевантность к материалу считаем на клиенте.
-  const { data: docs = [], isLoading } = useListQualityDocs({ scope, scopeId: scopeId ?? undefined, enabled: open });
+  // Библиотека грузится ЦЕЛИКОМ, без фильтра по области, и это не небрежность: scope здесь говорит,
+  // где будет заведена СВЯЗКА (и где создастся новый документ на вкладке «Создать вручную»), а не из
+  // чего можно выбирать. Пока областью по умолчанию была System, разница не замечалась; с дефолтом
+  // «комплект» (#587) фильтр по области оставил бы пикер пустым при полной библиотеке на System — и
+  // пользователь пошёл бы заново импортировать из интернета то, что у него уже есть.
+  // Релевантность к материалу считается на клиенте.
+  const { data: docs = [], isLoading } = useListQualityDocs({ enabled: open });
 
   const qualityTypes = useMemo(
     () => allDocTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract && typeHasTag(dt, FUNCTIONAL_TAG.typeQualityDocument, allDocTypes)),
@@ -192,15 +199,17 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
                           продукции — по имени человек выбирал вслепую. */}
                       <span className="flex-1 min-w-0">
                         <span className="block text-sm text-fg1 truncate">{d.displayName}</span>
-                        {docIdentityLine(d, allDocTypes) && (
-                          <span className="block text-[11px] text-fg4 truncate">{docIdentityLine(d, allDocTypes)}</span>
+                        {/* Только НОМЕР: срок действия у строки уже есть справа, и вторая дата рядом
+                            (да ещё в другом формате) читалась бы как два разных срока. */}
+                        {docNumberOf(d, allDocTypes) && (
+                          <span className="block text-[11px] text-fg4 truncate">№ {docNumberOf(d, allDocTypes)}</span>
                         )}
                       </span>
                       {queryTokens.length > 0 && score > 0 && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{Math.round(score * 100)}%</span>
                       )}
                       {validUntil && <span className={`text-[10px] shrink-0 ${expired ? 'text-danger' : 'text-fg4'}`}>
-                        {expired ? 'просрочен ' : 'до '}{validUntil}</span>}
+                        {expired ? 'просрочен ' : 'до '}{formatDateRu(validUntil)}</span>}
                     </button>
                     {d.scanBlobPath && (
                       <button onClick={() => void openAttachmentInNewTab(d.scanBlobPath!)} title="Просмотр скана (в новой вкладке)"
@@ -297,6 +306,17 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   const constructionId = set?.constructionId ?? null;
   /** Уровень готов принимать связки: System живёт без id, остальным id обязателен. */
   const scopeReady = scope === 'System' || !!(scope === 'Set' ? setId : scope === 'Section' ? sectionId : constructionId);
+  /**
+   * Область ещё не готова принимать связки (комплект догружается) — говорим об этом.
+   *
+   * Молчаливый выход отсюда был бы хуже отказа: пользователь нажал «Привязать», ничего не
+   * произошло, и объяснить это нечем — а окно осталось открытым с выбором, как будто всё идёт.
+   */
+  function scopeNotReady(): boolean {
+    if (scopeReady) return false;
+    linksToast.error('Область связи ещё не готова — комплект загружается. Повторите через мгновение.');
+    return true;
+  }
   const scopeId = scope === 'Set' ? setId
     : scope === 'Section' ? sectionId
     : scope === 'Construction' ? constructionId
@@ -315,6 +335,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   const { data: docsSection = [] } = useListQualityDocs(
     { scope: 'Section', scopeId: sectionId ?? undefined, enabled: !!sectionId });
   const { data: docsSet = [] } = useListQualityDocs({ scope: 'Set', scopeId: setId });
+  const linksToast = useToast();
   const setLinks = useSetMaterialLinks();
   const removeLink = useRemoveMaterialLink();
 
@@ -443,7 +464,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   async function linkChosen(docId: string, chosen: MaterialRow[]) {
     // Уровень выбран, а его id ещё не доехал (комплект перезагружается) — связку класть некуда:
     // с пустым scopeId она стала бы «на все разделы разом», чего в селекторе никто не выбирал.
-    if (!scopeReady) return;
+    if (scopeNotReady()) return;
     // Метку материала кладём в связку сразу (issue #554): человеческое имя есть только здесь —
     // строки наборов данных не хранятся, и на экране контроля восстановить его будет неоткуда.
     await setLinks.mutateAsync({
@@ -466,11 +487,11 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
 
   // Принять предложенный документ для одной строки / для всех с подсказкой.
   async function acceptSuggestion(mat: MaterialRow, docId: string) {
-    if (!scopeReady) return;
+    if (scopeNotReady()) return;
     await setLinks.mutateAsync({ scope, scopeId, materials: [{ key: mat.key, label: mat.label }], qualityDocumentId: docId });
   }
   async function acceptAllSuggestions() {
-    if (!scopeReady) return;
+    if (scopeNotReady()) return;
     const byDoc = new Map<string, { key: string; label: string }[]>();
     for (const mat of materials) {
       const s = suggestionByKey.get(mat.key);
@@ -482,7 +503,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   }
 
   async function applySuggestions() {
-    if (!scopeReady) return;
+    if (scopeNotReady()) return;
     const chosen = (suggestions ?? []).filter(s => suggestSel.has(s.materialKey));
     // группируем по документу — один вызов на документ
     const byDoc = new Map<string, { key: string; label?: string }[]>();

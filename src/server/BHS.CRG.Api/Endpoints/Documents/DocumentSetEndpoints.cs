@@ -274,8 +274,13 @@ public static class DocumentSetEndpoints
     /// на уровень выше комплекта; собирать цепочку двумя лишними запросами ради одного значения
     /// расточительно, а знать её ему всё равно надо.
     /// </summary>
-    static async Task<Guid> ConstructionOfAsync(IMediator m, DocumentSet set)
-        => (await m.Send(new GetSectionQuery(set.SectionId)))?.ConstructionId ?? Guid.Empty;
+    /// <remarks>
+    /// Возвращает null, если раздел не найден, — не <c>Guid.Empty</c>: клиент проверяет наличие
+    /// значения, а строка из одних нулей проверку проходит, и «Вся стройка» стала бы доступной
+    /// областью, ведущей в никуда.
+    /// </remarks>
+    static async Task<Guid?> ConstructionOfAsync(IMediator m, DocumentSet set)
+        => (await m.Send(new GetSectionQuery(set.SectionId)))?.ConstructionId;
 
     static Guid GetUserId(ClaimsPrincipal user)
         => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub")!);

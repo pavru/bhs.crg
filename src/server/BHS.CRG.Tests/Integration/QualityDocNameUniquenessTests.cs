@@ -89,6 +89,36 @@ public class QualityDocNameUniquenessTests(IntegrationTestFixture fx)
         Assert.Equal(name, updated.DisplayName);
     }
 
+    /// <summary>
+    /// Документ-дубль, заведённый ДО запрета (а такие в живой базе есть — ради них issue и заведена),
+    /// обязан оставаться редактируемым. Иначе его нельзя ни поправить, ни распознать, пока не
+    /// переименуешь, — то есть запрет наказывал бы за то, что случилось раньше него.
+    /// </summary>
+    [Fact]
+    public async Task ExistingDuplicate_CanStillBeEdited_WhenNameUnchanged()
+    {
+        var typeId = await SeedTypeAsync();
+        var name = $"EKF — автоматические выключатели {Guid.NewGuid():N}";
+        var first = await CreateAsync(typeId, name, CatalogScope.System, null);
+        // Второй дубль заводим в обход команды — так, как его создаёт импорт из интернета.
+        QualityDocument second;
+        using (var scope = fx.Services.CreateScope())
+        {
+            var repo = scope.ServiceProvider
+                .GetRequiredService<BHS.CRG.Application.Common.IRepository<QualityDocument>>();
+            second = QualityDocument.Create(typeId, name, JsonDocument.Parse("{}"),
+                CatalogScope.System, null, QualityDocSource.Web, sourceUrl: $"https://example.test/{Guid.NewGuid():N}");
+            await repo.AddAsync(second);
+            await repo.SaveChangesAsync();
+        }
+
+        var updated = await InScopeAsync(m => m.Send(new UpdateQualityDocumentCommand(
+            second.Id, typeId, name, JsonDocument.Parse("""{"Продукция":"Выключатели AV-6"}"""))));
+
+        Assert.Equal(name, updated.DisplayName);
+        Assert.NotEqual(first.Id, updated.Id);
+    }
+
     [Fact]
     public async Task RenamingOntoAnotherDocumentName_IsRejected()
     {

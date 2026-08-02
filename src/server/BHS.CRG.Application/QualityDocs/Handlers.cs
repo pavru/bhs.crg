@@ -34,7 +34,11 @@ public class QualityDocHandlers(
     public async Task<QualityDocument> Handle(UpdateQualityDocumentCommand cmd, CancellationToken ct)
     {
         var doc = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException($"QualityDocument {cmd.Id} not found");
-        await EnsureNameFreeAsync(cmd.DisplayName, doc.Scope, doc.ScopeId, exceptId: doc.Id, ct);
+        // Проверяем ТОЛЬКО смену имени. Дубли уже есть в живой базе (ради них issue #588 и заведена),
+        // и запрет на сохранение с НЕИЗМЕНЁННЫМ именем означал бы, что такой документ нельзя больше
+        // ни отредактировать, ни распознать, пока его не переименуют.
+        if (!string.Equals(doc.DisplayName.Trim(), (cmd.DisplayName ?? "").Trim(), StringComparison.OrdinalIgnoreCase))
+            await EnsureNameFreeAsync(cmd.DisplayName, doc.Scope, doc.ScopeId, exceptId: doc.Id, ct);
         doc.Update(cmd.DocumentTypeId, cmd.DisplayName, cmd.Requisites);
         repo.Update(doc);
         await repo.SaveChangesAsync(ct);
