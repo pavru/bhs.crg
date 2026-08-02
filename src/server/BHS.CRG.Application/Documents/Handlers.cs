@@ -18,6 +18,7 @@ public class DocumentTypeHandlers(
     IRepository<DomainObject> objectRepo,
     IRepository<Template> templateRepo,
     IRepository<QualityDocument> qualityDocRepo,
+    IRepository<PrimitiveType> primitiveRepo,
     IDataSetService dataSetService) :
     IRequestHandler<CreateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeCommand, DocumentType>,
@@ -65,7 +66,8 @@ public class DocumentTypeHandlers(
         var inst = await objectRepo.GetByIdAsync(q.InstanceId, ct)
             ?? throw new KeyNotFoundException($"Instance {q.InstanceId} not found");
         var byId = (await repo.GetAllAsync(ct)).ToDictionary(t => t.Id);
-        return Schema.SchemaDataAuditor.Audit(inst.Data.RootElement, inst.CompositeTypeId, byId)
+        var primitives = (await primitiveRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
+        return Schema.SchemaDataAuditor.Audit(inst.Data.RootElement, inst.CompositeTypeId, byId, primitives)
             .Select(iss => new AuditFinding(inst.Id, inst.DisplayName, iss.Code, iss.Severity.ToString(), iss.Path, iss.Message))
             .ToList();
     }
@@ -123,10 +125,13 @@ public class DocumentTypeHandlers(
         var typeIds = all.Where(t => Schema.DocumentTypeSchemaReader.IsSameOrDescendant(t.Id, q.TypeId, byId))
             .Select(t => t.Id).ToList();
         var instances = (await objectRepo.FindAsync(o => typeIds.Contains(o.CompositeTypeId), ct)).ToList();
+        // Примитивы читаем один раз на прогон, а не на объект: тот же расчёт, что у справочников
+        // проверки выпуска (см. SchemaCatalog, issue #628).
+        var primitives = (await primitiveRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
 
         var findings = new List<AuditFinding>();
         foreach (var inst in instances)
-            foreach (var iss in Schema.SchemaDataAuditor.Audit(inst.Data.RootElement, inst.CompositeTypeId, byId))
+            foreach (var iss in Schema.SchemaDataAuditor.Audit(inst.Data.RootElement, inst.CompositeTypeId, byId, primitives))
                 findings.Add(new(inst.Id, inst.DisplayName, iss.Code, iss.Severity.ToString(), iss.Path, iss.Message));
 
         return new(q.TypeId, type.Name, instances.Count, findings);

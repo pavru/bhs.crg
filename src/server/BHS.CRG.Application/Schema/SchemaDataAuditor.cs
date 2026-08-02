@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 
 namespace BHS.CRG.Application.Schema;
@@ -16,21 +17,36 @@ public record AuditIssue(string Code, AuditSeverity Severity, string Path, strin
 ///
 /// Работает над СЫРЫМИ данными (не над разрешённым контекстом): <c>$ref</c>-объекты (ссылки каталога/
 /// документа) — это ссылки, вглубь них не идём; мета-ключи (<c>_</c>-префикс: _baseRef и т.п.) не данные.
+///
+/// Тонкий слой (базовый тип значения, шаблон и границы примитива, разбор даты) — общий со сканером
+/// выпуска, <see cref="ValueTypeRules"/>, код находки <see cref="ValueType"/> (issue #642). До этого
+/// аудит видел только грубое несовпадение ВИДА значения, и записи общих данных — единственные
+/// объекты, которых сканер выпуска не касается вовсе, — не проверялись тонким слоем никогда.
 /// </summary>
 public static class SchemaDataAuditor
 {
     public const string OrphanKey = "orphan-key";
     public const string TypeMismatch = "type-mismatch";
+    public const string ValueType = "value-type";
 
-    public static IReadOnlyList<AuditIssue> Audit(JsonElement data, Guid typeId, IReadOnlyDictionary<Guid, DocumentType> byId)
+    /// <param name="primitivesById">Примитивные типы для тонкого слоя. Пустой словарь — поля с
+    /// <c>type=primitive</c> останутся без проверки (их правила описаны самим примитивом).</param>
+    public static IReadOnlyList<AuditIssue> Audit(
+        JsonElement data, Guid typeId,
+        IReadOnlyDictionary<Guid, DocumentType> byId,
+        IReadOnlyDictionary<Guid, PrimitiveType> primitivesById)
     {
         var issues = new List<AuditIssue>();
         if (data.ValueKind == JsonValueKind.Object)
-            Walk(data, typeId, "", byId, issues);
+            Walk(data, typeId, "", byId, primitivesById, issues);
         return issues;
     }
 
-    private static void Walk(JsonElement obj, Guid typeId, string basePath, IReadOnlyDictionary<Guid, DocumentType> byId, List<AuditIssue> issues)
+    private static void Walk(
+        JsonElement obj, Guid typeId, string basePath,
+        IReadOnlyDictionary<Guid, DocumentType> byId,
+        IReadOnlyDictionary<Guid, PrimitiveType> primitivesById,
+        List<AuditIssue> issues)
     {
         var fields = DocumentTypeSchemaReader.EffectiveFields(typeId, byId).ToDictionary(f => f.Key);
         foreach (var p in obj.EnumerateObject())
@@ -43,11 +59,15 @@ public static class SchemaDataAuditor
                     $"Ключ «{p.Name}» отсутствует в текущей схеме типа (осиротевшее поле)."));
                 continue; // нет схемы для этого ключа — вглубь не идём
             }
-            CheckField(f, p.Value, path, byId, issues);
+            CheckField(f, p.Value, path, byId, primitivesById, issues);
         }
     }
 
-    private static void CheckField(SchemaFieldInfo f, JsonElement value, string path, IReadOnlyDictionary<Guid, DocumentType> byId, List<AuditIssue> issues)
+    private static void CheckField(
+        SchemaFieldInfo f, JsonElement value, string path,
+        IReadOnlyDictionary<Guid, DocumentType> byId,
+        IReadOnlyDictionary<Guid, PrimitiveType> primitivesById,
+        List<AuditIssue> issues)
     {
         var vk = value.ValueKind;
         if (vk == JsonValueKind.Null) return; // пусто — не расхождение
@@ -66,7 +86,7 @@ public static class SchemaDataAuditor
                 foreach (var item in value.EnumerateArray())
                 {
                     if (item.ValueKind == JsonValueKind.Object && !IsRef(item))
-                        Walk(item, etid, $"{path}[{i}]", byId, issues);
+                        Walk(item, etid, $"{path}[{i}]", byId, primitivesById, issues);
                     i++;
                 }
             }
@@ -77,13 +97,18 @@ public static class SchemaDataAuditor
                 issues.Add(new(TypeMismatch, AuditSeverity.Warning, path,
                     $"Поле «{f.Key}» ожидает составной объект, а в данных — {KindRu(vk)}."));
             else if (!IsRef(value) && f.TypeId is { } tid && byId.ContainsKey(tid))
-                Walk(value, tid, path, byId, issues); // инлайн-составной — рекурсивно
+                Walk(value, tid, path, byId, primitivesById, issues); // инлайн-составной — рекурсивно
         }
         else // скаляр (string/number/date/enum/boolean/primitive/file/image)
         {
             if (vk is JsonValueKind.Object or JsonValueKind.Array && f.Type is not ("file" or "image"))
+            {
                 issues.Add(new(TypeMismatch, AuditSeverity.Warning, path,
                     $"Поле «{f.Key}» ожидает скалярное значение, а в данных — {KindRu(vk)}."));
+                return; // вид не сошёлся — тонкий слой сказал бы то же самое второй раз
+            }
+            foreach (var message in ValueTypeRules.CheckScalar(f, value, primitivesById))
+                issues.Add(new(ValueType, AuditSeverity.Warning, path, message));
         }
     }
 

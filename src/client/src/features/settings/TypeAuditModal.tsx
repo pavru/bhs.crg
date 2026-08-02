@@ -15,6 +15,9 @@ import { useAuditDocumentType, useApplyAuditFixes, type AuditFix } from '@/share
 const CATEGORY_LABEL: Record<string, string> = {
   'orphan-key': 'Осиротевшие поля (нет в текущей схеме)',
   'type-mismatch': 'Несовпадение вида значения с типом поля',
+  // issue #642: тонкий слой — базовый тип, шаблон и границы примитива, разбор даты. Те же правила,
+  // что и при выпуске документа, но здесь их видят и записи общих данных.
+  'value-type': 'Значение не соответствует объявленному типу',
 };
 
 interface Row { code: string; path: string; message: string; instances: { id: string; name: string }[] }
@@ -89,7 +92,9 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                   </div>
                   <div className="divide-y divide-muted">
                     {rows.map(row => {
-                      const k = `${row.code} ${row.path}`;
+                      // Сообщение в ключе обязательно: у одного значения бывает несколько претензий
+                      // сразу («не целое» и «меньше допустимого»), и обе лежат по одному пути.
+                      const k = `${row.code} ${row.path} ${row.message}`;
                       const isOpen = expanded.has(k);
                       const canRename = row.code === 'orphan-key' && isTopLevel(row.path);
                       return (
