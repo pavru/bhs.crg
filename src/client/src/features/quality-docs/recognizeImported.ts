@@ -35,9 +35,21 @@ export async function recognizeAndUpdate(doc: QualityDocument, allDocTypes: Docu
   }
 
   const requisites = applyRecognized(doc.requisites, fieldValues);
-  const displayName = summary || doc.displayName;
-  const { data } = await apiClient.put<QualityDocument>(`/quality-docs/${doc.id}`, {
+  const save = (displayName: string) => apiClient.put<QualityDocument>(`/quality-docs/${doc.id}`, {
     documentTypeId: doc.documentTypeId, displayName, requisites,
-  });
-  return data;
+  }).then(r => r.data);
+
+  const summarized = summary || doc.displayName;
+  if (summarized === doc.displayName) return save(summarized);
+
+  try {
+    return await save(summarized);
+  } catch (e: unknown) {
+    // 409 — краткое имя, придуманное распознаванием, уже занято в этой области (issue #588).
+    // Сдаём имя, но НЕ распознанные реквизиты: номер и срок действия — то, ради чего распознавание
+    // и запускалось, а на них держатся и «просрочен», и проверка правдоподобия сертификата.
+    // Совпадение здесь закономерно: два сертификата одного бренда суммируются в одно и то же имя.
+    if ((e as { response?: { status?: number } })?.response?.status !== 409) throw e;
+    return save(doc.displayName);
+  }
 }

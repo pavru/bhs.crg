@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { Loader2, ShieldCheck, Upload, Eye } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { apiError } from '@/shared/utils/apiError';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import type { PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
@@ -162,7 +163,9 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
         });
       }
       onSaved(doc);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Ошибка'); }
+    // apiError, а не e.message: у 409 (имя занято, issue #588) объяснение лежит в теле ответа, а
+    // e.message даёт «Request failed with status code 409» — то есть ровно ничего.
+    } catch (e: unknown) { setError(apiError(e, 'Ошибка сохранения')); }
   }
 
   return (

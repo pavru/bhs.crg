@@ -2,7 +2,6 @@ import type { DocumentType } from '@/shared/api/types';
 import type { QualityDocument } from '@/shared/api/qualityDocs';
 import { findTaggedFieldPath } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
-import { formatDateRu } from '@/shared/utils/date';
 
 /**
  * Чем один документ качества отличается от другого (issue #588).
@@ -33,17 +32,6 @@ export const docNumberOf = (doc: QualityDocument, docTypes: DocumentType[]) =>
 
 export const docValidUntilOf = (doc: QualityDocument, docTypes: DocumentType[]) =>
   docFieldByTag(doc, docTypes, FUNCTIONAL_TAG.qualityValidUntil);
-
-/**
- * Строка-опознание: «№ … · до …». Пустая, когда сказать нечего — тэги не проставлены или реквизиты
- * не распознаны. Пустую строку показывать не нужно: место она займёт, а вопрос «какой из двух» не
- * решит.
- */
-export function docIdentityLine(doc: QualityDocument, docTypes: DocumentType[]): string {
-  const number = docNumberOf(doc, docTypes);
-  const validUntil = docValidUntilOf(doc, docTypes);
-  return [number && `№ ${number}`, validUntil && `до ${formatDateRu(validUntil)}`].filter(Boolean).join(' · ');
-}
 
 /**
  * Имена, встречающиеся у ДВУХ И БОЛЕЕ документов списка (сравнение как у серверной проверки
