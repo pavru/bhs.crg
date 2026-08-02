@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Schema;
 
 namespace BHS.CRG.Application.Schema;
 
@@ -14,11 +15,21 @@ public static class SchemaTags
     /// <summary>
     /// (fieldKey, tag) по всей цепочке наследования типа (ближний тип имеет приоритет по ключу).
     /// Возвращает по одной паре на каждый тег поля.
+    ///
+    /// Тэг отдаётся КОДОМ, без параметра (issue #583): запись «identity:2» приходит сюда как
+    /// «identity». Так весь существующий функционал, сравнивающий тэг с константой, продолжает
+    /// работать, не зная о параметрах вовсе, — иначе поле с номером молча выпало бы из
+    /// сопоставления. За порядком идти в <see cref="OrderedKeysWithTag" />.
     /// </summary>
     public static List<(string Key, string Tag)> TaggedFields(DocumentType docType, IReadOnlyList<DocumentType> allDocTypes)
+        => [.. TaggedFieldsWithOrder(docType, allDocTypes).Select(f => (f.Key, f.Tag.Code))];
+
+    /// <summary>То же, но с параметром тэга — для функционала, которому важен порядок.</summary>
+    public static List<(string Key, TagCode Tag)> TaggedFieldsWithOrder(
+        DocumentType docType, IReadOnlyList<DocumentType> allDocTypes)
     {
         var seenKeys = new HashSet<string>();
-        var result = new List<(string Key, string Tag)>();
+        var result = new List<(string Key, TagCode Tag)>();
         var visited = new HashSet<Guid>();
 
         var current = docType;
@@ -28,7 +39,7 @@ public static class SchemaTags
             {
                 if (!seenKeys.Add(key)) continue; // ближний тип уже задал теги этого ключа
                 foreach (var tag in tags)
-                    result.Add((key, tag));
+                    result.Add((key, TagCode.Parse(tag)));
             }
             current = current.ParentId.HasValue
                 ? allDocTypes.FirstOrDefault(dt => dt.Id == current.ParentId.Value)
@@ -37,12 +48,28 @@ public static class SchemaTags
         return result;
     }
 
+    /// <summary>
+    /// Ключи полей с указанным тэгом, упорядоченные ПАРАМЕТРОМ тэга (issue #583): «identity:1» перед
+    /// «identity:2», поля без номера — следом, в порядке схемы.
+    ///
+    /// Порядок здесь не украшение: он задаёт порядок компонентов составного ключа идентичности, и
+    /// его изменение меняет ключи всех объектов разом.
+    /// </summary>
+    public static IReadOnlyList<string> OrderedKeysWithTag(
+        DocumentType docType, IReadOnlyList<DocumentType> allDocTypes, string tag)
+        => [.. TaggedFieldsWithOrder(docType, allDocTypes)
+            .Select((f, index) => (f.Key, f.Tag, index))
+            .Where(x => x.Tag.Code == tag)
+            .OrderBy(x => x.Tag.SortKey)
+            .ThenBy(x => x.index)          // стабильность: одинаковые номера не «прыгают» между вызовами
+            .Select(x => x.Key)];
+
     /// <summary>Ключи полей собственной схемы, несущих указанный тэг.</summary>
     public static IReadOnlyList<string> FieldKeysWithTag(JsonDocument schema, string tag)
     {
         var keys = new List<string>();
         foreach (var (key, tags) in FieldTags(schema))
-            if (tags.Contains(tag))
+            if (tags.Any(t => TagCode.CodeOf(t) == tag))
                 keys.Add(key);
         return keys;
     }
@@ -55,7 +82,7 @@ public static class SchemaTags
             && tags.ValueKind == JsonValueKind.Array)
         {
             foreach (var t in tags.EnumerateArray())
-                if (t.ValueKind == JsonValueKind.String && t.GetString() == tag) return true;
+                if (t.ValueKind == JsonValueKind.String && TagCode.CodeOf(t.GetString()) == tag) return true;
         }
         return false;
     }

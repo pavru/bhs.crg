@@ -32,15 +32,21 @@ public static class MaterialIdentity
         => SchemaTags.TaggedFields(type, allTypes)
             .Any(f => f.Tag == FunctionalTag.MaterialQualityDocLink);
 
-    /// <summary>Ключи полей идентичности у типов, способных нести документ качества.</summary>
+    /// <summary>
+    /// Ключи полей идентичности у типов, способных нести документ качества, — В ПОРЯДКЕ компонентов
+    /// составного ключа (issue #583): сначала параметр тэга («identity:1» перед «identity:2»), затем
+    /// поля без номера в порядке схемы.
+    ///
+    /// Типы обходятся по идентификатору, а не в порядке выдачи хранилища: порядок строк без ORDER BY
+    /// не гарантирован, а от него зависят ключи ВСЕХ материалов — «плавающий» порядок означал бы, что
+    /// связки перестают находиться после перезапуска и никто не понимает почему.
+    /// </summary>
     public static string[] KeysOf(IReadOnlyList<DocumentType> allTypes)
-        => allTypes
+        => [.. allTypes
             .Where(t => IsMaterial(t, allTypes))
-            .SelectMany(t => SchemaTags.TaggedFields(t, allTypes)
-                .Where(f => f.Tag == FunctionalTag.Identity)
-                .Select(f => f.Key))
-            .Distinct()
-            .ToArray();
+            .OrderBy(t => t.Id)
+            .SelectMany(t => SchemaTags.OrderedKeysWithTag(t, allTypes, FunctionalTag.Identity))
+            .Distinct()];
 
     /// <summary>Ключ поля, в которое подмешивается документ качества (тэг material.qualityDocLink).</summary>
     public static string? QualityDocFieldOf(IReadOnlyList<DocumentType> allTypes)

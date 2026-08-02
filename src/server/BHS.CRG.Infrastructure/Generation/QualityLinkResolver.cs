@@ -88,17 +88,20 @@ public class QualityLinkResolver(AppDbContext db) : IQualityLinkResolver
         }
     }
 
-    // Материал может быть привязан по любому из полей идентичности (артикул ИЛИ наименование) —
-    // проверяем все, т.к. ключ связи мог быть создан по любому из них.
+    // Ключ материала СОСТАВНОЙ: все поля идентичности разом, в порядке параметра тэга (#582).
+    // Прежний перебор «совпало любое поле» допускал две связки на один материал с разными
+    // сертификатами и выбирал между ними по порядку полей — то есть молча и не в пользу более
+    // точной привязки. Здесь выбирать не из чего: у материала ровно один ключ.
     private static bool TryMatch(JsonElement elem, string[] identityFields,
         IReadOnlyDictionary<string, Guid> byKey, out Guid docId)
     {
-        foreach (var field in identityFields)
-            if (elem.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.String)
-            {
-                var key = MatchKeyNormalizer.Normalize(v.GetString());
-                if (key.Length > 0 && byKey.TryGetValue(key, out docId)) return true;
-            }
+        var key = IdentityKey.From(identityFields, field =>
+            elem.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.String
+                ? v.GetString()
+                : null);
+
+        if (!IdentityKey.IsEmpty(key) && byKey.TryGetValue(key, out docId)) return true;
+
         docId = default;
         return false;
     }
