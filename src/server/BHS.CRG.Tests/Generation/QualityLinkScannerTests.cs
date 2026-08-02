@@ -70,6 +70,37 @@ public class QualityLinkScannerTests
         Assert.Empty(diagnostics);
     }
 
+    // ── правдоподобие привязанного документа (issue #586) ──────────────────────
+
+    private const string Av125 = """
+        { "Наименование": "EKF — автоматические выключатели",
+          "Продукция": "Выключатели автоматические, торговой марки «EKF», модель: AV-125" }
+        """;
+
+    /// <summary>Тот самый случай: сертификат на автоматы держал 68 связок, включая термоусадку.</summary>
+    [Fact]
+    public void ForeignCertificate_IsReportedAsImplausible()
+    {
+        var d = Assert.Single(Scan($$"""
+            [ { "Наименование": "Трубка термоусаживаемая ТУТ нг 20/10", "{{Target}}": {{Av125}} } ]
+            """));
+        Assert.Equal(DiagnosticSeverity.Warning, d.Severity);
+        Assert.Equal(QualityLinkScanner.ImplausibleCode, d.Code);
+    }
+
+    [Fact]
+    public void CertificateFromTheSameScope_IsSilent()
+        => Assert.Empty(Scan($$"""
+            [ { "Наименование": "Выключатель автоматический AV-125 3P 63А EKF", "{{Target}}": {{Av125}} } ]
+            """));
+
+    /// <summary>Материал, опознанный одним артикулом, проверить нечем — и тревожить им нельзя.</summary>
+    [Fact]
+    public void BareArticle_NotReportedAsImplausible()
+        => Assert.Empty(Scan($$"""
+            [ { "Артикул": "mb15-07-01m-54", "{{Target}}": {{Av125}} } ]
+            """));
+
     [Fact]
     public void IndexInPath_PointsAtTheRow()
     {
