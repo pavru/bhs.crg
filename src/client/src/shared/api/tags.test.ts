@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tagCode, tagOrder, hasTag, findTagEntry, withTagOrder } from './tags';
+import { tagCode, tagOrder, hasTag, findTagEntry, withTagOrder, tagLabelOf, type TagDefinition } from './tags';
 
 /**
  * Разбор записи тэга «код» / «код:параметр» (issue #583). Правила совпадают с серверным TagCode —
@@ -44,6 +44,26 @@ describe('поиск тэга по коду', () => {
   it('отдаёт запись как она лежит в схеме — из неё читается номер', () => {
     expect(findTagEntry(['doc.number', 'identity:2'], 'identity')).toBe('identity:2');
     expect(findTagEntry(['doc.number'], 'identity')).toBeUndefined();
+  });
+});
+
+describe('подпись тэга по записи', () => {
+  const registry: TagDefinition[] = [
+    { code: 'identity', label: 'Идентификатор', description: '', scope: 'Field', appliesTo: [], multiple: true },
+    { code: 'doc.number', label: 'Номер документа', description: '', scope: 'Field', appliesTo: [], multiple: false },
+  ];
+
+  it('находит подпись и у параметризованной записи', () => {
+    // Ровно этот случай показывал сырой «identity:3» в шапке свёрнутого поля (issue #630):
+    // поиск шёл по полной строке записи, а в реестре лежит голый код.
+    expect(tagLabelOf(registry, 'identity:3')).toBe('Идентификатор');
+    expect(tagLabelOf(registry, 'identity')).toBe('Идентификатор');
+    expect(tagLabelOf(registry, 'doc.number')).toBe('Номер документа');
+  });
+
+  it('незнакомый тэг показывает свой код без параметра — номер рисуется отдельным сегментом', () => {
+    expect(tagLabelOf(registry, 'какой.то:2')).toBe('какой.то');
+    expect(tagLabelOf(undefined, 'identity:3')).toBe('identity');
   });
 });
 

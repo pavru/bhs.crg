@@ -42,6 +42,18 @@ export function tagOrder(raw: string): number | null {
   return /^\d+$/.test(param) ? Number(param) : null;
 }
 
+/**
+ * Человеко-имя тэга по ЗАПИСИ в схеме — «identity:3» даёт «Идентификатор».
+ *
+ * Именно по записи, а не по коду (issue #630): поиск по полной строке параметризованную запись не
+ * находил, и бейдж свёрнутого поля показывал сырой «identity:3». Номер при этом не теряется — его
+ * рисуют отдельным сегментом рядом, а не втискивают в подпись.
+ */
+export function tagLabelOf(registry: TagDefinition[] | undefined, entry: string): string {
+  const code = tagCode(entry);
+  return (registry ?? []).find(t => t.code === code)?.label ?? code;
+}
+
 /** Несёт ли набор тэгов указанный КОД — с параметром или без («identity» найдёт и «identity:2»). */
 export function hasTag(tags: string[] | undefined, code: string): boolean {
   return !!tags?.some(t => tagCode(t) === code);
