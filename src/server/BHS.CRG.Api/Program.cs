@@ -243,9 +243,17 @@ builder.Services.AddHttpContextAccessor();
 builder.Services
     .AddMcpServer(o =>
     {
-        o.ServerInfo = new() { Name = "bhs-crg", Version = "1.0.0" };
+        o.ServerInfo = new() { Name = "bhs-crg", Version = BHS.CRG.Api.Mcp.McpContract.ServerVersion };
+        o.ServerInstructions = BHS.CRG.Api.Mcp.McpContract.Instructions;
     })
-    .WithHttpTransport()
+    // Без сессий (issue #599). Сессия жила в памяти процесса, и первый вызов после паузы регулярно
+    // получал 404 «Session not found»: клиент вынужден был закладывать слепой ретрай, а для
+    // неидемпотентного вызова это небезопасно. Каждый запрос теперь самодостаточен — терять нечего.
+    //
+    // Плата: сервер не может слать клиенту сообщения по своей инициативе (sampling, elicitation,
+    // подписки на ресурсы) и не поднимает legacy /sse. Мы ничем из этого не пользуемся: сервер здесь
+    // отвечает на вопросы и не задаёт своих.
+    .WithHttpTransport(o => o.Stateless = true)
     // Кодировщик передаётся каждой регистрации: домен русскоязычный, а по умолчанию System.Text.Json
     // раздувает кириллицу в \uXXXX вчетверо и упирает ответы в лимит клиента (#576, McpSerialization).
     .WithTools<BHS.CRG.Api.Mcp.DataSnapshotTools>(BHS.CRG.Api.Mcp.McpSerialization.ToolOptions)
