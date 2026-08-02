@@ -225,6 +225,7 @@ builder.Services.AddScoped<IRepository<TypstUserLib>, Repository<TypstUserLib>>(
 builder.Services.AddScoped<IRepository<TypstUserLibFile>, Repository<TypstUserLibFile>>();
 builder.Services.AddScoped<IRepository<QualityDocument>, Repository<QualityDocument>>();
 builder.Services.AddScoped<IRepository<MaterialQualityLink>, Repository<MaterialQualityLink>>();
+builder.Services.AddScoped<IRepository<QualityAuditRun>, Repository<QualityAuditRun>>();
 
 // ── Backup ────────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<BackupService>();
@@ -287,6 +288,12 @@ builder.Services.AddScoped<IMetadataExtractor, MetadataExtractor>();
 builder.Services.AddScoped<IDataSetResolver, DataSetResolver>();
 builder.Services.AddScoped<IObjectResolver, ObjectResolver>();
 builder.Services.AddScoped<IQualityLinkResolver, QualityLinkResolver>();
+// Проверка резолва экземпляра как СЕРВИС, а не только запрос MediatR: пакетным вызывающим нужно
+// читать справочники схемы один раз на прогон, а не на документ (issue #628).
+builder.Services.AddScoped<BHS.CRG.Application.Generation.IInstanceResolutionValidator,
+    BHS.CRG.Application.Generation.InstanceResolutionValidator>();
+builder.Services.AddScoped<BHS.CRG.Application.QualityDocs.IQualitySetAuditRunner,
+    BHS.CRG.Application.QualityDocs.QualitySetAuditRunner>();
 builder.Services.AddScoped<ITemplateAssetResolver, TemplateAssetResolver>();
 builder.Services.AddHttpClient<AnthropicRecognizerEngine>().ConfigureHttpClient(c => c.Timeout = TimeSpan.FromMinutes(2));
 builder.Services.AddHttpClient<GeminiRecognizerEngine>().ConfigureHttpClient(c => c.Timeout = TimeSpan.FromMinutes(2));

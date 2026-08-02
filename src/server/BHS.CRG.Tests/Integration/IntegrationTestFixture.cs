@@ -62,6 +62,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
                 reconciliation_runs,
                 reconciliations,
                 material_quality_links,
+                quality_audit_runs,
                 quality_documents,
                 notifications,
                 jobs,

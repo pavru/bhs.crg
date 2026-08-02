@@ -1,5 +1,9 @@
+using System.Security.Claims;
 using System.Text.Json;
+using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.Jobs;
 using BHS.CRG.Application.QualityDocs;
+using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.Recognition;
@@ -102,12 +106,36 @@ public static class QualityDocEndpoints
             }));
         });
 
-        // Сверка «реестр материалов ↔ карта качества» по комплекту (issue #589): ответ — десяток
-        // строк вместо двух выгруженных таблиц.
-        g.MapGet("/audit/{setId:guid}", async (Guid setId, int? limit, IMediator m, CancellationToken ct) =>
+        // ── Сверка «реестр материалов ↔ карта качества» по комплекту (issue #589) ──────────────
+        // Запуск — ФОНОВОЙ задачей (issue #628): прогон резолвит каждый документ комплекта с чтением
+        // наборов данных, и на тридцати-пятидесяти документах это минуты. Синхронного вызова у сверки
+        // нет намеренно: он упирался бы в таймаут ровно на тех комплектах, ради которых сверку и делали.
+        g.MapPost("/audit/{setId:guid}", async (
+            Guid setId, IMediator m, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
         {
-            try { return Results.Ok(await m.Send(new QualitySetAuditQuery(setId, limit ?? QualitySetAuditHandler.DefaultLimit), ct)); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            var set = await m.Send(new GetDocumentSetQuery(setId), ct);
+            if (set is null) return Results.NotFound();
+
+            // Второй прогон того же комплекта считал бы то же самое и переписывал бы тот же отчёт —
+            // двойная работа с непредсказуемым победителем.
+            var userId = UserId(user);
+            if (await jobs.HasActiveForTargetAsync(userId, setId, ct))
+                return Results.Conflict(new { error = "По этому комплекту уже выполняется задача." });
+
+            var jobId = await jobs.EnqueueAsync(JobKind.AuditQualityLinks, userId, setId,
+                $"Сверка качества: «{set.Name}»", null, ct);
+            return Results.Accepted("/api/jobs/active", new { jobId });
+        });
+
+        // Отчёт последнего прогона. 404 — сверку ещё не запускали; пустой отчёт вместо этого
+        // утверждал бы, что проверено и чисто. Дата прогона идёт в ответе: отчёт верен на неё, а с
+        // правкой данных устаревает молча.
+        g.MapGet("/audit/{setId:guid}", async (Guid setId, IMediator m, CancellationToken ct) =>
+        {
+            var report = await m.Send(new GetQualityAuditQuery(setId), ct);
+            return report is null
+                ? Results.NotFound(new { error = "Сверка по этому комплекту ещё не выполнялась." })
+                : Results.Ok(report);
         });
 
         g.MapPost("/links", async (SetLinksReq req, IMediator m) =>
@@ -164,6 +192,9 @@ public static class QualityDocEndpoints
             return Results.Ok(s);
         });
     }
+
+    private static Guid UserId(ClaimsPrincipal user)
+        => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub")!);
 
     private static CatalogScope ParseScope(string? s)
         => s is not null && Enum.TryParse<CatalogScope>(s, true, out var v) ? v : CatalogScope.System;

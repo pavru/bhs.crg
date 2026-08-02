@@ -24,6 +24,29 @@ public class QualityDocumentConfiguration : IEntityTypeConfiguration<QualityDocu
     }
 }
 
+public class QualityAuditRunConfiguration : IEntityTypeConfiguration<QualityAuditRun>
+{
+    public void Configure(EntityTypeBuilder<QualityAuditRun> b)
+    {
+        b.ToTable("quality_audit_runs");
+        b.HasKey(e => e.Id);
+        b.Property(e => e.RowsJson).HasColumnType("jsonb").IsRequired();
+
+        // Один отчёт на комплект: прогон ЗАМЕНЯЕТ предыдущий, а не копится историей. Уникальность
+        // здесь не украшение — при двух строках «последняя сверка» стала бы выбором наугад, а
+        // параллельные прогоны одного комплекта возможны (индикатор их не запрещает, он только
+        // предупреждает 409 по активной задаче).
+        b.HasIndex(e => e.SetId).IsUnique();
+
+        // Комплект удалили — отчёт о нём смысла не имеет. Без каскада он остался бы висеть и
+        // всплыл бы у следующего комплекта только при совпадении идентификатора, то есть никогда,
+        // — то есть просто мусором в таблице.
+        b.HasOne<DocumentSet>().WithMany()
+            .HasForeignKey(e => e.SetId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
 public class MaterialQualityLinkConfiguration : IEntityTypeConfiguration<MaterialQualityLink>
 {
     public void Configure(EntityTypeBuilder<MaterialQualityLink> b)
