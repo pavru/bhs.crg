@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseSchemaFields,
   resolveEffectiveFields,
+  chainFieldKeys,
   groupEffectiveFields,
   isSubtypeOf,
   getDefaultValues,
@@ -45,6 +46,31 @@ describe('parseSchemaFields', () => {
   it('preserves provided props', () => {
     const [f] = parseSchemaFields({ fields: [{ key: 'A', title: 'Имя', type: 'number', required: true }] });
     expect(f).toMatchObject({ key: 'A', title: 'Имя', type: 'number', required: true });
+  });
+});
+
+// ── chainFieldKeys (issue #639) ─────────────────────────────────────────────────
+
+describe('chainFieldKeys', () => {
+  it('собирает ключи всей цепочки ДО исключений', () => {
+    // Дед объявил «Примечание», отец его исключил. Для отца это поле ВСЁ ЕЩЁ существует —
+    // иначе собственное исключение потомка выглядело бы ссылкой в пустоту, и «Убрать ссылки»
+    // молча снесло бы намерение «мне это поле не нужно».
+    const grand = dt({ fields: [field('Примечание'), field('Общее')] }, null, 'g');
+    const parent = dt({ fields: [field('Своё')], excludedFields: ['Примечание'] }, 'g', 'p');
+
+    expect(resolveEffectiveFields(parent, [grand, parent]).map(f => f.key)).toEqual(['Общее', 'Своё']);
+    expect(chainFieldKeys(parent, [grand, parent]).sort())
+      .toEqual(['Общее', 'Примечание', 'Своё'].sort());
+  });
+
+  it('оборванная и зациклённая цепочка не роняют обход', () => {
+    const orphan = dt({ fields: [field('A')] }, 'нет-такого', 'o');
+    expect(chainFieldKeys(orphan, [orphan])).toEqual(['A']);
+
+    const a = dt({ fields: [field('A')] }, 'b', 'a');
+    const b = dt({ fields: [field('B')] }, 'a', 'b');
+    expect(chainFieldKeys(a, [a, b]).sort()).toEqual(['A', 'B']);
   });
 });
 

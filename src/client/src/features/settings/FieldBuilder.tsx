@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Plus, Trash2, Cpu, GripVertical, ChevronDown, ChevronUp, Lock, Link2, FunctionSquare } from 'lucide-react';
+import { Plus, Trash2, Cpu, GripVertical, ChevronDown, ChevronUp, Lock, Link2, FunctionSquare, AlertTriangle } from 'lucide-react';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Button } from '@/shared/ui/Button';
@@ -8,6 +8,7 @@ import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import type { DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/types';
 import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/shared/api/schema';
 import { TYPE_LABELS, toCamelKey, nextAutoKey, nextSavedKey } from './schemaConstants';
+import { similarKeyOf } from './schemaKeyChecks';
 import {
   useTagRegistry, fieldTags, findTagEntry, hasTag, tagCode, withTagOrder,
   type TagDefinition,
@@ -112,6 +113,8 @@ interface FieldCardProps {
   persistedKeys?: Set<string>;
   /** Соседние поля (для пикера ссылок + детекции циклов расчётного поля, issue #368) — без самого себя. */
   siblingFields?: { key: string; title: string; type: string; computed?: boolean; expression?: string }[];
+  /** Ключи ОСТАЛЬНЫХ полей типа (свои + унаследованные) — для проверки на опечатку (issue #639). */
+  otherKeys?: readonly string[];
   /** Смена ключа СОХРАНЁННОГО поля (issue #357) — для предложения миграции данных на сохранении схемы. */
   onKeyRename?: (from: string, to: string) => void;
   /** Поле только что добавлено (issue #526): курсор ставится в «Название», чтобы можно было сразу печатать. */
@@ -272,7 +275,7 @@ function ComputedFieldEditor({ field, siblingFields, onChange }: {
  *  редактор (все ветки типов/опций/тэгов). Индекс-независима — переиспользуется в плоском и
  *  группированном представлении (issue #197 Фаза C). */
 export function FieldCard({
-  field, reg, keyConflict, persistedKeys, siblingFields, onKeyRename, autoFocus, onAutoFocused,
+  field, reg, keyConflict, persistedKeys, siblingFields, otherKeys, onKeyRename, autoFocus, onAutoFocused,
   open, onToggleOpen, onChange, onRemove,
   onMoveUp, onMoveDown, isFirst, isLast, dragging, onDragStart, onDragEnd, onDragOver, onDrop,
 }: FieldCardProps) {
@@ -317,6 +320,10 @@ export function FieldCard({
   const isNew = savedKey === null;
   const keyLocked = !isNew && !keyUnlocked;
   const keyChanged = savedKey !== null && field.key !== savedKey;
+  // Опечатка в ключе (issue #639): рядом с «ДатаДокумента» годами жил «ДатаДокумнета» — две
+  // переставленные буквы. Считаем прямо в рендере: ключей у типа десятки, а сравнение обрывается
+  // на первом же лишнем различии.
+  const similarKey = similarKeyOf(field.key, otherKeys ?? []);
   const keyAutoNew = isNew && !!field.title.trim() && field.key === toCamelKey(field.title);
   const pickTypes = useMemo(() => buildFieldTypeOptions(reg),
     [reg.compositeTypes, reg.primitiveTypes, reg.enumTypes, reg.allDocTypes]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -462,6 +469,16 @@ export function FieldCard({
           <span>Ключ изменён с «<span className="font-mono">{savedKey}</span>» — данные существующих
             документов останутся под старым ключом (осиротеют). Перенос старый→новый — через «Аудит»
             (переименование осиротевшего ключа в поле схемы).</span>
+        </p>
+      )}
+      {/* Похожий ключ (issue #639) — предупреждение, не запрет: законно похожие ключи бывают.
+          При конфликте молчим: там уже красное «ключ занят», и второе сообщение о том же поле
+          спорило бы с первым. */}
+      {similarKey && !keyConflict && (
+        <p className="text-xs text-warning flex items-start gap-1.5">
+          <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+          <span>Ключ похож на «<span className="font-mono">{similarKey}</span>» — опечатка? Два почти
+            одинаковых ключа дают в форме два поля, а в данных — две несвязанные ячейки.</span>
         </p>
       )}
       <ConfirmDialog
@@ -677,6 +694,7 @@ export function FieldBuilder({ fields, onChange, disabledKeys, persistedKeys, co
           autoFocus={!!justAdded && field[FIELD_UID] === justAdded}
           onAutoFocused={() => setJustAdded(null)}
           siblingFields={fields.filter((_, idx) => idx !== i).map(f => ({ key: f.key, title: f.title, type: f.type, computed: f.computed, expression: f.expression }))}
+          otherKeys={[...(disabledKeys ?? []), ...fields.filter((_, idx) => idx !== i).map(f => f.key)]}
           open={openIndex === i}
           onToggleOpen={() => setOpenIndex(o => o === i ? null : i)}
           onChange={patch => onChange(fields.map((f, idx) => idx === i ? { ...f, ...patch } : f))}

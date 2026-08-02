@@ -161,6 +161,29 @@ export function parseSchemaFields(schema: Record<string, unknown>): SchemaField[
 }
 
 /**
+ * Все ключи полей, объявленные в цепочке наследования, — ДО применения исключений (issue #639).
+ *
+ * Отличается от {@link resolveEffectiveFields} ровно исключениями, и это принципиально: исключение
+ * ссылается на поле, которое существует, — в этом его смысл. Эффективный набор родителя таких полей
+ * уже не содержит, и по нему собственное исключение потомка выглядело бы ссылкой в пустоту.
+ *
+ * Случай не выдуманный: дед объявляет «Примечание», отец его исключает, сын исключает тоже. По
+ * эффективным ключам отца исключение сына оказалось бы «висячим» — и было бы предложено убрать,
+ * а вместе с ним и намерение: вернув поле у отца, сын молча получил бы то, от чего отказывался.
+ */
+export function chainFieldKeys(docType: DocumentType, allDocTypes: DocumentType[]): string[] {
+  const keys: string[] = [];
+  const visited = new Set<string>();
+  let current: DocumentType | undefined = docType;
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    keys.push(...parseSchemaFields(current.schema).map(f => f.key));
+    current = current.parentId ? allDocTypes.find(dt => dt.id === current!.parentId) : undefined;
+  }
+  return keys;
+}
+
+/**
  * Resolves the effective (merged) field list for a document type,
  * walking the inheritance chain: parent fields first, then own fields.
  * Applies excludedFields and fieldOverrides from the child schema.
