@@ -1,9 +1,16 @@
 using System.Text.Json;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.Generation;
+using BHS.CRG.Application.Jobs;
+using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Jobs;
+using BHS.CRG.Infrastructure.Persistence;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -25,6 +32,15 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
     {
         using var scope = fx.Services.CreateScope();
         return await action(M(scope));
+    }
+
+    /// <summary>Прогон сверки — сервисом, а не запросом MediatR: синхронного вызова у неё нет
+    /// (issue #628), запускает её фоновая задача.</summary>
+    private async Task<QualityAuditReport> AuditAsync(Guid setId)
+    {
+        using var scope = fx.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<IQualitySetAuditRunner>()
+            .RunAsync(setId, QualitySetAuditRunner.DefaultLimit, null, CancellationToken.None);
     }
 
     private static string Uniq => Guid.NewGuid().ToString("N")[..8];
@@ -86,7 +102,7 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
     {
         var (setId, instanceId, _) = await SeedAsync();
 
-        var report = await InScopeAsync(m => m.Send(new QualitySetAuditQuery(setId)));
+        var report = await AuditAsync(setId);
 
         Assert.Equal(1, report.Documents);
         Assert.Equal(0, report.Failed);
@@ -114,7 +130,7 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
     [Fact]
     public async Task UnknownSet_IsRejected_NotReportedAsClean()
         => await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => InScopeAsync(m => m.Send(new QualitySetAuditQuery(Guid.NewGuid()))));
+            () => AuditAsync(Guid.NewGuid()));
 
     [Fact]
     public async Task EmptySet_IsQuietAndSaysSo()
@@ -124,9 +140,165 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
         var section = await InScopeAsync(m => m.Send(new CreateSectionCommand(construction.Id, $"Раздел {suffix}")));
         var set = await InScopeAsync(m => m.Send(new CreateDocumentSetCommand(section.Id, $"Комплект {suffix}")));
 
-        var report = await InScopeAsync(m => m.Send(new QualitySetAuditQuery(set.Id)));
+        var report = await AuditAsync(set.Id);
 
         Assert.Equal(0, report.Documents);
         Assert.Empty(report.Rows);
+    }
+
+    // ── Фоновый прогон (issue #628) ────────────────────────────────────────────────────────────
+
+    /// <summary>Второй документ того же типа — чтобы «на прогон» отличалось от «на документ».</summary>
+    private async Task AddSecondDocumentAsync(Guid setId, Guid firstInstanceId)
+    {
+        Guid typeId;
+        using (var scope = fx.Services.CreateScope())
+        {
+            var repo = scope.ServiceProvider.GetRequiredService<IDomainObjectRepository>();
+            typeId = (await repo.GetByIdAsync(firstInstanceId))!.CompositeTypeId;
+        }
+        await InScopeAsync(m => m.Send(new AddDocumentToSetCommand(setId, typeId)));
+    }
+
+    /// <summary>Считает обращения к справочникам схемы, ничего не подменяя: сам прогон настоящий.</summary>
+    private sealed class CountingValidator(IInstanceResolutionValidator inner) : IInstanceResolutionValidator
+    {
+        public int CatalogLoads;
+        public int Validations;
+
+        public Task<SchemaCatalog> LoadCatalogAsync(CancellationToken ct)
+        {
+            CatalogLoads++;
+            return inner.LoadCatalogAsync(ct);
+        }
+
+        public Task<IReadOnlyList<ResolutionDiagnostic>> ValidateAsync(Guid instanceId, SchemaCatalog catalog, CancellationToken ct)
+        {
+            Validations++;
+            return inner.ValidateAsync(instanceId, catalog, ct);
+        }
+    }
+
+    /// <summary>
+    /// Справочники схемы читаются ОДИН раз на прогон. До #628 проверка каждого документа тянула все
+    /// типы документов и все примитивные типы заново — на комплекте в полсотни документов это сотня
+    /// одинаковых запросов подряд, и ровно она делала сверку неподъёмной для HTTP-реквеста.
+    /// </summary>
+    [Fact]
+    public async Task SchemaCatalog_IsReadOncePerRun_AndProgressCountsEveryDocument()
+    {
+        var (setId, instanceId, _) = await SeedAsync();
+        await AddSecondDocumentAsync(setId, instanceId);
+
+        using var scope = fx.Services.CreateScope();
+        var counting = new CountingValidator(scope.ServiceProvider.GetRequiredService<IInstanceResolutionValidator>());
+        var runner = new QualitySetAuditRunner(
+            scope.ServiceProvider.GetRequiredService<IDomainObjectRepository>(),
+            scope.ServiceProvider.GetRequiredService<IRepository<DocumentSet>>(),
+            scope.ServiceProvider.GetRequiredService<IRepository<QualityAuditRun>>(),
+            counting,
+            scope.ServiceProvider.GetRequiredService<INotificationService>());
+
+        var progress = new List<string>();
+        var report = await runner.RunAsync(setId, QualitySetAuditRunner.DefaultLimit,
+            (c, t) => { progress.Add($"{c} из {t}"); return Task.CompletedTask; }, CancellationToken.None);
+
+        Assert.Equal(2, report.Documents);
+        Assert.Equal(2, counting.Validations);
+        Assert.Equal(1, counting.CatalogLoads);
+        // Прогресс — по документу на шаг: индикатор показывает движение, а не два прыжка в конце.
+        Assert.Equal(["1 из 2", "2 из 2"], progress);
+    }
+
+    /// <summary>
+    /// Сверку не запускали — отчёта нет. Пустой отчёт вместо этого утверждал бы, что проверено и
+    /// чисто: тот же молчаливый ноль, из-за которого неверные связки жили незамеченными.
+    /// </summary>
+    [Fact]
+    public async Task NeverAudited_HasNoReport_RatherThanCleanOne()
+    {
+        var (setId, _, _) = await SeedAsync();
+        Assert.Null(await InScopeAsync(m => m.Send(new GetQualityAuditQuery(setId))));
+    }
+
+    private async Task RunAndStoreAsync(Guid setId, Guid userId)
+    {
+        using var scope = fx.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IQualitySetAuditRunner>()
+            .RunAndStoreAsync(setId, userId, null, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Итог фонового прогона переживает сам прогон: спрашивает его другой запрос и в другое время.
+    /// Второй прогон ЗАМЕНЯЕТ отчёт — при двух строках «последняя сверка» стала бы выбором наугад.
+    /// </summary>
+    [Fact]
+    public async Task StoredReport_IsReadBackWithItsDate_AndReplacedByNextRun()
+    {
+        var (setId, _, _) = await SeedAsync();
+        var userId = Guid.NewGuid();
+
+        await RunAndStoreAsync(setId, userId);
+        var stored = await InScopeAsync(m => m.Send(new GetQualityAuditQuery(setId)));
+
+        Assert.NotNull(stored);
+        Assert.Equal(1, stored!.Documents);
+        Assert.Equal(1, stored.MaterialsWithoutDoc);
+        Assert.Equal(1, stored.ImplausibleDocs);
+        Assert.Equal(2, stored.Rows.Count);
+        Assert.All(stored.Rows, r => Assert.False(string.IsNullOrWhiteSpace(r.Path)));
+        // Дата обязательна: отчёт верен на неё, а с правкой данных устаревает молча.
+        Assert.NotNull(stored.CompletedAt);
+
+        // Итог ушёл в колокольчик — задача исчезает из индикатора молча.
+        using (var scope = fx.Services.CreateScope())
+        {
+            var notes = await scope.ServiceProvider.GetRequiredService<INotificationService>().GetAsync(userId);
+            Assert.Contains(notes, n => n.Title.StartsWith("Сверка качества"));
+        }
+
+        await RunAndStoreAsync(setId, userId);
+        using (var scope = fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Equal(1, await db.QualityAuditRuns.CountAsync(r => r.SetId == setId));
+        }
+    }
+
+    /// <summary>
+    /// Задача доходит до конца через саму подсистему Job: очередь → фоновый сервис → сохранённый
+    /// отчёт. Проверяется именно проводка (вид задачи, разбор в обработчике, разрешение зависимостей
+    /// в фоновом scope) — она отказывает целиком и молча, а не одной строкой в диффе.
+    /// </summary>
+    [Fact]
+    public async Task EnqueuedJob_RunsAudit_AndLeavesReport()
+    {
+        var (setId, _, _) = await SeedAsync();
+        var userId = Guid.NewGuid();
+
+        using (var scope = fx.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<IJobService>().EnqueueAsync(
+                JobKind.AuditQualityLinks, userId, setId, "Сверка качества", null, CancellationToken.None);
+
+        Job? job = null;
+        var deadline = DateTime.UtcNow.AddSeconds(60);
+        while (DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(200);
+            using var scope = fx.Services.CreateScope();
+            job = await scope.ServiceProvider.GetRequiredService<AppDbContext>()
+                .Jobs.AsNoTracking().SingleOrDefaultAsync(j => j.TargetId == setId);
+            if (job is not null && !job.IsActive) break;
+        }
+
+        // Ошибку задачи показываем текстом: «ожидалось Succeeded, получено Failed» отправило бы
+        // читателя искать причину в логах фонового сервиса.
+        Assert.NotNull(job);
+        Assert.True(job!.Status == JobStatus.Succeeded, $"Задача завершилась как {job.Status}: {job.Error}");
+
+        var report = await InScopeAsync(m => m.Send(new GetQualityAuditQuery(setId)));
+        Assert.NotNull(report);
+        Assert.Equal(1, report!.Documents);
+        Assert.Equal(2, report.Rows.Count);
     }
 }

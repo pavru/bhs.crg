@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.Notifications;
+using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Infrastructure.DataSets;
@@ -84,6 +85,13 @@ public class JobBackgroundService(
                 case JobKind.AssembleDocumentSet:
                     await scope.ServiceProvider.GetRequiredService<DocumentSetAssemblyService>()
                         .AssembleAsync(targetId, ParseInstanceIds(payload), userId, ct, (c, t) => report("документов", c, t));
+                    break;
+
+                case JobKind.AuditQualityLinks:
+                    // targetId = setId. Итог сохраняется одной строкой на комплект и читается
+                    // отдельным запросом — из HTTP-реквеста этот прогон уже не помещался (#628).
+                    await scope.ServiceProvider.GetRequiredService<IQualitySetAuditRunner>()
+                        .RunAndStoreAsync(targetId, userId, (c, t) => report("документов", c, t), ct);
                     break;
 
                 case JobKind.SendEmail:
