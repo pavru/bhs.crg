@@ -59,8 +59,9 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
   return (
     <div className="space-y-2 rounded-md bg-muted/40 p-2">
       <div className="flex items-center gap-2">
-        <Select value={part.sourceId} onValueChange={v => onChange({ ...EMPTY_PART, sourceId: v })}
-          placeholder="Источник данных" aria-label={`Источник ${index + 1}`} className="flex-1">
+        <Select label={`Источник ${index + 1}`} value={part.sourceId}
+          onValueChange={v => onChange({ ...EMPTY_PART, sourceId: v })}
+          placeholder="— выберите —" containerClassName="flex-1">
           {sources.map(({ source, fileName }) => (
             <SelectItem key={source.id} value={source.id}>{fileName} — {source.name}</SelectItem>
           ))}
@@ -98,8 +99,8 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
             </div>
           </div>
 
-          <Select value={part.valueColumn} onValueChange={v => onChange({ ...part, valueColumn: v })}
-            placeholder="Колонка количества" aria-label={`Количество ${index + 1}`}>
+          <Select label="Колонка количества" value={part.valueColumn}
+            onValueChange={v => onChange({ ...part, valueColumn: v })} placeholder="— выберите —">
             {columns.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </Select>
         </>

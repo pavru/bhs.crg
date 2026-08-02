@@ -153,13 +153,10 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
         <TextField label="Начальный пароль" type="text" value={password} onChange={e => setPassword(e.target.value)}
           required minLength={PASSWORD_MIN_LENGTH} className="font-mono"
           hint={`${PASSWORD_HINT} Пользователь сможет сменить его сам.`} />
-        <div>
-          <label className="block text-sm font-medium text-fg2 mb-1">Роль</label>
-          <Select value={role} onValueChange={v => setRole(v as UserRole)} aria-label="Роль">
-            <SelectItem value="User">Пользователь — только документы и данные</SelectItem>
-            <SelectItem value="Admin">Администратор — полный доступ</SelectItem>
-          </Select>
-        </div>
+        <Select label="Роль" value={role} onValueChange={v => setRole(v as UserRole)}>
+          <SelectItem value="User">Пользователь — только документы и данные</SelectItem>
+          <SelectItem value="Admin">Администратор — полный доступ</SelectItem>
+        </Select>
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="text" onClick={() => { reset(); onClose(); }}>Отмена</Button>

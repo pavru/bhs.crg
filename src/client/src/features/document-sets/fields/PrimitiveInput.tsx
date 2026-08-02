@@ -1,9 +1,9 @@
-import type { ReactNode } from 'react';
 import { formatDateRu, ruToISO } from '@/shared/utils/date';
 import { DateInput } from '@/shared/ui/DateInput';
 import { DateField } from '@/shared/ui/DateField';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
+import { TextAreaField } from '@/shared/ui/TextAreaField';
 import type { SchemaField } from '@/shared/api/schema';
 import type { PrimitiveTypeDef, FieldConstraints, EnumTypeDef } from '@/shared/api/types';
 import { isFieldRef } from '@/shared/api/types';
@@ -48,25 +48,19 @@ export function validateConstraint(value: unknown, def: PrimitiveTypeDef): strin
 export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeDef, enumTypeDef, readOnly, label, hint }: {
   field: SchemaField; value: unknown; onChange: (val: unknown) => void; invalid: boolean;
   primitiveTypeDef?: PrimitiveTypeDef; enumTypeDef?: EnumTypeDef; readOnly?: boolean;
-  /** Если задано — контрол сам рендерит подпись (issue #110 G1): floating для одностроч. полей,
-   *  label-сверху для textarea/enum/date. Чекбокс подписывает себя сам (field.title). */
+  /** Если задано — контрол сам рендерит подпись в вырезе рамки (issue #110 G1, #565): всплывающую
+   *  у однострочных полей, постоянно поднятую у текста, даты и перечисления (там у контрола нет
+   *  состояния «пусто» в смысле CSS). Чекбокс подписывает себя сам (field.title). */
   label?: string; hint?: string;
 }) {
   const strVal = value == null ? '' : String(value);
   const cls = fieldInputClass(invalid, readOnly);
-  // Обёртка «подпись сверху» для не-floating контролов (textarea/select/date).
-  const withLabel = (control: ReactNode) => label == null ? <>{control}</> : (
-    <div>
-      <label className="block text-xs font-medium text-fg2 mb-1">
-        {label}{field.required && <span className="ml-0.5 text-danger">*</span>}
-      </label>
-      {control}
-      {hint && <p className="mt-0.5 px-1 text-xs text-fg4">{hint}</p>}
-    </div>
-  );
 
   if (field.type === 'text')
-    return withLabel(<textarea value={strVal} onChange={e => onChange(e.target.value)} rows={3} readOnly={readOnly} className={cls + ' resize-y'} />);
+    return label != null
+      ? <TextAreaField label={label} required={field.required} hint={hint} invalid={invalid}
+          value={strVal} readOnly={readOnly} onChange={e => onChange(e.target.value)} className="resize-y" />
+      : <textarea value={strVal} onChange={e => onChange(e.target.value)} rows={3} readOnly={readOnly} className={cls + ' resize-y'} />;
   if (field.type === 'boolean')
     return (
       <label className="flex items-center gap-2 cursor-pointer">
@@ -75,24 +69,27 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
       </label>
     );
   if (field.type === 'enum') {
-    const selCls = invalid ? 'border-danger' : '';
-    const sel = enumTypeDef ? (
-      <Select value={strVal || undefined} onValueChange={onChange} disabled={readOnly}
-        placeholder="— выберите —" aria-label={field.title} className={selCls}>
-        {enumTypeDef.values.map(v => <SelectItem key={v.code} value={v.code}>{v.label}</SelectItem>)}
+    // Подпись отдаём самому контролу (issue #574): в слое формы она живёт в вырезе рамки, как у
+    // соседних строк, чисел и дат. Рамку ошибки там рисует оболочка — свой border-danger не нужен.
+    const NO_OPTIONS = 'Нет вариантов — добавьте их в схеме типа документа';
+    const opts = enumTypeDef
+      ? enumTypeDef.values.map(v => ({ code: v.code, label: v.label }))
+      : (field.options ?? []).filter(o => o !== '').map(o => ({ code: o, label: o }));
+    const empty = opts.length === 0;
+    if (empty && label == null)
+      return <p className="text-xs text-fg4 italic py-1">{NO_OPTIONS}</p>;
+    return (
+      <Select value={strVal || undefined} onValueChange={onChange} disabled={readOnly || empty}
+        placeholder={empty ? '—' : '— выберите —'}
+        label={label} required={label != null ? field.required : undefined}
+        // Про отсутствие вариантов сообщаем подписью ПОД полем, а не вместо поля: иначе исчезала бы
+        // и подпись, и на форме оставалась висеть фраза без имени поля, к которому она относится.
+        hint={empty ? NO_OPTIONS : hint} invalid={invalid}
+        aria-label={label == null ? field.title : undefined}
+        className={label == null && invalid ? 'border-danger' : ''}>
+        {opts.map(o => <SelectItem key={o.code} value={o.code}>{o.label}</SelectItem>)}
       </Select>
-    ) : (() => {
-      const opts = (field.options ?? []).filter(o => o !== '');
-      if (opts.length === 0)
-        return <p className="text-xs text-fg4 italic py-1">Нет вариантов — добавьте их в схеме типа документа</p>;
-      return (
-        <Select value={strVal || undefined} onValueChange={onChange} disabled={readOnly}
-          placeholder="— выберите —" aria-label={field.title} className={selCls}>
-          {opts.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-        </Select>
-      );
-    })();
-    return withLabel(sel);
+    );
   }
   if (field.type === 'primitive' && primitiveTypeDef) {
     const bt = primitiveTypeDef.baseType;

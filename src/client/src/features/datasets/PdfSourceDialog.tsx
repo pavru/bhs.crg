@@ -57,14 +57,11 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
         <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
           hint={profile === 'invoice' ? 'Счёт на оплату' : 'Реестр листов'} />
 
-        <div>
-          <label className="block text-sm font-medium text-fg1 mb-1">Профиль распознавания</label>
-          <Select value={profile} onValueChange={v => setProfile(v as 'gost-titleblock' | 'invoice')}
-            aria-label="Профиль распознавания">
-            <SelectItem value="gost-titleblock">Основная надпись (ГОСТ Р 21.101-2020) — реестр по страницам</SelectItem>
-            <SelectItem value="invoice">Счёт на оплату — шапка + таблица товаров</SelectItem>
-          </Select>
-        </div>
+        <Select label="Профиль распознавания" value={profile}
+          onValueChange={v => setProfile(v as 'gost-titleblock' | 'invoice')}>
+          <SelectItem value="gost-titleblock">Основная надпись (ГОСТ Р 21.101-2020) — реестр по страницам</SelectItem>
+          <SelectItem value="invoice">Счёт на оплату — шапка + таблица товаров</SelectItem>
+        </Select>
 
         {profile === 'gost-titleblock' && datasetTags(allTags).length > 0 && (
           <div>
