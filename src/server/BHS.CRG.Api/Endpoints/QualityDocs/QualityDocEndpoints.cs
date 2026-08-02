@@ -27,17 +27,30 @@ public static class QualityDocEndpoints
             return doc is null ? Results.NotFound() : Results.Ok(ToDto(doc));
         });
 
+        // 409 на занятое имя (issue #588): в области имена документов различаются, иначе выбор из
+        // списка становится выбором вслепую.
         g.MapPost("/", async (CreateReq req, IMediator m) =>
         {
-            var doc = await m.Send(new CreateQualityDocumentCommand(
-                req.DocumentTypeId, req.DisplayName, ToDoc(req.Requisites),
-                ParseScope(req.Scope), req.ScopeId, ParseSource(req.Source),
-                req.ScanBlobPath, req.ScanFileName, req.ScanMimeType));
-            return Results.Ok(ToDto(doc));
+            try
+            {
+                var doc = await m.Send(new CreateQualityDocumentCommand(
+                    req.DocumentTypeId, req.DisplayName, ToDoc(req.Requisites),
+                    ParseScope(req.Scope), req.ScopeId, ParseSource(req.Source),
+                    req.ScanBlobPath, req.ScanFileName, req.ScanMimeType));
+                return Results.Ok(ToDto(doc));
+            }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
-        g.MapPut("/{id:guid}", async (Guid id, UpdateReq req, IMediator m)
-            => Results.Ok(ToDto(await m.Send(new UpdateQualityDocumentCommand(id, req.DocumentTypeId, req.DisplayName, ToDoc(req.Requisites))))));
+        g.MapPut("/{id:guid}", async (Guid id, UpdateReq req, IMediator m) =>
+        {
+            try
+            {
+                return Results.Ok(ToDto(await m.Send(
+                    new UpdateQualityDocumentCommand(id, req.DocumentTypeId, req.DisplayName, ToDoc(req.Requisites)))));
+            }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+        });
 
         g.MapPut("/{id:guid}/scan", async (Guid id, ScanReq req, IMediator m)
             => Results.Ok(ToDto(await m.Send(new SetQualityDocScanCommand(id, req.ScanBlobPath, req.ScanFileName, req.ScanMimeType)))));
