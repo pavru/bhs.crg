@@ -9,9 +9,10 @@ import type { DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/t
 import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/shared/api/schema';
 import { TYPE_LABELS, toCamelKey, nextAutoKey, nextSavedKey } from './schemaConstants';
 import {
-  useTagRegistry, fieldTags, findTagEntry, hasTag, tagCode, tagOrder, withTagOrder,
+  useTagRegistry, fieldTags, findTagEntry, hasTag, tagCode, withTagOrder,
   type TagDefinition,
 } from '@/shared/api/tags';
+import { FunctionalTagBadge, FunctionalTagChip } from './FunctionalTagChip';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
 import { moveItem } from '@/shared/utils/moveItem';
 // ─── JSON preview ──────────────────────────────────────────────────────────────
@@ -53,11 +54,6 @@ export interface FieldRegistries {
   enumTypes: EnumTypeDef[];
   allDocTypes: DocumentType[];
   tagRegistry: TagDefinition[] | undefined;
-}
-
-/** Человеко-имя функц. тэга по коду (фолбэк — сам код). */
-export function tagLabelOf(tagRegistry: TagDefinition[] | undefined, code: string): string {
-  return (tagRegistry ?? []).find(t => t.code === code)?.label ?? code;
 }
 
 /** Краткая метка типа поля для свёрнутой карточки. */
@@ -382,7 +378,7 @@ export function FieldCard({
             <span className="block text-xs text-fg4 font-mono truncate">{field.key || '—'}</span>
           </span>
           {tags.slice(0, 2).map(tc => (
-            <span key={tc} className="hidden md:inline text-[11px] px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{tagLabelOf(tagRegistry, tc)}</span>
+            <FunctionalTagBadge key={tc} registry={tagRegistry} entry={tc} />
           ))}
           {tags.length > 2 && <span className="text-[11px] text-fg4 shrink-0">+{tags.length - 2}</span>}
           <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{fieldTypeSummary(field, reg)}</span>
@@ -590,38 +586,14 @@ export function FieldCard({
           <span className="text-xs text-fg4 shrink-0 w-28 mt-1">Функц. тэги:</span>
           <div className="flex flex-wrap gap-1.5">
             {applicableTags.map(t => {
-              const entry = findTagEntry(tags, t.code);
-              const on = entry !== undefined;
               return (
-                <span key={t.code} className="inline-flex items-center gap-1">
-                  <button
-                    type="button"
-                    title={t.description}
-                    onClick={() => toggleTag(t.code)}
-                    className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${
-                      on
-                        ? 'bg-purple-500/15 border-purple-400 text-purple-700'
-                        : 'border-stroke text-fg4 hover:border-stroke-strong hover:text-fg2'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                  {/* Номер параметра — только у проставленного тэга, который его принимает (#583):
-                      у неотмеченного поля номер задавать не над чем. */}
-                  {on && t.parameter && (
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={2}
-                      value={tagOrder(entry) ?? ''}
-                      placeholder={t.parameter.label}
-                      title={t.parameter.description}
-                      onChange={e => setTagOrder(t.code, e.target.value)}
-                      className="w-11 px-1 py-0.5 rounded border border-purple-400 bg-surface
-                                 text-xs text-fg1 text-center"
-                    />
-                  )}
-                </span>
+                <FunctionalTagChip
+                  key={t.code}
+                  tag={t}
+                  entry={findTagEntry(tags, t.code)}
+                  onToggle={() => toggleTag(t.code)}
+                  onOrderChange={raw => setTagOrder(t.code, raw)}
+                />
               );
             })}
           </div>
