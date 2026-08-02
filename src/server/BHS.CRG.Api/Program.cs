@@ -189,6 +189,8 @@ builder.Services.AddMediatR(cfg =>
 
 // ── Repositories ──────────────────────────────────────────────────────────────
 builder.Services.AddScoped<IRepository<CatalogEntity>, Repository<CatalogEntity>>();
+builder.Services.AddScoped<IRepository<BHS.CRG.Domain.DataSets.DataSetBinding>,
+    Repository<BHS.CRG.Domain.DataSets.DataSetBinding>>();
 builder.Services.AddScoped<IRepository<PrimitiveType>, Repository<PrimitiveType>>();
 builder.Services.AddScoped<IRepository<EnumType>, Repository<EnumType>>();
 builder.Services.AddScoped<IRepository<BHS.CRG.Domain.Recognition.RecognitionProfile>, Repository<BHS.CRG.Domain.Recognition.RecognitionProfile>>();
