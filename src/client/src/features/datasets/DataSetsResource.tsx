@@ -4,7 +4,9 @@ import { Upload, Trash2, Database, RefreshCw, Download, FileText, LayoutGrid, Ch
 import { Button, IconButton } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { useCreateSystemDataSetFile, useListDataSetFiles, useUploadDataSetFile } from '@/shared/api/datasets';
+import {
+  useCreateSystemDataSetFile, useListDataSetFiles, useSystemDataCandidates, useUploadDataSetFile,
+} from '@/shared/api/datasets';
 import { useRecognitionJobs, useCancelJob, type ActiveJob } from '@/shared/api/jobs';
 import type { CatalogScope, DataSetFile } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS } from '@/shared/api/types';
@@ -146,6 +148,8 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
   const { data: files = [], isLoading } = useListDataSetFiles(scope, scopeId);
   const upload = useUploadDataSetFile();
   const createSystem = useCreateSystemDataSetFile();
+  // Нечего консолидировать на этом уровне — системный набор здесь не предлагаем (issue #606).
+  const { data: systemCandidates = [] } = useSystemDataCandidates(scope, scopeId);
   const recogJobs = useRecognitionJobs();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -165,6 +169,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
   const isAll = selected === ALL;
   const selectedFile = !isAll ? files.find(f => f.id === selected) : undefined;
   const hasSystemFile = files.some(f => f.format === 'System');
+  const offerSystemFile = !hasSystemFile && systemCandidates.length > 0;
 
   // Статус набора: активная задача распознавания (targetId = file.id для ГОСТ, иначе id источника).
   const jobForFile = (f: DataSetFile) =>
@@ -220,8 +225,8 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
         {uploading ? 'Загрузка…' : 'Загрузить файл'}
       </Button>
       {/* Набор без файла: сырьё — данные самой системы. На уровень нужен один, поэтому кнопка
-          прячется, как только он появился. */}
-      {!hasSystemFile && (
+          прячется, как только он появился, и не показывается там, где консолидаций нет. */}
+      {offerSystemFile && (
         <Button variant="text" size="sm" onClick={() => { void addSystemFile(); }}
           loading={createSystem.isPending} icon={<Database size={14} />}>
           Данные системы
@@ -245,13 +250,16 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
         <>
           <input ref={fileInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleFileInput} />
           <EmptyState icon={<Database size={30} />} title="Пока нет наборов данных"
-            description="Загрузите файл (CSV, XLSX, XML, JSON, ZIP, PDF) или перетащите его сюда — из него можно собирать источники для колонок и таблиц документов. Либо возьмите данные самой системы: например, перечень документов комплекта."
+            description={'Загрузите файл (CSV, XLSX, XML, JSON, ZIP, PDF) или перетащите его сюда — из него можно собирать источники для колонок и таблиц документов.'
+              + (offerSystemFile ? ' Либо возьмите данные самой системы: например, перечень документов комплекта.' : '')}
             action={
               <div className="flex items-center gap-2">
                 <Button variant="filled" size="sm" onClick={() => fileInputRef.current?.click()}
                   loading={uploading} icon={<Upload size={14} />}>Загрузить файл</Button>
-                <Button variant="outlined" size="sm" onClick={() => { void addSystemFile(); }}
-                  loading={createSystem.isPending} icon={<Database size={14} />}>Данные системы</Button>
+                {offerSystemFile && (
+                  <Button variant="outlined" size="sm" onClick={() => { void addSystemFile(); }}
+                    loading={createSystem.isPending} icon={<Database size={14} />}>Данные системы</Button>
+                )}
               </div>
             } />
           {uploadError && <p className="text-xs text-danger text-center mt-2">{uploadError}</p>}

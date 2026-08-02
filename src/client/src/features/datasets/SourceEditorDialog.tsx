@@ -7,6 +7,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { useCreateDataSetSource, useUpdateDataSetSource, useListZipXmlEntries, useSourceCandidates } from '@/shared/api/datasets';
 import { XPathBuilder } from './xpath/XPathBuilder';
 import { JsonPathBuilder } from './jsonpath/JsonPathBuilder';
+import { DATA_SET_FORMAT_LABELS } from '@/shared/api/types';
 import type { ColumnExprDef, DataSetSource, DataSetFormat } from '@/shared/api/types';
 
 type PathFormat = 'Xml' | 'Json';
@@ -146,40 +147,50 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
 
   const dialogTitle = initial
     ? 'Редактировать источник'
-    : `Новый источник (${isZip ? 'XML в архиве' : format})`;
+    : `Новый источник (${isZip ? 'XML в архиве' : DATA_SET_FORMAT_LABELS[format]})`;
+
+  // Выбирать не из чего — сохранять нечего: кнопка «Сохранить» осталась бы активной и молча
+  // упиралась бы в ошибку валидации (issue #606).
+  const nothingToPick = picksCandidate && !initial && readyCandidates.length === 0;
 
   return (
     <Modal open onOpenChange={open => { if (!open) onClose(); }} title={dialogTitle} wide
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
-          <Button type="button" variant="filled" onClick={handleSave} loading={isPending}>
+          <Button type="button" variant="filled" onClick={handleSave} loading={isPending}
+            disabled={nothingToPick}>
             {isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>
         </div>
       }>
       <div className="space-y-4 min-w-[520px]">
-        <TextField label="Название" value={name} onChange={e => setName(e.target.value)}
-          hint="Позиции спецификации" />
+        {!nothingToPick && (
+          <TextField label="Название" value={name} onChange={e => setName(e.target.value)}
+            hint="Позиции спецификации" />
+        )}
 
         {picksCandidate ? (
           <div>
-            <Select label={isSystem ? 'Данные системы' : 'Данные набора'} value={sheetOrPath || undefined} placeholder="— выберите —"
-              onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
-              {readyCandidates.map(c => (
-                <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</SelectItem>
-              ))}
-            </Select>
-            {readyCandidates.length === 0 && (
-              <p className="text-xs text-fg4 mt-1">
+            {/* Пустой выпадающий список выглядел бы поломкой — когда выбирать не из чего,
+                показываем причину вместо самого поля (issue #606). */}
+            {readyCandidates.length === 0 ? (
+              <p className="text-sm text-fg3">
                 {isSystem
-                  ? 'Нет доступных консолидаций: либо все уже добавлены, либо на этом уровне их нет (напр. «Документы комплекта» доступны только у набора комплекта).'
+                  ? 'Система пока не может ничего консолидировать на этом уровне: либо всё уже добавлено, либо здесь таких данных нет — «Документы комплекта», например, доступны только у набора внутри комплекта.'
                   : pendingTableCount > 0
                     ? 'Все проекции набора уже добавлены. Таблицы документов сначала распознайте — кнопка «Распознать таблицу» в списке кандидатов под источниками.'
                     : candidates.length === 0
                       ? 'Нет доступных проекций. Если набор ещё не распознан — запустите «Распознать»; таблицы документов распознаются отдельно (кнопка ✂ разбиения).'
                       : 'Все проекции набора уже добавлены как источники.'}
               </p>
+            ) : (
+              <Select label={isSystem ? 'Данные системы' : 'Данные набора'} value={sheetOrPath || undefined} placeholder="— выберите —"
+                onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
+                {readyCandidates.map(c => (
+                  <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</SelectItem>
+                ))}
+              </Select>
             )}
             {selectedCandidate && selectedCandidate.columns.length > 0 && (
               <p className="text-xs text-fg4 mt-1">Колонки: {selectedCandidate.columns.join(', ')}</p>
