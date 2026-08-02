@@ -39,6 +39,37 @@ public class IdentityKeyTests
     public void From_DiffersWhenAnyComponentDiffers()
         => Assert.NotEqual(IdentityKey.From(["Трубка", "T-1"]), IdentityKey.From(["Трубка", "T-2"]));
 
+    /// <summary>
+    /// Сервер обязан проверить пришедший ключ, но НЕ нормализацией целиком: та схлопывает пробелы и
+    /// срезает хвостовые, то есть уничтожает пустые слоты — связка легла бы под ключ, которого
+    /// резолвер не построит никогда (сохранение прошло, строка не привязана, сертификат не в PDF).
+    /// </summary>
+    [Fact]
+    public void Canonicalize_KeepsEmptySlots()
+    {
+        Assert.Equal("трубка | ", IdentityKey.Canonicalize("трубка | "));
+        Assert.Equal(" | трубка", IdentityKey.Canonicalize(" | трубка"));
+        Assert.Equal("трубка |  | t-1", IdentityKey.Canonicalize("трубка |  | t-1"));
+    }
+
+    /// <summary>Ключ, построенный клиентом, канонизацию переживает без изменений — иначе связка не
+    /// нашлась бы сразу после создания.</summary>
+    [Fact]
+    public void Canonicalize_IsIdempotentOverBuiltKeys()
+    {
+        var key = IdentityKey.From(["Трубка", null, "T-1"]);
+        Assert.Equal(key, IdentityKey.Canonicalize(key));
+    }
+
+    [Fact]
+    public void Canonicalize_NormalizesEachComponent()
+        => Assert.Equal("шт | провод ввг", IdentityKey.Canonicalize(" Шт. |  Провод   ВВГ "));
+
+    /// <summary>Ключ без разделителя — легаси-связка по одному полю: ведёт себя как прежде.</summary>
+    [Fact]
+    public void Canonicalize_SingleValueKeyBehavesAsBefore()
+        => Assert.Equal("шт", IdentityKey.Canonicalize("Шт."));
+
     [Fact]
     public void IsEmpty_TrueWhenNothingToMatch()
     {

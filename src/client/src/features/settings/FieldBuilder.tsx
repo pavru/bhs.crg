@@ -331,10 +331,16 @@ export function FieldCard({
     const next = hasTag(tags, code) ? tags.filter(c => tagCode(c) !== code) : [...tags, code];
     onChange({ tags: next.length ? next : undefined });
   };
-  /** Номер компонента у уже проставленного тэга: пусто — без номера (поле идёт после нумерованных). */
+  /**
+   * Номер компонента у уже проставленного тэга: пусто — без номера (поле идёт после нумерованных).
+   *
+   * Ввод ТЕКСТОВЫЙ с фильтром цифр, а не type="number": последний на промежуточно негодном вводе
+   * («1e») отдаёт пустую строку, и номер снимался бы молча — а снятый номер у identity меняет ключи
+   * всех материалов разом. Здесь пусто означает пусто: пользователь стёр цифры сам.
+   */
   const setTagOrder = (code: string, raw: string) => {
-    const order = /^\d+$/.test(raw.trim()) ? Number(raw.trim()) : null;
-    onChange({ tags: withTagOrder(tags, code, order) });
+    const digits = raw.replace(/\D/g, '');
+    onChange({ tags: withTagOrder(tags, code, digits.length ? Number(digits) : null) });
   };
   // Для поля type="primitive" применимые тэги берём из самого типа поля (allowedTags),
   // для встроенных типов — из реестра по типу поля.
@@ -604,8 +610,9 @@ export function FieldCard({
                       у неотмеченного поля номер задавать не над чем. */}
                   {on && t.parameter && (
                     <input
-                      type="number"
-                      min={1}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={2}
                       value={tagOrder(entry) ?? ''}
                       placeholder={t.parameter.label}
                       title={t.parameter.description}

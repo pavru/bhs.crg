@@ -110,6 +110,24 @@ public class SchemaTagsTests
             SchemaTags.OrderedKeysWithTag(child, [parent, child], "identity"));
     }
 
+    /// <summary>
+    /// Исключённое подтипом поле в ключ не входит: редактор схем убирает его из формы, значит в
+    /// строке материала его нет, и учти его сервер — набор компонентов ключа разошёлся бы с
+    /// клиентским, а связка, заведённая в UI, не срабатывала бы на генерации.
+    /// </summary>
+    [Fact]
+    public void OrderedKeysWithTag_HonoursExcludedFields()
+    {
+        var parent = Type("""
+            {"fields":[
+              {"key":"Наименование","tags":["identity"]},
+              {"key":"Артикул","tags":["identity"]}
+            ]}
+            """);
+        var child = Type("""{"fields":[],"excludedFields":["Артикул"]}""", parent.Id);
+        Assert.Equal(["Наименование"], SchemaTags.OrderedKeysWithTag(child, [parent, child], "identity"));
+    }
+
     /// <summary>Номер бьёт положение в схеме — иначе перестановка полей в редакторе меняла бы ключи.</summary>
     [Fact]
     public void OrderedKeysWithTag_NumberBeatsInheritanceDepth()

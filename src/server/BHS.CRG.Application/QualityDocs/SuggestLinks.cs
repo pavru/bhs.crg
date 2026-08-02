@@ -60,8 +60,11 @@ public class SuggestLinksHandler(
         var result = new List<LinkSuggestion>();
         foreach (var m in q.Materials)
         {
-            var key = MatchKeyNormalizer.Normalize(m.Key);
-            if (key.Length == 0 || linkedKeys.Contains(key)) continue; // уже связан или пуст
+            // По компонентам, а не целиком (#582): иначе ключ с пустым слотом не совпал бы ни с уже
+            // заведённой связкой (материал предлагался бы повторно), ни с ключом, который построит
+            // резолвер, — а MaterialKey подсказки клиент сохраняет как есть.
+            var key = IdentityKey.Canonicalize(m.Key);
+            if (IdentityKey.IsEmpty(key) || linkedKeys.Contains(key)) continue; // уже связан или пуст
 
             var matTokens = Tokenize(key);
             if (matTokens.Count == 0) continue;

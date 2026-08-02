@@ -50,13 +50,14 @@ public static class SchemaTags
 
     /// <summary>
     /// То же, что <see cref="TaggedFieldsWithOrder" />, но в ЭФФЕКТИВНОМ порядке схемы: поля предка
-    /// идут перед собственными, наследованное поле стоит там, где объявлено. Ровно так их
-    /// показывает форма — клиентский <c>resolveEffectiveFields</c>.
+    /// идут перед собственными, наследованное поле стоит там, где объявлено, а исключённое
+    /// (<c>excludedFields</c>) не участвует вовсе. Ровно так их показывает форма — клиентский
+    /// <c>resolveEffectiveFields</c>.
     ///
-    /// Обход вверх (ближний тип первым) нужен, чтобы тэги ближнего типа побеждали, и порядком быть
-    /// не может: он даёт обратную картину, а порядок полей виден пользователю и задаёт порядок
-    /// компонентов составного ключа (#583). Разойдись он с клиентским — ключ связки, заведённой в
-    /// UI, не совпал бы с ключом на генерации.
+    /// Обход вверх (ближний тип первым) нужен, чтобы тэги ближнего типа побеждали, и ни порядком, ни
+    /// составом быть не может: порядок он даёт обратный, а исключения не видит вовсе. И то и другое
+    /// видно пользователю и задаёт составной ключ (#583) — разойдись с клиентским, ключ связки,
+    /// заведённой в UI, не совпал бы с ключом на генерации, и связка молча не срабатывала бы.
     /// </summary>
     public static List<(string Key, TagCode Tag)> TaggedFieldsInSchemaOrder(
         DocumentType docType, IReadOnlyList<DocumentType> allDocTypes)
@@ -82,12 +83,23 @@ public static class SchemaTags
         }
         chain.Reverse();
 
-        var result = new List<(string Key, TagCode Tag)>();
-        var placed = new HashSet<string>();
+        var placed = new List<string>();
+        var seen = new HashSet<string>();
         foreach (var type in chain)
+        {
+            // Исключения применяем ДО собственных полей типа: excludedFields относятся к
+            // унаследованному, и порядок здесь тот же, что у DocumentTypeSchemaReader.EffectiveFields.
+            foreach (var excluded in ExcludedFields(type.Schema))
+                if (seen.Remove(excluded)) placed.Remove(excluded);
+
             foreach (var (key, _) in FieldTags(type.Schema))
-                if (placed.Add(key) && byKey.TryGetValue(key, out var tags))
-                    result.AddRange(tags.Select(t => (key, t)));
+                if (seen.Add(key)) placed.Add(key);
+        }
+
+        var result = new List<(string Key, TagCode Tag)>();
+        foreach (var key in placed)
+            if (byKey.TryGetValue(key, out var tags))
+                result.AddRange(tags.Select(t => (key, t)));
         return result;
     }
 
@@ -162,6 +174,19 @@ public static class SchemaTags
                 dict[key] = JsonSerializer.SerializeToElement(value);
 
         return JsonDocument.Parse(JsonSerializer.Serialize(dict));
+    }
+
+    // ── внутреннее: ключи полей, исключённых типом из наследованных ──────────────
+    private static IEnumerable<string> ExcludedFields(JsonDocument schema)
+    {
+        if (schema.RootElement.ValueKind != JsonValueKind.Object
+            || !schema.RootElement.TryGetProperty("excludedFields", out var excluded)
+            || excluded.ValueKind != JsonValueKind.Array)
+            yield break;
+
+        foreach (var key in excluded.EnumerateArray())
+            if (key.ValueKind == JsonValueKind.String && key.GetString() is { Length: > 0 } value)
+                yield return value;
     }
 
     // ── внутреннее: перечисление (fieldKey, tags[]) собственной схемы ────────────

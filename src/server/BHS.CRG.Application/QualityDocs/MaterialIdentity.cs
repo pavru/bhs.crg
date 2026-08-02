@@ -29,8 +29,8 @@ public static class MaterialIdentity
     /// качества молча не попал бы в PDF при здоровом виде в UI.
     /// </summary>
     public static bool IsMaterial(DocumentType type, IReadOnlyList<DocumentType> allTypes)
-        => SchemaTags.TaggedFields(type, allTypes)
-            .Any(f => f.Tag == FunctionalTag.MaterialQualityDocLink);
+        => SchemaTags.TaggedFieldsInSchemaOrder(type, allTypes)
+            .Any(f => f.Tag.Code == FunctionalTag.MaterialQualityDocLink);
 
     /// <summary>
     /// Ключи полей идентичности у типов, способных нести документ качества, — В ПОРЯДКЕ компонентов
