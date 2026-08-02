@@ -11,7 +11,7 @@ import type { DocumentInstance, DocumentType, DataSetSource, DataSetBinding, Dat
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
 import { parseSourceColumnNames, parseRefMapping, buildRefMappingByName, buildRefMappingByIdentity, parseFileMapping, buildFileMapping, parseInlineMapping, buildInlineMapping } from '@/shared/api/datasetHelpers';
-import { FUNCTIONAL_TAG } from '@/shared/api/tags';
+import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 /** Совместимость по наследованию: childId == ancestorId либо childId — потомок ancestorId по parentId. */
 function isSameOrDescendant(childId: string, ancestorId: string, allDocTypes: DocumentType[]): boolean {
@@ -95,7 +95,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
 
   const compositeType = field.typeId ? allDocTypes.find(dt => dt.id === field.typeId) ?? null : null;
   const eff = compositeType ? resolveEffectiveFields(compositeType, allDocTypes).filter(sf => !sf.computed) : [];
-  const identityFields = eff.filter(sf => isScalarField(sf) && sf.tags?.includes(FUNCTIONAL_TAG.identity));
+  const identityFields = eff.filter(sf => isScalarField(sf) && hasTag(sf.tags, FUNCTIONAL_TAG.identity));
   const scalarSubs = eff.filter(sf => isScalarField(sf) && sf.type !== 'file');
   const compositeSubs = eff.filter(sf => sf.type === 'complex' && sf.typeId);
 

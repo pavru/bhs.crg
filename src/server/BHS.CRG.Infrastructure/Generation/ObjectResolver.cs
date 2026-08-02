@@ -93,12 +93,14 @@ public sealed class ObjectResolver(AppDbContext db) : IObjectResolver
         return result;
     }
 
-    /// <summary>identity-поля типа в ПОРЯДКЕ СХЕМЫ (наследование-aware, ближний тип первым).</summary>
+    /// <summary>
+    /// identity-поля типа в ПОРЯДКЕ КОМПОНЕНТОВ ключа (наследование-aware, ближний тип первым):
+    /// сначала номер из параметра тэга («identity:1»), затем поля без номера в порядке схемы
+    /// (issue #583). Порядок полей в схеме задан ради формы ввода — привязывать к нему состав ключа
+    /// значило бы менять ключи всех объектов при перестановке полей местами.
+    /// </summary>
     private static IReadOnlyList<string> IdentityFieldKeys(DocumentType type, IReadOnlyList<DocumentType> all) =>
-        SchemaTags.TaggedFields(type, all)
-            .Where(t => t.Tag == FunctionalTag.Identity)
-            .Select(t => t.Key)
-            .ToList();
+        SchemaTags.OrderedKeysWithTag(type, all, FunctionalTag.Identity);
 
     /// <summary>Составной ключ из значений полей (порядок = identityKeys). Пустой компонент → null
     /// (строгий режим: не индексируем/не ищем частичный ключ — иначе ложные слияния).</summary>

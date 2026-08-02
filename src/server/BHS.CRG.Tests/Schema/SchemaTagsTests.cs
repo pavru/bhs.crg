@@ -60,6 +60,84 @@ public class SchemaTagsTests
         Assert.Equal(["Кач"], SchemaTags.FieldKeysWithTag(dt.Schema, "material.qualityDocLink"));
     }
 
+    // ── Параметр порядка у тэга (issue #583) ──────────────────────────────────
+
+    /// <summary>
+    /// Существующий функционал сравнивает тэг с константой и о параметрах не знает — поэтому тэг
+    /// отдаётся КОДОМ. Иначе поле с номером молча выпало бы из сопоставления.
+    /// </summary>
+    [Fact]
+    public void TaggedFields_StripParameterFromTag()
+    {
+        var dt = Type("""{"fields":[{"key":"Арт","tags":["identity:1"]}]}""");
+        Assert.Equal(("Арт", "identity"), SchemaTags.TaggedFields(dt, [dt])[0]);
+        Assert.Equal(["Арт"], SchemaTags.FieldKeysWithTag(dt.Schema, "identity"));
+    }
+
+    [Fact]
+    public void SchemaHasTypeTag_IgnoresParameter()
+    {
+        var dt = Type("""{"fields":[],"tags":["type.union:2"]}""");
+        Assert.True(SchemaTags.SchemaHasTypeTag(dt.Schema, "type.union"));
+    }
+
+    [Fact]
+    public void OrderedKeysWithTag_NumberedFirst_ThenSchemaOrder()
+    {
+        var dt = Type("""
+            {"fields":[
+              {"key":"Наименование","tags":["identity"]},
+              {"key":"Артикул","tags":["identity:1"]},
+              {"key":"Производитель","tags":["identity:2"]},
+              {"key":"Кач","tags":["material.qualityDocLink"]}
+            ]}
+            """);
+        Assert.Equal(["Артикул", "Производитель", "Наименование"],
+            SchemaTags.OrderedKeysWithTag(dt, [dt], "identity"));
+    }
+
+    /// <summary>
+    /// Порядок полей — ЭФФЕКТИВНЫЙ (поля предка перед собственными), ровно как их показывает форма.
+    /// Обход наследования идёт в обратную сторону (ближний тип первым, чтобы его тэги побеждали), и
+    /// если бы порядком служил он, ключ связки, заведённой в UI, не совпал бы с ключом на генерации.
+    /// </summary>
+    [Fact]
+    public void OrderedKeysWithTag_ParentFieldsBeforeOwn()
+    {
+        var parent = Type("""{"fields":[{"key":"Наименование","tags":["identity"]}]}""");
+        var child = Type("""{"fields":[{"key":"МаркаКабеля","tags":["identity"]}]}""", parent.Id);
+        Assert.Equal(["Наименование", "МаркаКабеля"],
+            SchemaTags.OrderedKeysWithTag(child, [parent, child], "identity"));
+    }
+
+    /// <summary>
+    /// Исключённое подтипом поле в ключ не входит: редактор схем убирает его из формы, значит в
+    /// строке материала его нет, и учти его сервер — набор компонентов ключа разошёлся бы с
+    /// клиентским, а связка, заведённая в UI, не срабатывала бы на генерации.
+    /// </summary>
+    [Fact]
+    public void OrderedKeysWithTag_HonoursExcludedFields()
+    {
+        var parent = Type("""
+            {"fields":[
+              {"key":"Наименование","tags":["identity"]},
+              {"key":"Артикул","tags":["identity"]}
+            ]}
+            """);
+        var child = Type("""{"fields":[],"excludedFields":["Артикул"]}""", parent.Id);
+        Assert.Equal(["Наименование"], SchemaTags.OrderedKeysWithTag(child, [parent, child], "identity"));
+    }
+
+    /// <summary>Номер бьёт положение в схеме — иначе перестановка полей в редакторе меняла бы ключи.</summary>
+    [Fact]
+    public void OrderedKeysWithTag_NumberBeatsInheritanceDepth()
+    {
+        var parent = Type("""{"fields":[{"key":"Наименование","tags":["identity:2"]}]}""");
+        var child = Type("""{"fields":[{"key":"МаркаКабеля","tags":["identity:1"]}]}""", parent.Id);
+        Assert.Equal(["МаркаКабеля", "Наименование"],
+            SchemaTags.OrderedKeysWithTag(child, [parent, child], "identity"));
+    }
+
     [Fact]
     public void TypeHasTag_WalksInheritance()
     {

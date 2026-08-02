@@ -29,18 +29,37 @@ public static class MaterialIdentity
     /// качества молча не попал бы в PDF при здоровом виде в UI.
     /// </summary>
     public static bool IsMaterial(DocumentType type, IReadOnlyList<DocumentType> allTypes)
-        => SchemaTags.TaggedFields(type, allTypes)
-            .Any(f => f.Tag == FunctionalTag.MaterialQualityDocLink);
+        => SchemaTags.TaggedFieldsInSchemaOrder(type, allTypes)
+            .Any(f => f.Tag.Code == FunctionalTag.MaterialQualityDocLink);
 
-    /// <summary>Ключи полей идентичности у типов, способных нести документ качества.</summary>
+    /// <summary>
+    /// Ключи полей идентичности у типов, способных нести документ качества, — В ПОРЯДКЕ компонентов
+    /// составного ключа (issue #583): сначала параметр тэга («identity:1» перед «identity:2»), затем
+    /// поля без номера.
+    ///
+    /// Номер сравнивается СКВОЗЬ типы, а не внутри каждого: пользователь видит номера как сквозную
+    /// нумерацию компонентов ключа, и «identity:1» подтипа кабеля обязан стоять перед «identity:2»
+    /// базового материала, иначе номера означали бы разное в зависимости от того, где поле объявлено.
+    ///
+    /// Типы обходятся по идентификатору, а не в порядке выдачи хранилища: порядок строк без ORDER BY
+    /// не гарантирован, а от него зависят ключи ВСЕХ материалов — «плавающий» порядок означал бы, что
+    /// связки перестают находиться после перезапуска и никто не понимает почему. Сравнение —
+    /// ПОСТРОКОВОЕ (ordinal), а не <see cref="Guid.CompareTo(Guid)" />: те же ключи строит клиент
+    /// (<c>materialIdentityKeys</c>), а он умеет сравнивать идентификаторы только строками. Разойдись
+    /// эти два порядка — ключ связки, заведённой в UI, не совпал бы с ключом на генерации.
+    /// </summary>
     public static string[] KeysOf(IReadOnlyList<DocumentType> allTypes)
-        => allTypes
+        => [.. allTypes
             .Where(t => IsMaterial(t, allTypes))
-            .SelectMany(t => SchemaTags.TaggedFields(t, allTypes)
-                .Where(f => f.Tag == FunctionalTag.Identity)
-                .Select(f => f.Key))
-            .Distinct()
-            .ToArray();
+            .OrderBy(t => t.Id.ToString(), StringComparer.Ordinal)
+            .SelectMany((t, typeIndex) => SchemaTags.TaggedFieldsInSchemaOrder(t, allTypes)
+                .Select((f, fieldIndex) => (f.Key, f.Tag, typeIndex, fieldIndex)))
+            .Where(x => x.Tag.Code == FunctionalTag.Identity)
+            .OrderBy(x => x.Tag.SortKey)
+            .ThenBy(x => x.typeIndex)
+            .ThenBy(x => x.fieldIndex)   // стабильность: поля без номера идут в порядке схемы
+            .Select(x => x.Key)
+            .Distinct()];
 
     /// <summary>Ключ поля, в которое подмешивается документ качества (тэг material.qualityDocLink).</summary>
     public static string? QualityDocFieldOf(IReadOnlyList<DocumentType> allTypes)

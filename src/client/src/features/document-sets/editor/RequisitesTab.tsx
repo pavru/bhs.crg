@@ -4,7 +4,7 @@ import { Markdown } from '@/shared/ui/Markdown';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { useUpdateRequisites, useResolutionDiagnostics, brokenRefPaths } from '@/shared/api/documentSets';
-import { FUNCTIONAL_TAG } from '@/shared/api/tags';
+import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import type { DocumentInstance, DocumentType, PrimitiveTypeDef, EnumTypeDef, CommonDataEntry } from '@/shared/api/types';
 import { SCOPE_LABELS, isFieldRef } from '@/shared/api/types';
 import { useCommonDataForSet } from '@/shared/api/commonData';
@@ -453,7 +453,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                   <ImageField value={raw} onChange={v => setValue(field.key, v)} />
                 ) : field.type === 'file' ? (
                   <FileField value={raw} onChange={v => setValue(field.key, v)}
-                    printForm={field.tags?.includes(FUNCTIONAL_TAG.docPrintForm) ? {
+                    printForm={hasTag(field.tags, FUNCTIONAL_TAG.docPrintForm) ? {
                       setId, instanceId: instance.id, fieldKey: field.key,
                       onMetaUpdated: updates => {
                         setValues(prev => ({ ...prev, ...updates }));
@@ -554,7 +554,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
   const helpText = (docType?.schema as { help?: string } | undefined)?.help?.trim();
   const hasLevelProfile = allDocTypes.some(t => {
     const tags = (t.schema as { tags?: string[] }).tags ?? [];
-    return tags.includes('profile.construction') || tags.includes('profile.section') || tags.includes('profile.set');
+    return hasTag(tags, 'profile.construction') || hasTag(tags, 'profile.section') || hasTag(tags, 'profile.set');
   });
 
   return (

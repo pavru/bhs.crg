@@ -28,9 +28,8 @@ public record MaterialLabelReport(
 ///
 /// Имя собирается из тех же полей, что читает вкладка «Документы качества» внутри документа — по
 /// тэгу <see cref="FunctionalTag.Identity"/>, — и из тех же ДВУХ источников: строк привязанных
-/// наборов данных И массивов материалов в самих реквизитах документа. Порядок склейки значений
-/// детерминирован (типы по имени), но может отличаться от клиентского: там он задан порядком типов
-/// в ответе API. Для сопоставления это неважно — ключи те же.
+/// наборов данных И массивов материалов в самих реквизитах документа. Порядок склейки задаёт
+/// <see cref="MaterialIdentity.KeysOf"/> и он один на сервер и клиент (#583).
 ///
 /// НЕ EF-миграция: читает и разбирает файлы наборов из блоб-хранилища, которого на старте приложения
 /// может не быть. Момент выбирает администратор и видит отчёт — как у переноса картинок (#522).
@@ -94,7 +93,7 @@ public class MaterialLabelBackfill(
         return new MaterialLabelReport(links.Count, named, links.Count - named, scanned, failed);
     }
 
-    /// <summary>Проставляет имена связкам, чей ключ совпал с любым из значений идентичности строки.</summary>
+    /// <summary>Проставляет имена связкам, чей ключ совпал с одним из ключей строки материала.</summary>
     private static int Apply(
         IEnumerable<(IReadOnlyList<string> Keys, string Label)> materials,
         Dictionary<string, List<MaterialQualityLink>> byKey)
@@ -102,10 +101,10 @@ public class MaterialLabelBackfill(
         var named = 0;
         foreach (var (keys, label) in materials)
         {
-            // Сопоставляем по ЛЮБОМУ значению идентичности — так матчит резолвер связок
-            // (QualityLinkResolver.TryMatch). Перебираем ВСЕ совпавшие ключи, а не только первый:
-            // связки одного материала могли быть заведены и по артикулу, и по наименованию, и
-            // остановка на первом оставила бы вторую группу без имени навсегда.
+            // Ключей у строки несколько, и это не про сопоставление, а про возраст связки: сегодня
+            // ключ СОСТАВНОЙ (#582), а связки, заведённые до него, лежат под ключом одного поля —
+            // артикула ИЛИ наименования. Инструмент разовый и восстанавливает имена как раз таким,
+            // поэтому пробуем все ключи; на выбор документа это не влияет — правится только подпись.
             foreach (var key in keys)
             {
                 if (!byKey.TryGetValue(key, out var found)) continue;
@@ -126,11 +125,24 @@ public class MaterialLabelBackfill(
     /// </summary>
     private async Task<List<string>> IdentityKeysAsync(CancellationToken ct)
     {
-        var allTypes = await db.DocumentTypes.AsNoTracking()
-            .OrderBy(t => t.Name)   // детерминированный порядок: от него зависит порядок слов в имени
-            .ToListAsync(ct);
+        // Порядок выдачи не важен: KeysOf упорядочивает поля сам — номером тэга, а типы
+        // идентификатором (#583), и от порядка строк в ответе БД не зависит.
+        var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
         return MaterialIdentity.KeysOf(allTypes).ToList();
     }
+
+    /// <summary>Непустые значения идентичности — из них складывается ЧЕЛОВЕЧЕСКОЕ имя, поэтому здесь
+    /// пустые слоты как раз выбрасываются: подпись «трубка ·  · » ничего не объясняет.</summary>
+    private static List<string> Shown(IEnumerable<string?> ordered)
+        => [.. ordered.Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v!.Trim())];
+
+    /// <summary>Ключи, под которыми связка могла быть заведена: сегодняшний составной (#582) и — для
+    /// заведённых до него — по каждому значению в отдельности.</summary>
+    private static IReadOnlyList<string> KeysOf(IEnumerable<string?> ordered, IEnumerable<string> shown)
+        => [.. shown.Select(MatchKeyNormalizer.Normalize)
+            .Prepend(IdentityKey.From(ordered))
+            .Where(k => !IdentityKey.IsEmpty(k))
+            .Distinct()];
 
     /// <summary>
     /// Материалы из реквизитов документа: массивы объектов верхнего уровня, у элементов которых есть
@@ -149,23 +161,25 @@ public class MaterialLabelBackfill(
             foreach (var element in property.Value.EnumerateArray())
             {
                 if (element.ValueKind != JsonValueKind.Object) continue;
-                var values = identityKeys
+                // Порядок значений = порядок компонентов ключа, ПУСТЫЕ СЛОТЫ СОХРАНЯЮТСЯ: составной
+                // ключ строится по позициям (#582), и выброшенное пустое значение сдвинуло бы все
+                // последующие компоненты.
+                var ordered = identityKeys
                     .Select(k => element.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String
                         ? v.GetString() : null)
-                    .Where(v => !string.IsNullOrWhiteSpace(v))
-                    .Select(v => v!.Trim())
                     .ToList();
-                if (values.Count == 0) continue;
+                var shown = Shown(ordered);
+                if (shown.Count == 0) continue;
 
-                var keys = values.Select(MatchKeyNormalizer.Normalize).Where(k => k.Length > 0).ToList();
-                if (keys.Count > 0) yield return (keys, string.Join(" · ", values));
+                var keys = KeysOf(ordered, shown);
+                if (keys.Count > 0) yield return (keys, string.Join(" · ", shown));
             }
         }
     }
 
     /// <summary>
-    /// Пары «возможные ключи → человеческое имя» из строк превью. Ключей несколько: связка могла быть
-    /// заведена по любому полю идентичности, и совпасть должен любой из них.
+    /// Пары «возможные ключи → человеческое имя» из строк превью. Ключей несколько: сегодняшний
+    /// составной и легаси-ключи по одному полю (см. <see cref="Apply" />).
     /// </summary>
     private static IEnumerable<(IReadOnlyList<string> Keys, string Label)> MaterialsOf(
         IReadOnlyList<BindingPreviewDto> preview, IReadOnlyList<string> identityKeys)
@@ -181,16 +195,15 @@ public class MaterialLabelBackfill(
             };
             foreach (var row in rows)
             {
-                var values = identityKeys
+                var ordered = identityKeys
                     .Select(k => row.TryGetValue(k, out var v) ? v as string : null)
-                    .Where(v => !string.IsNullOrWhiteSpace(v))
-                    .Select(v => v!.Trim())
                     .ToList();
-                if (values.Count == 0) continue;
+                var shown = Shown(ordered);
+                if (shown.Count == 0) continue;
 
-                var keys = values.Select(MatchKeyNormalizer.Normalize).Where(k => k.Length > 0).ToList();
+                var keys = KeysOf(ordered, shown);
                 if (keys.Count == 0) continue;
-                yield return (keys, string.Join(" · ", values));
+                yield return (keys, string.Join(" · ", shown));
             }
         }
     }

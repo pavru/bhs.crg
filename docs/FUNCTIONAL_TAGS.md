@@ -10,7 +10,7 @@
 Функциональные тэги — **единственный санкционированный способ связать hard-coded функционал с пользовательской схемой** (типами документов, полями).
 
 Без тэгов: hard-code находит поле по имени `"Артикул"` → имя меняется → всё ломается.  
-С тэгами: hard-code спрашивает `«поле с тэгом material.identity»` → связь не зависит от названия.
+С тэгами: hard-code спрашивает `«поле с тэгом identity»` → связь не зависит от названия.
 
 ---
 
@@ -46,7 +46,7 @@ TagRegistry.cs            ← метаданные каждого тэга (scop
 // Поле — fields[].tags
 {
   "fields": [
-    { "key": "Артикул", "type": "string", "tags": ["material.identity"] },
+    { "key": "Артикул", "type": "string", "tags": ["identity"] },
     { "key": "НомерДокумента", "type": "string", "tags": ["doc.number"] }
   ]
 }
@@ -59,6 +59,19 @@ TagRegistry.cs            ← метаданные каждого тэга (scop
 ```
 
 Поле `tags: string[]` разрешено как у поля, так и у типа. Тэги наследуются: если тип-родитель несёт `type.qualityDocument`, потомок тоже считается документом качества.
+
+### Параметр тэга — запись `код:параметр` (issue #583)
+
+Запись тэга может нести числовой параметр: `"tags": ["identity:1"]`. Разделитель — двоеточие: в кодах
+тэгов его нет (там точки), поэтому разбор однозначен, а запись без параметра остаётся собой.
+
+Разбирается запись в ОДНОЙ точке — `TagCode` (backend) и `tagCode`/`tagOrder` (frontend); аксессоры
+отдают тэг **кодом**, поэтому весь функционал, сравнивающий тэг с константой, параметров не замечает.
+Негодный параметр (`identity:`, `identity:первый`) ошибкой не считается — тэг работает без номера:
+опечатка не должна молча отключать поле от сопоставления.
+
+Параметр объявляется в реестре (`TagParameter` в `TagDefinition`) — только объявившим его тэгам
+редактор схем показывает поле ввода номера. Сегодня параметр есть у одного тэга — `identity`.
 
 ---
 
@@ -74,7 +87,7 @@ TagRegistry.cs            ← метаданные каждого тэга (scop
 | `doc.printForm` | `DocPrintForm` | `docPrintForm` | `file` | Нет | Поле-файл с загруженной печатной формой; при загрузке запускается извлечение метаданных (кол-во страниц и т.д.) |
 | `doc.number` | `DocNumber` | `docNumber` | `string`, `text` | Нет | Номер документа — используется в списках (в т.ч. в библиотеке документов качества) |
 | `doc.date` | `DocDate` | — | `date`, `string`, `text` | Нет | Дата документа, заполняемая пользователем. В отличие от `doc.generatedAt` не меняется при повторной генерации PDF; попадает в консолидации (напр. в реестр документов комплекта) |
-| `material.identity` | `MaterialIdentity` | `materialIdentity` | `string`, `text` | **Да** | Поле идентичности материала (артикул, наименование и т.п.) для сопоставления с документом качества. Можно навесить на несколько полей — порядок задаёт приоритет |
+| `identity` | `Identity` | `identity` | `string`, `text` | **Да** | Поле-идентификатор объекта (артикул, наименование и т.п.): по нему строка сопоставляется с объектом каталога и материал — с документом качества. Отмеченных полей может быть несколько: ключ склеивается из **всех** них (issue #582), а порядок компонентов задаёт параметр — `identity:1`, `identity:2` (issue #583) |
 | `material.qualityDocLink` | `MaterialQualityDocLink` | `materialQualityDocLink` | `complex` | Нет | Целевое поле, в которое `QualityLinkResolver` подмешивает данные привязанного документа качества |
 | `quality.validUntil` | `QualityValidUntil` | `qualityValidUntil` | `date` | Нет | Срок действия документа качества. Просроченные документы исключаются при автоподборе к материалу |
 | `quality.manufacturer` | `QualityManufacturer` | `qualityManufacturer` | `string`, `text` | Нет | Производитель — для группировки библиотеки и оценки релевантности при подборе |
@@ -94,7 +107,7 @@ TagRegistry.cs            ← метаданные каждого тэга (scop
 | `doc.pageCount`, `doc.generatedAt`, `doc.generatedBy` | `GenerateDocumentHandler` — патчит реквизиты после генерации через `SchemaTags.PatchMetadata` |
 | `doc.printForm` | `PrintFormEndpoints` — при загрузке файла извлекает метаданные и патчит реквизиты; детект поля через `SchemaTags.FieldKeysWithTag` |
 | `doc.pageCount` | `MetadataExtractor` — пишет кол-во страниц после рендера PDF |
-| `material.identity` | `QualityLinkResolver` — находит поля идентичности в составных типах для сопоставления материал↔документ качества |
+| `identity` | `QualityLinkResolver` — находит поля идентичности в составных типах для сопоставления материал↔документ качества |
 | `material.qualityDocLink` | `QualityLinkResolver` — находит целевое поле и подмешивает данные документа |
 | `type.qualityDocument` | `QualityLinkResolver`, `QualityEndpoints` — фильтрует типы документов качества без хардкода имён |
 | `doc.number`, `doc.date`, `doc.generatedAt`, `doc.pageCount` | `SetDocumentsProvider` — колонки консолидации «Документы комплекта» (системный набор данных): значения реквизитов ищутся по тэгу, поэтому реестр не зависит от имён полей в схемах типов |
@@ -106,7 +119,7 @@ TagRegistry.cs            ← метаданные каждого тэга (scop
 | Тэг(и) | Где используется |
 |---|---|
 | `type.qualityDocument` | `QualityDocsPage`, `QualityDocForm` — определяет тип «документ качества» вместо хардкода GUID |
-| `material.identity` | `QualityLinksTab` — находит поля идентичности в составных типах для отображения/сопоставления |
+| `identity` | `QualityLinksTab` — находит поля идентичности в составных типах для отображения/сопоставления |
 | `material.qualityDocLink` | `QualityLinksTab` — находит целевое поле ссылки в составных типах |
 | `quality.validUntil` | `QualityLinksTab` — фильтрует просроченные документы при подборе |
 | `quality.manufacturer` | `QualityLinksTab` — группировка библиотеки, оценка релевантности |
@@ -133,8 +146,8 @@ const isQuality = typeHasTag(docType, FUNCTIONAL_TAG.typeQualityDocument);
 
 ```ts
 // src/client/src/shared/api/schema.ts
-findTaggedFieldPath(schema, FUNCTIONAL_TAG.materialIdentity)  // → путь к полю (в т.ч. в составных)
-compositeFieldHasTag(field, FUNCTIONAL_TAG.materialIdentity)  // → boolean
+findTaggedFieldPath(schema, FUNCTIONAL_TAG.identity)  // → путь к полю (в т.ч. в составных)
+compositeFieldHasTag(field, FUNCTIONAL_TAG.identity)  // → boolean
 typeHasTag(docType, FUNCTIONAL_TAG.typeQualityDocument)        // → boolean (с наследованием)
 ```
 
@@ -145,7 +158,7 @@ typeHasTag(docType, FUNCTIONAL_TAG.typeQualityDocument)        // → boolean (�
 var tagged = SchemaTags.TaggedFields(docType, allDocTypes);
 
 // Ключи полей с конкретным тэгом (только своя схема)
-var keys = SchemaTags.FieldKeysWithTag(docType.Schema, FunctionalTag.MaterialIdentity);
+var keys = SchemaTags.FieldKeysWithTag(docType.Schema, FunctionalTag.Identity);
 
 // Тип или его предок несёт тэг типа?
 bool isQuality = SchemaTags.TypeHasTag(docType, allDocTypes, FunctionalTag.TypeQualityDocument);
@@ -208,6 +221,6 @@ var patched = SchemaTags.PatchMetadata(current, taggedFields, new Dictionary<str
 
 - **Опечатка в старых шаблонах:** в ранних шаблонах встречается «ДокументПодтверждающийКачетво» (опечатка). После перехода на тэги правильное написание — «ДокументПодтверждающийКачество». При редактировании шаблонов использовать корректное написание.
 
-- **Multiple = true для `material.identity`:** одному составному типу можно назначить несколько полей идентичности — порядок в массиве `tags` задаёт приоритет при матчинге (первый матч → успех).
+- **Multiple = true для `identity`:** одному составному типу можно назначить несколько полей идентичности. Ключ склеивается из **всех** них, каждая часть нормализуется, пустое поле даёт пустой слот (issue #582) — то есть объект опознаётся всеми полями сразу, а не любым из них. Прежний матчинг «первое совпадение по порядку полей» отменён: он допускал две связки на один материал с разными сертификатами и молча выбирал победителя. Порядок компонентов задаёт параметр тэга (`identity:1`), а не порядок полей в схеме (issue #583).
 
 - **Наследование тэгов типа:** `SchemaTags.TypeHasTag` идёт по цепочке `ParentId` вверх. Потомок типа `type.qualityDocument` автоматически считается документом качества без явного тэга.
