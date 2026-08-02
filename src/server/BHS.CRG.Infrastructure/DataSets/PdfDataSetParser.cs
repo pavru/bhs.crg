@@ -9,7 +9,7 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// небыстро, недетерминированно. Поэтому источники создаются вручную (без авто-детекта, как и
 /// для XML), а реальные данные не идут через <see cref="ParseAsync"/> — распознавание запускается
 /// явным действием пользователя, результат кэшируется на DataSetSource.CachedData и оттуда же
-/// читается пайплайном (см. DataSetBindingProcessor.LoadRowsAsync), минуя повторный парсинг.
+/// читается пайплайном (см. DataSetRowLoader.LoadRowsAsync), минуя повторный парсинг.
 /// </summary>
 public class PdfDataSetParser : IDataSetParser
 {

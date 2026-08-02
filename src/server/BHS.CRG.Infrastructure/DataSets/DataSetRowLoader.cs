@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.DataSets;
 
 namespace BHS.CRG.Infrastructure.DataSets;
@@ -16,11 +17,11 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// поэтому читает уже распознанные и закэшированные строки (DataSetSource.CachedData), не
 /// перезапускает распознавание — см. DataSetService.RecognizePdfSourceAsync.
 /// </summary>
-public static class DataSetBindingProcessor
+public class DataSetRowLoader(
+    IBlobStorage blob,
+    DataSetParserFactory parserFactory) : IDataSetRowLoader
 {
-    public static async Task<List<IReadOnlyDictionary<string, string?>>> LoadRowsAsync(
-        IBlobStorage blob,
-        DataSetParserFactory parserFactory,
+    public async Task<List<IReadOnlyDictionary<string, string?>>> LoadRowsAsync(
         DataSetSource source,
         CancellationToken ct)
     {
