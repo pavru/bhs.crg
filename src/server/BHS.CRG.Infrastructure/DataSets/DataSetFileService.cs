@@ -19,6 +19,7 @@ public class DataSetFileService(
     AppDbContext db,
     IBlobStorage blob,
     DataSetParserFactory parserFactory,
+    SystemSourceCounter systemCounts,
     ILogger<DataSetFileService> logger,
     INotificationService notifications)
 {
@@ -40,7 +41,11 @@ public class DataSetFileService(
                 .GroupBy(b => b.SourceId)
                 .ToDictionaryAsync(g => g.Key, g => g.Count(), ct);
 
-        return files.Select(f => DataSetDtoMapper.MapFile(f, bindingCounts)).ToList();
+        // Строки системных наборов живые — их число считаем заново, а не показываем запомненное
+        // при создании источника (issue #613).
+        var liveRowCounts = await systemCounts.CountAsync(files, ct);
+
+        return files.Select(f => DataSetDtoMapper.MapFile(f, bindingCounts, liveRowCounts)).ToList();
     }
 
     public async Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(Guid setId, CancellationToken ct)
@@ -60,7 +65,8 @@ public class DataSetFileService(
             .OrderBy(f => f.Scope).ThenBy(f => f.Name)
             .ToListAsync(ct);
 
-        return files.Select(f => DataSetDtoMapper.MapFile(f)).ToList();
+        var liveRowCounts = await systemCounts.CountAsync(files, ct);
+        return files.Select(f => DataSetDtoMapper.MapFile(f, bindingCounts: null, liveRowCounts)).ToList();
     }
 
     public async Task<DataSetFileDto> UploadFileAsync(UploadFileInput input, CancellationToken ct)

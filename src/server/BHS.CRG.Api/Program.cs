@@ -335,6 +335,7 @@ builder.Services.AddSingleton<DataSetParserFactory>();
 builder.Services.AddScoped<ISystemDataProvider, SetDocumentsProvider>();
 builder.Services.AddScoped<SystemDataProviderRegistry>();
 builder.Services.AddScoped<IDataSetRowLoader, DataSetRowLoader>();
+builder.Services.AddScoped<SystemSourceCounter>();
 builder.Services.AddScoped<DataSetProcessingTemplateService>();
 builder.Services.AddScoped<DataSetBindingTemplateService>();
 builder.Services.AddScoped<DataSetPdfRecognitionService>();
