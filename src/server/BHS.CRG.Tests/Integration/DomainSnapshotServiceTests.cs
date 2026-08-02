@@ -4,8 +4,10 @@ using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
+using BHS.CRG.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -157,6 +159,73 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         var value = resolved.Requisites.GetProperty("Подрядчик");
         Assert.False(value.TryGetProperty("$ref", out _));
         Assert.Equal("ООО Ромашка", value.GetProperty("Наименование").GetString());
+    }
+
+    /// <summary>
+    /// Табличное поле (issue #591). Реквизиты его значения не несут — строки подмешивает генерация, —
+    /// и по прежнему ответу «таблицы нет» было неотличимо от «таблица придёт из набора»: внешний
+    /// анализ принял реестр из 151 позиции за пустой и выдал ошибочное замечание.
+    ///
+    /// Заодно это единственная обратная ссылка «документ → источник»: из какой именно распознанной
+    /// таблицы собран документ, больше узнать неоткуда.
+    /// </summary>
+    [Fact]
+    public async Task GetDocument_ShowsTableFields_BoundAndUnbound()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var docType = await m.Send(new CreateDocumentTypeCommand(
+            "Реестр материалов", Code("REG"), DocumentTypeKind.Document, null,
+            JsonDocument.Parse("""
+                {"fields":[
+                    {"key":"Материалы","title":"Материалы","type":"array"},
+                    {"key":"Приложения","title":"Приложения","type":"array"},
+                    {"key":"НомерАкта","title":"Номер акта","type":"string"}
+                ]}
+                """)));
+
+        var construction = await m.Send(new CreateConstructionCommand("ДНС Сити", Guid.NewGuid()));
+        var section = await m.Send(new CreateSectionCommand(construction.Id, "ЭОМ"));
+        var set = await m.Send(new CreateDocumentSetCommand(section.Id, "ЭОМ-1"));
+        var doc = await m.Send(new AddDocumentToSetCommand(set.Id, docType.Id));
+
+        // PDF-источник с кэшем строк: распознанная таблица, каких у кабельного журнала бывает три.
+        var blob = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
+        var blobPath = await blob.UploadAsync("a.pdf", new MemoryStream([1, 2, 3]), "application/pdf");
+        var rows = new[]
+        {
+            new Dictionary<string, string?> { ["Наименование"] = "Кабель ВВГнг 3х2.5" },
+            new Dictionary<string, string?> { ["Наименование"] = "Лоток 100х50" },
+        };
+        var file = DataSetFile.Create("Альбом ЭОМ", DataSetFormat.Pdf, blobPath, CatalogScope.Construction, construction.Id);
+        var source = file.AddSource("Таблица — Реестр материалов", "table:1",
+            JsonSerializer.Serialize(new[] { new { name = "Наименование", sampleValues = new[] { "Кабель" } } }),
+            rows.Length, null, JsonSerializer.Serialize(rows));
+        db.DataSetFiles.Add(file);
+        db.DataSetSources.Add(source);
+        db.DataSetBindings.Add(DataSetBinding.For(doc.Id, source.Id, "Материалы", "{}"));
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var detail = await Svc(scope).GetDocumentAsync(doc.Id);
+
+        var bound = Assert.Single(detail!.TableFields, f => f.Key == "Материалы");
+        Assert.True(bound.BoundToDataset);
+        Assert.Equal(source.Id, bound.SourceId);
+        Assert.Equal(file.Id, bound.DatasetId);
+        Assert.Equal("Таблица — Реестр материалов", bound.SourceName);
+        Assert.Equal(2, bound.RowCount);
+
+        // Непривязанное табличное поле — тоже ответ, причём тот, ради которого всё затевалось:
+        // здесь «пусто» означает именно пусто.
+        var unbound = Assert.Single(detail.TableFields, f => f.Key == "Приложения");
+        Assert.False(unbound.BoundToDataset);
+        Assert.Null(unbound.RowCount);
+
+        // Скалярные поля в перечень не попадают — они и так видны в реквизитах.
+        Assert.DoesNotContain(detail.TableFields, f => f.Key == "НомерАкта");
     }
 
     [Fact]

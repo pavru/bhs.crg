@@ -1,13 +1,17 @@
 ﻿using System.Text.Json;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.QualityDocs;
+using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
+using BHS.CRG.Infrastructure.Persistence;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace BHS.CRG.Infrastructure.Generation;
 
@@ -19,7 +23,9 @@ public class DomainSnapshotService(
     IRepository<Section> sections,
     IRepository<Construction> constructions,
     IRepository<DomainObject> domainObjects,
-    IEntityResolver entityResolver) : IDomainSnapshotService
+    IEntityResolver entityResolver,
+    AppDbContext db,
+    IDataSetRowLoader rowLoader) : IDomainSnapshotService
 {
     private static readonly JsonElement EmptyObject = JsonDocument.Parse("{}").RootElement.Clone();
 
@@ -97,7 +103,57 @@ public class DomainSnapshotService(
             type?.Code ?? "", type?.Name ?? "",
             doc.Facet?.Status.ToString() ?? "",
             set?.Id, set?.Name,
-            requisites, resolveRefs);
+            requisites, resolveRefs,
+            await TableFieldsAsync(doc.Id, doc.CompositeTypeId, ct));
+    }
+
+    /// <summary>
+    /// Табличные поля документа с адресом их строк (issue #591).
+    ///
+    /// Строк здесь нет и не будет — их неограниченно много, а форма ответа не выражает усечение, — но
+    /// САМО поле обязано быть видно: без него «таблицы нет» и «таблица придёт из набора» выглядят
+    /// одинаково, и внешний анализ уже принял реестр из 151 позиции за пустой.
+    ///
+    /// Перечисляем поля СХЕМЫ, а не привязки: непривязанное табличное поле — тоже ответ, причём тот,
+    /// ради которого всё и затевалось.
+    /// </summary>
+    private async Task<IReadOnlyList<DocumentTableField>> TableFieldsAsync(
+        Guid documentId, Guid typeId, CancellationToken ct)
+    {
+        var byId = (await types.GetAllAsync(ct)).ToDictionary(t => t.Id);
+        var tableFields = DocumentTypeSchemaReader.EffectiveFields(typeId, byId)
+            .Where(f => DocumentTypeSchemaReader.IsMultiValued(f.Type))
+            .ToList();
+        if (tableFields.Count == 0) return [];
+
+        var bindings = (await db.DataSetBindings
+                .AsNoTracking()
+                .Include(b => b.Source).ThenInclude(s => s.File)
+                .Where(b => b.OwnerId == documentId && b.TargetFieldKey != null)
+                .ToListAsync(ct))
+            .GroupBy(b => b.TargetFieldKey!)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var result = new List<DocumentTableField>();
+        foreach (var field in tableFields)
+        {
+            if (!bindings.TryGetValue(field.Key, out var binding))
+            {
+                result.Add(new DocumentTableField(field.Key, field.Title, false, null, null, null, null, null));
+                continue;
+            }
+
+            // Число строк — ПОСЛЕ обработки источника: агенту важно, сколько попадёт в PDF, а не
+            // сколько лежит в файле. Табличных полей у документа единицы, поэтому цена загрузки здесь
+            // та же, что у одного get_rows.
+            var rows = await rowLoader.LoadRowsAsync(binding.Source, ct);
+            result.Add(new DocumentTableField(
+                field.Key, field.Title, true,
+                binding.SourceId, binding.Source.Name,
+                binding.Source.FileId, binding.Source.File?.Name,
+                rows.Count));
+        }
+        return result;
     }
 
     /// <summary>

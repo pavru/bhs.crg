@@ -36,10 +36,29 @@ public record DocumentSummary(
 /// <param name="RefsResolved">Развёрнуты ли ссылки на каталог, наследование и перечисления (#421).
 /// Флаг обязателен: две формы реквизитов выглядят одинаково по типу и по-разному по смыслу, и молчаливое
 /// различие привело бы к выводам о «незаполненных» полях, которые на деле унаследованы.</param>
+/// <param name="TableFields">Табличные поля типа (issue #591). Их значений в <paramref name="Requisites"/>
+/// НЕТ — строки подмешивает генерация из набора данных, — и по прежнему ответу «таблицы нет» было
+/// неотличимо от «таблица придёт из набора». Отличие не косметическое: агент прочитал отсутствие
+/// ключа «Материалы» как пустой реестр, хотя в нём 151 позиция, и выпустил ошибочное замечание.</param>
 public record DocumentDetail(
     Guid Id, string Name, Guid TypeId, string TypeCode, string TypeName, string Status,
     Guid? SetId, string? SetName,
-    JsonElement Requisites, bool RefsResolved);
+    JsonElement Requisites, bool RefsResolved,
+    IReadOnlyList<DocumentTableField> TableFields);
+
+/// <summary>
+/// Табличное поле документа: заглушка вместо строк плюс адрес, по которому строки лежат (#591).
+///
+/// Она же — единственная обратная ссылка «документ → источник данных»: без неё нечем понять, из
+/// какой из трёх распознанных таблиц кабельного журнала собран этот документ.
+/// </summary>
+/// <param name="BoundToDataset">Привязан ли к полю источник. <c>false</c> означает ровно «таблица
+/// пуста»: строкам взяться неоткуда.</param>
+/// <param name="RowCount">Сколько строк подмешается — уже ПОСЛЕ фильтра источника, то есть столько,
+/// сколько попадёт в PDF. Null, если привязки нет.</param>
+public record DocumentTableField(
+    string Key, string? Title, bool BoundToDataset,
+    Guid? SourceId, string? SourceName, Guid? DatasetId, string? DatasetName, int? RowCount);
 
 /// <summary>Запись каталога (общие данные): организация, лицо, объект строительства и т.п.</summary>
 /// <param name="Scope">Уровень видимости: System / Construction / Section / Set.</param>

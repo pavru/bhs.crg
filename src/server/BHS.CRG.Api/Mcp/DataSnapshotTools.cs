@@ -41,7 +41,10 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
     [McpServerTool(Name = "get_dataset", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Структура набора данных")]
     [Description("""
-        Состав набора: его источники с числом строк, колонками, признаком устаревания и origin.
+        Состав набора: его источники с колонками, признаком устаревания и origin.
+
+        rawRowCount — строки В ИСТОЧНИКЕ, до фильтра. Если filtered=true, в выборке их будет МЕНЬШЕ;
+        точное число даёт get_source (поле rowCount) либо get_rows (totalRows).
         origin=Recognized означает, что строки извлечены распознаванием (vision-LLM) и являются
         вероятностными; origin=Parsed — детерминированный разбор структурированного файла.
         Это различие существенно, если по правилам проекта первоисточником считается XML,
@@ -59,6 +62,10 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
         данных, признак устаревания с причиной и — для таблиц из PDF — якорь на исходные листы
         (шифр, наименование документа, номера страниц), чтобы найденное расхождение можно было
         проверить глазами по чертежу.
+
+        Строк здесь ДВА числа: rowCount — после обработки, ровно столько отдаст get_rows и столько
+        попадёт в документ; rawRowCount — сколько было в источнике до фильтра. Разницу объясняет
+        filtered=true, и она не означает потерю данных.
         """)]
     public async Task<SourceDetail?> GetSourceAsync(
         [Description("Идентификатор источника данных.")] Guid sourceId,
