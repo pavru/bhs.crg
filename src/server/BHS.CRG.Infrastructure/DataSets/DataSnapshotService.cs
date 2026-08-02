@@ -1,5 +1,5 @@
 using System.Text.Json;
-using BHS.CRG.Application.Common;
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
@@ -10,8 +10,7 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// <inheritdoc />
 public class DataSnapshotService(
     AppDbContext db,
-    IBlobStorage blob,
-    DataSetParserFactory parserFactory) : IDataSnapshotService
+    IDataSetRowLoader rowLoader) : IDataSnapshotService
 {
     private static readonly JsonSerializerOptions SchemaJson = new() { PropertyNameCaseInsensitive = true };
 
@@ -85,7 +84,7 @@ public class DataSnapshotService(
 
         // Строки ПОСЛЕ всей обработки источника (фильтр/вычисляемые колонки/сортировка) — тот же путь,
         // которым их видит генерация, поэтому внешний анализ и генерация смотрят на одни данные.
-        var all = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
+        var all = await rowLoader.LoadRowsAsync(source, ct);
         var page = all.Skip(offset).Take(limit).ToList();
 
         // Ключи колонок берём из СХЕМЫ, а не из первой строки: строка может не содержать пустых ячеек,

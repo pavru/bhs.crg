@@ -21,7 +21,7 @@ public class DataSetSource : Entity
     /// <summary>
     /// JSON-массив полных распознанных строк (только для PDF — распознавание через vision-LLM
     /// дорого/недетерминированно, в отличие от остальных форматов не перепарсивается на каждый
-    /// вызов). Null — ещё не распознавали. См. DataSetBindingProcessor.LoadRowsAsync.
+    /// вызов). Null — ещё не распознавали. См. DataSetRowLoader.LoadRowsAsync.
     /// </summary>
     public string? CachedData { get; private set; }
     /// <summary>JSON-массив кодов функциональных тэгов источника (scope Dataset — TagRegistry).</summary>

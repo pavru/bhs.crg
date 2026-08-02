@@ -1,5 +1,5 @@
 ﻿using System.Text.Json;
-using BHS.CRG.Application.Common;
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Reconciliation;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Reconciliation;
@@ -14,8 +14,7 @@ namespace BHS.CRG.Infrastructure.Reconciliation;
 /// <inheritdoc />
 public class ReconciliationRunner(
     AppDbContext db,
-    IBlobStorage blob,
-    DataSetParserFactory parserFactory) : IReconciliationRunner
+    IDataSetRowLoader rowLoader) : IReconciliationRunner
 {
     private static JsonSerializerOptions Json => ReconciliationSpecJson.Options;
 
@@ -112,7 +111,7 @@ public class ReconciliationRunner(
                 .FirstOrDefaultAsync(s => s.Id == part.SourceId, ct)
                 ?? throw new InvalidOperationException($"Источник {part.SourceId} не найден.");
 
-            var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
+            var rows = await rowLoader.LoadRowsAsync(source, ct);
 
             for (var i = 0; i < rows.Count; i++)
             {

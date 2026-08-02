@@ -330,6 +330,7 @@ builder.Services.AddSingleton<IDataSetParser, JsonDataSetParser>();
 builder.Services.AddSingleton<IDataSetParser, ZipDataSetParser>();
 builder.Services.AddSingleton<IDataSetParser, PdfDataSetParser>();
 builder.Services.AddSingleton<DataSetParserFactory>();
+builder.Services.AddScoped<IDataSetRowLoader, DataSetRowLoader>();
 builder.Services.AddScoped<DataSetProcessingTemplateService>();
 builder.Services.AddScoped<DataSetBindingTemplateService>();
 builder.Services.AddScoped<DataSetPdfRecognitionService>();

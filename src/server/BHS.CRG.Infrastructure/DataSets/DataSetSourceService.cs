@@ -21,6 +21,7 @@ public class DataSetSourceService(
     AppDbContext db,
     IBlobStorage blob,
     DataSetParserFactory parserFactory,
+    IDataSetRowLoader rowLoader,
     IRecognitionProfileProvider profiles)
 {
     private record CachedColumnInfo(string Name, string[] SampleValues);
@@ -156,7 +157,7 @@ public class DataSetSourceService(
             .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
-        var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
+        var rows = await rowLoader.LoadRowsAsync(source, ct);
 
         var take = maxRows <= 0 ? 50 : maxRows;
         // Базовые колонки — из уже сохранённого кэша схемы (тот же парсер заполнил его при
@@ -180,7 +181,7 @@ public class DataSetSourceService(
         if (source == null) return null;
 
         // Все строки после обработки (Filter/Transformation/Sort) — тот же путь, что и превью, без лимита.
-        var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
+        var rows = await rowLoader.LoadRowsAsync(source, ct);
         var baseColumns = JsonSerializer.Deserialize<CachedColumnInfo[]>(source.CachedSchema, CachedSchemaJson) ?? [];
         var columns = baseColumns.Select(c => c.Name).ToList();
         columns.AddRange(rows.SelectMany(r => r.Keys).Distinct().Except(columns));
@@ -236,7 +237,7 @@ public class DataSetSourceService(
 
         try
         {
-            var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
+            var rows = await rowLoader.LoadRowsAsync(source, ct);
             var take = maxRows <= 0 ? 50 : maxRows;
 
             var mapped = new List<Dictionary<string, object?>>();
