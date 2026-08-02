@@ -4,7 +4,8 @@ using BHS.CRG.Application.QualityDocs;
 namespace BHS.CRG.Application.Generation;
 
 /// <summary>
-/// Материалы, которым не досталось документа качества (issue #585).
+/// Проверки связки материала с документом качества: документа НЕТ (issue #585) и документ есть, но
+/// не про этот материал (issue #586).
 ///
 /// Составной ключ (#582) строже прежнего «совпало любое поле», поэтому несопоставленных материалов
 /// станет больше ПО ПОСТРОЕНИЮ — и это не дефект, а перенос решения на пользователя: одна позиция,
@@ -18,6 +19,9 @@ namespace BHS.CRG.Application.Generation;
 public static class QualityLinkScanner
 {
     public const string Code = "material-no-quality-doc";
+
+    /// <summary>Документ есть, но материал не упоминается в его области продукции (issue #586).</summary>
+    public const string ImplausibleCode = "quality-doc-implausible";
 
     /// <summary>
     /// Ищет в массивах контекста элементы-материалы (опознаются полями идентичности — тем же
@@ -50,13 +54,32 @@ public static class QualityLinkScanner
                 var identity = IdentityKey.From(identityFields, f => Text(item, f));
                 if (IdentityKey.IsEmpty(identity)) continue;
 
-                if (HasValue(item, targetField)) continue;
+                if (!HasValue(item, targetField))
+                {
+                    diagnostics.Add(new ResolutionDiagnostic(
+                        DiagnosticSeverity.Warning,
+                        $"{key}[{index}].{targetField}",
+                        $"Материал «{identity}» без документа качества: привязка не найдена.",
+                        Code));
+                    continue;
+                }
 
-                diagnostics.Add(new ResolutionDiagnostic(
-                    DiagnosticSeverity.Warning,
-                    $"{key}[{index}].{targetField}",
-                    $"Материал «{identity}» без документа качества: привязка не найдена.",
-                    Code));
+                // Документ есть — правдоподобен ли он (issue #586). Реквизиты документа уже
+                // подмешаны в строку, отдельного запроса не нужно.
+                if (!item.TryGetProperty(targetField, out var doc)) continue;
+
+                var docTexts = new List<string>();
+                ProductScopeMatcher.CollectStrings(doc, docTexts);
+                // Человеческие значения, а не ключ: сравнивать надо со словами, а ключ — машинный.
+                var materialText = string.Join(' ', identityFields.Select(f => Text(item, f)).Where(v => !string.IsNullOrWhiteSpace(v)));
+
+                if (ProductScopeMatcher.Assess(materialText, docTexts) == ProductScopeVerdict.Mismatched)
+                    diagnostics.Add(new ResolutionDiagnostic(
+                        DiagnosticSeverity.Warning,
+                        $"{key}[{index}].{targetField}",
+                        $"Материал «{identity}» не упоминается в области продукции привязанного документа — "
+                        + "возможно, сертификат не тот.",
+                        ImplausibleCode));
             }
         }
     }
