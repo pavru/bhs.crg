@@ -1,5 +1,4 @@
 using System.Text.Json;
-using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
@@ -14,8 +13,7 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// </summary>
 public class DataSetBindingService(
     AppDbContext db,
-    IBlobStorage blob,
-    DataSetParserFactory parserFactory,
+    IDataSetRowLoader rowLoader,
     ILogger<DataSetBindingService> logger)
 {
     public async Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid ownerId, CancellationToken ct)
@@ -77,7 +75,7 @@ public class DataSetBindingService(
         {
             try
             {
-                var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, binding.Source, ct);
+                var rows = await rowLoader.LoadRowsAsync(binding.Source, ct);
 
                 // Материализованный источник (issue #19/#23): привязка без своего маппинга берёт маппинг
                 // с источника — как и резолвер генерации. Иначе превью пустое и материалы/сертификаты не

@@ -87,10 +87,34 @@ public class DataSetFileService(
         return DataSetDtoMapper.MapFile(dataSetFile);
     }
 
+    /// <summary>
+    /// Системный набор (issue #580): сырьё — данные самой системы в границах scope, а не файл.
+    /// Идемпотентен: на один уровень такой набор нужен один, источники к нему добавляются отдельно.
+    /// </summary>
+    public async Task<DataSetFileDto> CreateSystemFileAsync(CreateSystemFileInput input, CancellationToken ct)
+    {
+        if (!Enum.TryParse<CatalogScope>(input.Scope, out var scope))
+            throw new ArgumentException("Неверный scope");
+
+        Guid? scopeId = scope != CatalogScope.System && Guid.TryParse(input.ScopeId, out var sid) ? sid : null;
+
+        var existing = await db.DataSetFiles.Include(f => f.Sources)
+            .FirstOrDefaultAsync(f => f.Format == DataSetFormat.System && f.Scope == scope && f.ScopeId == scopeId, ct);
+        if (existing != null) return DataSetDtoMapper.MapFile(existing);
+
+        var name = string.IsNullOrWhiteSpace(input.Name) ? "Данные системы" : input.Name.Trim();
+        var file = DataSetFile.CreateSystem(name, scope, scopeId);
+        db.DataSetFiles.Add(file);
+        await db.SaveChangesAsync(ct);
+        return DataSetDtoMapper.MapFile(file);
+    }
+
     public async Task<DataSetFileDto?> ReplaceFileAsync(Guid id, ReplaceFileInput input, CancellationToken ct)
     {
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == id, ct);
         if (file == null) return null;
+        if (file.IsSystem)
+            throw new ArgumentException("У системного набора нет файла — заменять нечего.");
 
         var format = DataSetDtoMapper.DetectFormat(input.FileName)
             ?? throw new ArgumentException("Неподдерживаемый формат файла");
@@ -151,6 +175,7 @@ public class DataSetFileService(
     {
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == id, ct);
         if (file == null) return null;
+        if (file.IsSystem) return null; // скачивать нечего — блоба нет
 
         // Original extension from blobPath (format: bucket/yyyy/MM/dd/{guid}_{originalName}).
         var blobFileName = file.BlobPath.Split('/').Last();
@@ -180,8 +205,11 @@ public class DataSetFileService(
         var file = await db.DataSetFiles.FindAsync([id], ct);
         if (file == null) return false;
 
-        try { await blob.DeleteAsync(file.BlobPath, ct); }
-        catch (Exception ex) { logger.LogWarning(ex, "Не удалось удалить blob при удалении файла {FileId}", id); }
+        if (!file.IsSystem)
+        {
+            try { await blob.DeleteAsync(file.BlobPath, ct); }
+            catch (Exception ex) { logger.LogWarning(ex, "Не удалось удалить blob при удалении файла {FileId}", id); }
+        }
 
         db.DataSetFiles.Remove(file);
         await db.SaveChangesAsync(ct);

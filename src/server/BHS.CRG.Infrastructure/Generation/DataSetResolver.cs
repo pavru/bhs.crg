@@ -1,5 +1,4 @@
 using System.Text.Json;
-using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Resolution;
@@ -15,8 +14,7 @@ namespace BHS.CRG.Infrastructure.Generation;
 
 public class DataSetResolver(
     AppDbContext db,
-    IBlobStorage blobStorage,
-    DataSetParserFactory parserFactory,
+    IDataSetRowLoader rowLoader,
     IObjectResolver objectResolver,
     ILogger<DataSetResolver> logger
 ) : IDataSetResolver
@@ -73,8 +71,8 @@ public class DataSetResolver(
         {
             try
             {
-                // Download → parse → transformation → filter → sort (shared with preview via DataSetBindingProcessor).
-                var rows = await DataSetBindingProcessor.LoadRowsAsync(blobStorage, parserFactory, binding.Source, ct);
+                // Download → parse → transformation → filter → sort (shared with preview via DataSetRowLoader).
+                var rows = await rowLoader.LoadRowsAsync(binding.Source, ct);
 
                 // Материализация на источнике (issue #19): если источник настроен на материализацию, а
                 // привязка не несёт собственного маппинга — маппинг берётся с источника (тип↔тип), а

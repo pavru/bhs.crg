@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.DataSets;
 
 namespace BHS.CRG.Infrastructure.DataSets;
@@ -14,13 +15,16 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// Extraction для большинства форматов — перепарсинг blob при каждом вызове (дёшево,
 /// детерминированно). PDF — исключение: Extraction через vision-LLM (дорого/недетерминированно),
 /// поэтому читает уже распознанные и закэшированные строки (DataSetSource.CachedData), не
-/// перезапускает распознавание — см. DataSetService.RecognizePdfSourceAsync.
+/// перезапускает распознавание — см. DataSetService.RecognizePdfSourceAsync. Системные наборы —
+/// третий случай: строки консолидирует провайдер из данных самой системы, живьём (запрос к БД
+/// дешевле скачивания блоба, а кэш означал бы реестр, отставший от состава комплекта).
 /// </summary>
-public static class DataSetBindingProcessor
+public class DataSetRowLoader(
+    IBlobStorage blob,
+    DataSetParserFactory parserFactory,
+    SystemDataProviderRegistry systemProviders) : IDataSetRowLoader
 {
-    public static async Task<List<IReadOnlyDictionary<string, string?>>> LoadRowsAsync(
-        IBlobStorage blob,
-        DataSetParserFactory parserFactory,
+    public async Task<List<IReadOnlyDictionary<string, string?>>> LoadRowsAsync(
         DataSetSource source,
         CancellationToken ct)
     {
@@ -28,6 +32,12 @@ public static class DataSetBindingProcessor
         if (source.File.Format == DataSetFormat.Pdf)
         {
             parsedRows = DeserializeCachedData(source.CachedData);
+        }
+        else if (source.File.Format == DataSetFormat.System)
+        {
+            var provided = await systemProviders.Get(source.SheetOrPath)
+                .ProvideAsync(source.SheetOrPath, source.File.Scope, source.File.ScopeId, ct);
+            parsedRows = provided.Rows.ToList();
         }
         else
         {

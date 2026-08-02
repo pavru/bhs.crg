@@ -40,6 +40,15 @@ public static class DataSetEndpoints
             return Results.Ok(await svc.UploadFileAsync(input, ct));
         }).DisableAntiforgery();
 
+        // Системный набор (issue #580): файла нет — обычный JSON вместо multipart.
+        g.MapPost("/files/system", async (CreateSystemFileInput input, IDataSetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.CreateSystemFileAsync(input, ct)));
+
+        // Что система готова консолидировать на этом уровне — ДО создания набора (issue #606):
+        // пусто ⇒ предлагать системный набор здесь незачем.
+        g.MapGet("/system-candidates", async (string scope, Guid? scopeId, IDataSetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListSystemCandidatesAsync(scope, scopeId, ct)));
+
         g.MapPut("/files/{id:guid}", async (Guid id, HttpRequest request, IDataSetService svc, CancellationToken ct) =>
         {
             if (!request.HasFormContentType)

@@ -189,6 +189,8 @@ builder.Services.AddMediatR(cfg =>
 
 // ── Repositories ──────────────────────────────────────────────────────────────
 builder.Services.AddScoped<IRepository<CatalogEntity>, Repository<CatalogEntity>>();
+builder.Services.AddScoped<IRepository<BHS.CRG.Domain.DataSets.DataSetBinding>,
+    Repository<BHS.CRG.Domain.DataSets.DataSetBinding>>();
 builder.Services.AddScoped<IRepository<PrimitiveType>, Repository<PrimitiveType>>();
 builder.Services.AddScoped<IRepository<EnumType>, Repository<EnumType>>();
 builder.Services.AddScoped<IRepository<BHS.CRG.Domain.Recognition.RecognitionProfile>, Repository<BHS.CRG.Domain.Recognition.RecognitionProfile>>();
@@ -330,6 +332,9 @@ builder.Services.AddSingleton<IDataSetParser, JsonDataSetParser>();
 builder.Services.AddSingleton<IDataSetParser, ZipDataSetParser>();
 builder.Services.AddSingleton<IDataSetParser, PdfDataSetParser>();
 builder.Services.AddSingleton<DataSetParserFactory>();
+builder.Services.AddScoped<ISystemDataProvider, SetDocumentsProvider>();
+builder.Services.AddScoped<SystemDataProviderRegistry>();
+builder.Services.AddScoped<IDataSetRowLoader, DataSetRowLoader>();
 builder.Services.AddScoped<DataSetProcessingTemplateService>();
 builder.Services.AddScoped<DataSetBindingTemplateService>();
 builder.Services.AddScoped<DataSetPdfRecognitionService>();

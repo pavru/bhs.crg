@@ -7,6 +7,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { useCreateDataSetSource, useUpdateDataSetSource, useListZipXmlEntries, useSourceCandidates } from '@/shared/api/datasets';
 import { XPathBuilder } from './xpath/XPathBuilder';
 import { JsonPathBuilder } from './jsonpath/JsonPathBuilder';
+import { DATA_SET_FORMAT_LABELS } from '@/shared/api/types';
 import type { ColumnExprDef, DataSetSource, DataSetFormat } from '@/shared/api/types';
 
 type PathFormat = 'Xml' | 'Json';
@@ -44,9 +45,12 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
   const tabular = isTabularFormat(format);
   const isZip = format === 'Zip';
   const isPdf = format === 'Pdf';
-  // PDF-источник — проекция из СЫРЬЯ распознанного набора (issue #40): выбор кандидата
-  // (Обложка/Титул/Документы), как выбор листа в Excel. Никаких XPath/колонок.
-  const usesCandidates = tabular || isPdf;
+  const isSystem = format === 'System';
+  // PDF-источник — проекция из СЫРЬЯ распознанного набора (issue #40), системный — консолидация
+  // данных системы (issue #580). И то и другое выбирается из готового списка, как лист в Excel:
+  // никаких XPath/колонок, поэтому редактор у них общий.
+  const picksCandidate = isPdf || isSystem;
+  const usesCandidates = tabular || picksCandidate;
   const needsSheet = format === 'Xls' || format === 'Xlsx';
   const pathFormat: PathFormat = format === 'Json' ? 'Json' : 'Xml';
   const PathBuilder = pathFormat === 'Json' ? JsonPathBuilder : XPathBuilder;
@@ -111,10 +115,10 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
     let finalSheetOrPath: string;
     let finalColumns: ColumnExprDef[] | null;
 
-    if (isPdf) {
-      if (!sheetOrPath.trim()) { setError('Выберите данные набора для источника'); return; }
-      finalSheetOrPath = sheetOrPath.trim(); // маркер кандидата (gost-cover/gost-titlepage/gost-documents)
-      finalColumns = null;                    // проекция из группировки, колонки готовы
+    if (picksCandidate) {
+      if (!sheetOrPath.trim()) { setError('Выберите данные для источника'); return; }
+      finalSheetOrPath = sheetOrPath.trim(); // маркер кандидата (gost-cover/…/system:set-documents)
+      finalColumns = null;                    // готовая проекция/консолидация — колонки известны
     } else if (tabular) {
       if (needsSheet && !sheetOrPath.trim()) { setError('Выберите лист'); return; }
       // CSV — весь файл: extraction тривиальна, sheetOrPath из кандидата (обычно "default").
@@ -143,38 +147,50 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
 
   const dialogTitle = initial
     ? 'Редактировать источник'
-    : `Новый источник (${isZip ? 'XML в архиве' : format})`;
+    : `Новый источник (${isZip ? 'XML в архиве' : DATA_SET_FORMAT_LABELS[format]})`;
+
+  // Выбирать не из чего — сохранять нечего: кнопка «Сохранить» осталась бы активной и молча
+  // упиралась бы в ошибку валидации (issue #606).
+  const nothingToPick = picksCandidate && !initial && readyCandidates.length === 0;
 
   return (
     <Modal open onOpenChange={open => { if (!open) onClose(); }} title={dialogTitle} wide
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
-          <Button type="button" variant="filled" onClick={handleSave} loading={isPending}>
+          <Button type="button" variant="filled" onClick={handleSave} loading={isPending}
+            disabled={nothingToPick}>
             {isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>
         </div>
       }>
       <div className="space-y-4 min-w-[520px]">
-        <TextField label="Название" value={name} onChange={e => setName(e.target.value)}
-          hint="Позиции спецификации" />
+        {!nothingToPick && (
+          <TextField label="Название" value={name} onChange={e => setName(e.target.value)}
+            hint="Позиции спецификации" />
+        )}
 
-        {isPdf ? (
+        {picksCandidate ? (
           <div>
-            <Select label="Данные набора" value={sheetOrPath || undefined} placeholder="— выберите —"
-              onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
-              {readyCandidates.map(c => (
-                <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</SelectItem>
-              ))}
-            </Select>
-            {readyCandidates.length === 0 && (
-              <p className="text-xs text-fg4 mt-1">
-                {pendingTableCount > 0
-                  ? 'Все проекции набора уже добавлены. Таблицы документов сначала распознайте — кнопка «Распознать таблицу» в списке кандидатов под источниками.'
-                  : candidates.length === 0
-                    ? 'Нет доступных проекций. Если набор ещё не распознан — запустите «Распознать»; таблицы документов распознаются отдельно (кнопка ✂ разбиения).'
-                    : 'Все проекции набора уже добавлены как источники.'}
+            {/* Пустой выпадающий список выглядел бы поломкой — когда выбирать не из чего,
+                показываем причину вместо самого поля (issue #606). */}
+            {readyCandidates.length === 0 ? (
+              <p className="text-sm text-fg3">
+                {isSystem
+                  ? 'Система пока не может ничего консолидировать на этом уровне: либо всё уже добавлено, либо здесь таких данных нет — «Документы комплекта», например, доступны только у набора внутри комплекта.'
+                  : pendingTableCount > 0
+                    ? 'Все проекции набора уже добавлены. Таблицы документов сначала распознайте — кнопка «Распознать таблицу» в списке кандидатов под источниками.'
+                    : candidates.length === 0
+                      ? 'Нет доступных проекций. Если набор ещё не распознан — запустите «Распознать»; таблицы документов распознаются отдельно (кнопка ✂ разбиения).'
+                      : 'Все проекции набора уже добавлены как источники.'}
               </p>
+            ) : (
+              <Select label={isSystem ? 'Данные системы' : 'Данные набора'} value={sheetOrPath || undefined} placeholder="— выберите —"
+                onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
+                {readyCandidates.map(c => (
+                  <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</SelectItem>
+                ))}
+              </Select>
             )}
             {selectedCandidate && selectedCandidate.columns.length > 0 && (
               <p className="text-xs text-fg4 mt-1">Колонки: {selectedCandidate.columns.join(', ')}</p>

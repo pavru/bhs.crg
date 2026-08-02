@@ -1,4 +1,5 @@
 ﻿using BHS.CRG.Application.DataSets;
+using BHS.CRG.Domain.Catalog;
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
@@ -25,6 +26,13 @@ public class DataSetService(
         files.ListAvailableFilesAsync(setId, ct);
     public Task<DataSetFileDto> UploadFileAsync(UploadFileInput input, CancellationToken ct) =>
         files.UploadFileAsync(input, ct);
+    public Task<DataSetFileDto> CreateSystemFileAsync(CreateSystemFileInput input, CancellationToken ct) =>
+        files.CreateSystemFileAsync(input, ct);
+    public Task<IReadOnlyList<DataSetSourceInfo>> ListSystemCandidatesAsync(
+        string scope, Guid? scopeId, CancellationToken ct) =>
+        Enum.TryParse<CatalogScope>(scope, out var s)
+            ? sources.ListSystemCandidatesAsync(s, scopeId, ct)
+            : throw new ArgumentException("Неверный scope");
     public Task<DataSetFileDto?> ReplaceFileAsync(Guid id, ReplaceFileInput input, CancellationToken ct) =>
         files.ReplaceFileAsync(id, input, ct);
     public Task<FileDownloadDto?> DownloadFileAsync(Guid id, CancellationToken ct) =>

@@ -4,6 +4,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Recognition;
 using BHS.CRG.Application.Schema;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Persistence;
@@ -21,6 +22,8 @@ public class DataSetSourceService(
     AppDbContext db,
     IBlobStorage blob,
     DataSetParserFactory parserFactory,
+    IDataSetRowLoader rowLoader,
+    SystemDataProviderRegistry systemProviders,
     IRecognitionProfileProvider profiles)
 {
     private record CachedColumnInfo(string Name, string[] SampleValues);
@@ -42,6 +45,21 @@ public class DataSetSourceService(
     }
 
     /// <summary>
+    /// Какие консолидации данных системы возможны на уровне — ДО создания набора (issue #606).
+    /// Нужно, чтобы не предлагать системный набор там, где предложить нечего: «Документы комплекта»
+    /// осмысленны только внутри комплекта, и на уровне раздела пользователь иначе упирался бы в
+    /// пустой список источников.
+    /// </summary>
+    public async Task<IReadOnlyList<DataSetSourceInfo>> ListSystemCandidatesAsync(
+        CatalogScope scope, Guid? scopeId, CancellationToken ct)
+    {
+        var candidates = new List<DataSetSourceInfo>();
+        foreach (var provider in systemProviders.All)
+            candidates.AddRange(await provider.GetCandidatesAsync(scope, scopeId, ct));
+        return candidates;
+    }
+
+    /// <summary>
     /// Детект «кандидатов» на источник в сыром файле (листы XLSX, top-level массивы JSON, «весь файл»
     /// для CSV) — БЕЗ персиста. Используется диалогом создания источника как подсказки в один клик.
     /// Для XML парсер кандидатов не даёт (пусто) — источник строится вручную через XPath-builder.
@@ -50,6 +68,18 @@ public class DataSetSourceService(
     {
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
+
+        // Системный набор (issue #580): кандидаты — консолидации, возможные на уровне набора.
+        if (file.Format == DataSetFormat.System)
+        {
+            var existingMarkers = await db.DataSetSources
+                .Where(s => s.FileId == file.Id).Select(s => s.SheetOrPath).ToListAsync(ct);
+            var candidates = new List<DataSetSourceInfo>();
+            foreach (var provider in systemProviders.All)
+                candidates.AddRange((await provider.GetCandidatesAsync(file.Scope, file.ScopeId, ct))
+                    .Where(c => !existingMarkers.Contains(c.SheetOrPath)));
+            return candidates;
+        }
 
         // PDF (issue #30/#38/#44): кандидаты из СЫРЬЯ набора, дискриминатор — профиль (issue #44).
         if (file.Format == DataSetFormat.Pdf)
@@ -156,7 +186,7 @@ public class DataSetSourceService(
             .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
-        var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
+        var rows = await rowLoader.LoadRowsAsync(source, ct);
 
         var take = maxRows <= 0 ? 50 : maxRows;
         // Базовые колонки — из уже сохранённого кэша схемы (тот же парсер заполнил его при
@@ -180,7 +210,7 @@ public class DataSetSourceService(
         if (source == null) return null;
 
         // Все строки после обработки (Filter/Transformation/Sort) — тот же путь, что и превью, без лимита.
-        var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
+        var rows = await rowLoader.LoadRowsAsync(source, ct);
         var baseColumns = JsonSerializer.Deserialize<CachedColumnInfo[]>(source.CachedSchema, CachedSchemaJson) ?? [];
         var columns = baseColumns.Select(c => c.Name).ToList();
         columns.AddRange(rows.SelectMany(r => r.Keys).Distinct().Except(columns));
@@ -236,7 +266,7 @@ public class DataSetSourceService(
 
         try
         {
-            var rows = await DataSetBindingProcessor.LoadRowsAsync(blob, parserFactory, source, ct);
+            var rows = await rowLoader.LoadRowsAsync(source, ct);
             var take = maxRows <= 0 ? 50 : maxRows;
 
             var mapped = new List<Dictionary<string, object?>>();
@@ -269,6 +299,11 @@ public class DataSetSourceService(
         if (file.Format == Domain.DataSets.DataSetFormat.Pdf)
             return await CreatePdfProjectionSourceAsync(file, input.Name.Trim(), input.SheetOrPath.Trim(), ct);
 
+        // Системный набор (issue #580): строки даёт провайдер, кэшировать их нельзя (данные живые) —
+        // прогон нужен только чтобы записать схему колонок и счётчик строк для UI.
+        if (file.Format == Domain.DataSets.DataSetFormat.System)
+            return await CreateSystemSourceAsync(file, input.Name.Trim(), input.SheetOrPath.Trim(), ct);
+
         var columnExpressionsJson = DataSetDtoMapper.SerializeColumnExpressions(input.ColumnExpressions);
         var (schema, rowCount) = await ParseForDefinitionAsync(file.BlobPath, file.Format, input.SheetOrPath, columnExpressionsJson, ct);
 
@@ -277,6 +312,20 @@ public class DataSetSourceService(
         // коллекцию навигации, EF не распознаёт как Added автоматически (Guid — клиентский ключ,
         // не default-значение), поэтому без явного Add() трекер помечает его Modified и
         // пытается сделать UPDATE несуществующей строки → DbUpdateConcurrencyException.
+        db.DataSetSources.Add(source);
+        await db.SaveChangesAsync(ct);
+        return DataSetDtoMapper.MapSource(source);
+    }
+
+    // Источник системного набора (issue #580): маркер выбирает провайдера консолидации. CachedData не
+    // пишем — строки собираются заново при каждом обращении, иначе реестр отстанет от состава комплекта.
+    private async Task<DataSetSourceDto> CreateSystemSourceAsync(
+        Domain.DataSets.DataSetFile file, string name, string marker, CancellationToken ct)
+    {
+        var provider = systemProviders.Get(marker);
+        var provided = await provider.ProvideAsync(marker, file.Scope, file.ScopeId, ct);
+
+        var source = file.AddSource(name, marker, DataSetDtoMapper.SerializeSchema(provided.Columns), provided.Rows.Count);
         db.DataSetSources.Add(source);
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(source);
@@ -381,6 +430,10 @@ public class DataSetSourceService(
     {
         var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
+        // Определение системного источника — это выбор консолидации, менять в нём нечего: переименование
+        // идёт через RenameSourceAsync, а другая консолидация — другой источник.
+        if (source.File.IsSystem)
+            throw new ArgumentException("Определение системного источника не редактируется — переименуйте его или создайте другой.");
 
         var columnExpressionsJson = DataSetDtoMapper.SerializeColumnExpressions(input.ColumnExpressions);
         var (schema, rowCount) = await ParseForDefinitionAsync(

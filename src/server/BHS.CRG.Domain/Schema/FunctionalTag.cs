@@ -24,6 +24,10 @@ public static class FunctionalTag
     /// <summary>Номер документа (для отображения/реестров).</summary>
     public const string DocNumber = "doc.number";
 
+    /// <summary>Дата документа — реквизит, заполняемый пользователем. Не путать с
+    /// <see cref="DocGeneratedAt"/>: дата документа не меняется при повторной генерации PDF.</summary>
+    public const string DocDate = "doc.date";
+
     // ── Тэги поля: идентификатор объекта / документы качества ───────────────────
     /// <summary>Поле-идентификатор объекта (артикул/наименование/...). Обобщён из «material.identity»
     /// (issue #183): применим к ЛЮБОМУ составному типу — участвует в резолве «строка→объект».

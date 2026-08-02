@@ -12,6 +12,10 @@ public interface IDataSetService
     Task<IReadOnlyList<DataSetFileDto>> ListFilesAsync(string? scope, Guid? scopeId, CancellationToken ct);
     Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(Guid setId, CancellationToken ct);
     Task<DataSetFileDto> UploadFileAsync(UploadFileInput input, CancellationToken ct);
+    /// <summary>Создать набор без файла — сырьём служат данные системы (issue #580). Идемпотентно на уровень.</summary>
+    Task<DataSetFileDto> CreateSystemFileAsync(CreateSystemFileInput input, CancellationToken ct);
+    /// <summary>Какие консолидации данных системы возможны на уровне — до создания набора (issue #606).</summary>
+    Task<IReadOnlyList<DataSetSourceInfo>> ListSystemCandidatesAsync(string scope, Guid? scopeId, CancellationToken ct);
     Task<DataSetFileDto?> ReplaceFileAsync(Guid id, ReplaceFileInput input, CancellationToken ct);
     Task<FileDownloadDto?> DownloadFileAsync(Guid id, CancellationToken ct);
     Task<bool> DeleteFileAsync(Guid id, CancellationToken ct);
