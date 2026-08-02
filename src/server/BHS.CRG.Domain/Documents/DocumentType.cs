@@ -46,6 +46,21 @@ public class DocumentType : Entity
         };
 
     public void UpdateSchema(JsonDocument schema) { Schema = schema; TouchUpdatedAt(); }
+
+    /// <summary>
+    /// Копия типа с ДРУГОЙ схемой — не сущность БД, а проекция «что будет, если сохранить»
+    /// (issue #584). Идентификатор и родитель сохраняются: расчёты, зависящие от схемы, идут по
+    /// цепочке наследования и по составу типов, поэтому подменять их нельзя.
+    ///
+    /// Нужна потому, что менять схему у загруженной сущности ради предпросчёта опасно: это
+    /// отслеживаемый объект, и чужой SaveChanges в том же запросе записал бы черновик в базу.
+    /// </summary>
+    public DocumentType WithSchema(JsonDocument schema)
+    {
+        var copy = (DocumentType)MemberwiseClone();
+        copy.Schema = schema;
+        return copy;
+    }
     public void Rename(string name, string code) { Name = name; Code = code; TouchUpdatedAt(); }
     public void SetParent(Guid? parentId) { ParentId = parentId; TouchUpdatedAt(); }
     public void UpdatePluginBindings(JsonDocument bindings) { PluginBindings = bindings; TouchUpdatedAt(); }
