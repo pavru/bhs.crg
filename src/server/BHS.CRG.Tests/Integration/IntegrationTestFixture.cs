@@ -16,8 +16,20 @@ namespace BHS.CRG.Tests.Integration;
 /// </summary>
 public class IntegrationTestFixture : WebApplicationFactory<Program>
 {
-    internal const string TestConnectionString =
-        "Host=localhost;Port=5432;Database=bhs_crg_test;Username=postgres;Password=xxsystem";
+    /// <summary>
+    /// Имя тестовой БД — из переменной окружения <c>BHS_TEST_DB</c>, по умолчанию прежнее (issue #618).
+    ///
+    /// Разработка идёт в нескольких worktree одновременно, и прогоны в них пересекаются. База была
+    /// одна на всех, а <see cref="ResetDatabaseAsync" /> делает TRUNCATE всех таблиц перед каждым
+    /// классом — то есть чужой прогон вычищает данные у идущего. Падения при этом выглядят как
+    /// настоящие дефекты («Construction not found», «тип с кодом AOSR уже существует», нарушения
+    /// внешнего ключа), и каждый раз приходится доказывать, что упало не от твоей правки.
+    ///
+    /// Создавать базу вручную не нужно: приложение мигрирует при старте, а миграция создаёт БД.
+    /// </summary>
+    internal static readonly string TestConnectionString =
+        "Host=localhost;Port=5432;Username=postgres;Password=xxsystem;Database="
+        + (Environment.GetEnvironmentVariable("BHS_TEST_DB") is { Length: > 0 } db ? db : "bhs_crg_test");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
