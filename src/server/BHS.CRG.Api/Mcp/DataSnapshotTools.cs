@@ -26,12 +26,17 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
         Наборы данных системы — точка входа для анализа. Возвращает идентификаторы, которые нужны
         остальным инструментам. Поле stale=true означает, что файл набора менялся после распознавания
         и данные могут не соответствовать текущему содержимому.
+
+        Ответ — страница {items, offset, limit, total, truncated}, как у всех списков.
         """)]
-    public async Task<IReadOnlyList<DatasetSummary>> ListDatasetsAsync(
+    public async Task<SnapshotPage<DatasetSummary>> ListDatasetsAsync(
         CancellationToken ct,
         [Description("Необязательный фильтр области: System, Construction, Section, Set.")] string? scope = null,
-        [Description("Идентификатор области (если указан scope).")] Guid? scopeId = null)
-        => await snapshots.ListDatasetsAsync(scope, scopeId, ct);
+        [Description("Идентификатор области (если указан scope).")] Guid? scopeId = null,
+        [Description("Смещение от начала (0 — с первого набора).")] int offset = 0,
+        [Description("Сколько наборов вернуть; по умолчанию 200, максимум 500.")]
+        int limit = DomainSnapshotLimits.NavigationDefault)
+        => await snapshots.ListDatasetsAsync(scope, scopeId, offset, limit, ct);
 
     [McpServerTool(Name = "get_dataset", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Структура набора данных")]

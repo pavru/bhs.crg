@@ -10,6 +10,10 @@ namespace BHS.CRG.Application.DataSnapshots;
 ///
 /// Форма повторяет <see cref="RowsPage"/> сознательно: агент уже умеет обходить строки источников
 /// по <c>offset</c>/<c>truncated</c>, и второй способ листать означал бы второй способ ошибиться.
+///
+/// С #590 эту оболочку носят ВСЕ списочные выдачи, включая навигационные (стройки, наборы, сверки):
+/// разделение «эти страничные, а те голым массивом» стоило клиенту тихого нуля записей, и экономия
+/// на оболочке коротких списков того не стоит.
 /// </summary>
 /// <param name="Total">Сколько элементов всего — ДО нарезки. Без него агент не отличит конец списка
 /// от конца страницы.</param>
@@ -18,6 +22,9 @@ namespace BHS.CRG.Application.DataSnapshots;
 public record SnapshotPage<T>(
     IReadOnlyList<T> Items, int Offset, int Limit, int Total, bool Truncated)
 {
+    /// <inheritdoc cref="SnapshotContract.Version" />
+    public int ContractVersion => SnapshotContract.Version;
+
     /// <summary>
     /// Нарезка УЖЕ упорядоченной последовательности: порядок задаёт вызывающий, потому что от него
     /// зависит устойчивость адреса «страница + позиция» между вызовами.

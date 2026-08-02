@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Text.Json;
 using BHS.CRG.Api.Mcp;
 using BHS.CRG.Application.DataSnapshots;
 using ModelContextProtocol.Server;
@@ -38,18 +39,22 @@ public class McpToolContractTests
         ["generate_document", "report_observation", "retract_observation", "propose_alias"];
 
     /// <summary>
-    /// Инструменты, чья выдача растёт вместе со стройкой, а не задана её структурой (#576). Они
-    /// обязаны возвращать <see cref="SnapshotPage{T}" />: список без <c>truncated</c> либо упрётся
-    /// в лимит клиента целиком, либо — что хуже — приедет молча неполным, и недочитанные позиции
-    /// станут неотличимы от отсутствующих.
+    /// Инструменты, отдающие выдачу страницей. Изначально — те, чей объём растёт вместе со стройкой
+    /// (#576): список без <c>truncated</c> либо упрётся в лимит клиента целиком, либо — что хуже —
+    /// приедет молча неполным, и недочитанные позиции станут неотличимы от отсутствующих.
+    ///
+    /// С #590 сюда входят и навигационные списки (стройки, наборы, сверки, алиасы). Не потому, что
+    /// они выросли, а потому, что форма списочной выдачи обязана быть ОДНА: пока половина списков
+    /// была страницами, а половина голыми массивами, клиент под массив получал объект и молча видел
+    /// ноль записей — отказ без единого признака, что форма другая.
     ///
     /// Список ведётся руками по той же причине, что и <see cref="WriteTools" />: страничность здесь
     /// решение о корректности, а не деталь оформления, и её потеря обязана быть видна в дифе.
-    /// Навигационные выдачи (стройки, комплекты, документы комплекта) сюда не входят намеренно.
     /// </summary>
     private static readonly string[] PagedTools =
-        ["get_reconciliation_findings", "get_rows", "list_catalog_entries",
-         "list_material_quality_links", "list_quality_documents"];
+        ["get_reconciliation_findings", "get_rows", "list_aliases", "list_catalog_entries",
+         "list_constructions", "list_datasets", "list_material_quality_links", "list_observations",
+         "list_quality_documents", "list_reconciliations"];
 
     private static IEnumerable<(string Name, MethodInfo Method)> AllToolMethods() =>
         ToolTypes
@@ -73,6 +78,46 @@ public class McpToolContractTests
     {
         var paged = AllToolMethods().Where(t => ReturnsPage(t.Method)).Select(t => t.Name).Order().ToList();
         Assert.Equal(PagedTools.Order(), paged);
+    }
+
+    /// <summary>
+    /// Прямая проверка правила из #590: <c>list_*</c> — это всегда страница. Предыдущий тест сверяет
+    /// со списком, который ведут руками, и новый список, забытый в нём, прошёл бы незамеченным —
+    /// ровно так регрессия и появилась.
+    /// </summary>
+    [Fact]
+    public void EveryListTool_ReturnsPage()
+        => Assert.Empty(AllToolMethods()
+            .Where(t => t.Name.StartsWith("list_") && !ReturnsPage(t.Method))
+            .Select(t => t.Name));
+
+    /// <summary>
+    /// Страница объявляет версию контракта: по ней клиент замечает смену формы сразу, а не через
+    /// неверный отчёт. Проверяем на сериализованном виде — поле должно доехать ДО агента, а
+    /// вычисляемые свойства записи легко потерять настройкой сериализатора.
+    /// </summary>
+    [Fact]
+    public void SerializedPage_CarriesContractVersion()
+    {
+        var page = SnapshotPage<string>.Of(["раз"], offset: 0, limit: 10, maxLimit: 100);
+
+        var json = JsonSerializer.Serialize(page, McpSerialization.ToolOptions);
+
+        using var parsed = JsonDocument.Parse(json);
+        Assert.Equal(SnapshotContract.Version, parsed.RootElement.GetProperty("contractVersion").GetInt32());
+    }
+
+    /// <summary>Строки источника — та же страница по смыслу, и их форма меняется тем же контрактом.</summary>
+    [Fact]
+    public void SerializedRowsPage_CarriesContractVersion()
+    {
+        var rows = new RowsPage(Guid.NewGuid(), 0, 10, 1, false, ["Поз"],
+            [new Dictionary<string, string?> { ["Поз"] = "1" }]);
+
+        var json = JsonSerializer.Serialize(rows, McpSerialization.ToolOptions);
+
+        using var parsed = JsonDocument.Parse(json);
+        Assert.Equal(SnapshotContract.Version, parsed.RootElement.GetProperty("contractVersion").GetInt32());
     }
 
     private static IEnumerable<(string Name, McpServerToolAttribute Attr)> AllTools() =>

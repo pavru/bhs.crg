@@ -65,4 +65,8 @@ public record SheetAnchor(string? Code, string? Name, IReadOnlyList<int> Pages);
 public record RowsPage(
     Guid SourceId, int Offset, int Limit, int TotalRows, bool Truncated,
     IReadOnlyList<string> Columns,
-    IReadOnlyList<IReadOnlyDictionary<string, string?>> Rows);
+    IReadOnlyList<IReadOnlyDictionary<string, string?>> Rows)
+{
+    /// <inheritdoc cref="SnapshotContract.Version" />
+    public int ContractVersion => SnapshotContract.Version;
+}

@@ -77,7 +77,8 @@ public class ReconciliationMcpTests(IntegrationTestFixture fixture) : IAsyncLife
         var definitionId = await SeedUnmatchedAsync(scope);
         var tools = Tools(scope);
 
-        Assert.Single(await tools.ListReconciliationsAsync(CancellationToken.None), r => r.Id == definitionId);
+        Assert.Single((await tools.ListReconciliationsAsync(CancellationToken.None)).Items,
+            r => r.Id == definitionId);
 
         var findings = await tools.GetFindingsAsync(definitionId, CancellationToken.None);
         var unmatched = findings.Items.Where(f => f.Status.StartsWith("Missing")).ToList();
@@ -143,7 +144,7 @@ public class ReconciliationMcpTests(IntegrationTestFixture fixture) : IAsyncLife
         await db.SaveChangesAsync();
 
         // Отказ человека — ответ, а не повод повторить: агент обязан его видеть.
-        var listed = Assert.Single(await tools.ListAliasesAsync(CancellationToken.None));
+        var listed = Assert.Single((await tools.ListAliasesAsync(CancellationToken.None)).Items);
         Assert.Equal("Rejected", listed.Status);
         Assert.Equal("Разные детали", listed.Note);
     }

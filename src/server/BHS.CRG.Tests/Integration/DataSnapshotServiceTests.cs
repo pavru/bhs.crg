@@ -233,7 +233,7 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
             var svc = Svc(scope);
 
             var list = await svc.ListDatasetsAsync(null, null);
-            var summary = Assert.Single(list, d => d.Id == fileId);
+            var summary = Assert.Single(list.Items, d => d.Id == fileId);
             Assert.Equal(1, summary.SourceCount);
 
             var detail = await svc.GetDatasetAsync(fileId);

@@ -10,9 +10,13 @@ namespace BHS.CRG.Application.DataSnapshots;
 /// </summary>
 public interface IDataSnapshotService
 {
-    /// <summary>Наборы данных — точка входа: без неё внешний потребитель не узнает идентификаторов.</summary>
-    Task<IReadOnlyList<DatasetSummary>> ListDatasetsAsync(
-        string? scope, Guid? scopeId, CancellationToken ct = default);
+    /// <summary>Наборы данных — точка входа: без неё внешний потребитель не узнает идентификаторов.
+    /// Страницей (#590) — не потому что список длинный, а потому что форма списочной выдачи одна на
+    /// всех: два способа читать список означали бы второй способ прочитать его неправильно.</summary>
+    Task<SnapshotPage<DatasetSummary>> ListDatasetsAsync(
+        string? scope, Guid? scopeId,
+        int offset = 0, int limit = DomainSnapshotLimits.NavigationDefault,
+        CancellationToken ct = default);
 
     /// <summary>Структура набора и его источники, либо null — набора нет.</summary>
     Task<DatasetDetail?> GetDatasetAsync(Guid datasetId, CancellationToken ct = default);

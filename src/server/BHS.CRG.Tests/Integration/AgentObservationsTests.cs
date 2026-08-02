@@ -96,8 +96,8 @@ public class AgentObservationsTests(IntegrationTestFixture fixture) : IAsyncLife
         await tools.ReportObservationAsync(
             SetId, "кабель.перерасход", "Перерасход кабеля", Refs(), CancellationToken.None);
 
-        var again = Assert.Single(await tools.ListObservationsAsync(
-            CancellationToken.None, scopeId: SetId));
+        var again = Assert.Single((await tools.ListObservationsAsync(
+            CancellationToken.None, scopeId: SetId)).Items);
         Assert.Equal("Rejected", again.Status);
         Assert.Equal("Согласовано, давальческий", again.ReviewNote);
         Assert.Equal("alex", again.ReviewedBy);
@@ -124,7 +124,7 @@ public class AgentObservationsTests(IntegrationTestFixture fixture) : IAsyncLife
         Assert.Equal("d1", reported.References.GetProperty("documentIds")[0].GetString());
 
         // И на чтении тоже — иначе уже записанные строкой остались бы сломанными.
-        var listed = Assert.Single(await tools.ListObservationsAsync(CancellationToken.None, scopeId: SetId));
+        var listed = Assert.Single((await tools.ListObservationsAsync(CancellationToken.None, scopeId: SetId)).Items);
         Assert.Equal(JsonValueKind.Object, listed.References.ValueKind);
     }
 
@@ -193,7 +193,7 @@ public class AgentObservationsTests(IntegrationTestFixture fixture) : IAsyncLife
         // Разбирать больше нечего, а неснимаемый счётчик обесценивает бейдж.
         Assert.Equal(0, (await m.Send(new GetRelatedProblemsQuery(CatalogScope.Set, SetId))).NeedsAttention);
         // Но из журнала оно НЕ исчезло: закрывает человек.
-        Assert.Single(await tools.ListObservationsAsync(CancellationToken.None, scopeId: SetId));
+        Assert.Single((await tools.ListObservationsAsync(CancellationToken.None, scopeId: SetId)).Items);
     }
 
     /// <summary>Условие воспроизвелось снова — утверждение снова живо.</summary>
@@ -208,7 +208,7 @@ public class AgentObservationsTests(IntegrationTestFixture fixture) : IAsyncLife
         await tools.RetractObservationAsync(SetId, "нумерация", CancellationToken.None, note: "исправлено");
         await tools.ReportObservationAsync(SetId, "нумерация", "Снова пропущен 3.3", Refs(), CancellationToken.None);
 
-        var again = Assert.Single(await tools.ListObservationsAsync(CancellationToken.None, scopeId: SetId));
+        var again = Assert.Single((await tools.ListObservationsAsync(CancellationToken.None, scopeId: SetId)).Items);
         Assert.Equal("New", again.Status);
         Assert.Null(again.ReviewNote);
         Assert.Equal(1, (await m.Send(new GetRelatedProblemsQuery(CatalogScope.Set, SetId))).NeedsAttention);
@@ -229,7 +229,7 @@ public class AgentObservationsTests(IntegrationTestFixture fixture) : IAsyncLife
         await m.Send(new ReviewObservationCommand(o.Id, ObservationStatus.Rejected, "не ошибка", "alex"));
         await tools.ReportObservationAsync(SetId, "к", "Замечание снова", Refs(), CancellationToken.None);
 
-        var again = Assert.Single(await tools.ListObservationsAsync(CancellationToken.None, scopeId: SetId));
+        var again = Assert.Single((await tools.ListObservationsAsync(CancellationToken.None, scopeId: SetId)).Items);
         Assert.Equal("Rejected", again.Status);
         Assert.Equal("не ошибка", again.ReviewNote);
     }
@@ -258,7 +258,7 @@ public class AgentObservationsTests(IntegrationTestFixture fixture) : IAsyncLife
         var list = await tools.ListObservationsAsync(CancellationToken.None, scopeId: SetId);
 
         // Журнал читают сверху вниз: неразобранное выше разобранного, существенное выше мелочи.
-        Assert.Equal(["Важное", "Мелочь", "Разобранное"], list.Select(o => o.Title));
+        Assert.Equal(["Важное", "Мелочь", "Разобранное"], list.Items.Select(o => o.Title));
     }
 
     [Fact]
@@ -273,6 +273,6 @@ public class AgentObservationsTests(IntegrationTestFixture fixture) : IAsyncLife
         await m.Send(new ReviewObservationCommand(one.Id, ObservationStatus.Confirmed, null, "alex"));
 
         var open = await tools.ListObservationsAsync(CancellationToken.None, scopeId: SetId, status: "New");
-        Assert.Equal("Второе", Assert.Single(open).Title);
+        Assert.Equal("Второе", Assert.Single(open.Items).Title);
     }
 }
