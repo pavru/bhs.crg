@@ -18,6 +18,16 @@ public enum TagScope { Field, Type, Dataset, GostDocument }
 /// </summary>
 public record TagRestriction(int? MaxBearers);
 
+/// <summary>
+/// Числовой параметр тэга (issue #583) — запись в схеме «код:параметр», напр. <c>identity:1</c>.
+/// Наличие описания и означает «у этого тэга есть параметр»: редактор схем показывает поле ввода
+/// только тем тэгам, что его объявили, а разбирается запись всегда одинаково
+/// (<see cref="Domain.Schema.TagCode" />).
+/// </summary>
+/// <param name="Label">Короткая подпись поля ввода (в строку рядом с тэгом).</param>
+/// <param name="Description">Что означает номер — подсказка при наведении.</param>
+public record TagParameter(string Label, string Description);
+
 public record TagDefinition(
     string Code,
     string Label,
@@ -25,7 +35,8 @@ public record TagDefinition(
     TagScope Scope,
     string[] AppliesTo,
     bool Multiple,
-    TagRestriction? Restriction = null);
+    TagRestriction? Restriction = null,
+    TagParameter? Parameter = null);
 
 /// <summary>Реестр функциональных тэгов — единый источник правды (см. <see cref="FunctionalTag"/>).</summary>
 public static class TagRegistry
@@ -51,8 +62,11 @@ public static class TagRegistry
 
         // ── Field: идентификатор объекта / документы качества ──
         new(FunctionalTag.Identity, "Идентификатор",
-            "Поле-идентификатор объекта (артикул, наименование…) — по нему строка сопоставляется с существующим объектом каталога (paste, источники данных) и материал — с документом качества. Можно отметить несколько: порядок задаёт приоритет и порядок компонентов составного ключа.",
-            TagScope.Field, ["string", "text"], Multiple: true),
+            "Поле-идентификатор объекта (артикул, наименование…) — по нему строка сопоставляется с существующим объектом каталога (paste, источники данных) и материал — с документом качества. Отмеченных полей может быть несколько: ключ склеивается из ВСЕХ них, поэтому объект опознаётся всеми полями сразу, а не любым из них.",
+            TagScope.Field, ["string", "text"], Multiple: true,
+            Parameter: new("№", "Номер компонента в составном ключе. Задаёт порядок склейки — менять его "
+                + "нельзя без последствий: ключи всех объектов изменятся разом и заведённые связки "
+                + "перестанут находиться. Поля без номера идут после нумерованных, в порядке схемы.")),
         new(FunctionalTag.MaterialQualityDocLink, "Ссылка на документ качества",
             "Целевое поле, в которое подмешивается привязанный документ, подтверждающий качество.",
             TagScope.Field, ["complex"], Multiple: false),

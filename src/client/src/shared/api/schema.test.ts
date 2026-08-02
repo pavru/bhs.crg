@@ -234,4 +234,48 @@ describe('materialIdentityKeys', () => {
   it('порядок типов не влияет на состав ключей', () => {
     expect(materialIdentityKeys([material, unit, org])).toEqual(materialIdentityKeys([unit, material, org]));
   });
+
+  // ── порядок компонентов составного ключа (issue #583) ───────────────────────
+  //
+  // Порядок здесь не косметика: из него складывается ключ связки «материал → сертификат», а ищет
+  // связку сервер. Правила ОБЯЗАНЫ совпадать с `MaterialIdentity.KeysOf` — те же случаи проверены
+  // и там (MaterialIdentityTests).
+
+  it('номер у тэга задаёт порядок компонентов, а не порядок полей в схеме', () => {
+    const m = { ...dt({ fields: [
+      field('Наименование', { tags: ['identity:2'] }),
+      field('Артикул', { tags: ['identity:1'] }),
+      field('Кач', { type: 'complex', tags: ['material.qualityDocLink'] }),
+    ] }), kind: 'Composite' as const };
+    expect(materialIdentityKeys([m])).toEqual(['Артикул', 'Наименование']);
+  });
+
+  it('поле без номера идёт после нумерованных', () => {
+    const m = { ...dt({ fields: [
+      field('Наименование', { tags: ['identity'] }),
+      field('Артикул', { tags: ['identity:1'] }),
+      field('Кач', { type: 'complex', tags: ['material.qualityDocLink'] }),
+    ] }), kind: 'Composite' as const };
+    expect(materialIdentityKeys([m])).toEqual(['Артикул', 'Наименование']);
+  });
+
+  it('номера сравниваются сквозь типы: подтип с «1» стоит перед базовым с «2»', () => {
+    const base = { ...dt({ fields: [
+      field('Наименование', { tags: ['identity:2'] }),
+      field('Кач', { type: 'complex', tags: ['material.qualityDocLink'] }),
+    ] }, null, 'dt-base'), kind: 'Composite' as const };
+    const cable = { ...dt({ fields: [field('МаркаКабеля', { tags: ['identity:1'] })] }, 'dt-base', 'dt-cable'),
+      kind: 'Composite' as const };
+    expect(materialIdentityKeys([base, cable])).toEqual(['МаркаКабеля', 'Наименование']);
+  });
+
+  it('без номеров поля предка идут перед собственными — как их показывает форма', () => {
+    const base = { ...dt({ fields: [
+      field('Наименование', { tags: ['identity'] }),
+      field('Кач', { type: 'complex', tags: ['material.qualityDocLink'] }),
+    ] }, null, 'dt-base2'), kind: 'Composite' as const };
+    const cable = { ...dt({ fields: [field('МаркаКабеля', { tags: ['identity'] })] }, 'dt-base2', 'dt-cable2'),
+      kind: 'Composite' as const };
+    expect(materialIdentityKeys([base, cable])).toEqual(['Наименование', 'МаркаКабеля']);
+  });
 });

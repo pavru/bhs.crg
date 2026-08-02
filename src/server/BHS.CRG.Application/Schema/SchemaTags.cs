@@ -49,6 +49,49 @@ public static class SchemaTags
     }
 
     /// <summary>
+    /// То же, что <see cref="TaggedFieldsWithOrder" />, но в ЭФФЕКТИВНОМ порядке схемы: поля предка
+    /// идут перед собственными, наследованное поле стоит там, где объявлено. Ровно так их
+    /// показывает форма — клиентский <c>resolveEffectiveFields</c>.
+    ///
+    /// Обход вверх (ближний тип первым) нужен, чтобы тэги ближнего типа побеждали, и порядком быть
+    /// не может: он даёт обратную картину, а порядок полей виден пользователю и задаёт порядок
+    /// компонентов составного ключа (#583). Разойдись он с клиентским — ключ связки, заведённой в
+    /// UI, не совпал бы с ключом на генерации.
+    /// </summary>
+    public static List<(string Key, TagCode Tag)> TaggedFieldsInSchemaOrder(
+        DocumentType docType, IReadOnlyList<DocumentType> allDocTypes)
+    {
+        var byKey = new Dictionary<string, List<TagCode>>();
+        foreach (var (key, tag) in TaggedFieldsWithOrder(docType, allDocTypes))
+        {
+            if (!byKey.TryGetValue(key, out var tags)) byKey[key] = tags = [];
+            tags.Add(tag);
+        }
+
+        // Цепочка от КОРНЯ к листу: место поля задаёт тип, который его объявил, а не тот, что
+        // переопределил тэги.
+        var chain = new List<DocumentType>();
+        var visited = new HashSet<Guid>();
+        var current = docType;
+        while (current is not null && visited.Add(current.Id))
+        {
+            chain.Add(current);
+            current = current.ParentId.HasValue
+                ? allDocTypes.FirstOrDefault(dt => dt.Id == current.ParentId.Value)
+                : null;
+        }
+        chain.Reverse();
+
+        var result = new List<(string Key, TagCode Tag)>();
+        var placed = new HashSet<string>();
+        foreach (var type in chain)
+            foreach (var (key, _) in FieldTags(type.Schema))
+                if (placed.Add(key) && byKey.TryGetValue(key, out var tags))
+                    result.AddRange(tags.Select(t => (key, t)));
+        return result;
+    }
+
+    /// <summary>
     /// Ключи полей с указанным тэгом, упорядоченные ПАРАМЕТРОМ тэга (issue #583): «identity:1» перед
     /// «identity:2», поля без номера — следом, в порядке схемы.
     ///
@@ -57,7 +100,7 @@ public static class SchemaTags
     /// </summary>
     public static IReadOnlyList<string> OrderedKeysWithTag(
         DocumentType docType, IReadOnlyList<DocumentType> allDocTypes, string tag)
-        => [.. TaggedFieldsWithOrder(docType, allDocTypes)
+        => [.. TaggedFieldsInSchemaOrder(docType, allDocTypes)
             .Select((f, index) => (f.Key, f.Tag, index))
             .Where(x => x.Tag.Code == tag)
             .OrderBy(x => x.Tag.SortKey)

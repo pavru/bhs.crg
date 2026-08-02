@@ -3,7 +3,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import type { CatalogScope, DocumentType, FieldRef } from '@/shared/api/types';
 import { resolveObjectsBatch, type ObjectResolveItem, type ObjectResolveResult } from '@/shared/api/objects';
-import { FUNCTIONAL_TAG } from '@/shared/api/tags';
+import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import { resolveEffectiveFields, type SchemaField } from '@/shared/api/schema';
 // ─── Paste mapping modal ──────────────────────────────────────────────────────
 
@@ -49,7 +49,7 @@ export function PasteMappingModal({
   function complexMeta(field: SchemaField) {
     const ct = field.typeId ? allDocTypes.find(dt => dt.id === field.typeId) ?? null : null;
     const eff = ct ? resolveEffectiveFields(ct, allDocTypes) : [];
-    const identityKeys = eff.filter(fld => fld.tags?.includes(FUNCTIONAL_TAG.identity)).map(fld => fld.key);
+    const identityKeys = eff.filter(fld => hasTag(fld.tags, FUNCTIONAL_TAG.identity)).map(fld => fld.key);
     // Фолбэк-поле для несопоставленного значения: первое identity-поле, иначе первое строковое/числовое.
     const fallbackKey = identityKeys[0] ?? eff.find(fld => fld.type === 'string' || fld.type === 'number')?.key;
     return { identityKeys, fallbackKey };
