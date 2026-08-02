@@ -75,6 +75,10 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         sourceId (и datasetId), rowCount после фильтра источника. boundToDataset=false означает
         именно пустую таблицу; отсутствие ключа таблицы в реквизитах ничего не означает — их там не
         бывает вовсе. За строками идите в get_rows по sourceId.
+
+        Нужны два-три поля — перечислите их в fields: документ придёт только с ними. Ответ скажет,
+        что был урезан (projectedFields), и назовёт ключи, которых в схеме нет (unknownFields), —
+        опечатка в ключе иначе выглядит как незаполненное поле.
         """)]
     public async Task<DocumentDetail?> GetDocumentAsync(
         [Description("Идентификатор документа.")] Guid documentId,
@@ -82,8 +86,14 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         [Description("""
             Развернуть ссылки, наследование и перечисления (по умолчанию да). Укажите false, чтобы
             получить форму хранения: для сравнения тождества сопоставить entryId надёжнее, чем имена.
-            """)] bool resolveRefs = true)
-        => await domain.GetDocumentAsync(documentId, resolveRefs, ct);
+            """)] bool resolveRefs = true,
+        [Description("""
+            Ключи полей верхнего уровня, которыми ограничить реквизиты (например
+            ["НомерДокумента","Подписи"]). Пусто — весь документ. Ключи берите из схемы типа
+            (get_document_type); значения при этом те же, что и без ограничения, — разбор идёт
+            полный, урезается только ответ.
+            """)] string[]? fields = null)
+        => await domain.GetDocumentAsync(documentId, resolveRefs, fields, ct);
 
     [McpServerTool(Name = "list_catalog_entries", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Каталог: записи")]

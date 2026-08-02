@@ -50,9 +50,61 @@ public class DocumentValidationMcpTests(IntegrationTestFixture fixture) : IAsync
         Assert.Equal(1, result.ErrorCount);
         var d = Assert.Single(result.Diagnostics);
         Assert.Equal("Error", d.Severity);
-        Assert.Equal("НомерАкта", d.Path);
+        Assert.Equal("НомерАкта", Assert.Single(d.Paths));
         // Код различает вид проблемы — по нему агент отличает «не заполнено» от «ссылка битая».
         Assert.Equal("missing-required", d.Code);
+        Assert.Equal(1, d.Count);
+        Assert.False(d.PathsTruncated);
+    }
+
+    /// <summary>
+    /// Однотипные проблемы приходят одной записью (issue #597): по реестру материалов вернулось 152
+    /// предупреждения, из которых 151 — дословно одна фраза с разными индексами строки, около 70 КБ
+    /// ответа. Потребитель первым делом сворачивал их обратно в одну строку.
+    /// </summary>
+    [Fact]
+    public async Task Validate_GroupsRepeatedDiagnostics_AndMarksHiddenPaths()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+
+        var primitives = scope.ServiceProvider
+            .GetRequiredService<IRepository<BHS.CRG.Domain.Catalog.PrimitiveType>>();
+        var integer = BHS.CRG.Domain.Catalog.PrimitiveType.Create(
+            "Цело число", "Integer_" + Guid.NewGuid().ToString("N")[..6], "number", null,
+            JsonDocument.Parse("""{"integer":true}"""));
+        await primitives.AddAsync(integer);
+        await primitives.SaveChangesAsync();
+
+        // Составной тип строки таблицы с числовым полем — и десять строк, где вместо числа строка.
+        var rowType = await m.Send(new CreateDocumentTypeCommand(
+            "Позиция", $"POS_{Guid.NewGuid():N}"[..12], DocumentTypeKind.Composite, null,
+            JsonDocument.Parse($$"""
+                {"fields":[{"key":"Количество","title":"Количество","type":"primitive","typeId":"{{integer.Id}}"}]}
+                """)));
+        var docId = await SeedDocumentAsync(m, $$"""
+            {"fields":[{"key":"Материалы","title":"Материалы","type":"array","typeId":"{{rowType.Id}}"}]}
+            """);
+        var rows = string.Join(',', Enumerable.Range(1, 10).Select(_ => """{"Количество":"две штуки"}"""));
+        await m.Send(new UpdateRequisitesCommand(docId,
+            JsonDocument.Parse($$"""{"Материалы":[{{rows}}]}""")));
+
+        var result = await Tools(scope).ValidateDocumentAsync(docId, CancellationToken.None);
+
+        var group = Assert.Single(result.Diagnostics);
+        Assert.Equal("value-type", group.Code);
+        Assert.Equal(10, group.Count);
+        Assert.Equal(10, result.DiagnosticCount);
+        Assert.Equal(10, result.WarningCount);
+        // Показаны не все адреса — и об этом сказано, иначе агент решит, что проблем три.
+        Assert.Equal(3, group.Paths.Count);
+        Assert.True(group.PathsTruncated);
+
+        // По явной просьбе — весь перечень: разбор конкретных строк таблицы без адресов невозможен.
+        var full = await Tools(scope).ValidateDocumentAsync(docId, CancellationToken.None, allPaths: true);
+        var fullGroup = Assert.Single(full.Diagnostics);
+        Assert.Equal(10, fullGroup.Paths.Count);
+        Assert.False(fullGroup.PathsTruncated);
     }
 
     /// <summary>

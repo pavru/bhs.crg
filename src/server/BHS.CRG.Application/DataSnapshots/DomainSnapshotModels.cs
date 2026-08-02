@@ -40,11 +40,18 @@ public record DocumentSummary(
 /// НЕТ — строки подмешивает генерация из набора данных, — и по прежнему ответу «таблицы нет» было
 /// неотличимо от «таблица придёт из набора». Отличие не косметическое: агент прочитал отсутствие
 /// ключа «Материалы» как пустой реестр, хотя в нём 151 позиция, и выпустил ошибочное замечание.</param>
+/// <param name="ProjectedFields">Какими ключами ограничили выдачу (issue #596). Null — ограничения не
+/// было, реквизиты полные. Список обязателен именно потому, что ответ НЕПОЛОН по просьбе вызывающего:
+/// без него тот же документ, прочитанный дважды с разной проекцией, выглядит изменившимся.</param>
+/// <param name="UnknownFields">Запрошенные ключи, которых нет в схеме типа. Молчать о них нельзя:
+/// опечатка в ключе иначе неотличима от незаполненного поля.</param>
 public record DocumentDetail(
     Guid Id, string Name, Guid TypeId, string TypeCode, string TypeName, string Status,
     Guid? SetId, string? SetName,
     JsonElement Requisites, bool RefsResolved,
-    IReadOnlyList<DocumentTableField> TableFields);
+    IReadOnlyList<DocumentTableField> TableFields,
+    IReadOnlyList<string>? ProjectedFields = null,
+    IReadOnlyList<string>? UnknownFields = null);
 
 /// <summary>
 /// Табличное поле документа: заглушка вместо строк плюс адрес, по которому строки лежат (#591).

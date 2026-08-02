@@ -82,6 +82,7 @@ public class DomainSnapshotService(
     }
 
     public async Task<DocumentDetail?> GetDocumentAsync(Guid documentId, bool resolveRefs = true,
+        IReadOnlyCollection<string>? fields = null,
         CancellationToken ct = default)
     {
         var doc = await mediator.Send(new GetDocumentInstanceQuery(documentId), ct);
@@ -98,13 +99,47 @@ public class DomainSnapshotService(
             ? await ResolvedRequisitesAsync(doc, ct)
             : doc.Data.RootElement.Clone();
 
+        var tableFields = await TableFieldsAsync(doc.Id, doc.CompositeTypeId, ct);
+
+        var wanted = fields?.Where(f => !string.IsNullOrWhiteSpace(f)).Distinct().ToList();
+        if (wanted is not { Count: > 0 })
+            return new DocumentDetail(
+                doc.Id, doc.DisplayName ?? "", doc.CompositeTypeId,
+                type?.Code ?? "", type?.Name ?? "",
+                doc.Facet?.Status.ToString() ?? "",
+                set?.Id, set?.Name,
+                requisites, resolveRefs, tableFields);
+
+        // Проекция — ПОСЛЕ полного резолва: расчётное поле читает соседние, унаследованное приходит
+        // от базового документа, и «считать только запрошенное» дало бы другое значение (#596).
+        var known = DocumentTypeSchemaReader
+            .EffectiveFields(doc.CompositeTypeId, await AllTypesAsync(ct))
+            .Select(f => f.Key)
+            .ToHashSet(StringComparer.Ordinal);
+
         return new DocumentDetail(
             doc.Id, doc.DisplayName ?? "", doc.CompositeTypeId,
             type?.Code ?? "", type?.Name ?? "",
             doc.Facet?.Status.ToString() ?? "",
             set?.Id, set?.Name,
-            requisites, resolveRefs,
-            await TableFieldsAsync(doc.Id, doc.CompositeTypeId, ct));
+            Project(requisites, wanted), resolveRefs,
+            [.. tableFields.Where(f => wanted.Contains(f.Key))],
+            wanted,
+            // Ключ не из схемы — почти наверняка опечатка, и умолчать о ней значит выдать её за
+            // незаполненное поле.
+            [.. wanted.Where(f => !known.Contains(f))]);
+    }
+
+    /// <summary>Оставляет в реквизитах только запрошенные ключи верхнего уровня (issue #596).</summary>
+    private static JsonElement Project(JsonElement requisites, IReadOnlyCollection<string> wanted)
+    {
+        if (requisites.ValueKind != JsonValueKind.Object) return requisites;
+
+        var kept = requisites.EnumerateObject()
+            .Where(p => wanted.Contains(p.Name))
+            .ToDictionary(p => p.Name, p => p.Value);
+
+        return JsonSerializer.SerializeToElement(kept);
     }
 
     /// <summary>
@@ -120,8 +155,7 @@ public class DomainSnapshotService(
     private async Task<IReadOnlyList<DocumentTableField>> TableFieldsAsync(
         Guid documentId, Guid typeId, CancellationToken ct)
     {
-        var byId = (await types.GetAllAsync(ct)).ToDictionary(t => t.Id);
-        var tableFields = DocumentTypeSchemaReader.EffectiveFields(typeId, byId)
+        var tableFields = DocumentTypeSchemaReader.EffectiveFields(typeId, await AllTypesAsync(ct))
             .Where(f => DocumentTypeSchemaReader.IsMultiValued(f.Type))
             .ToList();
         if (tableFields.Count == 0) return [];
@@ -330,6 +364,11 @@ public class DomainSnapshotService(
 
     /// <summary>Типы одним запросом: имя/код типа нужны почти в каждой форме, а запрос-на-документ
     /// дал бы N+1 на комплекте из десятков документов.</summary>
+    /// <summary>Все типы по идентификатору — схема читается с учётом наследования, поэтому одного
+    /// типа мало: цепочка предков нужна целиком.</summary>
+    private async Task<Dictionary<Guid, DocumentType>> AllTypesAsync(CancellationToken ct)
+        => (await types.GetAllAsync(ct)).ToDictionary(t => t.Id);
+
     private async Task<Dictionary<Guid, DocumentType>> TypeMapAsync(IEnumerable<Guid> typeIds, CancellationToken ct)
     {
         var wanted = typeIds.Distinct().ToHashSet();
