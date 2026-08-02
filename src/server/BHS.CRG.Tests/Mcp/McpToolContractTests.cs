@@ -165,6 +165,28 @@ public class McpToolContractTests
             .Where(t => string.IsNullOrWhiteSpace(t.Attr.Name))
             .Select(t => t.Name));
 
+    /// <summary>
+    /// Полный набор инструментов, объявленный СПИСКОМ (issue #600). За одну живую сессию агента
+    /// набор рос 10 → 15 → 17 → 21 → 22, и каждое изменение инвалидировало кэш модели целиком: около
+    /// 35 % контекста сессии ушло на перечитывание инструкций и списка инструментов вместо работы.
+    ///
+    /// Список нужен не чтобы запретить новые инструменты, а чтобы их добавление было ВИДНО в дифе —
+    /// вместе с решением, выкатывать ли это, пока кто-то работает.
+    /// </summary>
+    private static readonly string[] AllToolNames =
+    [
+        "generate_document", "get_catalog_entry", "get_construction", "get_dataset", "get_document",
+        "get_document_set", "get_document_type", "get_reconciliation_findings", "get_rows",
+        "get_source", "list_aliases", "list_catalog_entries", "list_constructions", "list_datasets",
+        "list_material_quality_links", "list_observations", "list_quality_documents",
+        "list_reconciliations", "propose_alias", "report_observation", "retract_observation",
+        "validate_document",
+    ];
+
+    [Fact]
+    public void ToolSet_MatchesDeclaredList()
+        => Assert.Equal(AllToolNames.Order(), AllTools().Select(t => t.Name).Order());
+
     [Fact]
     public void ToolNames_AreUnique()
     {
