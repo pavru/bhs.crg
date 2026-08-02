@@ -38,6 +38,11 @@ public static class SnapshotContract
     /// <c>entities</c>, по месту стоит <c>{"$entity":"…"}</c> (#594), а реквизиты других документов
     /// заменены ссылкой <c>{"$document":"…","displayName":"…"}</c> (#595). Клиент, читавший поля
     /// организации прямо в реквизитах, найдёт там ссылку.
+    ///
+    /// 5 — у наборов появилось <c>scopeName</c> (#593), у источника <c>rowsHash</c>, у строк
+    /// <c>rowsHash</c> и <c>unchanged</c>, у документов качества и связей материалов —
+    /// <c>updatedAt</c> (#598). Добавления совместимы, но номер поднят вместе с новыми параметрами
+    /// <c>ifNoneMatch</c> и <c>changedSince</c>: по нему клиент понимает, что они уже доступны.
     /// </summary>
-    public const int Version = 4;
+    public const int Version = 5;
 }

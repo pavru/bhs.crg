@@ -85,10 +85,13 @@ public record CatalogEntryDetail(
     string Scope, Guid? ScopeId, JsonElement Data);
 
 /// <param name="HasScan">Есть ли прикреплённый скан — сам файл через MCP не отдаётся.</param>
+/// <param name="UpdatedAt">Когда запись менялась последний раз. По нему строится повторная проверка
+/// «что изменилось с прошлого раза» (issue #598) — из 113 связок за сессию менялась одна, а список
+/// запрашивался целиком.</param>
 public record QualityDocumentSummary(
     Guid Id, string Name, Guid TypeId, string TypeName,
     string Scope, Guid? ScopeId, string Source, bool HasScan,
-    JsonElement Requisites);
+    JsonElement Requisites, DateTimeOffset UpdatedAt);
 
 /// <param name="Schema">Схема типа сырым JSON: описывает ключи, типы и заголовки полей — без неё
 /// реквизиты документа для внешнего читателя не интерпретируемы.</param>
@@ -104,7 +107,8 @@ public record DocumentTypeSchemaInfo(
 /// <param name="Scope">Уровень, с которого связь пришла. Провенанс обязателен: связь может быть
 /// заведена на System и неожиданно действовать на конкретном комплекте, и без уровня «почему тут
 /// этот сертификат» непроверяемо.</param>
+/// <param name="UpdatedAt">Когда связь заводилась или менялась — опора для <c>changedSince</c> (#598).</param>
 public record MaterialQualityLinkInfo(
     string MaterialKey,
     Guid QualityDocumentId, string QualityDocumentName, string QualityDocumentTypeName,
-    string Scope, Guid? ScopeId);
+    string Scope, Guid? ScopeId, DateTimeOffset UpdatedAt);

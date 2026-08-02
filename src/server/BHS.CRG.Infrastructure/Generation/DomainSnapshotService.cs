@@ -327,7 +327,7 @@ public class DomainSnapshotService(
     }
 
     public async Task<SnapshotPage<MaterialQualityLinkInfo>> ListMaterialQualityLinksAsync(
-        Guid setId,
+        Guid setId, DateTimeOffset? changedSince = null,
         int offset = 0, int limit = DomainSnapshotLimits.MaterialLinksDefault,
         CancellationToken ct = default)
     {
@@ -350,12 +350,12 @@ public class DomainSnapshotService(
             (CatalogScope.System, null),
         };
 
-        var winners = new Dictionary<string, (Guid DocId, CatalogScope Scope, Guid? ScopeId)>();
+        var winners = new Dictionary<string, (Guid DocId, CatalogScope Scope, Guid? ScopeId, DateTimeOffset UpdatedAt)>();
         foreach (var (scope, scopeId) in levels)
         {
             if (scope != CatalogScope.System && scopeId is null) continue; // разорванная цепочка — уровня просто нет
             foreach (var l in await mediator.Send(new ListMaterialLinksQuery(scope, scopeId), ct))
-                winners.TryAdd(l.MaterialKey, (l.QualityDocumentId, scope, scopeId));
+                winners.TryAdd(l.MaterialKey, (l.QualityDocumentId, scope, scopeId, l.UpdatedAt));
         }
         if (winners.Count == 0) return empty;
 
@@ -364,6 +364,9 @@ public class DomainSnapshotService(
         var typeMap = await TypeMapAsync(docs.Values.Select(d => d.DocumentTypeId), ct);
 
         var ordered = winners
+            // Отбор по времени — ПОСЛЕ схлопывания по приоритету: карта отдаётся действующая, и
+            // фильтровать надо то, что действует, а не то, что лежит на каждом уровне (#598).
+            .Where(kv => changedSince is not { } since || kv.Value.UpdatedAt > since)
             .OrderBy(kv => kv.Key)
             .Select(kv =>
             {
@@ -371,7 +374,7 @@ public class DomainSnapshotService(
                 var typeName = doc is null ? "" : typeMap.GetValueOrDefault(doc.DocumentTypeId)?.Name ?? "";
                 return new MaterialQualityLinkInfo(
                     kv.Key, kv.Value.DocId, doc?.DisplayName ?? "", typeName,
-                    kv.Value.Scope.ToString(), kv.Value.ScopeId);
+                    kv.Value.Scope.ToString(), kv.Value.ScopeId, kv.Value.UpdatedAt);
             })
             .ToArray();
 
@@ -380,12 +383,13 @@ public class DomainSnapshotService(
     }
 
     public async Task<SnapshotPage<QualityDocumentSummary>> ListQualityDocumentsAsync(
-        string? scope, Guid? scopeId, string? search,
+        string? scope, Guid? scopeId, string? search, DateTimeOffset? changedSince = null,
         int offset = 0, int limit = DomainSnapshotLimits.QualityDocumentsDefault,
         CancellationToken ct = default)
     {
         CatalogScope? parsed = Enum.TryParse<CatalogScope>(scope, true, out var s) ? s : null;
         var docs = await mediator.Send(new ListQualityDocumentsQuery(parsed, scopeId, search), ct);
+        if (changedSince is { } since) docs = [.. docs.Where(d => d.UpdatedAt > since)];
         var typeMap = await TypeMapAsync(docs.Select(d => d.DocumentTypeId), ct);
 
         // Имя, затем идентификатор: порядок запроса не обещан, а страничной выдаче нужен устойчивый —
@@ -398,7 +402,7 @@ public class DomainSnapshotService(
                 typeMap.GetValueOrDefault(d.DocumentTypeId)?.Name ?? "",
                 d.Scope.ToString(), d.ScopeId, d.Source.ToString(),
                 !string.IsNullOrEmpty(d.ScanBlobPath),
-                d.Requisites?.RootElement.Clone() ?? EmptyObject))
+                d.Requisites?.RootElement.Clone() ?? EmptyObject, d.UpdatedAt))
             .ToArray();
 
         return SnapshotPage<QualityDocumentSummary>.Of(

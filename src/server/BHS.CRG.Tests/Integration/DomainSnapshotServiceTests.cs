@@ -463,6 +463,43 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         }
     }
 
+    /// <summary>
+    /// Повторная проверка комплекта (issue #598): из 113 связок за сессию менялась одна, а список
+    /// запрашивался целиком. changedSince отдаёт только то, что менялось после указанного момента.
+    /// </summary>
+    [Fact]
+    public async Task MaterialQualityLinks_ChangedSince_ReturnsOnlyNewer()
+    {
+        var (_, setId, _, _, scope) = await SeedAsync();
+        using (scope)
+        {
+            var m = M(scope);
+            var certType = await m.Send(new CreateDocumentTypeCommand(
+                "Сертификат", Code("CERT"), DocumentTypeKind.Document, null,
+                JsonDocument.Parse("""{"fields":[]}""")));
+            var cert = (await m.Send(new CreateQualityDocumentCommand(
+                certType.Id, "Сертификат", JsonDocument.Parse("{}"),
+                CatalogScope.System, null, QualityDocSource.Manual, null, null, null))).Id;
+
+            await m.Send(new SetMaterialLinksCommand(
+                CatalogScope.Set, setId, [new MaterialLinkInput("кабель-ввгнг-3х2.5")], cert));
+
+            var all = await Svc(scope).ListMaterialQualityLinksAsync(setId);
+            var checkpoint = Assert.Single(all.Items).UpdatedAt;
+
+            // Ничего не менялось — и отдавать нечего.
+            Assert.Empty((await Svc(scope).ListMaterialQualityLinksAsync(setId, changedSince: checkpoint)).Items);
+
+            await m.Send(new SetMaterialLinksCommand(
+                CatalogScope.Set, setId, [new MaterialLinkInput("лоток-200")], cert));
+
+            var changed = await Svc(scope).ListMaterialQualityLinksAsync(setId, changedSince: checkpoint);
+            Assert.Equal("лоток-200", Assert.Single(changed.Items).MaterialKey);
+            // Полное чтение по-прежнему отдаёт обе: changedSince — оптимизация, а не новая правда.
+            Assert.Equal(2, (await Svc(scope).ListMaterialQualityLinksAsync(setId)).Total);
+        }
+    }
+
     [Fact]
     public async Task MaterialQualityLinks_EmptyWhenNoneAndForMissingSet()
     {

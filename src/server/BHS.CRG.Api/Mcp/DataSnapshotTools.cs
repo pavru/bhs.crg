@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using BHS.CRG.Application.DataSnapshots;
 using ModelContextProtocol.Server;
 
@@ -26,6 +26,9 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
         Наборы данных системы — точка входа для анализа. Возвращает идентификаторы, которые нужны
         остальным инструментам. Поле stale=true означает, что файл набора менялся после распознавания
         и данные могут не соответствовать текущему содержимому.
+
+        Имя набора дополнено уровнем и наименованием его стройки/раздела/комплекта (scopeName):
+        одинаковые имена на разных уровнях встречаются, и без этого выбрать между ними нечем.
 
         Ответ — страница {items, offset, limit, total, truncated}, как у всех списков.
         """)]
@@ -66,6 +69,9 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
         Строк здесь ДВА числа: rowCount — после обработки, ровно столько отдаст get_rows и столько
         попадёт в документ; rawRowCount — сколько было в источнике до фильтра. Разницу объясняет
         filtered=true, и она не означает потерю данных.
+
+        rowsHash — отпечаток строк. Запомните его и передайте в get_rows как ifNoneMatch при
+        повторной проверке: если данные не менялись, таблица второй раз не приедет.
         """)]
     public async Task<SourceDetail?> GetSourceAsync(
         [Description("Идентификатор источника данных.")] Guid sourceId,
@@ -83,11 +89,18 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
 
         Порядок строк значим и стабилен: адрес значения — это (sourceId, offset + позиция в массиве,
         имя колонки). Ссылайтесь на него, когда указываете, где именно найдено расхождение.
+
+        Повторная проверка: передайте rowsHash прошлого ответа в ifNoneMatch. Не изменилось —
+        придёт unchanged=true без таблицы, и у вас уже есть верные строки.
         """)]
     public async Task<RowsPage?> GetRowsAsync(
         [Description("Идентификатор источника данных.")] Guid sourceId,
         CancellationToken ct,
         [Description("Смещение от начала (0 — с первой строки).")] int offset = 0,
-        [Description("Сколько строк вернуть; по умолчанию 200, максимум 500.")] int limit = 200)
-        => await snapshots.GetRowsAsync(sourceId, offset, limit, ct);
+        [Description("Сколько строк вернуть; по умолчанию 200, максимум 500.")] int limit = 200,
+        [Description("""
+            Отпечаток строк (rowsHash), который у вас уже есть. Совпал — вместо таблицы придёт
+            unchanged=true.
+            """)] string? ifNoneMatch = null)
+        => await snapshots.GetRowsAsync(sourceId, offset, limit, ifNoneMatch, ct);
 }
