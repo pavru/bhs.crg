@@ -60,15 +60,20 @@ public record SourceSummary(
 /// величина без имени, чему она равна, уже стоила внешнему анализу неверного вывода — сорок восемь
 /// строк источника против сорока четырёх в выборке, и ни одно поле о разнице не говорило.</param>
 /// <param name="Filtered">У источника задан фильтр строк — объяснение разницы двух чисел.</param>
-/// <param name="RowsHash">Отпечаток строк ПОСЛЕ обработки (issue #598). Передайте его в
-/// <c>get_rows</c> как <c>ifNoneMatch</c>: если строки не изменились, вместо таблицы придёт короткое
-/// «не изменилось». Работа с комплектом итеративна («поправил реестр — перепроверь»), а кабельный
-/// журнал выгружался за сессию не менее четырёх раз при двух реальных правках.</param>
+/// <param name="RowsHash">Отпечаток строк ПОСЛЕ обработки (issue #598) — отвечает на вопрос
+/// «менялись ли данные». Работа с комплектом итеративна («поправил реестр — перепроверь»), а
+/// кабельный журнал выгружался за сессию не менее четырёх раз при двух реальных правках. Для
+/// пропуска повторной выдачи передавайте в <c>get_rows</c> <c>pageHash</c> той страницы, которую
+/// перечитываете, — этот отпечаток сквозной и окна не знает.</param>
+/// <param name="RowsError">Строки прочитать не удалось: файл набора недоступен, системная
+/// консолидация исчезла и т.п. Тогда <paramref name="RowCount"/> и <paramref name="RowsHash"/>
+/// пусты, а описание источника всё равно приходит — метаданные и признак устаревания читаются без
+/// строк, и терять их из-за недоступного блоба незачем.</param>
 public record SourceDetail(
     Guid Id, Guid DatasetId, string DatasetName, string Name,
-    DataOrigin Origin, int RowCount, int RawRowCount, bool Filtered,
+    DataOrigin Origin, int? RowCount, int RawRowCount, bool Filtered,
     bool Stale, string? StaleReason,
-    DateTimeOffset UpdatedAt, string RowsHash,
+    DateTimeOffset UpdatedAt, string? RowsHash, string? RowsError,
     IReadOnlyList<ColumnInfo> Columns, SheetAnchor? Sheet);
 
 public record ColumnInfo(string Name, IReadOnlyList<string> SampleValues);
@@ -86,16 +91,20 @@ public record SheetAnchor(string? Code, string? Name, IReadOnlyList<int> Pages);
 /// </summary>
 /// <param name="Truncated">За этой страницей есть ещё строки. КРИТИЧНО для корректности: агент, молча
 /// получивший часть таблицы, выдаст неверную сверку — тихое усечение здесь худший вид отказа.</param>
-/// <param name="RowsHash">Отпечаток строк источника после обработки (issue #598) — тот же, что
-/// отдаёт <see cref="SourceDetail"/>.</param>
-/// <param name="Unchanged">Строки совпали с переданным <c>ifNoneMatch</c>: сама таблица не
+/// <param name="RowsHash">Отпечаток ВСЕХ строк источника после обработки (issue #598) — тот же, что
+/// отдаёт <see cref="SourceDetail"/>. Отвечает на вопрос «менялись ли данные вообще».</param>
+/// <param name="PageHash">Отпечаток ЭТОЙ страницы: он и передаётся обратно в <c>ifNoneMatch</c>.
+/// Отдельный от <paramref name="RowsHash"/>, потому что «не изменилось» относится к запрошенному
+/// окну: со сквозным отпечатком запрос следующей страницы с прежним хешем возвращал бы
+/// <c>unchanged</c> с пустыми строками, и обход «пока truncated» не двигался бы с места.</param>
+/// <param name="Unchanged">Страница совпала с переданным <c>ifNoneMatch</c>: сама таблица не
 /// прикладывается, у вызывающего она уже есть. Остальные поля при этом заполнены как обычно, чтобы
 /// «не изменилось» не приходилось отличать от «пусто».</param>
 public record RowsPage(
     Guid SourceId, int Offset, int Limit, int TotalRows, bool Truncated,
     IReadOnlyList<string> Columns,
     IReadOnlyList<IReadOnlyDictionary<string, string?>> Rows,
-    string RowsHash = "", bool Unchanged = false)
+    string RowsHash = "", string PageHash = "", bool Unchanged = false)
 {
     /// <inheritdoc cref="SnapshotContract.Version" />
     public int ContractVersion => SnapshotContract.Version;

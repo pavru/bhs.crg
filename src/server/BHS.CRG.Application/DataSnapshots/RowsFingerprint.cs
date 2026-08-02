@@ -28,9 +28,14 @@ public static class RowsFingerprint
     /// Учитываются значения, их порядок и имена колонок: перестановка строк меняет адрес значения
     /// <c>(источник, номер строки, колонка)</c>, а значит для внешнего анализа это уже другие данные.
     /// </summary>
-    public static string Of(IReadOnlyList<IReadOnlyDictionary<string, string?>> rows)
+    /// <param name="window">Окно страницы (<c>offset</c>, <c>limit</c>) — для отпечатка СТРАНИЦЫ.
+    /// Без него отпечаток первой страницы совпал бы с отпечатком запроса следующей, и «не
+    /// изменилось» пришло бы туда, где строк ещё не видели.</param>
+    public static string Of(
+        IReadOnlyList<IReadOnlyDictionary<string, string?>> rows, (int Offset, int Limit)? window = null)
     {
         var sb = new StringBuilder();
+        if (window is { } w) sb.Append(w.Offset).Append(UnitSeparator).Append(w.Limit).Append(RecordSeparator);
         foreach (var row in rows)
         {
             // Порядок ключей внутри словаря не обещан — сортируем, иначе отпечаток «менялся» бы сам.

@@ -80,13 +80,33 @@ public class DataSnapshotService(
 
         // Обе величины — из ОДНОЙ загрузки: описание источника обязано сходиться с его же строками,
         // а «сколько строк» без указания, до фильтра или после, уже произвело неверный анализ (#592).
-        var loaded = await rowLoader.LoadAsync(source, ct);
+        //
+        // Чтение строк добавилось здесь ради точного числа, и вместе с ним добавились его отказы:
+        // удалённый блоб, недоступное хранилище, системная консолидация, которой больше нет
+        // (SystemSourceCounter такие случаи глотал намеренно). Описание источника от этого не должно
+        // пропадать — метаданные, колонки и признак устаревания читаются и без строк.
+        LoadedRows? loaded = null;
+        string? rowsError = null;
+        try
+        {
+            loaded = await rowLoader.LoadAsync(source, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            rowsError = ex.Message;
+        }
+
+        // Сырое число без строк берём из кэша — того же, что показывает сводка набора.
+        var rawRowCount = loaded?.RawRowCount
+            ?? await systemCounts.CountAsync(source, source.File, ct)
+            ?? source.CachedRowCount;
 
         return new SourceDetail(
             source.Id, source.FileId, source.File.Name, source.Name,
-            OriginOf(source), loaded.Rows.Count, loaded.RawRowCount, HasFilter(source),
+            OriginOf(source), loaded?.Rows.Count, rawRowCount, HasFilter(source),
             stale, reason,
-            source.UpdatedAt, RowsFingerprint.Of(loaded.Rows),
+            source.UpdatedAt,
+            loaded is null ? null : RowsFingerprint.Of(loaded.Rows), rowsError,
             Columns(source.CachedSchema),
             SheetOf(source, grouping));
     }
@@ -107,6 +127,10 @@ public class DataSnapshotService(
         var all = await rowLoader.LoadRowsAsync(source, ct);
         var page = all.Skip(offset).Take(limit).ToList();
         var hash = RowsFingerprint.Of(all);
+        // Отпечаток СТРАНИЦЫ, а не всей выборки: «не изменилось» относится к запрошенному окну.
+        // Сквозной отпечаток отвечал бы unchanged на запрос СЛЕДУЮЩЕЙ страницы с прежним хешем —
+        // строки за ним агент не получил бы никогда, а обход «пока truncated» не двигался бы.
+        var pageHash = RowsFingerprint.Of(page, (offset, limit));
 
         // Ключи колонок берём из СХЕМЫ, а не из первой строки: строка может не содержать пустых ячеек,
         // и агент, ориентируясь на неё, потерял бы колонку целиком.
@@ -117,16 +141,16 @@ public class DataSnapshotService(
         // Строки те же, что были у вызывающего (issue #598) — таблицу не прикладываем. Загрузку это
         // не экономит (отпечаток считается по ней же), экономит контекст: кабельный журнал за сессию
         // выгружался не менее четырёх раз при двух реальных правках.
-        if (!string.IsNullOrWhiteSpace(ifNoneMatch) && string.Equals(ifNoneMatch, hash, StringComparison.Ordinal))
+        if (!string.IsNullOrWhiteSpace(ifNoneMatch) && string.Equals(ifNoneMatch, pageHash, StringComparison.Ordinal))
             return new RowsPage(
                 source.Id, offset, limit, all.Count,
                 Truncated: offset + page.Count < all.Count,
-                columns, [], hash, Unchanged: true);
+                columns, [], hash, pageHash, Unchanged: true);
 
         return new RowsPage(
             source.Id, offset, limit, all.Count,
             Truncated: offset + page.Count < all.Count,
-            columns, page, hash);
+            columns, page, hash, pageHash);
     }
 
     // ── Достоверность снимка ─────────────────────────────────────────────────────

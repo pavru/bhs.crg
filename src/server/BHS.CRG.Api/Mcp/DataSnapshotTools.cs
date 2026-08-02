@@ -70,8 +70,9 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
         попадёт в документ; rawRowCount — сколько было в источнике до фильтра. Разницу объясняет
         filtered=true, и она не означает потерю данных.
 
-        rowsHash — отпечаток строк. Запомните его и передайте в get_rows как ifNoneMatch при
-        повторной проверке: если данные не менялись, таблица второй раз не приедет.
+        rowsHash — сквозной отпечаток всех строк: по нему видно, менялись ли данные вообще. Если
+        строки прочитать не удалось (файл недоступен, консолидации больше нет), придёт rowsError, а
+        rowCount и rowsHash будут пустыми — остальное описание источника при этом верно.
         """)]
     public async Task<SourceDetail?> GetSourceAsync(
         [Description("Идентификатор источника данных.")] Guid sourceId,
@@ -90,8 +91,10 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
         Порядок строк значим и стабилен: адрес значения — это (sourceId, offset + позиция в массиве,
         имя колонки). Ссылайтесь на него, когда указываете, где именно найдено расхождение.
 
-        Повторная проверка: передайте rowsHash прошлого ответа в ifNoneMatch. Не изменилось —
-        придёт unchanged=true без таблицы, и у вас уже есть верные строки.
+        Повторная проверка: передайте pageHash прошлого ответа в ifNoneMatch. Не изменилось —
+        придёт unchanged=true без таблицы, и у вас уже есть верные строки. Именно pageHash, а не
+        сквозной rowsHash: «не изменилось» относится к этому окну строк, иначе запрос следующей
+        страницы вернул бы пустоту.
         """)]
     public async Task<RowsPage?> GetRowsAsync(
         [Description("Идентификатор источника данных.")] Guid sourceId,
@@ -99,8 +102,8 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
         [Description("Смещение от начала (0 — с первой строки).")] int offset = 0,
         [Description("Сколько строк вернуть; по умолчанию 200, максимум 500.")] int limit = 200,
         [Description("""
-            Отпечаток строк (rowsHash), который у вас уже есть. Совпал — вместо таблицы придёт
-            unchanged=true.
+            Отпечаток страницы (pageHash), которую вы уже читали с тем же offset/limit. Совпал —
+            вместо таблицы придёт unchanged=true.
             """)] string? ifNoneMatch = null)
         => await snapshots.GetRowsAsync(sourceId, offset, limit, ifNoneMatch, ct);
 }

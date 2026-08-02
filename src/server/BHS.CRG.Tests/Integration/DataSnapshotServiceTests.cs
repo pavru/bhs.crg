@@ -274,7 +274,7 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
             Assert.NotEmpty(first!.RowsHash);
             Assert.False(first.Unchanged);
 
-            var again = await svc.GetRowsAsync(sourceId, 0, 50, ifNoneMatch: first.RowsHash);
+            var again = await svc.GetRowsAsync(sourceId, 0, 50, ifNoneMatch: first.PageHash);
 
             Assert.True(again!.Unchanged);
             Assert.Empty(again.Rows);
@@ -282,9 +282,64 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
             Assert.Equal(first.TotalRows, again.TotalRows);
             Assert.Equal(first.Columns, again.Columns);
 
-            // Тот же отпечаток отдаёт и описание источника — иначе им нельзя было бы пользоваться,
-            // не выгрузив таблицу хотя бы раз.
+            // Сквозной отпечаток отдаёт и описание источника — иначе им нельзя было бы
+            // пользоваться, не выгрузив таблицу хотя бы раз.
             Assert.Equal(first.RowsHash, (await svc.GetSourceAsync(sourceId))!.RowsHash);
+        }
+    }
+
+    /// <summary>
+    /// Отпечаток страницы привязан к окну: иначе агент, листающий со сквозным rowsHash, получил бы
+    /// на следующую страницу «не изменилось» с пустыми строками — и обход «пока truncated» встал бы
+    /// навсегда, не показав ни одной строки за первой сотней.
+    /// </summary>
+    [Fact]
+    public async Task PageHash_IsPerWindow_SoPagingStillAdvances()
+    {
+        var (_, sourceId, scope) = await SeedCsvAsync(10);
+        using (scope)
+        {
+            var svc = Svc(scope);
+            var first = await svc.GetRowsAsync(sourceId, 0, 4);
+
+            // Сквозной отпечаток на роль ifNoneMatch не годится и страницу не «схлопывает».
+            var next = await svc.GetRowsAsync(sourceId, 4, 4, ifNoneMatch: first!.RowsHash);
+            Assert.False(next!.Unchanged);
+            Assert.Equal(4, next.Rows.Count);
+            Assert.Equal("5", next.Rows[0]["Позиция"]);
+
+            // Отпечаток чужой страницы тоже не совпадёт — строки придут.
+            var third = await svc.GetRowsAsync(sourceId, 8, 4, ifNoneMatch: first.PageHash);
+            Assert.False(third!.Unchanged);
+            Assert.Equal(2, third.Rows.Count);
+        }
+    }
+
+    /// <summary>
+    /// Чтение описания не должно падать из-за недоступных строк: файл набора мог быть удалён из
+    /// хранилища, а метаданные, колонки и признак устаревания читаются и без него.
+    /// </summary>
+    [Fact]
+    public async Task SourceDetail_SurvivesUnreadableRows()
+    {
+        var (_, sourceId, scope) = await SeedCsvAsync(3);
+        using (scope)
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var source = await db.DataSetSources.Include(s => s.File).FirstAsync(s => s.Id == sourceId);
+            source.File.UpdateBlobPath("наборы/пропавший.csv", DataSetFormat.Csv);
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+
+            var detail = await Svc(scope).GetSourceAsync(sourceId);
+
+            Assert.NotNull(detail);
+            Assert.Null(detail!.RowCount);
+            Assert.Null(detail.RowsHash);
+            Assert.False(string.IsNullOrWhiteSpace(detail.RowsError));
+            // Сырое число остаётся из кэша, колонки — из схемы: описание источника всё ещё полезно.
+            Assert.Equal(3, detail.RawRowCount);
+            Assert.NotEmpty(detail.Columns);
         }
     }
 

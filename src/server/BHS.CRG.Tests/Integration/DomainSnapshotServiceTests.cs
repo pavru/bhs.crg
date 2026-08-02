@@ -221,14 +221,40 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         Assert.Equal("Таблица — Реестр материалов", bound.SourceName);
         Assert.Equal(2, bound.RowCount);
 
-        // Непривязанное табличное поле — тоже ответ, причём тот, ради которого всё затевалось:
-        // здесь «пусто» означает именно пусто.
+        // Непривязанное табличное поле — тоже ответ, причём тот, ради которого всё затевалось.
         var unbound = Assert.Single(detail.TableFields, f => f.Key == "Приложения");
         Assert.False(unbound.BoundToDataset);
         Assert.Null(unbound.RowCount);
 
         // Скалярные поля в перечень не попадают — они и так видны в реквизитах.
         Assert.DoesNotContain(detail.TableFields, f => f.Key == "НомерАкта");
+    }
+
+    /// <summary>
+    /// Таблица без привязки — не обязательно пустая: массив заполняют руками и наследуют от базового
+    /// документа. Сказать про такую «строкам взяться неоткуда» значило бы повторить ровно ту ошибку,
+    /// ради которой #591 и делался, — поэтому число строк берётся из самих реквизитов.
+    /// </summary>
+    [Fact]
+    public async Task GetDocument_CountsManuallyFilledTable_WithoutBinding()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var docType = await m.Send(new CreateDocumentTypeCommand(
+            "Реестр", Code("REG"), DocumentTypeKind.Document, null,
+            JsonDocument.Parse("""{"fields":[{"key":"Материалы","title":"Материалы","type":"array"}]}""")));
+        var construction = await m.Send(new CreateConstructionCommand("ДНС Сити", Guid.NewGuid()));
+        var section = await m.Send(new CreateSectionCommand(construction.Id, "ЭОМ"));
+        var set = await m.Send(new CreateDocumentSetCommand(section.Id, "ЭОМ-1"));
+        var doc = await m.Send(new AddDocumentToSetCommand(set.Id, docType.Id));
+        await m.Send(new UpdateRequisitesCommand(doc.Id, JsonDocument.Parse(
+            """{"Материалы":[{"Наименование":"Кабель"},{"Наименование":"Лоток"}]}""")));
+
+        var field = Assert.Single((await Svc(scope).GetDocumentAsync(doc.Id))!.TableFields);
+
+        Assert.False(field.BoundToDataset);   // источника действительно нет
+        Assert.Equal(2, field.RowCount);      // но строки есть, и их видно
     }
 
     /// <summary>
