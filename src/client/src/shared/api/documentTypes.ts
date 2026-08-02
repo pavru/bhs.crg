@@ -110,7 +110,8 @@ export function useAuditDocumentType(id: string | undefined, enabled: boolean) {
   });
 }
 
-export interface AuditFix { instanceId: string; action: 'remove' | 'rename'; path: string; targetKey?: string }
+/** «coerce» — привести значение к объявленному типу поля (issue #643), только по команде человека. */
+export interface AuditFix { instanceId: string; action: 'remove' | 'rename' | 'coerce'; path: string; targetKey?: string }
 export interface AuditFixOutcome { instanceId: string; path: string; action: string; applied: boolean; reason?: string; oldValue?: string }
 export interface ApplyAuditFixesResult { applied: number; skipped: number; outcomes: AuditFixOutcome[] }
 

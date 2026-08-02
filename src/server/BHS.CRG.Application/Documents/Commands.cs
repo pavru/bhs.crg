@@ -53,8 +53,9 @@ public record MigrateFieldKeyCommand(Guid TypeId, string OldKey, string NewKey) 
 /// (одна SaveChanges). Батч = список фиксов; фронт разворачивает «применить ко всем» в per-instance.
 public record ApplyAuditFixesCommand(IReadOnlyList<AuditFix> Fixes) : IRequest<ApplyAuditFixesResult>;
 
-/// Одно исправление: Action = "remove" (удалить осиротевший ключ / очистить невалидное) или
-/// "rename" (переместить значение в поле схемы TargetKey, только если цель пуста). Path — JSON-путь.
+/// Одно исправление: Action = "remove" (удалить осиротевший ключ / очистить невалидное),
+/// "rename" (переместить значение в поле схемы TargetKey, только если цель пуста) или
+/// "coerce" (привести значение к объявленному типу поля, issue #643). Path — JSON-путь.
 public record AuditFix(Guid InstanceId, string Action, string Path, string? TargetKey = null);
 
 public record ApplyAuditFixesResult(int Applied, int Skipped, IReadOnlyList<AuditFixOutcome> Outcomes);

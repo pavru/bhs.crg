@@ -3,7 +3,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useToast } from '@/shared/ui/Toast';
-import { CheckCircle2, AlertTriangle, Loader2, Trash2 } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Loader2, Trash2, Wand2 } from 'lucide-react';
 import { useAuditInstance, useApplyInstanceAuditFixes } from '@/shared/api/documentSets';
 import type { AuditFinding } from '@/shared/api/documentTypes';
 
@@ -40,7 +40,7 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
   const total = findings?.length ?? 0;
   const isTopLevel = (path: string) => !path.includes('.') && !path.includes('[');
 
-  async function apply(action: 'remove' | 'rename', path: string, targetKey?: string) {
+  async function apply(action: 'remove' | 'rename' | 'coerce', path: string, targetKey?: string) {
     try {
       const res = await applyFixes.mutateAsync([{ action, path, targetKey }]);
       if (res.applied > 0) toast.success('Документ исправлен');
@@ -88,6 +88,14 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
                           </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 pt-1.5">
+                          {/* Для расхождения с типом приведение — исправление, а удаление — потеря
+                              значения; поэтому оно первое и без подтверждения (issue #643). */}
+                          {f.code === 'value-type' && (
+                            <Button variant="text" size="sm" icon={<Wand2 size={13} />}
+                              disabled={applyFixes.isPending} onClick={() => apply('coerce', f.path)}>
+                              Привести к типу
+                            </Button>
+                          )}
                           <Button variant="text" size="sm" danger icon={<Trash2 size={13} />}
                             disabled={applyFixes.isPending} onClick={() => setConfirm(f)}>
                             Удалить

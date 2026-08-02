@@ -3,7 +3,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useToast } from '@/shared/ui/Toast';
-import { CheckCircle2, AlertTriangle, ChevronRight, ChevronDown, Loader2, Trash2 } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, ChevronRight, ChevronDown, Loader2, Trash2, Wand2 } from 'lucide-react';
 import { useAuditDocumentType, useApplyAuditFixes, type AuditFix } from '@/shared/api/documentTypes';
 
 /**
@@ -52,11 +52,17 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
   const total = data?.findings.length ?? 0;
   const isTopLevel = (path: string) => !path.includes('.') && !path.includes('[');
 
-  async function apply(row: Row, action: 'remove' | 'rename', targetKey?: string) {
+  async function apply(row: Row, action: 'remove' | 'rename' | 'coerce', targetKey?: string) {
     const fixes: AuditFix[] = row.instances.map(i => ({ instanceId: i.id, action, path: row.path, targetKey }));
     try {
       const res = await applyFixes.mutateAsync(fixes);
-      toast.success(`Применено: ${res.applied}${res.skipped ? `, пропущено: ${res.skipped}` : ''}`);
+      // Причину пропуска показываем текстом: у приведения «пропущено» — это содержательный ответ
+      // («дробное, а тип допускает только целые»), а не сбой, и без неё непонятно, что делать дальше.
+      const skippedReason = res.outcomes.find(o => !o.applied)?.reason;
+      if (res.applied > 0)
+        toast.success(`Применено: ${res.applied}${res.skipped ? `, пропущено: ${res.skipped}` : ''}`);
+      else
+        toast.info(skippedReason ?? 'Изменений не внесено');
     } catch {
       toast.error('Не удалось применить исправление');
     }
@@ -97,6 +103,7 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                       const k = `${row.code} ${row.path} ${row.message}`;
                       const isOpen = expanded.has(k);
                       const canRename = row.code === 'orphan-key' && isTopLevel(row.path);
+                      const canCoerce = row.code === 'value-type';
                       return (
                         <div key={k}>
                           <button type="button"
@@ -115,6 +122,15 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                                 {row.instances.map(i => <li key={i.id} className="text-xs text-fg3 truncate">{i.name}</li>)}
                               </ul>
                               <div className="flex flex-wrap items-center gap-2 pt-1">
+                                {/* Приведение (issue #643) идёт ПЕРВЫМ и без подтверждения: для
+                                    расхождения с типом это исправление, а удаление — потеря. */}
+                                {canCoerce && (
+                                  <Button variant="text" size="sm" icon={<Wand2 size={13} />}
+                                    disabled={applyFixes.isPending}
+                                    onClick={() => apply(row, 'coerce')}>
+                                    Привести во всех ({row.instances.length})
+                                  </Button>
+                                )}
                                 <Button variant="text" size="sm" danger icon={<Trash2 size={13} />}
                                   disabled={applyFixes.isPending}
                                   onClick={() => setConfirmRow(row)}>

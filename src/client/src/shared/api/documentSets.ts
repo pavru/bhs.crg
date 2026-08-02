@@ -340,7 +340,7 @@ export function useAuditInstance(setId: string, instanceId: string | undefined, 
 export function useApplyInstanceAuditFixes(setId: string, instanceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (fixes: { action: 'remove' | 'rename'; path: string; targetKey?: string }[]) =>
+    mutationFn: (fixes: { action: 'remove' | 'rename' | 'coerce'; path: string; targetKey?: string }[]) =>
       apiClient.post<import('./documentTypes').ApplyAuditFixesResult>(
         `/document-sets/${setId}/documents/${instanceId}/audit/apply`, { fixes }).then(r => r.data),
     onSuccess: () => {
