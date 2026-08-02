@@ -228,6 +228,53 @@ public class DomainSnapshotServiceTests(IntegrationTestFixture fixture) : IAsync
         Assert.DoesNotContain(detail.TableFields, f => f.Key == "НомерАкта");
     }
 
+    /// <summary>
+    /// Проекция полей (issue #596): почти каждый вызов делается ради двух-трёх полей, а документ
+    /// приходил целиком и фильтровался у вызывающего.
+    ///
+    /// Значения при этом ровно те же: разбор идёт полный, урезается только ответ. Иначе расчётное
+    /// поле, читающее соседние, вернуло бы другое число — «дешевле» превратилось бы в «неверно».
+    /// </summary>
+    [Fact]
+    public async Task GetDocument_ProjectsRequestedFields_AndNamesUnknownOnes()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var docType = await m.Send(new CreateDocumentTypeCommand(
+            "Акт", Code("ACT"), DocumentTypeKind.Document, null,
+            JsonDocument.Parse("""
+                {"fields":[
+                    {"key":"НомерАкта","title":"Номер акта","type":"string"},
+                    {"key":"ДатаАкта","title":"Дата акта","type":"date"},
+                    {"key":"Материалы","title":"Материалы","type":"array"}
+                ]}
+                """)));
+        var construction = await m.Send(new CreateConstructionCommand("ДНС Сити", Guid.NewGuid()));
+        var section = await m.Send(new CreateSectionCommand(construction.Id, "ЭОМ"));
+        var set = await m.Send(new CreateDocumentSetCommand(section.Id, "ЭОМ-1"));
+        var doc = await m.Send(new AddDocumentToSetCommand(set.Id, docType.Id));
+        await m.Send(new UpdateRequisitesCommand(doc.Id,
+            JsonDocument.Parse("""{"НомерАкта":"12","ДатаАкта":"2026-07-01"}""")));
+
+        var svc = Svc(scope);
+        var full = await svc.GetDocumentAsync(doc.Id);
+        Assert.Null(full!.ProjectedFields);   // не просили — ответ полный и об этом молчит
+
+        var projected = await svc.GetDocumentAsync(
+            doc.Id, fields: ["НомерАкта", "НмоерАкта"]);
+
+        Assert.Equal("12", projected!.Requisites.GetProperty("НомерАкта").GetString());
+        Assert.False(projected.Requisites.TryGetProperty("ДатаАкта", out _));
+        // Ответ неполон ПО ПРОСЬБЕ — и говорит об этом: иначе тот же документ, прочитанный дважды с
+        // разной проекцией, выглядит изменившимся.
+        Assert.Equal(["НомерАкта", "НмоерАкта"], projected.ProjectedFields);
+        // Опечатка в ключе не должна выглядеть как незаполненное поле.
+        Assert.Equal("НмоерАкта", Assert.Single(projected.UnknownFields!));
+        // Табличные поля тоже урезаются: их не просили.
+        Assert.Empty(projected.TableFields);
+    }
+
     [Fact]
     public async Task CatalogEntries_AreReadableOnTheirOwn()
     {
