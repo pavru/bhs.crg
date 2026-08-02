@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Plus, ChevronRight, Trash2, Copy, Folder, FileText, Boxes, EyeOff, Check,
-  Braces, RotateCcw, Code, Database, Cpu, HelpCircle, RefreshCw, ShieldCheck,
+  Braces, RotateCcw, Code, Database, Cpu, HelpCircle, RefreshCw, ShieldCheck, AlertTriangle,
 } from 'lucide-react';
 import { Switch } from '@/shared/ui/Switch';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
@@ -42,6 +42,7 @@ import {
   type FieldGroup,
   type TypstRender,
 } from '@/shared/api/schema';
+import { danglingKeyRefs, danglingRefPlaces } from './schemaKeyChecks';
 import { TypstRendersEditor } from './TypstRendersEditor';
 import { useTypstBlocksCheck, TypstBlocksPanel, blocksCheckProblemsByFn } from './TypstBlocksCheck';
 import { schemaToJson, validateFields, TYPE_LABELS, nextAutoKey } from './schemaConstants';
@@ -472,6 +473,17 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
   const parentType = docType.parentId ? allDocTypes.find(dt => dt.id === docType.parentId) ?? null : null;
   const parentEffectiveFields = parentType ? resolveEffectiveFields(parentType, allDocTypes) : [];
   const inheritedKeys = new Set(parentEffectiveFields.map(f => f.key));
+  // Ссылки на несуществующие поля (issue #639). Сверяем с ПОЛНЫМ набором ключей — свои плюс все
+  // родительские ДО исключений: исключённый ключ ссылается на существующее родительское поле, в
+  // этом и смысл исключения.
+  const danglingRefs = danglingKeyRefs(groups, excludedFields,
+    [...inheritedKeys, ...fields.map(f => f.key)]);
+  const dropDanglingRefs = () => {
+    const dead = new Set(danglingRefs.map(r => r.key));
+    setGroups(gs => gs.map(g => ({ ...g, fieldKeys: g.fieldKeys.filter(k => !dead.has(k)) })));
+    setExcludedFields(ks => ks.filter(k => !dead.has(k)));
+    setDirty(true);
+  };
   const effectiveFields = resolveEffectiveFields(docType, allDocTypes);
   const reg: FieldRegistries = { compositeTypes, primitiveTypes, enumTypes, allDocTypes, tagRegistry };
   // Унаследованные поля для группировки — активные (исключённые не показываем в раскладке).
@@ -597,6 +609,32 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
             onOverrideDefaultValue={handleOverrideDefaultValue}
             onResetOverride={handleResetOverride}
           />
+        </div>
+      )}
+
+      {/* Висячие ссылки (issue #639): ключ в раскладке групп или в исключениях, которому не
+          соответствует ни своё поле, ни унаследованное. В интерфейсе такой ключ не виден нигде —
+          в раскладке рисуются поля, а не имена, — поэтому «ДатаДокумнета» и пережил все правки
+          схемы. Чистим по кнопке и обычным «Сохранить»: молча править чужую схему нельзя. */}
+      {danglingRefs.length > 0 && (
+        <div className="flex items-start gap-2 rounded-md border border-warning/50 bg-warning/10 px-3 py-2">
+          <AlertTriangle size={14} className="text-warning shrink-0 mt-0.5" />
+          <div className="text-xs text-fg2 space-y-1 flex-1 min-w-0">
+            <p>В схеме есть ссылки на поля, которых нет ни среди своих, ни среди унаследованных —
+              скорее всего опечатка в ключе:</p>
+            <ul className="space-y-0.5">
+              {danglingRefs.map(r => (
+                <li key={r.key}>
+                  <span className="font-mono">{r.key}</span>
+                  <span className="text-fg4"> — {danglingRefPlaces(r)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <button type="button" onClick={dropDanglingRefs}
+            className="text-xs px-2 py-1 rounded border border-warning/60 text-fg2 hover:bg-warning/20 shrink-0">
+            Убрать ссылки
+          </button>
         </div>
       )}
 

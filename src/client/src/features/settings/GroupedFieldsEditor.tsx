@@ -191,6 +191,7 @@ export function GroupedFieldsEditor({
           field={own}
           reg={reg}
           keyConflict={!!own.key && !!disabledKeys?.has(own.key.trim())}
+          otherKeys={[...(disabledKeys ?? []), ...fields.filter(f => f !== own).map(f => f.key)]}
           persistedKeys={persistedKeys}
           autoFocus={!!justAdded && own[FIELD_UID] === justAdded}
           onAutoFocused={() => setJustAdded(null)}
