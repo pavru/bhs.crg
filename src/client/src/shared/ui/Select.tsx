@@ -33,7 +33,8 @@ export interface SelectProps {
   onValueChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
-  /** Для участия в форме (валидация required через скрытый нативный select у Radix). */
+  /** В слое обвязки — участие в нативной валидации формы (скрытый `<select required>` у Radix).
+   *  В слое формы (задан `label`) — только звёздочка при подписи и `aria-required`, см. ниже. */
   required?: boolean;
   name?: string;
   /** Класс триггера (например ширина). */
@@ -76,12 +77,19 @@ export function Select({
   const labelId = useId();
   const framed = label !== undefined;
 
+  // В слое формы `required` — ТОЛЬКО звёздочка при подписи: в Radix он включает скрытый
+  // `<select required>` (1×1 px, `aria-hidden`), и внутри `<form>` браузер молча отказывается
+  // отправлять форму, пока значение пусто. Обработчик submit при этом не вызывается — приложение
+  // не показывает ни своей ошибки, ни подсказки браузера (её некуда прицепить: контрол невидим).
+  // Обязательность в слое формы проверяет само приложение (`isFieldMissing` + «Обязательное поле»),
+  // поэтому в Radix не передаём, а доступность закрываем `aria-required` на триггере.
   const control = (
-    <RS.Root value={value} onValueChange={onValueChange} disabled={disabled} required={required}
-      name={name} onOpenChange={setOpen}>
+    <RS.Root value={value} onValueChange={onValueChange} disabled={disabled}
+      required={framed ? undefined : required} name={name} onOpenChange={setOpen}>
       <RS.Trigger className={`${framed ? FRAMED_TRIGGER : TRIGGER} ${className}`}
         aria-label={framed ? undefined : aria['aria-label']}
         aria-labelledby={framed ? labelId : undefined}
+        aria-required={framed && required ? true : undefined}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}>
         {/* min-w-0 + truncate: длинное выбранное значение обрезается многоточием, а не переносится
             на вторую строку, распирая триггер фиксированной высоты. */}

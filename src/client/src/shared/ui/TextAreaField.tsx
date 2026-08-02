@@ -41,8 +41,12 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
     >
       <textarea
         ref={ref} id={areaId} required={required} rows={rows}
-        // pt-4: верхняя строка текста не должна наезжать на метку, сидящую в вырезе рамки.
-        className={`block w-full rounded-md bg-transparent px-4 pt-4 pb-2 text-sm text-fg1 ` +
+        // Отступ под метку — ВНЕШНИЙ (`mt-4`), а не верхний padding. `<textarea>` обрезает
+        // содержимое по padding-box, поэтому при прокрутке строки проезжают сквозь верхний padding
+        // и перечёркивают метку, сидящую в вырезе рамки (видно на «Домены для тиров поиска», где
+        // строк больше двенадцати). С внешним отступом прокручиваемая область начинается ниже
+        // метки, и наехать на неё нечему.
+        className={`block w-full rounded-md bg-transparent mt-4 px-4 pb-2 text-sm text-fg1 ` +
           `outline-none disabled:opacity-50 ${className}`}
         onFocus={e => { setFocused(true); onFocus?.(e); }}
         onBlur={e => { setFocused(false); onBlur?.(e); }}
