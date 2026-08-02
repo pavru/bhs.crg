@@ -25,6 +25,7 @@ import {
   type BulkLinkAssessment,
 } from './qualityMatch';
 import { QualityDocForm } from '@/features/quality-docs/QualityDocForm';
+import { docIdentityLine } from '@/features/quality-docs/docIdentity';
 import { recognizeAndUpdate } from '@/features/quality-docs/recognizeImported';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
 
@@ -186,7 +187,15 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
                   <div key={d.id} className="flex items-center gap-2 px-3 py-2 hover:bg-brand-subtle transition-colors">
                     <button onClick={() => onPick(d)} className="flex-1 flex items-center gap-2 min-w-0 text-left">
                       <ShieldCheck size={14} className={expired ? 'text-fg4 shrink-0' : 'text-brand shrink-0'} />
-                      <span className="flex-1 text-sm text-fg1 truncate">{d.displayName}</span>
+                      {/* Номер документа рядом с именем (issue #588): два сертификата в библиотеке
+                          назывались одинаково, а внутри были разные номера, органы и области
+                          продукции — по имени человек выбирал вслепую. */}
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-sm text-fg1 truncate">{d.displayName}</span>
+                        {docIdentityLine(d, allDocTypes) && (
+                          <span className="block text-[11px] text-fg4 truncate">{docIdentityLine(d, allDocTypes)}</span>
+                        )}
+                      </span>
                       {queryTokens.length > 0 && score > 0 && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{Math.round(score * 100)}%</span>
                       )}

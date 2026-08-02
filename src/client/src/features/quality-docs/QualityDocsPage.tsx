@@ -17,10 +17,11 @@ import {
   importQualityDocFromUrl, type QualityDocument, type SearchCandidate, type MaterialQualityLink,
 } from '@/shared/api/qualityDocs';
 import type { CatalogScope } from '@/shared/api/types';
-import { resolveEffectiveFields, findTaggedFieldPath, typeHasTag } from '@/shared/api/schema';
+import { resolveEffectiveFields, typeHasTag } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import type { DocumentType } from '@/shared/api/types';
 import { QualityDocForm } from './QualityDocForm';
+import { ambiguousDocNames, docFieldByTag, docNumberOf, isAmbiguous } from './docIdentity';
 import { recognizeAndUpdate } from './recognizeImported';
 import { QualityDocLinks, matchesLink } from './QualityDocLinks';
 import { docState, EXPIRING_SOON_DAYS, type DocState } from './docState';
@@ -28,16 +29,9 @@ import { docState, EXPIRING_SOON_DAYS, type DocState } from './docState';
 const SCOPE_LABEL: Record<string, string> = { System: 'Общая', Construction: 'Стройка', Section: 'Раздел', Set: 'Комплект' };
 const SOURCE_LABEL: Record<string, string> = { file: 'Файл', fgis: 'ФГИС', manufacturer: 'Произв.', web: 'Веб' };
 
-function readPath(obj: Record<string, unknown>, path: string[]): unknown {
-  return path.reduce<unknown>((o, k) => (o && typeof o === 'object') ? (o as Record<string, unknown>)[k] : undefined, obj);
-}
-/** Значение реквизита по функциональному тэгу (имена полей не хардкодим — для того тэги и заведены). */
-function byTag(doc: QualityDocument, docTypes: DocumentType[], tag: string): string {
-  const dt = docTypes.find(t => t.id === doc.documentTypeId);
-  const path = dt ? findTaggedFieldPath(dt, tag, docTypes) : null;
-  const v = path ? readPath(doc.requisites, path) : undefined;
-  return typeof v === 'string' ? v.trim() : '';
-}
+/** Значение реквизита по функциональному тэгу — общий модуль опознания документа (issue #588):
+ *  имена полей не хардкодим, для того тэги и заведены. */
+const byTag = docFieldByTag;
 
 const STATE_META: Record<DocState, { label: string; icon: typeof AlertTriangle; danger: boolean }> = {
   expired: { label: 'Просрочен, связки живы', icon: AlertTriangle, danger: true },
@@ -94,6 +88,10 @@ export function QualityDocsPage() {
       || (linksByDoc.get(d.id) ?? []).some(l => matchesLink(l, q)));
   }, [docs, docTypes, search, stateFilter, states, linksByDoc]);
 
+  // Имена, которые в библиотеке встречаются дважды (issue #588) — считаем по ВСЕЙ библиотеке, а не
+  // по видимой части: имя не перестаёт быть неоднозначным оттого, что второй документ отфильтрован.
+  const ambiguousNames = useMemo(() => ambiguousDocNames(docs), [docs]);
+
   const current = selected ? docs.find(d => d.id === selected) ?? null : null;
 
   // Если ни у одного документа срок не резолвится тэгом, состояния по сроку посчитать нельзя —
@@ -136,8 +134,14 @@ export function QualityDocsPage() {
           </p>
         )}
         <NavSection label={stateFilter ? STATE_META[stateFilter].label : 'Документы'} />
+        {/* Одноимённым документам дописываем номер (issue #588): в библиотеке два сертификата
+            назывались одинаково, а внутри — разные номера, органы и области продукции. Приписывать
+            номер ВСЕМ незачем: тогда он примелькается и перестанет читаться там, где нужен. */}
         {visibleDocs.map(d => (
-          <NavItem key={d.id} icon={<ShieldCheck size={15} />} label={d.displayName}
+          <NavItem key={d.id} icon={<ShieldCheck size={15} />}
+            label={isAmbiguous(d, ambiguousNames)
+              ? `${d.displayName} · ${docNumberOf(d, docTypes) || 'без номера'}`
+              : d.displayName}
             count={linksByDoc.get(d.id)?.length ?? 0}
             active={selected === d.id} onClick={() => setSelected(d.id)} />
         ))}

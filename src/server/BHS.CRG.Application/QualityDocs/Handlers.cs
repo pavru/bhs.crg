@@ -1,4 +1,5 @@
 using BHS.CRG.Application.Common;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using MediatR;
 
@@ -22,6 +23,7 @@ public class QualityDocHandlers(
 {
     public async Task<QualityDocument> Handle(CreateQualityDocumentCommand cmd, CancellationToken ct)
     {
+        await EnsureNameFreeAsync(cmd.DisplayName, cmd.Scope, cmd.ScopeId, exceptId: null, ct);
         var doc = QualityDocument.Create(cmd.DocumentTypeId, cmd.DisplayName, cmd.Requisites, cmd.Scope, cmd.ScopeId, cmd.Source);
         doc.SetScan(cmd.ScanBlobPath, cmd.ScanFileName, cmd.ScanMimeType);
         await repo.AddAsync(doc, ct);
@@ -32,10 +34,40 @@ public class QualityDocHandlers(
     public async Task<QualityDocument> Handle(UpdateQualityDocumentCommand cmd, CancellationToken ct)
     {
         var doc = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException($"QualityDocument {cmd.Id} not found");
+        await EnsureNameFreeAsync(cmd.DisplayName, doc.Scope, doc.ScopeId, exceptId: doc.Id, ct);
         doc.Update(cmd.DocumentTypeId, cmd.DisplayName, cmd.Requisites);
         repo.Update(doc);
         await repo.SaveChangesAsync(ct);
         return doc;
+    }
+
+    /// <summary>
+    /// Имя документа качества уникально В СВОЕЙ ОБЛАСТИ (issue #588).
+    ///
+    /// Живой случай: два сертификата назывались одинаково — «EKF — автоматические выключатели», а
+    /// внутри разные номера (RU C-CN.HA46.B.06753/23 и ЕАЭС RU C-CN.АД07.B.05521/23), разные органы
+    /// и разные области продукции (AV-125 против AV-6/AV-10). В выпадающем списке они неразличимы, и
+    /// человек выбирает вслепую.
+    ///
+    /// Проверяем только ручные пути (создание и правка формы). Импорт из интернета сюда не заходит:
+    /// у него своя защита от дублей — по URL, а имя приходит из чужой выдачи, и отказывать в импорте
+    /// из-за совпадения заголовка значило бы ломать рабочий сценарий ради косметики.
+    /// </summary>
+    private async Task EnsureNameFreeAsync(
+        string displayName, CatalogScope scope, Guid? scopeId, Guid? exceptId, CancellationToken ct)
+    {
+        var name = (displayName ?? "").Trim();
+        if (name.Length == 0) return; // пустое имя — забота валидации формы, не этой проверки
+
+        var sameScope = await repo.FindAsync(d => d.Scope == scope && d.ScopeId == scopeId, ct);
+        var taken = sameScope.Any(d =>
+            (exceptId is null || d.Id != exceptId)
+            && string.Equals(d.DisplayName.Trim(), name, StringComparison.OrdinalIgnoreCase));
+
+        if (taken)
+            throw new InvalidOperationException(
+                $"Документ качества с именем «{name}» в этой области уже есть. Имена должны различаться: "
+                + "иначе при выборе из списка непонятно, какой из документов берут.");
     }
 
     public async Task<QualityDocument> Handle(SetQualityDocScanCommand cmd, CancellationToken ct)
