@@ -25,6 +25,8 @@ public class DataSetService(
         files.ListAvailableFilesAsync(setId, ct);
     public Task<DataSetFileDto> UploadFileAsync(UploadFileInput input, CancellationToken ct) =>
         files.UploadFileAsync(input, ct);
+    public Task<DataSetFileDto> CreateSystemFileAsync(CreateSystemFileInput input, CancellationToken ct) =>
+        files.CreateSystemFileAsync(input, ct);
     public Task<DataSetFileDto?> ReplaceFileAsync(Guid id, ReplaceFileInput input, CancellationToken ct) =>
         files.ReplaceFileAsync(id, input, ct);
     public Task<FileDownloadDto?> DownloadFileAsync(Guid id, CancellationToken ct) =>

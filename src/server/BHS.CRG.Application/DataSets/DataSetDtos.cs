@@ -97,6 +97,9 @@ public record UploadFileInput(
 
 public record ReplaceFileInput(byte[] Bytes, string FileName, string? ContentType, string? Name);
 
+/// <summary>Системный набор (issue #580): создаётся без файла — сырьё берётся из данных системы.</summary>
+public record CreateSystemFileInput(string Scope, string? ScopeId, string? Name);
+
 /// <summary>Явная относительная колонка XML-источника: имя + XPath-выражение относительно строки.</summary>
 public record ColumnExprDto(string Name, string Expr);
 

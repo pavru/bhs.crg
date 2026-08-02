@@ -3,7 +3,11 @@ using BHS.CRG.Domain.Common;
 
 namespace BHS.CRG.Domain.DataSets;
 
-public enum DataSetFormat { Csv, Xlsx, Xls, Xml, Json, Zip, Pdf }
+/// <summary>
+/// Формат сырья набора. <see cref="System"/> — не файл: строки поставляет провайдер, читающий
+/// данные самой системы (документы комплекта и т.п.), блоба у такого набора нет.
+/// </summary>
+public enum DataSetFormat { Csv, Xlsx, Xls, Xml, Json, Zip, Pdf, System }
 
 public class DataSetFile : Entity
 {
@@ -57,6 +61,23 @@ public class DataSetFile : Entity
     public static DataSetFile Create(string name, DataSetFormat format, string blobPath,
         CatalogScope scope, Guid? scopeId)
         => new() { Name = name, Format = format, BlobPath = blobPath, Scope = scope, ScopeId = scopeId };
+
+    /// <summary>
+    /// Системный набор: сырьё — не файл, а данные самой системы в границах scope. Блоба нет,
+    /// BlobPath несёт сентинел (колонка NOT NULL). Источники такого набора — консолидации-провайдеры.
+    /// </summary>
+    public static DataSetFile CreateSystem(string name, CatalogScope scope, Guid? scopeId)
+        => new()
+        {
+            Name = name,
+            Format = DataSetFormat.System,
+            BlobPath = SystemDataSets.BlobPathSentinel,
+            Scope = scope,
+            ScopeId = scopeId,
+        };
+
+    /// <summary>Набор без файла: сырьё — данные системы (см. <see cref="CreateSystem"/>).</summary>
+    public bool IsSystem => Format == DataSetFormat.System;
 
     public DataSetSource AddSource(string name, string sheetOrPath, string cachedSchema, int cachedRowCount,
         string? columnExpressions = null, string? cachedData = null)

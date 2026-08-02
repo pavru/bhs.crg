@@ -102,9 +102,12 @@ public class DataSnapshotService(
     // ── Достоверность снимка ─────────────────────────────────────────────────────
 
     /// <summary>Распознанные источники помечены маркером — это и есть признак вероятностного
-    /// происхождения данных (см. <see cref="PdfProfiles.IsRecognitionMarker"/>).</summary>
+    /// происхождения данных (см. <see cref="PdfProfiles.IsRecognitionMarker"/>). Системная
+    /// консолидация не парсится и не распознаётся — у неё своё происхождение.</summary>
     private static DataOrigin OriginOf(DataSetSource s) =>
-        PdfProfiles.IsRecognitionMarker(s.SheetOrPath) ? DataOrigin.Recognized : DataOrigin.Parsed;
+        SystemDataSets.IsSystemMarker(s.SheetOrPath) ? DataOrigin.System
+        : PdfProfiles.IsRecognitionMarker(s.SheetOrPath) ? DataOrigin.Recognized
+        : DataOrigin.Parsed;
 
     /// <summary>Устарели ли данные источника. Три независимых причины, и каждая означает, что сверка
     /// по этим строкам может быть неверной, — поэтому возвращаем ещё и человекочитаемую причину.</summary>

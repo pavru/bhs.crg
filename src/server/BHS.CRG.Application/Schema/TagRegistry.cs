@@ -48,6 +48,9 @@ public static class TagRegistry
         new(FunctionalTag.DocNumber, "Номер документа",
             "Номер документа — показывается в списках (напр. в библиотеке документов качества).",
             TagScope.Field, ["string", "text"], Multiple: false),
+        new(FunctionalTag.DocDate, "Дата документа",
+            "Дата документа, заполняемая пользователем. В отличие от даты генерации не меняется при повторной генерации PDF; попадает в консолидации (напр. в реестр документов комплекта).",
+            TagScope.Field, ["date", "string", "text"], Multiple: false),
 
         // ── Field: идентификатор объекта / документы качества ──
         new(FunctionalTag.Identity, "Идентификатор",

@@ -264,7 +264,8 @@ export interface RestoreReport {
 
 // ─── DataSets ─────────────────────────────────────────────────────────────────
 
-export type DataSetFormat = 'Csv' | 'Xlsx' | 'Xls' | 'Xml' | 'Json' | 'Zip' | 'Pdf';
+/** 'System' — набор без файла: строки консолидирует система из своих же данных (issue #580). */
+export type DataSetFormat = 'Csv' | 'Xlsx' | 'Xls' | 'Xml' | 'Json' | 'Zip' | 'Pdf' | 'System';
 
 export const DATA_SET_FORMAT_LABELS: Record<DataSetFormat, string> = {
   Csv: 'CSV / TXT',
@@ -274,6 +275,7 @@ export const DATA_SET_FORMAT_LABELS: Record<DataSetFormat, string> = {
   Json: 'JSON',
   Zip: 'ZIP-архив',
   Pdf: 'PDF',
+  System: 'Данные системы',
 };
 
 /** Явная относительная колонка XML-источника (см. XPathBuilder). */
