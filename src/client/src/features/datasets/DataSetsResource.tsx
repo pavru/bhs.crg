@@ -4,7 +4,7 @@ import { Upload, Trash2, Database, RefreshCw, Download, FileText, LayoutGrid, Ch
 import { Button, IconButton } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { useListDataSetFiles, useUploadDataSetFile } from '@/shared/api/datasets';
+import { useCreateSystemDataSetFile, useListDataSetFiles, useUploadDataSetFile } from '@/shared/api/datasets';
 import { useRecognitionJobs, useCancelJob, type ActiveJob } from '@/shared/api/jobs';
 import type { CatalogScope, DataSetFile } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS } from '@/shared/api/types';
@@ -51,6 +51,7 @@ function FileDetail({ file, scope, scopeId, job }: {
     updateInputRef, handleReplace, handleDownload, handleDelete,
   } = useDataSetFileActions(file, scope, scopeId);
   const cancel = useCancelJob();
+  const isSystem = file.format === 'System';
 
   return (
     <div className="rounded-lg border border-stroke bg-surface overflow-hidden">
@@ -61,20 +62,27 @@ function FileDetail({ file, scope, scopeId, job }: {
             <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-fg3">{DATA_SET_FORMAT_LABELS[file.format]}</span>
           </div>
           <div className="text-xs text-fg4 mt-0.5">
-            {sourcesLabel(file.sources.length)} · загружен {new Date(file.createdAt).toLocaleDateString('ru-RU')}
+            {sourcesLabel(file.sources.length)} · {isSystem
+              ? 'данные собираются системой при каждом обращении'
+              : `загружен ${new Date(file.createdAt).toLocaleDateString('ru-RU')}`}
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <input ref={updateInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleReplace} />
-          <FileRecognizeActions file={file} />
-          <IconButton label="Скачать оригинальный файл" size="sm" onClick={handleDownload} disabled={downloading}>
-            <Download size={15} className={downloading ? 'opacity-50' : ''} />
-          </IconButton>
-          <IconButton label="Обновить файл (привязки сохранятся)" size="sm"
-            onClick={() => updateInputRef.current?.click()} disabled={update.isPending}>
-            <RefreshCw size={15} className={update.isPending ? 'animate-spin' : ''} />
-          </IconButton>
-          <IconButton label="Удалить файл" size="sm" danger onClick={() => setConfirming(true)}>
+          {/* У системного набора файла нет: скачивать, заменять и распознавать нечего. */}
+          {!isSystem && (
+            <>
+              <input ref={updateInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleReplace} />
+              <FileRecognizeActions file={file} />
+              <IconButton label="Скачать оригинальный файл" size="sm" onClick={handleDownload} disabled={downloading}>
+                <Download size={15} className={downloading ? 'opacity-50' : ''} />
+              </IconButton>
+              <IconButton label="Обновить файл (привязки сохранятся)" size="sm"
+                onClick={() => updateInputRef.current?.click()} disabled={update.isPending}>
+                <RefreshCw size={15} className={update.isPending ? 'animate-spin' : ''} />
+              </IconButton>
+            </>
+          )}
+          <IconButton label="Удалить набор" size="sm" danger onClick={() => setConfirming(true)}>
             <Trash2 size={15} />
           </IconButton>
         </div>
@@ -93,9 +101,12 @@ function FileDetail({ file, scope, scopeId, job }: {
         <SourcesPanel file={file} />
       </div>
       <ConfirmDialog open={confirming} onOpenChange={o => { if (!o) setConfirming(false); }}
-        title={`Удалить файл «${file.name}»?`}
-        description={<p>Файл и все его источники будут удалены. Привязки, ссылающиеся на него, перестанут работать.</p>}
-        confirmLabel="Удалить файл" onConfirm={() => { void handleDelete(); }} />
+        title={`Удалить набор «${file.name}»?`}
+        description={<p>
+          {isSystem ? 'Набор' : 'Файл'} и все его источники будут удалены. Привязки, ссылающиеся на него, перестанут работать.
+          {isSystem && ' Сами данные системы (документы, общие данные) при этом не тронутся.'}
+        </p>}
+        confirmLabel="Удалить набор" onConfirm={() => { void handleDelete(); }} />
     </div>
   );
 }
@@ -134,6 +145,7 @@ function AllFilesOverview({ files, onOpen }: { files: DataSetFile[]; onOpen: (id
 export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scopeId?: string }) {
   const { data: files = [], isLoading } = useListDataSetFiles(scope, scopeId);
   const upload = useUploadDataSetFile();
+  const createSystem = useCreateSystemDataSetFile();
   const recogJobs = useRecognitionJobs();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -152,6 +164,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
   const selected = fileParam ?? (files.length === 1 ? files[0].id : ALL);
   const isAll = selected === ALL;
   const selectedFile = !isAll ? files.find(f => f.id === selected) : undefined;
+  const hasSystemFile = files.some(f => f.format === 'System');
 
   // Статус набора: активная задача распознавания (targetId = file.id для ГОСТ, иначе id источника).
   const jobForFile = (f: DataSetFile) =>
@@ -189,6 +202,16 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
     if (file) void uploadFile(file);
   }
 
+  async function addSystemFile() {
+    setUploadError('');
+    try {
+      const created = await createSystem.mutateAsync({ scope, scopeId });
+      if (created?.id) setSelected(created.id);
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : 'Не удалось создать набор');
+    }
+  }
+
   const uploadBtn = (
     <>
       <input ref={fileInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleFileInput} />
@@ -196,6 +219,14 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
         loading={uploading} icon={<Upload size={14} />}>
         {uploading ? 'Загрузка…' : 'Загрузить файл'}
       </Button>
+      {/* Набор без файла: сырьё — данные самой системы. На уровень нужен один, поэтому кнопка
+          прячется, как только он появился. */}
+      {!hasSystemFile && (
+        <Button variant="text" size="sm" onClick={() => { void addSystemFile(); }}
+          loading={createSystem.isPending} icon={<Database size={14} />}>
+          Данные системы
+        </Button>
+      )}
     </>
   );
 
@@ -214,9 +245,15 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
         <>
           <input ref={fileInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleFileInput} />
           <EmptyState icon={<Database size={30} />} title="Пока нет наборов данных"
-            description="Загрузите файл (CSV, XLSX, XML, JSON, ZIP, PDF) или перетащите его сюда — из него можно собирать источники для колонок и таблиц документов."
-            action={<Button variant="filled" size="sm" onClick={() => fileInputRef.current?.click()}
-              loading={uploading} icon={<Upload size={14} />}>Загрузить файл</Button>} />
+            description="Загрузите файл (CSV, XLSX, XML, JSON, ZIP, PDF) или перетащите его сюда — из него можно собирать источники для колонок и таблиц документов. Либо возьмите данные самой системы: например, перечень документов комплекта."
+            action={
+              <div className="flex items-center gap-2">
+                <Button variant="filled" size="sm" onClick={() => fileInputRef.current?.click()}
+                  loading={uploading} icon={<Upload size={14} />}>Загрузить файл</Button>
+                <Button variant="outlined" size="sm" onClick={() => { void addSystemFile(); }}
+                  loading={createSystem.isPending} icon={<Database size={14} />}>Данные системы</Button>
+              </div>
+            } />
           {uploadError && <p className="text-xs text-danger text-center mt-2">{uploadError}</p>}
         </>
       ) : (

@@ -44,9 +44,12 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
   const tabular = isTabularFormat(format);
   const isZip = format === 'Zip';
   const isPdf = format === 'Pdf';
-  // PDF-источник — проекция из СЫРЬЯ распознанного набора (issue #40): выбор кандидата
-  // (Обложка/Титул/Документы), как выбор листа в Excel. Никаких XPath/колонок.
-  const usesCandidates = tabular || isPdf;
+  const isSystem = format === 'System';
+  // PDF-источник — проекция из СЫРЬЯ распознанного набора (issue #40), системный — консолидация
+  // данных системы (issue #580). И то и другое выбирается из готового списка, как лист в Excel:
+  // никаких XPath/колонок, поэтому редактор у них общий.
+  const picksCandidate = isPdf || isSystem;
+  const usesCandidates = tabular || picksCandidate;
   const needsSheet = format === 'Xls' || format === 'Xlsx';
   const pathFormat: PathFormat = format === 'Json' ? 'Json' : 'Xml';
   const PathBuilder = pathFormat === 'Json' ? JsonPathBuilder : XPathBuilder;
@@ -111,10 +114,10 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
     let finalSheetOrPath: string;
     let finalColumns: ColumnExprDef[] | null;
 
-    if (isPdf) {
-      if (!sheetOrPath.trim()) { setError('Выберите данные набора для источника'); return; }
-      finalSheetOrPath = sheetOrPath.trim(); // маркер кандидата (gost-cover/gost-titlepage/gost-documents)
-      finalColumns = null;                    // проекция из группировки, колонки готовы
+    if (picksCandidate) {
+      if (!sheetOrPath.trim()) { setError('Выберите данные для источника'); return; }
+      finalSheetOrPath = sheetOrPath.trim(); // маркер кандидата (gost-cover/…/system:set-documents)
+      finalColumns = null;                    // готовая проекция/консолидация — колонки известны
     } else if (tabular) {
       if (needsSheet && !sheetOrPath.trim()) { setError('Выберите лист'); return; }
       // CSV — весь файл: extraction тривиальна, sheetOrPath из кандидата (обычно "default").
@@ -159,9 +162,9 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
         <TextField label="Название" value={name} onChange={e => setName(e.target.value)}
           hint="Позиции спецификации" />
 
-        {isPdf ? (
+        {picksCandidate ? (
           <div>
-            <Select label="Данные набора" value={sheetOrPath || undefined} placeholder="— выберите —"
+            <Select label={isSystem ? 'Данные системы' : 'Данные набора'} value={sheetOrPath || undefined} placeholder="— выберите —"
               onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
               {readyCandidates.map(c => (
                 <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</SelectItem>
@@ -169,11 +172,13 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
             </Select>
             {readyCandidates.length === 0 && (
               <p className="text-xs text-fg4 mt-1">
-                {pendingTableCount > 0
-                  ? 'Все проекции набора уже добавлены. Таблицы документов сначала распознайте — кнопка «Распознать таблицу» в списке кандидатов под источниками.'
-                  : candidates.length === 0
-                    ? 'Нет доступных проекций. Если набор ещё не распознан — запустите «Распознать»; таблицы документов распознаются отдельно (кнопка ✂ разбиения).'
-                    : 'Все проекции набора уже добавлены как источники.'}
+                {isSystem
+                  ? 'Нет доступных консолидаций: либо все уже добавлены, либо на этом уровне их нет (напр. «Документы комплекта» доступны только у набора комплекта).'
+                  : pendingTableCount > 0
+                    ? 'Все проекции набора уже добавлены. Таблицы документов сначала распознайте — кнопка «Распознать таблицу» в списке кандидатов под источниками.'
+                    : candidates.length === 0
+                      ? 'Нет доступных проекций. Если набор ещё не распознан — запустите «Распознать»; таблицы документов распознаются отдельно (кнопка ✂ разбиения).'
+                      : 'Все проекции набора уже добавлены как источники.'}
               </p>
             )}
             {selectedCandidate && selectedCandidate.columns.length > 0 && (

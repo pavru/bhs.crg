@@ -1,0 +1,193 @@
+using System.Text.Json;
+using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.DataSnapshots;
+using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.Generation;
+using BHS.CRG.Domain.Documents;
+using MediatR;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace BHS.CRG.Tests.Integration;
+
+/// <summary>
+/// Системный набор данных (issue #580): сырьё — не файл, а данные самой системы. Проверяется
+/// сквозной путь консолидации «Документы комплекта»: кандидат → источник → строки → привязка →
+/// контекст генерации, — и то, что у такого набора нет файловых операций.
+/// </summary>
+[Collection("Integration")]
+public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
+{
+    public async Task InitializeAsync() => await fixture.ResetDatabaseAsync();
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    private static IDataSetService Svc(IServiceScope s) => s.ServiceProvider.GetRequiredService<IDataSetService>();
+    private static IMediator M(IServiceScope s) => s.ServiceProvider.GetRequiredService<IMediator>();
+    private static JsonDocument J(string singleQuoted) => JsonDocument.Parse(singleQuoted.Replace('\'', '"'));
+
+    /// <summary>Комплект с двумя документами: у одного заполнены тэгированные реквизиты, у второго нет имени.</summary>
+    private static async Task<(Guid setId, Guid namedId, Guid unnamedId, string typeName)> SeedSetAsync(IServiceScope scope)
+    {
+        var m = M(scope);
+
+        // Тэги, а не имена полей: провайдер обязан находить номер/дату/листы в чужой схеме.
+        var docType = await m.Send(new CreateDocumentTypeCommand("АОСР", "AOSR", DocumentTypeKind.Document, null,
+            J("""
+              {'fields':[
+                {'key':'Номер','type':'string','required':false,'tags':['doc.number']},
+                {'key':'Дата','type':'date','required':false,'tags':['doc.date']},
+                {'key':'Листов','type':'number','required':false,'tags':['doc.pageCount']}
+              ]}
+              """)));
+
+        var construction = await m.Send(new CreateConstructionCommand("Объект", Guid.NewGuid()));
+        var section = await m.Send(new CreateSectionCommand(construction.Id, "ЭОМ"));
+        var set = await m.Send(new CreateDocumentSetCommand(section.Id, "Комплект 1"));
+
+        var named = await m.Send(new AddDocumentToSetCommand(set.Id, docType.Id));
+        await m.Send(new RenameDocumentInstanceCommand(named.Id, "АОСР №1"));
+        await m.Send(new UpdateRequisitesCommand(named.Id,
+            J("{'Номер':'7И-СОТВ 1','Дата':'2026-05-06','Листов':4}")));
+
+        var unnamed = await m.Send(new AddDocumentToSetCommand(set.Id, docType.Id));
+
+        return (set.Id, named.Id, unnamed.Id, docType.Name);
+    }
+
+    [Fact]
+    public async Task SetDocuments_Candidate_BecomesSourceWithLiveRows()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var (setId, namedId, _, typeName) = await SeedSetAsync(scope);
+
+        var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
+
+        var candidate = Assert.Single(await svc.DetectSourceCandidatesAsync(file.Id, default));
+        Assert.Equal("system:set-documents", candidate.SheetOrPath);
+
+        var source = await svc.CreateSourceAsync(file.Id,
+            new CreateSourceInput("Документы", candidate.SheetOrPath, null), default);
+
+        var preview = await svc.PreviewSourceAsync(source.Id, 50, default);
+        Assert.NotNull(preview);
+        Assert.Equal(2, preview.Rows.Count);
+
+        string? Cell(int rowIndex, string column) =>
+            preview.Rows[rowIndex][preview.Columns.ToList().IndexOf(column)];
+
+        Assert.Equal("АОСР №1", Cell(0, "Наименование"));
+        Assert.Equal("7И-СОТВ 1", Cell(0, "НомерДокумента"));
+        Assert.Equal("2026-05-06", Cell(0, "ДатаДокумента"));
+        Assert.Equal("4", Cell(0, "КоличествоЛистов"));
+        Assert.Equal("Черновик", Cell(0, "Статус"));
+        Assert.Equal("1", Cell(0, "НомерПП"));
+        Assert.Equal(namedId.ToString(), Cell(0, "Ид"));
+
+        // Документ без своего имени показывается именем типа, а не пустой ячейкой.
+        Assert.Equal(typeName, Cell(1, "Наименование"));
+    }
+
+    /// <summary>Данные живые: документ, добавленный после создания источника, попадает в строки без «обновить».</summary>
+    [Fact]
+    public async Task SetDocuments_RowsFollowSetComposition()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var m = M(scope);
+        var (setId, namedId, _, _) = await SeedSetAsync(scope);
+
+        var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
+        var source = await svc.CreateSourceAsync(file.Id,
+            new CreateSourceInput("Документы", "system:set-documents", null), default);
+
+        var typeId = (await m.Send(new GetDocumentInstanceQuery(namedId)))!.CompositeTypeId;
+        await m.Send(new AddDocumentToSetCommand(setId, typeId));
+
+        var preview = await svc.PreviewSourceAsync(source.Id, 50, default);
+        Assert.Equal(3, preview!.Rows.Count);
+    }
+
+    /// <summary>Ради чего всё: строки консолидации доходят до контекста генерации обычной привязкой.</summary>
+    [Fact]
+    public async Task SetDocuments_BoundToArrayField_ReachesGenerationContext()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var m = M(scope);
+        var (setId, _, _, _) = await SeedSetAsync(scope);
+
+        var rowType = await m.Send(new CreateDocumentTypeCommand("СтрокаРеестра", "REG_ROW", DocumentTypeKind.Composite, null,
+            J("{'fields':[{'key':'Наименование','type':'string','required':false},{'key':'Номер','type':'string','required':false}]}")));
+        var registryType = await m.Send(new CreateDocumentTypeCommand("Реестр документов", "REGISTRY", DocumentTypeKind.Document, null,
+            J($"{{'fields':[{{'key':'Строки','type':'array','required':false,'typeId':'{rowType.Id}'}}]}}")));
+        var registry = await m.Send(new AddDocumentToSetCommand(setId, registryType.Id));
+
+        var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
+        var source = await svc.CreateSourceAsync(file.Id,
+            new CreateSourceInput("Документы", "system:set-documents", null), default);
+        await svc.CreateBindingAsync(new CreateBindingInput(registry.Id, source.Id, "Строки",
+            new() { ["Наименование"] = "Наименование", ["Номер"] = "НомерДокумента" }), default);
+
+        var instance = await m.Send(new GetDocumentInstanceQuery(registry.Id));
+        var view = DocumentView.From(instance!);
+        var ctx = await scope.ServiceProvider.GetRequiredService<IEntityResolver>().ResolveAsync(view, default);
+        await scope.ServiceProvider.GetRequiredService<IDataSetResolver>().InjectAsync(ctx, view, null, default);
+
+        var rows = (JsonElement)ctx.Data["Строки"]!;
+        Assert.Equal(JsonValueKind.Array, rows.ValueKind);
+        // Реестр — тоже документ комплекта и попадает в собственный перечень (решение по #580):
+        // отфильтровать его при желании можно штатным фильтром строк источника.
+        Assert.Equal(3, rows.GetArrayLength());
+        Assert.Equal("7И-СОТВ 1", rows[0].GetProperty("Номер").GetString());
+    }
+
+    /// <summary>Системный источник виден внешнему агенту как детерминированная консолидация, не как парсинг.</summary>
+    [Fact]
+    public async Task SetDocuments_SnapshotOrigin_IsSystem()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var (setId, _, _, _) = await SeedSetAsync(scope);
+
+        var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
+        var source = await svc.CreateSourceAsync(file.Id,
+            new CreateSourceInput("Документы", "system:set-documents", null), default);
+
+        var detail = await scope.ServiceProvider.GetRequiredService<IDataSnapshotService>()
+            .GetSourceAsync(source.Id, default);
+
+        Assert.Equal(DataOrigin.System, detail!.Origin);
+        Assert.False(detail.Stale);
+    }
+
+    [Fact]
+    public async Task SystemFile_HasNoFileOperations()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var (setId, _, _, _) = await SeedSetAsync(scope);
+
+        var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
+
+        Assert.Null(await svc.DownloadFileAsync(file.Id, default));
+        await Assert.ThrowsAsync<ArgumentException>(() => svc.ReplaceFileAsync(file.Id,
+            new ReplaceFileInput([1, 2, 3], "x.csv", "text/csv", null), default));
+
+        // Повторное создание на том же уровне возвращает тот же набор, а не второй такой же.
+        var again = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
+        Assert.Equal(file.Id, again.Id);
+
+        Assert.True(await svc.DeleteFileAsync(file.Id, default));
+    }
+
+    /// <summary>Консолидация «Документы комплекта» бессмысленна вне комплекта — кандидат не предлагается.</summary>
+    [Fact]
+    public async Task SetDocuments_NotOfferedOutsideSetScope()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+
+        var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("System", null, null), default);
+        Assert.Empty(await svc.DetectSourceCandidatesAsync(file.Id, default));
+    }
+}

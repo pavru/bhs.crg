@@ -79,8 +79,10 @@ function SourceRowCountBadge({ sourceId }: { sourceId: string }) {
  * Просмотр (основное действие чтения). Удаление — пунктом меню через ConfirmDialog, не hover-only
  * красная иконка (см. feedback_delete_ui_safety). Точка на «трёх точках» — активная обработка.
  */
-function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onEdit }: {
-  src: DataSetSource; isPdf: boolean; canManageExtraction: boolean;
+/** fixedExtraction — извлечение задано выбором кандидата (PDF-проекция, системная консолидация)
+ *  и вручную не редактируется: менять там нечего, кроме имени. */
+function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates, maxColumns, onEdit }: {
+  src: DataSetSource; isPdf: boolean; fixedExtraction: boolean; canManageExtraction: boolean;
   templates: DataSetProcessingTemplate[]; maxColumns: number; onEdit: (src: DataSetSource) => void;
 }) {
   const [filterOpen, setFilterOpen] = useState(false);
@@ -150,7 +152,7 @@ function SourceRow({ src, isPdf, canManageExtraction, templates, maxColumns, onE
     { key: 'rename', label: 'Переименовать…', icon: <Type size={13} />, onSelect: () => { setRenameVal(src.name); setRenaming(true); } },
     { key: 'duplicate', label: 'Создать копию', icon: <Copy size={13} />, onSelect: () => duplicateMutation.mutate({ id: src.id }), disabled: duplicateMutation.isPending },
     { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: <Boxes size={13} />, onSelect: () => setMaterializing(true) },
-    ...(canManageExtraction && !isPdf ? [{ key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => onEdit(src) }] : []),
+    ...(canManageExtraction && !fixedExtraction ? [{ key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => onEdit(src) }] : []),
     ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: <Trash2 size={13} />, danger: true, onSelect: () => setConfirmDelete(true) }] : []),
   ];
 
@@ -328,6 +330,7 @@ export function SourcesPanel({
   const [editing, setEditing] = useState<DataSetSource | 'new' | null>(null);
   const { data: templates = [] } = useListProcessingTemplates();
   const isPdf = file.format === 'Pdf';
+  const isSystem = file.format === 'System';
   // Управление источниками (создать/удалить) — для всех форматов (issue #20). PDF создаёт источники
   // через распознавание (PdfSourceDialog) и не редактируется вручную (см. гейт `!isPdf` у «Редактировать»);
   // прочие форматы — полное создание/редактирование/переименование/удаление.
@@ -355,15 +358,22 @@ export function SourcesPanel({
       </div>
       <div className="space-y-2">
         {sources.length === 0 && (
-          <p className="text-xs text-fg4 py-1">Источников пока нет — добавьте из набора или распознайте PDF.</p>
+          <p className="text-xs text-fg4 py-1">
+            {isSystem
+              ? 'Источников пока нет — добавьте консолидацию из данных системы.'
+              : 'Источников пока нет — добавьте из набора или распознайте PDF.'}
+          </p>
         )}
         {sources.map(src => (
-          <SourceRow key={src.id} src={src} isPdf={isPdf} canManageExtraction={canManageExtraction}
+          <SourceRow key={src.id} src={src} isPdf={isPdf} fixedExtraction={isPdf || isSystem}
+            canManageExtraction={canManageExtraction}
             templates={templates} maxColumns={maxColumns} onEdit={setEditing} />
         ))}
         {availableCandidates.length > 0 && (
           <div className="rounded-md border border-dashed border-stroke-strong bg-base px-3 py-2 space-y-1 mt-1">
-            <p className="text-[11px] text-fg4">{isPdf ? 'Доступно из распознанного набора:' : 'Доступно из набора:'}</p>
+            <p className="text-[11px] text-fg4">
+              {isSystem ? 'Доступно из данных системы:' : isPdf ? 'Доступно из распознанного набора:' : 'Доступно из набора:'}
+            </p>
             {availableCandidates.map(c => {
               // Таблица документа ещё не распознана (issue #385): сначала «Распознать таблицу»
               // (фоновая задача) — после завершения кандидат станет готовым «Создать».

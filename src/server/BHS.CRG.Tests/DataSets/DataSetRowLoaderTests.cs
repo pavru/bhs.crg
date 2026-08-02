@@ -1,5 +1,6 @@
 using System.Text;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.DataSets;
@@ -8,7 +9,8 @@ namespace BHS.CRG.Tests.DataSets;
 
 /// <summary>
 /// Ветвление извлечения в DataSetRowLoader: обычные форматы — перепарсинг блоба на каждый вызов,
-/// PDF — только закэшированные распознанные строки (CachedData), блоб не трогается.
+/// PDF — только закэшированные распознанные строки (CachedData), системный набор — провайдер
+/// консолидации. Блоба во втором и третьем случае нет вовсе.
 /// </summary>
 public class DataSetRowLoaderTests
 {
@@ -29,13 +31,42 @@ public class DataSetRowLoaderTests
             => throw new NotSupportedException();
     }
 
-    private static DataSetRowLoader Loader(FakeBlob blob)
-        => new(blob, new DataSetParserFactory([new CsvDataSetParser()]));
-
-    private static DataSetSource Source(DataSetFormat format, string blobPath, string? cachedData = null)
+    /// <summary>Провайдер, отдающий одну заранее заданную строку и запоминающий контекст вызова.</summary>
+    private sealed class FakeProvider : ISystemDataProvider
     {
-        var file = DataSetFile.Create("Файл", format, blobPath, CatalogScope.Set, Guid.NewGuid());
-        var source = file.AddSource("Источник", "default", "[]", 0, cachedData: cachedData);
+        public CatalogScope? SeenScope;
+        public Guid? SeenScopeId;
+        public string? SeenMarker;
+
+        public bool Handles(string marker) => marker == SystemDataSets.SetDocumentsMarker;
+
+        public Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
+            CatalogScope scope, Guid? scopeId, CancellationToken ct) => Task.FromResult<IReadOnlyList<DataSetSourceInfo>>([]);
+
+        public Task<DataSetParseResult> ProvideAsync(
+            string marker, CatalogScope scope, Guid? scopeId, CancellationToken ct)
+        {
+            SeenMarker = marker;
+            SeenScope = scope;
+            SeenScopeId = scopeId;
+            return Task.FromResult(new DataSetParseResult(
+                [new DataSetColumnInfo("Наименование", ["АОСР 1"])],
+                [new Dictionary<string, string?> { ["Наименование"] = "АОСР 1" }]));
+        }
+    }
+
+    private static DataSetRowLoader Loader(FakeBlob blob, ISystemDataProvider? provider = null)
+        => new(blob, new DataSetParserFactory([new CsvDataSetParser()]),
+            new SystemDataProviderRegistry(provider is null ? [] : [provider]));
+
+    private static DataSetSource Source(
+        DataSetFormat format, string blobPath, string? cachedData = null,
+        string sheetOrPath = "default", Guid? scopeId = null)
+    {
+        var file = format == DataSetFormat.System
+            ? DataSetFile.CreateSystem("Данные системы", CatalogScope.Set, scopeId ?? Guid.NewGuid())
+            : DataSetFile.Create("Файл", format, blobPath, CatalogScope.Set, scopeId ?? Guid.NewGuid());
+        var source = file.AddSource("Источник", sheetOrPath, "[]", 0, cachedData: cachedData);
         // Навигацию File в домене заполняет EF; в юнит-тесте — напрямую.
         typeof(DataSetSource).GetProperty(nameof(DataSetSource.File))!.SetValue(source, file);
         return source;
@@ -75,5 +106,43 @@ public class DataSetRowLoaderTests
         Assert.Empty(await Loader(blob).LoadRowsAsync(Source(DataSetFormat.Pdf, "b/p.pdf"), default));
         Assert.Empty(await Loader(blob).LoadRowsAsync(
             Source(DataSetFormat.Pdf, "b/p.pdf", cachedData: "не json"), default));
+    }
+
+    [Fact]
+    public async Task SystemSource_AsksProvider_WithScopeOfFile()
+    {
+        var blob = new FakeBlob(); // упадёт при любом скачивании
+        var provider = new FakeProvider();
+        var setId = Guid.NewGuid();
+        var source = Source(DataSetFormat.System, "", sheetOrPath: SystemDataSets.SetDocumentsMarker, scopeId: setId);
+
+        var rows = await Loader(blob, provider).LoadRowsAsync(source, default);
+
+        Assert.Single(rows);
+        Assert.Equal("АОСР 1", rows[0]["Наименование"]);
+        Assert.Equal(SystemDataSets.SetDocumentsMarker, provider.SeenMarker);
+        Assert.Equal(CatalogScope.Set, provider.SeenScope);
+        Assert.Equal(setId, provider.SeenScopeId);
+        Assert.Equal(0, blob.Downloads);
+    }
+
+    /// <summary>Обработка источника общая для всех видов извлечения — системный не исключение.</summary>
+    [Fact]
+    public async Task SystemSource_GoesThroughRowFilter()
+    {
+        var source = Source(DataSetFormat.System, "", sheetOrPath: SystemDataSets.SetDocumentsMarker);
+        source.SetProcessing(
+            """{"type":"condition","column":"Наименование","op":"eq","value":"нет такого"}""",
+            null, null);
+
+        Assert.Empty(await Loader(new FakeBlob(), new FakeProvider()).LoadRowsAsync(source, default));
+    }
+
+    [Fact]
+    public async Task SystemSource_UnknownMarker_Throws()
+    {
+        var source = Source(DataSetFormat.System, "", sheetOrPath: "system:нет-такого");
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => Loader(new FakeBlob(), new FakeProvider()).LoadRowsAsync(source, default));
     }
 }

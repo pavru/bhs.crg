@@ -22,6 +22,7 @@ public class DataSetSourceService(
     IBlobStorage blob,
     DataSetParserFactory parserFactory,
     IDataSetRowLoader rowLoader,
+    SystemDataProviderRegistry systemProviders,
     IRecognitionProfileProvider profiles)
 {
     private record CachedColumnInfo(string Name, string[] SampleValues);
@@ -51,6 +52,18 @@ public class DataSetSourceService(
     {
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
+
+        // Системный набор (issue #580): кандидаты — консолидации, возможные на уровне набора.
+        if (file.Format == DataSetFormat.System)
+        {
+            var existingMarkers = await db.DataSetSources
+                .Where(s => s.FileId == file.Id).Select(s => s.SheetOrPath).ToListAsync(ct);
+            var candidates = new List<DataSetSourceInfo>();
+            foreach (var provider in systemProviders.All)
+                candidates.AddRange((await provider.GetCandidatesAsync(file.Scope, file.ScopeId, ct))
+                    .Where(c => !existingMarkers.Contains(c.SheetOrPath)));
+            return candidates;
+        }
 
         // PDF (issue #30/#38/#44): кандидаты из СЫРЬЯ набора, дискриминатор — профиль (issue #44).
         if (file.Format == DataSetFormat.Pdf)
@@ -270,6 +283,11 @@ public class DataSetSourceService(
         if (file.Format == Domain.DataSets.DataSetFormat.Pdf)
             return await CreatePdfProjectionSourceAsync(file, input.Name.Trim(), input.SheetOrPath.Trim(), ct);
 
+        // Системный набор (issue #580): строки даёт провайдер, кэшировать их нельзя (данные живые) —
+        // прогон нужен только чтобы записать схему колонок и счётчик строк для UI.
+        if (file.Format == Domain.DataSets.DataSetFormat.System)
+            return await CreateSystemSourceAsync(file, input.Name.Trim(), input.SheetOrPath.Trim(), ct);
+
         var columnExpressionsJson = DataSetDtoMapper.SerializeColumnExpressions(input.ColumnExpressions);
         var (schema, rowCount) = await ParseForDefinitionAsync(file.BlobPath, file.Format, input.SheetOrPath, columnExpressionsJson, ct);
 
@@ -278,6 +296,20 @@ public class DataSetSourceService(
         // коллекцию навигации, EF не распознаёт как Added автоматически (Guid — клиентский ключ,
         // не default-значение), поэтому без явного Add() трекер помечает его Modified и
         // пытается сделать UPDATE несуществующей строки → DbUpdateConcurrencyException.
+        db.DataSetSources.Add(source);
+        await db.SaveChangesAsync(ct);
+        return DataSetDtoMapper.MapSource(source);
+    }
+
+    // Источник системного набора (issue #580): маркер выбирает провайдера консолидации. CachedData не
+    // пишем — строки собираются заново при каждом обращении, иначе реестр отстанет от состава комплекта.
+    private async Task<DataSetSourceDto> CreateSystemSourceAsync(
+        Domain.DataSets.DataSetFile file, string name, string marker, CancellationToken ct)
+    {
+        var provider = systemProviders.Get(marker);
+        var provided = await provider.ProvideAsync(marker, file.Scope, file.ScopeId, ct);
+
+        var source = file.AddSource(name, marker, DataSetDtoMapper.SerializeSchema(provided.Columns), provided.Rows.Count);
         db.DataSetSources.Add(source);
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(source);
@@ -382,6 +414,10 @@ public class DataSetSourceService(
     {
         var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
+        // Определение системного источника — это выбор консолидации, менять в нём нечего: переименование
+        // идёт через RenameSourceAsync, а другая консолидация — другой источник.
+        if (source.File.IsSystem)
+            throw new ArgumentException("Определение системного источника не редактируется — переименуйте его или создайте другой.");
 
         var columnExpressionsJson = DataSetDtoMapper.SerializeColumnExpressions(input.ColumnExpressions);
         var (schema, rowCount) = await ParseForDefinitionAsync(

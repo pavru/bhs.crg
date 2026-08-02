@@ -39,6 +39,19 @@ export function useUploadDataSetFile() {
   });
 }
 
+/** Набор без файла: сырьё — данные самой системы в границах уровня (issue #580). Идемпотентно. */
+export function useCreateSystemDataSetFile() {
+  const qc = useQueryClient();
+  return useMutation<DataSetFile, Error, { scope: CatalogScope; scopeId?: string; name?: string }>({
+    mutationFn: ({ scope, scopeId, name }) =>
+      apiClient.post('/datasets/files/system', { scope, scopeId, name }).then(r => r.data),
+    onSuccess: (_, { scope, scopeId }) => {
+      qc.invalidateQueries({ queryKey: ['datasets', 'files', scope, scopeId] });
+      qc.invalidateQueries({ queryKey: ['datasets', 'available'] });
+    },
+  });
+}
+
 export function useUpdateDataSetFile() {
   const qc = useQueryClient();
   return useMutation<DataSetFile, Error, {
