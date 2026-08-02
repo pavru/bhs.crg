@@ -244,14 +244,17 @@ builder.Services
         o.ServerInfo = new() { Name = "bhs-crg", Version = "1.0.0" };
     })
     .WithHttpTransport()
-    .WithTools<BHS.CRG.Api.Mcp.DataSnapshotTools>()
-    .WithTools<BHS.CRG.Api.Mcp.DomainSnapshotTools>()
-    .WithTools<BHS.CRG.Api.Mcp.DocumentActionTools>()
-    .WithTools<BHS.CRG.Api.Mcp.ObservationTools>()
-    .WithTools<BHS.CRG.Api.Mcp.ReconciliationTools>()
+    // Кодировщик передаётся каждой регистрации: домен русскоязычный, а по умолчанию System.Text.Json
+    // раздувает кириллицу в \uXXXX вчетверо и упирает ответы в лимит клиента (#576, McpSerialization).
+    .WithTools<BHS.CRG.Api.Mcp.DataSnapshotTools>(BHS.CRG.Api.Mcp.McpSerialization.ToolOptions)
+    .WithTools<BHS.CRG.Api.Mcp.DomainSnapshotTools>(BHS.CRG.Api.Mcp.McpSerialization.ToolOptions)
+    .WithTools<BHS.CRG.Api.Mcp.DocumentActionTools>(BHS.CRG.Api.Mcp.McpSerialization.ToolOptions)
+    .WithTools<BHS.CRG.Api.Mcp.ObservationTools>(BHS.CRG.Api.Mcp.McpSerialization.ToolOptions)
+    .WithTools<BHS.CRG.Api.Mcp.ReconciliationTools>(BHS.CRG.Api.Mcp.McpSerialization.ToolOptions)
+    // Ресурсы сериализуем сами (McpJsonResource) — SDK принимает от них уже готовый текст.
     .WithResources<BHS.CRG.Api.Mcp.DataSnapshotResources>()
     .WithResources<BHS.CRG.Api.Mcp.DomainSnapshotResources>()
-    .WithPrompts<BHS.CRG.Api.Mcp.ReconciliationPrompts>()
+    .WithPrompts<BHS.CRG.Api.Mcp.ReconciliationPrompts>(BHS.CRG.Api.Mcp.McpSerialization.ToolOptions)
     // Шаблоны уезжают в resources/templates/list; здесь — реальные объекты для прикрепления (#427).
     .WithListResourcesHandler(BHS.CRG.Api.Mcp.McpResourceCatalog.ListAsync);
 

@@ -57,7 +57,8 @@ public class McpResourceContractTests
         Assert.Equal("application/json", text.MimeType);
         Assert.Equal("bhs://document/x", text.Uri);
         // camelCase — та же конвенция, что у инструментов, иначе ресурс и инструмент дают разные ключи.
-        Assert.Contains("\"name\":\"\\u0410\\u043A\\u0442\"", text.Text);
+        // Кириллица идёт как есть: экранирование раздувало ответы вчетверо (#576, McpSerialization).
+        Assert.Contains("\"name\":\"Акт\"", text.Text);
         Assert.Contains("\"count\":2", text.Text);
     }
 }

@@ -80,14 +80,20 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         Записи каталога (общие данные): организации, лица, объекты строительства. Отвечает на вопросы
         про сам каталог — заведена ли такая организация, какие лица есть на стройке, — а не про
         конкретный документ.
+
+        Выборка страничная: продолжайте запрашивать со смещением, пока truncated=true, и сверяйте
+        total с числом полученных записей. Порядок — по наименованию — устойчив между вызовами.
         """)]
-    public async Task<IReadOnlyList<CatalogEntrySummary>> ListCatalogEntriesAsync(
+    public async Task<SnapshotPage<CatalogEntrySummary>> ListCatalogEntriesAsync(
         CancellationToken ct,
         [Description("Фильтр уровня: System, Construction, Section, Set.")] string? scope = null,
         [Description("Идентификатор уровня (если указан scope).")] Guid? scopeId = null,
         [Description("Фильтр по типу записи.")] Guid? typeId = null,
-        [Description("Поиск по наименованию.")] string? search = null)
-        => await domain.ListCatalogEntriesAsync(scope, scopeId, typeId, search, ct);
+        [Description("Поиск по наименованию.")] string? search = null,
+        [Description("Смещение от начала (0 — с первой записи).")] int offset = 0,
+        [Description("Сколько записей вернуть; по умолчанию 100, максимум 500.")]
+        int limit = DomainSnapshotLimits.CatalogEntriesDefault)
+        => await domain.ListCatalogEntriesAsync(scope, scopeId, typeId, search, offset, limit, ct);
 
     [McpServerTool(Name = "get_catalog_entry", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Каталог: запись")]
@@ -122,10 +128,17 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
 
         Уровень в ответе — откуда связь пришла (Set / Section / Construction / System). Связь может
         быть заведена на System и неожиданно действовать на конкретном комплекте.
+
+        Выборка страничная: карта на крупной стройке насчитывает сотни позиций. Листайте по
+        смещению, пока truncated=true, — по неполной карте вывод «сертификат не привязан» неверен.
         """)]
-    public async Task<IReadOnlyList<MaterialQualityLinkInfo>> ListMaterialQualityLinksAsync(
-        [Description("Идентификатор комплекта документов.")] Guid setId, CancellationToken ct)
-        => await domain.ListMaterialQualityLinksAsync(setId, ct);
+    public async Task<SnapshotPage<MaterialQualityLinkInfo>> ListMaterialQualityLinksAsync(
+        [Description("Идентификатор комплекта документов.")] Guid setId,
+        CancellationToken ct,
+        [Description("Смещение от начала (0 — с первой связи).")] int offset = 0,
+        [Description("Сколько связей вернуть; по умолчанию 200, максимум 500.")]
+        int limit = DomainSnapshotLimits.MaterialLinksDefault)
+        => await domain.ListMaterialQualityLinksAsync(setId, offset, limit, ct);
 
     [McpServerTool(Name = "list_quality_documents", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Документы качества")]
@@ -133,11 +146,18 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         Документы качества (сертификаты, декларации соответствия, паспорта) с их реквизитами.
         Это то, что заведено В СИСТЕМЕ, — в отличие от ссылок на сертификаты внутри реестров-файлов;
         сопоставление одного с другим и есть типовая проверка непротиворечивости.
+
+        Выборка страничная и мелкая: каждый документ несёт свои реквизиты, включая перечень
+        продукции, и это самая тяжёлая запись домена. Листайте по смещению, пока truncated=true;
+        сузить выборку заранее дешевле — фильтром области или поиском по наименованию.
         """)]
-    public async Task<IReadOnlyList<QualityDocumentSummary>> ListQualityDocumentsAsync(
+    public async Task<SnapshotPage<QualityDocumentSummary>> ListQualityDocumentsAsync(
         CancellationToken ct,
         [Description("Фильтр области: System, Construction, Section, Set.")] string? scope = null,
         [Description("Идентификатор области (если указан scope).")] Guid? scopeId = null,
-        [Description("Поиск по наименованию.")] string? search = null)
-        => await domain.ListQualityDocumentsAsync(scope, scopeId, search, ct);
+        [Description("Поиск по наименованию.")] string? search = null,
+        [Description("Смещение от начала (0 — с первого документа).")] int offset = 0,
+        [Description("Сколько документов вернуть; по умолчанию 25, максимум 100.")]
+        int limit = DomainSnapshotLimits.QualityDocumentsDefault)
+        => await domain.ListQualityDocumentsAsync(scope, scopeId, search, offset, limit, ct);
 }
