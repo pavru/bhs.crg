@@ -39,6 +39,19 @@ export function useUploadDataSetFile() {
   });
 }
 
+/**
+ * Что система готова консолидировать на этом уровне — ДО создания набора (issue #606).
+ * Пусто ⇒ предлагать системный набор здесь незачем: «Документы комплекта» осмысленны только
+ * внутри комплекта, и на разделе пользователь упирался бы в пустой список источников.
+ */
+export function useSystemDataCandidates(scope: CatalogScope, scopeId?: string) {
+  return useQuery<SourceCandidate[]>({
+    queryKey: ['datasets', 'system-candidates', scope, scopeId],
+    queryFn: () =>
+      apiClient.get('/datasets/system-candidates', { params: { scope, scopeId } }).then(r => r.data),
+  });
+}
+
 /** Набор без файла: сырьё — данные самой системы в границах уровня (issue #580). Идемпотентно. */
 export function useCreateSystemDataSetFile() {
   const qc = useQueryClient();

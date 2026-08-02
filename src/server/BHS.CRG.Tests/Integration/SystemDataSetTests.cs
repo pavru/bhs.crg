@@ -217,4 +217,27 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("System", null, null), default);
         Assert.Empty(await svc.DetectSourceCandidatesAsync(file.Id, default));
     }
+
+    /// <summary>
+    /// Что система готова консолидировать на уровне — известно ДО создания набора (issue #606).
+    /// Без этого интерфейс предлагал набор на разделе, где выбирать потом нечего.
+    /// </summary>
+    [Fact]
+    public async Task SystemCandidates_KnownBeforeFileExists()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var (setId, _, _, _) = await SeedSetAsync(scope);
+
+        var inSet = await svc.ListSystemCandidatesAsync("Set", setId, default);
+        Assert.Equal(SystemDataSets.SetDocumentsMarker, Assert.Single(inSet).SheetOrPath);
+
+        // Раздел/стройка/система: консолидировать нечего — кнопку показывать незачем.
+        Assert.Empty(await svc.ListSystemCandidatesAsync("Section", Guid.NewGuid(), default));
+        Assert.Empty(await svc.ListSystemCandidatesAsync("Construction", Guid.NewGuid(), default));
+        Assert.Empty(await svc.ListSystemCandidatesAsync("System", null, default));
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => svc.ListSystemCandidatesAsync("Ерунда", null, default));
+    }
 }

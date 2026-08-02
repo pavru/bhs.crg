@@ -4,6 +4,7 @@ using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Recognition;
 using BHS.CRG.Application.Schema;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Persistence;
@@ -41,6 +42,21 @@ public class DataSetSourceService(
                 .GroupBy(b => b.SourceId)
                 .ToDictionaryAsync(g => g.Key, g => g.Count(), ct);
         return sources.Select(s => DataSetDtoMapper.MapSource(s, bindingCounts.GetValueOrDefault(s.Id))).ToList();
+    }
+
+    /// <summary>
+    /// Какие консолидации данных системы возможны на уровне — ДО создания набора (issue #606).
+    /// Нужно, чтобы не предлагать системный набор там, где предложить нечего: «Документы комплекта»
+    /// осмысленны только внутри комплекта, и на уровне раздела пользователь иначе упирался бы в
+    /// пустой список источников.
+    /// </summary>
+    public async Task<IReadOnlyList<DataSetSourceInfo>> ListSystemCandidatesAsync(
+        CatalogScope scope, Guid? scopeId, CancellationToken ct)
+    {
+        var candidates = new List<DataSetSourceInfo>();
+        foreach (var provider in systemProviders.All)
+            candidates.AddRange(await provider.GetCandidatesAsync(scope, scopeId, ct));
+        return candidates;
     }
 
     /// <summary>
