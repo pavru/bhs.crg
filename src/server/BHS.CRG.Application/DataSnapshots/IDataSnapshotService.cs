@@ -26,7 +26,10 @@ public interface IDataSnapshotService
 
     /// <summary>Страница строк источника после всей обработки. Лимит ограничивается сверху жёстко —
     /// см. <see cref="MaxRowsPerPage"/>; за пределом страницы выставляется <c>Truncated</c>.</summary>
-    Task<RowsPage?> GetRowsAsync(Guid sourceId, int offset, int limit, CancellationToken ct = default);
+    /// <param name="ifNoneMatch">Отпечаток строк, который вызывающий уже держит (issue #598). Совпал —
+    /// вместо таблицы приходит <c>Unchanged</c>, остальные поля заполнены как обычно.</param>
+    Task<RowsPage?> GetRowsAsync(Guid sourceId, int offset, int limit, string? ifNoneMatch = null,
+        CancellationToken ct = default);
 
     /// <summary>Жёсткий потолок строк за один запрос: защищает и от переполнения контекста агента,
     /// и от неявного «получил всё» на большом источнике.</summary>

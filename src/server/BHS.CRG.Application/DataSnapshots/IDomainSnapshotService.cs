@@ -82,14 +82,19 @@ public interface IDomainSnapshotService
     /// перебирать четыре уровня и воспроизводить правило приоритета — значит просить его повторить
     /// логику системы и рано или поздно разойтись с ней.
     /// </summary>
+    /// <param name="changedSince">Отдать только связи, изменившиеся после этого момента (issue #598):
+    /// из 113 связок комплекта за сессию менялась одна, а список запрашивался целиком. Отбор идёт
+    /// ПОСЛЕ схлопывания по приоритету — по тому, что действует. Удаления так не видны: исчезнувшая
+    /// связь не «изменилась», она пропала, и заметить это можно только полным чтением.</param>
     Task<SnapshotPage<MaterialQualityLinkInfo>> ListMaterialQualityLinksAsync(
-        Guid setId,
+        Guid setId, DateTimeOffset? changedSince = null,
         int offset = 0, int limit = DomainSnapshotLimits.MaterialLinksDefault,
         CancellationToken ct = default);
 
     /// <summary>Документы качества (сертификаты/декларации) по области — страницей.</summary>
+    /// <inheritdoc cref="ListMaterialQualityLinksAsync" path="/param[@name='changedSince']" />
     Task<SnapshotPage<QualityDocumentSummary>> ListQualityDocumentsAsync(
-        string? scope, Guid? scopeId, string? search,
+        string? scope, Guid? scopeId, string? search, DateTimeOffset? changedSince = null,
         int offset = 0, int limit = DomainSnapshotLimits.QualityDocumentsDefault,
         CancellationToken ct = default);
 }

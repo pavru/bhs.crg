@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Domain.Notifications;
@@ -56,7 +56,10 @@ public class ObservationHandlers(
         return [.. items
             .OrderBy(o => o.Status == ObservationStatus.New ? 0 : 1)
             .ThenByDescending(o => (int)o.Severity)
-            .ThenByDescending(o => o.UpdatedAt)];
+            .ThenByDescending(o => o.UpdatedAt)
+            // Идентификатор последним ключом: время правки совпадает у записей одного пакета, а
+            // выдача теперь страничная — без устойчивого порядка запись попала бы на две страницы.
+            .ThenBy(o => o.Id)];
     }
 
     public async Task<AgentObservation> Handle(ReportObservationCommand cmd, CancellationToken ct)

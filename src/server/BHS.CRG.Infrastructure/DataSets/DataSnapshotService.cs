@@ -30,8 +30,10 @@ public class DataSnapshotService(
         }
 
         var files = await q.OrderBy(f => f.Name).ToListAsync(ct);
+        var scopeNames = await ScopeNamesAsync(files, ct);
         var all = files.Select(f => new DatasetSummary(
             f.Id, f.Name, f.Format.ToString(), f.Scope.ToString(), f.ScopeId,
+            scopeNames.GetValueOrDefault(f.ScopeId ?? Guid.Empty),
             f.Sources.Count,
             f.RecognitionStale || f.Sources.Any(s => s.RecognitionStale))).ToArray();
 
@@ -63,6 +65,7 @@ public class DataSnapshotService(
 
         return new DatasetDetail(
             file.Id, file.Name, file.Format.ToString(), file.Scope.ToString(), file.ScopeId,
+            (await ScopeNamesAsync([file], ct)).GetValueOrDefault(file.ScopeId ?? Guid.Empty),
             file.RecognitionStale, file.PreprocessingProfile, sources);
     }
 
@@ -77,19 +80,39 @@ public class DataSnapshotService(
 
         // Обе величины — из ОДНОЙ загрузки: описание источника обязано сходиться с его же строками,
         // а «сколько строк» без указания, до фильтра или после, уже произвело неверный анализ (#592).
-        var loaded = await rowLoader.LoadAsync(source, ct);
+        //
+        // Чтение строк добавилось здесь ради точного числа, и вместе с ним добавились его отказы:
+        // удалённый блоб, недоступное хранилище, системная консолидация, которой больше нет
+        // (SystemSourceCounter такие случаи глотал намеренно). Описание источника от этого не должно
+        // пропадать — метаданные, колонки и признак устаревания читаются и без строк.
+        LoadedRows? loaded = null;
+        string? rowsError = null;
+        try
+        {
+            loaded = await rowLoader.LoadAsync(source, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            rowsError = ex.Message;
+        }
+
+        // Сырое число без строк берём из кэша — того же, что показывает сводка набора.
+        var rawRowCount = loaded?.RawRowCount
+            ?? await systemCounts.CountAsync(source, source.File, ct)
+            ?? source.CachedRowCount;
 
         return new SourceDetail(
             source.Id, source.FileId, source.File.Name, source.Name,
-            OriginOf(source), loaded.Rows.Count, loaded.RawRowCount, HasFilter(source),
+            OriginOf(source), loaded?.Rows.Count, rawRowCount, HasFilter(source),
             stale, reason,
             source.UpdatedAt,
+            loaded is null ? null : RowsFingerprint.Of(loaded.Rows), rowsError,
             Columns(source.CachedSchema),
             SheetOf(source, grouping));
     }
 
     public async Task<RowsPage?> GetRowsAsync(
-        Guid sourceId, int offset, int limit, CancellationToken ct = default)
+        Guid sourceId, int offset, int limit, string? ifNoneMatch = null, CancellationToken ct = default)
     {
         var source = await db.DataSetSources.AsNoTracking().Include(s => s.File)
             .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
@@ -103,6 +126,11 @@ public class DataSnapshotService(
         // которым их видит генерация, поэтому внешний анализ и генерация смотрят на одни данные.
         var all = await rowLoader.LoadRowsAsync(source, ct);
         var page = all.Skip(offset).Take(limit).ToList();
+        var hash = RowsFingerprint.Of(all);
+        // Отпечаток СТРАНИЦЫ, а не всей выборки: «не изменилось» относится к запрошенному окну.
+        // Сквозной отпечаток отвечал бы unchanged на запрос СЛЕДУЮЩЕЙ страницы с прежним хешем —
+        // строки за ним агент не получил бы никогда, а обход «пока truncated» не двигался бы.
+        var pageHash = RowsFingerprint.Of(page, (offset, limit));
 
         // Ключи колонок берём из СХЕМЫ, а не из первой строки: строка может не содержать пустых ячеек,
         // и агент, ориентируясь на неё, потерял бы колонку целиком.
@@ -110,10 +138,19 @@ public class DataSnapshotService(
         if (columns.Count == 0 && all.Count > 0)
             columns = [.. all.SelectMany(r => r.Keys).Distinct()];
 
+        // Строки те же, что были у вызывающего (issue #598) — таблицу не прикладываем. Загрузку это
+        // не экономит (отпечаток считается по ней же), экономит контекст: кабельный журнал за сессию
+        // выгружался не менее четырёх раз при двух реальных правках.
+        if (!string.IsNullOrWhiteSpace(ifNoneMatch) && string.Equals(ifNoneMatch, pageHash, StringComparison.Ordinal))
+            return new RowsPage(
+                source.Id, offset, limit, all.Count,
+                Truncated: offset + page.Count < all.Count,
+                columns, [], hash, pageHash, Unchanged: true);
+
         return new RowsPage(
             source.Id, offset, limit, all.Count,
             Truncated: offset + page.Count < all.Count,
-            columns, page);
+            columns, page, hash, pageHash);
     }
 
     // ── Достоверность снимка ─────────────────────────────────────────────────────
@@ -129,6 +166,33 @@ public class DataSnapshotService(
     /// <summary>Отсеивает ли источник строки. Признак нужен там, где отдаётся только сырое число:
     /// он объясняет, почему строк в выборке окажется меньше, — иначе разница выглядит потерей данных.</summary>
     private static bool HasFilter(DataSetSource s) => !string.IsNullOrWhiteSpace(s.RowFilter);
+
+    /// <summary>
+    /// Наименования контейнеров, на которых лежат наборы (issue #593): стройка, раздел, комплект.
+    /// Два набора различались только уровнем и идентификатором, и в списке выбора были неразличимы —
+    /// «250701-ЭОМ-ЕЦДМ, ДНС-Сити_ИД» дважды. Идентификатор человеку не говорит ничего, имя говорит.
+    /// </summary>
+    private async Task<Dictionary<Guid, string>> ScopeNamesAsync(
+        IReadOnlyCollection<DataSetFile> files, CancellationToken ct)
+    {
+        var ids = files.Where(f => f.ScopeId is not null).Select(f => f.ScopeId!.Value).ToHashSet();
+        if (ids.Count == 0) return [];
+
+        var names = new Dictionary<Guid, string>();
+        foreach (var (id, name) in await db.Constructions.AsNoTracking()
+                     .Where(c => ids.Contains(c.Id)).Select(c => new { c.Id, c.Name })
+                     .ToDictionaryAsync(c => c.Id, c => c.Name, ct))
+            names[id] = name;
+        foreach (var (id, name) in await db.Sections.AsNoTracking()
+                     .Where(s => ids.Contains(s.Id)).Select(s => new { s.Id, s.Name })
+                     .ToDictionaryAsync(s => s.Id, s => s.Name, ct))
+            names[id] = name;
+        foreach (var (id, name) in await db.DocumentSets.AsNoTracking()
+                     .Where(s => ids.Contains(s.Id)).Select(s => new { s.Id, s.Name })
+                     .ToDictionaryAsync(s => s.Id, s => s.Name, ct))
+            names[id] = name;
+        return names;
+    }
 
     /// <summary>Устарели ли данные источника. Три независимых причины, и каждая означает, что сверка
     /// по этим строкам может быть неверной, — поэтому возвращаем ещё и человекочитаемую причину.</summary>

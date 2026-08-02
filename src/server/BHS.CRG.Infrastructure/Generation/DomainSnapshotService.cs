@@ -12,6 +12,7 @@ using BHS.CRG.Domain.Objects;
 using BHS.CRG.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Generation;
 
@@ -25,7 +26,8 @@ public class DomainSnapshotService(
     IRepository<DomainObject> domainObjects,
     IEntityResolver entityResolver,
     AppDbContext db,
-    IDataSetRowLoader rowLoader) : IDomainSnapshotService
+    IDataSetRowLoader rowLoader,
+    ILogger<DomainSnapshotService> logger) : IDomainSnapshotService
 {
     private static readonly JsonElement EmptyObject = JsonDocument.Parse("{}").RootElement.Clone();
 
@@ -110,9 +112,13 @@ public class DomainSnapshotService(
             entities = folded.Entities;
         }
 
-        var tableFields = await TableFieldsAsync(doc.Id, doc.CompositeTypeId, ct);
-
         var wanted = fields?.Where(f => !string.IsNullOrWhiteSpace(f)).Distinct().ToList();
+        // Проекция известна ДО сбора табличных полей: строки непрошенных полей грузить незачем —
+        // иначе get_document(fields:[…]) разбирал бы все привязанные источники ради ответа, из
+        // которого их всё равно выбросят (#596).
+        var tableFields = await TableFieldsAsync(
+            doc.Id, doc.CompositeTypeId, requisites, wanted is { Count: > 0 } ? [.. wanted] : null, ct);
+
         if (wanted is not { Count: > 0 })
             return new DocumentDetail(
                 doc.Id, doc.DisplayName ?? "", doc.CompositeTypeId,
@@ -206,10 +212,12 @@ public class DomainSnapshotService(
     /// ради которого всё и затевалось.
     /// </summary>
     private async Task<IReadOnlyList<DocumentTableField>> TableFieldsAsync(
-        Guid documentId, Guid typeId, CancellationToken ct)
+        Guid documentId, Guid typeId, JsonElement requisites, IReadOnlyCollection<string>? wanted,
+        CancellationToken ct)
     {
         var tableFields = DocumentTypeSchemaReader.EffectiveFields(typeId, await AllTypesAsync(ct))
             .Where(f => DocumentTypeSchemaReader.IsMultiValued(f.Type))
+            .Where(f => wanted is null || wanted.Contains(f.Key))
             .ToList();
         if (tableFields.Count == 0) return [];
 
@@ -224,21 +232,45 @@ public class DomainSnapshotService(
         var result = new List<DocumentTableField>();
         foreach (var field in tableFields)
         {
-            if (!bindings.TryGetValue(field.Key, out var binding))
+            if (!bindings.TryGetValue(field.Key, out var binding) || binding.Source?.File is null)
             {
-                result.Add(new DocumentTableField(field.Key, field.Title, false, null, null, null, null, null));
+                // Привязки нет — но это НЕ значит «пусто»: табличное поле заполняют и руками, и оно
+                // наследуется от базового документа. Строки такого поля лежат прямо в реквизитах, и
+                // сказать про них «таблица пуста» значило бы повторить ошибку, ради которой всё
+                // затевалось. Отдаём число строк оттуда.
+                var inline = requisites.ValueKind == JsonValueKind.Object
+                             && requisites.TryGetProperty(field.Key, out var value)
+                             && value.ValueKind == JsonValueKind.Array
+                    ? value.GetArrayLength()
+                    : (int?)null;
+                result.Add(new DocumentTableField(
+                    field.Key, field.Title, false, null, null, null, null, inline));
                 continue;
             }
 
             // Число строк — ПОСЛЕ обработки источника: агенту важно, сколько попадёт в PDF, а не
             // сколько лежит в файле. Табличных полей у документа единицы, поэтому цена загрузки здесь
             // та же, что у одного get_rows.
-            var rows = await rowLoader.LoadRowsAsync(binding.Source, ct);
+            //
+            // Сломанная привязка (файл удалён, хранилище недоступно, консолидации больше нет) НЕ
+            // должна ронять чтение документа: генерация такие привязки пропускает с диагностикой, а
+            // здесь ответ важнее числа — rowCount останется пустым.
+            int? rowCount = null;
+            try
+            {
+                rowCount = (await rowLoader.LoadRowsAsync(binding.Source, ct)).Count;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "Не удалось посчитать строки источника {SourceId} для поля {Field} документа {DocumentId}",
+                    binding.SourceId, field.Key, documentId);
+            }
+
             result.Add(new DocumentTableField(
                 field.Key, field.Title, true,
                 binding.SourceId, binding.Source.Name,
                 binding.Source.FileId, binding.Source.File?.Name,
-                rows.Count));
+                rowCount));
         }
         return result;
     }
@@ -327,7 +359,7 @@ public class DomainSnapshotService(
     }
 
     public async Task<SnapshotPage<MaterialQualityLinkInfo>> ListMaterialQualityLinksAsync(
-        Guid setId,
+        Guid setId, DateTimeOffset? changedSince = null,
         int offset = 0, int limit = DomainSnapshotLimits.MaterialLinksDefault,
         CancellationToken ct = default)
     {
@@ -350,12 +382,12 @@ public class DomainSnapshotService(
             (CatalogScope.System, null),
         };
 
-        var winners = new Dictionary<string, (Guid DocId, CatalogScope Scope, Guid? ScopeId)>();
+        var winners = new Dictionary<string, (Guid DocId, CatalogScope Scope, Guid? ScopeId, DateTimeOffset UpdatedAt)>();
         foreach (var (scope, scopeId) in levels)
         {
             if (scope != CatalogScope.System && scopeId is null) continue; // разорванная цепочка — уровня просто нет
             foreach (var l in await mediator.Send(new ListMaterialLinksQuery(scope, scopeId), ct))
-                winners.TryAdd(l.MaterialKey, (l.QualityDocumentId, scope, scopeId));
+                winners.TryAdd(l.MaterialKey, (l.QualityDocumentId, scope, scopeId, l.UpdatedAt));
         }
         if (winners.Count == 0) return empty;
 
@@ -364,6 +396,9 @@ public class DomainSnapshotService(
         var typeMap = await TypeMapAsync(docs.Values.Select(d => d.DocumentTypeId), ct);
 
         var ordered = winners
+            // Отбор по времени — ПОСЛЕ схлопывания по приоритету: карта отдаётся действующая, и
+            // фильтровать надо то, что действует, а не то, что лежит на каждом уровне (#598).
+            .Where(kv => changedSince is not { } since || kv.Value.UpdatedAt > since)
             .OrderBy(kv => kv.Key)
             .Select(kv =>
             {
@@ -371,7 +406,7 @@ public class DomainSnapshotService(
                 var typeName = doc is null ? "" : typeMap.GetValueOrDefault(doc.DocumentTypeId)?.Name ?? "";
                 return new MaterialQualityLinkInfo(
                     kv.Key, kv.Value.DocId, doc?.DisplayName ?? "", typeName,
-                    kv.Value.Scope.ToString(), kv.Value.ScopeId);
+                    kv.Value.Scope.ToString(), kv.Value.ScopeId, kv.Value.UpdatedAt);
             })
             .ToArray();
 
@@ -380,12 +415,13 @@ public class DomainSnapshotService(
     }
 
     public async Task<SnapshotPage<QualityDocumentSummary>> ListQualityDocumentsAsync(
-        string? scope, Guid? scopeId, string? search,
+        string? scope, Guid? scopeId, string? search, DateTimeOffset? changedSince = null,
         int offset = 0, int limit = DomainSnapshotLimits.QualityDocumentsDefault,
         CancellationToken ct = default)
     {
         CatalogScope? parsed = Enum.TryParse<CatalogScope>(scope, true, out var s) ? s : null;
         var docs = await mediator.Send(new ListQualityDocumentsQuery(parsed, scopeId, search), ct);
+        if (changedSince is { } since) docs = [.. docs.Where(d => d.UpdatedAt > since)];
         var typeMap = await TypeMapAsync(docs.Select(d => d.DocumentTypeId), ct);
 
         // Имя, затем идентификатор: порядок запроса не обещан, а страничной выдаче нужен устойчивый —
@@ -398,7 +434,7 @@ public class DomainSnapshotService(
                 typeMap.GetValueOrDefault(d.DocumentTypeId)?.Name ?? "",
                 d.Scope.ToString(), d.ScopeId, d.Source.ToString(),
                 !string.IsNullOrEmpty(d.ScanBlobPath),
-                d.Requisites?.RootElement.Clone() ?? EmptyObject))
+                d.Requisites?.RootElement.Clone() ?? EmptyObject, d.UpdatedAt))
             .ToArray();
 
         return SnapshotPage<QualityDocumentSummary>.Of(
@@ -417,13 +453,13 @@ public class DomainSnapshotService(
             t?.Code ?? "", t?.Name ?? "", d.Facet?.Status.ToString() ?? "");
     }
 
-    /// <summary>Типы одним запросом: имя/код типа нужны почти в каждой форме, а запрос-на-документ
-    /// дал бы N+1 на комплекте из десятков документов.</summary>
     /// <summary>Все типы по идентификатору — схема читается с учётом наследования, поэтому одного
     /// типа мало: цепочка предков нужна целиком.</summary>
     private async Task<Dictionary<Guid, DocumentType>> AllTypesAsync(CancellationToken ct)
         => (await types.GetAllAsync(ct)).ToDictionary(t => t.Id);
 
+    /// <summary>Типы одним запросом: имя/код типа нужны почти в каждой форме, а запрос-на-документ
+    /// дал бы N+1 на комплекте из десятков документов.</summary>
     private async Task<Dictionary<Guid, DocumentType>> TypeMapAsync(IEnumerable<Guid> typeIds, CancellationToken ct)
     {
         var wanted = typeIds.Distinct().ToHashSet();

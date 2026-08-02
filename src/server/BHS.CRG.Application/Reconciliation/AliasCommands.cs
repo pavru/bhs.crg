@@ -1,4 +1,4 @@
-using BHS.CRG.Application.Common;
+﻿using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Reconciliation;
 using MediatR;
 
@@ -29,7 +29,9 @@ public class AliasHandlers(IRepository<ReconciliationAlias> repo) :
         // Неразобранные выше: они ждут человека, остальные — уже история.
         return [.. items
             .OrderBy(a => a.Status == AliasStatus.Proposed ? 0 : 1)
-            .ThenBy(a => a.AliasLabel, StringComparer.CurrentCulture)];
+            .ThenBy(a => a.AliasLabel, StringComparer.CurrentCulture)
+            // Идентификатор последним ключом — выдача страничная, а наименования повторяются.
+            .ThenBy(a => a.Id)];
     }
 
     public async Task<ReconciliationAlias> Handle(ProposeAliasCommand cmd, CancellationToken ct)

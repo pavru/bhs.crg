@@ -4,8 +4,10 @@ using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
+using BHS.CRG.Application.Documents;
 using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -216,6 +218,154 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
 
             Assert.Equal(10, summary.RawRowCount);
             Assert.True(summary.Filtered);
+        }
+    }
+
+    /// <summary>
+    /// Одноимённые наборы (issue #593): два набора «250701-ЭОМ-ЕЦДМ, ДНС-Сити_ИД» различались только
+    /// уровнем и идентификатором. Уровень в ответе был и раньше, но выбирают по имени, а не по UUID
+    /// стройки — поэтому рядом с ним теперь наименование контейнера.
+    /// </summary>
+    [Fact]
+    public async Task DatasetList_NamesTheScope_SoSameNamedSetsDiffer()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var blob = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
+
+        var construction = await m.Send(new CreateConstructionCommand("ДНС Сити", Guid.NewGuid()));
+        var section = await m.Send(new CreateSectionCommand(construction.Id, "ЭОМ"));
+
+        var path = await blob.UploadAsync("a.pdf", new MemoryStream([1]), "application/pdf");
+        const string sameName = "250701-ЭОМ-ЕЦДМ, ДНС-Сити_ИД";
+        db.DataSetFiles.Add(DataSetFile.Create(sameName, DataSetFormat.Pdf, path, CatalogScope.Construction, construction.Id));
+        db.DataSetFiles.Add(DataSetFile.Create(sameName, DataSetFormat.Pdf, path, CatalogScope.Section, section.Id));
+        db.DataSetFiles.Add(DataSetFile.Create(sameName, DataSetFormat.Pdf, path, CatalogScope.System, null));
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var listed = (await Svc(scope).ListDatasetsAsync(null, null)).Items
+            .Where(d => d.Name == sameName)
+            .ToList();
+
+        Assert.Equal(3, listed.Count);
+        Assert.Equal("ДНС Сити", Assert.Single(listed, d => d.Scope == "Construction").ScopeName);
+        Assert.Equal("ЭОМ", Assert.Single(listed, d => d.Scope == "Section").ScopeName);
+        // У System контейнера нет — и придумывать ему имя не надо.
+        Assert.Null(Assert.Single(listed, d => d.Scope == "System").ScopeName);
+    }
+
+    // ── Повторная проверка: отпечаток строк (issue #598) ─────────────────────────
+
+    /// <summary>
+    /// Работа с комплектом итеративна («поправил реестр — перепроверь»), и каждый повтор выгружал
+    /// те же строки заново: кабельный журнал за сессию выгружался не менее четырёх раз при двух
+    /// реальных изменениях. Отпечаток позволяет ответить «не изменилось» вместо таблицы.
+    /// </summary>
+    [Fact]
+    public async Task GetRows_WithMatchingHash_SkipsTheTable()
+    {
+        var (_, sourceId, scope) = await SeedCsvAsync(5);
+        using (scope)
+        {
+            var svc = Svc(scope);
+            var first = await svc.GetRowsAsync(sourceId, 0, 50);
+            Assert.NotEmpty(first!.RowsHash);
+            Assert.False(first.Unchanged);
+
+            var again = await svc.GetRowsAsync(sourceId, 0, 50, ifNoneMatch: first.PageHash);
+
+            Assert.True(again!.Unchanged);
+            Assert.Empty(again.Rows);
+            // Остальное на месте: «не изменилось» не должно выглядеть как «пусто».
+            Assert.Equal(first.TotalRows, again.TotalRows);
+            Assert.Equal(first.Columns, again.Columns);
+
+            // Сквозной отпечаток отдаёт и описание источника — иначе им нельзя было бы
+            // пользоваться, не выгрузив таблицу хотя бы раз.
+            Assert.Equal(first.RowsHash, (await svc.GetSourceAsync(sourceId))!.RowsHash);
+        }
+    }
+
+    /// <summary>
+    /// Отпечаток страницы привязан к окну: иначе агент, листающий со сквозным rowsHash, получил бы
+    /// на следующую страницу «не изменилось» с пустыми строками — и обход «пока truncated» встал бы
+    /// навсегда, не показав ни одной строки за первой сотней.
+    /// </summary>
+    [Fact]
+    public async Task PageHash_IsPerWindow_SoPagingStillAdvances()
+    {
+        var (_, sourceId, scope) = await SeedCsvAsync(10);
+        using (scope)
+        {
+            var svc = Svc(scope);
+            var first = await svc.GetRowsAsync(sourceId, 0, 4);
+
+            // Сквозной отпечаток на роль ifNoneMatch не годится и страницу не «схлопывает».
+            var next = await svc.GetRowsAsync(sourceId, 4, 4, ifNoneMatch: first!.RowsHash);
+            Assert.False(next!.Unchanged);
+            Assert.Equal(4, next.Rows.Count);
+            Assert.Equal("5", next.Rows[0]["Позиция"]);
+
+            // Отпечаток чужой страницы тоже не совпадёт — строки придут.
+            var third = await svc.GetRowsAsync(sourceId, 8, 4, ifNoneMatch: first.PageHash);
+            Assert.False(third!.Unchanged);
+            Assert.Equal(2, third.Rows.Count);
+        }
+    }
+
+    /// <summary>
+    /// Чтение описания не должно падать из-за недоступных строк: файл набора мог быть удалён из
+    /// хранилища, а метаданные, колонки и признак устаревания читаются и без него.
+    /// </summary>
+    [Fact]
+    public async Task SourceDetail_SurvivesUnreadableRows()
+    {
+        var (_, sourceId, scope) = await SeedCsvAsync(3);
+        using (scope)
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var source = await db.DataSetSources.Include(s => s.File).FirstAsync(s => s.Id == sourceId);
+            source.File.UpdateBlobPath("наборы/пропавший.csv", DataSetFormat.Csv);
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+
+            var detail = await Svc(scope).GetSourceAsync(sourceId);
+
+            Assert.NotNull(detail);
+            Assert.Null(detail!.RowCount);
+            Assert.Null(detail.RowsHash);
+            Assert.False(string.IsNullOrWhiteSpace(detail.RowsError));
+            // Сырое число остаётся из кэша, колонки — из схемы: описание источника всё ещё полезно.
+            Assert.Equal(3, detail.RawRowCount);
+            Assert.NotEmpty(detail.Columns);
+        }
+    }
+
+    /// <summary>Изменились строки — отпечаток другой, и таблица приходит целиком.</summary>
+    [Fact]
+    public async Task GetRows_AfterChange_ReturnsRowsAgain()
+    {
+        var (_, sourceId, scope) = await SeedCsvAsync(5);
+        using (scope)
+        {
+            var svc = Svc(scope);
+            var before = await svc.GetRowsAsync(sourceId, 0, 50);
+
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var source = await db.DataSetSources.Include(s => s.File).FirstAsync(s => s.Id == sourceId);
+            source.SetProcessing(
+                """{"type":"condition","column":"Наименование","operator":"equals","value":"Материал 1"}""",
+                null, null);
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+
+            var after = await svc.GetRowsAsync(sourceId, 0, 50, ifNoneMatch: before!.RowsHash);
+
+            Assert.False(after!.Unchanged);
+            Assert.NotEqual(before.RowsHash, after.RowsHash);
+            Assert.Single(after.Rows);
         }
     }
 

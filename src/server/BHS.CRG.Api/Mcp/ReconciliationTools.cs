@@ -72,7 +72,11 @@ public class ReconciliationTools(IMediator mediator, IHttpContextAccessor http)
         [Description("Сколько сверок вернуть; по умолчанию 200, максимум 500.")]
         int limit = ListDefaultLimit)
     {
+        // Порядок задаём здесь: запрос его не обещает, а страничной выдаче нужен устойчивый — иначе
+        // одна сверка попадёт на две страницы, а другая не попадёт ни на одну. Идентификатор вторым
+        // ключом: одноимённые сверки существуют.
         var all = (await mediator.Send(new ListReconciliationsQuery(null, null), ct))
+            .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase).ThenBy(d => d.Id)
             .Select(d => new ReconciliationInfo(d.Id, d.Name, d.Scope.ToString(), d.ScopeId))
             .ToArray();
 

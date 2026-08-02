@@ -80,9 +80,10 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         что число строк не ограничено. За таблицами — get_rows, там есть признак усечения.
 
         Зато есть tableFields — перечень табличных полей типа с адресом их строк: boundToDataset,
-        sourceId (и datasetId), rowCount после фильтра источника. boundToDataset=false означает
-        именно пустую таблицу; отсутствие ключа таблицы в реквизитах ничего не означает — их там не
-        бывает вовсе. За строками идите в get_rows по sourceId.
+        sourceId (и datasetId), rowCount. У привязанного поля это число строк после фильтра
+        источника, у непривязанного — длина массива в самих реквизитах (такие таблицы заполняют
+        руками либо наследуют). rowCount=null означает «сосчитать не удалось» или «значения нет».
+        За строками привязанного поля идите в get_rows по sourceId.
 
         Нужны два-три поля — перечислите их в fields: документ придёт только с ними. Ответ скажет,
         что был урезан (projectedFields), и назовёт ключи, которых в схеме нет (unknownFields), —
@@ -170,10 +171,15 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
     public async Task<SnapshotPage<MaterialQualityLinkInfo>> ListMaterialQualityLinksAsync(
         [Description("Идентификатор комплекта документов.")] Guid setId,
         CancellationToken ct,
+        [Description("""
+            Только связи, изменившиеся после этого момента (ISO 8601). Для повторной проверки:
+            карта на сотни позиций, а между прогонами меняются единицы. ВНИМАНИЕ: удаления так не
+            видны — пропавшая связь не «изменилась», её замечает только полное чтение.
+            """)] DateTimeOffset? changedSince = null,
         [Description("Смещение от начала (0 — с первой связи).")] int offset = 0,
         [Description("Сколько связей вернуть; по умолчанию 200, максимум 500.")]
         int limit = DomainSnapshotLimits.MaterialLinksDefault)
-        => await domain.ListMaterialQualityLinksAsync(setId, offset, limit, ct);
+        => await domain.ListMaterialQualityLinksAsync(setId, changedSince, offset, limit, ct);
 
     [McpServerTool(Name = "list_quality_documents", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Документы качества")]
@@ -191,8 +197,12 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         [Description("Фильтр области: System, Construction, Section, Set.")] string? scope = null,
         [Description("Идентификатор области (если указан scope).")] Guid? scopeId = null,
         [Description("Поиск по наименованию.")] string? search = null,
+        [Description("""
+            Только документы, изменившиеся после этого момента (ISO 8601) — для повторной проверки.
+            ВНИМАНИЕ: удаления так не видны, их замечает только полное чтение.
+            """)] DateTimeOffset? changedSince = null,
         [Description("Смещение от начала (0 — с первого документа).")] int offset = 0,
         [Description("Сколько документов вернуть; по умолчанию 25, максимум 100.")]
         int limit = DomainSnapshotLimits.QualityDocumentsDefault)
-        => await domain.ListQualityDocumentsAsync(scope, scopeId, search, offset, limit, ct);
+        => await domain.ListQualityDocumentsAsync(scope, scopeId, search, changedSince, offset, limit, ct);
 }
