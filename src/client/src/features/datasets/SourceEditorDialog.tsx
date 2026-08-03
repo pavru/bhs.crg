@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -9,6 +9,9 @@ import { XPathBuilder } from './xpath/XPathBuilder';
 import { JsonPathBuilder } from './jsonpath/JsonPathBuilder';
 import { DATA_SET_FORMAT_LABELS } from '@/shared/api/types';
 import type { ColumnExprDef, DataSetSource, DataSetFormat } from '@/shared/api/types';
+
+/** С этого числа кандидатов список перестаёт читаться целиком — показываем поиск. */
+const CANDIDATE_SEARCH_FROM = 7;
 
 type PathFormat = 'Xml' | 'Json';
 
@@ -76,6 +79,14 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
   // Готовые кандидаты — без нераспознанных таблиц (issue #385): их создать нельзя, пока таблица
   // не распознана (это делается в списке кандидатов под источниками кнопкой «Распознать таблицу»).
   const readyCandidates = candidates.filter(c => c.firstPageIndex == null);
+  // Список кандидатов длинный только у общих данных (issue #627) — там их столько же, сколько
+  // составных типов; у остальных форматов их единицы, и поиск был бы лишним полем в диалоге.
+  const [candidateQuery, setCandidateQuery] = useState('');
+  const shownCandidates = useMemo(() => {
+    const q = candidateQuery.trim().toLowerCase();
+    return q ? readyCandidates.filter(c => c.name.toLowerCase().includes(q)) : readyCandidates;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidates, candidateQuery]);
   const pendingTableCount = candidates.length - readyCandidates.length;
 
   // Новый источник из кандидата (лист/«весь файл»/PDF-проекция): как только приедут кандидаты —
@@ -85,6 +96,15 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
     setSheetOrPath(prev => prev || readyCandidates[0].sheetOrPath);
     setName(prev => prev || readyCandidates[0].name);
   }, [initial, usesCandidates, readyCandidates]);
+
+  // Поиск сузил список так, что выбранное в него не входит — снимаем выбор (issue #627). Иначе
+  // список показывает одно, а сохранится подставленный по умолчанию первый кандидат: человек ищет
+  // «Приказ», видит пустое поле и получает «Единицу измерения».
+  useEffect(() => {
+    if (!sheetOrPath || shownCandidates.some(c => c.sheetOrPath === sheetOrPath)) return;
+    setSheetOrPath('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidateQuery]);
 
   // Текущее значение может отсутствовать в списке (архив обновился) — не терять его молча.
   const entryOptions = entryPath && !zipEntries.includes(entryPath) ? [entryPath, ...zipEntries] : zipEntries;
@@ -185,12 +205,32 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
                       : 'Все проекции набора уже добавлены как источники.'}
               </p>
             ) : (
-              <Select label={isSystem ? 'Данные системы' : 'Данные набора'} value={sheetOrPath || undefined} placeholder="— выберите —"
-                onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
-                {readyCandidates.map(c => (
-                  <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</SelectItem>
-                ))}
-              </Select>
+              <>
+                {/* Поиск появляется, когда список перестаёт читаться глазами (issue #627): общих
+                    данных столько же, сколько составных типов, и выпадающий список из десятков
+                    строк заставляет прокручивать вместо того, чтобы назвать нужное. */}
+                {readyCandidates.length > CANDIDATE_SEARCH_FROM && (
+                  <TextField label="Поиск консолидации" value={candidateQuery}
+                    onChange={e => setCandidateQuery(e.target.value)}
+                    hint={`Показано ${shownCandidates.length} из ${readyCandidates.length}`} />
+                )}
+                <Select label={isSystem ? 'Данные системы' : 'Данные набора'} value={sheetOrPath || undefined} placeholder="— выберите —"
+                  onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
+                  {shownCandidates.map(c => (
+                    <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>
+                      {c.name} · {c.rowCount} строк{c.warning ? ' · с оговоркой' : ''}
+                    </SelectItem>
+                  ))}
+                </Select>
+                {shownCandidates.length === 0 && (
+                  <p className="text-xs text-fg4 mt-1">Под поиск ничего не подходит.</p>
+                )}
+              </>
+            )}
+            {/* Оговорку показываем ДО создания источника: узнать о неполноте данных, уже привязав
+                их к полям документа, — узнать поздно. */}
+            {selectedCandidate?.warning && (
+              <p className="text-xs text-warning mt-1">{selectedCandidate.warning}</p>
             )}
             {selectedCandidate && selectedCandidate.columns.length > 0 && (
               <p className="text-xs text-fg4 mt-1">Колонки: {selectedCandidate.columns.join(', ')}</p>

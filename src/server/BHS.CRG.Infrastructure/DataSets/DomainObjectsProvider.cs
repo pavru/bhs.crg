@@ -1,0 +1,233 @@
+using System.Text.Json;
+using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.Objects;
+using BHS.CRG.Application.Schema;
+using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.DataSets;
+using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
+using BHS.CRG.Infrastructure.Common;
+using BHS.CRG.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace BHS.CRG.Infrastructure.DataSets;
+
+/// <summary>
+/// Консолидация «Общие данные: {тип}»: записи выбранного составного типа, видимые с уровня набора,
+/// таблицей. Маркер ПАРАМЕТРИЗОВАН — <c>system:objects:{typeId}</c>, по образцу проекций таблиц ГОСТ
+/// (<c>gost-table:{id}</c>): типов много, и заводить провайдера на каждый бессмысленно.
+///
+/// Видно то же, что показывает форма: цепочка вверх от места набора (свой уровень → раздел →
+/// стройка → система), сам тип и его подтипы, <c>_baseRef</c> развёрнут. Одноимённые записи разных
+/// уровней НЕ схлопываются (решение по эпику #622): какая из них победит при резолве — вопрос
+/// другого механизма, а здесь человек должен видеть всё, что есть, и различать колонкой «Уровень».
+/// Сузить до одного уровня можно штатным фильтром строк.
+/// </summary>
+public class DomainObjectsProvider(AppDbContext db) : ISystemDataProvider
+{
+    /// <summary>
+    /// Колонки, которые есть у любой записи независимо от схемы. Имя «ИмяОбъекта», а не
+    /// «Наименование», нарочно: «Наименование» — самый частый ключ в схемах, и совпадение имён
+    /// заставило бы выбирать, чьё значение показывать.
+    /// </summary>
+    private static readonly string[] FixedColumns =
+    [
+        "НомерПП", "Ид", "ИмяОбъекта", "Алиасы", "ТипКод", "ТипИмя", "Уровень",
+    ];
+
+    public bool Handles(string marker) => SystemDataSets.TryParseObjectsMarker(marker, out _);
+
+    public async Task<IReadOnlyList<DataSetSourceInfo>> GetCandidatesAsync(
+        CatalogScope scope, Guid? scopeId, CancellationToken ct)
+    {
+        if (scope != CatalogScope.System && scopeId is null) return [];
+
+        // Кандидаты считаются при КАЖДОМ открытии страницы наборов, поэтому строки здесь не
+        // собираются: сколько записей каждого типа видно — один групповой запрос, колонки — из
+        // схемы без образцов значений. Тип без записей не предлагаем: пустая таблица не выбор.
+        var chain = await ScopeChains.LoadForScopeAsync(db, scope, scopeId, ct);
+        var counts = await VisibleObjects(chain)
+            .GroupBy(o => o.CompositeTypeId)
+            .Select(g => new { TypeId = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        if (counts.Count == 0) return [];
+
+        var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
+        var byId = allTypes.ToDictionary(t => t.Id);
+        var enumsById = await EnumTypesAsync(ct);
+
+        // Записи подтипа принадлежат и предку (DescendantTypeIds), поэтому кандидат предлагается на
+        // каждый тип, у которого есть СВОИ записи, а число строк считается по нему и потомкам.
+        var byType = counts.ToDictionary(c => c.TypeId, c => c.Count);
+        var candidates = new List<DataSetSourceInfo>();
+        foreach (var typeId in byType.Keys)
+        {
+            if (!byId.TryGetValue(typeId, out var type)) continue;
+            var rowCount = DescendantTypeIds(typeId, allTypes).Sum(id => byType.GetValueOrDefault(id));
+            candidates.Add(new DataSetSourceInfo(
+                NameFor(type),
+                $"{SystemDataSets.ObjectsMarkerPrefix}{typeId}",
+                [.. ColumnNames(typeId, byId, enumsById).Select(name => new DataSetColumnInfo(name, []))],
+                rowCount));
+        }
+        return [.. candidates.OrderBy(c => c.Name, StringComparer.CurrentCulture)];
+    }
+
+    public async Task<DataSetParseResult> ProvideAsync(
+        string marker, CatalogScope scope, Guid? scopeId, CancellationToken ct)
+    {
+        if (!SystemDataSets.TryParseObjectsMarker(marker, out var typeId))
+            throw new ArgumentException($"Маркер «{marker}» не содержит идентификатора типа.");
+        if (scope != CatalogScope.System && scopeId is null)
+            throw new ArgumentException("Источнику общих данных нужен уровень с объектом: комплект, раздел или стройка.");
+
+        var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
+        var byId = allTypes.ToDictionary(t => t.Id);
+        // Тип удалён — это ArgumentException, а НЕ KeyNotFoundException: пересчёт строк в списке
+        // наборов глотает только первое, и удалённый тип иначе уронил бы весь список.
+        if (!byId.ContainsKey(typeId))
+            throw new ArgumentException("Тип, по которому собирался источник, удалён — пересоздайте источник.");
+
+        var enumsById = await EnumTypesAsync(ct);
+        var chain = await ScopeChains.LoadForScopeAsync(db, scope, scopeId, ct);
+        var typeIds = DescendantTypeIds(typeId, allTypes);
+
+        var objects = await VisibleObjects(chain)
+            .Where(o => typeIds.Contains(o.CompositeTypeId))
+            .ToListAsync(ct);
+
+        var columns = ColumnNames(typeId, byId, enumsById);
+        if (objects.Count == 0)
+            return new DataSetParseResult([.. columns.Select(n => new DataSetColumnInfo(n, []))], []);
+
+        // Наследование значений (issue #71): запись-наследник показывает то же, что видно в форме,
+        // иначе таблица и экран расходились бы на ровном месте. Базы читаем одним запросом.
+        var baseIds = objects
+            .Select(o => BaseRefReader.GetBaseRefId(o.Data.RootElement))
+            .OfType<Guid>().Distinct().ToList();
+        var baseById = baseIds.Count == 0
+            ? []
+            : (await db.DomainObjects.AsNoTracking().Where(o => baseIds.Contains(o.Id)).ToListAsync(ct))
+                .ToDictionary(o => o.Id, o => o.Data.RootElement.Clone());
+
+        var fields = ScalarFields(typeId, byId, enumsById)
+            .Where(f => !FixedColumns.Contains(f.Key))
+            .ToList();
+        var enumLabels = fields
+            .Where(f => f.Options is { Count: > 0 })
+            .ToDictionary(f => f.Key, f => f.Options!.ToDictionary(o => o.Code, o => o.Label));
+
+        var ordered = objects
+            .OrderBy(o => o.DisplayName ?? "", StringComparer.CurrentCulture)
+            .ThenBy(o => o.Id)
+            .ToList();
+
+        var rows = new List<IReadOnlyDictionary<string, string?>>(ordered.Count);
+        var ordinal = 1;
+        foreach (var obj in ordered)
+        {
+            var data = obj.Data.RootElement;
+            if (BaseRefReader.GetBaseRefId(data) is { } baseId && baseById.TryGetValue(baseId, out var baseData))
+                data = BaseRefReader.MergeObjects(baseData, data);
+
+            var type = byId.GetValueOrDefault(obj.CompositeTypeId);
+            var row = new Dictionary<string, string?>
+            {
+                ["НомерПП"] = ordinal.ToString(),
+                ["Ид"] = obj.Id.ToString(),
+                ["ИмяОбъекта"] = obj.DisplayName,
+                ["Алиасы"] = obj.Aliases.Count == 0 ? null : string.Join(", ", obj.Aliases),
+                ["ТипКод"] = type?.Code,
+                ["ТипИмя"] = type?.Name,
+                ["Уровень"] = ScopeLabel(obj.ScopeLevel),
+            };
+            foreach (var f in fields)
+            {
+                var value = ScalarOf(data, f.Key);
+                row[f.Key] = value is not null && enumLabels.TryGetValue(f.Key, out var labels)
+                    ? labels.GetValueOrDefault(value, value) // код вне вариантов показываем как есть
+                    : value;
+            }
+            rows.Add(row);
+            ordinal++;
+        }
+
+        return new DataSetParseResult(ColumnsOf(columns, rows), rows);
+    }
+
+    /// <summary>Записи ОБЩИХ ДАННЫХ (Facet == null — документы это не они), видимые с места набора.</summary>
+    private IQueryable<DomainObject> VisibleObjects(ScopeChain chain) =>
+        db.DomainObjects.AsNoTracking().Where(o => o.Facet == null &&
+            ((o.ScopeLevel == CatalogScope.Set && o.ScopeId == chain.SetId) ||
+             (o.ScopeLevel == CatalogScope.Section && o.ScopeId == chain.SectionId) ||
+             (o.ScopeLevel == CatalogScope.Construction && o.ScopeId == chain.ConstructionId) ||
+             o.ScopeLevel == CatalogScope.System));
+
+    private async Task<IReadOnlyDictionary<Guid, EnumType>> EnumTypesAsync(CancellationToken ct) =>
+        (await db.EnumTypes.AsNoTracking().ToListAsync(ct)).ToDictionary(t => t.Id);
+
+    private static string NameFor(DocumentType type) => $"Общие данные: {type.Name}";
+
+    /// <summary>Сам тип и его подтипы: запись подтипа — тоже запись этого типа (как у резолвера ссылок).</summary>
+    private static HashSet<Guid> DescendantTypeIds(Guid rootId, List<DocumentType> all)
+    {
+        var result = new HashSet<Guid> { rootId };
+        var grew = true;
+        while (grew)
+        {
+            grew = false;
+            foreach (var t in all)
+                if (t.ParentId is { } p && result.Contains(p) && result.Add(t.Id)) grew = true;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Скалярные поля эффективной схемы. Расчётные (issue #368) исключены намеренно: считать их
+    /// значит гонять Jint на каждую строку списка, а пустая колонка хуже отсутствующей.
+    /// </summary>
+    private static List<SchemaFieldInfo> ScalarFields(
+        Guid typeId, IReadOnlyDictionary<Guid, DocumentType> byId,
+        IReadOnlyDictionary<Guid, EnumType> enumsById) =>
+        [.. DocumentTypeSchemaReader.EffectiveFields(typeId, byId, enumsById)
+            .Where(f => SchemaFieldKinds.IsScalar(f.Type) && !f.Computed)];
+
+    /// <summary>
+    /// Имена колонок: фиксированные плюс ключи скалярных полей схемы. Ключ, совпавший с фиксированным
+    /// именем, ПРОПУСКАЕТСЯ — иначе значение колонки зависело бы от порядка сборки словаря, а он
+    /// деталь реализации.
+    /// </summary>
+    private static List<string> ColumnNames(
+        Guid typeId, IReadOnlyDictionary<Guid, DocumentType> byId,
+        IReadOnlyDictionary<Guid, EnumType> enumsById) =>
+        [.. FixedColumns,
+         .. ScalarFields(typeId, byId, enumsById).Select(f => f.Key).Where(k => !FixedColumns.Contains(k))];
+
+    private static string? ScalarOf(JsonElement data, string key)
+    {
+        if (data.ValueKind != JsonValueKind.Object) return null;
+        if (!data.TryGetProperty(key, out var value)) return null;
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Number => value.ToString(),
+            JsonValueKind.True => "да",
+            JsonValueKind.False => "нет",
+            _ => null,
+        };
+    }
+
+    private static string ScopeLabel(CatalogScope scope) => scope switch
+    {
+        CatalogScope.Set => "Комплект",
+        CatalogScope.Section => "Раздел",
+        CatalogScope.Construction => "Стройка",
+        CatalogScope.System => "Система",
+        _ => scope.ToString(),
+    };
+
+    private static IReadOnlyList<DataSetColumnInfo> ColumnsOf(
+        IReadOnlyList<string> columns, IReadOnlyList<IReadOnlyDictionary<string, string?>> rows) =>
+        [.. columns.Select(name => new DataSetColumnInfo(name,
+            [.. rows.Take(3).Select(r => r.GetValueOrDefault(name) ?? "")]))];
+}
