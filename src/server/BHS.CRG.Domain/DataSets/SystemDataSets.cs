@@ -20,6 +20,9 @@ public static class SystemDataSets
     /// <summary>Документы комплекта, в границах которого живёт набор.</summary>
     public const string SetDocumentsMarker = "system:set-documents";
 
+    /// <summary>Библиотека документов качества, видимых с уровня набора (цепочка вверх).</summary>
+    public const string QualityDocumentsMarker = "system:quality-documents";
+
     public static bool IsSystemMarker(string sheetOrPath) =>
         sheetOrPath.StartsWith(MarkerPrefix, StringComparison.Ordinal);
 }
