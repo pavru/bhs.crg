@@ -3,7 +3,9 @@ import { AlertTriangle, AlertCircle, CheckCircle2, Circle, CircleDot, Database, 
 import { Markdown } from '@/shared/ui/Markdown';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
-import { useUpdateRequisites, useResolutionDiagnostics, brokenRefPaths } from '@/shared/api/documentSets';
+import { useUpdateRequisites, useResolutionDiagnostics, brokenRefPaths, useAuditInstance } from '@/shared/api/documentSets';
+import { valueIssuesByPath, deepIssueCount, issueCountInFields } from '@/shared/api/valueIssues';
+import { ValueIssueHint, ValueIssueBadge } from '@/shared/ui/ValueIssue';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import type { DocumentInstance, DocumentType, PrimitiveTypeDef, EnumTypeDef, CommonDataEntry } from '@/shared/api/types';
 import { SCOPE_LABELS, isFieldRef } from '@/shared/api/types';
@@ -129,6 +131,12 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
   }, [brokenPaths]);
   const brokenInFields = (fields: SchemaField[]) =>
     fields.reduce((n, f) => n + (brokenUnderKey.get(f.key) ?? 0), 0);
+  // Значения не по объявленному типу (issue #644). Форма проверяет то, что печатают руками; всё
+  // остальное — распознавание, вставка, авто-маппер, привязка набора, запись по API — до сих пор
+  // доходило сюда непроверенным и молчало до выпуска. Правила берём с сервера (аудит документа), а
+  // не повторяем на клиенте: разойдись они, форма показывала бы одно, а выпуск — другое.
+  const { data: auditFindings } = useAuditInstance(setId, instance.id, true);
+  const valueIssues = useMemo(() => valueIssuesByPath(auditFindings), [auditFindings]);
   // «Глубокие» битые под полем (путь строго глубже самого поля) — прямую ссылку не считаем (она уже
   // danger-плитка). Для complex/массива это count вложенных/элементных битых ссылок.
   const deepBrokenCount = (key: string) => {
@@ -412,6 +420,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     {field.required && <span className="ml-0.5 text-danger">*</span>}
                     {!field.required && <span className="ml-1 text-[10px] text-fg4 font-normal">опц.</span>}
                     <BrokenCountBadge count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
+                    <ValueIssueBadge count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
                   </label>
                 )}
                 {field.type === 'complex' ? (
@@ -422,6 +431,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                         {field.title}
                         {field.required && <span className="ml-0.5 text-danger">*</span>}
                         <BrokenCountBadge count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
+                    <ValueIssueBadge count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
                       </label>
                     </div>
                     <ComplexFieldGroup field={field} allDocTypes={allDocTypes} value={raw}
@@ -468,6 +478,9 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                 {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
                 {missing && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
                 {!missing && constraintError && <p className="text-xs text-danger mt-1">{constraintError}</p>}
+                {/* Расхождение с типом (issue #644) — после ошибок формы: те про текущий ввод, это
+                    про сохранённое значение, чаще всего пришедшее не отсюда. */}
+                {!hasError && <ValueIssueHint messages={valueIssues.get(field.key)} />}
               </div>
             );
           }
@@ -501,6 +514,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
               {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
               {missing && <p className="text-[11px] text-danger mt-0.5">Обязательное поле</p>}
               {!missing && constraintError && <p className="text-[11px] text-danger mt-0.5">{constraintError}</p>}
+              {!hasError && <ValueIssueHint messages={valueIssues.get(field.key)} compact />}
             </div>
           );
     }
@@ -619,6 +633,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                   <Icon size={18} className={`shrink-0 ${iconCls}`} />
                   <span className="flex-1 truncate text-sm">{item.title}</span>
                   <BrokenCountBadge count={broken} className="shrink-0" />
+                  <ValueIssueBadge count={issueCountInFields(valueIssues, item.fields.map(f => f.key))} className="shrink-0" />
                   {stats && <span className="text-xs text-fg4 tabular-nums shrink-0">{stats.filled}/{stats.total}</span>}
                 </button>
               );

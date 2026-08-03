@@ -60,6 +60,23 @@ public static class CommonDataEndpoints
             return entry is null ? Results.NotFound() : Results.Ok(CommonDataEntryDto.From(entry));
         });
 
+        // Аудит записи общих данных (issue #644). Тот же AuditInstanceQuery, что и у документа: он
+        // работает над DomainObject, а запись общих данных — такой же объект. Форма читает отсюда
+        // расхождения значений с типом; до этого их не показывал никто — сканер выпуска записей
+        // общих данных не касается вовсе.
+        g.MapGet("/{id:guid}/audit", async (Guid id, IMediator m) =>
+        {
+            try { return Results.Ok(await m.Send(new AuditInstanceQuery(id))); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+        });
+
+        // Применение исправлений к ЭТОЙ записи: id из маршрута, клиент шлёт только action/path.
+        g.MapPost("/{id:guid}/audit/apply", async (Guid id, AuditApplyRequest req, IMediator m) =>
+        {
+            var fixes = req.Fixes.Select(f => new AuditFix(id, f.Action, f.Path, f.TargetKey)).ToList();
+            return Results.Ok(await m.Send(new ApplyAuditFixesCommand(fixes)));
+        });
+
         // Проверка связок (issue #99): сверка снимка $ref-ссылок со свежим резолвом источника.
         g.MapGet("/{id:guid}/binding-check", async (Guid id, IMediator m) =>
         {
@@ -106,4 +123,6 @@ public static class CommonDataEndpoints
 
     record CreateRequest(string DisplayName, Guid CompositeTypeId, string Data, string Scope, Guid? ScopeId, string[]? Aliases);
     record UpdateRequest(string DisplayName, string Data, string[]? Aliases);
+    record AuditApplyRequest(IReadOnlyList<AuditFixItem> Fixes);
+    record AuditFixItem(string Action, string Path, string? TargetKey);
 }

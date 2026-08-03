@@ -141,6 +141,9 @@ export function useUpdateRequisites() {
       qc.invalidateQueries({ queryKey: ['document-sets', setId] });
       // Реквизиты изменились → диагностика битых ссылок могла устареть (issue #332/#334): перепроверить.
       qc.invalidateQueries({ queryKey: ['resolution-diagnostics', instanceId] });
+      // И расхождения значений с типом (issue #644): их показывает форма прямо у полей, а считает
+      // сервер по СОХРАНЁННЫМ данным — без сброса подсказка висела бы на уже исправленном поле.
+      qc.invalidateQueries({ queryKey: ['instance-audit', instanceId] });
     },
   });
 }
