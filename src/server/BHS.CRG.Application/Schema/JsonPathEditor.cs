@@ -61,6 +61,42 @@ public static class JsonPathEditor
         }
     }
 
+    /// <summary>Значение по пути либо null, если путь не разрешается (issue #643).</summary>
+    public static JsonNode? ValueAt(JsonNode root, string path)
+    {
+        if (Navigate(root, path) is not var (parent, last)) return null;
+        return last switch
+        {
+            string key when parent is JsonObject o && o.TryGetPropertyValue(key, out var v) => v,
+            int idx when parent is JsonArray a && idx >= 0 && idx < a.Count => a[idx],
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Заменяет значение по пути (issue #643). <paramref name="oldValue"/> — сериализованное прежнее
+    /// значение для журнала. false — путь не разрешился: значение уже убрали или переименовали, и
+    /// создавать его заново исправлением аудита нечего.
+    /// </summary>
+    public static bool Replace(JsonNode root, string path, JsonNode? newValue, out string? oldValue)
+    {
+        oldValue = null;
+        if (Navigate(root, path) is not var (parent, last)) return false;
+        switch (last)
+        {
+            case string key when parent is JsonObject o && o.TryGetPropertyValue(key, out var v):
+                oldValue = v?.ToJsonString();
+                o[key] = newValue;
+                return true;
+            case int idx when parent is JsonArray a && idx >= 0 && idx < a.Count:
+                oldValue = a[idx]?.ToJsonString();
+                a[idx] = newValue;
+                return true;
+            default:
+                return false;
+        }
+    }
+
     /// <summary>Переименовывает КЛЮЧ на его уровне в <paramref name="targetKey"/> — только если цель
     /// отсутствует/пуста (не затираем данные). false + <paramref name="skipReason"/>, если нельзя.</summary>
     public static bool Rename(JsonNode root, string path, string targetKey, out string? oldValue, out string? skipReason)

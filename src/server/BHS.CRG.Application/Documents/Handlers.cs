@@ -76,6 +76,15 @@ public class DocumentTypeHandlers(
     {
         var outcomes = new List<AuditFixOutcome>();
         var touched = false;
+        // Справочники схемы нужны только приведению (issue #643) — оно должно знать, К ЧЕМУ приводить.
+        // Читаем лениво: пакет из одних удалений (обычный случай) не должен платить за два SELECT'а.
+        Dictionary<Guid, DocumentType>? typesById = null;
+        Dictionary<Guid, PrimitiveType>? primitivesById = null;
+        async Task LoadSchemaAsync()
+        {
+            typesById ??= (await repo.GetAllAsync(ct)).ToDictionary(t => t.Id);
+            primitivesById ??= (await primitiveRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
+        }
         // Группируем по инстансу — одну загрузку/мутацию Data на инстанс. Осиротевшие пути — ключи
         // объектов (не индексы массива), поэтому порядок применения внутри инстанса не сдвигает пути.
         foreach (var grp in cmd.Fixes.GroupBy(f => f.InstanceId))
@@ -99,6 +108,11 @@ public class DocumentTypeHandlers(
                 }
                 else if (f.Action == "rename" && !string.IsNullOrWhiteSpace(f.TargetKey))
                     ok = Schema.JsonPathEditor.Rename(root, f.Path, f.TargetKey!, out oldVal, out reason);
+                else if (f.Action == "coerce")
+                {
+                    await LoadSchemaAsync();
+                    ok = TryCoerceAt(root, f.Path, inst.CompositeTypeId, typesById!, primitivesById!, out oldVal, out reason);
+                }
                 else { ok = false; reason = "Неизвестное действие."; }
                 outcomes.Add(new(f.InstanceId, f.Path, f.Action, ok, reason, oldVal));
                 changed |= ok;
@@ -112,6 +126,31 @@ public class DocumentTypeHandlers(
         }
         if (touched) await objectRepo.SaveChangesAsync(ct); // атомарно: один SaveChanges на все мутации
         return new(outcomes.Count(o => o.Applied), outcomes.Count(o => !o.Applied), outcomes);
+    }
+
+    /// <summary>
+    /// Приведение значения по пути к объявленному типу поля (issue #643). Поле находим по СХЕМЕ
+    /// (путь ведёт и внутрь строк таблиц), значение правим в дереве данных.
+    /// </summary>
+    private static bool TryCoerceAt(
+        System.Text.Json.Nodes.JsonNode root, string path, Guid rootTypeId,
+        IReadOnlyDictionary<Guid, DocumentType> typesById,
+        IReadOnlyDictionary<Guid, PrimitiveType> primitivesById,
+        out string? oldValue, out string? reason)
+    {
+        oldValue = null;
+        var field = Schema.SchemaPathResolver.FieldAt(path, rootTypeId, typesById);
+        if (field is null) { reason = "Поле не найдено в текущей схеме."; return false; }
+
+        var current = Schema.JsonPathEditor.ValueAt(root, path);
+        if (!Schema.ValueCoercion.TryCoerce(field, current, primitivesById, out var coerced, out reason))
+            return false;
+        if (!Schema.JsonPathEditor.Replace(root, path, coerced, out oldValue))
+        {
+            reason = "Значение по этому пути уже отсутствует.";
+            return false;
+        }
+        return true;
     }
 
     public async Task<DocumentTypeAuditReport> Handle(AuditDocumentTypeQuery q, CancellationToken ct)
