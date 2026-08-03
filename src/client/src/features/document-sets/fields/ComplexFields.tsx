@@ -14,6 +14,8 @@ import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import {
   resolveEffectiveFields, getDefaultValues, type SchemaField,
 } from '@/shared/api/schema';
+import { useListEnumTypes } from '@/shared/api/enumTypes';
+import { formatFieldValue, type FieldTypeDefs } from '@/shared/utils/fieldDisplay';
 import {
   CELL_INPUT, SCOPE_COLORS, TABLE_SHOWN_TYPES, defaultColWidth,
 } from './constants';
@@ -441,7 +443,9 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
 
   const hasTableFields = subFields.some(f => TABLE_SHOWN_TYPES.has(f.type));
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
   const primDef = (f: SchemaField) => f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
+  const typeDefs: FieldTypeDefs = { primitiveTypes, enumTypes }; // формат значений в сводке строки (issue #611)
 
   function addRow() {
     const newRow = getDefaultValues(subFields);
@@ -463,7 +467,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   }
 
   function rowSummary(row: Record<string, unknown>) {
-    return objectSummary(row, subFields);
+    return objectSummary(row, subFields, typeDefs);
   }
 
   return (
@@ -636,15 +640,22 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
 
 // ─── Complex field group ──────────────────────────────────────────────────────
 
-/** Сводка первых заполненных полей объекта — для свёрнутого/строкового вида составного (issue #102). */
-export function objectSummary(values: Record<string, unknown>, fields: SchemaField[]): string {
+/**
+ * Сводка первых заполненных полей объекта — для свёрнутого/строкового вида составного (issue #102).
+ *
+ * Значение форматируем по типу поля (issue #611): без `defs` сводка показывала сырое хранимое
+ * значение — дату ISO там, где поле внутри того же объекта показывает «ДД.ММ.ГГГГ».
+ */
+export function objectSummary(
+  values: Record<string, unknown>, fields: SchemaField[], defs: FieldTypeDefs = {},
+): string {
   const parts = fields
     .map(f => {
       const v = values[f.key];
       if (v == null || v === '') return null;
       if (isFieldRef(v)) return v.displayName;
       if (typeof v === 'object') return null; // вложенные объекты/массивы — не в сводку
-      return String(v);
+      return formatFieldValue(f, v, defs);
     })
     .filter((s): s is string => !!s)
     .slice(0, 3);
@@ -688,6 +699,8 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   const [collapsed, setCollapsed] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
+  const typeDefs: FieldTypeDefs = { primitiveTypes, enumTypes }; // формат значений в сводке (issue #611)
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
 
   // Union-тип (issue #320): составной тип с тэгом type.union — «заполняется ровно одно из полей».
@@ -803,7 +816,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
         <div className="flex items-center gap-2 border border-stroke rounded-lg px-3 py-2 bg-base">
           <button type="button" onClick={() => setModalOpen(true)}
             className="flex-1 min-w-0 text-left text-sm text-fg2 hover:text-fg1 truncate">
-            {isEmpty ? <span className="text-fg4">Заполнить…</span> : objectSummary(subValues, subFields)}
+            {isEmpty ? <span className="text-fg4">Заполнить…</span> : objectSummary(subValues, subFields, typeDefs)}
           </button>
           <button type="button" onClick={() => setPickerOpen(true)}
             className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover px-2 py-0.5 rounded hover:bg-brand-subtle transition-colors shrink-0">
@@ -857,7 +870,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
           <span className="truncate">
             {isEmpty
               ? <span className="text-fg4 font-normal">{compositeType ? compositeType.name : 'Составной тип'}</span>
-              : objectSummary(subValues, subFields)}
+              : objectSummary(subValues, subFields, typeDefs)}
           </span>
         </button>
         <button type="button" onClick={() => setPickerOpen(true)}
@@ -979,6 +992,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   scope?: CatalogScope; scopeId?: string | null; docRefMode?: 'catalog' | 'instance'; nested?: boolean;
 }) {
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
   // Расчётные подполя (issue #368) не редактируются вручную — считаются при генерации; в редакторе скрыты.
   const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes).filter(f => !f.computed) : [];
@@ -1037,7 +1051,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
         <div className="flex items-center gap-2 border border-stroke rounded-lg px-3 py-2 bg-base">
           <button type="button" onClick={() => setModalOpen(true)}
             className="flex-1 min-w-0 text-left text-sm text-fg2 hover:text-fg1 truncate">
-            {unionSummary(activeSf, subValues[activeKey])}
+            {unionSummary(activeSf, subValues[activeKey], { primitiveTypes, enumTypes })}
           </button>
           <button type="button" onClick={() => setModalOpen(true)} title="Редактировать"
             className="p-1 text-fg4 hover:text-fg2 transition-colors shrink-0"><Pencil size={13} /></button>
@@ -1059,10 +1073,10 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
 }
 
 /** Короткая сводка активного варианта union — для свёрнутой строки во вложенном режиме. */
-function unionSummary(sf: SchemaField | null, val: unknown): string {
+function unionSummary(sf: SchemaField | null, val: unknown, defs: FieldTypeDefs = {}): string {
   if (!sf) return '(пусто)';
   if (!isVariantFilled(val)) return `${sf.title}: —`;
   if (isFieldRef(val)) return `${sf.title} → ${val.displayName}`;
   if (Array.isArray(val)) return `${sf.title} · ${val.length} стр.`;
-  return `${sf.title}: ${String(val).slice(0, 40)}`;
+  return `${sf.title}: ${formatFieldValue(sf, val, defs).slice(0, 40)}`; // формат по типу (issue #611)
 }
