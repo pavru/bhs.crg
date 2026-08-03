@@ -70,12 +70,10 @@ public static class CommonDataEndpoints
             catch (KeyNotFoundException) { return Results.NotFound(); }
         });
 
-        // Применение исправлений к ЭТОЙ записи: id из маршрута, клиент шлёт только action/path.
-        g.MapPost("/{id:guid}/audit/apply", async (Guid id, AuditApplyRequest req, IMediator m) =>
-        {
-            var fixes = req.Fixes.Select(f => new AuditFix(id, f.Action, f.Path, f.TargetKey)).ToList();
-            return Results.Ok(await m.Send(new ApplyAuditFixesCommand(fixes)));
-        });
+        // Парного `audit/apply` здесь НЕТ намеренно: форма записи (issue #644) только показывает
+        // расхождения, а чинят их в аудите типа — тем же ApplyAuditFixesCommand, но через уже
+        // существующий маршрут. Заводить второй пишущий маршрут, которого никто не зовёт, значит
+        // держать непроверенную точку записи по общим данным уровня «Система».
 
         // Проверка связок (issue #99): сверка снимка $ref-ссылок со свежим резолвом источника.
         g.MapGet("/{id:guid}/binding-check", async (Guid id, IMediator m) =>
@@ -123,6 +121,4 @@ public static class CommonDataEndpoints
 
     record CreateRequest(string DisplayName, Guid CompositeTypeId, string Data, string Scope, Guid? ScopeId, string[]? Aliases);
     record UpdateRequest(string DisplayName, string Data, string[]? Aliases);
-    record AuditApplyRequest(IReadOnlyList<AuditFixItem> Fixes);
-    record AuditFixItem(string Action, string Path, string? TargetKey);
 }

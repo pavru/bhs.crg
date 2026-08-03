@@ -135,7 +135,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
   // остальное — распознавание, вставка, авто-маппер, привязка набора, запись по API — до сих пор
   // доходило сюда непроверенным и молчало до выпуска. Правила берём с сервера (аудит документа), а
   // не повторяем на клиенте: разойдись они, форма показывала бы одно, а выпуск — другое.
-  const { data: auditFindings } = useAuditInstance(setId, instance.id, true);
+  const { data: auditFindings } = useAuditInstance(setId, instance.id, true, 30_000);
   const valueIssues = useMemo(() => valueIssuesByPath(auditFindings), [auditFindings]);
   // «Глубокие» битые под полем (путь строго глубже самого поля) — прямую ссылку не считаем (она уже
   // danger-плитка). Для complex/массива это count вложенных/элементных битых ссылок.
