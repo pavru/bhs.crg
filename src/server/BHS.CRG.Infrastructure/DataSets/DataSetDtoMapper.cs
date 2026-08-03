@@ -76,7 +76,7 @@ public static class DataSetDtoMapper
 
     public static DataSetSourceDto MapSource(
         DataSetSource s, int? bindingCount = null, SystemSourceCounter.SystemSourceState? live = null) => new(
-        s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, s.CachedSchema,
+        s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, LiveSchemaOf(live) ?? s.CachedSchema,
         live?.RowCount ?? s.CachedRowCount,
         DeserializeJson(s.RowFilter), DeserializeJson(s.ComputedColumns), DeserializeJson(s.SortSpec),
         s.Tags is null ? null : JsonSerializer.Deserialize<List<string>>(s.Tags), s.RecognitionStale,
@@ -93,6 +93,17 @@ public static class DataSetDtoMapper
     private static SystemSourceCounter.SystemSourceState? LiveStateOf(
         IReadOnlyDictionary<Guid, SystemSourceCounter.SystemSourceState>? states, Guid sourceId)
         => states is not null && states.TryGetValue(sourceId, out var st) ? st : null;
+
+    /// <summary>
+    /// Схема системного источника на момент чтения (issue #664) — в том же виде, в каком её ждёт
+    /// клиент от <c>CachedSchema</c>, чтобы диалог привязки предлагал колонки, которые в строках
+    /// действительно есть. Кэш обновить нечем: файла у набора нет, определение не редактируется, —
+    /// а колонки провайдера зависят от схемы типа и меняются вместе с ней.
+    ///
+    /// null (отдать кэш) и на пустом списке — см. те же соображения в <c>DataSnapshotService</c>.
+    /// </summary>
+    private static string? LiveSchemaOf(SystemSourceCounter.SystemSourceState? live)
+        => live is { Columns.Count: > 0 } l ? SerializeSchema(l.Columns) : null;
 
     public static DataSetBindingDto MapBinding(DataSetBinding b) => new(
         b.Id, b.OwnerId, b.SourceId, b.TargetFieldKey,

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
@@ -70,6 +71,15 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
     private static string? Cell(SourcePreviewDto p, int row, string column) =>
         p.Rows[row][p.Columns.ToList().IndexOf(column)];
 
+    /// <summary>
+    /// Имена колонок из <c>CachedSchema</c> DTO. Разбором, а не поиском подстроки: кириллица там
+    /// сериализована как <c>\uXXXX</c> (так же, как при создании источника), и подстрочная проверка
+    /// молча проходила бы всегда — в том числе на неверном ответе.
+    /// </summary>
+    private static IReadOnlyList<string> SchemaColumns(string cachedSchema) =>
+        [.. JsonDocument.Parse(cachedSchema).RootElement.EnumerateArray()
+            .Select(e => e.GetProperty("name").GetString()!)];
+
     [Fact]
     public async Task Columns_FollowEffectiveSchema_AndFixedOnesWin()
     {
@@ -92,6 +102,117 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
         // иначе значение зависело бы от порядка сборки словаря.
         Assert.Equal(1, columns.Count(c => c == "ИмяОбъекта"));
         Assert.Equal("СтройМонтаж", Cell(preview, 0, "ИмяОбъекта"));
+    }
+
+    /// <summary>
+    /// Колонки системного источника считаются на чтении (issue #664) — по той же причине, по которой
+    /// в #613 живым пришлось сделать число строк: файла у набора нет, определение источника не
+    /// редактируется, и обновить записанное при создании нечем. А колонки этой консолидации зависят
+    /// от схемы типа: добавили поле — появилась колонка.
+    ///
+    /// Проверяются ВСЕ места, где описание источника показывается, потому что расходятся они по
+    /// одному: диалог привязки предложил бы колонку, которой в строках нет, а внешний агент по ней
+    /// построил бы запрос.
+    /// </summary>
+    [Fact]
+    public async Task Columns_AreLiveEverywhereTheyAreShown()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var seed = await SeedAsync(scope);
+        await AddEntryAsync(scope, seed.OrgTypeId, "ЭнергоСтрой", "{'ИНН':'7702'}", CatalogScope.System, null);
+
+        var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
+        var fileId = (await svc.ListFilesAsync("Set", seed.SetId, default)).Single().Id;
+        Assert.DoesNotContain("КПП",
+            SchemaColumns(Assert.Single(await svc.ListSourcesAsync(fileId, default)).CachedSchema));
+
+        // Схема типа поехала — вместе с ней едут и колонки консолидации.
+        await M(scope).Send(new UpdateDocumentTypeSchemaCommand(seed.OrgTypeId,
+            J("""
+              {'fields':[
+                {'key':'ИНН','type':'string','required':false},
+                {'key':'КПП','type':'string','required':false},
+                {'key':'Адрес','type':'string','required':false},
+                {'key':'Контакты','type':'array','required':false},
+                {'key':'ИмяОбъекта','type':'string','required':false}
+              ]}
+              """)));
+
+        // Список источников набора — из него берёт колонки диалог привязки.
+        Assert.Contains("КПП",
+            SchemaColumns(Assert.Single(await svc.ListSourcesAsync(fileId, default)).CachedSchema));
+        // И список наборов уровня: тот же DTO, другой путь.
+        Assert.Contains("КПП", SchemaColumns(Assert.Single(
+            Assert.Single(await svc.ListFilesAsync("Set", seed.SetId, default)).Sources).CachedSchema));
+
+        // MCP-срез: сводка набора, карточка источника и страница строк.
+        var snapshots = scope.ServiceProvider.GetRequiredService<IDataSnapshotService>();
+        Assert.Contains("КПП", Assert.Single((await snapshots.GetDatasetAsync(fileId))!.Sources).Columns);
+        Assert.Contains("КПП", (await snapshots.GetSourceAsync(sourceId))!.Columns.Select(c => c.Name));
+        Assert.Contains("КПП", (await snapshots.GetRowsAsync(sourceId, 0, 50))!.Columns);
+    }
+
+    /// <summary>
+    /// Колонки страницы строк и ключи самих строк — одно и то же (issue #664). Разойдись они, и агент
+    /// получил бы описание, по которому нельзя прочитать ячейку: имя колонки — это ключ в строке,
+    /// третьего адреса у значения нет.
+    ///
+    /// Вычисляемая колонка здесь не для полноты: она есть в КАЖДОЙ строке и не объявлена ни в схеме
+    /// источника, ни у провайдера — то есть теряется именно та колонка, которую посчитали намеренно.
+    /// Превью и экспорт складывают колонки так же (объявленные + пришедшие с обработкой).
+    /// </summary>
+    [Fact]
+    public async Task Columns_MatchRowKeys_IncludingComputed()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var seed = await SeedAsync(scope);
+        await AddEntryAsync(scope, seed.ContractorTypeId, "СтройМонтаж",
+            "{'ИНН':'7701','СРО':'СРО-С-001'}", CatalogScope.System, null);
+
+        var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.ContractorTypeId);
+        await Svc(scope).SetSourceProcessingAsync(sourceId, new SetSourceProcessingInput(
+            null, JsonSerializer.Deserialize<object>("""[{"alias":"ИННиСРО","expr":"get('ИНН') + '/' + get('СРО')"}]"""), null), default);
+
+        var page = (await scope.ServiceProvider.GetRequiredService<IDataSnapshotService>()
+            .GetRowsAsync(sourceId, 0, 50))!;
+
+        Assert.Contains("ИННиСРО", page.Columns);
+        Assert.Equal([.. page.Columns.Order()], [.. Assert.Single(page.Rows).Keys.Order()]);
+
+        // Превью показывает то же — оно и раньше складывало колонки, здесь это защита от расхождения
+        // двух путей, а не от нового дефекта.
+        Assert.Contains("ИННиСРО", (await Svc(scope).PreviewSourceAsync(sourceId, 50, default))!.Columns);
+    }
+
+    /// <summary>
+    /// Превью и авто-маппер тоже смотрят на живые колонки (issue #664): убранное из схемы типа поле
+    /// иначе осталось бы в «Просмотре результата» колонкой-призраком из пустых ячеек, а авто-маппер
+    /// предложил бы привязку на колонку, которой в строках нет, — то есть молча пустое значение при
+    /// генерации.
+    /// </summary>
+    [Fact]
+    public async Task StaleColumn_DisappearsFromPreviewAndAutoMap()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var seed = await SeedAsync(scope);
+        await AddEntryAsync(scope, seed.OrgTypeId, "ЭнергоСтрой", "{'ИНН':'7702','Адрес':'Москва'}",
+            CatalogScope.System, null);
+
+        var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
+        Assert.Contains("Адрес", (await svc.PreviewSourceAsync(sourceId, 50, default))!.Columns);
+
+        // Поле убрали из схемы типа — провайдер перестал отдавать колонку.
+        await M(scope).Send(new UpdateDocumentTypeSchemaCommand(seed.OrgTypeId,
+            J("{'fields':[{'key':'ИНН','type':'string','required':false}]}")));
+
+        Assert.DoesNotContain("Адрес", (await svc.PreviewSourceAsync(sourceId, 50, default))!.Columns);
+
+        var mapped = await svc.AutoMapAsync(sourceId,
+            [new FieldInfo("Адрес", "Адрес"), new FieldInfo("ИНН", "ИНН")], default);
+        Assert.DoesNotContain("Адрес", mapped!.Keys);
+        Assert.Contains("ИНН", mapped.Keys);
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
@@ -154,6 +155,60 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Реестр", candidate.SheetOrPath, null), default);
         var listed = Assert.Single(await svc.ListSourcesAsync(file.Id, default));
         Assert.Contains("Не собрано документов", listed.Warning);
+    }
+
+    /// <summary>
+    /// Оговорка доходит и до MCP-среза (issue #661). Человек, не увидев её в интерфейсе, посмотрит на
+    /// соседний экран; внешнему агенту срез — вся доступная картина, и пустые «КоличествоЛистов» он
+    /// прочитает как «листов нет» либо молча посчитает по неполным данным.
+    ///
+    /// Проверяются обе выдачи. В карточке источника это ещё и защита от возврата прежней ошибки:
+    /// состояние там бралось выражением с `??` после числа строк, то есть при УДАВШЕЙСЯ загрузке
+    /// (обычный случай) не вычислялось вовсе — оговорка терялась именно тогда, когда данные есть.
+    /// </summary>
+    [Fact]
+    public async Task Warning_ReachesSnapshot()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var seed = await SeedAsync(scope);
+        await AddDocAsync(scope, seed.SetA1, seed.TypeId, "АОСР 1");
+        await AddDocAsync(scope, seed.SetA2, seed.TypeId, "АОСР 2");
+
+        var file = await svc.CreateSystemFileAsync(
+            new CreateSystemFileInput("Section", seed.SectionA.ToString(), null), default);
+        var source = await svc.CreateSourceAsync(file.Id,
+            new CreateSourceInput("Реестр", SystemDataSets.SubtreeDocumentsMarker, null), default);
+
+        var snapshots = scope.ServiceProvider.GetRequiredService<IDataSnapshotService>();
+
+        var summary = Assert.Single((await snapshots.GetDatasetAsync(file.Id))!.Sources);
+        Assert.Contains("Не собрано документов: 2 из 2", summary.Warning);
+
+        var detail = (await snapshots.GetSourceAsync(source.Id))!;
+        Assert.Contains("Не собрано документов: 2 из 2", detail.Warning);
+
+        // Оговорка — не отказ чтения: строки на месте и верны, неизвестна лишь часть данных ВНУТРИ
+        // них. Слитые в одно поле, эти два состояния перестали бы различаться агентом.
+        Assert.Null(detail.RowsError);
+        Assert.Equal(2, detail.RowCount);
+    }
+
+    /// <summary>Собранных нет — оговаривать нечего, и поле молчит: оговорка на каждом ответе
+    /// обесценила бы себя.</summary>
+    [Fact]
+    public async Task Warning_IsAbsentWhenNothingToQualify()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var seed = await SeedAsync(scope);
+
+        var sourceId = await SourceAtAsync(scope, "Section", seed.SectionB);
+        var fileId = (await svc.ListFilesAsync("Section", seed.SectionB, default)).Single().Id;
+
+        var snapshots = scope.ServiceProvider.GetRequiredService<IDataSnapshotService>();
+        Assert.Null(Assert.Single((await snapshots.GetDatasetAsync(fileId))!.Sources).Warning);
+        Assert.Null((await snapshots.GetSourceAsync(sourceId))!.Warning);
     }
 
     [Fact]

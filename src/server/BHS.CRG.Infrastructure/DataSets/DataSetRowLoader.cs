@@ -34,8 +34,15 @@ public class DataSetRowLoader(
         CancellationToken ct)
     {
         List<IReadOnlyDictionary<string, string?>> parsedRows;
+        // Колонки и оговорка известны ровно здесь, вместе со строками (issue #661/#664): извлечение
+        // — единственное место, где видно, что источник отдал НА САМОМ ДЕЛЕ, а не что о нём было
+        // записано при создании. Спрашивать то же второй раз значило бы повторить всю загрузку.
+        IReadOnlyList<DataSetColumnInfo>? columns = null;
+        string? warning = null;
         if (source.File.Format == DataSetFormat.Pdf)
         {
+            // Кэш распознавания — сам себе описание: CachedSchema писался тем же проходом, что и
+            // CachedData, и разойтись им не на чем.
             parsedRows = DeserializeCachedData(source.CachedData);
         }
         else if (source.File.Format == DataSetFormat.System)
@@ -43,6 +50,8 @@ public class DataSetRowLoader(
             var provided = await systemProviders.Get(source.SheetOrPath)
                 .ProvideAsync(source.SheetOrPath, source.File.Scope, source.File.ScopeId, ct);
             parsedRows = provided.Rows.ToList();
+            columns = provided.Columns;
+            warning = provided.Warning;
         }
         else
         {
@@ -54,13 +63,15 @@ public class DataSetRowLoader(
             var parser = parserFactory.GetParser(source.File.Format);
             var parsed = await parser.ParseAsync(bytes, source.SheetOrPath, source.ColumnExpressions, ct);
             parsedRows = parsed.Rows.ToList();
+            columns = parsed.Columns;
+            warning = parsed.Warning;
         }
 
         // Transformation (вычисляемые колонки могут понадобиться фильтру/сортировке), затем Filter, затем Sort.
         var rows = DataSetComputedColumnExecutor.Apply(source.ComputedColumns, parsedRows);
         rows = DataSetRowFilterExecutor.Apply(source.RowFilter, rows);
         rows = DataSetSortExecutor.Apply(source.SortSpec, rows);
-        return new LoadedRows(rows, parsedRows.Count);
+        return new LoadedRows(rows, parsedRows.Count, columns, warning);
     }
 
     private static List<IReadOnlyDictionary<string, string?>> DeserializeCachedData(string? json)
