@@ -103,8 +103,7 @@ public class GenerateDocumentHandler(
             // Материалы без документа качества (issue #585) — предупреждением: выпуск не блокируем
             // (на живом комплекте таких было 75 из 151), но и молчать нельзя — сегодня документ
             // выходит без сертификатов, не оставляя следа.
-            QualityLinkScanner.Scan(context, MaterialIdentity.KeysOf(allDocTypes),
-                MaterialIdentity.QualityDocFieldOf(allDocTypes), diagnostics);
+            QualityLinkScanner.Scan(context, instance.CompositeTypeId, allDocTypes, diagnostics);
 
             if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
                 throw new ResolutionValidationException(diagnostics);

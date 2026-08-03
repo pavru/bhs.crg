@@ -81,8 +81,7 @@ public class InstanceResolutionValidator(
         ValueTypeScanner.Scan(context, fields, catalog.DocumentTypes, catalog.Primitives, diagnostics);
 
         // Материалы без документа качества (issue #585) — предупреждениями, как и при выпуске.
-        QualityLinkScanner.Scan(context, MaterialIdentity.KeysOf(catalog.AllTypes),
-            MaterialIdentity.QualityDocFieldOf(catalog.AllTypes), diagnostics);
+        QualityLinkScanner.Scan(context, instance.CompositeTypeId, catalog.AllTypes, diagnostics);
 
         return diagnostics;
     }

@@ -235,15 +235,37 @@ export function isSubtypeOf(childId: string, parentId: string, allDocTypes: Docu
  * True if the type has an array/complex field whose row composite type (incl. inheritance)
  * carries a field with the given functional tag. Used e.g. to detect documents that require
  * quality documents (material.qualityDocLink on a material row type).
+ *
+ * Обход рекурсивный, ВСЕЙ цепочкой составных полей (issue #648). Спуск ровно на один уровень
+ * пропускал материалы в АОСР: union-обёртка «массив ИЛИ ссылка на реестр» (#320) добавила
+ * промежуточный составной тип, и «Материалы» стали лежать на два уровня — АОСР → «МатериалыАОСР»
+ * → массив «Материал». Тэг не находился, закладки «Документы качества» у документа не было вовсе,
+ * и подобрать сертификаты к внесённым вручную материалам было негде.
+ *
+ * Тэг ищется на полях ВЛОЖЕННЫХ типов, а не на собственных полях документа — как и раньше:
+ * тэг материала стоит на строке материала, а не на поле, которое их содержит.
  */
 export function compositeFieldHasTag(docType: DocumentType, tag: string, allDocTypes: DocumentType[]): boolean {
-  return resolveEffectiveFields(docType, allDocTypes).some(f => {
-    if ((f.type !== 'array' && f.type !== 'complex') || !f.typeId) return false;
-    const ct = allDocTypes.find(d => d.id === f.typeId);
+  // Глубину НЕ ограничиваем: обход конечен сам по себе — каждый тип посещается один раз, а типов
+  // конечное число. Предел глубины вместе с этой пометкой давал бы неверный ответ: тип, срезанный
+  // по глубине в одной ветке, считался бы «проверенным» и в другой, где тэг нашёлся бы.
+  const visited = new Set<string>(); // цикл (тип, ссылающийся на себя) — законная схема
+  function descend(typeId: string): boolean {
+    if (visited.has(typeId)) return false;
+    visited.add(typeId);
+    const ct = allDocTypes.find(d => d.id === typeId);
     if (!ct) return false;
-    return resolveEffectiveFields(ct, allDocTypes).some(cf => hasTag(cf.tags, tag));
-  });
+    return resolveEffectiveFields(ct, allDocTypes).some(cf =>
+      hasTag(cf.tags, tag)
+      || ((cf.type === 'array' || cf.type === 'complex') && !!cf.typeId && descend(cf.typeId)));
+  }
+  return resolveEffectiveFields(docType, allDocTypes).some(f =>
+    (f.type === 'array' || f.type === 'complex') && !!f.typeId && descend(f.typeId));
 }
+
+/** Предел вложенности при обходе ДАННЫХ по схеме — от патологических данных, не от нормы.
+ *  (Обходу самой схемы предел не нужен: там каждый тип посещается один раз.) */
+const MAX_COMPOSITE_DEPTH = 6;
 
 /**
  * Path (dotted segments) to the first effective field carrying the given functional tag,
@@ -349,4 +371,47 @@ export function materialIdentityKeys(allDocTypes: DocumentType[]): string[] {
 
   found.sort((a, b) => a.order - b.order || a.typeIndex - b.typeIndex || a.fieldIndex - b.fieldIndex);
   return Array.from(new Set(found.map(f => f.key)));
+}
+
+/**
+ * Все строки материалов, лежащие в реквизитах, — по схеме и по всей глубине вложенности (issue #648).
+ *
+ * Раньше вкладка собирала материалы только из массивов ВЕРХНЕГО уровня, и inline-ветка union
+ * «массив ИЛИ ссылка на реестр» (#320) выпадала: в АОСР материалы лежат в `Материалы.Материалы`,
+ * то есть внутри составной обёртки. Закладка оставалась пустой ровно там, где материалы внесли
+ * руками, — в мелком акте без отдельного реестра.
+ *
+ * Материалом считается строка массива материального типа (см. {@link isMaterialType}); одиночное
+ * составное поле материального типа — тоже строка, случай «в документе один материал». Ссылки
+ * (`doc-ref`/`doc-array`) не разворачиваем: материалы чужой записи приходят на вкладку набором
+ * данных, а не отсюда.
+ */
+export function collectMaterialRows(
+  docType: DocumentType, allDocTypes: DocumentType[], requisites: Record<string, unknown>,
+): Record<string, unknown>[] {
+  const rows: Record<string, unknown>[] = [];
+
+  function walk(type: DocumentType, values: Record<string, unknown>, depth: number) {
+    if (depth > MAX_COMPOSITE_DEPTH) return;
+    for (const f of resolveEffectiveFields(type, allDocTypes)) {
+      if ((f.type !== 'array' && f.type !== 'complex') || !f.typeId) continue;
+      const ct = allDocTypes.find(t => t.id === f.typeId);
+      if (!ct) continue;
+      const value = values[f.key];
+      const material = isMaterialType(ct, allDocTypes);
+      const items = f.type === 'array'
+        ? (Array.isArray(value) ? value : [])
+        : [value];
+      for (const item of items) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+        const record = item as Record<string, unknown>;
+        if ('$ref' in record) continue; // ссылка на запись каталога — не инлайн-материал
+        if (material) rows.push(record);
+        else walk(ct, record, depth + 1); // обёртка (в т.ч. union) — материалы могут быть глубже
+      }
+    }
+  }
+
+  walk(docType, requisites, 0);
+  return rows;
 }
