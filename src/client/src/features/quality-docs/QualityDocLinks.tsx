@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Link2, Unlink, Replace } from 'lucide-react';
+import { AlertTriangle, Link2, Unlink, Replace } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { ScopeIcon } from '@/shared/ui/ScopeIcon';
+import { linkAnomaly, scopeBreakdownText, widerThanSet } from './linkScopes';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/ui/Toast';
@@ -9,7 +11,7 @@ import {
   useRemoveMaterialLink, useRemoveMaterialLinks, useSetMaterialLinks, type MaterialQualityLink,
 } from '@/shared/api/qualityDocs';
 import { LinkPickerModal } from '@/features/document-sets/editor/QualityLinksTab';
-import type { CatalogScope, DocumentType } from '@/shared/api/types';
+import { SCOPE_LABELS, type CatalogScope, type DocumentType } from '@/shared/api/types';
 
 /**
  * Связки материалов документа качества — правая часть экрана контроля (issue #555).
@@ -26,8 +28,11 @@ import type { CatalogScope, DocumentType } from '@/shared/api/types';
  *       это артикулы, где сопоставлять нечего. Ноль означает «непроверяемо», а не «неверно».</li>
  * </ul>
  */
-export function QualityDocLinks({ links, allDocTypes, search }: {
+export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
   links: MaterialQualityLink[];
+  /** Связки ВСЕЙ библиотеки — для поиска спора двух документов за один материал (issue #649):
+   *  внутри одного документа такой спор безвреден, в PDF всё равно попадёт он же. */
+  allLinks: MaterialQualityLink[];
   allDocTypes: DocumentType[];
   /** Строка поиска — строки фильтруются на клиенте (113 связок фильтруются мгновенно). */
   search: string;
@@ -70,6 +75,8 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
   function toggle(id: string) {
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   }
+
+  const anomalyOf = (link: MaterialQualityLink) => linkAnomaly(link, { inDocument: links, all: allLinks });
 
   async function relinkMany(docId: string) {
     // Перепривязка идёт ПО ГРУППАМ ОБЛАСТЕЙ. Команда апсертит по тройке (область, объект области,
@@ -139,6 +146,9 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
         <div key={link.id} className="group flex items-start gap-3 rounded-md px-3 py-2 hover:bg-base">
           <input type="checkbox" checked={selected.has(link.id)} onChange={() => toggle(link.id)}
             aria-label={`Выбрать ${nameOf(link)}`} className="mt-1 shrink-0" />
+          {/* Уровень связи (issue #649): до этого он не показывался вовсе, хотя управляет и
+              перепривязкой (она идёт по группам областей), и тем, какая связка победит в PDF. */}
+          <ScopeIcon scope={link.scope as CatalogScope} className="mt-1" />
           <div className="min-w-0 flex-1">
             {/* Метка первой строкой во всю ширину: имена материалов доходят до сотни знаков,
                 колонки на четверть экрана здесь противопоказаны. Ключ — второй строкой и
@@ -148,6 +158,12 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
               <p className="text-xs text-fg4 font-mono break-all">{link.materialKey}</p>
             )}
           </div>
+          {/* Знак аномалии — рядом со значком уровня, но цветом: он говорит не «какой уровень»,
+              а «здесь что-то не так». Тот же приём, что у коллизий идентичности в QualityLinksTab. */}
+          {anomalyOf(link) && (
+            <span title={anomalyOf(link)!} aria-label={anomalyOf(link)!} role="img"
+              className="mt-1 shrink-0 text-warning"><AlertTriangle size={13} /></span>
+          )}
           <div className="flex items-center gap-1 shrink-0">
             <Button variant="text" size="sm" icon={<Replace size={13} />}
               onClick={() => setRelinking(link)}>Перепривязать</Button>
@@ -174,8 +190,11 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
       <ConfirmDialog
         open={bulkBreak} onOpenChange={setBulkBreak}
         title={`Разорвать связи: ${chosen.length}?`}
-        description={<p>Выбранные материалы останутся без документов качества — при генерации поле
-          документа качества будет пустым.</p>}
+        description={<>
+          <p>Выбранные материалы останутся без документов качества — при генерации поле
+            документа качества будет пустым.</p>
+          <ScopeReachNote links={chosen} />
+        </>}
         confirmLabel="Разорвать"
         onConfirm={() => breakMany()}
       />
@@ -200,6 +219,7 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
             <p className="mb-2">{breaking ? nameOf(breaking) : ''}</p>
             <p>Материал останется без документа качества — при генерации поле документа качества
               будет пустым.</p>
+            <ScopeReachNote links={breaking ? [breaking] : []} />
           </>
         }
         confirmLabel="Разорвать"
@@ -215,6 +235,33 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Что зацепит действие над связками — состав по уровням и предупреждение про широкие (issue #649).
+ *
+ * Разрыв и перепривязка идут поперёк уровней, а до этого в подтверждении стояло одно число. Связка
+ * уровня «Стройка» или «Система» действует далеко за пределами комплекта, из которого её завели, —
+ * и человек узнавал об этом только по последствиям.
+ */
+export function ScopeReachNote({ links }: { links: MaterialQualityLink[] }) {
+  if (links.length === 0) return null;
+  const wide = widerThanSet(links);
+  const breakdown = scopeBreakdownText(links);
+  const mixed = links.some(l => l.scope !== links[0].scope);
+  if (wide.length === 0 && !mixed) return null; // всё в одном комплекте — говорить не о чем
+
+  return (
+    <p className="mt-2 text-warning">
+      {links.length > 1 && <>По уровням: {breakdown}. </>}
+      {wide.length > 0 && (
+        links.length === 1
+          ? <>Связка уровня «{SCOPE_LABELS[links[0].scope]}» — она действует не только в этом
+              комплекте, но и всюду, куда распространяется этот уровень.</>
+          : <>Из них шире комплекта: {wide.length} — они действуют и в других комплектах.</>
+      )}
+    </p>
   );
 }
 

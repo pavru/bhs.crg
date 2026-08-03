@@ -536,7 +536,9 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
             <SelectItem value="Set">Только этот комплект</SelectItem>
             {sectionId && <SelectItem value="Section">Весь раздел</SelectItem>}
             {constructionId && <SelectItem value="Construction">Вся стройка</SelectItem>}
-            <SelectItem value="System">Общая (System)</SelectItem>
+            {/* Слово «Система» — из общего словаря областей (issue #649): экран контроля называет
+                этот уровень так же, и выбирать одним словом, а читать другое человек не должен. */}
+            <SelectItem value="System">Все стройки (Система)</SelectItem>
           </Select>
         </div>
       </div>
