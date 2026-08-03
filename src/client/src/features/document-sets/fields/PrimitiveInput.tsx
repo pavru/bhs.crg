@@ -45,6 +45,20 @@ export function validateConstraint(value: unknown, def: PrimitiveTypeDef): strin
   return null;
 }
 
+/**
+ * Значение для календарного контрола: тот понимает только полный ISO и на «12.05.2024» показывает
+ * ПУСТОЕ поле, хотя значение есть и уйдёт обратно в базу при сохранении.
+ *
+ * Русскую дату в поле даты кладёт распознавание (модель отдаёт то, что прочла в скане) и старые
+ * записи, заполненные тогда, когда поле рисовалось простым текстом. Показать пусто вместо «12.05.2024»
+ * значит спрятать расхождение: человек его не исправит, а аудит значений (#644) будет ругаться на то,
+ * чего в форме не видно. Хранимое значение при этом НЕ переписываем — только показываем; правкой
+ * контрол сам запишет полный ISO.
+ */
+function dateForDisplay(value: string): string {
+  return ruToISO(value);
+}
+
 export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeDef, enumTypeDef, readOnly, label, hint }: {
   field: SchemaField; value: unknown; onChange: (val: unknown) => void; invalid: boolean;
   primitiveTypeDef?: PrimitiveTypeDef; enumTypeDef?: EnumTypeDef; readOnly?: boolean;
@@ -97,8 +111,8 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
       const prec = primitiveTypeDef.constraints.datePrecision ?? 'day';
       return label != null
         ? <DateField label={label} required={field.required} hint={hint ?? primitiveTypeDef.description}
-            invalid={invalid} value={strVal} onChange={v => onChange(v)} precision={prec} disabled={readOnly} />
-        : <DateInput value={strVal} onChange={v => onChange(v)} precision={prec} className={cls} disabled={readOnly} />;
+            invalid={invalid} value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} disabled={readOnly} />
+        : <DateInput value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} className={cls} disabled={readOnly} />;
     }
     const step = bt === 'number' && primitiveTypeDef.constraints.integer ? 1 : undefined;
     const onCh = (v: string) => onChange(bt === 'number' ? (v === '' ? '' : Number(v)) : v);
@@ -114,8 +128,8 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
   if (field.type === 'date') {
     return label != null
       ? <DateField label={label} required={field.required} hint={hint} invalid={invalid}
-          value={strVal} onChange={v => onChange(v)} disabled={readOnly} />
-      : <DateInput value={strVal} onChange={v => onChange(v)} className={cls} disabled={readOnly} />;
+          value={dateForDisplay(strVal)} onChange={v => onChange(v)} disabled={readOnly} />
+      : <DateInput value={dateForDisplay(strVal)} onChange={v => onChange(v)} className={cls} disabled={readOnly} />;
   }
   const onCh = (v: string) => onChange(field.type === 'number' ? (v === '' ? '' : Number(v)) : v);
   if (label != null)

@@ -13,6 +13,8 @@ import { uploadAttachment, openAttachmentInNewTab } from '@/shared/api/attachmen
 import type { DocumentType, CatalogScope } from '@/shared/api/types';
 import { resolveEffectiveFields, typeHasTag, findTaggedFieldPath, type SchemaField } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
+import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
+import { useListEnumTypes } from '@/shared/api/enumTypes';
 import {
   PrimitiveInput, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField, ImageField, FileField,
 } from '@/features/document-sets/fields';
@@ -87,6 +89,16 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
   const docType = allDocTypes.find(dt => dt.id === typeId);
   const fields = docType ? resolveEffectiveFields(docType, allDocTypes) : [];
   const busy = create.isPending || update.isPending || setScanMut.isPending;
+
+  // Определения типов полей для скалярного редактора (issue #652): без них перечисление из реестра
+  // (#59) показывает «Нет вариантов» на заполненном поле, а примитив на базе даты (#60) — обычный
+  // текст без календаря и точности. Ровно как в редакторе реквизитов и в каталоге общих данных.
+  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
+  const primitiveDef = (f: SchemaField) =>
+    f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
+  const enumDef = (f: SchemaField) =>
+    f.type === 'enum' ? enumTypes.find(et => et.id === f.typeId) : undefined;
 
   function setValue(key: string, v: unknown) { setValues(p => ({ ...p, [key]: v })); }
 
@@ -233,7 +245,9 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
             return <div key={f.key} className={cls}>{label}<ImageField value={v} onChange={x => setValue(f.key, x)} /></div>;
           if (f.type === 'file')
             return <div key={f.key} className={cls}>{label}<FileField value={v} onChange={x => setValue(f.key, x ?? undefined)} /></div>;
-          return <div key={f.key} className={cls}><PrimitiveInput field={f} value={v} label={f.title} onChange={x => setValue(f.key, x)} invalid={false} /></div>;
+          return <div key={f.key} className={cls}><PrimitiveInput field={f} value={v} label={f.title}
+            onChange={x => setValue(f.key, x)} invalid={false}
+            primitiveTypeDef={primitiveDef(f)} enumTypeDef={enumDef(f)} /></div>;
         })}
       </div>
 
