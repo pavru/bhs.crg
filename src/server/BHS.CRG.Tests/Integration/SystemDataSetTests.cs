@@ -215,7 +215,10 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var svc = Svc(scope);
 
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("System", null, null), default);
-        Assert.Empty(await svc.DetectSourceCandidatesAsync(file.Id, default));
+        // Не «пусто вообще»: с #623 на любом уровне может предложиться библиотека документов
+        // качества. Проверяем ровно то, о чём тест, — документов КОМПЛЕКТА вне комплекта нет.
+        Assert.DoesNotContain(await svc.DetectSourceCandidatesAsync(file.Id, default),
+            c => c.SheetOrPath == SystemDataSets.SetDocumentsMarker);
     }
 
     /// <summary>
@@ -232,10 +235,13 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var inSet = await svc.ListSystemCandidatesAsync("Set", setId, default);
         Assert.Equal(SystemDataSets.SetDocumentsMarker, Assert.Single(inSet).SheetOrPath);
 
-        // Раздел/стройка/система: консолидировать нечего — кнопку показывать незачем.
-        Assert.Empty(await svc.ListSystemCandidatesAsync("Section", Guid.NewGuid(), default));
-        Assert.Empty(await svc.ListSystemCandidatesAsync("Construction", Guid.NewGuid(), default));
-        Assert.Empty(await svc.ListSystemCandidatesAsync("System", null, default));
+        // Раздел/стройка/система: документов комплекта там нет. Проверяем именно их отсутствие, а
+        // не пустоту списка: библиотека качества (#623) предлагается на любом уровне, если в ней
+        // есть хоть один документ, — здесь их не заводили, поэтому список пока пуст и целиком.
+        foreach (var (level, id) in ((string, Guid?)[])
+                 [("Section", Guid.NewGuid()), ("Construction", Guid.NewGuid()), ("System", null)])
+            Assert.DoesNotContain(await svc.ListSystemCandidatesAsync(level, id, default),
+                c => c.SheetOrPath == SystemDataSets.SetDocumentsMarker);
 
         await Assert.ThrowsAsync<ArgumentException>(
             () => svc.ListSystemCandidatesAsync("Ерунда", null, default));
