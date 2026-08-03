@@ -16,6 +16,7 @@ import type { AuditFinding } from '@/shared/api/documentTypes';
 const CATEGORY_LABEL: Record<string, string> = {
   'orphan-key': 'Поля, которых нет в текущей схеме',
   'type-mismatch': 'Несовпадение вида значения с типом поля',
+  'value-type': 'Значение не соответствует объявленному типу', // issue #642
 };
 
 export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys, open, onClose }: {
@@ -77,7 +78,9 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
                   {items.map(f => {
                     const canRename = f.code === 'orphan-key' && isTopLevel(f.path);
                     return (
-                      <div key={f.path} className="px-3 py-2.5">
+                      // Путь В КЛЮЧЕ не уникален: у одного значения бывает несколько претензий сразу
+                      // (например, «не целое» и «меньше допустимого»), и обе лежат по одному пути.
+                      <div key={`${f.path} ${f.message}`} className="px-3 py-2.5">
                         <div className="flex items-start gap-2">
                           <span className="min-w-0 flex-1">
                             <code className="text-xs text-fg2 break-all">{f.path}</code>
