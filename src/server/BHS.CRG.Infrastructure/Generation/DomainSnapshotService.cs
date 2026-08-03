@@ -369,26 +369,10 @@ public class DomainSnapshotService(
         var set = await mediator.Send(new GetDocumentSetQuery(setId), ct);
         if (set is null) return empty;
 
-        var section = await sections.GetByIdAsync(set.SectionId, ct);
-        var constructionId = section?.ConstructionId;
-
-        // Порядок = приоритет: первый победивший ключ остаётся. Тот же, что у QualityLinkResolver —
-        // расхождение здесь означало бы, что агент видит не то, что попадёт в документ.
-        var levels = new (CatalogScope Scope, Guid? ScopeId)[]
-        {
-            (CatalogScope.Set, setId),
-            (CatalogScope.Section, set.SectionId),
-            (CatalogScope.Construction, constructionId),
-            (CatalogScope.System, null),
-        };
-
-        var winners = new Dictionary<string, (Guid DocId, CatalogScope Scope, Guid? ScopeId, DateTimeOffset UpdatedAt)>();
-        foreach (var (scope, scopeId) in levels)
-        {
-            if (scope != CatalogScope.System && scopeId is null) continue; // разорванная цепочка — уровня просто нет
-            foreach (var l in await mediator.Send(new ListMaterialLinksQuery(scope, scopeId), ct))
-                winners.TryAdd(l.MaterialKey, (l.QualityDocumentId, scope, scopeId, l.UpdatedAt));
-        }
+        // Победители по цепочке уровней — общий алгоритм (issue #624). Расхождение с резолвером
+        // означало бы, что агент видит не то, что попадёт в документ, а заметить это можно только
+        // по готовому PDF.
+        var winners = await MaterialQualityChain.WinnersForSetAsync(db, setId, ct);
         if (winners.Count == 0) return empty;
 
         var docs = (await mediator.Send(new ListQualityDocumentsQuery(null, null, null), ct))
@@ -402,10 +386,10 @@ public class DomainSnapshotService(
             .OrderBy(kv => kv.Key)
             .Select(kv =>
             {
-                var doc = docs.GetValueOrDefault(kv.Value.DocId);
+                var doc = docs.GetValueOrDefault(kv.Value.QualityDocumentId);
                 var typeName = doc is null ? "" : typeMap.GetValueOrDefault(doc.DocumentTypeId)?.Name ?? "";
                 return new MaterialQualityLinkInfo(
-                    kv.Key, kv.Value.DocId, doc?.DisplayName ?? "", typeName,
+                    kv.Key, kv.Value.QualityDocumentId, doc?.DisplayName ?? "", typeName,
                     kv.Value.Scope.ToString(), kv.Value.ScopeId, kv.Value.UpdatedAt);
             })
             .ToArray();

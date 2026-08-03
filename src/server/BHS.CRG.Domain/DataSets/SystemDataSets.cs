@@ -23,6 +23,9 @@ public static class SystemDataSets
     /// <summary>Библиотека документов качества, видимых с уровня набора (цепочка вверх).</summary>
     public const string QualityDocumentsMarker = "system:quality-documents";
 
+    /// <summary>Победившие связки «материал → документ качества» на уровне набора.</summary>
+    public const string MaterialQualityMarker = "system:material-quality";
+
     public static bool IsSystemMarker(string sheetOrPath) =>
         sheetOrPath.StartsWith(MarkerPrefix, StringComparison.Ordinal);
 }
