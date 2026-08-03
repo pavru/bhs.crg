@@ -2,6 +2,7 @@ using System.Text.Json;
 using BHS.CRG.Application.Reconciliation;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Reconciliation;
+using BHS.CRG.Infrastructure.Common;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -135,17 +136,12 @@ public class ProblemAttributionService(AppDbContext db) : IProblemAttribution
         return [.. all.Where(id => !attributed.Contains(id))];
     }
 
-    public async Task<IReadOnlyList<Guid>> SetIdsUnderAsync(
-        CatalogScope scope, Guid scopeId, CancellationToken ct = default) => scope switch
-    {
-        CatalogScope.Set => [scopeId],
-        CatalogScope.Section => await db.DocumentSets.AsNoTracking()
-            .Where(s => s.SectionId == scopeId).Select(s => s.Id).ToListAsync(ct),
-        CatalogScope.Construction => await db.DocumentSets.AsNoTracking()
-            .Where(s => db.Sections.Any(sec => sec.Id == s.SectionId && sec.ConstructionId == scopeId))
-            .Select(s => s.Id).ToListAsync(ct),
-        _ => [],
-    };
+    // Спуск по оси — общий (issue #625): та же выборка нужна и списку доступных документов, и
+    // провайдерам системных наборов, а держать её внутри разбора проблем сверки значило заставлять
+    // их зависеть от него.
+    public Task<IReadOnlyList<Guid>> SetIdsUnderAsync(
+        CatalogScope scope, Guid scopeId, CancellationToken ct = default)
+        => ScopeSubtree.SetIdsUnderAsync(db, scope, scopeId, ct);
 
     /// <summary>
     /// Источники спеки, включая свод по нескольким (#450). Спека — свободный jsonb, поэтому читаем

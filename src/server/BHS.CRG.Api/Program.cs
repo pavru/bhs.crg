@@ -284,6 +284,9 @@ builder.Services.AddScoped<BHS.CRG.Application.Reconciliation.IReconciliationRun
 builder.Services.AddScoped<BHS.CRG.Application.Reconciliation.IProblemAttribution,
     BHS.CRG.Infrastructure.Reconciliation.ProblemAttributionService>();
 builder.Services.AddScoped<BHS.CRG.Application.Documents.ILevelProfileService, BHS.CRG.Infrastructure.Generation.LevelProfileService>();
+// Спуск «уровень → комплекты поддерева» (issue #625): слою приложения нужен через контракт —
+// AppDbContext ему недоступен, а копия обхода была у него своя.
+builder.Services.AddScoped<BHS.CRG.Application.Common.IScopeSubtree, BHS.CRG.Infrastructure.Common.ScopeSubtreeService>();
 builder.Services.AddScoped<IMetadataExtractor, MetadataExtractor>();
 builder.Services.AddScoped<IDataSetResolver, DataSetResolver>();
 builder.Services.AddScoped<IObjectResolver, ObjectResolver>();

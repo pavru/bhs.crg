@@ -42,6 +42,14 @@ public class ProblemSummaryHandler(
         return new ProblemSummary(self.NeedsAttention, self.HasArithmeticProblems, counts);
     }
 
+    /// <summary>
+    /// ПРЯМЫЕ дети уровня — на один шаг вниз, и это не то же самое, что спуск
+    /// <see cref="Common.IScopeSubtree"/> «уровень → все комплекты поддерева» (issue #625).
+    ///
+    /// Своди их вместе — и сводка стройки посчитала бы её комплекты дважды: сама и через разделы.
+    /// Здесь нужны именно соседние узлы дерева, каждый со своим уровнем: сводка спрашивает у них
+    /// состояние рекурсивно, и уровень ребёнка — часть ответа.
+    /// </summary>
     private async Task<IReadOnlyList<(CatalogScope Scope, Guid Id)>> ChildrenOfAsync(
         CatalogScope scope, Guid? scopeId, CancellationToken ct) => scope switch
     {
