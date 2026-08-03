@@ -23,7 +23,7 @@ namespace BHS.CRG.Infrastructure.DataSets;
 /// Метаданные сборки (количество листов, дата генерации) есть только у собранных документов:
 /// «проход 1.5», дописывающий их, живёт в сборке КОМПЛЕКТА, а сборки раздела или стройки нет и не
 /// планируется (решение по эпику #622). Поэтому реестр показывает то, что известно на момент
-/// генерации, и предупреждает, сколько комплектов поддерева ещё не собрано, — молчаливые пустые
+/// генерации, и предупреждает, у скольких документов этих данных ещё нет, — молчаливые пустые
 /// ячейки читались бы как «листов нет».
 /// </summary>
 public class SubtreeDocumentsProvider(AppDbContext db, IDomainObjectRepository objects) : ISystemDataProvider
@@ -45,11 +45,14 @@ public class SubtreeDocumentsProvider(AppDbContext db, IDomainObjectRepository o
         // списке сбивают — выбирать пришлось бы по догадке, чем они отличаются.
         if (scope is not (CatalogScope.Section or CatalogScope.Construction) || scopeId is null) return [];
 
+        // Пустое поддерево кандидата НЕ отменяет — в отличие от консолидаций качества, где пустая
+        // библиотека означает «модулем не пользуются». Реестр раздела настраивают заранее, до ввода
+        // документов, и спрятать здесь предложение значит спрятать саму возможность: кнопка «Данные
+        // системы» появляется только при непустом списке кандидатов. «Документы комплекта» ведут
+        // себя так же.
         var (rows, warning) = await RowsAsync(scope, scopeId, ct);
-        return rows.Count == 0
-            ? []
-            : [new DataSetSourceInfo(NameFor(scope), SystemDataSets.SubtreeDocumentsMarker,
-                ColumnsOf(rows), rows.Count, Warning: warning)];
+        return [new DataSetSourceInfo(NameFor(scope), SystemDataSets.SubtreeDocumentsMarker,
+            ColumnsOf(rows), rows.Count, Warning: warning)];
     }
 
     public async Task<DataSetParseResult> ProvideAsync(
@@ -132,26 +135,26 @@ public class SubtreeDocumentsProvider(AppDbContext db, IDomainObjectRepository o
             ordinal++;
         }
 
-        return (rows, UnassembledWarning(scope, sets, ordered));
+        return (rows, UnassembledWarning(ordered));
     }
 
     /// <summary>
-    /// Сколько комплектов поддерева ещё не собрано. Именно комплектов, а не документов: метаданные
-    /// дописывает сборка комплекта целиком, и «полсобранного» комплекта не бывает.
+    /// Сколько строк реестра не знает метаданных сборки — считаем по ДОКУМЕНТАМ, а не по комплектам.
+    ///
+    /// Считать комплектами казалось естественнее («полсобранного комплекта не бывает»), но это
+    /// неправда: статус «Сгенерирован» ставит и одиночная генерация одного документа
+    /// (<c>DomainObject.AddGeneratedFile</c>), не только сборка комплекта целиком. Один собранный
+    /// вручную документ делал весь комплект «собранным», и оговорка замолкала ровно тогда, когда
+    /// девять соседних строк стояли с пустыми ячейками. Заодно уходит и обратная ложь: пустые
+    /// комплекты поддерева попадали в «не собрано», хотя строк от них в реестре нет вовсе.
     /// </summary>
-    private static string? UnassembledWarning(
-        CatalogScope scope, IReadOnlyList<ScopeSubtree.SetInSubtree> sets, List<DomainObject> documents)
+    private static string? UnassembledWarning(List<DomainObject> documents)
     {
-        var assembled = documents
-            .Where(d => d.Status == DocumentStatus.Generated)
-            .Select(d => d.ScopeId!.Value)
-            .ToHashSet();
-        var pending = sets.Count(s => !assembled.Contains(s.SetId));
+        var pending = documents.Count(d => d.Status != DocumentStatus.Generated);
         if (pending == 0) return null;
 
-        var where = scope == CatalogScope.Section ? "разделе" : "стройке";
-        return $"В {where} не собрано комплектов: {pending} из {sets.Count}. "
-             + "Количество листов и дата генерации известны только у собранных документов — "
+        return $"Не собрано документов: {pending} из {documents.Count}. "
+             + "Количество листов и дата генерации известны только у собранных — "
              + "у остальных эти ячейки пусты.";
     }
 

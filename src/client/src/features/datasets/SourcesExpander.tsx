@@ -397,6 +397,13 @@ export function SourcesPanel({
                 <div key={c.sheetOrPath} className="flex items-center gap-2 text-xs">
                   <span className="text-fg2">
                     {c.name} <span className="text-fg4">· {pending ? 'таблица не распознана' : `${c.rowCount} строк`}</span>
+                    {/* Оговорка к данным (issue #626) — до создания источника, а не после: иначе о
+                        неполноте узнают, уже привязав реестр к полям документа. */}
+                    {c.warning && (
+                      <span title={c.warning} className="ml-1 inline-flex items-center gap-0.5 text-warning align-middle">
+                        <AlertTriangle size={10} /> с оговоркой
+                      </span>
+                    )}
                   </span>
                   {pending ? (
                     <button type="button" disabled={recognizeTable.isPending}

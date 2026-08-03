@@ -4,7 +4,9 @@ using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Infrastructure.Persistence;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -146,12 +148,12 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
 
         Assert.Equal("Документы раздела", candidate.Name);
         Assert.NotNull(candidate.Warning);
-        Assert.Contains("не собрано комплектов: 2 из 2", candidate.Warning);
+        Assert.Contains("Не собрано документов: 2 из 2", candidate.Warning);
 
         // И у самого источника — живой, считается вместе со строками.
         await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Реестр", candidate.SheetOrPath, null), default);
         var listed = Assert.Single(await svc.ListSourcesAsync(file.Id, default));
-        Assert.Contains("не собрано комплектов", listed.Warning);
+        Assert.Contains("Не собрано документов", listed.Warning);
     }
 
     [Fact]
@@ -240,13 +242,49 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         Assert.Equal(2, Assert.Single(await svc.ListSourcesAsync(file.Id, default)).CachedRowCount);
     }
 
-    /// <summary>Пустой раздел кандидата не даёт: консолидировать нечего.</summary>
+    /// <summary>
+    /// Пустой раздел кандидата НЕ отменяет: реестр настраивают заранее, до ввода документов, а
+    /// кнопка «Данные системы» появляется только при непустом списке кандидатов — спрятать
+    /// предложение значило бы спрятать саму возможность. «Документы комплекта» ведут себя так же.
+    /// </summary>
     [Fact]
-    public async Task EmptySubtree_NoCandidate()
+    public async Task EmptySubtree_StillOffersCandidate()
     {
         using var scope = fixture.Services.CreateScope();
         var seed = await SeedAsync(scope);
-        Assert.DoesNotContain(await Svc(scope).ListSystemCandidatesAsync("Section", seed.SectionA, default),
+        var candidate = Assert.Single(
+            await Svc(scope).ListSystemCandidatesAsync("Section", seed.SectionA, default),
             c => c.SheetOrPath == SystemDataSets.SubtreeDocumentsMarker);
+        Assert.Equal(0, candidate.RowCount);
+        Assert.Null(candidate.Warning); // строк нет — и оговаривать нечего
+    }
+
+    /// <summary>
+    /// Оговорка считается по ДОКУМЕНТАМ: один документ, собранный вручную, не делает «собранным»
+    /// весь комплект — иначе она замолкала бы там, где соседние строки стоят с пустыми ячейками.
+    /// </summary>
+    [Fact]
+    public async Task PartlyGeneratedSet_StillWarnsAboutTheRest()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var seed = await SeedAsync(scope);
+        var first = await AddDocAsync(scope, seed.SetA1, seed.TypeId, "Собран вручную");
+        await AddDocAsync(scope, seed.SetA1, seed.TypeId, "Черновик 1");
+        await AddDocAsync(scope, seed.SetA1, seed.TypeId, "Черновик 2");
+
+        // Статус «Сгенерирован» ставит одиночная генерация (DomainObject.AddGeneratedFile), сборки
+        // комплекта при этом не было. Здесь ставим его напрямую: выпускать документ по-настоящему
+        // ради статуса значило бы тащить в тест шаблон, Typst и хранилище.
+        using (var other = fixture.Services.CreateScope())
+        {
+            var db = other.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.ExecuteSqlAsync(
+                $"""UPDATE document_facets SET "Status" = 'Generated' WHERE "ObjectId" = {first}""");
+        }
+
+        var candidate = Assert.Single(
+            await Svc(scope).ListSystemCandidatesAsync("Section", seed.SectionA, default),
+            c => c.SheetOrPath == SystemDataSets.SubtreeDocumentsMarker);
+        Assert.Contains("Не собрано документов: 2 из 3", candidate.Warning);
     }
 }
