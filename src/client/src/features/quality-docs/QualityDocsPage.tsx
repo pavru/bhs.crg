@@ -16,17 +16,18 @@ import {
   useListQualityDocs, useDeleteQualityDoc, useListMaterialLinks, useRemoveMaterialLinks, searchQualityDocs,
   importQualityDocFromUrl, type QualityDocument, type SearchCandidate, type MaterialQualityLink,
 } from '@/shared/api/qualityDocs';
-import type { CatalogScope } from '@/shared/api/types';
+import { SCOPE_LABELS, type CatalogScope } from '@/shared/api/types';
 import { resolveEffectiveFields, typeHasTag } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import type { DocumentType } from '@/shared/api/types';
 import { QualityDocForm } from './QualityDocForm';
 import { ambiguousDocNames, docFieldByTag, docNumberOf, isAmbiguous } from './docIdentity';
 import { recognizeAndUpdate } from './recognizeImported';
-import { QualityDocLinks, matchesLink } from './QualityDocLinks';
+import { QualityDocLinks, ScopeReachNote, matchesLink } from './QualityDocLinks';
 import { docState, EXPIRING_SOON_DAYS, type DocState } from './docState';
 
-const SCOPE_LABEL: Record<string, string> = { System: 'Общая', Construction: 'Стройка', Section: 'Раздел', Set: 'Комплект' };
+// Метки областей — только из общего словаря (issue #649). Локальный дубль называл System «Общей»,
+// и на одном экране уровень документа и уровень его связок читались бы разными словами.
 const SOURCE_LABEL: Record<string, string> = { file: 'Файл', fgis: 'ФГИС', manufacturer: 'Произв.', web: 'Веб' };
 
 /** Значение реквизита по функциональному тэгу — общий модуль опознания документа (issue #588):
@@ -190,7 +191,7 @@ export function QualityDocsPage() {
               byTag(current, docTypes, FUNCTIONAL_TAG.docNumber) && `№ ${byTag(current, docTypes, FUNCTIONAL_TAG.docNumber)}`,
               byTag(current, docTypes, FUNCTIONAL_TAG.qualityValidUntil) && `до ${formatDate(byTag(current, docTypes, FUNCTIONAL_TAG.qualityValidUntil))}`,
               byTag(current, docTypes, FUNCTIONAL_TAG.qualityManufacturer),
-              SCOPE_LABEL[current.scope] ?? current.scope,
+              SCOPE_LABELS[current.scope as CatalogScope] ?? current.scope,
             ].filter(Boolean).join(' · ')}
           </p>
         </div>
@@ -253,8 +254,13 @@ export function QualityDocsPage() {
           <ConfirmDialog
             open={!!breakAll} onOpenChange={o => { if (!o) setBreakAll(null); }}
             title={`Разорвать все связки документа (${breakAll ? linksByDoc.get(breakAll.id)?.length ?? 0 : 0})?`}
-            description={<p>Материалы останутся без документа качества — при генерации поле документа
-              качества будет пустым. Сам документ останется в библиотеке.</p>}
+            description={<>
+              <p>Материалы останутся без документа качества — при генерации поле документа
+                качества будет пустым. Сам документ останется в библиотеке.</p>
+              {/* Действие идёт поперёк уровней (issue #649): среди связок бывают общесистемные,
+                  действующие на другие стройки, и одного числа для решения мало. */}
+              <ScopeReachNote links={breakAll ? linksByDoc.get(breakAll.id) ?? [] : []} />
+            </>}
             confirmLabel="Разорвать все"
             onConfirm={async () => {
               if (!breakAll) return;
