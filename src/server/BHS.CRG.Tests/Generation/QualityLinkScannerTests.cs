@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Domain.Documents;
 
 namespace BHS.CRG.Tests.Generation;
 
@@ -10,15 +11,57 @@ namespace BHS.CRG.Tests.Generation;
 /// </summary>
 public class QualityLinkScannerTests
 {
-    private static readonly string[] IdentityFields = ["Наименование", "Артикул"];
     private const string Target = "ДокументПодтверждающийКачество";
 
+    private static DocumentType Composite(string name, string schema)
+        => DocumentType.Create(name, name, DocumentTypeKind.Composite, null, JsonDocument.Parse(schema), false);
+
+    private static DocumentType Document(string name, string schema)
+        => DocumentType.Create(name, name, DocumentTypeKind.Document, null, JsonDocument.Parse(schema), false);
+
+    private static readonly DocumentType Material = Composite("Материал", $$"""
+        { "fields": [
+            { "key": "Наименование", "tags": ["identity"] },
+            { "key": "Артикул", "tags": ["identity"] },
+            { "key": "{{Target}}", "type": "complex", "tags": ["material.qualityDocLink"] } ] }
+        """);
+
+    /// <summary>Объект строительства: «Наименование» с тэгом идентичности есть и у него, но нести
+    /// документ качества он не может — материалом он не является (issue #569).</summary>
+    private static readonly DocumentType Site = Composite("Объект строительства", """
+        { "fields": [ { "key": "Наименование", "tags": ["identity"] } ] }
+        """);
+
+    /// <summary>Union-обёртка «массив ИЛИ ссылка на реестр» (#320) — из-за неё материалы АОСР лежат
+    /// на два уровня вглубь.</summary>
+    private static readonly DocumentType Wrapper = Composite("МатериалыАОСР", $$"""
+        { "tags": ["type.union"], "fields": [
+            { "key": "Материалы", "type": "array", "typeId": "{{Material.Id}}" } ] }
+        """);
+
+    private static readonly DocumentType Registry = Document("Реестр материалов", $$"""
+        { "fields": [ { "key": "Материалы", "type": "array", "typeId": "{{Material.Id}}" } ] }
+        """);
+
+    private static readonly DocumentType Aosr = Document("АОСР", $$"""
+        { "fields": [
+            { "key": "Материалы", "type": "complex", "typeId": "{{Wrapper.Id}}" },
+            { "key": "Объект", "type": "complex", "typeId": "{{Site.Id}}" } ] }
+        """);
+
+    private static readonly DocumentType[] AllTypes = [Material, Site, Wrapper, Registry, Aosr];
+
+    /// <summary>Материалы прямым массивом — сценарий реестра.</summary>
     private static List<ResolutionDiagnostic> Scan(string materialsJson)
+        => ScanContext(Registry, ("Материалы", materialsJson));
+
+    private static List<ResolutionDiagnostic> ScanContext(DocumentType docType, params (string Key, string Json)[] data)
     {
         var ctx = new GenerationContext();
-        ctx.Set("Материалы", JsonDocument.Parse(materialsJson).RootElement.Clone());
+        foreach (var (key, json) in data)
+            ctx.Set(key, JsonDocument.Parse(json).RootElement.Clone());
         var diagnostics = new List<ResolutionDiagnostic>();
-        QualityLinkScanner.Scan(ctx, IdentityFields, Target, diagnostics);
+        QualityLinkScanner.Scan(ctx, docType.Id, AllTypes, diagnostics);
         return diagnostics;
     }
 
@@ -62,11 +105,15 @@ public class QualityLinkScannerTests
     [Fact]
     public void TagsNotConfigured_ScannerStaysQuiet()
     {
+        // Ни один тип не несёт тэгов материала — сопоставлять нечем, и молчание единственно верно.
+        var plainRow = Composite("Позиция", """{ "fields": [ { "key": "Наименование" } ] }""");
+        var plainDoc = Document("Ведомость", $$"""
+            { "fields": [ { "key": "Материалы", "type": "array", "typeId": "{{plainRow.Id}}" } ] }
+            """);
         var ctx = new GenerationContext();
         ctx.Set("Материалы", JsonDocument.Parse("""[ { "Наименование": "Трубка" } ]""").RootElement.Clone());
         var diagnostics = new List<ResolutionDiagnostic>();
-        QualityLinkScanner.Scan(ctx, [], Target, diagnostics);
-        QualityLinkScanner.Scan(ctx, IdentityFields, null, diagnostics);
+        QualityLinkScanner.Scan(ctx, plainDoc.Id, [plainRow, plainDoc], diagnostics);
         Assert.Empty(diagnostics);
     }
 
@@ -110,4 +157,39 @@ public class QualityLinkScannerTests
             """);
         Assert.Equal($"Материалы[1].{Target}", Assert.Single(diagnostics).Path);
     }
+
+    // ── материалы за составной обёрткой (issue #648) ───────────────────────────
+
+    /// <summary>
+    /// Inline-материалы АОСР лежат в «Материалы.Материалы» — внутри union-обёртки (#320). Обход
+    /// только верхнего уровня их не видел: сертификат подставлялся бы, а сказать, что его нет, было
+    /// бы некому.
+    /// </summary>
+    [Fact]
+    public void MaterialInsideCompositeWrapper_IsReported()
+    {
+        var d = Assert.Single(ScanContext(Aosr,
+            ("Материалы", """{ "Материалы": [ { "Наименование": "проверка", "Артикул": "2342" } ] }""")));
+        Assert.Equal($"Материалы.Материалы[0].{Target}", d.Path);
+    }
+
+    /// <summary>
+    /// Живой ложный вызов: обход по всему контексту (а не по схеме) выдал предупреждение «Материал
+    /// «комплексная застройка «ДНС Сити»…» без документа качества» — претензию к объекту
+    /// строительства. Тэг идентичности у него законный, а нести сертификат он не может.
+    /// </summary>
+    [Fact]
+    public void ObjectOfNonMaterialType_IsNotAMaterial()
+        => Assert.Empty(ScanContext(Aosr,
+            ("Объект", """{ "Наименование": "комплексная застройка «ДНС Сити»" }""")));
+
+    /// <summary>Реквизиты подмешанного сертификата — не данные документа: искать материалы внутри
+    /// них значит предъявлять претензии не по адресу.</summary>
+    [Fact]
+    public void InsideQualityDocRequisites_NotScanned()
+        => Assert.Empty(Scan($$"""
+            [ { "Наименование": "Выключатель автоматический AV-125 3P 63А EKF",
+                "{{Target}}": { "Наименование": "EKF — автоматические выключатели",
+                                "Продукция": "Выключатели автоматические, торговой марки «EKF», модель: AV-125" } } ]
+            """));
 }

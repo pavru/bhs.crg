@@ -16,7 +16,7 @@ import {
 } from '@/shared/api/qualityDocs';
 import type { DocumentInstance, DocumentType, CatalogScope } from '@/shared/api/types';
 import {
-  typeHasTag, findTaggedFieldPath, resolveEffectiveFields, isMaterialType, materialIdentityKeys,
+  typeHasTag, findTaggedFieldPath, collectMaterialRows, materialIdentityKeys,
 } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { identityKey, isIdentityKeyEmpty, normalizeKey } from '@/shared/api/identityKey';
@@ -388,14 +388,10 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
         if (r.mode === 'tabular' && Array.isArray(r.data))
           for (const row of r.data as Record<string, unknown>[]) add(row);
     const docType = allDocTypes.find(t => t.id === instance.documentTypeId);
+    // По всей глубине реквизитов (issue #648): в АОСР материалы лежат внутри union-обёртки
+    // «массив ИЛИ ссылка на реестр» (#320), и обход только верхнего уровня их не видел.
     if (docType)
-      for (const f of resolveEffectiveFields(docType, allDocTypes)) {
-        if (f.type !== 'array' || !f.typeId) continue;
-        const ct = allDocTypes.find(t => t.id === f.typeId);
-        if (!ct || !isMaterialType(ct, allDocTypes)) continue;
-        const arr = instance.requisites[f.key];
-        if (Array.isArray(arr)) for (const el of arr) if (el && typeof el === 'object') add(el as Record<string, unknown>);
-      }
+      for (const row of collectMaterialRows(docType, allDocTypes, instance.requisites)) add(row);
     return rows;
   }, [preview, identityKeys, allDocTypes, instance]);
 
