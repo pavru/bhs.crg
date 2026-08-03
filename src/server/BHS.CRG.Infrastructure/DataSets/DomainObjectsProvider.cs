@@ -101,21 +101,20 @@ public class DomainObjectsProvider(AppDbContext db) : ISystemDataProvider
             return new DataSetParseResult([.. columns.Select(n => new DataSetColumnInfo(n, []))], []);
 
         // Наследование значений (issue #71): запись-наследник показывает то же, что видно в форме,
-        // иначе таблица и экран расходились бы на ровном месте. Базы читаем одним запросом.
-        var baseIds = objects
-            .Select(o => BaseRefReader.GetBaseRefId(o.Data.RootElement))
-            .OfType<Guid>().Distinct().ToList();
-        var baseById = baseIds.Count == 0
-            ? []
-            : (await db.DomainObjects.AsNoTracking().Where(o => baseIds.Contains(o.Id)).ToListAsync(ct))
-                .ToDictionary(o => o.Id, o => o.Data.RootElement.Clone());
+        // иначе таблица и экран расходились бы на ровном месте.
+        var basesById = await LoadBaseChainAsync(objects, ct);
 
         var fields = ScalarFields(typeId, byId, enumsById)
             .Where(f => !FixedColumns.Contains(f.Key))
             .ToList();
+        // Первый вариант с этим кодом побеждает: уникальность кодов внутри перечисления никто не
+        // проверяет (а легаси-варианты в схеме и подавно), и падать на дубле — значит уронить
+        // предпросмотр, экспорт и живой счётчик строк из-за одной кривой записи справочника.
         var enumLabels = fields
             .Where(f => f.Options is { Count: > 0 })
-            .ToDictionary(f => f.Key, f => f.Options!.ToDictionary(o => o.Code, o => o.Label));
+            .ToDictionary(f => f.Key, f => f.Options!
+                .GroupBy(o => o.Code)
+                .ToDictionary(g => g.Key, g => g.First().Label));
 
         var ordered = objects
             .OrderBy(o => o.DisplayName ?? "", StringComparer.CurrentCulture)
@@ -126,9 +125,7 @@ public class DomainObjectsProvider(AppDbContext db) : ISystemDataProvider
         var ordinal = 1;
         foreach (var obj in ordered)
         {
-            var data = obj.Data.RootElement;
-            if (BaseRefReader.GetBaseRefId(data) is { } baseId && baseById.TryGetValue(baseId, out var baseData))
-                data = BaseRefReader.MergeObjects(baseData, data);
+            var data = EffectiveData(obj, basesById, chain);
 
             var type = byId.GetValueOrDefault(obj.CompositeTypeId);
             var row = new Dictionary<string, string?>
@@ -154,6 +151,69 @@ public class DomainObjectsProvider(AppDbContext db) : ISystemDataProvider
 
         return new DataSetParseResult(ColumnsOf(columns, rows), rows);
     }
+
+    /// <summary>Предел длины цепочки наследования — от патологических данных, не от нормы.</summary>
+    private const int MaxBaseDepth = 8;
+
+    /// <summary>
+    /// Базы наследования для выборки — ВСЯ цепочка, пакетами: A наследует B, B наследует C, и в
+    /// форме видно значения C. Один уровень, как было сначала, показывал бы у внука пустую ячейку
+    /// там, где документ печатает значение прадеда.
+    /// </summary>
+    private async Task<Dictionary<Guid, DomainObject>> LoadBaseChainAsync(
+        List<DomainObject> objects, CancellationToken ct)
+    {
+        var known = new Dictionary<Guid, DomainObject>();
+        var wanted = objects
+            .Select(o => BaseRefReader.GetBaseRefId(o.Data.RootElement))
+            .OfType<Guid>().Distinct().ToList();
+
+        for (var depth = 0; depth < MaxBaseDepth && wanted.Count > 0; depth++)
+        {
+            var batch = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
+                .Where(o => wanted.Contains(o.Id)).ToListAsync(ct);
+            foreach (var o in batch) known[o.Id] = o;
+
+            wanted = [.. batch
+                .Select(o => BaseRefReader.GetBaseRefId(o.Data.RootElement))
+                .OfType<Guid>().Where(id => !known.ContainsKey(id)).Distinct()];
+        }
+        return known;
+    }
+
+    /// <summary>
+    /// Данные записи с учётом наследования — теми же правилами, что у резолвера при выпуске:
+    /// цикл рвётся по visited, запись общих данных наследуется только если видна из того же места,
+    /// документ-база — только из своего комплекта. Без этих ограничений таблица показала бы
+    /// значение, которого в документе не будет.
+    /// </summary>
+    private static JsonElement EffectiveData(
+        DomainObject obj, IReadOnlyDictionary<Guid, DomainObject> bases, ScopeChain chain)
+    {
+        var visited = new HashSet<Guid> { obj.Id };
+        var line = new List<JsonElement> { obj.Data.RootElement };
+
+        var current = obj.Data.RootElement;
+        while (line.Count <= MaxBaseDepth
+               && BaseRefReader.GetBaseRefId(current) is { } baseId
+               && visited.Add(baseId)
+               && bases.TryGetValue(baseId, out var baseObj)
+               && Inheritable(baseObj, chain))
+        {
+            current = baseObj.Data.RootElement;
+            line.Add(current);
+        }
+
+        // Сворачиваем от дальней базы к ближней: своё всегда сильнее унаследованного.
+        var effective = line[^1];
+        for (var i = line.Count - 2; i >= 0; i--)
+            effective = BaseRefReader.MergeObjects(effective, line[i]);
+        return effective;
+    }
+
+    private static bool Inheritable(DomainObject baseObj, ScopeChain chain) => baseObj.Facet is not null
+        ? baseObj.ScopeLevel == CatalogScope.Set && baseObj.ScopeId == chain.SetId // документ — из своего комплекта
+        : chain.Contains(baseObj.ScopeLevel, baseObj.ScopeId);                     // запись — из видимого поддерева
 
     /// <summary>Записи ОБЩИХ ДАННЫХ (Facet == null — документы это не они), видимые с места набора.</summary>
     private IQueryable<DomainObject> VisibleObjects(ScopeChain chain) =>

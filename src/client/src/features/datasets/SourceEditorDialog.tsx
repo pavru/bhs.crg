@@ -78,7 +78,9 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
 
   // Готовые кандидаты — без нераспознанных таблиц (issue #385): их создать нельзя, пока таблица
   // не распознана (это делается в списке кандидатов под источниками кнопкой «Распознать таблицу»).
-  const readyCandidates = candidates.filter(c => c.firstPageIndex == null);
+  // useMemo не для скорости: без него массив новый на каждый рендер, и эффект подстановки ниже
+  // перезапускается бесконечно, переписывая выбор пользователя.
+  const readyCandidates = useMemo(() => candidates.filter(c => c.firstPageIndex == null), [candidates]);
   // Список кандидатов длинный только у общих данных (issue #627) — там их столько же, сколько
   // составных типов; у остальных форматов их единицы, и поиск был бы лишним полем в диалоге.
   const [candidateQuery, setCandidateQuery] = useState('');
@@ -89,22 +91,22 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
   }, [candidates, candidateQuery]);
   const pendingTableCount = candidates.length - readyCandidates.length;
 
-  // Новый источник из кандидата (лист/«весь файл»/PDF-проекция): как только приедут кандидаты —
-  // подставить первый готовый и его имя.
+  /**
+   * Новый источник из кандидата (лист/«весь файл»/PDF-проекция/консолидация): подставить первый
+   * ПОКАЗАННЫЙ и его имя.
+   *
+   * Именно показанный, а не первый вообще (issue #627): поиск сужает список, и выбранное могло из
+   * него выпасть. Оставить прежний выбор значило бы сохранить не то, что человек видит — он ищет
+   * «Приказ», в списке пусто, а сохраняется «Единица измерения», подставленная при открытии.
+   * Имя обновляем, только пока оно совпадает с именем какого-то кандидата: набранное руками —
+   * решение пользователя, и переписывать его нельзя.
+   */
   useEffect(() => {
-    if (initial || !usesCandidates || readyCandidates.length === 0) return;
-    setSheetOrPath(prev => prev || readyCandidates[0].sheetOrPath);
-    setName(prev => prev || readyCandidates[0].name);
-  }, [initial, usesCandidates, readyCandidates]);
-
-  // Поиск сузил список так, что выбранное в него не входит — снимаем выбор (issue #627). Иначе
-  // список показывает одно, а сохранится подставленный по умолчанию первый кандидат: человек ищет
-  // «Приказ», видит пустое поле и получает «Единицу измерения».
-  useEffect(() => {
-    if (!sheetOrPath || shownCandidates.some(c => c.sheetOrPath === sheetOrPath)) return;
-    setSheetOrPath('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candidateQuery]);
+    if (initial || !usesCandidates || shownCandidates.length === 0) return;
+    const first = shownCandidates[0];
+    setSheetOrPath(prev => (prev && shownCandidates.some(c => c.sheetOrPath === prev)) ? prev : first.sheetOrPath);
+    setName(prev => (!prev || readyCandidates.some(c => c.name === prev)) ? first.name : prev);
+  }, [initial, usesCandidates, shownCandidates, readyCandidates]);
 
   // Текущее значение может отсутствовать в списке (архив обновился) — не терять его молча.
   const entryOptions = entryPath && !zipEntries.includes(entryPath) ? [entryPath, ...zipEntries] : zipEntries;

@@ -200,6 +200,56 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
         Assert.Equal("Тверь", heir[preview.Columns.ToList().IndexOf("Адрес")]); // своё сильнее
     }
 
+    /// <summary>
+    /// Цепочка наследования разворачивается ЦЕЛИКОМ: внук показывает значение прадеда — ровно то,
+    /// что напечатает документ. Один уровень оставлял бы у внука пустую ячейку.
+    /// </summary>
+    [Fact]
+    public async Task BaseRefChain_IsResolvedToTheEnd()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var seed = await SeedAsync(scope);
+        var grand = await AddEntryAsync(scope, seed.OrgTypeId, "Прадед", "{'ИНН':'7700','Адрес':'Москва'}",
+            CatalogScope.System, null);
+        var parent = await AddEntryAsync(scope, seed.OrgTypeId, "Дед",
+            $"{{'_baseRef':{{'kind':'catalog','id':'{grand.Id}'}},'Адрес':'Тверь'}}", CatalogScope.System, null);
+        await AddEntryAsync(scope, seed.OrgTypeId, "Внук",
+            $"{{'_baseRef':{{'kind':'catalog','id':'{parent.Id}'}}}}", CatalogScope.System, null);
+
+        var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var cols = preview!.Columns.ToList();
+        var heir = preview.Rows.Single(r => r[cols.IndexOf("ИмяОбъекта")] == "Внук");
+
+        Assert.Equal("7700", heir[cols.IndexOf("ИНН")]);   // от прадеда, через деда
+        Assert.Equal("Тверь", heir[cols.IndexOf("Адрес")]); // дед переопределил
+    }
+
+    /// <summary>
+    /// База вне видимого поддерева не наследуется — так же, как отказывается наследовать резолвер
+    /// при выпуске. Иначе таблица показала бы значение, которого в документе не будет.
+    /// </summary>
+    [Fact]
+    public async Task BaseRefOutsideScope_IsNotMerged()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+        var seed = await SeedAsync(scope);
+        var other = await m.Send(new CreateDocumentSetCommand(seed.SectionId, "Комплект 2"));
+
+        var foreign = await AddEntryAsync(scope, seed.OrgTypeId, "Чужая база", "{'ИНН':'9999'}",
+            CatalogScope.Set, other.Id);
+        await AddEntryAsync(scope, seed.OrgTypeId, "Наследник",
+            $"{{'_baseRef':{{'kind':'catalog','id':'{foreign.Id}'}}}}", CatalogScope.System, null);
+
+        var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
+        var preview = await Svc(scope).PreviewSourceAsync(sourceId, 50, default);
+        var cols = preview!.Columns.ToList();
+        var heir = preview.Rows.Single(r => r[cols.IndexOf("ИмяОбъекта")] == "Наследник");
+
+        Assert.True(string.IsNullOrEmpty(heir[cols.IndexOf("ИНН")]));
+    }
+
     /// <summary>Данные живые: запись, добавленная после создания источника, попадает в строки.</summary>
     [Fact]
     public async Task RowsFollowCatalogState()
