@@ -46,9 +46,10 @@ public record DatasetDetail(
 /// <paramref name="RawRowCount"/>. Точное число даёт <c>get_source</c> либо <c>get_rows</c>: считать
 /// его для каждого источника набора значило бы скачать и разобрать файл столько раз, сколько в нём
 /// листов, ради навигационной выдачи.</param>
+/// <param name="Warning">Оговорка к данным (issue #661) — см. <see cref="SourceDetail"/>.</param>
 public record SourceSummary(
     Guid Id, string Name, DataOrigin Origin, int RawRowCount, bool Filtered, bool Stale,
-    IReadOnlyList<string> Columns, SheetAnchor? Sheet);
+    IReadOnlyList<string> Columns, SheetAnchor? Sheet, string? Warning = null);
 
 /// <param name="StaleReason">Почему данные считаются устаревшими — чтобы агент мог решить сам,
 /// а не гадать по булеву флагу.</param>
@@ -69,12 +70,23 @@ public record SourceSummary(
 /// консолидация исчезла и т.п. Тогда <paramref name="RowCount"/> и <paramref name="RowsHash"/>
 /// пусты, а описание источника всё равно приходит — метаданные и признак устаревания читаются без
 /// строк, и терять их из-за недоступного блоба незачем.</param>
+/// <param name="Warning">Оговорка к данным (issue #661): строки прочитаны успешно, но часть данных
+/// внутри них неизвестна — «Не собрано документов: 9 из 12. Количество листов и дата генерации
+/// известны только у собранных».
+///
+/// Поле из того же ряда, что <c>truncated</c> у страницы строк, <paramref name="Stale"/> и
+/// <c>origin</c>: «вот чего эти данные не знают». В интерфейсе оговорка показывается у строки
+/// источника, а внешнему агенту срез — вся доступная картина: не увидев её, он либо сообщит «листов
+/// нет», либо молча посчитает по неполным данным.
+///
+/// С <paramref name="RowsError"/> НЕ сливается: там строк нет вовсе, здесь они есть и верны — в
+/// одном поле агент перестал бы различать «данных нет» и «данные неполны».</param>
 public record SourceDetail(
     Guid Id, Guid DatasetId, string DatasetName, string Name,
     DataOrigin Origin, int? RowCount, int RawRowCount, bool Filtered,
     bool Stale, string? StaleReason,
     DateTimeOffset UpdatedAt, string? RowsHash, string? RowsError,
-    IReadOnlyList<ColumnInfo> Columns, SheetAnchor? Sheet);
+    IReadOnlyList<ColumnInfo> Columns, SheetAnchor? Sheet, string? Warning = null);
 
 public record ColumnInfo(string Name, IReadOnlyList<string> SampleValues);
 

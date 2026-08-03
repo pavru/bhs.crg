@@ -47,20 +47,26 @@ public class DataSnapshotService(
         if (file is null) return null;
 
         var grouping = GostGroupingSerialization.Parse(file.Grouping);
-        // Системный набор: число строк живое, кэш при создании — уже история (issue #613).
+        // Системный набор: число строк, колонки и оговорка живые, кэш при создании — уже история
+        // (issue #613, #664, #661). Один вызов на набор отдаёт все три.
         var liveStates = await systemCounts.StateAsync([file], ct);
         var sources = file.Sources
             .OrderBy(s => s.Name)
-            .Select(s => new SourceSummary(
-                s.Id, s.Name, OriginOf(s),
-                // Сырьё, и названо сырьём (#592). Считать здесь строки ПОСЛЕ обработки значило бы
-                // скачать и разобрать файл по разу на каждый лист ради навигационной выдачи; точное
-                // число даёт get_source, а на его нужду указывает Filtered.
-                liveStates.TryGetValue(s.Id, out var live) ? live.RowCount : s.CachedRowCount,
-                HasFilter(s),
-                IsStale(file, s, grouping, out _),
-                ColumnNames(s.CachedSchema),
-                SheetOf(s, grouping)))
+            .Select(s =>
+            {
+                var live = liveStates.TryGetValue(s.Id, out var st) ? st : (SystemSourceCounter.SystemSourceState?)null;
+                return new SourceSummary(
+                    s.Id, s.Name, OriginOf(s),
+                    // Сырьё, и названо сырьём (#592). Считать здесь строки ПОСЛЕ обработки значило бы
+                    // скачать и разобрать файл по разу на каждый лист ради навигационной выдачи; точное
+                    // число даёт get_source, а на его нужду указывает Filtered.
+                    live?.RowCount ?? s.CachedRowCount,
+                    HasFilter(s),
+                    IsStale(file, s, grouping, out _),
+                    LiveColumnNames(live?.Columns) ?? ColumnNames(s.CachedSchema),
+                    SheetOf(s, grouping),
+                    live?.Warning);
+            })
             .ToList();
 
         return new DatasetDetail(
@@ -96,10 +102,14 @@ public class DataSnapshotService(
             rowsError = ex.Message;
         }
 
+        // Строки не прочитались — что известно про источник, спрашиваем у провайдера отдельно:
+        // системная консолидация могла отказать на обработке, а не на сборе. При удавшейся загрузке
+        // второго вызова быть НЕ должно: провайдер отработал бы дважды на один ответ, а прежде это
+        // место молча роняло оговорку — StateAsync стоял под `??` и при живых строках не выполнялся.
+        var fallback = loaded is null ? await systemCounts.StateAsync(source, source.File, ct) : null;
+
         // Сырое число без строк берём из кэша — того же, что показывает сводка набора.
-        var rawRowCount = loaded?.RawRowCount
-            ?? (await systemCounts.StateAsync(source, source.File, ct))?.RowCount
-            ?? source.CachedRowCount;
+        var rawRowCount = loaded?.RawRowCount ?? fallback?.RowCount ?? source.CachedRowCount;
 
         return new SourceDetail(
             source.Id, source.FileId, source.File.Name, source.Name,
@@ -107,8 +117,9 @@ public class DataSnapshotService(
             stale, reason,
             source.UpdatedAt,
             loaded is null ? null : RowsFingerprint.Of(loaded.Rows), rowsError,
-            Columns(source.CachedSchema),
-            SheetOf(source, grouping));
+            LiveColumns(loaded?.Columns ?? fallback?.Columns) ?? Columns(source.CachedSchema),
+            SheetOf(source, grouping),
+            loaded?.Warning ?? fallback?.Warning);
     }
 
     public async Task<RowsPage?> GetRowsAsync(
@@ -124,7 +135,8 @@ public class DataSnapshotService(
 
         // Строки ПОСЛЕ всей обработки источника (фильтр/вычисляемые колонки/сортировка) — тот же путь,
         // которым их видит генерация, поэтому внешний анализ и генерация смотрят на одни данные.
-        var all = await rowLoader.LoadRowsAsync(source, ct);
+        var loaded = await rowLoader.LoadAsync(source, ct);
+        var all = loaded.Rows;
         var page = all.Skip(offset).Take(limit).ToList();
         var hash = RowsFingerprint.Of(all);
         // Отпечаток СТРАНИЦЫ, а не всей выборки: «не изменилось» относится к запрошенному окну.
@@ -133,8 +145,10 @@ public class DataSnapshotService(
         var pageHash = RowsFingerprint.Of(page, (offset, limit));
 
         // Ключи колонок берём из СХЕМЫ, а не из первой строки: строка может не содержать пустых ячеек,
-        // и агент, ориентируясь на неё, потерял бы колонку целиком.
-        var columns = ColumnNames(source.CachedSchema);
+        // и агент, ориентируясь на неё, потерял бы колонку целиком. Схема — та, которую источник отдал
+        // на этой же загрузке (issue #664); запомненная при создании годится, только пока её некому
+        // разойтись со строками.
+        var columns = LiveColumnNames(loaded.Columns) ?? ColumnNames(source.CachedSchema);
         if (columns.Count == 0 && all.Count > 0)
             columns = [.. all.SelectMany(r => r.Keys).Distinct()];
 
@@ -242,6 +256,20 @@ public class DataSnapshotService(
 
     private static IReadOnlyList<string> ColumnNames(string? schemaJson) =>
         [.. Parse(schemaJson).Select(c => c.Name)];
+
+    // Колонки, которые источник отдал на этой же загрузке (issue #664), — их и показываем: у
+    // системного источника CachedSchema писался один раз при создании и обновить его нечем, так что
+    // после правки схемы типа описание расходится с собственными строками.
+    //
+    // null (отдать кэш) и на отсутствии колонок, и на ПУСТОМ списке: пустой список ничего про
+    // источник не сообщает, а описание, стёртое в ноль, хуже устаревшего — по нему не построить и
+    // неверный запрос. Живые провайдеры объявляют колонки независимо от числа строк, поэтому случай
+    // остаётся страховкой.
+    private static IReadOnlyList<ColumnInfo>? LiveColumns(IReadOnlyList<DataSetColumnInfo>? live) =>
+        live is { Count: > 0 } ? [.. live.Select(c => new ColumnInfo(c.Name, c.SampleValues))] : null;
+
+    private static IReadOnlyList<string>? LiveColumnNames(IReadOnlyList<DataSetColumnInfo>? live) =>
+        live is { Count: > 0 } ? [.. live.Select(c => c.Name)] : null;
 
     private static CachedColumn[] Parse(string? schemaJson)
     {
