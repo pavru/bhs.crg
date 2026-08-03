@@ -196,14 +196,15 @@ public class DataSetSourceService(
             .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
-        var rows = await rowLoader.LoadRowsAsync(source, ct);
+        var loaded = await rowLoader.LoadAsync(source, ct);
+        var rows = loaded.Rows;
 
         var take = maxRows <= 0 ? 50 : maxRows;
-        // Базовые колонки — из уже сохранённого кэша схемы (тот же парсер заполнил его при
-        // создании/обновлении источника), не повторный парсинг: для PDF вообще нет "живого"
-        // парсинга (см. LoadRowsAsync), а для остальных форматов результат эквивалентен.
-        var baseColumns = JsonSerializer.Deserialize<CachedColumnInfo[]>(source.CachedSchema, CachedSchemaJson) ?? [];
-        var columns = baseColumns.Select(c => c.Name).ToList();
+        // Базовые колонки — те, что источник отдал на этой же загрузке, иначе из сохранённого кэша
+        // схемы (тот же парсер заполнил его при создании/обновлении источника). У системного
+        // источника кэш обновить нечем (issue #664), и убранное из схемы типа поле осталось бы здесь
+        // колонкой-призраком из пустых ячеек; у PDF живого разбора нет вовсе — там кэш и есть истина.
+        var columns = BaseColumnNames(loaded.Columns, source.CachedSchema);
         // Вычисляемые колонки могут добавить новые имена, которых нет в исходном разборе.
         columns.AddRange(rows.SelectMany(r => r.Keys).Distinct().Except(columns));
 
@@ -220,9 +221,9 @@ public class DataSetSourceService(
         if (source == null) return null;
 
         // Все строки после обработки (Filter/Transformation/Sort) — тот же путь, что и превью, без лимита.
-        var rows = await rowLoader.LoadRowsAsync(source, ct);
-        var baseColumns = JsonSerializer.Deserialize<CachedColumnInfo[]>(source.CachedSchema, CachedSchemaJson) ?? [];
-        var columns = baseColumns.Select(c => c.Name).ToList();
+        var loaded = await rowLoader.LoadAsync(source, ct);
+        var rows = loaded.Rows;
+        var columns = BaseColumnNames(loaded.Columns, source.CachedSchema);
         columns.AddRange(rows.SelectMany(r => r.Keys).Distinct().Except(columns));
 
         var exportRows = rows
@@ -238,12 +239,27 @@ public class DataSetSourceService(
     public async Task<Dictionary<string, string>?> AutoMapAsync(
         Guid sourceId, IReadOnlyList<FieldInfo> fields, CancellationToken ct)
     {
-        var source = await db.DataSetSources.AsNoTracking().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
-        if (source == null) return null;
+        var source = await db.DataSetSources.Include(s => s.File).AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
+        if (source?.File is null) return null;
 
-        var columns = JsonSerializer.Deserialize<CachedColumnInfo[]>(source.CachedSchema, CachedSchemaJson) ?? [];
-        return DataSetAutoMapper.AutoMap(columns.Select(c => c.Name).ToList(), fields);
+        // Колонки системного источника живые (issue #664): предложить маппинг на колонку, которой в
+        // строках уже нет, значит записать привязку, молча дающую пустое значение при генерации.
+        // Строки ради этого не читаем — счётчику нужен только состав колонок.
+        var live = await systemCounts.StateAsync(source, source.File, ct);
+        return DataSetAutoMapper.AutoMap(BaseColumnNames(live?.Columns, source.CachedSchema), fields);
     }
+
+    /// <summary>
+    /// Колонки источника: живые, если он их отдал (системная консолидация — issue #664), иначе из
+    /// кэша схемы. Пустой живой список — тоже «отдать кэш»: описание, стёртое в ноль, хуже
+    /// устаревшего.
+    /// </summary>
+    private static List<string> BaseColumnNames(IReadOnlyList<DataSetColumnInfo>? live, string cachedSchema) =>
+        live is { Count: > 0 }
+            ? [.. live.Select(c => c.Name)]
+            : [.. (JsonSerializer.Deserialize<CachedColumnInfo[]>(cachedSchema, CachedSchemaJson) ?? [])
+                .Select(c => c.Name)];
 
     /// <summary>Настроить/снять материализацию источника в тип (issue #19): typeId=null снимает.</summary>
     public async Task<DataSetSourceDto?> SetMaterializationAsync(Guid sourceId, Guid? typeId, Dictionary<string, string>? mapping, CancellationToken ct)

@@ -44,7 +44,10 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
     [McpServerTool(Name = "get_dataset", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Структура набора данных")]
     [Description("""
-        Состав набора: его источники с колонками, признаком устаревания и origin.
+        Состав набора: его источники с колонками, признаком устаревания, origin и оговоркой к данным.
+
+        warning у источника — оговорка К ДАННЫМ: строки верны, но часть данных внутри них неизвестна.
+        Пустая ячейка при такой оговорке значит «неизвестно», а не «нуль».
 
         rawRowCount — строки В ИСТОЧНИКЕ, до фильтра. Если filtered=true, в выборке их будет МЕНЬШЕ;
         точное число даёт get_source (поле rowCount) либо get_rows (totalRows).
@@ -73,6 +76,11 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
         rowsHash — сквозной отпечаток всех строк: по нему видно, менялись ли данные вообще. Если
         строки прочитать не удалось (файл недоступен, консолидации больше нет), придёт rowsError, а
         rowCount и rowsHash будут пустыми — остальное описание источника при этом верно.
+
+        warning — оговорка К ДАННЫМ, и с rowsError её путать нельзя: строки получены и верны, но часть
+        данных внутри них неизвестна («не собрано документов: 9 из 12 — количество листов и дата
+        генерации известны только у собранных»). Пустая ячейка при такой оговорке значит «неизвестно»,
+        а не «нуль»: rowsError — «данных нет», warning — «данные неполны».
         """)]
     public async Task<SourceDetail?> GetSourceAsync(
         [Description("Идентификатор источника данных.")] Guid sourceId,

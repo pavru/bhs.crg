@@ -154,12 +154,16 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
     }
 
     /// <summary>
-    /// Колонки, отданные источником, и ключи его же строк — одно и то же (issue #664). Разойдись они,
-    /// и агент получил бы описание, по которому нельзя прочитать ни одну ячейку: имя колонки — это
-    /// ключ в строке, третьего адреса у значения нет.
+    /// Колонки страницы строк и ключи самих строк — одно и то же (issue #664). Разойдись они, и агент
+    /// получил бы описание, по которому нельзя прочитать ячейку: имя колонки — это ключ в строке,
+    /// третьего адреса у значения нет.
+    ///
+    /// Вычисляемая колонка здесь не для полноты: она есть в КАЖДОЙ строке и не объявлена ни в схеме
+    /// источника, ни у провайдера — то есть теряется именно та колонка, которую посчитали намеренно.
+    /// Превью и экспорт складывают колонки так же (объявленные + пришедшие с обработкой).
     /// </summary>
     [Fact]
-    public async Task Columns_MatchRowKeys()
+    public async Task Columns_MatchRowKeys_IncludingComputed()
     {
         using var scope = fixture.Services.CreateScope();
         var seed = await SeedAsync(scope);
@@ -167,10 +171,48 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
             "{'ИНН':'7701','СРО':'СРО-С-001'}", CatalogScope.System, null);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.ContractorTypeId);
+        await Svc(scope).SetSourceProcessingAsync(sourceId, new SetSourceProcessingInput(
+            null, JsonSerializer.Deserialize<object>("""[{"alias":"ИННиСРО","expr":"get('ИНН') + '/' + get('СРО')"}]"""), null), default);
+
         var page = (await scope.ServiceProvider.GetRequiredService<IDataSnapshotService>()
             .GetRowsAsync(sourceId, 0, 50))!;
 
+        Assert.Contains("ИННиСРО", page.Columns);
         Assert.Equal([.. page.Columns.Order()], [.. Assert.Single(page.Rows).Keys.Order()]);
+
+        // Превью показывает то же — оно и раньше складывало колонки, здесь это защита от расхождения
+        // двух путей, а не от нового дефекта.
+        Assert.Contains("ИННиСРО", (await Svc(scope).PreviewSourceAsync(sourceId, 50, default))!.Columns);
+    }
+
+    /// <summary>
+    /// Превью и авто-маппер тоже смотрят на живые колонки (issue #664): убранное из схемы типа поле
+    /// иначе осталось бы в «Просмотре результата» колонкой-призраком из пустых ячеек, а авто-маппер
+    /// предложил бы привязку на колонку, которой в строках нет, — то есть молча пустое значение при
+    /// генерации.
+    /// </summary>
+    [Fact]
+    public async Task StaleColumn_DisappearsFromPreviewAndAutoMap()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var seed = await SeedAsync(scope);
+        await AddEntryAsync(scope, seed.OrgTypeId, "ЭнергоСтрой", "{'ИНН':'7702','Адрес':'Москва'}",
+            CatalogScope.System, null);
+
+        var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
+        Assert.Contains("Адрес", (await svc.PreviewSourceAsync(sourceId, 50, default))!.Columns);
+
+        // Поле убрали из схемы типа — провайдер перестал отдавать колонку.
+        await M(scope).Send(new UpdateDocumentTypeSchemaCommand(seed.OrgTypeId,
+            J("{'fields':[{'key':'ИНН','type':'string','required':false}]}")));
+
+        Assert.DoesNotContain("Адрес", (await svc.PreviewSourceAsync(sourceId, 50, default))!.Columns);
+
+        var mapped = await svc.AutoMapAsync(sourceId,
+            [new FieldInfo("Адрес", "Адрес"), new FieldInfo("ИНН", "ИНН")], default);
+        Assert.DoesNotContain("Адрес", mapped!.Keys);
+        Assert.Contains("ИНН", mapped.Keys);
     }
 
     [Fact]

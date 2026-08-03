@@ -106,7 +106,20 @@ public class DataSnapshotService(
         // системная консолидация могла отказать на обработке, а не на сборе. При удавшейся загрузке
         // второго вызова быть НЕ должно: провайдер отработал бы дважды на один ответ, а прежде это
         // место молча роняло оговорку — StateAsync стоял под `??` и при живых строках не выполнялся.
-        var fallback = loaded is null ? await systemCounts.StateAsync(source, source.File, ct) : null;
+        //
+        // Своя защита, а не общий try выше: SystemSourceCounter глотает только ArgumentException, и
+        // повторный вызов упавшего провайдера (битый JSONB в данных, отказ БД) вынес бы исключение
+        // наружу — вместо rowsError весь get_source ответил бы отказом. Ровно то, ради чего и заведён
+        // rowsError: описание источника читается и без строк.
+        SystemSourceCounter.SystemSourceState? fallback = null;
+        if (loaded is null)
+        {
+            try { fallback = await systemCounts.StateAsync(source, source.File, ct); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                rowsError ??= ex.Message;
+            }
+        }
 
         // Сырое число без строк берём из кэша — того же, что показывает сводка набора.
         var rawRowCount = loaded?.RawRowCount ?? fallback?.RowCount ?? source.CachedRowCount;
@@ -148,9 +161,12 @@ public class DataSnapshotService(
         // и агент, ориентируясь на неё, потерял бы колонку целиком. Схема — та, которую источник отдал
         // на этой же загрузке (issue #664); запомненная при создании годится, только пока её некому
         // разойтись со строками.
-        var columns = LiveColumnNames(loaded.Columns) ?? ColumnNames(source.CachedSchema);
-        if (columns.Count == 0 && all.Count > 0)
-            columns = [.. all.SelectMany(r => r.Keys).Distinct()];
+        //
+        // Плюс то, что добавила ОБРАБОТКА: вычисляемые колонки в схеме источника не объявлены, а в
+        // строках есть. Здесь колонка — это адрес значения, и «Итого», стоящее в каждой строке и ни в
+        // одном описании, агент не прочитает никогда. Так же складывают колонки превью и экспорт.
+        var columns = new List<string>(LiveColumnNames(loaded.Columns) ?? ColumnNames(source.CachedSchema));
+        columns.AddRange(all.SelectMany(r => r.Keys).Distinct().Except(columns));
 
         // Строки те же, что были у вызывающего (issue #598) — таблицу не прикладываем. Загрузку это
         // не экономит (отпечаток считается по ней же), экономит контекст: кабельный журнал за сессию
