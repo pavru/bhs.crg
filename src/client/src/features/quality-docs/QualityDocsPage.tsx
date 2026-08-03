@@ -209,7 +209,7 @@ export function QualityDocsPage() {
             его собственному имени, увидел бы «ни одна связка не подходит» под заголовком «Связки · 69». */}
         {/* key — чтобы выбор строк не переезжал на другой документ: иначе панель показывала бы
             «Выбрано: 3» без единой отмеченной строки, а разрыв ушёл бы с пустым списком. */}
-        <QualityDocLinks key={current.id} links={linksByDoc.get(current.id) ?? []} allDocTypes={docTypes}
+        <QualityDocLinks key={current.id} links={linksByDoc.get(current.id) ?? []} allLinks={links} allDocTypes={docTypes}
           search={(linksByDoc.get(current.id) ?? []).some(l => matchesLink(l, search.trim().toLowerCase())) ? search : ''} />
       </div>
     </div>

@@ -35,27 +35,44 @@ export function widerThanSet(links: MaterialQualityLink[]): MaterialQualityLink[
   return links.filter(l => SCOPE_PRIORITY[l.scope] > SCOPE_PRIORITY.Set);
 }
 
-/** Аномалия строки: почему на связке стоит предупреждающий знак. null — всё в порядке. */
-export function linkAnomaly(link: MaterialQualityLink, all: MaterialQualityLink[]): string | null {
-  const conflict = scopeConflict(link, all);
-  if (conflict) return conflict;
-  return widerThanRest(link, all);
+/**
+ * Аномалия строки: почему на связке стоит предупреждающий знак. null — всё в порядке.
+ *
+ * Два вопроса задаются РАЗНЫМ спискам: «шире остальных» — про связки этого документа (`inDocument`),
+ * «за материал спорят два документа» — про всю библиотеку (`all`). Считать спор внутри одного
+ * документа бессмысленно: кто бы ни победил, в PDF попадёт он же.
+ */
+export function linkAnomaly(
+  link: MaterialQualityLink,
+  { inDocument, all }: { inDocument: MaterialQualityLink[]; all: MaterialQualityLink[] },
+): string | null {
+  return documentConflict(link, all) ?? widerThanRest(link, inDocument);
 }
 
 /**
- * Один материал привязан на двух уровнях — строки неразличимы, а в PDF попадёт ровно одна.
- * Победителя называем прямо: догадаться о правиле «узкий побеждает» по экрану нельзя.
+ * За один материал спорят ДВА РАЗНЫХ документа качества, и в PDF попадёт ровно один. По экрану
+ * догадаться нельзя: на карточке проигравшего связка выглядит совершенно здоровой.
+ *
+ * Соперниками считаем только те связки, чьи области заведомо пересекаются, — то есть когда одна из
+ * них общесистемная. Про пару «Комплект — Раздел» сказать нечего: содержит ли ТОТ раздел ЭТОТ
+ * комплект, знает дерево объектов, а его мы на этот экран намеренно не тянем (решение по #649).
+ * Ложная тревога здесь хуже молчания: экран и заведён ради поиска настоящих дефектов.
  */
-function scopeConflict(link: MaterialQualityLink, all: MaterialQualityLink[]): string | null {
-  const rivals = all.filter(l => l.materialKey === link.materialKey && l.id !== link.id);
+function documentConflict(link: MaterialQualityLink, all: MaterialQualityLink[]): string | null {
+  const rivals = all.filter(l =>
+    l.materialKey === link.materialKey
+    && l.id !== link.id
+    && l.qualityDocumentId !== link.qualityDocumentId
+    && (l.scope === 'System' || link.scope === 'System')); // области пересекаются заведомо
   if (rivals.length === 0) return null;
 
   const winner = [...rivals, link].reduce((a, b) => (SCOPE_PRIORITY[a.scope] <= SCOPE_PRIORITY[b.scope] ? a : b));
-  const levels = scopeBreakdown([...rivals, link]).map(s => SCOPE_LABELS[s.scope]).join(' и ');
-  const verdict = winner.id === link.id
-    ? 'при генерации подставится ЭТА — уровень уже'
-    : `при генерации подставится связка уровня «${SCOPE_LABELS[winner.scope]}» — он уже`;
-  return `Материал привязан на разных уровнях (${levels}): ${verdict}.`;
+  const rivalNames = [...new Set(rivals.map(r => r.qualityDocumentName))].join(', ');
+  return winner.id === link.id
+    ? `Тот же материал привязан и к другому документу (${rivalNames}) на уровне «${SCOPE_LABELS[rivals[0].scope]}»: `
+      + 'при генерации подставится ЭТА связка — её уровень уже.'
+    : `Тот же материал привязан к документу «${winner.qualityDocumentName}» на уровне `
+      + `«${SCOPE_LABELS[winner.scope]}»: при генерации подставится ОН, а не этот документ.`;
 }
 
 /**

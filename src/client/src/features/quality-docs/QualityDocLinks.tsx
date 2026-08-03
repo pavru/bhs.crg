@@ -28,8 +28,11 @@ import { SCOPE_LABELS, type CatalogScope, type DocumentType } from '@/shared/api
  *       это артикулы, где сопоставлять нечего. Ноль означает «непроверяемо», а не «неверно».</li>
  * </ul>
  */
-export function QualityDocLinks({ links, allDocTypes, search }: {
+export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
   links: MaterialQualityLink[];
+  /** Связки ВСЕЙ библиотеки — для поиска спора двух документов за один материал (issue #649):
+   *  внутри одного документа такой спор безвреден, в PDF всё равно попадёт он же. */
+  allLinks: MaterialQualityLink[];
   allDocTypes: DocumentType[];
   /** Строка поиска — строки фильтруются на клиенте (113 связок фильтруются мгновенно). */
   search: string;
@@ -72,6 +75,8 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
   function toggle(id: string) {
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   }
+
+  const anomalyOf = (link: MaterialQualityLink) => linkAnomaly(link, { inDocument: links, all: allLinks });
 
   async function relinkMany(docId: string) {
     // Перепривязка идёт ПО ГРУППАМ ОБЛАСТЕЙ. Команда апсертит по тройке (область, объект области,
@@ -155,8 +160,8 @@ export function QualityDocLinks({ links, allDocTypes, search }: {
           </div>
           {/* Знак аномалии — рядом со значком уровня, но цветом: он говорит не «какой уровень»,
               а «здесь что-то не так». Тот же приём, что у коллизий идентичности в QualityLinksTab. */}
-          {linkAnomaly(link, links) && (
-            <span title={linkAnomaly(link, links)!} aria-label={linkAnomaly(link, links)!} role="img"
+          {anomalyOf(link) && (
+            <span title={anomalyOf(link)!} aria-label={anomalyOf(link)!} role="img"
               className="mt-1 shrink-0 text-warning"><AlertTriangle size={13} /></span>
           )}
           <div className="flex items-center gap-1 shrink-0">
