@@ -89,6 +89,33 @@ public static class ScopeSubtree
             .Select(s => s.Id).ToListAsync(ct),
         _ => [],
     };
+
+    /// <summary>Комплект поддерева вместе с именами — своим и своего раздела.</summary>
+    public readonly record struct SetInSubtree(Guid SetId, string SetName, Guid SectionId, string SectionName);
+
+    /// <summary>
+    /// То же поддерево, но с именами комплекта и раздела: реестру раздела или стройки они нужны
+    /// колонками, и брать их вторым запросом по уже найденным идентификаторам значило бы спрашивать
+    /// базу о том, что она только что вернула.
+    /// </summary>
+    public static async Task<IReadOnlyList<SetInSubtree>> SetsUnderAsync(
+        AppDbContext db, CatalogScope scope, Guid? scopeId, CancellationToken ct = default)
+    {
+        var query = from set in db.DocumentSets.AsNoTracking()
+                    join section in db.Sections.AsNoTracking() on set.SectionId equals section.Id
+                    select new { set.Id, SetName = set.Name, SectionId = section.Id, SectionName = section.Name, section.ConstructionId };
+
+        query = scope switch
+        {
+            CatalogScope.Set when scopeId is { } setId => query.Where(x => x.Id == setId),
+            CatalogScope.Section when scopeId is { } sectionId => query.Where(x => x.SectionId == sectionId),
+            CatalogScope.Construction when scopeId is { } cid => query.Where(x => x.ConstructionId == cid),
+            _ => query.Where(_ => false), // System и уровень без объекта — не поддерево
+        };
+
+        return [.. (await query.ToListAsync(ct))
+            .Select(x => new SetInSubtree(x.Id, x.SetName, x.SectionId, x.SectionName))];
+    }
 }
 
 /// <summary>Тот же спуск для слоя приложения, которому <c>AppDbContext</c> недоступен.</summary>

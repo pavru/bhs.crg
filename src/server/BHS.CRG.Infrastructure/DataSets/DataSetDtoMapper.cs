@@ -64,32 +64,35 @@ public static class DataSetDtoMapper
     }
 
     /// <param name="bindingCounts">Число привязок по id источника (issue #417). null — не считали.</param>
-    /// <param name="liveRowCounts">Пересчитанное число строк по id источника (issue #613) — для
-    /// системных наборов, где кэш поддерживать нечем. Источники не из словаря отдают свой кэш.</param>
+    /// <param name="liveStates">Живое состояние системных источников по id (issue #613, #626) — для
+    /// наборов, где кэш поддерживать нечем. Источники не из словаря отдают свой кэш.</param>
     public static DataSetFileDto MapFile(DataSetFile f, IReadOnlyDictionary<Guid, int>? bindingCounts = null,
-        IReadOnlyDictionary<Guid, int>? liveRowCounts = null) => new(
+        IReadOnlyDictionary<Guid, SystemSourceCounter.SystemSourceState>? liveStates = null) => new(
         f.Id, f.Name, f.Format.ToString(), f.Scope.ToString(), f.ScopeId,
-        f.Sources.Select(s => MapSource(s, BindingCountOf(bindingCounts, s.Id), LiveRowCountOf(liveRowCounts, s.Id))).ToList(),
+        f.Sources.Select(s => MapSource(s, BindingCountOf(bindingCounts, s.Id), LiveStateOf(liveStates, s.Id))).ToList(),
         f.CreatedAt, f.PreprocessingProfile,
         f.RecognitionProfiles is null ? null
             : JsonSerializer.Deserialize<Dictionary<string, Guid>>(f.RecognitionProfiles));
 
-    public static DataSetSourceDto MapSource(DataSetSource s, int? bindingCount = null, int? liveRowCount = null) => new(
-        s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, s.CachedSchema, liveRowCount ?? s.CachedRowCount,
+    public static DataSetSourceDto MapSource(
+        DataSetSource s, int? bindingCount = null, SystemSourceCounter.SystemSourceState? live = null) => new(
+        s.Id, s.FileId, s.Name, s.SheetOrPath, s.ColumnExpressions, s.CachedSchema,
+        live?.RowCount ?? s.CachedRowCount,
         DeserializeJson(s.RowFilter), DeserializeJson(s.ComputedColumns), DeserializeJson(s.SortSpec),
         s.Tags is null ? null : JsonSerializer.Deserialize<List<string>>(s.Tags), s.RecognitionStale,
         s.MaterializeTypeId,
         s.MaterializeMapping is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(s.MaterializeMapping),
-        bindingCount);
+        bindingCount, live?.Warning);
 
     /// <summary>null, если счётчики не запрашивали (одиночная мутация), иначе 0 для источника без привязок.</summary>
     private static int? BindingCountOf(IReadOnlyDictionary<Guid, int>? counts, Guid sourceId)
         => counts is null ? null : counts.GetValueOrDefault(sourceId);
 
-    /// <summary>null (отдать кэш), если строки не пересчитывали или источник не системный —
+    /// <summary>null (отдать кэш), если состояние не пересчитывали или источник не системный —
     /// в отличие от привязок «нет в словаре» здесь НЕ значит «ноль строк».</summary>
-    private static int? LiveRowCountOf(IReadOnlyDictionary<Guid, int>? counts, Guid sourceId)
-        => counts is not null && counts.TryGetValue(sourceId, out var n) ? n : null;
+    private static SystemSourceCounter.SystemSourceState? LiveStateOf(
+        IReadOnlyDictionary<Guid, SystemSourceCounter.SystemSourceState>? states, Guid sourceId)
+        => states is not null && states.TryGetValue(sourceId, out var st) ? st : null;
 
     public static DataSetBindingDto MapBinding(DataSetBinding b) => new(
         b.Id, b.OwnerId, b.SourceId, b.TargetFieldKey,

@@ -184,6 +184,15 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
             )}
             <SourceRowCountBadge sourceId={src.id} />
           </div>
+          {/* Оговорка системного источника (issue #626): реестр раздела показывает то, что известно
+              на момент генерации, и пустые ячейки метаданных надо объяснить — иначе они читаются
+              как «листов нет». Текст целиком, не чипом: он объясняет, а не помечает. */}
+          {src.warning && (
+            <p className="mt-1 flex items-start gap-1 text-warning">
+              <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+              <span>{src.warning}</span>
+            </p>
+          )}
           <div className="font-mono text-fg4 mt-0.5">{src.sheetOrPath}</div>
           {cols.length > 0 && (
             <div className="text-fg3 mt-0.5">

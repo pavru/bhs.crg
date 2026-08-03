@@ -43,9 +43,9 @@ public class DataSetFileService(
 
         // Строки системных наборов живые — их число считаем заново, а не показываем запомненное
         // при создании источника (issue #613).
-        var liveRowCounts = await systemCounts.CountAsync(files, ct);
+        var liveStates = await systemCounts.StateAsync(files, ct);
 
-        return files.Select(f => DataSetDtoMapper.MapFile(f, bindingCounts, liveRowCounts)).ToList();
+        return files.Select(f => DataSetDtoMapper.MapFile(f, bindingCounts, liveStates)).ToList();
     }
 
     public async Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(Guid setId, CancellationToken ct)
@@ -65,8 +65,8 @@ public class DataSetFileService(
             .OrderBy(f => f.Scope).ThenBy(f => f.Name)
             .ToListAsync(ct);
 
-        var liveRowCounts = await systemCounts.CountAsync(files, ct);
-        return files.Select(f => DataSetDtoMapper.MapFile(f, bindingCounts: null, liveRowCounts)).ToList();
+        var liveStates = await systemCounts.StateAsync(files, ct);
+        return files.Select(f => DataSetDtoMapper.MapFile(f, bindingCounts: null, liveStates)).ToList();
     }
 
     public async Task<DataSetFileDto> UploadFileAsync(UploadFileInput input, CancellationToken ct)

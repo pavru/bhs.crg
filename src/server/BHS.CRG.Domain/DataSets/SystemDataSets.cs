@@ -26,6 +26,9 @@ public static class SystemDataSets
     /// <summary>Победившие связки «материал → документ качества» на уровне набора.</summary>
     public const string MaterialQualityMarker = "system:material-quality";
 
+    /// <summary>Документы всех комплектов поддерева — реестр раздела или стройки.</summary>
+    public const string SubtreeDocumentsMarker = "system:subtree-documents";
+
     public static bool IsSystemMarker(string sheetOrPath) =>
         sheetOrPath.StartsWith(MarkerPrefix, StringComparison.Ordinal);
 }
