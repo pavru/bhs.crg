@@ -354,6 +354,7 @@ builder.Services.AddScoped<ISystemDataProvider, SetDocumentsProvider>();
 builder.Services.AddScoped<ISystemDataProvider, QualityDocumentsProvider>();
 builder.Services.AddScoped<ISystemDataProvider, MaterialQualityProvider>();
 builder.Services.AddScoped<ISystemDataProvider, SubtreeDocumentsProvider>();
+builder.Services.AddScoped<ISystemDataProvider, DomainObjectsProvider>();
 builder.Services.AddScoped<SystemDataProviderRegistry>();
 builder.Services.AddScoped<IDataSetRowLoader, DataSetRowLoader>();
 builder.Services.AddScoped<SystemSourceCounter>();

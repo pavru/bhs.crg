@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -9,6 +9,9 @@ import { XPathBuilder } from './xpath/XPathBuilder';
 import { JsonPathBuilder } from './jsonpath/JsonPathBuilder';
 import { DATA_SET_FORMAT_LABELS } from '@/shared/api/types';
 import type { ColumnExprDef, DataSetSource, DataSetFormat } from '@/shared/api/types';
+
+/** С этого числа кандидатов список перестаёт читаться целиком — показываем поиск. */
+const CANDIDATE_SEARCH_FROM = 7;
 
 type PathFormat = 'Xml' | 'Json';
 
@@ -75,16 +78,35 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
 
   // Готовые кандидаты — без нераспознанных таблиц (issue #385): их создать нельзя, пока таблица
   // не распознана (это делается в списке кандидатов под источниками кнопкой «Распознать таблицу»).
-  const readyCandidates = candidates.filter(c => c.firstPageIndex == null);
+  // useMemo не для скорости: без него массив новый на каждый рендер, и эффект подстановки ниже
+  // перезапускается бесконечно, переписывая выбор пользователя.
+  const readyCandidates = useMemo(() => candidates.filter(c => c.firstPageIndex == null), [candidates]);
+  // Список кандидатов длинный только у общих данных (issue #627) — там их столько же, сколько
+  // составных типов; у остальных форматов их единицы, и поиск был бы лишним полем в диалоге.
+  const [candidateQuery, setCandidateQuery] = useState('');
+  const shownCandidates = useMemo(() => {
+    const q = candidateQuery.trim().toLowerCase();
+    return q ? readyCandidates.filter(c => c.name.toLowerCase().includes(q)) : readyCandidates;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidates, candidateQuery]);
   const pendingTableCount = candidates.length - readyCandidates.length;
 
-  // Новый источник из кандидата (лист/«весь файл»/PDF-проекция): как только приедут кандидаты —
-  // подставить первый готовый и его имя.
+  /**
+   * Новый источник из кандидата (лист/«весь файл»/PDF-проекция/консолидация): подставить первый
+   * ПОКАЗАННЫЙ и его имя.
+   *
+   * Именно показанный, а не первый вообще (issue #627): поиск сужает список, и выбранное могло из
+   * него выпасть. Оставить прежний выбор значило бы сохранить не то, что человек видит — он ищет
+   * «Приказ», в списке пусто, а сохраняется «Единица измерения», подставленная при открытии.
+   * Имя обновляем, только пока оно совпадает с именем какого-то кандидата: набранное руками —
+   * решение пользователя, и переписывать его нельзя.
+   */
   useEffect(() => {
-    if (initial || !usesCandidates || readyCandidates.length === 0) return;
-    setSheetOrPath(prev => prev || readyCandidates[0].sheetOrPath);
-    setName(prev => prev || readyCandidates[0].name);
-  }, [initial, usesCandidates, readyCandidates]);
+    if (initial || !usesCandidates || shownCandidates.length === 0) return;
+    const first = shownCandidates[0];
+    setSheetOrPath(prev => (prev && shownCandidates.some(c => c.sheetOrPath === prev)) ? prev : first.sheetOrPath);
+    setName(prev => (!prev || readyCandidates.some(c => c.name === prev)) ? first.name : prev);
+  }, [initial, usesCandidates, shownCandidates, readyCandidates]);
 
   // Текущее значение может отсутствовать в списке (архив обновился) — не терять его молча.
   const entryOptions = entryPath && !zipEntries.includes(entryPath) ? [entryPath, ...zipEntries] : zipEntries;
@@ -185,12 +207,32 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
                       : 'Все проекции набора уже добавлены как источники.'}
               </p>
             ) : (
-              <Select label={isSystem ? 'Данные системы' : 'Данные набора'} value={sheetOrPath || undefined} placeholder="— выберите —"
-                onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
-                {readyCandidates.map(c => (
-                  <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>{c.name} · {c.rowCount} строк</SelectItem>
-                ))}
-              </Select>
+              <>
+                {/* Поиск появляется, когда список перестаёт читаться глазами (issue #627): общих
+                    данных столько же, сколько составных типов, и выпадающий список из десятков
+                    строк заставляет прокручивать вместо того, чтобы назвать нужное. */}
+                {readyCandidates.length > CANDIDATE_SEARCH_FROM && (
+                  <TextField label="Поиск консолидации" value={candidateQuery}
+                    onChange={e => setCandidateQuery(e.target.value)}
+                    hint={`Показано ${shownCandidates.length} из ${readyCandidates.length}`} />
+                )}
+                <Select label={isSystem ? 'Данные системы' : 'Данные набора'} value={sheetOrPath || undefined} placeholder="— выберите —"
+                  onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
+                  {shownCandidates.map(c => (
+                    <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>
+                      {c.name} · {c.rowCount} строк{c.warning ? ' · с оговоркой' : ''}
+                    </SelectItem>
+                  ))}
+                </Select>
+                {shownCandidates.length === 0 && (
+                  <p className="text-xs text-fg4 mt-1">Под поиск ничего не подходит.</p>
+                )}
+              </>
+            )}
+            {/* Оговорку показываем ДО создания источника: узнать о неполноте данных, уже привязав
+                их к полям документа, — узнать поздно. */}
+            {selectedCandidate?.warning && (
+              <p className="text-xs text-warning mt-1">{selectedCandidate.warning}</p>
             )}
             {selectedCandidate && selectedCandidate.columns.length > 0 && (
               <p className="text-xs text-fg4 mt-1">Колонки: {selectedCandidate.columns.join(', ')}</p>

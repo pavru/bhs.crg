@@ -29,6 +29,21 @@ public static class SystemDataSets
     /// <summary>Документы всех комплектов поддерева — реестр раздела или стройки.</summary>
     public const string SubtreeDocumentsMarker = "system:subtree-documents";
 
+    /// <summary>
+    /// Записи общих данных одного составного типа: маркер несёт идентификатор типа
+    /// (<c>system:objects:{typeId}</c>). Типов много, и провайдер на каждый не заводится — часть
+    /// после префикса разбирает сам провайдер, как у проекций таблиц ГОСТ.
+    /// </summary>
+    public const string ObjectsMarkerPrefix = "system:objects:";
+
+    /// <summary>Идентификатор типа из маркера общих данных; false — маркер не тот или не разбирается.</summary>
+    public static bool TryParseObjectsMarker(string marker, out Guid typeId)
+    {
+        typeId = Guid.Empty;
+        return marker.StartsWith(ObjectsMarkerPrefix, StringComparison.Ordinal)
+            && Guid.TryParse(marker[ObjectsMarkerPrefix.Length..], out typeId);
+    }
+
     public static bool IsSystemMarker(string sheetOrPath) =>
         sheetOrPath.StartsWith(MarkerPrefix, StringComparison.Ordinal);
 }
