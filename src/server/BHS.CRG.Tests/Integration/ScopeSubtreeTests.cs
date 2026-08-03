@@ -87,11 +87,28 @@ public class ScopeSubtreeTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Empty(await UnderAsync(CatalogScope.Set, null));
     }
 
+    /// <summary>Неизвестный раздел или стройка — пусто: их поддерево выбирается запросом.</summary>
     [Fact]
-    public async Task UnknownId_IsEmpty()
+    public async Task UnknownSectionOrConstruction_IsEmpty()
     {
         await SeedAsync();
         Assert.Empty(await UnderAsync(CatalogScope.Construction, Guid.NewGuid()));
+        Assert.Empty(await UnderAsync(CatalogScope.Section, Guid.NewGuid()));
+    }
+
+    /// <summary>
+    /// А неизвестный КОМПЛЕКТ возвращает себя: «поддерево комплекта — он сам» ответ структурный.
+    ///
+    /// Асимметрия проверена не рассуждением: попытка сделать уровни одинаковыми (проверять строку
+    /// запросом) уронила два теста замечаний агента — те живут по идентификатору области, и счётчик
+    /// перестал их находить. Спуск отвечает, КАКИЕ комплекты опросить, а не какие существуют.
+    /// </summary>
+    [Fact]
+    public async Task UnknownSet_ReturnsItselfAnyway()
+    {
+        await SeedAsync();
+        var ghost = Guid.NewGuid();
+        Assert.Equal([ghost], await UnderAsync(CatalogScope.Set, ghost));
     }
 
     /// <summary>Пустой раздел — пустое поддерево, а не отказ: раздел без комплектов законен.</summary>

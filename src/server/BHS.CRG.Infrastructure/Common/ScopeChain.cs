@@ -76,6 +76,11 @@ public static class ScopeSubtree
     public static async Task<IReadOnlyList<Guid>> SetIdsUnderAsync(
         AppDbContext db, CatalogScope scope, Guid? scopeId, CancellationToken ct = default) => scope switch
     {
+        // Комплект — сам себе поддерево, и это ответ СТРУКТУРНЫЙ: существование строки не
+        // проверяем. Проверка выглядит уместной (у соседних уровней неизвестный идентификатор даёт
+        // пусто сам собой), но меняет смысл: счётчик замечаний спрашивает «какие комплекты
+        // опросить», замечания живут по идентификатору области, и на удалённом комплекте они
+        // просто перестали бы считаться. Отличие уровней описано в контракте IScopeSubtree.
         CatalogScope.Set when scopeId is { } setId => [setId],
         CatalogScope.Section when scopeId is { } sectionId => await db.DocumentSets.AsNoTracking()
             .Where(s => s.SectionId == sectionId).Select(s => s.Id).ToListAsync(ct),

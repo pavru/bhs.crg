@@ -1,3 +1,4 @@
+using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Reconciliation;
 using MediatR;
@@ -13,6 +14,7 @@ namespace BHS.CRG.Application.Reconciliation;
 /// </summary>
 public class RelatedProblemsHandler(
     IProblemAttribution attribution,
+    IScopeSubtree scopeSubtree,
     IMediator mediator) : IRequestHandler<GetRelatedProblemsQuery, RelatedProblems>
 {
     public async Task<RelatedProblems> Handle(GetRelatedProblemsQuery q, CancellationToken ct)
@@ -46,7 +48,7 @@ public class RelatedProblemsHandler(
         //
         // ScopeChain для этого не годится: он отвечает «видно ли отсюда», и System-запись
         // засчиталась бы каждому уровню.
-        var sets = await attribution.SetIdsUnderAsync(q.Scope, q.ScopeId, ct);
+        var sets = await scopeSubtree.SetIdsUnderAsync(q.Scope, q.ScopeId, ct);
         var observations = 0;
         foreach (var setId in sets)
             observations += (await mediator.Send(
