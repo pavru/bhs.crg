@@ -44,6 +44,13 @@ public static class QualityLinkScanner
     /// подставлялся бы, а сказать, что его нет, было бы некому — предупреждение молчало бы ровно
     /// там, где оно и нужно.
     ///
+    /// Вглубь идут только ИНЛАЙН-составные поля (complex/array), но не ссылки (doc-ref/doc-array):
+    /// правило «предупреждаем лишь о том, что человек видит на закладке и может привязать». Материалы
+    /// чужой записи закладка показывает набором данных, а не разворотом ссылки (клиентский
+    /// <c>collectMaterialRows</c> пропускает <c>$ref</c> по той же причине), и разворот ссылки здесь
+    /// дал бы по предупреждению на каждую несопоставленную строку ЧУЖОГО реестра — в каждом
+    /// документе, который на него ссылается, и без единой строки, к которой их приложить.
+    ///
     /// Запускать ПОСЛЕ <see cref="IQualityLinkResolver.InjectAsync" />: до неё пусты вообще все, и
     /// предупреждение говорило бы о порядке шагов, а не о данных.
     /// </summary>
@@ -60,17 +67,19 @@ public static class QualityLinkScanner
         var byId = allTypes.ToDictionary(t => t.Id);
         if (!byId.ContainsKey(documentTypeId)) return;
 
-        foreach (var f in DocumentTypeSchemaReader.EffectiveFields(documentTypeId, byId))
+        // Схему одного типа разрешаем один раз на документ, а не на каждую строку: у реестра их 151,
+        // и IsMaterial сам по себе обходит всю цепочку наследования.
+        var schema = new SchemaMemo(byId, allTypes);
+
+        foreach (var f in schema.InlineComposites(documentTypeId))
         {
-            if (f.TypeId is not { } typeId || !byId.ContainsKey(typeId)) continue;
             if (!ctx.Data.TryGetValue(f.Key, out var raw) || raw is not JsonElement value) continue;
-            Walk(value, f.Key, typeId, byId, allTypes, identityFields, targetField, diagnostics, 0);
+            Walk(value, f.Key, f.TypeId!.Value, schema, identityFields, targetField, diagnostics, 0);
         }
     }
 
     private static void Walk(
-        JsonElement value, string path, Guid typeId,
-        IReadOnlyDictionary<Guid, DocumentType> byId, IReadOnlyList<DocumentType> allTypes,
+        JsonElement value, string path, Guid typeId, SchemaMemo schema,
         string[] identityFields, string targetField,
         List<ResolutionDiagnostic> diagnostics, int depth)
     {
@@ -80,23 +89,52 @@ public static class QualityLinkScanner
         {
             var index = -1;
             foreach (var item in value.EnumerateArray())
-                Walk(item, $"{path}[{++index}]", typeId, byId, allTypes, identityFields, targetField, diagnostics, depth + 1);
+                Walk(item, $"{path}[{++index}]", typeId, schema, identityFields, targetField, diagnostics, depth + 1);
             return;
         }
         if (value.ValueKind != JsonValueKind.Object) return;
 
-        if (MaterialIdentity.IsMaterial(byId[typeId], allTypes))
+        if (schema.IsMaterial(typeId))
         {
             Check(value, path, identityFields, targetField, diagnostics);
             return; // внутрь материала не идём: сертификат в его подполях искать нечего
         }
 
         // Обёртка (в том числе union): материалы могут лежать глубже.
-        foreach (var inner in DocumentTypeSchemaReader.EffectiveFields(typeId, byId))
+        foreach (var inner in schema.InlineComposites(typeId))
         {
-            if (inner.TypeId is not { } innerTypeId || !byId.ContainsKey(innerTypeId)) continue;
             if (!value.TryGetProperty(inner.Key, out var innerValue)) continue;
-            Walk(innerValue, $"{path}.{inner.Key}", innerTypeId, byId, allTypes, identityFields, targetField, diagnostics, depth + 1);
+            Walk(innerValue, $"{path}.{inner.Key}", inner.TypeId!.Value, schema, identityFields, targetField, diagnostics, depth + 1);
+        }
+    }
+
+    /// <summary>
+    /// Ответы схемы, посчитанные один раз на тип: «этот тип — материал?» и «какие у него инлайн-
+    /// составные поля». Оба зависят только от типа, а спрашивают их на каждый узел данных.
+    /// </summary>
+    private sealed class SchemaMemo(IReadOnlyDictionary<Guid, DocumentType> byId, IReadOnlyList<DocumentType> allTypes)
+    {
+        private readonly Dictionary<Guid, bool> _material = [];
+        private readonly Dictionary<Guid, SchemaFieldInfo[]> _composites = [];
+
+        public bool IsMaterial(Guid typeId)
+        {
+            if (_material.TryGetValue(typeId, out var known)) return known;
+            var result = byId.TryGetValue(typeId, out var t) && MaterialIdentity.IsMaterial(t, allTypes);
+            _material[typeId] = result;
+            return result;
+        }
+
+        /// <summary>Поля-составные, лежащие В САМОМ документе: complex/array с известным типом.</summary>
+        public SchemaFieldInfo[] InlineComposites(Guid typeId)
+        {
+            if (_composites.TryGetValue(typeId, out var known)) return known;
+            var result = byId.ContainsKey(typeId)
+                ? [.. DocumentTypeSchemaReader.EffectiveFields(typeId, byId)
+                    .Where(f => f.Type is "complex" or "array" && f.TypeId is { } id && byId.ContainsKey(id))]
+                : Array.Empty<SchemaFieldInfo>();
+            _composites[typeId] = result;
+            return result;
         }
     }
 
@@ -110,7 +148,7 @@ public static class QualityLinkScanner
         var identity = IdentityKey.From(identityFields, f => Text(item, f));
         if (IdentityKey.IsEmpty(identity)) return;
 
-        if (!HasValue(item, targetField))
+        if (!MaterialIdentity.HasQualityDoc(item, targetField))
         {
             diagnostics.Add(new ResolutionDiagnostic(
                 DiagnosticSeverity.Warning,
@@ -141,18 +179,4 @@ public static class QualityLinkScanner
     private static string? Text(JsonElement item, string field)
         => item.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
-    /// <summary>Заполнено ли целевое поле — тот же предикат, что у резолвера: он не перетирает
-    /// заданное вручную, и предупреждать о заполненном вручную было бы ложной тревогой.</summary>
-    private static bool HasValue(JsonElement item, string field)
-    {
-        if (!item.TryGetProperty(field, out var v)) return false;
-        return v.ValueKind switch
-        {
-            JsonValueKind.Null or JsonValueKind.Undefined => false,
-            JsonValueKind.String => !string.IsNullOrWhiteSpace(v.GetString()),
-            JsonValueKind.Object => v.EnumerateObject().Any(),
-            JsonValueKind.Array => v.GetArrayLength() > 0,
-            _ => true,
-        };
-    }
 }

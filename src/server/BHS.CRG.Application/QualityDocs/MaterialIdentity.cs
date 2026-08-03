@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Schema;
@@ -60,6 +61,28 @@ public static class MaterialIdentity
             .ThenBy(x => x.fieldIndex)   // стабильность: поля без номера идут в порядке схемы
             .Select(x => x.Key)
             .Distinct()];
+
+    /// <summary>
+    /// Заполнено ли у материала поле документа качества.
+    ///
+    /// Один предикат на подмешивание и на проверку: резолвер по нему решает, не перетереть ли
+    /// заданное вручную, а сканер — не предупредить ли о пропаже. Пока копий было две, они
+    /// разошлись на пустом массиве — тот считался заполненным у резолвера и пустым у сканера, то
+    /// есть материал одновременно получал предупреждение «привязка не найдена» и пропускался при
+    /// подмешивании существующей связки.
+    /// </summary>
+    public static bool HasQualityDoc(JsonElement item, string field)
+    {
+        if (!item.TryGetProperty(field, out var v)) return false;
+        return v.ValueKind switch
+        {
+            JsonValueKind.Null or JsonValueKind.Undefined => false,
+            JsonValueKind.String => !string.IsNullOrWhiteSpace(v.GetString()),
+            JsonValueKind.Object => v.EnumerateObject().Any(),
+            JsonValueKind.Array => v.GetArrayLength() > 0,
+            _ => true,
+        };
+    }
 
     /// <summary>Ключ поля, в которое подмешивается документ качества (тэг material.qualityDocLink).</summary>
     public static string? QualityDocFieldOf(IReadOnlyList<DocumentType> allTypes)

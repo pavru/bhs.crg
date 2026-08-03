@@ -355,6 +355,19 @@ describe('материалы за составной обёрткой', () => {
     expect(compositeFieldHasTag(selfRef, 'material.qualityDocLink', [selfRef])).toBe(false);
   });
 
+
+  it('глубоко вложенный тэг находится — предел глубины не отсекает ветку', () => {
+    // Цепочка длиннее прежнего предела (6): тип, срезанный по глубине, помечался посещённым, и
+    // соседняя ветка, где тэг нашёлся бы, получала «нет» без проверки.
+    const chain = Array.from({ length: 9 }, (_, i) => dt({ fields: [
+      i === 8
+        ? field('ДокументПодтверждающийКачество', { type: 'complex', tags: ['material.qualityDocLink'] })
+        : field('Дальше', { type: 'complex', typeId: `lvl${i + 1}` }),
+    ] }, null, `lvl${i}`));
+    const root = dt({ fields: [field('Вложенное', { type: 'complex', typeId: 'lvl0' })] }, null, 'deep-root');
+    expect(compositeFieldHasTag(root, 'material.qualityDocLink', [root, ...chain])).toBe(true);
+  });
+
   // ── collectMaterialRows ─────────────────────────────────────────────────────
 
   it('строки материалов достаются из-под обёртки', () => {

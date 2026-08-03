@@ -246,21 +246,25 @@ export function isSubtypeOf(childId: string, parentId: string, allDocTypes: Docu
  * тэг материала стоит на строке материала, а не на поле, которое их содержит.
  */
 export function compositeFieldHasTag(docType: DocumentType, tag: string, allDocTypes: DocumentType[]): boolean {
-  const visited = new Set<string>(); // защита от циклов: тип, ссылающийся на себя, — законная схема
-  function descend(typeId: string, depth: number): boolean {
-    if (depth > MAX_COMPOSITE_DEPTH || visited.has(typeId)) return false;
+  // Глубину НЕ ограничиваем: обход конечен сам по себе — каждый тип посещается один раз, а типов
+  // конечное число. Предел глубины вместе с этой пометкой давал бы неверный ответ: тип, срезанный
+  // по глубине в одной ветке, считался бы «проверенным» и в другой, где тэг нашёлся бы.
+  const visited = new Set<string>(); // цикл (тип, ссылающийся на себя) — законная схема
+  function descend(typeId: string): boolean {
+    if (visited.has(typeId)) return false;
     visited.add(typeId);
     const ct = allDocTypes.find(d => d.id === typeId);
     if (!ct) return false;
     return resolveEffectiveFields(ct, allDocTypes).some(cf =>
       hasTag(cf.tags, tag)
-      || ((cf.type === 'array' || cf.type === 'complex') && !!cf.typeId && descend(cf.typeId, depth + 1)));
+      || ((cf.type === 'array' || cf.type === 'complex') && !!cf.typeId && descend(cf.typeId)));
   }
   return resolveEffectiveFields(docType, allDocTypes).some(f =>
-    (f.type === 'array' || f.type === 'complex') && !!f.typeId && descend(f.typeId, 1));
+    (f.type === 'array' || f.type === 'complex') && !!f.typeId && descend(f.typeId));
 }
 
-/** Предел вложенности составных типов при обходе схемы — от патологических схем, не от нормы. */
+/** Предел вложенности при обходе ДАННЫХ по схеме — от патологических данных, не от нормы.
+ *  (Обходу самой схемы предел не нужен: там каждый тип посещается один раз.) */
 const MAX_COMPOSITE_DEPTH = 6;
 
 /**

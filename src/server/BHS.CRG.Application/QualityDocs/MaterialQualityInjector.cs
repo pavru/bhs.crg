@@ -13,8 +13,14 @@ namespace BHS.CRG.Application.QualityDocs;
 ///
 /// Совпадение ищем по составному ключу идентичности (issue #582) у КАЖДОГО встреченного объекта,
 /// а не только у элементов массива: одиночное составное поле материального типа — тот же материал,
-/// просто в единственном числе. Ключ обязан совпасть целиком, включая пустые слоты, поэтому
-/// посторонний объект под совпадение не подходит — у него нет тех же полей.
+/// просто в единственном числе.
+///
+/// Обход НЕ ограничен схемой — в отличие от <c>QualityLinkScanner</c>, и это намеренно. Сканер
+/// высказывает человеку претензию, поэтому обязан молчать там, где не уверен; подмешивание же лишь
+/// подставляет то, что человек уже связал своими руками, и цена ошибок здесь обратная: пропустить
+/// материал значит потерять сертификат в PDF. Пропуском грозили бы пути, которых схема не описывает
+/// (данные плагина, привязка набора на переименованное поле). Защитой служит сам ключ: он составной
+/// и обязан совпасть целиком, включая пустые слоты, — у постороннего объекта нет тех же полей.
 /// </summary>
 public static class MaterialQualityInjector
 {
@@ -77,7 +83,7 @@ public static class MaterialQualityInjector
 
                 if (TryMatch(value, identityFields, byKey, out var docId)
                     && reqByDoc.TryGetValue(docId, out var reqs)
-                    && !HasValue(value, targetField)) // не перетираем заданное вручную
+                    && !MaterialIdentity.HasQualityDoc(value, targetField)) // не перетираем заданное вручную
                 {
                     props[targetField] = reqs;
                     changed = true;
@@ -107,17 +113,5 @@ public static class MaterialQualityInjector
 
         docId = default;
         return false;
-    }
-
-    private static bool HasValue(JsonElement elem, string field)
-    {
-        if (!elem.TryGetProperty(field, out var v)) return false;
-        return v.ValueKind switch
-        {
-            JsonValueKind.Null or JsonValueKind.Undefined => false,
-            JsonValueKind.String => !string.IsNullOrWhiteSpace(v.GetString()),
-            JsonValueKind.Object => v.EnumerateObject().Any(),
-            _ => true,
-        };
     }
 }

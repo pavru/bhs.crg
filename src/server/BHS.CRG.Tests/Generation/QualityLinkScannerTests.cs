@@ -32,15 +32,16 @@ public class QualityLinkScannerTests
         { "fields": [ { "key": "Наименование", "tags": ["identity"] } ] }
         """);
 
+    private static readonly DocumentType Registry = Document("Реестр материалов", $$"""
+        { "fields": [ { "key": "Материалы", "type": "array", "typeId": "{{Material.Id}}" } ] }
+        """);
+
     /// <summary>Union-обёртка «массив ИЛИ ссылка на реестр» (#320) — из-за неё материалы АОСР лежат
     /// на два уровня вглубь.</summary>
     private static readonly DocumentType Wrapper = Composite("МатериалыАОСР", $$"""
         { "tags": ["type.union"], "fields": [
-            { "key": "Материалы", "type": "array", "typeId": "{{Material.Id}}" } ] }
-        """);
-
-    private static readonly DocumentType Registry = Document("Реестр материалов", $$"""
-        { "fields": [ { "key": "Материалы", "type": "array", "typeId": "{{Material.Id}}" } ] }
+            { "key": "Материалы", "type": "array", "typeId": "{{Material.Id}}" },
+            { "key": "Реестр", "type": "doc-ref", "typeId": "{{Registry.Id}}" } ] }
         """);
 
     private static readonly DocumentType Aosr = Document("АОСР", $$"""
@@ -182,6 +183,19 @@ public class QualityLinkScannerTests
     public void ObjectOfNonMaterialType_IsNotAMaterial()
         => Assert.Empty(ScanContext(Aosr,
             ("Объект", """{ "Наименование": "комплексная застройка «ДНС Сити»" }""")));
+
+    /// <summary>
+    /// Вторая ветка того же union — ССЫЛКА на реестр. После резолва ссылок её реквизиты лежат в
+    /// контексте целиком, но предупреждать по ним нельзя: закладка документа этих строк не
+    /// показывает (клиент пропускает $ref), и человеку было бы некуда приложить сертификат. Свой
+    /// список реестр проверяет сам, а иначе он повторялся бы в каждом ссылающемся документе.
+    /// </summary>
+    [Fact]
+    public void MaterialsBehindDocRef_AreNotThisDocumentsProblem()
+        => Assert.Empty(ScanContext(Aosr,
+            ("Материалы", """
+             { "Реестр": { "Материалы": [ { "Наименование": "Трубка", "Артикул": "T-1" } ] } }
+             """)));
 
     /// <summary>Реквизиты подмешанного сертификата — не данные документа: искать материалы внутри
     /// них значит предъявлять претензии не по адресу.</summary>
