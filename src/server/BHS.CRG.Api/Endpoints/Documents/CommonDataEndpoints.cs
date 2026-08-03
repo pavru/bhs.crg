@@ -60,6 +60,21 @@ public static class CommonDataEndpoints
             return entry is null ? Results.NotFound() : Results.Ok(CommonDataEntryDto.From(entry));
         });
 
+        // Аудит записи общих данных (issue #644). Тот же AuditInstanceQuery, что и у документа: он
+        // работает над DomainObject, а запись общих данных — такой же объект. Форма читает отсюда
+        // расхождения значений с типом; до этого их не показывал никто — сканер выпуска записей
+        // общих данных не касается вовсе.
+        g.MapGet("/{id:guid}/audit", async (Guid id, IMediator m) =>
+        {
+            try { return Results.Ok(await m.Send(new AuditInstanceQuery(id))); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+        });
+
+        // Парного `audit/apply` здесь НЕТ намеренно: форма записи (issue #644) только показывает
+        // расхождения, а чинят их в аудите типа — тем же ApplyAuditFixesCommand, но через уже
+        // существующий маршрут. Заводить второй пишущий маршрут, которого никто не зовёт, значит
+        // держать непроверенную точку записи по общим данным уровня «Система».
+
         // Проверка связок (issue #99): сверка снимка $ref-ссылок со свежим резолвом источника.
         g.MapGet("/{id:guid}/binding-check", async (Guid id, IMediator m) =>
         {

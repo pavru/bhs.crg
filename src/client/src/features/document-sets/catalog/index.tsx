@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ChevronDown, ChevronUp, ShieldCheck, Loader2,
   DatabaseZap, RefreshCw, X, CornerUpLeft, Link2,
@@ -34,6 +34,8 @@ import {
 } from '../fields';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
+import { useCommonDataValueIssues, valueIssuesByPath, deepIssueCount } from '@/shared/api/valueIssues';
+import { ValueIssueHint, ValueIssueBadge } from '@/shared/ui/ValueIssue';
 
 // Отчёт «Проверить связки» (issue #99): статус каждого @@ref-поля.
 const CHECK_STATUS: Record<string, { label: string; cls: string }> = {
@@ -120,6 +122,11 @@ export function CatalogEntryForm({
   const updateMutation = useUpdateCommonDataEntry();
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const { data: enumTypes = [] } = useListEnumTypes();
+  // Значения не по объявленному типу (issue #644). Записи общих данных до сих пор не проверял никто:
+  // сканер выпуска их не касается вовсе, а форма ловит только то, что печатают руками здесь и сейчас.
+  // Правила — серверные (аудит объекта), чтобы форма и выпуск говорили одно и то же.
+  const { data: auditFindings } = useCommonDataValueIssues(entry?.id, !!entry?.id);
+  const valueIssues = useMemo(() => valueIssuesByPath(auditFindings), [auditFindings]);
 
   const getPrimitiveDef = (f: SchemaField): PrimitiveTypeDef | undefined =>
     f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
@@ -427,6 +434,7 @@ export function CatalogEntryForm({
                   <label className="block text-sm font-medium text-fg2 mb-1">
                     {field.title}
                     {field.required && <span className="ml-0.5 text-danger">*</span>}
+                    <ValueIssueBadge count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
                   </label>
                   {field.type === 'array' ? (
                     <ArrayFieldEditor
@@ -475,6 +483,9 @@ export function CatalogEntryForm({
                   {constraintErrors[field.key] && (
                     <p className="text-xs text-danger mt-0.5">{constraintErrors[field.key]}</p>
                   )}
+                  {/* Расхождение сохранённого значения с типом — после ошибки ввода: та про то, что
+                      набирают сейчас, это про то, что уже лежит в записи (issue #644). */}
+                  {!constraintErrors[field.key] && <ValueIssueHint messages={valueIssues.get(field.key)} compact />}
                 </>
               )}
             </div>

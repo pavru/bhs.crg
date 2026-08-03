@@ -141,6 +141,9 @@ export function useUpdateRequisites() {
       qc.invalidateQueries({ queryKey: ['document-sets', setId] });
       // Реквизиты изменились → диагностика битых ссылок могла устареть (issue #332/#334): перепроверить.
       qc.invalidateQueries({ queryKey: ['resolution-diagnostics', instanceId] });
+      // И расхождения значений с типом (issue #644): их показывает форма прямо у полей, а считает
+      // сервер по СОХРАНЁННЫМ данным — без сброса подсказка висела бы на уже исправленном поле.
+      qc.invalidateQueries({ queryKey: ['instance-audit', instanceId] });
     },
   });
 }
@@ -324,12 +327,20 @@ export async function previewDocument(instanceId: string, requisites: unknown): 
   }
 }
 
-/** Аудит одного документа (issue #352): расхождения его данных с текущей схемой. По требованию. */
-export function useAuditInstance(setId: string, instanceId: string | undefined, enabled: boolean) {
+/**
+ * Аудит одного документа (issue #352): расхождения его данных с текущей схемой.
+ *
+ * `staleTime` по умолчанию нулевой — модалка исправлений открывается по требованию и обязана
+ * показывать сегодняшнее состояние. Форма реквизитов (issue #644) читает тот же запрос, но живёт
+ * смонтированной: с нулевым временем жизни она перезапрашивала бы аудит на каждый возврат фокуса в
+ * окно, а это два полных чтения справочников на запрос. Поэтому там время жизни задаётся явно.
+ */
+export function useAuditInstance(
+  setId: string, instanceId: string | undefined, enabled: boolean, staleTime = 0) {
   return useQuery({
     queryKey: ['instance-audit', instanceId],
     enabled: !!instanceId && enabled,
-    staleTime: 0,
+    staleTime,
     queryFn: () => apiClient
       .get<import('./documentTypes').AuditFinding[]>(`/document-sets/${setId}/documents/${instanceId}/audit`)
       .then(r => r.data),

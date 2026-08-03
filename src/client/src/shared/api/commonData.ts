@@ -120,7 +120,12 @@ export function useUpdateCommonDataEntry() {
   return useMutation({
     mutationFn: ({ id, displayName, data, aliases }: { id: string; displayName: string; data: string; aliases?: string[] }) =>
       apiClient.put<CommonDataEntry>(`/common-data/${id}`, { displayName, data, aliases }).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+    onSuccess: (_d, { id }) => {
+      qc.invalidateQueries({ queryKey: [QK] });
+      // Расхождения значений с типом считает сервер по СОХРАНЁННЫМ данным (issue #644) — без сброса
+      // подсказка висела бы у поля, которое только что исправили.
+      qc.invalidateQueries({ queryKey: ['common-data-audit', id] });
+    },
   });
 }
 

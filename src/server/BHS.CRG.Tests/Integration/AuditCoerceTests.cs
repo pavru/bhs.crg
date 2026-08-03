@@ -2,6 +2,7 @@ using System.Text.Json;
 using BHS.CRG.Application.Catalog;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Schema;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -84,6 +85,34 @@ public class AuditCoerceTests(IntegrationTestFixture fixture) : IAsyncLifetime
         // Находка остаётся: расхождение никуда не делось, и молчать о нём было бы хуже всего.
         var report = await Mediator(after).Send(new AuditDocumentTypeQuery(typeId));
         Assert.Contains(report.Findings, f => f.Code == SchemaDataAuditor.ValueType);
+    }
+
+    [Fact]
+    public async Task Audit_SeesCommonDataEntry_AndCoerceFixesIt()
+    {
+        // Ради этого и затевалось (issue #644): запись общих данных — такой же DomainObject, но
+        // сканер выпуска её не касается, и до сведения правил её не проверял НИКТО. Ровно так на
+        // живой базе четыре «Внешних документа» и хранили «Количество листов» строкой.
+        using var scope = fixture.Services.CreateScope();
+        var m = Mediator(scope);
+        var prim = await m.Send(new CreatePrimitiveTypeCommand(
+            "Цело число", "int", "number", null, JsonDocument.Parse("{\"integer\":true}")));
+        var type = await m.Send(new CreateDocumentTypeCommand("Внешний документ", "EXT", DocumentTypeKind.Composite, null,
+            JsonDocument.Parse($"{{\"fields\":[{{\"key\":\"КоличествоЛистов\",\"title\":\"Количество листов\"," +
+                               $"\"type\":\"primitive\",\"typeId\":\"{prim.Id}\"}}]}}")));
+        var entry = await m.Send(new CreateCommonDataEntryCommand(
+            "Приказ DNSS-17/2026", type.Id, JsonDocument.Parse("{\"КоличествоЛистов\":\"1\"}"),
+            CatalogScope.System, null));
+
+        var findings = await m.Send(new AuditInstanceQuery(entry.Id));
+        Assert.Contains(findings, f => f.Code == SchemaDataAuditor.ValueType);
+
+        var result = await m.Send(new ApplyAuditFixesCommand(
+            [new AuditFix(entry.Id, "coerce", "КоличествоЛистов")]));
+        Assert.Equal(1, result.Applied);
+
+        using var after = fixture.Services.CreateScope();
+        Assert.Empty(await Mediator(after).Send(new AuditInstanceQuery(entry.Id)));
     }
 
     [Fact]
