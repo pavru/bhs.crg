@@ -446,7 +446,8 @@ public class DocumentSetHandlers(
     IRepository<Section> sectionRepo,
     IDomainObjectRepository objRepo,
     IRepository<DocumentType> docTypeRepo,
-    IBlobStorage blobStorage) :
+    IBlobStorage blobStorage,
+    IScopeSubtree scopeSubtree) :
     IRequestHandler<CreateDocumentSetCommand, DocumentSet>,
     IRequestHandler<RenameDocumentSetCommand, DocumentSet>,
     IRequestHandler<DeleteDocumentSetCommand>,
@@ -501,15 +502,12 @@ public class DocumentSetHandlers(
 
     public async Task<IReadOnlyList<DomainObject>> Handle(ListAvailableInstancesQuery q, CancellationToken ct)
     {
+        // Доступны документы всей стройки: сначала поднимаемся от комплекта к ней, потом спускаемся
+        // обратно ко всем её комплектам. Спуск — общий (issue #625), своей копии здесь больше нет.
         var set = await setRepo.GetByIdAsync(q.SetId, ct) ?? throw new KeyNotFoundException();
         var section = await sectionRepo.GetByIdAsync(set.SectionId, ct) ?? throw new KeyNotFoundException();
-        var constructionId = section.ConstructionId;
 
-        var sectionIds = (await sectionRepo.FindAsync(s => s.ConstructionId == constructionId, ct))
-            .Select(s => s.Id).ToHashSet();
-        var setIds = (await setRepo.FindAsync(s => sectionIds.Contains(s.SectionId), ct))
-            .Select(s => s.Id).ToList();
-
+        var setIds = await scopeSubtree.SetIdsUnderAsync(CatalogScope.Construction, section.ConstructionId, ct);
         return await objRepo.GetDocumentsInSetsAsync(setIds, ct);
     }
 

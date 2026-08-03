@@ -59,3 +59,41 @@ public static class ScopeChains
         }
     }
 }
+
+/// <summary>
+/// Спуск по той же оси, что <see cref="ScopeChains"/> ходит вверх: «уровень → все комплекты под ним»
+/// (issue #625). Симметрия нарочно рядом — их читают вместе.
+///
+/// До этого спуск был написан трижды: в <c>ListAvailableInstancesQuery</c> (два запроса через
+/// репозитории), в <c>ProblemAttributionService</c> (лучшая копия, но запертая в контракте разбора
+/// проблем сверки) и — на ОДИН уровень — в <c>ProblemSummaryHandler.ChildrenOfAsync</c>. Последний
+/// не трогаем: ему нужны прямые дети уровня для дерева сводки, а не всё поддерево; сведи их вместе —
+/// и в сводке стройки комплекты посчитались бы дважды (сами и через разделы).
+/// </summary>
+public static class ScopeSubtree
+{
+    /// <inheritdoc cref="Application.Common.IScopeSubtree.SetIdsUnderAsync" />
+    public static async Task<IReadOnlyList<Guid>> SetIdsUnderAsync(
+        AppDbContext db, CatalogScope scope, Guid? scopeId, CancellationToken ct = default) => scope switch
+    {
+        // Комплект — сам себе поддерево, и это ответ СТРУКТУРНЫЙ: существование строки не
+        // проверяем. Проверка выглядит уместной (у соседних уровней неизвестный идентификатор даёт
+        // пусто сам собой), но меняет смысл: счётчик замечаний спрашивает «какие комплекты
+        // опросить», замечания живут по идентификатору области, и на удалённом комплекте они
+        // просто перестали бы считаться. Отличие уровней описано в контракте IScopeSubtree.
+        CatalogScope.Set when scopeId is { } setId => [setId],
+        CatalogScope.Section when scopeId is { } sectionId => await db.DocumentSets.AsNoTracking()
+            .Where(s => s.SectionId == sectionId).Select(s => s.Id).ToListAsync(ct),
+        CatalogScope.Construction when scopeId is { } constructionId => await db.DocumentSets.AsNoTracking()
+            .Where(s => db.Sections.Any(sec => sec.Id == s.SectionId && sec.ConstructionId == constructionId))
+            .Select(s => s.Id).ToListAsync(ct),
+        _ => [],
+    };
+}
+
+/// <summary>Тот же спуск для слоя приложения, которому <c>AppDbContext</c> недоступен.</summary>
+public class ScopeSubtreeService(AppDbContext db) : Application.Common.IScopeSubtree
+{
+    public Task<IReadOnlyList<Guid>> SetIdsUnderAsync(CatalogScope scope, Guid? scopeId, CancellationToken ct = default)
+        => ScopeSubtree.SetIdsUnderAsync(db, scope, scopeId, ct);
+}

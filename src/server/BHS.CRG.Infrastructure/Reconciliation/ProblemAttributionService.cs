@@ -135,18 +135,6 @@ public class ProblemAttributionService(AppDbContext db) : IProblemAttribution
         return [.. all.Where(id => !attributed.Contains(id))];
     }
 
-    public async Task<IReadOnlyList<Guid>> SetIdsUnderAsync(
-        CatalogScope scope, Guid scopeId, CancellationToken ct = default) => scope switch
-    {
-        CatalogScope.Set => [scopeId],
-        CatalogScope.Section => await db.DocumentSets.AsNoTracking()
-            .Where(s => s.SectionId == scopeId).Select(s => s.Id).ToListAsync(ct),
-        CatalogScope.Construction => await db.DocumentSets.AsNoTracking()
-            .Where(s => db.Sections.Any(sec => sec.Id == s.SectionId && sec.ConstructionId == scopeId))
-            .Select(s => s.Id).ToListAsync(ct),
-        _ => [],
-    };
-
     /// <summary>
     /// Источники спеки, включая свод по нескольким (#450). Спека — свободный jsonb, поэтому читаем
     /// терпимо: сломанная спека не должна ронять весь экран проблем.

@@ -73,11 +73,8 @@ public interface IProblemAttribution
     /// <summary>Сверки, не привязавшиеся ни к одному уровню, — общие для системы.</summary>
     Task<IReadOnlyList<Guid>> GlobalReconciliationsAsync(CancellationToken ct = default);
 
-    /// <summary>
-    /// Комплекты, лежащие под уровнем (для самого комплекта — он сам). Нужны, чтобы свести вверх
-    /// замечания: они адресованы комплекту, и на стройке без свода счётчик показал бы ноль при
-    /// тринадцати неразобранных этажом ниже.
-    /// </summary>
-    Task<IReadOnlyList<Guid>> SetIdsUnderAsync(
-        CatalogScope scope, Guid scopeId, CancellationToken ct = default);
+    // Спуск «уровень → комплекты поддерева» жил здесь же и был единственной приличной его копией
+    // (issue #625). Теперь он общий — Application.Common.IScopeSubtree: обходить поддерево нужно и
+    // списку доступных документов, и провайдерам системных наборов, а зависеть ради этого от
+    // разбора проблем сверки им незачем.
 }
