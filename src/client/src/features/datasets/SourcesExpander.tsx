@@ -184,6 +184,15 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
             )}
             <SourceRowCountBadge sourceId={src.id} />
           </div>
+          {/* Оговорка системного источника (issue #626): реестр раздела показывает то, что известно
+              на момент генерации, и пустые ячейки метаданных надо объяснить — иначе они читаются
+              как «листов нет». Текст целиком, не чипом: он объясняет, а не помечает. */}
+          {src.warning && (
+            <p className="mt-1 flex items-start gap-1 text-warning">
+              <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+              <span>{src.warning}</span>
+            </p>
+          )}
           <div className="font-mono text-fg4 mt-0.5">{src.sheetOrPath}</div>
           {cols.length > 0 && (
             <div className="text-fg3 mt-0.5">
@@ -388,6 +397,13 @@ export function SourcesPanel({
                 <div key={c.sheetOrPath} className="flex items-center gap-2 text-xs">
                   <span className="text-fg2">
                     {c.name} <span className="text-fg4">· {pending ? 'таблица не распознана' : `${c.rowCount} строк`}</span>
+                    {/* Оговорка к данным (issue #626) — до создания источника, а не после: иначе о
+                        неполноте узнают, уже привязав реестр к полям документа. */}
+                    {c.warning && (
+                      <span title={c.warning} className="ml-1 inline-flex items-center gap-0.5 text-warning align-middle">
+                        <AlertTriangle size={10} /> с оговоркой
+                      </span>
+                    )}
                   </span>
                   {pending ? (
                     <button type="button" disabled={recognizeTable.isPending}

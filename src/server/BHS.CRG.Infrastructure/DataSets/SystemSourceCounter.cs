@@ -4,52 +4,57 @@ using BHS.CRG.Domain.DataSets;
 namespace BHS.CRG.Infrastructure.DataSets;
 
 /// <summary>
-/// Живой счётчик строк системных источников (issue #613). У остальных форматов
-/// <c>CachedRowCount</c> пересчитывается при замене файла или правке извлечения — у системного
-/// набора нет ни того, ни другого: файла не существует, а определение источника не редактируется.
-/// Число, записанное при создании, устаревает молча — добавили документ в комплект, и «8 строк»
-/// в списках и в MCP-срезе уже неправда, хотя сами строки живые.
+/// Живое состояние системных источников: число строк (issue #613) и оговорка к данным (issue #626).
+/// У остальных форматов <c>CachedRowCount</c> пересчитывается при замене файла или правке
+/// извлечения — у системного набора нет ни того, ни другого: файла не существует, а определение
+/// источника не редактируется. Число, записанное при создании, устаревает молча — добавили документ
+/// в комплект, и «8 строк» в списках и в MCP-срезе уже неправда, хотя сами строки живые.
 ///
-/// Поэтому для системных источников число берётся у провайдера на чтении. Считаем ДО обработки
-/// (фильтр/вычисляемые колонки/сортировка) — та же семантика, что у <c>CachedRowCount</c>
-/// остальных форматов, иначе одна и та же подпись «N строк» значила бы в списке разное.
+/// Поэтому и число, и оговорка берутся у провайдера на чтении, ОДНИМ вызовом: провайдер собирает
+/// строки целиком, и спрашивать его дважды значило бы удваивать работу на каждый источник в списке.
+/// Считаем ДО обработки (фильтр/вычисляемые колонки/сортировка) — та же семантика, что у
+/// <c>CachedRowCount</c> остальных форматов, иначе одна и та же подпись «N строк» значила бы в
+/// списке разное.
 /// </summary>
 public class SystemSourceCounter(SystemDataProviderRegistry providers)
 {
+    /// <summary>Что известно про системный источник на момент чтения.</summary>
+    public readonly record struct SystemSourceState(int RowCount, string? Warning);
+
     /// <summary>
-    /// Число строк по id источника для системных наборов из выборки (источники берутся из
+    /// Состояние по id источника для системных наборов из выборки (источники берутся из
     /// <see cref="DataSetFile.Sources"/>). Обычные форматы не трогаем — у них кэш поддерживается
     /// штатно. Пустой словарь, если системных наборов в выборке нет.
     /// </summary>
-    public async Task<IReadOnlyDictionary<Guid, int>> CountAsync(
+    public async Task<IReadOnlyDictionary<Guid, SystemSourceState>> StateAsync(
         IEnumerable<DataSetFile> files, CancellationToken ct)
     {
-        var counts = new Dictionary<Guid, int>();
+        var states = new Dictionary<Guid, SystemSourceState>();
         foreach (var file in files.Where(f => f.IsSystem))
-            await AddAsync(counts, file, file.Sources, ct);
-        return counts;
+            await AddAsync(states, file, file.Sources, ct);
+        return states;
     }
 
     /// <summary>То же для источников, загруженных отдельно от файла.</summary>
-    public async Task<IReadOnlyDictionary<Guid, int>> CountAsync(
+    public async Task<IReadOnlyDictionary<Guid, SystemSourceState>> StateAsync(
         DataSetFile file, IEnumerable<DataSetSource> sources, CancellationToken ct)
     {
-        var counts = new Dictionary<Guid, int>();
-        if (file.IsSystem) await AddAsync(counts, file, sources, ct);
-        return counts;
+        var states = new Dictionary<Guid, SystemSourceState>();
+        if (file.IsSystem) await AddAsync(states, file, sources, ct);
+        return states;
     }
 
-    /// <summary>Число строк одного источника; null — набор не системный или маркер неизвестен.</summary>
-    public async Task<int?> CountAsync(DataSetSource source, DataSetFile file, CancellationToken ct)
-        => file.IsSystem ? await CountAsync(source.SheetOrPath, file, ct) : null;
+    /// <summary>Состояние одного источника; null — набор не системный или маркер неизвестен.</summary>
+    public async Task<SystemSourceState?> StateAsync(DataSetSource source, DataSetFile file, CancellationToken ct)
+        => file.IsSystem ? await StateAsync(source.SheetOrPath, file, ct) : null;
 
-    private async Task AddAsync(Dictionary<Guid, int> counts, DataSetFile file,
+    private async Task AddAsync(Dictionary<Guid, SystemSourceState> states, DataSetFile file,
         IEnumerable<DataSetSource> sources, CancellationToken ct)
     {
         foreach (var source in sources)
         {
-            var count = await CountAsync(source.SheetOrPath, file, ct);
-            if (count is not null) counts[source.Id] = count.Value;
+            var state = await StateAsync(source.SheetOrPath, file, ct);
+            if (state is not null) states[source.Id] = state.Value;
         }
     }
 
@@ -57,14 +62,14 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
     // Маркер без провайдера (консолидацию убрали в новой версии) и источник на уровне, где
     // консолидация неприменима (набор остался от версий до гейта #606), отдают запомненное число —
     // оно хотя бы показывает, чем источник был.
-    private async Task<int?> CountAsync(string marker, DataSetFile file, CancellationToken ct)
+    private async Task<SystemSourceState?> StateAsync(string marker, DataSetFile file, CancellationToken ct)
     {
         var provider = providers.TryGet(marker);
         if (provider is null) return null;
         try
         {
             var provided = await provider.ProvideAsync(marker, file.Scope, file.ScopeId, ct);
-            return provided.Rows.Count;
+            return new SystemSourceState(provided.Rows.Count, provided.Warning);
         }
         catch (ArgumentException)
         {

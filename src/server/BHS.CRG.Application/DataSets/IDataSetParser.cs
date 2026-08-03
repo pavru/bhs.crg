@@ -11,12 +11,17 @@ public record DataSetSourceInfo(
     int RowCount,
     // Кандидат-таблица, ещё НЕ распознанная (issue #385): указывает страницу документа для запуска
     // «Распознать таблицу». null — обычный готовый кандидат (создаётся сразу).
-    int? FirstPageIndex = null
+    int? FirstPageIndex = null,
+    /// <summary>Что про эти данные надо знать до того, как им поверят (issue #626): реестр
+    /// поддерева не знает метаданных несобранных комплектов. null — сказать нечего.</summary>
+    string? Warning = null
 );
 
 public record DataSetParseResult(
     IReadOnlyList<DataSetColumnInfo> Columns,
-    IReadOnlyList<IReadOnlyDictionary<string, string?>> Rows
+    IReadOnlyList<IReadOnlyDictionary<string, string?>> Rows,
+    /// <summary>Оговорка к данным — живая, считается вместе со строками (issue #626).</summary>
+    string? Warning = null
 );
 
 public interface IDataSetParser

@@ -45,12 +45,13 @@ public class DataSetSourceService(
 
         // Системный набор: число строк живое (issue #613) — файл не запрашиваем, если нечего считать.
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
-        var liveRowCounts = file is null
-            ? new Dictionary<Guid, int>()
-            : await systemCounts.CountAsync(file, sources, ct);
+        var liveStates = file is null
+            ? new Dictionary<Guid, SystemSourceCounter.SystemSourceState>()
+            : await systemCounts.StateAsync(file, sources, ct);
 
         return sources.Select(s => DataSetDtoMapper.MapSource(
-            s, bindingCounts.GetValueOrDefault(s.Id), liveRowCounts.TryGetValue(s.Id, out var live) ? live : null)).ToList();
+            s, bindingCounts.GetValueOrDefault(s.Id),
+            liveStates.TryGetValue(s.Id, out var live) ? live : null)).ToList();
     }
 
     /// <summary>

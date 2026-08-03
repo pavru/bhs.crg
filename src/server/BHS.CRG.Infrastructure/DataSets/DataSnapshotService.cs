@@ -48,7 +48,7 @@ public class DataSnapshotService(
 
         var grouping = GostGroupingSerialization.Parse(file.Grouping);
         // Системный набор: число строк живое, кэш при создании — уже история (issue #613).
-        var liveRowCounts = await systemCounts.CountAsync([file], ct);
+        var liveStates = await systemCounts.StateAsync([file], ct);
         var sources = file.Sources
             .OrderBy(s => s.Name)
             .Select(s => new SourceSummary(
@@ -56,7 +56,7 @@ public class DataSnapshotService(
                 // Сырьё, и названо сырьём (#592). Считать здесь строки ПОСЛЕ обработки значило бы
                 // скачать и разобрать файл по разу на каждый лист ради навигационной выдачи; точное
                 // число даёт get_source, а на его нужду указывает Filtered.
-                liveRowCounts.TryGetValue(s.Id, out var live) ? live : s.CachedRowCount,
+                liveStates.TryGetValue(s.Id, out var live) ? live.RowCount : s.CachedRowCount,
                 HasFilter(s),
                 IsStale(file, s, grouping, out _),
                 ColumnNames(s.CachedSchema),
@@ -98,7 +98,7 @@ public class DataSnapshotService(
 
         // Сырое число без строк берём из кэша — того же, что показывает сводка набора.
         var rawRowCount = loaded?.RawRowCount
-            ?? await systemCounts.CountAsync(source, source.File, ct)
+            ?? (await systemCounts.StateAsync(source, source.File, ct))?.RowCount
             ?? source.CachedRowCount;
 
         return new SourceDetail(
