@@ -14,6 +14,8 @@ public class SchemaDataAuditorTests
     private static readonly Guid DocId = Guid.Parse("d0000000-0000-0000-0000-000000000001");
     private static readonly Guid WorkId = Guid.Parse("00000000-0000-0000-0000-0000000000b1");
     private static readonly Guid IntId = Guid.Parse("00000000-0000-0000-0000-0000000000c1");
+    private static readonly Guid DateId = Guid.Parse("00000000-0000-0000-0000-0000000000c2");
+    private static readonly Guid ShortId = Guid.Parse("00000000-0000-0000-0000-0000000000c3");
 
     private static DocumentType T(Guid id, string name, string code, Guid? parent, string fieldsJson) =>
         DocumentType.Restore(id, name, code, DocumentTypeKind.Composite, parent,
@@ -28,6 +30,10 @@ public class SchemaDataAuditorTests
     {
         [IntId] = PrimitiveType.Restore(IntId, "Цело число", "int", "number", null,
             JsonDocument.Parse("{\"integer\":true}"), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
+        [DateId] = PrimitiveType.Restore(DateId, "Дата", "date", "date", null,
+            JsonDocument.Parse("{}"), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
+        [ShortId] = PrimitiveType.Restore(ShortId, "Шифр", "code", "string", null,
+            JsonDocument.Parse("{\"minLength\":3}"), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
     };
 
     private static IReadOnlyDictionary<Guid, DocumentType> Types() => ById(
@@ -99,6 +105,9 @@ public class SchemaDataAuditorTests
             $"[{{\"key\":\"Порядок\",\"type\":\"primitive\",\"typeId\":\"{IntId}\",\"title\":\"Порядковый номер\"}}," +
             "{\"key\":\"Кол\",\"type\":\"number\"}," +
             "{\"key\":\"Флаг\",\"type\":\"boolean\"}," +
+            "{\"key\":\"ДатаПростая\",\"type\":\"date\"}," +
+            $"{{\"key\":\"ДатаТипом\",\"type\":\"primitive\",\"typeId\":\"{DateId}\"}}," +
+            $"{{\"key\":\"Шифр\",\"type\":\"primitive\",\"typeId\":\"{ShortId}\"}}," +
             $"{{\"key\":\"Работы\",\"type\":\"array\",\"typeId\":\"{WorkId}\"}}]"),
         T(WorkId, "Работа", "WORK", null,
             $"[{{\"key\":\"Порядок\",\"type\":\"primitive\",\"typeId\":\"{IntId}\"}}]"));
@@ -154,6 +163,52 @@ public class SchemaDataAuditorTests
     public void Audit_TypedValues_NoIssues()
     {
         var data = J("{\"Кол\":12.5,\"Порядок\":3,\"Флаг\":true,\"Работы\":[{\"Порядок\":1}]}");
+        Assert.Empty(SchemaDataAuditor.Audit(data, DocId, TypedTypes(), Prims()));
+    }
+
+    // ── Дата и пустое значение ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Audit_FlagsRussianDate_AsNotIso()
+    {
+        // Прежняя проверка звала инвариантную культуру, а та читает «01.02.2026» как 2 ЯНВАРЯ и
+        // МОЛЧИТ: из двух дат одного распознавания «13.02.2026» признавалась битой, а «01.02.2026»
+        // тихо меняла смысл. Теперь по-русски записанная дата — расхождение, и его чинит приведение.
+        var issues = SchemaDataAuditor.Audit(J("{\"ДатаТипом\":\"01.02.2026\"}"), DocId, TypedTypes(), Prims());
+        var issue = Assert.Single(issues);
+        Assert.Contains("не по ISO", issue.Message);
+    }
+
+    [Fact]
+    public void Audit_ChecksPlainDateField_NotOnlyPrimitive()
+    {
+        // Разбор даты жил в проверке ограничений примитива, то есть обычного поля type="date" не
+        // касался вовсе — а такие и заполняет распознавание.
+        var issues = SchemaDataAuditor.Audit(J("{\"ДатаПростая\":\"01.02.2026\"}"), DocId, TypedTypes(), Prims());
+        Assert.Single(issues);
+    }
+
+    [Fact]
+    public void Audit_IsoDate_IsClean()
+    {
+        var data = J("{\"ДатаПростая\":\"2026-02-01\",\"ДатаТипом\":\"2026-02-01T10:30:00Z\"}");
+        Assert.Empty(SchemaDataAuditor.Audit(data, DocId, TypedTypes(), Prims()));
+    }
+
+    [Fact]
+    public void Audit_UnparsableDate_SaysSo()
+    {
+        var issues = SchemaDataAuditor.Audit(J("{\"ДатаТипом\":\"позавчера\"}"), DocId, TypedTypes(), Prims());
+        Assert.Contains("не разбирается как дата", Assert.Single(issues).Message);
+    }
+
+    [Fact]
+    public void Audit_EmptyString_IsAbsenceNotMismatch()
+    {
+        // Форма пишет именно пустую строку, когда поле очищают. Без этого правила очищенная дата
+        // навсегда оставалась бы с претензией, а короткий шифр — с «короче допустимого»; при том что
+        // null двумя строками выше объявлен «пусто — не расхождение».
+        var data = J("{\"ДатаТипом\":\"\",\"Шифр\":\"  \",\"Кол\":null}");
         Assert.Empty(SchemaDataAuditor.Audit(data, DocId, TypedTypes(), Prims()));
     }
 

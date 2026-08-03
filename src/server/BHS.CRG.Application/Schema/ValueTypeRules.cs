@@ -37,6 +37,11 @@ public static class ValueTypeRules
         // Расчётное поле производное: претензия к его значению — претензия к выражению (#368).
         if (field.Computed) return None;
         if (value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined) return None;
+        // Пустая строка — это ОТСУТСТВИЕ значения, а не значение неверного вида: форма пишет именно
+        // её, когда поле очищают (`setValue(key, '')`). Без этой ветки очищенное поле даты навсегда
+        // оставалось бы с претензией «не разбирается как дата», а строковое с minLength — с «короче
+        // допустимого». Незаполненность — предмет отдельной проверки обязательных полей.
+        if (value.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(value.GetString())) return None;
 
         switch (field.Type)
         {
@@ -52,12 +57,24 @@ public static class ValueTypeRules
                 if (CheckBase(field, value, primitive.BaseType, primitive.Name) is { } baseMessage)
                     messages.Add(baseMessage);
                 else
+                {
+                    if (primitive.BaseType == "date") CheckDate(field, value, messages);
                     CheckConstraints(field, value, primitive, messages);
+                }
                 return messages;
             }
 
             default:
-                return CheckBase(field, value, field.Type) is { } m ? new[] { m } : None;
+            {
+                if (CheckBase(field, value, field.Type) is { } m) return new[] { m };
+                // Дату проверяем и у поля БЕЗ примитива: разбор жил в проверке ограничений, то есть
+                // не касался обычного поля type="date" вовсе — а именно такие и заполняет
+                // распознавание.
+                if (field.Type != "date") return None;
+                var dateMessages = new List<string>();
+                CheckDate(field, value, dateMessages);
+                return dateMessages;
+            }
         }
     }
 
@@ -124,9 +141,36 @@ public static class ValueTypeRules
                     : $"Поле «{Title(field)}» не соответствует формату типа «{primitive.Name}».");
         }
 
-        if (primitive.BaseType == "date" && value.GetString() is { } d && !DateTimeOffset.TryParse(
-                d, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out _))
-            messages.Add($"Поле «{Title(field)}»: значение не разбирается как дата.");
+    }
+
+    /// <summary>Формы, в которых дата считается записанной по-нашему: полный ISO и его усечения.</summary>
+    private static readonly string[] IsoFormats =
+    [
+        "yyyy-MM-dd", "yyyy-MM-ddTHH:mm", "yyyy-MM-ddTHH:mm:ss",
+        "yyyy-MM-ddTHH:mm:ssK", "yyyy-MM-ddTHH:mm:ss.FFFFFFF", "yyyy-MM-ddTHH:mm:ss.FFFFFFFK",
+    ];
+
+    /// <summary>
+    /// Дата хранится строкой ISO — и «разбирается вообще» здесь недостаточно.
+    ///
+    /// Прежняя проверка звала <c>DateTimeOffset.TryParse</c> инвариантной культурой, а та читает
+    /// «01.02.2026» как 2 ЯНВАРЯ и молчит. Значит, из двух дат одного распознавания «13.02.2026»
+    /// признавалась битой (месяца 13 нет), а «01.02.2026» тихо меняла смысл на противоположный —
+    /// худший из возможных исходов для проверки, которая существует ради доверия к данным.
+    ///
+    /// Поэтому: по-русски записанная дата — это РАСХОЖДЕНИЕ (его чинит приведение, #643), а не
+    /// молчаливо принятое значение. Совсем неразбираемое — расхождение другого рода: чинить руками.
+    /// </summary>
+    private static void CheckDate(SchemaFieldInfo field, JsonElement value, List<string> messages)
+    {
+        if (value.GetString() is not { } s) return;
+        if (DateTime.TryParseExact(s, IsoFormats, CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind | DateTimeStyles.AllowWhiteSpaces, out _))
+            return;
+
+        messages.Add(DateTime.TryParse(s, CultureInfo.GetCultureInfo("ru-RU"), DateTimeStyles.None, out _)
+            ? $"Поле «{Title(field)}»: дата записана не по ISO («{s}»), ожидается ГГГГ-ММ-ДД."
+            : $"Поле «{Title(field)}»: значение не разбирается как дата.");
     }
 
     /// <summary>Битый шаблон — ошибка НАСТРОЙКИ типа, а не данных: молча пропускаем значение, чтобы
