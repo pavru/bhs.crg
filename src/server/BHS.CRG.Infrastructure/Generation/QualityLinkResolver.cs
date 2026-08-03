@@ -28,27 +28,12 @@ public class QualityLinkResolver(AppDbContext db) : IQualityLinkResolver
 
         if (identityFields.Length == 0 || targetField is null) return; // тэги не настроены — нечего подмешивать
 
-        // 1) scope-цепочка комплекта
-        var set = await db.DocumentSets.AsNoTracking().FirstOrDefaultAsync(s => s.Id == instance.DocumentSetId, ct);
-        if (set is null) return;
-        Guid sectionId = set.SectionId;
-        Guid constructionId = Guid.Empty;
-        var section = await db.Sections.AsNoTracking().FirstOrDefaultAsync(s => s.Id == sectionId, ct);
-        if (section is not null) constructionId = section.ConstructionId;
-
-        // 2) связи по всей цепочке, приоритет — более узкий scope (Set=1 … System=5)
-        var links = await db.MaterialQualityLinks.AsNoTracking()
-            .Where(l =>
-                (l.Scope == CatalogScope.Set && l.ScopeId == instance.DocumentSetId) ||
-                (l.Scope == CatalogScope.Section && l.ScopeId == sectionId) ||
-                (l.Scope == CatalogScope.Construction && l.ScopeId == constructionId) ||
-                l.Scope == CatalogScope.System)
-            .ToListAsync(ct);
-        if (links.Count == 0) return;
-
-        var byKey = new Dictionary<string, Guid>();
-        foreach (var l in links.OrderBy(l => (int)l.Scope))
-            byKey.TryAdd(l.MaterialKey, l.QualityDocumentId); // первый (более узкий scope) побеждает
+        // 1-2) связи по всей цепочке комплекта, где узкий уровень побеждает широкий. Алгоритм общий
+        //      (issue #624): тот же ответ обязан показывать срез для внешнего агента и системный
+        //      набор «Материалы и документы качества».
+        var byKey = (await MaterialQualityChain.WinnersForSetAsync(db, instance.DocumentSetId, ct))
+            .ToDictionary(kv => kv.Key, kv => kv.Value.QualityDocumentId);
+        if (byKey.Count == 0) return;
 
         // 3) реквизиты нужных документов
         var docIds = byKey.Values.Distinct().ToList();
