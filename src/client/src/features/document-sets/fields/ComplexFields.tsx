@@ -7,7 +7,7 @@ import { DateInput } from '@/shared/ui/DateInput';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import type {
-  CatalogScope, DocumentInstance, DocumentType, FieldRef, PrimitiveTypeDef,
+  CatalogScope, DocumentInstance, DocumentType, EnumTypeDef, FieldRef, PrimitiveTypeDef,
 } from '@/shared/api/types';
 import { isFieldRef, SCOPE_LABELS } from '@/shared/api/types';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
@@ -27,6 +27,9 @@ import { DocRefCatalogPickerField } from './DocRefCatalogPickerField';
 import { DocRefField, DocArrayField } from './DocRefField';
 import { PasteMappingModal } from './PasteMappingModal';
 import { BROKEN_PLATE, BROKEN_LABEL, BrokenRefNote } from './BrokenRef';
+
+/** Модульная пустышка для дефолта пропа: инлайновый `= []` — новый массив на каждый рендер. */
+const EMPTY_ENUM_TYPES: EnumTypeDef[] = [];
 
 // ─── Complex cell picker (inline table cell) ──────────────────────────────────
 
@@ -64,12 +67,15 @@ export function ComplexCellPicker({ value, onChange, compositeType, setId, allDo
 
 // ─── Table cell ───────────────────────────────────────────────────────────────
 
-export function TableCell({ field, value, onChange, compositeType, setId, allDocTypes, scope, scopeId, primitiveTypeDef }: {
+export function TableCell({ field, value, onChange, compositeType, setId, allDocTypes, scope, scopeId,
+  primitiveTypeDef, enumTypeDef }: {
   field: SchemaField; value: unknown; onChange: (v: unknown) => void;
   compositeType: DocumentType | null;
   setId?: string; allDocTypes: DocumentType[];
   scope?: CatalogScope; scopeId?: string | null;
   primitiveTypeDef?: PrimitiveTypeDef;
+  /** Перечисление из реестра (issue #59): без него ячейка читает только легаси-`options` и пустеет. */
+  enumTypeDef?: EnumTypeDef;
 }) {
   const strVal = value == null ? '' : String(value);
   if (field.type === 'complex') {
@@ -89,12 +95,16 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
     );
   }
   if (field.type === 'enum') {
-    const opts = (field.options ?? []).filter(o => o !== '');
+    // Варианты знает реестр (issue #59); в схеме их нет вовсе — там только typeId. Легаси-поля,
+    // наоборот, хранят коды прямо в options, и код там же и есть отображаемое имя.
+    const opts = enumTypeDef
+      ? enumTypeDef.values.map(v => ({ code: v.code, label: v.label }))
+      : (field.options ?? []).filter(o => o !== '').map(o => ({ code: o, label: o }));
     return (
       <select value={strVal} onChange={e => onChange(e.target.value)}
         className={CELL_INPUT + ' cursor-pointer'}>
         <option value="">—</option>
-        {opts.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+        {opts.map(o => <option key={o.code} value={o.code}>{o.label}</option>)}
       </select>
     );
   }
@@ -154,7 +164,9 @@ export function ArrayTableModal({
   const resolveScope = setId ? 'Set' as const : scope;
   const resolveScopeId = setId ?? scopeId;
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
   const primDef = (f: SchemaField) => f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
+  const enumDef = (f: SchemaField) => f.type === 'enum' ? enumTypes.find(et => et.id === f.typeId) : undefined;
 
   // Расчётные подполя (issue #368) не редактируются вручную — считаются при генерации; в редакторе скрыты.
   const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes).filter(f => !f.computed) : [];
@@ -372,7 +384,7 @@ export function ArrayTableModal({
                       style={{ border: BORDER, padding: 0, height: 26 }}>
                       <TableCell field={f} value={row[f.key]} onChange={v => updateCell(i, f.key, v)}
                         compositeType={compositeForField} setId={setId} allDocTypes={allDocTypes}
-                        scope={scope} scopeId={scopeId} primitiveTypeDef={primDef(f)} />
+                        scope={scope} scopeId={scopeId} primitiveTypeDef={primDef(f)} enumTypeDef={enumDef(f)} />
                     </td>
                   );
                 })}
@@ -445,6 +457,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const { data: enumTypes = [] } = useListEnumTypes();
   const primDef = (f: SchemaField) => f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
+  const enumDef = (f: SchemaField) => f.type === 'enum' ? enumTypes.find(et => et.id === f.typeId) : undefined;
   const typeDefs: FieldTypeDefs = { primitiveTypes, enumTypes }; // формат значений в сводке строки (issue #611)
 
   function addRow() {
@@ -608,7 +621,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   ) : (
                     <PrimitiveInput field={sf} value={subVal} label={sf.title}
                       onChange={v => updateRow(rowModal, { ...rowObj, [sf.key]: v })} invalid={invalid}
-                      primitiveTypeDef={primDef(sf)} />
+                      primitiveTypeDef={primDef(sf)} enumTypeDef={enumDef(sf)} />
                   )}
                   {invalid && <p className="text-xs text-danger mt-0.5">Обязательное поле</p>}
                 </div>
@@ -801,7 +814,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
             <SubfieldEditor sf={sf} value={subVal} onChange={v => setSubValue(sf.key, v)}
               allDocTypes={allDocTypes} showValidation={showValidation} setId={setId}
               otherInstances={otherInstances} scope={scope} scopeId={scopeId}
-              docRefMode={docRefMode} primitiveTypes={primitiveTypes} />
+              docRefMode={docRefMode} primitiveTypes={primitiveTypes} enumTypes={enumTypes} />
             {invalid && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
           </div>
         );
@@ -887,13 +900,14 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
 // ─── Один подполе-редактор (диспетчеризация по типу) ───────────────────────────
 // Извлечено из ComplexFieldGroup, чтобы переиспользовать для активного варианта union (issue #320).
 function SubfieldEditor({ sf, value, onChange, allDocTypes, showValidation, setId,
-  otherInstances = [], scope, scopeId, docRefMode = 'catalog', primitiveTypes }: {
+  otherInstances = [], scope, scopeId, docRefMode = 'catalog', primitiveTypes, enumTypes = EMPTY_ENUM_TYPES }: {
   sf: SchemaField; value: unknown; onChange: (v: unknown) => void;
   allDocTypes: DocumentType[]; showValidation: boolean; setId?: string;
   otherInstances?: DocumentInstance[]; scope?: CatalogScope; scopeId?: string | null;
-  docRefMode?: 'catalog' | 'instance'; primitiveTypes: PrimitiveTypeDef[];
+  docRefMode?: 'catalog' | 'instance'; primitiveTypes: PrimitiveTypeDef[]; enumTypes?: EnumTypeDef[];
 }) {
   const primDef = sf.type === 'primitive' ? primitiveTypes.find(pt => pt.id === sf.typeId) : undefined;
+  const enumTypeDef = sf.type === 'enum' ? enumTypes.find(et => et.id === sf.typeId) : undefined;
   const invalid = showValidation && isMissing(sf, value);
   if (sf.type === 'complex')
     return <ComplexFieldGroup field={sf} allDocTypes={allDocTypes} value={value} onChange={v => onChange(v)}
@@ -915,7 +929,7 @@ function SubfieldEditor({ sf, value, onChange, allDocTypes, showValidation, setI
       showValidation={showValidation} setId={setId} otherInstances={otherInstances}
       scope={scope} scopeId={scopeId} docRefMode={docRefMode} />;
   return <PrimitiveInput field={sf} value={value} label={sf.title} onChange={v => onChange(v)}
-    invalid={invalid} primitiveTypeDef={primDef} />;
+    invalid={invalid} primitiveTypeDef={primDef} enumTypeDef={enumTypeDef} />;
 }
 
 // ─── Union-поле (issue #320): заполняется РОВНО ОДИН вариант (подполе union-типа) ──
@@ -1035,7 +1049,8 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   const activeEditor = activeSf && (
     <SubfieldEditor sf={activeSf} value={subValues[activeSf.key]} onChange={setActiveValue}
       allDocTypes={allDocTypes} showValidation={showValidation} setId={setId}
-      otherInstances={otherInstances} scope={scope} scopeId={scopeId} docRefMode={docRefMode} primitiveTypes={primitiveTypes} />
+      otherInstances={otherInstances} scope={scope} scopeId={scopeId} docRefMode={docRefMode}
+      primitiveTypes={primitiveTypes} enumTypes={enumTypes} />
   );
   const bar = (
     <div className="space-y-1.5">

@@ -20,6 +20,9 @@ export interface FieldTypeDefs {
   enumTypes?: EnumTypeDef[];
 }
 
+const TRUE_TOKENS = new Set(['true', 'да', 'истина', 'yes', 'y', '1', '+']);
+const FALSE_TOKENS = new Set(['false', 'нет', 'ложь', 'no', 'n', '0', '-']);
+
 /** Пустое значение отдаём пустой строкой: решение «показывать ли пропуск» принимает вызывающий. */
 export function formatFieldValue(
   field: SchemaField, value: unknown, defs: FieldTypeDefs = {},
@@ -35,9 +38,17 @@ export function formatFieldValue(
     return String(value);
   }
 
-  if (field.type === 'boolean')
-    // Строку сюда кладёт распознавание и вставка из таблицы: «false» — не «Да», хотя и не пусто.
-    return value === true || value === 'true' ? 'Да' : 'Нет';
+  if (field.type === 'boolean') {
+    if (typeof value === 'boolean') return value ? 'Да' : 'Нет';
+    // В поле-флажке лежит не только булево: распознавание кладёт туда «да»/«нет» словом
+    // (`ValueTypeRules.CheckBase`), вставка из таблицы разбирает свой набор (`PasteMappingModal`).
+    // Чего нет ни в одном наборе — показываем как есть: «Нет» на непонятном значении было бы
+    // утверждением, причём в том самом месте, где значение смотрят не открывая редактор.
+    const token = String(value).trim().toLowerCase();
+    if (TRUE_TOKENS.has(token)) return 'Да';
+    if (FALSE_TOKENS.has(token)) return 'Нет';
+    return String(value);
+  }
 
   if (field.type === 'enum') {
     const code = String(value);

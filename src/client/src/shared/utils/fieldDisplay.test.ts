@@ -37,10 +37,20 @@ describe('formatFieldValue', () => {
 
   it('логическое значение — словом', () => {
     expect(formatFieldValue(f('boolean'), true)).toBe('Да');
-    expect(formatFieldValue(f('boolean'), 'true')).toBe('Да');
     // Снятый флажок остаётся в сводке (раньше стоял «false») — «Нет» тоже сведение, а не пропуск.
     expect(formatFieldValue(f('boolean'), false)).toBe('Нет');
-    expect(formatFieldValue(f('boolean'), 'false')).toBe('Нет'); // строку кладёт распознавание
+  });
+
+  it('в поле-флажке понимает слова, которые кладут туда распознавание и вставка', () => {
+    // «Да» по одному только `=== true` показывало бы «Нет» на «да» — уверенно наоборот.
+    for (const yes of ['да', 'Да', 'true', '1', 'истина', 'yes', '+'])
+      expect(formatFieldValue(f('boolean'), yes)).toBe('Да');
+    for (const no of ['нет', 'false', '0', 'ложь', 'no'])
+      expect(formatFieldValue(f('boolean'), no)).toBe('Нет');
+  });
+
+  it('непонятное значение флажка показывает как есть, а не толкует', () => {
+    expect(formatFieldValue(f('boolean'), 'частично')).toBe('частично');
   });
 
   it('перечисление — именем варианта, а не кодом', () => {
