@@ -101,11 +101,52 @@ public class ValueCoercionTests
         Assert.Equal("42", r!.GetValue<string>());
     }
 
-    [Fact]
-    public void Coerce_AlreadyCorrect_IsNotAChange()
+    [Theory]
+    [InlineData("2.1.3")]      // иерархическая нумерация — случай #461
+    [InlineData("01.02.2026")] // дата, попавшая в числовое поле
+    [InlineData("1,2,3")]
+    [InlineData("1.2,34.5")]   // знаки разрядов вперемешку — следы двух соглашений
+    public void Coerce_RefusesMultipleSeparators(string stored)
     {
+        // Нормализация «всё до последнего разделителя — разряды» без проверки групп превращала
+        // «2.1.3» в 21.3, а «01.02.2026» — в 102.2026, отвечая при этом «Документ исправлен».
+        Assert.False(Coerce(F("number"), JsonValue.Create(stored), out _, out var reason));
+        Assert.Contains("не разбирается как число", reason);
+    }
+
+    [Theory]
+    [InlineData("1.234.567,89", 1234567.89)] // разряды точками, десятичная запятая
+    [InlineData("1,234.567", 1234.567)]      // и обратное соглашение — как читает QuantityParser
+    public void Coerce_AcceptsGroupedThousands(string stored, double expected)
+    {
+        Assert.True(Coerce(F("number"), JsonValue.Create(stored), out var r, out _));
+        Assert.Equal(expected, r!.GetValue<double>());
+    }
+
+    [Fact]
+    public void Coerce_AlreadyCorrect_NamesTheRealObstacle()
+    {
+        // Кнопка «Привести» стоит у любой находки о значении, включая нарушение шаблона или длины.
+        // Ответ «значение уже нужного вида» возражал бы самой находке, на которую человек нажал.
         Assert.False(Coerce(F("string"), JsonValue.Create("уже строка"), out _, out var reason));
-        Assert.Equal("Значение уже нужного вида.", reason);
+        Assert.Contains("ограничение типа", reason);
+    }
+
+    [Fact]
+    public void Coerce_BooleanToString_WritesJsonLiteral()
+    {
+        // JsonElement.ToString() отдаёт «True» с большой буквы — в русском документе это мусор.
+        Assert.True(Coerce(F("string"), JsonValue.Create(true), out var r, out _));
+        Assert.Equal("true", r!.GetValue<string>());
+    }
+
+    [Fact]
+    public void Coerce_RefusesEnum()
+    {
+        // Приведением получился бы код, которого нет ни в одном варианте: находка исчезла бы, а
+        // значение осталось бы нерабочим — и теперь уже невидимым.
+        Assert.False(Coerce(F("enum"), JsonValue.Create(3), out _, out var reason));
+        Assert.Contains("вручную", reason);
     }
 
     [Fact]

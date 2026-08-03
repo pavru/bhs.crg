@@ -20,6 +20,15 @@ namespace BHS.CRG.Application.Schema;
 public static class ValueCoercion
 {
     /// <summary>
+    /// Кнопка «Привести» стоит у ЛЮБОЙ находки о значении, а тонкий слой ловит и нарушения
+    /// ограничений типа — шаблон, длину, границы. Там значение уже нужного вида, и приведение
+    /// бессильно; сказать в ответ «значение уже нужного вида» значило бы возразить самой находке,
+    /// на которую человек и нажал.
+    /// </summary>
+    private const string NotACoercionReason =
+        "Значение нужного вида — расходится не вид, а ограничение типа (формат, длина, границы); приведением это не чинится.";
+
+    /// <summary>
     /// Приведённое значение для поля. <c>false</c> + <paramref name="reason"/>, если приводить нечего
     /// или не к чему: значение уже нужного вида, тип поля не скалярный, разбор не удался.
     /// </summary>
@@ -42,8 +51,8 @@ public static class ValueCoercion
         var (baseType, primitive) = BaseTypeOf(field, primitivesById);
         if (baseType is null) { reason = "Для этого типа поля приведение не определено."; return false; }
 
-        var raw = value.GetValue<object>()?.ToString();
         var element = value.GetValueKind();
+        var raw = RawText(value, element);
 
         switch (baseType)
         {
@@ -55,7 +64,7 @@ public static class ValueCoercion
                     // типе, а её приведением не чинят (см. IsIntegerOnly ниже).
                     reason = IsIntegerOnly(primitive) && !IsWhole(value.GetValue<double>())
                         ? FractionReason(value.GetValue<double>())
-                        : "Значение уже нужного вида.";
+                        : NotACoercionReason;
                     return false;
                 }
                 if (!TryParseNumber(raw, out var n))
@@ -71,7 +80,7 @@ public static class ValueCoercion
             case "bool" or "boolean":
             {
                 if (element is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False)
-                { reason = "Значение уже нужного вида."; return false; }
+                { reason = NotACoercionReason; return false; }
                 if (TryParseBool(raw, out var b)) { coerced = JsonValue.Create(b); return true; }
                 reason = $"«{raw}» не разбирается как логическое значение.";
                 return false;
@@ -89,15 +98,22 @@ public static class ValueCoercion
                     return false;
                 }
                 var iso = d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-                if (iso == raw) { reason = "Значение уже нужного вида."; return false; }
+                if (iso == raw) { reason = NotACoercionReason; return false; }
                 coerced = JsonValue.Create(iso);
                 return true;
             }
 
-            default: // string / text / enum
+            case "enum":
+                // Приведением получился бы КОД, которого нет ни в одном варианте перечисления:
+                // находка исчезла бы, а значение осталось бы нерабочим — худший исход, потому что
+                // невидимый. Вариант выбирает человек.
+                reason = "Вариант перечисления выбирается вручную — приведением его не угадать.";
+                return false;
+
+            default: // string / text
             {
                 if (element == System.Text.Json.JsonValueKind.String)
-                { reason = "Значение уже нужного вида."; return false; }
+                { reason = NotACoercionReason; return false; }
                 coerced = JsonValue.Create(raw ?? "");
                 return true;
             }
@@ -142,6 +158,11 @@ public static class ValueCoercion
     /// Число целиком, без хвоста. Пробелы (в том числе неразрывный) — разряды, запятая — десятичный
     /// разделитель; когда встречаются оба, десятичным считается последний, что верно и для «1 234,5»,
     /// и для «1,234.5» (то же допущение, что в <c>QuantityParser</c>).
+    ///
+    /// Разделителей больше одного — только если предыдущие делят разряды ПО ТРИ цифры. Без этой
+    /// проверки «2.1.3» превращалось в 21.3, а «01.02.2026» — в 102.2026: приведение выдумывало
+    /// число из иерархической нумерации и из даты, отвечая при этом «Документ исправлен». Ровно тот
+    /// исход, ради недопущения которого целочисленность и не округляется.
     /// </summary>
     private static bool TryParseNumber(string? raw, out double value)
     {
@@ -150,12 +171,39 @@ public static class ValueCoercion
 
         var cleaned = new string([.. raw.Where(ch => !char.IsWhiteSpace(ch) && ch != ' ')]);
         var lastSep = Math.Max(cleaned.LastIndexOf(','), cleaned.LastIndexOf('.'));
-        var normalized = lastSep < 0
-            ? cleaned
-            : $"{cleaned[..lastSep].Replace(",", "").Replace(".", "")}.{cleaned[(lastSep + 1)..]}";
+        if (lastSep < 0)
+            return double.TryParse(cleaned, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
 
+        var head = cleaned[..lastSep];
+        if (!IsGrouped(head)) return false;
+
+        var normalized = $"{head.Replace(",", "").Replace(".", "")}.{cleaned[(lastSep + 1)..]}";
         return double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
     }
+
+    /// <summary>Целая часть: либо без разделителей вовсе, либо разряды по три одним и тем же знаком.</summary>
+    private static bool IsGrouped(string head)
+    {
+        // Мешать знаки нельзя: «1,234.567» — не запись числа, а следы двух разных соглашений.
+        if (head.Contains(',') && head.Contains('.')) return false;
+        var groups = head.Split(',', '.');
+        if (groups.Length == 1) return true;
+        if (groups[0].Length is 0 or > 3) return false;
+        return groups.Skip(1).All(g => g.Length == 3);
+    }
+
+    /// <summary>
+    /// Текст значения. Своими руками, а не <c>ToString()</c>: у <c>JsonElement</c> тот отдаёт для
+    /// логического значения «True» с большой буквы (<c>bool.TrueString</c>), и приведение к строке
+    /// клало в русский документ «True» вместо «true».
+    /// </summary>
+    private static string? RawText(JsonNode value, System.Text.Json.JsonValueKind kind) => kind switch
+    {
+        System.Text.Json.JsonValueKind.String => value.GetValue<string>(),
+        System.Text.Json.JsonValueKind.True => "true",
+        System.Text.Json.JsonValueKind.False => "false",
+        _ => value.ToJsonString(),
+    };
 
     /// <summary>Русские «да»/«нет» — то, что кладёт распознавание: в скане стоит слово, не флажок.</summary>
     private static bool TryParseBool(string? raw, out bool value)
