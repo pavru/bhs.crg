@@ -25,6 +25,9 @@ public static class MaterialQualityChain
         string MaterialKey, string? MaterialLabel, Guid QualityDocumentId,
         CatalogScope Scope, Guid? ScopeId, DateTimeOffset UpdatedAt);
 
+    private static readonly IReadOnlyDictionary<string, Winner> EmptyWinners =
+        new Dictionary<string, Winner>();
+
     /// <summary>
     /// Победители по ключу материала для места (<paramref name="scope"/>, <paramref name="scopeId"/>).
     /// Общесистемные связки видны отовсюду; уровень без объекта области (кроме System) в цепочку не
@@ -33,6 +36,14 @@ public static class MaterialQualityChain
     public static async Task<IReadOnlyDictionary<string, Winner>> WinnersAsync(
         AppDbContext db, CatalogScope scope, Guid? scopeId, CancellationToken ct = default)
     {
+        // Уровень без места — не цепочка, а её отсутствие: общесистемные связки тоже не применяются.
+        // Проверка не теоретическая. Проверка резолва зовётся и для записи общих данных, а
+        // DocumentView.From кладёт в DocumentSetId `ScopeId ?? Guid.Empty` — до выноса цепочки такой
+        // вызов упирался в «комплекта нет» и выходил, а без проверки в объект без комплекта
+        // подмешались бы ВСЕ общесистемные сертификаты, и проверка отчиталась бы, что они разрешены.
+        if (scope != CatalogScope.System && scopeId.GetValueOrDefault() == Guid.Empty)
+            return EmptyWinners;
+
         var chain = await ScopeChains.LoadForScopeAsync(db, scope, scopeId, ct);
 
         var links = await db.MaterialQualityLinks.AsNoTracking()

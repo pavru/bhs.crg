@@ -6,6 +6,8 @@ using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Infrastructure.Generation;
+using BHS.CRG.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -239,6 +241,29 @@ public class MaterialQualityProviderTests(IntegrationTestFixture fixture) : IAsy
             .Single(p => p.Handles(SystemDataSets.MaterialQualityMarker));
         await Assert.ThrowsAsync<ArgumentException>(() => provider.ProvideAsync(
             SystemDataSets.MaterialQualityMarker, CatalogScope.Section, null, default));
+    }
+
+    /// <summary>
+    /// Место без комплекта (Guid.Empty) не получает даже общесистемных связок.
+    ///
+    /// Проверка резолва зовётся и для записи общих данных, а <c>DocumentView.From</c> кладёт в
+    /// DocumentSetId «ScopeId ?? Guid.Empty». До выноса общей цепочки такой вызов упирался в
+    /// «комплекта нет» и выходил; потеряй мы эту проверку — в объект без комплекта подмешались бы
+    /// ВСЕ общесистемные сертификаты, а проверка отчиталась бы, что они разрешены.
+    /// </summary>
+    [Fact]
+    public async Task PlaceWithoutSet_HasNoWinners()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var seed = await SeedAsync(scope);
+        var doc = await AddDocAsync(scope, seed.CertTypeId, "Общий");
+        await LinkAsync(scope, CatalogScope.System, null, "общий | ", doc.Id);
+
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Empty(await MaterialQualityChain.WinnersAsync(db, CatalogScope.Set, Guid.Empty));
+        Assert.Empty(await MaterialQualityChain.WinnersAsync(db, CatalogScope.Set, null));
+        // А у самой системы связка есть — иначе проверка выше ничего бы не значила.
+        Assert.Single(await MaterialQualityChain.WinnersAsync(db, CatalogScope.System, null));
     }
 
     /// <summary>Без связок кандидата нет — кнопку показывать незачем.</summary>
