@@ -88,12 +88,29 @@ export async function uploadPrintForm(
   return data;
 }
 
+/**
+ * Типы, которые можно показывать из `blob:`-адреса. Всё остальное получает
+ * `application/octet-stream` — браузер такой файл сохраняет, а не разбирает.
+ *
+ * Второй рубеж рядом с серверным списком приёма, и он нужен именно здесь: `blob:`-адрес наследует
+ * источник страницы, которая его создала, поэтому содержимое открывается НЕ как чужой файл, а как
+ * часть приложения. Ответные заголовки сервера в этом пути не участвуют вовсе — решает тип, который
+ * мы сами передадим в `new Blob`. Список держим узким и растровым: расширится серверный —
+ * этот останется страховкой.
+ */
+const VIEWABLE_TYPES = new Set([
+  'application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp',
+]);
+
 export async function loadAttachmentObjectUrl(blobPath: string): Promise<{ url: string; mimeType: string }> {
   const response = await apiClient.get('/attachments', {
     params: { path: blobPath },
     responseType: 'blob',
   });
-  const mimeType = (response.headers['content-type'] as string | undefined) ?? 'application/octet-stream';
+  const declared = (response.headers['content-type'] as string | undefined) ?? '';
+  // Отсекаем параметры вида «; charset=utf-8» — сравниваем сам тип.
+  const bare = declared.split(';')[0].trim().toLowerCase();
+  const mimeType = VIEWABLE_TYPES.has(bare) ? bare : 'application/octet-stream';
   const blob = new Blob([response.data as BlobPart], { type: mimeType });
   return { url: URL.createObjectURL(blob), mimeType };
 }

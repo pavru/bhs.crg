@@ -7,13 +7,21 @@ namespace BHS.CRG.Api.Endpoints.Attachments;
 
 public static class AttachmentEndpoints
 {
+    /// <summary>
+    /// Что принимаем во вложения. Только форматы, которые браузер показывает как ДАННЫЕ:
+    /// документы и растровые картинки.
+    ///
+    /// Активных форматов здесь быть не должно — вложение загружает один пользователь, а открывает
+    /// другой, и открывает на домене приложения. Векторная графика для шаблонов идёт своим путём,
+    /// через ассеты шаблонов (<c>TemplateAssetEndpoints</c>, роль Admin), — вложениям она не нужна.
+    /// </summary>
     private static readonly HashSet<string> AllowedTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/vnd.ms-excel",
-        "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml",
+        "image/png", "image/jpeg", "image/gif", "image/webp",
     };
 
     public static void MapAttachmentEndpoints(this IEndpointRouteBuilder app)
@@ -128,6 +136,11 @@ public static class AttachmentEndpoints
                 var segment = path.Contains('/') ? path[(path.LastIndexOf('/') + 1)..] : path;
                 var underscoreIdx = segment.IndexOf('_');
                 var displayName = underscoreIdx >= 0 ? segment[(underscoreIdx + 1)..] : segment;
+                // Тип выводится из имени файла, а имя пришло от пользователя — поэтому список здесь
+                // держим не шире списка приёма. Всё незнакомое уходит как application/octet-stream:
+                // так файл сохраняется, а не исполняется у того, кто его открыл. Расширения без
+                // соответствия в AllowedTypes (в том числе загруженные, пока список был шире)
+                // попадают именно в эту ветку.
                 var ext = Path.GetExtension(displayName).TrimStart('.').ToLowerInvariant();
                 var contentType = ext switch
                 {
@@ -139,7 +152,6 @@ public static class AttachmentEndpoints
                     "jpg" or "jpeg" => "image/jpeg",
                     "gif"  => "image/gif",
                     "webp" => "image/webp",
-                    "svg"  => "image/svg+xml",
                     _      => "application/octet-stream",
                 };
                 return Results.File(stream, contentType, displayName);
