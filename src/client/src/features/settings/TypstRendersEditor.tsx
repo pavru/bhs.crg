@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type * as Monaco from 'monaco-editor';
-import Editor from '@monaco-editor/react';
+import Editor from '@/shared/ui/CodeEditor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { useTheme } from '@/shared/ui/ThemeProvider';
 import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
