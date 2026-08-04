@@ -121,6 +121,45 @@ public class TypstImageMaterializerTests
     }
 
     /// <summary>
+    /// Расширение, взятое из пути блоба, чистится: путь приходит из реквизитов, то есть от
+    /// пользователя, а имя файла на диске собирается конкатенацией с ним (issue #672). Тот же
+    /// разбор, что и в TypstFileMaterializer, — раньше материализаторы здесь расходились.
+    /// </summary>
+    [Fact]
+    public async Task Materialize_BlobPathExtension_Sanitized()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "matz-" + Guid.NewGuid());
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var blob = new FakeBlobStorage();
+            var bytes = Convert.FromBase64String(Png[(Png.IndexOf(",", StringComparison.Ordinal) + 1)..]);
+            // Тип незнакомый — значит расширение берётся из пути, а он весь пользовательский.
+            // Разделителей в хвосте нет намеренно: их поведение зависит от платформы, а проверяем
+            // мы чистку, а не разбор пути.
+            var path = await blob.UploadAsync("скан.jp g!", new MemoryStream(bytes), "application/octet-stream");
+            // Длинный хвост: имя файла собирается конкатенацией, и без ограничения слишком длинное
+            // имя обрывает запись, а картинка молча исчезает из PDF.
+            var longPath = await blob.UploadAsync(
+                "скан." + new string('a', 300), new MemoryStream(bytes), "application/octet-stream");
+
+            var data = new Dictionary<string, object?>
+            {
+                ["Скан"] = El(new Dictionary<string, object?> { ["$type"] = "image", ["blobPath"] = path }),
+                ["Длинный"] = El(new Dictionary<string, object?> { ["$type"] = "image", ["blobPath"] = longPath }),
+            };
+
+            var json = await TypstImageMaterializer.MaterializeAsync(data, dir, blob);
+
+            Assert.Equal(2, Directory.GetFiles(Path.Combine(dir, "assets")).Length);
+            Assert.Contains("/assets/img_0.jpg", json);              // из "jp g!" остались буквы и цифры
+            Assert.Contains("/assets/img_1.aaaaaaaa", json);         // хвост обрезан до восьми
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(Path.Combine(dir, "assets", "img_0.jpg")));
+        }
+        finally { try { Directory.Delete(dir, true); } catch { } }
+    }
+
+    /// <summary>
     /// Блоб недоступен — генерация не должна падать целиком из-за одной картинки: узел остаётся как
     /// есть, остальной документ собирается.
     /// </summary>
