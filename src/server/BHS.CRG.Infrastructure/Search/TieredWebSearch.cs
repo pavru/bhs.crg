@@ -1,3 +1,4 @@
+using BHS.CRG.Infrastructure.Http;
 using System.Net;
 using System.Text.RegularExpressions;
 using BHS.CRG.Application.QualityDocs;
@@ -107,8 +108,10 @@ public class TieredWebSearch(IEnumerable<IWebSearchEngine> engines, IIntegration
         string html;
         try
         {
-            using var req = new HttpRequestMessage(HttpMethod.Get, baseUri);
-            using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseContentRead, ct);
+            // Адрес приходит из выдачи поисковика, то есть снаружи, — проверяем его и цель каждого
+            // перенаправления так же, как при загрузке файла по ссылке.
+            using var resp = await SafeHttpGet.SendAsync(
+                http, baseUri, HttpCompletionOption.ResponseContentRead, ct: ct);
             if (!resp.IsSuccessStatusCode) return [];
             var ctype = resp.Content.Headers.ContentType?.MediaType ?? "";
             if (!ctype.Contains("html", StringComparison.OrdinalIgnoreCase)) return [];
