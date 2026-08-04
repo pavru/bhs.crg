@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using BHS.CRG.Api.Auth;
@@ -334,7 +334,12 @@ builder.Services.AddHttpClient<SerperEngine>().ConfigureHttpClient(c => c.Timeou
 builder.Services.AddHttpClient<YandexEngine>().ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddScoped<IWebSearchEngine>(sp => sp.GetRequiredService<SerperEngine>());
 builder.Services.AddScoped<IWebSearchEngine>(sp => sp.GetRequiredService<YandexEngine>());
-builder.Services.AddHttpClient<TieredWebSearch>().ConfigureHttpClient(c =>
+// Автоследование за перенаправлениями выключено намеренно: переходы проходит SafeHttpGet, проверяя
+// цель каждого. С автоследованием проверка исходного адреса ничего не стоит — ответ общедоступного
+// хоста уводит куда угодно.
+builder.Services.AddHttpClient<TieredWebSearch>()
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+    .ConfigureHttpClient(c =>
 {
     c.Timeout = TimeSpan.FromSeconds(15);
     c.DefaultRequestHeaders.UserAgent.ParseAdd(
@@ -342,6 +347,7 @@ builder.Services.AddHttpClient<TieredWebSearch>().ConfigureHttpClient(c =>
 });
 builder.Services.AddScoped<IQualityDocSearch>(sp => sp.GetRequiredService<TieredWebSearch>());
 builder.Services.AddHttpClient<IFileUrlFetcher, HttpFileUrlFetcher>()
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddSingleton<TypstGenerator>();
 builder.Services.AddSingleton<IDocumentGeneratorFactory, DocumentGeneratorFactory>();
