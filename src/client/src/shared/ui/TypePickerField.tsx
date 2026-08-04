@@ -5,7 +5,7 @@ import { OutlinedField } from './OutlinedField';
 
 /**
  * Триггер-поле над `TypePicker` (issue #266): закрытый вид читается как поле формы (значок
- * семейства + имя выбранного типа + код по showCode + лупа), клик/Enter/Space открывают богатую
+ * семейства + имя выбранного типа + код в слое формы + лупа), клик/Enter/Space открывают богатую
  * модалку выбора. Единый контрол для ЛЮБОГО выбора типа (документа/поля/родителя), чтобы не плодить
  * свои триггеры на каждом сайте. Триггер — настоящий `<button aria-haspopup>`, фокус возвращается
  * на него по Esc (Radix Dialog). Не-типовые короткие списки (роль/scope) — обычный Select.
@@ -34,7 +34,8 @@ export function TypePickerField({
   recentKey?: string;
   title?: string;
   placeholder?: string;
-  /** `sm` — компактный триггер для шапок (без кода); `md` — обычное поле формы. */
+  /** Высота компактного триггера: `sm` для шапок, `md` для фильтров. Кода нет ни там, ни там —
+   *  его показывает только слой формы (см. `showCode`, issue #668). */
   size?: 'sm' | 'md';
   /** Подпись поля. Задана — контрол переходит в слой формы (outlined-рамка с вырезом). */
   label?: string;
@@ -52,8 +53,16 @@ export function TypePickerField({
   const selected = value ? types.find(t => t.id === value) : undefined;
   const Icon = selected ? typeIcon(selected) : Boxes;
   const code = selected?.code.trim();
-  const showCode = size !== 'sm' && !!code && code.toLowerCase() !== selected!.name.trim().toLowerCase();
   const framed = label !== undefined;
+  /**
+   * Код показываем только в СЛОЕ ФОРМЫ (issue #668). Раньше условием был размер, и компактный
+   * триггер размера `md` код получал — а места под него там нет: имя стоит `flex-1 truncate`, код
+   * `shrink-0`, и при нехватке ширины сжималось имя, вплоть до нуля. В поле оставался один код
+   * («СетрификатСоответствия» вместо «Сертификат соответствия») — то есть исчезало ровно то, ради
+   * чего поле существует. Коды в проекте пишутся слитно, имена с пробелами, так что проверка на
+   * несовпадение почти всегда истинна и от этого не спасала.
+   */
+  const showCode = framed && !!code && code.toLowerCase() !== selected!.name.trim().toLowerCase();
   const showClear = !!clearable && !!selected && !disabled;
 
   // В слое формы рамку и фон рисует оболочка — триггер внутри неё прозрачный и без своей границы,
@@ -66,13 +75,15 @@ export function TypePickerField({
       `text-sm text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ` +
       `data-[state=open]:ring-2 disabled:opacity-50 disabled:pointer-events-none`;
 
+  // `overflow-hidden` на триггере — страховка впредь (issue #668): её не было, и несжимаемый
+  // элемент (код типа) не обрезался, а выходил за рамку поля и наезжал на замыкающую лупу.
   const trigger = (
     <button
       ref={triggerRef}
       type="button" disabled={disabled} onClick={() => setOpen(true)}
       aria-haspopup="dialog" aria-expanded={open}
       aria-label={framed ? undefined : ariaLabel} aria-labelledby={framed ? labelId : undefined}
-      className={`inline-flex items-center gap-2 ${triggerClass}`}
+      className={`inline-flex items-center gap-2 overflow-hidden ${triggerClass}`}
       data-state={open ? 'open' : 'closed'}
     >
       <Icon size={16} className={`shrink-0 ${selected ? 'text-fg3' : 'text-fg4'}`} />

@@ -233,13 +233,17 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
       {tab === 'search' && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <TypePickerField className="w-52" aria-label="Тип документа качества" title="Тип документа качества"
+            {/* w-64, а не w-52 (issue #668): «Сертификат соответствия» — типичное значение, и в
+                208 px оно обрезалось многоточием почти сразу даже без кода типа. */}
+            <TypePickerField className="w-64" aria-label="Тип документа качества" title="Тип документа качества"
               placeholder="Тип"
               types={qualityTypes.map<PickType>(t => ({ id: t.id, name: t.name, code: t.code, section: 'Документы качества' }))}
               value={searchType || undefined}
               onChange={id => { if (id) setSearchType(id); }} />
+            {/* Ведущей лупы здесь нет (issue #668): рядом стоял селектор типа со своей замыкающей
+                лупой — обещанием модалки поиска (#565), — и два одинаковых значка подряд означали
+                разное. У самой строки намерение уже названо кнопкой «Найти» справа. */}
             <div className="flex-1 flex items-center gap-2 border border-stroke-strong rounded-md px-2 transition-colors focus-within:border-brand focus-within:ring-1 focus-within:ring-brand">
-              <Search size={14} className="text-fg4" />
               <input value={query} onChange={e => setQuery(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') void runSearch(); }}
                 placeholder="строка поиска" className="flex-1 py-2 text-sm bg-transparent focus:outline-none" />
