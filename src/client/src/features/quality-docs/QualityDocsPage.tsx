@@ -19,6 +19,8 @@ import {
 import { SCOPE_LABELS, type CatalogScope } from '@/shared/api/types';
 import { resolveEffectiveFields, typeHasTag } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
+import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
+import { useListEnumTypes } from '@/shared/api/enumTypes';
 import type { DocumentType } from '@/shared/api/types';
 import { QualityDocForm } from './QualityDocForm';
 import { ambiguousDocNames, docFieldByTag, docNumberOf, isAmbiguous } from './docIdentity';
@@ -338,6 +340,9 @@ function WebSearchModal({ open, onClose, docTypes }: {
   const [searching, setSearching] = useState(false);
   const [importingUrl, setImportingUrl] = useState<string | null>(null);
   const [error, setError] = useState('');
+  // Определения типов полей нужны распознаванию импортированного скана (issue #654).
+  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
 
   // Тип берём ТОЛЬКО среди помеченных тэгом «документ качества»: без него q[0] это первый попавшийся
   // тип документа (например АОСР), и импорт молча создал бы «документ качества» чужого типа, чья
@@ -371,7 +376,8 @@ function WebSearchModal({ open, onClose, docTypes }: {
       // Распознавание — best-effort: документ уже импортирован, и падение распознавателя (например,
       // выключенная Ollama) не должно выглядеть как «не удалось импортировать» — человек нажал бы ещё
       // раз и завёл дубль.
-      try { await recognizeAndUpdate(created, docTypes); } catch { /* распознавание не критично */ }
+      try { await recognizeAndUpdate(created, docTypes, { primitiveTypes, enumTypes }); }
+      catch { /* распознавание не критично */ }
       // Без инвалидации список слева не обновится до перефокуса окна (staleTime 30 с), и тот же
       // документ импортировали бы повторно.
       qc.invalidateQueries({ queryKey: ['quality-docs'] });

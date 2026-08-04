@@ -7,8 +7,9 @@ import type { PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
 import {
   useCreateQualityDoc, useUpdateQualityDoc, useSetQualityDocScan, recognizeDocument,
-  type QualityDocument, type RecognitionFieldReq,
+  type QualityDocument,
 } from '@/shared/api/qualityDocs';
+import { buildRecognitionFields, codesFromLabels } from './recognitionFields';
 import { uploadAttachment, openAttachmentInNewTab } from '@/shared/api/attachments';
 import type { DocumentType, CatalogScope } from '@/shared/api/types';
 import { resolveEffectiveFields, typeHasTag, findTaggedFieldPath, type SchemaField } from '@/shared/api/schema';
@@ -17,29 +18,12 @@ import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import {
   PrimitiveInput, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField, ImageField, FileField,
+  validateConstraint, collectConstraintViolations, describeViolationPath,
 } from '@/features/document-sets/fields';
 import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 
 /** Поля, занимающие обе колонки сетки — тот же набор, что в редакторе реквизитов (`RequisitesTab`). */
 const WIDE_TYPES = new Set(['complex', 'array', 'doc-ref', 'doc-array', 'image', 'file', 'text']);
-
-/** Разворачивает поля типа в плоские «листья» (путь через точку) для распознавания. */
-export function flattenLeaves(fields: SchemaField[], allDocTypes: DocumentType[], prefix = '', depth = 0): RecognitionFieldReq[] {
-  if (depth > 3) return [];
-  const out: RecognitionFieldReq[] = [];
-  for (const f of fields) {
-    const path = prefix ? `${prefix}.${f.key}` : f.key;
-    if (f.type === 'complex' && f.typeId) {
-      const ct = allDocTypes.find(d => d.id === f.typeId);
-      if (ct) out.push(...flattenLeaves(resolveEffectiveFields(ct, allDocTypes), allDocTypes, path, depth + 1));
-    } else if (['array', 'doc-ref', 'doc-array', 'image', 'file'].includes(f.type)) {
-      // для распознавания пропускаем
-    } else {
-      out.push({ path, title: f.title, type: f.type, options: f.options });
-    }
-  }
-  return out;
-}
 
 /** Раскладывает плоские значения (путь через точку) во вложенный объект и сливает с текущими. */
 export function applyRecognized(values: Record<string, unknown>, flat: Record<string, string>): Record<string, unknown> {
@@ -76,6 +60,9 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
   );
   const [uploading, setUploading] = useState(false);
   const [recognizing, setRecognizing] = useState(false);
+  // Нарушения ограничений по путям («ПериодДействия.До»); сбрасываются при правке значения, иначе
+  // претензия висела бы на исправленном поле (issue #655).
+  const [constraintErrors, setConstraintErrors] = useState<Record<string, string>>({});
   const scanInputRef = useRef<HTMLInputElement>(null);
   // Картинка поля ещё едет в хранилище — сохранять рано: значение появится только после (issue #522).
   // Своё `uploading` выше — про скан документа качества, это разные загрузки.
@@ -100,7 +87,23 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
   const enumDef = (f: SchemaField) =>
     f.type === 'enum' ? enumTypes.find(et => et.id === f.typeId) : undefined;
 
-  function setValue(key: string, v: unknown) { setValues(p => ({ ...p, [key]: v })); }
+  /**
+   * Правка значения сразу и проверяется, и снимает прежнюю претензию (issue #655) — как в двух
+   * соседних формах. Проверка на изменение ловит ввод, сбор при сохранении — всё остальное:
+   * распознавание, вставку, значение, пришедшее с базового документа.
+   */
+  function setValue(key: string, v: unknown) {
+    setValues(p => ({ ...p, [key]: v }));
+    const f = fields.find(x => x.key === key);
+    const def = f && f.type === 'primitive' ? primitiveDef(f) : undefined;
+    const err = def ? validateConstraint(v, def) : null;
+    setConstraintErrors(prev => {
+      if (!err && !prev[key]) return prev;              // ничего не менялось — не будим рендер
+      const next = { ...prev };
+      if (err) next[key] = err; else delete next[key];
+      return next;
+    });
+  }
 
   async function handleScan(file: File) {
     setUploading(true); setError('');
@@ -134,14 +137,17 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
       const SUMMARY = '__summary__';
       const activeType = allDocTypes.find(d => d.id === activeTypeId);
       const activeFields = activeType ? resolveEffectiveFields(activeType, allDocTypes) : fields;
+      // Модели показываем варианты перечислений и базовый тип примитива, ответ отображаем обратно
+      // в коды (issue #654) — иначе в реквизиты ложится подпись, которой нет ни в одном пункте.
+      const plan = buildRecognitionFields(activeFields, allDocTypes, { primitiveTypes, enumTypes });
       const rec = await recognizeDocument({
         blobPath: scan.blobPath, mimeType: scan.mimeType,
         fields: [
-          ...flattenLeaves(activeFields, allDocTypes),
+          ...plan.fields,
           { path: SUMMARY, title: 'Краткое наименование документа: краткое имя (бренд) производителя и тип продукции, например «EKF — автоматические выключатели»', type: 'string' },
         ],
       });
-      const recognized = rec.values;
+      const recognized = codesFromLabels(rec.values, plan.enumCodes);
       const summary = (recognized[SUMMARY] ?? '').trim();
       const { [SUMMARY]: _omitSummary, ...fieldValues } = recognized;
       // Число страниц берём из файла → в поле с тэгом doc.pageCount (напр. «КоличествоЛистов»).
@@ -161,6 +167,20 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
   async function handleSave() {
     setError('');
     const name = displayName.trim() || String(values['НомерДокумента'] ?? '').trim() || docType?.name || 'Документ качества';
+
+    // Ограничения примитивов эта форма не проверяла никогда (issue #655), в отличие от редактора
+    // реквизитов и формы общих данных. Тем же сбором, что и они: вторая реализация правил разошлась
+    // бы с первой, а серверной проверки нет вовсе — значение уходит в базу как набрали.
+    const violations = collectConstraintViolations(values, fields, allDocTypes, primitiveTypes);
+    const firstBad = Object.entries(violations)[0];
+    if (firstBad) {
+      const [path, message] = firstBad;
+      setConstraintErrors(violations);
+      setError(`${describeViolationPath(path, fields, allDocTypes)} — ${message}`);
+      return;
+    }
+    setConstraintErrors({});
+
     try {
       let doc: QualityDocument;
       if (isEdit && initial) {
@@ -245,9 +265,16 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
             return <div key={f.key} className={cls}>{label}<ImageField value={v} onChange={x => setValue(f.key, x)} /></div>;
           if (f.type === 'file')
             return <div key={f.key} className={cls}>{label}<FileField value={v} onChange={x => setValue(f.key, x ?? undefined)} /></div>;
-          return <div key={f.key} className={cls}><PrimitiveInput field={f} value={v} label={f.title}
-            onChange={x => setValue(f.key, x)} invalid={false}
-            primitiveTypeDef={primitiveDef(f)} enumTypeDef={enumDef(f)} /></div>;
+          return (
+            <div key={f.key} className={cls}>
+              <PrimitiveInput field={f} value={v} label={f.title}
+                onChange={x => setValue(f.key, x)} invalid={!!constraintErrors[f.key]}
+                primitiveTypeDef={primitiveDef(f)} enumTypeDef={enumDef(f)} />
+              {constraintErrors[f.key] && (
+                <p className="text-xs text-danger mt-0.5">{constraintErrors[f.key]}</p>
+              )}
+            </div>
+          );
         })}
       </div>
 

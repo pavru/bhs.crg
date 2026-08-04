@@ -19,6 +19,8 @@ import {
   typeHasTag, findTaggedFieldPath, collectMaterialRows, materialIdentityKeys,
 } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
+import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
+import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { identityKey, isIdentityKeyEmpty, normalizeKey } from '@/shared/api/identityKey';
 import {
   assessBulkLink, collectStrings, collidingIdentities, docHaystackStems, relevance, weighted,
@@ -99,6 +101,9 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
   const [searching, setSearching] = useState(false);
   const [importingUrl, setImportingUrl] = useState<string | null>(null);
   const [searchError, setSearchError] = useState('');
+  // Определения типов полей нужны распознаванию импортированного скана (issue #654).
+  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
+  const { data: enumTypes = [] } = useListEnumTypes();
 
   // Сброс и инициализация при открытии: строку поиска заполняем материалом.
   useEffect(() => {
@@ -148,7 +153,10 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
     try {
       let doc = await importQualityDocFromUrl({ url: c.url, title: c.title, documentTypeId: searchType, scope, scopeId });
       // Автоматически распознаём скан импортированного документа (best-effort).
-      try { doc = await recognizeAndUpdate(doc, allDocTypes); } catch { /* распознавание не критично */ }
+      // Определения типов — чтобы распознавание увидело варианты перечислений и вернуло КОДЫ,
+      // а не подписи (issue #654): формы здесь нет, расхождение показать некому.
+      try { doc = await recognizeAndUpdate(doc, allDocTypes, { primitiveTypes, enumTypes }); }
+      catch { /* распознавание не критично */ }
       onPick(doc);
     } catch (e: unknown) {
       setSearchError(e instanceof Error ? e.message : 'Не удалось импортировать');
