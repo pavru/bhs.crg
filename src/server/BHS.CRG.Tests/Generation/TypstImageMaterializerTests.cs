@@ -121,6 +121,41 @@ public class TypstImageMaterializerTests
     }
 
     /// <summary>
+    /// Расширение, взятое из пути блоба, чистится: путь приходит из реквизитов, то есть от
+    /// пользователя, а имя файла на диске собирается конкатенацией с ним (issue #672). Тот же
+    /// разбор, что и в TypstFileMaterializer, — раньше материализаторы здесь расходились.
+    /// </summary>
+    [Fact]
+    public async Task Materialize_BlobPathExtension_Sanitized()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "matz-" + Guid.NewGuid());
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var blob = new FakeBlobStorage();
+            var bytes = Convert.FromBase64String(Png[(Png.IndexOf(",", StringComparison.Ordinal) + 1)..]);
+            // Тип незнакомый — значит расширение берётся из пути, а он весь пользовательский.
+            // Разделителей в хвосте нет намеренно: их поведение зависит от платформы, а проверяем
+            // мы чистку, а не разбор пути.
+            var path = await blob.UploadAsync("скан.jp g!", new MemoryStream(bytes), "application/octet-stream");
+
+            var data = new Dictionary<string, object?>
+            {
+                ["Скан"] = El(new Dictionary<string, object?> { ["$type"] = "image", ["blobPath"] = path }),
+            };
+
+            var json = await TypstImageMaterializer.MaterializeAsync(data, dir, blob);
+
+            var files = Directory.GetFiles(Path.Combine(dir, "assets"));
+            var name = Path.GetFileName(Assert.Single(files));
+            Assert.Equal("img_0.jpg", name);   // из "jp g!" остаются только буквы и цифры
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(files[0]));
+            Assert.Contains("/assets/img_0.jpg", json);
+        }
+        finally { try { Directory.Delete(dir, true); } catch { } }
+    }
+
+    /// <summary>
     /// Блоб недоступен — генерация не должна падать целиком из-за одной картинки: узел остаётся как
     /// есть, остальной документ собирается.
     /// </summary>

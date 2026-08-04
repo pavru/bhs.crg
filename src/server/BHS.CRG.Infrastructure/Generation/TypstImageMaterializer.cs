@@ -125,7 +125,14 @@ public static class TypstImageMaterializer
             // путь может оканчиваться чем угодно, а Typst выбирает декодер по расширению файла.
             // «bin» из ExtFor означает «тип незнакомый» — тогда решает путь блоба, и лишь затем png.
             var byMime = mimeType is null ? "bin" : ExtFor(mimeType);
-            var ext = byMime != "bin" ? byMime : Path.GetExtension(blobPath).TrimStart('.');
+            // Запасной вариант берётся из пользовательской строки, поэтому чистим — только буквы и
+            // цифры, ровно как в соседнем TypstFileMaterializer.ExtFor (issue #672). Выхода из
+            // каталога тут не было: GetExtension отдаёт хвост ПОСЛЕДНЕГО сегмента, разделитель в
+            // него не попадёт. Но имя файла ниже собирается конкатенацией, а в хвосте могут приехать
+            // пробелы, точки, обратные слэши (на Linux это обычный символ имени) и сколько угодно
+            // символов — и два соседних материализатора расходились в том, чистить это или нет.
+            var byPath = new string(Path.GetExtension(blobPath).TrimStart('.').Where(char.IsLetterOrDigit).ToArray());
+            var ext = byMime != "bin" ? byMime : byPath;
             if (ext.Length == 0) ext = "png";
             var name = $"img_{ctx.Count++}.{ext}";
             await File.WriteAllBytesAsync(Path.Combine(ctx.AssetsDir, name), ms.ToArray(), ct);
