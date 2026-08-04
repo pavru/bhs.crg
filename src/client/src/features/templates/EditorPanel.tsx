@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@/shared/ui/ThemeProvider';
 import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
-import Editor from '@monaco-editor/react';
+import Editor from '@/shared/ui/CodeEditor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';

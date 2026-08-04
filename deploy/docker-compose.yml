@@ -25,7 +25,9 @@ services:
     volumes:
       - minio_data:/data
     ports:
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      # Только петля: консоль хранилища работает под учёткой администратора MinIO и даёт доступ
+      # ко всем файлам системы в обход приложения. Снаружи — через SSH-туннель.
+      - "${MINIO_CONSOLE_BIND:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
     restart: unless-stopped
 
   # Одноразовый сервис: создаёт bucket в MinIO
@@ -93,6 +95,9 @@ services:
       Gemini__ApiKey: ${GEMINI_API_KEY:-}
       WebSearch__ApiKey: ${SERPER_API_KEY:-}
       AllowedOrigins: ${ALLOWED_ORIGINS:-http://localhost:${WEB_PORT:-8080}}
+      # Сети, чьему X-Forwarded-For доверяем (CIDR через запятую). Пусто — петля и частные
+      # диапазоны: этого хватает, пока API виден только из сети Compose.
+      ForwardedHeaders__TrustedNetworks: ${FORWARDED_TRUSTED_NETWORKS:-}
       # Публичный адрес системы — для ссылок в письмах (сброс пароля, подтверждение почты,
       # ссылка на большой комплект). Без него ссылки в письмах собрать нельзя.
       App__PublicUrl: ${APP_PUBLIC_URL:-}
@@ -110,7 +115,9 @@ services:
     depends_on:
       - api
     ports:
-      - "${WEB_PORT:-8080}:80"
+      # Внутри контейнера 8080: nginx работает от непривилегированного пользователя и порт 80
+      # занять не может (см. Dockerfile.web). Порт на хосте прежний.
+      - "${WEB_PORT:-8080}:8080"
     restart: unless-stopped
 
 volumes:

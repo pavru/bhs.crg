@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import Editor from '@monaco-editor/react';
+import Editor from '@/shared/ui/CodeEditor';
 import type * as monacoEditor from 'monaco-editor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { useTheme } from '@/shared/ui/ThemeProvider';

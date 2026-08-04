@@ -54,6 +54,7 @@ using BHS.CRG.Infrastructure.Plugins;
 using BHS.CRG.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -124,13 +125,78 @@ builder.Services.AddDataProtection()
 // Время жизни токенов сброса пароля / подтверждения (дефолтный token-провайдер) — 1 час.
 builder.Services.Configure<DataProtectionTokenProviderOptions>(o => o.TokenLifespan = TimeSpan.FromHours(1));
 
-// Rate limiting для чувствительных анонимных эндпоинтов сброса пароля (по IP).
+// За обратным прокси (в поставке это nginx) Connection.RemoteIpAddress — адрес контейнера прокси,
+// один и тот же для всех. Партиционирование лимитов по нему вырождается в общую корзину: десяти
+// запросов «забыли пароль» хватало, чтобы выключить сброс пароля всей организации. Реальный адрес
+// берём из X-Forwarded-For, но ТОЛЬКО когда запрос пришёл от доверенной сети — иначе заголовок
+// подделает кто угодно и лимит обходится сменой строки.
+// Список разбираем ЗДЕСЬ, а не внутри Configure: делегат выполняется лениво, при первом запросе, и
+// опечатка в CIDR валила бы каждый запрос на первом же middleware при внешне успешном старте. Ключ
+// конфигурации негодного вида должен останавливать запуск — как с ключом подписи ниже.
+var trustedProxyNetworks = ParseTrustedNetworks(cfg["ForwardedHeaders:TrustedNetworks"]);
+
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // Дефолт фреймворка — только петля; в Compose прокси приходит из сети моста, поэтому список
+    // задаём сами. Настраивается ForwardedHeaders:TrustedNetworks (CIDR через запятую) — сузить
+    // до конкретной сети прокси, если API доступен ещё откуда-то.
+    o.KnownIPNetworks.Clear();
+    o.KnownProxies.Clear();
+    foreach (var n in trustedProxyNetworks)
+        o.KnownIPNetworks.Add(n);
+
+    // Разбираем СТОЛЬКО записей, сколько пришло из доверенных сетей, а не одну. Прокси между
+    // клиентом и нами обычно два: терминатор TLS (обязателен, см. DEPLOYMENT §2) и наш nginx.
+    // С дефолтным ForwardLimit = 1 разобралась бы только запись, добавленная nginx, и адресом
+    // клиента стал бы ТЕРМИНАТОР — один и тот же у всех, то есть корзина лимита снова одна на
+    // всю организацию: ровно та беда, ради которой заголовок и разбирается.
+    // Обход останавливает не счётчик, а первая запись вне доверенных сетей.
+    //
+    // Плата: клиент, сам находящийся в доверенной сети, может дописать в заголовок выдуманные
+    // адреса и выбрать себе корзину лимита. Он и так может прийти с нескольких адресов, а больше
+    // разобранный адрес у нас никем не используется; кому это важно — сужает TrustedNetworks до
+    // сети прокси, и подделка перестаёт проходить.
+    o.ForwardLimit = null;
+});
+
+static System.Net.IPNetwork[] ParseTrustedNetworks(string? configured)
+{
+    string[] raw = string.IsNullOrWhiteSpace(configured)
+        ? ["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+        : configured.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    return [.. raw.Select(n =>
+    {
+        try { return System.Net.IPNetwork.Parse(n); }
+        catch (FormatException ex)
+        {
+            throw new InvalidOperationException(
+                $"ForwardedHeaders:TrustedNetworks — «{n}» не является сетью в записи CIDR " +
+                "(ожидается вид 10.0.0.0/8; биты адреса за маской должны быть нулевыми).", ex);
+        }
+    })];
+}
+
+// Rate limiting чувствительных анонимных эндпоинтов — по адресу клиента (см. UseForwardedHeaders).
+// Пределы разные, потому что разные профили обращения: за NAT организации адрес общий на всех, и
+// предел, годный для «забыли пароль», выключил бы вход целому офису.
+static Func<HttpContext, RateLimitPartition<string>> PerClient(int permitLimit, TimeSpan window) =>
+    ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = permitLimit, Window = window, QueueLimit = 0 });
+
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    o.AddPolicy("auth", ctx => RateLimitPartition.GetFixedWindowLimiter(
-        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
+    // Парольные и почтовые операции: редки по своей природе, предел жёсткий.
+    o.AddPolicy("auth", PerClient(10, TimeSpan.FromMinutes(15)));
+    // Вход и регистрация первого администратора. Подбор пароля отдельно ограничен блокировкой
+    // учётной записи (5 неудач), лимит здесь — против перебора адресов и распыления пароля.
+    o.AddPolicy("login", PerClient(30, TimeSpan.FromMinutes(5)));
+    // Обновление пары токенов: у каждого пользователя раз в час, подбирать 256-битный refresh-токен
+    // смысла нет — предел только против шторма из зациклившегося клиента.
+    o.AddPolicy("refresh", PerClient(120, TimeSpan.FromMinutes(5)));
 });
 
 // ── JWT ───────────────────────────────────────────────────────────────────────
@@ -449,6 +515,9 @@ using (var scope = app.Services.CreateScope())
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
+// Первым в конвейере: дальше адрес клиента читают и лимитер, и логи.
+app.UseForwardedHeaders();
+
 app.UseExceptionHandler(exApp => exApp.Run(async ctx =>
 {
     var feature = ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>();
@@ -465,14 +534,32 @@ app.UseExceptionHandler(exApp => exApp.Run(async ctx =>
         ArgumentException => 400,
         _ => 500,
     };
-    await ctx.Response.WriteAsJsonAsync(new
+
+    string message;
+    if (tooLarge)
     {
         // Без числа и без слова «файл»: сюда попадают запросы к разным эндпоинтам с разными
         // пределами, и тело может вообще не быть файлом. Назвать чужой предел — хуже, чем не назвать.
-        error = tooLarge
-            ? "Запрос превышает допустимый размер."
-            : ex?.Message ?? "Internal server error",
-    });
+        message = "Запрос превышает допустимый размер.";
+    }
+    else if (ctx.Response.StatusCode == 500)
+    {
+        // Текст непредвиденного исключения — это внутренности: строка подключения Npgsql с хостом и
+        // именем БД, адреса хранилища, stderr компилятора с путями, куски ответов сторонних API.
+        // Наружу отдаём только идентификатор запроса — по нему администратор находит запись в логе.
+        ctx.RequestServices.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("BHS.CRG.UnhandledException")
+            .LogError(ex, "Необработанное исключение, запрос {TraceId}", ctx.TraceIdentifier);
+        message = $"Внутренняя ошибка сервера. Идентификатор запроса: {ctx.TraceIdentifier}";
+    }
+    else
+    {
+        // Доменные отказы (ArgumentException и соседи) кидаются НАМИ и написаны для пользователя —
+        // они и должны доходить до него дословно.
+        message = ex?.Message ?? "Внутренняя ошибка сервера.";
+    }
+
+    await ctx.Response.WriteAsJsonAsync(new { error = message });
 }));
 
 app.UseCors();
@@ -514,12 +601,17 @@ app.MapEmailEndpoints();
 app.MapSubscriptionEndpoints();
 
 // Версия приложения (для отображения в UI и трассировки сборок). Анонимно — виден и на странице входа.
-app.MapGet("/api/version", () =>
+// Сам номер версии анонимен намеренно, а git-хеш и дата сборки — нет: репозиторий публичный, и по
+// хешу сборка сопоставляется с историей до конкретного коммита. Вошедшему пользователю они видны.
+app.MapGet("/api/version", (HttpContext ctx) =>
 {
     var asm = System.Reflection.Assembly.GetEntryAssembly()!;
     var info = asm.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
         .Cast<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion ?? "0.0.0";
     var parts = info.Split('+', 2); // "0.1.0+<sha>"
+    if (ctx.User.Identity?.IsAuthenticated != true)
+        return Results.Ok(new { version = parts[0], commit = "", buildDate = (DateTimeOffset?)null });
+
     var commit = parts.Length > 1 ? parts[1][..Math.Min(7, parts[1].Length)] : ""; // короткий sha для показа
     DateTimeOffset? buildDate = null;
     try { buildDate = File.GetLastWriteTimeUtc(asm.Location); } catch { /* single-file/unknown */ }
