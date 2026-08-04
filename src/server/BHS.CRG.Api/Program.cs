@@ -130,6 +130,11 @@ builder.Services.Configure<DataProtectionTokenProviderOptions>(o => o.TokenLifes
 // запросов «забыли пароль» хватало, чтобы выключить сброс пароля всей организации. Реальный адрес
 // берём из X-Forwarded-For, но ТОЛЬКО когда запрос пришёл от доверенной сети — иначе заголовок
 // подделает кто угодно и лимит обходится сменой строки.
+// Список разбираем ЗДЕСЬ, а не внутри Configure: делегат выполняется лениво, при первом запросе, и
+// опечатка в CIDR валила бы каждый запрос на первом же middleware при внешне успешном старте. Ключ
+// конфигурации негодного вида должен останавливать запуск — как с ключом подписи ниже.
+var trustedProxyNetworks = ParseTrustedNetworks(cfg["ForwardedHeaders:TrustedNetworks"]);
+
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
     o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -138,13 +143,40 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
     // до конкретной сети прокси, если API доступен ещё откуда-то.
     o.KnownIPNetworks.Clear();
     o.KnownProxies.Clear();
-    var configured = cfg["ForwardedHeaders:TrustedNetworks"];
-    var networks = string.IsNullOrWhiteSpace(configured)
+    foreach (var n in trustedProxyNetworks)
+        o.KnownIPNetworks.Add(n);
+
+    // Разбираем СТОЛЬКО записей, сколько пришло из доверенных сетей, а не одну. Прокси между
+    // клиентом и нами обычно два: терминатор TLS (обязателен, см. DEPLOYMENT §2) и наш nginx.
+    // С дефолтным ForwardLimit = 1 разобралась бы только запись, добавленная nginx, и адресом
+    // клиента стал бы ТЕРМИНАТОР — один и тот же у всех, то есть корзина лимита снова одна на
+    // всю организацию: ровно та беда, ради которой заголовок и разбирается.
+    // Обход останавливает не счётчик, а первая запись вне доверенных сетей.
+    //
+    // Плата: клиент, сам находящийся в доверенной сети, может дописать в заголовок выдуманные
+    // адреса и выбрать себе корзину лимита. Он и так может прийти с нескольких адресов, а больше
+    // разобранный адрес у нас никем не используется; кому это важно — сужает TrustedNetworks до
+    // сети прокси, и подделка перестаёт проходить.
+    o.ForwardLimit = null;
+});
+
+static System.Net.IPNetwork[] ParseTrustedNetworks(string? configured)
+{
+    string[] raw = string.IsNullOrWhiteSpace(configured)
         ? ["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
         : configured.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-    foreach (var n in networks)
-        o.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(n));
-});
+
+    return [.. raw.Select(n =>
+    {
+        try { return System.Net.IPNetwork.Parse(n); }
+        catch (FormatException ex)
+        {
+            throw new InvalidOperationException(
+                $"ForwardedHeaders:TrustedNetworks — «{n}» не является сетью в записи CIDR " +
+                "(ожидается вид 10.0.0.0/8; биты адреса за маской должны быть нулевыми).", ex);
+        }
+    })];
+}
 
 // Rate limiting чувствительных анонимных эндпоинтов — по адресу клиента (см. UseForwardedHeaders).
 // Пределы разные, потому что разные профили обращения: за NAT организации адрес общий на всех, и
