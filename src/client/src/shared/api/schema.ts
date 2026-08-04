@@ -341,6 +341,31 @@ export function isMaterialType(t: DocumentType, allDocTypes: DocumentType[]): bo
 }
 
 /**
+ * Ключи полей идентичности ОДНОГО типа — в порядке компонентов его составного ключа (issue #663).
+ *
+ * ЗЕРКАЛО серверного `SchemaTags.OrderedKeysWithTag(type, all, 'identity')`: сортировка по параметру
+ * тэга («identity:1» перед «identity:2»), поля без номера — следом, в порядке эффективной схемы.
+ * Порядок здесь виден человеку — из этих значений складывается предлагаемое имя выносимой записи
+ * (issue #663), — поэтому расходиться с серверным ему незачем.
+ *
+ * От {@link materialIdentityKeys} отличается охватом: тот сквозной по ВСЕМ материальным типам и
+ * задаёт ключ связки «материал → документ качества», этот описывает один тип. Свести в одну функцию
+ * нельзя: сквозной порядок перемежает типы (`order → typeIndex → fieldIndex`), и для одного типа
+ * такой сортировки просто нет.
+ */
+export function identityFieldKeys(docType: DocumentType, allDocTypes: DocumentType[]): string[] {
+  const found: { key: string; order: number; index: number }[] = [];
+  resolveEffectiveFields(docType, allDocTypes).forEach((f, index) => {
+    const entry = findTagEntry(f.tags, FUNCTIONAL_TAG.identity);
+    if (entry === undefined) return;
+    // Поле без номера идёт ПОСЛЕ нумерованных — так существующие схемы работают без правки.
+    found.push({ key: f.key, order: tagOrder(entry) ?? Number.MAX_SAFE_INTEGER, index });
+  });
+  found.sort((a, b) => a.order - b.order || a.index - b.index);
+  return Array.from(new Set(found.map(f => f.key)));
+}
+
+/**
  * Ключи полей идентичности у типов-материалов — по тэгам, без хардкода имён полей, В ПОРЯДКЕ
  * КОМПОНЕНТОВ составного ключа (issue #583): сначала номер из параметра тэга («identity:1»), затем
  * поля без номера.

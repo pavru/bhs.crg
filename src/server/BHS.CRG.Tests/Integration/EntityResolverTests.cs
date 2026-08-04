@@ -327,6 +327,44 @@ public class EntityResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         Assert.DoesNotContain(diags, d => d.Path.StartsWith("Ссылка.Назад")); // стаб не флагается
     }
 
+    /// <summary>
+    /// Основание блокировки выноса (issue #663): ссылка на поле документа, попавшая в ЗАПИСЬ КАТАЛОГА,
+    /// в чужом комплекте не разворачивается — в контекст уходит сырой `$ref`, а оттуда в шаблон.
+    ///
+    /// Запись каталога переиспользуема по построению: её подключают к любому комплекту. Ссылка внутри
+    /// неё резолвится только при `ScopeLevel == Set && ScopeId == scope.SetId` — то есть работает
+    /// ровно в том комплекте, где документ живёт, и молча ломается во всех остальных. Поэтому UI
+    /// такой вынос запрещает, а не вырезает ссылки тихо: тихое вырезание — потеря данных.
+    /// </summary>
+    [Fact]
+    public async Task CatalogEntry_WithDocumentRef_DoesNotResolveInForeignSet()
+    {
+        var homeSetId = await SetupSetAsync();
+        var docType = await TypeAsync(DocumentTypeKind.Document, "DOC_X663");
+        var composite = await TypeAsync(DocumentTypeKind.Composite, "CMP_X663");
+
+        // Документ-источник значения и запись каталога, которая на него ссылается.
+        var sourceId = await DocAsync(homeSetId, docType, "{'Номер':'И-77'}");
+        var entryId = await EntryAsync(composite,
+            "{'НомерОснования':{'$ref':'document','instanceId':'" + sourceId + "','fieldKey':'Номер'}}");
+
+        // В своём комплекте ссылка разворачивается — иначе тест доказывал бы лишь опечатку в данных.
+        var home = await DocAsync(homeSetId, docType,
+            "{'Основание':{'$ref':'catalog','entryId':'" + entryId + "'}}");
+        Assert.Equal("И-77", E(await ResolveAsync(home), "Основание")
+            .GetProperty("НомерОснования").GetString());
+
+        // В чужом комплекте та же запись отдаёт СЫРУЮ ссылку: значения нет, а структура уедет в шаблон.
+        var foreignSetId = await SetupSetAsync();
+        var foreign = await DocAsync(foreignSetId, docType,
+            "{'Основание':{'$ref':'catalog','entryId':'" + entryId + "'}}");
+        var leaked = E(await ResolveAsync(foreign), "Основание").GetProperty("НомерОснования");
+
+        Assert.Equal(JsonValueKind.Object, leaked.ValueKind);
+        Assert.Equal("document", leaked.GetProperty("$ref").GetString());
+        Assert.Equal(sourceId.ToString(), leaked.GetProperty("instanceId").GetString());
+    }
+
     // ── Исправленные баги ────────────────────────────────────────────────────────
 
     [Fact] // Баг A

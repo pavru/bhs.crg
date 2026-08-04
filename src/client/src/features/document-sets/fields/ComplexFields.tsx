@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import {
-  Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, GripVertical, Info, Link2, Pencil, Plus, RefreshCw, Trash2, Unlink, X,
+  Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, GripVertical, Info, Link2, Pencil, Plus, RefreshCw, Share2, Trash2, Unlink, X,
 } from 'lucide-react';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import type {
   CatalogScope, DocumentInstance, DocumentType, EnumTypeDef, FieldRef, PrimitiveTypeDef,
 } from '@/shared/api/types';
@@ -16,6 +17,8 @@ import {
 } from '@/shared/api/schema';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { formatFieldValue, type FieldTypeDefs } from '@/shared/utils/fieldDisplay';
+import { objectSummary } from './objectSummary';
+import { ExtractToCommonDataModal } from './ExtractToCommonDataModal';
 import {
   CELL_INPUT, SCOPE_COLORS, TABLE_SHOWN_TYPES, defaultColWidth,
 } from './constants';
@@ -449,11 +452,15 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   const isUnionComposite = !!compositeType
     && ((compositeType.schema as { tags?: string[] }).tags ?? []).includes(FUNCTIONAL_TAG.typeUnion);
   const [rowModal, setRowModal] = useState<number | null>(null); // issue #102: строка массива правится в модалке, не инлайн
+  const [extractRow, setExtractRow] = useState<number | null>(null); // issue #663
   const [tableOpen, setTableOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
   const [catalogPickerOpen, setCatalogPickerOpen] = useState(false);
 
   const hasTableFields = subFields.some(f => TABLE_SHOWN_TYPES.has(f.type));
+  // Вынос строки в общие данные (issue #663) — только там, где известно, куда класть запись:
+  // редактор документа (есть комплект) либо форма общих данных (есть свой уровень).
+  const canExtract = !!compositeType && (!!setId || !!scope);
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const { data: enumTypes = [] } = useListEnumTypes();
   const primDef = (f: SchemaField) => f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
@@ -576,7 +583,17 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         <Modal open onOpenChange={o => { if (!o) setRowModal(null); }} wide
           title={`${compositeType?.name ?? field.title} — строка ${rowModal + 1}`}
           footer={
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between gap-2">
+              {/* Вынос строки в переиспользуемую запись (issue #663) — по одной: массовый вынос
+                  отдельной задачей, у него свой selection-state. */}
+              {canExtract ? (
+                <Button variant="text" size="sm" icon={<Share2 size={13} />}
+                  disabled={isRowEmpty(allItems[rowModal] as Record<string, unknown>, subFields)}
+                  title="Создать запись общих данных из этой строки"
+                  onClick={() => { const i = rowModal; setRowModal(null); setExtractRow(i); }}>
+                  Вынести в общие данные…
+                </Button>
+              ) : <span />}
               <Button variant="filled" onClick={() => setRowModal(null)}>Готово</Button>
             </div>
           }>
@@ -647,33 +664,30 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
           onSelect={addFromCatalog}
         />
       )}
+      {/* Строка заменяется ссылкой НА СВОЁМ МЕСТЕ: порядок строк значим, и вынесенный материал не
+          должен уезжать в конец таблицы (issue #663). */}
+      {compositeType && extractRow !== null && !isFieldRef(allItems[extractRow]) && (
+        <ExtractToCommonDataModal
+          open onOpenChange={o => { if (!o) setExtractRow(null); }}
+          values={allItems[extractRow] as Record<string, unknown>}
+          compositeType={compositeType} allDocTypes={allDocTypes}
+          setId={setId} scope={scope} scopeId={scopeId}
+          onExtracted={ref => {
+            onChange(allItems.map((item, i) => (i === extractRow ? ref : item)));
+            setExtractRow(null);
+          }} />
+      )}
     </div>
   );
 }
 
-// ─── Complex field group ──────────────────────────────────────────────────────
-
-/**
- * Сводка первых заполненных полей объекта — для свёрнутого/строкового вида составного (issue #102).
- *
- * Значение форматируем по типу поля (issue #611): без `defs` сводка показывала сырое хранимое
- * значение — дату ISO там, где поле внутри того же объекта показывает «ДД.ММ.ГГГГ».
- */
-export function objectSummary(
-  values: Record<string, unknown>, fields: SchemaField[], defs: FieldTypeDefs = {},
-): string {
-  const parts = fields
-    .map(f => {
-      const v = values[f.key];
-      if (v == null || v === '') return null;
-      if (isFieldRef(v)) return v.displayName;
-      if (typeof v === 'object') return null; // вложенные объекты/массивы — не в сводку
-      return formatFieldValue(f, v, defs);
-    })
-    .filter((s): s is string => !!s)
-    .slice(0, 3);
-  return parts.length ? parts.join(' · ') : '(пусто)';
+/** Строка без единого заполненного подполя — выносить нечего. */
+function isRowEmpty(row: Record<string, unknown> | undefined, subFields: SchemaField[]): boolean {
+  if (!row) return true;
+  return subFields.every(f => { const v = row[f.key]; return v == null || v === ''; });
 }
+
+// ─── Complex field group ──────────────────────────────────────────────────────
 
 /** Сворачиваемая секция «Заполняются автоматически» (issue #102, P2): read-only поля из источника
  *  прячем по умолчанию, чтобы длинная форма не выглядела «портянкой» одинаковых боксов. */
@@ -711,6 +725,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
   const [pickerOpen, setPickerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [extractOpen, setExtractOpen] = useState(false); // issue #663
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const { data: enumTypes = [] } = useListEnumTypes();
   const typeDefs: FieldTypeDefs = { primitiveTypes, enumTypes }; // формат значений в сводке (issue #611)
@@ -795,6 +810,20 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
     onChange({ ...subValues, [key]: val });
   }
 
+  // Вынос в общие данные (issue #663). Показываем только там, где известно, КУДА класть запись:
+  // в редакторе документа (есть комплект) и в форме общих данных (есть свой уровень). Значение-ссылка
+  // сюда не доходит — ref-ветки вернулись выше; пустой объект выносить нечего.
+  const canExtract = !!compositeType && (!!setId || !!scope);
+  // Монтируем только открытым: начальные значения формы считаются при монтировании, и держать
+  // окно смонтированным значило бы подсказывать имя от прошлого выноса.
+  const extractModal = compositeType && extractOpen && (
+    <ExtractToCommonDataModal
+      open onOpenChange={o => { if (!o) setExtractOpen(false); }}
+      values={subValues} compositeType={compositeType} allDocTypes={allDocTypes}
+      setId={setId} scope={scope} scopeId={scopeId}
+      onExtracted={ref => onChange(ref)} />
+  );
+
   // Тело редактора подполей. Вложенные complex → nested (модалка), массивы → ArrayFieldEditor.
   const subfieldsBody = (
     <div className="space-y-3">
@@ -843,13 +872,23 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
         <Modal open={modalOpen} onOpenChange={setModalOpen} wide
           title={compositeType ? `${compositeType.name}${field.title !== compositeType.name ? ` — ${field.title}` : ''}` : field.title}
           footer={
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between gap-2">
+              {/* Команда идёт в футер уже существующей модалки, а не четвёртой иконкой в ряд поля
+                  (issue #663): ряд и так несёт три действия. */}
+              {canExtract ? (
+                <Button variant="text" size="sm" icon={<Share2 size={13} />} disabled={isEmpty}
+                  title={isEmpty ? 'Нечего выносить — объект пуст' : undefined}
+                  onClick={() => { setModalOpen(false); setExtractOpen(true); }}>
+                  Вынести в общие данные…
+                </Button>
+              ) : <span />}
               <Button variant="filled" onClick={() => setModalOpen(false)}>Готово</Button>
             </div>
           }>
           <div className="px-6 py-4">{subfieldsBody}</div>
         </Modal>
         {picker}
+        {extractModal}
       </>
     );
   }
@@ -886,13 +925,24 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
               : objectSummary(subValues, subFields, typeDefs)}
           </span>
         </button>
-        <button type="button" onClick={() => setPickerOpen(true)}
-          className="flex items-center gap-1.5 text-xs text-brand hover:text-brand-hover px-2 py-0.5 rounded hover:bg-brand-subtle transition-colors shrink-0">
-          <Link2 size={11} /> Выбрать из каталога
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          <button type="button" onClick={() => setPickerOpen(true)}
+            className="flex items-center gap-1.5 text-xs text-brand hover:text-brand-hover px-2 py-0.5 rounded hover:bg-brand-subtle transition-colors">
+            <Link2 size={11} /> Выбрать из каталога
+          </button>
+          {/* Обратное движение (issue #663) — в kebab, а не четвёртой кнопкой: конвенция «>3 действий
+              в ряду → меню». Пустой объект выносить нечего, поэтому пункт есть, но выключен. */}
+          {canExtract && !isEmpty && (
+            <RowActionsMenu ariaLabel="Действия составного поля" actions={[{
+              key: 'extract', label: 'Вынести в общие данные…', icon: <Share2 size={14} />,
+              onSelect: () => setExtractOpen(true),
+            }]} />
+          )}
+        </div>
       </div>
       {!collapsed && <div className="px-3 py-3">{subfieldsBody}</div>}
       {picker}
+      {extractModal}
     </div>
   );
 }

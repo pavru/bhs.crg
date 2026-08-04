@@ -10,6 +10,7 @@ import {
   isScalarField,
   isMaterialType,
   materialIdentityKeys,
+  identityFieldKeys,
   compositeFieldHasTag,
   collectMaterialRows,
   type SchemaField,
@@ -305,6 +306,60 @@ describe('materialIdentityKeys', () => {
     const cable = { ...dt({ fields: [field('МаркаКабеля', { tags: ['identity'] })] }, 'dt-base2', 'dt-cable2'),
       kind: 'Composite' as const };
     expect(materialIdentityKeys([base, cable])).toEqual(['Наименование', 'МаркаКабеля']);
+  });
+});
+
+// ── Ключи идентичности ОДНОГО типа (issue #663) ───────────────────────────────
+
+describe('identityFieldKeys', () => {
+  /**
+   * Зеркало серверного `SchemaTags.OrderedKeysWithTag`. В отличие от `materialIdentityKeys` охват —
+   * один тип: из этих значений складывается имя, предлагаемое при выносе объекта в общие данные, и
+   * тип там известен точно — он объявлен полем.
+   */
+  it('берёт только поля с тэгом identity', () => {
+    const t = dt({ fields: [
+      field('Наименование', { tags: ['identity'] }),
+      field('Адрес'),
+      field('ИНН', { tags: ['identity'] }),
+    ] });
+    expect(identityFieldKeys(t, [t])).toEqual(['Наименование', 'ИНН']);
+  });
+
+  it('номер у тэга задаёт порядок компонентов, а не порядок полей в схеме', () => {
+    const t = dt({ fields: [
+      field('Наименование', { tags: ['identity:2'] }),
+      field('ИНН', { tags: ['identity:1'] }),
+    ] });
+    expect(identityFieldKeys(t, [t])).toEqual(['ИНН', 'Наименование']);
+  });
+
+  it('поле без номера идёт после нумерованных', () => {
+    const t = dt({ fields: [
+      field('Наименование', { tags: ['identity'] }),
+      field('ИНН', { tags: ['identity:1'] }),
+    ] });
+    expect(identityFieldKeys(t, [t])).toEqual(['ИНН', 'Наименование']);
+  });
+
+  it('наследует поля предка, и они идут первыми — как их показывает форма', () => {
+    const base = dt({ fields: [field('Наименование', { tags: ['identity'] })] }, null, 'idk-base');
+    const child = dt({ fields: [field('СРО', { tags: ['identity'] })] }, 'idk-base', 'idk-child');
+    expect(identityFieldKeys(child, [base, child])).toEqual(['Наименование', 'СРО']);
+  });
+
+  it('исключённое в подтипе поле в ключ не попадает', () => {
+    const base = dt({ fields: [
+      field('Наименование', { tags: ['identity'] }),
+      field('Адрес', { tags: ['identity'] }),
+    ] }, null, 'idk-base2');
+    const child = dt({ fields: [], excludedFields: ['Адрес'] }, 'idk-base2', 'idk-child2');
+    expect(identityFieldKeys(child, [base, child])).toEqual(['Наименование']);
+  });
+
+  it('тип без полей идентичности даёт пустой список — имя тогда берут из сводки', () => {
+    const t = dt({ fields: [field('Наименование'), field('Адрес')] });
+    expect(identityFieldKeys(t, [t])).toEqual([]);
   });
 });
 
