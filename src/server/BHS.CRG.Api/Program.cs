@@ -2,6 +2,7 @@
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Configuration;
 using BHS.CRG.Api.Endpoints.Account;
 using BHS.CRG.Api.Endpoints.Attachments;
 using BHS.CRG.Api.Endpoints.Auth;
@@ -133,6 +134,9 @@ builder.Services.AddRateLimiter(o =>
 
 // ── JWT ───────────────────────────────────────────────────────────────────────
 var jwtSection = cfg.GetSection("Jwt");
+// Проверка ключа — здесь, чтобы негодная конфигурация останавливала запуск сразу (см. JwtKeyGuard),
+// а не при первом обращении к защищённому эндпоинту.
+JwtKeyGuard.Require(jwtSection["Key"]);
 builder.Services.AddAuthentication(opt =>
     {
         opt.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -150,8 +154,13 @@ builder.Services.AddAuthentication(opt =>
             ValidAudience = jwtSection["Audience"],
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
+            // Значение читаем ЗДЕСЬ, а не подставляем прочитанное выше: этот делегат выполняется
+            // позже, на готовой конфигурации, и её слои к тому моменту могут отличаться от тех, что
+            // были на строке выше (так тестовый хост подкладывает свой ключ). Подставь мы сюда
+            // раннее значение — подписывали бы одним ключом, а проверяли другим.
+            // Проверку повторяем: ключ, которым реально пользуются, обязан быть годным.
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSection["Key"]!)),
+                Encoding.UTF8.GetBytes(JwtKeyGuard.Require(jwtSection["Key"]))),
             RoleClaimType = "role",
         };
         opt.Events = new JwtBearerEvents
