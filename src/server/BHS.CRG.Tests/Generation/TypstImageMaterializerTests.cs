@@ -138,19 +138,23 @@ public class TypstImageMaterializerTests
             // Разделителей в хвосте нет намеренно: их поведение зависит от платформы, а проверяем
             // мы чистку, а не разбор пути.
             var path = await blob.UploadAsync("скан.jp g!", new MemoryStream(bytes), "application/octet-stream");
+            // Длинный хвост: имя файла собирается конкатенацией, и без ограничения слишком длинное
+            // имя обрывает запись, а картинка молча исчезает из PDF.
+            var longPath = await blob.UploadAsync(
+                "скан." + new string('a', 300), new MemoryStream(bytes), "application/octet-stream");
 
             var data = new Dictionary<string, object?>
             {
                 ["Скан"] = El(new Dictionary<string, object?> { ["$type"] = "image", ["blobPath"] = path }),
+                ["Длинный"] = El(new Dictionary<string, object?> { ["$type"] = "image", ["blobPath"] = longPath }),
             };
 
             var json = await TypstImageMaterializer.MaterializeAsync(data, dir, blob);
 
-            var files = Directory.GetFiles(Path.Combine(dir, "assets"));
-            var name = Path.GetFileName(Assert.Single(files));
-            Assert.Equal("img_0.jpg", name);   // из "jp g!" остаются только буквы и цифры
-            Assert.Equal(bytes, await File.ReadAllBytesAsync(files[0]));
-            Assert.Contains("/assets/img_0.jpg", json);
+            Assert.Equal(2, Directory.GetFiles(Path.Combine(dir, "assets")).Length);
+            Assert.Contains("/assets/img_0.jpg", json);              // из "jp g!" остались буквы и цифры
+            Assert.Contains("/assets/img_1.aaaaaaaa", json);         // хвост обрезан до восьми
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(Path.Combine(dir, "assets", "img_0.jpg")));
         }
         finally { try { Directory.Delete(dir, true); } catch { } }
     }
