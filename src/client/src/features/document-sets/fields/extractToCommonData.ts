@@ -137,6 +137,22 @@ export function maxAllowedScope(
   return widest;
 }
 
+/**
+ * Есть ли внутри хоть одна ссылка на каталог БЕЗ записанного уровня.
+ *
+ * Только ради них и нужен справочник записей: у ссылки, заведённой через пикер, уровень лежит в ней
+ * самой. Проверка дешёвая и решает, стоит ли вообще ходить за каталогом — а ходить дорого: выдача
+ * `for-scope` несёт `data` каждой записи целиком, и в живой базе это мегабайты base64 картинок
+ * (issue #518). Выкачивать их, чтобы почти всегда выбросить, незачем.
+ */
+export function hasScopelessCatalogRef(value: unknown): boolean {
+  let found = false;
+  walkRefs(value, '', ref => {
+    if (ref.$ref === 'catalog' && !ref.scope) found = true;
+  });
+  return found;
+}
+
 /** Уровни от «Комплект» до заданного включительно — то, что вообще можно предложить в выборе. */
 export function scopesUpTo(max: CatalogScope): CatalogScope[] {
   return (['Set', 'Section', 'Construction', 'System'] as CatalogScope[])

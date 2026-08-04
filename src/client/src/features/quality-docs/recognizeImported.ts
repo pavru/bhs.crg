@@ -14,18 +14,24 @@ const SUMMARY = '__summary__';
  * краткое наименование и количество листов. Тип документа уже задан при импорте
  * (классификация не нужна). Best-effort: при ошибке распознавания возвращает исходный документ.
  *
- * `defs` (определения примитивов и перечислений) обязательны по смыслу, хотя и не по сигнатуре:
- * без них модель не увидит вариантов перечисления, а её подпись некому будет отобразить в код —
- * и здесь это опаснее, чем в форме, потому что формы тут нет и расхождение никто не увидит (#654).
+ * `defs` (определения примитивов и перечислений) — обязательный аргумент, БЕЗ значения по умолчанию:
+ * без них модель не увидит вариантов перечисления, а её подпись некому будет отобразить в код (#654).
+ * Дефолт `= {}` тут стоял и делал контракт необязательным на словах — то есть позволял вызвать
+ * «как раньше» и молча вернуть дефект. Здесь это опаснее, чем в форме: формы нет, расхождение
+ * показать некому.
  */
 export async function recognizeAndUpdate(
-  doc: QualityDocument, allDocTypes: DocumentType[], defs: FieldTypeDefs = {},
+  doc: QualityDocument, allDocTypes: DocumentType[], defs: FieldTypeDefs,
 ): Promise<QualityDocument> {
   if (!doc.scanBlobPath || !doc.scanMimeType) return doc;
   const type = allDocTypes.find(t => t.id === doc.documentTypeId);
   if (!type) return doc;
 
   const plan = buildRecognitionFields(resolveEffectiveFields(type, allDocTypes), allDocTypes, defs);
+  // Реестр перечислений не доехал — распознавать нельзя: ответ модели будет подписью, отобразить
+  // её в код нечем, а сказать об этом здесь некому. Документ уже импортирован; лучше оставить его
+  // с пустыми реквизитами (человек увидит и запустит распознавание руками), чем записать подписи.
+  if (plan.unresolvedEnums.length > 0) return doc;
   const rec = await recognizeDocument({
     blobPath: doc.scanBlobPath,
     mimeType: doc.scanMimeType,

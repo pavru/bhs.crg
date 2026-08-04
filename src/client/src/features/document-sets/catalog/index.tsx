@@ -291,6 +291,12 @@ export function CatalogEntryForm({
       // Тот же контракт типов, что и у документов качества (issue #654): модель видит варианты
       // перечислений и базовый тип примитива, а её ответ отображается обратно в коды.
       const plan = buildRecognitionFields(effectiveFields, allDocTypes, { primitiveTypes, enumTypes });
+      // Реестр перечислений ещё не доехал — распознавать вслепую нельзя (issue #654): ответ модели
+      // будет подписью, отобразить её в код нечем.
+      if (plan.unresolvedEnums.length > 0) {
+        setError('Справочник перечислений ещё загружается — повторите распознавание через мгновение.');
+        return;
+      }
       const rec = await recognizeDocument({
         blobPath: attachment.blobPath, mimeType: attachment.mimeType,
         fields: plan.fields,
