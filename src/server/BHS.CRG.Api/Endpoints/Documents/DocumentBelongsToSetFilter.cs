@@ -25,7 +25,9 @@ public class DocumentBelongsToSetFilter : IEndpointFilter
         var http = ctx.HttpContext;
         var route = http.Request.RouteValues;
 
-        if (!TryGuid(route, "setId", out var setId) || !TryGuid(route, "id", out var documentId))
+        // Имя параметра в маршрутах не одно: часть файлов называет его instanceId.
+        if (!TryGuid(route, "setId", out var setId)
+            || (!TryGuid(route, "id", out var documentId) && !TryGuid(route, "instanceId", out documentId)))
             return await next(ctx);
 
         var repo = http.RequestServices.GetRequiredService<IRepository<DomainObject>>();
@@ -33,7 +35,10 @@ public class DocumentBelongsToSetFilter : IEndpointFilter
 
         // Отсутствующий и «не из этого комплекта» отвечают ОДИНАКОВО. Отдельный код на «есть, но
         // чужой» подтверждал бы существование документа тому, кому его не показывают.
-        if (instance is null || instance.ScopeId != setId)
+        // Проверяется И принадлежность комплекту, И то, что это вообще документ. Записи общих
+        // данных — тоже DomainObject и живут на том же уровне с тем же ScopeId: без второй половины
+        // проверки запись общих данных достижима через маршрут документов, вплоть до удаления.
+        if (instance is null || instance.ScopeId != setId || !instance.IsDocument)
             return Results.NotFound();
 
         return await next(ctx);

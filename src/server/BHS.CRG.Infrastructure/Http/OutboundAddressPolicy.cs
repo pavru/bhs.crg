@@ -44,6 +44,11 @@ public static class OutboundAddressPolicy
     /// <summary>Разрешает имя и требует, чтобы КАЖДЫЙ полученный адрес был публичным.</summary>
     public static async Task EnsureAllowedAsync(Uri uri, CancellationToken ct = default)
     {
+        // Пустое имя — отказ: разрешение пустой строки возвращает адреса САМОЙ МАШИНЫ, то есть
+        // решение зависело бы от того, как настроены её сетевые интерфейсы, а не от ссылки.
+        if (string.IsNullOrWhiteSpace(uri.Host))
+            throw new OutboundAddressRefusedException($"в адресе нет имени хоста: {uri}");
+
         IPAddress[] addresses;
         if (IPAddress.TryParse(uri.Host, out var literal))
         {
@@ -74,9 +79,15 @@ public static class OutboundAddressPolicy
     /// </summary>
     public static bool IsBlocked(IPAddress address)
     {
-        // Адрес IPv4, записанный как IPv6 (::ffff:127.0.0.1), проверяем как IPv4: иначе запись
-        // формы достаточно, чтобы обойти правила для «настоящего» IPv4.
-        if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
+        // IPv4, записанный формой IPv6, проверяем как IPv4. Форм таких НЕСКОЛЬКО, и .NET узнаёт
+        // только одну (`::ffff:a.b.c.d`) — остальные для него обычные глобальные адреса, то есть
+        // достаточно записать цель иначе, чтобы правила не сработали:
+        //
+        //   ::a.b.c.d          (0000…0000 + IPv4)      — IPv4-совместимый
+        //   ::ffff:0:a.b.c.d   (…ffff 0000 + IPv4)     — IPv4-транслированный
+        //   64:ff9b::a.b.c.d   (NAT64)                 — в сетях только-IPv6 доходит до цели
+        //   2002:AABB:CCDD::   (6to4, IPv4 в байтах 2-5)
+        if (ExtractEmbeddedIPv4(address) is { } embedded) address = embedded;
 
         if (IPAddress.IsLoopback(address)) return true;
 
@@ -109,6 +120,86 @@ public static class OutboundAddressPolicy
         // Неизвестное семейство адресов наружу не ведёт — отказываем.
         return true;
     }
+
+    /// <summary>
+    /// Вынимает IPv4, спрятанный в записи IPv6, — чтобы дальше он проверялся обычными правилами.
+    /// null, если адрес не IPv6 или ничего не прячет.
+    /// </summary>
+    private static IPAddress? ExtractEmbeddedIPv4(IPAddress address)
+    {
+        if (address.AddressFamily != AddressFamily.InterNetworkV6) return null;
+        var b = address.GetAddressBytes();
+
+        // 2002::/16 — 6to4: адрес IPv4 стоит вторым-пятым байтом.
+        if (b[0] == 0x20 && b[1] == 0x02) return new IPAddress(b[2..6]);
+
+        // 64:ff9b::/96 — NAT64.
+        if (b[0] == 0x00 && b[1] == 0x64 && b[2] == 0xFF && b[3] == 0x9B
+            && b[4..12].All(x => x == 0)) return new IPAddress(b[12..16]);
+
+        // Дальше — формы с двенадцатью ведущими байтами, отличающиеся только серединой:
+        // ::a.b.c.d (всё нулями), ::ffff:a.b.c.d (ffff в 10-11), ::ffff:0:a.b.c.d (ffff в 8-9).
+        if (!b[0..8].All(x => x == 0)) return null;
+        var isCompatible = b[8..12].All(x => x == 0);
+        var isMapped = b[8] == 0 && b[9] == 0 && b[10] == 0xFF && b[11] == 0xFF;
+        var isTranslated = b[8] == 0xFF && b[9] == 0xFF && b[10] == 0 && b[11] == 0;
+        if (!isCompatible && !isMapped && !isTranslated) return null;
+
+        // «::» и «::1» — не спрятанный IPv4, их разбирают обычные правила ниже по тексту.
+        var tail = b[12..16];
+        if (tail[0] == 0 && tail[1] == 0 && tail[2] == 0 && tail[3] <= 1) return null;
+        return new IPAddress(tail);
+    }
+
+    /// <summary>
+    /// Обработчик, который проверяет адрес В МОМЕНТ ПОДКЛЮЧЕНИЯ и подключается именно к
+    /// проверенному.
+    ///
+    /// Без этого проверка имени не значит ничего: мы разрешаем имя сами, а <c>HttpClient</c> при
+    /// открытии соединения разрешает его ЗАНОВО — и владелец имени вправе ответить во второй раз
+    /// иначе. Первый ответ проходит проверку, по второму открывается соединение. Разрыв между
+    /// проверкой и подключением закрывается только здесь: адреса берём один раз и подключаемся к
+    /// ним же.
+    /// </summary>
+    public static SocketsHttpHandler CreateGuardedHandler() => new()
+    {
+        // Перенаправления проходит SafeHttpGet, проверяя цель каждого.
+        AllowAutoRedirect = false,
+        ConnectCallback = async (context, ct) =>
+        {
+            var host = context.DnsEndPoint.Host;
+            IPAddress[] resolved;
+            if (IPAddress.TryParse(host, out var literal)) resolved = [literal];
+            else
+            {
+                try { resolved = await Dns.GetHostAddressesAsync(host, ct); }
+                catch (Exception e) when (e is SocketException or ArgumentException)
+                {
+                    throw new OutboundAddressRefusedException($"имя не разрешается: {host}");
+                }
+            }
+
+            if (resolved.Length == 0)
+                throw new OutboundAddressRefusedException($"имя не разрешается: {host}");
+            foreach (var address in resolved)
+                if (IsBlocked(address))
+                    throw new OutboundAddressRefusedException($"адрес вне общедоступных: {host} → {address}");
+
+            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+            try
+            {
+                // Подключаемся к ПРОВЕРЕННЫМ адресам, а не к имени: иначе внутри снова случилось бы
+                // разрешение имени, и всё вышесказанное потеряло бы смысл.
+                await socket.ConnectAsync(resolved, context.DnsEndPoint.Port, ct);
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+            catch
+            {
+                socket.Dispose();
+                throw;
+            }
+        },
+    };
 }
 
 /// <summary>
