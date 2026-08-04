@@ -125,7 +125,7 @@ export function ImageField({ value, onChange }: {
               ограничении, уже выбрав файл, — значит проделать работу впустую. */}
           {/* О том, что крупная картинка уменьшится, говорим ДО выбора файла — как это делает
               аватар. Узнать об этом постфактум значит гадать, почему вес не тот (issue #534). */}
-          <span className="text-xs text-fg4">PNG, JPG, SVG, WEBP · крупные уменьшаются</span>
+          <span className="text-xs text-fg4">PNG, JPG, GIF, WEBP · крупные уменьшаются</span>
           <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
         </label>
         {error && <p className="text-xs text-danger mt-1">{error}</p>}

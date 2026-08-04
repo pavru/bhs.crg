@@ -38,6 +38,10 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
             cfg.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Postgres"] = TestConnectionString,
+                // Свой ключ подписи: приложение отказывается стартовать без заданного (JwtKeyGuard),
+                // и это правильно — значит и тестовый хост обязан назвать свой, а не молча
+                // пользоваться значением из репозитория.
+                ["Jwt:Key"] = "integration-tests-only-signing-key-8b31d0c47f2a",
             });
         });
 

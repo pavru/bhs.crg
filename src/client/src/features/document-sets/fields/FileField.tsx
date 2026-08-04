@@ -147,8 +147,8 @@ export function FileField({ value, onChange, printForm }: {
       <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-stroke-strong rounded-lg py-5 cursor-pointer hover:border-brand hover:bg-brand-subtle transition-colors">
         <Upload size={18} className="text-fg4" />
         <span className="text-sm text-fg3">Нажмите для выбора файла</span>
-        <span className="text-xs text-fg4">PDF, DOCX, XLSX, PNG, JPG, SVG (до 50 МБ)</span>
-        <input type="file" accept=".pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp,.svg"
+        <span className="text-xs text-fg4">PDF, DOCX, XLSX, PNG, JPG (до 50 МБ)</span>
+        <input type="file" accept=".pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp"
           className="hidden" onChange={handleFile} />
       </label>
       {uploadError && <p className="text-xs text-danger mt-1">{uploadError}</p>}
