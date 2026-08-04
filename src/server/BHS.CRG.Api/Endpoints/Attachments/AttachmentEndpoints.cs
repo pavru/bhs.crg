@@ -28,7 +28,7 @@ public static class AttachmentEndpoints
     {
         var g = app.MapGroup("/api/attachments").RequireAuthorization();
 
-        g.MapPost("/", async (IFormFile file, IBlobStorage blob, CancellationToken ct) =>
+        g.MapPost("/", async (IFormFile file, IBlobStorage blob, ILoggerFactory loggers, CancellationToken ct) =>
         {
             if (!AllowedTypes.Contains(file.ContentType))
                 return Results.BadRequest(new { error = $"Формат не поддерживается: {file.ContentType}" });
@@ -42,8 +42,11 @@ public static class AttachmentEndpoints
             }
             catch (Exception ex)
             {
+                // Сообщение клиента SDK хранилища называет адрес, бакет и учётную запись — наружу
+                // оно не идёт (то же правило, что у общего обработчика в Program.cs).
+                loggers.CreateLogger("BHS.CRG.Attachments").LogError(ex, "Не удалось сохранить вложение");
                 return Results.Problem(
-                    detail: ex.Message,
+                    detail: "Не удалось сохранить файл в хранилище. Обратитесь к администратору.",
                     title: "Ошибка загрузки файла",
                     statusCode: 500);
             }
@@ -53,7 +56,7 @@ public static class AttachmentEndpoints
         // рождается ПРОИЗВОДНАЯ: оригинал кладём как есть, а рабочей делаем уменьшенную копию.
         // Оригинал остаётся — документы исполнительные, и «уменьшили без спроса и без возврата» для
         // печати недопустимо; иметь оригинал под рукой дороже пары мегабайт в хранилище.
-        g.MapPost("/image", async (IFormFile file, IBlobStorage blob, CancellationToken ct) =>
+        g.MapPost("/image", async (IFormFile file, IBlobStorage blob, ILoggerFactory loggers, CancellationToken ct) =>
         {
             // Тот же белый список, что у обычного вложения (issue #534): «image/*» пропускал бы tiff,
             // bmp, heic, avif — их декодер не понимает, картинка легла бы как есть, а отказ всплыл бы
@@ -82,7 +85,10 @@ public static class AttachmentEndpoints
             }
             catch (Exception ex)
             {
-                return Results.Problem(detail: ex.Message, title: "Ошибка загрузки файла", statusCode: 500);
+                loggers.CreateLogger("BHS.CRG.Attachments").LogError(ex, "Не удалось сохранить изображение");
+                return Results.Problem(
+                    detail: "Не удалось сохранить файл в хранилище. Обратитесь к администратору.",
+                    title: "Ошибка загрузки файла", statusCode: 500);
             }
 
             var down = ImageDownscaler.Downscale(source, file.ContentType);

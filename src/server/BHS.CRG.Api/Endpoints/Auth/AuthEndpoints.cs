@@ -26,7 +26,7 @@ public static class AuthEndpoints
             if (!result.Succeeded) return Results.BadRequest(result.Errors);
             await users.AddToRoleAsync(user, "Admin");
             return Results.Ok();
-        });
+        }).RequireRateLimiting("login");
 
         g.MapGet("/registration-open", (UserManager<ApplicationUser> users) =>
             Results.Ok(new { open = !users.Users.Any() }));
@@ -37,21 +37,29 @@ public static class AuthEndpoints
         {
             var user = await users.FindByEmailAsync(req.Email);
             if (user is null)
-                return Results.Unauthorized();
-
-            // Защита от перебора пароля: временная блокировка после N неудач (issue #148 follow-up).
-            if (await users.IsLockedOutAsync(user))
-                return Results.Json(new { error = "Слишком много попыток. Аккаунт временно заблокирован, попробуйте позже." },
-                    statusCode: StatusCodes.Status423Locked);
-
-            if (!await users.CheckPasswordAsync(user, req.Password))
             {
-                await users.AccessFailedAsync(user);
-                if (await users.IsLockedOutAsync(user))
-                    return Results.Json(new { error = "Слишком много попыток. Аккаунт временно заблокирован, попробуйте позже." },
-                        statusCode: StatusCodes.Status423Locked);
+                // Неизвестный адрес отвечал мгновенно, известный — после полного PBKDF2: разница во
+                // времени сама по себе перечисляет учётные записи. Прогоняем проверку по фиктивному
+                // хешу, чтобы стоимость ответа не зависела от того, есть ли такой адрес.
+                users.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), DummyPasswordHash, req.Password);
                 return Results.Unauthorized();
             }
+
+            // Защита от перебора пароля: временная блокировка после N неудач (issue #148 follow-up).
+            var lockedOut = await users.IsLockedOutAsync(user);
+            if (!await users.CheckPasswordAsync(user, req.Password))
+            {
+                if (!lockedOut) await users.AccessFailedAsync(user);
+                return Results.Unauthorized();
+            }
+
+            // О блокировке сообщаем ТОЛЬКО тому, кто знает пароль: отдельный код 423 до проверки
+            // пароля сам по себе подтверждал существование учётной записи, а заодно и то, что её
+            // уже кто-то долбит. Пароль при этом всё равно проверяется полностью — иначе вход
+            // заблокированного отвечал бы быстрее и разница во времени вернула бы то же различие.
+            if (lockedOut)
+                return Results.Json(new { error = "Слишком много попыток. Аккаунт временно заблокирован, попробуйте позже." },
+                    statusCode: StatusCodes.Status423Locked);
 
             await users.ResetAccessFailedCountAsync(user);
             var roles = await users.GetRolesAsync(user);
@@ -59,7 +67,7 @@ public static class AuthEndpoints
             var access = JwtTokens.Create(user, roles, stamp, cfg);
             var refresh = await refreshTokens.IssueAsync(user.Id, ct);
             return Results.Ok(new { accessToken = access, refreshToken = refresh });
-        });
+        }).RequireRateLimiting("login");
         // Смена пароля переехала в /api/account/change-password (issue #148).
 
         // Обмен refresh-токена на новую пару (issue #148 follow-up). Ротация: старый ревокается.
@@ -77,7 +85,7 @@ public static class AuthEndpoints
             var stamp = await users.GetSecurityStampAsync(user);
             var access = JwtTokens.Create(user, roles, stamp, cfg);
             return Results.Ok(new { accessToken = access, refreshToken = rotated.Value.NewToken });
-        }).RequireRateLimiting("auth");
+        }).RequireRateLimiting("refresh");
 
         // Логаут: отзыв refresh-токена текущей сессии.
         g.MapPost("/logout", async (RefreshRequest req, RefreshTokenService refreshTokens, CancellationToken ct) =>
@@ -156,6 +164,13 @@ public static class AuthEndpoints
             return Results.Ok();
         }).RequireRateLimiting("auth");
     }
+
+    /// <summary>
+    /// Хеш заведомо недостижимого пароля. Нужен только затем, чтобы вход по несуществующему адресу
+    /// стоил столько же времени, сколько вход по существующему (см. обработчик /login).
+    /// </summary>
+    private static readonly string DummyPasswordHash =
+        new PasswordHasher<ApplicationUser>().HashPassword(new ApplicationUser(), Guid.NewGuid().ToString());
 
     private static string DescribeErrors(IdentityResult r) =>
         string.Join("; ", r.Errors.Select(e => e.Description));

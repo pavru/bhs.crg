@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 import { FileCheck2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
@@ -32,8 +33,17 @@ export function LoginPage() {
     try {
       await login(email, password, remember);
       navigate('/document-sets', { replace: true });
-    } catch {
-      setError('Неверный email или пароль');
+    } catch (e) {
+      // Единственный ответ, кроме отказа, — 423: сервер отдаёт его ТОЛЬКО тому, кто ввёл верный
+      // пароль к заблокированной учётной записи, поэтому показать причину здесь безопасно.
+      // 429 отделяем обязательно: назвать «неверным паролем» упёршегося в лимит — прямая ложь,
+      // человек будет менять пароль вместо того, чтобы подождать.
+      const status = axios.isAxiosError(e) ? e.response?.status : undefined;
+      const serverError = axios.isAxiosError<{ error?: string }>(e) ? e.response?.data?.error : undefined;
+      setError(
+        status === 423 ? serverError ?? 'Учётная запись временно заблокирована, попробуйте позже'
+        : status === 429 ? 'Слишком много попыток входа. Попробуйте через несколько минут'
+        : 'Неверный email или пароль');
     } finally {
       setLoading(false);
     }
