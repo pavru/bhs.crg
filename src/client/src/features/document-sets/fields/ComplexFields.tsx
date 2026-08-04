@@ -666,7 +666,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
       )}
       {/* Строка заменяется ссылкой НА СВОЁМ МЕСТЕ: порядок строк значим, и вынесенный материал не
           должен уезжать в конец таблицы (issue #663). */}
-      {compositeType && extractRow !== null && !isFieldRef(allItems[extractRow]) && (
+      {compositeType && extractRow !== null
+        && allItems[extractRow] != null && !isFieldRef(allItems[extractRow]) && (
         <ExtractToCommonDataModal
           open onOpenChange={o => { if (!o) setExtractRow(null); }}
           values={allItems[extractRow] as Record<string, unknown>}
@@ -931,7 +932,9 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
             <Link2 size={11} /> Выбрать из каталога
           </button>
           {/* Обратное движение (issue #663) — в kebab, а не четвёртой кнопкой: конвенция «>3 действий
-              в ряду → меню». Пустой объект выносить нечего, поэтому пункт есть, но выключен. */}
+              в ряду → меню». У пустого объекта прячем меню целиком: пункт в нём ровно один, и
+              «три точки» с единственным выключенным пунктом — приглашение, за которым ничего нет.
+              В футерах модалок тот же случай выражен как disabled — там кнопка не одна. */}
           {canExtract && !isEmpty && (
             <RowActionsMenu ariaLabel="Действия составного поля" actions={[{
               key: 'extract', label: 'Вынести в общие данные…', icon: <Share2 size={14} />,

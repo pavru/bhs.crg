@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  suggestEntryName, scalarFieldsFor, findBlockingRefs, maxAllowedScope, scopesUpTo,
+  suggestEntryName, scalarFieldsFor, findBlockingRefs, maxAllowedScope, scopesUpTo, offeredScopes,
 } from './extractToCommonData';
 import type { SchemaField } from '@/shared/api/schema';
 import type { CatalogScope, FieldRef, PrimitiveTypeDef } from '@/shared/api/types';
@@ -160,5 +160,35 @@ describe('scopesUpTo', () => {
     expect(scopesUpTo('Section')).toEqual(['Set', 'Section']);
     expect(scopesUpTo('System')).toEqual(['Set', 'Section', 'Construction', 'System']);
     expect(scopesUpTo('Set')).toEqual(['Set']);
+  });
+});
+
+describe('offeredScopes', () => {
+  const ids = (m: Partial<Record<CatalogScope, string>>) =>
+    (s: CatalogScope) => m[s] ?? null;
+
+  it('отбрасывает уровни без известного контейнера', () => {
+    expect(offeredScopes('System', ids({ Set: 's1' })))
+      .toEqual(['Set', 'System']); // раздел и стройка ещё не загружены — предлагать некуда
+  });
+
+  it('«Система» не требует идентификатора', () => {
+    expect(offeredScopes('System', ids({}))).toEqual(['System']);
+  });
+
+  it('не предлагает шире разрешённого вложенными ссылками', () => {
+    expect(offeredScopes('Section', ids({ Set: 's1', Section: 'sec1', Construction: 'c1' })))
+      .toEqual(['Set', 'Section']);
+  });
+
+  /**
+   * Пустой список — законный исход, и подставлять вместо него «что-нибудь» нельзя. Живой случай:
+   * форма общих данных (комплекта нет) с объектом, внутри которого ссылка без записанного уровня —
+   * такие кладёт серверный резолвер привязок. Разрешён только «Комплект», а его идентификатора
+   * здесь нет, и уровень владельца, подставленный «чтобы было», положил бы запись ШИРЕ разрешённого:
+   * список пуст, объяснение говорит «шире нельзя», а объект уходит в «Систему».
+   */
+  it('пустой список, если все разрешённые уровни недоступны', () => {
+    expect(offeredScopes('Set', ids({ Section: 'sec1', System: undefined }))).toEqual([]);
   });
 });

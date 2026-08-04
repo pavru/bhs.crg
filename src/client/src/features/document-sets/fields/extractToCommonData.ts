@@ -143,6 +143,22 @@ export function scopesUpTo(max: CatalogScope): CatalogScope[] {
     .filter(s => SCOPE_WIDTH[s] <= SCOPE_WIDTH[max]);
 }
 
+/**
+ * Уровни, которые реально можно предложить: не шире разрешённого вложенными ссылками И с известным
+ * идентификатором контейнера. «Система» живёт без идентификатора, остальным он обязателен — уровень,
+ * которому некуда положить запись, предлагать нельзя.
+ *
+ * ПУСТОЙ результат — законный исход, а не «ну возьми что-нибудь»: значит все разрешённые уровни
+ * недоступны, и выносить отсюда нечем. Подставлять в этом случае свой уровень владельца — ровно тот
+ * тихий широкий промах, от которого ограничение и заведено: список пуст, объяснение говорит «шире
+ * нельзя», а запись уходит на уровень шире разрешённого.
+ */
+export function offeredScopes(
+  allowedMax: CatalogScope, idFor: (s: CatalogScope) => string | null,
+): CatalogScope[] {
+  return scopesUpTo(allowedMax).filter(s => s === 'System' || !!idFor(s));
+}
+
 /** Рекурсивный обход значений с вызовом на каждой встреченной ссылке. Общий для обеих проверок. */
 function walkRefs(value: unknown, path: string, visit: (ref: FieldRef & { path: string }) => void): void {
   if (value == null || typeof value !== 'object') return;

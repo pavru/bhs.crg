@@ -16,7 +16,7 @@ import { resolveObjectsBatch, type ObjectResolveResult } from '@/shared/api/obje
 import { collectConstraintViolations, describeViolationPath } from './collectConstraintViolations';
 import { objectSummary } from './objectSummary';
 import {
-  suggestEntryName, scalarFieldsFor, findBlockingRefs, maxAllowedScope, scopesUpTo,
+  suggestEntryName, scalarFieldsFor, findBlockingRefs, maxAllowedScope, offeredScopes,
 } from './extractToCommonData';
 
 /** Найденный дубликат: по составному ключу — сильное совпадение, по имени — тёзка. */
@@ -74,7 +74,7 @@ export function ExtractToCommonDataModal({
   // Вложенные ссылки на каталог ограничивают уровень: запись комплекта, попавшая в запись «Системы»,
   // развернётся в чужом комплекте (EntityResolver грузит её по id без scope-фильтра).
   const blocking = useMemo(() => findBlockingRefs(values), [values]);
-  const nestedScopeLookup = useNestedScopeLookup(compositeType.id, open);
+  const nestedScopeLookup = useNestedScopeLookup(scope, scopeId, setId, open);
   const allowedMax = useMemo(
     () => maxAllowedScope(values, nestedScopeLookup), [values, nestedScopeLookup]);
 
@@ -93,9 +93,7 @@ export function ExtractToCommonDataModal({
     return constructionId ?? own;
   }, [scope, scopeId, setId, sectionId, constructionId]);
 
-  const offeredScopes = useMemo(
-    () => scopesUpTo(allowedMax).filter(s => s === 'System' || !!idFor(s)),
-    [allowedMax, idFor]);
+  const offered = useMemo(() => offeredScopes(allowedMax, idFor), [allowedMax, idFor]);
 
   // Начальные значения считаем ОДИН РАЗ, на монтировании: окно монтируется на каждое открытие
   // (вызывающий рендерит его только открытым), поэтому «сбрасывать при open» нечего.
@@ -108,13 +106,25 @@ export function ExtractToCommonDataModal({
     () => suggestEntryName(values, subFields, identityFieldKeys(compositeType, allDocTypes), typeDefs));
   const [aliases, setAliases] = useState<string[]>([]);
   const [aliasDraft, setAliasDraft] = useState('');
-  const [target, setTarget] = useState<CatalogScope>(() => defaultScope(offeredScopes, scope));
+  // Уровень по умолчанию — самый УЗКИЙ доступный, а не самый удобный (прецедент #587): узкая ошибка
+  // обратима — записи не окажется там, где её ищут, и это видно сразу; широкая тиха — чужой объект
+  // подставится в чужой документ, и не заметит никто.
+  const [target, setTarget] = useState<CatalogScope>(() => offered[0] ?? allowedMax);
   const [duplicate, setDuplicate] = useState<Duplicate | null>(null);
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const targetScopeId = idFor(target);
+  /**
+   * Уровень, на котором действительно работаем. Выбор пользователя сверяем со списком предложенных
+   * на КАЖДОМ рендере, а не доверяем состоянию: список считается из цепочки уровней, а она доезжает
+   * асинхронно — выбранное на старте значение может оказаться вне разрешённого, и записать его
+   * значило бы положить объект шире, чем позволяют вложенные ссылки. Именно тихая широкая ошибка.
+   */
+  const effectiveTarget = offered.includes(target) ? target : offered[0];
+  const targetScopeId = effectiveTarget ? idFor(effectiveTarget) : null;
+  // Класть некуда: ни один уровень до разрешённого включительно не имеет известного идентификатора.
+  const noPlace = offered.length === 0;
 
   // Ограничения примитивов — тем же сборщиком, что и обе соседние формы: серверной проверки нет
   // вовсе, а запись отсюда подмешивается в ЧУЖИЕ документы.
@@ -125,13 +135,13 @@ export function ExtractToCommonDataModal({
   // Поиск дубликата: имя и составной ключ, оба в выбранном уровне. Порядок identity-полей клиенту
   // знать не нужно — сервер берёт их сам по typeId.
   useEffect(() => {
-    if (!open || blocking.length > 0) return;
+    if (!open || blocking.length > 0 || !effectiveTarget) return;
     const trimmed = name.trim();
     let cancelled = false;
     const timer = setTimeout(async () => {
       setChecking(true);
       try {
-        const [byKey, byName] = await resolveObjectsBatch(target, targetScopeId, [
+        const [byKey, byName] = await resolveObjectsBatch(effectiveTarget, targetScopeId, [
           { typeId: compositeType.id, strategy: 'IdentityKey', fields: scalarFieldsFor(values) },
           { typeId: compositeType.id, strategy: 'Name', value: trimmed },
         ]);
@@ -147,7 +157,7 @@ export function ExtractToCommonDataModal({
       }
     }, 350);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [open, name, target, targetScopeId, values, compositeType.id, blocking.length]);
+  }, [open, name, effectiveTarget, targetScopeId, values, compositeType.id, blocking.length]);
 
   function addAlias() {
     const t = aliasDraft.trim();
@@ -168,7 +178,13 @@ export function ExtractToCommonDataModal({
   async function submit() {
     const trimmed = name.trim();
     if (!trimmed) { setError('Укажите наименование записи.'); return; }
-    if (target !== 'System' && !targetScopeId) {
+    // Уровень обязан быть СРЕДИ ПРЕДЛОЖЕННЫХ, а не просто иметь идентификатор: проверка «есть id»
+    // пропускала запись шире разрешённого, когда список уровней пуст и выбор подставился сам.
+    if (!effectiveTarget || !offered.includes(effectiveTarget)) {
+      setError('Уровень для записи не определён — выберите его в списке.');
+      return;
+    }
+    if (effectiveTarget !== 'System' && !targetScopeId) {
       setError('Уровень ещё не готов — комплект загружается. Повторите через мгновение.');
       return;
     }
@@ -178,11 +194,13 @@ export function ExtractToCommonDataModal({
         displayName: trimmed,
         compositeTypeId: compositeType.id,
         data: JSON.stringify(values),
-        scope: target,
-        scopeId: target === 'System' ? null : targetScopeId,
+        scope: effectiveTarget,
+        scopeId: effectiveTarget === 'System' ? null : targetScopeId,
         aliases: aliases.length > 0 ? aliases : undefined,
       });
-      onExtracted({ $ref: 'catalog', entryId: entry.id, displayName: entry.displayName, scope: target });
+      onExtracted({
+        $ref: 'catalog', entryId: entry.id, displayName: entry.displayName, scope: effectiveTarget,
+      });
       onOpenChange(false);
       toast.success('Запись создана и подставлена ссылкой. Не забудьте сохранить документ.');
     } catch (e) {
@@ -193,7 +211,7 @@ export function ExtractToCommonDataModal({
   }
 
   const violationList = Object.entries(violations);
-  const blocked = blocking.length > 0 || violationList.length > 0;
+  const blocked = blocking.length > 0 || violationList.length > 0 || noPlace;
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} wide
@@ -249,15 +267,27 @@ export function ExtractToCommonDataModal({
 
         <div>
           <label className="block text-sm font-medium text-fg2 mb-1">Уровень</label>
-          <Select value={target} onValueChange={v => setTarget(v as CatalogScope)}
-            aria-label="Уровень записи" className="w-full">
-            {offeredScopes.map(s => <SelectItem key={s} value={s}>{SCOPE_LABELS[s]}</SelectItem>)}
-          </Select>
-          {allowedMax !== 'System' && (
-            <p className="text-xs text-fg4 mt-1">
-              Шире «{SCOPE_LABELS[allowedMax]}» нельзя: внутри есть ссылка на запись этого уровня —
-              из более широкой записи она развернулась бы в чужом комплекте.
-            </p>
+          {noPlace ? (
+            /* Пустой Select был бы тупиком: список без пунктов, баннер про ограничение и работающая
+               кнопка, кладущая запись шире разрешённого. Говорим прямо. */
+            <Note tone="danger" icon={<AlertTriangle size={14} />} title="Положить запись некуда">
+              Внутри есть ссылка на запись уровня «{SCOPE_LABELS[allowedMax]}», а этот уровень отсюда
+              недоступен: {setId ? 'комплект ещё загружается' : 'форма не знает нужного контейнера'}.
+              Вынести объект можно из редактора документа того комплекта.
+            </Note>
+          ) : (
+            <>
+              <Select value={effectiveTarget} onValueChange={v => setTarget(v as CatalogScope)}
+                aria-label="Уровень записи" className="w-full">
+                {offered.map(s => <SelectItem key={s} value={s}>{SCOPE_LABELS[s]}</SelectItem>)}
+              </Select>
+              {allowedMax !== 'System' && (
+                <p className="text-xs text-fg4 mt-1">
+                  Шире «{SCOPE_LABELS[allowedMax]}» нельзя: внутри есть ссылка на запись этого уровня —
+                  из более широкой записи она развернулась бы в чужом комплекте.
+                </p>
+              )}
+            </>
           )}
         </div>
 
@@ -342,17 +372,6 @@ function Note({ tone, icon, title, children }: {
   );
 }
 
-/**
- * Уровень по умолчанию — самый УЗКИЙ доступный (обычно «Комплект»), а не самый удобный.
- *
- * Прецедент #587: узкая ошибка обратима — записи не окажется там, где её ищут, и это видно сразу;
- * широкая тиха — чужой объект подставится в чужой документ и никто не заметит.
- */
-function defaultScope(offered: CatalogScope[], own?: CatalogScope): CatalogScope {
-  if (offered.length === 0) return own ?? 'System';
-  return offered[0];
-}
-
 /** Сколько внутри ссылок на каталог — их переносим как есть, и об этом стоит сказать вслух. */
 function nestedRefCount(value: unknown): number {
   if (value == null || typeof value !== 'object') return 0;
@@ -363,11 +382,26 @@ function nestedRefCount(value: unknown): number {
 }
 
 /**
- * Уровень ссылки, у которой его не записали (ссылки, заведённые до того, как поле начали писать):
- * ищем запись в каталоге по всем уровням типа. Не нашли — вызывающий считает «Комплект».
+ * Уровень ссылки, у которой его не записали: такие кладёт серверный резолвер привязок
+ * (`DataSetResolver`), да и ссылки, заведённые до появления поля, его не несут.
+ *
+ * Ищем по ВИДИМОЙ ЦЕПОЧКЕ владельца и БЕЗ фильтра по типу — оба условия существенны. `for-scope`
+ * разрешает родителей только вниз от переданного уровня, поэтому запрос с «Системой» вернул бы одни
+ * системные записи; а фильтр по типу отсекал бы всё, потому что вложенная ссылка указывает на запись
+ * типа ПОДПОЛЯ, а не того составного, который выносим. С обеими ошибками карта оставалась пустой,
+ * уровень всегда доопределялся как «Комплект», и выбор молча схлопывался в один пункт.
+ *
+ * Не нашли — вызывающий консервативно считает «Комплект».
  */
-function useNestedScopeLookup(typeId: string, enabled: boolean) {
-  const { data: entries } = useCommonDataForScope({ scope: 'System', typeId, enabled });
+function useNestedScopeLookup(
+  scope: CatalogScope | undefined, scopeId: string | null | undefined, setId: string | undefined,
+  enabled: boolean,
+) {
+  const { data: entries } = useCommonDataForScope({
+    scope: setId ? 'Set' : scope ?? 'System',
+    scopeId: setId ?? scopeId ?? null,
+    enabled,
+  });
   return useMemo(() => {
     const byId = new Map((entries ?? []).map(e => [e.id, e.scope]));
     return (entryId: string) => byId.get(entryId);
