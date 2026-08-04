@@ -29,5 +29,15 @@ ENV TYPST_PATH=/usr/local/bin/typst \
 
 WORKDIR /app
 COPY --from=build /app ./
+
+# Работаем не от root: в образе aspnet непривилегированный пользователь `app` уже заведён.
+# Каталог ключей Data Protection создаём здесь и отдаём ему — пустой том Docker при первом
+# подключении наследует владельца и права каталога из образа.
+# ВНИМАНИЕ при обновлении УЖЕ РАБОТАЮЩЕЙ установки: том dp_keys создавался от root, владелец
+# у него не поменяется сам. Разово выполнить (см. docs/DEPLOYMENT.md §8):
+#   docker compose -f deploy/docker-compose.yml run --rm --user root api chown -R app:app /app/dp-keys
+RUN mkdir -p /app/dp-keys && chown -R app:app /app
+USER app
+
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "BHS.CRG.Api.dll"]

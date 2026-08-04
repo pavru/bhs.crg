@@ -25,7 +25,9 @@ services:
     volumes:
       - minio_data:/data
     ports:
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      # Только петля: консоль хранилища работает под учёткой администратора MinIO и даёт доступ
+      # ко всем файлам системы в обход приложения. Снаружи — через SSH-туннель.
+      - "${MINIO_CONSOLE_BIND:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
     restart: unless-stopped
 
   # Одноразовый сервис: создаёт bucket в MinIO
@@ -110,7 +112,9 @@ services:
     depends_on:
       - api
     ports:
-      - "${WEB_PORT:-8080}:80"
+      # Внутри контейнера 8080: nginx работает от непривилегированного пользователя и порт 80
+      # занять не может (см. Dockerfile.web). Порт на хосте прежний.
+      - "${WEB_PORT:-8080}:8080"
     restart: unless-stopped
 
 volumes:
