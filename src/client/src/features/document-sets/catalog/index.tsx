@@ -21,7 +21,8 @@ import {
 } from '@/shared/api/schema';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 import { recognizeDocument } from '@/shared/api/qualityDocs';
-import { flattenLeaves, applyRecognized } from '@/features/quality-docs/QualityDocForm';
+import { applyRecognized } from '@/features/quality-docs/QualityDocForm';
+import { buildRecognitionFields, codesFromLabels } from '@/features/quality-docs/recognitionFields';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
 import { computeBoundFieldKeys, mergeBindingPreviewsIntoValues } from '@/shared/api/datasetHelpers';
@@ -287,12 +288,15 @@ export function CatalogEntryForm({
     if (!attachment || !selectedType) return;
     setRecognizing(true); setError('');
     try {
+      // Тот же контракт типов, что и у документов качества (issue #654): модель видит варианты
+      // перечислений и базовый тип примитива, а её ответ отображается обратно в коды.
+      const plan = buildRecognitionFields(effectiveFields, allDocTypes, { primitiveTypes, enumTypes });
       const rec = await recognizeDocument({
         blobPath: attachment.blobPath, mimeType: attachment.mimeType,
-        fields: flattenLeaves(effectiveFields, allDocTypes),
+        fields: plan.fields,
         promptKind: 'titleblock',
       });
-      let next = applyRecognized(values, rec.values);
+      let next = applyRecognized(values, codesFromLabels(rec.values, plan.enumCodes));
       // Число страниц надёжнее брать из самого файла, чем просить модель прочитать его на штампе.
       if (rec.pageCount != null) {
         const p = findTaggedFieldPath(selectedType, FUNCTIONAL_TAG.docPageCount, allDocTypes);

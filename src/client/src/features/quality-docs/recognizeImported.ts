@@ -3,7 +3,9 @@ import { recognizeDocument, type QualityDocument } from '@/shared/api/qualityDoc
 import type { DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields, findTaggedFieldPath } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
-import { flattenLeaves, applyRecognized } from './QualityDocForm';
+import type { FieldTypeDefs } from '@/shared/utils/fieldDisplay';
+import { applyRecognized } from './QualityDocForm';
+import { buildRecognitionFields, codesFromLabels } from './recognitionFields';
 
 const SUMMARY = '__summary__';
 
@@ -11,24 +13,31 @@ const SUMMARY = '__summary__';
  * Распознаёт скан импортированного документа качества и обновляет его реквизиты,
  * краткое наименование и количество листов. Тип документа уже задан при импорте
  * (классификация не нужна). Best-effort: при ошибке распознавания возвращает исходный документ.
+ *
+ * `defs` (определения примитивов и перечислений) обязательны по смыслу, хотя и не по сигнатуре:
+ * без них модель не увидит вариантов перечисления, а её подпись некому будет отобразить в код —
+ * и здесь это опаснее, чем в форме, потому что формы тут нет и расхождение никто не увидит (#654).
  */
-export async function recognizeAndUpdate(doc: QualityDocument, allDocTypes: DocumentType[]): Promise<QualityDocument> {
+export async function recognizeAndUpdate(
+  doc: QualityDocument, allDocTypes: DocumentType[], defs: FieldTypeDefs = {},
+): Promise<QualityDocument> {
   if (!doc.scanBlobPath || !doc.scanMimeType) return doc;
   const type = allDocTypes.find(t => t.id === doc.documentTypeId);
   if (!type) return doc;
 
-  const fields = flattenLeaves(resolveEffectiveFields(type, allDocTypes), allDocTypes);
+  const plan = buildRecognitionFields(resolveEffectiveFields(type, allDocTypes), allDocTypes, defs);
   const rec = await recognizeDocument({
     blobPath: doc.scanBlobPath,
     mimeType: doc.scanMimeType,
     fields: [
-      ...fields,
+      ...plan.fields,
       { path: SUMMARY, title: 'Краткое наименование документа: краткое имя (бренд) производителя и тип продукции, например «EKF — автоматические выключатели»', type: 'string' },
     ],
   });
 
-  const summary = (rec.values[SUMMARY] ?? '').trim();
-  const { [SUMMARY]: _omit, ...fieldValues } = rec.values;
+  const values = codesFromLabels(rec.values, plan.enumCodes);
+  const summary = (values[SUMMARY] ?? '').trim();
+  const { [SUMMARY]: _omit, ...fieldValues } = values;
   if (rec.pageCount != null) {
     const p = findTaggedFieldPath(type, FUNCTIONAL_TAG.docPageCount, allDocTypes);
     if (p) fieldValues[p.join('.')] = String(rec.pageCount);
