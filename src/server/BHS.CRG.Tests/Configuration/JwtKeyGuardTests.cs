@@ -52,6 +52,17 @@ public class JwtKeyGuardTests
         Assert.Throws<InvalidOperationException>(() => JwtKeyGuard.Require(key));
     }
 
+    /// <summary>
+    /// Список узнаваемых начал не должен ловить обычные слова: ключ, выбранный человеком и просто
+    /// начинающийся со слова «secret», — настоящий, и отказ с причиной «значение из файла-примера»
+    /// отправил бы искать несуществующую проблему.
+    /// </summary>
+    [Theory]
+    [InlineData("secretkey-prod-2026-9f2c4a7e1b8d3056af12cd94")]
+    [InlineData("SecretPassphraseChosenByAnOperator-8b31d0c4")]
+    public void OrdinaryKeyStartingWithCommonWord_Passes(string key)
+        => Assert.Equal(key, JwtKeyGuard.Require(key));
+
     /// <summary>Отказ обязан говорить, что делать: сообщение читает тот, кто разворачивает.</summary>
     [Fact]
     public void Message_TellsWhatToDo()

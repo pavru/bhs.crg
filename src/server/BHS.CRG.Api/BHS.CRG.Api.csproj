@@ -7,6 +7,21 @@
     <UserSecretsId>23757ad1-5576-482e-a16b-797d8d9ae735</UserSecretsId>
   </PropertyGroup>
 
+  <!--
+    Конфигурация среды разработки в поставку НЕ идёт. Значения в ней рассчитаны на локальную машину
+    и лежат в репозитории — то есть известны публично; в опубликованном виде их быть не должно.
+
+    Без этой строки файл попадал в образ, и `ASPNETCORE_ENVIRONMENT=Development`, выставленный на
+    боевом контейнере (обычное действие при разборе неполадки), поднимал приложение на значениях из
+    репозитория вместо заданных развёртыванием — включая ключ подписи токенов.
+
+    По умолчанию SDK кладёт все appsettings*.json и в вывод сборки, и в публикацию: убираем только
+    из публикации, локальный запуск продолжает читать файл из bin.
+  -->
+  <ItemGroup>
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.9" />
