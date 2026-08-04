@@ -68,7 +68,11 @@ public static class DocumentSetEndpoints
         s.MapPost("/{sectionId:guid}/sets", async (Guid sectionId, CreateSetRequest req, IMediator m)
             => Results.Ok(await m.Send(new CreateDocumentSetCommand(sectionId, req.Name))));
 
-        var g = app.MapGroup("/api/document-sets").RequireAuthorization();
+        // Документ из адреса обязан лежать в комплекте из того же адреса — проверкой на всю группу,
+        // а не в каждом обработчике: см. DocumentBelongsToSetFilter.
+        var g = app.MapGroup("/api/document-sets")
+            .RequireAuthorization()
+            .AddEndpointFilter<DocumentBelongsToSetFilter>();
 
         // Поиск документов по всем комплектам (имя документа/типа + текст реквизитов). ?q= обязателен,
         // ?constructionId= — необязательный фильтр по стройке.

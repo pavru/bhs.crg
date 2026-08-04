@@ -40,6 +40,14 @@ public class HttpFileUrlFetcher(HttpClient http) : IFileUrlFetcher
         {
             throw new SearchUnavailableException(OutboundAddressPolicy.RefusalMessage);
         }
+        // Молчание до истечения срока — такой же различимый ответ, как «404» или «не тот тип»:
+        // по нему видно, что по адресу кто-то есть, но не отвечает. Отдаём общий отказ.
+        // Сюда же битый относительный Location, из-за которого разбор адреса бросает своё.
+        catch (Exception e) when (e is TaskCanceledException or TimeoutException or UriFormatException
+                                  && !ct.IsCancellationRequested)
+        {
+            throw new SearchUnavailableException(OutboundAddressPolicy.RefusalMessage);
+        }
 
         using (resp)
         {

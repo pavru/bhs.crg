@@ -48,6 +48,7 @@ using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Infrastructure.Generation;
+using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Plugins;
 using BHS.CRG.Infrastructure.Storage;
@@ -338,7 +339,7 @@ builder.Services.AddScoped<IWebSearchEngine>(sp => sp.GetRequiredService<YandexE
 // цель каждого. С автоследованием проверка исходного адреса ничего не стоит — ответ общедоступного
 // хоста уводит куда угодно.
 builder.Services.AddHttpClient<TieredWebSearch>()
-    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+    .ConfigurePrimaryHttpMessageHandler(OutboundAddressPolicy.CreateGuardedHandler)
     .ConfigureHttpClient(c =>
 {
     c.Timeout = TimeSpan.FromSeconds(15);
@@ -347,7 +348,7 @@ builder.Services.AddHttpClient<TieredWebSearch>()
 });
 builder.Services.AddScoped<IQualityDocSearch>(sp => sp.GetRequiredService<TieredWebSearch>());
 builder.Services.AddHttpClient<IFileUrlFetcher, HttpFileUrlFetcher>()
-    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+    .ConfigurePrimaryHttpMessageHandler(OutboundAddressPolicy.CreateGuardedHandler)
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddSingleton<TypstGenerator>();
 builder.Services.AddSingleton<IDocumentGeneratorFactory, DocumentGeneratorFactory>();

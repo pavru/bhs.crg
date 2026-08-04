@@ -43,6 +43,17 @@ public class OutboundAddressPolicyTests
     [InlineData("::ffff:127.0.0.1")]
     [InlineData("::ffff:10.0.0.1")]
     [InlineData("::ffff:169.254.169.254")]
+    // Формы IPv6, прячущие IPv4, которых .NET за таковые не считает: без разбора достаточно
+    // записать цель иначе, и правила не срабатывают. В сети только-IPv6 через NAT64 такой адрес
+    // доходит до цели по-настоящему.
+    [InlineData("::127.0.0.1")]              // IPv4-совместимый
+    [InlineData("::10.0.0.1")]
+    [InlineData("::ffff:0:127.0.0.1")]       // IPv4-транслированный
+    [InlineData("::ffff:0:169.254.169.254")]
+    [InlineData("64:ff9b::a9fe:a9fe")]       // NAT64 → 169.254.169.254
+    [InlineData("64:ff9b::7f00:1")]          // NAT64 → 127.0.0.1
+    [InlineData("2002:7f00:1::")]            // 6to4 → 127.0.0.1
+    [InlineData("2002:a9fe:a9fe::")]         // 6to4 → 169.254.169.254
     public void NonPublicAddress_Blocked(string ip)
         => Assert.True(OutboundAddressPolicy.IsBlocked(IPAddress.Parse(ip)), ip);
 
@@ -59,6 +70,8 @@ public class OutboundAddressPolicyTests
     [InlineData("223.255.255.255")] // последний перед групповой рассылкой
     [InlineData("2606:4700::1111")]
     [InlineData("2001:4860:4860::8888")]
+    [InlineData("64:ff9b::808:808")]         // NAT64 → 8.8.8.8: форма запрещённой не делает
+    [InlineData("2002:5db8:d822::")]         // 6to4 → 93.184.216.34
     public void PublicAddress_Allowed(string ip)
         => Assert.False(OutboundAddressPolicy.IsBlocked(IPAddress.Parse(ip)), ip);
 
@@ -90,6 +103,15 @@ public class OutboundAddressPolicyTests
         await Assert.ThrowsAsync<OutboundAddressRefusedException>(
             () => OutboundAddressPolicy.EnsureAllowedAsync(uri));
     }
+
+    /// <summary>
+    /// Адрес без имени хоста — отказ. Разрешение пустой строки возвращает адреса самой машины, то
+    /// есть решение зависело бы от её сетевых настроек, а не от ссылки.
+    /// </summary>
+    [Fact]
+    public async Task EmptyHost_Refused()
+        => await Assert.ThrowsAsync<OutboundAddressRefusedException>(
+            () => OutboundAddressPolicy.EnsureAllowedAsync(new Uri("file:///c:/windows/win.ini")));
 
     /// <summary>
     /// Имя, которое не разрешается, — тоже отказ. Иначе «не резолвится» против «резолвится, но

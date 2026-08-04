@@ -16,14 +16,24 @@ public static class SafeHttpGet
         HttpClient http, Uri uri, HttpCompletionOption completion,
         Action<HttpRequestMessage>? prepare = null, CancellationToken ct = default)
     {
-        var current = uri;
+        // Срок — на ВСЮ цепочку, а не на каждый запрос. HttpClient.Timeout отмеряет каждый вызов
+        // отдельно, и с ручным обходом перенаправлений предел молча умножился бы на их число:
+        // сервер, тянущий до последней секунды и отвечающий переходом, держал бы запрос в шесть раз
+        // дольше заявленного.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        if (http.Timeout != Timeout.InfiniteTimeSpan) deadline.CancelAfter(http.Timeout);
+        var token = deadline.Token;
+
+        // Схема проверяется ЗДЕСЬ, а не у вызывающего: обещание «одна проверка на всех клиентов»
+        // держится, только если её нельзя обойти, забыв вызвать.
+        var current = OutboundAddressPolicy.RequireHttpUrl(uri.ToString());
         for (var hop = 0; ; hop++)
         {
-            await OutboundAddressPolicy.EnsureAllowedAsync(current, ct);
+            await OutboundAddressPolicy.EnsureAllowedAsync(current, token);
 
             var req = new HttpRequestMessage(HttpMethod.Get, current);
             prepare?.Invoke(req);
-            var resp = await http.SendAsync(req, completion, ct);
+            var resp = await http.SendAsync(req, completion, token);
 
             if (!IsRedirect(resp.StatusCode) || resp.Headers.Location is null) return resp;
 
