@@ -17,6 +17,7 @@ import { collectConstraintViolations, describeViolationPath } from './collectCon
 import { objectSummary } from './objectSummary';
 import {
   suggestEntryName, scalarFieldsFor, findBlockingRefs, maxAllowedScope, offeredScopes,
+  hasScopelessCatalogRef,
 } from './extractToCommonData';
 
 /** Найденный дубликат: по составному ключу — сильное совпадение, по имени — тёзка. */
@@ -74,7 +75,10 @@ export function ExtractToCommonDataModal({
   // Вложенные ссылки на каталог ограничивают уровень: запись комплекта, попавшая в запись «Системы»,
   // развернётся в чужом комплекте (EntityResolver грузит её по id без scope-фильтра).
   const blocking = useMemo(() => findBlockingRefs(values), [values]);
-  const nestedScopeLookup = useNestedScopeLookup(scope, scopeId, setId, open);
+  // За справочником записей ходим ТОЛЬКО если внутри есть ссылка без записанного уровня — иначе он
+  // не нужен, а стоит дорого (см. useNestedScopeLookup).
+  const needsLookup = useMemo(() => hasScopelessCatalogRef(values), [values]);
+  const nestedScopeLookup = useNestedScopeLookup(scope, scopeId, setId, open && needsLookup);
   const allowedMax = useMemo(
     () => maxAllowedScope(values, nestedScopeLookup), [values, nestedScopeLookup]);
 
@@ -390,6 +394,12 @@ function nestedRefCount(value: unknown): number {
  * системные записи; а фильтр по типу отсекал бы всё, потому что вложенная ссылка указывает на запись
  * типа ПОДПОЛЯ, а не того составного, который выносим. С обеими ошибками карта оставалась пустой,
  * уровень всегда доопределялся как «Комплект», и выбор молча схлопывался в один пункт.
+ *
+ * ⚠️ Запрос ДОРОГОЙ: `for-scope` отдаёт `data` каждой записи целиком, а там лежат картинки в base64 —
+ * в живой базе это мегабайты (issue #518), из которых здесь нужен один `scope`. Поэтому включать его
+ * можно только когда справочник действительно нужен: `enabled` приходит уже с проверкой
+ * `hasScopelessCatalogRef`. Сузить выдачу полями API не умеет, а заводить ради этого проекцию — тема
+ * не выноса объекта.
  *
  * Не нашли — вызывающий консервативно считает «Комплект».
  */

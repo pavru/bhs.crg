@@ -37,9 +37,36 @@ describe('buildRecognitionFields', () => {
     expect(plan.fields[0].options).toEqual(['Сертификат соответствия', 'Декларация о соответствии']);
   });
 
-  it('без определений перечисление осталось бы без вариантов — ровно прежний дефект', () => {
+  /**
+   * Реестр не загрузился — об этом обязаны СКАЗАТЬ, а не подставить пустой список вариантов.
+   * Молчание здесь возвращало бы #654 целиком: промпт без вариантов, ответ подписью, отобразить в
+   * код нечем — и всё это выглядело бы как обычное распознавание.
+   */
+  it('перечисление из реестра без определения — путь попадает в unresolvedEnums', () => {
     const t = docType('t', [field('Вид', 'enum', { typeId: 'e-kind' })]);
-    expect(buildRecognitionFields(t.schema.fields as SchemaField[], [t], {}).fields[0].options)
+    const plan = buildRecognitionFields(t.schema.fields as SchemaField[], [t], {});
+
+    expect(plan.unresolvedEnums).toEqual(['Вид']);
+    expect(plan.fields[0].options).toEqual([]);
+    expect(plan.enumCodes['Вид']).toBeUndefined();
+  });
+
+  it('нерезолвнутое перечисление внутри составного поля тоже видно, с полным путём', () => {
+    const inner = docType('inner', [field('Вид', 'enum', { typeId: 'e-kind' })]);
+    const outer = docType('outer', [field('Период', 'complex', { typeId: 'inner' })]);
+    expect(buildRecognitionFields(outer.schema.fields as SchemaField[], [inner, outer], {}).unresolvedEnums)
+      .toEqual(['Период.Вид']);
+  });
+
+  it('legacy-перечисление без typeId нерезолвнутым не считается — реестр ему не нужен', () => {
+    const t = docType('t', [field('Вид', 'enum', { options: ['А', 'Б'] })]);
+    expect(buildRecognitionFields(t.schema.fields as SchemaField[], [t], {}).unresolvedEnums)
+      .toEqual([]);
+  });
+
+  it('всё разрешилось — список пуст', () => {
+    const t = docType('t', [field('Вид', 'enum', { typeId: 'e-kind' })]);
+    expect(buildRecognitionFields(t.schema.fields as SchemaField[], [t], defs).unresolvedEnums)
       .toEqual([]);
   });
 

@@ -140,6 +140,12 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
       // Модели показываем варианты перечислений и базовый тип примитива, ответ отображаем обратно
       // в коды (issue #654) — иначе в реквизиты ложится подпись, которой нет ни в одном пункте.
       const plan = buildRecognitionFields(activeFields, allDocTypes, { primitiveTypes, enumTypes });
+      // Реестр перечислений ещё не доехал — распознавать вслепую нельзя: модель ответит подписью,
+      // а отобразить её в код будет нечем, и в реквизиты ляжет значение вне списка вариантов.
+      if (plan.unresolvedEnums.length > 0) {
+        setError('Справочник перечислений ещё загружается — повторите распознавание через мгновение.');
+        return;
+      }
       const rec = await recognizeDocument({
         blobPath: scan.blobPath, mimeType: scan.mimeType,
         fields: [

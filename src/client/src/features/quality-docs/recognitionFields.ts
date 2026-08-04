@@ -28,6 +28,15 @@ export interface RecognitionPlan {
    * Коды тоже кладём ключами: модель вправе ответить и кодом, и его же подписью.
    */
   enumCodes: Record<string, Record<string, string>>;
+  /**
+   * Пути полей, у которых объявлен тип-перечисление, но его определения в `defs` не оказалось —
+   * реестр не загрузился, запрос упал или вызывающий его вовсе не передал.
+   *
+   * Молчать об этом нельзя: без определения промпт уходит без вариантов, модель отвечает свободной
+   * формулировкой, и отобразить её обратно в код нечем — то есть ровно дефект #654 возвращается,
+   * причём тихо. Вызывающий обязан это увидеть и не запускать распознавание вслепую.
+   */
+  unresolvedEnums: string[];
 }
 
 const SKIPPED_TYPES = new Set(['array', 'doc-ref', 'doc-array', 'image', 'file']);
@@ -37,10 +46,11 @@ export function buildRecognitionFields(
   fields: SchemaField[], allDocTypes: DocumentType[], defs: FieldTypeDefs = {},
   prefix = '', depth = 0,
 ): RecognitionPlan {
-  if (depth > 3) return { fields: [], enumCodes: {} };
+  if (depth > 3) return { fields: [], enumCodes: {}, unresolvedEnums: [] };
 
   const out: RecognitionFieldReq[] = [];
   const enumCodes: RecognitionPlan['enumCodes'] = {};
+  const unresolvedEnums: string[] = [];
 
   for (const f of fields) {
     const path = prefix ? `${prefix}.${f.key}` : f.key;
@@ -52,12 +62,16 @@ export function buildRecognitionFields(
         resolveEffectiveFields(ct, allDocTypes), allDocTypes, defs, path, depth + 1);
       out.push(...inner.fields);
       Object.assign(enumCodes, inner.enumCodes);
+      unresolvedEnums.push(...inner.unresolvedEnums);
       continue;
     }
 
     if (SKIPPED_TYPES.has(f.type)) continue;
 
     if (f.type === 'enum') {
+      // Тип из реестра объявлен, а определения нет — говорим об этом вслух, а не подставляем
+      // молча пустой список (тогда поле выглядело бы обычным, а вернулось бы подписью).
+      if (f.typeId && !defs.enumTypes?.some(et => et.id === f.typeId)) unresolvedEnums.push(path);
       const options = enumOptionsOf(f, defs);
       // Модели показываем подписи — их она и увидит в скане; пустой список промпт всё равно
       // пропустит, и поле останется без подсказки, как было.
@@ -77,7 +91,7 @@ export function buildRecognitionFields(
     out.push({ path, title: f.title, type: f.type, options: f.options });
   }
 
-  return { fields: out, enumCodes };
+  return { fields: out, enumCodes, unresolvedEnums };
 }
 
 /**

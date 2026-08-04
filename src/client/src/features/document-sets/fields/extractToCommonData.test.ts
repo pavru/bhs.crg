@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   suggestEntryName, scalarFieldsFor, findBlockingRefs, maxAllowedScope, scopesUpTo, offeredScopes,
+  hasScopelessCatalogRef,
 } from './extractToCommonData';
 import type { SchemaField } from '@/shared/api/schema';
 import type { CatalogScope, FieldRef, PrimitiveTypeDef } from '@/shared/api/types';
@@ -152,6 +153,29 @@ describe('maxAllowedScope', () => {
   it('уровень не известен ни ссылке, ни каталогу — считаем «Комплект», а не «Система»', () => {
     const value = { Организация: { $ref: 'catalog', entryId: 'e9', displayName: 'ООО' } };
     expect(maxAllowedScope(value)).toBe('Set');
+  });
+});
+
+describe('hasScopelessCatalogRef', () => {
+  /**
+   * Решает, идти ли за справочником записей. Запрос дорогой — `for-scope` тянет `data` каждой
+   * записи, а там мегабайты base64 (#518), — и нужен он ровно для ссылок без уровня.
+   */
+  it('обычный объект без ссылок справочника не требует', () => {
+    expect(hasScopelessCatalogRef({ Наименование: 'Кабель', Длина: 305 })).toBe(false);
+  });
+
+  it('ссылка с уровнем сама себя описывает — справочник не нужен', () => {
+    expect(hasScopelessCatalogRef({ Организация: catalogRef('ООО', 'Section') })).toBe(false);
+  });
+
+  it('ссылка без уровня — нужен, в том числе из глубины массива', () => {
+    const value = { Строки: [{ ok: 1 }, { Орг: { $ref: 'catalog', entryId: 'e1', displayName: 'ООО' } }] };
+    expect(hasScopelessCatalogRef(value)).toBe(true);
+  });
+
+  it('ссылки на документ справочник не поднимают — они вынос вообще запрещают', () => {
+    expect(hasScopelessCatalogRef({ Основание: documentRef('АОСР → Номер') })).toBe(false);
   });
 });
 
