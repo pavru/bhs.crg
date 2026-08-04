@@ -61,12 +61,25 @@ public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : 
                 new MakeBucketArgs().WithBucket(options.Bucket), ct);
     }
 
-    private static (string bucket, string obj) ParsePath(string blobPath)
+    /// <summary>
+    /// Разбирает путь блоба на бакет и ключ объекта. Бакет ВСЕГДА берётся из конфигурации, а первый
+    /// сегмент пути отбрасывается.
+    ///
+    /// Хранилище у приложения одно — то, что названо в <see cref="BlobStorageOptions.Bucket"/>;
+    /// первый сегмент исторически повторяет его имя и информации не несёт. Раньше он попадал в
+    /// запрос как есть, то есть адресуемый бакет задавала строка пути, а не конфигурация. Клиент
+    /// MinIO работает под учётной записью, которой видны все бакеты инстанса, включая чужие, —
+    /// значит выбор бакета не должен зависеть от входных данных ни в одном вызове.
+    ///
+    /// Побочно это чинит и переименование бакета: путь, записанный под прежним именем, читается из
+    /// текущего, потому что ключ объекта от имени бакета не зависит.
+    /// </summary>
+    private (string bucket, string obj) ParsePath(string blobPath)
     {
         var idx = blobPath.IndexOf('/');
         return idx < 0
             ? throw new ArgumentException("Invalid blob path", nameof(blobPath))
-            : (blobPath[..idx], blobPath[(idx + 1)..]);
+            : (options.Bucket, blobPath[(idx + 1)..]);
     }
 }
 
