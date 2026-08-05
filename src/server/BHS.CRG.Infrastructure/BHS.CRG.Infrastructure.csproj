@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\BHS.CRG.Application\BHS.CRG.Application.csproj" />
@@ -29,6 +29,11 @@
     <PackageReference Include="PDFtoImage" Version="5.2.1" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="9.0.5" />
+
+    <!-- Кодом не используется: NPOI тянет этот пакет за собой, а версия из его зависимостей (8.0.2)
+         числится в известных уязвимостях (NU1903). Прямая ссылка поднимает разрешённую версию до
+         исправленной — убрать её можно будет, когда NPOI сам перейдёт на 10.0.10+. -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.10" />
   </ItemGroup>
 
   <PropertyGroup>

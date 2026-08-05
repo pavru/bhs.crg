@@ -1,5 +1,7 @@
 import * as monaco from 'monaco-editor';
-import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+// Путь без «esm/vs»: с 0.56 пакет отдаёт подпути через карту exports ("./*" → "./esm/vs/*.js"),
+// и прежний путь с «esm/vs» перестал разрешаться.
+import editorWorker from 'monaco-editor/editor/editor.worker?worker';
 import Editor, { loader } from '@monaco-editor/react';
 
 /*
