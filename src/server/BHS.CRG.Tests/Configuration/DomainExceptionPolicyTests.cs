@@ -23,9 +23,11 @@ public class DomainExceptionPolicyTests
     /// <summary>Проекты, где живут отказы пользователю. Api сюда не входит: см. <see cref="ApiOnly" />.</summary>
     private static readonly string[] Projects = ["BHS.CRG.Domain", "BHS.CRG.Application", "BHS.CRG.Infrastructure"];
 
+    // \s+ между словами, а не пробел: длинный throw переносят на следующую строку, и построчная
+    // проверка такой пропустила бы — то есть обойти правило можно было бы, просто нажав Enter.
     private static readonly Regex FrameworkThrow = new(
-        @"\bthrow new (ArgumentException|ArgumentNullException|ArgumentOutOfRangeException|KeyNotFoundException|InvalidOperationException|NotSupportedException)\b",
-        RegexOptions.Compiled);
+        @"\bthrow\s+new\s+(ArgumentException|ArgumentNullException|ArgumentOutOfRangeException|KeyNotFoundException|InvalidOperationException|NotSupportedException)\b",
+        RegexOptions.Compiled | RegexOptions.Singleline);
 
     /// <summary>
     /// Внутренние инварианты и отказы конфигурации: их текст пользователю не адресован, и уходить он
@@ -42,6 +44,9 @@ public class DomainExceptionPolicyTests
         ["BHS.CRG.Infrastructure/Recognition/RecognitionKinds.cs"] = "вид профиля не описан в реестре — дефект",
         ["BHS.CRG.Infrastructure/Recognition/RecognitionProfileProvider.cs"] = "не сработал сидинг при старте — дефект развёртывания",
         ["BHS.CRG.Infrastructure/DataSets/DataSetParserFactory.cs"] = "нет парсера для формата — дефект реестра парсеров",
+        ["BHS.CRG.Infrastructure/Generation/UserLibMaterializer.cs"] = "сработала защита от записи за пределы дерева — обязана быть громкой, а не тихим 409",
+        ["BHS.CRG.Infrastructure/Storage/BlobStorage.cs"] = "путь берётся из базы, а не из запроса: «исправьте запрос» тут неверно по существу",
+        ["BHS.CRG.Domain/Objects/DomainObject.cs"] = "документные свойства спросили у не-документа — дефект вызывающего кода",
     };
 
     /// <summary>
@@ -59,10 +64,9 @@ public class DomainExceptionPolicyTests
             {
                 var rel = Relative(file);
                 if (DeliberatelyFramework.ContainsKey(rel)) continue;
-                var lines = File.ReadAllLines(file);
-                for (var i = 0; i < lines.Length; i++)
-                    if (FrameworkThrow.IsMatch(lines[i]))
-                        offenders.Add($"{rel}:{i + 1}  {lines[i].Trim()}");
+                var text = File.ReadAllText(file);
+                foreach (Match m in FrameworkThrow.Matches(text))
+                    offenders.Add($"{rel}:{LineOf(text, m.Index)}  throw new {m.Groups[1].Value}");
             }
 
         Assert.True(offenders.Count == 0,
@@ -98,10 +102,13 @@ public class DomainExceptionPolicyTests
     [Fact]
     public void ApiLayer_DoesNotThrowDomainRefusals()
     {
+        var domainThrow = new Regex(
+            @"\bthrow\s+new\s+(InvalidRequestException|NotFoundException|ConflictException|ForbiddenException)\b",
+            RegexOptions.Singleline);
+
         var offenders = SourceFiles(ApiOnly)
-            .SelectMany(f => File.ReadAllLines(f).Select((line, i) => (f, line, i)))
-            .Where(x => Regex.IsMatch(x.line, @"\bthrow new (InvalidRequestException|NotFoundException|ConflictException|ForbiddenException)\b"))
-            .Select(x => $"{Relative(x.f)}:{x.i + 1}")
+            .Select(f => (file: f, text: File.ReadAllText(f)))
+            .SelectMany(x => domainThrow.Matches(x.text).Select(m => $"{Relative(x.file)}:{LineOf(x.text, m.Index)}"))
             .ToList();
 
         Assert.True(offenders.Count == 0,
@@ -114,6 +121,10 @@ public class DomainExceptionPolicyTests
         Directory.EnumerateFiles(Path.Combine(SolutionDir, project), "*.cs", SearchOption.AllDirectories)
             .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
                      && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"));
+
+    /// <summary>Номер строки по смещению в тексте — сообщение должно вести прямо к месту.</summary>
+    private static int LineOf(string text, int index) =>
+        text.AsSpan(0, index).Count('\n') + 1;
 
     private static string Relative(string full) =>
         Path.GetRelativePath(SolutionDir, full).Replace('\\', '/');

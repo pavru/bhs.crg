@@ -6,6 +6,7 @@ using BHS.CRG.Domain.Reconciliation;
 using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 using BHS.CRG.Infrastructure.Common;
 
@@ -14,7 +15,8 @@ namespace BHS.CRG.Infrastructure.Reconciliation;
 /// <inheritdoc />
 public class ReconciliationRunner(
     AppDbContext db,
-    IDataSetRowLoader rowLoader) : IReconciliationRunner
+    IDataSetRowLoader rowLoader,
+    ILogger<ReconciliationRunner> logger) : IReconciliationRunner
 {
     private static JsonSerializerOptions Json => ReconciliationSpecJson.Options;
 
@@ -61,7 +63,12 @@ public class ReconciliationRunner(
         catch (Exception ex)
         {
             // Неудача обязана быть видимой: пустой журнал без объяснения выглядел бы как «расхождений нет».
-            run.Fail(ex.Message);
+            // Но видимой человеку, а не машине: наш отказ читается дословно, чужое сообщение назвало бы
+            // базу или адрес хранилища прямо в карточке сверки (issue #691). Чужое пишем в лог — иначе,
+            // спрятав его от пользователя, мы потеряли бы единственный след.
+            if (ex is not DomainException)
+                logger.LogError(ex, "Сверка {RunId} прервана", run.Id);
+            run.Fail(Refusals.TextOr(ex, $"Внутренняя ошибка. Сверка {run.Id} — подробности в журнале сервера."));
         }
 
         await db.SaveChangesAsync(ct);

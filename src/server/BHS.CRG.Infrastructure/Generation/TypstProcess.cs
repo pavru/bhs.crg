@@ -92,5 +92,12 @@ public static class TypstProcess
         _ = task.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
 }
 
-/// <summary>Вёрстка не уложилась в отведённый срок и была остановлена.</summary>
-public class TypstTimeoutException(string message) : Exception(message);
+/// <summary>
+/// Вёрстка не уложилась в отведённый срок и была остановлена.
+///
+/// Род отказа — «состояние не допускает операцию»: запрос правильный, не пускает шаблон. Наследуем
+/// его не ради кода ответа, а чтобы сообщение доходило до человека (issue #691): оно объясняет, что
+/// именно случилось и где искать причину, а без этого автор шаблона видел бы «Внутренняя ошибка
+/// сервера» — ровно там, где подсказка нужнее всего.
+/// </summary>
+public class TypstTimeoutException(string message) : ConflictException(message);

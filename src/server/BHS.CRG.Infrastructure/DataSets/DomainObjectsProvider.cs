@@ -83,7 +83,7 @@ public class DomainObjectsProvider(AppDbContext db) : ISystemDataProvider
 
         var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
         var byId = allTypes.ToDictionary(t => t.Id);
-        // Тип удалён — это ArgumentException, а НЕ KeyNotFoundException: пересчёт строк в списке
+        // Тип удалён — это InvalidRequestException, а НЕ NotFoundException: пересчёт строк в списке
         // наборов глотает только первое, и удалённый тип иначе уронил бы весь список.
         if (!byId.ContainsKey(typeId))
             throw new InvalidRequestException("Тип, по которому собирался источник, удалён — пересоздайте источник.");

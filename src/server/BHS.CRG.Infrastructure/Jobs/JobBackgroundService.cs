@@ -112,9 +112,13 @@ public class JobBackgroundService(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Фоновая задача {JobId} ({Kind}) завершилась ошибкой", jobId, kind);
-            await UpdateJobAsync(jobId, j => j.Fail(ex.Message), CancellationToken.None);
+            // Второй выход наружу помимо HTTP-ответа, и правило здесь то же (issue #691): наш отказ
+            // человек читает дословно, чужое сообщение — нет. Через эту дверь в колокольчик уходил,
+            // например, вывод компилятора шаблона со всеми путями временной папки.
+            var text = Refusals.TextOr(ex, $"Внутренняя ошибка. Задача {jobId} — подробности в журнале сервера.");
+            await UpdateJobAsync(jobId, j => j.Fail(text), CancellationToken.None);
             // Единая точка публикации ошибки задачи в колокольчик (handoff: задача ушла из индикатора → всплыла ошибкой).
-            await PublishFailureAsync(userId, title, ex.Message);
+            await PublishFailureAsync(userId, title, text);
         }
     }
 

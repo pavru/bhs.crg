@@ -20,8 +20,27 @@ namespace BHS.CRG.Domain.Common;
 /// </summary>
 public abstract class DomainException(string message) : Exception(message);
 
-/// <summary>Данные запроса недопустимы — исправить может тот, кто их прислал.</summary>
-public sealed class InvalidRequestException(string message) : DomainException(message);
+/// <summary>
+/// Текст отказа для человека — общий для всех выходов наружу, не только для HTTP-ответа.
+///
+/// Выходов больше одного: кроме ответа на запрос это запись фоновой задачи, уведомление в
+/// колокольчике и поле ошибки в журнале сверки. Каждый из них показывает текст человеку, и правило
+/// у всех обязано быть одно — иначе закрытая дверь соседствует с открытой.
+/// </summary>
+public static class Refusals
+{
+    /// <param name="fallback">Чем заменить чужое сообщение: обобщённый текст с меткой для журнала.</param>
+    public static string TextOr(Exception? ex, string fallback) =>
+        ex is DomainException domain ? domain.Message : fallback;
+}
+
+/// <summary>
+/// Данные запроса недопустимы — исправить может тот, кто их прислал.
+///
+/// Роды отказа не запечатаны: свой тип с говорящим именем (скажем, «вёрстка не уложилась в срок»)
+/// наследуется от подходящего рода и получает его код ответа — важен род, а не класс.
+/// </summary>
+public class InvalidRequestException(string message) : DomainException(message);
 
 /// <summary>
 /// Запрошенного объекта нет.
@@ -30,7 +49,7 @@ public sealed class InvalidRequestException(string message) : DomainException(me
 /// говорит сам за себя, и половина мест в коде так и написана — <c>?? throw new NotFoundException()</c>.
 /// Раньше в этом случае наружу уходил английский текст фреймворка про отсутствующий ключ словаря.
 /// </summary>
-public sealed class NotFoundException(string message = "Запрошенный объект не найден.")
+public class NotFoundException(string message = "Запрошенный объект не найден.")
     : DomainException(message);
 
 /// <summary>
@@ -38,7 +57,7 @@ public sealed class NotFoundException(string message = "Запрошенный �
 /// Отличается от <see cref="InvalidRequestException" /> тем, что запрос сам по себе правильный —
 /// не пускает текущее положение дел.
 /// </summary>
-public sealed class ConflictException(string message) : DomainException(message);
+public class ConflictException(string message) : DomainException(message);
 
 /// <summary>Действие запрещено этому пользователю.</summary>
-public sealed class ForbiddenException(string message) : DomainException(message);
+public class ForbiddenException(string message) : DomainException(message);

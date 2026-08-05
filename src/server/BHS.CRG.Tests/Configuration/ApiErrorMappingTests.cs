@@ -86,6 +86,24 @@ public class ApiErrorMappingTests
         Assert.Equal("Запрос превышает допустимый размер.", message);
     }
 
+    /// <summary>
+    /// То же правило вне HTTP-ответа: запись фоновой задачи, уведомление в колокольчике, поле ошибки
+    /// в журнале сверки. Выходов наружу больше одного, и правило у всех обязано быть общим — иначе
+    /// закрытая дверь соседствует с открытой (через колокольчик уходил вывод компилятора шаблона).
+    /// </summary>
+    [Fact]
+    public void RefusalText_IsOursVerbatim_AndForeignReplaced()
+    {
+        const string fallback = "Внутренняя ошибка. Задача 42 — подробности в журнале сервера.";
+
+        Assert.Equal("Комплект не собран — соберите его перед отправкой.",
+            Refusals.TextOr(new ConflictException("Комплект не собран — соберите его перед отправкой."), fallback));
+
+        Assert.Equal(fallback,
+            Refusals.TextOr(new InvalidOperationException("Typst compilation failed (exit 1):\nC:\\НЕЧТО\\template.typ:12"), fallback));
+        Assert.Equal(fallback, Refusals.TextOr(null, fallback));
+    }
+
     /// <summary>Исключения нет вовсе (обработчик вызван без причины) — молчать нельзя, но и сказать нечего.</summary>
     [Fact]
     public void NoException_StillAnswersGenerically()

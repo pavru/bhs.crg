@@ -78,7 +78,10 @@ public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : 
     {
         var idx = blobPath.IndexOf('/');
         return idx < 0
-            ? throw new InvalidRequestException("Некорректный путь к файлу в хранилище.")
+            // Framework-тип намеренно (issue #691): путь приходит не из запроса, а из базы
+            // (GeneratedFile.BlobPath и соседи). Ответ «исправьте запрос» тут неверен по существу —
+            // исправлять нечего, запись битая, и узнать об этом надо из лога.
+            ? throw new InvalidOperationException("Некорректный путь к файлу в хранилище.")
             : (options.Bucket, blobPath[(idx + 1)..]);
     }
 }

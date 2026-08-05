@@ -83,7 +83,9 @@ public class ZipDataSetParser(IServiceProvider services) : IDataSetParser
         if (entry is null) return new DataSetParseResult([], []);
 
         var format = DetectEntryFormat(entryPath)
-            ?? throw new ConflictException($"Неизвестный формат файла в архиве: {entryPath}");
+            // Тот же род, что у соседних отказов этого парсера (пределы размера и числа записей):
+            // путь внутри архива задал человек, и это недопустимые данные, а не состояние системы.
+            ?? throw new InvalidRequestException($"Неизвестный формат файла в архиве: {entryPath}");
 
         var entryBytes = ReadEntry(entry, new UnpackBudget(MaxEntryBytes));
         var parser = Factory.GetParser(format);

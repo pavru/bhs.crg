@@ -249,7 +249,7 @@ public class DocumentTypeHandlers(
         return dt;
     }
 
-    // Бросает InvalidOperationException (маппится в 409) со списком занятых мест — issue #258.
+    // Бросает ConflictException (маппится в 409) со списком занятых мест — issue #258.
     private static void ValidateTagRestrictions(JsonDocument schema, Guid savingId, string savingName,
         IReadOnlyList<DocumentType> all)
     {

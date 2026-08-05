@@ -39,8 +39,11 @@ public static class UserLibMaterializer
             // Путь проверяется при сохранении, но записи мог наделать и восстановленный бэкап из
             // другой (в том числе более старой) инсталляции. Запись за пределы дерева — не та
             // ошибка, которую стоит ловить один раз.
+            // Framework-тип намеренно (issue #691): это не отказ пользователю, а сработавшая защита.
+            // Доменный тип ответил бы тихим 409 и не оставил бы в логе ни строки — а такое обязано
+            // быть громким.
             if (!target.StartsWith(rootFull + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-                throw new ConflictException(
+                throw new InvalidOperationException(
                     $"Путь файла библиотеки «{file.Path}» выходит за пределы папки {UserLibPath.FolderName}/.");
 
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
