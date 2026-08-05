@@ -21,13 +21,17 @@ const SCOPE_ICONS: Record<CatalogScope, typeof Boxes> = {
   System: Boxes,
 };
 
-export function ScopeIcon({ scope, size = 13, className = '' }: {
+export function ScopeIcon({ scope, size = 13, className = '', title }: {
   scope: CatalogScope; size?: number; className?: string;
+  /** Своя подпись вместо «Уровень связи: X» — когда сказать нужно больше, чем сам уровень
+   *  (например, что он расходится с выбранным в селекторе, issue #681). Слово об уровне в ней
+   *  обязано остаться: значок один, а значений четыре. */
+  title?: string;
 }) {
   const Icon = SCOPE_ICONS[scope];
-  const label = SCOPE_LABELS[scope];
+  const label = title ?? `Уровень связи: ${SCOPE_LABELS[scope]}`;
   return (
-    <span title={`Уровень связи: ${label}`} aria-label={`Уровень связи: ${label}`} role="img"
+    <span title={label} aria-label={label} role="img"
       className={`inline-flex items-center shrink-0 text-fg4 ${className}`}>
       <Icon size={size} />
     </span>

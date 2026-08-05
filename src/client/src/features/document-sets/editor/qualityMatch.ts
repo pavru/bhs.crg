@@ -100,6 +100,25 @@ function isWordy(token: string): boolean {
  */
 const MIN_DOC_WORDS = 5;
 
+/** Как ОДИН материал соотносится с одним документом — те же три исхода, что у массовой оценки. */
+export type MaterialVerdict = keyof BulkLinkAssessment<unknown>;
+
+/**
+ * Вердикт по одному материалу против готового стога основ документа.
+ *
+ * Отдельно от `assessBulkLink`, потому что тем же вопросом задаются подсказки из библиотеки: они
+ * считались по СВОЕЙ линейке (все токены, включая цифровые) и потому могли предложить материал,
+ * который ручная привязка объявила бы «не похожим» (issue #682). Один ответ на один вопрос.
+ */
+export function materialVerdict(name: string, hay: Set<string>): MaterialVerdict {
+  // Документ нечем проверять — судить не о чем ни по одному материалу.
+  if ([...hay].filter(isWordy).length < MIN_DOC_WORDS) return 'unverifiable';
+
+  const tokens = weighted(name).filter(x => isWordy(x.t));
+  if (tokens.length === 0) return 'unverifiable';
+  return relevance(tokens, hay) >= FITS_THRESHOLD ? 'fits' : 'mismatched';
+}
+
 export function assessBulkLink<T>(
   materials: readonly T[],
   nameOf: (m: T) => string,
@@ -107,17 +126,42 @@ export function assessBulkLink<T>(
 ): BulkLinkAssessment<T> {
   const hay = new Set(tokenize(docText.join(' ')).map(stem));
   const result: BulkLinkAssessment<T> = { fits: [], unverifiable: [], mismatched: [] };
-
-  // Документ нечем проверять — весь выбор непроверяем, предупреждать не о чем.
-  const docWords = new Set([...hay].filter(isWordy));
-  if (docWords.size < MIN_DOC_WORDS) return { fits: [], unverifiable: [...materials], mismatched: [] };
-
-  for (const m of materials) {
-    const tokens = weighted(nameOf(m)).filter(x => isWordy(x.t));
-    if (tokens.length === 0) { result.unverifiable.push(m); continue; }
-    (relevance(tokens, hay) >= FITS_THRESHOLD ? result.fits : result.mismatched).push(m);
-  }
+  for (const m of materials) result[materialVerdict(nameOf(m), hay)].push(m);
   return result;
+}
+
+/**
+ * Лучший документ библиотеки для материала — подсказка в строке. null, если предлагать нечего.
+ *
+ * Порог и линейка — общие с ручной проверкой (issue #682). До этого подсказки жили на своей копии
+ * порога и считались по ВСЕМ токенам, включая цифровые: материал мог набрать порог на одних цифрах
+ * и получить подсказку, которую ручная привязка объявила бы «не похожей» с предупреждением. То
+ * есть «Принять предложения» молча привязывало ровно то, на чём ручной путь останавливает.
+ *
+ * Цифровые токены при этом не выброшены: совпавший артикул — сигнал сильнее любого слова, и по
+ * нему подсказка честно выдаётся. Отсекается только вердикт «не похоже», а не «непроверяемо».
+ *
+ * Непохожие отсеиваются ВНУТРИ перебора, а не после выбора лучшего. Иначе документ, набравший
+ * максимум на одних цифрах, забирал бы подсказку себе и уносил её в отказ — вместе с верным
+ * документом, который стоял следующим по счёту и до проверки не доживал.
+ */
+export function bestSuggestion<D>(
+  material: { label: string; idValues: string[] },
+  library: readonly { doc: D; stems: Set<string> }[],
+): { doc: D; score: number } | null {
+  const tokens = weighted(material.idValues.join(' '));
+  if (tokens.length === 0) return null;
+
+  let best: { doc: D; score: number } | null = null;
+  for (const entry of library) {
+    const score = relevance(tokens, entry.stems);
+    // Вердикт спрашиваем только у тех, кто уже прошёл порог и обгоняет текущего лидера: он считает
+    // по всему стогу документа, а документов в библиотеке сотни.
+    if (score < FITS_THRESHOLD || score <= (best?.score ?? 0)) continue;
+    if (materialVerdict(material.label, entry.stems) === 'mismatched') continue;
+    best = { doc: entry.doc, score };
+  }
+  return best;
 }
 
 /** Название документа + все его строковые реквизиты — стог основ слов. */
