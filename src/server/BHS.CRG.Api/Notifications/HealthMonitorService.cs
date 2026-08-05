@@ -144,10 +144,14 @@ public class HealthMonitorService(
     private async Task<string?> CheckGeminiAsync(string apiKey, string? model, CancellationToken ct)
     {
         var m = string.IsNullOrWhiteSpace(model) ? "gemini-2.5-flash" : model;
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{m}?key={apiKey}";
+        // Ключ заголовком, а не в строке запроса — см. GeminiRecognizerEngine: URL уходит в тексты
+        // исключений и в логи прокси, а сюда мы ходим по расписанию, то есть постоянно.
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{m}";
         using var http = httpFactory.CreateClient();
         http.Timeout = TimeSpan.FromSeconds(8);
-        var resp = await http.GetAsync(url, ct);
+        using var req = new HttpRequestMessage(HttpMethod.Get, url);
+        req.Headers.TryAddWithoutValidation("x-goog-api-key", apiKey);
+        var resp = await http.SendAsync(req, ct);
         if (!resp.IsSuccessStatusCode)
             throw new InvalidOperationException($"Gemini ответил {(int)resp.StatusCode}");
         return null;
