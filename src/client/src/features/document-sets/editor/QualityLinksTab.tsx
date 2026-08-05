@@ -661,7 +661,13 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       ) : (
         <div className="border border-stroke rounded-lg overflow-hidden">
           <div className="max-h-[50vh] overflow-y-auto">
-            <table className="w-full text-sm">
+            {/* table-fixed — ради ВИДИМОСТИ действий, а не ради вида. Ячейка таблицы с обычной
+                раскладкой берёт ширину по содержимому и `truncate` в ней не работает: на живом
+                реестре строка выходила 1776 px в контейнере 1550, и правая колонка с «Разорвать»
+                уезжала за край — добраться до неё можно было только горизонтальной прокруткой
+                внутри таблицы. Фиксированная раскладка берёт ширины из шапки, и обрезка начинает
+                действовать (issue #680). */}
+            <table className="w-full table-fixed text-sm">
               <thead className="bg-base sticky top-0">
                 <tr>
                   <th className="w-8 px-2 py-2"></th>
@@ -681,7 +687,12 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
                       </td>
                       <td className="px-2 py-1.5 text-fg1">
                         <span className="flex items-center gap-1.5">
-                          <span className="truncate">{m.label}</span>
+                          {/* min-w-0 — не косметика: без него `truncate` не ужимает имя, минимальная
+                              ширина ячейки равна всей строке, и таблица разъезжается шире
+                              контейнера. Действия правой колонки при этом уезжают за край экрана —
+                              то есть аффорданс, ради видимости которого затевался issue #680,
+                              достаётся только тому, кто догадался прокрутить таблицу вбок. */}
+                          <span className="truncate min-w-0">{m.label}</span>
                           {/* Строка спорит с другой за связку (issue #585): совпало значение, но не
                               ключ целиком. Различить их система не может — решение за человеком. */}
                           {colliding.has(m.key) && (
