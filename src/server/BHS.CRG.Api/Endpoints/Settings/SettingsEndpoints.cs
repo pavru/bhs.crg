@@ -68,18 +68,15 @@ public static class SettingsEndpoints
             {
                 if (string.IsNullOrWhiteSpace(smtp.Password))
                 {
-                    // Сохранённый пароль подставляем ТОЛЬКО на сохранённый же сервер. Иначе проверка
-                    // связи превращалась в выгрузку пароля: хост берётся из формы, пароль из базы —
-                    // и достаточно указать свой сервер, чтобы он пришёл на него сам. Роль Admin по
+                    // Сохранённый пароль подставляем ТОЛЬКО на сохранённый же сервер (сравнение —
+                    // общее с путём сохранения, см. SmtpSettings.SameServerAs). Иначе проверка связи
+                    // превращалась в выгрузку пароля: хост берётся из формы, пароль из базы — и
+                    // достаточно указать свой сервер, чтобы он пришёл на него сам. Роль Admin по
                     // модели угроз всесильна, но украденная сессия администратора — нет, а здесь
                     // секрет уходил без единого «покажи пароль».
                     var saved = (await settings.GetEffectiveAsync(ct)).Smtp;
-                    var sameServer =
-                        string.Equals(smtp.Host?.Trim(), saved.Host?.Trim(), StringComparison.OrdinalIgnoreCase)
-                        && smtp.Port == saved.Port
-                        && string.Equals(smtp.User?.Trim(), saved.User?.Trim(), StringComparison.Ordinal);
-                    if (!sameServer)
-                        return Results.Ok(new { ok = false, error = "Проверка на другом сервере или под другим пользователем требует ввести пароль: сохранённый на чужой адрес не отправляется." });
+                    if (!smtp.SameServerAs(saved))
+                        return Results.Ok(new { ok = false, error = "Проверка на другом сервере, под другим пользователем или без шифрования требует ввести пароль: сохранённый на чужой адрес не отправляется." });
                     smtp.Password = saved.Password;
                 }
                 await email.TestConnectionAsync(smtp, ct);

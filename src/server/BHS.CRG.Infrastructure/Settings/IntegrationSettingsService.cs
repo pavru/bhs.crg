@@ -109,7 +109,16 @@ public class IntegrationSettingsService(
 
     public void Invalidate() => cache.Remove(CacheKey);
 
-    // Пароль SMTP перезаписываем только при непустом новом значении (UI не присылает существующий, как и ключи).
+    // Пароль SMTP перезаписываем только при непустом новом значении (UI не присылает существующий,
+    // как и ключи) — но унаследовать сохранённый можно ТОЛЬКО на тот же сервер.
+    //
+    // Иначе форма настроек сама была бы способом выгрузить пароль: сохранить чужой хост с пустым
+    // полем пароля, и первое же письмо (тестовое, уведомление, рассылка) уйдёт на него с
+    // аутентификацией сохранённым паролем. Запрет на подстановку в проверке связи эту дыру не
+    // закрывает — проверка связи там вообще не нужна.
+    //
+    // При смене сервера пароль обнуляется: почта перестаёт работать, пока администратор не введёт
+    // пароль от нового сервера. Это заметно и честно — в отличие от молчаливого наследования.
     private static SmtpSettings MergeSmtp(SmtpSettings existing, SmtpSettings update) => new()
     {
         Enabled = update.Enabled,
@@ -119,7 +128,9 @@ public class IntegrationSettingsService(
         From = update.From,
         FromName = update.FromName,
         UseSsl = update.UseSsl,
-        Password = string.IsNullOrWhiteSpace(update.Password) ? existing.Password : update.Password,
+        Password = !string.IsNullOrWhiteSpace(update.Password) ? update.Password
+            : update.SameServerAs(existing) ? existing.Password
+            : null,
     };
 
     // Ключи перезаписываем только при непустом новом значении (UI не присылает существующие ключи).
@@ -144,11 +155,13 @@ public class IntegrationSettingsService(
     {
         var row = await db.IntegrationSettings.AsNoTracking().FirstOrDefaultAsync(ct);
         if (row is null) return new IntegrationSettingsModel();
-        var m = JsonSerializer.Deserialize<IntegrationSettingsModel>(row.Data.RootElement.GetRawText(), JsonOpts) ?? new IntegrationSettingsModel();
-        // Внутри приложения модель ходит расшифрованной: шифрование — свойство хранения, и знать о
-        // нём движкам распознавания, поиску и почте незачем. Обратно шифрует PersistRawAsync.
-        UnprotectSecrets(m);
-        return m;
+        // Секреты остаются В ХРАНИМОМ ВИДЕ: расшифровка происходит на самой границе наружу, в
+        // BuildEffective. Так путь сохранения вообще не расшифровывает — а значит, не может ничего
+        // испортить, если ключи Data Protection временно недоступны (том не примонтирован, путь
+        // переехал). Раньше здесь стояла расшифровка, и такая перезапись стирала бы все секреты
+        // разом при первом же сохранении любой мелочи: слияние подставляло бы null вместо
+        // нерасшифрованного значения, а PersistRawAsync писал бы его поверх целого шифротекста.
+        return JsonSerializer.Deserialize<IntegrationSettingsModel>(row.Data.RootElement.GetRawText(), JsonOpts) ?? new IntegrationSettingsModel();
     }
 
     private IntegrationSettingsModel BuildEffective(IntegrationSettingsModel raw)
@@ -165,6 +178,11 @@ public class IntegrationSettingsService(
 
         foreach (var name in RecNames) m.Recognition[name] = EffRec(name, raw);
         foreach (var name in WebNames) m.WebSearch[name] = EffWeb(name, raw);
+
+        // Расшифровка — здесь, на границе наружу: дальше модель уходит движкам распознавания,
+        // поиску и почте, и знать о способе хранения им незачем. Значения, подмешанные из
+        // конфигурации, метки шифрования не имеют и проходят через Unprotect как есть.
+        UnprotectSecrets(m);
         return m;
     }
 

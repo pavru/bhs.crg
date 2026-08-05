@@ -25,6 +25,23 @@ public class SmtpSettings
     public string? FromName { get; set; }
     /// <summary>true — STARTTLS/SSL (обычно порт 587/465); false — без шифрования.</summary>
     public bool UseSsl { get; set; } = true;
+
+    /// <summary>
+    /// Тот же самый почтовый сервер и та же учётная запись на нём?
+    ///
+    /// От этого зависит судьба СОХРАНЁННОГО пароля: наследовать его можно только на тот же сервер.
+    /// Иначе достаточно указать чужой хост с пустым паролем — и сохранённый уедет туда сам.
+    /// <c>UseSsl</c> входит в сравнение намеренно: снятие шифрования — тоже смена адресата, только
+    /// адресатом становится любой на пути, а MailKit отдаёт пароль по AUTH и без TLS.
+    ///
+    /// Определение здесь, а не в двух вызывающих (сохранение и проверка связи): разъехавшись, они
+    /// оставили бы дыру ровно в том месте, ради которого написаны.
+    /// </summary>
+    public bool SameServerAs(SmtpSettings other) =>
+        string.Equals(Host?.Trim(), other.Host?.Trim(), StringComparison.OrdinalIgnoreCase)
+        && Port == other.Port
+        && string.Equals(User?.Trim(), other.User?.Trim(), StringComparison.Ordinal)
+        && UseSsl == other.UseSsl;
 }
 
 /// <summary>

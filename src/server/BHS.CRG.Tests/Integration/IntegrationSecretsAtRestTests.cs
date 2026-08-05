@@ -73,6 +73,108 @@ public class IntegrationSecretsAtRestTests(IntegrationTestFixture fixture) : IAs
     }
 
     /// <summary>
+    /// Смена почтового сервера обнуляет сохранённый пароль.
+    ///
+    /// Иначе форма настроек сама была бы способом его выгрузить: сохранить чужой хост с пустым
+    /// полем пароля — и первое же письмо уйдёт туда с аутентификацией сохранённым паролем. Запрет
+    /// подстановки в проверке связи этого не закрывает: проверка связи там не нужна.
+    /// </summary>
+    [Theory]
+    [InlineData("smtp.attacker.test", 587, "u", true)]    // другой хост
+    [InlineData("smtp.example.test", 2525, "u", true)]    // другой порт
+    [InlineData("smtp.example.test", 587, "другой", true)] // другой пользователь
+    [InlineData("smtp.example.test", 587, "u", false)]     // снято шифрование: пароль ушёл бы открытым
+    public async Task ChangingMailServer_DropsSavedPassword(string host, int port, string user, bool useSsl)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var settings = scope.ServiceProvider.GetRequiredService<IIntegrationSettings>();
+        await settings.SaveSmtpAsync(new SmtpSettings
+        {
+            Enabled = true, Host = "smtp.example.test", Port = 587, User = "u", UseSsl = true, Password = SmtpSecret,
+        });
+
+        // Пароль в форме пустой — «оставить прежний». Прежний остаётся только на прежнем сервере.
+        await settings.SaveSmtpAsync(new SmtpSettings
+        {
+            Enabled = true, Host = host, Port = port, User = user, UseSsl = useSsl, Password = null,
+        });
+
+        var eff = await settings.GetEffectiveAsync();
+        Assert.True(string.IsNullOrEmpty(eff.Smtp.Password));
+    }
+
+    [Fact]
+    public async Task SameMailServer_KeepsSavedPassword()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var settings = scope.ServiceProvider.GetRequiredService<IIntegrationSettings>();
+        var server = new SmtpSettings { Enabled = true, Host = "smtp.example.test", Port = 587, User = "u", UseSsl = true };
+
+        await settings.SaveSmtpAsync(new SmtpSettings
+        {
+            Enabled = true, Host = server.Host, Port = server.Port, User = server.User, UseSsl = true, Password = SmtpSecret,
+        });
+        // Правка чего-то постороннего на том же сервере пароль не роняет — иначе почта отваливалась
+        // бы от смены отображаемого имени отправителя.
+        await settings.SaveSmtpAsync(new SmtpSettings
+        {
+            Enabled = true, Host = server.Host, Port = server.Port, User = server.User, UseSsl = true,
+            FromName = "Исполнительная документация", Password = null,
+        });
+
+        var eff = await settings.GetEffectiveAsync();
+        Assert.Equal(SmtpSecret, eff.Smtp.Password);
+    }
+
+    /// <summary>
+    /// Ключи Data Protection временно недоступны (том не примонтирован, путь переехал) — сохранение
+    /// посторонней настройки НЕ должно затирать шифротекст. Иначе однократная ошибка развёртывания
+    /// превращалась бы в безвозвратную потерю всех секретов: наружу они читаются как «не заданы», и
+    /// первое же сохранение записало бы эту пустоту поверх целых значений.
+    /// </summary>
+    [Fact]
+    public async Task SaveDoesNotWipeSecretsWhenTheyCannotBeDecrypted()
+    {
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var settings = scope.ServiceProvider.GetRequiredService<IIntegrationSettings>();
+            await settings.SaveAsync(new IntegrationSettingsModel
+            {
+                Recognition = { ["Anthropic"] = new IntegrationEngine { Enabled = true, ApiKey = ApiKeySecret } },
+            });
+        }
+
+        // Подменяем шифротекст на нерасшифровываемый — это и есть «ключи сменились».
+        string broken;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var row = await db.IntegrationSettings.FirstAsync();
+            broken = row.Data.RootElement.GetRawText()
+                .Replace("enc:v1:", "enc:v1:ZZZ", StringComparison.Ordinal);
+            row.Update(System.Text.Json.JsonDocument.Parse(broken));
+            await db.SaveChangesAsync();
+            scope.ServiceProvider.GetRequiredService<IIntegrationSettings>().Invalidate();
+        }
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var settings = scope.ServiceProvider.GetRequiredService<IIntegrationSettings>();
+            // Наружу — «ключ не задан»: с мусором в сеть не ходим.
+            Assert.True(string.IsNullOrEmpty((await settings.GetEffectiveAsync()).Recognition["Anthropic"].ApiKey));
+
+            // Сохраняем ПОСТОРОННЮЮ настройку, ключа не касаясь.
+            await settings.SaveAsync(new IntegrationSettingsModel { FgisDomains = ["fsa.gov.ru"] });
+        }
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            // Шифротекст на месте — вернув ключи, значения снова прочитают.
+            Assert.Contains("enc:v1:ZZZ", await StoredJsonAsync(scope));
+        }
+    }
+
+    /// <summary>
     /// Наследство: значения, записанные версиями до 0.92.0, лежат открытыми. Стартовый проход
     /// перешифровывает их, и приложение продолжает их понимать.
     /// </summary>
