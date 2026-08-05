@@ -12,9 +12,11 @@ import { useGetDocumentSet } from '@/shared/api/documentSets';
 import {
   useListQualityDocs, useListMaterialLinks, useSetMaterialLinks, useRemoveMaterialLink,
   suggestLinks, searchQualityDocs, importQualityDocFromUrl,
-  type LinkSuggestion, type SearchCandidate, type QualityDocument,
+  type LinkSuggestion, type SearchCandidate, type QualityDocument, type MaterialLinkInput,
 } from '@/shared/api/qualityDocs';
-import type { DocumentInstance, DocumentType, CatalogScope } from '@/shared/api/types';
+import { SCOPE_LABELS, type DocumentInstance, type DocumentType, type CatalogScope } from '@/shared/api/types';
+import { ScopeIcon } from '@/shared/ui/ScopeIcon';
+import { groupByTargetScope, needsFallbackScope, type LinkScope } from './linkTargets';
 import {
   typeHasTag, findTaggedFieldPath, collectMaterialRows, materialIdentityKeys,
 } from '@/shared/api/schema';
@@ -365,11 +367,15 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   }, [docById]);
 
   const linkByKey = useMemo(() => {
-    const m = new Map<string, { id: string; docId: string }>();
+    // Область связки хранится рядом с ней не для показа, а для ЗАПИСИ (issue #681): перепривязка
+    // идёт в область действующей связки, иначе рядом заводится вторая. См. linkTargets.
+    const m = new Map<string, { id: string; docId: string; scope: CatalogScope; scopeId: string | null }>();
     // Узкий уровень побеждает широкий — тот же приоритет, что у QualityLinkResolver на генерации
     // (Set=1 … System=5). Здесь это порядок перезаписи: последний записавший и остаётся.
     [...linksSystem, ...linksConstruction, ...linksSection, ...linksSet]
-      .forEach(l => m.set(l.materialKey, { id: l.id, docId: l.qualityDocumentId }));
+      .forEach(l => m.set(l.materialKey, {
+        id: l.id, docId: l.qualityDocumentId, scope: l.scope, scopeId: l.scopeId ?? null,
+      }));
     return m;
   }, [linksSystem, linksConstruction, linksSection, linksSet]);
 
@@ -469,16 +475,38 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
     await linkChosen(doc.id, chosen);
   }
 
-  async function linkChosen(docId: string, chosen: MaterialRow[]) {
+  /** Область действующей связки материала — та, в которую его перепривязка и обязана писать. */
+  const existingScopeOf = (m: { key: string }): LinkScope | undefined => {
+    const l = linkByKey.get(m.key);
+    return l ? { scope: l.scope, scopeId: l.scopeId } : undefined;
+  };
+
+  /**
+   * Единственная точка записи связок (issue #681).
+   *
+   * Строка со связкой пишется в область ЭТОЙ связки, строка без связки — в область из селектора.
+   * Одной областью на всех отправлять нельзя: команда апсертит по тройке (область, объект, ключ),
+   * и запись с другой областью заводит вторую связку, оставив прежнюю действовать в других
+   * комплектах. Возвращает false, если отправлять было некуда, — вызывающий тогда не закрывает
+   * окно и не сбрасывает выбор.
+   */
+  async function linkMaterials(docId: string, rows: readonly MaterialLinkInput[]): Promise<boolean> {
     // Уровень выбран, а его id ещё не доехал (комплект перезагружается) — связку класть некуда:
     // с пустым scopeId она стала бы «на все разделы разом», чего в селекторе никто не выбирал.
-    if (scopeNotReady()) return;
+    // Спрашиваем, только если селектор вообще участвует: перепривязке в своей области он не нужен.
+    if (needsFallbackScope(rows, existingScopeOf) && scopeNotReady()) return false;
     // Метку материала кладём в связку сразу (issue #554): человеческое имя есть только здесь —
     // строки наборов данных не хранятся, и на экране контроля восстановить его будет неоткуда.
-    await setLinks.mutateAsync({
-      scope, scopeId,
-      materials: chosen.map(m => ({ key: m.key, label: m.label })), qualityDocumentId: docId,
-    });
+    for (const group of groupByTargetScope(rows, existingScopeOf, { scope, scopeId }))
+      await setLinks.mutateAsync({
+        scope: group.scope, scopeId: group.scopeId,
+        materials: group.materials.map(m => ({ key: m.key, label: m.label })), qualityDocumentId: docId,
+      });
+    return true;
+  }
+
+  async function linkChosen(docId: string, chosen: MaterialRow[]) {
+    if (!await linkMaterials(docId, chosen)) return;
     setPickerOpen(false);
     setPendingLink(null);
     setSelected(new Set());
@@ -495,26 +523,23 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
 
   // Принять предложенный документ для одной строки / для всех с подсказкой.
   async function acceptSuggestion(mat: MaterialRow, docId: string) {
-    if (scopeNotReady()) return;
-    await setLinks.mutateAsync({ scope, scopeId, materials: [{ key: mat.key, label: mat.label }], qualityDocumentId: docId });
+    await linkMaterials(docId, [{ key: mat.key, label: mat.label }]);
   }
   async function acceptAllSuggestions() {
-    if (scopeNotReady()) return;
-    const byDoc = new Map<string, { key: string; label: string }[]>();
+    const byDoc = new Map<string, MaterialLinkInput[]>();
     for (const mat of materials) {
       const s = suggestionByKey.get(mat.key);
       if (!s) continue;
       const arr = byDoc.get(s.doc.id) ?? []; arr.push({ key: mat.key, label: mat.label }); byDoc.set(s.doc.id, arr);
     }
     for (const [docId, items] of byDoc)
-      await setLinks.mutateAsync({ scope, scopeId, materials: items, qualityDocumentId: docId });
+      if (!await linkMaterials(docId, items)) return;
   }
 
   async function applySuggestions() {
-    if (scopeNotReady()) return;
     const chosen = (suggestions ?? []).filter(s => suggestSel.has(s.materialKey));
-    // группируем по документу — один вызов на документ
-    const byDoc = new Map<string, { key: string; label?: string }[]>();
+    // группируем по документу — один вызов на документ (внутри разойдётся ещё и по областям)
+    const byDoc = new Map<string, MaterialLinkInput[]>();
     for (const s of chosen) {
       const arr = byDoc.get(s.qualityDocumentId) ?? [];
       // у подсказки имя материала своё — оно же показывалось человеку в списке предложений
@@ -522,7 +547,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       byDoc.set(s.qualityDocumentId, arr);
     }
     for (const [docId, items] of byDoc)
-      await setLinks.mutateAsync({ scope, scopeId, materials: items, qualityDocumentId: docId });
+      if (!await linkMaterials(docId, items)) return;
     setSuggestions(null);
   }
 
@@ -600,6 +625,16 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
                         {link ? (
                           <span className="flex items-center gap-1.5">
                             <ShieldCheck size={13} className="text-success shrink-0" />
+                            {/* Уровень показываем, ТОЛЬКО когда он расходится с селектором (issue
+                                #681): в обычном случае он у всех строк один, и повторённый 130 раз
+                                значок стал бы фоном. А расхождение — ровно то место, где человек
+                                думает, что правит связку комплекта, а правит общесистемную. */}
+                            {(link.scope !== scope || link.scopeId !== scopeId) && (
+                              <ScopeIcon scope={link.scope}
+                                title={`Связка заведена на уровне «${SCOPE_LABELS[link.scope]}», а в селекторе выбрано `
+                                  + `«${SCOPE_LABELS[scope]}». Перепривязка изменит её на своём уровне — то есть всюду, `
+                                  + 'куда этот уровень достаёт.'} />
+                            )}
                             <button onClick={() => { const d = docById.get(link.docId); if (d) setViewDoc(d); }}
                               title="Просмотреть документ"
                               className="flex-1 text-left text-brand-hover hover:underline truncate">
