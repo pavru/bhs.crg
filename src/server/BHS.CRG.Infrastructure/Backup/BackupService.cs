@@ -1,10 +1,12 @@
-﻿using System.IO.Compression;
+using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
+using BHS.CRG.Domain.Reconciliation;
 using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Domain.Templates;
 using BHS.CRG.Infrastructure.Persistence;
@@ -72,6 +74,15 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         var userLib = await db.TypstUserLibs.AsNoTracking().FirstOrDefaultAsync(ct);
         var userLibFiles = await db.TypstUserLibFiles.AsNoTracking().OrderBy(f => f.Path).ToListAsync(ct);
         var recognitionProfiles = await db.RecognitionProfiles.AsNoTracking().ToListAsync(ct);
+        var bindingTemplates = await db.DataSetBindingTemplates.AsNoTracking().ToListAsync(ct);
+
+        // Алиасы: переносим РЕШЕНИЯ человека — подтверждённые и отклонённые. Предложенные не берём:
+        // это неразобранный шум (в том числе от агента), который на новой системе появится заново.
+        // Отклонённые важны не меньше подтверждённых: они и существуют затем, чтобы предложение не
+        // всплывало снова, и потеря их означала бы разбирать те же предложения второй раз.
+        var aliases = await db.ReconciliationAliases.AsNoTracking()
+            .Where(a => a.Status != AliasStatus.Proposed)
+            .ToListAsync(ct);
 
         return new BackupManifest(
             SchemaVersion: CurrentSchemaVersion,
@@ -112,7 +123,14 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 p.Id, p.Name, p.Code, p.Kind.ToString(),
                 p.Fields.RootElement.Clone(), p.Shape?.RootElement.Clone(),
                 p.IsBuiltIn, p.IsModified, p.CreatedAt, p.UpdatedAt,
-                p.RowColumns?.RootElement.Clone(), p.BuiltInHash)).ToArray());
+                p.RowColumns?.RootElement.Clone(), p.BuiltInHash)).ToArray(),
+            DataSetBindingTemplates: bindingTemplates.Select(t => new BackupDataSetBindingTemplate(
+                t.Id, t.DocumentTypeId, t.Name, t.TargetFieldKey, t.ColumnMappings,
+                t.SortOrder, t.CreatedAt, t.UpdatedAt)).ToArray(),
+            ReconciliationAliases: aliases.Select(a => new BackupReconciliationAlias(
+                a.Id, a.AliasKey, a.AliasLabel, a.CanonicalKey, a.CanonicalLabel,
+                a.Status.ToString(), a.Note, a.ProposedBy, a.ConfirmedBy,
+                a.CreatedAt, a.UpdatedAt)).ToArray());
     }
 
     // ── Import ────────────────────────────────────────────────────────────────
@@ -184,6 +202,10 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             await RestoreTypstUserLibFilesAsync(manifest.TypstUserLibFiles, stats, ct);
             await RestoreCatalogEntitiesAsync(manifest.CatalogEntities, stats, warnings, ct);
             await RestoreCommonDataEntriesAsync(manifest.CommonDataEntries, stats, warnings, ct);
+            // После типов документов: шаблон маппинга висит на типе и без него бессмыслен.
+            await RestoreDataSetBindingTemplatesAsync(manifest.DataSetBindingTemplates ?? [], stats, warnings, ct);
+            // Зависимостей нет вовсе — место в порядке произвольно.
+            await RestoreReconciliationAliasesAsync(manifest.ReconciliationAliases ?? [], stats, warnings, ct);
             await tx.CommitAsync(ct);
 
             return new RestoreReport(true, conversionNotice, warnings,
@@ -196,7 +218,9 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 stats.TemplateAssetsCreated, stats.TemplateAssetsUpdated,
                 stats.TypstUserLibRestored,
                 stats.TypstUserLibFilesRestored,
-                stats.RecognitionProfilesCreated, stats.RecognitionProfilesUpdated);
+                stats.RecognitionProfilesCreated, stats.RecognitionProfilesUpdated,
+                stats.DataSetBindingTemplatesCreated, stats.DataSetBindingTemplatesUpdated,
+                stats.ReconciliationAliasesCreated, stats.ReconciliationAliasesUpdated);
         }
         catch (Exception ex)
         {
@@ -533,6 +557,55 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         return [.. result];
     }
 
+    private async Task RestoreDataSetBindingTemplatesAsync(
+        BackupDataSetBindingTemplate[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
+    {
+        if (items.Length == 0) return;
+        var existingIds = await db.DataSetBindingTemplates.Select(e => e.Id).ToHashSetAsync(ct);
+        // Та же проверка, что у шаблонов документов: шаблон маппинга к несуществующему типу
+        // восстановился бы записью, которую никогда не видно, а отчёт назвал бы её успешной.
+        var validDocTypeIds = await db.DocumentTypes.Select(e => e.Id).ToHashSetAsync(ct);
+        foreach (var item in items)
+        {
+            if (!validDocTypeIds.Contains(item.DocumentTypeId))
+            {
+                warnings.Add($"Шаблон маппинга «{item.Name}»: тип документа {item.DocumentTypeId} не найден, пропущен.");
+                continue;
+            }
+            var entity = DataSetBindingTemplate.Restore(
+                item.Id, item.DocumentTypeId, item.Name, item.TargetFieldKey, item.ColumnMappings,
+                item.SortOrder, item.CreatedAt, item.UpdatedAt);
+            db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
+            if (existingIds.Contains(item.Id)) stats.DataSetBindingTemplatesUpdated++;
+            else stats.DataSetBindingTemplatesCreated++;
+        }
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+    }
+
+    private async Task RestoreReconciliationAliasesAsync(
+        BackupReconciliationAlias[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
+    {
+        if (items.Length == 0) return;
+        var existingIds = await db.ReconciliationAliases.Select(e => e.Id).ToHashSetAsync(ct);
+        foreach (var item in items)
+        {
+            if (!Enum.TryParse<AliasStatus>(item.Status, out var status))
+            {
+                warnings.Add($"Алиас «{item.AliasLabel}» → «{item.CanonicalLabel}»: неизвестный статус «{item.Status}», пропущен.");
+                continue;
+            }
+            var entity = ReconciliationAlias.Restore(
+                item.Id, item.AliasKey, item.AliasLabel, item.CanonicalKey, item.CanonicalLabel,
+                status, item.Note, item.ProposedBy, item.ConfirmedBy, item.CreatedAt, item.UpdatedAt);
+            db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
+            if (existingIds.Contains(item.Id)) stats.ReconciliationAliasesUpdated++;
+            else stats.ReconciliationAliasesCreated++;
+        }
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+    }
+
     private sealed class RestoreStats
     {
         public int PrimitiveTypesCreated, PrimitiveTypesUpdated;
@@ -545,5 +618,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         public int TypstUserLibFilesRestored;
         public int CatalogEntitiesCreated, CatalogEntitiesUpdated;
         public int CommonDataEntriesCreated, CommonDataEntriesUpdated;
+        public int DataSetBindingTemplatesCreated, DataSetBindingTemplatesUpdated;
+        public int ReconciliationAliasesCreated, ReconciliationAliasesUpdated;
     }
 }

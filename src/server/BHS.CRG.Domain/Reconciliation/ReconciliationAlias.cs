@@ -55,6 +55,20 @@ public class ReconciliationAlias : Entity
             Note = note, ProposedBy = proposedBy,
         };
 
+    /// <summary>Восстановление из резервной копии: идентификатор, статус и отметки времени — из неё.</summary>
+    public static ReconciliationAlias Restore(
+        Guid id, string aliasKey, string aliasLabel, string canonicalKey, string canonicalLabel,
+        AliasStatus status, string? note, string? proposedBy, string? confirmedBy,
+        DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        => new()
+        {
+            Id = id,
+            AliasKey = aliasKey, AliasLabel = aliasLabel,
+            CanonicalKey = canonicalKey, CanonicalLabel = canonicalLabel,
+            Status = status, Note = note, ProposedBy = proposedBy, ConfirmedBy = confirmedBy,
+            CreatedAt = createdAt, UpdatedAt = updatedAt,
+        };
+
     public void Review(AliasStatus status, string? note, string? confirmedBy)
     {
         Status = status;

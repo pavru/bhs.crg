@@ -1,11 +1,13 @@
-﻿using System.IO.Compression;
+using System.IO.Compression;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Templates;
 using BHS.CRG.Application.Recognition;
+using BHS.CRG.Domain.Reconciliation;
 using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Infrastructure.Recognition;
 using BHS.CRG.Infrastructure.Backup;
@@ -216,5 +218,122 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Equal(0, report.EnumTypesCreated);
         Assert.Equal(0, report.TemplateAssetsCreated);
         Assert.False(report.TypstUserLibRestored);
+        Assert.Equal(0, report.DataSetBindingTemplatesCreated);
+        Assert.Equal(0, report.ReconciliationAliasesCreated);
+    }
+
+    /// <summary>
+    /// Шаблон маппинга колонок — настройка типа документа, а не проектные данные: после
+    /// восстановления типы и шаблоны возвращались, а стандартные маппинги к ним нет, и ничто об
+    /// этом не сообщало (ревизия 2026-08-05).
+    /// </summary>
+    [Fact]
+    public async Task Export_Import_RoundTrips_DataSetBindingTemplates()
+    {
+        var docTypeId = Guid.NewGuid();
+        var templateId = Guid.NewGuid();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.DocumentTypes.Add(DocumentType.Restore(
+                docTypeId, "Кабельный журнал", "cable-journal", DocumentTypeKind.Document, null,
+                JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
+                false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+            db.DataSetBindingTemplates.Add(DataSetBindingTemplate.Restore(
+                templateId, docTypeId, "Стандартный кабельный", "Кабели",
+                """{"Марка":"Тип кабеля","Длина":"L, м"}""", 3,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        byte[] zipBytes;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var (zipStream, _) = await Backup(scope).ExportAsync();
+            using var buf = new MemoryStream();
+            await zipStream.CopyToAsync(buf);
+            zipBytes = buf.ToArray();
+        }
+
+        await fixture.ResetDatabaseAsync();
+
+        RestoreReport report;
+        using (var scope = fixture.Services.CreateScope())
+            report = await Backup(scope).ImportAsync(new MemoryStream(zipBytes));
+
+        Assert.True(report.Success);
+        Assert.Equal(1, report.DataSetBindingTemplatesCreated);
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var restored = await db.DataSetBindingTemplates.AsNoTracking().SingleAsync();
+            Assert.Equal("Стандартный кабельный", restored.Name);
+            Assert.Equal(docTypeId, restored.DocumentTypeId);
+            Assert.Equal("Кабели", restored.TargetFieldKey);
+            Assert.Contains("Тип кабеля", restored.ColumnMappings);
+            Assert.Equal(3, restored.SortOrder);
+        }
+    }
+
+    /// <summary>
+    /// Алиасы — знание человека: пересчитать его нельзя, только надумать заново. Переносим РЕШЕНИЯ
+    /// (подтверждённые и отклонённые) и НЕ переносим предложенные: это неразобранный шум, который на
+    /// новой системе появится сам. Отклонённые важны не меньше подтверждённых — они и существуют
+    /// затем, чтобы предложение не всплывало снова.
+    /// </summary>
+    [Fact]
+    public async Task Export_Import_RoundTrips_ConfirmedAndRejectedAliases_ButNotProposed()
+    {
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var confirmed = ReconciliationAlias.Propose("hyperline-cm1u", "Hyperline CM-1U-ML",
+                "organizer", "Органайзер СвязьСтройДеталь", "одно и то же", "человек");
+            confirmed.Review(AliasStatus.Confirmed, null, "человек");
+            var rejected = ReconciliationAlias.Propose("kabel-vvg", "ВВГнг 3х1.5",
+                "kabel-vvgng", "ВВГнг-LS 3х1.5", null, "агент");
+            rejected.Review(AliasStatus.Rejected, "разные марки", "человек");
+            var proposed = ReconciliationAlias.Propose("shkaf", "Шкаф 19\"",
+                "shkaf-19", "Шкаф 19 дюймов", null, "агент");
+
+            db.ReconciliationAliases.AddRange(confirmed, rejected, proposed);
+            await db.SaveChangesAsync();
+        }
+
+        byte[] zipBytes;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var (zipStream, _) = await Backup(scope).ExportAsync();
+            using var buf = new MemoryStream();
+            await zipStream.CopyToAsync(buf);
+            zipBytes = buf.ToArray();
+        }
+
+        await fixture.ResetDatabaseAsync();
+
+        RestoreReport report;
+        using (var scope = fixture.Services.CreateScope())
+            report = await Backup(scope).ImportAsync(new MemoryStream(zipBytes));
+
+        Assert.True(report.Success);
+        Assert.Equal(2, report.ReconciliationAliasesCreated);
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var restored = await db.ReconciliationAliases.AsNoTracking().ToListAsync();
+
+            Assert.Equal(2, restored.Count);
+            Assert.DoesNotContain(restored, a => a.Status == AliasStatus.Proposed);
+
+            var confirmed = Assert.Single(restored, a => a.Status == AliasStatus.Confirmed);
+            Assert.Equal("Hyperline CM-1U-ML", confirmed.AliasLabel);
+            Assert.Equal("Органайзер СвязьСтройДеталь", confirmed.CanonicalLabel);
+            Assert.Equal("человек", confirmed.ConfirmedBy);
+
+            var rejected = Assert.Single(restored, a => a.Status == AliasStatus.Rejected);
+            Assert.Equal("разные марки", rejected.Note);
+        }
     }
 }

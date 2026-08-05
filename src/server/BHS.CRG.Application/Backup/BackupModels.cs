@@ -17,7 +17,27 @@ public record BackupManifest(
     BackupTemplateAsset[]? TemplateAssets = null,
     BackupTypstUserLib? TypstUserLib = null,
     IReadOnlyList<BackupTypstUserLibFile>? TypstUserLibFiles = null,
-    BackupRecognitionProfile[]? RecognitionProfiles = null);
+    BackupRecognitionProfile[]? RecognitionProfiles = null,
+    BackupDataSetBindingTemplate[]? DataSetBindingTemplates = null,
+    BackupReconciliationAlias[]? ReconciliationAliases = null);
+
+/// <summary>
+/// Шаблон стандартного маппинга колонок для типа документа. Проектных зависимостей не имеет —
+/// висит только на типе документа, а типы в копии есть; пишется под ролью Admin, то есть это
+/// настройка системы, ради переноса которой резервная копия и существует.
+/// </summary>
+public record BackupDataSetBindingTemplate(
+    Guid Id, Guid DocumentTypeId, string Name, string? TargetFieldKey, string ColumnMappings,
+    int SortOrder, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// Утверждение «эти два наименования обозначают одно и то же». Знание человека: пересчитать его
+/// нельзя, только надумать заново.
+/// </summary>
+public record BackupReconciliationAlias(
+    Guid Id, string AliasKey, string AliasLabel, string CanonicalKey, string CanonicalLabel,
+    string Status, string? Note, string? ProposedBy, string? ConfirmedBy,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 public record BackupPrimitiveType(
     Guid Id, string Name, string Code, string BaseType, string? Description,
@@ -96,4 +116,8 @@ public record RestoreReport(
     bool TypstUserLibRestored = false,
     int TypstUserLibFilesRestored = 0,
     int RecognitionProfilesCreated = 0,
-    int RecognitionProfilesUpdated = 0);
+    int RecognitionProfilesUpdated = 0,
+    int DataSetBindingTemplatesCreated = 0,
+    int DataSetBindingTemplatesUpdated = 0,
+    int ReconciliationAliasesCreated = 0,
+    int ReconciliationAliasesUpdated = 0);

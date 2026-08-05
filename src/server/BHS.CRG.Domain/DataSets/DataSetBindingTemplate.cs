@@ -36,6 +36,22 @@ public class DataSetBindingTemplate : Entity
             SortOrder = sortOrder,
         };
 
+    /// <summary>Восстановление из резервной копии: идентификатор и отметки времени берутся из неё.</summary>
+    public static DataSetBindingTemplate Restore(
+        Guid id, Guid documentTypeId, string name, string? targetFieldKey, string columnMappings,
+        int sortOrder, DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        => new()
+        {
+            Id = id,
+            DocumentTypeId = documentTypeId,
+            Name = name,
+            TargetFieldKey = targetFieldKey,
+            ColumnMappings = columnMappings,
+            SortOrder = sortOrder,
+            CreatedAt = createdAt,
+            UpdatedAt = updatedAt,
+        };
+
     public void Update(string name, string? targetFieldKey, string columnMappings, int sortOrder)
     {
         Name = name.Trim();
