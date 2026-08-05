@@ -16,14 +16,10 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class IntegrationSecretsAtRestTests(IntegrationTestFixture fixture) : IAsyncLifetime
 {
-    // integration_settings НЕ входит в список TRUNCATE у фикстуры (таблица одна на всю установку,
-    // и её никто не чистил). Чистим сами — и после себя тоже, чтобы соседним классам не досталась
-    // настроенная почта, которой они не ждут.
-    public async Task InitializeAsync()
-    {
-        await fixture.ResetDatabaseAsync();
-        await ClearSettingsAsync();
-    }
+    // Сброс фикстуры чистит integration_settings и сбрасывает кеш настроек (issue #698), так что
+    // перед прогоном руками делать нечего. А вот после себя убираем: не всякий класс начинается со
+    // сброса, и соседям не должна достаться настроенная почта, которой они не ждут.
+    public async Task InitializeAsync() => await fixture.ResetDatabaseAsync();
 
     public async Task DisposeAsync() => await ClearSettingsAsync();
 

@@ -1,4 +1,5 @@
 ﻿using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -52,45 +53,69 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         });
     }
 
+    /// <summary>
+    /// Таблицы, очищаемые перед каждым классом тестов. Список — не украшение, а решение: всё, чего
+    /// в нём нет, переживает прогон и достаётся следующему классу. Против расхождения списка с
+    /// моделью стоит <see cref="FixtureResetCoverageTests" /> — он требует, чтобы каждая таблица
+    /// была либо здесь, либо в его списке исключений с причиной.
+    /// </summary>
+    internal static readonly string[] TruncatedTables =
+    [
+        "agent_observations",
+        "reconciliation_aliases",
+        "reconciliation_findings",
+        "reconciliation_decisions",
+        "reconciliation_runs",
+        "reconciliations",
+        "material_quality_links",
+        "quality_audit_runs",
+        "quality_documents",
+        "notifications",
+        "jobs",
+        "subscriptions",
+        "document_set_outputs",
+        "generated_files",
+        "document_facets",
+        "domain_objects",
+        "document_sets",
+        "sections",
+        "constructions",
+        "templates",
+        "template_assets",
+        "typst_user_lib",
+        "typst_user_lib_files",
+        "document_types",
+        "catalog_entities",
+        "primitive_types",
+        "enum_types",
+        "dataset_bindings",
+        "dataset_binding_templates",
+        "dataset_processing_templates",
+        "dataset_sources",
+        "dataset_files",
+        "integration_settings",
+    ];
+
     /// <summary>Truncates all domain tables so each test class starts clean.</summary>
     public async Task ResetDatabaseAsync()
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.ExecuteSqlRawAsync(@"
-            TRUNCATE TABLE
-                agent_observations,
-                reconciliation_aliases,
-                reconciliation_findings,
-                reconciliation_decisions,
-                reconciliation_runs,
-                reconciliations,
-                material_quality_links,
-                quality_audit_runs,
-                quality_documents,
-                notifications,
-                jobs,
-                subscriptions,
-                document_set_outputs,
-                generated_files,
-                document_facets,
-                domain_objects,
-                document_sets,
-                sections,
-                constructions,
-                templates,
-                template_assets,
-                typst_user_lib,
-                document_types,
-                catalog_entities,
-                primitive_types,
-                enum_types,
-                dataset_bindings,
-                dataset_binding_templates,
-                dataset_processing_templates,
-                dataset_sources,
-                dataset_files
-            RESTART IDENTITY CASCADE");
+        // Имена берём в кавычки: сейчас список весь в нижнем регистре, но часть таблиц модели
+        // названа как RefreshTokens, и первое же такое имя, добавленное сюда как есть, Postgres
+        // свернёт в refreshtokens — фикстура упадёт до первого теста с «relation does not exist».
+        //
+        // EF1003 — про склейку значений в SQL. Здесь склеиваются имена таблиц, а имя таблицы
+        // параметром не передашь; список выше — константа в коде тестов, снаружи в него не попасть.
+#pragma warning disable EF1003
+        await db.Database.ExecuteSqlRawAsync(
+            "TRUNCATE TABLE " + string.Join(", ", TruncatedTables.Select(t => $"\"{t}\""))
+            + " RESTART IDENTITY CASCADE");
+#pragma warning restore EF1003
+
+        // Настройки интеграций живут ещё и в памяти. Без сброса кеша очистка таблицы даёт ложное
+        // чувство изоляции: строки нет, а следующий класс продолжает видеть чужую почту и ключи.
+        scope.ServiceProvider.GetRequiredService<IIntegrationSettings>().Invalidate();
     }
 }
 

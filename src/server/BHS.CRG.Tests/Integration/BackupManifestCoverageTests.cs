@@ -210,11 +210,11 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         var docTypeId = Guid.NewGuid();
         var compositeTypeId = Guid.NewGuid();
 
-        // Файлы библиотеки и профили распознавания фикстура НЕ чистит (это конфигурация, и её
-        // TRUNCATE не касается) — снимаем оставшееся от прошлых прогонов сами, иначе уникальный
-        // индекс по пути файла роняет посев со второго раза.
-        db.TypstUserLibFiles.RemoveRange(db.TypstUserLibFiles);
-        db.RecognitionProfiles.RemoveRange(db.RecognitionProfiles);
+        // Профили распознавания фикстура НЕ чистит осознанно: встроенные создаёт сидер, и только
+        // при старте хоста (см. FixtureResetCoverageTests). Снимаем ПОЛЬЗОВАТЕЛЬСКИЕ, оставшиеся от
+        // прошлых прогонов; встроенные не трогаем — унести их отсюда значит забрать у тестов
+        // распознавания, которые пойдут следом.
+        db.RecognitionProfiles.RemoveRange(db.RecognitionProfiles.Where(p => p.Code == null));
         await db.SaveChangesAsync();
 
         db.PrimitiveTypes.Add(PrimitiveType.Restore(
