@@ -18,10 +18,13 @@ import {
   type LinkSuggestion, type SearchCandidate, type QualityDocument, type MaterialLinkInput,
   type MaterialQualityLink,
 } from '@/shared/api/qualityDocs';
-import { SCOPE_LABELS, type DocumentInstance, type DocumentType, type CatalogScope } from '@/shared/api/types';
+import {
+  SCOPE_LABELS, SCOPE_PRIORITY, type DocumentInstance, type DocumentType, type CatalogScope,
+} from '@/shared/api/types';
 import { ScopeIcon } from '@/shared/ui/ScopeIcon';
 import { ScopeReachNote } from '@/features/quality-docs/ScopeReachNote';
-import { groupByTargetScope, needsFallbackScope, type LinkScope } from './linkTargets';
+import { scopeBreakdownText } from '@/features/quality-docs/linkScopes';
+import { groupByTargetScope, needsFallbackScope, widestTargetScope, type LinkScope } from './linkTargets';
 import {
   typeHasTag, findTaggedFieldPath, collectMaterialRows, materialIdentityKeys,
 } from '@/shared/api/schema';
@@ -413,6 +416,25 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
     return m;
   }, [docById]);
 
+  /** Все связки всех четырёх уровней — один материал может нести не одну (см. shadowedBy). */
+  const allLinks = useMemo(
+    () => [...linksSystem, ...linksConstruction, ...linksSection, ...linksSet],
+    [linksSystem, linksConstruction, linksSection, linksSet]);
+
+  /**
+   * Связка, которая вступит в силу, если снять эту, — или null.
+   *
+   * `linkByKey` держит только победившую, поэтому по экрану не видно, что под ней лежит другая. Без
+   * этого подтверждение разрыва обещало бы «материал останется без документа качества», а в PDF
+   * подставился бы документ с уровня пошире — и человек, который снимал связь именно чтобы её
+   * убрать, узнал бы об этом из готового PDF.
+   */
+  const shadowedBy = (link: MaterialQualityLink): MaterialQualityLink | null => {
+    const rivals = allLinks.filter(l => l.materialKey === link.materialKey && l.id !== link.id);
+    if (rivals.length === 0) return null;
+    return rivals.reduce((a, b) => (SCOPE_PRIORITY[a.scope] <= SCOPE_PRIORITY[b.scope] ? a : b));
+  };
+
   const linkByKey = useMemo(() => {
     // Связка кладётся ЦЕЛИКОМ, а не парой id: её область нужна и для записи (перепривязка идёт в
     // область действующей связки, issue #681), и для предупреждения о том, куда достаёт разрыв.
@@ -497,16 +519,25 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
     return parts;
   }
 
-  /**
-   * Выбран документ для привязки. Прежде чем связывать — СВОДКА (issue #552).
-   *
-   * Отсюда и родились 68 неверных связок из 69: отметить весь список материалов и ткнуть один
-   * сертификат можно было без единого сигнала, а после привязки все строки выглядели одинаково
-   * благополучно. Запрещать нельзя — у артикулов сравнивать нечего, и запрет ломал бы честный
-   * сценарий; поэтому предупреждаем и показываем, чего именно не сходится.
-   */
+  /** Область действующей связки материала — та, в которую его перепривязка и обязана писать. */
+  const existingScopeOf = (m: { key: string }): LinkScope | undefined => {
+    const l = linkByKey.get(m.key);
+    return l ? { scope: l.scope, scopeId: l.scopeId ?? null } : undefined;
+  };
+
   /** Пикер открыт для одной строки — иначе для всего отмеченного. */
   const pickerRows = singleTarget ? [singleTarget] : materials.filter(m => selected.has(m.key));
+
+  /**
+   * Область, которую видит пикер: САМАЯ ШИРОКАЯ из тех, куда лягут связки.
+   *
+   * На выбор из библиотеки она не влияет (библиотека грузится целиком), а вот новый документ —
+   * созданный вручную или импортированный из интернета — заводится именно в ней. Взять сюда область
+   * из селектора, когда связка пишется выше, значит завести документ уже, чем связку на него: в
+   * другом комплекте связка найдётся, а документ — нет, и в строке останется «(документ)» вместо
+   * имени. Соседний экран решает то же самое и так же (QualityDocLinks).
+   */
+  const pickerScope = widestTargetScope(pickerRows, existingScopeOf, { scope, scopeId });
 
   function openPickerFor(m: MaterialRow) {
     setSingleTarget(m);
@@ -523,6 +554,14 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
     setSingleTarget(null);
   }
 
+  /**
+   * Выбран документ для привязки. Прежде чем связывать — СВОДКА (issue #552).
+   *
+   * Отсюда и родились 68 неверных связок из 69: отметить весь список материалов и ткнуть один
+   * сертификат можно было без единого сигнала, а после привязки все строки выглядели одинаково
+   * благополучно. Запрещать нельзя — у артикулов сравнивать нечего, и запрет ломал бы честный
+   * сценарий; поэтому предупреждаем и показываем, чего именно не сходится.
+   */
   async function handlePick(doc: QualityDocument) {
     const chosen = pickerRows;
     const assessment = assessBulkLink(chosen, m => m.label, docHaystackText(doc));
@@ -534,12 +573,6 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
     }
     await linkChosen(doc.id, chosen);
   }
-
-  /** Область действующей связки материала — та, в которую его перепривязка и обязана писать. */
-  const existingScopeOf = (m: { key: string }): LinkScope | undefined => {
-    const l = linkByKey.get(m.key);
-    return l ? { scope: l.scope, scopeId: l.scopeId ?? null } : undefined;
-  };
 
   /**
    * Единственная точка записи связок (issue #681).
@@ -627,6 +660,12 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
 
   const linkedCount = materials.filter(m => findLink(m)).length;
   const suggestCount = suggestionByKey.size;
+
+  /** Выбранные строки, чья связка живёт ШИРЕ выбранного в селекторе уровня, — им правка уйдёт туда. */
+  const widerThanSelector = materials
+    .filter(m => selected.has(m.key))
+    .map(m => linkByKey.get(m.key))
+    .filter((l): l is MaterialQualityLink => !!l && SCOPE_PRIORITY[l.scope] > SCOPE_PRIORITY[scope]);
 
   return (
     <div className="space-y-4">
@@ -780,13 +819,26 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
           слово «Связать», и обучала, что работа делается отсюда; теперь то же слово стоит в каждой
           непривязанной строке, а колонка чекбоксов остаётся сигналом массового пути. */}
       {selected.size > 0 && (
-        <div className="sticky bottom-0 flex items-center gap-2 rounded-md border border-stroke bg-surface px-3 py-2 shadow-sm">
-          <span className="text-sm text-fg2">Выбрано: {selected.size}</span>
-          <Button variant="filled" size="sm" onClick={openPickerForSelected} icon={<Link2 size={13} />}>
-            Связать выбранные ({selected.size})
-          </Button>
-          <button onClick={() => setSelected(new Set())}
-            className="ml-auto text-xs text-fg4 hover:text-fg2">Снять выбор</button>
+        <div className="sticky bottom-0 rounded-md border border-stroke bg-surface px-3 py-2 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-fg2">Выбрано: {selected.size}</span>
+            <Button variant="filled" size="sm" onClick={openPickerForSelected} icon={<Link2 size={13} />}>
+              Связать выбранные ({selected.size})
+            </Button>
+            <button onClick={() => setSelected(new Set())}
+              className="ml-auto text-xs text-fg4 hover:text-fg2">Снять выбор</button>
+          </div>
+          {/* Часть выбранных уже связана ШИРЕ, чем выбрано в селекторе, и правка уйдёт на их
+              уровень — за пределы этого комплекта. В строке уровень виден значком, но на сотне
+              строк его никто не пересчитывает, а панель говорит только «Выбрано: N». Показываем
+              здесь, до нажатия: не диалогом — предупреждение, на которое нельзя ответить «нет»,
+              приучает жать «да». */}
+          {widerThanSelector.length > 0 && (
+            <p className="mt-1.5 text-xs text-warning">
+              Шире выбранного уровня — {widerThanSelector.length} ({scopeBreakdownText(widerThanSelector)}):
+              {' '}документ сменится на уровне самой связки, то есть и в других комплектах.
+            </p>
+          )}
         </div>
       )}
 
@@ -861,8 +913,15 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
         description={breaking ? (
           <>
             <p className="mb-2">{breaking.label}</p>
-            <p>Материал останется без документа качества — при генерации поле документа качества
-              будет пустым.</p>
+            {shadowedBy(breaking.link) ? (
+              <p>Материал без документа качества НЕ останется: под этой связкой лежит другая, уровня
+                {' '}«{SCOPE_LABELS[shadowedBy(breaking.link)!.scope]}», с документом
+                {' '}<b>{shadowedBy(breaking.link)!.qualityDocumentName}</b> — при генерации
+                подставится он. Чтобы материал остался пустым, снимите и её.</p>
+            ) : (
+              <p>Материал останется без документа качества — при генерации поле документа качества
+                будет пустым.</p>
+            )}
             <ScopeReachNote links={[breaking.link]} />
           </>
         ) : ''}
@@ -870,8 +929,10 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
         onConfirm={() => { if (breaking) return removeLink.mutateAsync(breaking.link.id); }}
       />
 
+      {/* Область здесь — только про показ библиотеки и создание нового документа. Куда ляжет
+          связка, решает linkMaterials: у строки со связкой это область ЕЁ связки (issue #681). */}
       <LinkPickerModal open={pickerOpen} onClose={closePicker} allDocTypes={allDocTypes}
-        scope={scope} scopeId={scopeId} materials={pickerRows} onPick={handlePick} />
+        scope={pickerScope.scope} scopeId={pickerScope.scopeId} materials={pickerRows} onPick={handlePick} />
 
       <Modal open={viewDoc !== null} onOpenChange={o => { if (!o) setViewDoc(null); }} title="Документ качества" extraWide>
         {viewDoc && (

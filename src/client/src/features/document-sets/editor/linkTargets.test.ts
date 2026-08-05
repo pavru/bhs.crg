@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupByTargetScope, needsFallbackScope, type LinkScope } from './linkTargets';
+import { groupByTargetScope, needsFallbackScope, widestTargetScope, type LinkScope } from './linkTargets';
 
 interface Row { key: string }
 const row = (key: string): Row => ({ key });
@@ -64,6 +64,33 @@ describe('область записи связки', () => {
 
   it('пустой список не даёт групп', () => {
     expect(groupByTargetScope([], existing({}), SET)).toEqual([]);
+  });
+});
+
+describe('область для нового документа', () => {
+  /**
+   * Новый документ заводится в области, которую видит пикер. Если связка пишется на «Систему», а
+   * документ создать в комплекте, то в других комплектах связка найдётся, а документ — нет: в
+   * строке останется «(документ)» вместо имени, и открыть его будет нечем.
+   */
+  it('берётся самая широкая из областей записи, а не из селектора', () => {
+    const rows = [row('m1'), row('m2')];
+    expect(widestTargetScope(rows, existing({ m1: SYSTEM }), SET)).toEqual(SYSTEM);
+  });
+
+  it('все строки в своих узких областях — область селектора не расширяется', () => {
+    const rows = [row('m1')];
+    expect(widestTargetScope(rows, existing({ m1: { scope: 'Set', scopeId: 'set-1' } }), SET)).toEqual(SET);
+  });
+
+  /** Селектор шире связок — он и остаётся: сузить область нового документа было бы ошибкой. */
+  it('связки уже селектора область не сужают', () => {
+    const rows = [row('m1')];
+    expect(widestTargetScope(rows, existing({ m1: SET }), SYSTEM)).toEqual(SYSTEM);
+  });
+
+  it('пустой список — область селектора', () => {
+    expect(widestTargetScope([], existing({}), SET)).toEqual(SET);
   });
 });
 

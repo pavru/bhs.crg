@@ -140,6 +140,10 @@ export function assessBulkLink<T>(
  *
  * Цифровые токены при этом не выброшены: совпавший артикул — сигнал сильнее любого слова, и по
  * нему подсказка честно выдаётся. Отсекается только вердикт «не похоже», а не «непроверяемо».
+ *
+ * Непохожие отсеиваются ВНУТРИ перебора, а не после выбора лучшего. Иначе документ, набравший
+ * максимум на одних цифрах, забирал бы подсказку себе и уносил её в отказ — вместе с верным
+ * документом, который стоял следующим по счёту и до проверки не доживал.
  */
 export function bestSuggestion<D>(
   material: { label: string; idValues: string[] },
@@ -148,14 +152,16 @@ export function bestSuggestion<D>(
   const tokens = weighted(material.idValues.join(' '));
   if (tokens.length === 0) return null;
 
-  let best: { doc: D; score: number; stems: Set<string> } | null = null;
+  let best: { doc: D; score: number } | null = null;
   for (const entry of library) {
     const score = relevance(tokens, entry.stems);
-    if (score > (best?.score ?? 0)) best = { doc: entry.doc, score, stems: entry.stems };
+    // Вердикт спрашиваем только у тех, кто уже прошёл порог и обгоняет текущего лидера: он считает
+    // по всему стогу документа, а документов в библиотеке сотни.
+    if (score < FITS_THRESHOLD || score <= (best?.score ?? 0)) continue;
+    if (materialVerdict(material.label, entry.stems) === 'mismatched') continue;
+    best = { doc: entry.doc, score };
   }
-  if (!best || best.score < FITS_THRESHOLD) return null;
-  if (materialVerdict(material.label, best.stems) === 'mismatched') return null;
-  return { doc: best.doc, score: best.score };
+  return best;
 }
 
 /** Название документа + все его строковые реквизиты — стог основ слов. */

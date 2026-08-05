@@ -13,7 +13,7 @@
  *
  * Здесь только группировка — без React, чтобы правило проверялось тестами, а не глазами.
  */
-import type { CatalogScope } from '@/shared/api/types';
+import { SCOPE_PRIORITY, type CatalogScope } from '@/shared/api/types';
 
 /** Область и объект области: то, чем адресуется связка (System живёт без объекта). */
 export interface LinkScope { scope: CatalogScope; scopeId: string | null }
@@ -45,6 +45,24 @@ export function groupByTargetScope<T>(
     else groups.push({ scope: target.scope, scopeId: target.scopeId ?? null, materials: [row] });
   }
   return groups;
+}
+
+/**
+ * Самая широкая из областей, куда лягут связки этой отправки.
+ *
+ * В ней и только в ней можно заводить НОВЫЙ документ качества (пикер создаёт его вручную или
+ * импортирует из интернета): документ, заведённый уже, чем связка на него, в других комплектах не
+ * найдётся — связка будет, а имени в строке нет. Пустой список даёт `fallback`.
+ */
+export function widestTargetScope<T>(
+  rows: readonly T[],
+  existingScopeOf: (row: T) => LinkScope | undefined,
+  fallback: LinkScope,
+): LinkScope {
+  return groupByTargetScope(rows, existingScopeOf, fallback)
+    .reduce<LinkScope>((widest, g) =>
+      SCOPE_PRIORITY[g.scope] > SCOPE_PRIORITY[widest.scope] ? { scope: g.scope, scopeId: g.scopeId } : widest,
+    fallback);
 }
 
 /**
