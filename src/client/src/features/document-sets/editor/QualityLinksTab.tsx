@@ -1,5 +1,8 @@
 import { useState, useMemo, useEffect, type ReactNode } from 'react';
-import { Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check, AlertTriangle } from 'lucide-react';
+import {
+  Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check,
+  AlertTriangle, Replace,
+} from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -13,9 +16,11 @@ import {
   useListQualityDocs, useListMaterialLinks, useSetMaterialLinks, useRemoveMaterialLink,
   suggestLinks, searchQualityDocs, importQualityDocFromUrl,
   type LinkSuggestion, type SearchCandidate, type QualityDocument, type MaterialLinkInput,
+  type MaterialQualityLink,
 } from '@/shared/api/qualityDocs';
 import { SCOPE_LABELS, type DocumentInstance, type DocumentType, type CatalogScope } from '@/shared/api/types';
 import { ScopeIcon } from '@/shared/ui/ScopeIcon';
+import { ScopeReachNote } from '@/features/quality-docs/ScopeReachNote';
 import { groupByTargetScope, needsFallbackScope, type LinkScope } from './linkTargets';
 import {
   typeHasTag, findTaggedFieldPath, collectMaterialRows, materialIdentityKeys,
@@ -25,8 +30,8 @@ import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { identityKey, isIdentityKeyEmpty, normalizeKey } from '@/shared/api/identityKey';
 import {
-  assessBulkLink, collectStrings, collidingIdentities, docHaystackStems, relevance, weighted,
-  type BulkLinkAssessment,
+  assessBulkLink, bestSuggestion, collectStrings, collidingIdentities, docHaystackStems,
+  relevance, weighted, type BulkLinkAssessment,
 } from './qualityMatch';
 import { QualityDocForm } from '@/features/quality-docs/QualityDocForm';
 import { docNumberOf } from '@/features/quality-docs/docIdentity';
@@ -349,6 +354,10 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   const [suggestSel, setSuggestSel] = useState<Set<string>>(new Set());
   const [suggesting, setSuggesting] = useState(false);
   const [viewDoc, setViewDoc] = useState<QualityDocument | null>(null);
+  // Разрыв связи — через подтверждение (issue #682): в проекте это общее правило для удаления, и
+  // соседний экран контроля связок его уже соблюдает. Метку несём отдельно: у связки она бывает
+  // пустой (до #554), а в строке имя материала под рукой.
+  const [breaking, setBreaking] = useState<{ link: MaterialQualityLink; label: string } | null>(null);
 
   const { data: preview, isFetching, refetch } = usePreviewDataSetBindings({ ownerId: instance.id });
   // Цепочка уровней комплекта (issue #587): раздел и стройка нужны и чтобы ЗАВЕСТИ связку выше
@@ -405,15 +414,13 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   }, [docById]);
 
   const linkByKey = useMemo(() => {
-    // Область связки хранится рядом с ней не для показа, а для ЗАПИСИ (issue #681): перепривязка
-    // идёт в область действующей связки, иначе рядом заводится вторая. См. linkTargets.
-    const m = new Map<string, { id: string; docId: string; scope: CatalogScope; scopeId: string | null }>();
+    // Связка кладётся ЦЕЛИКОМ, а не парой id: её область нужна и для записи (перепривязка идёт в
+    // область действующей связки, issue #681), и для предупреждения о том, куда достаёт разрыв.
+    const m = new Map<string, MaterialQualityLink>();
     // Узкий уровень побеждает широкий — тот же приоритет, что у QualityLinkResolver на генерации
     // (Set=1 … System=5). Здесь это порядок перезаписи: последний записавший и остаётся.
     [...linksSystem, ...linksConstruction, ...linksSection, ...linksSet]
-      .forEach(l => m.set(l.materialKey, {
-        id: l.id, docId: l.qualityDocumentId, scope: l.scope, scopeId: l.scopeId ?? null,
-      }));
+      .forEach(l => m.set(l.materialKey, l));
     return m;
   }, [linksSystem, linksConstruction, linksSection, linksSet]);
 
@@ -460,8 +467,8 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   // были разные — побеждала именная, потому что «Наименование» стоит в схеме раньше «Артикула».
   const findLink = (m: MaterialRow) => linkByKey.get(m.key);
 
-  // Авто-подсказки: лучший непросроченный документ из библиотеки по релевантности.
-  const SUGGEST_MIN = 0.34;
+  // Авто-подсказки: лучший непросроченный документ из библиотеки (правило — в bestSuggestion, там
+  // же и порог, общий с ручной проверкой: до issue #682 их было два, и совпадали они случайно).
   const libHays = useMemo(
     () => [...docById.values()].map(d => ({ doc: d, expired: isExpired(d, allDocTypes), stems: docHaystackStems(d.displayName, d.requisites) })),
     [docById, allDocTypes],
@@ -472,11 +479,8 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
     if (active.length === 0) return map;
     for (const mat of materials) {
       if (findLink(mat)) continue;
-      const qt = weighted(mat.idValues.join(' '));
-      if (qt.length === 0) continue;
-      let best: { doc: QualityDocument; score: number } | null = null;
-      for (const h of active) { const s = relevance(qt, h.stems); if (s > (best?.score ?? 0)) best = { doc: h.doc, score: s }; }
-      if (best && best.score >= SUGGEST_MIN) map.set(mat.key, best);
+      const best = bestSuggestion(mat, active);
+      if (best) map.set(mat.key, best);
     }
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -534,7 +538,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   /** Область действующей связки материала — та, в которую его перепривязка и обязана писать. */
   const existingScopeOf = (m: { key: string }): LinkScope | undefined => {
     const l = linkByKey.get(m.key);
-    return l ? { scope: l.scope, scopeId: l.scopeId } : undefined;
+    return l ? { scope: l.scope, scopeId: l.scopeId ?? null } : undefined;
   };
 
   /**
@@ -583,15 +587,27 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   async function acceptSuggestion(mat: MaterialRow, docId: string) {
     await linkMaterials(docId, [{ key: mat.key, label: mat.label }]);
   }
-  async function acceptAllSuggestions() {
-    const byDoc = new Map<string, MaterialLinkInput[]>();
+  /**
+   * Показать подсказки из библиотеки в том же обзоре, что и подсказки по истории (issue #682).
+   *
+   * Раньше эта кнопка привязывала N связок одним нажатием без всякого обзора — при том что ручная
+   * массовая привязка предупреждает, а модалка «Предложенные связи» рядом делает ровно этот обзор
+   * для подсказок по истории. Два соседних действия с одним смыслом вели себя противоположно.
+   * Подтверждающий диалог был бы здесь неверным инструментом: все предложения по построению
+   * проходят порог, и диалог приучал бы жать «да».
+   */
+  function reviewLibrarySuggestions() {
+    const list: LinkSuggestion[] = [];
     for (const mat of materials) {
       const s = suggestionByKey.get(mat.key);
       if (!s) continue;
-      const arr = byDoc.get(s.doc.id) ?? []; arr.push({ key: mat.key, label: mat.label }); byDoc.set(s.doc.id, arr);
+      list.push({
+        materialKey: mat.key, materialName: mat.label,
+        qualityDocumentId: s.doc.id, docDisplayName: s.doc.displayName, score: s.score,
+      });
     }
-    for (const [docId, items] of byDoc)
-      if (!await linkMaterials(docId, items)) return;
+    setSuggestions(list);
+    setSuggestSel(new Set(list.map(x => x.materialKey)));
   }
 
   async function applySuggestions() {
@@ -687,20 +703,26 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
                                 #681): в обычном случае он у всех строк один, и повторённый 130 раз
                                 значок стал бы фоном. А расхождение — ровно то место, где человек
                                 думает, что правит связку комплекта, а правит общесистемную. */}
-                            {(link.scope !== scope || link.scopeId !== scopeId) && (
+                            {(link.scope !== scope || (link.scopeId ?? null) !== scopeId) && (
                               <ScopeIcon scope={link.scope}
                                 title={`Связка заведена на уровне «${SCOPE_LABELS[link.scope]}», а в селекторе выбрано `
                                   + `«${SCOPE_LABELS[scope]}». Перепривязка изменит её на своём уровне — то есть всюду, `
                                   + 'куда этот уровень достаёт.'} />
                             )}
-                            <button onClick={() => { const d = docById.get(link.docId); if (d) setViewDoc(d); }}
+                            {/* Имя документа — единственный вход в просмотр: рядом стояла иконка
+                                Eye с тем же обработчиком и той же подсказкой (issue #682). Место,
+                                которое она занимала, ушло под «Перепривязать». */}
+                            <button onClick={() => { const d = docById.get(link.qualityDocumentId); if (d) setViewDoc(d); }}
                               title="Просмотреть документ"
                               className="flex-1 min-w-0 text-left text-brand-hover hover:underline truncate">
-                              {docName.get(link.docId) ?? '(документ)'}
+                              {docName.get(link.qualityDocumentId) ?? '(документ)'}
                             </button>
-                            <button onClick={() => { const d = docById.get(link.docId); if (d) setViewDoc(d); }}
-                              title="Просмотреть документ" className="p-0.5 text-fg4 hover:text-brand"><Eye size={13} /></button>
-                            <button onClick={() => removeLink.mutate(link.id)} title="Снять связь"
+                            {/* Починка неверной связки — перепривязкой, а не разрывом: разрыв меняет
+                                одну ошибку («не тот документ») на другую («документа нет»). До этого
+                                единственный путь починки шёл через destructive-действие. */}
+                            <button onClick={() => openPickerFor(m)} title="Перепривязать к другому документу"
+                              className="p-0.5 text-fg4 hover:text-brand"><Replace size={13} /></button>
+                            <button onClick={() => setBreaking({ link, label: m.label })} title="Снять связь"
                               className="p-0.5 text-fg4 hover:text-danger"><Unlink size={13} /></button>
                           </span>
                         ) : suggestion ? (
@@ -758,10 +780,10 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       )}
 
       <div className="flex items-center gap-3">
-        <button onClick={() => void acceptAllSuggestions()} disabled={suggestCount === 0 || setLinks.isPending}
-          title="Привязать все предложенные из библиотеки документы"
+        <button onClick={reviewLibrarySuggestions} disabled={suggestCount === 0}
+          title="Посмотреть подсказки из библиотеки и привязать выбранные"
           className="flex items-center gap-2 px-4 py-2 text-sm bg-brand-subtle text-brand rounded-md hover:bg-brand/15 disabled:opacity-50">
-          <Check size={14} /> Принять предложения ({suggestCount})
+          <Check size={14} /> Предложения из библиотеки ({suggestCount})
         </button>
         <button onClick={handleSuggest} disabled={suggesting || materials.length === 0}
           title="Предложить связи по истории привязок (для строк, где нет подсказки из библиотеки)"
@@ -774,7 +796,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       <p className="text-xs text-fg4">
         Связь хранится по идентичности материала и подмешивается в поле документа качества при
         генерации — переживает переимпорт набора данных. Подсказки из библиотеки — по релевантности
-        (без просроченных); «Принять предложения» привязывает их одним нажатием.
+        (без просроченных); их можно принять по одной в строке или разобрать списком.
       </p>
 
       {/* Сводка перед массовой привязкой (issue #552). Появляется, ТОЛЬКО если что-то не сходится:
@@ -822,6 +844,21 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
 
       {/* Область — только для показа библиотеки и создания документа. Куда ляжет связка, решает
           linkMaterials: у строки со связкой это область ЕЁ связки (issue #681). */}
+      <ConfirmDialog
+        open={!!breaking} onOpenChange={o => { if (!o) setBreaking(null); }}
+        title="Разорвать связь?"
+        description={breaking ? (
+          <>
+            <p className="mb-2">{breaking.label}</p>
+            <p>Материал останется без документа качества — при генерации поле документа качества
+              будет пустым.</p>
+            <ScopeReachNote links={[breaking.link]} />
+          </>
+        ) : ''}
+        confirmLabel="Разорвать" errorTitle="Не удалось снять связь"
+        onConfirm={() => { if (breaking) return removeLink.mutateAsync(breaking.link.id); }}
+      />
+
       <LinkPickerModal open={pickerOpen} onClose={closePicker} allDocTypes={allDocTypes}
         scope={scope} scopeId={scopeId} materials={pickerRows} onPick={handlePick} />
 

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { assessBulkLink, collidingIdentities, relevance, weighted, tokenize, stem } from './qualityMatch';
+import {
+  assessBulkLink, bestSuggestion, collidingIdentities, docHaystackStems, relevance, weighted,
+  tokenize, stem,
+} from './qualityMatch';
 
 /** Сертификат на автоматы EKF модели AV-125 — тот самый, на котором висело 69 связок (#552). */
 const AV125 = [
@@ -74,6 +77,57 @@ describe('assessBulkLink (issue #552)', () => {
     expect(stem('выключатели')).toBe(stem('выключатель'));
     const hay = new Set(tokenize('Выключатели автоматические').map(stem));
     expect(relevance(weighted('Выключатель автоматический'), hay)).toBeGreaterThan(0.9);
+  });
+});
+
+describe('bestSuggestion (issue #682)', () => {
+  /** Библиотека для подсказок: имя + реквизиты каждого документа сведены в стог основ. */
+  const lib = (...docs: [string, string[]][]) =>
+    docs.map(([name, text]) => ({ doc: name, stems: docHaystackStems(name, text) }));
+
+  const material = (...idValues: string[]) => ({ label: idValues.join(' · '), idValues });
+
+  const LIBRARY = lib(
+    ['Сертификат EKF AV-125', AV125],
+    ['РЭМЗ — кабели силовые', ['Кабели силовые с медными жилами ГОСТ 31996-2012, РЭМЗ']],
+  );
+
+  it('верное совпадение предлагается', () => {
+    const s = bestSuggestion(material('Выключатель автоматический AV-125 3P 80A EKF', 'av125-3p80'), LIBRARY);
+    expect(s?.doc).toBe('Сертификат EKF AV-125');
+  });
+
+  /**
+   * Тот самый расход двух линеек: у подсказок порог считался по ВСЕМ токенам, включая цифровые, и
+   * светильник с цифрой «125» в наименовании набирал его на сертификате автоматов AV-125 — при том
+   * что ручная привязка того же материала к тому же документу объявила бы его «не похожим» и
+   * предупредила. Кнопка «Принять предложения» привязывала это молча.
+   */
+  it('не предлагает того, что ручная привязка объявила бы «не похоже»', () => {
+    const светильник = material('Светильник DARKLUM 125');
+    // предпосылка теста: по сырой релевантности документ материал бы прошёл
+    expect(relevance(weighted(светильник.idValues.join(' ')), LIBRARY[0].stems)).toBeGreaterThan(0.34);
+    expect(assessBulkLink([светильник.label], s => s, AV125).mismatched).toHaveLength(1);
+
+    expect(bestSuggestion(светильник, LIBRARY)).toBeNull();
+  });
+
+  /**
+   * И обратная сторона: артикул отсекать нельзя. Слов для проверки у него нет («непроверяемо», а не
+   * «не похоже»), зато совпавший номер модели — сигнал сильнее любого слова.
+   */
+  it('артикул, совпавший с документом, подсказку даёт', () => {
+    const s = bestSuggestion(material('av-125'), LIBRARY);
+    expect(s?.doc).toBe('Сертификат EKF AV-125');
+  });
+
+  it('ничего похожего в библиотеке — подсказки нет', () => {
+    expect(bestSuggestion(material('Рамка-суппорт под 6 модулей Brava'), LIBRARY)).toBeNull();
+  });
+
+  it('пустая библиотека и материал без значений — подсказки нет', () => {
+    expect(bestSuggestion(material('Кабель ВВГнг'), [])).toBeNull();
+    expect(bestSuggestion(material(''), LIBRARY)).toBeNull();
   });
 });
 

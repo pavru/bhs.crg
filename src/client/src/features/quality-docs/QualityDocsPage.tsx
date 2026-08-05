@@ -25,7 +25,8 @@ import type { DocumentType } from '@/shared/api/types';
 import { QualityDocForm } from './QualityDocForm';
 import { ambiguousDocNames, docFieldByTag, docNumberOf, isAmbiguous } from './docIdentity';
 import { recognizeAndUpdate } from './recognizeImported';
-import { QualityDocLinks, ScopeReachNote, matchesLink } from './QualityDocLinks';
+import { QualityDocLinks, matchesLink } from './QualityDocLinks';
+import { ScopeReachNote } from './ScopeReachNote';
 import { docState, EXPIRING_SOON_DAYS, type DocState } from './docState';
 
 // Метки областей — только из общего словаря (issue #649). Локальный дубль называл System «Общей»,
