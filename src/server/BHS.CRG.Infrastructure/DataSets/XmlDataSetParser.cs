@@ -99,10 +99,40 @@ public class XmlDataSetParser : IDataSetParser
         return new DataSetParseResult(columns, rows);
     }
 
+    /// <summary>
+    /// Разбор XML набора данных с явно закрытым DTD.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Внешние сущности (чтение файлов сервера, обращения по сети из разбора) и раньше не работали:
+    /// <c>XmlResolver</c> в .NET по умолчанию <c>null</c>. Но защита держалась на умолчании
+    /// фреймворка — то есть на том, что никто не поменяет умолчание и не подставит свой резолвер.
+    /// Ставим явно.
+    /// </para>
+    /// <para>
+    /// Раскрытие сущностей («billion laughs») умолчанием НЕ закрывалось: внутренние сущности
+    /// раскрывались без ограничения, и файл в несколько килобайт разворачивался в гигабайты.
+    /// <c>DtdProcessing.Ignore</c> закрывает это в корне — объявления пропускаются, раскрывать
+    /// нечего.
+    /// </para>
+    /// <para>
+    /// Взят <c>Ignore</c>, а не <c>Prohibit</c> из плана: <c>Prohibit</c> роняет разбор на любом
+    /// файле, где DOCTYPE просто ОБЪЯВЛЕН, а такие выгрузки встречаются и ничего дурного не делают.
+    /// Отказывать пользователю в его же файле из-за строки, которую мы всё равно не читаем, —
+    /// плата без выгоды: по части сущностей и внешних ссылок оба варианта одинаковы.
+    /// </para>
+    /// </remarks>
     private static XmlDocument LoadXml(byte[] bytes)
     {
-        var doc = new XmlDocument();
-        doc.Load(new MemoryStream(bytes));
+        var settings = new XmlReaderSettings
+        {
+            DtdProcessing = DtdProcessing.Ignore,
+            XmlResolver = null,
+            MaxCharactersFromEntities = 1024 * 1024,
+        };
+        using var reader = XmlReader.Create(new MemoryStream(bytes), settings);
+        var doc = new XmlDocument { XmlResolver = null };
+        doc.Load(reader);
         return doc;
     }
 

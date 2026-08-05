@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
-using Jint;
+using BHS.CRG.Infrastructure.Scripting;
+using Jint;   // расширения JsValue: IsNull/IsUndefined
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
@@ -59,9 +60,8 @@ public static class DataSetComputedColumnExecutor
 
                 try
                 {
-                    var engine = new Engine(cfg => cfg
-                        .TimeoutInterval(TimeSpan.FromSeconds(1))
-                        .LimitRecursion(32));
+                    // Ограничения песочницы — общие с вычисляемыми полями документов (JintSandbox).
+                    var engine = JintSandbox.Create();
 
                     // Помощники — ПЕРЕД колонками, чтобы колонка с именем «get» или «cols» затеняла
                     // их, а не наоборот. Порядок тут не косметика: до #539 такая колонка была
