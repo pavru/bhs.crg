@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Reflection;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
@@ -20,7 +21,21 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     // v2 (issue #84): общие данные теперь DomainObject (без документной фасеты). Старые копии (v1)
     // несовместимы — чистый разрыв (решение пользователя): импорт отклоняется.
     public const int CurrentSchemaVersion = 2;
-    public const string CurrentAppVersion = "1.0.0";
+
+    /// <summary>
+    /// Версия сборки, которой сделана копия. Поле манифеста существует ровно для разбора «чем это
+    /// снято», и константа в коде («1.0.0», не менявшаяся с первых версий) делала его бесполезным:
+    /// все копии выглядели одинаково, независимо от того, какой сборкой сняты.
+    ///
+    /// Читаем из СВОЕЙ сборки, а не из входной: версия у всех проектов решения одна
+    /// (Directory.Build.props), а входной сборкой под тестовым хостом оказывается прогонщик тестов —
+    /// и в манифест уехала бы его версия вместо нашей.
+    /// </summary>
+    public static string CurrentAppVersion { get; } =
+        typeof(BackupService).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion.Split('+', 2)[0]
+        ?? "0.0.0";
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
@@ -188,6 +203,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         if (blobEntries.Count > 0)
             warnings.Insert(0, $"Файлы: восстановлено {blobsRestored} из {blobEntries.Count}.");
 
+
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         try
         {
@@ -226,9 +242,95 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         {
             await tx.RollbackAsync(CancellationToken.None);
             warnings.Insert(0, $"Ошибка восстановления БД: {ex.Message}");
+            // Файлы пишутся ДО транзакции (ссылки должны быть валидны к моменту использования) и
+            // откатом не снимаются. Удалять их здесь нельзя: путь мог совпасть с уже существующим
+            // файлом, и «компенсация» уничтожила бы чужие данные. Поэтому говорим прямо.
+            if (blobsRestored > 0)
+                warnings.Insert(1,
+                    $"В хранилище остались {blobsRestored} файлов из копии: запись файлов идёт до " +
+                    "транзакции БД и откатом не отменяется. Повторное восстановление перезапишет их " +
+                    "теми же данными — удалять вручную не требуется.");
             return new RestoreReport(false, conversionNotice, warnings, 0, 0, 0, 0, 0, 0, 0, 0);
         }
     }
+
+    // ── Ссылки на документы ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Идентификаторы ДОКУМЕНТОВ, на которые ссылается запись общих данных.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Документы в копию не входят осознанно. Но запись общих данных может нести <c>_baseRef</c> на
+    /// документ (наследование реквизитов, issue #71) или <c>$ref</c> вида «document»/«instance»
+    /// внутри реквизитов.
+    /// </para>
+    /// <para>
+    /// Оборванная ссылка ничего не ломает сразу: при генерации резолвер просто вернёт собственные
+    /// данные объекта — без ошибки, без предупреждения и без унаследованных полей. То есть дефект
+    /// проявится далеко от восстановления, в неверном PDF, и связать одно с другим будет уже нечем.
+    /// Поэтому собираем адреса и проверяем их наличие в БД.
+    /// </para>
+    /// <para>
+    /// Читаем строки ТОЛЬКО убедившись, что это строки: <c>Data</c> — произвольный пользовательский
+    /// JSON, и поле с именем <c>$ref</c> или <c>_baseRef.kind</c> нестрокового вида уронило бы
+    /// <c>GetString()</c>, а с ним и всё восстановление. Так же осторожничают и остальные читатели
+    /// ссылок в коде.
+    /// </para>
+    /// </remarks>
+    private static void CollectReferencedDocumentIds(JsonElement element, HashSet<Guid> ids)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                // Наследование от базового экземпляра: kind = "instance" означает документ.
+                if (element.TryGetProperty("_baseRef", out var baseRef) &&
+                    baseRef.ValueKind == JsonValueKind.Object &&
+                    baseRef.TryGetProperty("kind", out var kind) &&
+                    kind.ValueKind == JsonValueKind.String && kind.GetString() == "instance" &&
+                    baseRef.TryGetProperty("id", out var baseId) &&
+                    baseId.ValueKind == JsonValueKind.String &&
+                    Guid.TryParse(baseId.GetString(), out var baseGuid))
+                {
+                    ids.Add(baseGuid);
+                }
+                // Протягивание поля из реквизитов другого документа.
+                if (element.TryGetProperty("$ref", out var refType) &&
+                    refType.ValueKind == JsonValueKind.String &&
+                    refType.GetString() is "document" or "instance" &&
+                    element.TryGetProperty("instanceId", out var instId) &&
+                    instId.ValueKind == JsonValueKind.String &&
+                    Guid.TryParse(instId.GetString(), out var instGuid))
+                {
+                    ids.Add(instGuid);
+                }
+                foreach (var prop in element.EnumerateObject())
+                    CollectReferencedDocumentIds(prop.Value, ids);
+                break;
+
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                    CollectReferencedDocumentIds(item, ids);
+                break;
+        }
+    }
+
+    /// <summary>«1 запись», «2 записи», «5 записей» — счёт в предупреждениях читает человек.</summary>
+    private static string Records(int n)
+    {
+        var tens = n % 100;
+        if (tens is >= 11 and <= 14) return $"{n} записей";
+        return (n % 10) switch
+        {
+            1 => $"{n} запись",
+            2 or 3 or 4 => $"{n} записи",
+            _ => $"{n} записей",
+        };
+    }
+
+    /// <summary>Согласование сказуемого со счётом: «1 запись ссылается», «2 записи ссылаются».</summary>
+    private static string Agree(int n, string singular, string plural) =>
+        n % 10 == 1 && n % 100 != 11 ? singular : plural;
 
     // ── Blob path extraction ──────────────────────────────────────────────────
 
@@ -518,6 +620,21 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         // Общие данные восстанавливаем как DomainObject без документной фасеты (issue #84).
         var existingIds = await db.DomainObjects.Select(e => e.Id).ToHashSetAsync(ct);
         var validDocTypeIds = await db.DocumentTypes.Select(e => e.Id).ToHashSetAsync(ct);
+
+        // Носители областей, на которые запись может ссылаться. Стройки, разделы и комплекты в копию
+        // не входят осознанно — значит на чистой системе таких носителей нет вовсе.
+        var setIds = await db.DocumentSets.Select(e => e.Id).ToHashSetAsync(ct);
+        var sectionIds = await db.Sections.Select(e => e.Id).ToHashSetAsync(ct);
+        var constructionIds = await db.Constructions.Select(e => e.Id).ToHashSetAsync(ct);
+        var orphanedByScope = 0;
+
+        // Ссылки на документы: собираем адреса у ВОССТАНОВЛЕННЫХ записей (пропущенные считать
+        // незачем — их в системе не будет) и проверяем наличие адресатов в БД. Без проверки
+        // предупреждение кричало бы и в самом обычном случае — восстановлении в живую систему, где
+        // все документы на месте и все ссылки разрешаются.
+        var referencedDocumentIds = new HashSet<Guid>();
+        var entryIdsByDocument = new Dictionary<Guid, List<Guid>>();
+
         foreach (var item in items)
         {
             if (!validDocTypeIds.Contains(item.CompositeTypeId))
@@ -530,6 +647,24 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 warnings.Add($"Общие данные «{item.DisplayName}»: неизвестная область «{item.Scope}», пропущена.");
                 continue;
             }
+            // Запись привязана к комплекту/разделу/стройке, которых в этой системе нет. НЕ пропускаем:
+            // это пользовательские данные, и потерять их при восстановлении хуже, чем внести
+            // невидимыми — выборки фильтруют по паре «область + носитель», так что в интерфейсе их
+            // не будет, пока носитель не появится. Но и молчать об этом нельзя: отчёт называл бы их
+            // успешно восстановленными.
+            if (!ScopeCarrierExists(scope, item.ScopeId, setIds, sectionIds, constructionIds))
+                orphanedByScope++;
+
+            var refs = new HashSet<Guid>();
+            CollectReferencedDocumentIds(item.Data, refs);
+            foreach (var refId in refs)
+            {
+                referencedDocumentIds.Add(refId);
+                if (!entryIdsByDocument.TryGetValue(refId, out var list))
+                    entryIdsByDocument[refId] = list = [];
+                list.Add(item.Id);
+            }
+
             var entity = DomainObject.Restore(
                 item.Id, item.CompositeTypeId, item.DisplayName,
                 JsonDocument.Parse(item.Data.GetRawText()),
@@ -537,9 +672,55 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
             if (existingIds.Contains(item.Id)) stats.CommonDataEntriesUpdated++; else stats.CommonDataEntriesCreated++;
         }
+
+        if (orphanedByScope > 0)
+        {
+            warnings.Add(
+                $"Общие данные: {Records(orphanedByScope)} " +
+                $"{Agree(orphanedByScope, "относится", "относятся")} к комплектам, разделам или стройкам, " +
+                "которых в этой системе нет. Они восстановлены, но в интерфейсе не появятся, пока не " +
+                "будут созданы соответствующие объекты (проектные данные в резервную копию не входят).");
+        }
+
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
+
+        // Наличие адресатов проверяем ПОСЛЕ записи: документы могли приехать не из копии, а уже быть
+        // в системе — при восстановлении в живую установку это обычное дело, и молчать тут правильно.
+        if (referencedDocumentIds.Count > 0)
+        {
+            var presentIds = await db.DomainObjects
+                .Where(o => referencedDocumentIds.Contains(o.Id))
+                .Select(o => o.Id)
+                .ToHashSetAsync(ct);
+
+            var affectedEntries = entryIdsByDocument
+                .Where(kv => !presentIds.Contains(kv.Key))
+                .SelectMany(kv => kv.Value)
+                .ToHashSet();
+
+            if (affectedEntries.Count > 0)
+                warnings.Add(
+                    $"Общие данные: {Records(affectedEntries.Count)} " +
+                    $"{Agree(affectedEntries.Count, "ссылается", "ссылаются")} на документы, которых в " +
+                    "этой системе нет (документы в резервную копию не входят). При генерации " +
+                    "унаследованные от них поля подставлены не будут — молча, поэтому проверьте такие записи.");
+        }
     }
+
+    /// <summary>Существует ли объект, к области которого привязана запись общих данных.</summary>
+    private static bool ScopeCarrierExists(
+        CatalogScope scope, Guid? scopeId,
+        HashSet<Guid> setIds, HashSet<Guid> sectionIds, HashSet<Guid> constructionIds) => scope switch
+    {
+        // Системный уровень носителя не имеет — он и есть «вся система».
+        CatalogScope.System => true,
+        _ when scopeId is null => false,
+        CatalogScope.Set => setIds.Contains(scopeId.Value),
+        CatalogScope.Section => sectionIds.Contains(scopeId.Value),
+        CatalogScope.Construction => constructionIds.Contains(scopeId.Value),
+        _ => true,
+    };
 
     // ── Topological sort ──────────────────────────────────────────────────────
 
