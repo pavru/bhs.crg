@@ -87,7 +87,9 @@ function RestoreResultModal({
     (report.templateAssetsCreated ?? 0) + (report.templateAssetsUpdated ?? 0) +
     (report.recognitionProfilesCreated ?? 0) + (report.recognitionProfilesUpdated ?? 0) +
     report.catalogEntitiesCreated + report.catalogEntitiesUpdated +
-    report.commonDataEntriesCreated + report.commonDataEntriesUpdated;
+    report.commonDataEntriesCreated + report.commonDataEntriesUpdated +
+    (report.dataSetBindingTemplatesCreated ?? 0) + (report.dataSetBindingTemplatesUpdated ?? 0) +
+    (report.reconciliationAliasesCreated ?? 0) + (report.reconciliationAliasesUpdated ?? 0);
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -142,6 +144,10 @@ function RestoreResultModal({
                 created={report.catalogEntitiesCreated} updated={report.catalogEntitiesUpdated} />
               <StatRow label="Общие данные"
                 created={report.commonDataEntriesCreated} updated={report.commonDataEntriesUpdated} />
+              <StatRow label="Шаблоны маппинга"
+                created={report.dataSetBindingTemplatesCreated ?? 0} updated={report.dataSetBindingTemplatesUpdated ?? 0} />
+              <StatRow label="Алиасы сверки"
+                created={report.reconciliationAliasesCreated ?? 0} updated={report.reconciliationAliasesUpdated ?? 0} />
             </tbody>
           </table>
           {report.typstUserLibRestored && (

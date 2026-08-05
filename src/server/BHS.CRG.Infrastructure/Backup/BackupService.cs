@@ -587,19 +587,46 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         BackupReconciliationAlias[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
     {
         if (items.Length == 0) return;
-        var existingIds = await db.ReconciliationAliases.Select(e => e.Id).ToHashSetAsync(ct);
+
+        var valid = new List<(BackupReconciliationAlias Item, AliasStatus Status)>();
         foreach (var item in items)
         {
-            if (!Enum.TryParse<AliasStatus>(item.Status, out var status))
-            {
-                warnings.Add($"Алиас «{item.AliasLabel}» → «{item.CanonicalLabel}»: неизвестный статус «{item.Status}», пропущен.");
-                continue;
-            }
+            if (Enum.TryParse<AliasStatus>(item.Status, out var status)) valid.Add((item, status));
+            else warnings.Add($"Алиас «{item.AliasLabel}» → «{item.CanonicalLabel}»: неизвестный статус «{item.Status}», пропущен.");
+        }
+        if (valid.Count == 0) return;
+
+        // Тождество алиаса — КЛЮЧ, а не идентификатор: на нём стоит уникальный индекс, и так же
+        // считает путь записи в приложении (повторное предложение по тому же ключу правит запись,
+        // а не плодит вторую). Upsert по Id разошёлся бы с этим на самом обычном сценарии: на
+        // целевой системе предложения родились заново, с другими Id, но с теми же ключами —
+        // вставка упала бы на индексе, а восстановление идёт одной транзакцией, то есть вместе с
+        // алиасами откатились бы и типы, и шаблоны, и каталог.
+        //
+        // Поэтому конфликтующие записи (по ключу ИЛИ по идентификатору) сначала удаляем, и удаление
+        // отправляем в БД ОТДЕЛЬНЫМ сохранением: иначе вставка и удаление уехали бы одним пакетом,
+        // и уникальный индекс успел бы сработать на промежуточном состоянии.
+        var keys = valid.Select(v => v.Item.AliasKey).ToHashSet(StringComparer.Ordinal);
+        var ids = valid.Select(v => v.Item.Id).ToHashSet();
+        var conflicting = await db.ReconciliationAliases
+            .Where(a => keys.Contains(a.AliasKey) || ids.Contains(a.Id))
+            .ToListAsync(ct);
+        var replacedKeys = conflicting.Select(a => a.AliasKey).ToHashSet(StringComparer.Ordinal);
+
+        if (conflicting.Count > 0)
+        {
+            db.ReconciliationAliases.RemoveRange(conflicting);
+            await db.SaveChangesAsync(ct);
+            db.ChangeTracker.Clear();
+        }
+
+        foreach (var (item, status) in valid)
+        {
             var entity = ReconciliationAlias.Restore(
                 item.Id, item.AliasKey, item.AliasLabel, item.CanonicalKey, item.CanonicalLabel,
                 status, item.Note, item.ProposedBy, item.ConfirmedBy, item.CreatedAt, item.UpdatedAt);
-            db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
-            if (existingIds.Contains(item.Id)) stats.ReconciliationAliasesUpdated++;
+            db.Entry(entity).State = EntityState.Added;
+            if (replacedKeys.Contains(item.AliasKey)) stats.ReconciliationAliasesUpdated++;
             else stats.ReconciliationAliasesCreated++;
         }
         await db.SaveChangesAsync(ct);

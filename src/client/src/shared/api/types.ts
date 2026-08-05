@@ -263,6 +263,10 @@ export interface RestoreReport {
   typstUserLibRestored?: boolean;
   recognitionProfilesCreated?: number;
   recognitionProfilesUpdated?: number;
+  dataSetBindingTemplatesCreated?: number;
+  dataSetBindingTemplatesUpdated?: number;
+  reconciliationAliasesCreated?: number;
+  reconciliationAliasesUpdated?: number;
 }
 
 // ─── DataSets ─────────────────────────────────────────────────────────────────

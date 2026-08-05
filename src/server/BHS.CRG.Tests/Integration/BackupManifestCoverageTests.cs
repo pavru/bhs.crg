@@ -1,7 +1,20 @@
+using System.IO.Compression;
+using System.Text.Json;
 using BHS.CRG.Application.Backup;
+using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Recognition;
+using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.DataSets;
+using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
+using BHS.CRG.Domain.Reconciliation;
+using BHS.CRG.Domain.Recognition;
+using BHS.CRG.Domain.Templates;
+using BHS.CRG.Infrastructure.Backup;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -30,8 +43,9 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         ["Construction"] = "проектные данные: стройка",
         ["Section"] = "проектные данные: раздел",
         ["DocumentSet"] = "проектные данные: комплект",
-        ["DomainObject.Document"] = "проектные данные: документы (общие данные из DomainObject входят)",
-        ["DocumentFacet"] = "проектные данные: документная фасета",
+        // Сам DomainObject покрыт (общие данные); документы отличаются наличием фасеты, и в копию
+        // не идут — экспорт отбирает Facet == null.
+        ["DocumentFacet"] = "проектные данные: документная фасета (она и отличает документ)",
         ["GeneratedFile"] = "проектные данные: выпущенные файлы",
         ["DocumentSetOutput"] = "проектные данные: сборка комплекта",
 
@@ -143,5 +157,107 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
 
         Assert.True(unknown.Count == 0,
             "В карте покрытия названы несуществующие свойства манифеста: " + string.Join(", ", unknown));
+    }
+
+    /// <summary>
+    /// Карта покрытия проверяет ИМЕНА, а этот тест — что экспорт действительно кладёт данные в
+    /// каждую заявленную секцию.
+    ///
+    /// Без него правка, из-за которой <c>BuildManifestAsync</c> перестанет заполнять секцию,
+    /// оставляет все три предыдущих теста зелёными, а сущность молча исчезает из каждой новой копии
+    /// — ровно тот способ потерять данные, ради закрытия которого весь этот файл и написан.
+    /// </summary>
+    [Fact]
+    public async Task Export_FillsEverySectionDeclaredInCoverageMap()
+    {
+        await fixture.ResetDatabaseAsync();
+        await SeedOneOfEachCoveredEntityAsync();
+
+        BackupManifest manifest;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var (zipStream, _) = await new BackupService(
+                scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+                scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
+                NullLogger<BackupService>.Instance).ExportAsync();
+
+            using var zip = new ZipArchive(zipStream, ZipArchiveMode.Read);
+            await using var entry = zip.GetEntry("manifest.json")!.Open();
+            manifest = (await JsonSerializer.DeserializeAsync<BackupManifest>(entry))!;
+        }
+
+        var empty = new List<string>();
+        foreach (var (entityName, propertyName) in CoveredByManifest)
+        {
+            var value = typeof(BackupManifest).GetProperty(propertyName)!.GetValue(manifest);
+            var filled = value is not null && (value is not System.Collections.IEnumerable e || e.GetEnumerator().MoveNext());
+            if (!filled) empty.Add($"{entityName} → {propertyName}");
+        }
+
+        Assert.True(empty.Count == 0,
+            "Экспорт не заполнил секции, за которые в карте покрытия отвечает сущность: " +
+            string.Join(", ", empty) + ".\nЛибо сущность выпала из BuildManifestAsync, либо её надо " +
+            "перенести в список исключений.");
+    }
+
+    /// <summary>По одной записи каждой сущности, которую копия обязана переносить.</summary>
+    private async Task SeedOneOfEachCoveredEntityAsync()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var blob = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
+        var now = DateTimeOffset.UtcNow;
+        var docTypeId = Guid.NewGuid();
+        var compositeTypeId = Guid.NewGuid();
+
+        // Файлы библиотеки и профили распознавания фикстура НЕ чистит (это конфигурация, и её
+        // TRUNCATE не касается) — снимаем оставшееся от прошлых прогонов сами, иначе уникальный
+        // индекс по пути файла роняет посев со второго раза.
+        db.TypstUserLibFiles.RemoveRange(db.TypstUserLibFiles);
+        db.RecognitionProfiles.RemoveRange(db.RecognitionProfiles);
+        await db.SaveChangesAsync();
+
+        db.PrimitiveTypes.Add(PrimitiveType.Restore(
+            Guid.NewGuid(), "Строка", $"str-{Guid.NewGuid():N}", "string", null, JsonDocument.Parse("{}"), now, now));
+        db.EnumTypes.Add(EnumType.Restore(
+            Guid.NewGuid(), "Статус", $"st-{Guid.NewGuid():N}", null,
+            JsonDocument.Parse("""[{"code":"a","label":"А"}]"""), now, now));
+        db.DocumentTypes.Add(DocumentType.Restore(
+            docTypeId, "Тип", $"t-{Guid.NewGuid():N}", DocumentTypeKind.Document, null,
+            JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"), false, now, now, null, false));
+        db.DocumentTypes.Add(DocumentType.Restore(
+            compositeTypeId, "Составной", $"c-{Guid.NewGuid():N}", DocumentTypeKind.Composite, null,
+            JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"), false, now, now, null, false));
+        db.Templates.Add(Template.Restore(
+            Guid.NewGuid(), docTypeId, "Шаблон", "#set page()", 1, true, true, now, now));
+
+        await blob.PutAsync("assets/coverage.png", new MemoryStream([1, 2, 3]), "image/png", default);
+        db.TemplateAssets.Add(TemplateAsset.Restore(
+            Guid.NewGuid(), TemplateAssetScope.System, null, TemplateAssetKind.Image,
+            "logo", "coverage.png", "image/png", "assets/coverage.png", null, now, now));
+
+        db.CatalogEntities.Add(CatalogEntity.Restore(
+            Guid.NewGuid(), "Organization", "ООО Ромашка", JsonDocument.Parse("{}"), null, now, now));
+        db.DomainObjects.Add(DomainObject.Restore(
+            Guid.NewGuid(), compositeTypeId, "Общая запись", JsonDocument.Parse("{}"),
+            CatalogScope.System, null, now, now));
+
+        db.TypstUserLibs.Add(TypstUserLib.Create("#let x() = []"));
+        db.TypstUserLibFiles.Add(TypstUserLibFile.Restore(Guid.NewGuid(), "lib/a.typ", "#let a() = []", now, now));
+
+        db.RecognitionProfiles.Add(RecognitionProfile.Create(
+            "Профиль покрытия", RecognitionProfileKind.Table,
+            fields: RecognitionProfileJson.WriteFields([]),
+            rowColumns: RecognitionProfileJson.WriteFields([new RecognitionProfileField("Поз", "Позиция", "string")])));
+
+        db.DataSetBindingTemplates.Add(DataSetBindingTemplate.Restore(
+            Guid.NewGuid(), docTypeId, "Маппинг", null, "{}", 0, now, now));
+
+        var alias = ReconciliationAlias.Propose(
+            $"key-{Guid.NewGuid():N}", "Вариант", $"canon-{Guid.NewGuid():N}", "Канон", null, "человек");
+        alias.Review(AliasStatus.Confirmed, null, "человек");
+        db.ReconciliationAliases.Add(alias);
+
+        await db.SaveChangesAsync();
     }
 }

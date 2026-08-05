@@ -336,4 +336,69 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
             Assert.Equal("разные марки", rejected.Note);
         }
     }
+
+    /// <summary>
+    /// Тождество алиаса — КЛЮЧ, а не идентификатор: на нём уникальный индекс, и так же считает путь
+    /// записи в приложении. Сценарий обыденный: на целевой системе то же предложение родилось
+    /// заново, с другим Id, но с тем же ключом, — а копия несёт решение человека по этому ключу.
+    ///
+    /// Восстановление идёт ОДНОЙ транзакцией, поэтому вставка, упавшая на уникальном индексе,
+    /// откатила бы вместе с алиасами и типы, и шаблоны, и каталог.
+    /// </summary>
+    [Fact]
+    public async Task Import_AliasWithSameKeyButDifferentId_ReplacesInsteadOfFailing()
+    {
+        const string key = "hyperline-cm1u";
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var a = ReconciliationAlias.Propose(key, "Hyperline CM-1U-ML", "organizer", "Органайзер", null, "человек");
+            a.Review(AliasStatus.Confirmed, "из копии", "человек");
+            db.ReconciliationAliases.Add(a);
+            db.DocumentTypes.Add(DocumentType.Restore(
+                Guid.NewGuid(), "Тип", "type-x", DocumentTypeKind.Document, null,
+                JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
+                false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+            await db.SaveChangesAsync();
+        }
+
+        byte[] zipBytes;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var (zipStream, _) = await Backup(scope).ExportAsync();
+            using var buf = new MemoryStream();
+            await zipStream.CopyToAsync(buf);
+            zipBytes = buf.ToArray();
+        }
+
+        // На целевой системе тот же ключ, но запись другая: другой Id, другое решение.
+        await fixture.ResetDatabaseAsync();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var local = ReconciliationAlias.Propose(key, "Hyperline CM-1U-ML", "other", "Другой канон", null, "агент");
+            local.Review(AliasStatus.Rejected, "местное решение", "местный");
+            db.ReconciliationAliases.Add(local);
+            await db.SaveChangesAsync();
+        }
+
+        RestoreReport report;
+        using (var scope = fixture.Services.CreateScope())
+            report = await Backup(scope).ImportAsync(new MemoryStream(zipBytes));
+
+        // Восстановление НЕ падает целиком, и типы документов из той же копии доезжают.
+        Assert.True(report.Success, string.Join(" | ", report.Warnings));
+        Assert.Equal(1, report.ReconciliationAliasesUpdated);
+        Assert.Equal(0, report.ReconciliationAliasesCreated);
+        Assert.Equal(1, report.DocumentTypesCreated);
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var alias = Assert.Single(await db.ReconciliationAliases.AsNoTracking().ToListAsync());
+            Assert.Equal(AliasStatus.Confirmed, alias.Status);   // выиграла копия
+            Assert.Equal("из копии", alias.Note);
+        }
+    }
 }
