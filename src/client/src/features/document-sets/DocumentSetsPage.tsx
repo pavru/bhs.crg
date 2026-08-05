@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router';
 import { SetDetail } from './SetDetail';
 import { SectionDetail } from './SectionDetail';
 import { ConstructionDetail } from './ConstructionDetail';

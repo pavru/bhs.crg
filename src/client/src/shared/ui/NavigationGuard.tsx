@@ -1,5 +1,5 @@
 import { createContext, useContext, useRef, useEffect, type ReactNode, type MouseEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 /** Обработчик ухода: показывает подтверждение и вызывает `proceed()`, если пользователь решил уйти. */
 type LeaveHandler = (proceed: () => void) => void;

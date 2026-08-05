@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router';
 import { FileCheck2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAppVersion } from '@/shared/api/version';

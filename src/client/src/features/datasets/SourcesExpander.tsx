@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import {
   Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
   BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, Scissors, Type, SlidersHorizontal, Link2,

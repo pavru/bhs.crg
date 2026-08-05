@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router';
 import { Plus, Trash2, Download, Pencil, FolderOpen, Eye, GripVertical, Copy, FolderInput, FolderOutput, Layers, FileText, Mail, Database, Table2, Users, AlertTriangle } from 'lucide-react';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Modal } from '@/shared/ui/Modal';

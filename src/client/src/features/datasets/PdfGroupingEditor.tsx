@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router';
 import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, Save, ZoomIn, Table2, RefreshCw } from 'lucide-react';
 import {
   useFilePages, useApplyGrouping, useRecognizeDocumentTable, useRecognizeDocument, useSetDocumentProfile,

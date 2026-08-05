@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { Plus, Search, ChevronDown, ChevronUp, Database, FileText, Layers, X, Building2, Pencil, Copy, Check } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';

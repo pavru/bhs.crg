@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { Upload, Trash2, Database, RefreshCw, Download, FileText, LayoutGrid, ChevronRight, Loader2 } from 'lucide-react';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';

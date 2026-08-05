@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Bot, Check, X, RotateCcw, FileText, Layers } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';

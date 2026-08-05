@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 
 /**
  * Заголовок вкладки браузера = текущее положение в приложении (раздел, а при открытой сущности —

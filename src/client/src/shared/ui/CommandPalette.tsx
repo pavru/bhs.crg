@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { Search, Sun, Moon, Monitor, LogOut, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useTheme } from '@/shared/ui/ThemeProvider';
 import { workNav, settingsNav } from './navConfig';
