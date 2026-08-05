@@ -462,7 +462,16 @@ builder.Services.AddMinio(c => c
     .WithEndpoint(blobOpts.Endpoint)
     .WithCredentials(blobOpts.AccessKey, blobOpts.SecretKey)
     .WithSSL(blobOpts.UseSSL));
-builder.Services.AddSingleton<IBlobStorage, MinIOBlobStorage>();
+// Хранилище отдаётся наружу ТОЛЬКО обёрнутым (issue #672): обёртка ведёт реестр созданных
+// приложением объектов и отказывает в выдаче тому, чего в реестре нет. Настоящее хранилище
+// регистрируется отдельно и внедряется только в обёртку — если внедрить его напрямую куда-то ещё,
+// запись пройдёт мимо реестра, и файл потом не отдастся.
+builder.Services.AddSingleton<MinIOBlobStorage>();
+builder.Services.AddSingleton<IBlobStorage>(sp => new RegisteredBlobStorage(
+    sp.GetRequiredService<MinIOBlobStorage>(),
+    sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<ILogger<RegisteredBlobStorage>>()));
+builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.BlobRegistryBackfill>();
 
 // ── Plugins ───────────────────────────────────────────────────────────────────
 var pluginOpts = cfg.GetSection("Plugins").Get<PluginHostOptions>() ?? new();
@@ -495,6 +504,14 @@ using (var scope = app.Services.CreateScope())
         .GetRequiredService<IntegrationSettingsService>().ProtectStoredSecretsAsync();
     if (protectedCount > 0)
         app.Logger.LogInformation("Секретов настроек интеграций зашифровано при старте: {Count}", protectedCount);
+
+    // Реестр блобов по уже существующим данным (issue #672). Идёт на СТАРТЕ, а не действием
+    // администратора: проверка выдачи отказывает всему, чего в реестре нет, поэтому до сбора ни один
+    // ранее загруженный файл не открылся бы. Работа чисто по БД — хранилище на этот момент может
+    // быть недоступно. Идемпотентно: второй прогон не находит работы.
+    await scope.ServiceProvider
+        .GetRequiredService<BHS.CRG.Infrastructure.Maintenance.BlobRegistryBackfill>()
+        .RunAsync();
 
     // Разовый перенос размеров изображений из схем типов в значения инстансов (issue #246).
     // Идемпотентно: после первого прогона схемы очищены, карта пустеет — обход не запускается.
