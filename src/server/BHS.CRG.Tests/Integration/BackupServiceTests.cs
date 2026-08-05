@@ -8,6 +8,7 @@ using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Templates;
 using BHS.CRG.Application.Recognition;
+using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Reconciliation;
 using BHS.CRG.Domain.Recognition;
 using BHS.CRG.Infrastructure.Recognition;
@@ -412,7 +413,8 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
                     "System", null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, []),
                 // Протягивание поля из реквизитов документа — на глубине, внутри массива.
                 new BackupCommonDataEntry(Guid.NewGuid(), "Со ссылкой в массиве", compositeTypeId,
-                    JsonDocument.Parse("""{"строки":[{"поле":{"$ref":"document","instanceId":"x","fieldKey":"Номер"}}]}""").RootElement.Clone(),
+                    JsonDocument.Parse("{\"строки\":[{\"поле\":{\"$ref\":\"document\",\"instanceId\":\"" +
+                                       Guid.NewGuid() + "\",\"fieldKey\":\"Номер\"}}]}").RootElement.Clone(),
                     "System", null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, []),
                 // А эта ни на что не ссылается — в счёт попасть не должна.
                 new BackupCommonDataEntry(Guid.NewGuid(), "Обычная", compositeTypeId,
@@ -423,7 +425,98 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var report = await ImportManifestAsync(manifest);
 
         Assert.True(report.Success);
-        Assert.Contains(report.Warnings, w => w.Contains("2 записей ссылаются на документы"));
+        Assert.Contains(report.Warnings, w => w.Contains("2 записи ссылаются на документы"));
+    }
+
+    /// <summary>
+    /// А если документ на месте — предупреждать не о чем. Это и есть самый обычный случай:
+    /// восстановление в живую систему, где проектная работа никуда не девалась.
+    ///
+    /// Без проверки наличия предупреждение кричало бы на каждой унаследованной записи всегда.
+    /// </summary>
+    [Fact]
+    public async Task Restore_CommonDataReferencingExistingDocument_IsSilent()
+    {
+        var compositeTypeId = Guid.NewGuid();
+        var documentId = Guid.NewGuid();
+
+        await fixture.ResetDatabaseAsync();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.DocumentTypes.Add(DocumentType.Restore(
+                compositeTypeId, "Составной", $"c-{Guid.NewGuid():N}", DocumentTypeKind.Composite, null,
+                JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
+                false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+            // Адресат ссылки уже в системе.
+            db.DomainObjects.Add(DomainObject.Restore(
+                documentId, compositeTypeId, "Существующий", JsonDocument.Parse("{}"),
+                CatalogScope.System, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        var manifest = new BackupManifest(
+            SchemaVersion: BackupService.CurrentSchemaVersion,
+            AppVersion: BackupService.CurrentAppVersion,
+            CreatedAt: DateTimeOffset.UtcNow,
+            DocumentTypes: [], Templates: [], CatalogEntities: [],
+            CommonDataEntries:
+            [
+                new BackupCommonDataEntry(Guid.NewGuid(), "С наследованием", compositeTypeId,
+                    JsonDocument.Parse("{\"_baseRef\":{\"kind\":\"instance\",\"id\":\"" + documentId + "\"}}").RootElement.Clone(),
+                    "System", null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, []),
+            ]);
+
+        RestoreReport report;
+        using (var ms = new MemoryStream())
+        {
+            using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+            {
+                var entry = zip.CreateEntry("manifest.json");
+                await using var w = entry.Open();
+                await JsonSerializer.SerializeAsync(w, manifest, new JsonSerializerOptions { WriteIndented = true });
+            }
+            ms.Position = 0;
+            using var scope = fixture.Services.CreateScope();
+            report = await Backup(scope).ImportAsync(ms);
+        }
+
+        Assert.True(report.Success);
+        Assert.DoesNotContain(report.Warnings, w => w.Contains("ссылаются на документы"));
+    }
+
+    /// <summary>
+    /// Данные записей — произвольный пользовательский JSON: ключ с именем <c>$ref</c> или
+    /// <c>_baseRef.kind</c> нестрокового вида не должен ронять восстановление целиком.
+    /// </summary>
+    [Fact]
+    public async Task Restore_CommonDataWithNonStringRefFields_DoesNotFail()
+    {
+        var compositeTypeId = Guid.NewGuid();
+
+        var manifest = new BackupManifest(
+            SchemaVersion: BackupService.CurrentSchemaVersion,
+            AppVersion: BackupService.CurrentAppVersion,
+            CreatedAt: DateTimeOffset.UtcNow,
+            DocumentTypes:
+            [
+                new BackupDocumentType(compositeTypeId, "Составной", $"c-{Guid.NewGuid():N}", "Composite", null, false,
+                    JsonDocument.Parse("""{"fields":[]}""").RootElement.Clone(),
+                    JsonDocument.Parse("{}").RootElement.Clone(),
+                    DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
+            ],
+            Templates: [], CatalogEntities: [],
+            CommonDataEntries:
+            [
+                new BackupCommonDataEntry(Guid.NewGuid(), "Странная", compositeTypeId,
+                    JsonDocument.Parse("""{"$ref":42,"_baseRef":{"kind":1},"вложенное":{"$ref":null}}""").RootElement.Clone(),
+                    "System", null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, []),
+            ]);
+
+        var report = await ImportManifestAsync(manifest);
+
+        Assert.True(report.Success, string.Join(" | ", report.Warnings));
+        Assert.Equal(1, report.CommonDataEntriesCreated);
     }
 
     /// <summary>
@@ -439,8 +532,10 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
             .InformationalVersion.Split('+', 2)[0];
 
+        // Проверка «не 1.0.0» тут была бы миной: 1.0.0 — это заявленный первый релиз, и в день его
+        // выпуска тест покраснел бы на ровном месте. Совпадение с версией сборки и так доказывает,
+        // что значение берётся из сборки, а не написано в коде.
         Assert.Equal(solutionVersion, BackupService.CurrentAppVersion);
-        Assert.NotEqual("1.0.0", BackupService.CurrentAppVersion);
     }
 
     /// <summary>Собирает zip из манифеста и восстанавливает — без блобов.</summary>

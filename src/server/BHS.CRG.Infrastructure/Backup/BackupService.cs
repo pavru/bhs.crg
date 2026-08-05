@@ -203,15 +203,6 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         if (blobEntries.Count > 0)
             warnings.Insert(0, $"Файлы: восстановлено {blobsRestored} из {blobEntries.Count}.");
 
-        // Ссылки на документы протухают молча: резолвер при генерации просто вернёт собственные
-        // данные объекта, без ошибки и без унаследованных полей. Говорим об этом здесь, а не
-        // предоставляем выяснять по неверному PDF.
-        var referencingDocuments = CountEntriesReferencingDocuments(manifest.CommonDataEntries);
-        if (referencingDocuments > 0)
-            warnings.Add(
-                $"Общие данные: {referencingDocuments} записей ссылаются на документы, которых в копии " +
-                "нет (документы в резервную копию не входят). При генерации унаследованные от них поля " +
-                "подставлены не будут — молча, поэтому проверьте такие записи.");
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         try
@@ -266,22 +257,28 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     // ── Ссылки на документы ───────────────────────────────────────────────────
 
     /// <summary>
-    /// Сколько записей общих данных ссылается на ДОКУМЕНТЫ, которых в копии нет.
+    /// Идентификаторы ДОКУМЕНТОВ, на которые ссылается запись общих данных.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Документы в копию не входят осознанно. Но запись общих данных может нести <c>_baseRef</c> на
     /// документ (наследование реквизитов, issue #71) или <c>$ref</c> вида «document»/«instance»
     /// внутри реквизитов.
-    ///
-    /// Сама по себе оборванная ссылка ничего не ломает: при генерации резолвер просто вернёт
-    /// собственные данные объекта — без ошибки, без предупреждения и без унаследованных полей. То
-    /// есть дефект проявится далеко от восстановления, в неверном PDF, и связать одно с другим будет
-    /// уже нечем. Поэтому считаем их здесь и говорим вслух.
+    /// </para>
+    /// <para>
+    /// Оборванная ссылка ничего не ломает сразу: при генерации резолвер просто вернёт собственные
+    /// данные объекта — без ошибки, без предупреждения и без унаследованных полей. То есть дефект
+    /// проявится далеко от восстановления, в неверном PDF, и связать одно с другим будет уже нечем.
+    /// Поэтому собираем адреса и проверяем их наличие в БД.
+    /// </para>
+    /// <para>
+    /// Читаем строки ТОЛЬКО убедившись, что это строки: <c>Data</c> — произвольный пользовательский
+    /// JSON, и поле с именем <c>$ref</c> или <c>_baseRef.kind</c> нестрокового вида уронило бы
+    /// <c>GetString()</c>, а с ним и всё восстановление. Так же осторожничают и остальные читатели
+    /// ссылок в коде.
+    /// </para>
     /// </remarks>
-    private static int CountEntriesReferencingDocuments(IEnumerable<BackupCommonDataEntry> entries) =>
-        entries.Count(e => ReferencesDocument(e.Data));
-
-    private static bool ReferencesDocument(JsonElement element)
+    private static void CollectReferencedDocumentIds(JsonElement element, HashSet<Guid> ids)
     {
         switch (element.ValueKind)
         {
@@ -290,29 +287,50 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 if (element.TryGetProperty("_baseRef", out var baseRef) &&
                     baseRef.ValueKind == JsonValueKind.Object &&
                     baseRef.TryGetProperty("kind", out var kind) &&
-                    kind.GetString() == "instance")
+                    kind.ValueKind == JsonValueKind.String && kind.GetString() == "instance" &&
+                    baseRef.TryGetProperty("id", out var baseId) &&
+                    baseId.ValueKind == JsonValueKind.String &&
+                    Guid.TryParse(baseId.GetString(), out var baseGuid))
                 {
-                    return true;
+                    ids.Add(baseGuid);
                 }
                 // Протягивание поля из реквизитов другого документа.
                 if (element.TryGetProperty("$ref", out var refType) &&
-                    refType.GetString() is "document" or "instance")
+                    refType.ValueKind == JsonValueKind.String &&
+                    refType.GetString() is "document" or "instance" &&
+                    element.TryGetProperty("instanceId", out var instId) &&
+                    instId.ValueKind == JsonValueKind.String &&
+                    Guid.TryParse(instId.GetString(), out var instGuid))
                 {
-                    return true;
+                    ids.Add(instGuid);
                 }
                 foreach (var prop in element.EnumerateObject())
-                    if (ReferencesDocument(prop.Value)) return true;
-                return false;
+                    CollectReferencedDocumentIds(prop.Value, ids);
+                break;
 
             case JsonValueKind.Array:
                 foreach (var item in element.EnumerateArray())
-                    if (ReferencesDocument(item)) return true;
-                return false;
-
-            default:
-                return false;
+                    CollectReferencedDocumentIds(item, ids);
+                break;
         }
     }
+
+    /// <summary>«1 запись», «2 записи», «5 записей» — счёт в предупреждениях читает человек.</summary>
+    private static string Records(int n)
+    {
+        var tens = n % 100;
+        if (tens is >= 11 and <= 14) return $"{n} записей";
+        return (n % 10) switch
+        {
+            1 => $"{n} запись",
+            2 or 3 or 4 => $"{n} записи",
+            _ => $"{n} записей",
+        };
+    }
+
+    /// <summary>Согласование сказуемого со счётом: «1 запись ссылается», «2 записи ссылаются».</summary>
+    private static string Agree(int n, string singular, string plural) =>
+        n % 10 == 1 && n % 100 != 11 ? singular : plural;
 
     // ── Blob path extraction ──────────────────────────────────────────────────
 
@@ -610,6 +628,13 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         var constructionIds = await db.Constructions.Select(e => e.Id).ToHashSetAsync(ct);
         var orphanedByScope = 0;
 
+        // Ссылки на документы: собираем адреса у ВОССТАНОВЛЕННЫХ записей (пропущенные считать
+        // незачем — их в системе не будет) и проверяем наличие адресатов в БД. Без проверки
+        // предупреждение кричало бы и в самом обычном случае — восстановлении в живую систему, где
+        // все документы на месте и все ссылки разрешаются.
+        var referencedDocumentIds = new HashSet<Guid>();
+        var entryIdsByDocument = new Dictionary<Guid, List<Guid>>();
+
         foreach (var item in items)
         {
             if (!validDocTypeIds.Contains(item.CompositeTypeId))
@@ -630,6 +655,16 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             if (!ScopeCarrierExists(scope, item.ScopeId, setIds, sectionIds, constructionIds))
                 orphanedByScope++;
 
+            var refs = new HashSet<Guid>();
+            CollectReferencedDocumentIds(item.Data, refs);
+            foreach (var refId in refs)
+            {
+                referencedDocumentIds.Add(refId);
+                if (!entryIdsByDocument.TryGetValue(refId, out var list))
+                    entryIdsByDocument[refId] = list = [];
+                list.Add(item.Id);
+            }
+
             var entity = DomainObject.Restore(
                 item.Id, item.CompositeTypeId, item.DisplayName,
                 JsonDocument.Parse(item.Data.GetRawText()),
@@ -641,13 +676,36 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         if (orphanedByScope > 0)
         {
             warnings.Add(
-                $"Общие данные: {orphanedByScope} записей относятся к комплектам, разделам или стройкам, " +
-                "которых в этой системе нет. Записи восстановлены, но в интерфейсе не появятся, пока не " +
+                $"Общие данные: {Records(orphanedByScope)} " +
+                $"{Agree(orphanedByScope, "относится", "относятся")} к комплектам, разделам или стройкам, " +
+                "которых в этой системе нет. Они восстановлены, но в интерфейсе не появятся, пока не " +
                 "будут созданы соответствующие объекты (проектные данные в резервную копию не входят).");
         }
 
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
+
+        // Наличие адресатов проверяем ПОСЛЕ записи: документы могли приехать не из копии, а уже быть
+        // в системе — при восстановлении в живую установку это обычное дело, и молчать тут правильно.
+        if (referencedDocumentIds.Count > 0)
+        {
+            var presentIds = await db.DomainObjects
+                .Where(o => referencedDocumentIds.Contains(o.Id))
+                .Select(o => o.Id)
+                .ToHashSetAsync(ct);
+
+            var affectedEntries = entryIdsByDocument
+                .Where(kv => !presentIds.Contains(kv.Key))
+                .SelectMany(kv => kv.Value)
+                .ToHashSet();
+
+            if (affectedEntries.Count > 0)
+                warnings.Add(
+                    $"Общие данные: {Records(affectedEntries.Count)} " +
+                    $"{Agree(affectedEntries.Count, "ссылается", "ссылаются")} на документы, которых в " +
+                    "этой системе нет (документы в резервную копию не входят). При генерации " +
+                    "унаследованные от них поля подставлены не будут — молча, поэтому проверьте такие записи.");
+        }
     }
 
     /// <summary>Существует ли объект, к области которого привязана запись общих данных.</summary>
