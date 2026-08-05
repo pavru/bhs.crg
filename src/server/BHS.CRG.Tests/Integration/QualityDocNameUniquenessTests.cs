@@ -46,7 +46,7 @@ public class QualityDocNameUniquenessTests(IntegrationTestFixture fx)
         var name = $"EKF — автоматические выключатели {Guid.NewGuid():N}";
         await CreateAsync(typeId, name, CatalogScope.System, null);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<ConflictException>(
             () => CreateAsync(typeId, name, CatalogScope.System, null));
     }
 
@@ -59,7 +59,7 @@ public class QualityDocNameUniquenessTests(IntegrationTestFixture fx)
         var name = $"Сертификат ЭКФ {Guid.NewGuid():N}";
         await CreateAsync(typeId, name, CatalogScope.System, null);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<ConflictException>(
             () => CreateAsync(typeId, $"  {name.ToUpperInvariant()} ", CatalogScope.System, null));
     }
 
@@ -128,7 +128,7 @@ public class QualityDocNameUniquenessTests(IntegrationTestFixture fx)
         await CreateAsync(typeId, first, CatalogScope.System, null);
         var doc = await CreateAsync(typeId, second, CatalogScope.System, null);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => InScopeAsync(
+        await Assert.ThrowsAsync<ConflictException>(() => InScopeAsync(
             m => m.Send(new UpdateQualityDocumentCommand(doc.Id, typeId, first, JsonDocument.Parse("{}")))));
     }
 }

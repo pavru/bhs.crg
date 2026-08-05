@@ -3,8 +3,8 @@
 /// <summary>
 /// Application-level operations for data sets, bindings and binding templates.
 /// HTTP endpoints stay thin and delegate here; all parsing/mapping/preview logic lives in the impl.
-/// Throws <see cref="KeyNotFoundException"/> for missing entities and
-/// <see cref="ArgumentException"/> for invalid input (mapped to 404 / 400 by the global handler).
+/// Throws <see cref="NotFoundException"/> for missing entities and
+/// <see cref="InvalidRequestException"/> for invalid input (mapped to 404 / 400 by the global handler).
 /// </summary>
 public interface IDataSetService
 {
@@ -69,7 +69,7 @@ public interface IDataSetService
     /// Дорогая/небыстрая операция — запускается явным действием пользователя, не при каждом
     /// preview/generation вызове. Для ГОСТ-профиля "Документы": если на источнике уже есть
     /// ручная правка группировки (GostGrouping.ManuallyEdited=true) и <paramref name="confirm"/>
-    /// не передан — бросает <see cref="InvalidOperationException"/> (эндпоинт мапит в 409), чтобы
+    /// не передан — бросает <see cref="ConflictException"/> (эндпоинт мапит в 409), чтобы
     /// не затереть ручные правки без явного согласия пользователя.
     /// </summary>
     Task<DataSetSourceDto?> RecognizePdfSourceAsync(Guid sourceId, bool confirm, CancellationToken ct);

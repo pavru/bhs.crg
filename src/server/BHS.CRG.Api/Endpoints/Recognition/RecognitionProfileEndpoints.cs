@@ -25,7 +25,7 @@ public static class RecognitionProfileEndpoints
                 return Results.Ok(await m.Send(new CreateRecognitionProfileCommand(
                     req.Name, req.Kind ?? "", req.Fields ?? [], req.RowColumns ?? [], req.Shape)));
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         admin.MapPut("/{id:guid}", async (Guid id, ProfileRequest req, IMediator m) =>
@@ -35,19 +35,19 @@ public static class RecognitionProfileEndpoints
                 return Results.Ok(await m.Send(new UpdateRecognitionProfileCommand(
                     id, req.Name, req.Fields ?? [], req.RowColumns ?? [], req.Shape)));
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         admin.MapPost("/{id:guid}/reset", async (Guid id, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new ResetRecognitionProfileCommand(id))); }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         admin.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             try { await m.Send(new DeleteRecognitionProfileCommand(id)); return Results.NoContent(); }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
     }
 

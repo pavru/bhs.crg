@@ -64,7 +64,7 @@ public class DocumentTypeHandlers(
     public async Task<IReadOnlyList<AuditFinding>> Handle(AuditInstanceQuery q, CancellationToken ct)
     {
         var inst = await objectRepo.GetByIdAsync(q.InstanceId, ct)
-            ?? throw new KeyNotFoundException($"Instance {q.InstanceId} not found");
+            ?? throw new NotFoundException($"Instance {q.InstanceId} not found");
         var byId = (await repo.GetAllAsync(ct)).ToDictionary(t => t.Id);
         var primitives = (await primitiveRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
         return Schema.SchemaDataAuditor.Audit(inst.Data.RootElement, inst.CompositeTypeId, byId, primitives)
@@ -158,7 +158,7 @@ public class DocumentTypeHandlers(
         var all = await repo.GetAllAsync(ct);
         var byId = all.ToDictionary(t => t.Id);
         var type = byId.GetValueOrDefault(q.TypeId)
-            ?? throw new KeyNotFoundException($"DocumentType {q.TypeId} not found");
+            ?? throw new NotFoundException($"DocumentType {q.TypeId} not found");
 
         // Аудит по типу = все инстансы типа И его подтипов (каждый — против СВОЕЙ эффективной схемы).
         var typeIds = all.Where(t => Schema.DocumentTypeSchemaReader.IsSameOrDescendant(t.Id, q.TypeId, byId))
@@ -192,12 +192,12 @@ public class DocumentTypeHandlers(
     public async Task<DocumentType> Handle(UpdateDocumentTypeCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"DocumentType {cmd.Id} not found");
+            ?? throw new NotFoundException($"DocumentType {cmd.Id} not found");
         var all = await repo.GetAllAsync(ct);
         EnsureUnique(all, cmd.Name, cmd.Code, excludeId: cmd.Id);
         // Prevent cycles: parentId must not be a descendant of this type
         if (cmd.ParentId.HasValue && IsDescendant(cmd.ParentId.Value, cmd.Id, all))
-            throw new InvalidOperationException("Нельзя установить дочерний тип в качестве родителя — возникнет цикл.");
+            throw new ConflictException("Нельзя установить дочерний тип в качестве родителя — возникнет цикл.");
 
         dt.Rename(cmd.Name.Trim(), cmd.Code.Trim());
         dt.SetParent(cmd.ParentId);
@@ -216,9 +216,9 @@ public class DocumentTypeHandlers(
         {
             if (excludeId.HasValue && t.Id == excludeId.Value) continue;
             if (N(t.Code) == nCode)
-                throw new ArgumentException($"Тип документа с кодом «{code.Trim()}» уже существует.");
+                throw new InvalidRequestException($"Тип документа с кодом «{code.Trim()}» уже существует.");
             if (N(t.Name) == nName)
-                throw new ArgumentException($"Тип документа с именем «{name.Trim()}» уже существует.");
+                throw new InvalidRequestException($"Тип документа с именем «{name.Trim()}» уже существует.");
         }
     }
 
@@ -239,7 +239,7 @@ public class DocumentTypeHandlers(
     public async Task<DocumentType> Handle(UpdateDocumentTypeSchemaCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"DocumentType {cmd.Id} not found");
+            ?? throw new NotFoundException($"DocumentType {cmd.Id} not found");
         // Ограничения тэгов (issue #258): считаем носителей среди прочих типов + входящей схемы.
         var all = await repo.GetAllAsync(ct);
         ValidateTagRestrictions(cmd.Schema, dt.Id, dt.Name, all);
@@ -249,19 +249,19 @@ public class DocumentTypeHandlers(
         return dt;
     }
 
-    // Бросает InvalidOperationException (маппится в 409) со списком занятых мест — issue #258.
+    // Бросает ConflictException (маппится в 409) со списком занятых мест — issue #258.
     private static void ValidateTagRestrictions(JsonDocument schema, Guid savingId, string savingName,
         IReadOnlyList<DocumentType> all)
     {
         var violations = TagRestrictionValidator.Validate(schema, savingId, savingName, all);
         if (violations.Count > 0)
-            throw new InvalidOperationException(string.Join(" ", violations.Select(v => v.Describe())));
+            throw new ConflictException(string.Join(" ", violations.Select(v => v.Describe())));
     }
 
     public async Task<DocumentType> Handle(SetDocumentTypeAbstractCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"DocumentType {cmd.Id} not found");
+            ?? throw new NotFoundException($"DocumentType {cmd.Id} not found");
         dt.SetAbstract(cmd.IsAbstract);
         repo.Update(dt);
         await repo.SaveChangesAsync(ct);
@@ -271,7 +271,7 @@ public class DocumentTypeHandlers(
     public async Task<DocumentType> Handle(SetDocumentTypeAllowsProxyCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"DocumentType {cmd.Id} not found");
+            ?? throw new NotFoundException($"DocumentType {cmd.Id} not found");
         dt.SetAllowsProxy(cmd.AllowsProxy);
         repo.Update(dt);
         await repo.SaveChangesAsync(ct);
@@ -281,7 +281,7 @@ public class DocumentTypeHandlers(
     public async Task<DocumentType> Handle(SetDocumentTypeGroupCommand cmd, CancellationToken ct)
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"DocumentType {cmd.Id} not found");
+            ?? throw new NotFoundException($"DocumentType {cmd.Id} not found");
         dt.SetGroup(cmd.Group);
         repo.Update(dt);
         await repo.SaveChangesAsync(ct);
@@ -292,11 +292,11 @@ public class DocumentTypeHandlers(
     // общий источник для guard'а удаления И проактивного показа (issue #275), чтобы не разъехались.
     public async Task Handle(DeleteDocumentTypeCommand cmd, CancellationToken ct)
     {
-        var dt = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var dt = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         var all = await repo.GetAllAsync(ct);
         var usage = await ComputeUsageAsync(dt, all, ct);
         if (usage.InUse)
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 "Нельзя удалить тип — используется. " + string.Join("; ", usage.Reasons.Select(FormatReason)) + ".");
 
         repo.Remove(dt);
@@ -305,7 +305,7 @@ public class DocumentTypeHandlers(
 
     public async Task<DocumentTypeUsage> Handle(GetDocumentTypeUsageQuery q, CancellationToken ct)
     {
-        var dt = await repo.GetByIdAsync(q.Id, ct) ?? throw new KeyNotFoundException();
+        var dt = await repo.GetByIdAsync(q.Id, ct) ?? throw new NotFoundException();
         return await ComputeUsageAsync(dt, await repo.GetAllAsync(ct), ct);
     }
 
@@ -391,7 +391,7 @@ public class ConstructionHandlers(
 
     public async Task<Construction> Handle(RenameConstructionCommand cmd, CancellationToken ct)
     {
-        var c = await constructionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var c = await constructionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         c.Rename(cmd.Name);
         constructionRepo.Update(c);
         await constructionRepo.SaveChangesAsync(ct);
@@ -400,7 +400,7 @@ public class ConstructionHandlers(
 
     public async Task Handle(DeleteConstructionCommand cmd, CancellationToken ct)
     {
-        var c = await constructionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var c = await constructionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         constructionRepo.Remove(c);
         await constructionRepo.SaveChangesAsync(ct);
     }
@@ -417,7 +417,7 @@ public class ConstructionHandlers(
     public async Task<Section> Handle(CreateSectionCommand cmd, CancellationToken ct)
     {
         _ = await constructionRepo.GetByIdAsync(cmd.ConstructionId, ct)
-            ?? throw new KeyNotFoundException("Construction not found");
+            ?? throw new NotFoundException("Construction not found");
         var section = Section.Create(cmd.ConstructionId, cmd.Name);
         await sectionRepo.AddAsync(section, ct);
         await sectionRepo.SaveChangesAsync(ct);
@@ -426,7 +426,7 @@ public class ConstructionHandlers(
 
     public async Task<Section> Handle(RenameSectionCommand cmd, CancellationToken ct)
     {
-        var s = await sectionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var s = await sectionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         s.Rename(cmd.Name);
         sectionRepo.Update(s);
         await sectionRepo.SaveChangesAsync(ct);
@@ -435,7 +435,7 @@ public class ConstructionHandlers(
 
     public async Task Handle(DeleteSectionCommand cmd, CancellationToken ct)
     {
-        var s = await sectionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var s = await sectionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         sectionRepo.Remove(s);
         await sectionRepo.SaveChangesAsync(ct);
     }
@@ -479,7 +479,7 @@ public class DocumentSetHandlers(
 
     public async Task<DocumentSet> Handle(RenameDocumentSetCommand cmd, CancellationToken ct)
     {
-        var set = await setRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var set = await setRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         set.Rename(cmd.Name);
         setRepo.Update(set);
         await setRepo.SaveChangesAsync(ct);
@@ -488,7 +488,7 @@ public class DocumentSetHandlers(
 
     public async Task Handle(DeleteDocumentSetCommand cmd, CancellationToken ct)
     {
-        var set = await setRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var set = await setRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         // Объекты на оси (Set, этот Id) — документы и Set-скоуп общих данных — принадлежат комплекту:
         // FK-каскада на комплект нет (единая ось, полиморфный ScopeId), удаляем прикладно.
         var owned = await objRepo.FindAsync(o => o.ScopeLevel == CatalogScope.Set && o.ScopeId == cmd.Id, ct);
@@ -504,8 +504,8 @@ public class DocumentSetHandlers(
     {
         // Доступны документы всей стройки: сначала поднимаемся от комплекта к ней, потом спускаемся
         // обратно ко всем её комплектам. Спуск — общий (issue #625), своей копии здесь больше нет.
-        var set = await setRepo.GetByIdAsync(q.SetId, ct) ?? throw new KeyNotFoundException();
-        var section = await sectionRepo.GetByIdAsync(set.SectionId, ct) ?? throw new KeyNotFoundException();
+        var set = await setRepo.GetByIdAsync(q.SetId, ct) ?? throw new NotFoundException();
+        var section = await sectionRepo.GetByIdAsync(set.SectionId, ct) ?? throw new NotFoundException();
 
         var setIds = await scopeSubtree.SetIdsUnderAsync(CatalogScope.Construction, section.ConstructionId, ct);
         return await objRepo.GetDocumentsInSetsAsync(setIds, ct);
@@ -514,7 +514,7 @@ public class DocumentSetHandlers(
     public async Task<DomainObject> Handle(AddDocumentToSetCommand cmd, CancellationToken ct)
     {
         var set = await setRepo.GetByIdAsync(cmd.DocumentSetId, ct)
-            ?? throw new KeyNotFoundException();
+            ?? throw new NotFoundException();
         var docs = await objRepo.GetSetDocumentsAsync(cmd.DocumentSetId, tracked: false, ct);
         // Новый документ — в конец комплекта (порядок сборки задаётся SortOrder).
         var maxOrder = docs.Count == 0 ? -1 : docs.Max(d => d.SortOrder);
@@ -532,7 +532,7 @@ public class DocumentSetHandlers(
 
     public async Task<DocumentSet> Handle(ReorderDocumentInstancesCommand cmd, CancellationToken ct)
     {
-        var set = await setRepo.GetByIdAsync(cmd.SetId, ct) ?? throw new KeyNotFoundException();
+        var set = await setRepo.GetByIdAsync(cmd.SetId, ct) ?? throw new NotFoundException();
         var docs = await objRepo.GetSetDocumentsAsync(cmd.SetId, tracked: true, ct);
         // Присваиваем SortOrder по позиции в переданном списке; отсутствующие в списке документы
         // (напр. добавленные параллельно) — в конец, сохраняя их относительный порядок.
@@ -546,7 +546,7 @@ public class DocumentSetHandlers(
 
     public async Task<DomainObject> Handle(RenameDocumentInstanceCommand cmd, CancellationToken ct)
     {
-        var obj = await objRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var obj = await objRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         obj.Rename(cmd.Name);
         objRepo.Update(obj);
         await objRepo.SaveChangesAsync(ct);
@@ -555,13 +555,13 @@ public class DocumentSetHandlers(
 
     public async Task Handle(DeleteDocumentInstanceCommand cmd, CancellationToken ct)
     {
-        var obj = await objRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var obj = await objRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         // issue #71/#269: удаление объекта, на который ссылаются (базовый экземпляр "_baseRef" или
         // "$ref" в значениях полей), оставило бы висячую ссылку — при генерации она молча
         // разворачивается в ничто (EntityResolver возвращает исходный узел / пропускает базу).
         var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, cmd.Id, ct);
         if (referrers.Count > 0)
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 $"Нельзя удалить документ — на него ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.DisplayName ?? "без имени"))}.");
         objRepo.Remove(obj);
         await objRepo.SaveChangesAsync(ct);
@@ -571,8 +571,8 @@ public class DocumentSetHandlers(
     // сохраняем как есть (cross-set скраб — отдельные команды copy/move). Свежий черновик без PDF.
     public async Task<DomainObject> Handle(DuplicateDocumentInstanceCommand cmd, CancellationToken ct)
     {
-        var source = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
-        if (!source.IsDocument) throw new InvalidOperationException("Дублировать можно только документ комплекта.");
+        var source = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
+        if (!source.IsDocument) throw new ConflictException("Дублировать можно только документ комплекта.");
         var setId = source.ScopeId!.Value;
 
         var docs = await objRepo.GetSetDocumentsAsync(setId, tracked: false, ct);
@@ -625,11 +625,11 @@ public class DocumentSetHandlers(
     {
         var (source, targetSet) = await LoadCopyEndpointsAsync(cmd.SourceId, cmd.TargetSetId, ct);
         var srcSetId = source.ScopeId!.Value;
-        if (srcSetId == targetSet.Id) throw new InvalidOperationException("Документ уже в этом комплекте.");
+        if (srcSetId == targetSet.Id) throw new ConflictException("Документ уже в этом комплекте.");
 
         var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, source.Id, ct);
         if (referrers.Count > 0)
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 $"Нельзя перенести документ — на него ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.DisplayName ?? "без имени"))}.");
 
         var (data, warnings) = await BuildCopyPlanAsync(source, targetSet, cmd.Strategy, ct);
@@ -660,9 +660,9 @@ public class DocumentSetHandlers(
 
     private async Task<(DomainObject source, DocumentSet targetSet)> LoadCopyEndpointsAsync(Guid sourceId, Guid targetSetId, CancellationToken ct)
     {
-        var source = await objRepo.GetByIdAsync(sourceId, ct) ?? throw new KeyNotFoundException();
-        if (!source.IsDocument) throw new InvalidOperationException("Копировать можно только документ комплекта.");
-        var targetSet = await setRepo.GetByIdAsync(targetSetId, ct) ?? throw new KeyNotFoundException("Целевой комплект не найден.");
+        var source = await objRepo.GetByIdAsync(sourceId, ct) ?? throw new NotFoundException();
+        if (!source.IsDocument) throw new ConflictException("Копировать можно только документ комплекта.");
+        var targetSet = await setRepo.GetByIdAsync(targetSetId, ct) ?? throw new NotFoundException("Целевой комплект не найден.");
         return (source, targetSet);
     }
 
@@ -718,7 +718,7 @@ public class DocumentSetHandlers(
 
     public async Task<DomainObject> Handle(UpdateRequisitesCommand cmd, CancellationToken ct)
     {
-        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
+        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
         var blobs = obj.ResetToDraft();
         obj.SetData(cmd.Requisites);
         objRepo.Update(obj);
@@ -729,7 +729,7 @@ public class DocumentSetHandlers(
 
     public async Task<DomainObject> Handle(UpdatePluginDataCommand cmd, CancellationToken ct)
     {
-        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
+        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
         var blobs = obj.ResetToDraft();
         obj.UpdatePluginData(cmd.PluginData);
         objRepo.Update(obj);
@@ -743,7 +743,7 @@ public class DocumentSetHandlers(
 
     public async Task<DomainObject> Handle(SetDocumentTemplateCommand cmd, CancellationToken ct)
     {
-        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
+        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
         var blobs = obj.ResetToDraft();
         obj.SetTemplate(cmd.TemplateId);
         objRepo.Update(obj);
@@ -754,7 +754,7 @@ public class DocumentSetHandlers(
 
     public async Task<DomainObject> Handle(SetDocumentTemplatesCommand cmd, CancellationToken ct)
     {
-        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
+        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
         var blobs = obj.ResetToDraft(); // смена набора шаблонов меняет вывод — в черновик
         obj.SetTemplateIds(cmd.TemplateIds);
         objRepo.Update(obj);
@@ -765,7 +765,7 @@ public class DocumentSetHandlers(
 
     public async Task<DomainObject> Handle(SetDocumentTemplateParamsCommand cmd, CancellationToken ct)
     {
-        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new KeyNotFoundException();
+        var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
         var blobs = obj.ResetToDraft(); // параметры влияют на вывод — сбрасываем в черновик
         obj.SetTemplateParams(cmd.Params);
         objRepo.Update(obj);
@@ -801,7 +801,7 @@ public class CommonDataHandlers(
 
     public async Task<DomainObject> Handle(UpdateCommonDataEntryCommand cmd, CancellationToken ct)
     {
-        var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         // Резолв-путь (issue #99): @@ref → {$ref:catalog, entryId}, а не display-строка «🔗 …».
         // Scope — из расположения объекта. Нет матча → поле не пишется (резолвер пропускает).
         var resolved = await dataSetResolver.ResolveOwnerBindingsAsync(
@@ -815,17 +815,17 @@ public class CommonDataHandlers(
 
     public async Task Handle(DeleteCommonDataEntryCommand cmd, CancellationToken ct)
     {
-        var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var entry = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         // issue #258: объект-профиль (на который ссылается FK контейнера) — синглтон, удалять нельзя.
         if ((await constructionRepo.FindAsync(c => c.ProfileObjectId == cmd.Id, ct)).Count > 0
             || (await sectionRepo.FindAsync(s => s.ProfileObjectId == cmd.Id, ct)).Count > 0
             || (await setRepo.FindAsync(s => s.ProfileObjectId == cmd.Id, ct)).Count > 0)
-            throw new InvalidOperationException("Это профиль уровня — его нельзя удалить. Он редактируется на странице «Общие данные» уровня.");
+            throw new ConflictException("Это профиль уровня — его нельзя удалить. Он редактируется на странице «Общие данные» уровня.");
         // issue #71/#269: запись, на которую ссылаются другие объекты (базовый экземпляр "_baseRef"
         // или "$ref" в значениях полей), — тот же guard, что и для документа: иначе висячая ссылка.
         var referrers = await DomainObjectReferences.FindReferrersAsync(repo, cmd.Id, ct);
         if (referrers.Count > 0)
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 $"Нельзя удалить запись — на неё ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.DisplayName ?? "без имени"))}.");
         repo.Remove(entry);
         await repo.SaveChangesAsync(ct);
@@ -853,8 +853,8 @@ public class CommonDataHandlers(
     public async Task<IReadOnlyList<CommonDataEntryWithScope>> Handle(
         ResolveCommonDataForSetQuery q, CancellationToken ct)
     {
-        var set = await setRepo.GetByIdAsync(q.SetId, ct) ?? throw new KeyNotFoundException("DocumentSet not found");
-        var section = await sectionRepo.GetByIdAsync(set.SectionId, ct) ?? throw new KeyNotFoundException("Section not found");
+        var set = await setRepo.GetByIdAsync(q.SetId, ct) ?? throw new NotFoundException("DocumentSet not found");
+        var section = await sectionRepo.GetByIdAsync(set.SectionId, ct) ?? throw new NotFoundException("Section not found");
         var constructionId = section.ConstructionId;
         var setId = q.SetId;
         var sectionId = set.SectionId;

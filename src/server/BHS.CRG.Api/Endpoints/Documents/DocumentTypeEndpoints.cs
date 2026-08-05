@@ -43,19 +43,19 @@ public static class DocumentTypeEndpoints
                 return Results.Ok(await m.Send(new CreateDocumentTypeCommand(
                     req.Name, req.Code, kind, req.ParentId, JsonDocument.Parse(req.Schema), req.IsAbstract)));
             }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         admin.MapPut("/{id:guid}", async (Guid id, UpdateTypeRequest req, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new UpdateDocumentTypeCommand(id, req.Name, req.Code, req.ParentId))); }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         admin.MapPut("/{id:guid}/schema", async (Guid id, UpdateSchemaRequest req, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new UpdateDocumentTypeSchemaCommand(id, JsonDocument.Parse(req.Schema)))); }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         // Последствия правки полей-идентификаторов (issue #584): изменится ли составной ключ и
@@ -83,7 +83,7 @@ public static class DocumentTypeEndpoints
         admin.MapGet("/{id:guid}/audit", async (Guid id, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new AuditDocumentTypeQuery(id))); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         // Применение исправлений аудита (issue #350) — мутирует реквизиты инстансов, атомарно.
@@ -98,13 +98,13 @@ public static class DocumentTypeEndpoints
         admin.MapGet("/{id:guid}/usage", async (Guid id, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new GetDocumentTypeUsageQuery(id))); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         admin.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             try { await m.Send(new DeleteDocumentTypeCommand(id)); return Results.NoContent(); }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
     }
 

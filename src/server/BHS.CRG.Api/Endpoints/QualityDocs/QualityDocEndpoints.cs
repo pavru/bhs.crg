@@ -43,7 +43,7 @@ public static class QualityDocEndpoints
                     req.ScanBlobPath, req.ScanFileName, req.ScanMimeType));
                 return Results.Ok(ToDto(doc));
             }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         g.MapPut("/{id:guid}", async (Guid id, UpdateReq req, IMediator m) =>
@@ -53,7 +53,7 @@ public static class QualityDocEndpoints
                 return Results.Ok(ToDto(await m.Send(
                     new UpdateQualityDocumentCommand(id, req.DocumentTypeId, req.DisplayName, ToDoc(req.Requisites)))));
             }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         g.MapPut("/{id:guid}/scan", async (Guid id, ScanReq req, IMediator m)

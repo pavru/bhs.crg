@@ -21,6 +21,9 @@ public class FakeBlobStorage : IBlobStorage
     {
         if (_store.TryGetValue(blobPath, out var bytes))
             return Task.FromResult<Stream>(new MemoryStream(bytes));
+        // Не доменный отказ намеренно (issue #691): отсутствующий файл — это битая ссылка, то есть
+        // дефект, а не то, что пользователь может исправить. Настоящее хранилище тоже отвечает здесь
+        // своим исключением, и подделка должна вести себя так же.
         throw new KeyNotFoundException($"Blob not found: {blobPath}");
     }
 

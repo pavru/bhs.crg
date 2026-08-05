@@ -34,7 +34,7 @@ public static class CommonDataEndpoints
             {
                 return Results.Ok((await m.Send(new ResolveCommonDataForSetQuery(setId, typeId))).Select(Elide));
             }
-            catch (KeyNotFoundException ex) { return Results.NotFound(ex.Message); }
+            catch (NotFoundException ex) { return Results.NotFound(ex.Message); }
         });
 
         // Resolve entries visible from ANY scope level, walking the parent chain (issue #82).
@@ -67,7 +67,7 @@ public static class CommonDataEndpoints
         g.MapGet("/{id:guid}/audit", async (Guid id, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new AuditInstanceQuery(id))); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         // Парного `audit/apply` здесь НЕТ намеренно: форма записи (issue #644) только показывает
@@ -79,7 +79,7 @@ public static class CommonDataEndpoints
         g.MapGet("/{id:guid}/binding-check", async (Guid id, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new CheckCommonDataBindingsQuery(id))); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         g.MapPost("/", async (CreateRequest req, IMediator m) =>
@@ -103,8 +103,8 @@ public static class CommonDataEndpoints
         g.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             try { await m.Send(new DeleteCommonDataEntryCommand(id)); return Results.NoContent(); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (NotFoundException) { return Results.NotFound(); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
     }
 

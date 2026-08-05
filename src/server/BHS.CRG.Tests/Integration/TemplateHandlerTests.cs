@@ -128,7 +128,7 @@ public class TemplateHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
         await Mediator(scope2).Send(new UpdateTemplateCommand(original.Id, "v2"));
 
         using var scope3 = fixture.Services.CreateScope();
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<ConflictException>(() =>
             Mediator(scope3).Send(new SaveTemplateContentCommand(original.Id, "hack")));
     }
 

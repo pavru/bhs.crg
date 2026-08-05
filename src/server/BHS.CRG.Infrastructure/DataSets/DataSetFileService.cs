@@ -51,7 +51,7 @@ public class DataSetFileService(
     public async Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(Guid setId, CancellationToken ct)
     {
         var set = await db.Set<DocumentSet>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == setId, ct)
-            ?? throw new KeyNotFoundException("DocumentSet не найден");
+            ?? throw new NotFoundException("DocumentSet не найден");
         var section = await db.Set<Section>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == set.SectionId, ct);
 
         var files = await db.DataSetFiles
@@ -72,10 +72,10 @@ public class DataSetFileService(
     public async Task<DataSetFileDto> UploadFileAsync(UploadFileInput input, CancellationToken ct)
     {
         if (!Enum.TryParse<CatalogScope>(input.Scope, out var scope))
-            throw new ArgumentException("Неверный scope");
+            throw new InvalidRequestException("Неверный scope");
 
         var format = DataSetDtoMapper.DetectFormat(input.FileName)
-            ?? throw new ArgumentException("Неподдерживаемый формат файла");
+            ?? throw new InvalidRequestException("Неподдерживаемый формат файла");
 
         Guid? scopeId = scope != CatalogScope.System && Guid.TryParse(input.ScopeId, out var sid) ? sid : null;
         var name = string.IsNullOrWhiteSpace(input.Name) ? Path.GetFileNameWithoutExtension(input.FileName) : input.Name;
@@ -100,7 +100,7 @@ public class DataSetFileService(
     public async Task<DataSetFileDto> CreateSystemFileAsync(CreateSystemFileInput input, CancellationToken ct)
     {
         if (!Enum.TryParse<CatalogScope>(input.Scope, out var scope))
-            throw new ArgumentException("Неверный scope");
+            throw new InvalidRequestException("Неверный scope");
 
         Guid? scopeId = scope != CatalogScope.System && Guid.TryParse(input.ScopeId, out var sid) ? sid : null;
 
@@ -120,10 +120,10 @@ public class DataSetFileService(
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == id, ct);
         if (file == null) return null;
         if (file.IsSystem)
-            throw new ArgumentException("У системного набора нет файла — заменять нечего.");
+            throw new InvalidRequestException("У системного набора нет файла — заменять нечего.");
 
         var format = DataSetDtoMapper.DetectFormat(input.FileName)
-            ?? throw new ArgumentException("Неподдерживаемый формат файла");
+            ?? throw new InvalidRequestException("Неподдерживаемый формат файла");
 
         try { await blob.DeleteAsync(file.BlobPath, ct); }
         catch (Exception ex) { logger.LogWarning(ex, "Не удалось удалить старый blob при замене файла {FileId}", id); }

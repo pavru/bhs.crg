@@ -142,7 +142,7 @@ public class DataSetRowLoaderTests
     public async Task SystemSource_UnknownMarker_Throws()
     {
         var source = Source(DataSetFormat.System, "", sheetOrPath: "system:нет-такого");
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<ConflictException>(
             () => Loader(new FakeBlob(), new FakeProvider()).LoadRowsAsync(source, default));
     }
 }

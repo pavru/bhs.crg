@@ -55,10 +55,10 @@ public class QualityDocumentsProvider(AppDbContext db) : ISystemDataProvider
     public async Task<DataSetParseResult> ProvideAsync(
         string marker, CatalogScope scope, Guid? scopeId, CancellationToken ct)
     {
-        // Единственный вид отказа — ArgumentException: KeyNotFoundException из провайдера уронил бы
+        // Единственный вид отказа — InvalidRequestException: NotFoundException из провайдера уронил бы
         // весь список наборов, а не одну строку в нём.
         if (scope != CatalogScope.System && scopeId is null)
-            throw new ArgumentException(
+            throw new InvalidRequestException(
                 $"Источнику «{Name}» нужен уровень с объектом: комплект, раздел или стройка.");
 
         var rows = await RowsAsync(scope, scopeId, ct);

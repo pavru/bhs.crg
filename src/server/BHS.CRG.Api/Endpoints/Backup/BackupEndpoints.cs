@@ -42,8 +42,12 @@ public static class BackupEndpoints
                 var report = await svc.ImportAsync(stream, ct);
                 return Results.Ok(report);
             }
-            catch (Exception ex)
+            catch (DomainException ex)
             {
+                // Только НАШ отказ: «файл не резервная копия», «манифест не читается». Всё прочее
+                // здесь не ловим намеренно — восстановление работает и с базой, и с хранилищем, и
+                // сообщение их клиентов называет таблицу, ограничение и адрес. Общий обработчик
+                // запишет такое в лог и ответит обобщённо (issue #691).
                 return Results.BadRequest(new { error = ex.Message });
             }
         }).DisableAntiforgery();

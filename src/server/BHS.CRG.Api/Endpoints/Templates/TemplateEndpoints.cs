@@ -32,7 +32,7 @@ public static class TemplateEndpoints
         admin.MapPut("/{id:guid}/content", async (Guid id, UpdateTemplateRequest req, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new SaveTemplateContentCommand(id, req.Content))); }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         // Явное «Сохранить как новую версию» (issue #360) — форк новой версии + опц. примечание.
@@ -55,7 +55,7 @@ public static class TemplateEndpoints
                 await m.Send(new DeleteTemplateCommand(id, reassign ?? false));
                 return Results.NoContent();
             }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         admin.MapPut("/{id:guid}/set-default", async (Guid id, IMediator m)

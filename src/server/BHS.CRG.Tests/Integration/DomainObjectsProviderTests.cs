@@ -387,7 +387,7 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
     }
 
     /// <summary>
-    /// Тип удалён вместе со своими записями, а источник остался: это ArgumentException, и список
+    /// Тип удалён вместе со своими записями, а источник остался: это InvalidRequestException, и список
     /// наборов не падает, а показывает запомненное число строк.
     /// </summary>
     [Fact]
@@ -406,11 +406,11 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
 
         var provider = scope.ServiceProvider.GetServices<ISystemDataProvider>()
             .Single(p => p.Handles(MarkerFor(seed.OrgTypeId)));
-        await Assert.ThrowsAsync<ArgumentException>(() => provider.ProvideAsync(
+        await Assert.ThrowsAsync<InvalidRequestException>(() => provider.ProvideAsync(
             MarkerFor(Guid.NewGuid()), CatalogScope.Set, seed.SetId, default));
 
         // Маркер без идентификатора — тоже отказ, а не падение обходом.
-        await Assert.ThrowsAsync<ArgumentException>(() => provider.ProvideAsync(
+        await Assert.ThrowsAsync<InvalidRequestException>(() => provider.ProvideAsync(
             SystemDataSets.ObjectsMarkerPrefix + "не-guid", CatalogScope.Set, seed.SetId, default));
 
         var listed = Assert.Single(await svc.ListSourcesAsync(file.Id, default));

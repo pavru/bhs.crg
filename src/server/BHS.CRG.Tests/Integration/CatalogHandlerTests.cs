@@ -80,7 +80,7 @@ public class CatalogHandlerTests(IntegrationTestFixture fixture) : IAsyncLifetim
     public async Task Update_ThrowsKeyNotFound_ForUnknownId()
     {
         using var scope = fixture.Services.CreateScope();
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+        await Assert.ThrowsAsync<NotFoundException>(() =>
             Mediator(scope).Send(
                 new UpdateCatalogEntityCommand(Guid.NewGuid(), "X", Json("{}"))));
     }

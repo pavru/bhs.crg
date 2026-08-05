@@ -56,14 +56,14 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
             .Single(p => p.Code == BuiltInProfileCodes.TitleBlock);
 
         var without = stamp.Fields.Where(f => f.Name != "НаименованиеДокумента").ToList();
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => m.Send(
+        var ex = await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(
             new UpdateRecognitionProfileCommand(stamp.Id, stamp.Name, without, stamp.RowColumns, stamp.Shape)));
         Assert.Contains("НаименованиеДокумента", ex.Message);
 
         // Переименование = потеря ключа, на который завязан код, — тоже запрещено.
         var renamed = stamp.Fields
             .Select(f => f.Name == "Шифр" ? f with { Name = "Обозначение" } : f).ToList();
-        await Assert.ThrowsAsync<ArgumentException>(() => m.Send(
+        await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(
             new UpdateRecognitionProfileCommand(stamp.Id, stamp.Name, renamed, stamp.RowColumns, stamp.Shape)));
     }
 
@@ -102,11 +102,11 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
             .Single(p => p.Code == BuiltInProfileCodes.CableJournal);
 
         var dup = cable.RowColumns.Append(cable.RowColumns[0]).ToList();
-        await Assert.ThrowsAsync<ArgumentException>(() => m.Send(
+        await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(
             new UpdateRecognitionProfileCommand(cable.Id, cable.Name, cable.Fields, dup, cable.Shape)));
 
         var empty = cable.RowColumns.Append(new RecognitionProfileField("   ")).ToList();
-        await Assert.ThrowsAsync<ArgumentException>(() => m.Send(
+        await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(
             new UpdateRecognitionProfileCommand(cable.Id, cable.Name, cable.Fields, empty, cable.Shape)));
     }
 
@@ -117,7 +117,7 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
         var m = M(scope);
 
         var builtIn = (await m.Send(new ListRecognitionProfilesQuery())).First(p => p.IsBuiltIn);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => m.Send(new DeleteRecognitionProfileCommand(builtIn.Id)));
+        await Assert.ThrowsAsync<ConflictException>(() => m.Send(new DeleteRecognitionProfileCommand(builtIn.Id)));
 
         var custom = await m.Send(new CreateRecognitionProfileCommand(
             "Список деталей шкафа", nameof(RecognitionProfileKind.Table),
@@ -138,10 +138,10 @@ public class RecognitionProfileCrudTests(IntegrationTestFixture fixture)
         using var scope = await SeededScopeAsync();
         var m = M(scope);
 
-        await Assert.ThrowsAsync<ArgumentException>(() => m.Send(new CreateRecognitionProfileCommand(
+        await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(new CreateRecognitionProfileCommand(
             "Профиль", "НетТакогоВида", [], [new RecognitionProfileField("A")], null)));
 
-        await Assert.ThrowsAsync<ArgumentException>(() => m.Send(new CreateRecognitionProfileCommand(
+        await Assert.ThrowsAsync<InvalidRequestException>(() => m.Send(new CreateRecognitionProfileCommand(
             "Профиль", nameof(RecognitionProfileKind.Table), [], [], null)));
     }
 

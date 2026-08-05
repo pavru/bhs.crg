@@ -1,4 +1,4 @@
-using BHS.CRG.Api.Configuration;
+﻿using BHS.CRG.Api.Configuration;
 
 namespace BHS.CRG.Tests.Configuration;
 

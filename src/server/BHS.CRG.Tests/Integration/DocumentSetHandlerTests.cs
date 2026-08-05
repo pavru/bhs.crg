@@ -68,7 +68,7 @@ public class DocumentSetHandlerTests(IntegrationTestFixture fixture) : IAsyncLif
     public async Task CreateSection_ThrowsKeyNotFound_ForUnknownConstruction()
     {
         using var scope = fixture.Services.CreateScope();
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+        await Assert.ThrowsAsync<NotFoundException>(() =>
             Mediator(scope).Send(new CreateSectionCommand(Guid.NewGuid(), "Раздел")));
     }
 
@@ -255,7 +255,7 @@ public class DocumentSetHandlerTests(IntegrationTestFixture fixture) : IAsyncLif
         }
 
         using (var scope = fixture.Services.CreateScope())
-            await Assert.ThrowsAsync<InvalidOperationException>(
+            await Assert.ThrowsAsync<ConflictException>(
                 () => Mediator(scope).Send(new MoveDocumentToSetCommand(baseId, targetSetId, CopyStrategy.SmartCleanup)));
     }
 

@@ -85,7 +85,7 @@ public static class TemplateAssetEndpoints
                 var asset = await m.Send(new ReplaceTemplateAssetCommand(id, file.FileName, info.MimeType, blobPath, fontFamilyName), ct);
                 return Results.Ok(asset);
             }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         }).DisableAntiforgery();
 
         admin.MapDelete("/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>

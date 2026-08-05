@@ -243,7 +243,7 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
     }
 
     [Fact]
-    public async Task SystemLevel_IsRefusedWithArgumentException()
+    public async Task SystemLevel_IsRefusedAsInvalidRequest()
     {
         using var scope = fixture.Services.CreateScope();
         var seed = await SeedAsync(scope);
@@ -251,7 +251,7 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
 
         var provider = scope.ServiceProvider.GetServices<ISystemDataProvider>()
             .Single(p => p.Handles(SystemDataSets.SubtreeDocumentsMarker));
-        await Assert.ThrowsAsync<ArgumentException>(() => provider.ProvideAsync(
+        await Assert.ThrowsAsync<InvalidRequestException>(() => provider.ProvideAsync(
             SystemDataSets.SubtreeDocumentsMarker, CatalogScope.System, null, default));
 
         // И на уровне «Система» такой кандидат не предлагается — предложить было бы нечего.

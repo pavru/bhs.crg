@@ -26,7 +26,7 @@ public class PdfDataSetParserTests
     [Fact]
     public async Task ParseAsync_ThrowsWithGuidanceToRecognizeAction()
     {
-        var ex = await Assert.ThrowsAsync<ArgumentException>(
+        var ex = await Assert.ThrowsAsync<InvalidRequestException>(
             () => _parser.ParseAsync([], "titleblock-registry", null, default));
         Assert.Contains("Распознать", ex.Message);
     }

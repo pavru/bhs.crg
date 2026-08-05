@@ -34,13 +34,13 @@ public static class ObservationEndpoints
             {
                 return Results.Ok(ToDto(await m.Send(new ReviewObservationCommand(id, status, req.Note, by))));
             }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         g.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             try { await m.Send(new DeleteObservationCommand(id)); return Results.NoContent(); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
     }
 

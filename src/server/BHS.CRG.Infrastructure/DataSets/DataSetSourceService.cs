@@ -77,7 +77,7 @@ public class DataSetSourceService(
     public async Task<IReadOnlyList<DataSetSourceInfo>> DetectSourceCandidatesAsync(Guid fileId, CancellationToken ct)
     {
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct)
-            ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
+            ?? throw new NotFoundException($"DataSetFile {fileId} not found");
 
         // Системный набор (issue #580): кандидаты — консолидации, возможные на уровне набора.
         if (file.Format == DataSetFormat.System)
@@ -323,7 +323,7 @@ public class DataSetSourceService(
     public async Task<DataSetSourceDto> CreateSourceAsync(Guid fileId, CreateSourceInput input, CancellationToken ct)
     {
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)
-            ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
+            ?? throw new NotFoundException($"DataSetFile {fileId} not found");
 
         // PDF (issue #30): источник-проекция (Обложка/Титул) создаётся из распознанной группировки
         // набора — не парсингом блоба. Строки проецируются и кэшируются в CachedData.
@@ -372,7 +372,7 @@ public class DataSetSourceService(
             return await CreateInvoiceProjectionSourceAsync(file, name, marker, ct);
 
         var grouping = GostGroupingSerialization.Parse(file.Grouping)
-            ?? throw new ArgumentException("Набор ещё не распознан — сначала запустите распознавание.");
+            ?? throw new InvalidRequestException("Набор ещё не распознан — сначала запустите распознавание.");
 
         // Таблица (issue #42): проекция распознанного СЫРЬЯ таблицы группы (TableData) + материализация
         // в целевой тип по табличному тэгу. Ключ — стабильный id группы (gost-table:{id}).
@@ -385,7 +385,7 @@ public class DataSetSourceService(
         var rows = marker == PdfProfiles.GostCoverMarker ? projected.Cover
             : marker == PdfProfiles.GostTitlePageMarker ? projected.TitlePage
             : marker == PdfProfiles.GostDocumentsMarker ? projected.Documents.Select(d => d.Fields).ToList()
-            : throw new ArgumentException("Для PDF источник создаётся из кандидата обложки/титула/документов/таблицы.");
+            : throw new InvalidRequestException("Для PDF источник создаётся из кандидата обложки/титула/документов/таблицы.");
 
         var columns = ColumnsFromRows(rows);
         var source = file.AddSource(name, marker, DataSetDtoMapper.SerializeSchema(columns), rows.Count, null, JsonSerializer.Serialize(rows));
@@ -399,11 +399,11 @@ public class DataSetSourceService(
     {
         var idStr = marker[PdfProfiles.GostTableMarkerPrefix.Length..];
         if (!Guid.TryParse(idStr, out var gid))
-            throw new ArgumentException("Некорректный маркер таблицы.");
+            throw new InvalidRequestException("Некорректный маркер таблицы.");
         var group = grouping.Groups.FirstOrDefault(g => g.Id == gid && g.Kind == GostGroupKind.Document)
-            ?? throw new ArgumentException("Документ таблицы не найден в группировке.");
+            ?? throw new InvalidRequestException("Документ таблицы не найден в группировке.");
         if (string.IsNullOrEmpty(group.TableData))
-            throw new ArgumentException("Таблица ещё не распознана — распознайте её в редакторе разбиения.");
+            throw new InvalidRequestException("Таблица ещё не распознана — распознайте её в редакторе разбиения.");
 
         var source = file.AddSource(name, marker, group.TableColumns ?? "[]", RowCountOf(group.TableData), null, group.TableData);
         // Материализация в целевой тип по табличному тэгу (issue #29/#19): строки распознаны прямо в ключи
@@ -430,9 +430,9 @@ public class DataSetSourceService(
         Domain.DataSets.DataSetFile file, string name, string marker, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(file.InvoiceRawData))
-            throw new ArgumentException("Набор ещё не распознан — сначала запустите распознавание.");
+            throw new InvalidRequestException("Набор ещё не распознан — сначала запустите распознавание.");
         var raw = JsonSerializer.Deserialize<InvoiceRawData>(file.InvoiceRawData)
-            ?? throw new ArgumentException("Не удалось прочитать распознанные данные счёта.");
+            ?? throw new InvalidRequestException("Не удалось прочитать распознанные данные счёта.");
 
         IReadOnlyList<Dictionary<string, string?>> rows = marker == PdfProfiles.InvoiceHeaderMarker
             ? [raw.Header]
@@ -451,7 +451,7 @@ public class DataSetSourceService(
     {
         var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
-        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Укажите название.");
+        if (string.IsNullOrWhiteSpace(name)) throw new InvalidRequestException("Укажите название.");
         source.Rename(name);
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(source);
@@ -464,7 +464,7 @@ public class DataSetSourceService(
         // Определение системного источника — это выбор консолидации, менять в нём нечего: переименование
         // идёт через RenameSourceAsync, а другая консолидация — другой источник.
         if (source.File.IsSystem)
-            throw new ArgumentException("Определение системного источника не редактируется — переименуйте его или создайте другой.");
+            throw new InvalidRequestException("Определение системного источника не редактируется — переименуйте его или создайте другой.");
 
         var columnExpressionsJson = DataSetDtoMapper.SerializeColumnExpressions(input.ColumnExpressions);
         var (schema, rowCount) = await ParseForDefinitionAsync(
@@ -485,7 +485,7 @@ public class DataSetSourceService(
         if (bindings.Count > 0)
         {
             var usages = await DescribeBindingUsagesAsync(bindings, ct);
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 $"Источник используется в привязках: {string.Join("; ", usages)} — сначала удалите привязки.");
         }
 
@@ -564,14 +564,14 @@ public class DataSetSourceService(
         catch (Exception ex) when (ex is System.Xml.XPath.XPathException or ArgumentException
             or System.Xml.XmlException or InvalidOperationException or JsonCons.JsonPath.JsonPathParseException)
         {
-            throw new ArgumentException($"Не удалось разобрать выражение: {ex.Message}");
+            throw new InvalidRequestException($"Не удалось разобрать выражение: {ex.Message}");
         }
     }
 
     public async Task<IReadOnlyList<string>> ListZipXmlEntriesAsync(Guid fileId, CancellationToken ct)
     {
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct)
-            ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
+            ?? throw new NotFoundException($"DataSetFile {fileId} not found");
         if (file.Format != DataSetFormat.Zip) return [];
 
         await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
@@ -589,7 +589,7 @@ public class DataSetSourceService(
     public async Task<ExpressionPreviewDto> PreviewExpressionAsync(Guid fileId, string rowSelector, string? expr, CancellationToken ct)
     {
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct)
-            ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
+            ?? throw new NotFoundException($"DataSetFile {fileId} not found");
 
         // expr задан — предпросмотр относительного значения колонки (первые строки).
         // expr пуст — предпросмотр самого row-selector'а: сколько узлов и какие у них поля.
@@ -623,7 +623,7 @@ public class DataSetSourceService(
         if (source == null) return null;
 
         var template = await db.DataSetProcessingTemplates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == templateId, ct)
-            ?? throw new KeyNotFoundException($"DataSetProcessingTemplate {templateId} not found");
+            ?? throw new NotFoundException($"DataSetProcessingTemplate {templateId} not found");
 
         // Extraction в шаблоне — опциональна: если задана, пере-парсим файл (имя источника не
         // трогаем — оно своё у каждого источника, не часть рецепта). У системного источника

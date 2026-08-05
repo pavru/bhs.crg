@@ -46,6 +46,8 @@ public class UserLibMaterializerTests : IDisposable
     [Fact]
     public async Task PathEscapingTheTree_Throws()
     {
+        // Тип framework-овый намеренно (issue #691): сработавшая защита обязана быть громкой —
+        // уйти в лог обобщённым ответом 500, а не тихим 409 с текстом и без единой записи.
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             UserLibMaterializer.WriteAsync(_dir, "x",
                 [new UserLibFile("../../evil.typ", "#let boom() = []")]));

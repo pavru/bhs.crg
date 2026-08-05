@@ -83,7 +83,9 @@ public class ZipDataSetParser(IServiceProvider services) : IDataSetParser
         if (entry is null) return new DataSetParseResult([], []);
 
         var format = DetectEntryFormat(entryPath)
-            ?? throw new InvalidOperationException($"Неизвестный формат файла в архиве: {entryPath}");
+            // Тот же род, что у соседних отказов этого парсера (пределы размера и числа записей):
+            // путь внутри архива задал человек, и это недопустимые данные, а не состояние системы.
+            ?? throw new InvalidRequestException($"Неизвестный формат файла в архиве: {entryPath}");
 
         var entryBytes = ReadEntry(entry, new UnpackBudget(MaxEntryBytes));
         var parser = Factory.GetParser(format);
@@ -147,11 +149,11 @@ public class ZipDataSetParser(IServiceProvider services) : IDataSetParser
         {
             total += read;
             if (total > MaxEntryBytes)
-                throw new ArgumentException(
+                throw new InvalidRequestException(
                     $"Файл «{entry.FullName}» в архиве слишком велик в распакованном виде " +
                     $"(предел {MaxEntryBytes / 1024 / 1024} МБ). Загрузите его отдельным файлом.");
             if (total > budget.Remaining)
-                throw new ArgumentException(
+                throw new InvalidRequestException(
                     $"Суммарный размер файлов в архиве превышает предел " +
                     $"{MaxTotalBytes / 1024 / 1024} МБ в распакованном виде.");
             ms.Write(buffer, 0, read);
@@ -164,7 +166,7 @@ public class ZipDataSetParser(IServiceProvider services) : IDataSetParser
     private static void EnsureEntryCountAllowed(ZipArchive zip)
     {
         if (zip.Entries.Count > MaxEntries)
-            throw new ArgumentException(
+            throw new InvalidRequestException(
                 $"В архиве слишком много файлов ({zip.Entries.Count}, предел {MaxEntries}).");
     }
 

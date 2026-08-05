@@ -172,7 +172,7 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Set", setId.ToString(), null), default);
 
         Assert.Null(await svc.DownloadFileAsync(file.Id, default));
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.ReplaceFileAsync(file.Id,
+        await Assert.ThrowsAsync<InvalidRequestException>(() => svc.ReplaceFileAsync(file.Id,
             new ReplaceFileInput([1, 2, 3], "x.csv", "text/csv", null), default));
 
         // Повторное создание на том же уровне возвращает тот же набор, а не второй такой же.
@@ -243,7 +243,7 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
             Assert.DoesNotContain(await svc.ListSystemCandidatesAsync(level, id, default),
                 c => c.SheetOrPath == SystemDataSets.SetDocumentsMarker);
 
-        await Assert.ThrowsAsync<ArgumentException>(
+        await Assert.ThrowsAsync<InvalidRequestException>(
             () => svc.ListSystemCandidatesAsync("Ерунда", null, default));
     }
 

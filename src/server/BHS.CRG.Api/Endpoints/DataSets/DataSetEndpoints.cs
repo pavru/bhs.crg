@@ -126,7 +126,7 @@ public static class DataSetEndpoints
             Guid fileId, ExpressionPreviewRequest req, IDataSetService svc, CancellationToken ct) =>
         {
             try { return Results.Ok(await svc.PreviewExpressionAsync(fileId, req.RowSelector, req.Expr, ct)); }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         // Ручное создание/редактирование/удаление источника — единственный способ для XML
@@ -140,7 +140,7 @@ public static class DataSetEndpoints
                 var input = new CreateSourceInput(req.Name, req.SheetOrPath, req.ColumnExpressions);
                 return Results.Ok(await svc.CreateSourceAsync(fileId, input, ct));
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         g.MapPut("/sources/{sourceId:guid}", async (
@@ -152,7 +152,7 @@ public static class DataSetEndpoints
                 var result = await svc.UpdateSourceAsync(sourceId, input, ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         // Лёгкое переименование источника (issue #43) — только имя, без extraction/кэша; для любого
@@ -165,13 +165,13 @@ public static class DataSetEndpoints
                 var result = await svc.RenameSourceAsync(sourceId, req.Name, ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         g.MapDelete("/sources/{sourceId:guid}", async (Guid sourceId, IDataSetService svc, CancellationToken ct) =>
         {
             try { return await svc.DeleteSourceAsync(sourceId, ct) ? Results.NoContent() : Results.NotFound(); }
-            catch (InvalidOperationException ex) { return Results.Conflict(ex.Message); }
+            catch (ConflictException ex) { return Results.Conflict(ex.Message); }
         });
 
         // Копия источника — доступна для источников любого формата (не только с ручным builder'ом).
@@ -209,8 +209,8 @@ public static class DataSetEndpoints
                 var result = await svc.CreatePdfSourceAsync(fileId, new CreatePdfSourceInput(req.Name, req.Tags, req.Profile), ct);
                 return result is null ? Results.NoContent() : Results.Ok(result);
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
-            catch (KeyNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (NotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
         });
 
         // Распознавание PDF-набора (issue #38/#44, набор-centric) — по fileId, для ВСЕХ профилей (unifies
@@ -233,8 +233,8 @@ public static class DataSetEndpoints
                 await svc.RecognizeFileAsync(fileId, confirm ?? false, ct);
                 return Results.Ok();
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         // confirm=true — подтверждение перезаписи ручной корректировки разбиения (см.
@@ -258,8 +258,8 @@ public static class DataSetEndpoints
                 var result = await svc.RecognizePdfSourceAsync(sourceId, confirm ?? false, ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         // ── Редактор разбиения PDF — на уровне НАБОРА (issue #38, fileId) ─────
@@ -271,7 +271,7 @@ public static class DataSetEndpoints
                 var result = await svc.GetPagesAsync(fileId, ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         g.MapGet("/files/{fileId:guid}/pages/{pageIndex:int}/thumbnail", async (Guid fileId, int pageIndex, int? dpi, IDataSetService svc, CancellationToken ct) =>
@@ -284,7 +284,7 @@ public static class DataSetEndpoints
                 var png = await svc.GetPageThumbnailAsync(fileId, pageIndex, ct, effectiveDpi);
                 return png is null ? Results.NotFound() : Results.File(png, "image/png");
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         g.MapPut("/files/{fileId:guid}/grouping", async (Guid fileId, ApplyGroupingRequest req, IDataSetService svc, CancellationToken ct) =>
@@ -295,7 +295,7 @@ public static class DataSetEndpoints
                 var result = await svc.ApplyGroupingAsync(fileId, input, ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         // Лёгкая установка тэгов документа (тип таблицы) — без пересборки разбиения.
@@ -307,7 +307,7 @@ public static class DataSetEndpoints
                 var result = await svc.SetDocumentTagsAsync(fileId, req.FirstPageIndex, req.Tags ?? [], ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         // Привязка профиля распознавания к группе листов (issue #410) — тоже точечно, без пересборки
@@ -320,7 +320,7 @@ public static class DataSetEndpoints
                 var result = await svc.SetDocumentProfileAsync(fileId, req.FirstPageIndex, req.ProfileId, ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         // Профили распознавания НАБОРА (issue #412): штамп/обложка-титул/счёт — они работают на уровне
@@ -333,7 +333,7 @@ public static class DataSetEndpoints
                 var ok = await svc.SetFileRecognitionProfilesAsync(fileId, req.Profiles ?? new Dictionary<string, Guid?>(), ct);
                 return ok ? Results.NoContent() : Results.NotFound();
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         // Распознать таблицу помеченного документа (спецификация/кабельный журнал) → отдельный табличный
@@ -369,7 +369,7 @@ public static class DataSetEndpoints
                 var result = await svc.SetSourceProcessingAsync(sourceId, input, ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         // Применить шаблон (Extraction, если задана в шаблоне, + Filter/Transformation/Sort) —
@@ -382,8 +382,8 @@ public static class DataSetEndpoints
                 var result = await svc.ApplyProcessingTemplateAsync(sourceId, templateId, ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
-            catch (KeyNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (NotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
         });
 
         // ── Шаблоны обработки (переиспользуемые рецепты Extraction + Filter/Transformation/Sort) ─────────

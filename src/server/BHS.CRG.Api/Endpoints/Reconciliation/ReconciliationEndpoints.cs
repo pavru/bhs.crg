@@ -47,7 +47,7 @@ public static class ReconciliationEndpoints
                     id, req.Name, JsonDocument.Parse(req.Spec.GetRawText())));
                 return Results.Ok(ToDto(d));
             }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         admin.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
@@ -57,7 +57,7 @@ public static class ReconciliationEndpoints
                 await m.Send(new DeleteReconciliationCommand(id));
                 return Results.NoContent();
             }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         // ── Прогоны ─────────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ public static class ReconciliationEndpoints
         user.MapPost("/{id:guid}/run", async (Guid id, IMediator m) =>
         {
             try { return Results.Ok(ToDto(await m.Send(new RunReconciliationCommand(id)))); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         user.MapGet("/{id:guid}/runs", async (Guid id, int? limit, IMediator m) =>
@@ -92,7 +92,7 @@ public static class ReconciliationEndpoints
                     req.AliasKey, req.AliasLabel, req.CanonicalKey, req.CanonicalLabel,
                     req.Note, by, Confirm: true))));
             }
-            catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         user.MapPut("/aliases/{id:guid}", async (Guid id, AliasReviewReq req, IMediator m, ClaimsPrincipal u) =>
@@ -101,13 +101,13 @@ public static class ReconciliationEndpoints
                 return Results.BadRequest(new { error = $"Неизвестный статус: «{req.Status}»." });
             var by = u.FindFirst("displayName")?.Value ?? u.FindFirstValue(ClaimTypes.Email);
             try { return Results.Ok(ToDto(await m.Send(new ReviewAliasCommand(id, status, req.Note, by)))); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         user.MapDelete("/aliases/{id:guid}", async (Guid id, IMediator m) =>
         {
             try { await m.Send(new DeleteAliasCommand(id)); return Results.NoContent(); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         // ── Связанные проблемы уровня ───────────────────────────────────────────

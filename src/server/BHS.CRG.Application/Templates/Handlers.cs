@@ -35,7 +35,7 @@ public class TemplateHandlers(
     public async Task<TemplateMutationResult> Handle(UpdateTemplateCommand cmd, CancellationToken ct)
     {
         var existing = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"Template {cmd.Id} not found");
+            ?? throw new NotFoundException($"Template {cmd.Id} not found");
         var newVersion = existing.CreateNewVersion(cmd.Content, cmd.Comment);
         repo.Update(existing);
         await repo.AddAsync(newVersion, ct);
@@ -54,7 +54,7 @@ public class TemplateHandlers(
     public async Task<TemplateMutationResult> Handle(SaveTemplateContentCommand cmd, CancellationToken ct)
     {
         var template = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"Template {cmd.Id} not found");
+            ?? throw new NotFoundException($"Template {cmd.Id} not found");
         template.UpdateContent(cmd.Content);
         repo.Update(template);
         await repo.SaveChangesAsync(ct);
@@ -67,7 +67,7 @@ public class TemplateHandlers(
     public async Task<Template> Handle(DuplicateTemplateCommand cmd, CancellationToken ct)
     {
         var source = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"Template {cmd.Id} not found");
+            ?? throw new NotFoundException($"Template {cmd.Id} not found");
         var name = string.IsNullOrWhiteSpace(cmd.NewName) ? $"{source.Name} (копия)" : cmd.NewName.Trim();
         var copy = source.Duplicate(name);
         await repo.AddAsync(copy, ct);
@@ -94,14 +94,14 @@ public class TemplateHandlers(
 
     public async Task Handle(DeleteTemplateCommand cmd, CancellationToken ct)
     {
-        var t = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var t = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
 
         // Документы, запиннутые на удаляемую версию, надо разрулить — иначе они осиротеют.
         var docs = await objRepo.GetDocumentsOfTypeAsync(t.DocumentTypeId, ct);
         var pinned = docs.Where(o => o.PinsTemplate(t.Id)).ToList();
 
         if (pinned.Count > 0 && !cmd.ReassignUsersToDefault)
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 $"Версия используется в {pinned.Count} докум. Удаление снимет привязку (документы вернутся на шаблон по умолчанию).");
 
         // Снимаем пин (→ резолв в дефолт) + сбрасываем PDF (контекст резолва сменится). Блобы — после коммита.
@@ -144,7 +144,7 @@ public class TemplateHandlers(
     public async Task<Template> Handle(UpdateTemplateParametersCommand cmd, CancellationToken ct)
     {
         var template = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"Template {cmd.Id} not found");
+            ?? throw new NotFoundException($"Template {cmd.Id} not found");
         template.SetParameters(cmd.Parameters);
         repo.Update(template);
         await repo.SaveChangesAsync(ct);
@@ -155,7 +155,7 @@ public class TemplateHandlers(
     {
         var all = await repo.GetAllAsync(ct);
         var target = all.FirstOrDefault(t => t.Id == cmd.Id)
-            ?? throw new KeyNotFoundException($"Template {cmd.Id} not found");
+            ?? throw new NotFoundException($"Template {cmd.Id} not found");
 
         foreach (var t in all.Where(t => t.DocumentTypeId == target.DocumentTypeId && t.IsDefault))
         {
@@ -193,7 +193,7 @@ public class TemplateAssetHandlers(IRepository<TemplateAsset> repo) :
     public async Task<TemplateAsset> Handle(ReplaceTemplateAssetCommand cmd, CancellationToken ct)
     {
         var asset = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"TemplateAsset {cmd.Id} not found");
+            ?? throw new NotFoundException($"TemplateAsset {cmd.Id} not found");
         asset.Replace(cmd.FileName, cmd.MimeType, cmd.BlobPath, cmd.FontFamilyName);
         repo.Update(asset);
         await repo.SaveChangesAsync(ct);
@@ -206,7 +206,7 @@ public class TemplateAssetHandlers(IRepository<TemplateAsset> repo) :
     // следующей генерации" (TypstGenerator пробрасывает stderr компилятора как текст исключения).
     public async Task Handle(DeleteTemplateAssetCommand cmd, CancellationToken ct)
     {
-        var asset = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var asset = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         repo.Remove(asset);
         await repo.SaveChangesAsync(ct);
     }

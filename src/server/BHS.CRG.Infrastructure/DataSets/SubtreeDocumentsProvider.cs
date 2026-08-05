@@ -59,7 +59,7 @@ public class SubtreeDocumentsProvider(AppDbContext db, IDomainObjectRepository o
         string marker, CatalogScope scope, Guid? scopeId, CancellationToken ct)
     {
         if (scope is not (CatalogScope.Section or CatalogScope.Construction) || scopeId is null)
-            throw new ArgumentException(
+            throw new InvalidRequestException(
                 "Перечень документов поддерева доступен у набора уровня «Раздел» или «Стройка».");
 
         var (rows, warning) = await RowsAsync(scope, scopeId, ct);
