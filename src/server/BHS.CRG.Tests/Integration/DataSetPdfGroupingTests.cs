@@ -106,7 +106,7 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
 
         var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
         // Разбиение — только для PDF-набора (issue #38, редактор на уровне набора).
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.GetPagesAsync(file.Id, default));
+        await Assert.ThrowsAsync<InvalidRequestException>(() => svc.GetPagesAsync(file.Id, default));
     }
 
     // ── GetPageThumbnailAsync ──────────────────────────────────────────────────
@@ -143,7 +143,7 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
                 new GostGroupingGroupDto(GostGroupKind.Document, "B", "Doc B", [1, 2]), // страница 1 — в обеих группах
             ]);
 
-            await Assert.ThrowsAsync<ArgumentException>(() => svc.ApplyGroupingAsync(fileId, input, default));
+            await Assert.ThrowsAsync<InvalidRequestException>(() => svc.ApplyGroupingAsync(fileId, input, default));
         }
     }
 
@@ -231,7 +231,7 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
         using (scope)
         {
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
-            await Assert.ThrowsAsync<InvalidOperationException>(() => svc.RecognizePdfSourceAsync(sourceId, confirm: false, default));
+            await Assert.ThrowsAsync<ConflictException>(() => svc.RecognizePdfSourceAsync(sourceId, confirm: false, default));
         }
     }
 

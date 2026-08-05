@@ -19,7 +19,7 @@ public class MailKitEmailSender(IIntegrationSettings settings) : IEmailSender
             throw new EmailNotConfiguredException("SMTP не настроен или выключен (Настройки → Почта).");
         var bcc = message.Bcc ?? [];
         if (message.To.Count == 0 && bcc.Count == 0)
-            throw new ArgumentException("Не указан ни один получатель.");
+            throw new InvalidRequestException("Не указан ни один получатель.");
 
         var mime = new MimeMessage();
         mime.From.Add(new MailboxAddress(smtp.FromName ?? smtp.From, smtp.From));

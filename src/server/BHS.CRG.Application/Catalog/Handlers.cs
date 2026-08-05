@@ -24,7 +24,7 @@ public class CatalogHandlers(IRepository<CatalogEntity> repo) :
     public async Task<CatalogEntity> Handle(UpdateCatalogEntityCommand cmd, CancellationToken ct)
     {
         var entity = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"CatalogEntity {cmd.Id} not found");
+            ?? throw new NotFoundException($"CatalogEntity {cmd.Id} not found");
         entity.Update(cmd.DisplayName, cmd.Data);
         repo.Update(entity);
         await repo.SaveChangesAsync(ct);
@@ -34,7 +34,7 @@ public class CatalogHandlers(IRepository<CatalogEntity> repo) :
     public async Task Handle(DeleteCatalogEntityCommand cmd, CancellationToken ct)
     {
         var entity = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"CatalogEntity {cmd.Id} not found");
+            ?? throw new NotFoundException($"CatalogEntity {cmd.Id} not found");
         repo.Remove(entity);
         await repo.SaveChangesAsync(ct);
     }
@@ -74,7 +74,7 @@ public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo, IRepository<
     public async Task<PrimitiveType> Handle(UpdatePrimitiveTypeCommand cmd, CancellationToken ct)
     {
         var pt = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"PrimitiveType {cmd.Id} not found");
+            ?? throw new NotFoundException($"PrimitiveType {cmd.Id} not found");
         await EnsureCodeUniqueAsync(cmd.Code, excludeId: cmd.Id, ct);
         pt.Update(cmd.Name, cmd.Code.Trim(), cmd.Description, cmd.Constraints, cmd.AllowedTags);
         repo.Update(pt);
@@ -88,13 +88,13 @@ public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo, IRepository<
         var nCode = code.Trim().ToLowerInvariant();
         var all = await repo.GetAllAsync(ct);
         if (all.Any(t => (!excludeId.HasValue || t.Id != excludeId.Value) && t.Code.Trim().ToLowerInvariant() == nCode))
-            throw new ArgumentException($"Тип поля с кодом «{code.Trim()}» уже существует.");
+            throw new InvalidRequestException($"Тип поля с кодом «{code.Trim()}» уже существует.");
     }
 
     public async Task<PrimitiveType> Handle(SetPrimitiveTypeGroupCommand cmd, CancellationToken ct)
     {
         var pt = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"PrimitiveType {cmd.Id} not found");
+            ?? throw new NotFoundException($"PrimitiveType {cmd.Id} not found");
         pt.SetGroup(cmd.Group);
         repo.Update(pt);
         await repo.SaveChangesAsync(ct);
@@ -106,11 +106,11 @@ public class PrimitiveTypeHandlers(IRepository<PrimitiveType> repo, IRepository<
     public async Task Handle(DeletePrimitiveTypeCommand cmd, CancellationToken ct)
     {
         var pt = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"PrimitiveType {cmd.Id} not found");
+            ?? throw new NotFoundException($"PrimitiveType {cmd.Id} not found");
         var allDocTypes = await docTypeRepo.GetAllAsync(ct);
         var usedIn = allDocTypes.Where(t => DocumentTypeSchemaReader.ReferencesPrimitiveType(t.Schema, cmd.Id)).ToList();
         if (usedIn.Count > 0)
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 $"Нельзя удалить тип поля — используется в схеме: {string.Join(", ", usedIn.Select(t => t.Name))}.");
         repo.Remove(pt);
         await repo.SaveChangesAsync(ct);
@@ -139,7 +139,7 @@ public class EnumTypeHandlers(IRepository<EnumType> repo, IRepository<DocumentTy
     public async Task<EnumType> Handle(UpdateEnumTypeCommand cmd, CancellationToken ct)
     {
         var et = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"EnumType {cmd.Id} not found");
+            ?? throw new NotFoundException($"EnumType {cmd.Id} not found");
         await EnsureCodeUniqueAsync(cmd.Code, excludeId: cmd.Id, ct);
         et.Update(cmd.Name, cmd.Code.Trim(), cmd.Description, cmd.Values);
         repo.Update(et);
@@ -153,13 +153,13 @@ public class EnumTypeHandlers(IRepository<EnumType> repo, IRepository<DocumentTy
         var nCode = code.Trim().ToLowerInvariant();
         var all = await repo.GetAllAsync(ct);
         if (all.Any(t => (!excludeId.HasValue || t.Id != excludeId.Value) && t.Code.Trim().ToLowerInvariant() == nCode))
-            throw new ArgumentException($"Тип перечисления с кодом «{code.Trim()}» уже существует.");
+            throw new InvalidRequestException($"Тип перечисления с кодом «{code.Trim()}» уже существует.");
     }
 
     public async Task<EnumType> Handle(SetEnumTypeGroupCommand cmd, CancellationToken ct)
     {
         var et = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"EnumType {cmd.Id} not found");
+            ?? throw new NotFoundException($"EnumType {cmd.Id} not found");
         et.SetGroup(cmd.Group);
         repo.Update(et);
         await repo.SaveChangesAsync(ct);
@@ -172,11 +172,11 @@ public class EnumTypeHandlers(IRepository<EnumType> repo, IRepository<DocumentTy
     public async Task Handle(DeleteEnumTypeCommand cmd, CancellationToken ct)
     {
         var et = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"EnumType {cmd.Id} not found");
+            ?? throw new NotFoundException($"EnumType {cmd.Id} not found");
         var allDocTypes = await docTypeRepo.GetAllAsync(ct);
         var usedIn = allDocTypes.Where(t => DocumentTypeSchemaReader.ReferencesEnumType(t.Schema, cmd.Id)).ToList();
         if (usedIn.Count > 0)
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 $"Нельзя удалить тип перечисления — используется в схеме: {string.Join(", ", usedIn.Select(t => t.Name))}.");
         repo.Remove(et);
         await repo.SaveChangesAsync(ct);

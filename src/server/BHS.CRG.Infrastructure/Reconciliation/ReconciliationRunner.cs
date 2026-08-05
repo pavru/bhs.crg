@@ -32,7 +32,7 @@ public class ReconciliationRunner(
     {
         var definition = await db.Set<ReconciliationDefinition>()
             .FirstOrDefaultAsync(d => d.Id == definitionId, ct)
-            ?? throw new KeyNotFoundException($"Сверка {definitionId} не найдена");
+            ?? throw new NotFoundException($"Сверка {definitionId} не найдена");
 
         var run = ReconciliationRun.Start(definitionId);
         db.Add(run);
@@ -41,7 +41,7 @@ public class ReconciliationRunner(
         try
         {
             var spec = definition.Spec.Deserialize<ReconciliationSpec>(Json)
-                ?? throw new InvalidOperationException("Спека сверки пуста или нечитаема.");
+                ?? throw new ConflictException("Спека сверки пуста или нечитаема.");
 
             // Алиасы применяются на СВЁРТКЕ, до сравнения: иначе сопоставление ключей ничего не
             // даст — количества так и останутся в двух разных позициях.
@@ -109,7 +109,7 @@ public class ReconciliationRunner(
         {
             var source = await db.DataSetSources.AsNoTracking().Include(s => s.File)
                 .FirstOrDefaultAsync(s => s.Id == part.SourceId, ct)
-                ?? throw new InvalidOperationException($"Источник {part.SourceId} не найден.");
+                ?? throw new ConflictException($"Источник {part.SourceId} не найден.");
 
             var rows = await rowLoader.LoadRowsAsync(source, ct);
 

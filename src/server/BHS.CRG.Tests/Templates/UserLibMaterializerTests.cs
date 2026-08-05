@@ -46,7 +46,7 @@ public class UserLibMaterializerTests : IDisposable
     [Fact]
     public async Task PathEscapingTheTree_Throws()
     {
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
             UserLibMaterializer.WriteAsync(_dir, "x",
                 [new UserLibFile("../../evil.typ", "#let boom() = []")]));
 

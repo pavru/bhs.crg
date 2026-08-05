@@ -23,7 +23,7 @@ public static class DataSetBindingEndpoints
                 var result = await svc.CreateBindingAsync(input, ct);
                 return result is null ? Results.NotFound(new { error = "DataSetSource не найден" }) : Results.Ok(result);
             }
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
         g.MapPut("/{id:guid}", async (Guid id, UpdateBindingRequest req, IDataSetService svc, CancellationToken ct) =>

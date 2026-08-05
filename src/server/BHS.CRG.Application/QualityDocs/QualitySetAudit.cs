@@ -79,7 +79,7 @@ public class QualitySetAuditRunner(
         // идентификаторе читается как чистая совесть, и это ровно тот молчаливый ноль, из-за
         // которого 68 неверных связок жили незамеченными.
         _ = await sets.GetByIdAsync(setId, ct)
-            ?? throw new KeyNotFoundException($"DocumentSet {setId} not found");
+            ?? throw new NotFoundException($"DocumentSet {setId} not found");
 
         var documents = await objects.GetSetDocumentsAsync(setId, tracked: false, ct);
         var rows = new List<QualityAuditRow>();

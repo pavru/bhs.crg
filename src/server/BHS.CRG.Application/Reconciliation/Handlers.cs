@@ -40,7 +40,7 @@ public class ReconciliationHandlers(
 
     public async Task<ReconciliationDefinition> Handle(UpdateReconciliationCommand cmd, CancellationToken ct)
     {
-        var d = await definitions.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var d = await definitions.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         d.Update(cmd.Name, cmd.Spec);
         definitions.Update(d);
         await definitions.SaveChangesAsync(ct);
@@ -49,7 +49,7 @@ public class ReconciliationHandlers(
 
     public async Task Handle(DeleteReconciliationCommand cmd, CancellationToken ct)
     {
-        var d = await definitions.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var d = await definitions.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         definitions.Remove(d);
         await definitions.SaveChangesAsync(ct);
     }

@@ -104,7 +104,7 @@ public class TemplateInvalidationTests(IntegrationTestFixture fixture) : IAsyncL
         var docId = await AddGeneratedDocAsync(setId, dtId, pinTemplateId: t.Id);
 
         using (var scope = fixture.Services.CreateScope())
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            await Assert.ThrowsAsync<ConflictException>(() =>
                 Mediator(scope).Send(new DeleteTemplateCommand(t.Id, ReassignUsersToDefault: false)));
 
         Assert.True(await TemplateExistsAsync(dtId, t.Id));           // не удалён

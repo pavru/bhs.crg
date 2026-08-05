@@ -50,7 +50,7 @@ public class PrimitiveTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncL
             new CreateDocumentTypeCommand("Акт", "ACT_PRIM", DocumentTypeKind.Document, null, schema));
 
         using var scope2 = fixture.Services.CreateScope();
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
             Mediator(scope2).Send(new DeletePrimitiveTypeCommand(prim.Id)));
         Assert.Contains("Акт", ex.Message);
     }

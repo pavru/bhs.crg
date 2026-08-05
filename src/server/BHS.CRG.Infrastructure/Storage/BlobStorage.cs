@@ -78,7 +78,7 @@ public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : 
     {
         var idx = blobPath.IndexOf('/');
         return idx < 0
-            ? throw new ArgumentException("Invalid blob path", nameof(blobPath))
+            ? throw new InvalidRequestException("Некорректный путь к файлу в хранилище.")
             : (options.Bucket, blobPath[(idx + 1)..]);
     }
 }

@@ -190,7 +190,7 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         }
 
         using var scope2 = fixture.Services.CreateScope();
-        await Assert.ThrowsAsync<InvalidOperationException>(() => Svc(scope2).DeleteSourceAsync(srcId, default));
+        await Assert.ThrowsAsync<ConflictException>(() => Svc(scope2).DeleteSourceAsync(srcId, default));
     }
 
     [Fact]

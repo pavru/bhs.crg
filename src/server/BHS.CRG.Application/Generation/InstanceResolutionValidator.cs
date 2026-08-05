@@ -57,7 +57,7 @@ public class InstanceResolutionValidator(
         Guid instanceId, SchemaCatalog catalog, CancellationToken ct)
     {
         var instance = await instanceRepo.GetByIdAsync(instanceId, ct)
-            ?? throw new KeyNotFoundException($"DocumentInstance {instanceId} not found");
+            ?? throw new NotFoundException($"DocumentInstance {instanceId} not found");
 
         var diagnostics = new List<ResolutionDiagnostic>();
         var view = DocumentView.From(instance);

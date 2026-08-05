@@ -30,7 +30,7 @@ public static class PrimitiveTypeEndpoints
         admin.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             try { await m.Send(new DeletePrimitiveTypeCommand(id)); return Results.NoContent(); }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
     }
 

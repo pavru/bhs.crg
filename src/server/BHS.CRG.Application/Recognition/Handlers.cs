@@ -32,7 +32,7 @@ public class RecognitionProfileHandlers(
     public async Task<RecognitionProfileDto> Handle(CreateRecognitionProfileCommand cmd, CancellationToken ct)
     {
         if (!Enum.TryParse<RecognitionProfileKind>(cmd.Kind, out var kind))
-            throw new ArgumentException($"Неизвестный вид профиля «{cmd.Kind}».");
+            throw new InvalidRequestException($"Неизвестный вид профиля «{cmd.Kind}».");
         var info = provider.DescribeKind(kind);
         Validate(cmd.Name, cmd.Fields, cmd.RowColumns, info, isBuiltIn: false);
 
@@ -49,7 +49,7 @@ public class RecognitionProfileHandlers(
     public async Task<RecognitionProfileDto> Handle(UpdateRecognitionProfileCommand cmd, CancellationToken ct)
     {
         var profile = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"RecognitionProfile {cmd.Id} not found");
+            ?? throw new NotFoundException($"RecognitionProfile {cmd.Id} not found");
         var info = provider.DescribeKind(profile.Kind);
         Validate(cmd.Name, cmd.Fields, cmd.RowColumns, info, profile.IsBuiltIn);
 
@@ -65,9 +65,9 @@ public class RecognitionProfileHandlers(
     public async Task<RecognitionProfileDto> Handle(ResetRecognitionProfileCommand cmd, CancellationToken ct)
     {
         var profile = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"RecognitionProfile {cmd.Id} not found");
+            ?? throw new NotFoundException($"RecognitionProfile {cmd.Id} not found");
         if (!profile.IsBuiltIn)
-            throw new InvalidOperationException("Сбросить к заводским можно только встроенный профиль.");
+            throw new ConflictException("Сбросить к заводским можно только встроенный профиль.");
 
         profile.ResetToBuiltIn();
         repo.Update(profile);
@@ -83,9 +83,9 @@ public class RecognitionProfileHandlers(
     public async Task Handle(DeleteRecognitionProfileCommand cmd, CancellationToken ct)
     {
         var profile = await repo.GetByIdAsync(cmd.Id, ct)
-            ?? throw new KeyNotFoundException($"RecognitionProfile {cmd.Id} not found");
+            ?? throw new NotFoundException($"RecognitionProfile {cmd.Id} not found");
         if (profile.IsBuiltIn)
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 "Встроенный профиль удалить нельзя — он будет создан заново при следующем запуске. " +
                 "Используйте «Сбросить к заводским».");
         repo.Remove(profile);
@@ -100,9 +100,9 @@ public class RecognitionProfileHandlers(
         bool isBuiltIn)
     {
         if (string.IsNullOrWhiteSpace(name))
-            throw new ArgumentException("Укажите название профиля.");
+            throw new InvalidRequestException("Укажите название профиля.");
         if (fields.Count == 0 && rowColumns.Count == 0)
-            throw new ArgumentException("Задайте хотя бы одно поле или колонку.");
+            throw new InvalidRequestException("Задайте хотя бы одно поле или колонку.");
 
         EnsureNamesValid(fields, "поля");
         EnsureNamesValid(rowColumns, "колонки");
@@ -114,7 +114,7 @@ public class RecognitionProfileHandlers(
             var present = fields.Select(f => f.Name.Trim()).ToHashSet();
             var missing = info.SystemFieldNames.Where(n => !present.Contains(n)).ToList();
             if (missing.Count > 0)
-                throw new ArgumentException(
+                throw new InvalidRequestException(
                     $"Нельзя удалить или переименовать обязательные поля: {string.Join(", ", missing)}. " +
                     "На них завязано разбиение документов — можно менять только описание.");
         }
@@ -127,9 +127,9 @@ public class RecognitionProfileHandlers(
         {
             var n = f.Name.Trim();
             if (string.IsNullOrEmpty(n))
-                throw new ArgumentException($"У {what} есть запись без имени.");
+                throw new InvalidRequestException($"У {what} есть запись без имени.");
             if (!seen.Add(n))
-                throw new ArgumentException($"Имя «{n}» повторяется — имена должны быть уникальны.");
+                throw new InvalidRequestException($"Имя «{n}» повторяется — имена должны быть уникальны.");
         }
     }
 

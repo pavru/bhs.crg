@@ -69,7 +69,7 @@ public class ResourceLimitsTests
         var bomb = BuildZip(entries: [("bomb.csv", 300 * 1024 * 1024)]);
         var parser = new ZipDataSetParser(new EmptyServices());
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(
+        var ex = await Assert.ThrowsAsync<InvalidRequestException>(
             () => parser.DetectSourcesAsync(bomb, CancellationToken.None));
         Assert.Contains("bomb.csv", ex.Message);
     }
@@ -86,7 +86,7 @@ public class ResourceLimitsTests
         var zip = BuildZip([.. Enumerable.Range(0, 12).Select(i => ($"f{i}.csv", 60 * 1024 * 1024))]);
         var parser = new ZipDataSetParser(new CsvOnlyServices());
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(
+        var ex = await Assert.ThrowsAsync<InvalidRequestException>(
             () => parser.DetectSourcesAsync(zip, CancellationToken.None));
         Assert.Contains("Суммарный размер", ex.Message);
     }
@@ -97,7 +97,7 @@ public class ResourceLimitsTests
         var many = BuildZip([.. Enumerable.Range(0, 2_100).Select(i => ($"f{i}.csv", 1))]);
         var parser = new ZipDataSetParser(new EmptyServices());
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(
+        var ex = await Assert.ThrowsAsync<InvalidRequestException>(
             () => parser.DetectSourcesAsync(many, CancellationToken.None));
         Assert.Contains("слишком много файлов", ex.Message);
     }

@@ -49,9 +49,9 @@ public class DataSetPdfRecognitionService(
     public async Task<DataSetSourceDto?> CreatePdfSourceAsync(Guid fileId, CreatePdfSourceInput input, CancellationToken ct)
     {
         var file = await db.DataSetFiles.FirstOrDefaultAsync(f => f.Id == fileId, ct)
-            ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
+            ?? throw new NotFoundException($"DataSetFile {fileId} not found");
         if (file.Format != DataSetFormat.Pdf)
-            throw new ArgumentException("Файл не в формате PDF.");
+            throw new InvalidRequestException("Файл не в формате PDF.");
 
         file.SetPreprocessingProfile(input.Profile == PdfProfiles.Invoice ? PdfProfiles.Invoice : PdfProfiles.GostTitleBlock);
         await db.SaveChangesAsync(ct);
@@ -66,7 +66,7 @@ public class DataSetPdfRecognitionService(
     private static PdfProfileDescriptor ResolveDescriptor(Domain.DataSets.DataSetFile file) =>
         PdfProfileRegistry.ByProfileMarker(file.PreprocessingProfile)
         ?? file.Sources.Select(s => PdfProfileRegistry.BySourceMarker(s.SheetOrPath)).FirstOrDefault(d => d is not null)
-        ?? throw new ArgumentException("У набора не выбран профиль распознавания PDF.");
+        ?? throw new InvalidRequestException("У набора не выбран профиль распознавания PDF.");
 
     /// <summary>Планирование распознавания PDF-набора по fileId (issue #44: дискриминатор — профиль
     /// набора, не формат-специфичный код). ГОСТ — 409-проверка ручной правки разбиения + фон; Счёт —
@@ -76,13 +76,13 @@ public class DataSetPdfRecognitionService(
         var file = await db.DataSetFiles.Include(f => f.Sources).AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
         if (file is null) return null;
         if (file.Format != DataSetFormat.Pdf)
-            throw new ArgumentException("Набор не в формате PDF.");
+            throw new InvalidRequestException("Набор не в формате PDF.");
         var descriptor = ResolveDescriptor(file);
         if (descriptor.Kind == PdfProfileKind.Gost)
         {
             var existingGrouping = ParseGrouping(file.Grouping);
             if (existingGrouping is { ManuallyEdited: true } && !confirm)
-                throw new InvalidOperationException(
+                throw new ConflictException(
                     "Разбиение набора было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
         }
         return new RecognizePlan(descriptor.Background,
@@ -97,16 +97,16 @@ public class DataSetPdfRecognitionService(
     public async Task RecognizeFileAsync(Guid fileId, bool confirm, CancellationToken ct, Func<int, int, Task>? onProgress = null)
     {
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)
-            ?? throw new KeyNotFoundException($"DataSetFile {fileId} not found");
+            ?? throw new NotFoundException($"DataSetFile {fileId} not found");
         if (file.Format != DataSetFormat.Pdf)
-            throw new ArgumentException("Набор не в формате PDF.");
+            throw new InvalidRequestException("Набор не в формате PDF.");
         var descriptor = ResolveDescriptor(file);
 
         if (descriptor.Kind == PdfProfileKind.Gost)
         {
             var existingGrouping = ParseGrouping(file.Grouping);
             if (existingGrouping is { ManuallyEdited: true } && !confirm)
-                throw new InvalidOperationException(
+                throw new ConflictException(
                     "Разбиение набора было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
             await RecognizeGostFileAsync(file, ct, onProgress);
             return;
@@ -122,7 +122,7 @@ public class DataSetPdfRecognitionService(
         var source = await db.DataSetSources.Include(s => s.File).AsNoTracking().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source is null) return null;
         if (source.File.Format != DataSetFormat.Pdf)
-            throw new ArgumentException("Источник не относится к PDF-файлу.");
+            throw new InvalidRequestException("Источник не относится к PDF-файлу.");
 
         var descriptor = PdfProfileRegistry.BySourceMarker(source.SheetOrPath);
         if (descriptor?.Kind == PdfProfileKind.Gost)
@@ -131,7 +131,7 @@ public class DataSetPdfRecognitionService(
             // Группировка живёт на НАБОРЕ (issue #28), не на источнике.
             var existingGrouping = ParseGrouping(source.File.Grouping);
             if (existingGrouping is { ManuallyEdited: true } && !confirm)
-                throw new InvalidOperationException(
+                throw new ConflictException(
                     "Разбиение этого источника было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
             return new RecognizePlan(descriptor.Background, Title: "Распознавание листов PDF");
         }
@@ -149,7 +149,7 @@ public class DataSetPdfRecognitionService(
             .FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
         if (source.File.Format != DataSetFormat.Pdf)
-            throw new ArgumentException("Источник не относится к PDF-файлу.");
+            throw new InvalidRequestException("Источник не относится к PDF-файлу.");
 
         var descriptor = PdfProfileRegistry.BySourceMarker(source.SheetOrPath);
 
@@ -166,7 +166,7 @@ public class DataSetPdfRecognitionService(
             // Группировка живёт на НАБОРЕ (issue #28).
             var existingGrouping = ParseGrouping(source.File.Grouping);
             if (existingGrouping is { ManuallyEdited: true } && !confirm)
-                throw new InvalidOperationException(
+                throw new ConflictException(
                     "Разбиение этого источника было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
 
             // Мост для legacy source-centric вызова: делегируем в набор-centric распознавание (issue #38).
@@ -191,7 +191,7 @@ public class DataSetPdfRecognitionService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new ArgumentException($"Не удалось подготовить страницы PDF: {ex.Message}");
+            throw new InvalidRequestException($"Не удалось подготовить страницы PDF: {ex.Message}");
         }
 
         var fields = (await ProfileForFileAsync(source.File, RecognitionProfileKind.TitleBlock, ct)).ToRecognitionFields();
@@ -211,7 +211,7 @@ public class DataSetPdfRecognitionService(
                 // страницо-специфичной проблемой (не роняем весь реестр, см. фикс невычислимых
                 // колонок XPath/JSONPath той же сессии), строка остаётся пустой.
                 if (i == 0)
-                    throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
+                    throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
                 logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, sourceId);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
             }
@@ -256,7 +256,7 @@ public class DataSetPdfRecognitionService(
         }
         catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
         {
-            throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
+            throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
         }
 
         var headerRow = InvoiceRecognitionSplitter.SplitHeader(result.Values, headerFields);
@@ -316,7 +316,7 @@ public class DataSetPdfRecognitionService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new ArgumentException($"Не удалось подготовить страницы PDF: {ex.Message}");
+            throw new InvalidRequestException($"Не удалось подготовить страницы PDF: {ex.Message}");
         }
 
         // Постраничная проверка текстового слоя (бесплатно, PdfPig) — гейт для второго прохода
@@ -386,7 +386,7 @@ public class DataSetPdfRecognitionService(
             catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
             {
                 if (i == 0)
-                    throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
+                    throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
                 logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, file.Id);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
                 failedPages++;
@@ -688,7 +688,7 @@ public class DataSetPdfRecognitionService(
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
         if (file == null) return null;
         if (file.Format != DataSetFormat.Pdf)
-            throw new ArgumentException("Разбиение доступно только для PDF-набора.");
+            throw new InvalidRequestException("Разбиение доступно только для PDF-набора.");
 
         var pageCount = await GetPdfPageCountAsync(file.BlobPath, ct);
         var grouping = ParseGrouping(file.Grouping);
@@ -703,7 +703,7 @@ public class DataSetPdfRecognitionService(
         var file = await db.DataSetFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
         if (file == null) return null;
         if (file.Format != DataSetFormat.Pdf)
-            throw new ArgumentException("Миниатюры доступны только для PDF-набора.");
+            throw new InvalidRequestException("Миниатюры доступны только для PDF-набора.");
 
         await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
         using var ms = new MemoryStream();
@@ -716,7 +716,7 @@ public class DataSetPdfRecognitionService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new ArgumentException($"Не удалось отрендерить страницу {pageIndex + 1}: {ex.Message}");
+            throw new InvalidRequestException($"Не удалось отрендерить страницу {pageIndex + 1}: {ex.Message}");
         }
     }
 
@@ -735,11 +735,11 @@ public class DataSetPdfRecognitionService(
         var file = await db.DataSetFiles.FirstOrDefaultAsync(f => f.Id == fileId, ct);
         if (file == null) return null;
         if (file.Format != DataSetFormat.Pdf)
-            throw new ArgumentException("Тэги документа доступны только для PDF-набора.");
+            throw new InvalidRequestException("Тэги документа доступны только для PDF-набора.");
 
         var grouping = ParseGrouping(file.Grouping);
         if (grouping is null)
-            throw new ArgumentException("Группировка ещё не распознана.");
+            throw new InvalidRequestException("Группировка ещё не распознана.");
         // Оставляем только известные тэги типа таблицы (не даём проставить произвольные).
         var clean = tags.Where(profiles.IsTableTag).Distinct().ToList();
         var updated = grouping.Groups
@@ -774,17 +774,17 @@ public class DataSetPdfRecognitionService(
         foreach (var (kindName, profileId) in map)
         {
             if (!Enum.TryParse<RecognitionProfileKind>(kindName, out var kind))
-                throw new ArgumentException($"Неизвестный вид профиля «{kindName}».");
+                throw new InvalidRequestException($"Неизвестный вид профиля «{kindName}».");
             if (RecognitionKinds.IsGroupScoped(kind))
-                throw new ArgumentException(
+                throw new InvalidRequestException(
                     $"Профиль вида «{RecognitionKinds.Describe(kind).Label}» привязывается к группе листов, а не к набору.");
 
             if (profileId is null) { current.Remove(kindName); continue; }
 
             var profile = await profiles.GetByIdAsync(profileId.Value, ct)
-                ?? throw new ArgumentException("Профиль распознавания не найден.");
+                ?? throw new InvalidRequestException("Профиль распознавания не найден.");
             if (profile.Kind != kind)
-                throw new ArgumentException(
+                throw new InvalidRequestException(
                     $"Профиль «{profile.Name}» имеет вид «{RecognitionKinds.Describe(profile.Kind).Label}» — он не подходит для «{RecognitionKinds.Describe(kind).Label}».");
             current[kindName] = profileId.Value;
         }
@@ -845,7 +845,7 @@ public class DataSetPdfRecognitionService(
                 .Where(f => SchemaFieldKinds.IsScalar(f.Type))
                 .ToList();
             if (typeFields.Count == 0)
-                throw new ArgumentException($"У типа «{targetType.Name}» нет скалярных полей для распознавания таблицы.");
+                throw new InvalidRequestException($"У типа «{targetType.Name}» нет скалярных полей для распознавания таблицы.");
             return (
                 typeFields.Select(f => new RecognitionField(f.Key, f.Title ?? f.Key, MapRecognitionType(f.Type))).ToList(),
                 builtIn.Kind, builtIn.Shape);
@@ -870,19 +870,19 @@ public class DataSetPdfRecognitionService(
         var file = await db.DataSetFiles.FirstOrDefaultAsync(f => f.Id == fileId, ct);
         if (file == null) return null;
         if (file.Format != DataSetFormat.Pdf)
-            throw new ArgumentException("Профиль распознавания задаётся только для PDF-набора.");
+            throw new InvalidRequestException("Профиль распознавания задаётся только для PDF-набора.");
 
         var grouping = ParseGrouping(file.Grouping)
-            ?? throw new ArgumentException("Группировка ещё не распознана.");
+            ?? throw new InvalidRequestException("Группировка ещё не распознана.");
 
         if (profileId is { } pid)
         {
             var profile = await profiles.GetByIdAsync(pid, ct)
-                ?? throw new ArgumentException("Профиль распознавания не найден.");
+                ?? throw new InvalidRequestException("Профиль распознавания не найден.");
             // Проверяем ОБЛАСТЬ, а не «есть ли табличная часть»: у счёта она есть, но привязывается
             // он к набору целиком, а не к группе листов.
             if (!RecognitionKinds.IsGroupScoped(profile.Kind))
-                throw new ArgumentException(
+                throw new InvalidRequestException(
                     $"Профиль «{profile.Name}» привязывается к набору, а не к группе листов.");
         }
 
@@ -912,20 +912,20 @@ public class DataSetPdfRecognitionService(
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct);
         if (file == null) return null;
         if (file.Format != DataSetFormat.Pdf)
-            throw new ArgumentException("Распознавание таблицы доступно только для PDF-набора.");
+            throw new InvalidRequestException("Распознавание таблицы доступно только для PDF-набора.");
 
         var grouping = ParseGrouping(file.Grouping);
         var group = grouping?.Groups.FirstOrDefault(
             g => g.Kind == GostGroupKind.Document && g.Pages.Any(p => p.PageIndex == firstPageIndex));
         if (group is null)
-            throw new ArgumentException("Документ с указанной страницей не найден в группировке.");
+            throw new InvalidRequestException("Документ с указанной страницей не найден в группировке.");
 
         // ЕДИНАЯ цепочка приоритета (issue #410), а не параллельные механизмы:
         //   профиль, привязанный к группе  →  тип, объявивший тэг (#29)  →  встроенный профиль по тэгу.
         // Привязанный профиль СНИМАЕТ требование тэга — именно этим разблокируются произвольные
         // таблицы, для которых функционального тэга не существует и не может существовать.
         var spec = await ResolveTableSpecAsync(group, ct)
-            ?? throw new ArgumentException(
+            ?? throw new InvalidRequestException(
                 "У документа не задан ни профиль распознавания, ни тип таблицы — " +
                 "привяжите профиль в свойствах группы либо укажите тип таблицы.");
         var (columns, kind, shape) = spec;
@@ -947,7 +947,7 @@ public class DataSetPdfRecognitionService(
             await s.CopyToAsync(m, ct);
             var pageIndices = group.Pages.Select(p => p.PageIndex).OrderBy(i => i).ToList();
             try { subPdf = PdfPageSplitter.ExtractPages(m.ToArray(), pageIndices); }
-            catch (Exception ex) { throw new ArgumentException($"Не удалось выделить страницы документа: {ex.Message}"); }
+            catch (Exception ex) { throw new InvalidRequestException($"Не удалось выделить страницы документа: {ex.Message}"); }
         }
 
         // Промпт выбирает ВИД профиля (issue #406; прежде — прямое сравнение с тэгом, issue #389):
@@ -966,7 +966,7 @@ public class DataSetPdfRecognitionService(
         }
         catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
         {
-            throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
+            throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
         }
 
         var rows = GostTableFields.SplitRows(result.Values, columns);
@@ -1013,13 +1013,13 @@ public class DataSetPdfRecognitionService(
         var file = await db.DataSetFiles.FirstOrDefaultAsync(f => f.Id == fileId, ct);
         if (file is null) return null;
         if (file.Format != DataSetFormat.Pdf)
-            throw new ArgumentException("Перераспознавание документа доступно только для PDF-набора.");
+            throw new InvalidRequestException("Перераспознавание документа доступно только для PDF-набора.");
 
         var grouping = ParseGrouping(file.Grouping);
         var groups = grouping?.Groups.ToList();
         var targetIdx = groups?.FindIndex(g => g.Kind == GostGroupKind.Document && g.Pages.Any(p => p.PageIndex == firstPageIndex)) ?? -1;
         if (grouping is null || groups is null || targetIdx < 0)
-            throw new ArgumentException("Документ с указанной страницей не найден в группировке.");
+            throw new InvalidRequestException("Документ с указанной страницей не найден в группировке.");
         var target = groups[targetIdx];
 
         await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
@@ -1071,7 +1071,7 @@ public class DataSetPdfRecognitionService(
             }
             catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
             {
-                throw new ArgumentException($"Распознавание недоступно: {ex.Message}");
+                throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
@@ -1131,7 +1131,7 @@ public class DataSetPdfRecognitionService(
         var file = await db.DataSetFiles.FirstOrDefaultAsync(f => f.Id == fileId, ct);
         if (file == null) return null;
         if (file.Format != DataSetFormat.Pdf)
-            throw new ArgumentException("Ручная корректировка разбиения доступна только для PDF-набора.");
+            throw new InvalidRequestException("Ручная корректировка разбиения доступна только для PDF-набора.");
 
         // Страница может не входить ни в одну группу (выпадает из реестров — допустимо), но
         // не может входить сразу в НЕСКОЛЬКО — иначе непонятно, какой группе она принадлежит.
@@ -1139,7 +1139,7 @@ public class DataSetPdfRecognitionService(
         foreach (var g in input.Groups)
             foreach (var p in g.PageIndices)
                 if (!seenPages.Add(p))
-                    throw new ArgumentException($"Страница {p + 1} назначена сразу нескольким группам.");
+                    throw new InvalidRequestException($"Страница {p + 1} назначена сразу нескольким группам.");
 
         await using var stream = await blob.DownloadAsync(file.BlobPath, ct);
         using var ms = new MemoryStream();

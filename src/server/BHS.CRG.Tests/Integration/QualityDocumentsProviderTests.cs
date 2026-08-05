@@ -219,12 +219,12 @@ public class QualityDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
     }
 
     /// <summary>
-    /// Уровень без объекта области (кроме «Системы») — отказ ArgumentException, и только он:
-    /// KeyNotFoundException из провайдера уронил бы весь список наборов, а не одну строку в нём.
+    /// Уровень без объекта области (кроме «Системы») — отказ InvalidRequestException, и только он:
+    /// NotFoundException из провайдера уронил бы весь список наборов, а не одну строку в нём.
     /// Отказ срабатывает уже при СОЗДАНИИ источника: число строк пишется в тот же момент.
     /// </summary>
     [Fact]
-    public async Task LevelWithoutScopeId_IsRefusedWithArgumentException()
+    public async Task LevelWithoutScopeId_IsRefusedAsInvalidRequest()
     {
         using var scope = fixture.Services.CreateScope();
         var svc = Svc(scope);
@@ -233,11 +233,11 @@ public class QualityDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
 
         var provider = scope.ServiceProvider.GetServices<ISystemDataProvider>()
             .Single(p => p.Handles(SystemDataSets.QualityDocumentsMarker));
-        await Assert.ThrowsAsync<ArgumentException>(() => provider.ProvideAsync(
+        await Assert.ThrowsAsync<InvalidRequestException>(() => provider.ProvideAsync(
             SystemDataSets.QualityDocumentsMarker, CatalogScope.Section, null, default));
 
         var file = await svc.CreateSystemFileAsync(new CreateSystemFileInput("Section", null, null), default);
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.CreateSourceAsync(file.Id,
+        await Assert.ThrowsAsync<InvalidRequestException>(() => svc.CreateSourceAsync(file.Id,
             new CreateSourceInput("Качество", SystemDataSets.QualityDocumentsMarker, null), default));
     }
 

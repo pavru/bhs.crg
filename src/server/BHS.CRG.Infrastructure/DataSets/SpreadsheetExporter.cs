@@ -56,7 +56,7 @@ public static class SpreadsheetExporter
         SpreadsheetFormat format, IReadOnlyList<Sheet> sheets)
     {
         if (format == SpreadsheetFormat.Csv)
-            throw new ArgumentException("CSV не поддерживает вкладки — выгрузите отчёт в XLSX.", nameof(format));
+            throw new InvalidRequestException("CSV не поддерживает вкладки — выгрузите отчёт в XLSX.");
 
         IWorkbook wb = format == SpreadsheetFormat.Xls ? new HSSFWorkbook() : new XSSFWorkbook();
         foreach (var sheet in sheets) WriteSheet(wb, sheet);

@@ -38,7 +38,7 @@ public class MailKitEmailSenderTests
     public async Task Send_WhenNoRecipients_ThrowsArgument()
     {
         var sender = Sender(new SmtpSettings { Enabled = true, Host = "smtp.test", From = "a@b.c" });
-        await Assert.ThrowsAsync<ArgumentException>(() =>
+        await Assert.ThrowsAsync<InvalidRequestException>(() =>
             sender.SendAsync(new EmailMessage([], "тема", "текст")));
     }
 }

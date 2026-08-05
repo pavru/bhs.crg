@@ -46,7 +46,7 @@ public class SetDocumentsProvider(
         string marker, CatalogScope scope, Guid? scopeId, CancellationToken ct)
     {
         if (scope != CatalogScope.Set || scopeId is null)
-            throw new ArgumentException("Источник «Документы комплекта» доступен только у набора уровня «Комплект».");
+            throw new InvalidRequestException("Источник «Документы комплекта» доступен только у набора уровня «Комплект».");
 
         var rows = await RowsAsync(scopeId.Value, ct);
         return new DataSetParseResult(ColumnsOf(rows), rows);

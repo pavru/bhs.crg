@@ -97,14 +97,14 @@ public class FileRecognitionProfileTests(IntegrationTestFixture fixture) : IAsyn
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
 
             // Профиль штампа в слот обложки не годится — вид определяет применяемый промпт.
-            await Assert.ThrowsAsync<ArgumentException>(() => svc.SetFileRecognitionProfilesAsync(
+            await Assert.ThrowsAsync<InvalidRequestException>(() => svc.SetFileRecognitionProfilesAsync(
                 fileId, new Dictionary<string, Guid?> { ["CoverTitle"] = stampId }, default));
 
             // Табличные виды привязываются к ГРУППЕ ЛИСТОВ, а не к набору.
-            await Assert.ThrowsAsync<ArgumentException>(() => svc.SetFileRecognitionProfilesAsync(
+            await Assert.ThrowsAsync<InvalidRequestException>(() => svc.SetFileRecognitionProfilesAsync(
                 fileId, new Dictionary<string, Guid?> { ["Table"] = null }, default));
 
-            await Assert.ThrowsAsync<ArgumentException>(() => svc.SetFileRecognitionProfilesAsync(
+            await Assert.ThrowsAsync<InvalidRequestException>(() => svc.SetFileRecognitionProfilesAsync(
                 fileId, new Dictionary<string, Guid?> { ["НетТакого"] = null }, default));
         }
     }

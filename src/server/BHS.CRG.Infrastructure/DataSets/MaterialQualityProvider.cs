@@ -58,7 +58,7 @@ public class MaterialQualityProvider(AppDbContext db) : ISystemDataProvider
         string marker, CatalogScope scope, Guid? scopeId, CancellationToken ct)
     {
         if (scope != CatalogScope.System && scopeId is null)
-            throw new ArgumentException(
+            throw new InvalidRequestException(
                 $"Источнику «{Name}» нужен уровень с объектом: комплект, раздел или стройка.");
 
         var rows = await RowsAsync(scope, scopeId, ct);

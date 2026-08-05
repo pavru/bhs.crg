@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace BHS.CRG.Application.Templates;
 
@@ -102,7 +102,7 @@ public static class UserLibPath
     public static string Normalize(string raw) =>
         TryNormalize(raw, out var normalized, out var error)
             ? normalized
-            : throw new ArgumentException(error, nameof(raw));
+            : throw new InvalidRequestException(error);
 
     /// <summary>
     /// Сравнение путей. Регистр учитываем: Linux в контейнере различает «Gost/» и «gost/», и импорт,

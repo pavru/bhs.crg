@@ -182,7 +182,7 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
         }
 
         using (var scope = fixture.Services.CreateScope())
-            await Assert.ThrowsAsync<InvalidOperationException>(
+            await Assert.ThrowsAsync<ConflictException>(
                 () => Mediator(scope).Send(new DeleteCommonDataEntryCommand(baseId)));
 
         using (var scope = fixture.Services.CreateScope())
@@ -216,7 +216,7 @@ public class CommonDataHandlerTests(IntegrationTestFixture fixture) : IAsyncLife
         }
 
         using (var scope = fixture.Services.CreateScope())
-            await Assert.ThrowsAsync<InvalidOperationException>(
+            await Assert.ThrowsAsync<ConflictException>(
                 () => Mediator(scope).Send(new DeleteCommonDataEntryCommand(targetId)));
 
         // Удаляем ссылающегося — цель освобождается.

@@ -105,7 +105,7 @@ public class DomainObject : Entity
     public void MoveToSet(Guid targetSetId) { ScopeLevel = CatalogScope.Set; ScopeId = targetSetId; TouchUpdatedAt(); }
 
     // ── Документные изменения (через фасету; TouchUpdatedAt на объекте) ──────────
-    private DocumentFacet Doc => Facet ?? throw new InvalidOperationException("Объект не является документом (нет фасеты).");
+    private DocumentFacet Doc => Facet ?? throw new ConflictException("Объект не является документом (нет фасеты).");
 
     public DocumentStatus Status => Doc.Status;
     public int SortOrder => Doc.SortOrder;

@@ -32,7 +32,7 @@ public class DataSetService(
         string scope, Guid? scopeId, CancellationToken ct) =>
         Enum.TryParse<CatalogScope>(scope, out var s)
             ? sources.ListSystemCandidatesAsync(s, scopeId, ct)
-            : throw new ArgumentException("Неверный scope");
+            : throw new InvalidRequestException("Неверный scope");
     public Task<DataSetFileDto?> ReplaceFileAsync(Guid id, ReplaceFileInput input, CancellationToken ct) =>
         files.ReplaceFileAsync(id, input, ct);
     public Task<FileDownloadDto?> DownloadFileAsync(Guid id, CancellationToken ct) =>

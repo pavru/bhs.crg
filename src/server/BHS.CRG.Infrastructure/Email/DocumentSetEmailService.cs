@@ -34,9 +34,9 @@ public class DocumentSetEmailService(
     // ── Комплект (собранный файл) ────────────────────────────────────────────────
     public async Task SendSetAsync(Guid setId, IReadOnlyList<string> to, string? subject, string? body, Guid userId, CancellationToken ct)
     {
-        var set = await setRepo.GetByIdAsync(setId, ct) ?? throw new KeyNotFoundException("Комплект не найден.");
+        var set = await setRepo.GetByIdAsync(setId, ct) ?? throw new NotFoundException("Комплект не найден.");
         var output = (await outputRepo.FindAsync(o => o.SetId == setId, ct)).FirstOrDefault()
-            ?? throw new InvalidOperationException("Комплект не собран — соберите его перед отправкой.");
+            ?? throw new ConflictException("Комплект не собран — соберите его перед отправкой.");
 
         var files = new List<Attachment> { new($"{set.Name}.pdf", await DownloadAsync(output.BlobPath, ct)) };
         await DeliverAsync(to, subject, body,
@@ -49,10 +49,10 @@ public class DocumentSetEmailService(
     // ── Отдельный документ (его сгенерированные PDF) ──────────────────────────────
     public async Task SendDocumentAsync(Guid instanceId, IReadOnlyList<string> to, string? subject, string? body, Guid userId, CancellationToken ct)
     {
-        var instance = await instanceRepo.GetByIdAsync(instanceId, ct) ?? throw new KeyNotFoundException("Документ не найден.");
+        var instance = await instanceRepo.GetByIdAsync(instanceId, ct) ?? throw new NotFoundException("Документ не найден.");
         var pdfs = instance.GeneratedFiles.Where(f => f.Format == OutputFormat.Pdf).ToList();
         if (pdfs.Count == 0)
-            throw new InvalidOperationException("У документа нет сгенерированных PDF — сначала сгенерируйте.");
+            throw new ConflictException("У документа нет сгенерированных PDF — сначала сгенерируйте.");
 
         var docType = await docTypeRepo.GetByIdAsync(instance.CompositeTypeId, ct);
         var docName = instance.DisplayName ?? docType?.Name ?? "Документ";
@@ -87,7 +87,7 @@ public class DocumentSetEmailService(
     {
         var emails = to.Where(EmailValidation.IsValid).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (emails.Count == 0)
-            throw new InvalidOperationException("Не указан ни один валидный адрес получателя.");
+            throw new ConflictException("Не указан ни один валидный адрес получателя.");
 
         var total = files.Sum(f => (long)f.Bytes.Length);
         var attach = total <= MaxAttachmentBytes;

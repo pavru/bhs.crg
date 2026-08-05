@@ -77,16 +77,16 @@ public class DomainObjectsProvider(AppDbContext db) : ISystemDataProvider
         string marker, CatalogScope scope, Guid? scopeId, CancellationToken ct)
     {
         if (!SystemDataSets.TryParseObjectsMarker(marker, out var typeId))
-            throw new ArgumentException($"Маркер «{marker}» не содержит идентификатора типа.");
+            throw new InvalidRequestException($"Маркер «{marker}» не содержит идентификатора типа.");
         if (scope != CatalogScope.System && scopeId is null)
-            throw new ArgumentException("Источнику общих данных нужен уровень с объектом: комплект, раздел или стройка.");
+            throw new InvalidRequestException("Источнику общих данных нужен уровень с объектом: комплект, раздел или стройка.");
 
         var allTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
         var byId = allTypes.ToDictionary(t => t.Id);
         // Тип удалён — это ArgumentException, а НЕ KeyNotFoundException: пересчёт строк в списке
         // наборов глотает только первое, и удалённый тип иначе уронил бы весь список.
         if (!byId.ContainsKey(typeId))
-            throw new ArgumentException("Тип, по которому собирался источник, удалён — пересоздайте источник.");
+            throw new InvalidRequestException("Тип, по которому собирался источник, удалён — пересоздайте источник.");
 
         var enumsById = await EnumTypesAsync(ct);
         var chain = await ScopeChains.LoadForScopeAsync(db, scope, scopeId, ct);

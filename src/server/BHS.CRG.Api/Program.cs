@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Api.Common;
 using BHS.CRG.Api.Configuration;
 using BHS.CRG.Api.Endpoints.Account;
 using BHS.CRG.Api.Endpoints.Attachments;
@@ -532,41 +533,17 @@ app.UseExceptionHandler(exApp => exApp.Run(async ctx =>
     var feature = ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>();
     var ex = feature?.Error;
     ctx.Response.ContentType = "application/json";
-    // Тело больше потолка приходит как BadHttpRequestException(413) и без этой ветки уезжало бы в
-    // 500 с английским текстом фреймворка (issue #482).
-    var tooLarge = ex is Microsoft.AspNetCore.Http.BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge };
-    ctx.Response.StatusCode = ex switch
-    {
-        _ when tooLarge => StatusCodes.Status413PayloadTooLarge,
-        KeyNotFoundException => 404,
-        UnauthorizedAccessException => 403,
-        ArgumentException => 400,
-        _ => 500,
-    };
 
-    string message;
-    if (tooLarge)
-    {
-        // Без числа и без слова «файл»: сюда попадают запросы к разным эндпоинтам с разными
-        // пределами, и тело может вообще не быть файлом. Назвать чужой предел — хуже, чем не назвать.
-        message = "Запрос превышает допустимый размер.";
-    }
-    else if (ctx.Response.StatusCode == 500)
-    {
-        // Текст непредвиденного исключения — это внутренности: строка подключения Npgsql с хостом и
-        // именем БД, адреса хранилища, stderr компилятора с путями, куски ответов сторонних API.
-        // Наружу отдаём только идентификатор запроса — по нему администратор находит запись в логе.
+    // Само правило — в ApiErrorMapping: оно проверяется тестами, а здесь только конвейер (issue #691).
+    var (status, message) = ApiErrorMapping.Describe(ex, ctx.TraceIdentifier);
+    ctx.Response.StatusCode = status;
+
+    // В лог уходит именно то, чего не увидел клиент: по идентификатору запроса администратор
+    // находит запись целиком. Доменные отказы не логируем как ошибки — это штатный ответ.
+    if (status == StatusCodes.Status500InternalServerError)
         ctx.RequestServices.GetRequiredService<ILoggerFactory>()
             .CreateLogger("BHS.CRG.UnhandledException")
             .LogError(ex, "Необработанное исключение, запрос {TraceId}", ctx.TraceIdentifier);
-        message = $"Внутренняя ошибка сервера. Идентификатор запроса: {ctx.TraceIdentifier}";
-    }
-    else
-    {
-        // Доменные отказы (ArgumentException и соседи) кидаются НАМИ и написаны для пользователя —
-        // они и должны доходить до него дословно.
-        message = ex?.Message ?? "Внутренняя ошибка сервера.";
-    }
 
     await ctx.Response.WriteAsJsonAsync(new { error = message });
 }));

@@ -230,7 +230,7 @@ public class MaterialQualityProviderTests(IntegrationTestFixture fixture) : IAsy
     }
 
     [Fact]
-    public async Task LevelWithoutScopeId_IsRefusedWithArgumentException()
+    public async Task LevelWithoutScopeId_IsRefusedAsInvalidRequest()
     {
         using var scope = fixture.Services.CreateScope();
         var seed = await SeedAsync(scope);
@@ -239,7 +239,7 @@ public class MaterialQualityProviderTests(IntegrationTestFixture fixture) : IAsy
 
         var provider = scope.ServiceProvider.GetServices<ISystemDataProvider>()
             .Single(p => p.Handles(SystemDataSets.MaterialQualityMarker));
-        await Assert.ThrowsAsync<ArgumentException>(() => provider.ProvideAsync(
+        await Assert.ThrowsAsync<InvalidRequestException>(() => provider.ProvideAsync(
             SystemDataSets.MaterialQualityMarker, CatalogScope.Section, null, default));
     }
 

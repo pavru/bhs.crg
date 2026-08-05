@@ -27,7 +27,7 @@ public class CheckCommonDataBindingsHandler(
 {
     public async Task<BindingCheckResult> Handle(CheckCommonDataBindingsQuery q, CancellationToken ct)
     {
-        var entry = await repo.GetByIdAsync(q.Id, ct) ?? throw new KeyNotFoundException();
+        var entry = await repo.GetByIdAsync(q.Id, ct) ?? throw new NotFoundException();
 
         var diag = new List<ResolutionDiagnostic>();
         var fresh = await dataSetResolver.ResolveOwnerBindingsAsync(

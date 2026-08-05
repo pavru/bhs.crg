@@ -107,14 +107,14 @@ public static class DocumentSetEndpoints
         g.MapPost("/{setId:guid}/documents/{id:guid}/duplicate", async (Guid id, IMediator m) =>
         {
             try { return Results.Ok(InstanceDto.From(await m.Send(new DuplicateDocumentInstanceCommand(id)))); }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         // issue #283 (фаза C): скопировать документ в ДРУГОЙ комплект (+ dry-run превью предупреждений).
         g.MapPost("/{setId:guid}/documents/{id:guid}/copy/preview", async (Guid id, CopyDocumentRequest req, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new PreviewCopyDocumentQuery(id, req.TargetSetId, CopyStrategy.SmartCleanup))); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
         g.MapPost("/{setId:guid}/documents/{id:guid}/copy", async (Guid id, CopyDocumentRequest req, IMediator m) =>
         {
@@ -123,15 +123,15 @@ public static class DocumentSetEndpoints
                 var result = await m.Send(new CopyDocumentToSetCommand(id, req.TargetSetId, CopyStrategy.SmartCleanup));
                 return Results.Ok(new { instance = InstanceDto.From(result.Instance), warnings = result.Warnings });
             }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         // issue #283 (фаза D): перенести документ в ДРУГОЙ комплект (+ dry-run превью: warnings + чем заблокирован).
         g.MapPost("/{setId:guid}/documents/{id:guid}/move/preview", async (Guid id, CopyDocumentRequest req, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new PreviewMoveDocumentQuery(id, req.TargetSetId, CopyStrategy.SmartCleanup))); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
         g.MapPost("/{setId:guid}/documents/{id:guid}/move", async (Guid id, CopyDocumentRequest req, IMediator m) =>
         {
@@ -140,8 +140,8 @@ public static class DocumentSetEndpoints
                 var result = await m.Send(new MoveDocumentToSetCommand(id, req.TargetSetId, CopyStrategy.SmartCleanup));
                 return Results.Ok(new { instance = InstanceDto.From(result.Instance), warnings = result.Warnings });
             }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         g.MapGet("/{setId:guid}/documents/{id:guid}", async (Guid id, IMediator m) =>
@@ -164,7 +164,7 @@ public static class DocumentSetEndpoints
         g.MapGet("/{setId:guid}/documents/{id:guid}/audit", async (Guid id, IMediator m) =>
         {
             try { return Results.Ok(await m.Send(new AuditInstanceQuery(id))); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         // Применение исправлений к ЭТОМУ документу. instanceId жёстко берём из маршрута (клиент не может
@@ -199,7 +199,7 @@ public static class DocumentSetEndpoints
         g.MapDelete("/{setId:guid}/documents/{id:guid}", async (Guid id, IMediator m) =>
         {
             try { await m.Send(new DeleteDocumentInstanceCommand(id)); return Results.NoContent(); }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
         });
 
         // ── Сборка комплекта ───────────────────────────────────────────────────

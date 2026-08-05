@@ -125,7 +125,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
 
         using var scope2 = fixture.Services.CreateScope();
         // Trying to set child as parent of parent → cycle
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<ConflictException>(() =>
             Mediator(scope2).Send(new UpdateDocumentTypeCommand(parent.Id, "Родитель", "PAR", child.Id)));
     }
 
@@ -157,7 +157,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
             new CreateDocumentTypeCommand("Дочерний", "C3", DocumentTypeKind.Document, parent.Id, EmptySchema()));
 
         using var scope2 = fixture.Services.CreateScope();
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<ConflictException>(() =>
             Mediator(scope2).Send(new DeleteDocumentTypeCommand(parent.Id)));
     }
 
@@ -218,7 +218,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
         await Mediator(scope).Send(new AddDocumentToSetCommand(setId, dt.Id));
 
         using var scope2 = fixture.Services.CreateScope();
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<ConflictException>(() =>
             Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)));
     }
 
@@ -231,7 +231,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
         await Mediator(scope).Send(new CreateTemplateCommand(dt.Id, "Шаблон", "= Заголовок"));
 
         using var scope2 = fixture.Services.CreateScope();
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<ConflictException>(() =>
             Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)));
     }
 
@@ -245,7 +245,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
             dt.Id, "Сертификат", EmptySchema(), CatalogScope.System, null, QualityDocSource.Manual, null, null, null));
 
         using var scope2 = fixture.Services.CreateScope();
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<ConflictException>(() =>
             Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)));
     }
 
@@ -259,7 +259,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
             "Запись", dt.Id, JsonDocument.Parse("{}"), CatalogScope.System, null));
 
         using var scope2 = fixture.Services.CreateScope();
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<ConflictException>(() =>
             Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)));
     }
 
@@ -272,7 +272,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
         await DataSets(scope).CreateTemplateAsync(dt.Id, new CreateTemplateInput("Маппинг", null, null), default);
 
         using var scope2 = fixture.Services.CreateScope();
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<ConflictException>(() =>
             Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)));
     }
 
@@ -291,7 +291,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
         await svc.SetMaterializationAsync(source.Id, dt.Id, new(), default);
 
         using var scope2 = fixture.Services.CreateScope();
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<ConflictException>(() =>
             Mediator(scope2).Send(new DeleteDocumentTypeCommand(dt.Id)));
     }
 
@@ -307,7 +307,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
             new CreateDocumentTypeCommand("Договор", "CTR1", DocumentTypeKind.Document, null, userSchema));
 
         using var scope2 = fixture.Services.CreateScope();
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
             Mediator(scope2).Send(new DeleteDocumentTypeCommand(composite.Id)));
         Assert.Contains("Договор", ex.Message);
     }

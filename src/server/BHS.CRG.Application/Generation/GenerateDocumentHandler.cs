@@ -39,7 +39,7 @@ public class GenerateDocumentHandler(
     public async Task<IReadOnlyList<GeneratedFile>> Handle(GenerateDocumentCommand cmd, CancellationToken ct)
     {
         var instance = await instanceRepo.GetByIdAsync(cmd.InstanceId, ct)
-            ?? throw new KeyNotFoundException($"DocumentInstance {cmd.InstanceId} not found");
+            ?? throw new NotFoundException($"DocumentInstance {cmd.InstanceId} not found");
 
         instance.MarkGenerating();
         instanceRepo.Update(instance);
@@ -57,14 +57,14 @@ public class GenerateDocumentHandler(
             {
                 templates = candidates.Where(t => selectedIds.Contains(t.Id) && t.IsActive).ToList();
                 if (templates.Count == 0)
-                    throw new InvalidOperationException("Ни один из выбранных шаблонов не активен.");
+                    throw new ConflictException("Ни один из выбранных шаблонов не активен.");
             }
             else
             {
                 var single = (instance.TemplateId.HasValue ? candidates.FirstOrDefault(t => t.Id == instance.TemplateId.Value) : null)
                     ?? candidates.FirstOrDefault(t => t.IsDefault && t.IsActive)
                     ?? candidates.FirstOrDefault(t => t.IsActive)
-                    ?? throw new InvalidOperationException($"No active template for DocumentType {instance.CompositeTypeId}");
+                    ?? throw new ConflictException($"No active template for DocumentType {instance.CompositeTypeId}");
                 templates = [single];
             }
 

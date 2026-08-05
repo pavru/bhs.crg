@@ -132,6 +132,6 @@ public class DiscrepancyReportTests
     /// <summary>У CSV вкладок нет, и молча склеить их в один файл — потерять границу между ними.</summary>
     [Fact]
     public void CsvIsRejected_RatherThanFlattened()
-        => Assert.Throws<ArgumentException>(() =>
+        => Assert.Throws<InvalidRequestException>(() =>
             SpreadsheetExporter.ExportSheets(SpreadsheetFormat.Csv, [new("A", ["c"], [], null)]));
 }

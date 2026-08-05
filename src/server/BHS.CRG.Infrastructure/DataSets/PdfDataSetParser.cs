@@ -19,6 +19,6 @@ public class PdfDataSetParser : IDataSetParser
         => Task.FromResult<IReadOnlyList<DataSetSourceInfo>>([]);
 
     public Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, string? columnExpressions, CancellationToken ct)
-        => throw new ArgumentException(
+        => throw new InvalidRequestException(
             "PDF-источники не поддерживают Extraction через builder — используйте распознавание (кнопка «Распознать»).");
 }

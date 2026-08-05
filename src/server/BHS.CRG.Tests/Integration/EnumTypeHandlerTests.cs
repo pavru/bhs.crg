@@ -41,7 +41,7 @@ public class EnumTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
         await Mediator(scope).Send(new CreateEnumTypeCommand("Статус", "DUPE1", null, Values("[]")));
 
         using var scope2 = fixture.Services.CreateScope();
-        await Assert.ThrowsAsync<ArgumentException>(() =>
+        await Assert.ThrowsAsync<InvalidRequestException>(() =>
             Mediator(scope2).Send(new CreateEnumTypeCommand("Другой статус", "dupe1", null, Values("[]"))));
     }
 
@@ -101,7 +101,7 @@ public class EnumTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLifeti
             new CreateDocumentTypeCommand("Акт", "ACT1", DocumentTypeKind.Document, null, schema));
 
         using var scope2 = fixture.Services.CreateScope();
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
             Mediator(scope2).Send(new DeleteEnumTypeCommand(enumType.Id)));
         Assert.Contains("Акт", ex.Message);
     }

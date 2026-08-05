@@ -155,7 +155,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         using var zip = new ZipArchive(zipStream, ZipArchiveMode.Read, leaveOpen: true);
 
         var manifestEntry = zip.GetEntry("manifest.json")
-            ?? throw new InvalidOperationException("Файл не является резервной копией BHS.CRG (отсутствует manifest.json).");
+            ?? throw new ConflictException("Файл не является резервной копией BHS.CRG (отсутствует manifest.json).");
 
         BackupManifest manifest;
         using (var ms = new MemoryStream())
@@ -164,7 +164,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 await es.CopyToAsync(ms, ct);
             ms.Position = 0;
             manifest = await JsonSerializer.DeserializeAsync<BackupManifest>(ms, JsonOptions, ct)
-                       ?? throw new InvalidOperationException("Не удалось прочитать manifest.json.");
+                       ?? throw new ConflictException("Не удалось прочитать manifest.json.");
         }
 
         string? conversionNotice = null;
@@ -173,7 +173,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         if (manifest.SchemaVersion > CurrentSchemaVersion)
             warnings.Add($"Резервная копия создана в более новой версии системы (schema v{manifest.SchemaVersion}). Часть данных могла быть пропущена.");
         else if (manifest.SchemaVersion < CurrentSchemaVersion)
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 $"Резервная копия создана в старом формате (schema v{manifest.SchemaVersion}) и несовместима с текущей версией " +
                 $"после унификации объектов (issue #84). Восстановление такой копии невозможно.");
 

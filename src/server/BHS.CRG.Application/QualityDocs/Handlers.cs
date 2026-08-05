@@ -33,7 +33,7 @@ public class QualityDocHandlers(
 
     public async Task<QualityDocument> Handle(UpdateQualityDocumentCommand cmd, CancellationToken ct)
     {
-        var doc = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException($"QualityDocument {cmd.Id} not found");
+        var doc = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException($"QualityDocument {cmd.Id} not found");
         // Проверяем ТОЛЬКО смену имени. Дубли уже есть в живой базе (ради них issue #588 и заведена),
         // и запрет на сохранение с НЕИЗМЕНЁННЫМ именем означал бы, что такой документ нельзя больше
         // ни отредактировать, ни распознать, пока его не переименуют.
@@ -69,14 +69,14 @@ public class QualityDocHandlers(
             && string.Equals(d.DisplayName.Trim(), name, StringComparison.OrdinalIgnoreCase));
 
         if (taken)
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 $"Документ качества с именем «{name}» в этой области уже есть. Имена должны различаться: "
                 + "иначе при выборе из списка непонятно, какой из документов берут.");
     }
 
     public async Task<QualityDocument> Handle(SetQualityDocScanCommand cmd, CancellationToken ct)
     {
-        var doc = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException($"QualityDocument {cmd.Id} not found");
+        var doc = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException($"QualityDocument {cmd.Id} not found");
         doc.SetScan(cmd.ScanBlobPath, cmd.ScanFileName, cmd.ScanMimeType);
         repo.Update(doc);
         await repo.SaveChangesAsync(ct);
@@ -85,7 +85,7 @@ public class QualityDocHandlers(
 
     public async Task Handle(DeleteQualityDocumentCommand cmd, CancellationToken ct)
     {
-        var doc = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException($"QualityDocument {cmd.Id} not found");
+        var doc = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException($"QualityDocument {cmd.Id} not found");
         // удаляем связи, ссылающиеся на документ
         var links = await linkRepo.FindAsync(l => l.QualityDocumentId == cmd.Id, ct);
         foreach (var l in links) linkRepo.Remove(l);
@@ -155,7 +155,7 @@ public class QualityDocHandlers(
 
     public async Task Handle(RemoveMaterialLinkCommand cmd, CancellationToken ct)
     {
-        var link = await linkRepo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var link = await linkRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         linkRepo.Remove(link);
         await linkRepo.SaveChangesAsync(ct);
     }

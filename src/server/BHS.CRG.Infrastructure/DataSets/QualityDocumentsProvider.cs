@@ -58,7 +58,7 @@ public class QualityDocumentsProvider(AppDbContext db) : ISystemDataProvider
         // Единственный вид отказа — ArgumentException: KeyNotFoundException из провайдера уронил бы
         // весь список наборов, а не одну строку в нём.
         if (scope != CatalogScope.System && scopeId is null)
-            throw new ArgumentException(
+            throw new InvalidRequestException(
                 $"Источнику «{Name}» нужен уровень с объектом: комплект, раздел или стройка.");
 
         var rows = await RowsAsync(scope, scopeId, ct);

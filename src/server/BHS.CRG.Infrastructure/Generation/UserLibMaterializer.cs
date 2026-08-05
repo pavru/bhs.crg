@@ -40,7 +40,7 @@ public static class UserLibMaterializer
             // другой (в том числе более старой) инсталляции. Запись за пределы дерева — не та
             // ошибка, которую стоит ловить один раз.
             if (!target.StartsWith(rootFull + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-                throw new InvalidOperationException(
+                throw new ConflictException(
                     $"Путь файла библиотеки «{file.Path}» выходит за пределы папки {UserLibPath.FolderName}/.");
 
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);

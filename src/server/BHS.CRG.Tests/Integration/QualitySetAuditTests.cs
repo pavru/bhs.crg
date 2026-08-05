@@ -129,7 +129,7 @@ public class QualitySetAuditTests(IntegrationTestFixture fx)
     /// </summary>
     [Fact]
     public async Task UnknownSet_IsRejected_NotReportedAsClean()
-        => await Assert.ThrowsAsync<KeyNotFoundException>(
+        => await Assert.ThrowsAsync<NotFoundException>(
             () => AuditAsync(Guid.NewGuid()));
 
     [Fact]

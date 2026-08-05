@@ -195,7 +195,7 @@ public class RecognitionProfileBindingTests(IntegrationTestFixture fixture) : IA
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
 
             // К группе листов привязывается профиль ТАБЛИЦЫ — штамп сюда не годится.
-            await Assert.ThrowsAsync<ArgumentException>(
+            await Assert.ThrowsAsync<InvalidRequestException>(
                 () => svc.SetDocumentProfileAsync(fileId, 0, stamp.Id, default));
         }
     }

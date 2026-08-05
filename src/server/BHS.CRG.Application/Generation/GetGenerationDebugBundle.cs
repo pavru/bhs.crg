@@ -59,7 +59,7 @@ public class GetGenerationDebugBundleHandler(
             template = await templateRepo.GetByIdAsync(instance.TemplateId.Value, ct);
         template ??= candidates.FirstOrDefault(t => t.IsDefault && t.IsActive)
             ?? candidates.FirstOrDefault(t => t.IsActive)
-            ?? throw new InvalidOperationException($"No active template for DocumentType {instance.CompositeTypeId}");
+            ?? throw new ConflictException($"No active template for DocumentType {instance.CompositeTypeId}");
 
         var allDocTypes = await docTypeRepo.GetAllAsync(ct);
         var view = DocumentView.From(instance);

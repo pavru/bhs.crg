@@ -95,7 +95,7 @@ public class ObservationHandlers(
 
     public async Task<AgentObservation> Handle(ReviewObservationCommand cmd, CancellationToken ct)
     {
-        var observation = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var observation = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         observation.Review(cmd.Status, cmd.Note, cmd.ReviewedBy);
         repo.Update(observation);
         await repo.SaveChangesAsync(ct);
@@ -115,7 +115,7 @@ public class ObservationHandlers(
 
     public async Task Handle(DeleteObservationCommand cmd, CancellationToken ct)
     {
-        var observation = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var observation = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         repo.Remove(observation);
         await repo.SaveChangesAsync(ct);
     }

@@ -37,7 +37,7 @@ public class AliasHandlers(IRepository<ReconciliationAlias> repo) :
     public async Task<ReconciliationAlias> Handle(ProposeAliasCommand cmd, CancellationToken ct)
     {
         if (string.Equals(cmd.AliasKey, cmd.CanonicalKey, StringComparison.Ordinal))
-            throw new InvalidOperationException("Позицию нельзя связать саму с собой.");
+            throw new ConflictException("Позицию нельзя связать саму с собой.");
 
         // Повторное предложение по тому же варианту — правка существующего: два разных канона у одного
         // ключа сделали бы результат прогона зависящим от порядка выборки.
@@ -64,7 +64,7 @@ public class AliasHandlers(IRepository<ReconciliationAlias> repo) :
 
     public async Task<ReconciliationAlias> Handle(ReviewAliasCommand cmd, CancellationToken ct)
     {
-        var alias = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var alias = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         alias.Review(cmd.Status, cmd.Note, cmd.By);
         repo.Update(alias);
         await repo.SaveChangesAsync(ct);
@@ -73,7 +73,7 @@ public class AliasHandlers(IRepository<ReconciliationAlias> repo) :
 
     public async Task Handle(DeleteAliasCommand cmd, CancellationToken ct)
     {
-        var alias = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new KeyNotFoundException();
+        var alias = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         repo.Remove(alias);
         await repo.SaveChangesAsync(ct);
     }

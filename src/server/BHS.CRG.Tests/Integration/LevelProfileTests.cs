@@ -96,7 +96,7 @@ public class LevelProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var profType = await CompositeTypeAsync("Профиль стройки", "{'tags':['profile.construction'],'fields':[]}");
         using var scope = fixture.Services.CreateScope();
         var m = scope.ServiceProvider.GetRequiredService<IMediator>();
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+        var ex = await Assert.ThrowsAsync<ConflictException>(
             () => m.Send(new DeleteDocumentTypeCommand(profType)));
         Assert.Contains("профиль", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -111,7 +111,7 @@ public class LevelProfileTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var list = await m.Send(new ListCommonDataEntriesQuery(CatalogScope.Construction, cId, null)); // ensure
         var profileId = list.First(o => o.CompositeTypeId == profType).Id;
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+        var ex = await Assert.ThrowsAsync<ConflictException>(
             () => m.Send(new DeleteCommonDataEntryCommand(profileId)));
         Assert.Contains("профиль", ex.Message, StringComparison.OrdinalIgnoreCase);
     }

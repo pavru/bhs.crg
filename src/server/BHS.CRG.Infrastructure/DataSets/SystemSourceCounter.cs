@@ -77,7 +77,10 @@ public class SystemSourceCounter(SystemDataProviderRegistry providers)
             var provided = await provider.ProvideAsync(marker, file.Scope, file.ScopeId, ct);
             return new SystemSourceState(provided.Rows.Count, provided.Warning, provided.Columns);
         }
-        catch (ArgumentException)
+        // Ловим НАШ отказ провайдера («источник доступен только на уровне комплекта» и подобные) —
+        // для счётчика это просто «состояния нет». Чужое исключение сюда попадать не должно: оно
+        // означает дефект, и глотать его значит потерять единственный след.
+        catch (DomainException)
         {
             return null;
         }

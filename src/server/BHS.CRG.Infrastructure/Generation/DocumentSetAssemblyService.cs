@@ -37,7 +37,7 @@ public class DocumentSetAssemblyService(
     public async Task AssembleAsync(Guid setId, IReadOnlyList<Guid>? subsetIds, Guid userId,
         CancellationToken ct, Func<int, int, Task>? reportProgress = null)
     {
-        var set = await setRepo.GetByIdAsync(setId, ct) ?? throw new KeyNotFoundException("Комплект не найден");
+        var set = await setRepo.GetByIdAsync(setId, ct) ?? throw new NotFoundException("Комплект не найден");
 
         var included = (await objRepo.GetSetDocumentsAsync(setId, tracked: false, ct))
             .OrderBy(i => i.SortOrder).ToList();
@@ -47,7 +47,7 @@ public class DocumentSetAssemblyService(
             included = included.Where(i => wanted.Contains(i.Id)).ToList();
         }
         if (included.Count == 0)
-            throw new InvalidOperationException("В комплекте нет документов для сборки.");
+            throw new ConflictException("В комплекте нет документов для сборки.");
 
         var docTypes = (await docTypeRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
         string Name(DomainObject i) =>
@@ -78,7 +78,7 @@ public class DocumentSetAssemblyService(
         }
 
         if (failures.Count > 0)
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 "Сборка прервана — не готовы документы:\n" + string.Join("\n", failures.Select(f => " • " + f)));
 
         // Проход 1.5 (issue #580) — документы, читающие данные системы (реестр комплекта и подобные),
@@ -108,12 +108,12 @@ public class DocumentSetAssemblyService(
         }
 
         if (failures.Count > 0)
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 "Сборка прервана — не удалось обновить документы по данным системы:\n"
                 + string.Join("\n", failures.Select(f => " • " + f)));
 
         // Проход 2 — перечитываем документы комплекта (свежие файлы) и склеиваем PDF по порядку.
-        set = await setRepo.GetByIdAsync(setId, ct) ?? throw new KeyNotFoundException("Комплект не найден");
+        set = await setRepo.GetByIdAsync(setId, ct) ?? throw new NotFoundException("Комплект не найден");
         var ordered = (await objRepo.GetSetDocumentsAsync(setId, tracked: false, ct))
             .Where(i => includedIdSet.Contains(i.Id)).OrderBy(i => i.SortOrder);
 
@@ -124,7 +124,7 @@ public class DocumentSetAssemblyService(
                 pdfBytes.Add(await DownloadAsync(file.BlobPath, ct));
         }
         if (pdfBytes.Count == 0)
-            throw new InvalidOperationException("Не удалось собрать: у выбранных документов нет PDF.");
+            throw new ConflictException("Не удалось собрать: у выбранных документов нет PDF.");
 
         var merged = PdfMerger.Merge(pdfBytes);
 

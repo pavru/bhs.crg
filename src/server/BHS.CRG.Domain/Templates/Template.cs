@@ -73,7 +73,7 @@ public class Template : Entity
     public void UpdateContent(string content)
     {
         if (!IsActive)
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 $"Нельзя править на месте неактивную версию v{Version}: сохраните как новую версию.");
         Content = content;
         TouchUpdatedAt();
