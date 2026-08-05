@@ -99,10 +99,41 @@ public class XmlDataSetParser : IDataSetParser
         return new DataSetParseResult(columns, rows);
     }
 
+    /// <summary>
+    /// Разбор XML набора данных с явно закрытым DTD.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Внешние сущности (чтение файлов сервера, обращения по сети из разбора) и раньше не работали:
+    /// <c>XmlResolver</c> в .NET по умолчанию <c>null</c>. Но защита держалась на умолчании
+    /// фреймворка — то есть на том, что никто не поменяет умолчание и не подставит свой резолвер.
+    /// Ставим явно.
+    /// </para>
+    /// <para>
+    /// Раскрытие сущностей («billion laughs») умолчанием НЕ закрывалось: внутренние сущности
+    /// раскрывались без ограничения, и файл в несколько килобайт разворачивался в гигабайты. Против
+    /// этого стоит <c>MaxCharactersFromEntities</c> — потолок на суммарный объём раскрытия.
+    /// </para>
+    /// <para>
+    /// Выбран <c>Parse</c> с потолком, а не <c>Prohibit</c> из плана и не <c>Ignore</c>. Оба
+    /// последних отказывают ЗАКОННЫМ файлам: <c>Prohibit</c> — любому, где DOCTYPE просто объявлен;
+    /// <c>Ignore</c> мягче лишь на вид — он пропускает объявления, и файл, который сущность объявил
+    /// И ИСПОЛЬЗУЕТ, падает с «ссылка на необъявленную сущность». Такие выгрузки встречаются и
+    /// ничего дурного не делают. Потолок же ограничивает ровно то, что опасно, — объём раскрытия, —
+    /// и не трогает объём безобидный.
+    /// </para>
+    /// </remarks>
     private static XmlDocument LoadXml(byte[] bytes)
     {
-        var doc = new XmlDocument();
-        doc.Load(new MemoryStream(bytes));
+        var settings = new XmlReaderSettings
+        {
+            DtdProcessing = DtdProcessing.Parse,
+            XmlResolver = null,   // внешние сущности и внешний DTD не подгружаются
+            MaxCharactersFromEntities = 1024 * 1024,
+        };
+        using var reader = XmlReader.Create(new MemoryStream(bytes), settings);
+        var doc = new XmlDocument { XmlResolver = null };
+        doc.Load(reader);
         return doc;
     }
 

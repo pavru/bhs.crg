@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
-using Jint;
+using BHS.CRG.Infrastructure.Scripting;
+using Jint;   // расширения JsValue: IsNull/IsUndefined
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
@@ -42,6 +43,9 @@ public static class DataSetComputedColumnExecutor
 
         if (defs == null || defs.Length == 0) return rows;
 
+        // Сколько раз выражение может упереться в предел ресурсов, прежде чем колонку бросают целиком.
+        const int MaxResourceFailuresPerColumn = 5;
+
         foreach (var def in defs)
         {
             if (string.IsNullOrWhiteSpace(def.Alias) || string.IsNullOrWhiteSpace(def.Expr))
@@ -53,15 +57,31 @@ public static class DataSetComputedColumnExecutor
             // так предыдущий alias виден следующему выражению и по позиции тоже.
             var columnOrder = ColumnOrder(rows);
 
+            // Пределы песочницы действуют на ОДНО вычисление, а строк бывают сотни тысяч: выражение
+            // с бесконечным циклом упирается в предел на каждой строке по отдельности и продолжает
+            // на следующей. Отказ при этом проглатывается (catch ниже кладёт null) — то есть один
+            // сохранённый источник жёг бы процессор часами, молча и после ухода клиента.
+            //
+            // Считаем ИМЕННО упирания в предел, а не любые ошибки: выражение, честно падающее на
+            // отдельных строках с негодными данными, — обычное дело, и обрывать из-за него всю
+            // колонку нельзя. Исчерпание же ресурса на нескольких строках подряд означает, что
+            // выражение негодно само по себе, и остальные строки его не исправят.
+            var resourceFailures = 0;
+            var abandoned = false;
+
             rows = rows.Select(row =>
             {
                 var dict = new Dictionary<string, string?>(row);
+                if (abandoned)
+                {
+                    dict[def.Alias] = null;
+                    return (IReadOnlyDictionary<string, string?>)dict;
+                }
 
                 try
                 {
-                    var engine = new Engine(cfg => cfg
-                        .TimeoutInterval(TimeSpan.FromSeconds(1))
-                        .LimitRecursion(32));
+                    // Ограничения песочницы — общие с вычисляемыми полями документов (JintSandbox).
+                    var engine = JintSandbox.Create();
 
                     // Помощники — ПЕРЕД колонками, чтобы колонка с именем «get» или «cols» затеняла
                     // их, а не наоборот. Порядок тут не косметика: до #539 такая колонка была
@@ -84,9 +104,11 @@ public static class DataSetComputedColumnExecutor
                         ? null
                         : result.ToString();
                 }
-                catch
+                catch (Exception ex)
                 {
                     dict[def.Alias] = null;
+                    if (JintSandbox.IsResourceLimit(ex) && ++resourceFailures >= MaxResourceFailuresPerColumn)
+                        abandoned = true;
                 }
 
                 return (IReadOnlyDictionary<string, string?>)dict;

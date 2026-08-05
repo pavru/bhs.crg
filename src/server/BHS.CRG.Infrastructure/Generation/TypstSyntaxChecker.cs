@@ -44,12 +44,9 @@ public class TypstSyntaxChecker : ITypstSyntaxChecker
             foreach (var a in new[] { "compile", "check.typ", "out.pdf", "--diagnostic-format", "short", "--root", tmp })
                 psi.ArgumentList.Add(a);
 
-            using var process = Process.Start(psi)
-                ?? throw new InvalidOperationException("Не удалось запустить Typst CLI");
-
-            var stderrTask = process.StandardError.ReadToEndAsync(ct);
-            await process.WaitForExitAsync(ct);
-            var stderr = await stderrTask;
+            // Проверка синтаксиса идёт по нажатию в редакторе — срок короче генеративного:
+            // блок, который не разбирается за десять секунд, всё равно не годится в шаблон.
+            var (_, stderr) = await TypstProcess.RunAsync(psi, ct, TimeSpan.FromSeconds(10));
 
             // Разбор общий с проверкой библиотеки (issue #473); отбор по имени файла — здесь, а не в
             // самом шаблоне: координаты этого контракта заявлены ВНУТРИ typeblocks.typ, и ошибка из

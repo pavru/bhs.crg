@@ -88,12 +88,8 @@ public class UserLibChecker : IUserLibChecker
             foreach (var a in new[] { "compile", UserLibAnalysis.ProbeName, "out.pdf", "--diagnostic-format", "short", "--root", tmp })
                 psi.ArgumentList.Add(a);
 
-            using var process = Process.Start(psi)
-                ?? throw new InvalidOperationException("Не удалось запустить Typst CLI");
-
-            var stderrTask = process.StandardError.ReadToEndAsync(ct);
-            await process.WaitForExitAsync(ct);
-            var stderr = await stderrTask;
+            // Проверка библиотеки — тоже по нажатию в редакторе, срок как у проверки блоков.
+            var (_, stderr) = await TypstProcess.RunAsync(psi, ct, TimeSpan.FromSeconds(10));
 
             // Помечаем, входит ли файл в сборку: ошибка в подключённом останавливает генерацию ВСЕХ
             // документов, а в неподключённом — только шаблонов, импортирующих его напрямую. Сказать

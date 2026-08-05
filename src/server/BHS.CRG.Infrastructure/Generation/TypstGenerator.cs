@@ -127,17 +127,9 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
                 psi.ArgumentList.Add(fontsDirForCli);
             }
 
-            using var process = System.Diagnostics.Process.Start(psi)
-                ?? throw new InvalidOperationException("Failed to start Typst");
-
-            var stderrTask = process.StandardError.ReadToEndAsync(ct);
-            await process.WaitForExitAsync(ct);
-
-            if (process.ExitCode != 0)
-            {
-                var err = await stderrTask;
-                throw new InvalidOperationException($"Typst compilation failed (exit {process.ExitCode}):\n{err}");
-            }
+            var (exitCode, err) = await TypstProcess.RunAsync(psi, ct);
+            if (exitCode != 0)
+                throw new InvalidOperationException($"Typst compilation failed (exit {exitCode}):\n{err}");
 
             var outputPath = Path.Combine(tmpDir, "output.pdf");
             if (!File.Exists(outputPath))
