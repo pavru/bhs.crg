@@ -43,9 +43,19 @@ public static class TypstProcess
 
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException("Не удалось запустить Typst");
+
+        // Читать надо ОБА потока и начинать до ожидания. Буфер канала невелик: процесс, написавший
+        // в невычитываемый stdout больше буфера, блокируется на записи и не завершается никогда —
+        // до этой правки такое висло бесконечно, а с одним лишь сроком выглядело бы как «шаблон
+        // зациклился», хотя он просто разговорчивый.
+        //
+        // Читаем БЕЗ токена: чтение закончится само, когда процесс умрёт и канал закроется, — а
+        // умереть ему поможет Kill в finally. С токеном отмена рвала бы чтение, оставляя задачу с
+        // необработанным исключением, и до текста stderr мы бы уже не добрались.
+        var stdOutTask = process.StandardOutput.ReadToEndAsync();
+        var stdErrTask = process.StandardError.ReadToEndAsync();
         try
         {
-            var stdErrTask = process.StandardError.ReadToEndAsync(cts.Token);
             await process.WaitForExitAsync(cts.Token);
             return (process.ExitCode, await stdErrTask);
         }
@@ -69,8 +79,17 @@ public static class TypstProcess
                 }
             }
             catch { /* процесс уже умер сам — это и требовалось */ }
+
+            // Задачи чтения могли не завершиться (или завершиться отказом) — наблюдаем их, чтобы
+            // необработанное исключение не всплыло позже в финализаторе, уже без всякой связи с
+            // этим запуском.
+            Observe(stdOutTask);
+            Observe(stdErrTask);
         }
     }
+
+    private static void Observe(Task task) =>
+        _ = task.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
 }
 
 /// <summary>Вёрстка не уложилась в отведённый срок и была остановлена.</summary>

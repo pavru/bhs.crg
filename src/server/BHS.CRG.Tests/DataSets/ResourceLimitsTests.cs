@@ -74,6 +74,23 @@ public class ResourceLimitsTests
         Assert.Contains("bomb.csv", ex.Message);
     }
 
+    /// <summary>
+    /// Пределы должны СКЛАДЫВАТЬСЯ: две тысячи записей по потолку каждая — это сотня гигабайт
+    /// распаковки в одном запросе. Памяти это не съедает (запись за раз одна), но поток занят
+    /// часами, а входной архив при хорошей сжимаемости весит единицы мегабайт.
+    /// </summary>
+    [Fact]
+    public async Task Zip_TotalUnpackedSize_IsCapped()
+    {
+        // Двенадцать записей по 60 МБ: каждая по отдельности в потолок укладывается, вместе — нет.
+        var zip = BuildZip([.. Enumerable.Range(0, 12).Select(i => ($"f{i}.csv", 60 * 1024 * 1024))]);
+        var parser = new ZipDataSetParser(new CsvOnlyServices());
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => parser.DetectSourcesAsync(zip, CancellationToken.None));
+        Assert.Contains("Суммарный размер", ex.Message);
+    }
+
     [Fact]
     public async Task Zip_TooManyEntries_IsRefused()
     {
@@ -107,6 +124,64 @@ public class ResourceLimitsTests
         public object? GetService(Type serviceType) => null;
     }
 
+    /// <summary>
+    /// Провайдер с настоящей фабрикой парсеров — нужен там, где отказ ожидается НЕ на первой записи:
+    /// до неё архив должен успеть разобрать предыдущие.
+    /// </summary>
+    private sealed class CsvOnlyServices : IServiceProvider
+    {
+        private readonly DataSetParserFactory _factory = new([new CsvDataSetParser()]);
+        public object? GetService(Type serviceType) =>
+            serviceType == typeof(DataSetParserFactory) ? _factory : null;
+    }
+
+    // ── Вычисляемые колонки ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Пределы песочницы действуют на ОДНО вычисление, а строк бывают сотни тысяч. Выражение с
+    /// бесконечным циклом должно бросаться целиком после нескольких упираний в предел, а не
+    /// упираться на каждой строке заново: отказ проглатывается, и такой источник жёг бы процессор
+    /// часами молча.
+    /// </summary>
+    [Fact]
+    public void ComputedColumn_LoopingExpression_IsAbandonedAfterFewRows()
+    {
+        var rows = Enumerable.Range(0, 400)
+            .Select(i => (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?> { ["n"] = i.ToString() })
+            .ToList();
+
+        var started = DateTime.UtcNow;
+        var result = DataSetComputedColumnExecutor.Apply("[{\"alias\":\"x\",\"expr\":\"var i=0; while(true){i++;} i\"}]", rows);
+        var elapsed = DateTime.UtcNow - started;
+
+        Assert.Equal(400, result.Count);
+        Assert.All(result, r => Assert.Null(r["x"]));
+        // Четыреста строк по пределу инструкций заняли бы десятки секунд; пять — доли секунды.
+        Assert.True(elapsed < TimeSpan.FromSeconds(10), $"колонка считалась {elapsed.TotalSeconds:0.0} с — похоже, не брошена");
+    }
+
+    /// <summary>
+    /// А вот выражение, честно падающее на отдельных строках с негодными данными, бросать нельзя:
+    /// это обычное дело, и остальные строки считаются как считались.
+    /// </summary>
+    [Fact]
+    public void ComputedColumn_FailingOnSomeRows_KeepsComputingOthers()
+    {
+        var rows = Enumerable.Range(0, 50)
+            .Select(i => (IReadOnlyDictionary<string, string?>)new Dictionary<string, string?>
+            {
+                ["v"] = i % 2 == 0 ? null : i.ToString(),
+            })
+            .ToList();
+
+        // На чётных строках get('v') вернёт пустую строку → обращение к .нет.нет бросит TypeError.
+        var result = DataSetComputedColumnExecutor.Apply(
+            "[{\"alias\":\"x\",\"expr\":\"get('v').length > 0 ? get('v') : null.boom\"}]", rows);
+
+        Assert.Equal(50, result.Count);
+        Assert.Contains(result, r => r["x"] is not null);   // нечётные посчитались
+    }
+
     // ── XML ─────────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -123,7 +198,8 @@ public class ResourceLimitsTests
             .Append("<!ENTITY c \"&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;\">")
             .Append("<!ENTITY d \"&c;&c;&c;&c;&c;&c;&c;&c;&c;&c;\">")
             .Append("<!ENTITY e \"&d;&d;&d;&d;&d;&d;&d;&d;&d;&d;\">")
-            .Append("]><r><row><v>&e;</v></row></r>")
+            .Append("<!ENTITY f \"&e;&e;&e;&e;&e;&e;&e;&e;&e;&e;\">")   // 10 млн символов из ~400 байт
+            .Append("]><r><row><v>&f;</v></row></r>")
             .ToString();
 
         var parser = new XmlDataSetParser();
@@ -146,6 +222,26 @@ public class ResourceLimitsTests
 
         Assert.Single(result.Rows);
         Assert.Equal("7", result.Rows[0]["v"]);
+    }
+
+    /// <summary>
+    /// Файл, который сущность объявляет И ИСПОЛЬЗУЕТ, но безобидного размера, разбираться обязан.
+    ///
+    /// Это ровно та граница, на которой запрет DTD целиком (Prohibit) и пропуск объявлений (Ignore)
+    /// одинаково отказывают законному файлу: при Ignore он падает с «ссылка на необъявленную
+    /// сущность». Потолок на объём раскрытия таких файлов не трогает.
+    /// </summary>
+    [Fact]
+    public async Task Xml_SmallInternalEntity_IsStillParsed()
+    {
+        const string xml = "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY org \"ООО Ромашка\">]>" +
+                           "<r><row><v>&org;</v></row></r>";
+        var parser = new XmlDataSetParser();
+
+        var result = await parser.ParseAsync(Encoding.UTF8.GetBytes(xml), "/r/row", null, CancellationToken.None);
+
+        Assert.Single(result.Rows);
+        Assert.Equal("ООО Ромашка", result.Rows[0]["v"]);
     }
 
     // ── Процесс Typst ───────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 using Jint;
+using Jint.Runtime;
 
 namespace BHS.CRG.Infrastructure.Scripting;
 
@@ -45,4 +46,18 @@ public static class JintSandbox
         .LimitRecursion(RecursionLimit)
         .LimitMemory(MemoryLimitBytes)
         .MaxStatements(StatementLimit));
+
+    /// <summary>
+    /// Выражение упёрлось в предел ресурсов (а не просто ошиблось на конкретных данных)?
+    ///
+    /// Различать это нужно там, где выражение исполняется на КАЖДОЙ строке: ошибка на негодных
+    /// данных — обычное дело и повод положить null в одну ячейку, а исчерпание ресурса означает,
+    /// что выражение негодно само по себе, и остальные строки его не исправят.
+    /// </summary>
+    public static bool IsResourceLimit(Exception ex) => ex
+        is MemoryLimitExceededException
+        or StatementsCountOverflowException
+        or RecursionDepthOverflowException
+        or ExecutionCanceledException
+        or TimeoutException;
 }

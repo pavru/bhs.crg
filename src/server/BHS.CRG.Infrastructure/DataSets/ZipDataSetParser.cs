@@ -22,6 +22,7 @@ public class ZipDataSetParser(IServiceProvider services) : IDataSetParser
     {
         using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read, leaveOpen: false);
         EnsureEntryCountAllowed(zip);
+        var budget = new UnpackBudget(MaxTotalBytes);
         var sources = new List<DataSetSourceInfo>();
 
         foreach (var entry in zip.Entries.OrderBy(e => e.FullName))
@@ -32,7 +33,7 @@ public class ZipDataSetParser(IServiceProvider services) : IDataSetParser
             if (format is null) continue;
 
             ct.ThrowIfCancellationRequested();
-            var entryBytes = ReadEntry(entry);
+            var entryBytes = ReadEntry(entry, budget);
             var parser = Factory.GetParser(format.Value);
             var entrySources = await parser.DetectSourcesAsync(entryBytes, ct);
 
@@ -57,8 +58,11 @@ public class ZipDataSetParser(IServiceProvider services) : IDataSetParser
 
     public async Task<DataSetParseResult> ParseAsync(byte[] bytes, string sheetOrPath, string? columnExpressions, CancellationToken ct)
     {
+        // Предел на ЧИСЛО записей здесь намеренно не проверяется, в отличие от DetectSourcesAsync:
+        // читаем ровно одну запись, а архивы, загруженные до появления предела, уже привязаны к
+        // источникам — отказ на этом пути означал бы, что рабочий набор данных ломается обновлением
+        // и починить его нечем, кроме перезаливки.
         using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read, leaveOpen: false);
-        EnsureEntryCountAllowed(zip);
 
         string entryPath;
         string? innerSheet;
@@ -81,7 +85,7 @@ public class ZipDataSetParser(IServiceProvider services) : IDataSetParser
         var format = DetectEntryFormat(entryPath)
             ?? throw new InvalidOperationException($"Неизвестный формат файла в архиве: {entryPath}");
 
-        var entryBytes = ReadEntry(entry);
+        var entryBytes = ReadEntry(entry, new UnpackBudget(MaxEntryBytes));
         var parser = Factory.GetParser(format);
 
         // Для форматов с единственным источником innerSheet не используется.
@@ -90,11 +94,20 @@ public class ZipDataSetParser(IServiceProvider services) : IDataSetParser
     }
 
     /// <summary>
-    /// Потолок на распакованный размер ОДНОЙ записи архива. Отдельные файлы наборов данных
-    /// принимаются до 500 МБ, но внутри архива запись читается целиком в память, и держать такой же
-    /// потолок здесь значит отдать процесс первому же вложенному файлу.
+    /// Потолок на распакованный размер ОДНОЙ записи. Отдельным файлом набор данных принимается до
+    /// <c>UploadLimits.DataSetFile</c> = 50 МБ; внутри архива запись читается целиком в память, так
+    /// что потолок держим того же порядка с запасом, а не «сколько не жалко».
     /// </summary>
-    private const long MaxEntryBytes = 200L * 1024 * 1024;
+    private const long MaxEntryBytes = 64L * 1024 * 1024;
+
+    /// <summary>
+    /// Потолок на СУММАРНЫЙ распакованный объём за один разбор архива.
+    ///
+    /// Без него пределы не складывались: две тысячи записей по 64 МБ — это 128 ГБ распаковки в одном
+    /// запросе. Памяти это не съедает (запись за раз одна), но поток занят часами, а входной архив
+    /// при хорошей сжимаемости весит единицы мегабайт.
+    /// </summary>
+    private const long MaxTotalBytes = 512L * 1024 * 1024;
 
     /// <summary>
     /// Потолок на число записей: перебор в <c>DetectSourcesAsync</c> идёт по всем подряд, а архив из
@@ -102,24 +115,31 @@ public class ZipDataSetParser(IServiceProvider services) : IDataSetParser
     /// </summary>
     private const int MaxEntries = 2_000;
 
+    /// <summary>Начальный буфер под запись. Дальше <see cref="MemoryStream"/> растёт сам.</summary>
+    private const int InitialBufferBytes = 256 * 1024;
+
+    /// <summary>Остаток разрешённого объёма распаковки на весь разбор архива.</summary>
+    private sealed class UnpackBudget(long remaining)
+    {
+        public long Remaining { get; set; } = remaining;
+    }
+
     /// <summary>
-    /// Читает запись архива с потолком на распакованный размер.
+    /// Читает запись архива с потолком на распакованный размер и с общим бюджетом на архив.
     /// </summary>
     /// <remarks>
-    /// Заявленному в заголовке размеру (<c>entry.Length</c>) верить нельзя: он берётся из самого
-    /// архива, то есть из пользовательского файла. Прежний код выделял по нему буфер сразу — то
-    /// есть архив на сотню килобайт с заявленными гигабайтами укладывал процесс ещё до чтения.
-    /// Читаем потоком со счётчиком, буфер растёт по мере надобности.
+    /// Заявленному в заголовке размеру (<c>entry.Length</c>) верить нельзя ВООБЩЕ: он берётся из
+    /// самого архива, то есть из пользовательского файла. Прежний код выделял по нему буфер сразу —
+    /// архив на сотню килобайт с заявленными гигабайтами укладывал процесс ещё до чтения. Начальный
+    /// буфер поэтому фиксированный и маленький: подсказка из заголовка — это та же подсказка от
+    /// нападающего, только ограниченная сверху.
     ///
     /// Zip slip тут не при чём: на диск ничего не пишется, распаковка идёт в память.
     /// </remarks>
-    private static byte[] ReadEntry(ZipArchiveEntry entry)
+    private static byte[] ReadEntry(ZipArchiveEntry entry, UnpackBudget budget)
     {
-        // Заявленный размер используем только как ПОДСКАЗКУ и только когда он правдоподобен.
-        var hint = entry.Length is > 0 and <= MaxEntryBytes ? (int)entry.Length : 0;
-
         using var stream = entry.Open();
-        using var ms = new MemoryStream(hint);
+        using var ms = new MemoryStream(InitialBufferBytes);
         var buffer = new byte[81920];
         long total = 0;
         int read;
@@ -130,8 +150,13 @@ public class ZipDataSetParser(IServiceProvider services) : IDataSetParser
                 throw new ArgumentException(
                     $"Файл «{entry.FullName}» в архиве слишком велик в распакованном виде " +
                     $"(предел {MaxEntryBytes / 1024 / 1024} МБ). Загрузите его отдельным файлом.");
+            if (total > budget.Remaining)
+                throw new ArgumentException(
+                    $"Суммарный размер файлов в архиве превышает предел " +
+                    $"{MaxTotalBytes / 1024 / 1024} МБ в распакованном виде.");
             ms.Write(buffer, 0, read);
         }
+        budget.Remaining -= total;
         return ms.ToArray();
     }
 
