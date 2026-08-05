@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router';
 import { useAuth } from '@/shared/hooks/useAuth';
 
 export function ProtectedRoute() {
