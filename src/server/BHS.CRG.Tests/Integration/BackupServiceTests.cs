@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Reflection;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
@@ -335,6 +336,129 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
             var rejected = Assert.Single(restored, a => a.Status == AliasStatus.Rejected);
             Assert.Equal("разные марки", rejected.Note);
         }
+    }
+
+    /// <summary>
+    /// Запись общих данных, привязанная к комплекту, в чистой системе повисает: комплекты в копию
+    /// не входят. Запись при этом СОХРАНЯЕМ — терять пользовательские данные хуже, — но отчёт обязан
+    /// об этом сказать: иначе он называет успешно восстановленным то, чего в интерфейсе не видно.
+    /// </summary>
+    [Fact]
+    public async Task Restore_CommonDataBoundToMissingSet_IsKeptButReported()
+    {
+        var compositeTypeId = Guid.NewGuid();
+        var absentSetId = Guid.NewGuid();
+        var entryId = Guid.NewGuid();
+
+        var manifest = new BackupManifest(
+            SchemaVersion: BackupService.CurrentSchemaVersion,
+            AppVersion: BackupService.CurrentAppVersion,
+            CreatedAt: DateTimeOffset.UtcNow,
+            DocumentTypes:
+            [
+                new BackupDocumentType(compositeTypeId, "Составной", $"c-{Guid.NewGuid():N}", "Composite", null, false,
+                    JsonDocument.Parse("""{"fields":[]}""").RootElement.Clone(),
+                    JsonDocument.Parse("{}").RootElement.Clone(),
+                    DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
+            ],
+            Templates: [],
+            CatalogEntities: [],
+            CommonDataEntries:
+            [
+                new BackupCommonDataEntry(entryId, "Запись комплекта", compositeTypeId,
+                    JsonDocument.Parse("{}").RootElement.Clone(),
+                    "Set", absentSetId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, []),
+            ]);
+
+        var report = await ImportManifestAsync(manifest);
+
+        Assert.True(report.Success);
+        Assert.Equal(1, report.CommonDataEntriesCreated);   // запись НЕ потеряна
+        Assert.Contains(report.Warnings, w => w.Contains("которых в этой системе нет"));
+
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.NotNull(await db.DomainObjects.AsNoTracking().FirstOrDefaultAsync(o => o.Id == entryId));
+    }
+
+    /// <summary>
+    /// Ссылка на документ протухает молча: резолвер при генерации вернёт собственные данные объекта,
+    /// без ошибки и без унаследованных полей. Дефект проявился бы в неверном PDF, далеко от
+    /// восстановления, — поэтому о нём говорят здесь.
+    /// </summary>
+    [Fact]
+    public async Task Restore_CommonDataReferencingDocument_IsReported()
+    {
+        var compositeTypeId = Guid.NewGuid();
+
+        var manifest = new BackupManifest(
+            SchemaVersion: BackupService.CurrentSchemaVersion,
+            AppVersion: BackupService.CurrentAppVersion,
+            CreatedAt: DateTimeOffset.UtcNow,
+            DocumentTypes:
+            [
+                new BackupDocumentType(compositeTypeId, "Составной", $"c-{Guid.NewGuid():N}", "Composite", null, false,
+                    JsonDocument.Parse("""{"fields":[]}""").RootElement.Clone(),
+                    JsonDocument.Parse("{}").RootElement.Clone(),
+                    DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
+            ],
+            Templates: [],
+            CatalogEntities: [],
+            CommonDataEntries:
+            [
+                // Наследование от документа комплекта.
+                new BackupCommonDataEntry(Guid.NewGuid(), "С наследованием", compositeTypeId,
+                    JsonDocument.Parse("{\"_baseRef\":{\"kind\":\"instance\",\"id\":\"" + Guid.NewGuid() + "\"}}").RootElement.Clone(),
+                    "System", null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, []),
+                // Протягивание поля из реквизитов документа — на глубине, внутри массива.
+                new BackupCommonDataEntry(Guid.NewGuid(), "Со ссылкой в массиве", compositeTypeId,
+                    JsonDocument.Parse("""{"строки":[{"поле":{"$ref":"document","instanceId":"x","fieldKey":"Номер"}}]}""").RootElement.Clone(),
+                    "System", null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, []),
+                // А эта ни на что не ссылается — в счёт попасть не должна.
+                new BackupCommonDataEntry(Guid.NewGuid(), "Обычная", compositeTypeId,
+                    JsonDocument.Parse("""{"Наименование":"Кабель"}""").RootElement.Clone(),
+                    "System", null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, []),
+            ]);
+
+        var report = await ImportManifestAsync(manifest);
+
+        Assert.True(report.Success);
+        Assert.Contains(report.Warnings, w => w.Contains("2 записей ссылаются на документы"));
+    }
+
+    /// <summary>
+    /// Версия в манифесте — то, ради чего поле существует: «какой сборкой снята копия». Константа в
+    /// коде делала все копии одинаковыми независимо от сборки.
+    /// </summary>
+    [Fact]
+    public void Manifest_AppVersion_MatchesAssemblyVersion()
+    {
+        // Сверяем с ДРУГОЙ сборкой решения: версия у всех проектов общая (Directory.Build.props),
+        // поэтому совпадение здесь означает «взято из сборки», а не «сравнили значение с собой».
+        var solutionVersion = typeof(BackupManifest).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
+            .InformationalVersion.Split('+', 2)[0];
+
+        Assert.Equal(solutionVersion, BackupService.CurrentAppVersion);
+        Assert.NotEqual("1.0.0", BackupService.CurrentAppVersion);
+    }
+
+    /// <summary>Собирает zip из манифеста и восстанавливает — без блобов.</summary>
+    private async Task<RestoreReport> ImportManifestAsync(BackupManifest manifest)
+    {
+        await fixture.ResetDatabaseAsync();
+
+        using var ms = new MemoryStream();
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var entry = zip.CreateEntry("manifest.json");
+            await using var w = entry.Open();
+            await JsonSerializer.SerializeAsync(w, manifest, new JsonSerializerOptions { WriteIndented = true });
+        }
+        ms.Position = 0;
+
+        using var scope = fixture.Services.CreateScope();
+        return await Backup(scope).ImportAsync(ms);
     }
 
     /// <summary>
