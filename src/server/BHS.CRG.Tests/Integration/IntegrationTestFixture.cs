@@ -1,12 +1,14 @@
 ﻿using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Infrastructure.Storage;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -48,8 +50,17 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
+            // Подменяем только САМО хранилище, не обёртку над ним (issue #672). Если зарегистрировать
+            // подделку как IBlobStorage напрямую, тесты пойдут мимо реестра — то есть мимо проверки
+            // выдачи, ради которой он заведён, — и весь набор будет зелёным на конвейере, которого в
+            // бою нет. Тем, кому нужна сама подделка (проверить, что блоб удалён), она доступна по
+            // своему типу.
             services.RemoveAll<IBlobStorage>();
-            services.AddSingleton<IBlobStorage, FakeBlobStorage>();
+            services.AddSingleton<FakeBlobStorage>();
+            services.AddSingleton<IBlobStorage>(sp => new RegisteredBlobStorage(
+                sp.GetRequiredService<FakeBlobStorage>(),
+                sp.GetRequiredService<IServiceScopeFactory>(),
+                sp.GetRequiredService<ILogger<RegisteredBlobStorage>>()));
         });
     }
 
@@ -61,6 +72,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
     /// </summary>
     internal static readonly string[] TruncatedTables =
     [
+        "blob_registry",
         "agent_observations",
         "reconciliation_aliases",
         "reconciliation_findings",

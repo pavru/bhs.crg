@@ -462,7 +462,19 @@ builder.Services.AddMinio(c => c
     .WithEndpoint(blobOpts.Endpoint)
     .WithCredentials(blobOpts.AccessKey, blobOpts.SecretKey)
     .WithSSL(blobOpts.UseSSL));
-builder.Services.AddSingleton<IBlobStorage, MinIOBlobStorage>();
+// Хранилище отдаётся наружу ТОЛЬКО обёрнутым (issue #672): обёртка ведёт реестр созданных
+// приложением объектов и отказывает в выдаче тому, чего в реестре нет.
+//
+// Настоящее хранилище в контейнер НЕ кладётся вовсе — оно создаётся здесь и живёт только внутри
+// обёртки. Разница не косметическая: будь оно зарегистрировано, любой мог бы попросить
+// GetRequiredService<MinIOBlobStorage>() и записать мимо реестра, а типы взаимозаменяемы по
+// сигнатурам — ни компилятор, ни ревью такого не заметят. Теперь такой запрос просто не
+// разрешается.
+builder.Services.AddSingleton<IBlobStorage>(sp => new RegisteredBlobStorage(
+    new MinIOBlobStorage(sp.GetRequiredService<IMinioClient>(), sp.GetRequiredService<BlobStorageOptions>()),
+    sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<ILogger<RegisteredBlobStorage>>()));
+builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.BlobRegistryBackfill>();
 
 // ── Plugins ───────────────────────────────────────────────────────────────────
 var pluginOpts = cfg.GetSection("Plugins").Get<PluginHostOptions>() ?? new();

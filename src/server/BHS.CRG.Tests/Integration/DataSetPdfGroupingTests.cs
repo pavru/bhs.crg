@@ -199,7 +199,8 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
         using (scope)
         {
             var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
-            var blobStorage = (FakeBlobStorage)scope.ServiceProvider.GetRequiredService<IBlobStorage>();
+            // Подделку берём по её типу: под IBlobStorage теперь стоит обёртка с реестром (issue #672).
+            var blobStorage = scope.ServiceProvider.GetRequiredService<FakeBlobStorage>();
 
             var first = await svc.ApplyGroupingAsync(fileId,
                 new ApplyGroupingInput([new GostGroupingGroupDto(GostGroupKind.Document, "01-ЭМ", "A", [0, 1, 2, 3])]), default);

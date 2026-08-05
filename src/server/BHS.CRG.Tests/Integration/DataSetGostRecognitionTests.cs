@@ -153,7 +153,8 @@ public class DataSetGostRecognitionTests(IntegrationTestFixture fixture) : IAsyn
         Assert.All(rows, r =>
         {
             Assert.True(r.TryGetValue("ФайлПуть", out var path) && !string.IsNullOrEmpty(path));
-            Assert.True(((FakeBlobStorage)blob).Exists(path!));
+            // Подделку берём по её типу: под IBlobStorage теперь стоит обёртка с реестром (issue #672).
+            Assert.True(scope.ServiceProvider.GetRequiredService<FakeBlobStorage>().Exists(path!));
         });
     }
 

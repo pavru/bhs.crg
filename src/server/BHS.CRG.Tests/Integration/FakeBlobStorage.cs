@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Infrastructure.Storage;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -10,7 +11,11 @@ public class FakeBlobStorage : IBlobStorage
 
     public async Task<string> UploadAsync(string fileName, Stream content, string contentType, CancellationToken ct = default)
     {
-        var path = $"fake/{Guid.NewGuid():N}/{fileName}";
+        // Раскладка — та же, что у настоящего хранилища (issue #672). Прежняя выдумка
+        // «fake/{guid}/{имя}» была не безобидной: сбор реестра опознаёт пути ПО ФОРМЕ, и подделка,
+        // порождающая другую форму, оставляла бы тесты зелёными при выражении, которое на живых
+        // данных не находит ничего. Ровно это один раз и произошло.
+        var path = $"fake/{BlobPathShape.NewObjectName(fileName)}";
         using var ms = new MemoryStream();
         await content.CopyToAsync(ms, ct);
         _store[path] = ms.ToArray();

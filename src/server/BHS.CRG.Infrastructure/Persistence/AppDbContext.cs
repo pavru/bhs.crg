@@ -57,6 +57,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<BHS.CRG.Domain.Reconciliation.ReconciliationAlias> ReconciliationAliases
         => Set<BHS.CRG.Domain.Reconciliation.ReconciliationAlias>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<BHS.CRG.Domain.Storage.BlobRegistryEntry> BlobRegistry
+        => Set<BHS.CRG.Domain.Storage.BlobRegistryEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
