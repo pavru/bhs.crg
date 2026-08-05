@@ -32,6 +32,12 @@
     </PackageReference>
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.4.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+
+    <!-- Кодом не используется: Microsoft.AspNetCore.OpenApi тянет его за собой, а версия из его
+         зависимостей (2.0.0) числится в известных уязвимостях (NU1903, разбор схемы с круговыми
+         ссылками). Прямая ссылка поднимает разрешённую версию до исправленной, оставаясь в той же
+         старшей версии 2.x, на которую рассчитан AspNetCore.OpenApi. -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.11.0" />
   </ItemGroup>
 
   <ItemGroup>

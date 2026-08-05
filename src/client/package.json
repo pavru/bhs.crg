@@ -12,6 +12,10 @@
     "test:watch": "vitest",
     "test:e2e:keyboard": "node e2e/keyboard-smoke.mjs"
   },
+  "//overrides": "monaco-editor закрепляет dompurify ровно на 3.4.8, а в версиях до 3.4.11 включительно числятся обходы очистки разметки. Своей версии monaco без них пока нет, поэтому поднимаем зависимость сами: 3.4.x — исправительные выпуски, разметку Monaco чистит только в подсказках. Снять, когда monaco перейдёт на 3.4.12+.",
+  "overrides": {
+    "dompurify": "3.4.13"
+  },
   "dependencies": {
     "@fontsource/roboto": "^5.2.10",
     "@fontsource/roboto-mono": "^5.2.9",
@@ -26,7 +30,7 @@
     "clsx": "^2.1.1",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^1.21.0",
-    "monaco-editor": "0.55.1",
+    "monaco-editor": "0.56.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.18.0",
