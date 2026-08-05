@@ -67,7 +67,18 @@ public static class SettingsEndpoints
             try
             {
                 if (string.IsNullOrWhiteSpace(smtp.Password))
-                    smtp.Password = (await settings.GetEffectiveAsync(ct)).Smtp.Password;
+                {
+                    // Сохранённый пароль подставляем ТОЛЬКО на сохранённый же сервер (сравнение —
+                    // общее с путём сохранения, см. SmtpSettings.SameServerAs). Иначе проверка связи
+                    // превращалась в выгрузку пароля: хост берётся из формы, пароль из базы — и
+                    // достаточно указать свой сервер, чтобы он пришёл на него сам. Роль Admin по
+                    // модели угроз всесильна, но украденная сессия администратора — нет, а здесь
+                    // секрет уходил без единого «покажи пароль».
+                    var saved = (await settings.GetEffectiveAsync(ct)).Smtp;
+                    if (!smtp.SameServerAs(saved))
+                        return Results.Ok(new { ok = false, error = "Проверка на другом сервере, под другим пользователем или без шифрования требует ввести пароль: сохранённый на чужой адрес не отправляется." });
+                    smtp.Password = saved.Password;
+                }
                 await email.TestConnectionAsync(smtp, ct);
                 return Results.Ok(new { ok = true });
             }

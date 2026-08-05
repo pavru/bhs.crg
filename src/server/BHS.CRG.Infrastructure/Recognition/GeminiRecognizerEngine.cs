@@ -41,12 +41,15 @@ public class GeminiRecognizerEngine(
             generationConfig = new { response_mime_type = "application/json", temperature = 0 },
         };
         var json = JsonSerializer.Serialize(requestBody);
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
+        // Ключ — заголовком, а не в строке запроса: URL целиком попадает в текст сетевых исключений,
+        // в трассировки и в логи любого прокси по пути, и ключ утекал бы вместе с ними.
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent";
 
         const int maxAttempts = 3;
         for (var attempt = 1; ; attempt++)
         {
             using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+            req.Headers.TryAddWithoutValidation("x-goog-api-key", apiKey);
             HttpResponseMessage resp;
             try { resp = await http.SendAsync(req, ct); }
             catch (Exception ex) when (ex is not OperationCanceledException)

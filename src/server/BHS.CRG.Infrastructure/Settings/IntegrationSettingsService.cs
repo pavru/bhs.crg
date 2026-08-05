@@ -8,7 +8,8 @@ using Microsoft.Extensions.Configuration;
 
 namespace BHS.CRG.Infrastructure.Settings;
 
-public class IntegrationSettingsService(AppDbContext db, IConfiguration config, IMemoryCache cache) : IIntegrationSettings
+public class IntegrationSettingsService(
+    AppDbContext db, IConfiguration config, IMemoryCache cache, SettingsSecretProtector secrets) : IIntegrationSettings
 {
     private const string CacheKey = "integration-settings-effective";
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
@@ -45,8 +46,59 @@ public class IntegrationSettingsService(AppDbContext db, IConfiguration config, 
         await PersistRawAsync(raw, ct);
     }
 
+    /// <summary>
+    /// Перешифровать секреты, оставшиеся открытыми от версий до 0.92.0. Вызывается один раз при
+    /// старте (см. Program.cs). Сделано отдельным проходом, а не при чтении: запись на пути чтения
+    /// удивляет, а первое чтение вполне может случиться в двух экземплярах приложения разом.
+    /// </summary>
+    /// <returns>Сколько значений перешифровано; ноль — работы не было.</returns>
+    public async Task<int> ProtectStoredSecretsAsync(CancellationToken ct = default)
+    {
+        var row = await db.IntegrationSettings.AsNoTracking().FirstOrDefaultAsync(ct);
+        if (row is null) return 0;
+
+        var raw = JsonSerializer.Deserialize<IntegrationSettingsModel>(row.Data.RootElement.GetRawText(), JsonOpts);
+        if (raw is null) return 0;
+
+        var plain = CountPlainSecrets(raw);
+        if (plain == 0) return 0;
+
+        // Значения здесь ещё НЕ расшифрованы (читали в обход LoadRawAsync); Protect пропускает
+        // уже зашифрованные и трогает только открытые.
+        await PersistRawAsync(raw, ct);
+        return plain;
+    }
+
+    private static int CountPlainSecrets(IntegrationSettingsModel raw)
+    {
+        var n = 0;
+        foreach (var e in raw.Recognition.Values) if (IsPlain(e.ApiKey)) n++;
+        foreach (var e in raw.WebSearch.Values) if (IsPlain(e.ApiKey)) n++;
+        if (IsPlain(raw.Smtp.Password)) n++;
+        return n;
+
+        static bool IsPlain(string? v) => !string.IsNullOrWhiteSpace(v) && !SettingsSecretProtector.IsProtected(v);
+    }
+
+    /// <summary>Секреты шифруем перед записью; остальные поля идут как есть.</summary>
+    private void ProtectSecrets(IntegrationSettingsModel m)
+    {
+        foreach (var e in m.Recognition.Values) e.ApiKey = secrets.Protect(e.ApiKey);
+        foreach (var e in m.WebSearch.Values) e.ApiKey = secrets.Protect(e.ApiKey);
+        m.Smtp.Password = secrets.Protect(m.Smtp.Password);
+    }
+
+    /// <summary>Обратное к <see cref="ProtectSecrets"/>: наружу модель всегда отдаётся расшифрованной.</summary>
+    private void UnprotectSecrets(IntegrationSettingsModel m)
+    {
+        foreach (var e in m.Recognition.Values) e.ApiKey = secrets.Unprotect(e.ApiKey);
+        foreach (var e in m.WebSearch.Values) e.ApiKey = secrets.Unprotect(e.ApiKey);
+        m.Smtp.Password = secrets.Unprotect(m.Smtp.Password);
+    }
+
     private async Task PersistRawAsync(IntegrationSettingsModel raw, CancellationToken ct)
     {
+        ProtectSecrets(raw);
         var json = JsonDocument.Parse(JsonSerializer.Serialize(raw));
         var row = await db.IntegrationSettings.FirstOrDefaultAsync(ct);
         if (row is null) { row = IntegrationSettingsEntity.Create(json); await db.IntegrationSettings.AddAsync(row, ct); }
@@ -57,7 +109,16 @@ public class IntegrationSettingsService(AppDbContext db, IConfiguration config, 
 
     public void Invalidate() => cache.Remove(CacheKey);
 
-    // Пароль SMTP перезаписываем только при непустом новом значении (UI не присылает существующий, как и ключи).
+    // Пароль SMTP перезаписываем только при непустом новом значении (UI не присылает существующий,
+    // как и ключи) — но унаследовать сохранённый можно ТОЛЬКО на тот же сервер.
+    //
+    // Иначе форма настроек сама была бы способом выгрузить пароль: сохранить чужой хост с пустым
+    // полем пароля, и первое же письмо (тестовое, уведомление, рассылка) уйдёт на него с
+    // аутентификацией сохранённым паролем. Запрет на подстановку в проверке связи эту дыру не
+    // закрывает — проверка связи там вообще не нужна.
+    //
+    // При смене сервера пароль обнуляется: почта перестаёт работать, пока администратор не введёт
+    // пароль от нового сервера. Это заметно и честно — в отличие от молчаливого наследования.
     private static SmtpSettings MergeSmtp(SmtpSettings existing, SmtpSettings update) => new()
     {
         Enabled = update.Enabled,
@@ -67,7 +128,9 @@ public class IntegrationSettingsService(AppDbContext db, IConfiguration config, 
         From = update.From,
         FromName = update.FromName,
         UseSsl = update.UseSsl,
-        Password = string.IsNullOrWhiteSpace(update.Password) ? existing.Password : update.Password,
+        Password = !string.IsNullOrWhiteSpace(update.Password) ? update.Password
+            : update.SameServerAs(existing) ? existing.Password
+            : null,
     };
 
     // Ключи перезаписываем только при непустом новом значении (UI не присылает существующие ключи).
@@ -92,6 +155,12 @@ public class IntegrationSettingsService(AppDbContext db, IConfiguration config, 
     {
         var row = await db.IntegrationSettings.AsNoTracking().FirstOrDefaultAsync(ct);
         if (row is null) return new IntegrationSettingsModel();
+        // Секреты остаются В ХРАНИМОМ ВИДЕ: расшифровка происходит на самой границе наружу, в
+        // BuildEffective. Так путь сохранения вообще не расшифровывает — а значит, не может ничего
+        // испортить, если ключи Data Protection временно недоступны (том не примонтирован, путь
+        // переехал). Раньше здесь стояла расшифровка, и такая перезапись стирала бы все секреты
+        // разом при первом же сохранении любой мелочи: слияние подставляло бы null вместо
+        // нерасшифрованного значения, а PersistRawAsync писал бы его поверх целого шифротекста.
         return JsonSerializer.Deserialize<IntegrationSettingsModel>(row.Data.RootElement.GetRawText(), JsonOpts) ?? new IntegrationSettingsModel();
     }
 
@@ -109,6 +178,11 @@ public class IntegrationSettingsService(AppDbContext db, IConfiguration config, 
 
         foreach (var name in RecNames) m.Recognition[name] = EffRec(name, raw);
         foreach (var name in WebNames) m.WebSearch[name] = EffWeb(name, raw);
+
+        // Расшифровка — здесь, на границе наружу: дальше модель уходит движкам распознавания,
+        // поиску и почте, и знать о способе хранения им незачем. Значения, подмешанные из
+        // конфигурации, метки шифрования не имеют и проходят через Unprotect как есть.
+        UnprotectSecrets(m);
         return m;
     }
 

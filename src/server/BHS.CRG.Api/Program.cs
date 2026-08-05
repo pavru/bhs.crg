@@ -382,7 +382,9 @@ builder.Services.AddScoped<IRecognizerEngine>(sp => sp.GetRequiredService<Gemini
 builder.Services.AddScoped<IRecognizerEngine>(sp => sp.GetRequiredService<OllamaRecognizerEngine>());
 builder.Services.AddScoped<IDocumentRecognizer, ChainDocumentRecognizer>();
 builder.Services.AddMemoryCache();
-builder.Services.AddScoped<IIntegrationSettings, IntegrationSettingsService>();
+builder.Services.AddSingleton<SettingsSecretProtector>();
+builder.Services.AddScoped<IntegrationSettingsService>();
+builder.Services.AddScoped<IIntegrationSettings>(sp => sp.GetRequiredService<IntegrationSettingsService>());
 builder.Services.AddScoped<BHS.CRG.Application.Email.IEmailSender, BHS.CRG.Infrastructure.Email.MailKitEmailSender>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Email.AccountEmailService>();
 builder.Services.AddScoped<RefreshTokenService>();
@@ -485,6 +487,13 @@ using (var scope = app.Services.CreateScope())
 
     // Встроенные профили распознавания (issue #406) — идемпотентно; правленые пользователем не трогает.
     await BHS.CRG.Infrastructure.Recognition.RecognitionProfileSeeder.SeedAsync(db);
+
+    // Секреты интеграций до 0.92.0 лежали в БД открытым текстом. Перешифровываем оставшиеся —
+    // идемпотентно: уже зашифрованные пропускаются, второй прогон работы не находит.
+    var protectedCount = await scope.ServiceProvider
+        .GetRequiredService<IntegrationSettingsService>().ProtectStoredSecretsAsync();
+    if (protectedCount > 0)
+        app.Logger.LogInformation("Секретов настроек интеграций зашифровано при старте: {Count}", protectedCount);
 
     // Разовый перенос размеров изображений из схем типов в значения инстансов (issue #246).
     // Идемпотентно: после первого прогона схемы очищены, карта пустеет — обход не запускается.
