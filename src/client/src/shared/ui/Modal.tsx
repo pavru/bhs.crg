@@ -75,7 +75,9 @@ export function Modal({ open, onOpenChange, title, children, wide, extraWide, fu
           <Dialog.Title className="sr-only">{title}</Dialog.Title>
           {!headerless && (
             <div className="flex items-center justify-between shrink-0 px-6 pt-6 pb-5">
-              <span className="text-base font-semibold text-fg1">{title}</span>
+              {/* truncate: заголовком бывает имя объекта (материал в пикере документа качества
+                  доходит до сотни знаков) — без обрезки оно выдавливает крестик за край. */}
+              <span className="text-base font-semibold text-fg1 truncate" title={title}>{title}</span>
               <button
                 type="button"
                 onClick={attemptClose}

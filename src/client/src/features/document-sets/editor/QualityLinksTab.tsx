@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -167,8 +167,13 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
 
   const tabLabel = { pick: 'Из библиотеки', search: 'Поиск в интернете', create: 'Создать вручную' };
 
+  // Одиночный случай называем материалом (issue #680): «для 1 материал(ов)» не говорит, для какого
+  // именно, а окно открывается из строки таблицы, где строк бывает под сотню.
+  const title = count === 1 ? `Документ качества: ${materials[0].label}`
+    : `Документ качества для ${count} материал(ов)`;
+
   return (
-    <Modal open={open} onOpenChange={o => { if (!o) onClose(); }} title={`Документ качества для ${count} материал(ов)`} extraWide>
+    <Modal open={open} onOpenChange={o => { if (!o) onClose(); }} title={title} extraWide>
       <div className="flex gap-1 mb-3 bg-muted rounded-lg p-0.5 w-fit">
         {(['pick', 'search', 'create'] as const).map(t => (
           <button key={t} onClick={() => { if (t === 'search') enterSearch(); else setTab(t); }}
@@ -290,6 +295,31 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
   );
 }
 
+/**
+ * Действие в строке материала (issue #680).
+ *
+ * Своя пилюля, а не `Button size="sm"`: у кнопки высота 32 px, а строк на живом реестре 130 — это
+ * лишний экран прокрутки в таблице, которая и так скроллится внутри себя. Размер взят у пилюли
+ * «привязать», которая в строке уже стояла, поэтому вертикальная цена нулевая.
+ *
+ * Тон говорит о роли: `brand` — согласие с догадкой машины (главное действие подсказки),
+ * `tonal` — «сделаю выбор сам».
+ */
+function RowPill({ onClick, title, tone = 'tonal', children }: {
+  onClick: () => void; title: string; tone?: 'brand' | 'tonal'; children: ReactNode;
+}) {
+  return (
+    <button type="button" onClick={onClick} title={title}
+      className={'flex items-center gap-1 px-1.5 py-0.5 text-xs rounded-full shrink-0 '
+        + 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand '
+        + (tone === 'brand'
+          ? 'bg-brand hover:bg-brand-hover text-on-brand'
+          : 'bg-tonal text-on-tonal hover:brightness-[.97]')}>
+      {children}
+    </button>
+  );
+}
+
 // ─── Вкладка «Документы качества» ───────────────────────────────────────────────
 
 export function QualityLinksTab({ instance, setId, allDocTypes }: {
@@ -302,6 +332,14 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   const [scope, setScope] = useState<CatalogScope>('Set');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
+  /**
+   * Строка, для которой пикер открыт «в одиночку» (issue #680).
+   *
+   * Отдельно от `selected` намеренно: если подмешивать одиночную строку в общий выбор, закрытие
+   * окна по Esc оставит её отмеченной — фантомный выбор и счётчик на нижней кнопке, которых человек
+   * не заводил.
+   */
+  const [singleTarget, setSingleTarget] = useState<MaterialRow | null>(null);
   // Сводка перед массовой привязкой (issue #552) — показывается, только если что-то не сходится.
   const [pendingLink, setPendingLink] = useState<{
     docId: string; docName: string; chosen: MaterialRow[];
@@ -463,8 +501,26 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
    * благополучно. Запрещать нельзя — у артикулов сравнивать нечего, и запрет ломал бы честный
    * сценарий; поэтому предупреждаем и показываем, чего именно не сходится.
    */
+  /** Пикер открыт для одной строки — иначе для всего отмеченного. */
+  const pickerRows = singleTarget ? [singleTarget] : materials.filter(m => selected.has(m.key));
+
+  function openPickerFor(m: MaterialRow) {
+    setSingleTarget(m);
+    setPickerOpen(true);
+  }
+
+  function openPickerForSelected() {
+    setSingleTarget(null); // иначе окно откроется для строки, оставшейся от прошлого одиночного захода
+    setPickerOpen(true);
+  }
+
+  function closePicker() {
+    setPickerOpen(false);
+    setSingleTarget(null);
+  }
+
   async function handlePick(doc: QualityDocument) {
-    const chosen = materials.filter(m => selected.has(m.key));
+    const chosen = pickerRows;
     const assessment = assessBulkLink(chosen, m => m.label, docHaystackText(doc));
 
     if (assessment.mismatched.length > 0) {
@@ -507,9 +563,11 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
 
   async function linkChosen(docId: string, chosen: MaterialRow[]) {
     if (!await linkMaterials(docId, chosen)) return;
-    setPickerOpen(false);
+    closePicker();
     setPendingLink(null);
-    setSelected(new Set());
+    // Выбор сбрасываем только у массового пути: одиночная привязка его не заводила и трогать
+    // отмеченные пользователем строки не должна.
+    if (!singleTarget) setSelected(new Set());
   }
 
   async function handleSuggest() {
@@ -637,7 +695,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
                             )}
                             <button onClick={() => { const d = docById.get(link.docId); if (d) setViewDoc(d); }}
                               title="Просмотреть документ"
-                              className="flex-1 text-left text-brand-hover hover:underline truncate">
+                              className="flex-1 min-w-0 text-left text-brand-hover hover:underline truncate">
                               {docName.get(link.docId) ?? '(документ)'}
                             </button>
                             <button onClick={() => { const d = docById.get(link.docId); if (d) setViewDoc(d); }}
@@ -649,15 +707,31 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
                           <span className="flex items-center gap-1.5">
                             <span className="text-[10px] px-1 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{Math.round(suggestion.score * 100)}%</span>
                             <button onClick={() => setViewDoc(suggestion.doc)} title="Просмотреть предложенный документ"
-                              className="flex-1 text-left text-fg3 italic hover:underline truncate">
+                              className="flex-1 min-w-0 text-left text-fg3 italic hover:underline truncate">
                               {suggestion.doc.displayName}
                             </button>
-                            <button onClick={() => void acceptSuggestion(m, suggestion.doc.id)} title="Привязать предложенный документ"
-                              className="flex items-center gap-1 px-1.5 py-0.5 text-xs bg-brand hover:bg-brand-hover text-on-brand rounded-full">
+                            <RowPill tone="brand" onClick={() => void acceptSuggestion(m, suggestion.doc.id)}
+                              title="Привязать предложенный документ">
                               <Check size={12} /> привязать
-                            </button>
+                            </RowPill>
+                            {/* Подсказка — это согласие с догадкой машины, а не вход в выбор (issue
+                                #680). Промахнулась догадка — до этой кнопки уйти из строки было
+                                некуда, кроме как через чекбокс и кнопку под таблицей. */}
+                            <RowPill onClick={() => openPickerFor(m)} title="Выбрать другой документ качества">
+                              другой
+                            </RowPill>
                           </span>
-                        ) : <span className="text-fg4">—</span>}
+                        ) : (
+                          <span className="flex items-center gap-1.5">
+                            <span className="flex-1 min-w-0 text-fg4">—</span>
+                            {/* Кнопка ВИДИМАЯ, не по hover: необнаруживаемость одиночного пути и есть
+                                предмет жалобы, а мерцающая колонка на 130 строках недоступна ни с
+                                клавиатуры, ни с тача. */}
+                            <RowPill onClick={() => openPickerFor(m)} title="Выбрать документ качества для этого материала">
+                              <Link2 size={12} /> Связать
+                            </RowPill>
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -668,11 +742,22 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
         </div>
       )}
 
+      {/* Панель массового действия — только при непустом выборе (issue #680). Постоянно висевшая
+          выключенная «Связать выбранные (0)» была единственным местом на экране, где произносилось
+          слово «Связать», и обучала, что работа делается отсюда; теперь то же слово стоит в каждой
+          непривязанной строке, а колонка чекбоксов остаётся сигналом массового пути. */}
+      {selected.size > 0 && (
+        <div className="sticky bottom-0 flex items-center gap-2 rounded-md border border-stroke bg-surface px-3 py-2 shadow-sm">
+          <span className="text-sm text-fg2">Выбрано: {selected.size}</span>
+          <Button variant="filled" size="sm" onClick={openPickerForSelected} icon={<Link2 size={13} />}>
+            Связать выбранные ({selected.size})
+          </Button>
+          <button onClick={() => setSelected(new Set())}
+            className="ml-auto text-xs text-fg4 hover:text-fg2">Снять выбор</button>
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
-        <Button variant="filled" onClick={() => setPickerOpen(true)} disabled={selected.size === 0}
-          icon={<Link2 size={14} />}>
-          Связать выбранные ({selected.size})
-        </Button>
         <button onClick={() => void acceptAllSuggestions()} disabled={suggestCount === 0 || setLinks.isPending}
           title="Привязать все предложенные из библиотеки документы"
           className="flex items-center gap-2 px-4 py-2 text-sm bg-brand-subtle text-brand rounded-md hover:bg-brand/15 disabled:opacity-50">
@@ -684,9 +769,6 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
           {suggesting ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} className="text-fg3" />}
           Предложить по истории
         </button>
-        {selected.size > 0 && (
-          <button onClick={() => setSelected(new Set())} className="text-sm text-fg3 hover:text-fg2">Сбросить выбор</button>
-        )}
       </div>
 
       <p className="text-xs text-fg4">
@@ -698,25 +780,36 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
       {/* Сводка перед массовой привязкой (issue #552). Появляется, ТОЛЬКО если что-то не сходится:
           у артикулов сравнивать нечего, и показывать её всегда значило бы приучить нажимать «да». */}
       <ConfirmDialog
-        open={!!pendingLink} onOpenChange={o => { if (!o) setPendingLink(null); }}
+        open={!!pendingLink} onOpenChange={o => { if (!o) { setPendingLink(null); setSingleTarget(null); } }}
         title="Материалы не похожи на этот документ"
         description={pendingLink ? (
           <div className="space-y-2">
-            <p>
-              Документ <b>{pendingLink.docName}</b>: из {pendingLink.chosen.length} выбранных
-              материалов ему соответствуют {pendingLink.assessment.fits.length},
-              {' '}не похожи — <b>{pendingLink.assessment.mismatched.length}</b>
-              {pendingLink.assessment.unverifiable.length > 0
-                && `, ещё ${pendingLink.assessment.unverifiable.length} проверить нечем (только артикул)`}.
-            </p>
-            <ul className="text-xs text-fg3 space-y-0.5 max-h-40 overflow-y-auto">
-              {pendingLink.assessment.mismatched.slice(0, 8).map(m => (
-                <li key={m.key} className="truncate">• {m.label}</li>
-              ))}
-              {pendingLink.assessment.mismatched.length > 8 && (
-                <li>… и ещё {pendingLink.assessment.mismatched.length - 8}</li>
-              )}
-            </ul>
+            {/* Один материал называем по имени: «из 1 выбранных материалов ему соответствуют 0» —
+                это отчёт о выборке там, где речь об одной строке (issue #680). */}
+            {pendingLink.chosen.length === 1 ? (
+              <p>
+                Материал <b>{pendingLink.chosen[0].label}</b> не похож на документ
+                {' '}<b>{pendingLink.docName}</b>: ни одно его слово в документе не встречается.
+              </p>
+            ) : (
+              <p>
+                Документ <b>{pendingLink.docName}</b>: из {pendingLink.chosen.length} выбранных
+                материалов ему соответствуют {pendingLink.assessment.fits.length},
+                {' '}не похожи — <b>{pendingLink.assessment.mismatched.length}</b>
+                {pendingLink.assessment.unverifiable.length > 0
+                  && `, ещё ${pendingLink.assessment.unverifiable.length} проверить нечем (только артикул)`}.
+              </p>
+            )}
+            {pendingLink.chosen.length > 1 && (
+              <ul className="text-xs text-fg3 space-y-0.5 max-h-40 overflow-y-auto">
+                {pendingLink.assessment.mismatched.slice(0, 8).map(m => (
+                  <li key={m.key} className="truncate">• {m.label}</li>
+                ))}
+                {pendingLink.assessment.mismatched.length > 8 && (
+                  <li>… и ещё {pendingLink.assessment.mismatched.length - 8}</li>
+                )}
+              </ul>
+            )}
             <p className="text-xs text-fg4">
               Проверка приблизительная — она сравнивает слова материала с текстом документа. Если
               документ действительно тот, привязывайте.
@@ -727,9 +820,10 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
         onConfirm={() => { if (pendingLink) return linkChosen(pendingLink.docId, pendingLink.chosen); }}
       />
 
-      <LinkPickerModal open={pickerOpen} onClose={() => setPickerOpen(false)} allDocTypes={allDocTypes}
-        scope={scope} scopeId={scopeId}
-        materials={materials.filter(m => selected.has(m.key))} onPick={handlePick} />
+      {/* Область — только для показа библиотеки и создания документа. Куда ляжет связка, решает
+          linkMaterials: у строки со связкой это область ЕЁ связки (issue #681). */}
+      <LinkPickerModal open={pickerOpen} onClose={closePicker} allDocTypes={allDocTypes}
+        scope={scope} scopeId={scopeId} materials={pickerRows} onPick={handlePick} />
 
       <Modal open={viewDoc !== null} onOpenChange={o => { if (!o) setViewDoc(null); }} title="Документ качества" extraWide>
         {viewDoc && (
