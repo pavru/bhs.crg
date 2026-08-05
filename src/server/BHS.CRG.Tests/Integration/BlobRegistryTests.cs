@@ -158,25 +158,30 @@ public class BlobRegistryTests(IntegrationTestFixture fx)
     }
 
     [Fact]
-    public void RealStorage_IsNeverInjectedDirectly()
+    public void RealStorage_IsNotResolvableFromContainer()
     {
-        // Страж от обхода: реестр полон ровно потому, что ВСЯ запись идёт через обёртку. Стоит
-        // кому-нибудь попросить у контейнера MinIOBlobStorage вместо IBlobStorage — и его загрузки
-        // пройдут мимо реестра, а файлы потом не отдадутся. Сломать это легко и незаметно: типы
-        // взаимозаменяемы по сигнатурам, компилятор промолчит.
-        var offenders =
-            from assembly in new[]
-            {
-                typeof(RegisteredBlobStorage).Assembly,                       // Infrastructure
-                typeof(BHS.CRG.Application.Common.IBlobStorage).Assembly,     // Application
-            }
-            from type in assembly.GetTypes()
-            where type != typeof(RegisteredBlobStorage)
-            from ctor in type.GetConstructors()
-            from parameter in ctor.GetParameters()
-            where parameter.ParameterType == typeof(MinIOBlobStorage)
-            select $"{type.FullName}.{parameter.Name}";
+        // Страж от обхода, и главный здесь — не сам тест, а то, что настоящее хранилище в контейнер
+        // не кладётся вовсе (Program.cs): попросить его вместо IBlobStorage нельзя даже намеренно.
+        // Проверяем именно это свойство композиции, а не аккуратность вызывающих: типы
+        // взаимозаменяемы по сигнатурам, и обход через GetRequiredService не заметят ни компилятор,
+        // ни ревью.
+        using var scope = fx.Services.CreateScope();
 
-        Assert.Empty(offenders.ToList());
+        Assert.Null(scope.ServiceProvider.GetService<MinIOBlobStorage>());
+        Assert.IsType<RegisteredBlobStorage>(scope.ServiceProvider.GetRequiredService<IBlobStorage>());
+    }
+
+    [Fact]
+    public void BackfillPattern_MatchesWhatStorageActuallyBuilds()
+    {
+        // Связь между формой пути и выражением, которое его ищет, — единственное место, где эти два
+        // знания встречаются. Без этого теста изменение раскладки хранилища оставило бы весь набор
+        // зелёным, а сбор реестра молча перестал бы что-либо находить: ровно это уже случилось
+        // однажды, когда выражение требовало слэшей, а под русской локалью в пути стояли точки.
+        var objectName = BlobPathShape.NewObjectName("реестр материалов.pdf");
+        var fullPath = $"bhs-crg/{objectName}";
+
+        Assert.Matches(BlobPathShape.Pattern, fullPath);
+        Assert.Matches(BlobPathShape.RoughPattern, fullPath);
     }
 }

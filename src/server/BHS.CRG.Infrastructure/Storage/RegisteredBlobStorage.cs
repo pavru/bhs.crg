@@ -24,10 +24,17 @@ namespace BHS.CRG.Infrastructure.Storage;
 /// который разойдётся с кодом при первой же новой точке. Запись проходит через этот класс вся, без
 /// исключений, поэтому реестр полон по построению, а не по внимательности.
 ///
-/// <para><b>Порядок операций и чем платим.</b> Сначала хранилище, потом запись в реестр. Сбой между
-/// ними оставляет объект, который лежит, но не читается: отказ закрытый, данные целы, лечится
-/// повторной загрузкой. Обратный порядок дал бы запись о несуществующем объекте — отказ открытый,
-/// и хуже: проверка перестала бы означать то, что означает.</para>
+/// <para><b>Порядок операций и чем платим.</b> Сначала хранилище, потом запись в реестр. Обратный
+/// порядок дал бы запись о несуществующем объекте — отказ открытый, и хуже: проверка перестала бы
+/// означать то, что означает.</para>
+///
+/// <para>Сбой записи в реестр <b>роняет операцию целиком</b>, а не проглатывается. Соблазн был
+/// обратный — объект ведь уже сохранён, зачем расстраивать пользователя. Но проглоченный сбой даёт
+/// 200 и путь, который клиент запишет в реквизиты, а файл по нему не откроется никогда; хуже того,
+/// экспорт копии тихо пропускает недоступные блобы (<c>BackupService</c> ловит отказ выдачи и лишь
+/// пишет предупреждение), так что одна секундная ошибка БД превращается в постоянно битое вложение
+/// и в копию, в которой его нет. Громкий отказ сейчас честнее: остаётся осиротевший объект в
+/// хранилище — плата заметно меньшая.</para>
 ///
 /// <para><b>Время жизни.</b> Хранилище — синглтон, <c>AppDbContext</c> — scoped, поэтому контекст
 /// берётся через <see cref="IServiceScopeFactory" /> на каждую операцию. Своего состояния у класса
@@ -42,7 +49,7 @@ public class RegisteredBlobStorage(
         string fileName, Stream content, string contentType, CancellationToken ct = default)
     {
         var path = await inner.UploadAsync(fileName, content, contentType, ct);
-        await RegisterAsync(path, fileName, contentType, ct);
+        await RegisterAsync(path, fileName, contentType);
         return path;
     }
 
@@ -52,7 +59,7 @@ public class RegisteredBlobStorage(
         await inner.PutAsync(blobPath, content, contentType, ct);
         // Сюда приходит восстановление из бэкапа: путь задан манифестом, объект возвращается на своё
         // прежнее место. Без этой строки восстановленная система не отдавала бы ни одного файла.
-        await RegisterAsync(blobPath, fileName: null, contentType, ct);
+        await RegisterAsync(blobPath, fileName: null, contentType);
     }
 
     public async Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default)
@@ -72,9 +79,11 @@ public class RegisteredBlobStorage(
     {
         await inner.DeleteAsync(blobPath, ct);
 
+        // Токена снова нет, и по той же причине, что при записи: объекта уже нет, а отмена оставила
+        // бы реестр обещающим то, чего не существует.
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.BlobRegistry.Where(e => e.Path == blobPath).ExecuteDeleteAsync(ct);
+        await db.BlobRegistry.Where(e => e.Path == blobPath).ExecuteDeleteAsync();
     }
 
     /// <summary>Значится ли путь за приложением. Единственный вопрос, ради которого заведён реестр.</summary>
@@ -85,27 +94,36 @@ public class RegisteredBlobStorage(
         return await db.BlobRegistry.AsNoTracking().AnyAsync(e => e.Path == blobPath, ct);
     }
 
-    private async Task RegisterAsync(string path, string? fileName, string? mimeType, CancellationToken ct)
+    private async Task RegisterAsync(string path, string? fileName, string? mimeType)
     {
+        // Токена запроса здесь СОЗНАТЕЛЬНО нет. Объект к этому моменту уже в хранилище, и отмена
+        // (клиент отключился сразу после того, как большая загрузка дошла) сорвала бы ровно ту
+        // запись, ради которой выбран порядок «сначала хранилище, потом реестр»: файл лёг бы
+        // навсегда нечитаемым. Отмене здесь подчиняться нечему — работа уже сделана наполовину.
         try
         {
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            // Повтор — не ошибка: PutAsync восстановления кладёт объект на прежний путь, а разовый
-            // сбор мог его уже записать. Проверяем до вставки, чтобы не ловить нарушение уникальности
-            // как исключение там, где это штатный ход.
-            if (await db.BlobRegistry.AnyAsync(e => e.Path == path, ct)) return;
+            // Повтор — не ошибка: PutAsync восстановления кладёт объект на прежний путь, а он мог
+            // быть записан раньше. Проверяем до вставки, чтобы не ловить нарушение уникальности как
+            // исключение там, где это штатный ход.
+            if (await db.BlobRegistry.AnyAsync(e => e.Path == path)) return;
 
             db.BlobRegistry.Add(BlobRegistryEntry.Create(path, fileName, mimeType));
-            await db.SaveChangesAsync(ct);
+            await db.SaveChangesAsync();
         }
-        catch (Exception ex)
+        catch (DbUpdateException ex) when (IsDuplicatePath(ex))
         {
-            // Объект уже в хранилище. Уронить здесь загрузку значило бы поменять сохранённый файл на
-            // ошибку у пользователя; отказ и так закрытый — файл не прочитается, пока запись не
-            // появится. Поэтому пишем в лог и отдаём путь наверх.
-            log.LogError(ex, "Объект сохранён, но не попал в реестр ({Path}) — файл не будет отдаваться", path);
+            // Проверка выше и вставка не атомарны: две одновременные записи одного пути (повтор
+            // запроса, импорт копии с дублями) обе видят «пути нет». Проигравший получает нарушение
+            // уникальности, но путь в реестре ЕСТЬ — это успех, а не сбой. Без этой ветки в журнал
+            // уходило бы тревожное и попросту неверное «файл не будет отдаваться».
+            log.LogDebug(ex, "Путь уже зарегистрирован параллельной записью ({Path})", path);
         }
     }
+
+    /// <summary>Нарушение уникальности пути (код 23505 у Postgres) — против любого поставщика по коду.</summary>
+    private static bool IsDuplicatePath(DbUpdateException ex)
+        => ex.InnerException?.GetType().GetProperty("SqlState")?.GetValue(ex.InnerException) as string == "23505";
 }

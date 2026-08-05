@@ -9,7 +9,9 @@ public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : 
     public async Task<string> UploadAsync(string fileName, Stream content, string contentType, CancellationToken ct = default)
     {
         await EnsureBucketAsync(ct);
-        var objectName = $"{DateTimeOffset.UtcNow:yyyy/MM/dd}/{Guid.NewGuid()}_{fileName}";
+        // Раскладка пути — не здесь: её же должен знать разовый сбор реестра и подделка в тестах
+        // (issue #672). Держим в одном месте, иначе расходятся молча.
+        var objectName = BlobPathShape.NewObjectName(fileName);
         await PutToMinioAsync(options.Bucket, objectName, content, contentType, ct);
         return $"{options.Bucket}/{objectName}";
     }
