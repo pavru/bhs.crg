@@ -28,9 +28,13 @@ export function registerTypstLanguage(monaco: typeof Monaco) {
         [/\/\*/, { token: 'comment', next: '@blockComment' }],
 
         // # keyword: #let, #for, #import …
+        // Ключ ветки — проверка «группа $1 входит в множество keywords», и Monarch разбирает
+        // её только начиная с `$`. С литеральным `#` впереди он видит вместо проверки
+        // подстановку `@keywords` в строку, а keywords — массив, и токенизатор падает
+        // целиком (issue #690). Решётку регулярное выражение и так не захватывает.
         [/#([a-zA-Z_][a-zA-Z0-9_]*)/, {
           cases: {
-            '#$1@keywords': 'keyword.control',
+            '$1@keywords': 'keyword.control',
             '@default': 'entity.name.function',
           },
         }],
