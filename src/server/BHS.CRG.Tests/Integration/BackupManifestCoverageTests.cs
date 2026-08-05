@@ -211,9 +211,10 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         var compositeTypeId = Guid.NewGuid();
 
         // Профили распознавания фикстура НЕ чистит осознанно: встроенные создаёт сидер, и только
-        // при старте хоста (см. FixtureResetCoverageTests). Здесь нужен ровно один профиль, поэтому
-        // снимаем всё оставшееся сами.
-        db.RecognitionProfiles.RemoveRange(db.RecognitionProfiles);
+        // при старте хоста (см. FixtureResetCoverageTests). Снимаем ПОЛЬЗОВАТЕЛЬСКИЕ, оставшиеся от
+        // прошлых прогонов; встроенные не трогаем — унести их отсюда значит забрать у тестов
+        // распознавания, которые пойдут следом.
+        db.RecognitionProfiles.RemoveRange(db.RecognitionProfiles.Where(p => p.Code == null));
         await db.SaveChangesAsync();
 
         db.PrimitiveTypes.Add(PrimitiveType.Restore(

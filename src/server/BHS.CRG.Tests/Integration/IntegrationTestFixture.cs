@@ -101,11 +101,16 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        // Имена берём в кавычки: сейчас список весь в нижнем регистре, но часть таблиц модели
+        // названа как RefreshTokens, и первое же такое имя, добавленное сюда как есть, Postgres
+        // свернёт в refreshtokens — фикстура упадёт до первого теста с «relation does not exist».
+        //
         // EF1003 — про склейку значений в SQL. Здесь склеиваются имена таблиц, а имя таблицы
         // параметром не передашь; список выше — константа в коде тестов, снаружи в него не попасть.
 #pragma warning disable EF1003
         await db.Database.ExecuteSqlRawAsync(
-            "TRUNCATE TABLE " + string.Join(", ", TruncatedTables) + " RESTART IDENTITY CASCADE");
+            "TRUNCATE TABLE " + string.Join(", ", TruncatedTables.Select(t => $"\"{t}\""))
+            + " RESTART IDENTITY CASCADE");
 #pragma warning restore EF1003
 
         // Настройки интеграций живут ещё и в памяти. Без сброса кеша очистка таблицы даёт ложное

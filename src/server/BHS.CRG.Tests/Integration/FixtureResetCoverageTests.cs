@@ -59,6 +59,26 @@ public class FixtureResetCoverageTests(IntegrationTestFixture fixture)
     }
 
     /// <summary>
+    /// Таблица не может быть и очищаемой, и сознательно оставленной: проверка «либо там, либо там»
+    /// пропускает такую пару молча. А случается она буднично — кто-то гонится за плавающим тестом,
+    /// добавляет таблицу в очистку и не убирает прежнюю строку с причиной. Причина остаётся в файле
+    /// как записанное решение, хотя действует уже обратное.
+    /// </summary>
+    [Fact]
+    public void NoTable_IsBothTruncatedAndKept()
+    {
+        var both = IntegrationTestFixture.TruncatedTables
+            .Where(DeliberatelyKept.ContainsKey)
+            .OrderBy(t => t, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(both.Count == 0,
+            "Таблицы названы сразу в обоих списках: " + string.Join(", ", both) + ".\n" +
+            "Очистка сильнее записанной причины — уберите строку из DeliberatelyKept, если решение " +
+            "изменилось, или из TruncatedTables, если нет.");
+    }
+
+    /// <summary>
     /// Обратная сторона: имя в списке, за которым нет таблицы, — след переименования. TRUNCATE такой
     /// список не переживёт, но упадёт он в фикстуре, до первого теста, и причина будет неочевидна.
     /// </summary>
