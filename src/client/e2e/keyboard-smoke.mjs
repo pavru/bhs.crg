@@ -68,4 +68,6 @@ try {
   await browser.close();
 }
 
-process.exit(summarize('Клавиатурный smoke'));
+// Код возврата, а не process.exit(): тот обрывает недописанный stdout, и при перенаправлении
+// вывода в файл последние строки итога теряются.
+process.exitCode = summarize('Клавиатурный smoke');

@@ -44,15 +44,24 @@ export async function launchBrowser() {
 }
 
 /**
- * Вход по форме. Ждём именно появления токена в localStorage: без этого следующий `goto`
- * успевает уйти раньше сохранения, и ProtectedRoute вернёт на /login.
+ * Вход по форме. Ждём именно появления токена: без этого следующий `goto` успевает уйти
+ * раньше сохранения, и ProtectedRoute вернёт на /login. Смотрим оба хранилища — «Запомнить
+ * меня» выбирает между localStorage и sessionStorage (см. shared/api/token.ts), и прогон
+ * не должен зависеть от того, каким это поле стоит по умолчанию.
  */
 export async function login(page, email = EMAIL, password = PASSWORD) {
   await page.goto(`${BASE}/login`);
   await page.fill('input[type=email]', email);
   await page.fill('input[type=password]', password);
   await page.click('button[type=submit]');
-  await page.waitForFunction(() => !!localStorage.getItem('access_token'), { timeout: 10000 });
+  await page.waitForFunction(
+    () => !!(localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token')),
+    { timeout: 10000 });
+}
+
+/** Выход «изнутри»: чистим оба хранилища, иначе сессия может пережить сброс. */
+export async function clearSession(page) {
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
 }
 
 /** Счётчик проверок: `check` не роняет прогон на первом провале, `summarize` печатает итог. */

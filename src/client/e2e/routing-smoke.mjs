@@ -17,7 +17,7 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/routing-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { BASE, launchBrowser, login, clearSession, createChecks } from './harness.mjs';
 
 const USER_EMAIL = process.env.SMOKE_USER_EMAIL || 'petrov@bhs.local';
 const USER_PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
@@ -34,7 +34,7 @@ page.on('dialog', d => d.accept());
 try {
   // ── Защищённый маршрут: без токена уводит на вход ───────────────────────────
   await page.goto(`${BASE}/login`);
-  await page.evaluate(() => localStorage.clear());
+  await clearSession(page);
   const historyBefore = await page.evaluate(() => history.length);
   await check('protected-redirects-to-login', async () => {
     // Считаем 401: на вход должен увести сам маршрут, а не отлуп сервера на первом запросе
@@ -171,4 +171,6 @@ try {
   await browser.close();
 }
 
-process.exit(summarize('Маршрутный smoke'));
+// Код возврата, а не process.exit(): тот обрывает недописанный stdout, и при перенаправлении
+// вывода в файл последние строки итога теряются.
+process.exitCode = summarize('Маршрутный smoke');
