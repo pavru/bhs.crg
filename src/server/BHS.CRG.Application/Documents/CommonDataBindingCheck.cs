@@ -13,7 +13,13 @@ namespace BHS.CRG.Application.Documents;
 /// со СВЕЖИМ резолвом источника по каждому составному (@@ref) полю. Статусы:
 /// matched (снимок = свежий и запись жива), not-found (значение источника не сматчилось),
 /// dangling (запись каталога удалена), drift (источник теперь указывает на ДРУГУЮ запись — снимок id устарел),
-/// stale (снимок не {$ref} — легаси «🔗…» — но источник матчится: пересохранить).
+/// stale (снимок не {$ref} — легаси «🔗…» — но источник матчится: пересохранить),
+/// error (резолв привязки не состоялся вовсе — источник недоступен либо материализация без маппинга).
+///
+/// <para>Ошибки резолва берём наравне с предупреждениями (issue #715). Раньше отбирались только
+/// предупреждения, и всё, что резолвер сообщал уровнем Error, до этого экрана не доходило: и
+/// «источник данных недоступен», и материализация с пустым маппингом. То есть поле переставало
+/// заполняться, а проверка связок отвечала «всё в порядке» — худший из возможных ответов.</para>
 /// </summary>
 public record BindingCheckItem(string FieldKey, string FieldTitle, string Status, string? LinkedName, string? Detail);
 public record BindingCheckResult(IReadOnlyList<BindingCheckItem> Items);
@@ -50,10 +56,12 @@ public class CheckCommonDataBindingsHandler(
         var handled = new HashSet<string>();
         var stored = entry.Data.RootElement;
 
-        // 1) not-found — значение источника не нашлось в каталоге (из диагностики резолва).
-        foreach (var d in diag.Where(d => d.Severity == DiagnosticSeverity.Warning))
+        // 1) Проблемы резолва: not-found — значение источника не нашлось в каталоге; error — резолв
+        // привязки не состоялся вовсе (источник недоступен, материализация без маппинга).
+        foreach (var d in diag)
             if (handled.Add(d.Path))
-                items.Add(new BindingCheckItem(d.Path, Title(d.Path), "not-found", null, d.Message));
+                items.Add(new BindingCheckItem(d.Path, Title(d.Path),
+                    d.Severity == DiagnosticSeverity.Error ? "error" : "not-found", null, d.Message));
 
         // 2) свежие ссылки → сравнить со снимком.
         foreach (var (field, value) in fresh)

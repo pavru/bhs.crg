@@ -86,7 +86,8 @@ export function useCommonDataEntry(id: string | undefined) {
 export interface BindingCheckItem {
   fieldKey: string;
   fieldTitle: string;
-  status: 'matched' | 'not-found' | 'dangling' | 'drift' | 'stale';
+  /** error (issue #715) — резолв привязки не состоялся: источник недоступен либо материализация без маппинга. */
+  status: 'matched' | 'not-found' | 'dangling' | 'drift' | 'stale' | 'error';
   linkedName: string | null;
   detail: string | null;
 }

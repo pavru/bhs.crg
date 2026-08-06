@@ -128,6 +128,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                 targetFieldKey={null}
                 onChange={m => setMapping(m)}
                 hideModeSelector
+                allowDocRef
               />
             </div>
           )
