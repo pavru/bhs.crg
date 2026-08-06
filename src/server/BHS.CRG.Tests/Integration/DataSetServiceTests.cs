@@ -222,7 +222,7 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         using var scope = fixture.Services.CreateScope();
         var svc = Svc(scope);
         var (_, src) = await UploadCsvWithSourceAsync(scope);
-        await svc.SetMaterializationAsync(src.Id, typeId, new() { ["Поле"] = "A" }, default);
+        await svc.SetMaterializationAsync(src.Id, typeId, new() { ["Поле"] = "A" }, discriminator: null, default);
 
         var entry = await scope.ServiceProvider.GetRequiredService<MediatR.IMediator>().Send(
             new CreateCommonDataEntryCommand("Запись", typeId, JsonDocument.Parse("{}"),

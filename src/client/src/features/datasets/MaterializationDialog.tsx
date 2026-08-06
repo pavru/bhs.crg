@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Info } from 'lucide-react';
+import { Info, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { dtCard, dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
@@ -9,10 +9,11 @@ import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useSetMaterialization, useMaterializePreview } from '@/shared/api/datasets';
 import { MappingEditor } from '@/features/document-sets/editor/DataSetsTab';
 import { VariantPicker } from '@/features/document-sets/fields/ComplexFields';
+import { UnionDiscriminatorEditor, discriminatorProblem } from './UnionDiscriminatorEditor';
 import { resolveEffectiveFields } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
-import type { DataSetSource } from '@/shared/api/types';
+import type { DataSetSource, MaterializeDiscriminator } from '@/shared/api/types';
 
 /**
  * Материализация источника в тип (issue #19): пользователь выбирает тип (составной/документ) и
@@ -26,11 +27,17 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
   const [showPreview, setShowPreview] = useState(false);
   const save = useSetMaterialization();
 
+  // Режим материализации union'а (issue #716). Прежний — один вариант на все строки; новый —
+  // вариант выбирается для КАЖДОЙ строки по типу её документа. Переключение недеструктивно:
+  // настройка другого режима живёт в локальном стэше до сохранения, а Save замещает целиком.
+  const [byRowType, setByRowType] = useState(!!source.materializeDiscriminator);
+  const [discriminator, setDiscriminator] = useState<MaterializeDiscriminator>(
+    source.materializeDiscriminator ?? { column: '', kind: 'docTypeCode', rules: {} });
+  const [singleModeStash, setSingleModeStash] = useState<Record<string, string> | null>(null);
+  const [byTypeStash, setByTypeStash] = useState<Record<string, string> | null>(null);
+
   const selectedType = allDocTypes.find(t => t.id === typeId);
   const effectiveFields = selectedType ? resolveEffectiveFields(selectedType, allDocTypes) : [];
-  // Live-превью по ТЕКУЩИМ (несохранённым) типу+маппингу (issue #294): обновляется на каждую правку.
-  const preview = useMaterializePreview(source.id, typeId || undefined, mapping, showPreview && !!typeId);
-
   // Union-тип (issue #320/#391): «заполняется ровно один вариант» — маппим один активный вариант,
   // а не все поля union разом. Материализатор кладёт один ключ на строку → корректный union-экземпляр.
   const isUnion = !!selectedType
@@ -47,6 +54,37 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     setActiveVariant(presentVariant ?? firstVariant);
   }, [isUnion, presentVariant, firstVariant]);
 
+  /**
+   * Переключение режима. Правила вариантов ПРЕДЗАПОЛНЯЕМ целевыми типами doc-ref-вариантов: у
+   * варианта «АОСР», ссылающегося на тип АОСР, назначение очевидно, и заставлять выбирать его руками
+   * значит требовать подтверждения того, что уже написано в схеме. Маппинг при этом не выдумываем —
+   * какая колонка несёт идентификатор, знает только человек.
+   */
+  function switchMode(next: boolean) {
+    if (next === byRowType) return;
+    if (next) {
+      setSingleModeStash(mapping);
+      setMapping(byTypeStash ?? {});
+      if (Object.keys(discriminator.rules).length === 0) {
+        const prefilled: Record<string, string[]> = {};
+        for (const f of effectiveFields) if (f.typeId) prefilled[f.key] = [f.typeId];
+        setDiscriminator(d => ({ ...d, rules: prefilled }));
+      }
+    } else {
+      setByTypeStash(mapping);
+      const restored = singleModeStash ?? {};
+      // Возвращаясь к статике, оставляем РОВНО ОДИН ключ: union заполняется одним вариантом.
+      const keys = Object.keys(restored);
+      setMapping(keys.length > 1 ? { [keys[0]]: restored[keys[0]] } : restored);
+    }
+    setByRowType(next);
+  }
+
+  // Live-превью по ТЕКУЩИМ (несохранённым) типу+маппингу и правилу (issue #294, #716): обновляется
+  // на каждую правку. Объявлено ПОСЛЕ isUnion/discriminator — раньше их значения ещё не существуют.
+  const preview = useMaterializePreview(source.id, typeId || undefined, mapping, showPreview && !!typeId,
+    isUnion && byRowType && discriminator.column ? discriminator : null);
+
   function switchVariant(key: string) {
     if (key === activeVariant) return;
     const curToken = mapping[activeVariant];
@@ -56,9 +94,21 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     setActiveVariant(key);
   }
 
+  const useDiscriminator = isUnion && byRowType;
+  const problem = useDiscriminator
+    ? discriminatorProblem(effectiveFields, mapping, discriminator,
+        id => allDocTypes.find(t => t.id === id)?.name ?? id)
+    : null;
+
   function handleSave() {
+    if (problem) return;
     save.mutate(
-      { sourceId: source.id, typeId: typeId || null, mapping: typeId ? mapping : null },
+      {
+        sourceId: source.id,
+        typeId: typeId || null,
+        mapping: typeId ? mapping : null,
+        discriminator: typeId && useDiscriminator ? discriminator : null,
+      },
       { onSuccess: onClose },
     );
   }
@@ -74,13 +124,17 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     [preview.data, effectiveFields],
   );
   const previewHasGroups = previewModel.groups.some(g => g.parentKey !== '');
+  // Колонка варианта нужна только когда вариант вообще выбирается построчно.
+  const variantColumn = !!preview.data?.variants?.some(v => v !== null);
+  const variantTitle = (key: string | null | undefined) =>
+    key ? effectiveFields.find(f => f.key === key)?.title ?? key : '—';
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title={`Материализация источника «${source.name}»`} wide
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
-          <Button type="button" variant="filled" onClick={handleSave} loading={save.isPending}>
+          <Button type="button" variant="filled" onClick={handleSave} loading={save.isPending} disabled={!!problem}>
             {save.isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>
         </div>
@@ -107,6 +161,19 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
           ) : (
             <div className="rounded-lg border border-stroke p-3 space-y-3">
               {isUnion && (
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" checked={!byRowType} onChange={() => switchMode(false)} />
+                    <span className={byRowType ? 'text-fg3' : 'text-fg1'}>один вариант на все строки</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" checked={byRowType} onChange={() => switchMode(true)} />
+                    <span className={byRowType ? 'text-fg1' : 'text-fg3'}>вариант по типу документа строки</span>
+                  </label>
+                </div>
+              )}
+
+              {isUnion && !byRowType && (
                 <div className="space-y-1.5">
                   <span className="text-[11px] text-fg4 flex items-center gap-1"
                     title="Заполняется ровно один из вариантов">
@@ -119,17 +186,35 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                   />
                 </div>
               )}
-              <MappingEditor
-                source={source}
-                schemaFields={isUnion ? effectiveFields.filter(f => f.key === activeVariant) : effectiveFields}
-                tabularFields={[]}
-                allDocTypes={allDocTypes}
-                mapping={mapping}
-                targetFieldKey={null}
-                onChange={m => setMapping(m)}
-                hideModeSelector
-                allowDocRef
-              />
+
+              {useDiscriminator ? (
+                <UnionDiscriminatorEditor
+                  source={source}
+                  variants={effectiveFields}
+                  allDocTypes={allDocTypes}
+                  mapping={mapping}
+                  discriminator={discriminator}
+                  onChange={(m, d) => { setMapping(m); setDiscriminator(d); }}
+                />
+              ) : (
+                <MappingEditor
+                  source={source}
+                  schemaFields={isUnion ? effectiveFields.filter(f => f.key === activeVariant) : effectiveFields}
+                  tabularFields={[]}
+                  allDocTypes={allDocTypes}
+                  mapping={mapping}
+                  targetFieldKey={null}
+                  onChange={m => setMapping(m)}
+                  hideModeSelector
+                  allowDocRef
+                />
+              )}
+
+              {problem && (
+                <p className="text-xs text-danger flex items-start gap-1">
+                  <AlertTriangle size={13} className="shrink-0 mt-px" /> {problem}
+                </p>
+              )}
             </div>
           )
         )}
@@ -158,6 +243,11 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                         <thead>
                           {/* Верхний этаж: группы-родители (colSpan) + листья-без-родителя (rowSpan 2, если есть вложенность). */}
                           <tr>
+                            {/* Вариант — ПЕРВОЙ колонкой: в этом режиме он и есть главное, что
+                                хочет увидеть человек, а имена полей у вариантов совпадают. */}
+                            {variantColumn && (
+                              <th rowSpan={previewHasGroups ? 2 : 1} className={dtTh}>Вариант</th>
+                            )}
                             {previewModel.groups.map(g => g.parentKey === ''
                               ? g.leaves.map(l => (
                                   <th key={l.key} rowSpan={previewHasGroups ? 2 : 1} className={dtTh} title={l.key}>{leafLabel(l)}</th>
@@ -179,6 +269,11 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                         <tbody>
                           {previewModel.rows.map((row, i) => (
                             <tr key={i} className={dtRow}>
+                              {variantColumn && (
+                                <td className={`${dtTd} text-fg3 align-top whitespace-nowrap`}>
+                                  {variantTitle(preview.data?.variants?.[i])}
+                                </td>
+                              )}
                               {previewModel.leaves.map(l => (
                                 <td key={l.key} className={`${dtTd} text-fg2 align-top`}>{renderCell(getPath(row, l.path))}</td>
                               ))}
@@ -190,6 +285,24 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                   )
                 ) : (
                   <p className="text-xs text-fg4 p-3">Нет строк.</p>
+                )}
+                {/* Пропущенные видны ВСЕГДА, а не по раскрытию: строка, не доехавшая до реестра, —
+                    это и есть то, ради чего предпросмотр открывают. */}
+                {!!preview.data?.skipped?.length && (
+                  <div className="px-2 py-1.5 border-t border-stroke space-y-0.5">
+                    <p className="text-[11px] text-warning flex items-center gap-1">
+                      <AlertTriangle size={11} /> Пропущено строк: {preview.data.skipped.length}
+                    </p>
+                    {preview.data.skipped.slice(0, 8).map(sk => (
+                      <p key={sk.rowNumber} className="text-[11px] text-fg4">
+                        строка {sk.rowNumber}
+                        {sk.value ? <> · <span className="text-fg3">{sk.value}</span></> : null} — {sk.reason}
+                      </p>
+                    ))}
+                    {preview.data.skipped.length > 8 && (
+                      <p className="text-[11px] text-fg4">…и ещё {preview.data.skipped.length - 8}</p>
+                    )}
+                  </div>
                 )}
                 {preview.data && <p className="text-[11px] text-fg4 px-2 py-1">Всего строк: {preview.data.totalRows}</p>}
               </div>

@@ -51,7 +51,7 @@ public class DataSetResolverDefaultsTests(IntegrationTestFixture fixture) : IAsy
         var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Данные", candidate.SheetOrPath, null), default);
 
         // Материализация источника: маппинг покрывает только «Поле» — «ВидДокумента» намеренно не замаплено.
-        await svc.SetMaterializationAsync(source.Id, rowType.Id, new() { ["Поле"] = "A" }, default);
+        await svc.SetMaterializationAsync(source.Id, rowType.Id, new() { ["Поле"] = "A" }, discriminator: null, default);
 
         // Биндинг табличный (TargetFieldKey задан), СВОЙ маппинг пуст — эффективный маппинг берётся
         // с материализации источника (см. EffectiveMappingJson).
@@ -98,7 +98,7 @@ public class DataSetResolverDefaultsTests(IntegrationTestFixture fixture) : IAsy
         var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
         var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Данные", candidate.SheetOrPath, null), default);
 
-        await svc.SetMaterializationAsync(source.Id, rowType.Id, new() { ["ВидДокумента"] = "B" }, default);
+        await svc.SetMaterializationAsync(source.Id, rowType.Id, new() { ["ВидДокумента"] = "B" }, discriminator: null, default);
         await svc.CreateBindingAsync(new CreateBindingInput(instance.Id, source.Id, "Строки", null), default);
 
         var inst = await m.Send(new GetDocumentInstanceQuery(instance.Id));

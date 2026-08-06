@@ -127,6 +127,20 @@ public class DataSetResolver(
                     continue;
                 }
 
+                // Вариант union'а по типу документа строки (issue #716). Действует только когда
+                // маппинг взят С ИСТОЧНИКА: собственный маппинг привязки замещает материализацию
+                // целиком, вместе с правилом — плоский маппинг построчной вариативности не выражает,
+                // и оставить правило в силе значило бы применять его к чужим ключам.
+                var byMaterialization = binding.Source.MaterializeTypeId is not null
+                    && DataSetMappingValue.IsEmptyMapping(binding.Mapping);
+                var selector = byMaterialization
+                    ? await BuildVariantSelectorAsync(
+                        binding.Source.MaterializeDiscriminator, rows, await TypesAsync(), ct)
+                    : null;
+                // Причины пропуска копим и говорим ОДНОЙ строкой: реестр на сотню документов дал бы
+                // сотню одинаковых предупреждений, за которыми не видно ничего.
+                var skipped = new Dictionary<string, int>(StringComparer.Ordinal);
+
                 if (binding.TargetFieldKey is null)
                 {
                     // Скалярный: первая строка → отдельные поля контекста
@@ -135,7 +149,10 @@ public class DataSetResolver(
                         var row = rows[0];
                         var ownFields = await FieldsOfAsync(typeId);
                         var primitives = await PrimitivesAsync();
-                        foreach (var (fieldKey, mapVal) in mapping)
+                        // При дискриминаторе даже здесь заполняется РОВНО ОДИН вариант — тот, что
+                        // выбран по первой строке. Иначе union перестал бы быть union'ом.
+                        var scalarPairs = PairsFor(selector, mapping, row, skipped);
+                        foreach (var (fieldKey, mapVal) in scalarPairs)
                         {
                             var field = ownFields.GetValueOrDefault(fieldKey);
                             var value = await ApplyMappedAsync(mapVal, row, ownerId, scopeLevel, scopeId, diagnostics, fieldKey, ct);
@@ -166,13 +183,13 @@ public class DataSetResolver(
                     // имеющие defaultValue схемы, напр. через fieldOverrides унаследованного поля), иначе
                     // никогда не появляются в результате. Тип строки — MaterializeTypeId источника, если
                     // маппинг взят оттуда (см. EffectiveMappingJson), иначе — типId самого целевого поля.
-                    var usingMaterializeMapping = binding.Source.MaterializeTypeId is not null
-                        && DataSetMappingValue.IsEmptyMapping(binding.Mapping);
-                    var rowTypeId = usingMaterializeMapping ? binding.Source.MaterializeTypeId : field?.TypeId;
-                    var rowDefaults = rowTypeId is { } rtid
+                    var rowTypeId = byMaterialization ? binding.Source.MaterializeTypeId : field?.TypeId;
+                    var rowDefaults = rowTypeId is { } rtid && selector is null
                         ? DocumentTypeSchemaReader.EffectiveFields(rtid, await TypesAsync())
                             .Where(f => f.DefaultValue is not null && SchemaFieldKinds.IsScalar(f.Type))
                             .ToList()
+                        // При дискриминаторе умолчаний не подставляем: строка union'а обязана нести
+                        // ровно один ключ, а умолчание чужого варианта добавило бы второй.
                         : [];
 
                     // Все строки → объекты формы целевого типа. Храним как JsonElement, чтобы повторный
@@ -184,8 +201,13 @@ public class DataSetResolver(
                     var rowTypes = await TypesAsync();
                     foreach (var row in rows)
                     {
+                        var pairs = PairsFor(selector, mapping, row, skipped);
+                        // Строка, которой не досталось варианта, в результат НЕ попадает: пустой
+                        // объект среди реестра выглядел бы строкой без данных, а её там нет вовсе.
+                        if (selector is not null && pairs.Count == 0) continue;
+
                         var obj = new Dictionary<string, object?>();
-                        foreach (var (fieldKey, mapVal) in mapping)
+                        foreach (var (fieldKey, mapVal) in pairs)
                         {
                             var path = $"{binding.TargetFieldKey}[{rowIndex}].{fieldKey}";
                             var rowField = rowFields.GetValueOrDefault(fieldKey);
@@ -218,6 +240,8 @@ public class DataSetResolver(
                         ctx.Set(binding.TargetFieldKey, JsonSerializer.SerializeToElement(mapped));
                     }
                 }
+
+                ReportSkipped(binding.TargetFieldKey ?? "(скалярная привязка)", skipped, diagnostics);
             }
             catch (Exception ex)
             {
@@ -233,6 +257,89 @@ public class DataSetResolver(
                     $"Источник данных недоступен — поле не заполнено. {ex.Message}"));
             }
         }
+    }
+
+    /// <summary>
+    /// Готовит выбор варианта union'а по строке (issue #716); null — дискриминатора нет, материализация
+    /// статична (ровно один вариант на все строки, прежнее поведение).
+    ///
+    /// Типы документов по идентификаторам разрешаются ОДНИМ запросом на всю страницу строк: реестр на
+    /// сотню документов иначе дал бы сотню запросов, а кэшировать это между вызовами нельзя — состав
+    /// комплекта меняется, и вчерашний ответ соврал бы.
+    /// </summary>
+    private async Task<MaterializeVariantSelector?> BuildVariantSelectorAsync(
+        string? discriminatorJson,
+        IReadOnlyList<IReadOnlyDictionary<string, string?>> rows,
+        IReadOnlyDictionary<Guid, DocumentType> typesById,
+        CancellationToken ct)
+    {
+        var config = MaterializeVariantSelector.ParseConfig(discriminatorJson);
+        if (config is null) return null;
+
+        Dictionary<Guid, Guid>? typeByDocument = null;
+        var documentIds = MaterializeVariantSelector.DocumentIdsIn(config, rows).ToList();
+        if (documentIds.Count > 0)
+            typeByDocument = await db.DomainObjects.AsNoTracking()
+                .Where(o => documentIds.Contains(o.Id))
+                .ToDictionaryAsync(o => o.Id, o => o.CompositeTypeId, ct);
+
+        return MaterializeVariantSelector.Create(config, typesById, typeByDocument);
+    }
+
+    /// <summary>
+    /// Что применять к этой строке: без дискриминатора — весь маппинг, с ним — единственную пару
+    /// победившего варианта. Пустой список означает «строка пропущена», причина уже посчитана.
+    /// </summary>
+    private static List<KeyValuePair<string, string>> PairsFor(
+        MaterializeVariantSelector? selector,
+        Dictionary<string, string> mapping,
+        IReadOnlyDictionary<string, string?> row,
+        Dictionary<string, int> skipped)
+    {
+        if (selector is null) return [.. mapping];
+
+        var choice = selector.Choose(row);
+        if (choice.VariantKey is null)
+        {
+            if (choice.SkipReason is { } reason)
+                skipped[reason] = skipped.GetValueOrDefault(reason) + 1;
+            return [];
+        }
+
+        if (!mapping.TryGetValue(choice.VariantKey, out var token) || string.IsNullOrEmpty(token))
+        {
+            // Валидатор такого не пропускает, но настройка могла быть сохранена до его появления —
+            // и тогда честнее сказать, чем построить объект без единого значения.
+            skipped[MaterializeSkipReason.VariantNotMapped] =
+                skipped.GetValueOrDefault(MaterializeSkipReason.VariantNotMapped) + 1;
+            return [];
+        }
+
+        return [new KeyValuePair<string, string>(choice.VariantKey, token)];
+    }
+
+    /// <summary>
+    /// Пропущенные строки — ОДНОЙ строкой со сводкой по причинам. Реестр на сотню документов дал бы
+    /// сотню одинаковых предупреждений, за которыми не разглядеть ни одного.
+    ///
+    /// Ничья вариантов — ошибка, а не предупреждение: это противоречие настройки (один тип назначен
+    /// двум вариантам одинаково точно), и чинится оно правкой, а не данными.
+    /// </summary>
+    private static void ReportSkipped(
+        string path, Dictionary<string, int> skipped, List<ResolutionDiagnostic>? diagnostics)
+    {
+        if (diagnostics is null || skipped.Count == 0) return;
+
+        var total = skipped.Values.Sum();
+        var detail = string.Join("; ", skipped
+            .OrderByDescending(p => p.Value)
+            .Select(p => $"{p.Value} — {MaterializeSkipReason.Describe(p.Key)}"));
+        var severity = skipped.ContainsKey(MaterializeSkipReason.Ambiguous)
+            ? DiagnosticSeverity.Error
+            : DiagnosticSeverity.Warning;
+
+        diagnostics.Add(new ResolutionDiagnostic(severity, path,
+            $"Строк пропущено при материализации: {total} ({detail})."));
     }
 
     /// <summary>

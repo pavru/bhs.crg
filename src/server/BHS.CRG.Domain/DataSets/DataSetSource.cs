@@ -62,6 +62,25 @@ public class DataSetSource : Entity
     /// </summary>
     public string? MaterializeMapping { get; private set; }
 
+    /// <summary>
+    /// Дискриминатор варианта union'а (issue #716): по какому признаку строки выбирается вариант,
+    /// в который её материализовать. JSON:
+    /// <code>{"column":"ТипКод","kind":"docTypeCode"|"docId","rules":{"АОСР":["&lt;guid типа&gt;"],…}}</code>
+    /// Null — материализация статична: ровно один вариант на все строки (прежнее поведение).
+    ///
+    /// <para><b>Почему отдельной колонкой, а не служебным ключом внутри
+    /// <see cref="MaterializeMapping"/>.</b> Маппинг читают циклом четыре потребителя — применение
+    /// при генерации, подстановка значений по умолчанию, предпросмотр и редактор маппинга. Ключ,
+    /// который «не поле», каждому из них пришлось бы объяснять отдельно, и первый же забывший
+    /// получил бы вариант в качестве поля.</para>
+    ///
+    /// <para><b>Что становится можно.</b> При заданном дискриминаторе <see cref="MaterializeMapping"/>
+    /// несёт НЕСКОЛЬКО ключей-вариантов — по одному на каждый настроенный вариант union'а. Без
+    /// дискриминатора ключ по-прежнему ровно один: старый формат — это один ключ и null здесь,
+    /// то есть обратная совместимость байт-в-байт.</para>
+    /// </summary>
+    public string? MaterializeDiscriminator { get; private set; }
+
     public DataSetFile File { get; private set; } = null!;
     private readonly List<DataSetBinding> _bindings = [];
     public IReadOnlyList<DataSetBinding> Bindings => _bindings.AsReadOnly();
@@ -132,11 +151,19 @@ public class DataSetSource : Entity
         TouchUpdatedAt();
     }
 
-    /// <summary>Настроить/снять материализацию источника в тип (issue #19). typeId=null снимает.</summary>
-    public void SetMaterialization(Guid? typeId, string? mappingJson)
+    /// <summary>
+    /// Настроить/снять материализацию источника в тип (issue #19). typeId=null снимает.
+    ///
+    /// <paramref name="discriminatorJson" /> (issue #716) — правило выбора варианта union'а по
+    /// строке; null означает «один вариант на все строки». Задаётся ЦЕЛИКОМ вместе с маппингом:
+    /// правила и маппинг связаны (правило варианта без маппинга бессмысленно), и раздельное
+    /// сохранение оставляло бы источник в состоянии, которого валидатор не пропустил бы.
+    /// </summary>
+    public void SetMaterialization(Guid? typeId, string? mappingJson, string? discriminatorJson = null)
     {
         MaterializeTypeId = typeId;
         MaterializeMapping = typeId is null ? null : (mappingJson ?? "{}");
+        MaterializeDiscriminator = typeId is null ? null : discriminatorJson;
         TouchUpdatedAt();
     }
 }
