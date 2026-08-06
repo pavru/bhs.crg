@@ -45,7 +45,19 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     {
         var manifest = await BuildManifestAsync(ct);
 
-        var ms = new MemoryStream();
+        // Архив собирается на ДИСКЕ, а не в памяти. Пока копия несла только ассеты шаблонов, это
+        // были единицы мегабайт и MemoryStream ничего не стоил. С библиотекой качества (issue #687)
+        // размер задаётся числом сертификатов и растёт годами: MemoryStream удваивает буфер, то есть
+        // на пике держит около двух объёмов архива в куче больших объектов, и упирается в
+        // int.MaxValue — причём отказ пришёл бы ровно тогда, когда копия нужнее всего.
+        //
+        // DeleteOnClose: файл исчезает, как только поток закроют. Закрывает его отправка ответа
+        // (Results.File освобождает поток) — отдельной уборки не нужно, и она не потеряется при
+        // разрыве соединения.
+        var ms = new FileStream(
+            Path.Combine(Path.GetTempPath(), $"crg-backup-{Guid.NewGuid():N}.zip"),
+            FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None,
+            bufferSize: 81920, FileOptions.DeleteOnClose | FileOptions.Asynchronous);
         using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
         {
             // Write manifest.json
@@ -59,7 +71,11 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             {
                 try
                 {
-                    var blobStream = await blob.DownloadAsync(blobPath, ct);
+                    // await using, а не голый вызов: поток от хранилища держит соединение, и до
+                    // issue #687 их было по числу ассетов шаблона — единицы. Теперь их по числу
+                    // сертификатов в библиотеке, и неосвобождённые ответы исчерпают пул соединений
+                    // клиента MinIO — экспорт не упадёт, а повиснет, что разбирать заметно труднее.
+                    await using var blobStream = await blob.DownloadAsync(blobPath, ct);
                     var entry = zip.CreateEntry($"blobs/{blobPath}", CompressionLevel.NoCompression);
                     await using var ew = entry.Open();
                     await blobStream.CopyToAsync(ew, ct);
@@ -355,6 +371,13 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     /// <summary>Согласование сказуемого со счётом: «1 запись ссылается», «2 записи ссылаются».</summary>
     private static string Agree(int n, string singular, string plural) =>
         n % 10 == 1 && n % 100 != 11 ? singular : plural;
+
+    /// <summary>
+    /// Тот же счёт, но в родительном падеже — для предлогов, которые его требуют: «у 1 записи»,
+    /// «у 2 записей». Именительный <see cref="Records" /> после «у» даёт «у 1 запись».
+    /// </summary>
+    private static string RecordsGenitive(int n) =>
+        n % 10 == 1 && n % 100 != 11 ? $"{n} записи" : $"{n} записей";
 
     // ── Blob path extraction ──────────────────────────────────────────────────
 
@@ -895,6 +918,18 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         var constructionIds = await db.Constructions.Select(e => e.Id).ToHashSetAsync(ct);
         var orphanedByScope = 0;
         var withoutScan = 0;
+        var scanDropped = 0;
+        var nameClashes = 0;
+
+        // Скан у уже существующих карточек и занятые имена в областях — обе выборки нужны ДО записи:
+        // после SaveChanges обе покажут уже восстановленное состояние.
+        var liveScans = await db.QualityDocuments
+            .Where(d => d.ScanBlobPath != null)
+            .Select(d => d.Id)
+            .ToHashSetAsync(ct);
+        var liveNames = await db.QualityDocuments
+            .Select(d => new { d.Id, d.DisplayName, d.Scope, d.ScopeId })
+            .ToListAsync(ct);
 
         foreach (var item in items)
         {
@@ -923,6 +958,24 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             if (item.ScanBlobPath is { Length: > 0 } scanPath && !restoredBlobPaths.Contains(scanPath))
                 withoutScan++;
 
+            // Карточка уже есть, скан у неё есть, а копия принесла её БЕЗ скана: скан загрузили уже
+            // после снятия копии. Восстановление обнулит указатель — и обещание «добавляет и
+            // обновляет, но ничего не удаляет» тут перестаёт быть правдой. Данные всё равно берём из
+            // копии (иначе восстановление перестанет быть восстановлением), но молчать об этом
+            // нельзя: по смыслу этой библиотеки скан и есть документ.
+            if (string.IsNullOrEmpty(item.ScanBlobPath) && liveScans.Contains(item.Id))
+                scanDropped++;
+
+            // Имя документа уникально в своей области (issue #588). Восстановление — единственный
+            // путь записи мимо этой проверки, и обойти её здесь приходится: копия несёт состояние
+            // как есть, а отказ на полпути откатил бы всю транзакцию из-за косметики. Но дубль,
+            // возникший оттого, что те же сертификаты успели завести руками, в списке неразличим —
+            // о нём говорим.
+            if (liveNames.Any(d =>
+                    d.Id != item.Id && d.Scope == scope && d.ScopeId == item.ScopeId &&
+                    string.Equals(d.DisplayName.Trim(), item.DisplayName.Trim(), StringComparison.OrdinalIgnoreCase)))
+                nameClashes++;
+
             var entity = QualityDocument.Restore(
                 item.Id, item.DocumentTypeId, item.DisplayName,
                 JsonDocument.Parse(item.Requisites.GetRawText()),
@@ -942,19 +995,39 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
 
         if (withoutScan > 0)
             warnings.Add(
-                $"Документы качества: у {Records(withoutScan)} скан не восстановлен — файла не было в " +
-                "архиве или его не удалось записать. Карточка документа откроется, но сам сертификат " +
-                "по ней не показать: скан нужно загрузить заново.");
+                $"Документы качества: у {RecordsGenitive(withoutScan)} скан не восстановлен — файла не " +
+                "было в архиве или его не удалось записать. Карточка документа откроется, но сам " +
+                "сертификат по ней не показать: скан нужно загрузить заново.");
+
+        if (scanDropped > 0)
+            warnings.Add(
+                $"Документы качества: у {RecordsGenitive(scanDropped)} скан был в этой системе, но в " +
+                "копии его нет — он загружен уже после её снятия. Указатель на файл снят по копии; " +
+                "сам файл в хранилище остался, но карточка на него больше не ссылается.");
+
+        if (nameClashes > 0)
+            warnings.Add(
+                $"Документы качества: {Records(nameClashes)} " +
+                $"{Agree(nameClashes, "совпадает", "совпадают")} по имени с уже заведёнными в той же " +
+                "области. Уникальность имён (иначе в списке выбирают вслепую) при восстановлении не " +
+                "проверяется — разберите такие пары вручную.");
 
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
 
         // Связки с материалами (MaterialQualityLink) в копию не входят: они адресуют материалы
-        // комплектов, а комплектов здесь нет. Говорим об этом прямо — иначе восстановивший увидит
+        // комплектов, а комплектов здесь нет. Сказать об этом надо — иначе восстановивший увидит
         // полную библиотеку и решит, что вернулась и проделанная работа по привязке.
-        warnings.Add(
-            "Документы качества: связки с материалами не восстанавливаются — они относятся к " +
-            "комплектам, которых в копии нет. Библиотека вернулась непривязанной.");
+        //
+        // Но ТОЛЬКО если привязок в системе нет вовсе. Восстановление ничего не удаляет, и на самом
+        // обычном пути — админ накатывает конфигурационную копию на рабочую систему, чтобы вернуть
+        // шаблон, — все связки остаются на месте. Безусловное «библиотека вернулась непривязанной»
+        // объявило бы там потерянной работу, которая цела, и позвало бы делать её заново. Тем же
+        // рассуждением проверяет себя предупреждение о ссылках на документы двумя методами выше.
+        if (!await db.MaterialQualityLinks.AnyAsync(ct))
+            warnings.Add(
+                "Документы качества: связки с материалами копией не переносятся — они относятся к " +
+                "комплектам, которых в копии нет. Библиотека восстановлена непривязанной.");
     }
 
     private sealed class RestoreStats

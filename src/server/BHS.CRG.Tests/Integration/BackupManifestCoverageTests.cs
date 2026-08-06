@@ -196,6 +196,7 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
                 scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
                 NullLogger<BackupService>.Instance).ExportAsync();
 
+            await using var _zipHandle = zipStream;
             using var zip = new ZipArchive(zipStream, ZipArchiveMode.Read);
             await using var entry = zip.GetEntry("manifest.json")!.Open();
             manifest = (await JsonSerializer.DeserializeAsync<BackupManifest>(entry))!;

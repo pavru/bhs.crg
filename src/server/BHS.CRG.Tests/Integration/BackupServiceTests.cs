@@ -71,6 +71,7 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using (var scope = fixture.Services.CreateScope())
         {
             var (zip, _) = await Backup(scope).ExportAsync();
+            await using var _zipHandle = zip;
             using var ms = new MemoryStream();
             await zip.CopyToAsync(ms);
             zipBytes = ms.ToArray();
@@ -150,6 +151,7 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using (var scope = fixture.Services.CreateScope())
         {
             var (zip, _) = await Backup(scope).ExportAsync();
+            await using var _zipHandle = zip;
             using var ms = new MemoryStream();
             await zip.CopyToAsync(ms);
             zipBytes = ms.ToArray();
@@ -252,6 +254,7 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using (var scope = fixture.Services.CreateScope())
         {
             var (zipStream, _) = await Backup(scope).ExportAsync();
+            await using var _zipHandle = zipStream;
             using var buf = new MemoryStream();
             await zipStream.CopyToAsync(buf);
             zipBytes = buf.ToArray();
@@ -307,6 +310,7 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using (var scope = fixture.Services.CreateScope())
         {
             var (zipStream, _) = await Backup(scope).ExportAsync();
+            await using var _zipHandle = zipStream;
             using var buf = new MemoryStream();
             await zipStream.CopyToAsync(buf);
             zipBytes = buf.ToArray();
@@ -563,6 +567,7 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using (var scope = fixture.Services.CreateScope())
         {
             var (zipStream, _) = await Backup(scope).ExportAsync();
+            await using var _zipHandle = zipStream;
             using var buf = new MemoryStream();
             await zipStream.CopyToAsync(buf);
             zipBytes = buf.ToArray();
@@ -625,6 +630,7 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using (var scope = fixture.Services.CreateScope())
         {
             var (zipStream, _) = await Backup(scope).ExportAsync();
+            await using var _zipHandle = zipStream;
             using var buf = new MemoryStream();
             await zipStream.CopyToAsync(buf);
             zipBytes = buf.ToArray();
@@ -739,6 +745,152 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Contains(report.Warnings, w => w.Contains("скан не восстановлен"));
     }
 
+    /// <summary>
+    /// Восстановление ничего не удаляет, и на самом обычном пути — админ накатывает копию на живую
+    /// систему, чтобы вернуть шаблон, — связки с материалами остаются на месте. Безусловное
+    /// «библиотека вернулась непривязанной» объявило бы там потерянной целую работу и позвало бы
+    /// делать её заново.
+    /// </summary>
+    [Fact]
+    public async Task Restore_WhenMaterialLinksSurvive_DoesNotClaimLibraryCameBackUnlinked()
+    {
+        var docTypeId = Guid.NewGuid();
+        var liveDocId = Guid.NewGuid();
+
+        await fixture.ResetDatabaseAsync();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.DocumentTypes.Add(DocumentType.Restore(
+                docTypeId, "Сертификат", $"cert-{Guid.NewGuid():N}", DocumentTypeKind.Document, null,
+                JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
+                false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+            db.QualityDocuments.Add(QualityDocument.Restore(
+                liveDocId, docTypeId, "Живой сертификат", JsonDocument.Parse("{}"),
+                CatalogScope.System, null, QualityDocSource.Manual, null, null, null, null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            db.MaterialQualityLinks.Add(MaterialQualityLink.Create(
+                CatalogScope.System, null, "vvgng-3x1.5", liveDocId, "ВВГнг 3х1.5"));
+            await db.SaveChangesAsync();
+        }
+
+        var report = await ImportManifestZipAsync(ManifestWith(
+            documentTypes:
+            [
+                new BackupDocumentType(docTypeId, "Сертификат", $"cert-{Guid.NewGuid():N}", "Document", null, false,
+                    JsonDocument.Parse("""{"fields":[]}""").RootElement.Clone(),
+                    JsonDocument.Parse("{}").RootElement.Clone(),
+                    DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
+            ],
+            qualityDocuments:
+            [
+                new BackupQualityDocument(Guid.NewGuid(), docTypeId, "Новый из копии",
+                    JsonDocument.Parse("{}").RootElement.Clone(),
+                    nameof(CatalogScope.System), null, nameof(QualityDocSource.Manual), null,
+                    null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
+            ]));
+
+        Assert.True(report.Success);
+        Assert.DoesNotContain(report.Warnings, w => w.Contains("непривязанной"));
+    }
+
+    /// <summary>
+    /// Скан загрузили уже ПОСЛЕ снятия копии: восстановление снимет указатель на него, и обещание
+    /// «добавляет и обновляет, но ничего не удаляет» тут перестаёт быть правдой. Данные всё равно
+    /// берём из копии, но сказать об этом обязаны — по смыслу библиотеки скан и есть документ.
+    /// </summary>
+    [Fact]
+    public async Task Restore_ScanUploadedAfterBackupWasTaken_IsReported()
+    {
+        var docTypeId = Guid.NewGuid();
+        var docId = Guid.NewGuid();
+
+        await fixture.ResetDatabaseAsync();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.DocumentTypes.Add(DocumentType.Restore(
+                docTypeId, "Сертификат", $"cert-{Guid.NewGuid():N}", DocumentTypeKind.Document, null,
+                JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
+                false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+            db.QualityDocuments.Add(QualityDocument.Restore(
+                docId, docTypeId, "Сертификат со сканом", JsonDocument.Parse("{}"),
+                CatalogScope.System, null, QualityDocSource.Manual, null,
+                "quality/added-later.pdf", "added-later.pdf", "application/pdf",
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        // Копия несёт ту же карточку, но снятую ДО загрузки скана.
+        var report = await ImportManifestZipAsync(ManifestWith(
+            documentTypes:
+            [
+                new BackupDocumentType(docTypeId, "Сертификат", $"cert-{Guid.NewGuid():N}", "Document", null, false,
+                    JsonDocument.Parse("""{"fields":[]}""").RootElement.Clone(),
+                    JsonDocument.Parse("{}").RootElement.Clone(),
+                    DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
+            ],
+            qualityDocuments:
+            [
+                new BackupQualityDocument(docId, docTypeId, "Сертификат со сканом",
+                    JsonDocument.Parse("{}").RootElement.Clone(),
+                    nameof(CatalogScope.System), null, nameof(QualityDocSource.Manual), null,
+                    null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
+            ]));
+
+        Assert.True(report.Success);
+        Assert.Equal(1, report.QualityDocumentsUpdated);
+        Assert.Contains(report.Warnings, w => w.Contains("скан был в этой системе"));
+        // Родительный падеж после «у»: именительный дал бы «у 1 запись».
+        Assert.Contains(report.Warnings, w => w.Contains("у 1 записи"));
+    }
+
+    /// <summary>
+    /// Имя документа качества уникально в своей области (issue #588), но восстановление — путь
+    /// записи мимо этой проверки. Те же сертификаты, успевшие появиться руками, дают в списке
+    /// неразличимые пары; отказывать нельзя (откатится вся транзакция), значит надо сказать.
+    /// </summary>
+    [Fact]
+    public async Task Restore_QualityDocumentDuplicatingNameInSameScope_IsReported()
+    {
+        var docTypeId = Guid.NewGuid();
+
+        await fixture.ResetDatabaseAsync();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.DocumentTypes.Add(DocumentType.Restore(
+                docTypeId, "Сертификат", $"cert-{Guid.NewGuid():N}", DocumentTypeKind.Document, null,
+                JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
+                false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+            db.QualityDocuments.Add(QualityDocument.Restore(
+                Guid.NewGuid(), docTypeId, "EKF — автоматические выключатели", JsonDocument.Parse("{}"),
+                CatalogScope.System, null, QualityDocSource.Manual, null, null, null, null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        var report = await ImportManifestZipAsync(ManifestWith(
+            documentTypes:
+            [
+                new BackupDocumentType(docTypeId, "Сертификат", $"cert-{Guid.NewGuid():N}", "Document", null, false,
+                    JsonDocument.Parse("""{"fields":[]}""").RootElement.Clone(),
+                    JsonDocument.Parse("{}").RootElement.Clone(),
+                    DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
+            ],
+            qualityDocuments:
+            [
+                // Другой идентификатор, то же имя в той же области — ровно случай #588.
+                new BackupQualityDocument(Guid.NewGuid(), docTypeId, "EKF — автоматические выключатели",
+                    JsonDocument.Parse("{}").RootElement.Clone(),
+                    nameof(CatalogScope.System), null, nameof(QualityDocSource.Manual), null,
+                    null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
+            ]));
+
+        Assert.True(report.Success);
+        Assert.Contains(report.Warnings, w => w.Contains("совпадает по имени с уже заведёнными"));
+    }
+
     /// <summary>Манифест с одними нужными секциями — остальные пустые.</summary>
     private static BackupManifest ManifestWith(
         BackupDocumentType[] documentTypes,
@@ -756,7 +908,15 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
     private async Task<RestoreReport> ImportManifestAsync(BackupManifest manifest)
     {
         await fixture.ResetDatabaseAsync();
+        return await ImportManifestZipAsync(manifest);
+    }
 
+    /// <summary>
+    /// То же, но БЕЗ очистки: для случаев, где проверяется встреча копии с уже существующими
+    /// данными (связки, скан, дубль имени) — очистка снесла бы то самое, ради чего тест написан.
+    /// </summary>
+    private async Task<RestoreReport> ImportManifestZipAsync(BackupManifest manifest)
+    {
         using var ms = new MemoryStream();
         using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
         {
@@ -800,6 +960,7 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using (var scope = fixture.Services.CreateScope())
         {
             var (zipStream, _) = await Backup(scope).ExportAsync();
+            await using var _zipHandle = zipStream;
             using var buf = new MemoryStream();
             await zipStream.CopyToAsync(buf);
             zipBytes = buf.ToArray();
