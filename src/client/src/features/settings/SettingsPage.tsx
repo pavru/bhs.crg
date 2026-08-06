@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Download, Upload, CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
-import { downloadBackup, restoreBackup } from '@/shared/api/backup';
+import { downloadBackup, restoreBackup, fetchBackupSize } from '@/shared/api/backup';
+import { formatBytes } from '@/shared/api/attachments';
 import type { RestoreReport } from '@/shared/api/types';
 import {
   useLocale, LOCALE_OPTIONS, SYSTEM_LOCALE, resolveLocale, formatDate, formatNumber,
@@ -307,6 +309,75 @@ function LocaleSection() {
   );
 }
 
+// ─── Вес копии против предела восстановления ──────────────────────────────────
+
+/**
+ * Сколько весит копия и на каком пороге её откажется принять восстановление (issue #711).
+ *
+ * Зачем это на экране. Восстановление отказывает на архиве больше предела, а экспорт про предел не
+ * знал вовсе и молча отдавал архив любого размера. Пока копия несла ассеты шаблонов, разойтись этим
+ * числам было негде; с библиотекой документов качества (issue #687) вес задаётся тем, сколько
+ * сертификатов накопилось, и растёт годами. Без этой строки система исправно делала бы копии,
+ * которые сама же откажется принять, а узнали бы об этом при восстановлении — после аварии, когда
+ * выбора уже нет.
+ *
+ * Запрос уходит только когда раздел раскрыт: CollapsibleSection не монтирует содержимое свёрнутого,
+ * а оценка стоит построения манифеста и запроса размера на каждый файл.
+ */
+function BackupSizeLine() {
+  const { data, isPending, isError } = useQuery({
+    queryKey: ['backup', 'size'],
+    queryFn: fetchBackupSize,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+
+  if (isPending) return <p className="text-xs text-fg4">Размер копии оценивается…</p>;
+  // Молча ничего не показывать нельзя, но и мешать копированию нечем: кнопка работает и без оценки.
+  if (isError || !data) return <p className="text-xs text-fg4">Размер копии оценить не удалось.</p>;
+
+  const share = data.limitBytes > 0 ? data.totalBytes / data.limitBytes : 0;
+  const tone = data.exceedsLimit ? 'text-danger' : share >= 0.8 ? 'text-warning' : 'text-fg3';
+
+  return (
+    <div className="space-y-1">
+      <p className={`text-xs ${tone}`}>
+        Размер копии ≈ <b>{formatBytes(data.totalBytes)}</b>
+        {' '}из {formatBytes(data.limitBytes)}, на которых откажет восстановление
+        {data.blobCount > 0 && <> · файлов: {data.blobCount}</>}
+      </p>
+      {data.exceedsLimit && (
+        <p className="text-xs text-danger flex items-start gap-1">
+          <AlertTriangle size={13} className="shrink-0 mt-px" />
+          <span>
+            Копия переросла предел: загрузить её обратно эта система откажется. Предел задаётся при
+            развёртывании — см. руководство администратора, раздел «Резервное копирование».
+          </span>
+        </p>
+      )}
+      {!data.exceedsLimit && share >= 0.8 && (
+        <p className="text-xs text-warning flex items-start gap-1">
+          <AlertTriangle size={13} className="shrink-0 mt-px" />
+          <span>
+            До предела восстановления осталось {formatBytes(data.limitBytes - data.totalBytes)}.
+            Библиотека документов качества наполняется постоянно — предел стоит поднять заранее.
+          </span>
+        </p>
+      )}
+      {data.missingBlobCount > 0 && (
+        <p className="text-xs text-warning flex items-start gap-1">
+          <AlertTriangle size={13} className="shrink-0 mt-px" />
+          <span>
+            Файлов нет в хранилище: {data.missingBlobCount}. В копию они не попадут — ссылки на них
+            останутся битыми и после восстановления.
+          </span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── Main settings page ────────────────────────────────────────────────────────
 
 export function SettingsPage() {
@@ -417,10 +488,14 @@ export function SettingsPage() {
       <CollapsibleSection title="Резервное копирование" storageKey="backup" defaultOpen={false}>
         <p className="text-xs text-fg3">
           Копия конфигурационная: типы документов, шаблоны и их ассеты, справочники, общие данные,
-          библиотека Typst, профили распознавания, шаблоны маппинга, подтверждённые алиасы сверки,
-          прикреплённые файлы и изображения. Проектная работа — стройки, разделы, комплекты,
-          документы и выпущенные файлы — не включается, как и ключи интеграций.
+          библиотека Typst, профили распознавания, шаблоны маппинга и рецепты обработки источников,
+          подтверждённые алиасы сверки, прикреплённые файлы и изображения. Отдельно — библиотека
+          документов качества <b>вместе со сканами</b>: она и задаёт вес копии. Проектная работа —
+          стройки, разделы, комплекты, документы и выпущенные файлы — не включается, как и ключи
+          интеграций и определения сверок.
         </p>
+
+        <BackupSizeLine />
 
         {/* Backup */}
         <div className="flex items-start gap-4">

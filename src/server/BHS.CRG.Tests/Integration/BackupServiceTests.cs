@@ -995,4 +995,119 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
             Assert.Equal("из копии", alias.Note);
         }
     }
+
+    /// <summary>
+    /// Оценка веса копии сходится с настоящим архивом (issue #711).
+    ///
+    /// Это главная проверка новой оценки, и сверяется она не с ожидаемым числом, а с ФАКТОМ:
+    /// снимаем копию тех же данных и сравниваем длины. Число, посчитанное по своей же формуле,
+    /// доказывало бы только то, что формула не менялась, — а сходиться она обязана с zip.
+    ///
+    /// Скан берём заведомо несжимаемый (псевдослучайные байты): именно так ведут себя сканы в
+    /// PDF, и именно поэтому они кладутся в архив без сжатия. Данные, которые сжимаются в ноль,
+    /// скрыли бы ошибку в учёте того, что сжимается, а что нет.
+    /// </summary>
+    [Fact]
+    public async Task EstimateSize_MatchesActualArchive()
+    {
+        const string scanPath = "quality/2026/big-certificate.pdf";
+        var scanBytes = new byte[256 * 1024];
+        new Random(711).NextBytes(scanBytes);
+        var docTypeId = Guid.NewGuid();
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var blob = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
+
+            db.DocumentTypes.Add(DocumentType.Restore(
+                docTypeId, "Сертификат", $"cert-{Guid.NewGuid():N}", DocumentTypeKind.Document, null,
+                JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
+                false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+
+            await blob.PutAsync(AssetBlobPath, new MemoryStream(AssetBytes), "image/png", default);
+            db.TemplateAssets.Add(TemplateAsset.Restore(Guid.NewGuid(), TemplateAssetScope.System, null,
+                TemplateAssetKind.Image, "logo", "logo.png", "image/png", AssetBlobPath, null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+
+            await blob.PutAsync(scanPath, new MemoryStream(scanBytes), "application/pdf", default);
+            db.QualityDocuments.Add(QualityDocument.Restore(
+                Guid.NewGuid(), docTypeId, "ЕАЭС RU С-RU.АТ21.В.00157", JsonDocument.Parse("""{"Номер":"00157"}"""),
+                CatalogScope.System, null, QualityDocSource.Web, null,
+                scanPath, "big-certificate.pdf", "application/pdf",
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        BackupSizeEstimate estimate;
+        long actualBytes;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var svc = Backup(scope);
+            estimate = await svc.EstimateSizeAsync(limitBytes: 500L * 1024 * 1024);
+
+            var (zipStream, _) = await svc.ExportAsync();
+            await using var _zipHandle = zipStream;
+            actualBytes = zipStream.Length;
+        }
+
+        Assert.Equal(2, estimate.BlobCount);
+        Assert.Equal(0, estimate.MissingBlobCount);
+        // Блобы лежат в архиве как есть — их вклад точен, а не приближён.
+        Assert.Equal(scanBytes.LongLength + AssetBytes.LongLength, estimate.BlobBytes);
+        Assert.False(estimate.ExceedsLimit);
+
+        // Расхождение — считаные байты: заголовки zip считаются по длине имени, а не круглой
+        // константой (круглая занижала оценку на рабочей базе почти на 6 КБ).
+        var diff = Math.Abs(estimate.TotalBytes - actualBytes);
+        Assert.True(diff < 256,
+            $"оценка {estimate.TotalBytes} против архива {actualBytes} (разница {diff} байт)");
+    }
+
+    /// <summary>
+    /// Оценка не завышает на битых ссылках. Экспорт недоступный блоб пропускает с предупреждением —
+    /// значит и веса он не добавляет; но молчать о нём тоже нельзя: битая ссылка иначе не всплывёт
+    /// нигде, кроме лога экспорта.
+    /// </summary>
+    [Fact]
+    public async Task EstimateSize_CountsMissingBlobsSeparately_AndDoesNotChargeForThem()
+    {
+        var docTypeId = Guid.NewGuid();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.DocumentTypes.Add(DocumentType.Restore(
+                docTypeId, "Сертификат", $"cert-{Guid.NewGuid():N}", DocumentTypeKind.Document, null,
+                JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
+                false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+            db.QualityDocuments.Add(QualityDocument.Restore(
+                Guid.NewGuid(), docTypeId, "Сертификат без файла", JsonDocument.Parse("{}"),
+                CatalogScope.System, null, QualityDocSource.Manual, null,
+                "quality/2026/pointer-to-nowhere.pdf", "нет.pdf", "application/pdf",
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        using var estimateScope = fixture.Services.CreateScope();
+        var estimate = await Backup(estimateScope).EstimateSizeAsync(limitBytes: 500L * 1024 * 1024);
+
+        Assert.Equal(1, estimate.BlobCount);
+        Assert.Equal(1, estimate.MissingBlobCount);
+        Assert.Equal(0, estimate.BlobBytes);
+    }
+
+    /// <summary>
+    /// Предел — не украшение: копия сверх него помечена как непринимаемая. Проверяем негативом,
+    /// подставив предел ниже фактического веса, — иначе признак остался бы вычислением, которое
+    /// никогда не срабатывало.
+    /// </summary>
+    [Fact]
+    public async Task EstimateSize_MarksCopyThatWouldBeRejected()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var estimate = await Backup(scope).EstimateSizeAsync(limitBytes: 1);
+
+        Assert.True(estimate.TotalBytes > 1);
+        Assert.True(estimate.ExceedsLimit);
+    }
 }

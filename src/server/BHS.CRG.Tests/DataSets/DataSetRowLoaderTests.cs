@@ -29,6 +29,8 @@ public class DataSetRowLoaderTests
         public Task DeleteAsync(string blobPath, CancellationToken ct = default) => throw new NotSupportedException();
         public Task PutAsync(string blobPath, Stream s, string contentType, CancellationToken ct = default)
             => throw new NotSupportedException();
+        public Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
+            => Task.FromResult(content?.LongLength);
     }
 
     /// <summary>Провайдер, отдающий одну заранее заданную строку и запоминающий контекст вызова.</summary>

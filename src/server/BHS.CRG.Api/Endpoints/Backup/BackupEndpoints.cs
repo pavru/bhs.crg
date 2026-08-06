@@ -1,5 +1,6 @@
 ﻿using BHS.CRG.Infrastructure.Backup;
 
+using BHS.CRG.Api.Configuration;
 using BHS.CRG.Api.Endpoints.Common;
 using Microsoft.AspNetCore.Http.Features;
 
@@ -22,11 +23,18 @@ public static class BackupEndpoints
         // единственное, чему нужен потолок в сотни мегабайт, и глобально задирать его нельзя
         // (issue #482): тогда любой пользователь заставил бы сервер выписать на диск сотни мегабайт
         // прежде, чем получить отказ.
-        g.MapPost("/restore", async (HttpRequest request, BackupService svc, CancellationToken ct) =>
+        // Вес копии и предел, на котором откажет восстановление, — одним ответом (issue #711).
+        // Считается по требованию: раздел настроек свёрнут по умолчанию, и запрос уходит, когда его
+        // раскрыли, а не при каждой загрузке страницы.
+        g.MapGet("/size", async (BackupService svc, BackupSizeLimits limits, CancellationToken ct) =>
+            Results.Ok(await svc.EstimateSizeAsync(limits.ArchiveBytes, ct)));
+
+        g.MapPost("/restore", async (
+            HttpRequest request, BackupService svc, BackupSizeLimits limits, CancellationToken ct) =>
         {
             var sizeFeature = request.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
             if (sizeFeature is { IsReadOnly: false })
-                sizeFeature.MaxRequestBodySize = UploadLimits.BackupRequest;
+                sizeFeature.MaxRequestBodySize = limits.RequestBytes;
 
             if (!request.HasFormContentType)
                 return Results.BadRequest(new { error = "Ожидается multipart/form-data" });
@@ -34,7 +42,7 @@ public static class BackupEndpoints
             var form = await request.ReadFormAsync(ct);
             var file = form.Files.GetFile("file");
             if (file is null) return Results.BadRequest(new { error = "Файл не указан" });
-            if (UploadLimits.Exceeded(file, UploadLimits.BackupArchive) is { } tooLarge) return tooLarge;
+            if (UploadLimits.Exceeded(file, limits.ArchiveBytes) is { } tooLarge) return tooLarge;
 
             try
             {

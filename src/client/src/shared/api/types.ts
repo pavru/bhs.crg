@@ -242,6 +242,18 @@ export interface BackupManifest {
   primitiveTypes?: unknown[];
 }
 
+/** Вес копии, снятой прямо сейчас, и предел, на котором откажет восстановление (issue #711). */
+export interface BackupSizeEstimate {
+  totalBytes: number;
+  manifestBytes: number;
+  blobBytes: number;
+  blobCount: number;
+  /** Файлы, потерянные хранилищем: в копию они не попадут. */
+  missingBlobCount: number;
+  limitBytes: number;
+  exceedsLimit: boolean;
+}
+
 export interface RestoreReport {
   success: boolean;
   conversionNotice: string | null;

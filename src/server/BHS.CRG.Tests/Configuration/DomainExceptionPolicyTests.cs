@@ -47,6 +47,7 @@ public class DomainExceptionPolicyTests
         ["BHS.CRG.Infrastructure/Generation/UserLibMaterializer.cs"] = "сработала защита от записи за пределы дерева — обязана быть громкой, а не тихим 409",
         ["BHS.CRG.Infrastructure/Storage/BlobStorage.cs"] = "путь берётся из базы, а не из запроса: «исправьте запрос» тут неверно по существу",
         ["BHS.CRG.Domain/Objects/DomainObject.cs"] = "документные свойства спросили у не-документа — дефект вызывающего кода",
+        ["BHS.CRG.Infrastructure/Backup/CountingStream.cs"] = "счётчик байтов: чтения и перемотки у него нет по устройству, до пользователя это не доходит",
     };
 
     /// <summary>

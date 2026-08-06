@@ -46,6 +46,24 @@ public class MinIOBlobStorage(IMinioClient minio, BlobStorageOptions options) : 
         return ms;
     }
 
+    public async Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
+    {
+        var (bucket, obj) = ParsePath(blobPath);
+        try
+        {
+            var stat = await minio.StatObjectAsync(new StatObjectArgs()
+                .WithBucket(bucket)
+                .WithObject(obj), ct);
+            return stat.Size;
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            // Объекта нет (или до него не достучаться) — для оценки это «ноль байт», а не отказ.
+            // Отмену пропускаем наружу: она значит, что спрашивать уже некому.
+            return null;
+        }
+    }
+
     public Task DeleteAsync(string blobPath, CancellationToken ct = default)
     {
         var (bucket, obj) = ParsePath(blobPath);

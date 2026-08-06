@@ -45,6 +45,9 @@ public class FakeBlobStorage : IBlobStorage
         _store[blobPath] = ms.ToArray();
     }
 
+    public Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
+        => Task.FromResult(_store.TryGetValue(blobPath, out var bytes) ? bytes.LongLength : (long?)null);
+
     /// <summary>Для тестов best-effort очистки осиротевших blob'ов — проверить, что путь реально удалён/не существовал.</summary>
     public bool Exists(string blobPath) => _store.ContainsKey(blobPath);
 }

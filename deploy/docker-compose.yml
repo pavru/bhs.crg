@@ -111,6 +111,9 @@ services:
       # Ключи Data Protection (шифруют токены сброса/подтверждения) — на томе, иначе токены
       # инвалидируются при пересоздании контейнера.
       DataProtection__KeysPath: "/app/dp-keys"
+      # Предел размера резервной копии. Та же переменная задаёт client_max_body_size у web —
+      # порог существует звеном цепи, и рассогласовать их двумя значениями нельзя (issue #711).
+      Backup__MaxArchiveMb: ${BACKUP_MAX_ARCHIVE_MB:-500}
     volumes:
       - dp_keys:/app/dp-keys
     restart: unless-stopped
@@ -131,6 +134,10 @@ services:
       dockerfile: deploy/Dockerfile.web
     depends_on:
       - api
+    environment:
+      # Тот же предел, что у api: из него считается client_max_body_size (deploy/nginx-body-size.sh).
+      # Значение по умолчанию здесь и в скрипте одно и то же — 500.
+      BACKUP_MAX_ARCHIVE_MB: ${BACKUP_MAX_ARCHIVE_MB:-500}
     ports:
       # Внутри контейнера 8080: nginx работает от непривилегированного пользователя и порт 80
       # занять не может (см. Dockerfile.web). Порт на хосте прежний.
