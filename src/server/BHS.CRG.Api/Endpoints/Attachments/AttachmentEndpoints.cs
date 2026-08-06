@@ -13,16 +13,19 @@ public static class AttachmentEndpoints
 
         g.MapPost("/", async (IFormFile file, IBlobStorage blob, ILoggerFactory loggers, CancellationToken ct) =>
         {
-            if (!AttachmentTypes.IsAccepted(file.ContentType))
-                return Results.BadRequest(new { error = $"Формат не поддерживается: {file.ContentType}" });
-            if (MismatchedExtension(file) is { } mismatch) return mismatch;
+            if (Unsupported(file) is { } unsupported) return unsupported;
             if (UploadLimits.Exceeded(file, UploadLimits.Attachment) is { } tooLarge) return tooLarge;
+
+            // Тип берём ИЗ ИМЕНИ, а не из заявленного клиентом: заявленный ни на что не влияет —
+            // отдача всё равно выводит тип из расширения, — и записать его значило бы хранить
+            // значение, которое разойдётся с тем, чем файл потом отдадут.
+            var mimeType = AttachmentTypes.ServeTypeFor(file.FileName);
 
             try
             {
                 using var stream = file.OpenReadStream();
-                var blobPath = await blob.UploadAsync(file.FileName, stream, file.ContentType, ct);
-                return Results.Ok(new { blobPath, fileName = file.FileName, mimeType = file.ContentType, size = file.Length });
+                var blobPath = await blob.UploadAsync(file.FileName, stream, mimeType, ct);
+                return Results.Ok(new { blobPath, fileName = file.FileName, mimeType, size = file.Length });
             }
             catch (Exception ex)
             {
@@ -44,15 +47,16 @@ public static class AttachmentEndpoints
         {
             // Тот же белый список, что у обычного вложения (issue #534): «image/*» пропускал бы tiff,
             // bmp, heic, avif — их декодер не понимает, картинка легла бы как есть, а отказ всплыл бы
-            // только при генерации PDF, далеко от загрузки. ContentType бывает null, если часть
-            // multipart пришла без заголовка, — тогда это тоже отказ, а не 500.
-            var contentType = file.ContentType ?? "";
-            if (!AttachmentTypes.IsImage(contentType))
-                return Results.BadRequest(new { error = $"Это не поддерживаемое изображение: {contentType}" });
-            // Сверка расширения нужна и здесь: путь короче (картинка ещё и уменьшается), но
-            // оригинал ложится в хранилище тем же вызовом и с тем же именем.
-            if (MismatchedExtension(file) is { } mismatch) return mismatch;
+            // только при генерации PDF, далеко от загрузки.
+            if (!AttachmentTypes.IsImageName(file.FileName))
+                return Results.BadRequest(new
+                {
+                    error = $"Это не поддерживаемое изображение: «{file.FileName}». " +
+                            "Ожидается .png, .jpg, .jpeg, .gif или .webp.",
+                });
             if (UploadLimits.Exceeded(file, UploadLimits.Attachment) is { } tooLarge) return tooLarge;
+
+            var contentType = AttachmentTypes.ServeTypeFor(file.FileName);
 
             using var ms = new MemoryStream();
             await file.CopyToAsync(ms, ct);
@@ -78,7 +82,7 @@ public static class AttachmentEndpoints
                     title: "Ошибка загрузки файла", statusCode: 500);
             }
 
-            var down = ImageDownscaler.Downscale(source, file.ContentType);
+            var down = ImageDownscaler.Downscale(source, contentType);
             // Копию берём, ТОЛЬКО если она легче исходника. Уменьшение пикселей не гарантирует
             // уменьшения байтов: хорошо сжимаемый PNG (схема, скан с большими однотонными полями)
             // после пересжатия в JPEG может стать в разы ТЯЖЕЛЕЕ — поймано на живой проверке, где
@@ -91,7 +95,7 @@ public static class AttachmentEndpoints
                 return Results.Ok(new
                 {
                     blobPath = originalPath, originalBlobPath = (string?)null,
-                    fileName = file.FileName, mimeType = file.ContentType,
+                    fileName = file.FileName, mimeType = contentType,
                     sourceBytes = source.LongLength, storedBytes = source.LongLength,
                 });
             }
@@ -142,23 +146,20 @@ public static class AttachmentEndpoints
     }
 
     /// <summary>
-    /// Отказ, если расширение имени не отвечает заявленному типу; иначе null.
+    /// Отказ, если расширение имени не из списка принимаемых; иначе null.
     ///
-    /// Заявленный тип приходит от клиента и ничем не подтверждён — не-браузерный клиент кладёт
-    /// <c>evil.svg</c>, объявив его <c>image/png</c>. Прямо сейчас это не эксплуатируется: отдача
-    /// выводит тип из расширения и вернёт <c>application/octet-stream</c>. Но тогда вся защита
-    /// держится на одной карте расширений, а список приёма против такого клиента не даёт ничего —
-    /// то есть рубеж здесь до сих пор был декоративным.
+    /// Судим по имени, а не по заявленному клиентом типу. Заявленный тип не подтверждён ничем и ни
+    /// на что не влияет: отдача выводит тип из расширения, значит расширение и решает судьбу файла.
+    /// Не-браузерный клиент, кладущий <c>evil.svg</c> под видом картинки, отвергается здесь; а
+    /// <c>смета.xlsx</c>, который Windows без Office объявляет как <c>application/vnd.ms-excel</c>,
+    /// проходит — сверка заявленного типа с расширением отвергала бы его без всякой на то причины.
     /// </summary>
-    private static IResult? MismatchedExtension(IFormFile file)
-    {
-        if (AttachmentTypes.ExtensionMatches(file.FileName, file.ContentType)) return null;
-
-        var expected = AttachmentTypes.ExtensionsFor(file.ContentType);
-        return Results.BadRequest(new
-        {
-            error = $"Имя файла «{file.FileName}» не отвечает заявленному типу {file.ContentType}: " +
-                    $"ожидается {expected}.",
-        });
-    }
+    private static IResult? Unsupported(IFormFile file) =>
+        AttachmentTypes.IsAcceptedName(file.FileName)
+            ? null
+            : Results.BadRequest(new
+            {
+                error = $"Формат не поддерживается: «{file.FileName}». " +
+                        $"Принимаются {AttachmentTypes.AcceptedExtensions}.",
+            });
 }

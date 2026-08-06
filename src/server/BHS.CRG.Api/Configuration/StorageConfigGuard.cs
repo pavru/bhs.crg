@@ -1,3 +1,5 @@
+using Npgsql;
+
 namespace BHS.CRG.Api.Configuration;
 
 /// <summary>
@@ -30,13 +32,27 @@ public static class StorageConfigGuard
     /// <param name="connectionString">Строка подключения к PostgreSQL (<c>ConnectionStrings:Postgres</c>).</param>
     /// <param name="accessKey">Ключ доступа к хранилищу (<c>BlobStorage:AccessKey</c>).</param>
     /// <param name="secretKey">Секретный ключ хранилища (<c>BlobStorage:SecretKey</c>).</param>
-    public static void Require(string? connectionString, string? accessKey, string? secretKey)
+    public static void Require(string? connectionString, string? accessKey, string? secretKey, string? bucket)
     {
         RequireConnectionString(connectionString);
-        RequireStorageCredential(accessKey, "BlobStorage__AccessKey", "MINIO_ROOT_USER");
-        RequireStorageCredential(secretKey, "BlobStorage__SecretKey", "MINIO_ROOT_PASSWORD");
+        RequireStorageValue(accessKey, "BlobStorage__AccessKey", "MINIO_ROOT_USER");
+        RequireStorageValue(secretKey, "BlobStorage__SecretKey", "MINIO_ROOT_PASSWORD");
+        // Бакет — третья дверь в том же ряду. Compose подставляет его так же (`${MINIO_BUCKET}`, без
+        // значения по умолчанию), пустое значение так же перекрывает дефолт C#, а узнаётся об этом
+        // ещё позже: имя бакета трогается лениво, на первой загрузке файла. Проверять два значения
+        // из трёх значило бы оставить ровно тот отказ, ради устранения которого проверка и заведена.
+        RequireStorageValue(bucket, "BlobStorage__Bucket", "MINIO_BUCKET");
     }
 
+    /// <summary>
+    /// Строку подключения РАЗБИРАЕМ, а не смотрим на неё целиком.
+    ///
+    /// Проверка «не пусто» здесь почти бесполезна: развёртывание собирает строку по шаблону
+    /// (<c>Host=postgres;…;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}</c>), и незаданная
+    /// переменная даёт не пустую строку, а строку с пустым полем — «Password=» в конце. Такое
+    /// значение непусто, заглушки не содержит и прошло бы насквозь, а развёртыватель получил бы всё
+    /// тот же отказ драйвера. То есть проверка была бы на словах.
+    /// </summary>
     private static void RequireConnectionString(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -54,19 +70,50 @@ public static class StorageConfigGuard
                 "файла-примера.",
                 "ConnectionStrings__Postgres",
                 "задайте собственный пароль в POSTGRES_PASSWORD (deploy/.env)");
+
+        NpgsqlConnectionStringBuilder parsed;
+        try
+        {
+            parsed = new NpgsqlConnectionStringBuilder(value);
+        }
+        catch (Exception ex)
+        {
+            throw Fail(
+                $"Строка подключения к базе данных (ConnectionStrings:Postgres) не разбирается: {ex.Message}",
+                "ConnectionStrings__Postgres",
+                "в развёртывании compose она собирается из POSTGRES_* в deploy/.env");
+        }
+
+        RequirePart(parsed.Host, "адрес сервера (Host)", "POSTGRES_* и адрес сервера БД");
+        RequirePart(parsed.Database, "имя базы (Database)", "POSTGRES_DB");
+        RequirePart(parsed.Username, "имя пользователя (Username)", "POSTGRES_USER");
+        // Пароль требуем наравне с остальным. Postgres умеет пускать и без него (trust, .pgpass), но
+        // наша поставка так не разворачивается: compose передаёт пароль переменной, DEPLOYMENT.md
+        // требует его сменить, а СУБД, доступная по сети без пароля, — сама по себе дефект. Если
+        // однажды понадобится иной способ входа, это отдельное решение, а не молчаливая щель.
+        RequirePart(parsed.Password, "пароль (Password)", "POSTGRES_PASSWORD");
     }
 
-    private static void RequireStorageCredential(string? value, string envName, string composeName)
+    private static void RequirePart(string? value, string what, string composeName)
     {
         if (string.IsNullOrWhiteSpace(value))
             throw Fail(
-                $"Учётные данные хранилища файлов ({envName.Replace("__", ":")}) не заданы.",
+                $"В строке подключения к базе данных (ConnectionStrings:Postgres) не заполнено: {what}.",
+                "ConnectionStrings__Postgres",
+                $"в развёртывании compose это {composeName} в deploy/.env");
+    }
+
+    private static void RequireStorageValue(string? value, string envName, string composeName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw Fail(
+                $"Настройка хранилища файлов ({envName.Replace("__", ":")}) не задана.",
                 envName,
                 $"в развёртывании compose это {composeName} в deploy/.env");
 
         if (ConfigPlaceholders.LooksLikeExample(value))
             throw Fail(
-                $"Учётные данные хранилища файлов ({envName.Replace("__", ":")}) совпадают со " +
+                $"Настройка хранилища файлов ({envName.Replace("__", ":")}) совпадает со " +
                 "значением из файла-примера.",
                 envName,
                 $"задайте собственное значение в {composeName} (deploy/.env)");
