@@ -67,7 +67,11 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
       setMapping(byTypeStash ?? {});
       if (Object.keys(discriminator.rules).length === 0) {
         const prefilled: Record<string, string[]> = {};
-        for (const f of effectiveFields) if (f.typeId) prefilled[f.key] = [f.typeId];
+        // Только doc-ref: его typeId — это ТИП ДОКУМЕНТА, к которому правило и относится. У
+        // complex-варианта typeId тоже есть, но это составной тип — правило по нему не совпало бы
+        // ни с одной строкой, а валидатор потребовал бы для него маппинг, и пользователь удалял бы
+        // chip, которого не ставил.
+        for (const f of effectiveFields) if (f.type === 'doc-ref' && f.typeId) prefilled[f.key] = [f.typeId];
         setDiscriminator(d => ({ ...d, rules: prefilled }));
       }
     } else {
@@ -79,6 +83,18 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     }
     setByRowType(next);
   }
+
+  // Легаси-настройка union'а с НЕСКОЛЬКИМИ ключами (до issue #716 такое сохранялось молча, а union
+  // при этом заполнялся весь сразу). Схлопываем до одного — того, что диалог и показывает. Иначе
+  // человек правит видимую колонку, жмёт «Сохранить» и получает отказ про ключ, которого на экране
+  // нет. Это починка, а не потеря: второй ключ и раньше давал не-union.
+  useEffect(() => {
+    if (!isUnion || byRowType) return;
+    const keys = Object.keys(mapping);
+    if (keys.length <= 1) return;
+    const keep = presentVariant ?? keys[0];
+    setMapping({ [keep]: mapping[keep] });
+  }, [isUnion, byRowType, mapping, presentVariant]);
 
   // Live-превью по ТЕКУЩИМ (несохранённым) типу+маппингу и правилу (issue #294, #716): обновляется
   // на каждую правку. Объявлено ПОСЛЕ isUnion/discriminator — раньше их значения ещё не существуют.
@@ -153,7 +169,19 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
             section: t.kind === 'Composite' ? 'Составные типы' : 'Типы документов',
           }))}
           value={typeId || undefined}
-          onChange={id => { setTypeId(id ?? ''); setMapping({}); setVariantStash({}); }} />
+          onChange={id => {
+            // Сбрасываем ВСЮ настройку, а не только маппинг: правила и стэши режимов адресуют
+            // варианты ПРЕЖНЕГО типа. Уцелевшее правило чужого варианта в диалоге не видно —
+            // валидатор клиента перебирает варианты нынешнего типа, — и отказ приходил бы с
+            // сервера, называя вариант, которого на экране нет.
+            setTypeId(id ?? '');
+            setMapping({});
+            setVariantStash({});
+            setDiscriminator({ column: '', kind: 'docTypeCode', rules: {} });
+            setSingleModeStash(null);
+            setByTypeStash(null);
+            setByRowType(false);
+          }} />
 
         {selectedType && (
           effectiveFields.length === 0 ? (
@@ -163,11 +191,11 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
               {isUnion && (
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
                   <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="radio" checked={!byRowType} onChange={() => switchMode(false)} />
+                    <input type="radio" name="materialize-mode" checked={!byRowType} onChange={() => switchMode(false)} />
                     <span className={byRowType ? 'text-fg3' : 'text-fg1'}>один вариант на все строки</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="radio" checked={byRowType} onChange={() => switchMode(true)} />
+                    <input type="radio" name="materialize-mode" checked={byRowType} onChange={() => switchMode(true)} />
                     <span className={byRowType ? 'text-fg1' : 'text-fg3'}>вариант по типу документа строки</span>
                   </label>
                 </div>

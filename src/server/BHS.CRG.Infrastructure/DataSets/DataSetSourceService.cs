@@ -266,9 +266,9 @@ public class DataSetSourceService(
             : [.. (JsonSerializer.Deserialize<CachedColumnInfo[]>(cachedSchema, CachedSchemaJson) ?? [])
                 .Select(c => c.Name)];
 
-    /// <summary>Настроить/снять материализацию источника в тип (issue #19): typeId=null снимает.</summary>
     /// <summary>
-    /// Настройка материализации целиком: тип, маппинг и (issue #716) правило выбора варианта.
+    /// Настроить/снять материализацию источника в тип (issue #19): typeId=null снимает. Настройка
+    /// задаётся целиком: тип, маппинг и (issue #716) правило выбора варианта.
     /// Сохраняется ЗАМЕЩЕНИЕМ — частичных правок здесь нет намеренно: маппинг и правила связаны, и
     /// сохранить одно без другого значит оставить источник в состоянии, которого валидатор не пропустил бы.
     /// </summary>
@@ -314,10 +314,16 @@ public class DataSetSourceService(
         if (effTypeId is null)
             return new MaterializePreviewDto(null, 0, [], "Материализация не настроена");
         var effMapping = mapping ?? JsonSerializer.Deserialize<Dictionary<string, string>>(source.MaterializeMapping ?? "{}") ?? new();
-        // Правило варианта — тоже живое: диалог присылает НЕсохранённое, иначе предпросмотр
-        // показывал бы вчерашнюю настройку, пока её правят (issue #294, #716).
-        var effDiscriminator = discriminator
-            ?? MaterializeVariantSelector.ParseConfig(source.MaterializeDiscriminator);
+        // Правило варианта — тоже живое (issue #294, #716). Но «пусто» здесь не может значить
+        // «взять сохранённое»: диалог обязан уметь показать предпросмотр БЕЗ правила — ровно это
+        // происходит при переключении в режим «один вариант на все строки». Иначе предпросмотр
+        // отвечал бы по вчерашней настройке именно тогда, когда её меняют.
+        //
+        // Признак «диалог ведёт настройку» — переданный маппинг: он приходит вместе с правилом или
+        // не приходит вовсе. Отдельного флага не заводим, чтобы не было двух способов сказать одно.
+        var effDiscriminator = mapping is not null
+            ? discriminator
+            : MaterializeVariantSelector.ParseConfig(source.MaterializeDiscriminator);
 
         try
         {

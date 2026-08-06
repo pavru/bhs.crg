@@ -84,6 +84,16 @@ public class DataSetBindingService(
                     binding.Mapping, binding.Source.MaterializeTypeId, binding.Source.MaterializeMapping);
                 var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson) ?? [];
 
+                // Вариант union'а по типу документа строки (issue #716) — тот же выбор, что делает
+                // генерация. Показывать здесь ВСЕ варианты сразу значило бы врать о результате: в
+                // документ уедет ровно один ключ на строку, а строки без варианта не уедут вовсе.
+                // Экран этот открывают, чтобы понять, почему поле выглядит не так, — и он обязан
+                // показывать то же, что получится.
+                var selector = binding.Source.MaterializeTypeId is not null
+                    && DataSetMappingValue.IsEmptyMapping(binding.Mapping)
+                    ? await BuildVariantSelectorAsync(binding.Source.MaterializeDiscriminator, rows, ct)
+                    : null;
+
                 // Материализация настроена, а маппинг пуст (issue #715) — то же, о чём говорит
                 // резолвер при генерации. Сказать это ОБЯЗАН и предпросмотр: именно сюда человек
                 // идёт выяснять, почему поле пустое, и таблица пустых объектов ответа не даёт.
@@ -96,11 +106,12 @@ public class DataSetBindingService(
                     continue;
                 }
 
+                var skipped = 0;
                 if (binding.TargetFieldKey is null)
                 {
                     var row = rows.Count > 0 ? rows[0] : null;
                     var data = new Dictionary<string, object?>();
-                    foreach (var (fieldKey, colName) in mapping)
+                    foreach (var (fieldKey, colName) in PairsFor(selector, mapping, row, ref skipped))
                         if (!string.IsNullOrEmpty(colName))
                             data[fieldKey] = await DataSetDtoMapper.PreviewCellAsync(colName, row, ct);
 
@@ -112,15 +123,23 @@ public class DataSetBindingService(
                     var mapped = new List<Dictionary<string, object?>>();
                     foreach (var row in rows)
                     {
+                        var pairs = PairsFor(selector, mapping, row, ref skipped);
+                        if (selector is not null && pairs.Count == 0) continue;
+
                         var obj = new Dictionary<string, object?>();
-                        foreach (var (fieldKey, colName) in mapping)
+                        foreach (var (fieldKey, colName) in pairs)
                             if (!string.IsNullOrEmpty(colName))
                                 obj[fieldKey] = await DataSetDtoMapper.PreviewCellAsync(colName, row, ct);
                         mapped.Add(obj);
                     }
 
                     results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
-                        "tabular", binding.TargetFieldKey, mapped.Count, mapped, null));
+                        "tabular", binding.TargetFieldKey, mapped.Count, mapped,
+                        // Пропущенные не прячем в ноль строк: «показано меньше, чем в источнике» —
+                        // это то, ради чего сюда и смотрят.
+                        skipped > 0
+                            ? $"Строк пропущено при материализации: {skipped} — их тип документа не назначен ни одному варианту."
+                            : null));
                 }
             }
             catch (Exception ex)
@@ -131,5 +150,44 @@ public class DataSetBindingService(
             }
         }
         return results;
+    }
+
+    /// <summary>Тот же выбор варианта, что у генерации (issue #716); null — правила нет.</summary>
+    private async Task<MaterializeVariantSelector?> BuildVariantSelectorAsync(
+        string? discriminatorJson,
+        IReadOnlyList<IReadOnlyDictionary<string, string?>> rows,
+        CancellationToken ct)
+    {
+        var config = MaterializeVariantSelector.ParseConfig(discriminatorJson);
+        if (config is null) return null;
+
+        var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+        Dictionary<Guid, Guid>? typeByDocument = null;
+        var documentIds = MaterializeVariantSelector.DocumentIdsIn(config, rows).ToList();
+        if (documentIds.Count > 0)
+            typeByDocument = await db.DomainObjects.AsNoTracking()
+                .Where(o => documentIds.Contains(o.Id))
+                .ToDictionaryAsync(o => o.Id, o => o.CompositeTypeId, ct);
+
+        return MaterializeVariantSelector.Create(config, typesById, typeByDocument);
+    }
+
+    /// <summary>Что показать по этой строке: без правила — весь маппинг, с правилом — пару
+    /// победившего варианта. Пустой список = строка пропущена.</summary>
+    private static List<KeyValuePair<string, string>> PairsFor(
+        MaterializeVariantSelector? selector,
+        Dictionary<string, string> mapping,
+        IReadOnlyDictionary<string, string?>? row,
+        ref int skipped)
+    {
+        if (selector is null || row is null) return [.. mapping];
+
+        var choice = selector.Choose(row);
+        if (choice.VariantKey is null || !mapping.TryGetValue(choice.VariantKey, out var token))
+        {
+            skipped++;
+            return [];
+        }
+        return [new KeyValuePair<string, string>(choice.VariantKey, token)];
     }
 }

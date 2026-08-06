@@ -240,6 +240,68 @@ public class DataSetUnionDiscriminatorTests(IntegrationTestFixture fixture) : IA
         Assert.Equal(MaterializeSkipReason.NoVariant, skippedRow.ReasonCode);
     }
 
+    /// <summary>
+    /// Предпросмотр ПРИВЯЗКИ (вкладка «Наборы данных» у документа) обязан показывать то же, что
+    /// получится при генерации.
+    ///
+    /// Экран этот открывают, чтобы понять, почему поле выглядит не так. Показывать в нём все
+    /// варианты сразу и полный список строк значило бы отвечать на этот вопрос неправдой: в
+    /// документ уедет один ключ на строку, а часть строк не уедет вовсе.
+    /// </summary>
+    [Fact]
+    public async Task BindingPreview_AppliesTheSameVariantChoiceAsGeneration()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var f = await SeedAsync(scope);
+
+        var csv = $"Ид,ТипКод\n{f.AosrId},{f.AosrCode}\n{f.WorkRegistryId},{f.WorkRegistryCode}\n";
+        var sourceId = await SourceAsync(scope, csv, f.UnionTypeId,
+            new Dictionary<string, string> { ["АОСР"] = "Ид" },
+            new MaterializeDiscriminatorConfig("ТипКод", MaterializeDiscriminatorConfig.ByTypeCode,
+                new Dictionary<string, List<Guid>> { ["АОСР"] = [f.AosrTypeId] }));
+        await Svc(scope).CreateBindingAsync(new CreateBindingInput(f.ReestrId, sourceId, "Состав", null), default);
+
+        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(f.ReestrId, default));
+        var rows = Assert.IsType<List<Dictionary<string, object?>>>(preview.Data);
+
+        // Показана одна строка — ровно та, что доедет до документа.
+        Assert.Equal("АОСР", Assert.Single(Assert.Single(rows)).Key);
+        // И о недоехавшей сказано, а не спрятано в «строк меньше, чем в источнике».
+        Assert.Contains("пропущено", preview.Error);
+    }
+
+    /// <summary>
+    /// Диалог, переключённый в «один вариант на все строки», получает предпросмотр БЕЗ правила —
+    /// даже если на источнике оно сохранено.
+    ///
+    /// Иначе предпросмотр отвечает по вчерашней настройке ровно тогда, когда её меняют: строки
+    /// чужих типов приходили бы пустыми, а часть — в «пропущено», хотя после сохранения ничего
+    /// этого не будет. Признак «настройку ведёт диалог» — переданный маппинг.
+    /// </summary>
+    [Fact]
+    public async Task MaterializePreview_WithMappingButNoRule_IgnoresTheSavedRule()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var f = await SeedAsync(scope);
+
+        var csv = $"Ид,ТипКод\n{f.AosrId},{f.AosrCode}\n{f.WorkRegistryId},{f.WorkRegistryCode}\n";
+        var sourceId = await SourceAsync(scope, csv, f.UnionTypeId,
+            new Dictionary<string, string> { ["АОСР"] = "Ид" },
+            new MaterializeDiscriminatorConfig("ТипКод", MaterializeDiscriminatorConfig.ByTypeCode,
+                new Dictionary<string, List<Guid>> { ["АОСР"] = [f.AosrTypeId] }));
+
+        var preview = await Svc(scope).MaterializePreviewAsync(
+            sourceId, 50, f.UnionTypeId,
+            new Dictionary<string, string> { ["АОСР"] = "Ид" },
+            discriminator: null, default);
+
+        Assert.NotNull(preview);
+        // Правило не применялось: обе строки на месте, пропущенных нет, варианта у строк нет.
+        Assert.Equal(2, preview!.Rows.Count);
+        Assert.Empty(preview.Skipped!);
+        Assert.All(preview.Variants!, Assert.Null);
+    }
+
     /// <summary>Настройка, которую валидатор не должен пропустить, до источника не доезжает.</summary>
     [Fact]
     public async Task ContradictoryConfiguration_IsRejectedOnSave()

@@ -141,9 +141,18 @@ export function UnionDiscriminatorEditor({
                       className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
                     >
                       <option value="">— добавить тип документа —</option>
+                      {/* Абстрактные типы В СПИСКЕ — и это не оплошность. Правило на тип забирает
+                          всех его потомков, а общий предок как раз обычно и абстрактен; без него
+                          пришлось бы перечислять каждый конкретный подвид руками, и появившийся
+                          завтра тихо выпал бы из реестра — ровно то, чего правило по предку
+                          избегает (об этом же говорит USER_GUIDE). */}
                       {allDocTypes
-                        .filter(t => t.kind === 'Document' && !t.isAbstract && !ids.includes(t.id))
-                        .map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        .filter(t => t.kind === 'Document' && !ids.includes(t.id))
+                        .map(t => (
+                          <option key={t.id} value={t.id}>
+                            {t.isAbstract ? `${t.name} (базовый — со всеми подвидами)` : t.name}
+                          </option>
+                        ))}
                     </select>
                   </div>
                   <MappingEditor
