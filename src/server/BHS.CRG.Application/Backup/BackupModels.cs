@@ -19,7 +19,34 @@ public record BackupManifest(
     IReadOnlyList<BackupTypstUserLibFile>? TypstUserLibFiles = null,
     BackupRecognitionProfile[]? RecognitionProfiles = null,
     BackupDataSetBindingTemplate[]? DataSetBindingTemplates = null,
-    BackupReconciliationAlias[]? ReconciliationAliases = null);
+    BackupReconciliationAlias[]? ReconciliationAliases = null,
+    BackupDataSetProcessingTemplate[]? DataSetProcessingTemplates = null,
+    BackupQualityDocument[]? QualityDocuments = null);
+
+/// <summary>
+/// Переиспользуемый рецепт обработки источника (issue #687). Внешних ключей не имеет вовсе — внутри
+/// только имя и правила, адресующие колонки ПО ИМЕНАМ. Подсистема наборов данных исключена из копии
+/// (#403) как носитель проектного сырья и крупных блобов; рецепт не то и не другое.
+/// </summary>
+public record BackupDataSetProcessingTemplate(
+    Guid Id, string Name, string? SheetOrPath, string? ColumnExpressions,
+    string? RowFilter, string? ComputedColumns, string? SortSpec,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// Документ качества из общей библиотеки вместе со сканом (issue #687). Переносится ВСЯ библиотека,
+/// включая документы уровня комплекта: библиотека наполняется годами и распознаётся вручную, и
+/// потерять её дороже, чем нести лишние мегабайты.
+/// </summary>
+/// <remarks>
+/// Связки с материалами (<c>MaterialQualityLink</c>) в копию не идут: они адресуют материалы
+/// комплектов, которых в копии нет. Библиотека восстанавливается непривязанной — это осознанно.
+/// </remarks>
+public record BackupQualityDocument(
+    Guid Id, Guid DocumentTypeId, string DisplayName, JsonElement Requisites,
+    string Scope, Guid? ScopeId, string Source, string? SourceUrl,
+    string? ScanBlobPath, string? ScanFileName, string? ScanMimeType,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 /// <summary>
 /// Шаблон стандартного маппинга колонок для типа документа. Проектных зависимостей не имеет —
@@ -120,4 +147,8 @@ public record RestoreReport(
     int DataSetBindingTemplatesCreated = 0,
     int DataSetBindingTemplatesUpdated = 0,
     int ReconciliationAliasesCreated = 0,
-    int ReconciliationAliasesUpdated = 0);
+    int ReconciliationAliasesUpdated = 0,
+    int DataSetProcessingTemplatesCreated = 0,
+    int DataSetProcessingTemplatesUpdated = 0,
+    int QualityDocumentsCreated = 0,
+    int QualityDocumentsUpdated = 0);

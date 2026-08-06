@@ -90,6 +90,12 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         var userLibFiles = await db.TypstUserLibFiles.AsNoTracking().OrderBy(f => f.Path).ToListAsync(ct);
         var recognitionProfiles = await db.RecognitionProfiles.AsNoTracking().ToListAsync(ct);
         var bindingTemplates = await db.DataSetBindingTemplates.AsNoTracking().ToListAsync(ct);
+        var processingTemplates = await db.DataSetProcessingTemplates.AsNoTracking().ToListAsync(ct);
+        // Библиотека качества целиком, всех уровней (решение по issue #687). Отбирать по уровню
+        // «Система» было бы разумно по смыслу областей, но документ уровня комплекта — тот же
+        // сертификат, просто подшитый к проекту, и половина библиотеки после восстановления хуже
+        // целой. Цена решения — вес: сканы это мегабайты, и копия растёт вместе с библиотекой.
+        var qualityDocuments = await db.QualityDocuments.AsNoTracking().ToListAsync(ct);
 
         // Алиасы: переносим РЕШЕНИЯ человека — подтверждённые и отклонённые. Предложенные не берём:
         // это неразобранный шум (в том числе от агента), который на новой системе появится заново.
@@ -145,7 +151,16 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             ReconciliationAliases: aliases.Select(a => new BackupReconciliationAlias(
                 a.Id, a.AliasKey, a.AliasLabel, a.CanonicalKey, a.CanonicalLabel,
                 a.Status.ToString(), a.Note, a.ProposedBy, a.ConfirmedBy,
-                a.CreatedAt, a.UpdatedAt)).ToArray());
+                a.CreatedAt, a.UpdatedAt)).ToArray(),
+            DataSetProcessingTemplates: processingTemplates.Select(t => new BackupDataSetProcessingTemplate(
+                t.Id, t.Name, t.SheetOrPath, t.ColumnExpressions,
+                t.RowFilter, t.ComputedColumns, t.SortSpec,
+                t.CreatedAt, t.UpdatedAt)).ToArray(),
+            QualityDocuments: qualityDocuments.Select(q => new BackupQualityDocument(
+                q.Id, q.DocumentTypeId, q.DisplayName, q.Requisites.RootElement.Clone(),
+                q.Scope.ToString(), q.ScopeId, q.Source.ToString(), q.SourceUrl,
+                q.ScanBlobPath, q.ScanFileName, q.ScanMimeType,
+                q.CreatedAt, q.UpdatedAt)).ToArray());
     }
 
     // ── Import ────────────────────────────────────────────────────────────────
@@ -169,6 +184,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
 
         string? conversionNotice = null;
         var warnings = new List<string>();
+        var restoredBlobPaths = new HashSet<string>(StringComparer.Ordinal);
 
         if (manifest.SchemaVersion > CurrentSchemaVersion)
             warnings.Add($"Резервная копия создана в более новой версии системы (schema v{manifest.SchemaVersion}). Часть данных могла быть пропущена.");
@@ -192,6 +208,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                     await es.CopyToAsync(entryMs, ct);
                 entryMs.Position = 0;
                 await blob.PutAsync(blobPath, entryMs, contentType, ct);
+                restoredBlobPaths.Add(blobPath);
                 blobsRestored++;
             }
             catch (Exception ex)
@@ -222,6 +239,11 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             await RestoreDataSetBindingTemplatesAsync(manifest.DataSetBindingTemplates ?? [], stats, warnings, ct);
             // Зависимостей нет вовсе — место в порядке произвольно.
             await RestoreReconciliationAliasesAsync(manifest.ReconciliationAliases ?? [], stats, warnings, ct);
+            await RestoreDataSetProcessingTemplatesAsync(manifest.DataSetProcessingTemplates ?? [], stats, ct);
+            // После типов документов: подтип сертификата — обычный тип, и без него документ качества
+            // не показать.
+            await RestoreQualityDocumentsAsync(
+                manifest.QualityDocuments ?? [], restoredBlobPaths, stats, warnings, ct);
             await tx.CommitAsync(ct);
 
             return new RestoreReport(true, conversionNotice, warnings,
@@ -236,7 +258,9 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 stats.TypstUserLibFilesRestored,
                 stats.RecognitionProfilesCreated, stats.RecognitionProfilesUpdated,
                 stats.DataSetBindingTemplatesCreated, stats.DataSetBindingTemplatesUpdated,
-                stats.ReconciliationAliasesCreated, stats.ReconciliationAliasesUpdated);
+                stats.ReconciliationAliasesCreated, stats.ReconciliationAliasesUpdated,
+                stats.DataSetProcessingTemplatesCreated, stats.DataSetProcessingTemplatesUpdated,
+                stats.QualityDocumentsCreated, stats.QualityDocumentsUpdated);
         }
         catch (Exception ex)
         {
@@ -344,6 +368,15 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         // Файлы ассетов шаблонов (issue #403) — графика/шрифты в blob-хранилище.
         foreach (var a in manifest.TemplateAssets ?? [])
             if (!string.IsNullOrEmpty(a.BlobPath)) paths.Add(a.BlobPath);
+        // Сканы документов качества (issue #687). Скан — не иллюстрация к документу, а он сам:
+        // библиотека без сканов не подтверждает ничего, и переносить её метаданными было бы
+        // переносом пустых карточек. Реквизиты обходим тем же сборщиком — там могут лежать
+        // вложения (тот же формат, что у реквизитов экземпляра документа).
+        foreach (var q in manifest.QualityDocuments ?? [])
+        {
+            if (!string.IsNullOrEmpty(q.ScanBlobPath)) paths.Add(q.ScanBlobPath);
+            CollectBlobPaths(q.Requisites, paths);
+        }
         return paths;
     }
 
@@ -814,6 +847,116 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         db.ChangeTracker.Clear();
     }
 
+    /// <summary>
+    /// Рецепты обработки источников (issue #687). Ни одной внешней ссылки — ни проверять, ни
+    /// сортировать нечего, поэтому и предупреждений здесь не бывает.
+    /// </summary>
+    private async Task RestoreDataSetProcessingTemplatesAsync(
+        BackupDataSetProcessingTemplate[] items, RestoreStats stats, CancellationToken ct)
+    {
+        if (items.Length == 0) return;
+        var existingIds = await db.DataSetProcessingTemplates.Select(e => e.Id).ToHashSetAsync(ct);
+        foreach (var item in items)
+        {
+            var entity = DataSetProcessingTemplate.Restore(
+                item.Id, item.Name, item.SheetOrPath, item.ColumnExpressions,
+                item.RowFilter, item.ComputedColumns, item.SortSpec,
+                item.CreatedAt, item.UpdatedAt);
+            db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
+            if (existingIds.Contains(item.Id)) stats.DataSetProcessingTemplatesUpdated++;
+            else stats.DataSetProcessingTemplatesCreated++;
+        }
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+    }
+
+    /// <summary>
+    /// Библиотека документов качества со сканами (issue #687).
+    /// </summary>
+    /// <param name="restoredBlobPaths">
+    /// Адреса файлов, реально записанных в хранилище из этого архива. Нужны, чтобы не назвать
+    /// успехом карточку без скана: у документа качества скан — это сам документ, а не иллюстрация к
+    /// нему, и восстановленный сертификат, чей файл в архив не попал, ничего не подтверждает. Для
+    /// ассетов шаблонов такой проверки нет намеренно: отсутствие шрифта ухудшает вёрстку, но не
+    /// превращает объект в неправду.
+    /// </param>
+    private async Task RestoreQualityDocumentsAsync(
+        BackupQualityDocument[] items, HashSet<string> restoredBlobPaths,
+        RestoreStats stats, List<string> warnings, CancellationToken ct)
+    {
+        if (items.Length == 0) return;
+
+        var existingIds = await db.QualityDocuments.Select(e => e.Id).ToHashSetAsync(ct);
+        var validDocTypeIds = await db.DocumentTypes.Select(e => e.Id).ToHashSetAsync(ct);
+
+        // Носители областей — как у общих данных: комплекты, разделы и стройки в копию не входят.
+        var setIds = await db.DocumentSets.Select(e => e.Id).ToHashSetAsync(ct);
+        var sectionIds = await db.Sections.Select(e => e.Id).ToHashSetAsync(ct);
+        var constructionIds = await db.Constructions.Select(e => e.Id).ToHashSetAsync(ct);
+        var orphanedByScope = 0;
+        var withoutScan = 0;
+
+        foreach (var item in items)
+        {
+            if (!validDocTypeIds.Contains(item.DocumentTypeId))
+            {
+                warnings.Add($"Документ качества «{item.DisplayName}»: тип {item.DocumentTypeId} не найден, пропущен.");
+                continue;
+            }
+            if (!Enum.TryParse<CatalogScope>(item.Scope, out var scope))
+            {
+                warnings.Add($"Документ качества «{item.DisplayName}»: неизвестная область «{item.Scope}», пропущен.");
+                continue;
+            }
+            if (!Enum.TryParse<QualityDocSource>(item.Source, out var source))
+            {
+                warnings.Add($"Документ качества «{item.DisplayName}»: неизвестный источник «{item.Source}», пропущен.");
+                continue;
+            }
+
+            // Область не разрешается — не пропускаем (как и общие данные): библиотека
+            // переиспользуема, и документ, подшитый к исчезнувшему комплекту, всё равно остаётся
+            // сертификатом. Но и молчать нельзя — в интерфейсе его не будет видно.
+            if (!ScopeCarrierExists(scope, item.ScopeId, setIds, sectionIds, constructionIds))
+                orphanedByScope++;
+
+            if (item.ScanBlobPath is { Length: > 0 } scanPath && !restoredBlobPaths.Contains(scanPath))
+                withoutScan++;
+
+            var entity = QualityDocument.Restore(
+                item.Id, item.DocumentTypeId, item.DisplayName,
+                JsonDocument.Parse(item.Requisites.GetRawText()),
+                scope, item.ScopeId, source, item.SourceUrl,
+                item.ScanBlobPath, item.ScanFileName, item.ScanMimeType,
+                item.CreatedAt, item.UpdatedAt);
+            db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
+            if (existingIds.Contains(item.Id)) stats.QualityDocumentsUpdated++; else stats.QualityDocumentsCreated++;
+        }
+
+        if (orphanedByScope > 0)
+            warnings.Add(
+                $"Документы качества: {Records(orphanedByScope)} " +
+                $"{Agree(orphanedByScope, "относится", "относятся")} к комплектам, разделам или стройкам, " +
+                "которых в этой системе нет. Они восстановлены, но в библиотеке не появятся, пока не " +
+                "будут созданы соответствующие объекты (проектные данные в резервную копию не входят).");
+
+        if (withoutScan > 0)
+            warnings.Add(
+                $"Документы качества: у {Records(withoutScan)} скан не восстановлен — файла не было в " +
+                "архиве или его не удалось записать. Карточка документа откроется, но сам сертификат " +
+                "по ней не показать: скан нужно загрузить заново.");
+
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+
+        // Связки с материалами (MaterialQualityLink) в копию не входят: они адресуют материалы
+        // комплектов, а комплектов здесь нет. Говорим об этом прямо — иначе восстановивший увидит
+        // полную библиотеку и решит, что вернулась и проделанная работа по привязке.
+        warnings.Add(
+            "Документы качества: связки с материалами не восстанавливаются — они относятся к " +
+            "комплектам, которых в копии нет. Библиотека вернулась непривязанной.");
+    }
+
     private sealed class RestoreStats
     {
         public int PrimitiveTypesCreated, PrimitiveTypesUpdated;
@@ -828,5 +971,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         public int CommonDataEntriesCreated, CommonDataEntriesUpdated;
         public int DataSetBindingTemplatesCreated, DataSetBindingTemplatesUpdated;
         public int ReconciliationAliasesCreated, ReconciliationAliasesUpdated;
+        public int DataSetProcessingTemplatesCreated, DataSetProcessingTemplatesUpdated;
+        public int QualityDocumentsCreated, QualityDocumentsUpdated;
     }
 }

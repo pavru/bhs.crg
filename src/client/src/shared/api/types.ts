@@ -267,6 +267,10 @@ export interface RestoreReport {
   dataSetBindingTemplatesUpdated?: number;
   reconciliationAliasesCreated?: number;
   reconciliationAliasesUpdated?: number;
+  dataSetProcessingTemplatesCreated?: number;
+  dataSetProcessingTemplatesUpdated?: number;
+  qualityDocumentsCreated?: number;
+  qualityDocumentsUpdated?: number;
 }
 
 // ─── DataSets ─────────────────────────────────────────────────────────────────

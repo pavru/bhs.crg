@@ -51,6 +51,34 @@ public class QualityDocument : Entity
             SourceUrl = sourceUrl,
         };
 
+    /// <summary>
+    /// Восстановление из резервной копии: идентификатор, отметки времени и адрес скана берутся из
+    /// неё. Скан назван прямо в сигнатуре, а не доставляется потом через <see cref="SetScan" />:
+    /// вызов после создания сдвинул бы <c>UpdatedAt</c>, и восстановленный документ выглядел бы
+    /// изменённым в момент восстановления.
+    /// </summary>
+    public static QualityDocument Restore(
+        Guid id, Guid documentTypeId, string displayName, JsonDocument requisites,
+        CatalogScope scope, Guid? scopeId, QualityDocSource source, string? sourceUrl,
+        string? scanBlobPath, string? scanFileName, string? scanMimeType,
+        DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        => new()
+        {
+            Id = id,
+            DocumentTypeId = documentTypeId,
+            DisplayName = displayName,
+            Requisites = requisites,
+            Scope = scope,
+            ScopeId = scopeId,
+            Source = source,
+            SourceUrl = sourceUrl,
+            ScanBlobPath = scanBlobPath,
+            ScanFileName = scanFileName,
+            ScanMimeType = scanMimeType,
+            CreatedAt = createdAt,
+            UpdatedAt = updatedAt,
+        };
+
     public void Update(Guid documentTypeId, string displayName, JsonDocument requisites)
     {
         DocumentTypeId = documentTypeId;
