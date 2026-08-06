@@ -46,6 +46,61 @@ public class DataSetValueCoercionTests
     public void Unparseable_StaysString(string cell)
         => Assert.Equal(cell, Assert.IsType<string>(Coerce(cell, Field("number"))));
 
+    /// <summary>
+    /// Поле-ссылка на документ (issue #715): ячейка с идентификатором становится ссылкой, которую
+    /// развернёт второй проход резолвера. Отдельного токена грамматики для этого не нужно — поле
+    /// само объявляет, что в нём лежит.
+    /// </summary>
+    [Fact]
+    public void DocRefField_IdCell_BecomesInstanceReference()
+    {
+        var id = Guid.NewGuid();
+        var value = Assert.IsType<Dictionary<string, object?>>(Coerce(id.ToString(), Field("doc-ref")));
+
+        Assert.Equal("instance", value["$ref"]);
+        Assert.Equal(id.ToString(), value["instanceId"]);
+    }
+
+    /// <summary>Регистр и обрамляющие пробелы идентификатору не мешают — это та же ссылка.</summary>
+    [Fact]
+    public void DocRefField_TolerantToCaseAndSpaces()
+    {
+        var id = Guid.NewGuid();
+        var value = Assert.IsType<Dictionary<string, object?>>(
+            Coerce($"  {id.ToString().ToUpperInvariant()}  ", Field("doc-ref")));
+
+        Assert.Equal(id.ToString(), value["instanceId"]);
+    }
+
+    /// <summary>
+    /// Пустая ячейка — отсутствие ссылки (та же идиома, что у пустой числовой, #544): ключа не
+    /// будет вовсе. Пустой объект-ссылка был бы хуже — он выглядит как битая и попал бы в
+    /// диагностику несуществующей проблемой.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void DocRefField_EmptyCell_IsNoValue(string cell)
+        => Assert.Null(Coerce(cell, Field("doc-ref")));
+
+    /// <summary>
+    /// Не идентификатор — строка остаётся видимой (философия #466). «В колонке не то» и «в колонке
+    /// пусто» — разные беды, и вторая тихо прячет первую.
+    /// </summary>
+    [Theory]
+    [InlineData("АОСР-17")]
+    [InlineData("не-идентификатор")]
+    public void DocRefField_Garbage_StaysString(string cell)
+        => Assert.Equal(cell, Assert.IsType<string>(Coerce(cell, Field("doc-ref"))));
+
+    /// <summary>
+    /// Массив ссылок из одной ячейки не собираем: колонка несёт один идентификатор, а разделитель
+    /// для нескольких нигде не оговорён — выдуманное правило разошлось бы с данными молча.
+    /// </summary>
+    [Fact]
+    public void DocArrayField_IsUntouched()
+        => Assert.Equal(Guid.Empty.ToString(), Coerce(Guid.Empty.ToString(), Field("doc-array")));
+
     [Fact]
     public void StringField_IsUntouched()
         => Assert.Equal("3.10", Coerce("3.10", Field("primitive", StringTypeId)));

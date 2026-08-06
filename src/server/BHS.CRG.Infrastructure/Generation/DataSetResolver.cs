@@ -81,6 +81,27 @@ public class DataSetResolver(
                     binding.Mapping, binding.Source.MaterializeTypeId, binding.Source.MaterializeMapping);
                 var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson) ?? [];
 
+                // Материализация настроена, а маппинг пуст — говорим об этом вслух (issue #715).
+                //
+                // Молчать здесь нельзя: резолвер честно прогоняет каждую строку через пустой маппинг
+                // и складывает в поле массив пустых объектов. Снаружи это неотличимо от «источник
+                // отдал пустые строки», и живой кейс (union из doc-ref-вариантов, маппить которые
+                // грамматика не умела вовсе) выглядел именно так — настройка есть, результата нет,
+                // и ни одного слова о причине.
+                //
+                // Проверяем только материализованный источник. Пустой маппинг у обычной привязки —
+                // это «ещё не настроено», и видно это в самой привязке; а здесь пользователь ВЫБРАЛ
+                // тип материализации, то есть настройку сделал, и она не работает.
+                if (binding.Source.MaterializeTypeId is not null && mapping.Count == 0)
+                {
+                    diagnostics?.Add(new ResolutionDiagnostic(
+                        DiagnosticSeverity.Error,
+                        binding.TargetFieldKey ?? "(скалярная привязка)",
+                        $"Источник «{binding.Source.Name}» материализован, но маппинг колонок пуст — " +
+                        "поле не заполнено. Задайте маппинг в диалоге материализации источника."));
+                    continue;
+                }
+
                 if (binding.TargetFieldKey is null)
                 {
                     // Скалярный: первая строка → отдельные поля контекста

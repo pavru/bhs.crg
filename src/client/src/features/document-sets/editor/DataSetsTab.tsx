@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Database, Pencil, Trash2, Plus, LayoutTemplate, PlayCircle, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Database, Pencil, Trash2, Plus, LayoutTemplate, PlayCircle, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Link2 } from 'lucide-react';
 import { dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
 import { ApplyTemplateDialog } from './ApplyTemplateDialog';
 import {
@@ -210,6 +210,7 @@ export function MappingEditor({
   targetFieldKey,
   onChange,
   hideModeSelector = false,
+  allowDocRef = false,
 }: {
   source: DataSetSource;
   schemaFields: SchemaField[];
@@ -220,6 +221,15 @@ export function MappingEditor({
   onChange: (m: Record<string, string>, t: string | null) => void;
   /** Скрыть селектор «Режим использования» (для материализации на источнике — режима нет). */
   hideModeSelector?: boolean;
+  /**
+   * Показывать поля-ссылки на документы (`doc-ref`), заполняемые колонкой с Ид (issue #715).
+   *
+   * По умолчанию выключено намеренно. Осмысленно это только там, где строки источника САМИ несут
+   * идентификаторы документов — то есть у системных источников вроде «Документы комплекта». В
+   * обычной привязке к файлу колонка с чужим GUID — это почти наверняка недоразумение, и предлагать
+   * её значило бы приглашать заполнять ссылку мусором.
+   */
+  allowDocRef?: boolean;
 }) {
   // Вычисляемые колонки (Transformation) не персистятся в cachedSchema — доступны для маппинга только
   // если их алиасы явно домешать (issue #49; тот же паттерн, что в SourcesExpander.tsx).
@@ -248,6 +258,9 @@ export function MappingEditor({
   const complexMappable = effectiveFields.filter(f => f.type === 'complex' && f.typeId && !f.computed);
   // Файловые поля заполняются вложением, синтезированным из колонки-пути (+ опц. колонка-размер) той же строки.
   const fileMappable = effectiveFields.filter(f => f.type === 'file' && !f.computed);
+  // Ссылки на документы комплекта — обычная колонка с Ид (issue #715). Своего токена у них нет:
+  // поле само объявляет тип, и сервер приводит ячейку к ссылке по объявленному типу поля.
+  const docRefMappable = allowDocRef ? effectiveFields.filter(f => f.type === 'doc-ref' && !f.computed) : [];
 
   function setTarget(t: string) {
     // При смене цели сбрасываем маппинг
@@ -349,8 +362,30 @@ export function MappingEditor({
               </div>
             );
           })}
+          {docRefMappable.map(f => {
+            const targetType = allDocTypes.find(dt => dt.id === f.typeId);
+            return (
+              <div key={f.key} className="flex items-center gap-2">
+                <span className={`w-56 shrink-0 text-xs text-fg2 flex items-center gap-1 ${MAP_LABEL}`}
+                  title={`${f.title} (${f.key}) — ссылка на документ${targetType ? ` типа «${targetType.name}»` : ''}`}>
+                  <Link2 size={12} className="shrink-0 text-fg4" />
+                  {f.title}
+                </span>
+                <select
+                  value={mapping[f.key] ?? ''}
+                  onChange={e => setCol(f.key, e.target.value)}
+                  className="flex-1 border border-stroke rounded px-2 py-1 text-xs bg-surface text-fg1"
+                >
+                  <option value="">— не привязано —</option>
+                  {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <span className="w-40 shrink-0 text-[11px] text-fg4">колонка с Ид документа</span>
+              </div>
+            );
+          })}
         </div>
-        {scalarMappable.length === 0 && complexMappable.length === 0 && fileMappable.length === 0 && (
+        {scalarMappable.length === 0 && complexMappable.length === 0 && fileMappable.length === 0
+          && docRefMappable.length === 0 && (
           <p className="text-xs text-fg4">Нет доступных полей для маппинга</p>
         )}
       </div>
