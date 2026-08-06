@@ -7,31 +7,15 @@ namespace BHS.CRG.Api.Endpoints.Attachments;
 
 public static class AttachmentEndpoints
 {
-    /// <summary>
-    /// Что принимаем во вложения. Только форматы, которые браузер показывает как ДАННЫЕ:
-    /// документы и растровые картинки.
-    ///
-    /// Активных форматов здесь быть не должно — вложение загружает один пользователь, а открывает
-    /// другой, и открывает на домене приложения. Векторная графика для шаблонов идёт своим путём,
-    /// через ассеты шаблонов (<c>TemplateAssetEndpoints</c>, роль Admin), — вложениям она не нужна.
-    /// </summary>
-    private static readonly HashSet<string> AllowedTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "application/pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.ms-excel",
-        "image/png", "image/jpeg", "image/gif", "image/webp",
-    };
-
     public static void MapAttachmentEndpoints(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/api/attachments").RequireAuthorization();
 
         g.MapPost("/", async (IFormFile file, IBlobStorage blob, ILoggerFactory loggers, CancellationToken ct) =>
         {
-            if (!AllowedTypes.Contains(file.ContentType))
+            if (!AttachmentTypes.IsAccepted(file.ContentType))
                 return Results.BadRequest(new { error = $"Формат не поддерживается: {file.ContentType}" });
+            if (MismatchedExtension(file) is { } mismatch) return mismatch;
             if (UploadLimits.Exceeded(file, UploadLimits.Attachment) is { } tooLarge) return tooLarge;
 
             try
@@ -63,8 +47,11 @@ public static class AttachmentEndpoints
             // только при генерации PDF, далеко от загрузки. ContentType бывает null, если часть
             // multipart пришла без заголовка, — тогда это тоже отказ, а не 500.
             var contentType = file.ContentType ?? "";
-            if (!AllowedTypes.Contains(contentType) || !contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            if (!AttachmentTypes.IsImage(contentType))
                 return Results.BadRequest(new { error = $"Это не поддерживаемое изображение: {contentType}" });
+            // Сверка расширения нужна и здесь: путь короче (картинка ещё и уменьшается), но
+            // оригинал ложится в хранилище тем же вызовом и с тем же именем.
+            if (MismatchedExtension(file) is { } mismatch) return mismatch;
             if (UploadLimits.Exceeded(file, UploadLimits.Attachment) is { } tooLarge) return tooLarge;
 
             using var ms = new MemoryStream();
@@ -142,30 +129,36 @@ public static class AttachmentEndpoints
                 var segment = path.Contains('/') ? path[(path.LastIndexOf('/') + 1)..] : path;
                 var underscoreIdx = segment.IndexOf('_');
                 var displayName = underscoreIdx >= 0 ? segment[(underscoreIdx + 1)..] : segment;
-                // Тип выводится из имени файла, а имя пришло от пользователя — поэтому список здесь
-                // держим не шире списка приёма. Всё незнакомое уходит как application/octet-stream:
-                // так файл сохраняется, а не исполняется у того, кто его открыл. Расширения без
-                // соответствия в AllowedTypes (в том числе загруженные, пока список был шире)
-                // попадают именно в эту ветку.
-                var ext = Path.GetExtension(displayName).TrimStart('.').ToLowerInvariant();
-                var contentType = ext switch
-                {
-                    "pdf"  => "application/pdf",
-                    "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    "xls"  => "application/vnd.ms-excel",
-                    "png"  => "image/png",
-                    "jpg" or "jpeg" => "image/jpeg",
-                    "gif"  => "image/gif",
-                    "webp" => "image/webp",
-                    _      => "application/octet-stream",
-                };
-                return Results.File(stream, contentType, displayName);
+                // Тип выводится из имени файла, а имя пришло от пользователя — поэтому таблица здесь
+                // та же, что у приёма (AttachmentTypes): раньше это были два независимых списка, и
+                // расширение одного молча оставляло второй прежним.
+                return Results.File(stream, AttachmentTypes.ServeTypeFor(displayName), displayName);
             }
             catch
             {
                 return Results.NotFound();
             }
+        });
+    }
+
+    /// <summary>
+    /// Отказ, если расширение имени не отвечает заявленному типу; иначе null.
+    ///
+    /// Заявленный тип приходит от клиента и ничем не подтверждён — не-браузерный клиент кладёт
+    /// <c>evil.svg</c>, объявив его <c>image/png</c>. Прямо сейчас это не эксплуатируется: отдача
+    /// выводит тип из расширения и вернёт <c>application/octet-stream</c>. Но тогда вся защита
+    /// держится на одной карте расширений, а список приёма против такого клиента не даёт ничего —
+    /// то есть рубеж здесь до сих пор был декоративным.
+    /// </summary>
+    private static IResult? MismatchedExtension(IFormFile file)
+    {
+        if (AttachmentTypes.ExtensionMatches(file.FileName, file.ContentType)) return null;
+
+        var expected = AttachmentTypes.ExtensionsFor(file.ContentType);
+        return Results.BadRequest(new
+        {
+            error = $"Имя файла «{file.FileName}» не отвечает заявленному типу {file.ContentType}: " +
+                    $"ожидается {expected}.",
         });
     }
 }
