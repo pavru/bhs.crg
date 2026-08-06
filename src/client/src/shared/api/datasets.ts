@@ -9,11 +9,27 @@ import type {
 
 // ── Файлы ─────────────────────────────────────────────────────────────────────
 
-export function useListDataSetFiles(scope: CatalogScope, scopeId?: string) {
+/**
+ * Набор появился, заменён или удалён: сбрасываем ВЕСЬ префикс наборов, а не ключ одного уровня
+ * (issue #721). С тех пор как наборы верхних уровней видны на нижних, один и тот же файл живёт
+ * сразу в нескольких списках: удалив набор раздела с экрана комплекта, точечный сброс
+ * ['datasets','files','Section',id] оставил бы экран комплекта показывать удалённое.
+ */
+function invalidateFiles(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+  qc.invalidateQueries({ queryKey: ['datasets', 'available'] });
+}
+
+/**
+ * Наборы уровня. `includeInherited` — вместе с наборами родительских уровней (issue #721):
+ * комплект пользуется наборами своего раздела, стройки и системы, и экран уровня обязан говорить
+ * то же, что селектор источника у привязки. Уровень-владелец каждого файла — в его `scope`/`scopeId`.
+ */
+export function useListDataSetFiles(scope: CatalogScope, scopeId?: string, includeInherited = false) {
   return useQuery<DataSetFile[]>({
-    queryKey: ['datasets', 'files', scope, scopeId],
+    queryKey: ['datasets', 'files', scope, scopeId, includeInherited],
     queryFn: () =>
-      apiClient.get('/datasets/files', { params: { scope, scopeId } }).then(r => r.data),
+      apiClient.get('/datasets/files', { params: { scope, scopeId, includeInherited } }).then(r => r.data),
   });
 }
 
@@ -33,9 +49,7 @@ export function useUploadDataSetFile() {
       if (scopeId) form.append('scopeId', scopeId);
       return apiClient.post('/datasets/files', form).then(r => r.data);
     },
-    onSuccess: (_, { scope, scopeId }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'files', scope, scopeId] });
-    },
+    onSuccess: () => invalidateFiles(qc),
   });
 }
 
@@ -58,10 +72,7 @@ export function useCreateSystemDataSetFile() {
   return useMutation<DataSetFile, Error, { scope: CatalogScope; scopeId?: string; name?: string }>({
     mutationFn: ({ scope, scopeId, name }) =>
       apiClient.post('/datasets/files/system', { scope, scopeId, name }).then(r => r.data),
-    onSuccess: (_, { scope, scopeId }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'files', scope, scopeId] });
-      qc.invalidateQueries({ queryKey: ['datasets', 'available'] });
-    },
+    onSuccess: () => invalidateFiles(qc),
   });
 }
 
@@ -80,10 +91,7 @@ export function useUpdateDataSetFile() {
       if (name) form.append('name', name);
       return apiClient.put(`/datasets/files/${id}`, form).then(r => r.data);
     },
-    onSuccess: (_, { scope, scopeId }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'files', scope, scopeId] });
-      qc.invalidateQueries({ queryKey: ['datasets', 'available'] });
-    },
+    onSuccess: () => invalidateFiles(qc),
   });
 }
 
@@ -91,9 +99,7 @@ export function useDeleteDataSetFile() {
   const qc = useQueryClient();
   return useMutation<void, Error, { id: string; scope: CatalogScope; scopeId?: string }>({
     mutationFn: ({ id }) => apiClient.delete(`/datasets/files/${id}`).then(() => undefined),
-    onSuccess: (_, { scope, scopeId }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'files', scope, scopeId] });
-    },
+    onSuccess: () => invalidateFiles(qc),
   });
 }
 
@@ -110,6 +116,9 @@ export function useDeleteDataSetFile() {
 function invalidateSources(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
   qc.invalidateQueries({ queryKey: ['datasets', 'source-candidates'] });
+  // ...и список доступного документу: привязку выбирают ПО ИСТОЧНИКУ, так что создание или
+  // удаление источника меняет и его. Ключ ['datasets','available'] под префикс files не попадает.
+  qc.invalidateQueries({ queryKey: ['datasets', 'available'] });
 }
 
 export function useCreateDataSetSource() {
@@ -146,7 +155,7 @@ export function useRenameSource() {
   return useMutation<DataSetSource, Error, { id: string; name: string }>({
     mutationFn: ({ id, name }) =>
       apiClient.put(`/datasets/sources/${id}/name`, { name }).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+    onSuccess: () => invalidateSources(qc),
   });
 }
 
@@ -165,7 +174,7 @@ export function useSetMaterialization() {
     mutationFn: ({ sourceId, typeId, mapping, discriminator }) =>
       apiClient.put(`/datasets/sources/${sourceId}/materialization`,
         { typeId, mapping, discriminator: discriminator ?? null }).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+    onSuccess: () => invalidateSources(qc),
   });
 }
 
@@ -298,7 +307,7 @@ export function useCreatePdfSource() {
   }>({
     mutationFn: ({ fileId, ...data }) =>
       apiClient.post(`/datasets/files/${fileId}/pdf-sources`, data).then(r => r.data ?? null),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+    onSuccess: () => invalidateSources(qc),
   });
 }
 
@@ -314,7 +323,7 @@ export function useRecognizeFile() {
       apiClient.post(`/datasets/files/${fileId}/recognize`, undefined, { params: confirm ? { confirm: true } : undefined }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['jobs', 'active'] });
-      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+      invalidateSources(qc);
     },
   });
 }
@@ -358,7 +367,7 @@ export function useApplyGrouping(fileId: string) {
       apiClient.put(`/datasets/files/${fileId}/grouping`, { groups }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['datasets', 'files', fileId, 'pages'] });
-      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+      invalidateSources(qc);
     },
   });
 }
@@ -392,7 +401,7 @@ export function useSetFileRecognitionProfiles(fileId: string) {
   return useMutation<void, Error, Record<string, string | null>>({
     mutationFn: (profiles) =>
       apiClient.put(`/datasets/files/${fileId}/recognition-profiles`, { profiles }).then(() => undefined),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['datasets', 'files'] }); },
+    onSuccess: () => { invalidateSources(qc); },
   });
 }
 
@@ -432,7 +441,7 @@ export function useSetDataSetSourceProcessing() {
     // через usePreviewDataSetSource (['datasets','preview',sourceId,...]) — без этого фильтр не виден до
     // перемонтирования. Префикс-матч покрывает maxRows=1 (счётчик) и maxRows=50 (превью).
     onSuccess: (_data, { id }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+      invalidateSources(qc);
       qc.invalidateQueries({ queryKey: ['datasets', 'preview', id] });
       qc.invalidateQueries({ queryKey: ['datasets', 'materialize-preview', id] });
     },
@@ -485,7 +494,7 @@ export function useDeleteProcessingTemplate() {
     mutationFn: ({ id }) => apiClient.delete(`/datasets/processing-templates/${id}`).then(() => undefined),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['datasets', 'processing-templates'] });
-      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+      invalidateSources(qc);
     },
   });
 }
@@ -498,7 +507,7 @@ export function useApplyProcessingTemplate() {
       apiClient.post(`/datasets/sources/${sourceId}/apply-template/${templateId}`).then(r => r.data),
     // Тот же пробел, что в useSetDataSetSourceProcessing (issue #399) — освежаем предпросмотр источника.
     onSuccess: (_data, { sourceId }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+      invalidateSources(qc);
       qc.invalidateQueries({ queryKey: ['datasets', 'preview', sourceId] });
       qc.invalidateQueries({ queryKey: ['datasets', 'materialize-preview', sourceId] });
     },

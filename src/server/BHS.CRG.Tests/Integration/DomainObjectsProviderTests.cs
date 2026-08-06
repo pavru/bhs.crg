@@ -123,7 +123,7 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
         await AddEntryAsync(scope, seed.OrgTypeId, "ЭнергоСтрой", "{'ИНН':'7702'}", CatalogScope.System, null);
 
         var sourceId = await SourceAtAsync(scope, "Set", seed.SetId, seed.OrgTypeId);
-        var fileId = (await svc.ListFilesAsync("Set", seed.SetId, default)).Single().Id;
+        var fileId = (await svc.ListFilesAsync("Set", seed.SetId, false, default)).Single().Id;
         Assert.DoesNotContain("КПП",
             SchemaColumns(Assert.Single(await svc.ListSourcesAsync(fileId, default)).CachedSchema));
 
@@ -144,7 +144,7 @@ public class DomainObjectsProviderTests(IntegrationTestFixture fixture) : IAsync
             SchemaColumns(Assert.Single(await svc.ListSourcesAsync(fileId, default)).CachedSchema));
         // И список наборов уровня: тот же DTO, другой путь.
         Assert.Contains("КПП", SchemaColumns(Assert.Single(
-            Assert.Single(await svc.ListFilesAsync("Set", seed.SetId, default)).Sources).CachedSchema));
+            Assert.Single(await svc.ListFilesAsync("Set", seed.SetId, false, default)).Sources).CachedSchema));
 
         // MCP-срез: сводка набора, карточка источника и страница строк.
         var snapshots = scope.ServiceProvider.GetRequiredService<IDataSnapshotService>();

@@ -272,7 +272,7 @@ public class SystemDataSetTests(IntegrationTestFixture fixture) : IAsyncLifetime
         // Список источников набора и оба списка наборов — из них берут подпись выпадающие списки привязок.
         Assert.Equal(3, Assert.Single(await svc.ListSourcesAsync(file.Id, default)).CachedRowCount);
         Assert.Equal(3, Assert.Single(
-            Assert.Single(await svc.ListFilesAsync("Set", setId, default)).Sources).CachedRowCount);
+            Assert.Single(await svc.ListFilesAsync("Set", setId, false, default)).Sources).CachedRowCount);
         Assert.Equal(3, Assert.Single(
             (await svc.ListAvailableFilesAsync(setId, default)).Single(f => f.Id == file.Id).Sources).CachedRowCount);
 

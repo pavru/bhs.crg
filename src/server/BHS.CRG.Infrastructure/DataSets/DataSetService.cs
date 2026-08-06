@@ -20,8 +20,9 @@ public class DataSetService(
 ) : IDataSetService
 {
     // ── Files ─────────────────────────────────────────────────────────────────
-    public Task<IReadOnlyList<DataSetFileDto>> ListFilesAsync(string? scope, Guid? scopeId, CancellationToken ct) =>
-        files.ListFilesAsync(scope, scopeId, ct);
+    public Task<IReadOnlyList<DataSetFileDto>> ListFilesAsync(
+        string? scope, Guid? scopeId, bool includeInherited, CancellationToken ct) =>
+        files.ListFilesAsync(scope, scopeId, includeInherited, ct);
     public Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(Guid setId, CancellationToken ct) =>
         files.ListAvailableFilesAsync(setId, ct);
     public Task<DataSetFileDto> UploadFileAsync(UploadFileInput input, CancellationToken ct) =>

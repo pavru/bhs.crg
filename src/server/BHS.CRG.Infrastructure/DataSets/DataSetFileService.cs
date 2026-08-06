@@ -5,6 +5,7 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Infrastructure.Common;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -23,11 +24,37 @@ public class DataSetFileService(
     ILogger<DataSetFileService> logger,
     INotificationService notifications)
 {
-    public async Task<IReadOnlyList<DataSetFileDto>> ListFilesAsync(string? scope, Guid? scopeId, CancellationToken ct)
+    /// <summary>
+    /// Наборы уровня и всех его родителей (issue #721). Цепочку резолвит общий
+    /// <see cref="ScopeChains.LoadForScopeAsync"/> — тот самый, что заведён «взамен разрозненных
+    /// копий резолва/фильтра»; своя копия здесь и была бы такой копией. Отбор всё же пишется
+    /// запросом, а не <see cref="ScopeChain.Contains"/>: тот в SQL не переводится, а тянуть все
+    /// наборы всех строек в память ради фильтра в клиенте — не вариант.
+    ///
+    /// Неразрешённый уровень цепочка отдаёт как <c>Guid.Empty</c>, поэтому проверяем именно на него:
+    /// у наборов такого идентификатора нет, но без явной проверки условие уровня стало бы всегда
+    /// истинным и в выборку попали бы чужие ветки.
+    /// </summary>
+    private static IQueryable<DataSetFile> ChainFilter(IQueryable<DataSetFile> q, ScopeChain chain) =>
+        q.Where(f =>
+            (f.Scope == CatalogScope.System && f.ScopeId == null) ||
+            (chain.ConstructionId != Guid.Empty && f.Scope == CatalogScope.Construction && f.ScopeId == chain.ConstructionId) ||
+            (chain.SectionId != Guid.Empty && f.Scope == CatalogScope.Section && f.ScopeId == chain.SectionId) ||
+            (chain.SetId != Guid.Empty && f.Scope == CatalogScope.Set && f.ScopeId == chain.SetId));
+
+    public async Task<IReadOnlyList<DataSetFileDto>> ListFilesAsync(
+        string? scope, Guid? scopeId, bool includeInherited, CancellationToken ct)
     {
         var q = db.DataSetFiles.Include(f => f.Sources).AsNoTracking().AsQueryable();
         if (scope != null && Enum.TryParse<CatalogScope>(scope, out var s))
-            q = q.Where(f => f.Scope == s && f.ScopeId == scopeId);
+        {
+            // Наборы верхних уровней доступны на нижних (issue #721): комплект пользуется наборами
+            // своего раздела, стройки и системы. Экран уровня показывал только своё, а селектор
+            // источника у привязки — всю цепочку; расхождение никто не задумывал.
+            q = includeInherited
+                ? ChainFilter(q, await ScopeChains.LoadForScopeAsync(db, s, scopeId, ct))
+                : q.Where(f => f.Scope == s && f.ScopeId == scopeId);
+        }
 
         var files = await q.OrderBy(f => f.Name).ToListAsync(ct);
 
@@ -50,18 +77,12 @@ public class DataSetFileService(
 
     public async Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(Guid setId, CancellationToken ct)
     {
-        var set = await db.Set<DocumentSet>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == setId, ct)
-            ?? throw new NotFoundException("DocumentSet не найден");
-        var section = await db.Set<Section>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == set.SectionId, ct);
+        if (!await db.Set<DocumentSet>().AsNoTracking().AnyAsync(s => s.Id == setId, ct))
+            throw new NotFoundException("DocumentSet не найден");
 
-        var files = await db.DataSetFiles
-            .Include(f => f.Sources)
-            .AsNoTracking()
-            .Where(f =>
-                (f.Scope == CatalogScope.System && f.ScopeId == null) ||
-                (f.Scope == CatalogScope.Set && f.ScopeId == setId) ||
-                (section != null && f.Scope == CatalogScope.Section && f.ScopeId == section.Id) ||
-                (section != null && f.Scope == CatalogScope.Construction && f.ScopeId == section.ConstructionId))
+        var files = await ChainFilter(
+                db.DataSetFiles.Include(f => f.Sources).AsNoTracking(),
+                await ScopeChains.LoadAsync(db, setId, ct))
             .OrderBy(f => f.Scope).ThenBy(f => f.Name)
             .ToListAsync(ct);
 
