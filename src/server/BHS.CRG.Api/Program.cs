@@ -84,6 +84,14 @@ var cfg = builder.Configuration;
 builder.Services.ConfigureHttpJsonOptions(opt =>
     opt.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
+// Обязательные значения конфигурации проверяем ПЕРВЫМ делом — до регистрации чего бы то ни было,
+// которое ими пользуется. Проверка ключа подписи стоит ниже, у своей секции, и это не разнобой:
+// она читает значение оттуда же, откуда его берёт выдача токенов.
+StorageConfigGuard.Require(
+    cfg.GetConnectionString("Postgres"),
+    cfg["BlobStorage:AccessKey"],
+    cfg["BlobStorage:SecretKey"]);
+
 // ── Database ──────────────────────────────────────────────────────────────────
 builder.Services.AddDbContext<AppDbContext>(opt =>
     opt.UseNpgsql(cfg.GetConnectionString("Postgres")));

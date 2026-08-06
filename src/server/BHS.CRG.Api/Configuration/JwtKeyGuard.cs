@@ -19,21 +19,11 @@ public static class JwtKeyGuard
     private const int MinBytes = 32;
 
     /// <summary>
-    /// Значения из файлов-примеров (<c>appsettings.json</c>, <c>deploy/.env.example</c>). Сверяем по
-    /// началу строки: пример могли поправить частично, оставив узнаваемое начало, — такой ключ ничем
-    /// не лучше исходного.
-    ///
-    /// Записи здесь должны быть УЗНАВАЕМЫМИ, а не просто похожими на секрет. Отдельного «secret» в
-    /// списке нет намеренно: это обычное английское слово, и настоящий ключ вроде
-    /// «secretkey-prod-2026-…» отвергался бы с заведомо неверной причиной — человек пошёл бы искать
-    /// его в файлах-примерах, где его нет.
+    /// Своя заглушка, кроме общих (<see cref="ConfigPlaceholders" />): встречается только в примерах
+    /// ключа подписи. Отдельного «secret» в списке нет намеренно — это обычное английское слово, и
+    /// настоящий ключ вроде «secretkey-prod-2026-…» отвергался бы с заведомо неверной причиной.
     /// </summary>
-    private static readonly string[] KnownPlaceholderPrefixes =
-    [
-        "CHANGE_ME",
-        "CHANGEME",
-        "your-secret",
-    ];
+    private const string JwtExamplePrefix = "your-secret";
 
     /// <summary>Возвращает проверенный ключ либо бросает с указанием, что именно сделать.</summary>
     public static string Require(string? key)
@@ -43,9 +33,8 @@ public static class JwtKeyGuard
         if (Encoding.UTF8.GetByteCount(key) < MinBytes)
             throw Fail($"короче {MinBytes} байт");
 
-        foreach (var prefix in KnownPlaceholderPrefixes)
-            if (key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                throw Fail("совпадает со значением из файла-примера");
+        if (ConfigPlaceholders.LooksLikeExample(key, JwtExamplePrefix))
+            throw Fail("совпадает со значением из файла-примера");
 
         return key;
     }
