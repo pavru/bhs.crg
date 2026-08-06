@@ -1,5 +1,15 @@
 import { apiClient } from './client';
-import type { RestoreReport } from './types';
+import type { BackupSizeEstimate, RestoreReport } from './types';
+
+/**
+ * Вес копии и предел восстановления. Считается на сервере по требованию (issue #711): построение
+ * манифеста плюс запрос размера на каждый файл — дёшево, но не настолько, чтобы уходить при
+ * каждой загрузке страницы настроек.
+ */
+export async function fetchBackupSize(): Promise<BackupSizeEstimate> {
+  const response = await apiClient.get<BackupSizeEstimate>('/backup/size');
+  return response.data;
+}
 
 export async function downloadBackup(): Promise<void> {
   const response = await apiClient.get<Blob>('/backup', { responseType: 'blob' });

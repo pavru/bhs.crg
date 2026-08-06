@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
@@ -92,6 +93,60 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         var fileName = $"crg-backup-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.zip";
         return (ms, fileName);
     }
+
+    // ── Оценка размера ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Сколько будет весить копия, снятая прямо сейчас, — не снимая её (issue #711).
+    ///
+    /// Зачем вообще. Восстановление отказывает на архиве больше предела, а экспорт про этот предел
+    /// не знал вовсе и молча отдавал архив любого размера. Пока копия несла ассеты шаблонов,
+    /// разойтись этим числам было негде; с библиотекой качества (issue #687) вес задаётся тем,
+    /// сколько сертификатов накопилось, и растёт годами. Система исправно делала бы копии, которые
+    /// сама же откажется принять, а узнали бы об этом при восстановлении — то есть после аварии,
+    /// когда выбора уже нет.
+    ///
+    /// <para><b>Почему это оценка, а не выдумка.</b> Манифест сериализуется через тот же Deflate и с
+    /// тем же уровнем, что и запись в архив, — считаем сжатый размер, а не исходный. Разница здесь
+    /// не косметическая: в общих данных лежат картинки в base64, и несжатый объём завышал бы вес в
+    /// разы, то есть тревога приходила бы задолго до повода. Сканы кладутся в архив БЕЗ сжатия,
+    /// поэтому сумма их размеров — точное значение, а не приближение.</para>
+    ///
+    /// <para>Стоит это одного построения манифеста и по запросу размера на каждый блоб (HEAD, без
+    /// выкачивания содержимого). Поэтому вызывается по требованию — с раскрытого раздела настроек,
+    /// а не при каждой загрузке страницы.</para>
+    /// </summary>
+    public async Task<BackupSizeEstimate> EstimateSizeAsync(long limitBytes, CancellationToken ct = default)
+    {
+        var manifest = await BuildManifestAsync(ct);
+
+        var counter = new CountingStream();
+        await using (var deflate = new DeflateStream(counter, CompressionLevel.Fastest, leaveOpen: true))
+            await JsonSerializer.SerializeAsync(deflate, manifest, JsonOptions, ct);
+        var manifestBytes = counter.Written;
+
+        long blobBytes = 0;
+        var missing = 0;
+        var paths = ExtractBlobPaths(manifest);
+        var overhead = EntryOverhead("manifest.json");
+        foreach (var path in paths)
+        {
+            overhead += EntryOverhead($"blobs/{path}");
+            var size = await blob.GetSizeAsync(path, ct);
+            // Недоступный блоб экспорт пропускает с предупреждением — оценка считает его так же.
+            if (size is null) missing++;
+            else blobBytes += size.Value;
+        }
+
+        return new BackupSizeEstimate(
+            TotalBytes: manifestBytes + blobBytes + overhead,
+            ManifestBytes: manifestBytes,
+            BlobBytes: blobBytes,
+            BlobCount: paths.Count,
+            MissingBlobCount: missing,
+            LimitBytes: limitBytes);
+    }
+
 
     private async Task<BackupManifest> BuildManifestAsync(CancellationToken ct)
     {
@@ -378,6 +433,17 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     /// </summary>
     private static string RecordsGenitive(int n) =>
         n % 10 == 1 && n % 100 != 11 ? $"{n} записи" : $"{n} записей";
+
+    /// <summary>
+    /// Служебные заголовки zip на одну запись: локальный заголовок (30 байт) и запись в каталоге
+    /// (46), причём имя файла лежит в обоих — отсюда удвоение.
+    ///
+    /// Круглой константы «сотня байт на запись» тут мало: пути блобов длинные, а имена файлов
+    /// кириллические, то есть в UTF-8 вдвое длиннее видимых. На рабочей базе (45 файлов) такая
+    /// константа занижала оценку почти на 6 КБ; формула по длине имени сошлась с настоящим архивом
+    /// с точностью до десятков байт.
+    /// </summary>
+    private static long EntryOverhead(string entryName) => 76 + 2L * Encoding.UTF8.GetByteCount(entryName);
 
     // ── Blob path extraction ──────────────────────────────────────────────────
 

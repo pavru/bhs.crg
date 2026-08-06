@@ -75,6 +75,14 @@ public class RegisteredBlobStorage(
         return await inner.DownloadAsync(blobPath, ct);
     }
 
+    /// <summary>
+    /// Размер объекта — через тот же замок, что и выдача (issue #711). Незарегистрированный путь
+    /// размера не имеет: иначе появился бы способ узнать о чужом объекте по разнице ответов, а
+    /// «всё чтение хранилища идёт через одну дверь» перестало бы быть правдой.
+    /// </summary>
+    public async Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
+        => await IsKnownAsync(blobPath, ct) ? await inner.GetSizeAsync(blobPath, ct) : null;
+
     public async Task DeleteAsync(string blobPath, CancellationToken ct = default)
     {
         await inner.DeleteAsync(blobPath, ct);

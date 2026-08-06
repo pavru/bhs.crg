@@ -122,6 +122,25 @@ public record BackupRecognitionProfile(
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
     JsonElement? RowColumns = null, string? BuiltInHash = null);
 
+/// <summary>
+/// Сколько весит копия, снятая прямо сейчас, и с чем этот вес сравнивать (issue #711).
+///
+/// <paramref name="MissingBlobCount" /> — файлы, которых в хранилище уже нет: экспорт их пропускает
+/// с предупреждением, и в копию они не попадут. Число здесь не ради веса, а потому, что оно
+/// означает битые ссылки, о которых иначе узнать неоткуда.
+/// </summary>
+public record BackupSizeEstimate(
+    long TotalBytes,
+    long ManifestBytes,
+    long BlobBytes,
+    int BlobCount,
+    int MissingBlobCount,
+    long LimitBytes)
+{
+    /// <summary>Копия уже не пройдёт собственное восстановление.</summary>
+    public bool ExceedsLimit => TotalBytes > LimitBytes;
+}
+
 public record RestoreReport(
     bool Success,
     string? ConversionNotice,

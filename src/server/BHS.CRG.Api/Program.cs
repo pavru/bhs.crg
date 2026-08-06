@@ -74,10 +74,16 @@ var builder = WebApplication.CreateBuilder(args);
 // Восстановление бэкапа поднимает предел себе само.
 builder.WebHost.ConfigureKestrel(
     o => o.Limits.MaxRequestBodySize = BHS.CRG.Api.Endpoints.Common.UploadLimits.OrdinaryRequest);
+
+// Наибольший предел — архив восстановления, и он настраивается развёртыванием (issue #711).
+// Читаем его здесь же, до всего прочего: негодное значение обязано остановить запуск, а не
+// обнаружиться на первом восстановлении.
+var backupLimits = BHS.CRG.Api.Configuration.BackupSizeLimits.FromConfiguration(builder.Configuration);
+builder.Services.AddSingleton(backupLimits);
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
 {
     // Разбор формы — по наибольшему: он вторичный предохранитель, режет всё равно Kestrel.
-    o.MultipartBodyLengthLimit = BHS.CRG.Api.Endpoints.Common.UploadLimits.MaxAnywhere;
+    o.MultipartBodyLengthLimit = backupLimits.RequestBytes;
 });
 var cfg = builder.Configuration;
 

@@ -133,5 +133,8 @@ export async function openAttachmentInNewTab(blobPath: string): Promise<void> {
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} Б`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+  // Гигабайты появились с issue #711: вложения столько не весят, а вот резервная копия с
+  // библиотекой сканов — вполне, и «1433.6 МБ» читается заметно хуже, чем «1,4 ГБ».
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} ГБ`;
 }

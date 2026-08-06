@@ -17,5 +17,9 @@ RUN npm run build
 # (снаружи порт прежний, см. WEB_PORT в docker-compose.yml).
 FROM nginxinc/nginx-unprivileged:alpine
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
+# Предел тела запроса считается при старте из BACKUP_MAX_ARCHIVE_MB (issue #711). Права ставим
+# здесь: entrypoint nginx НЕ исполняемые файлы в /docker-entrypoint.d/ молча пропускает, а
+# конфигурация тогда сошлётся на несуществующий файл — контейнер не поднимется без объяснения.
+COPY --chmod=0755 deploy/nginx-body-size.sh /docker-entrypoint.d/30-backup-body-size.sh
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080
