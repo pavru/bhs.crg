@@ -45,6 +45,9 @@ const CHECK_STATUS: Record<string, { label: string; cls: string }> = {
   dangling: { label: 'запись удалена', cls: 'bg-red-50 text-danger border-red-200' },
   drift: { label: 'устарело', cls: 'bg-warning-subtle text-warning border-warning-border' },
   stale: { label: 'пересохранить', cls: 'bg-warning-subtle text-warning border-warning-border' },
+  // Резолв не состоялся вовсе (issue #715): поле не заполняется, и молчать об этом на экране
+  // проверки нельзя — раньше такие случаи отсеивались вместе со всем уровнем Error.
+  error: { label: 'не разрешилось', cls: 'bg-red-50 text-danger border-red-200' },
 };
 
 function BindingCheckReport({ items }: { items: BindingCheckItem[] }) {

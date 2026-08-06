@@ -67,6 +67,27 @@ public class DataSetResolver(
                 .GroupBy(f => f.Key).ToDictionary(g => g.Key, g => g.First())
             : [];
 
+        // Ячейка, которая должна была стать ссылкой на документ, но идентификатором не оказалась
+        // (issue #715). Сказать об этом больше НЕКОМУ: ValueTypeScanner поля-ссылки пропускает
+        // намеренно («их проверяет резолвер ссылок»), а ResolutionScanner ищет оставшиеся $ref —
+        // здесь же остаётся обычная строка, и она молча уезжает в шаблон вместо документа. Ровно
+        // так выглядит выбор соседней колонки в диалоге материализации: «Наименование» вместо «Ид».
+        //
+        // Предупреждением, а не ошибкой: тот же уровень, что у @@ref, не нашедшего запись каталога.
+        // Данные накоплены, и строка в одной ячейке не повод не выпускать документ целиком.
+        void WarnUnbuiltDocRef(SchemaFieldInfo? field, object? value, string token, string path)
+        {
+            // Токен-конструктор (@@ref/@@inline/@@file) сюда не относится: он строит своё значение и
+            // о своих неудачах отчитывается сам.
+            if (field?.Type != "doc-ref" || value is not string raw || token.StartsWith("@@", StringComparison.Ordinal))
+                return;
+
+            var shown = raw.Length > 60 ? raw[..60] + "…" : raw;
+            diagnostics?.Add(new ResolutionDiagnostic(
+                DiagnosticSeverity.Warning, path,
+                $"Ссылка на документ не построена: в колонке «{token}» не идентификатор, а «{shown}»."));
+        }
+
         foreach (var binding in bindings)
         {
             try
@@ -92,7 +113,11 @@ public class DataSetResolver(
                 // Проверяем только материализованный источник. Пустой маппинг у обычной привязки —
                 // это «ещё не настроено», и видно это в самой привязке; а здесь пользователь ВЫБРАЛ
                 // тип материализации, то есть настройку сделал, и она не работает.
-                if (binding.Source.MaterializeTypeId is not null && mapping.Count == 0)
+                //
+                // «Пусто» здесь ровно то же, что и у EffectiveMappingJson двумя строками выше —
+                // IsEmptyMapping считает пустым и маппинг из одних пустых значений. Проверка по
+                // Count пропускала бы {"Документ":""}: ключ есть, строить нечего, массив пустышек тот же.
+                if (binding.Source.MaterializeTypeId is not null && DataSetMappingValue.IsEmptyMapping(mappingJson))
                 {
                     diagnostics?.Add(new ResolutionDiagnostic(
                         DiagnosticSeverity.Error,
@@ -112,10 +137,19 @@ public class DataSetResolver(
                         var primitives = await PrimitivesAsync();
                         foreach (var (fieldKey, mapVal) in mapping)
                         {
+                            var field = ownFields.GetValueOrDefault(fieldKey);
                             var value = await ApplyMappedAsync(mapVal, row, ownerId, scopeLevel, scopeId, diagnostics, fieldKey, ct);
-                            value = DataSetValueCoercion.Coerce(value, ownFields.GetValueOrDefault(fieldKey), primitives, await TypesAsync());
+                            value = DataSetValueCoercion.Coerce(value, field, primitives, await TypesAsync());
+                            WarnUnbuiltDocRef(field, value, mapVal, fieldKey);
                             if (value is not null)
-                                ctx.Set(fieldKey, value);
+                                // Собранный объект (ссылка на документ, @@ref, @@inline) кладём
+                                // JsonElement'ом. Иначе он невидим обоим страховочным проходам:
+                                // и ResolveContextRefsAsync, и ScanLeftoverRefs пропускают всё, что
+                                // не JsonElement, — то есть сырой маркер уехал бы в data.json и в
+                                // сохранённые данные записи неразрешённым и никем не замеченным.
+                                ctx.Set(fieldKey, value is Dictionary<string, object?> composite
+                                    ? JsonSerializer.SerializeToElement(composite)
+                                    : value);
                         }
                     }
                 }
@@ -154,9 +188,11 @@ public class DataSetResolver(
                         foreach (var (fieldKey, mapVal) in mapping)
                         {
                             var path = $"{binding.TargetFieldKey}[{rowIndex}].{fieldKey}";
+                            var rowField = rowFields.GetValueOrDefault(fieldKey);
                             var value = await ApplyMappedAsync(mapVal, row, ownerId, scopeLevel, scopeId, diagnostics, path, ct);
                             // Число в числовом поле, а не текст ячейки (#466).
-                            value = DataSetValueCoercion.Coerce(value, rowFields.GetValueOrDefault(fieldKey), rowPrimitives, rowTypes);
+                            value = DataSetValueCoercion.Coerce(value, rowField, rowPrimitives, rowTypes);
+                            WarnUnbuiltDocRef(rowField, value, mapVal, path);
                             if (value is not null)
                                 obj[fieldKey] = value;
                         }

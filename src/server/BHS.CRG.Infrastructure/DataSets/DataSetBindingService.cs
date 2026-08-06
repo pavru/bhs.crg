@@ -84,6 +84,18 @@ public class DataSetBindingService(
                     binding.Mapping, binding.Source.MaterializeTypeId, binding.Source.MaterializeMapping);
                 var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson) ?? [];
 
+                // Материализация настроена, а маппинг пуст (issue #715) — то же, о чём говорит
+                // резолвер при генерации. Сказать это ОБЯЗАН и предпросмотр: именно сюда человек
+                // идёт выяснять, почему поле пустое, и таблица пустых объектов ответа не даёт.
+                if (binding.Source.MaterializeTypeId is not null && DataSetMappingValue.IsEmptyMapping(mappingJson))
+                {
+                    results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
+                        "error", binding.TargetFieldKey, rows.Count, new { },
+                        $"Источник «{binding.Source.Name}» материализован, но маппинг колонок пуст — " +
+                        "поле не заполняется. Задайте маппинг в диалоге материализации источника."));
+                    continue;
+                }
+
                 if (binding.TargetFieldKey is null)
                 {
                     var row = rows.Count > 0 ? rows[0] : null;

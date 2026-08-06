@@ -133,13 +133,117 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
             new Dictionary<string, string> { ["Документ"] = "Ид" });
         await Svc(scope).CreateBindingAsync(new CreateBindingInput(reestrId, sourceId, "Строки", null), default);
 
-        var ctx = await ResolveAsync(scope, reestrId);
+        var diagnostics = new List<ResolutionDiagnostic>();
+        var ctx = await ResolveAsync(scope, reestrId, diagnostics);
         var rows = ((JsonElement)ctx.Data["Строки"]!).EnumerateArray().ToList();
 
         Assert.Equal(2, rows.Count);
         // Пустая ячейка ключа не создаёт вовсе (идиома issue #544 — шаблоны читают через at/dig).
         Assert.False(rows[0].TryGetProperty("Документ", out _));
         Assert.Equal("не-идентификатор", rows[1].GetProperty("Документ").GetString());
+
+        // И об этом СКАЗАНО. Молчать здесь было нельзя: поля-ссылки ValueTypeScanner пропускает
+        // намеренно, оставшихся $ref не будет — строка уехала бы в шаблон вместо документа, и ни
+        // один проход о ней бы не заикнулся. Так выглядит выбор соседней колонки в диалоге.
+        var warning = Assert.Single(diagnostics, d => d.Severity == DiagnosticSeverity.Warning);
+        Assert.Contains("не идентификатор", warning.Message);
+        Assert.Contains("не-идентификатор", warning.Message);
+        // Пустая ячейка поводом для предупреждения НЕ является: там просто нет значения.
+        Assert.EndsWith("[1].Документ", warning.Path);
+    }
+
+    /// <summary>
+    /// Маппинг из одних пустых значений — тот же пустой маппинг. Проверка по числу ключей
+    /// пропускала бы <c>{"Документ":""}</c>: ключ есть, строить нечего, массив пустышек тот же.
+    /// Определение «пусто» здесь обязано совпадать с тем, по которому маппинг вообще выбирается.
+    /// </summary>
+    [Fact]
+    public async Task MaterializeMappingOfEmptyValues_IsTreatedAsEmpty()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var reestrType = await m.Send(new CreateDocumentTypeCommand("Реестр", $"REG{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+        var rowType = await m.Send(new CreateDocumentTypeCommand("СтрокаРеестра", $"ROW{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Composite, null, J("{'fields':[{'key':'Поле','type':'string'}]}")));
+        var aosrType = await m.Send(new CreateDocumentTypeCommand("АОСР", $"AOSR{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+
+        var (_, reestrId, _) = await SeedSetAsync(m, reestrType.Id, aosrType.Id);
+
+        var sourceId = await MaterializedSourceAsync(scope, "A,B\n1,2\n", rowType.Id,
+            new Dictionary<string, string> { ["Поле"] = "" });
+        await Svc(scope).CreateBindingAsync(new CreateBindingInput(reestrId, sourceId, "Строки", null), default);
+
+        var diagnostics = new List<ResolutionDiagnostic>();
+        var ctx = await ResolveAsync(scope, reestrId, diagnostics);
+
+        Assert.Contains(diagnostics, d => d.Severity == DiagnosticSeverity.Error && d.Message.Contains("маппинг колонок пуст"));
+        Assert.False(ctx.Data.ContainsKey("Строки"));
+    }
+
+    /// <summary>
+    /// Скалярная привязка кладёт собранный объект тем же способом, что и табличная.
+    ///
+    /// Разница была неочевидной и дорогой: оба страховочных прохода — доразрешение ссылок и поиск
+    /// оставшихся <c>$ref</c> — пропускают всё, что не <c>JsonElement</c>. Сырой маркер из скалярной
+    /// ветки уехал бы в data.json и в сохранённые данные записи неразрешённым и незамеченным.
+    /// </summary>
+    [Fact]
+    public async Task ScalarBinding_DocRefField_IsResolvedToo()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var aosrType = await m.Send(new CreateDocumentTypeCommand("АОСР", $"AOSR{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null, J("{'fields':[{'key':'Номер','type':'string'}]}")));
+        // Поле-ссылка объявлено у САМОГО документа — маппинг материализации ложится на его поля.
+        var reestrType = await m.Send(new CreateDocumentTypeCommand("Реестр", $"REG{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null,
+            J($"{{'fields':[{{'key':'Основание','type':'doc-ref','typeId':'{aosrType.Id}'}}]}}")));
+
+        var (_, reestrId, aosrId) = await SeedSetAsync(m, reestrType.Id, aosrType.Id);
+
+        var sourceId = await MaterializedSourceAsync(scope, $"Ид\n{aosrId}\n", reestrType.Id,
+            new Dictionary<string, string> { ["Основание"] = "Ид" });
+        // targetFieldKey = null — скалярный режим: первая строка заполняет поля документа.
+        await Svc(scope).CreateBindingAsync(new CreateBindingInput(reestrId, sourceId, null, null), default);
+
+        var ctx = await ResolveAsync(scope, reestrId);
+
+        var docRef = Assert.IsType<JsonElement>(ctx.Data["Основание"]);
+        Assert.False(docRef.TryGetProperty("$ref", out _), "ссылка осталась неразрешённой");
+        Assert.Equal("17", docRef.GetProperty("Номер").GetString());
+    }
+
+    /// <summary>
+    /// Предпросмотр привязок — первый экран, куда идут выяснять, почему поле пустое. Он обязан
+    /// назвать причину, а не показывать таблицу пустых объектов: генерация об этом уже говорит,
+    /// а предпросмотр молчал.
+    /// </summary>
+    [Fact]
+    public async Task BindingPreview_NamesTheEmptyMaterializeMapping()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var reestrType = await m.Send(new CreateDocumentTypeCommand("Реестр", $"REG{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+        var rowType = await m.Send(new CreateDocumentTypeCommand("СтрокаРеестра", $"ROW{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Composite, null, J("{'fields':[{'key':'Поле','type':'string'}]}")));
+        var aosrType = await m.Send(new CreateDocumentTypeCommand("АОСР", $"AOSR{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+
+        var (_, reestrId, _) = await SeedSetAsync(m, reestrType.Id, aosrType.Id);
+
+        var sourceId = await MaterializedSourceAsync(scope, "A,B\n1,2\n3,4\n", rowType.Id, mapping: new());
+        await Svc(scope).CreateBindingAsync(new CreateBindingInput(reestrId, sourceId, "Строки", null), default);
+
+        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(reestrId, default));
+
+        Assert.Equal("error", preview.Mode);
+        Assert.Contains("маппинг колонок пуст", preview.Error);
     }
 
     /// <summary>
