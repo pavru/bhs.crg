@@ -211,23 +211,32 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
     return next;
   }, { replace: true });
 
-  const setInheritedOpen = (open: boolean) => setSearchParams(prev => {
+  // Свернув группу, снимаем выбор с унаследованного набора: иначе detail показывал бы набор,
+  // строки которого в рейле уже нет, и подсвечивать было бы нечего.
+  const setInheritedOpen = (open: boolean, dropSelection = false) => setSearchParams(prev => {
     const next = new URLSearchParams(prev);
     next.set('inherited', open ? '1' : '0');
+    if (!open && dropSelection) next.delete('file');
     return next;
   }, { replace: true });
 
   // Свои — наборы этого уровня; унаследованные — всё остальное из цепочки родителей.
   // Всё, что говорит о владении (счётчик, пустое состояние, гейт «Данные системы», обзор),
   // считает СВОИ: иначе набор раздела спрячет кнопку создания набора комплекта.
-  const files = useMemo(
-    () => allFiles.filter(f => f.scope === scope && (f.scopeId ?? undefined) === scopeId),
-    [allFiles, scope, scopeId]);
+  // Идентификатор уровня приходит из адреса, а сравнивается со строкой из ответа API: регистр
+  // может разойтись, и тогда СВОИ наборы поголовно считались бы унаследованными — со счётчиком 0,
+  // предупреждением при удалении своего же файла и повторным предложением создать «Данные системы».
+  const isOwn = useMemo(() => {
+    const here = scopeId?.toLowerCase();
+    return (f: DataSetFile) => f.scope === scope && (f.scopeId?.toLowerCase() ?? undefined) === here;
+  }, [scope, scopeId]);
+
+  const files = useMemo(() => allFiles.filter(isOwn), [allFiles, isOwn]);
   const inheritedFiles = useMemo(
-    () => allFiles.filter(f => !(f.scope === scope && (f.scopeId ?? undefined) === scopeId))
+    () => allFiles.filter(f => !isOwn(f))
       // Ближний уровень выше: комплект → раздел → стройка → система.
       .sort((a, b) => INHERIT_ORDER.indexOf(a.scope) - INHERIT_ORDER.indexOf(b.scope) || a.name.localeCompare(b.name, 'ru')),
-    [allFiles, scope, scopeId]);
+    [allFiles, isOwn]);
 
   // Дефолт по числу файлов: без явного выбора — 1 файл открывается сразу, 2+ → «Все наборы».
   const selected = fileParam ?? (files.length === 1 ? files[0].id : ALL);
@@ -357,7 +366,7 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
                 счётчиком сообщает, что доступно ещё, и не даёт им остаться невидимыми. */}
             {inheritedFiles.length > 0 && (
               <>
-                <button type="button" onClick={() => setInheritedOpen(!inheritedOpen)}
+                <button type="button" onClick={() => setInheritedOpen(!inheritedOpen, selectedInherited)}
                   aria-expanded={inheritedOpen}
                   className="w-full flex items-center gap-1.5 mt-2 pt-2 px-1.5 border-t border-stroke text-left text-xs text-fg3 hover:text-brand">
                   <ChevronRight size={13} className={`shrink-0 transition-transform ${inheritedOpen ? 'rotate-90' : ''}`} />

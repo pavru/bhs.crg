@@ -11,17 +11,15 @@ import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { isScalarField, type SchemaField } from '@/shared/api/schema';
 
 /// Записи каталога не всегда живут внутри комплекта (System/Section/Construction-скоуп
-/// без setId) — для них берём файлы напрямую по scope/scopeId + System, тем же паттерном,
-/// что уже используется в этом файле для parentEntries (см. CatalogEntryForm).
+/// без setId) — для них берём файлы своего уровня ВМЕСТЕ с родительскими (issue #721).
+/// Раньше здесь подмешивался только System, и запись раздела не видела наборов своей стройки —
+/// хотя экран наборов того же раздела их предлагает. Третий список того же самого: цепочку
+/// считает сервер, чтобы все три отвечали одинаково.
 function useEntryAvailableFiles(setId: string | undefined, scope: CatalogScope, scopeId: string | null) {
   const chain = useAvailableDataSetFiles(setId ?? '');
-  const own = useListDataSetFiles(scope, scopeId ?? undefined);
-  const system = useListDataSetFiles('System');
+  const own = useListDataSetFiles(scope, scopeId ?? undefined, true);
   if (setId) return { data: chain.data ?? [], isLoading: chain.isLoading };
-  const merged: DataSetFile[] = scope === 'System'
-    ? (system.data ?? [])
-    : [...(own.data ?? []), ...(system.data ?? []).filter(f => !(own.data ?? []).some(o => o.id === f.id))];
-  return { data: merged, isLoading: own.isLoading || system.isLoading };
+  return { data: own.data ?? [], isLoading: own.isLoading };
 }
 
 function AddEntryBindingPanel({

@@ -5,6 +5,7 @@ using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Infrastructure.Common;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -24,47 +25,22 @@ public class DataSetFileService(
     INotificationService notifications)
 {
     /// <summary>
-    /// Уровни, наборы которых доступны на заданном: свой и все родительские. Системный уровень
-    /// доступен отовсюду, поэтому в цепочке он всегда.
+    /// Наборы уровня и всех его родителей (issue #721). Цепочку резолвит общий
+    /// <see cref="ScopeChains.LoadForScopeAsync"/> — тот самый, что заведён «взамен разрозненных
+    /// копий резолва/фильтра»; своя копия здесь и была бы такой копией. Отбор всё же пишется
+    /// запросом, а не <see cref="ScopeChain.Contains"/>: тот в SQL не переводится, а тянуть все
+    /// наборы всех строек в память ради фильтра в клиенте — не вариант.
+    ///
+    /// Неразрешённый уровень цепочка отдаёт как <c>Guid.Empty</c>, поэтому проверяем именно на него:
+    /// у наборов такого идентификатора нет, но без явной проверки условие уровня стало бы всегда
+    /// истинным и в выборку попали бы чужие ветки.
     /// </summary>
-    private sealed record ScopeChain(Guid? SetId, Guid? SectionId, Guid? ConstructionId);
-
-    /// <summary>
-    /// Разворачивает уровень в цепочку родителей. Живёт в одном месте намеренно: тем же правилом
-    /// пользуются экран наборов уровня и список источников, доступных документу, — а разошлись они
-    /// ровно потому, что правило было написано дважды (issue #721).
-    /// </summary>
-    private async Task<ScopeChain> ResolveChainAsync(CatalogScope scope, Guid? scopeId, CancellationToken ct)
-    {
-        if (scopeId is not { } id) return new ScopeChain(null, null, null);
-
-        switch (scope)
-        {
-            case CatalogScope.Construction:
-                return new ScopeChain(null, null, id);
-
-            case CatalogScope.Section:
-                var section = await db.Set<Section>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == id, ct);
-                return new ScopeChain(null, id, section?.ConstructionId);
-
-            case CatalogScope.Set:
-                var set = await db.Set<DocumentSet>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == id, ct);
-                var parent = set is null
-                    ? null
-                    : await db.Set<Section>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == set.SectionId, ct);
-                return new ScopeChain(id, parent?.Id, parent?.ConstructionId);
-
-            default:
-                return new ScopeChain(null, null, null);
-        }
-    }
-
     private static IQueryable<DataSetFile> ChainFilter(IQueryable<DataSetFile> q, ScopeChain chain) =>
         q.Where(f =>
             (f.Scope == CatalogScope.System && f.ScopeId == null) ||
-            (chain.ConstructionId != null && f.Scope == CatalogScope.Construction && f.ScopeId == chain.ConstructionId) ||
-            (chain.SectionId != null && f.Scope == CatalogScope.Section && f.ScopeId == chain.SectionId) ||
-            (chain.SetId != null && f.Scope == CatalogScope.Set && f.ScopeId == chain.SetId));
+            (chain.ConstructionId != Guid.Empty && f.Scope == CatalogScope.Construction && f.ScopeId == chain.ConstructionId) ||
+            (chain.SectionId != Guid.Empty && f.Scope == CatalogScope.Section && f.ScopeId == chain.SectionId) ||
+            (chain.SetId != Guid.Empty && f.Scope == CatalogScope.Set && f.ScopeId == chain.SetId));
 
     public async Task<IReadOnlyList<DataSetFileDto>> ListFilesAsync(
         string? scope, Guid? scopeId, bool includeInherited, CancellationToken ct)
@@ -76,7 +52,7 @@ public class DataSetFileService(
             // своего раздела, стройки и системы. Экран уровня показывал только своё, а селектор
             // источника у привязки — всю цепочку; расхождение никто не задумывал.
             q = includeInherited
-                ? ChainFilter(q, await ResolveChainAsync(s, scopeId, ct))
+                ? ChainFilter(q, await ScopeChains.LoadForScopeAsync(db, s, scopeId, ct))
                 : q.Where(f => f.Scope == s && f.ScopeId == scopeId);
         }
 
@@ -106,7 +82,7 @@ public class DataSetFileService(
 
         var files = await ChainFilter(
                 db.DataSetFiles.Include(f => f.Sources).AsNoTracking(),
-                await ResolveChainAsync(CatalogScope.Set, setId, ct))
+                await ScopeChains.LoadAsync(db, setId, ct))
             .OrderBy(f => f.Scope).ThenBy(f => f.Name)
             .ToListAsync(ct);
 

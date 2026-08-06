@@ -116,6 +116,9 @@ export function useDeleteDataSetFile() {
 function invalidateSources(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
   qc.invalidateQueries({ queryKey: ['datasets', 'source-candidates'] });
+  // ...и список доступного документу: привязку выбирают ПО ИСТОЧНИКУ, так что создание или
+  // удаление источника меняет и его. Ключ ['datasets','available'] под префикс files не попадает.
+  qc.invalidateQueries({ queryKey: ['datasets', 'available'] });
 }
 
 export function useCreateDataSetSource() {
@@ -152,7 +155,7 @@ export function useRenameSource() {
   return useMutation<DataSetSource, Error, { id: string; name: string }>({
     mutationFn: ({ id, name }) =>
       apiClient.put(`/datasets/sources/${id}/name`, { name }).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+    onSuccess: () => invalidateSources(qc),
   });
 }
 
@@ -171,7 +174,7 @@ export function useSetMaterialization() {
     mutationFn: ({ sourceId, typeId, mapping, discriminator }) =>
       apiClient.put(`/datasets/sources/${sourceId}/materialization`,
         { typeId, mapping, discriminator: discriminator ?? null }).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+    onSuccess: () => invalidateSources(qc),
   });
 }
 
@@ -304,7 +307,7 @@ export function useCreatePdfSource() {
   }>({
     mutationFn: ({ fileId, ...data }) =>
       apiClient.post(`/datasets/files/${fileId}/pdf-sources`, data).then(r => r.data ?? null),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+    onSuccess: () => invalidateSources(qc),
   });
 }
 
@@ -320,7 +323,7 @@ export function useRecognizeFile() {
       apiClient.post(`/datasets/files/${fileId}/recognize`, undefined, { params: confirm ? { confirm: true } : undefined }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['jobs', 'active'] });
-      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+      invalidateSources(qc);
     },
   });
 }
@@ -364,7 +367,7 @@ export function useApplyGrouping(fileId: string) {
       apiClient.put(`/datasets/files/${fileId}/grouping`, { groups }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['datasets', 'files', fileId, 'pages'] });
-      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+      invalidateSources(qc);
     },
   });
 }
@@ -398,7 +401,7 @@ export function useSetFileRecognitionProfiles(fileId: string) {
   return useMutation<void, Error, Record<string, string | null>>({
     mutationFn: (profiles) =>
       apiClient.put(`/datasets/files/${fileId}/recognition-profiles`, { profiles }).then(() => undefined),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['datasets', 'files'] }); },
+    onSuccess: () => { invalidateSources(qc); },
   });
 }
 
@@ -438,7 +441,7 @@ export function useSetDataSetSourceProcessing() {
     // через usePreviewDataSetSource (['datasets','preview',sourceId,...]) — без этого фильтр не виден до
     // перемонтирования. Префикс-матч покрывает maxRows=1 (счётчик) и maxRows=50 (превью).
     onSuccess: (_data, { id }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+      invalidateSources(qc);
       qc.invalidateQueries({ queryKey: ['datasets', 'preview', id] });
       qc.invalidateQueries({ queryKey: ['datasets', 'materialize-preview', id] });
     },
@@ -491,7 +494,7 @@ export function useDeleteProcessingTemplate() {
     mutationFn: ({ id }) => apiClient.delete(`/datasets/processing-templates/${id}`).then(() => undefined),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['datasets', 'processing-templates'] });
-      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+      invalidateSources(qc);
     },
   });
 }
@@ -504,7 +507,7 @@ export function useApplyProcessingTemplate() {
       apiClient.post(`/datasets/sources/${sourceId}/apply-template/${templateId}`).then(r => r.data),
     // Тот же пробел, что в useSetDataSetSourceProcessing (issue #399) — освежаем предпросмотр источника.
     onSuccess: (_data, { sourceId }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+      invalidateSources(qc);
       qc.invalidateQueries({ queryKey: ['datasets', 'preview', sourceId] });
       qc.invalidateQueries({ queryKey: ['datasets', 'materialize-preview', sourceId] });
     },
