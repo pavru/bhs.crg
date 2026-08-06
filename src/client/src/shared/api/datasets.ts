@@ -99,6 +99,19 @@ export function useDeleteDataSetFile() {
 
 // ── Источники (ручное управление — для XML) ────────────────────────────────────
 
+/**
+ * Список источников изменился: перечитать и наборы, и КАНДИДАТОВ (issue #717).
+ *
+ * Ключ кандидатов — ['datasets','source-candidates',fileId], и сброс ['datasets','files'] его не
+ * задевает: префикс другой. Пока занятый кандидат просто исчезал, это было незаметно; теперь у него
+ * есть счётчик и действие «Добавить ещё», и без сброса панель сразу после создания показывала бы
+ * старое состояние — то есть прятала бы вход ровно тогда, когда он нужен.
+ */
+function invalidateSources(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+  qc.invalidateQueries({ queryKey: ['datasets', 'source-candidates'] });
+}
+
 export function useCreateDataSetSource() {
   const qc = useQueryClient();
   return useMutation<DataSetSource, Error, {
@@ -109,7 +122,7 @@ export function useCreateDataSetSource() {
   }>({
     mutationFn: ({ fileId, ...data }) =>
       apiClient.post(`/datasets/files/${fileId}/sources`, data).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+    onSuccess: () => invalidateSources(qc),
   });
 }
 
@@ -123,7 +136,7 @@ export function useUpdateDataSetSource() {
   }>({
     mutationFn: ({ id, ...data }) =>
       apiClient.put(`/datasets/sources/${id}`, data).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+    onSuccess: () => invalidateSources(qc),
   });
 }
 
@@ -215,6 +228,9 @@ export interface SourceCandidate {
   /** Оговорка к данным консолидации (issue #626): показываем ДО создания источника, иначе о ней
    *  узнают только постфактум, в списке источников. */
   warning?: string | null;
+  /** Сколько источников на эту консолидацию уже есть (issue #717). >0 — кандидат остаётся видимым
+   *  («уже добавлен · Добавить ещё»), а не исчезает: второй список с другим фильтром законен. */
+  existingCount?: number;
 }
 
 /** Детект кандидатов на источник (без персиста) — подсказки в один клик в диалоге создания. */
@@ -255,16 +271,18 @@ export function useDeleteDataSetSource() {
   const qc = useQueryClient();
   return useMutation<void, Error, { id: string }>({
     mutationFn: ({ id }) => apiClient.delete(`/datasets/sources/${id}`).then(() => undefined),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+    onSuccess: () => invalidateSources(qc),
   });
 }
 
 /** Копия источника (тот же locator/колонки/Filter/Transformation/Sort) — доступна для любого формата. */
 export function useDuplicateDataSetSource() {
   const qc = useQueryClient();
-  return useMutation<DataSetSource, Error, { id: string }>({
-    mutationFn: ({ id }) => apiClient.post(`/datasets/sources/${id}/duplicate`).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
+  // name задаёт диалог (issue #717): два источника различимы в селекторе привязки только именем,
+  // поэтому имя копии — решение пользователя, а не автоматический суффикс.
+  return useMutation<DataSetSource, Error, { id: string; name?: string }>({
+    mutationFn: ({ id, name }) => apiClient.post(`/datasets/sources/${id}/duplicate`, { name }).then(r => r.data),
+    onSuccess: () => invalidateSources(qc),
   });
 }
 

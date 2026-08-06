@@ -80,6 +80,10 @@ public class DataSetSourceService(
             ?? throw new NotFoundException($"DataSetFile {fileId} not found");
 
         // Системный набор (issue #580): кандидаты — консолидации, возможные на уровне набора.
+        // Занятую консолидацию НЕ прячем (issue #717): один и тот же список документов законно
+        // нужен дважды — с разными фильтрами и в разные поля, — а исчезнувший кандидат оставлял
+        // единственным входом «Создать копию» в меню строки, куда за этим никто не пойдёт.
+        // Вместо изъятия отдаём счётчик: кандидат виден, и по нему видно, что он уже добавлен.
         if (file.Format == DataSetFormat.System)
         {
             var existingMarkers = await db.DataSetSources
@@ -87,7 +91,7 @@ public class DataSetSourceService(
             var candidates = new List<DataSetSourceInfo>();
             foreach (var provider in systemProviders.All)
                 candidates.AddRange((await provider.GetCandidatesAsync(file.Scope, file.ScopeId, ct))
-                    .Where(c => !existingMarkers.Contains(c.SheetOrPath)));
+                    .Select(c => c with { ExistingCount = existingMarkers.Count(m => m == c.SheetOrPath) }));
             return candidates;
         }
 
@@ -396,6 +400,8 @@ public class DataSetSourceService(
     {
         var file = await db.DataSetFiles.Include(f => f.Sources).FirstOrDefaultAsync(f => f.Id == fileId, ct)
             ?? throw new NotFoundException($"DataSetFile {fileId} not found");
+        if (string.IsNullOrWhiteSpace(input.Name)) throw new InvalidRequestException("Укажите название источника.");
+        await EnsureNameFreeAsync(fileId, input.Name.Trim(), null, ct);
 
         // PDF (issue #30): источник-проекция (Обложка/Титул) создаётся из распознанной группировки
         // набора — не парсингом блоба. Строки проецируются и кэшируются в CachedData.
@@ -524,6 +530,7 @@ public class DataSetSourceService(
         var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
         if (string.IsNullOrWhiteSpace(name)) throw new InvalidRequestException("Укажите название.");
+        await EnsureNameFreeAsync(source.FileId, name.Trim(), sourceId, ct, source.Name);
         source.Rename(name);
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(source);
@@ -537,6 +544,8 @@ public class DataSetSourceService(
         // идёт через RenameSourceAsync, а другая консолидация — другой источник.
         if (source.File.IsSystem)
             throw new InvalidRequestException("Определение системного источника не редактируется — переименуйте его или создайте другой.");
+        if (string.IsNullOrWhiteSpace(input.Name)) throw new InvalidRequestException("Укажите название источника.");
+        await EnsureNameFreeAsync(source.FileId, input.Name.Trim(), sourceId, ct, source.Name);
 
         var columnExpressionsJson = DataSetDtoMapper.SerializeColumnExpressions(input.ColumnExpressions);
         var (schema, rowCount) = await ParseForDefinitionAsync(
@@ -602,20 +611,57 @@ public class DataSetSourceService(
     // наборов на основе одного файла без переопределения extraction с нуля (актуально и для
     // форматов без ручного builder'а — CSV/XLSX — где нужно только разное Filter/Transformation/Sort
     // поверх одинаковых данных).
-    public async Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, CancellationToken ct)
+    //
+    // Материализация копируется вместе с остальным (issue #717): копия — «тот же источник, другой
+    // фильтр», и настраивать тип, маппинг и правило выбора варианта заново значит потерять работу,
+    // ради которой копию и делают. Имя задаёт вызывающий (диалог), иначе берём ближайшее свободное.
+    public async Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, string? name, CancellationToken ct)
     {
         var source = await db.DataSetSources.Include(s => s.File).FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
+        var copyName = string.IsNullOrWhiteSpace(name)
+            ? SourceNaming.Next(await SiblingNamesAsync(source.FileId, null, ct), source.Name)
+            : name.Trim();
+        await EnsureNameFreeAsync(source.FileId, copyName, null, ct);
+
         var copy = source.File.AddSource(
-            $"{source.Name} (копия)", source.SheetOrPath, source.CachedSchema, source.CachedRowCount,
+            copyName, source.SheetOrPath, source.CachedSchema, source.CachedRowCount,
             source.ColumnExpressions, source.CachedData);
         copy.SetProcessing(source.RowFilter, source.ComputedColumns, source.SortSpec);
         copy.SetTags(source.Tags);
+        copy.SetMaterialization(source.MaterializeTypeId, source.MaterializeMapping, source.MaterializeDiscriminator);
         // file уже отслеживается — см. пояснение в CreateSourceAsync (иначе Modified вместо Added).
         db.DataSetSources.Add(copy);
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(copy);
+    }
+
+    private Task<List<string>> SiblingNamesAsync(Guid fileId, Guid? exceptSourceId, CancellationToken ct) =>
+        db.DataSetSources.AsNoTracking()
+            .Where(s => s.FileId == fileId && (exceptSourceId == null || s.Id != exceptSourceId))
+            .Select(s => s.Name).ToListAsync(ct);
+
+    // Одинаковые имена внутри набора запрещены (issue #717): см. пояснение в SourceNaming — в
+    // селекторе привязки источники различимы только именем. Проверка стоит на ВСЕХ путях записи
+    // имени (создание, копия, переименование, правка определения), а не только в диалоге копии:
+    // переименовать второй источник в имя первого — та же неразличимость, только позже.
+    //
+    // currentName — имя, которое источник носит сейчас: если оно не меняется, проверять нечего.
+    // До этого правила имена не были уникальны, и наборы прошлых версий вполне могут содержать два
+    // «Лист1». Без этой оговорки правка row-selector'а такому источнику отказывала бы ссылкой на
+    // название, которого пользователь не трогал, и выйти можно было бы только переименованием.
+    private async Task EnsureNameFreeAsync(
+        Guid fileId, string name, Guid? exceptSourceId, CancellationToken ct, string? currentName = null)
+    {
+        if (currentName is not null && string.Equals(currentName.Trim(), name, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var taken = await SiblingNamesAsync(fileId, exceptSourceId, ct);
+        if (taken.Any(n => string.Equals(n.Trim(), name, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidRequestException(
+                $"Источник «{name}» в этом наборе уже есть — дайте другое название (или переименуйте тот), "
+                + "иначе их не различить при привязке.");
     }
 
     // Скачивает файл и парсит указанное определение — используется для валидации и первичного

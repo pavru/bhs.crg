@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
   BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, Scissors, Type, SlidersHorizontal, Link2,
 } from 'lucide-react';
-import { parseSourceColumnNames, countFilterConditions } from '@/shared/api/datasetHelpers';
+import { parseSourceColumnNames, countFilterConditions, nextSourceName } from '@/shared/api/datasetHelpers';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useSourceRecognizing } from '@/shared/api/jobs';
 import { FileProfilesDialog } from './FileProfilesDialog';
@@ -12,7 +12,7 @@ import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
   usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizeFile,
   isManualGroupingConflict, exportDataSetSource, useSourceCandidates, useCreateDataSetSource, useRenameSource,
-  useRecognizeDocumentTable,
+  useRecognizeDocumentTable, type SourceCandidate,
 } from '@/shared/api/datasets';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Modal } from '@/shared/ui/Modal';
@@ -63,6 +63,51 @@ function SaveAsTemplateDialog({ defaultName, isPending, onSave, onClose }: {
 }
 
 /**
+ * Мини-диалог имени источника: переименование, копия, второй источник на ту же консолидацию
+ * (issue #717). Имя спрашиваем, а не подставляем молча, потому что в селекторе привязки источники
+ * различимы ТОЛЬКО именем — «Документы комплекта» и «Документы комплекта — 2» рядом не подскажут,
+ * который из них про монтаж, а который про испытания.
+ *
+ * Занятое имя гасим здесь же (сервер его тоже не примет — так пользователь узнаёт об этом до
+ * отправки, а не сообщением об ошибке после).
+ */
+function SourceNameDialog({ title, hint, defaultName, takenNames, isPending, error, confirmLabel, onSubmit, onClose }: {
+  title: string; hint?: string; defaultName: string; takenNames: string[];
+  isPending: boolean; error?: string | null; confirmLabel: string;
+  onSubmit: (name: string) => void; onClose: () => void;
+}) {
+  const [name, setName] = useState(defaultName);
+  const trimmed = name.trim();
+  const lower = (s: string) => s.trim().toLocaleLowerCase('ru');
+  const isTaken = takenNames.some(t => lower(t) === lower(trimmed));
+  const canSave = !isPending && !!trimmed && !isTaken;
+
+  return (
+    <Modal
+      open
+      onOpenChange={o => { if (!o && !isPending) onClose(); }}
+      title={title}
+      footer={
+        <div className="flex gap-2 justify-end">
+          <Button type="button" variant="text" size="sm" onClick={onClose} disabled={isPending}>Отмена</Button>
+          <Button type="button" variant="filled" size="sm" onClick={() => canSave && onSubmit(trimmed)}
+            disabled={!canSave} loading={isPending}>
+            {isPending ? 'Сохранение…' : confirmLabel}
+          </Button>
+        </div>
+      }>
+      <div className="min-w-[380px]">
+        {hint && <p className="text-xs mb-3 text-fg3">{hint}</p>}
+        <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
+          onKeyDown={e => { if (e.key === 'Enter' && canSave) onSubmit(trimmed); }} />
+        {isTaken && <p className="mt-1 text-xs text-danger">Источник с таким названием в наборе уже есть.</p>}
+        {error && <p className="mt-1 text-xs text-danger">{error}</p>}
+      </div>
+    </Modal>
+  );
+}
+
+/**
  * Число строк ПОСЛЕ полного пайплайна (Extraction → Filter → Transformation → Sort) — не
  * cachedRowCount источника (тот считается на Extraction, до Filter/Transformation, и может
  * сильно расходиться с реальным результатом маппинга).
@@ -81,9 +126,11 @@ function SourceRowCountBadge({ sourceId }: { sourceId: string }) {
  */
 /** fixedExtraction — извлечение задано выбором кандидата (PDF-проекция, системная консолидация)
  *  и вручную не редактируется: менять там нечего, кроме имени. */
-function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates, maxColumns, onEdit }: {
+/** siblingNames — имена ОСТАЛЬНЫХ источников набора: ими проверяется занятость имени в диалогах. */
+function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates, maxColumns, siblingNames, onEdit }: {
   src: DataSetSource; isPdf: boolean; fixedExtraction: boolean; canManageExtraction: boolean;
-  templates: DataSetProcessingTemplate[]; maxColumns: number; onEdit: (src: DataSetSource) => void;
+  templates: DataSetProcessingTemplate[]; maxColumns: number; siblingNames: string[];
+  onEdit: (src: DataSetSource) => void;
 }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [transformsOpen, setTransformsOpen] = useState(false);
@@ -93,7 +140,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
   const [materializing, setMaterializing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [renaming, setRenaming] = useState(false);
-  const [renameVal, setRenameVal] = useState('');
+  const [duplicating, setDuplicating] = useState(false);
 
   const setProcessing = useSetDataSetSourceProcessing();
   const createTemplate = useCreateProcessingTemplate();
@@ -149,8 +196,8 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
       { key: 'export-xls', label: 'XLS', onSelect: () => void exportDataSetSource(src.id, 'xls') },
       { key: 'export-csv', label: 'CSV', onSelect: () => void exportDataSetSource(src.id, 'csv') },
     ] },
-    { key: 'rename', label: 'Переименовать…', icon: <Type size={13} />, onSelect: () => { setRenameVal(src.name); setRenaming(true); } },
-    { key: 'duplicate', label: 'Создать копию', icon: <Copy size={13} />, onSelect: () => duplicateMutation.mutate({ id: src.id }), disabled: duplicateMutation.isPending },
+    { key: 'rename', label: 'Переименовать…', icon: <Type size={13} />, onSelect: () => setRenaming(true) },
+    { key: 'duplicate', label: 'Создать копию…', icon: <Copy size={13} />, onSelect: () => setDuplicating(true), disabled: duplicateMutation.isPending },
     { key: 'materialize', label: src.materializeTypeId ? 'Материализация (настроена)' : 'Материализация…', icon: <Boxes size={13} />, onSelect: () => setMaterializing(true) },
     ...(canManageExtraction && !fixedExtraction ? [{ key: 'edit', label: 'Редактировать', icon: <Pencil size={13} />, onSelect: () => onEdit(src) }] : []),
     ...(canManageExtraction ? [{ key: 'delete', label: 'Удалить источник', icon: <Trash2 size={13} />, danger: true, onSelect: () => setConfirmDelete(true) }] : []),
@@ -233,21 +280,23 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
       {materializing && <MaterializationDialog source={src} onClose={() => setMaterializing(false)} />}
 
       {renaming && (
-        <Modal open onOpenChange={o => { if (!o) setRenaming(false); }} title="Переименовать источник"
-          footer={
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="text" onClick={() => setRenaming(false)}>Отмена</Button>
-              <Button type="button" variant="filled" disabled={!renameVal.trim()} loading={renameMutation.isPending}
-                onClick={() => renameMutation.mutateAsync({ id: src.id, name: renameVal.trim() }).then(() => setRenaming(false))}>
-                {renameMutation.isPending ? 'Сохранение…' : 'Сохранить'}
-              </Button>
-            </div>
-          }>
-          <div className="min-w-[380px]">
-            <TextField label="Название" value={renameVal} onChange={e => setRenameVal(e.target.value)} autoFocus
-              onKeyDown={e => { if (e.key === 'Enter' && renameVal.trim()) renameMutation.mutateAsync({ id: src.id, name: renameVal.trim() }).then(() => setRenaming(false)); }} />
-          </div>
-        </Modal>
+        <SourceNameDialog title="Переименовать источник" defaultName={src.name} takenNames={siblingNames}
+          isPending={renameMutation.isPending} error={renameMutation.error?.message} confirmLabel="Сохранить"
+          onSubmit={name => renameMutation.mutateAsync({ id: src.id, name }).then(() => setRenaming(false), () => {})}
+          onClose={() => setRenaming(false)} />
+      )}
+      {/* Копия наследует обработку и материализацию (issue #717) — но не имя: назначение у неё
+          другое, иначе копию заводить было бы незачем. */}
+      {/* Копии занят и сам оригинал — иначе «Акты» предлагалось бы копии «Акты» как свободное
+          (siblingNames исключает свой источник ради переименования) и упиралось бы в отказ сервера. */}
+      {duplicating && (
+        <SourceNameDialog title="Создать копию источника"
+          hint="Копия наследует извлечение, обработку (фильтр/вычисляемые колонки/сортировку) и материализацию. Назовите её по назначению — в привязке источники различимы только названием."
+          defaultName={nextSourceName([...siblingNames, src.name], src.name)}
+          takenNames={[...siblingNames, src.name]}
+          isPending={duplicateMutation.isPending} error={duplicateMutation.error?.message} confirmLabel="Создать копию"
+          onSubmit={name => duplicateMutation.mutateAsync({ id: src.id, name }).then(() => setDuplicating(false), () => {})}
+          onClose={() => setDuplicating(false)} />
       )}
 
       <ConfirmDialog
@@ -351,7 +400,16 @@ export function SourcesPanel({
   const { data: candidates = [] } = useSourceCandidates(file.id);
   const createSource = useCreateDataSetSource();
   const recognizeTable = useRecognizeDocumentTable(file.id); // «Распознать таблицу» кандидата (issue #385)
-  const availableCandidates = candidates.filter(c => !sources.some(s => s.sheetOrPath === c.sheetOrPath));
+  const [addingMore, setAddingMore] = useState<SourceCandidate | null>(null);
+  // useMemo не для скорости: массив уходит пропом в SourceEditorDialog и попадает в его deps —
+  // новая ссылка на каждый рендер перезапускала бы там эффект подстановки имени (см. память о
+  // нестабильных дефолтах, приводящих к циклу memo → effect → setState).
+  const sourceNames = useMemo(() => sources.map(s => s.name), [sources]);
+  // Кандидат с existingCount>0 (issue #717) — уже добавленная консолидация: сервер её больше не
+  // прячет, и здесь прятать нельзя тоже, иначе «добавить второй список» снова остаётся без входа.
+  // Прочие форматы сервер отфильтровал сам — фильтр ниже только гасит мелькание до рефетча.
+  const availableCandidates = candidates.filter(
+    c => !!c.existingCount || !sources.some(s => s.sheetOrPath === c.sheetOrPath));
   // Системный набор на уровне, где консолидаций не бывает (issue #613): такие наборы остались от
   // версий до гейта #606 — предлагать «добавить источник» здесь значит вести в тупик, поэтому
   // говорим прямо, что набор пустой и его можно удалить.
@@ -382,7 +440,9 @@ export function SourcesPanel({
         {sources.map(src => (
           <SourceRow key={src.id} src={src} isPdf={isPdf} fixedExtraction={isPdf || isSystem}
             canManageExtraction={canManageExtraction}
-            templates={templates} maxColumns={maxColumns} onEdit={setEditing} />
+            templates={templates} maxColumns={maxColumns}
+            siblingNames={sourceNames.filter((_, i) => sources[i].id !== src.id)}
+            onEdit={setEditing} />
         ))}
         {availableCandidates.length > 0 && (
           <div className="rounded-md border border-dashed border-stroke-strong bg-base px-3 py-2 space-y-1 mt-1">
@@ -393,10 +453,16 @@ export function SourcesPanel({
               // Таблица документа ещё не распознана (issue #385): сначала «Распознать таблицу»
               // (фоновая задача) — после завершения кандидат станет готовым «Создать».
               const pending = c.firstPageIndex != null;
+              const existing = c.existingCount ?? 0;
               return (
                 <div key={c.sheetOrPath} className="flex items-center gap-2 text-xs">
                   <span className="text-fg2">
                     {c.name} <span className="text-fg4">· {pending ? 'таблица не распознана' : `${c.rowCount} строк`}</span>
+                    {existing > 0 && (
+                      <span className="text-fg4" title="Источники на эту консолидацию уже созданы — можно добавить ещё один, с другим фильтром">
+                        {' '}· уже добавлен{existing > 1 ? ` (${existing})` : ''}
+                      </span>
+                    )}
                     {/* Оговорка к данным (issue #626) — до создания источника, а не после: иначе о
                         неполноте узнают, уже привязав реестр к полям документа. */}
                     {c.warning && (
@@ -412,9 +478,22 @@ export function SourcesPanel({
                       className="flex items-center gap-0.5 text-brand hover:text-brand-hover disabled:opacity-50">
                       <ScanText size={11} /> Распознать таблицу
                     </button>
+                  ) : existing > 0 ? (
+                    // Второй источник на ту же консолидацию (issue #717) — только через диалог имени:
+                    // без имени в наборе оказались бы два неразличимых «Документы комплекта».
+                    <button type="button" disabled={createSource.isPending} onClick={() => setAddingMore(c)}
+                      className="flex items-center gap-0.5 text-brand hover:text-brand-hover disabled:opacity-50">
+                      <Plus size={11} /> Добавить ещё
+                    </button>
                   ) : (
+                    // Имя кандидата может быть уже занято другим источником — у ГОСТ-набора два
+                    // безымянных табличных документа дают двух кандидатов «Таблица» с разными
+                    // маркерами. Раньше это сохранялось молча; теперь имя обязано быть свободным,
+                    // поэтому берём ближайшее свободное, а не упираемся в отказ по нажатию.
                     <button type="button" disabled={createSource.isPending}
-                      onClick={() => createSource.mutate({ fileId: file.id, name: c.name, sheetOrPath: c.sheetOrPath })}
+                      onClick={() => createSource.mutate({
+                        fileId: file.id, name: nextSourceName(sourceNames, c.name), sheetOrPath: c.sheetOrPath,
+                      })}
                       className="flex items-center gap-0.5 text-brand hover:text-brand-hover disabled:opacity-50">
                       <Plus size={11} /> Создать
                     </button>
@@ -422,9 +501,25 @@ export function SourcesPanel({
                 </div>
               );
             })}
+            {/* Кнопка «Создать» отправляет запрос без диалога — её отказ иначе выглядел бы как
+                мёртвое нажатие (диалог, где показывается ошибка, на этом пути закрыт). */}
+            {createSource.error && !addingMore && (
+              <p className="text-xs text-danger">{createSource.error.message}</p>
+            )}
           </div>
         )}
       </div>
+
+      {addingMore && (
+        <SourceNameDialog title={`Ещё один источник: ${addingMore.name}`}
+          hint="Та же консолидация данных системы, отдельный источник: свои фильтр, вычисляемые колонки, сортировка и материализация. Назовите его по назначению."
+          defaultName={nextSourceName(sourceNames, addingMore.name)} takenNames={sourceNames}
+          isPending={createSource.isPending} error={createSource.error?.message} confirmLabel="Добавить"
+          onSubmit={name => createSource
+            .mutateAsync({ fileId: file.id, name, sheetOrPath: addingMore.sheetOrPath })
+            .then(() => setAddingMore(null), () => {})}
+          onClose={() => setAddingMore(null)} />
+      )}
 
       {/* «Добавить источник» — обычный диалог создания источника для ВСЕХ форматов, включая PDF
           (выбор кандидата-проекции, как лист Excel). Диалог выбора профиля — только у «Распознать». */}
@@ -432,6 +527,7 @@ export function SourcesPanel({
         <SourceEditorDialog
           fileId={file.id}
           format={file.format}
+          existingNames={sourceNames}
           initial={editing === 'new' ? undefined : editing}
           onClose={() => setEditing(null)}
         />

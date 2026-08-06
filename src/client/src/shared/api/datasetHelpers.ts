@@ -201,3 +201,20 @@ export function cleanFilterNode(node: FilterNode): FilterNode | null {
   if (validChildren.length === 0) return null;
   return { ...node, children: validChildren };
 }
+
+/**
+ * Ближайшее свободное имя источника внутри набора — «База» / «База — 2» / «База — 3» (issue #717).
+ *
+ * Нужно диалогу имени: второй источник на ту же консолидацию заводят именно потому, что первый уже
+ * есть, и встречать пользователя занятым именем незачем. Повторяет правило сервера (SourceNaming) —
+ * там оно остаётся как страховка для вызовов без имени, здесь работает на предзаполнение.
+ */
+export function nextSourceName(existingNames: string[], name: string): string {
+  const base = name.trim().replace(/\s+—\s+\d+$/, '');
+  const taken = new Set(existingNames.map(n => n.trim().toLocaleLowerCase('ru')));
+  const free = (candidate: string) => !taken.has(candidate.toLocaleLowerCase('ru'));
+  if (free(base)) return base;
+  let n = 2;
+  while (!free(`${base} — ${n}`)) n++;
+  return `${base} — ${n}`;
+}

@@ -92,6 +92,12 @@ public static class DataSetEndpoints
                 columns = c.Columns.Select(col => col.Name).ToList(),
                 rowCount = c.RowCount,
                 firstPageIndex = c.FirstPageIndex, // задан → таблица требует распознавания (issue #385)
+                // Оговорка к данным (issue #626) сюда не доезжала: проекция перечисляет поля вручную,
+                // и добавленное в DataSetSourceInfo молча терялось — UI рисовал «с оговоркой» по
+                // полю, которого в ответе не было. Счётчик уже созданных источников (issue #717)
+                // ушёл бы тем же путём.
+                warning = c.Warning,
+                existingCount = c.ExistingCount,
             }));
         });
 
@@ -175,9 +181,11 @@ public static class DataSetEndpoints
         });
 
         // Копия источника — доступна для источников любого формата (не только с ручным builder'ом).
-        g.MapPost("/sources/{sourceId:guid}/duplicate", async (Guid sourceId, IDataSetService svc, CancellationToken ct) =>
+        // Тело необязательно: имя задаёт диалог, без него сервер берёт ближайшее свободное (issue #717).
+        g.MapPost("/sources/{sourceId:guid}/duplicate", async (
+            Guid sourceId, DuplicateSourceRequest? req, IDataSetService svc, CancellationToken ct) =>
         {
-            var result = await svc.DuplicateSourceAsync(sourceId, ct);
+            var result = await svc.DuplicateSourceAsync(sourceId, req?.Name, ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
 
@@ -424,6 +432,7 @@ public static class DataSetEndpoints
     private record AutoMapFieldDto(string Key, string Title);
     private record SourceRequest(string Name, string SheetOrPath, ColumnExprDto[]? ColumnExpressions);
     private record RenameSourceRequest(string Name);
+    private record DuplicateSourceRequest(string? Name);
     private record MaterializationRequest(Guid? TypeId, Dictionary<string, string>? Mapping,
         MaterializeDiscriminatorConfig? Discriminator);
     private record MaterializePreviewRequest(Guid? TypeId, Dictionary<string, string>? Mapping, int? MaxRows,

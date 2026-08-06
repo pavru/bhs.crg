@@ -164,9 +164,11 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var (file, src) = await UploadCsvWithSourceAsync(scope);
         var srcId = src.Id;
 
-        var copy = await Svc(scope).DuplicateSourceAsync(srcId, default);
+        var copy = await Svc(scope).DuplicateSourceAsync(srcId, null, default);
         Assert.NotNull(copy);
         Assert.NotEqual(srcId, copy!.Id);
+        // Имя без просьбы — свободное и без «(копия)»: копия отличается назначением, а не происхождением.
+        Assert.Equal($"{src.Name} — 2", copy.Name);
 
         using var scope2 = fixture.Services.CreateScope();
         var sources = await Svc(scope2).ListSourcesAsync(file.Id, default); // перечитываем свежим контекстом

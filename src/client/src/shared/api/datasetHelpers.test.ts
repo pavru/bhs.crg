@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseSourceColumns, parseSourceColumnNames, countFilterConditions, cleanFilterNode,
   mergeBindingPreviewsIntoValues, computeBoundFieldKeys,
-  isFileMappingValue, parseFileMapping, buildFileMapping,
+  isFileMappingValue, parseFileMapping, buildFileMapping, nextSourceName,
 } from './datasetHelpers';
 import type { FilterGroup, DataSetBindingPreviewResult } from './types';
 
@@ -190,5 +190,30 @@ describe('file mapping (@@file:)', () => {
 
   it('returns null when column is missing', () => {
     expect(parseFileMapping('@@file:{"sizeColumn":"РазмерБайт"}')).toBeNull();
+  });
+});
+
+// Имя источника — единственное, чем источники различимы в селекторе привязки (issue #717).
+describe('nextSourceName', () => {
+  it('оставляет имя как есть, если оно свободно', () => {
+    expect(nextSourceName(['Другое'], 'Документы комплекта')).toBe('Документы комплекта');
+  });
+
+  it('нумерует занятое имя со второго', () => {
+    expect(nextSourceName(['Документы комплекта'], 'Документы комплекта')).toBe('Документы комплекта — 2');
+  });
+
+  it('пропускает уже занятые номера, а не идёт по порядку', () => {
+    expect(nextSourceName(['Реестр', 'Реестр — 2', 'Реестр — 4'], 'Реестр')).toBe('Реестр — 3');
+  });
+
+  // Копия «Реестр — 2» — это «Реестр — 3», а не «Реестр — 2 — 2»: суффикс наш, наращивать его вглубь незачем.
+  it('не наращивает собственный суффикс нумерации', () => {
+    expect(nextSourceName(['Реестр', 'Реестр — 2'], 'Реестр — 2')).toBe('Реестр — 3');
+  });
+
+  // Регистр не различает: «документы» рядом с «Документы» в выпадающем списке так же неразличимы.
+  it('считает имена занятыми без учёта регистра', () => {
+    expect(nextSourceName(['ДОКУМЕНТЫ'], 'документы')).toBe('документы — 2');
   });
 });

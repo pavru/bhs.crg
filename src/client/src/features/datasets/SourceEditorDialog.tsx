@@ -5,6 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { useCreateDataSetSource, useUpdateDataSetSource, useListZipXmlEntries, useSourceCandidates } from '@/shared/api/datasets';
+import { nextSourceName } from '@/shared/api/datasetHelpers';
 import { XPathBuilder } from './xpath/XPathBuilder';
 import { JsonPathBuilder } from './jsonpath/JsonPathBuilder';
 import { DATA_SET_FORMAT_LABELS } from '@/shared/api/types';
@@ -39,9 +40,11 @@ function splitZipPath(sheetOrPath: string | undefined, isZip: boolean, format: P
  * - XML/JSON/ZIP — row-selector (XPath/JSONPath-builder) + список колонок (каждая — относительный путь).
  * Колонки для табличных форматов определяются автоматически по заголовку.
  */
-export function SourceEditorDialog({ fileId, format, initial, onClose }: {
+export function SourceEditorDialog({ fileId, format, existingNames = [], initial, onClose }: {
   fileId: string;
   format: DataSetFormat;
+  /** Имена источников, уже существующих в наборе (issue #717): имя обязано быть свободным. */
+  existingNames?: string[];
   initial?: DataSetSource;
   onClose: () => void;
 }) {
@@ -100,13 +103,23 @@ export function SourceEditorDialog({ fileId, format, initial, onClose }: {
    * «Приказ», в списке пусто, а сохраняется «Единица измерения», подставленная при открытии.
    * Имя обновляем, только пока оно совпадает с именем какого-то кандидата: набранное руками —
    * решение пользователя, и переписывать его нельзя.
+   *
+   * Подставляем ближайшее СВОБОДНОЕ имя (issue #717): занятые консолидации больше не исчезают из
+   * кандидатов, и голое имя кандидата у них заведомо занято — форма встречала бы отказом сервера.
+   * «Занятым» считаем и авто-имя: иначе смена выбранного кандидата перестала бы обновлять поле.
    */
+  const autoNames = useMemo(
+    () => readyCandidates.map(c => nextSourceName(existingNames, c.name)),
+    [readyCandidates, existingNames]);
+
   useEffect(() => {
     if (initial || !usesCandidates || shownCandidates.length === 0) return;
     const first = shownCandidates[0];
     setSheetOrPath(prev => (prev && shownCandidates.some(c => c.sheetOrPath === prev)) ? prev : first.sheetOrPath);
-    setName(prev => (!prev || readyCandidates.some(c => c.name === prev)) ? first.name : prev);
-  }, [initial, usesCandidates, shownCandidates, readyCandidates]);
+    setName(prev => (!prev || readyCandidates.some(c => c.name === prev) || autoNames.includes(prev))
+      ? nextSourceName(existingNames, first.name)
+      : prev);
+  }, [initial, usesCandidates, shownCandidates, readyCandidates, autoNames, existingNames]);
 
   // Текущее значение может отсутствовать в списке (архив обновился) — не терять его молча.
   const entryOptions = entryPath && !zipEntries.includes(entryPath) ? [entryPath, ...zipEntries] : zipEntries;

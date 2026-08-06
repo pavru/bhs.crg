@@ -14,7 +14,11 @@ public record DataSetSourceInfo(
     int? FirstPageIndex = null,
     /// <summary>Что про эти данные надо знать до того, как им поверят (issue #626): реестр
     /// поддерева не знает метаданных несобранных комплектов. null — сказать нечего.</summary>
-    string? Warning = null
+    string? Warning = null,
+    /// <summary>Сколько источников на эту консолидацию уже создано (issue #717). Раньше занятый
+    /// кандидат просто исчезал из списка, и «добавить второй список документов» не имело входа —
+    /// теперь кандидат остаётся видимым со счётчиком. 0 — ещё не создан ни одного.</summary>
+    int ExistingCount = 0
 );
 
 public record DataSetParseResult(

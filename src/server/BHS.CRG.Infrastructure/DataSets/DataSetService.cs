@@ -67,8 +67,8 @@ public class DataSetService(
         sources.DeleteSourceAsync(sourceId, ct);
     public Task<bool> AnySourceMaterializedAsTypeAsync(Guid documentTypeId, CancellationToken ct) =>
         sources.AnySourceMaterializedAsTypeAsync(documentTypeId, ct);
-    public Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, CancellationToken ct) =>
-        sources.DuplicateSourceAsync(sourceId, ct);
+    public Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, string? name, CancellationToken ct) =>
+        sources.DuplicateSourceAsync(sourceId, name, ct);
     public Task<IReadOnlyList<string>> ListZipXmlEntriesAsync(Guid fileId, CancellationToken ct) =>
         sources.ListZipXmlEntriesAsync(fileId, ct);
     public Task<ExpressionPreviewDto> PreviewExpressionAsync(Guid fileId, string rowSelector, string? expr, CancellationToken ct) =>

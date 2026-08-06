@@ -49,8 +49,9 @@ public interface IDataSetService
     /// <summary>Есть ли источник, материализуемый в documentTypeId (issue #57 — проверка перед удалением типа документа).</summary>
     Task<bool> AnySourceMaterializedAsTypeAsync(Guid documentTypeId, CancellationToken ct);
 
-    /// <summary>Копия источника (тот же locator/колонки/Filter/Transformation/Sort) на том же файле — доступно для любого формата.</summary>
-    Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, CancellationToken ct);
+    /// <summary>Копия источника (тот же locator/колонки/Filter/Transformation/Sort и материализация)
+    /// на том же файле — доступно для любого формата. name пуст → ближайшее свободное имя.</summary>
+    Task<DataSetSourceDto?> DuplicateSourceAsync(Guid sourceId, string? name, CancellationToken ct);
 
     /// <summary>
     /// Ручное создание PDF-источника (без Extraction через builder — см. RecognizePdfSourceAsync).
