@@ -9,11 +9,27 @@ import type {
 
 // ── Файлы ─────────────────────────────────────────────────────────────────────
 
-export function useListDataSetFiles(scope: CatalogScope, scopeId?: string) {
+/**
+ * Набор появился, заменён или удалён: сбрасываем ВЕСЬ префикс наборов, а не ключ одного уровня
+ * (issue #721). С тех пор как наборы верхних уровней видны на нижних, один и тот же файл живёт
+ * сразу в нескольких списках: удалив набор раздела с экрана комплекта, точечный сброс
+ * ['datasets','files','Section',id] оставил бы экран комплекта показывать удалённое.
+ */
+function invalidateFiles(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
+  qc.invalidateQueries({ queryKey: ['datasets', 'available'] });
+}
+
+/**
+ * Наборы уровня. `includeInherited` — вместе с наборами родительских уровней (issue #721):
+ * комплект пользуется наборами своего раздела, стройки и системы, и экран уровня обязан говорить
+ * то же, что селектор источника у привязки. Уровень-владелец каждого файла — в его `scope`/`scopeId`.
+ */
+export function useListDataSetFiles(scope: CatalogScope, scopeId?: string, includeInherited = false) {
   return useQuery<DataSetFile[]>({
-    queryKey: ['datasets', 'files', scope, scopeId],
+    queryKey: ['datasets', 'files', scope, scopeId, includeInherited],
     queryFn: () =>
-      apiClient.get('/datasets/files', { params: { scope, scopeId } }).then(r => r.data),
+      apiClient.get('/datasets/files', { params: { scope, scopeId, includeInherited } }).then(r => r.data),
   });
 }
 
@@ -33,9 +49,7 @@ export function useUploadDataSetFile() {
       if (scopeId) form.append('scopeId', scopeId);
       return apiClient.post('/datasets/files', form).then(r => r.data);
     },
-    onSuccess: (_, { scope, scopeId }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'files', scope, scopeId] });
-    },
+    onSuccess: () => invalidateFiles(qc),
   });
 }
 
@@ -58,10 +72,7 @@ export function useCreateSystemDataSetFile() {
   return useMutation<DataSetFile, Error, { scope: CatalogScope; scopeId?: string; name?: string }>({
     mutationFn: ({ scope, scopeId, name }) =>
       apiClient.post('/datasets/files/system', { scope, scopeId, name }).then(r => r.data),
-    onSuccess: (_, { scope, scopeId }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'files', scope, scopeId] });
-      qc.invalidateQueries({ queryKey: ['datasets', 'available'] });
-    },
+    onSuccess: () => invalidateFiles(qc),
   });
 }
 
@@ -80,10 +91,7 @@ export function useUpdateDataSetFile() {
       if (name) form.append('name', name);
       return apiClient.put(`/datasets/files/${id}`, form).then(r => r.data);
     },
-    onSuccess: (_, { scope, scopeId }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'files', scope, scopeId] });
-      qc.invalidateQueries({ queryKey: ['datasets', 'available'] });
-    },
+    onSuccess: () => invalidateFiles(qc),
   });
 }
 
@@ -91,9 +99,7 @@ export function useDeleteDataSetFile() {
   const qc = useQueryClient();
   return useMutation<void, Error, { id: string; scope: CatalogScope; scopeId?: string }>({
     mutationFn: ({ id }) => apiClient.delete(`/datasets/files/${id}`).then(() => undefined),
-    onSuccess: (_, { scope, scopeId }) => {
-      qc.invalidateQueries({ queryKey: ['datasets', 'files', scope, scopeId] });
-    },
+    onSuccess: () => invalidateFiles(qc),
   });
 }
 

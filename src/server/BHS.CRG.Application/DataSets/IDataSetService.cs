@@ -9,7 +9,10 @@
 public interface IDataSetService
 {
     // ── Files ───────────────────────────────────────────────────────────────────
-    Task<IReadOnlyList<DataSetFileDto>> ListFilesAsync(string? scope, Guid? scopeId, CancellationToken ct);
+    /// <summary>Наборы уровня. includeInherited — вместе с наборами родительских уровней
+    /// (issue #721): комплект пользуется наборами своего раздела, стройки и системы.</summary>
+    Task<IReadOnlyList<DataSetFileDto>> ListFilesAsync(
+        string? scope, Guid? scopeId, bool includeInherited, CancellationToken ct);
     Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(Guid setId, CancellationToken ct);
     Task<DataSetFileDto> UploadFileAsync(UploadFileInput input, CancellationToken ct);
     /// <summary>Создать набор без файла — сырьём служат данные системы (issue #580). Идемпотентно на уровень.</summary>

@@ -23,11 +23,62 @@ public class DataSetFileService(
     ILogger<DataSetFileService> logger,
     INotificationService notifications)
 {
-    public async Task<IReadOnlyList<DataSetFileDto>> ListFilesAsync(string? scope, Guid? scopeId, CancellationToken ct)
+    /// <summary>
+    /// Уровни, наборы которых доступны на заданном: свой и все родительские. Системный уровень
+    /// доступен отовсюду, поэтому в цепочке он всегда.
+    /// </summary>
+    private sealed record ScopeChain(Guid? SetId, Guid? SectionId, Guid? ConstructionId);
+
+    /// <summary>
+    /// Разворачивает уровень в цепочку родителей. Живёт в одном месте намеренно: тем же правилом
+    /// пользуются экран наборов уровня и список источников, доступных документу, — а разошлись они
+    /// ровно потому, что правило было написано дважды (issue #721).
+    /// </summary>
+    private async Task<ScopeChain> ResolveChainAsync(CatalogScope scope, Guid? scopeId, CancellationToken ct)
+    {
+        if (scopeId is not { } id) return new ScopeChain(null, null, null);
+
+        switch (scope)
+        {
+            case CatalogScope.Construction:
+                return new ScopeChain(null, null, id);
+
+            case CatalogScope.Section:
+                var section = await db.Set<Section>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == id, ct);
+                return new ScopeChain(null, id, section?.ConstructionId);
+
+            case CatalogScope.Set:
+                var set = await db.Set<DocumentSet>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == id, ct);
+                var parent = set is null
+                    ? null
+                    : await db.Set<Section>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == set.SectionId, ct);
+                return new ScopeChain(id, parent?.Id, parent?.ConstructionId);
+
+            default:
+                return new ScopeChain(null, null, null);
+        }
+    }
+
+    private static IQueryable<DataSetFile> ChainFilter(IQueryable<DataSetFile> q, ScopeChain chain) =>
+        q.Where(f =>
+            (f.Scope == CatalogScope.System && f.ScopeId == null) ||
+            (chain.ConstructionId != null && f.Scope == CatalogScope.Construction && f.ScopeId == chain.ConstructionId) ||
+            (chain.SectionId != null && f.Scope == CatalogScope.Section && f.ScopeId == chain.SectionId) ||
+            (chain.SetId != null && f.Scope == CatalogScope.Set && f.ScopeId == chain.SetId));
+
+    public async Task<IReadOnlyList<DataSetFileDto>> ListFilesAsync(
+        string? scope, Guid? scopeId, bool includeInherited, CancellationToken ct)
     {
         var q = db.DataSetFiles.Include(f => f.Sources).AsNoTracking().AsQueryable();
         if (scope != null && Enum.TryParse<CatalogScope>(scope, out var s))
-            q = q.Where(f => f.Scope == s && f.ScopeId == scopeId);
+        {
+            // Наборы верхних уровней доступны на нижних (issue #721): комплект пользуется наборами
+            // своего раздела, стройки и системы. Экран уровня показывал только своё, а селектор
+            // источника у привязки — всю цепочку; расхождение никто не задумывал.
+            q = includeInherited
+                ? ChainFilter(q, await ResolveChainAsync(s, scopeId, ct))
+                : q.Where(f => f.Scope == s && f.ScopeId == scopeId);
+        }
 
         var files = await q.OrderBy(f => f.Name).ToListAsync(ct);
 
@@ -50,18 +101,12 @@ public class DataSetFileService(
 
     public async Task<IReadOnlyList<DataSetFileDto>> ListAvailableFilesAsync(Guid setId, CancellationToken ct)
     {
-        var set = await db.Set<DocumentSet>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == setId, ct)
-            ?? throw new NotFoundException("DocumentSet не найден");
-        var section = await db.Set<Section>().AsNoTracking().FirstOrDefaultAsync(s => s.Id == set.SectionId, ct);
+        if (!await db.Set<DocumentSet>().AsNoTracking().AnyAsync(s => s.Id == setId, ct))
+            throw new NotFoundException("DocumentSet не найден");
 
-        var files = await db.DataSetFiles
-            .Include(f => f.Sources)
-            .AsNoTracking()
-            .Where(f =>
-                (f.Scope == CatalogScope.System && f.ScopeId == null) ||
-                (f.Scope == CatalogScope.Set && f.ScopeId == setId) ||
-                (section != null && f.Scope == CatalogScope.Section && f.ScopeId == section.Id) ||
-                (section != null && f.Scope == CatalogScope.Construction && f.ScopeId == section.ConstructionId))
+        var files = await ChainFilter(
+                db.DataSetFiles.Include(f => f.Sources).AsNoTracking(),
+                await ResolveChainAsync(CatalogScope.Set, setId, ct))
             .OrderBy(f => f.Scope).ThenBy(f => f.Name)
             .ToListAsync(ct);
 

@@ -16,8 +16,9 @@ public static class DataSetEndpoints
 
         // ── Файлы ──────────────────────────────────────────────────────────────
 
-        g.MapGet("/files", async (string? scope, Guid? scopeId, IDataSetService svc, CancellationToken ct) =>
-            Results.Ok(await svc.ListFilesAsync(scope, scopeId, ct)));
+        g.MapGet("/files", async (string? scope, Guid? scopeId, bool? includeInherited,
+            IDataSetService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListFilesAsync(scope, scopeId, includeInherited == true, ct)));
 
         g.MapGet("/available", async (Guid setId, IDataSetService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListAvailableFilesAsync(setId, ct)));

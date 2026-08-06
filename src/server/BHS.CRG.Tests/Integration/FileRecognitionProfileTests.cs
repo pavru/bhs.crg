@@ -144,7 +144,7 @@ public class FileRecognitionProfileTests(IntegrationTestFixture fixture) : IAsyn
             await svc.SetFileRecognitionProfilesAsync(
                 fileId, new Dictionary<string, Guid?> { ["TitleBlock"] = profileId }, default);
 
-            var files = await svc.ListFilesAsync(nameof(CatalogScope.System), null, default);
+            var files = await svc.ListFilesAsync(nameof(CatalogScope.System), null, false, default);
             var dto = files.Single(f => f.Id == fileId);
             Assert.Equal(profileId, dto.RecognitionProfiles!["TitleBlock"]);
         }

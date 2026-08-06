@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { Upload, Trash2, Database, RefreshCw, Download, FileText, LayoutGrid, ChevronRight, Loader2 } from 'lucide-react';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -9,22 +9,24 @@ import {
 } from '@/shared/api/datasets';
 import { useRecognitionJobs, useCancelJob, type ActiveJob } from '@/shared/api/jobs';
 import type { CatalogScope, DataSetFile } from '@/shared/api/types';
-import { DATA_SET_FORMAT_LABELS } from '@/shared/api/types';
+import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { ruCount } from '@/shared/utils/pluralize';
 import { SourcesPanel, FileRecognizeActions } from './SourcesExpander';
 import { useDataSetFileActions } from './useDataSetFileActions';
 
 const ACCEPT = '.csv,.txt,.xlsx,.xls,.xml,.json,.zip,.gsfx,.pdf';
 const ALL = 'all';
+/** Порядок унаследованных наборов в рейле — от ближнего уровня к дальнему (issue #721). */
+const INHERIT_ORDER: CatalogScope[] = ['Set', 'Section', 'Construction', 'System'];
 
 const sourcesLabel = (n: number) => `${ruCount(n, 'источник', 'источника', 'источников')}`;
 
 /** Пункт рейла набора (issue #210, рейл-по-файлу): иконка формата ИЛИ спиннер (идёт распознавание) +
  *  имя (2 строки: имя + «формат · N источников»), amber-точка при устаревших источниках, подсветка как
  *  у каталога. Статус в рейле — спокойный: только спиннер/точка, без текста (один факт — один раз). */
-function FileNavItem({ icon, label, secondary, count, active, recognizing, stale, onClick }: {
+function FileNavItem({ icon, label, secondary, count, active, recognizing, stale, level, onClick }: {
   icon: ReactNode; label: string; secondary?: string; count?: number; active?: boolean;
-  recognizing?: boolean; stale?: boolean; onClick: () => void;
+  recognizing?: boolean; stale?: boolean; level?: ReactNode; onClick: () => void;
 }) {
   return (
     <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined}
@@ -35,7 +37,14 @@ function FileNavItem({ icon, label, secondary, count, active, recognizing, stale
       </span>
       <span className="flex-1 min-w-0">
         <span className={`block truncate text-sm ${active ? 'font-medium' : ''}`} title={label}>{label}</span>
-        {secondary && <span className="block truncate text-[11px] text-fg4">{secondary}</span>}
+        {/* Чип уровня — в начале подписи, а не в хвосте строки (issue #721): в хвосте он отнимал
+            ширину у имени, а трёх «Данные системы» подряд без уровня не различить вовсе. */}
+        {(secondary || level) && (
+          <span className="flex items-center gap-1.5 text-[11px] text-fg4">
+            {level}
+            {secondary && <span className="truncate">{secondary}</span>}
+          </span>
+        )}
       </span>
       {stale && <span title="Есть устаревшие источники — распознайте набор заново" className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />}
       {count != null && <span className="text-xs text-fg4 tabular-nums shrink-0">{count}</span>}
@@ -43,15 +52,30 @@ function FileNavItem({ icon, label, secondary, count, active, recognizing, stale
   );
 }
 
+/**
+ * Уровень-владелец набора словами — теми же, что в селекторе источника у привязки (issue #721):
+ * два экрана про одно и то же обязаны называть уровни одинаково.
+ */
+function LevelChip({ file }: { file: DataSetFile }) {
+  return (
+    <span title={`Набор принадлежит уровню «${SCOPE_LABELS[file.scope]}» — здесь он доступен, потому что этот уровень выше`}
+      className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-fg3 leading-tight">
+      {SCOPE_LABELS[file.scope]}
+    </span>
+  );
+}
+
 /** Detail выбранного набора: шапка (имя + формат + дата + скачать/обновить/удалить) + баннер статуса
  *  распознавания (если идёт) + панель источников. */
-function FileDetail({ file, scope, scopeId, job }: {
-  file: DataSetFile; scope: CatalogScope; scopeId?: string; job?: ActiveJob;
+function FileDetail({ file, inherited, job }: {
+  file: DataSetFile; inherited: boolean; job?: ActiveJob;
 }) {
+  // Уровень для мутаций берём У ФАЙЛА, а не у экрана (issue #721): унаследованный набор правится
+  // отсюда, но принадлежит своему уровню, и замена/удаление должны уйти от его имени.
   const {
     update, confirming, setConfirming, downloading,
     updateInputRef, handleReplace, handleDownload, handleDelete,
-  } = useDataSetFileActions(file, scope, scopeId);
+  } = useDataSetFileActions(file, file.scope, file.scopeId ?? undefined);
   const cancel = useCancelJob();
   const isSystem = file.format === 'System';
 
@@ -62,6 +86,7 @@ function FileDetail({ file, scope, scopeId, job }: {
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-fg1 truncate" title={file.name}>{file.name}</span>
             <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-fg3">{DATA_SET_FORMAT_LABELS[file.format]}</span>
+            {inherited && <LevelChip file={file} />}
           </div>
           <div className="text-xs text-fg4 mt-0.5">
             {sourcesLabel(file.sources.length)} · {isSystem
@@ -104,17 +129,39 @@ function FileDetail({ file, scope, scopeId, job }: {
       </div>
       <ConfirmDialog open={confirming} onOpenChange={o => { if (!o) setConfirming(false); }}
         title={`Удалить набор «${file.name}»?`}
-        description={<p>
-          {isSystem ? 'Набор' : 'Файл'} и все его источники будут удалены. Привязки, ссылающиеся на него, перестанут работать.
-          {isSystem && ' Сами данные системы (документы, общие данные) при этом не тронутся.'}
-        </p>}
+        description={<>
+          {/* Унаследованный набор общий (issue #721): удаление отсюда — не «убрать у себя», а
+              убрать у всех, кто им пользуется. Прав хватает, поэтому предупреждает текст. */}
+          {inherited && (
+            <p className="mb-2 text-warning">
+              Набор принадлежит уровню «{SCOPE_LABELS[file.scope]}» и доступен всем, кто ниже, —
+              он исчезнет не только здесь.
+            </p>
+          )}
+          <p>
+            {isSystem ? 'Набор' : 'Файл'} и все его источники будут удалены. Привязки, ссылающиеся на него, перестанут работать.
+            {isSystem && ' Сами данные системы (документы, общие данные) при этом не тронутся.'}
+          </p>
+        </>}
         confirmLabel="Удалить набор" onConfirm={() => { void handleDelete(); }} />
     </div>
   );
 }
 
 /** Обзор «Все наборы»: карточки-сводки БЕЗ раскрытия источников (иначе «простыня» вернётся). */
-function AllFilesOverview({ files, onOpen }: { files: DataSetFile[]; onOpen: (id: string) => void }) {
+function AllFilesOverview({ files, inheritedCount, onOpen }: {
+  files: DataSetFile[]; inheritedCount: number; onOpen: (id: string) => void;
+}) {
+  // Своих нет, но что-то доступно сверху (issue #721) — сказать об этом, а не показывать пустоту:
+  // обзор считает только свои, и без пояснения ноль читался бы как «данных нет вообще».
+  if (files.length === 0) {
+    return (
+      <p className="text-sm text-fg4 py-6 text-center">
+        На этом уровне своих наборов нет.
+        {inheritedCount > 0 && ' Доступные с верхних уровней перечислены в списке слева.'}
+      </p>
+    );
+  }
   return (
     <div className="space-y-2">
       {files.map(f => {
@@ -145,7 +192,7 @@ function AllFilesOverview({ files, onOpen }: { files: DataSetFile[]; onOpen: (id
  * ФОКУСА (один файл = один экран), инлайн-«простыня» источников исключена. Выбор — в URL `?file=id`.
  */
 export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scopeId?: string }) {
-  const { data: files = [], isLoading } = useListDataSetFiles(scope, scopeId);
+  const { data: allFiles = [], isLoading } = useListDataSetFiles(scope, scopeId, true);
   const upload = useUploadDataSetFile();
   const createSystem = useCreateSystemDataSetFile();
   // Нечего консолидировать на этом уровне — системный набор здесь не предлагаем (issue #606).
@@ -164,12 +211,38 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
     return next;
   }, { replace: true });
 
+  const setInheritedOpen = (open: boolean) => setSearchParams(prev => {
+    const next = new URLSearchParams(prev);
+    next.set('inherited', open ? '1' : '0');
+    return next;
+  }, { replace: true });
+
+  // Свои — наборы этого уровня; унаследованные — всё остальное из цепочки родителей.
+  // Всё, что говорит о владении (счётчик, пустое состояние, гейт «Данные системы», обзор),
+  // считает СВОИ: иначе набор раздела спрячет кнопку создания набора комплекта.
+  const files = useMemo(
+    () => allFiles.filter(f => f.scope === scope && (f.scopeId ?? undefined) === scopeId),
+    [allFiles, scope, scopeId]);
+  const inheritedFiles = useMemo(
+    () => allFiles.filter(f => !(f.scope === scope && (f.scopeId ?? undefined) === scopeId))
+      // Ближний уровень выше: комплект → раздел → стройка → система.
+      .sort((a, b) => INHERIT_ORDER.indexOf(a.scope) - INHERIT_ORDER.indexOf(b.scope) || a.name.localeCompare(b.name, 'ru')),
+    [allFiles, scope, scopeId]);
+
   // Дефолт по числу файлов: без явного выбора — 1 файл открывается сразу, 2+ → «Все наборы».
   const selected = fileParam ?? (files.length === 1 ? files[0].id : ALL);
   const isAll = selected === ALL;
-  const selectedFile = !isAll ? files.find(f => f.id === selected) : undefined;
+  const selectedFile = !isAll ? allFiles.find(f => f.id === selected) : undefined;
+  const selectedInherited = !!selectedFile && !files.some(f => f.id === selectedFile.id);
   const hasSystemFile = files.some(f => f.format === 'System');
   const offerSystemFile = !hasSystemFile && systemCandidates.length > 0;
+
+  // Группа унаследованных свёрнута по умолчанию (issue #721): экран уровня остаётся про свои наборы,
+  // а строка со счётчиком не даёт остальным быть невидимыми. Явный выбор живёт в URL рядом с ?file=;
+  // без него группа раскрывается, когда открыт унаследованный набор, — иначе ссылка на такой набор
+  // показывала бы detail, которого нет в рейле.
+  const inheritedParam = searchParams.get('inherited');
+  const inheritedOpen = inheritedParam !== null ? inheritedParam === '1' : selectedInherited;
 
   // Статус набора: активная задача распознавания (targetId = file.id для ГОСТ, иначе id источника).
   const jobForFile = (f: DataSetFile) =>
@@ -246,7 +319,9 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
       {overlay}
       {isLoading ? (
         <div className="p-8 text-center text-sm text-fg4">Загрузка...</div>
-      ) : files.length === 0 ? (
+      ) : allFiles.length === 0 ? (
+        // Пусто — когда нет ни своих, ни унаследованных (issue #721): при одних унаследованных
+        // экран обязан остаться рейлом, иначе к ним нет входа вовсе.
         <>
           <input ref={fileInputRef} type="file" accept={ACCEPT} className="hidden" onChange={handleFileInput} />
           <EmptyState icon={<Database size={30} />} title="Пока нет наборов данных"
@@ -276,6 +351,32 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
                 active={selected === f.id} recognizing={!!jobForFile(f)} stale={fileStale(f)}
                 onClick={() => setSelected(f.id)} />
             ))}
+
+            {/* Наборы верхних уровней (issue #721): раньше их тут не было вовсе, хотя привязка их
+                предлагает. Свёрнуты, потому что экран — про наборы этого уровня; строка со
+                счётчиком сообщает, что доступно ещё, и не даёт им остаться невидимыми. */}
+            {inheritedFiles.length > 0 && (
+              <>
+                <button type="button" onClick={() => setInheritedOpen(!inheritedOpen)}
+                  aria-expanded={inheritedOpen}
+                  className="w-full flex items-center gap-1.5 mt-2 pt-2 px-1.5 border-t border-stroke text-left text-xs text-fg3 hover:text-brand">
+                  <ChevronRight size={13} className={`shrink-0 transition-transform ${inheritedOpen ? 'rotate-90' : ''}`} />
+                  <span className="flex-1 min-w-0">
+                    Доступны здесь: {inheritedOpen ? '' : 'ещё '}
+                    <span className="text-brand font-medium">{ruCount(inheritedFiles.length, 'набор', 'набора', 'наборов')}</span>
+                    {!inheritedOpen && ' с верхних уровней'}
+                  </span>
+                </button>
+                {inheritedOpen && inheritedFiles.map(f => (
+                  <FileNavItem key={f.id} icon={<FileText size={15} />} label={f.name}
+                    secondary={`${DATA_SET_FORMAT_LABELS[f.format]} · ${sourcesLabel(f.sources.length)}`}
+                    active={selected === f.id} recognizing={!!jobForFile(f)} stale={fileStale(f)}
+                    level={<LevelChip file={f} />}
+                    onClick={() => setSelected(f.id)} />
+                ))}
+              </>
+            )}
+
             <div className="pt-2">{uploadBtn}</div>
             {uploadError && <p className="text-[11px] text-danger px-1 pt-1">{uploadError}</p>}
           </aside>
@@ -283,9 +384,9 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
           {/* Detail */}
           <div className="flex-1 min-w-0">
             {isAll ? (
-              <AllFilesOverview files={files} onOpen={setSelected} />
+              <AllFilesOverview files={files} inheritedCount={inheritedFiles.length} onOpen={setSelected} />
             ) : selectedFile ? (
-              <FileDetail file={selectedFile} scope={scope} scopeId={scopeId} job={jobForFile(selectedFile)} />
+              <FileDetail file={selectedFile} inherited={selectedInherited} job={jobForFile(selectedFile)} />
             ) : (
               <div className="text-center py-10 text-fg4 text-sm">
                 Набор не найден. <button className="text-brand hover:text-brand-hover" onClick={() => setSelected(ALL)}>Ко всем наборам</button>

@@ -204,7 +204,7 @@ public class SubtreeDocumentsProviderTests(IntegrationTestFixture fixture) : IAs
         var seed = await SeedAsync(scope);
 
         var sourceId = await SourceAtAsync(scope, "Section", seed.SectionB);
-        var fileId = (await svc.ListFilesAsync("Section", seed.SectionB, default)).Single().Id;
+        var fileId = (await svc.ListFilesAsync("Section", seed.SectionB, false, default)).Single().Id;
 
         var snapshots = scope.ServiceProvider.GetRequiredService<IDataSnapshotService>();
         Assert.Null(Assert.Single((await snapshots.GetDatasetAsync(fileId))!.Sources).Warning);
