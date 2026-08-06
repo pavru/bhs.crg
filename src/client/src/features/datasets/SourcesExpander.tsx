@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
@@ -287,10 +287,13 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
       )}
       {/* Копия наследует обработку и материализацию (issue #717) — но не имя: назначение у неё
           другое, иначе копию заводить было бы незачем. */}
+      {/* Копии занят и сам оригинал — иначе «Акты» предлагалось бы копии «Акты» как свободное
+          (siblingNames исключает свой источник ради переименования) и упиралось бы в отказ сервера. */}
       {duplicating && (
         <SourceNameDialog title="Создать копию источника"
           hint="Копия наследует извлечение, обработку (фильтр/вычисляемые колонки/сортировку) и материализацию. Назовите её по назначению — в привязке источники различимы только названием."
-          defaultName={nextSourceName(siblingNames, src.name)} takenNames={siblingNames}
+          defaultName={nextSourceName([...siblingNames, src.name], src.name)}
+          takenNames={[...siblingNames, src.name]}
           isPending={duplicateMutation.isPending} error={duplicateMutation.error?.message} confirmLabel="Создать копию"
           onSubmit={name => duplicateMutation.mutateAsync({ id: src.id, name }).then(() => setDuplicating(false), () => {})}
           onClose={() => setDuplicating(false)} />
@@ -398,7 +401,10 @@ export function SourcesPanel({
   const createSource = useCreateDataSetSource();
   const recognizeTable = useRecognizeDocumentTable(file.id); // «Распознать таблицу» кандидата (issue #385)
   const [addingMore, setAddingMore] = useState<SourceCandidate | null>(null);
-  const sourceNames = sources.map(s => s.name);
+  // useMemo не для скорости: массив уходит пропом в SourceEditorDialog и попадает в его deps —
+  // новая ссылка на каждый рендер перезапускала бы там эффект подстановки имени (см. память о
+  // нестабильных дефолтах, приводящих к циклу memo → effect → setState).
+  const sourceNames = useMemo(() => sources.map(s => s.name), [sources]);
   // Кандидат с existingCount>0 (issue #717) — уже добавленная консолидация: сервер её больше не
   // прячет, и здесь прятать нельзя тоже, иначе «добавить второй список» снова остаётся без входа.
   // Прочие форматы сервер отфильтровал сам — фильтр ниже только гасит мелькание до рефетча.
@@ -480,8 +486,14 @@ export function SourcesPanel({
                       <Plus size={11} /> Добавить ещё
                     </button>
                   ) : (
+                    // Имя кандидата может быть уже занято другим источником — у ГОСТ-набора два
+                    // безымянных табличных документа дают двух кандидатов «Таблица» с разными
+                    // маркерами. Раньше это сохранялось молча; теперь имя обязано быть свободным,
+                    // поэтому берём ближайшее свободное, а не упираемся в отказ по нажатию.
                     <button type="button" disabled={createSource.isPending}
-                      onClick={() => createSource.mutate({ fileId: file.id, name: c.name, sheetOrPath: c.sheetOrPath })}
+                      onClick={() => createSource.mutate({
+                        fileId: file.id, name: nextSourceName(sourceNames, c.name), sheetOrPath: c.sheetOrPath,
+                      })}
                       className="flex items-center gap-0.5 text-brand hover:text-brand-hover disabled:opacity-50">
                       <Plus size={11} /> Создать
                     </button>
@@ -489,6 +501,11 @@ export function SourcesPanel({
                 </div>
               );
             })}
+            {/* Кнопка «Создать» отправляет запрос без диалога — её отказ иначе выглядел бы как
+                мёртвое нажатие (диалог, где показывается ошибка, на этом пути закрыт). */}
+            {createSource.error && !addingMore && (
+              <p className="text-xs text-danger">{createSource.error.message}</p>
+            )}
           </div>
         )}
       </div>
@@ -510,6 +527,7 @@ export function SourcesPanel({
         <SourceEditorDialog
           fileId={file.id}
           format={file.format}
+          existingNames={sourceNames}
           initial={editing === 'new' ? undefined : editing}
           onClose={() => setEditing(null)}
         />

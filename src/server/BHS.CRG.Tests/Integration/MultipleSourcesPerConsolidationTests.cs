@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
@@ -194,5 +195,41 @@ public class MultipleSourcesPerConsolidationTests(IntegrationTestFixture fixture
         var copy2 = await svc.DuplicateSourceAsync(first.Id, null, default);
         Assert.Equal("Акты — 2", copy!.Name);
         Assert.Equal("Акты — 3", copy2!.Name);
+    }
+
+    /// <summary>
+    /// Наборы прошлых версий вполне могут содержать два источника с одним именем — уникальности до
+    /// этого правила не было. Такой источник обязан остаться редактируемым: правка, не трогающая
+    /// имя, не может отказывать ссылкой на название, которого пользователь не менял.
+    /// </summary>
+    [Fact]
+    public async Task LegacyDuplicateNames_DoNotBlockEditsThatKeepTheName()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+
+        var csv = "A;B\n1;2\n";
+        var file = await svc.UploadFileAsync(
+            new UploadFileInput(Encoding.UTF8.GetBytes(csv), "d.csv", "text/csv", "Тест", "System", null), default);
+        var marker = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single().SheetOrPath;
+        var first = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Лист", marker, null), default);
+        var second = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Лист (второй)", marker, null), default);
+
+        // Совпадение имён мимо сервиса — так они и достались бы из наборов до issue #717.
+        var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.AppDbContext>();
+        (await db.DataSetSources.FirstAsync(s => s.Id == second.Id)).Rename("Лист");
+        await db.SaveChangesAsync();
+
+        // Правка определения, не трогающая имя, проходит — хотя двойник рядом и живой.
+        var updated = await svc.UpdateSourceAsync(second.Id, new UpdateSourceInput("Лист", marker, null), default);
+        Assert.Equal("Лист", updated!.Name);
+        // И переименование в своё же имя — тоже: иначе выхода, кроме переименования, не остаётся.
+        Assert.Equal("Лист", (await svc.RenameSourceAsync(second.Id, "Лист", default))!.Name);
+
+        // А занять чужое имя по-прежнему нельзя — послабление касается только неизменного имени.
+        var third = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Третий", marker, null), default);
+        await Assert.ThrowsAsync<InvalidRequestException>(() =>
+            svc.RenameSourceAsync(third.Id, "Лист", default));
+        Assert.NotEqual(first.Id, third.Id);
     }
 }

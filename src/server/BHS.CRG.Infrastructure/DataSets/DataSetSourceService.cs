@@ -530,7 +530,7 @@ public class DataSetSourceService(
         var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
         if (string.IsNullOrWhiteSpace(name)) throw new InvalidRequestException("Укажите название.");
-        await EnsureNameFreeAsync(source.FileId, name.Trim(), sourceId, ct);
+        await EnsureNameFreeAsync(source.FileId, name.Trim(), sourceId, ct, source.Name);
         source.Rename(name);
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(source);
@@ -545,7 +545,7 @@ public class DataSetSourceService(
         if (source.File.IsSystem)
             throw new InvalidRequestException("Определение системного источника не редактируется — переименуйте его или создайте другой.");
         if (string.IsNullOrWhiteSpace(input.Name)) throw new InvalidRequestException("Укажите название источника.");
-        await EnsureNameFreeAsync(source.FileId, input.Name.Trim(), sourceId, ct);
+        await EnsureNameFreeAsync(source.FileId, input.Name.Trim(), sourceId, ct, source.Name);
 
         var columnExpressionsJson = DataSetDtoMapper.SerializeColumnExpressions(input.ColumnExpressions);
         var (schema, rowCount) = await ParseForDefinitionAsync(
@@ -646,12 +646,22 @@ public class DataSetSourceService(
     // селекторе привязки источники различимы только именем. Проверка стоит на ВСЕХ путях записи
     // имени (создание, копия, переименование, правка определения), а не только в диалоге копии:
     // переименовать второй источник в имя первого — та же неразличимость, только позже.
-    private async Task EnsureNameFreeAsync(Guid fileId, string name, Guid? exceptSourceId, CancellationToken ct)
+    //
+    // currentName — имя, которое источник носит сейчас: если оно не меняется, проверять нечего.
+    // До этого правила имена не были уникальны, и наборы прошлых версий вполне могут содержать два
+    // «Лист1». Без этой оговорки правка row-selector'а такому источнику отказывала бы ссылкой на
+    // название, которого пользователь не трогал, и выйти можно было бы только переименованием.
+    private async Task EnsureNameFreeAsync(
+        Guid fileId, string name, Guid? exceptSourceId, CancellationToken ct, string? currentName = null)
     {
+        if (currentName is not null && string.Equals(currentName.Trim(), name, StringComparison.OrdinalIgnoreCase))
+            return;
+
         var taken = await SiblingNamesAsync(fileId, exceptSourceId, ct);
         if (taken.Any(n => string.Equals(n.Trim(), name, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidRequestException(
-                $"Источник «{name}» в этом наборе уже есть — дайте другое название, иначе их не различить при привязке.");
+                $"Источник «{name}» в этом наборе уже есть — дайте другое название (или переименуйте тот), "
+                + "иначе их не различить при привязке.");
     }
 
     // Скачивает файл и парсит указанное определение — используется для валидации и первичного
