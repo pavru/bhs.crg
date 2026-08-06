@@ -53,18 +53,24 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         ["DataSetFile"] = "сырьё набора данных: файл в хранилище, к конфигурации не относится",
         ["DataSetSource"] = "разбор конкретного файла: без файла бессмыслен",
         ["DataSetBinding"] = "привязка источника к конкретному экземпляру документа",
-        ["DataSetProcessingTemplate"] = "ОТКРЫТО: кандидат в копию, решение в issue #687",
 
         // ── Документы качества ──
-        ["QualityDocument"] = "ОТКРЫТО: библиотека качества, решение в issue #687",
         ["MaterialQualityLink"] = "связка документа качества с материалом проекта",
         ["QualityAuditRun"] = "результат прогона проверки, пересчитывается",
 
         // ── Сверка ──
-        ["ReconciliationDefinition"] = "ОТКРЫТО: определения сверок, решение в issue #687",
+        // Решение по issue #687. Определение не «висит на объектах, которых в копии нет» — привязка
+        // сидит ГЛУБЖЕ, внутри самой спеки: ReconciliationSide.SourceId адресует DataSetSource по
+        // идентификатору, а идентификатор рождается при загрузке файла и на целевой системе не
+        // возникнет никогда. Прогон восстановленного определения падает сразу
+        // (ReconciliationRunner: «Источник … не найден»), то есть копия принесла бы заведомо мёртвый
+        // объект. Человеческое знание этой подсистемы в копии есть — это алиасы.
+        ["ReconciliationDefinition"] = "спека адресует источники по идентификатору: на целевой системе таких источников нет и не будет",
         ["ReconciliationRun"] = "результат прогона, пересчитывается",
         ["ReconciliationFinding"] = "результат прогона, пересчитывается",
-        ["ReconciliationDecision"] = "решение по находке конкретного прогона",
+        // Решение адресовано определением (issue #414), а определение в копию не идёт — значит и
+        // решение в отрыве не к чему приложить.
+        ["ReconciliationDecision"] = "адресовано определением сверки, которое в копию не входит",
         ["AgentObservation"] = "наблюдения агента по конкретному прогону",
 
         // ── Производное состояние ──
@@ -113,6 +119,8 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         ["RecognitionProfile"] = nameof(BackupManifest.RecognitionProfiles),
         ["DataSetBindingTemplate"] = nameof(BackupManifest.DataSetBindingTemplates),
         ["ReconciliationAlias"] = nameof(BackupManifest.ReconciliationAliases),
+        ["DataSetProcessingTemplate"] = nameof(BackupManifest.DataSetProcessingTemplates),
+        ["QualityDocument"] = nameof(BackupManifest.QualityDocuments),
     };
 
     [Fact]
@@ -188,6 +196,7 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
                 scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
                 NullLogger<BackupService>.Instance).ExportAsync();
 
+            await using var _zipHandle = zipStream;
             using var zip = new ZipArchive(zipStream, ZipArchiveMode.Read);
             await using var entry = zip.GetEntry("manifest.json")!.Open();
             manifest = (await JsonSerializer.DeserializeAsync<BackupManifest>(entry))!;
@@ -259,6 +268,17 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
 
         db.DataSetBindingTemplates.Add(DataSetBindingTemplate.Restore(
             Guid.NewGuid(), docTypeId, "Маппинг", null, "{}", 0, now, now));
+
+        db.DataSetProcessingTemplates.Add(DataSetProcessingTemplate.Create(
+            "Рецепт покрытия", sheetOrPath: "Лист1", columnExpressions: null,
+            rowFilter: null, computedColumns: null, sortSpec: null));
+
+        await blob.PutAsync("quality/coverage.pdf", new MemoryStream([4, 5, 6]), "application/pdf", default);
+        var qualityDoc = QualityDocument.Create(
+            docTypeId, "Сертификат покрытия", JsonDocument.Parse("{}"),
+            CatalogScope.System, null, QualityDocSource.Manual);
+        qualityDoc.SetScan("quality/coverage.pdf", "coverage.pdf", "application/pdf");
+        db.QualityDocuments.Add(qualityDoc);
 
         var alias = ReconciliationAlias.Propose(
             $"key-{Guid.NewGuid():N}", "Вариант", $"canon-{Guid.NewGuid():N}", "Канон", null, "человек");

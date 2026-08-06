@@ -44,6 +44,24 @@ public class DataSetProcessingTemplate : Entity
             SortSpec = sortSpec,
         };
 
+    /// <summary>Восстановление из резервной копии: идентификатор и отметки времени берутся из неё.</summary>
+    public static DataSetProcessingTemplate Restore(
+        Guid id, string name, string? sheetOrPath, string? columnExpressions,
+        string? rowFilter, string? computedColumns, string? sortSpec,
+        DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        => new()
+        {
+            Id = id,
+            Name = name,
+            SheetOrPath = sheetOrPath,
+            ColumnExpressions = columnExpressions,
+            RowFilter = rowFilter,
+            ComputedColumns = computedColumns,
+            SortSpec = sortSpec,
+            CreatedAt = createdAt,
+            UpdatedAt = updatedAt,
+        };
+
     public void Update(string name, string? sheetOrPath, string? columnExpressions,
         string? rowFilter, string? computedColumns, string? sortSpec)
     {
