@@ -4,7 +4,7 @@ import { filenameFromContentDisposition } from './attachments';
 import type {
   CatalogScope, ColumnExprDef, DataSetBinding, DataSetBindingOwner, DataSetBindingPreviewResult, DataSetFile,
   DataSetPreview, DataSetProcessingTemplate, DataSetSource, RowFilterDef, ComputedColumn, SortSpec,
-  GostGrouping, GostGroupingGroup,
+  GostGrouping, GostGroupingGroup, MaterializeDiscriminator,
 } from './types';
 
 // ── Файлы ─────────────────────────────────────────────────────────────────────
@@ -140,9 +140,18 @@ export function useRenameSource() {
 /** Настроить/снять материализацию источника в тип (issue #19). typeId=null снимает. */
 export function useSetMaterialization() {
   const qc = useQueryClient();
-  return useMutation<DataSetSource, Error, { sourceId: string; typeId: string | null; mapping: Record<string, string> | null }>({
-    mutationFn: ({ sourceId, typeId, mapping }) =>
-      apiClient.put(`/datasets/sources/${sourceId}/materialization`, { typeId, mapping }).then(r => r.data),
+  return useMutation<DataSetSource, Error, {
+    sourceId: string;
+    typeId: string | null;
+    mapping: Record<string, string> | null;
+    /** Правило выбора варианта union'а (issue #716); null — один вариант на все строки. */
+    discriminator?: MaterializeDiscriminator | null;
+  }>({
+    // Настройка сохраняется ЦЕЛИКОМ: маппинг и правило связаны, и отправить одно без другого
+    // значит оставить источник в состоянии, которого сервер не пропустит.
+    mutationFn: ({ sourceId, typeId, mapping, discriminator }) =>
+      apiClient.put(`/datasets/sources/${sourceId}/materialization`,
+        { typeId, mapping, discriminator: discriminator ?? null }).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
   });
 }
@@ -152,6 +161,17 @@ export interface MaterializePreview {
   totalRows: number;
   rows: Record<string, unknown>[];
   error: string | null;
+  /** Ключ варианта union'а для каждой показанной строки (issue #716); null — правила нет. */
+  variants?: (string | null)[] | null;
+  /** Строки, которым варианта не досталось, — поимённо: предпросмотр открывают именно ради этого. */
+  skipped?: MaterializeSkippedRow[] | null;
+}
+
+export interface MaterializeSkippedRow {
+  rowNumber: number;
+  value: string | null;
+  reasonCode: string;
+  reason: string;
 }
 
 /** Live-предпросмотр материализации по ТЕКУЩИМ (несохранённым) типу+маппингу (issue #294).
@@ -159,12 +179,15 @@ export interface MaterializePreview {
 export function useMaterializePreview(
   sourceId: string | undefined, typeId: string | undefined,
   mapping: Record<string, string>, enabled: boolean,
+  discriminator?: MaterializeDiscriminator | null,
 ) {
   return useQuery<MaterializePreview>({
-    queryKey: ['datasets', 'materialize-preview', sourceId, typeId ?? '', JSON.stringify(mapping)],
+    queryKey: ['datasets', 'materialize-preview', sourceId, typeId ?? '',
+      JSON.stringify(mapping), JSON.stringify(discriminator ?? null)],
     queryFn: () =>
       apiClient
-        .post(`/datasets/sources/${sourceId}/materialization/preview`, { typeId: typeId || null, mapping })
+        .post(`/datasets/sources/${sourceId}/materialization/preview`,
+          { typeId: typeId || null, mapping, discriminator: discriminator ?? null })
         .then(r => r.data),
     enabled: !!sourceId && enabled,
     placeholderData: keepPreviousData,

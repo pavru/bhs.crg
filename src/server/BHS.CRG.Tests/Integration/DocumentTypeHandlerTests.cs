@@ -288,7 +288,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
         var file = await svc.UploadFileAsync(new UploadFileInput(csv, "t.csv", "text/csv", "Тест", "System", null), default);
         var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
         var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Данные", candidate.SheetOrPath, null), default);
-        await svc.SetMaterializationAsync(source.Id, dt.Id, new(), default);
+        await svc.SetMaterializationAsync(source.Id, dt.Id, new(), discriminator: null, default);
 
         using var scope2 = fixture.Services.CreateScope();
         await Assert.ThrowsAsync<ConflictException>(() =>

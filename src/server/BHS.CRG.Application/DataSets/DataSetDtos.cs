@@ -14,10 +14,27 @@ public record DataSetSourceDto(
     int? BindingCount = null,
     /// <summary>Живая оговорка системного источника (issue #626): считается на чтении вместе с
     /// числом строк, не хранится — она про сегодняшнее состояние данных, а не про определение.</summary>
-    string? Warning = null);
+    string? Warning = null,
+    /// <summary>Правило выбора варианта union'а по строке (issue #716); null — материализация
+    /// статична, один вариант на все строки.</summary>
+    MaterializeDiscriminatorConfig? MaterializeDiscriminator = null);
 
-/// <summary>Материализованный предпросмотр источника: строки, развёрнутые в объекты формы типа (issue #19).</summary>
-public record MaterializePreviewDto(Guid? TypeId, int TotalRows, IReadOnlyList<Dictionary<string, object?>> Rows, string? Error);
+/// <summary>
+/// Материализованный предпросмотр источника: строки, развёрнутые в объекты формы типа (issue #19).
+///
+/// <paramref name="Variants"/> — ключ варианта union'а для каждой показанной строки (issue #716),
+/// null-элемент = правила нет; <paramref name="Skipped"/> — строки, которым варианта не досталось.
+///
+/// Пропущенные перечисляются ПОИМЁННО, а не числом: предпросмотр для того и открывают — понять,
+/// какие именно документы не доехали и почему. Сводку числом даёт генерация, ей список ни к чему.
+/// </summary>
+public record MaterializePreviewDto(
+    Guid? TypeId, int TotalRows, IReadOnlyList<Dictionary<string, object?>> Rows, string? Error,
+    IReadOnlyList<string?>? Variants = null,
+    IReadOnlyList<MaterializeSkippedRowDto>? Skipped = null);
+
+/// <summary>Строка, не попавшая в материализацию: её номер, значение колонки-признака и причина.</summary>
+public record MaterializeSkippedRowDto(int RowNumber, string? Value, string ReasonCode, string Reason);
 
 public record DataSetFileDto(
     Guid Id, string Name, string Format, string Scope, Guid? ScopeId,

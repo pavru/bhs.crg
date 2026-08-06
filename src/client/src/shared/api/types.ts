@@ -334,6 +334,24 @@ export interface DataSetSource {
   materializeTypeId: string | null;
   /** Маппинг колонок → поля материализуемого типа: {ключПоля: "Колонка"|"@@ref:…"|"@@file:…"}. */
   materializeMapping: Record<string, string> | null;
+  /** Правило выбора варианта union'а по строке (issue #716); null — один вариант на все строки. */
+  materializeDiscriminator?: MaterializeDiscriminator | null;
+}
+
+/** Как читать колонку-признак: код типа документа либо идентификатор самого документа. */
+export type DiscriminatorKind = 'docTypeCode' | 'docId';
+
+/**
+ * Правило выбора варианта union'а по строке источника (issue #716).
+ *
+ * `rules` — вариант → типы документов, которые к нему относятся. Вариант без правила ВЫКЛЮЧЕН:
+ * строки его типов пропускаются. Это законная настройка, а не недоделка — реестр вполне может
+ * собирать не все виды документов комплекта.
+ */
+export interface MaterializeDiscriminator {
+  column: string;
+  kind: DiscriminatorKind;
+  rules: Record<string, string[]>;
 }
 
 /** Группировка страниц ГОСТ-профиля — для редактора ручной корректировки разбиения. */

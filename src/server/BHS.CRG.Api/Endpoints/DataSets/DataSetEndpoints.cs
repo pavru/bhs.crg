@@ -185,7 +185,7 @@ public static class DataSetEndpoints
         g.MapPut("/sources/{sourceId:guid}/materialization", async (
             Guid sourceId, MaterializationRequest req, IDataSetService svc, CancellationToken ct) =>
         {
-            var result = await svc.SetMaterializationAsync(sourceId, req.TypeId, req.Mapping, ct);
+            var result = await svc.SetMaterializationAsync(sourceId, req.TypeId, req.Mapping, req.Discriminator, ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
 
@@ -194,7 +194,8 @@ public static class DataSetEndpoints
         g.MapPost("/sources/{sourceId:guid}/materialization/preview", async (
             Guid sourceId, MaterializePreviewRequest req, IDataSetService svc, CancellationToken ct) =>
         {
-            var result = await svc.MaterializePreviewAsync(sourceId, req.MaxRows ?? 50, req.TypeId, req.Mapping, ct);
+            var result = await svc.MaterializePreviewAsync(
+                sourceId, req.MaxRows ?? 50, req.TypeId, req.Mapping, req.Discriminator, ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
 
@@ -423,8 +424,10 @@ public static class DataSetEndpoints
     private record AutoMapFieldDto(string Key, string Title);
     private record SourceRequest(string Name, string SheetOrPath, ColumnExprDto[]? ColumnExpressions);
     private record RenameSourceRequest(string Name);
-    private record MaterializationRequest(Guid? TypeId, Dictionary<string, string>? Mapping);
-    private record MaterializePreviewRequest(Guid? TypeId, Dictionary<string, string>? Mapping, int? MaxRows);
+    private record MaterializationRequest(Guid? TypeId, Dictionary<string, string>? Mapping,
+        MaterializeDiscriminatorConfig? Discriminator);
+    private record MaterializePreviewRequest(Guid? TypeId, Dictionary<string, string>? Mapping, int? MaxRows,
+        MaterializeDiscriminatorConfig? Discriminator);
     private record ProcessingRequest(object? RowFilter, object? ComputedColumns, object? SortSpec);
     private record ProcessingTemplateRequest(
         string Name, string? SheetOrPath, ColumnExprDto[]? ColumnExpressions,

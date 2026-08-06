@@ -50,7 +50,7 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
             new UploadFileInput(Encoding.UTF8.GetBytes(csv), "docs.csv", "text/csv", "Тест", "System", null), default);
         var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
         var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Документы", candidate.SheetOrPath, null), default);
-        await svc.SetMaterializationAsync(source.Id, rowTypeId, mapping, default);
+        await svc.SetMaterializationAsync(source.Id, rowTypeId, mapping, discriminator: null, default);
         return source.Id;
     }
 

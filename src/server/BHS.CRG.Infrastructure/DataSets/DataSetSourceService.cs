@@ -266,14 +266,33 @@ public class DataSetSourceService(
             : [.. (JsonSerializer.Deserialize<CachedColumnInfo[]>(cachedSchema, CachedSchemaJson) ?? [])
                 .Select(c => c.Name)];
 
-    /// <summary>Настроить/снять материализацию источника в тип (issue #19): typeId=null снимает.</summary>
-    public async Task<DataSetSourceDto?> SetMaterializationAsync(Guid sourceId, Guid? typeId, Dictionary<string, string>? mapping, CancellationToken ct)
+    /// <summary>
+    /// Настроить/снять материализацию источника в тип (issue #19): typeId=null снимает. Настройка
+    /// задаётся целиком: тип, маппинг и (issue #716) правило выбора варианта.
+    /// Сохраняется ЗАМЕЩЕНИЕМ — частичных правок здесь нет намеренно: маппинг и правила связаны, и
+    /// сохранить одно без другого значит оставить источник в состоянии, которого валидатор не пропустил бы.
+    /// </summary>
+    public async Task<DataSetSourceDto?> SetMaterializationAsync(
+        Guid sourceId, Guid? typeId, Dictionary<string, string>? mapping,
+        MaterializeDiscriminatorConfig? discriminator, CancellationToken ct)
     {
         var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
 
-        var mappingJson = typeId is null ? null : JsonSerializer.Serialize(mapping ?? new Dictionary<string, string>());
-        source.SetMaterialization(typeId, mappingJson);
+        var effectiveMapping = mapping ?? new Dictionary<string, string>();
+        if (typeId is { } id)
+        {
+            var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+            if (!typesById.TryGetValue(id, out var type))
+                throw new NotFoundException($"Тип {id} не найден.");
+            MaterializeConfigValidator.Validate(type, effectiveMapping, discriminator, typesById);
+        }
+
+        var mappingJson = typeId is null ? null : JsonSerializer.Serialize(effectiveMapping);
+        var discriminatorJson = typeId is null || discriminator is null
+            ? null
+            : JsonSerializer.Serialize(discriminator);
+        source.SetMaterialization(typeId, mappingJson, discriminatorJson);
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(source);
     }
@@ -284,7 +303,8 @@ public class DataSetSourceService(
     /// (тот же рендер, что у превью привязки — см. DataSetDtoMapper.PreviewCell). Без резолва каталога.
     /// </summary>
     public async Task<MaterializePreviewDto?> MaterializePreviewAsync(
-        Guid sourceId, int maxRows, Guid? typeId, Dictionary<string, string>? mapping, CancellationToken ct)
+        Guid sourceId, int maxRows, Guid? typeId, Dictionary<string, string>? mapping,
+        MaterializeDiscriminatorConfig? discriminator, CancellationToken ct)
     {
         var source = await db.DataSetSources.Include(s => s.File).AsNoTracking().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
@@ -294,25 +314,77 @@ public class DataSetSourceService(
         if (effTypeId is null)
             return new MaterializePreviewDto(null, 0, [], "Материализация не настроена");
         var effMapping = mapping ?? JsonSerializer.Deserialize<Dictionary<string, string>>(source.MaterializeMapping ?? "{}") ?? new();
+        // Правило варианта — тоже живое (issue #294, #716). Но «пусто» здесь не может значить
+        // «взять сохранённое»: диалог обязан уметь показать предпросмотр БЕЗ правила — ровно это
+        // происходит при переключении в режим «один вариант на все строки». Иначе предпросмотр
+        // отвечал бы по вчерашней настройке именно тогда, когда её меняют.
+        //
+        // Признак «диалог ведёт настройку» — переданный маппинг: он приходит вместе с правилом или
+        // не приходит вовсе. Отдельного флага не заводим, чтобы не было двух способов сказать одно.
+        var effDiscriminator = mapping is not null
+            ? discriminator
+            : MaterializeVariantSelector.ParseConfig(source.MaterializeDiscriminator);
 
         try
         {
             var rows = await rowLoader.LoadRowsAsync(source, ct);
             var take = maxRows <= 0 ? 50 : maxRows;
+            var page = rows.Take(take).ToList();
+
+            MaterializeVariantSelector? selector = null;
+            if (effDiscriminator is not null && !string.IsNullOrWhiteSpace(effDiscriminator.Column))
+            {
+                var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+                Dictionary<Guid, Guid>? typeByDocument = null;
+                var documentIds = MaterializeVariantSelector.DocumentIdsIn(effDiscriminator, page).ToList();
+                if (documentIds.Count > 0)
+                    typeByDocument = await db.DomainObjects.AsNoTracking()
+                        .Where(o => documentIds.Contains(o.Id))
+                        .ToDictionaryAsync(o => o.Id, o => o.CompositeTypeId, ct);
+                selector = MaterializeVariantSelector.Create(effDiscriminator, typesById, typeByDocument);
+            }
 
             var mapped = new List<Dictionary<string, object?>>();
-            foreach (var row in rows.Take(take))
+            var variants = new List<string?>();
+            var skipped = new List<MaterializeSkippedRowDto>();
+            var rowIndex = 0;
+
+            foreach (var row in page)
             {
+                rowIndex++;
+                var variantKey = (string?)null;
+                var pairs = effMapping.AsEnumerable();
+
+                if (selector is not null)
+                {
+                    var choice = selector.Choose(row);
+                    if (choice.VariantKey is null)
+                    {
+                        // Пропущенные строки перечисляем ПОИМЁННО, а не числом: предпросмотр для того
+                        // и открывают — понять, какие именно документы не доехали и почему. Сводку
+                        // числом даёт генерация, ей построчный список ни к чему.
+                        skipped.Add(new MaterializeSkippedRowDto(
+                            rowIndex,
+                            row.TryGetValue(effDiscriminator!.Column, out var cell) ? cell : null,
+                            choice.SkipReason ?? "",
+                            MaterializeSkipReason.Describe(choice.SkipReason ?? "")));
+                        continue;
+                    }
+                    variantKey = choice.VariantKey;
+                    pairs = effMapping.Where(p => p.Key == choice.VariantKey);
+                }
+
                 var obj = new Dictionary<string, object?>();
-                foreach (var (fieldKey, mapVal) in effMapping)
+                foreach (var (fieldKey, mapVal) in pairs)
                 {
                     var v = await DataSetDtoMapper.PreviewCellAsync(mapVal, row, ct);
                     if (v is not null) obj[fieldKey] = v;
                 }
                 mapped.Add(obj);
+                variants.Add(variantKey);
             }
 
-            return new MaterializePreviewDto(effTypeId, rows.Count, mapped, null);
+            return new MaterializePreviewDto(effTypeId, rows.Count, mapped, null, variants, skipped);
         }
         catch (Exception ex)
         {

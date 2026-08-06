@@ -31,11 +31,15 @@ public interface IDataSetService
 
     /// <summary>Ручное создание источника (для XML — единственный способ, авто-детект не используется).</summary>
     Task<DataSetSourceDto> CreateSourceAsync(Guid fileId, CreateSourceInput input, CancellationToken ct);
-    /// <summary>Настроить/снять материализацию источника в тип (issue #19). typeId=null снимает.</summary>
-    Task<DataSetSourceDto?> SetMaterializationAsync(Guid sourceId, Guid? typeId, Dictionary<string, string>? mapping, CancellationToken ct);
-    /// <summary>Предпросмотр материализации источника (строки → объекты формы типа). typeId/mapping —
-    /// переданные (для live-превью несохранённой настройки, issue #294); null → сохранённые на источнике.</summary>
-    Task<MaterializePreviewDto?> MaterializePreviewAsync(Guid sourceId, int maxRows, Guid? typeId, Dictionary<string, string>? mapping, CancellationToken ct);
+    /// <summary>Настроить/снять материализацию источника в тип (issue #19). typeId=null снимает;
+    /// маппинг и правило выбора варианта (issue #716) задаются целиком, замещением.</summary>
+    Task<DataSetSourceDto?> SetMaterializationAsync(Guid sourceId, Guid? typeId,
+        Dictionary<string, string>? mapping, MaterializeDiscriminatorConfig? discriminator, CancellationToken ct);
+    /// <summary>Предпросмотр материализации источника (строки → объекты формы типа).
+    /// <paramref name="mapping"/> задан — настройку ведёт диалог, и <paramref name="discriminator"/>
+    /// авторитетен (null значит «правила нет», issue #294/#716); mapping=null → сохранённые на источнике.</summary>
+    Task<MaterializePreviewDto?> MaterializePreviewAsync(Guid sourceId, int maxRows, Guid? typeId,
+        Dictionary<string, string>? mapping, MaterializeDiscriminatorConfig? discriminator, CancellationToken ct);
     Task<DataSetSourceDto?> UpdateSourceAsync(Guid sourceId, UpdateSourceInput input, CancellationToken ct);
     /// <summary>Лёгкое переименование источника (issue #43) — только имя, без extraction/кэша; для любого
     /// источника, включая PDF-проекции.</summary>
