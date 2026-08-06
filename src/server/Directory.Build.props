@@ -3,7 +3,7 @@
        функциональности, PATCH — фиксы; 1.0.0 — первый релиз. К InformationalVersion SDK добавляет
        +<git-sha> (см. target ниже) для трассировки сборок на внутреннем тестировании. -->
   <PropertyGroup>
-    <Version>0.103.1</Version>
+    <Version>0.104.0</Version>
   </PropertyGroup>
 
   <!-- Доменные отказы (BHS.CRG.Domain.Common) доступны без using во всех проектах, кроме

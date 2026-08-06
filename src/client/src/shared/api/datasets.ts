@@ -215,6 +215,9 @@ export interface SourceCandidate {
   /** Оговорка к данным консолидации (issue #626): показываем ДО создания источника, иначе о ней
    *  узнают только постфактум, в списке источников. */
   warning?: string | null;
+  /** Сколько источников на эту консолидацию уже есть (issue #717). >0 — кандидат остаётся видимым
+   *  («уже добавлен · Добавить ещё»), а не исчезает: второй список с другим фильтром законен. */
+  existingCount?: number;
 }
 
 /** Детект кандидатов на источник (без персиста) — подсказки в один клик в диалоге создания. */
@@ -262,8 +265,10 @@ export function useDeleteDataSetSource() {
 /** Копия источника (тот же locator/колонки/Filter/Transformation/Sort) — доступна для любого формата. */
 export function useDuplicateDataSetSource() {
   const qc = useQueryClient();
-  return useMutation<DataSetSource, Error, { id: string }>({
-    mutationFn: ({ id }) => apiClient.post(`/datasets/sources/${id}/duplicate`).then(r => r.data),
+  // name задаёт диалог (issue #717): два источника различимы в селекторе привязки только именем,
+  // поэтому имя копии — решение пользователя, а не автоматический суффикс.
+  return useMutation<DataSetSource, Error, { id: string; name?: string }>({
+    mutationFn: ({ id, name }) => apiClient.post(`/datasets/sources/${id}/duplicate`, { name }).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets', 'files'] }),
   });
 }
