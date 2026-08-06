@@ -90,7 +90,8 @@ builder.Services.ConfigureHttpJsonOptions(opt =>
 StorageConfigGuard.Require(
     cfg.GetConnectionString("Postgres"),
     cfg["BlobStorage:AccessKey"],
-    cfg["BlobStorage:SecretKey"]);
+    cfg["BlobStorage:SecretKey"],
+    cfg["BlobStorage:Bucket"]);
 
 // ── Database ──────────────────────────────────────────────────────────────────
 builder.Services.AddDbContext<AppDbContext>(opt =>

@@ -34,26 +34,34 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         "Host=localhost;Port=5432;Username=postgres;Password=xxsystem;Database="
         + (Environment.GetEnvironmentVariable("BHS_TEST_DB") is { Length: > 0 } db ? db : "bhs_crg_test");
 
+    /// <summary>
+    /// Значения, которые тестовый хост обязан назвать сам: без них приложение отказывается
+    /// стартовать (<c>JwtKeyGuard</c>, <c>StorageConfigGuard</c>).
+    /// </summary>
+    private static readonly Dictionary<string, string?> TestSettings = new()
+    {
+        ["ConnectionStrings:Postgres"] = TestConnectionString,
+        ["Jwt:Key"] = "integration-tests-only-signing-key-8b31d0c47f2a",
+        // Хранилище всё равно подменено (см. ниже) — эти значения только проходят проверку старта.
+        ["BlobStorage:AccessKey"] = "integration-tests",
+        ["BlobStorage:SecretKey"] = "integration-tests",
+        ["BlobStorage:Bucket"] = "integration-tests",
+    };
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.ConfigureAppConfiguration((_, cfg) =>
-        {
-            cfg.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:Postgres"] = TestConnectionString,
-                // Свой ключ подписи: приложение отказывается стартовать без заданного (JwtKeyGuard),
-                // и это правильно — значит и тестовый хост обязан назвать свой, а не молча
-                // пользоваться значением из репозитория.
-                ["Jwt:Key"] = "integration-tests-only-signing-key-8b31d0c47f2a",
-                // Учётные данные хранилища — по той же причине (issue #706): приложение отказывается
-                // стартовать без заданных, и полагаться на appsettings.Development.json тестовому
-                // хосту нельзя. Он берёт эту среду по умолчанию, а не по решению — стоит однажды
-                // задать другую, и весь набор упал бы на старте хоста, далеко от причины.
-                // Само хранилище всё равно подменено (см. ниже), значения проверку только проходят.
-                ["BlobStorage:AccessKey"] = "integration-tests",
-                ["BlobStorage:SecretKey"] = "integration-tests",
-            });
-        });
+        // UseSetting, а НЕ только ConfigureAppConfiguration. Разница не стилистическая: проверки
+        // конфигурации стоят в Program.cs верхнеуровневыми операторами, то есть до builder.Build(),
+        // а слой ConfigureAppConfiguration подмешивается на Build — и до проверок не доходит вовсе.
+        // Пока этого не заметили, набор держался на appsettings.Development.json: среду
+        // WebApplicationFactory берёт по умолчанию, и значения приезжали оттуда. Проверено прямо —
+        // с обнулённой секцией BlobStorage в dev-файле хост переставал стартовать, хотя фикстура
+        // «задавала» ключи. То есть страховка была нарисованной.
+        foreach (var (key, value) in TestSettings) builder.UseSetting(key, value);
+
+        // Слой на Build оставляем тоже: до него доходит всё остальное приложение (строку подключения
+        // читает AddDbContext, ключ подписи — выдача токенов), и порядок слоёв тут значения не имеет.
+        builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(TestSettings));
 
         builder.ConfigureServices(services =>
         {
