@@ -202,11 +202,15 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
       <div className="space-y-4 min-w-[520px]">
         {!nothingToPick && (
           <TextField label="Название" value={name} onChange={e => setName(e.target.value)}
-            hint="Позиции спецификации" />
+            hint="Например: Позиции спецификации" />
         )}
 
         {picksCandidate ? (
-          <div>
+          // space-y-3, а не голый div: ритм диалога задаёт space-y-4 ВЫШЕ, и на вложенную группу он
+          // не распространяется. Метка outlined-поля выступает над его рамкой (см. OutlinedField),
+          // поэтому поля, стоящие вплотную, накладываются: счётчик «Показано N из M» под поиском
+          // попадал ровно на всплывшую метку селекта (issue #727).
+          <div className="space-y-3">
             {/* Пустой выпадающий список выглядел бы поломкой — когда выбирать не из чего,
                 показываем причину вместо самого поля (issue #606). */}
             {readyCandidates.length === 0 ? (
