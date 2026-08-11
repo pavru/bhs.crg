@@ -43,6 +43,15 @@ export interface Observation {
 
 const KEY = ['observations'] as const;
 
+/**
+ * Счётчики проблем («Требует разбора», бейдж вкладки комплекта, маркеры в дереве) считает
+ * `/reconciliations/related` и `/reconciliations/summary` — они кэшируются под ЧУЖИМ ключом.
+ * Разбор замечания меняет эти числа, поэтому каждая мутация журнала гасит и его: иначе шапка
+ * остаётся протухшей до перезагрузки. На главной странице «Сверка» это долго не проявлялось —
+ * там счётчик замечаний считается по самому списку, — а на вкладке комплекта видно сразу (#731).
+ */
+const PROBLEM_COUNTERS_KEY = ['reconciliations'] as const;
+
 export function useObservations(scopeId?: string | null, status?: ObservationStatus) {
   return useQuery({
     queryKey: [...KEY, scopeId ?? null, status ?? null],
@@ -58,7 +67,10 @@ export function useReviewObservation() {
     mutationFn: async ({ id, status, note }: {
       id: string; status: ObservationStatus; note?: string | null;
     }) => (await apiClient.put<Observation>(`/observations/${id}/review`, { status, note })).data,
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: KEY }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: KEY });
+      void qc.invalidateQueries({ queryKey: PROBLEM_COUNTERS_KEY });
+    },
   });
 }
 
@@ -66,7 +78,11 @@ export function useDeleteObservation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => { await apiClient.delete(`/observations/${id}`); },
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: KEY }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: KEY });
+      // Удаление неразобранного замечания уменьшает «Требует разбора» ровно так же, как разбор.
+      void qc.invalidateQueries({ queryKey: PROBLEM_COUNTERS_KEY });
+    },
   });
 }
 

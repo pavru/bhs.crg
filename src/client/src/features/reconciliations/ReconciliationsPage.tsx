@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import {
   Plus, Play, AlertTriangle, CheckCircle2, CircleSlash, History, Scale, Bot, FileSpreadsheet, Link2,
 } from 'lucide-react';
@@ -129,6 +130,23 @@ export function ReconciliationsPage() {
   const [view, setView] = useState<'reconciliation' | 'observations' | 'aliases'>('reconciliation');
   // Связывание позиций: выбираем ровно две несопоставленные находки.
   const [linking, setLinking] = useState<string[]>([]);
+
+  /**
+   * Вход снаружи: `?id=<сверка>` и `?view=observations|aliases` (#731). Вкладка «Проблемы»
+   * комплекта отсылает сюда за тем, чего там нет — историей прогонов, алиасами, чисткой журнала, —
+   * и приводить на пустой экран «Выберите сверку» после явного «Открыть в „Сверке“» нельзя.
+   *
+   * Эффектом, а не только начальным значением состояния: смена одной строки запроса компонент не
+   * размонтирует, и вторая такая ссылка подряд иначе ничего бы не сделала. Дальше выбор ведёт
+   * обычное состояние — держать его в адресе целиком эта страница не умеет.
+   */
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const id = searchParams.get('id');
+    const requested = searchParams.get('view');
+    if (requested === 'observations' || requested === 'aliases') setView(requested);
+    else if (id) { setView('reconciliation'); setSelectedId(id); setRunId(null); }
+  }, [searchParams]);
 
   const { data: items = [], isLoading } = useReconciliations();
   const { data: observations = [] } = useObservations();
