@@ -2,13 +2,21 @@
 <html lang="ru" data-theme="light">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- ?v — метка версии знака (issue #728). Иконки лежат в public и мимо хэширования Vite, а
+         nginx отдаёт их без Cache-Control: браузер и Chrome в своей базе фавиконов держали бы
+         прежнюю картинку у всех, кто уже заходил, то есть ровно у тех, для кого ребрендинг и
+         делается. Меняете картинки — поднимите v ЗДЕСЬ и в manifest.webmanifest. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BHS.CRG</title>
     <!-- PWA: устанавливаемое приложение / ярлык Chrome в отдельном окне (без service worker) -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#1d5fb0" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <!-- Бирюза знака BimHouse, а не синий интерфейса (issue #728): цвет строки браузера и splash
+         PWA — это витрина бренда, и разъезжаться со знаком на иконке ей нельзя. -->
+    <meta name="theme-color" content="#109e92" />
+    <!-- Отдельный файл, а не icon-192: iOS не маскирует прозрачность, а заливает её чёрным, и
+         иконке нужен собственный фон с полями под системное скругление. -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
     <!-- Тема до первой отрисовки. Отдельным файлом, а не инлайном: см. public/theme-init.js -->
     <script src="/theme-init.js"></script>
   </head>
