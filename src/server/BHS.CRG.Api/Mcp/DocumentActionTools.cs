@@ -17,7 +17,8 @@ namespace BHS.CRG.Api.Mcp;
 /// вывода: это то, что с ним делают в любом случае.
 /// </summary>
 /// <param name="Severity">Error / Warning. Error блокирует генерацию, Warning — нет.</param>
-/// <param name="Code">Вид проблемы: <c>missing-required</c>, <c>leftover-ref</c>, <c>value-type</c> и т.п.</param>
+/// <param name="Code">Вид проблемы: <c>missing-required</c>, <c>leftover-ref</c> (цель ссылки
+/// удалена), <c>ref-depth-limit</c> (цель цела, резолвер не дошёл), <c>value-type</c> и т.п.</param>
 /// <param name="Count">Сколько раз проблема встретилась — по нему видно, это единичный случай или
 /// системная беда всей таблицы.</param>
 /// <param name="Paths">Адреса проблемных мест. По умолчанию несколько первых: путей столько же,

@@ -16,9 +16,18 @@ namespace BHS.CRG.Infrastructure.Generation;
 /// </summary>
 public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEvaluator) : IEntityResolver
 {
-    // Максимальная глубина рекурсивного разворачивания вложенных ссылок (защита от патологически
-    // глубоких структур). Ортогональна allowInstanceRefs (защита от циклов по документам).
+    // Предел ЦЕПОЧКИ ССЫЛОК: сколько переходов ref→ref разворачиваем подряд. Считается только на
+    // переходах, а не на вложенности JSON (issue #723): раньше счётчик был один на оба, и каждая
+    // развёрнутая ссылка съедала две единицы (заход внутрь резолвнутого объекта + обход его полей),
+    // из-за чего живая цепочка «строка источника → документ → персона → приказ → организация»
+    // упиралась в предел на последнем звене, а сканер выдавал обрыв за удалённую запись.
+    // Ортогонален allowInstanceRefs (защита от циклов по документам).
     private const int MaxRefDepth = 8;
+
+    // Предел вложенности САМОГО JSON — защита от патологически глубоких структур (рекурсия обхода).
+    // Отдельный и с большим запасом: обычные реквизиты в него не упираются, и расходовать на него
+    // бюджет ссылок незачем.
+    private const int MaxNodeDepth = 64;
 
     public async Task<GenerationContext> ResolveAsync(DocumentView instance, bool keepRefProvenance = false,
         CancellationToken ct = default)
@@ -95,7 +104,8 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
         foreach (var key in ctx.Data.Keys.ToList())
         {
             if (ctx.Data[key] is not JsonElement el) continue;
-            ctx.Set(key, await ResolveNode(el, scope, depth: 0, allowInstanceRefs: true, keepRefProvenance, ct));
+            ctx.Set(key, await ResolveNode(el, scope, refDepth: 0, nodeDepth: 0, allowInstanceRefs: true,
+                keepRefProvenance, ct));
         }
     }
 
@@ -157,28 +167,33 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
 
     /// <summary>
     /// Единая точка разбора $ref: обходит произвольное JSON-дерево (объекты/массивы на любой
-    /// глубине — раньше это были три разошедшиеся копии). <paramref name="depth"/> — общий предел
-    /// глубины графа; <paramref name="allowInstanceRefs"/> — разрешено ли на этом шаге разворачивать
-    /// instance-ссылки (становится false внутри уже развёрнутого instance — один переход по
-    /// документу, защита от циклов A→B→C).
+    /// глубине — раньше это были три разошедшиеся копии). <paramref name="refDepth"/> — длина уже
+    /// пройденной цепочки ссылок, <paramref name="nodeDepth"/> — вложенность самого JSON (пределы
+    /// раздельные, см. константы); <paramref name="allowInstanceRefs"/> — разрешено ли на этом шаге
+    /// разворачивать instance-ссылки (становится false внутри уже развёрнутого instance — один
+    /// переход по документу, защита от циклов A→B→C).
     /// </summary>
-    private async Task<JsonElement> ResolveNode(JsonElement node, ScopeChain scope, int depth,
+    private async Task<JsonElement> ResolveNode(JsonElement node, ScopeChain scope, int refDepth, int nodeDepth,
         bool allowInstanceRefs, bool keepRefProvenance, CancellationToken ct)
     {
-        if (depth >= MaxRefDepth) return node.Clone();
+        if (nodeDepth >= MaxNodeDepth) return MarkIfRef(node);
 
         switch (node.ValueKind)
         {
             case JsonValueKind.Object when node.TryGetProperty("$ref", out var refTypeProp):
-                return await ResolveRefObject(node, refTypeProp.GetString(), scope, depth, allowInstanceRefs,
-                    keepRefProvenance, ct);
+                // Бюджет цепочки исчерпан — ссылку оставляем сырой, но помечаем ПОЧЕМУ: иначе сканер
+                // прочтёт её как ссылку на удалённую запись и пошлёт искать то, чего не терялось.
+                return refDepth >= MaxRefDepth
+                    ? MarkDepthLimited(node)
+                    : await ResolveRefObject(node, refTypeProp.GetString(), scope, refDepth, nodeDepth,
+                        allowInstanceRefs, keepRefProvenance, ct);
 
             case JsonValueKind.Object:
             {
                 var dict = new Dictionary<string, JsonElement>();
                 foreach (var prop in node.EnumerateObject())
-                    dict[prop.Name] = await ResolveNode(prop.Value, scope, depth + 1, allowInstanceRefs,
-                        keepRefProvenance, ct);
+                    dict[prop.Name] = await ResolveNode(prop.Value, scope, refDepth, nodeDepth + 1,
+                        allowInstanceRefs, keepRefProvenance, ct);
                 return JsonSerializer.SerializeToElement(dict);
             }
 
@@ -186,7 +201,8 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
             {
                 var list = new List<JsonElement>();
                 foreach (var item in node.EnumerateArray())
-                    list.Add(await ResolveNode(item, scope, depth + 1, allowInstanceRefs, keepRefProvenance, ct));
+                    list.Add(await ResolveNode(item, scope, refDepth, nodeDepth + 1, allowInstanceRefs,
+                        keepRefProvenance, ct));
                 return JsonSerializer.SerializeToElement(list);
             }
 
@@ -195,9 +211,29 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
         }
     }
 
+    /// <summary>Пометка «дальше не пошли сами» — только на $ref-узле (остальное не ссылка).</summary>
+    private static JsonElement MarkIfRef(JsonElement node)
+        => node.ValueKind == JsonValueKind.Object && node.TryGetProperty("$ref", out _)
+            ? MarkDepthLimited(node)
+            : node.Clone();
+
+    /// <summary>Сырая ссылка + причина отказа (issue #723) — её читает <c>ResolutionScanner</c>.</summary>
+    private static JsonElement MarkDepthLimited(JsonElement node)
+        => WithMeta(node, RefUnresolved.Key, RefUnresolved.DepthLimit);
+
+    /// <summary>Снимает пометку предела: этот проход до ссылки дошёл, и прежняя причина неверна.</summary>
+    private static JsonElement WithoutDepthMark(JsonElement node)
+        => node.TryGetProperty(RefUnresolved.Key, out _) ? WithoutMeta(node, RefUnresolved.Key) : node;
+
     private async Task<JsonElement> ResolveRefObject(JsonElement node, string? refType, ScopeChain scope,
-        int depth, bool allowInstanceRefs, bool keepRefProvenance, CancellationToken ct)
+        int refDepth, int nodeDepth, bool allowInstanceRefs, bool keepRefProvenance, CancellationToken ct)
     {
+        // Пометку прошлого прохода снимаем НА ВХОДЕ: генерация и проверка гоняют резолв дважды, и
+        // второй проход стартует с нулевой цепочкой. Он может дойти до узла, который первый пометил
+        // пределом, — и упереться уже в другое: цель удалена. Донеси пометку до `node.Clone()` в
+        // ветках ниже, сканер сказал бы «укоротите цепочку» про запись, которой попросту нет.
+        node = WithoutDepthMark(node);
+
         switch (refType)
         {
             // Запись каталога (с _baseRef-наследованием) → заходим внутрь, её собственные ссылки тоже разворачиваем.
@@ -206,7 +242,8 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
             {
                 var resolved = await ResolveEntryByIdAsync(entryId, scope, [], ct);
                 if (resolved.ValueKind == JsonValueKind.Undefined) return node.Clone();
-                var recursed = await ResolveNode(resolved, scope, depth + 1, allowInstanceRefs, keepRefProvenance, ct);
+                var recursed = await ResolveNode(resolved, scope, refDepth + 1, nodeDepth + 1, allowInstanceRefs,
+                    keepRefProvenance, ct);
                 // Фактический тип записи каталога (issue #344) — для корректного instance-of на подтипах
                 // (поле «Организация», запись «Подрядчик»). Application развернёт _typeId в _type.
                 var typeId = await db.DomainObjects.Where(o => o.Id == entryId)
@@ -237,7 +274,8 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
                 when allowInstanceRefs
                      && node.TryGetProperty("instanceId", out var docInstIdProp) && Guid.TryParse(docInstIdProp.GetString(), out var docInstId):
             {
-                var resolved = await ResolveDocumentInstanceAsync(docInstId, scope, depth, keepRefProvenance, ct);
+                var resolved = await ResolveDocumentInstanceAsync(docInstId, scope, refDepth, nodeDepth,
+                    keepRefProvenance, ct);
                 if (resolved.ValueKind == JsonValueKind.Undefined) return node.Clone();
                 return keepRefProvenance
                     ? WithMeta(resolved, RefProvenance.InstanceIdKey, docInstId.ToString())
@@ -288,13 +326,23 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
         return JsonSerializer.SerializeToElement(dict);
     }
 
+    /// <summary>Копия объекта без служебного ключа.</summary>
+    private static JsonElement WithoutMeta(JsonElement obj, string key)
+    {
+        if (obj.ValueKind != JsonValueKind.Object) return obj;
+        var dict = new Dictionary<string, JsonElement>();
+        foreach (var p in obj.EnumerateObject())
+            if (p.Name != key) dict[p.Name] = p.Value.Clone();
+        return JsonSerializer.SerializeToElement(dict);
+    }
+
     /// <summary>
     /// Загружает DocumentInstance и разворачивает его поля той же единой обработкой, но с
     /// <c>allowInstanceRefs: false</c> — вложенные instance-ссылки дальше не разворачиваются
     /// (защита от циклов), а массивы/таблицы внутри обрабатываются как везде (это чинит баг B).
     /// </summary>
-    private async Task<JsonElement> ResolveDocumentInstanceAsync(Guid instanceId, ScopeChain scope, int depth,
-        bool keepRefProvenance, CancellationToken ct)
+    private async Task<JsonElement> ResolveDocumentInstanceAsync(Guid instanceId, ScopeChain scope, int refDepth,
+        int nodeDepth, bool keepRefProvenance, CancellationToken ct)
     {
         var obj = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
             .FirstOrDefaultAsync(o => o.Id == instanceId && o.ScopeLevel == CatalogScope.Set
@@ -306,7 +354,8 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
         var dict = new Dictionary<string, JsonElement>();
         foreach (var (k, v) in subCtx.Data)
             if (v is JsonElement je)
-                dict[k] = await ResolveNode(je, scope, depth + 1, allowInstanceRefs: false, keepRefProvenance, ct);
+                dict[k] = await ResolveNode(je, scope, refDepth + 1, nodeDepth + 1, allowInstanceRefs: false,
+                    keepRefProvenance, ct);
 
         // Фактический тип развёрнутого документа-ссылки (issue #344) — Application развернёт в _type.
         dict[TypeStamper.TypeIdKey] = JsonSerializer.SerializeToElement(obj.CompositeTypeId.ToString());

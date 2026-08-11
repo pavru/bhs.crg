@@ -274,7 +274,10 @@ export interface ResolutionDiagnostic {
   severity: 'error' | 'warning';
   path: string;
   message: string;
-  /** Вид проблемы (issue #332): "leftover-ref" — висячая ссылка (цель удалена), "missing-required" — пустое обязательное. */
+  /**
+   * Вид проблемы (issue #332): "leftover-ref" — висячая ссылка (цель удалена), "ref-depth-limit" —
+   * ссылка цела, но резолвер до неё не дошёл (issue #723), "missing-required" — пустое обязательное.
+   */
   code?: string;
 }
 
@@ -292,9 +295,15 @@ export function useResolutionDiagnostics(instanceId: string | undefined, enabled
   });
 }
 
-/** Пути битых ссылок (leftover-ref) из диагностики — для пометки полей. */
+/**
+ * Пути неразрешённых ссылок из диагностики — для пометки полей. Оба вида: цель удалена
+ * (leftover-ref) и резолвер не дошёл (ref-depth-limit, issue #723). Причины разные, а поле в обоих
+ * случаях показывает не то, что в нём должно быть, — значит помечаем.
+ */
+const BROKEN_REF_CODES = new Set(['leftover-ref', 'ref-depth-limit']);
+
 export function brokenRefPaths(diagnostics: ResolutionDiagnostic[] | undefined): Set<string> {
-  return new Set((diagnostics ?? []).filter(d => d.code === 'leftover-ref').map(d => d.path));
+  return new Set((diagnostics ?? []).filter(d => BROKEN_REF_CODES.has(d.code ?? '')).map(d => d.path));
 }
 
 export type PreviewResult =
