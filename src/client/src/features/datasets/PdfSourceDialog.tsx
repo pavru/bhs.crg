@@ -55,7 +55,7 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
       }>
       <div className="space-y-4 min-w-[420px]">
         <TextField label="Название" value={name} onChange={e => setName(e.target.value)} autoFocus
-          hint={profile === 'invoice' ? 'Счёт на оплату' : 'Реестр листов'} />
+          hint={profile === 'invoice' ? 'Например: Счёт на оплату' : 'Например: Реестр листов'} />
 
         <Select label="Профиль распознавания" value={profile}
           onValueChange={v => setProfile(v as 'gost-titleblock' | 'invoice')}>

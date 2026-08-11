@@ -202,7 +202,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
       <div className="space-y-4 min-w-[520px]">
         {!nothingToPick && (
           <TextField label="Название" value={name} onChange={e => setName(e.target.value)}
-            hint="Позиции спецификации" />
+            hint="Например: Позиции спецификации" />
         )}
 
         {picksCandidate ? (
@@ -221,22 +221,30 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
               </p>
             ) : (
               <>
-                {/* Поиск появляется, когда список перестаёт читаться глазами (issue #627): общих
-                    данных столько же, сколько составных типов, и выпадающий список из десятков
-                    строк заставляет прокручивать вместо того, чтобы назвать нужное. */}
-                {readyCandidates.length > CANDIDATE_SEARCH_FROM && (
-                  <TextField label="Поиск консолидации" value={candidateQuery}
-                    onChange={e => setCandidateQuery(e.target.value)}
-                    hint={`Показано ${shownCandidates.length} из ${readyCandidates.length}`} />
-                )}
-                <Select label={isSystem ? 'Данные системы' : 'Данные набора'} value={sheetOrPath || undefined} placeholder="— выберите —"
-                  onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
-                  {shownCandidates.map(c => (
-                    <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>
-                      {c.name} · {c.rowCount} строк{c.warning ? ' · с оговоркой' : ''}
-                    </SelectItem>
-                  ))}
-                </Select>
+                {/* space-y-3 на ПОЛЯХ, а не на всей ветке: ритм диалога задаёт space-y-4 выше и на
+                    вложенную группу не распространяется, а метка outlined-поля выступает над его
+                    рамкой (см. OutlinedField) — стоящие вплотную поля накладываются: счётчик
+                    «Показано N из M» под поиском попадал ровно на метку селекта (issue #727).
+                    Подписи ниже в группу не входят: им положено держаться за своё поле вплотную,
+                    а не идти в ритме полей. */}
+                <div className="space-y-3">
+                  {/* Поиск появляется, когда список перестаёт читаться глазами (issue #627): общих
+                      данных столько же, сколько составных типов, и выпадающий список из десятков
+                      строк заставляет прокручивать вместо того, чтобы назвать нужное. */}
+                  {readyCandidates.length > CANDIDATE_SEARCH_FROM && (
+                    <TextField label="Поиск консолидации" value={candidateQuery}
+                      onChange={e => setCandidateQuery(e.target.value)}
+                      hint={`Показано ${shownCandidates.length} из ${readyCandidates.length}`} />
+                  )}
+                  <Select label={isSystem ? 'Данные системы' : 'Данные набора'} value={sheetOrPath || undefined} placeholder="— выберите —"
+                    onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
+                    {shownCandidates.map(c => (
+                      <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>
+                        {c.name} · {c.rowCount} строк{c.warning ? ' · с оговоркой' : ''}
+                      </SelectItem>
+                    ))}
+                  </Select>
+                </div>
                 {shownCandidates.length === 0 && (
                   <p className="text-xs text-fg4 mt-1">Под поиск ничего не подходит.</p>
                 )}
