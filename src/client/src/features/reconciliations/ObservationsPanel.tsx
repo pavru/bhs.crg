@@ -1,17 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Bot, Check, X, RotateCcw, FileText, Layers } from 'lucide-react';
-import { Link } from 'react-router';
+import { Bot } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
-import { Modal } from '@/shared/ui/Modal';
-import { TextField } from '@/shared/ui/TextField';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { useToast } from '@/shared/ui/Toast';
 import { useListConstructions } from '@/shared/api/constructions';
 import {
-  useObservations, useReviewObservation,
+  useObservations,
   SEVERITY_LABELS, OBSERVATION_STATUS_LABELS, isUnreviewed,
   type Observation, type ObservationStatus,
 } from '@/shared/api/observations';
+import { ObservationReviewDialog, ObservationReferences } from './ObservationReviewDialog';
 
 /**
  * Журнал замечаний внешнего анализа (issue #442).
@@ -34,93 +31,6 @@ const STATUS_STYLE: Record<ObservationStatus, string> = {
   Retracted: 'bg-warning-subtle text-warning',
 };
 
-/**
- * Ссылки на первоисточник: без перехода проверять утверждение неудобно, а непроверенное — мнение.
- *
- * Документ открывается deep-link'ом внутрь комплекта, поэтому нужна ещё и стройка: она вычисляется по
- * области замечания. Не нашлась — показываем идентификатор текстом, но НЕ рисуем ссылку: битая ссылка
- * хуже её отсутствия.
- */
-function References({ o, setPath }: { o: Observation; setPath: string | null }) {
-  const docs = o.references.documentIds ?? [];
-  const sourceId = o.references.sourceId;
-  const rows = o.references.rows ?? [];
-  if (docs.length === 0 && !sourceId && !o.references.note) return null;
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px]">
-      {docs.map(id => setPath ? (
-        <Link key={id} to={`${setPath}?doc=${id}`}
-          className="inline-flex items-center gap-1 text-brand hover:underline">
-          <FileText size={11} /> документ {id.slice(0, 8)}
-        </Link>
-      ) : (
-        <span key={id} className="inline-flex items-center gap-1 text-fg4">
-          <FileText size={11} /> документ {id.slice(0, 8)}
-        </span>
-      ))}
-      {sourceId && (
-        <Link to="/datasets" className="inline-flex items-center gap-1 text-brand hover:underline">
-          <Layers size={11} /> источник {sourceId.slice(0, 8)}
-          {rows.length > 0 && <span className="text-fg4">· строк {rows.length}</span>}
-        </Link>
-      )}
-      {o.references.note && <span className="text-fg4">{o.references.note}</span>}
-    </div>
-  );
-}
-
-function ReviewDialog({ observation, setPath, onClose }: {
-  observation: Observation; setPath: string | null; onClose: () => void;
-}) {
-  const [note, setNote] = useState(observation.reviewNote ?? '');
-  const review = useReviewObservation();
-  const toast = useToast();
-
-  async function decide(status: ObservationStatus) {
-    await review.mutateAsync({ id: observation.id, status, note: note.trim() || null });
-    onClose();
-    toast.success(status === 'Rejected'
-      // Примечание к отклонению читает агент — иначе он сообщит то же самое в следующий раз.
-      ? 'Отклонено. Причину увидит агент при следующем анализе'
-      : status === 'Confirmed' ? 'Подтверждено' : 'Возвращено в работу');
-  }
-
-  return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Разбор замечания" wide
-      footer={
-        <div className="flex items-center gap-2">
-          {observation.status !== 'New' && (
-            <Button disabled={review.isPending} onClick={() => decide('New')}>
-              <RotateCcw size={14} /> Вернуть в работу
-            </Button>
-          )}
-          <span className="flex-1" />
-          <Button disabled={review.isPending} onClick={onClose}>Отмена</Button>
-          <Button danger disabled={review.isPending} onClick={() => decide('Rejected')}>
-            <X size={14} /> Отклонить
-          </Button>
-          <Button variant="filled" loading={review.isPending} onClick={() => decide('Confirmed')}>
-            <Check size={14} /> Подтвердить
-          </Button>
-        </div>
-      }>
-      <div className="space-y-4">
-        <div>
-          <div className="text-sm font-medium text-fg1">{observation.title}</div>
-          {observation.detail && (
-            <p className="text-sm text-fg2 mt-1 whitespace-pre-wrap">{observation.detail}</p>
-          )}
-          <References o={observation} setPath={setPath} />
-        </div>
-
-        <TextField label="Примечание" value={note} onChange={e => setNote(e.target.value)}
-          hint="При отклонении объясните, почему это не ошибка — это прочитает агент и не повторит замечание" />
-      </div>
-    </Modal>
-  );
-}
-
 function ObservationRow({ o, setPath, onReview }: {
   o: Observation; setPath: string | null; onReview: (o: Observation) => void;
 }) {
@@ -134,7 +44,7 @@ function ObservationRow({ o, setPath, onReview }: {
         <div className="min-w-0 flex-1">
           <div className="text-sm text-fg1">{o.title}</div>
           {o.detail && <p className="text-xs text-fg3 mt-0.5 line-clamp-3">{o.detail}</p>}
-          <References o={o} setPath={setPath} />
+          <ObservationReferences o={o} setPath={setPath} />
           {o.reviewNote && (
             <p className="text-[11px] text-fg3 mt-1">
               {OBSERVATION_STATUS_LABELS[o.status]}: {o.reviewNote}
@@ -213,7 +123,7 @@ export function ObservationsPanel() {
       </div>
 
       {reviewing && (
-        <ReviewDialog observation={reviewing} setPath={pathOf(reviewing)}
+        <ObservationReviewDialog observation={reviewing} setPath={pathOf(reviewing)}
           onClose={() => setReviewing(null)} />
       )}
     </div>

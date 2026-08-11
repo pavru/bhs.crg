@@ -124,7 +124,14 @@ export interface Finding {
   decision: FindingDecision | null;
 }
 
-const KEY = ['reconciliations'] as const;
+/**
+ * Префикс кэша подсистемы. Экспортируется потому, что под ним лежат не только сверки: счётчики
+ * проблем (`related`, `summary`) считает сервер здесь же, а меняет их и разбор ЗАМЕЧАНИЯ —
+ * мутациям журнала (`shared/api/observations.ts`) нужно гасить этот ключ. Со своей копией строки
+ * там переименование ключа здесь компилировалось бы молча, а бейджи снова протухали бы (#731).
+ */
+export const RECONCILIATION_KEY = ['reconciliations'] as const;
+const KEY = RECONCILIATION_KEY;
 
 export function useReconciliations(scope?: string, scopeId?: string) {
   return useQuery({
