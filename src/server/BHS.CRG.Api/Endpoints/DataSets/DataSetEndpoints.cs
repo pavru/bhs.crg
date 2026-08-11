@@ -194,7 +194,8 @@ public static class DataSetEndpoints
         g.MapPut("/sources/{sourceId:guid}/materialization", async (
             Guid sourceId, MaterializationRequest req, IDataSetService svc, CancellationToken ct) =>
         {
-            var result = await svc.SetMaterializationAsync(sourceId, req.TypeId, req.Mapping, req.Discriminator, ct);
+            var result = await svc.SetMaterializationAsync(
+                sourceId, req.TypeId, req.Mapping, req.Discriminator, req.ByIdColumn, ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
 
@@ -204,7 +205,7 @@ public static class DataSetEndpoints
             Guid sourceId, MaterializePreviewRequest req, IDataSetService svc, CancellationToken ct) =>
         {
             var result = await svc.MaterializePreviewAsync(
-                sourceId, req.MaxRows ?? 50, req.TypeId, req.Mapping, req.Discriminator, ct);
+                sourceId, req.MaxRows ?? 50, req.TypeId, req.Mapping, req.Discriminator, req.ByIdColumn, ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
 
@@ -434,10 +435,12 @@ public static class DataSetEndpoints
     private record SourceRequest(string Name, string SheetOrPath, ColumnExprDto[]? ColumnExpressions);
     private record RenameSourceRequest(string Name);
     private record DuplicateSourceRequest(string? Name);
+    /// <param name="ByIdColumn">Колонка с Ид существующего документа (issue #725): непустая = строка
+    /// целиком становится ссылкой на документ, маппинг в этом режиме не задаётся.</param>
     private record MaterializationRequest(Guid? TypeId, Dictionary<string, string>? Mapping,
-        MaterializeDiscriminatorConfig? Discriminator);
+        MaterializeDiscriminatorConfig? Discriminator, string? ByIdColumn);
     private record MaterializePreviewRequest(Guid? TypeId, Dictionary<string, string>? Mapping, int? MaxRows,
-        MaterializeDiscriminatorConfig? Discriminator);
+        MaterializeDiscriminatorConfig? Discriminator, string? ByIdColumn);
     private record ProcessingRequest(object? RowFilter, object? ComputedColumns, object? SortSpec);
     private record ProcessingTemplateRequest(
         string Name, string? SheetOrPath, ColumnExprDto[]? ColumnExpressions,

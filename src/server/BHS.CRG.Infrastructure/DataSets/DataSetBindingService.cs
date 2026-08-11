@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
@@ -77,6 +77,17 @@ public class DataSetBindingService(
             {
                 var rows = await rowLoader.LoadRowsAsync(binding.Source, ct);
 
+                // Материализация ссылкой на существующий документ (issue #725) — до маппинга, его в
+                // этом режиме нет. Показываем НАИМЕНОВАНИЯ документов: идентификатор в таблице не
+                // говорит человеку ничего, а именно сюда он идёт проверять, те ли документы уедут.
+                if (binding.Source.MaterializeTypeId is not null
+                    && DataSetMappingValue.IsEmptyMapping(binding.Mapping)
+                    && MaterializeByIdMode.IsOn(binding.Source.MaterializeByIdColumn))
+                {
+                    results.Add(await PreviewDocumentRefsAsync(binding, rows, ct));
+                    continue;
+                }
+
                 // Материализованный источник (issue #19/#23): привязка без своего маппинга берёт маппинг
                 // с источника — как и резолвер генерации. Иначе превью пустое и материалы/сертификаты не
                 // извлекаются на вкладке «Документы качества».
@@ -150,6 +161,51 @@ public class DataSetBindingService(
             }
         }
         return results;
+    }
+
+    /// <summary>
+    /// Предпросмотр материализации ссылкой на существующий документ (issue #725): по строке на
+    /// документ, значение — наименование, а для отсутствующего документа сказано, что его нет.
+    /// Пропущенные строки (пустая ячейка, не-Ид) показываются числом с причиной — как и у генерации.
+    /// </summary>
+    private async Task<BindingPreviewDto> PreviewDocumentRefsAsync(
+        DataSetBinding binding,
+        IReadOnlyList<IReadOnlyDictionary<string, string?>> rows,
+        CancellationToken ct)
+    {
+        var column = binding.Source.MaterializeByIdColumn!;
+
+        if (binding.TargetFieldKey is null)
+            return new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
+                "error", null, rows.Count, new { },
+                $"Источник «{binding.Source.Name}» материализован ссылкой на существующий документ — " +
+                "такую строку можно положить только в поле-документ или в список документов, а не в отдельные поля.");
+
+        var ids = new List<Guid>();
+        var skipped = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var row in rows)
+        {
+            var (id, reason, _) = MaterializeByIdMode.ReadId(row, column);
+            if (id is null) skipped[reason!] = skipped.GetValueOrDefault(reason!) + 1;
+            else ids.Add(id.Value);
+        }
+
+        var labels = await MaterializeByIdMode.ResolveLabelsAsync(db, ids.Distinct().ToList(), ct);
+        var mapped = ids
+            .Select(id => new Dictionary<string, object?>
+            {
+                ["Документ"] = labels.TryGetValue(id, out var label) ? label : MaterializeByIdMode.NotFoundLabel,
+            })
+            .ToList();
+
+        var warning = skipped.Count == 0
+            ? null
+            : "Строк пропущено при материализации: " + skipped.Values.Sum() + " — "
+              + string.Join("; ", skipped.OrderByDescending(p => p.Value)
+                  .Select(p => $"{p.Value} — {MaterializeSkipReason.Describe(p.Key)}"));
+
+        return new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
+            "tabular", binding.TargetFieldKey, mapped.Count, mapped, warning);
     }
 
     /// <summary>Тот же выбор варианта, что у генерации (issue #716); null — правила нет.</summary>

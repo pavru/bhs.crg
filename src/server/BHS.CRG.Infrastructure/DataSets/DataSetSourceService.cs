@@ -278,7 +278,7 @@ public class DataSetSourceService(
     /// </summary>
     public async Task<DataSetSourceDto?> SetMaterializationAsync(
         Guid sourceId, Guid? typeId, Dictionary<string, string>? mapping,
-        MaterializeDiscriminatorConfig? discriminator, CancellationToken ct)
+        MaterializeDiscriminatorConfig? discriminator, string? byIdColumn, CancellationToken ct)
     {
         var source = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
@@ -289,14 +289,14 @@ public class DataSetSourceService(
             var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
             if (!typesById.TryGetValue(id, out var type))
                 throw new NotFoundException($"Тип {id} не найден.");
-            MaterializeConfigValidator.Validate(type, effectiveMapping, discriminator, typesById);
+            MaterializeConfigValidator.Validate(type, effectiveMapping, discriminator, typesById, byIdColumn);
         }
 
         var mappingJson = typeId is null ? null : JsonSerializer.Serialize(effectiveMapping);
         var discriminatorJson = typeId is null || discriminator is null
             ? null
             : JsonSerializer.Serialize(discriminator);
-        source.SetMaterialization(typeId, mappingJson, discriminatorJson);
+        source.SetMaterialization(typeId, mappingJson, discriminatorJson, byIdColumn);
         await db.SaveChangesAsync(ct);
         return DataSetDtoMapper.MapSource(source);
     }
@@ -308,7 +308,7 @@ public class DataSetSourceService(
     /// </summary>
     public async Task<MaterializePreviewDto?> MaterializePreviewAsync(
         Guid sourceId, int maxRows, Guid? typeId, Dictionary<string, string>? mapping,
-        MaterializeDiscriminatorConfig? discriminator, CancellationToken ct)
+        MaterializeDiscriminatorConfig? discriminator, string? byIdColumn, CancellationToken ct)
     {
         var source = await db.DataSetSources.Include(s => s.File).AsNoTracking().FirstOrDefaultAsync(s => s.Id == sourceId, ct);
         if (source == null) return null;
@@ -328,12 +328,18 @@ public class DataSetSourceService(
         var effDiscriminator = mapping is not null
             ? discriminator
             : MaterializeVariantSelector.ParseConfig(source.MaterializeDiscriminator);
+        // Колонка режима «по Ид» (issue #725) — живая по тому же признаку: диалог, ведущий настройку,
+        // присылает маппинг, и переключение режима обязано быть видно в предпросмотре сразу.
+        var effByIdColumn = mapping is not null ? byIdColumn : source.MaterializeByIdColumn;
 
         try
         {
             var rows = await rowLoader.LoadRowsAsync(source, ct);
             var take = maxRows <= 0 ? 50 : maxRows;
             var page = rows.Take(take).ToList();
+
+            if (MaterializeByIdMode.IsOn(effByIdColumn))
+                return await ByIdPreviewAsync(effTypeId, effByIdColumn!, page, rows.Count, ct);
 
             MaterializeVariantSelector? selector = null;
             if (effDiscriminator is not null && !string.IsNullOrWhiteSpace(effDiscriminator.Column))
@@ -388,12 +394,93 @@ public class DataSetSourceService(
                 variants.Add(variantKey);
             }
 
+            // Ссылки на документы — наименованиями, а не идентификаторами (issue #715, пункт проверки,
+            // и issue #725). Пока превью отдавало сырой GUID, «ссылка на удалённый документ» выглядела
+            // здесь ровно так же, как рабочая, — и расходились они только при генерации.
+            if (effTypeId is { } previewTypeId)
+                await LabelDocRefCellsAsync(mapped, previewTypeId, ct);
+
             return new MaterializePreviewDto(effTypeId, rows.Count, mapped, null, variants, skipped);
         }
         catch (Exception ex)
         {
             return new MaterializePreviewDto(effTypeId, 0, [], ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Предпросмотр режима «существующий документ по Ид» (issue #725): строка = один документ,
+    /// показанный наименованием; отсутствующий по идентификатору назван отсутствующим. Строки без
+    /// идентификатора перечисляются поимённо — как и пропуски дискриминатора, и ровно затем же.
+    /// </summary>
+    private async Task<MaterializePreviewDto> ByIdPreviewAsync(
+        Guid? typeId, string column,
+        IReadOnlyList<IReadOnlyDictionary<string, string?>> page, int totalRows, CancellationToken ct)
+    {
+        var ids = new List<Guid>();
+        var skipped = new List<MaterializeSkippedRowDto>();
+        var rowIndex = 0;
+
+        foreach (var row in page)
+        {
+            rowIndex++;
+            var (id, reason, cell) = MaterializeByIdMode.ReadId(row, column);
+            if (id is null)
+                skipped.Add(new MaterializeSkippedRowDto(
+                    rowIndex, cell, reason!, MaterializeSkipReason.Describe(reason!)));
+            else ids.Add(id.Value);
+        }
+
+        var labels = await MaterializeByIdMode.ResolveLabelsAsync(db, [.. ids.Distinct()], ct);
+        var rows = ids
+            .Select(id => new Dictionary<string, object?>
+            {
+                ["Документ"] = labels.TryGetValue(id, out var label) ? label : MaterializeByIdMode.NotFoundLabel,
+            })
+            .ToList();
+
+        return new MaterializePreviewDto(typeId, totalRows, rows, null, null, skipped);
+    }
+
+    /// <summary>
+    /// Ячейки <c>doc-ref</c>-полей — наименованием документа вместо идентификатора. Значения, не
+    /// разобравшиеся в идентификатор, остаются как есть: «в колонке не то» видно только так
+    /// (философия issue #466), и подменять это на «не найден» значило бы назвать другую беду.
+    /// </summary>
+    private async Task LabelDocRefCellsAsync(
+        List<Dictionary<string, object?>> rows, Guid typeId, CancellationToken ct)
+    {
+        if (rows.Count == 0) return;
+
+        var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+        if (!typesById.ContainsKey(typeId)) return;
+
+        var docRefKeys = DocumentTypeSchemaReader.EffectiveFields(typeId, typesById)
+            .Where(f => f.Type == "doc-ref")
+            .Select(f => f.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        if (docRefKeys.Count == 0) return;
+
+        // Идентификаторы всей страницы разрешаются ОДНИМ запросом — построчный дал бы по запросу на
+        // каждый документ реестра.
+        var ids = new List<Guid>();
+        foreach (var row in rows)
+            foreach (var key in docRefKeys)
+                if (CellId(row, key) is { } id) ids.Add(id);
+        if (ids.Count == 0) return;
+
+        var labels = await MaterializeByIdMode.ResolveLabelsAsync(db, [.. ids.Distinct()], ct);
+        foreach (var row in rows)
+            foreach (var key in docRefKeys)
+                if (CellId(row, key) is { } id)
+                    row[key] = labels.TryGetValue(id, out var label)
+                        ? $"🔗 {label}"
+                        : MaterializeByIdMode.NotFoundLabel;
+
+        static Guid? CellId(Dictionary<string, object?> row, string key)
+            => row.TryGetValue(key, out var v) && v is string s && Guid.TryParse(s.Trim(), out var id)
+                ? id
+                : null;
     }
 
     public async Task<DataSetSourceDto> CreateSourceAsync(Guid fileId, CreateSourceInput input, CancellationToken ct)
@@ -630,7 +717,8 @@ public class DataSetSourceService(
             source.ColumnExpressions, source.CachedData);
         copy.SetProcessing(source.RowFilter, source.ComputedColumns, source.SortSpec);
         copy.SetTags(source.Tags);
-        copy.SetMaterialization(source.MaterializeTypeId, source.MaterializeMapping, source.MaterializeDiscriminator);
+        copy.SetMaterialization(source.MaterializeTypeId, source.MaterializeMapping, source.MaterializeDiscriminator,
+            source.MaterializeByIdColumn);
         // file уже отслеживается — см. пояснение в CreateSourceAsync (иначе Modified вместо Added).
         db.DataSetSources.Add(copy);
         await db.SaveChangesAsync(ct);

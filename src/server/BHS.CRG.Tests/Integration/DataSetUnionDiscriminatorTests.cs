@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Documents;
@@ -78,7 +78,7 @@ public class DataSetUnionDiscriminatorTests(IntegrationTestFixture fixture) : IA
             new UploadFileInput(Encoding.UTF8.GetBytes(csv), "docs.csv", "text/csv", "Тест", "System", null), default);
         var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
         var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Документы комплекта", candidate.SheetOrPath, null), default);
-        await svc.SetMaterializationAsync(source.Id, typeId, mapping, discriminator, default);
+        await svc.SetMaterializationAsync(source.Id, typeId, mapping, discriminator, byIdColumn: null, default);
         return source.Id;
     }
 
@@ -229,7 +229,7 @@ public class DataSetUnionDiscriminatorTests(IntegrationTestFixture fixture) : IA
             new MaterializeDiscriminatorConfig("ТипКод", MaterializeDiscriminatorConfig.ByTypeCode,
                 new Dictionary<string, List<Guid>> { ["АОСР"] = [f.AosrTypeId] }));
 
-        var preview = await Svc(scope).MaterializePreviewAsync(sourceId, 50, null, null, null, default);
+        var preview = await Svc(scope).MaterializePreviewAsync(sourceId, 50, null, null, null, null, default);
 
         Assert.NotNull(preview);
         Assert.Null(preview!.Error);
@@ -293,7 +293,7 @@ public class DataSetUnionDiscriminatorTests(IntegrationTestFixture fixture) : IA
         var preview = await Svc(scope).MaterializePreviewAsync(
             sourceId, 50, f.UnionTypeId,
             new Dictionary<string, string> { ["АОСР"] = "Ид" },
-            discriminator: null, default);
+            discriminator: null, byIdColumn: null, default);
 
         Assert.NotNull(preview);
         // Правило не применялось: обе строки на месте, пропущенных нет, варианта у строк нет.

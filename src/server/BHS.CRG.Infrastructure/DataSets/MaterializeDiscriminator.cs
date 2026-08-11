@@ -14,6 +14,9 @@ public static class MaterializeSkipReason
     public const string NoVariant = "no-variant";
     public const string Ambiguous = "ambiguous-variant";
     public const string VariantNotMapped = "variant-not-mapped";
+    /// <summary>Режим «существующий документ по Ид» (issue #725): колонка с Ид пуста / в ней не Ид.</summary>
+    public const string RefIdEmpty = "ref-id-empty";
+    public const string RefIdNotGuid = "ref-id-not-guid";
 
     public static string Describe(string code) => code switch
     {
@@ -23,6 +26,8 @@ public static class MaterializeSkipReason
         NoVariant => "для типа документа не назначен вариант",
         Ambiguous => "тип документа назначен двум вариантам одинаково точно",
         VariantNotMapped => "у выбранного варианта не задан маппинг колонок",
+        RefIdEmpty => "колонка с идентификатором документа пуста",
+        RefIdNotGuid => "в колонке не идентификатор документа",
         _ => code,
     };
 }

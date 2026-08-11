@@ -83,7 +83,8 @@ public static class DataSetDtoMapper
         s.MaterializeTypeId,
         s.MaterializeMapping is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(s.MaterializeMapping),
         bindingCount, live?.Warning,
-        MaterializeVariantSelector.ParseConfig(s.MaterializeDiscriminator));
+        MaterializeVariantSelector.ParseConfig(s.MaterializeDiscriminator),
+        s.MaterializeByIdColumn);
 
     /// <summary>null, если счётчики не запрашивали (одиночная мутация), иначе 0 для источника без привязок.</summary>
     private static int? BindingCountOf(IReadOnlyDictionary<Guid, int>? counts, Guid sourceId)

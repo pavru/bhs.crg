@@ -81,6 +81,23 @@ public class DataSetSource : Entity
     /// </summary>
     public string? MaterializeDiscriminator { get; private set; }
 
+    /// <summary>
+    /// Режим «существующий документ по Ид» (issue #725): имя колонки, несущей идентификатор уже
+    /// существующего документа. Строка источника целиком становится ссылкой
+    /// <c>{"$ref":"instance","instanceId":…}</c>, а не объектом, собранным из колонок; живые данные
+    /// подставляет второй проход <c>EntityResolver</c>. Null — материализация обычная (сборка).
+    ///
+    /// <para><b>Почему отдельной колонкой.</b> Та же причина, что у <see cref="MaterializeDiscriminator"/>:
+    /// «вся строка» — не поле типа, и служебный ключ внутри <see cref="MaterializeMapping"/> пришлось
+    /// бы объяснять всем, кто читает маппинг циклом (генерация, предпросмотр привязки, предпросмотр
+    /// материализации, редактор маппинга). Первый забывший получил бы «всю строку» в качестве поля.</para>
+    ///
+    /// <para>Применим только к типу-документу: у составного типа экземпляров-документов нет, ссылаться
+    /// не на что. Вместе с непустым <see cref="MaterializeMapping"/> не сохраняется — это две разные
+    /// настройки одного и того же (см. <c>MaterializeConfigValidator</c>).</para>
+    /// </summary>
+    public string? MaterializeByIdColumn { get; private set; }
+
     public DataSetFile File { get; private set; } = null!;
     private readonly List<DataSetBinding> _bindings = [];
     public IReadOnlyList<DataSetBinding> Bindings => _bindings.AsReadOnly();
@@ -158,12 +175,17 @@ public class DataSetSource : Entity
     /// строке; null означает «один вариант на все строки». Задаётся ЦЕЛИКОМ вместе с маппингом:
     /// правила и маппинг связаны (правило варианта без маппинга бессмысленно), и раздельное
     /// сохранение оставляло бы источник в состоянии, которого валидатор не пропустил бы.
+    ///
+    /// <paramref name="byIdColumn" /> (issue #725) — колонка с идентификатором существующего
+    /// документа; непустая означает режим «вся строка = ссылка», при котором маппинг пуст.
     /// </summary>
-    public void SetMaterialization(Guid? typeId, string? mappingJson, string? discriminatorJson = null)
+    public void SetMaterialization(Guid? typeId, string? mappingJson, string? discriminatorJson = null,
+        string? byIdColumn = null)
     {
         MaterializeTypeId = typeId;
         MaterializeMapping = typeId is null ? null : (mappingJson ?? "{}");
         MaterializeDiscriminator = typeId is null ? null : discriminatorJson;
+        MaterializeByIdColumn = typeId is null || string.IsNullOrWhiteSpace(byIdColumn) ? null : byIdColumn.Trim();
         TouchUpdatedAt();
     }
 }

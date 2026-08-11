@@ -1,9 +1,10 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Resolution;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Infrastructure.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
@@ -94,6 +95,20 @@ public class DataSetResolver(
             {
                 // Download → parse → transformation → filter → sort (shared with preview via DataSetRowLoader).
                 var rows = await rowLoader.LoadRowsAsync(binding.Source, ct);
+
+                // Материализация ссылкой на существующий документ (issue #725). Проверяем ДО маппинга:
+                // в этом режиме маппинга нет вовсе, и общая ветка отказала бы «маппинг колонок пуст» —
+                // то есть пожаловалась бы на настройку, которой в этом режиме и не должно быть.
+                //
+                // Действует только когда материализация вообще применяется (собственный маппинг
+                // привязки замещает её целиком — то же правило, что у дискриминатора #716).
+                if (binding.Source.MaterializeTypeId is not null
+                    && DataSetMappingValue.IsEmptyMapping(binding.Mapping)
+                    && MaterializeByIdMode.IsOn(binding.Source.MaterializeByIdColumn))
+                {
+                    InjectDocumentRefs(ctx, binding, typeId, rows, await TypesAsync(), diagnostics);
+                    continue;
+                }
 
                 // Материализация на источнике (issue #19): если источник настроен на материализацию, а
                 // привязка не несёт собственного маппинга — маппинг берётся с источника (тип↔тип), а
@@ -257,6 +272,62 @@ public class DataSetResolver(
                     $"Источник данных недоступен — поле не заполнено. {ex.Message}"));
             }
         }
+    }
+
+    /// <summary>
+    /// Материализация «существующий документ по Ид» (issue #725): каждая строка источника кладётся в
+    /// целевое поле ссылкой на документ, живые данные подставит второй проход <c>EntityResolver</c>.
+    ///
+    /// Строки без идентификатора (пустая ячейка, не-Ид) в результат НЕ попадают: ссылка без Ид — это
+    /// битая ссылка, которую сканер потом объявит удалённой записью, то есть выдуманной бедой.
+    /// Молчания при этом нет — причины уходят в ту же сводку, что и пропуски дискриминатора.
+    ///
+    /// Скалярная привязка (без целевого поля) в этом режиме бессмысленна: раскладывать ссылку по
+    /// отдельным полям контекста нечем — у неё нет полей. Отказываемся словами, а не тишиной.
+    /// </summary>
+    private static void InjectDocumentRefs(
+        GenerationContext ctx, DataSetBinding binding, Guid ownerTypeId,
+        IReadOnlyList<IReadOnlyDictionary<string, string?>> rows,
+        Dictionary<Guid, DocumentType> typesById,
+        List<ResolutionDiagnostic>? diagnostics)
+    {
+        if (binding.TargetFieldKey is null)
+        {
+            diagnostics?.Add(new ResolutionDiagnostic(
+                DiagnosticSeverity.Error, "(скалярная привязка)",
+                $"Источник «{binding.Source.Name}» материализован ссылкой на существующий документ — " +
+                "такую строку можно положить только в поле-документ или в список документов, " +
+                "а не в отдельные поля."));
+            return;
+        }
+
+        var column = binding.Source.MaterializeByIdColumn!;
+        var skipped = new Dictionary<string, int>(StringComparer.Ordinal);
+        var refs = new List<Dictionary<string, object?>>();
+
+        foreach (var row in rows)
+        {
+            var (id, reason, _) = MaterializeByIdMode.ReadId(row, column);
+            if (id is null)
+            {
+                skipped[reason!] = skipped.GetValueOrDefault(reason!) + 1;
+                continue;
+            }
+            refs.Add(MaterializeByIdMode.RefValue(id.Value));
+        }
+
+        var field = DocumentTypeSchemaReader.Field(ownerTypeId, binding.TargetFieldKey, typesById);
+        if (field is not null && DocumentTypeSchemaReader.IsSingleComposite(field.Type))
+        {
+            if (refs.Count > 0)
+                ctx.Set(binding.TargetFieldKey, JsonSerializer.SerializeToElement(refs[0]));
+        }
+        else
+        {
+            ctx.Set(binding.TargetFieldKey, JsonSerializer.SerializeToElement(refs));
+        }
+
+        ReportSkipped(binding.TargetFieldKey, skipped, diagnostics);
     }
 
     /// <summary>

@@ -216,9 +216,13 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
               </span>
             )}
             {src.materializeTypeId && (
-              <span title="Источник материализуется в тип — маппинг задан на источнике (issue #19)."
+              <span title={src.materializeByIdColumn
+                // Режим «по Ид» (issue #725) виден чипом: маппинга у такого источника нет, и подпись
+                // про «маппинг на источнике» отправляла бы искать настройку, которой там не бывает.
+                ? `Строки источника — ссылки на существующие документы по колонке «${src.materializeByIdColumn}».`
+                : 'Источник материализуется в тип — маппинг задан на источнике (issue #19).'}
                 className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand/10 text-brand align-middle">
-                <Boxes size={10} /> материализация
+                <Boxes size={10} /> материализация{src.materializeByIdColumn ? ' · по Ид' : ''}
               </span>
             )}
             {/* Счётчик привязок (issue #417): удаление источника не должно быть вслепую.
