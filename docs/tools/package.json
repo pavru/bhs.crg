@@ -4,7 +4,8 @@
   "type": "module",
   "description": "Сборка PDF из Markdown-инструкций BHS.CRG",
   "scripts": {
-    "pdf": "node build-pdf.mjs"
+    "pdf": "node build-pdf.mjs",
+    "icons": "node brand-icons.mjs"
   },
   "dependencies": {
     "marked": "^14.1.3",

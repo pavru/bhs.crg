@@ -7,8 +7,12 @@
     <title>BHS.CRG</title>
     <!-- PWA: устанавливаемое приложение / ярлык Chrome в отдельном окне (без service worker) -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#1d5fb0" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <!-- Бирюза знака BimHouse, а не синий интерфейса (issue #728): цвет строки браузера и splash
+         PWA — это витрина бренда, и разъезжаться со знаком на иконке ей нельзя. -->
+    <meta name="theme-color" content="#109e92" />
+    <!-- Отдельный файл, а не icon-192: iOS не маскирует прозрачность, а заливает её чёрным, и
+         иконке нужен собственный фон с полями под системное скругление. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- Тема до первой отрисовки. Отдельным файлом, а не инлайном: см. public/theme-init.js -->
     <script src="/theme-init.js"></script>
   </head>
