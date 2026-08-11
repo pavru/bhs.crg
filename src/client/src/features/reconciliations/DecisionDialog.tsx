@@ -3,6 +3,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { Select, SelectItem } from '@/shared/ui/Select';
+import { useToast } from '@/shared/ui/Toast';
 import { DECISION_LABELS, STATUS_LABELS, type DecisionKind, type Finding } from '@/shared/api/reconciliations';
 
 /**
@@ -19,10 +20,20 @@ export function DecisionDialog({ finding, onClose, onSave, onRemove }: {
   const [kind, setKind] = useState<DecisionKind>(finding.decision?.kind ?? 'Accepted');
   const [note, setNote] = useState(finding.decision?.note ?? '');
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
-    try { await action(); } finally { setBusy(false); }
+    try {
+      await action();
+    } catch {
+      // Сверку могли удалить или переопределить, пока диалог открыт. Молча оживившая кнопка
+      // «Сохранить» неотличима от «клик не сработал», а находка остаётся в списке — выглядит так,
+      // будто ничего и не просили. Ошибку ловим здесь: диалог общий для обеих поверхностей.
+      toast.error('Не удалось сохранить решение. Возможно, сверка изменилась — обновите страницу');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

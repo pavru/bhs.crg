@@ -5,8 +5,9 @@ import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/ui/Toast';
 import {
-  useRelatedProblems, useRunReconciliation, useFindings, useSetDecision, useRemoveDecision,
-  downloadDiscrepancyReport, STATUS_LABELS, DECISION_LABELS, provenanceSummary, needsAttention,
+  useRelatedProblems, useRunReconciliation, useReconciliationRuns, useFindings,
+  useSetDecision, useRemoveDecision, downloadDiscrepancyReport,
+  STATUS_LABELS, DECISION_LABELS, provenanceSummary, needsAttention, runSummary,
   type Finding,
 } from '@/shared/api/reconciliations';
 import {
@@ -33,14 +34,20 @@ function num(v: number | null): string {
   return v == null ? '—' : String(Math.round(v * 1000) / 1000);
 }
 
+/*
+ * Вход в разбор — отдельная кнопка в строке, а не строка целиком.
+ *
+ * Строкой-кнопкой было бы меньше кода, но с этого экрана значения и метки позиций сверяют с
+ * документами: внутри `button` браузер не даёт выделить текст (а блочная разметка в ней ещё и
+ * невалидна). Клик по всей строке как дополнение к кнопке тоже не годится — двойной клик по
+ * слову успевает открыть диалог раньше, чем появляется выделение (проверено живьём), то есть
+ * ломает ровно то, ради чего строка осталась текстом.
+ */
+
 function FindingLine({ f, onDecide }: { f: Finding; onDecide: (f: Finding) => void }) {
   const open = needsAttention(f);
   return (
-    // Вся строка — вход в разбор, и подпись действия видна всегда, а не на hover (#680): скрытое
-    // действие на непривычном экране просто не находят.
-    <button type="button" onClick={() => onDecide(f)}
-      className={`w-full text-left px-3 py-2 border-b border-stroke text-sm transition-colors
-        hover:bg-muted/40 focus-visible:outline-none focus-visible:bg-muted/40 ${open ? '' : 'opacity-60'}`}>
+    <div className={`px-3 py-2 border-b border-stroke text-sm ${open ? '' : 'opacity-60'}`}>
       <div className="flex items-center gap-2">
         <span className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 ${
           f.status === 'Match' ? 'text-fg4' : open ? 'bg-danger-subtle text-danger' : 'bg-muted text-fg3'}`}>
@@ -50,7 +57,11 @@ function FindingLine({ f, onDecide }: { f: Finding; onDecide: (f: Finding) => vo
         <span className="tabular-nums text-fg2 shrink-0">
           {num(f.leftValue)} <span className="text-fg4">/</span> {num(f.rightValue)}
         </span>
-        <span className="text-xs text-brand shrink-0">{f.decision ? 'Изменить' : 'Разобрать'}</span>
+        {/* Кнопка видна всегда, а не на hover (#680): скрытое действие на непривычном экране
+            просто не находят. */}
+        <Button variant="text" size="sm" className="shrink-0" onClick={() => onDecide(f)}>
+          {f.decision ? 'Изменить' : 'Разобрать'}
+        </Button>
       </div>
       <div className="flex items-center gap-3 mt-0.5 text-[11px] text-fg4">
         {provenanceSummary(f.provenance.left) && <span>слева: {provenanceSummary(f.provenance.left)}</span>}
@@ -62,7 +73,7 @@ function FindingLine({ f, onDecide }: { f: Finding; onDecide: (f: Finding) => vo
           </span>
         )}
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -70,6 +81,7 @@ function ReconciliationBlock({ id, name, unresolved }: {
   id: string; name: string; unresolved: number;
 }) {
   const { data: findings = [] } = useFindings(id);
+  const { data: runs = [] } = useReconciliationRuns(id);
   const run = useRunReconciliation();
   const setDecision = useSetDecision();
   const removeDecision = useRemoveDecision();
@@ -78,12 +90,24 @@ function ReconciliationBlock({ id, name, unresolved }: {
   const [deciding, setDeciding] = useState<Finding | null>(null);
 
   const shown = onlyOpen ? findings.filter(needsAttention) : findings;
+  const lastRun = runs[0] ?? null;
 
   return (
     <div className="border border-stroke rounded-lg overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 bg-muted/40">
         <Scale size={14} className="text-fg4 shrink-0" />
-        <span className="flex-1 truncate text-sm font-medium text-fg1">{name}</span>
+        <div className="flex-1 min-w-0">
+          <div className="truncate text-sm font-medium text-fg1">{name}</div>
+          {/* Когда прогон был и чем кончился — обязательная часть блока, а не украшение: список
+              находок строится по последнему УДАЧНОМУ прогону, поэтому без этой строки «Всё
+              разобрано» читалось бы одинаково и когда расхождений нет, и когда сверку ни разу не
+              считали, и когда последний прогон упал. Это самое опасное недоразумение подсистемы. */}
+          <div className="text-[11px] text-fg4">
+            {lastRun
+              ? `${runSummary(lastRun)} · ${new Date(lastRun.startedAt).toLocaleString('ru-RU')}`
+              : 'Прогонов ещё не было'}
+          </div>
+        </div>
         {/* История прогонов, алиасы и правка определения живут только в разделе «Сверка»: здесь
             разбирают находки, а не настраивают сверку. */}
         <Link to={`/reconciliations?id=${id}`}
@@ -104,7 +128,17 @@ function ReconciliationBlock({ id, name, unresolved }: {
           <Play size={13} /> Прогнать
         </Button>
       </div>
-      {shown.length === 0
+      {/* Неудачный прогон обязан быть виден: ниже показаны находки предыдущего удачного, и без
+          этой плашки они выдавали бы себя за сегодняшний результат. */}
+      {lastRun?.status === 'Failed' && (
+        <div className="px-3 py-2 bg-danger-subtle text-danger text-xs">
+          <strong>Последний прогон не выполнен.</strong> {lastRun.error}
+        </div>
+      )}
+
+      {runs.length === 0
+        ? <p className="px-3 py-2 text-xs text-fg4">Сверка ещё не считалась — нажмите «Прогнать».</p>
+        : shown.length === 0
         ? <p className="px-3 py-2 text-xs text-fg4">{onlyOpen ? 'Всё разобрано.' : 'Находок нет.'}</p>
         : shown.map(f => <FindingLine key={f.id} f={f} onDecide={setDeciding} />)}
 
@@ -136,10 +170,7 @@ function ObservationCard({ o, documentNames, onReview }: {
   onReview: (o: Observation) => void;
 }) {
   return (
-    <button type="button" onClick={() => onReview(o)}
-      className={`w-full text-left px-3 py-2 border border-stroke rounded-lg transition-colors
-        hover:bg-muted/40 focus-visible:outline-none focus-visible:bg-muted/40 ${
-        isUnreviewed(o) ? '' : 'opacity-60'}`}>
+    <div className={`px-3 py-2 border border-stroke rounded-lg ${isUnreviewed(o) ? '' : 'opacity-60'}`}>
       <div className="flex items-start gap-2">
         <span className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
           o.severity === 'Error' ? 'bg-warning-subtle text-warning' : 'bg-muted text-fg3'}`}>
@@ -165,11 +196,11 @@ function ObservationCard({ o, documentNames, onReview }: {
           )}
         </div>
         <span className="text-[11px] text-fg4 shrink-0">{OBSERVATION_STATUS_LABELS[o.status]}</span>
-        <span className="text-xs text-brand shrink-0">
+        <Button variant="text" size="sm" className="shrink-0 -mt-1" onClick={() => onReview(o)}>
           {isUnreviewed(o) ? 'Разобрать' : 'Изменить'}
-        </span>
+        </Button>
       </div>
-    </button>
+    </div>
   );
 }
 

@@ -78,7 +78,14 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
   const toast = useToast();
 
   async function decide(status: ObservationStatus) {
-    await review.mutateAsync({ id: observation.id, status, note: note.trim() || null });
+    try {
+      await review.mutateAsync({ id: observation.id, status, note: note.trim() || null });
+    } catch {
+      // Замечание мог отозвать или удалить агент, пока диалог открыт. Без этой ветки диалог
+      // просто оставался бы на месте с ожившими кнопками — неотличимо от «клик не сработал».
+      toast.error('Не удалось сохранить разбор. Возможно, замечание изменилось — обновите страницу');
+      return;
+    }
     onClose();
     toast.success(status === 'Rejected'
       // Примечание к отклонению читает агент — иначе он сообщит то же самое в следующий раз.

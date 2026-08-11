@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { RECONCILIATION_KEY } from './reconciliations';
 
 /**
  * Замечания внешнего анализа (issue #440). Пишет их агент через MCP; здесь их только читают и
@@ -49,8 +50,10 @@ const KEY = ['observations'] as const;
  * Разбор замечания меняет эти числа, поэтому каждая мутация журнала гасит и его: иначе шапка
  * остаётся протухшей до перезагрузки. На главной странице «Сверка» это долго не проявлялось —
  * там счётчик замечаний считается по самому списку, — а на вкладке комплекта видно сразу (#731).
+ *
+ * Импортом, а не своей копией строки: иначе переименование ключа там компилируется здесь молча.
  */
-const PROBLEM_COUNTERS_KEY = ['reconciliations'] as const;
+const PROBLEM_COUNTERS_KEY = RECONCILIATION_KEY;
 
 export function useObservations(scopeId?: string | null, status?: ObservationStatus) {
   return useQuery({
