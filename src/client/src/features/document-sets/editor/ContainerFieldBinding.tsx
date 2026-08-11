@@ -178,7 +178,12 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
               {selectedSource && (isMaterialized ? (
                 <div className="rounded-lg border border-brand/40 bg-brand/5 p-3 text-xs text-fg3">
                   Источник материализуется в тип <b>{allDocTypes.find(t => t.id === selectedSource.materializeTypeId)?.name ?? '—'}</b> —
-                  маппинг задан на источнике, поле заполнится напрямую.
+                  {selectedSource.materializeByIdColumn
+                    // Режим «по Ид» (issue #725): маппинга нет вовсе, и обещать его здесь значило бы
+                    // отправить человека искать несуществующую настройку.
+                    ? <> строки ссылаются на существующие документы (колонка «{selectedSource.materializeByIdColumn}»),
+                        поле заполнится их живыми данными.</>
+                    : <> маппинг задан на источнике, поле заполнится напрямую.</>}
                 </div>
               ) : (
                 <div className="rounded-lg border border-stroke p-3">

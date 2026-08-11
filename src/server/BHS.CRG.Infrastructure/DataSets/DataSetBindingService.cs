@@ -1,5 +1,7 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.Schema;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -70,12 +72,30 @@ public class DataSetBindingService(
             .AsNoTracking()
             .ToListAsync(ct);
 
+        // Владелец нужен дважды: чтобы знать комплект, в котором будут разворачиваться ссылки строк
+        // (в другом комплекте резолвер документ не возьмёт), и чтобы вывести тип строки табличной
+        // привязки. Читаем один раз на весь предпросмотр, а не по привязке.
+        var owner = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
+            .FirstOrDefaultAsync(o => o.Id == ownerId, ct);
+        var ownerSetId = owner is { IsDocument: true, ScopeLevel: CatalogScope.Set } ? owner.ScopeId : null;
+
         var results = new List<BindingPreviewDto>();
         foreach (var binding in bindings)
         {
             try
             {
                 var rows = await rowLoader.LoadRowsAsync(binding.Source, ct);
+
+                // Материализация ссылкой на существующий документ (issue #725) — до маппинга, его в
+                // этом режиме нет. Показываем НАИМЕНОВАНИЯ документов: идентификатор в таблице не
+                // говорит человеку ничего, а именно сюда он идёт проверять, те ли документы уедут.
+                if (binding.Source.MaterializeTypeId is not null
+                    && DataSetMappingValue.IsEmptyMapping(binding.Mapping)
+                    && MaterializeByIdMode.IsOn(binding.Source.MaterializeByIdColumn))
+                {
+                    results.Add(await PreviewDocumentRefsAsync(binding, rows, ownerSetId, ct));
+                    continue;
+                }
 
                 // Материализованный источник (issue #19/#23): привязка без своего маппинга берёт маппинг
                 // с источника — как и резолвер генерации. Иначе превью пустое и материалы/сертификаты не
@@ -115,6 +135,9 @@ public class DataSetBindingService(
                         if (!string.IsNullOrEmpty(colName))
                             data[fieldKey] = await DataSetDtoMapper.PreviewCellAsync(colName, row, ct);
 
+                    // Тип строки скалярной привязки — сам тип владельца: маппинг ложится на его поля.
+                    await DocRefPreviewLabeler.LabelAsync(db, [data], owner?.CompositeTypeId, ownerSetId, ct);
+
                     results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
                         "scalar", null, rows.Count, data, null));
                 }
@@ -133,6 +156,12 @@ public class DataSetBindingService(
                         mapped.Add(obj);
                     }
 
+                    // Тип строки: у материализованного источника — его тип, иначе — тип элемента
+                    // целевого поля. Без этого doc-ref-ячейки остались бы сырыми идентификаторами
+                    // на экране, куда идут проверять, ТЕ ЛИ документы приедут.
+                    await DocRefPreviewLabeler.LabelAsync(db, mapped,
+                        await RowTypeIdAsync(binding, owner?.CompositeTypeId, ct), ownerSetId, ct);
+
                     results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
                         "tabular", binding.TargetFieldKey, mapped.Count, mapped,
                         // Пропущенные не прячем в ноль строк: «показано меньше, чем в источнике» —
@@ -150,6 +179,69 @@ public class DataSetBindingService(
             }
         }
         return results;
+    }
+
+    /// <summary>
+    /// Предпросмотр материализации ссылкой на существующий документ (issue #725): по строке на
+    /// документ, значение — наименование, а для отсутствующего документа сказано, что его нет.
+    /// Пропущенные строки (пустая ячейка, не-Ид) показываются числом с причиной — как и у генерации.
+    /// </summary>
+    private async Task<BindingPreviewDto> PreviewDocumentRefsAsync(
+        DataSetBinding binding,
+        IReadOnlyList<IReadOnlyDictionary<string, string?>> rows,
+        Guid? ownerSetId,
+        CancellationToken ct)
+    {
+        var column = binding.Source.MaterializeByIdColumn!;
+
+        if (binding.TargetFieldKey is null)
+            return new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
+                "error", null, rows.Count, new { },
+                $"Источник «{binding.Source.Name}» материализован ссылкой на существующий документ — " +
+                "такую строку можно положить только в поле-документ или в список документов, а не в отдельные поля.");
+
+        var ids = new List<Guid>();
+        var skipped = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var row in rows)
+        {
+            var (id, reason, _) = MaterializeByIdMode.ReadId(row, column);
+            if (id is null) skipped[reason!] = skipped.GetValueOrDefault(reason!) + 1;
+            else ids.Add(id.Value);
+        }
+
+        var labels = await MaterializeByIdMode.ResolveLabelsAsync(db, ids.Distinct().ToList(), ownerSetId, ct);
+        var mapped = ids
+            .Select(id => new Dictionary<string, object?>
+            {
+                ["Документ"] = labels.TryGetValue(id, out var label) ? label : MaterializeByIdMode.NotFoundLabel,
+            })
+            .ToList();
+
+        var warning = skipped.Count == 0
+            ? null
+            : "Строк пропущено при материализации: " + skipped.Values.Sum() + " — "
+              + string.Join("; ", skipped.OrderByDescending(p => p.Value)
+                  .Select(p => $"{p.Value} — {MaterializeSkipReason.Describe(p.Key)}"));
+
+        return new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
+            "tabular", binding.TargetFieldKey, mapped.Count, mapped, warning);
+    }
+
+    /// <summary>
+    /// Тип, в форму которого разворачивается строка табличной привязки: у материализованного
+    /// источника — его тип материализации (маппинг взят оттуда), иначе — тип элемента целевого поля.
+    /// null — вывести не удалось (тип владельца неизвестен либо поле не найдено).
+    /// </summary>
+    private async Task<Guid?> RowTypeIdAsync(DataSetBinding binding, Guid? ownerTypeId, CancellationToken ct)
+    {
+        if (binding.Source.MaterializeTypeId is { } materialized
+            && DataSetMappingValue.IsEmptyMapping(binding.Mapping))
+            return materialized;
+
+        if (ownerTypeId is not { } typeId || binding.TargetFieldKey is null) return null;
+
+        var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+        return DocumentTypeSchemaReader.Field(typeId, binding.TargetFieldKey, typesById)?.TypeId;
     }
 
     /// <summary>Тот же выбор варианта, что у генерации (issue #716); null — правила нет.</summary>

@@ -11,6 +11,7 @@ import { MappingEditor } from '@/features/document-sets/editor/DataSetsTab';
 import { VariantPicker } from '@/features/document-sets/fields/ComplexFields';
 import { UnionDiscriminatorEditor, discriminatorProblem } from './UnionDiscriminatorEditor';
 import { resolveEffectiveFields } from '@/shared/api/schema';
+import { parseSourceColumnNames } from '@/shared/api/datasetHelpers';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 import type { DataSetSource, MaterializeDiscriminator } from '@/shared/api/types';
@@ -36,7 +37,20 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
   const [singleModeStash, setSingleModeStash] = useState<Record<string, string> | null>(null);
   const [byTypeStash, setByTypeStash] = useState<Record<string, string> | null>(null);
 
+  // Режим «существующий документ по Ид» (issue #725): строка целиком — ссылка на документ, маппинга
+  // в нём нет. Как и у режимов union'а, переключение недеструктивно — маппинг ждёт в стэше.
+  const [byIdMode, setByIdMode] = useState(!!source.materializeByIdColumn);
+  const [byIdColumn, setByIdColumn] = useState(source.materializeByIdColumn ?? '');
+  const [mappingModeStash, setMappingModeStash] = useState<Record<string, string> | null>(null);
+
   const selectedType = allDocTypes.find(t => t.id === typeId);
+  // Ссылаться можно только на экземпляр документа: у составного типа (в т.ч. union'а) их нет.
+  const isDocumentType = selectedType?.kind === 'Document';
+
+  const columnNames = useMemo(() => {
+    const computed = (source.computedColumns ?? []).map(c => c.alias).filter(Boolean);
+    return [...new Set([...parseSourceColumnNames(source.cachedSchema), ...computed])];
+  }, [source.cachedSchema, source.computedColumns]);
   const effectiveFields = selectedType ? resolveEffectiveFields(selectedType, allDocTypes) : [];
   // Union-тип (issue #320/#391): «заполняется ровно один вариант» — маппим один активный вариант,
   // а не все поля union разом. Материализатор кладёт один ключ на строку → корректный union-экземпляр.
@@ -84,6 +98,22 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     setByRowType(next);
   }
 
+  /**
+   * Переключение «собрать из колонок» ↔ «существующий документ по Ид». Маппинг не выбрасываем, а
+   * прячем в стэш: человек, заглянувший в другой режим, не должен терять уже настроенные колонки.
+   * Сохраняется при этом ровно один режим — в «по Ид» на сервер уходит пустой маппинг.
+   */
+  function switchByIdMode(next: boolean) {
+    if (next === byIdMode) return;
+    if (next) {
+      setMappingModeStash(mapping);
+      setMapping({});
+    } else {
+      setMapping(mappingModeStash ?? {});
+    }
+    setByIdMode(next);
+  }
+
   // Легаси-настройка union'а с НЕСКОЛЬКИМИ ключами (до issue #716 такое сохранялось молча, а union
   // при этом заполнялся весь сразу). Схлопываем до одного — того, что диалог и показывает. Иначе
   // человек правит видимую колонку, жмёт «Сохранить» и получает отказ про ключ, которого на экране
@@ -99,7 +129,8 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
   // Live-превью по ТЕКУЩИМ (несохранённым) типу+маппингу и правилу (issue #294, #716): обновляется
   // на каждую правку. Объявлено ПОСЛЕ isUnion/discriminator — раньше их значения ещё не существуют.
   const preview = useMaterializePreview(source.id, typeId || undefined, mapping, showPreview && !!typeId,
-    isUnion && byRowType && discriminator.column ? discriminator : null);
+    isUnion && byRowType && discriminator.column ? discriminator : null,
+    byIdMode && isDocumentType ? byIdColumn : null);
 
   function switchVariant(key: string) {
     if (key === activeVariant) return;
@@ -110,20 +141,34 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     setActiveVariant(key);
   }
 
-  const useDiscriminator = isUnion && byRowType;
-  const problem = useDiscriminator
-    ? discriminatorProblem(effectiveFields, mapping, discriminator,
-        id => allDocTypes.find(t => t.id === id)?.name ?? id)
-    : null;
+  const useByIdMode = isDocumentType && byIdMode;
+  const useDiscriminator = isUnion && byRowType && !useByIdMode;
+  const problem = useByIdMode
+    // Режим без колонки сохранился бы как «материализация без маппинга» — то есть молчаливым
+    // массивом пустышек, ради которого и заведён issue #715. Отказываем здесь, а не там.
+    ? (byIdColumn ? null : 'Выберите колонку с идентификатором документа.')
+    : useDiscriminator
+      ? discriminatorProblem(effectiveFields, mapping, discriminator,
+          id => allDocTypes.find(t => t.id === id)?.name ?? id)
+      : null;
+
+  // Типы ещё не приехали, а тип у источника задан: тело диалога скрыто, и «Сохранить» отправила бы
+  // настройку, собранную из невыясненного, — режим «по Ид» и правило варианта потерялись бы молча,
+  // оставив источник в состоянии «материализован, но маппинг пуст», на которое ругается он же сам.
+  // Не «проблема» (человек ничего не сделал не так), а просто не время сохранять.
+  const typesPending = !!typeId && !selectedType;
 
   function handleSave() {
-    if (problem) return;
+    if (problem || typesPending) return;
     save.mutate(
       {
         sourceId: source.id,
         typeId: typeId || null,
-        mapping: typeId ? mapping : null,
+        // В режиме «по Ид» маппинга нет вовсе: строка целиком — ссылка. Отправить и то и другое
+        // значит сохранить две разные настройки одного и того же (сервер такое и не примет).
+        mapping: typeId && !useByIdMode ? mapping : {},
         discriminator: typeId && useDiscriminator ? discriminator : null,
+        byIdColumn: typeId && useByIdMode ? byIdColumn : null,
       },
       { onSuccess: onClose },
     );
@@ -150,7 +195,8 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
-          <Button type="button" variant="filled" onClick={handleSave} loading={save.isPending} disabled={!!problem}>
+          <Button type="button" variant="filled" onClick={handleSave} loading={save.isPending}
+            disabled={!!problem || typesPending}>
             {save.isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>
         </div>
@@ -181,13 +227,51 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
             setSingleModeStash(null);
             setByTypeStash(null);
             setByRowType(false);
+            setByIdMode(false);
+            setByIdColumn('');
+            setMappingModeStash(null);
           }} />
 
         {selectedType && (
-          effectiveFields.length === 0 ? (
-            <p className="text-xs text-warning">У типа «{selectedType.name}» нет полей — задайте поля типу, чтобы было куда маппить.</p>
-          ) : (
-            <div className="rounded-lg border border-stroke p-3 space-y-3">
+          <div className="rounded-lg border border-stroke p-3 space-y-3">
+            {/* Тип-документ можно не собирать, а назвать: строка ссылается на уже существующий
+                документ комплекта (issue #725). Составным типам выбирать не из чего. */}
+            {isDocumentType && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="materialize-source-mode" checked={!byIdMode}
+                    onChange={() => switchByIdMode(false)} />
+                  <span className={byIdMode ? 'text-fg3' : 'text-fg1'}>собрать из колонок</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="materialize-source-mode" checked={byIdMode}
+                    onChange={() => switchByIdMode(true)} />
+                  <span className={byIdMode ? 'text-fg1' : 'text-fg3'}>существующий документ по Ид</span>
+                </label>
+              </div>
+            )}
+
+            {useByIdMode ? (
+              <div className="space-y-1.5">
+                <label className="block">
+                  <span className="block text-xs font-medium mb-1 text-fg3">Колонка с идентификатором документа</span>
+                  <select
+                    value={byIdColumn}
+                    onChange={e => setByIdColumn(e.target.value)}
+                    className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
+                  >
+                    <option value="">— не выбрана —</option>
+                    {columnNames.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+                <span className="text-[11px] text-fg4 flex items-center gap-1">
+                  <Info size={11} /> строка целиком становится ссылкой на документ — поля берутся из него самого
+                </span>
+              </div>
+            ) : effectiveFields.length === 0 ? (
+              <p className="text-xs text-warning">У типа «{selectedType.name}» нет полей — задайте поля типу, чтобы было куда маппить.</p>
+            ) : (
+            <>
               {isUnion && (
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
                   <label className="flex items-center gap-1.5 cursor-pointer">
@@ -237,14 +321,15 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
                   allowDocRef
                 />
               )}
+            </>
+            )}
 
-              {problem && (
-                <p className="text-xs text-danger flex items-start gap-1">
-                  <AlertTriangle size={13} className="shrink-0 mt-px" /> {problem}
-                </p>
-              )}
-            </div>
-          )
+            {problem && (
+              <p className="text-xs text-danger flex items-start gap-1">
+                <AlertTriangle size={13} className="shrink-0 mt-px" /> {problem}
+              </p>
+            )}
+          </div>
         )}
 
         {typeId && (

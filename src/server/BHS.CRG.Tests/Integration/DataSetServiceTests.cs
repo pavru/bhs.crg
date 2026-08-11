@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Documents;
@@ -224,7 +224,7 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         using var scope = fixture.Services.CreateScope();
         var svc = Svc(scope);
         var (_, src) = await UploadCsvWithSourceAsync(scope);
-        await svc.SetMaterializationAsync(src.Id, typeId, new() { ["Поле"] = "A" }, discriminator: null, default);
+        await svc.SetMaterializationAsync(src.Id, typeId, new() { ["Поле"] = "A" }, discriminator: null, byIdColumn: null, default);
 
         var entry = await scope.ServiceProvider.GetRequiredService<MediatR.IMediator>().Send(
             new CreateCommonDataEntryCommand("Запись", typeId, JsonDocument.Parse("{}"),

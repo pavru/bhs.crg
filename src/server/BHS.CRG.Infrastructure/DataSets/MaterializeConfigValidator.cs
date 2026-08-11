@@ -24,9 +24,34 @@ public static class MaterializeConfigValidator
         DocumentType type,
         IReadOnlyDictionary<string, string> mapping,
         MaterializeDiscriminatorConfig? discriminator,
-        IReadOnlyDictionary<Guid, DocumentType> typesById)
+        IReadOnlyDictionary<Guid, DocumentType> typesById,
+        string? byIdColumn = null)
     {
         var isUnion = SchemaTags.TypeHasTag(type, [.. typesById.Values], FunctionalTag.TypeUnion);
+
+        // Режим «существующий документ по Ид» (issue #725): вся строка — ссылка на документ.
+        if (!string.IsNullOrWhiteSpace(byIdColumn))
+        {
+            // Ссылаться можно только на экземпляр документа: у составного типа их не бывает, и
+            // ссылка на «строку реестра» не значила бы ничего.
+            if (type.Kind != DocumentTypeKind.Document)
+                throw new InvalidRequestException(
+                    $"Тип «{type.Name}» не является типом документа — ссылаться на существующий документ по Ид для него нельзя.");
+
+            // Маппинг и режим «по Ид» — два разных ответа на вопрос «что такое строка». Сохранить оба
+            // значит оставить настройку, в которой видимое в диалоге не совпадает с результатом.
+            if (mapping.Any(p => !string.IsNullOrEmpty(p.Value)))
+                throw new InvalidRequestException(
+                    "В режиме «существующий документ по Ид» строка целиком становится ссылкой — маппинг колонок в нём не задаётся.");
+
+            // Дискриминатор — про выбор варианта union'а, то есть про составной тип; сюда он попасть
+            // не может, но отказ дешевле молчаливого игнорирования настройки.
+            if (discriminator is not null)
+                throw new InvalidRequestException(
+                    "Вариант по типу документа строки задаётся только при сборке объекта из колонок.");
+
+            return;
+        }
 
         // Дискриминатор осмыслен только для union'а: у обычного типа строка заполняет все свои поля
         // сразу, выбирать не из чего.

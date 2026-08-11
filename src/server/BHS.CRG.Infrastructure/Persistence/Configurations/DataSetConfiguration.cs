@@ -47,6 +47,7 @@ public class DataSetSourceConfiguration : IEntityTypeConfiguration<DataSetSource
         b.Property(e => e.MaterializeTypeId);
         b.Property(e => e.MaterializeMapping).HasColumnType("jsonb");
         b.Property(e => e.MaterializeDiscriminator).HasColumnType("jsonb");
+        b.Property(e => e.MaterializeByIdColumn).HasMaxLength(256);
         b.HasMany(e => e.Bindings)
          .WithOne(b => b.Source)
          .HasForeignKey(b => b.SourceId)

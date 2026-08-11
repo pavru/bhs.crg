@@ -34,8 +34,9 @@ public class MaterializeConfigValidatorTests
         [RegistryTypeId] = Type(RegistryTypeId, "Реестр работ", "{'fields':[]}", DocumentTypeKind.Document),
     };
 
-    private static void Validate(Guid typeId, Dictionary<string, string> mapping, MaterializeDiscriminatorConfig? d = null)
-        => MaterializeConfigValidator.Validate(Types[typeId], mapping, d, Types);
+    private static void Validate(Guid typeId, Dictionary<string, string> mapping,
+        MaterializeDiscriminatorConfig? d = null, string? byIdColumn = null)
+        => MaterializeConfigValidator.Validate(Types[typeId], mapping, d, Types, byIdColumn);
 
     private static MaterializeDiscriminatorConfig Discriminator(Dictionary<string, List<Guid>> rules)
         => new("ТипКод", MaterializeDiscriminatorConfig.ByTypeCode, rules);
@@ -113,6 +114,47 @@ public class MaterializeConfigValidatorTests
         => Assert.Throws<InvalidRequestException>(
             () => Validate(PlainId, new() { ["Наименование"] = "A" },
                 Discriminator(new() { ["Наименование"] = [AosrTypeId] })));
+
+    // ── Режим «существующий документ по Ид» (issue #725) ──────────────────────────
+
+    /// <summary>Тип-документ + колонка с Ид — законная настройка: строка целиком станет ссылкой.</summary>
+    [Fact]
+    public void Document_ByIdColumn_IsFine()
+        => Validate(AosrTypeId, new(), byIdColumn: "Ид");
+
+    /// <summary>
+    /// Составной тип по Ид не адресуется: экземпляров-документов у него нет, и ссылка на «строку
+    /// реестра» не значила бы ничего — резолвер оставил бы её висеть.
+    /// </summary>
+    [Fact]
+    public void CompositeType_ByIdColumn_IsRejected()
+    {
+        var ex = Assert.Throws<InvalidRequestException>(() => Validate(PlainId, new(), byIdColumn: "Ид"));
+        Assert.Contains("не является типом документа", ex.Message);
+    }
+
+    /// <summary>
+    /// Маппинг и режим «по Ид» — два разных ответа на вопрос «что такое строка». Сохранив оба, мы
+    /// оставили бы настройку, в которой видимое в диалоге не совпадает с тем, что уедет в документ.
+    /// </summary>
+    [Fact]
+    public void ByIdColumn_WithMapping_IsRejected()
+    {
+        var ex = Assert.Throws<InvalidRequestException>(
+            () => Validate(AosrTypeId, new() { ["Номер"] = "A" }, byIdColumn: "Ид"));
+        Assert.Contains("маппинг колонок в нём не задаётся", ex.Message);
+    }
+
+    /// <summary>Пустые значения маппинга — это тот же пустой маппинг, и режиму они не мешают
+    /// (то же определение «пусто», по которому маппинг вообще выбирается).</summary>
+    [Fact]
+    public void ByIdColumn_WithEmptyMappingValues_IsFine()
+        => Validate(AosrTypeId, new() { ["Номер"] = "" }, byIdColumn: "Ид");
+
+    [Fact]
+    public void ByIdColumn_WithDiscriminator_IsRejected()
+        => Assert.Throws<InvalidRequestException>(
+            () => Validate(AosrTypeId, new(), Discriminator(new() { ["АОСР"] = [AosrTypeId] }), byIdColumn: "Ид"));
 
     [Fact]
     public void Discriminator_WithoutColumn_IsRejected()

@@ -336,6 +336,9 @@ export interface DataSetSource {
   materializeMapping: Record<string, string> | null;
   /** Правило выбора варианта union'а по строке (issue #716); null — один вариант на все строки. */
   materializeDiscriminator?: MaterializeDiscriminator | null;
+  /** Колонка с Ид существующего документа (issue #725): непустая = строка целиком становится
+   *  ссылкой на документ (маппинг в этом режиме не задаётся). Null — сборка объекта из колонок. */
+  materializeByIdColumn?: string | null;
 }
 
 /** Как читать колонку-признак: код типа документа либо идентификатор самого документа. */

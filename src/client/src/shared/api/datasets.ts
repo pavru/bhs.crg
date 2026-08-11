@@ -168,12 +168,15 @@ export function useSetMaterialization() {
     mapping: Record<string, string> | null;
     /** Правило выбора варианта union'а (issue #716); null — один вариант на все строки. */
     discriminator?: MaterializeDiscriminator | null;
+    /** Колонка с Ид существующего документа (issue #725); null — сборка объекта из колонок. */
+    byIdColumn?: string | null;
   }>({
     // Настройка сохраняется ЦЕЛИКОМ: маппинг и правило связаны, и отправить одно без другого
     // значит оставить источник в состоянии, которого сервер не пропустит.
-    mutationFn: ({ sourceId, typeId, mapping, discriminator }) =>
+    mutationFn: ({ sourceId, typeId, mapping, discriminator, byIdColumn }) =>
       apiClient.put(`/datasets/sources/${sourceId}/materialization`,
-        { typeId, mapping, discriminator: discriminator ?? null }).then(r => r.data),
+        { typeId, mapping, discriminator: discriminator ?? null, byIdColumn: byIdColumn ?? null })
+        .then(r => r.data),
     onSuccess: () => invalidateSources(qc),
   });
 }
@@ -202,14 +205,16 @@ export function useMaterializePreview(
   sourceId: string | undefined, typeId: string | undefined,
   mapping: Record<string, string>, enabled: boolean,
   discriminator?: MaterializeDiscriminator | null,
+  byIdColumn?: string | null,
 ) {
   return useQuery<MaterializePreview>({
     queryKey: ['datasets', 'materialize-preview', sourceId, typeId ?? '',
-      JSON.stringify(mapping), JSON.stringify(discriminator ?? null)],
+      JSON.stringify(mapping), JSON.stringify(discriminator ?? null), byIdColumn ?? ''],
     queryFn: () =>
       apiClient
         .post(`/datasets/sources/${sourceId}/materialization/preview`,
-          { typeId: typeId || null, mapping, discriminator: discriminator ?? null })
+          { typeId: typeId || null, mapping, discriminator: discriminator ?? null,
+            byIdColumn: byIdColumn ?? null })
         .then(r => r.data),
     enabled: !!sourceId && enabled,
     placeholderData: keepPreviousData,

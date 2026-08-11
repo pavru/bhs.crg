@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
@@ -138,7 +138,7 @@ public class MultipleSourcesPerConsolidationTests(IntegrationTestFixture fixture
 
         await svc.SetSourceProcessingAsync(source.Id,
             new SetSourceProcessingInput(Filter("Наименование", "starts_with", "АОСР"), null, null), default);
-        await svc.SetMaterializationAsync(source.Id, unionType.Id, new() { ["АОСР"] = "Ид" }, discriminator, default);
+        await svc.SetMaterializationAsync(source.Id, unionType.Id, new() { ["АОСР"] = "Ид" }, discriminator, byIdColumn: null, default);
         // Тэги источника ставятся не через IDataSetService (у обычных источников их проставляет
         // распознавание) — для проверки копирования пишем их прямо в хранилище.
         var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.AppDbContext>();
@@ -160,7 +160,7 @@ public class MultipleSourcesPerConsolidationTests(IntegrationTestFixture fixture
         Assert.Single((await svc.PreviewSourceAsync(copy.Id, 50, default))!.Rows);
 
         // Копия — самостоятельный источник: снятие материализации у неё не задевает оригинал.
-        await svc.SetMaterializationAsync(copy.Id, null, null, null, default);
+        await svc.SetMaterializationAsync(copy.Id, null, null, null, null, default);
         var original = (await svc.ListSourcesAsync(file.Id, default)).Single(s => s.Id == source.Id);
         Assert.Equal(unionType.Id, original.MaterializeTypeId);
     }

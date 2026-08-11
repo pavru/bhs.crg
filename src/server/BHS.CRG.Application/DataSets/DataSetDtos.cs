@@ -17,7 +17,10 @@ public record DataSetSourceDto(
     string? Warning = null,
     /// <summary>Правило выбора варианта union'а по строке (issue #716); null — материализация
     /// статична, один вариант на все строки.</summary>
-    MaterializeDiscriminatorConfig? MaterializeDiscriminator = null);
+    MaterializeDiscriminatorConfig? MaterializeDiscriminator = null,
+    /// <summary>Колонка с Ид существующего документа (issue #725): непустая = строка целиком
+    /// становится ссылкой на документ, маппинг при этом пуст. Null — обычная сборка из колонок.</summary>
+    string? MaterializeByIdColumn = null);
 
 /// <summary>
 /// Материализованный предпросмотр источника: строки, развёрнутые в объекты формы типа (issue #19).

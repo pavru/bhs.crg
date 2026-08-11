@@ -1,3 +1,4 @@
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 
 namespace BHS.CRG.Tests.DataSets;
@@ -15,6 +16,30 @@ public class DataSetDomainTests
         Assert.Equal("Материалы", t.TargetFieldKey);
         Assert.Equal("{}", t.ColumnMappings);
         Assert.Equal(3, t.SortOrder);
+    }
+
+    /// <summary>
+    /// Имя колонки режима «по Ид» (issue #725) хранится КАК ЕСТЬ — заголовки файлов не подрезаются
+    /// (парсеры подрезают значения), а вычисляемая колонка вообще названа человеком. Подрезанное
+    /// «Ид » не совпало бы ни с одной строкой: реестр опустел бы целиком, причём с сообщением про
+    /// пустую колонку — то есть ложным. Дискриминатор (#716) хранит имя колонки так же.
+    /// </summary>
+    [Fact]
+    public void Materialization_ByIdColumn_IsStoredVerbatim()
+    {
+        var source = DataSetFile.Create("f.csv", DataSetFormat.Csv, "b/p", CatalogScope.System, null)
+            .AddSource("Источник", "default", "[]", 0);
+
+        source.SetMaterialization(Guid.NewGuid(), "{}", null, "Ид ");
+        Assert.Equal("Ид ", source.MaterializeByIdColumn);
+
+        // Пробелы вместо имени — это «режим не выбран», а не колонка с именем из пробелов.
+        source.SetMaterialization(Guid.NewGuid(), "{}", null, "   ");
+        Assert.Null(source.MaterializeByIdColumn);
+
+        // Снятие материализации снимает и режим.
+        source.SetMaterialization(null, null, null, "Ид");
+        Assert.Null(source.MaterializeByIdColumn);
     }
 
     [Fact]
