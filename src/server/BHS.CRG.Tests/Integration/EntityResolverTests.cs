@@ -481,4 +481,33 @@ public class EntityResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         // «Хвост» за пределом — до него не дошли, и это ровно то, о чём сказано в диагностике.
         Assert.DoesNotContain("Хвост", JsonSerializer.Serialize(ctx.Data));
     }
+
+    [Fact] // Пометка предела не должна пережить проход, который до ссылки таки дошёл
+    public async Task RefMarkedByLimit_TargetDeleted_SecondPassReportsLeftoverRef()
+    {
+        // Генерация и проверка гоняют ResolveContextRefsAsync ВТОРЫМ проходом (ссылки из наборов
+        // данных), и он стартует с нулевой цепочкой. Дойдя до помеченного узла, резолвер идёт в БД —
+        // и если цели там нет, причина уже другая: удаление, а не предел. Иначе подмена диагнозов,
+        // против которой затевался #723, просто меняет направление.
+        var setId = await SetupSetAsync();
+        var docType = await TypeAsync(DocumentTypeKind.Document, "DOC_DEPTH_DEL");
+        var refType = await TypeAsync(DocumentTypeKind.Composite, "ORG_DEPTH_DEL");
+        // Последнее звено указывает в никуда и стоит ровно за пределом первого прохода.
+        var currentId = await EntryAsync(refType, "{'След':{'$ref':'catalog','entryId':'" + Guid.NewGuid() + "'}}");
+        for (var i = 0; i < 7; i++)
+            currentId = await EntryAsync(refType, "{'След':{'$ref':'catalog','entryId':'" + currentId + "'}}");
+        var docId = await DocAsync(setId, docType, "{'Орг':{'$ref':'catalog','entryId':'" + currentId + "'}}");
+
+        var ctx = await ResolveAsync(docId);
+        using (var scope = fixture.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<IEntityResolver>()
+                .ResolveContextRefsAsync(ctx, setId);
+
+        var diagnostics = new List<ResolutionDiagnostic>();
+        ResolutionScanner.ScanLeftoverRefs(ctx, diagnostics);
+
+        var d = Assert.Single(diagnostics);
+        Assert.Equal("leftover-ref", d.Code);
+        Assert.Contains("не найдена или удалена", d.Message);
+    }
 }

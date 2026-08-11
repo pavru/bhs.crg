@@ -221,9 +221,19 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
     private static JsonElement MarkDepthLimited(JsonElement node)
         => WithMeta(node, RefUnresolved.Key, RefUnresolved.DepthLimit);
 
+    /// <summary>Снимает пометку предела: этот проход до ссылки дошёл, и прежняя причина неверна.</summary>
+    private static JsonElement WithoutDepthMark(JsonElement node)
+        => node.TryGetProperty(RefUnresolved.Key, out _) ? WithoutMeta(node, RefUnresolved.Key) : node;
+
     private async Task<JsonElement> ResolveRefObject(JsonElement node, string? refType, ScopeChain scope,
         int refDepth, int nodeDepth, bool allowInstanceRefs, bool keepRefProvenance, CancellationToken ct)
     {
+        // Пометку прошлого прохода снимаем НА ВХОДЕ: генерация и проверка гоняют резолв дважды, и
+        // второй проход стартует с нулевой цепочкой. Он может дойти до узла, который первый пометил
+        // пределом, — и упереться уже в другое: цель удалена. Донеси пометку до `node.Clone()` в
+        // ветках ниже, сканер сказал бы «укоротите цепочку» про запись, которой попросту нет.
+        node = WithoutDepthMark(node);
+
         switch (refType)
         {
             // Запись каталога (с _baseRef-наследованием) → заходим внутрь, её собственные ссылки тоже разворачиваем.
@@ -313,6 +323,16 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
         foreach (var p in obj.EnumerateObject())
             if (p.Name != key) dict[p.Name] = p.Value.Clone();
         dict[key] = JsonSerializer.SerializeToElement(value);
+        return JsonSerializer.SerializeToElement(dict);
+    }
+
+    /// <summary>Копия объекта без служебного ключа.</summary>
+    private static JsonElement WithoutMeta(JsonElement obj, string key)
+    {
+        if (obj.ValueKind != JsonValueKind.Object) return obj;
+        var dict = new Dictionary<string, JsonElement>();
+        foreach (var p in obj.EnumerateObject())
+            if (p.Name != key) dict[p.Name] = p.Value.Clone();
         return JsonSerializer.SerializeToElement(dict);
     }
 
