@@ -57,7 +57,10 @@ function PartEditor({ part, onChange, onRemove, sources, index }: {
   }
 
   return (
-    <div className="space-y-2 rounded-md bg-muted/40 p-2">
+    // space-y-3, а не -2: ниже стоит Select с постоянно поднятой меткой, и она выступает над рамкой
+    // поля примерно на 8px (см. OutlinedField) — при 8px зазора от ряда чипов оставалось три
+    // пикселя, метка читалась приклеенной к колонкам. Та же причина, что и в issue #727.
+    <div className="space-y-3 rounded-md bg-muted/40 p-2">
       <div className="flex items-center gap-2">
         <Select label={`Источник ${index + 1}`} value={part.sourceId}
           onValueChange={v => onChange({ ...EMPTY_PART, sourceId: v })}
