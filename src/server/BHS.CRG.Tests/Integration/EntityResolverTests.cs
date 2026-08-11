@@ -434,4 +434,51 @@ public class EntityResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         Assert.False(org.TryGetProperty("Наименование", out _)); // scope-guard на цепочке: чужая орг не подмешана
         Assert.Equal("Подрядчик", org.GetProperty("Роль").GetString()); // собственные поля прокси остаются
     }
+
+    // ── Пределы глубины: цепочка ссылок отдельно от вложенности JSON (issue #723) ─
+
+    [Fact] // Живой случай: документ → массив → объект → персона → приказ → организация
+    public async Task CatalogRefChain_UnderDeepNesting_ResolvedToLastLink()
+    {
+        // Раньше счётчик был один на оба измерения, и каждая развёрнутая ссылка съедала ДВЕ единицы:
+        // на этой структуре последнее звено обрывалось, а сканер выдавал обрыв за удалённую запись.
+        var setId = await SetupSetAsync();
+        var docType = await TypeAsync(DocumentTypeKind.Document, "DOC_DEPTH");
+        var refType = await TypeAsync(DocumentTypeKind.Composite, "ORG_DEPTH");
+        var orgId = await EntryAsync(refType, "{'Наименование':'ООО Ромашка'}");
+        var orderId = await EntryAsync(refType, "{'Орг':{'$ref':'catalog','entryId':'" + orgId + "'}}");
+        var personId = await EntryAsync(refType, "{'Приказ':{'$ref':'catalog','entryId':'" + orderId + "'}}");
+        var docId = await DocAsync(setId, docType,
+            "{'Строки':[{'Блок':{'Подписи':[{'$ref':'catalog','entryId':'" + personId + "'}]}}]}");
+
+        var ctx = await ResolveAsync(docId);
+
+        var org = E(ctx, "Строки")[0].GetProperty("Блок").GetProperty("Подписи")[0]
+            .GetProperty("Приказ").GetProperty("Орг");
+        Assert.Equal("ООО Ромашка", org.GetProperty("Наименование").GetString());
+    }
+
+    [Fact] // Предел цепочки обязан срабатывать — и говорить о себе, а не о «удалённой записи»
+    public async Task CatalogRefChain_BeyondLimit_LeavesMarkedRef_ReportedAsDepthLimit()
+    {
+        var setId = await SetupSetAsync();
+        var docType = await TypeAsync(DocumentTypeKind.Document, "DOC_DEPTH_MAX");
+        var refType = await TypeAsync(DocumentTypeKind.Composite, "ORG_DEPTH_MAX");
+        // Цепочка заведомо длиннее предела (8 переходов): последнее звено развернуться не должно.
+        var tailId = await EntryAsync(refType, "{'Наименование':'Хвост'}");
+        var currentId = tailId;
+        for (var i = 0; i < 12; i++)
+            currentId = await EntryAsync(refType, "{'След':{'$ref':'catalog','entryId':'" + currentId + "'}}");
+        var docId = await DocAsync(setId, docType, "{'Орг':{'$ref':'catalog','entryId':'" + currentId + "'}}");
+
+        var ctx = await ResolveAsync(docId);
+        var diagnostics = new List<ResolutionDiagnostic>();
+        ResolutionScanner.ScanLeftoverRefs(ctx, diagnostics);
+
+        var d = Assert.Single(diagnostics);
+        Assert.Equal("ref-depth-limit", d.Code);
+        Assert.DoesNotContain("удалена", d.Message);
+        // «Хвост» за пределом — до него не дошли, и это ровно то, о чём сказано в диагностике.
+        Assert.DoesNotContain("Хвост", JsonSerializer.Serialize(ctx.Data));
+    }
 }

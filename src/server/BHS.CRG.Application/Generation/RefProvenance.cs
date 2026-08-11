@@ -19,3 +19,19 @@ public static class RefProvenance
     /// <summary>Идентификатор документа, развёрнутого на этом месте.</summary>
     public const string InstanceIdKey = "_instanceId";
 }
+
+/// <summary>
+/// Почему ссылка осталась неразвёрнутой (issue #723). Сканеру нельзя выдавать одну причину за
+/// другую: «цель удалена» и «резолвер сам не пошёл дальше» требуют от человека противоположных
+/// действий, а внешне сырой <c>$ref</c> в обоих случаях один и тот же.
+///
+/// Пометку ставит резолвер в момент отказа; отсутствие пометки означает «цель не нашлась».
+/// </summary>
+public static class RefUnresolved
+{
+    /// <summary>Ключ пометки на самом $ref-узле.</summary>
+    public const string Key = "$unresolved";
+
+    /// <summary>Резолвер упёрся в предел глубины и оставил ссылку как есть.</summary>
+    public const string DepthLimit = "depth-limit";
+}

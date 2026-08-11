@@ -59,5 +59,25 @@ public class ResolutionScannerTests
         Assert.Equal("Подрядчик", d.Path);
         Assert.Equal(DiagnosticSeverity.Error, d.Severity);
         Assert.Equal("leftover-ref", d.Code);
+        Assert.Contains("не найдена или удалена", d.Message);
+    }
+
+    [Fact]
+    public void ScanLeftoverRefs_RefStoppedByDepth_ReportedAsDepthLimit_NotDeletedTarget()
+    {
+        // issue #723: резолвер пометил СВОЙ отказ — про удаление говорить нельзя, цель обычно цела.
+        var ctx = new GenerationContext();
+        ctx.Set("Приказ", Json((
+            "{'ВыпустившаяОрганизация':{'$ref':'catalog','entryId':'00000000-0000-0000-0000-000000000001',"
+            + "'" + RefUnresolved.Key + "':'" + RefUnresolved.DepthLimit + "'}}").Replace('\'', '"')));
+
+        var diags = new List<ResolutionDiagnostic>();
+        ResolutionScanner.ScanLeftoverRefs(ctx, diags);
+
+        var d = Assert.Single(diags);
+        Assert.Equal("Приказ.ВыпустившаяОрганизация", d.Path);
+        Assert.Equal(DiagnosticSeverity.Error, d.Severity);
+        Assert.Equal("ref-depth-limit", d.Code);
+        Assert.DoesNotContain("удалена", d.Message);
     }
 }

@@ -8,7 +8,8 @@ public enum DiagnosticSeverity { Warning, Error }
 /// <summary>
 /// Одна проблема, найденная при проверке разрешения ссылок контекста генерации.
 /// <paramref name="Code"/> различает вид (issue #332): "leftover-ref" — висячая ссылка (цель удалена),
-/// "missing-required" — незаполненное обязательное. Фронт по нему рисует разные индикаторы.
+/// "ref-depth-limit" — ссылка цела, но резолвер до неё не дошёл (issue #723), "missing-required" —
+/// незаполненное обязательное. Фронт по нему рисует разные индикаторы.
 /// </summary>
 public record ResolutionDiagnostic(DiagnosticSeverity Severity, string Path, string Message, string Code = "");
 
@@ -86,10 +87,19 @@ public static class ResolutionScanner
                         "catalog" => "запись каталога",
                         _ => $"объект типа «{kind}»",
                     };
-                    diagnostics.Add(new ResolutionDiagnostic(
-                        DiagnosticSeverity.Error, path,
-                        $"Ссылка на {kindHuman}{(target is null ? "" : $" (id {target})")} не разрешена — целевая запись не найдена или удалена.",
-                        "leftover-ref"));
+                    var id = target is null ? "" : $" (id {target})";
+                    // Резолвер помечает СВОЙ отказ (issue #723). Без пометки причина одна — цели нет;
+                    // с пометкой цель, скорее всего, на месте, и звать человека её искать — враньё.
+                    var stoppedByDepth = el.TryGetProperty(RefUnresolved.Key, out var why)
+                        && why.GetString() == RefUnresolved.DepthLimit;
+                    diagnostics.Add(stoppedByDepth
+                        ? new ResolutionDiagnostic(DiagnosticSeverity.Error, path,
+                            $"Ссылка на {kindHuman}{id} не развёрнута — исчерпан предел длины цепочки ссылок. " +
+                            "Целевая запись при этом может существовать: укоротите цепочку либо поднимите предел.",
+                            "ref-depth-limit")
+                        : new ResolutionDiagnostic(DiagnosticSeverity.Error, path,
+                            $"Ссылка на {kindHuman}{id} не разрешена — целевая запись не найдена или удалена.",
+                            "leftover-ref"));
                     return; // глубже не идём — внутренность ссылки не данные
                 }
                 foreach (var p in el.EnumerateObject())
