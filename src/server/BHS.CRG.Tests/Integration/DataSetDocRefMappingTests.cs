@@ -247,6 +247,45 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
     }
 
     /// <summary>
+    /// Ячейка <c>doc-ref</c>-поля показывается НАИМЕНОВАНИЕМ документа на обоих предпросмотрах —
+    /// и материализации (диалог), и привязки (вкладка данных).
+    ///
+    /// Сырой идентификатор человеку не говорит ничего, а главное — по нему не видно, разрешится ли
+    /// ссылка: удалённый документ выглядит точно как рабочий. Проверяем оба экрана, потому что
+    /// расхождение здесь и есть беда: один назвал бы ссылку битой, второй показал бы её исправной.
+    /// </summary>
+    [Fact]
+    public async Task DocRefCell_IsShownAsDocumentName_InBothPreviews()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var aosrType = await m.Send(new CreateDocumentTypeCommand("АОСР", $"AOSR{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null, J("{'fields':[{'key':'Номер','type':'string'}]}")));
+        var reestrType = await m.Send(new CreateDocumentTypeCommand("Реестр", $"REG{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+        var rowType = await m.Send(new CreateDocumentTypeCommand("СтрокаРеестра", $"ROW{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Composite, null,
+            J($"{{'fields':[{{'key':'Документ','type':'doc-ref','typeId':'{aosrType.Id}'}}]}}")));
+
+        var (_, reestrId, aosrId) = await SeedSetAsync(m, reestrType.Id, aosrType.Id);
+
+        var missingId = Guid.NewGuid();
+        var sourceId = await MaterializedSourceAsync(scope, $"Ид\n{aosrId}\n{missingId}\n", rowType.Id,
+            new Dictionary<string, string> { ["Документ"] = "Ид" });
+        await Svc(scope).CreateBindingAsync(new CreateBindingInput(reestrId, sourceId, "Строки", null), default);
+
+        var materialize = await Svc(scope).MaterializePreviewAsync(sourceId, 50, null, null, null, null, default);
+        Assert.Equal("🔗 АОСР", materialize!.Rows[0]["Документ"]);
+        Assert.Equal("документ не найден", materialize.Rows[1]["Документ"]);
+
+        var binding = Assert.Single(await Svc(scope).PreviewBindingsAsync(reestrId, default));
+        var rows = Assert.IsType<List<Dictionary<string, object?>>>(binding.Data);
+        Assert.Equal("🔗 АОСР", rows[0]["Документ"]);
+        Assert.Equal("документ не найден", rows[1]["Документ"]);
+    }
+
+    /// <summary>
     /// Материализация настроена, а маппинг пуст — это ошибка, и она названа словами.
     ///
     /// Ровно так выглядел живой кейс: тип для материализации выбран, маппинг пуст (маппить было

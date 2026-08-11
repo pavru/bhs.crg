@@ -152,8 +152,14 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
           id => allDocTypes.find(t => t.id === id)?.name ?? id)
       : null;
 
+  // Типы ещё не приехали, а тип у источника задан: тело диалога скрыто, и «Сохранить» отправила бы
+  // настройку, собранную из невыясненного, — режим «по Ид» и правило варианта потерялись бы молча,
+  // оставив источник в состоянии «материализован, но маппинг пуст», на которое ругается он же сам.
+  // Не «проблема» (человек ничего не сделал не так), а просто не время сохранять.
+  const typesPending = !!typeId && !selectedType;
+
   function handleSave() {
-    if (problem) return;
+    if (problem || typesPending) return;
     save.mutate(
       {
         sourceId: source.id,
@@ -189,7 +195,8 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
-          <Button type="button" variant="filled" onClick={handleSave} loading={save.isPending} disabled={!!problem}>
+          <Button type="button" variant="filled" onClick={handleSave} loading={save.isPending}
+            disabled={!!problem || typesPending}>
             {save.isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>
         </div>

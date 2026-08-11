@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Documents;
@@ -219,6 +219,68 @@ public class MaterializeByIdModeTests(IntegrationTestFixture fixture) : IAsyncLi
         Assert.NotNull(preview);
         Assert.Null(preview!.Error);
         Assert.Equal("АОСР", Assert.Single(preview.Rows)["Документ"]);
+    }
+
+    /// <summary>
+    /// Документ ЧУЖОГО комплекта предпросмотр называет чужим, а не показывает наименованием.
+    ///
+    /// Условия здесь обязаны совпадать с резолвером (<c>ResolveDocumentInstanceAsync</c> берёт документ
+    /// только из своего комплекта): показав наименование, экран назвал бы исправной ссылку, которая
+    /// при генерации останется висячей, а сканер объявит её удалённой записью — то есть ровно ту
+    /// ложь предпросмотра, ради снятия которой наименования и заведены.
+    /// </summary>
+    [Fact]
+    public async Task DocumentFromAnotherSet_IsNamedForeign_NotShownAsWorking()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var (aosrType, reestrType) = await SeedTypesAsync(m);
+        var (reestrId, _) = await SeedSetAsync(m, reestrType.Id, aosrType.Id);
+        // Второй комплект той же стройки — его АОСР для первого реестра посторонний.
+        var (_, foreignAosrId) = await SeedSetAsync(m, reestrType.Id, aosrType.Id);
+
+        var sourceId = await ByIdSourceAsync(scope, $"Ид\n{foreignAosrId}\n", aosrType.Id, "Ид");
+        await Svc(scope).CreateBindingAsync(new CreateBindingInput(reestrId, sourceId, "Документы", null), default);
+
+        var preview = Assert.Single(await Svc(scope).PreviewBindingsAsync(reestrId, default));
+        var rows = Assert.IsType<List<Dictionary<string, object?>>>(preview.Data);
+        Assert.Equal("документ другого комплекта — ссылка не развернётся", Assert.Single(rows)["Документ"]);
+
+        // И это правда: генерация такую ссылку действительно не разворачивает.
+        var ctx = await ResolveAsync(scope, reestrId);
+        var doc = Assert.Single(((JsonElement)ctx.Data["Документы"]!).EnumerateArray());
+        Assert.True(doc.TryGetProperty("$ref", out _), "чужой документ неожиданно развернулся");
+    }
+
+    /// <summary>
+    /// Колонки нет вовсе — это другая беда, чем пустая ячейка, и названа она отдельно. Свалив их в
+    /// одну причину, мы отправили бы человека проверять ячейки, которых нет: файл перезалили с
+    /// переименованным заголовком, и искать надо колонку.
+    /// </summary>
+    [Fact]
+    public async Task MissingColumn_IsNamedSeparately_NotAsEmptyCell()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+
+        var (aosrType, reestrType) = await SeedTypesAsync(m);
+        var (reestrId, aosrId) = await SeedSetAsync(m, reestrType.Id, aosrType.Id);
+
+        var svc = Svc(scope);
+        var file = await svc.UploadFileAsync(new UploadFileInput(
+            Encoding.UTF8.GetBytes($"ИдДокумента\n{aosrId}\n"), "docs.csv", "text/csv", "Тест", "System", null), default);
+        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
+        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Протоколы", candidate.SheetOrPath, null), default);
+        // Колонка выбрана та, которой в источнике нет (заголовок переименован после настройки).
+        await svc.SetMaterializationAsync(source.Id, aosrType.Id, new(), discriminator: null, byIdColumn: "Ид", default);
+        await svc.CreateBindingAsync(new CreateBindingInput(reestrId, source.Id, "Документы", null), default);
+
+        var diagnostics = new List<ResolutionDiagnostic>();
+        await ResolveAsync(scope, reestrId, diagnostics);
+
+        var warning = Assert.Single(diagnostics, d => d.Path == "Документы");
+        Assert.Contains("нет колонки", warning.Message);
     }
 
     /// <summary>

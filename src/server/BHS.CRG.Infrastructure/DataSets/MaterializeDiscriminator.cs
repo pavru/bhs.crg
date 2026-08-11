@@ -17,6 +17,7 @@ public static class MaterializeSkipReason
     /// <summary>Режим «существующий документ по Ид» (issue #725): колонка с Ид пуста / в ней не Ид.</summary>
     public const string RefIdEmpty = "ref-id-empty";
     public const string RefIdNotGuid = "ref-id-not-guid";
+    public const string RefIdColumnMissing = "ref-id-column-missing";
 
     public static string Describe(string code) => code switch
     {
@@ -28,6 +29,7 @@ public static class MaterializeSkipReason
         VariantNotMapped => "у выбранного варианта не задан маппинг колонок",
         RefIdEmpty => "колонка с идентификатором документа пуста",
         RefIdNotGuid => "в колонке не идентификатор документа",
+        RefIdColumnMissing => "в источнике нет колонки, выбранной для идентификатора документа",
         _ => code,
     };
 }

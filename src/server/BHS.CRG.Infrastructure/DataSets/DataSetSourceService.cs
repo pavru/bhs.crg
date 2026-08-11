@@ -339,7 +339,7 @@ public class DataSetSourceService(
             var page = rows.Take(take).ToList();
 
             if (MaterializeByIdMode.IsOn(effByIdColumn))
-                return await ByIdPreviewAsync(effTypeId, effByIdColumn!, page, rows.Count, ct);
+                return await ByIdPreviewAsync(effTypeId, effByIdColumn!, page, rows.Count, SetOf(source.File), ct);
 
             MaterializeVariantSelector? selector = null;
             if (effDiscriminator is not null && !string.IsNullOrWhiteSpace(effDiscriminator.Column))
@@ -397,8 +397,7 @@ public class DataSetSourceService(
             // Ссылки на документы — наименованиями, а не идентификаторами (issue #715, пункт проверки,
             // и issue #725). Пока превью отдавало сырой GUID, «ссылка на удалённый документ» выглядела
             // здесь ровно так же, как рабочая, — и расходились они только при генерации.
-            if (effTypeId is { } previewTypeId)
-                await LabelDocRefCellsAsync(mapped, previewTypeId, ct);
+            await DocRefPreviewLabeler.LabelAsync(db, mapped, effTypeId, SetOf(source.File), ct);
 
             return new MaterializePreviewDto(effTypeId, rows.Count, mapped, null, variants, skipped);
         }
@@ -415,7 +414,7 @@ public class DataSetSourceService(
     /// </summary>
     private async Task<MaterializePreviewDto> ByIdPreviewAsync(
         Guid? typeId, string column,
-        IReadOnlyList<IReadOnlyDictionary<string, string?>> page, int totalRows, CancellationToken ct)
+        IReadOnlyList<IReadOnlyDictionary<string, string?>> page, int totalRows, Guid? setId, CancellationToken ct)
     {
         var ids = new List<Guid>();
         var skipped = new List<MaterializeSkippedRowDto>();
@@ -431,7 +430,7 @@ public class DataSetSourceService(
             else ids.Add(id.Value);
         }
 
-        var labels = await MaterializeByIdMode.ResolveLabelsAsync(db, [.. ids.Distinct()], ct);
+        var labels = await MaterializeByIdMode.ResolveLabelsAsync(db, [.. ids.Distinct()], setId, ct);
         var rows = ids
             .Select(id => new Dictionary<string, object?>
             {
@@ -442,46 +441,9 @@ public class DataSetSourceService(
         return new MaterializePreviewDto(typeId, totalRows, rows, null, null, skipped);
     }
 
-    /// <summary>
-    /// Ячейки <c>doc-ref</c>-полей — наименованием документа вместо идентификатора. Значения, не
-    /// разобравшиеся в идентификатор, остаются как есть: «в колонке не то» видно только так
-    /// (философия issue #466), и подменять это на «не найден» значило бы назвать другую беду.
-    /// </summary>
-    private async Task LabelDocRefCellsAsync(
-        List<Dictionary<string, object?>> rows, Guid typeId, CancellationToken ct)
-    {
-        if (rows.Count == 0) return;
-
-        var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
-        if (!typesById.ContainsKey(typeId)) return;
-
-        var docRefKeys = DocumentTypeSchemaReader.EffectiveFields(typeId, typesById)
-            .Where(f => f.Type == "doc-ref")
-            .Select(f => f.Key)
-            .ToHashSet(StringComparer.Ordinal);
-        if (docRefKeys.Count == 0) return;
-
-        // Идентификаторы всей страницы разрешаются ОДНИМ запросом — построчный дал бы по запросу на
-        // каждый документ реестра.
-        var ids = new List<Guid>();
-        foreach (var row in rows)
-            foreach (var key in docRefKeys)
-                if (CellId(row, key) is { } id) ids.Add(id);
-        if (ids.Count == 0) return;
-
-        var labels = await MaterializeByIdMode.ResolveLabelsAsync(db, [.. ids.Distinct()], ct);
-        foreach (var row in rows)
-            foreach (var key in docRefKeys)
-                if (CellId(row, key) is { } id)
-                    row[key] = labels.TryGetValue(id, out var label)
-                        ? $"🔗 {label}"
-                        : MaterializeByIdMode.NotFoundLabel;
-
-        static Guid? CellId(Dictionary<string, object?> row, string key)
-            => row.TryGetValue(key, out var v) && v is string s && Guid.TryParse(s.Trim(), out var id)
-                ? id
-                : null;
-    }
+    /// <summary>Комплект, в котором будут разворачиваться ссылки строк этого набора; null — набор
+    /// живёт выше комплекта и используется в разных, и проверять принадлежность нечему.</summary>
+    private static Guid? SetOf(DataSetFile file) => file.Scope == CatalogScope.Set ? file.ScopeId : null;
 
     public async Task<DataSetSourceDto> CreateSourceAsync(Guid fileId, CreateSourceInput input, CancellationToken ct)
     {

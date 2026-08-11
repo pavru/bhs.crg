@@ -1,5 +1,7 @@
 ﻿using System.Text.Json;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.Schema;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -70,6 +72,13 @@ public class DataSetBindingService(
             .AsNoTracking()
             .ToListAsync(ct);
 
+        // Владелец нужен дважды: чтобы знать комплект, в котором будут разворачиваться ссылки строк
+        // (в другом комплекте резолвер документ не возьмёт), и чтобы вывести тип строки табличной
+        // привязки. Читаем один раз на весь предпросмотр, а не по привязке.
+        var owner = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
+            .FirstOrDefaultAsync(o => o.Id == ownerId, ct);
+        var ownerSetId = owner is { IsDocument: true, ScopeLevel: CatalogScope.Set } ? owner.ScopeId : null;
+
         var results = new List<BindingPreviewDto>();
         foreach (var binding in bindings)
         {
@@ -84,7 +93,7 @@ public class DataSetBindingService(
                     && DataSetMappingValue.IsEmptyMapping(binding.Mapping)
                     && MaterializeByIdMode.IsOn(binding.Source.MaterializeByIdColumn))
                 {
-                    results.Add(await PreviewDocumentRefsAsync(binding, rows, ct));
+                    results.Add(await PreviewDocumentRefsAsync(binding, rows, ownerSetId, ct));
                     continue;
                 }
 
@@ -126,6 +135,9 @@ public class DataSetBindingService(
                         if (!string.IsNullOrEmpty(colName))
                             data[fieldKey] = await DataSetDtoMapper.PreviewCellAsync(colName, row, ct);
 
+                    // Тип строки скалярной привязки — сам тип владельца: маппинг ложится на его поля.
+                    await DocRefPreviewLabeler.LabelAsync(db, [data], owner?.CompositeTypeId, ownerSetId, ct);
+
                     results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
                         "scalar", null, rows.Count, data, null));
                 }
@@ -143,6 +155,12 @@ public class DataSetBindingService(
                                 obj[fieldKey] = await DataSetDtoMapper.PreviewCellAsync(colName, row, ct);
                         mapped.Add(obj);
                     }
+
+                    // Тип строки: у материализованного источника — его тип, иначе — тип элемента
+                    // целевого поля. Без этого doc-ref-ячейки остались бы сырыми идентификаторами
+                    // на экране, куда идут проверять, ТЕ ЛИ документы приедут.
+                    await DocRefPreviewLabeler.LabelAsync(db, mapped,
+                        await RowTypeIdAsync(binding, owner?.CompositeTypeId, ct), ownerSetId, ct);
 
                     results.Add(new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
                         "tabular", binding.TargetFieldKey, mapped.Count, mapped,
@@ -171,6 +189,7 @@ public class DataSetBindingService(
     private async Task<BindingPreviewDto> PreviewDocumentRefsAsync(
         DataSetBinding binding,
         IReadOnlyList<IReadOnlyDictionary<string, string?>> rows,
+        Guid? ownerSetId,
         CancellationToken ct)
     {
         var column = binding.Source.MaterializeByIdColumn!;
@@ -190,7 +209,7 @@ public class DataSetBindingService(
             else ids.Add(id.Value);
         }
 
-        var labels = await MaterializeByIdMode.ResolveLabelsAsync(db, ids.Distinct().ToList(), ct);
+        var labels = await MaterializeByIdMode.ResolveLabelsAsync(db, ids.Distinct().ToList(), ownerSetId, ct);
         var mapped = ids
             .Select(id => new Dictionary<string, object?>
             {
@@ -206,6 +225,23 @@ public class DataSetBindingService(
 
         return new BindingPreviewDto(binding.Id, binding.Source.Name, binding.Source.File.Name,
             "tabular", binding.TargetFieldKey, mapped.Count, mapped, warning);
+    }
+
+    /// <summary>
+    /// Тип, в форму которого разворачивается строка табличной привязки: у материализованного
+    /// источника — его тип материализации (маппинг взят оттуда), иначе — тип элемента целевого поля.
+    /// null — вывести не удалось (тип владельца неизвестен либо поле не найдено).
+    /// </summary>
+    private async Task<Guid?> RowTypeIdAsync(DataSetBinding binding, Guid? ownerTypeId, CancellationToken ct)
+    {
+        if (binding.Source.MaterializeTypeId is { } materialized
+            && DataSetMappingValue.IsEmptyMapping(binding.Mapping))
+            return materialized;
+
+        if (ownerTypeId is not { } typeId || binding.TargetFieldKey is null) return null;
+
+        var typesById = await db.DocumentTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+        return DocumentTypeSchemaReader.Field(typeId, binding.TargetFieldKey, typesById)?.TypeId;
     }
 
     /// <summary>Тот же выбор варианта, что у генерации (issue #716); null — правила нет.</summary>

@@ -185,7 +185,10 @@ public class DataSetSource : Entity
         MaterializeTypeId = typeId;
         MaterializeMapping = typeId is null ? null : (mappingJson ?? "{}");
         MaterializeDiscriminator = typeId is null ? null : discriminatorJson;
-        MaterializeByIdColumn = typeId is null || string.IsNullOrWhiteSpace(byIdColumn) ? null : byIdColumn.Trim();
+        // Имя колонки НЕ подрезаем: ключи строк — заголовки файла как есть (CSV-парсер подрезает
+        // значения, не заголовки). Подрезанное «Ид » не совпало бы ни с одной строкой, и реестр
+        // молча опустел бы с сообщением про пустую колонку. Дискриминатор (#716) хранит имя так же.
+        MaterializeByIdColumn = typeId is null || string.IsNullOrWhiteSpace(byIdColumn) ? null : byIdColumn;
         TouchUpdatedAt();
     }
 }
