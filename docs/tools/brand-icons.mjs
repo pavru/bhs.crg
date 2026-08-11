@@ -6,8 +6,15 @@
 // тёмной схеме дал бы светлый знак на белом фоне.
 //
 // Playwright, а не sharp/resvg: он уже стоит здесь ради сборки PDF, и браузерный рендер SVG
-// заведомо совпадает с тем, что увидит пользователь. Запуск: npm run icons (в docs/tools).
-import { chromium } from 'playwright';
+// заведомо совпадает с тем, что увидит пользователь.
+//
+// Запуск: npm run icons (в docs/tools). Перед первым запуском — как и для PDF:
+//   npm install
+//   npx playwright install chromium
+//
+// Необязательные переменные окружения (для CI/нестандартных установок) — те же, что у build-pdf:
+//   BHS_PLAYWRIGHT  — путь/URL к модулю playwright (если не установлен локально)
+//   BHS_CHROMIUM    — путь к исполняемому файлу Chromium (executablePath)
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -37,10 +44,21 @@ const ICONS = [
 
 const BG = '#ffffff';
 
+// Тот же поиск модуля, что в build-pdf.mjs: скрипты живут в одном пакете и запускаются одним
+// `npm run`, так что падать они должны одинаково — с внятным сообщением, а не с ERR_MODULE_NOT_FOUND.
+async function loadChromium() {
+  const candidates = [process.env.BHS_PLAYWRIGHT, 'playwright', 'playwright-core'].filter(Boolean);
+  for (const c of candidates) {
+    try { const m = await import(c); if (m.chromium) return m.chromium; } catch { /* следующий */ }
+  }
+  throw new Error('Playwright не найден. Выполните: npm install && npx playwright install chromium');
+}
+
 const svg = readFileSync(master, 'utf8');
 const dataUri = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
 
-const browser = await chromium.launch();
+const chromium = await loadChromium();
+const browser = await chromium.launch(process.env.BHS_CHROMIUM ? { executablePath: process.env.BHS_CHROMIUM } : {});
 // colorScheme светлая явно: мастер тёмной темы не знает, но подложка белая — рендер в dark у
 // будущего браузера не должен внезапно её перекрасить.
 const page = await browser.newPage({ colorScheme: 'light', deviceScaleFactor: 1 });
@@ -61,4 +79,5 @@ for (const { file, size, scale, radius } of ICONS) {
 }
 
 await browser.close();
-console.log('Готово. Имена файлов зашиты в src/client/index.html и public/manifest.webmanifest.');
+console.log('Готово. Поднимите ?v= в src/client/index.html и public/manifest.webmanifest —');
+console.log('иначе у тех, кто уже заходил, останется прежняя иконка из кэша браузера.');
