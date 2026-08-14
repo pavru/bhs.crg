@@ -106,30 +106,42 @@ public static class DomainObjectReferences
 /// B «умная очистка»): убирает значения-ссылки `$ref:document/instance` — они структурно same-set и в
 /// чужом комплекте не резолвятся (дали бы сырой `{$ref}` = мусор в PDF). `$ref:catalog` НЕ трогает
 /// (валидность в новом scope проверяется отдельно, для предупреждений). Чистая функция.
+///
+/// <para><b>«Structurally same-set» перестало быть верным для всех instance-ссылок</b> (issue #733):
+/// у них теперь два домена, и второй — библиотека документов качества — видна по цепочке областей, а
+/// не по комплекту. Ссылка на документ качества уровня System или стройки в целевом комплекте
+/// разрешается штатно, и стереть её значило бы молча выбросить рабочие данные, доложив об этом как
+/// об «удалённых ссылках на документы комплекта». Какие идентификаторы уцелеют, решает вызывающий —
+/// это вопрос к базе, а класс остаётся чистой функцией.</para>
 /// </summary>
 public static class RefScrubber
 {
     /// <summary>
     /// Очищенная копия data без doc/instance-ссылок + ключи полей верхнего уровня, чьё значение убрано.
     /// </summary>
-    public static (JsonElement Data, IReadOnlyList<string> StrippedFields) StripInstanceRefs(JsonElement data)
+    /// <param name="keepIds">Идентификаторы, ссылки на которые сохраняются: цели, разрешимые и в новом
+    /// расположении (документы качества, видимые из целевого комплекта, — issue #733). Пусто = прежнее
+    /// поведение, стираются все.</param>
+    public static (JsonElement Data, IReadOnlyList<string> StrippedFields) StripInstanceRefs(
+        JsonElement data, IReadOnlySet<Guid>? keepIds = null)
     {
         var stripped = new List<string>();
-        var result = Strip(data, topLevel: true, stripped) ?? JsonSerializer.SerializeToElement(new Dictionary<string, JsonElement>());
+        var result = Strip(data, topLevel: true, stripped, keepIds)
+                     ?? JsonSerializer.SerializeToElement(new Dictionary<string, JsonElement>());
         return (result, stripped);
     }
 
     // Возвращает null, если узел САМ — doc/instance-ссылка (должен быть удалён вызывающим).
-    private static JsonElement? Strip(JsonElement el, bool topLevel, List<string> stripped)
+    private static JsonElement? Strip(JsonElement el, bool topLevel, List<string> stripped, IReadOnlySet<Guid>? keepIds)
     {
         switch (el.ValueKind)
         {
             case JsonValueKind.Object:
-                if (IsInstanceRef(el)) return null;
+                if (IsInstanceRef(el) && !IsKept(el, keepIds)) return null;
                 var obj = new Dictionary<string, JsonElement>();
                 foreach (var p in el.EnumerateObject())
                 {
-                    var child = Strip(p.Value, topLevel: false, stripped);
+                    var child = Strip(p.Value, topLevel: false, stripped, keepIds);
                     if (child is { } c) obj[p.Name] = c;
                     else if (topLevel && !stripped.Contains(p.Name)) stripped.Add(p.Name);
                 }
@@ -137,7 +149,7 @@ public static class RefScrubber
             case JsonValueKind.Array:
                 var arr = new List<JsonElement>();
                 foreach (var item in el.EnumerateArray())
-                    if (Strip(item, topLevel: false, stripped) is { } c) arr.Add(c);
+                    if (Strip(item, topLevel: false, stripped, keepIds) is { } c) arr.Add(c);
                 return JsonSerializer.SerializeToElement(arr);
             default:
                 return el.Clone();
@@ -147,4 +159,10 @@ public static class RefScrubber
     private static bool IsInstanceRef(JsonElement el)
         => el.TryGetProperty("$ref", out var r) && r.ValueKind == JsonValueKind.String
            && r.GetString() is "document" or "instance";
+
+    private static bool IsKept(JsonElement el, IReadOnlySet<Guid>? keepIds)
+        => keepIds is { Count: > 0 }
+           && el.TryGetProperty("instanceId", out var idEl)
+           && Guid.TryParse(idEl.GetString(), out var id)
+           && keepIds.Contains(id);
 }

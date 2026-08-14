@@ -446,6 +446,7 @@ public class DocumentSetHandlers(
     IRepository<Section> sectionRepo,
     IDomainObjectRepository objRepo,
     IRepository<DocumentType> docTypeRepo,
+    IRepository<QualityDocument> qualityDocRepo,
     IBlobStorage blobStorage,
     IScopeSubtree scopeSubtree) :
     IRequestHandler<CreateDocumentSetCommand, DocumentSet>,
@@ -678,13 +679,18 @@ public class DocumentSetHandlers(
         if (didFlatten)
             warnings.Add(new CopyWarning("baseref", "Базовый экземпляр запечён в значения", 1, []));
 
-        // 2) стрип $ref:document/instance — same-set, в чужом комплекте = мусор.
-        var (scrubbed, strippedFields) = RefScrubber.StripInstanceRefs(flattened);
+        var section = await sectionRepo.GetByIdAsync(targetSet.SectionId, ct);
+
+        // 2) стрип $ref:document/instance — same-set, в чужом комплекте = мусор. Кроме ссылок на
+        //    документы качества, видимые из ЦЕЛЕВОГО комплекта (issue #733): у instance-ссылки два
+        //    домена, и второй живёт по цепочке областей, а не по комплекту, — стерев его, мы
+        //    выбросили бы рабочие данные и назвали бы их «ссылками на документы комплекта».
+        var keepIds = await VisibleQualityRefsAsync(flattened, targetSet, section?.ConstructionId, ct);
+        var (scrubbed, strippedFields) = RefScrubber.StripInstanceRefs(flattened, keepIds);
         if (strippedFields.Count > 0)
             warnings.Add(new CopyWarning("doc-ref", "Удалены ссылки на документы комплекта", strippedFields.Count, strippedFields));
 
         // 3) $ref:catalog — оставляем, но проверяем разрешимость в scope целевого комплекта.
-        var section = await sectionRepo.GetByIdAsync(targetSet.SectionId, ct);
         var unresolved = 0;
         foreach (var catId in RefReader.CollectRefIds(scrubbed).Distinct())
         {
@@ -715,6 +721,34 @@ public class DocumentSetHandlers(
         CatalogScope.Set => o.ScopeId == targetSet.Id,
         _ => false,
     };
+
+    /// <summary>
+    /// Идентификаторы документов качества, на которые ссылается <paramref name="data"/> и которые
+    /// ОСТАНУТСЯ видимыми из целевого комплекта (issue #733) — их ссылки скраб не трогает.
+    ///
+    /// <para>Видимость считается тем же правилом, что у остальной библиотеки и у резолвера: System
+    /// всегда, иначе совпадение по стройке/разделу/комплекту цели переноса. Сертификат уровня System
+    /// переживает перенос куда угодно, сертификат чужой стройки — стирается вместе с остальными
+    /// неразрешимыми ссылками, и это верно: в новом расположении он бы не развернулся.</para>
+    /// </summary>
+    private async Task<IReadOnlySet<Guid>> VisibleQualityRefsAsync(
+        JsonElement data, DocumentSet targetSet, Guid? targetConstructionId, CancellationToken ct)
+    {
+        var ids = RefReader.CollectRefIds(data).Distinct().ToHashSet();
+        if (ids.Count == 0) return new HashSet<Guid>();
+
+        var docs = await qualityDocRepo.FindAsync(d => ids.Contains(d.Id), ct);
+        return docs.Where(d => d.Scope switch
+            {
+                CatalogScope.System => true,
+                CatalogScope.Construction => d.ScopeId == targetConstructionId,
+                CatalogScope.Section => d.ScopeId == targetSet.SectionId,
+                CatalogScope.Set => d.ScopeId == targetSet.Id,
+                _ => false,
+            })
+            .Select(d => d.Id)
+            .ToHashSet();
+    }
 
     public async Task<DomainObject> Handle(UpdateRequisitesCommand cmd, CancellationToken ct)
     {

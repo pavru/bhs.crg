@@ -274,10 +274,21 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
                 when allowInstanceRefs
                      && node.TryGetProperty("instanceId", out var docInstIdProp) && Guid.TryParse(docInstIdProp.GetString(), out var docInstId):
             {
-                var resolved = await ResolveDocumentInstanceAsync(docInstId, scope, refDepth, nodeDepth,
+                var (resolved, kind) = await ResolveDocumentInstanceAsync(docInstId, scope, refDepth, nodeDepth,
                     keepRefProvenance, ct);
-                if (resolved.ValueKind == JsonValueKind.Undefined) return node.Clone();
-                return keepRefProvenance
+                if (resolved.ValueKind == JsonValueKind.Undefined)
+                    // «Цель вне области» — не «цели нет»: запись жива, и звать человека её искать
+                    // было бы враньём (та же идиома, что у предела глубины, issue #723).
+                    return kind == InstanceRefTarget.QualityOutOfScope
+                        ? WithMeta(node, RefUnresolved.Key, RefUnresolved.QualityOutOfScope)
+                        : node.Clone();
+
+                // Провенанс — АДРЕС для повторного чтения (issues #594/#595), и ставится он только
+                // документу комплекта: свёртка снимка (RequisiteFolding) по этому адресу заменяет
+                // развёрнутый объект стабом «сходи за ним отдельным вызовом», а сходить за
+                // документом качества внешнему чтению пока некуда. Пометь мы его — MCP отдавал бы
+                // вместо реквизитов сертификата мёртвый указатель, потеряв только что найденные данные.
+                return keepRefProvenance && kind == InstanceRefTarget.SetDocument
                     ? WithMeta(resolved, RefProvenance.InstanceIdKey, docInstId.ToString())
                     : resolved;
             }
@@ -340,15 +351,29 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
     /// Загружает DocumentInstance и разворачивает его поля той же единой обработкой, но с
     /// <c>allowInstanceRefs: false</c> — вложенные instance-ссылки дальше не разворачиваются
     /// (защита от циклов), а массивы/таблицы внутри обрабатываются как везде (это чинит баг B).
+    ///
+    /// <para><b>Каскад доменов (issue #733).</b> <c>$ref:"instance"</c> означает «документ комплекта,
+    /// а при промахе — видимый документ качества»: не найдя цель среди документов комплекта, ищем её
+    /// среди <c>quality_documents</c>, видимых из скоп-цепочки документа-владельца
+    /// (<see cref="ResolveQualityDocumentAsync"/>). Это не запасной путь на случай ошибки, а второй
+    /// домен адресации: источник «Документы качества» отдаёт идентификаторы записей библиотеки, и
+    /// собранный по подсказкам UI union с <c>doc-ref</c> на типы документов качества иначе не
+    /// связывался бы ни при какой настройке — типы у них настоящие <c>DocumentTypes</c>, а
+    /// экземпляры живут в другой таблице.</para>
+    ///
+    /// <para>Порядок каскада — семантика, а не оптимизация: документы комплекта первыми, поэтому
+    /// поведение существующих ссылок байт-в-байт прежнее (второй домен опрашивается только при
+    /// промахе). Коллизия идентификаторов между доменами исключена — это GUID.</para>
     /// </summary>
-    private async Task<JsonElement> ResolveDocumentInstanceAsync(Guid instanceId, ScopeChain scope, int refDepth,
-        int nodeDepth, bool keepRefProvenance, CancellationToken ct)
+    private async Task<(JsonElement Value, InstanceRefTarget Kind)> ResolveDocumentInstanceAsync(
+        Guid instanceId, ScopeChain scope, int refDepth, int nodeDepth, bool keepRefProvenance, CancellationToken ct)
     {
         var obj = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
             .FirstOrDefaultAsync(o => o.Id == instanceId && o.ScopeLevel == CatalogScope.Set
                                       && o.ScopeId == scope.SetId && o.Facet != null, ct);
 
-        if (obj is null) return default;
+        if (obj is null)
+            return await ResolveQualityDocumentAsync(instanceId, scope, refDepth, nodeDepth, keepRefProvenance, ct);
 
         var subCtx = GenerationContext.FromJson(obj.Data, obj.Facet!.PluginData);
         var dict = new Dictionary<string, JsonElement>();
@@ -359,7 +384,78 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
 
         // Фактический тип развёрнутого документа-ссылки (issue #344) — Application развернёт в _type.
         dict[TypeStamper.TypeIdKey] = JsonSerializer.SerializeToElement(obj.CompositeTypeId.ToString());
-        return JsonSerializer.SerializeToElement(dict);
+        return (JsonSerializer.SerializeToElement(dict), InstanceRefTarget.SetDocument);
+    }
+
+    /// <summary>
+    /// Второй домен instance-ссылки (issue #733): документ качества из общей библиотеки, видимый из
+    /// скоп-цепочки документа-владельца. Разворачивается в реквизиты + <c>displayName</c> + штамп
+    /// типа + скан файл-вложением под ключом <see cref="QualityScanKey"/>.
+    ///
+    /// <para><b>Видимость — та же, что у остальной библиотеки</b> (<c>QualityDocumentsProvider</c>,
+    /// guard <c>_baseRef</c>): System либо совпадение по комплекту/разделу/стройке цепочки
+    /// (<see cref="ScopeChain.Contains"/>). Документ качества чужой стройки не развернётся, даже
+    /// если его идентификатор попал в источник, — видимость библиотеки не глобальна.</para>
+    ///
+    /// <para>Реквизиты проходят ту же обработку, что у документа комплекта, с
+    /// <c>allowInstanceRefs: false</c>: сегодня ссылок внутри них не бывает, но правило обхода
+    /// (массивы/таблицы/catalog-ссылки) должно совпадать — иначе один и тот же реквизит
+    /// разворачивался бы по-разному в зависимости от домена, из которого пришёл.</para>
+    ///
+    /// <para>Служебные ключи кладутся ПОСЛЕ реквизитов и перекрывают одноимённые: <c>displayName</c>
+    /// и тип — свойства самой записи, а не её реквизитов, и авторитетна здесь запись. Скан
+    /// добавляется только когда он есть: у документа без скана ключ отсутствует, и одноимённый
+    /// реквизит (если тип его объявляет) остаётся нетронутым — пустое вложение было бы хуже, чем
+    /// его отсутствие, шаблон не отличил бы «скана нет» от «скан не загрузился».</para>
+    /// </summary>
+    private async Task<(JsonElement Value, InstanceRefTarget Kind)> ResolveQualityDocumentAsync(
+        Guid id, ScopeChain scope, int refDepth, int nodeDepth, bool keepRefProvenance, CancellationToken ct)
+    {
+        var doc = await db.QualityDocuments.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id, ct);
+        if (doc is null) return (default, InstanceRefTarget.NotFound);
+
+        // Жив, но не виден отсюда — это ДРУГОЙ отказ, чем «записи нет», и человеку он говорит другое:
+        // искать нечего, документ надо поднять выше по оси либо ссылаться на него из своей ветки.
+        if (!scope.Contains(doc.Scope, doc.ScopeId)) return (default, InstanceRefTarget.QualityOutOfScope);
+
+        var dict = new Dictionary<string, JsonElement>();
+        if (doc.Requisites.RootElement.ValueKind == JsonValueKind.Object)
+            foreach (var p in doc.Requisites.RootElement.EnumerateObject())
+                dict[p.Name] = await ResolveNode(p.Value, scope, refDepth + 1, nodeDepth + 1,
+                    allowInstanceRefs: false, keepRefProvenance, ct);
+
+        dict["displayName"] = JsonSerializer.SerializeToElement(doc.DisplayName);
+        dict[TypeStamper.TypeIdKey] = JsonSerializer.SerializeToElement(doc.DocumentTypeId.ToString());
+
+        if (!string.IsNullOrWhiteSpace(doc.ScanBlobPath))
+            dict[QualityScanKey] = JsonSerializer.SerializeToElement(new Dictionary<string, string?>
+            {
+                ["$type"] = "file",
+                ["blobPath"] = doc.ScanBlobPath,
+                ["fileName"] = doc.ScanFileName,
+                ["mimeType"] = doc.ScanMimeType,
+            });
+
+        return (JsonSerializer.SerializeToElement(dict), InstanceRefTarget.QualityDocument);
+    }
+
+    /// <summary>
+    /// Ключ, под которым скан документа качества попадает в развёрнутый объект (issue #733).
+    /// Имя фиксировано намеренно: на него завязываются шаблоны, и менять его потом — ломать их все.
+    /// </summary>
+    public const string QualityScanKey = "Скан";
+
+    /// <summary>
+    /// Чем оказалась цель instance-ссылки (issue #733). Вызывающему важны все четыре исхода
+    /// по-разному: домен решает, ставить ли адрес для повторного чтения, а два вида промаха
+    /// требуют от человека противоположных действий («записи нет» против «есть, но не отсюда»).
+    /// </summary>
+    private enum InstanceRefTarget
+    {
+        NotFound,
+        SetDocument,
+        QualityDocument,
+        QualityOutOfScope,
     }
 
     /// <summary>
