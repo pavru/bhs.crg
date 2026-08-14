@@ -1,4 +1,5 @@
 ﻿using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Infrastructure.Common;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -60,9 +61,14 @@ public static class MaterializeByIdMode
     /// <summary>Документ есть, но живёт в другом комплекте — резолвер его не возьмёт.</summary>
     public const string ForeignSetLabel = "документ другого комплекта — ссылка не развернётся";
 
+    /// <summary>Документ качества есть, но вне области видимости комплекта (issue #733): библиотека
+    /// качества видна по цепочке System → стройка → раздел → комплект, и чужая ветка в неё не входит.</summary>
+    public const string ForeignScopeQualityLabel = "документ качества вне области видимости — ссылка не развернётся";
+
     /// <summary>Метка объясняет отказ, а не называет документ (значку «🔗» рядом с ней не место).</summary>
     public static bool IsProblem(string label)
-        => label == NotFoundLabel || label == NotADocumentLabel || label == ForeignSetLabel;
+        => label == NotFoundLabel || label == NotADocumentLabel || label == ForeignSetLabel
+           || label == ForeignScopeQualityLabel;
 
     /// <summary>
     /// Как предпросмотру назвать каждый идентификатор — ОДНИМ запросом на страницу строк (реестр на
@@ -77,6 +83,12 @@ public static class MaterializeByIdMode
     /// <paramref name="setId"/> — комплект, в котором ссылка будет разворачиваться; null означает
     /// «неизвестен» (источник живёт выше комплекта и используется в разных): тогда проверяем только
     /// то, что проверить можно, — что объект вообще документ.
+    ///
+    /// <para><b>Каскад доменов повторяет резолвер</b> (issue #733): идентификаторы, не найденные
+    /// среди документов комплекта, ищутся в библиотеке документов качества — второй домен
+    /// instance-ссылки. Не повтори превью каскад, оно объявляло бы «не найден» ровно те ссылки,
+    /// которые генерация разворачивает штатно, — та самая ложь предпросмотра, которую этот класс и
+    /// снимает, только в другую сторону.</para>
     /// </summary>
     public static async Task<Dictionary<Guid, string>> ResolveLabelsAsync(
         AppDbContext db, IReadOnlyCollection<Guid> ids, Guid? setId, CancellationToken ct)
@@ -87,16 +99,46 @@ public static class MaterializeByIdMode
             .Where(o => ids.Contains(o.Id))
             .Select(o => new { o.Id, o.DisplayName, o.CompositeTypeId, o.ScopeLevel, o.ScopeId, IsDocument = o.Facet != null })
             .ToListAsync(ct);
-        if (docs.Count == 0) return [];
 
         var typeIds = docs.Select(d => d.CompositeTypeId).Distinct().ToList();
         var typeNames = await db.DocumentTypes.AsNoTracking()
             .Where(t => typeIds.Contains(t.Id))
             .ToDictionaryAsync(t => t.Id, t => t.Name, ct);
 
-        return docs.ToDictionary(d => d.Id, d =>
+        var labels = docs.ToDictionary(d => d.Id, d =>
             !d.IsDocument ? NotADocumentLabel
             : setId is { } sid && (d.ScopeLevel != CatalogScope.Set || d.ScopeId != sid) ? ForeignSetLabel
             : d.DisplayName ?? typeNames.GetValueOrDefault(d.CompositeTypeId) ?? "Документ");
+
+        await AddQualityLabelsAsync(db, [.. ids.Where(id => !labels.ContainsKey(id))], setId, labels, ct);
+        return labels;
+    }
+
+    /// <summary>
+    /// Второй проход каскада — документы качества (issue #733). Отдельным запросом и только по
+    /// промахам: страница реестра со ссылками на документы комплекта дополнительного запроса не
+    /// получает вовсе.
+    ///
+    /// <para>Область видимости считается тем же <c>ScopeChain</c>, что и в резолвере. При неизвестном
+    /// комплекте (<paramref name="setId"/> = null) цепочки не существует — тогда, как и для
+    /// документов комплекта выше, проверяем лишь то, что проверить можно: что запись есть.</para>
+    /// </summary>
+    private static async Task AddQualityLabelsAsync(
+        AppDbContext db, IReadOnlyList<Guid> missing, Guid? setId,
+        Dictionary<Guid, string> labels, CancellationToken ct)
+    {
+        if (missing.Count == 0) return;
+
+        var quality = await db.QualityDocuments.AsNoTracking()
+            .Where(q => missing.Contains(q.Id))
+            .Select(q => new { q.Id, q.DisplayName, q.Scope, q.ScopeId })
+            .ToListAsync(ct);
+        if (quality.Count == 0) return;
+
+        ScopeChain? chain = setId is { } sid ? await ScopeChains.LoadAsync(db, sid, ct) : null;
+        foreach (var q in quality)
+            labels[q.Id] = chain is { } c && !c.Contains(q.Scope, q.ScopeId)
+                ? ForeignScopeQualityLabel
+                : q.DisplayName;
     }
 }
