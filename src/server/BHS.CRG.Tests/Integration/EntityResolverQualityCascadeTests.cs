@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.QualityDocs;
@@ -150,6 +151,9 @@ public class EntityResolverQualityCascadeTests(IntegrationTestFixture fixture) :
     /// <summary>
     /// Видимость НЕ глобальна: документ качества чужой стройки не разворачивается, и ссылка остаётся
     /// сырой — то есть корректно флагается как неразрешённая, а не подмешивает чужие данные.
+    ///
+    /// <para>Отказ при этом ПОМЕЧЕН причиной: «есть, но не отсюда» — не «записи нет», и человеку эти
+    /// два случая говорят разное (см. <see cref="QualityOutOfScope_Diagnostic_SaysRecordExists"/>).</para>
     /// </summary>
     [Fact]
     public async Task QualityDocument_OutsideScopeChain_NotResolved()
@@ -167,6 +171,58 @@ public class EntityResolverQualityCascadeTests(IntegrationTestFixture fixture) :
 
         Assert.Equal("instance", resolved.GetProperty("$ref").GetString());
         Assert.False(resolved.TryGetProperty("displayName", out _));
+        Assert.Equal(RefUnresolved.QualityOutOfScope, resolved.GetProperty(RefUnresolved.Key).GetString());
+    }
+
+    /// <summary>
+    /// Диагностика различает два отказа. Сказать «запись не найдена или удалена» про живой документ
+    /// качества — послать человека искать то, что на месте; чинится это перемещением документа выше
+    /// по оси, а не поиском. Ровно ради такого различения и заведён <c>RefUnresolved</c> (#723).
+    /// </summary>
+    [Fact]
+    public async Task QualityOutOfScope_Diagnostic_SaysRecordExists()
+    {
+        var seed = await SeedAsync();
+        Guid qualityId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var foreign = await M(scope).Send(new CreateConstructionCommand("Чужой объект", _userId));
+            qualityId = (await AddQualityAsync(scope, seed.CertTypeId, "Чужой сертификат",
+                "{'НомерДок':'X-1'}", CatalogScope.Construction, foreign.Id)).Id;
+        }
+        var ownerId = await DocRefencingAsync(seed, qualityId);
+
+        using var s = fixture.Services.CreateScope();
+        var inst = await M(s).Send(new GetDocumentInstanceQuery(ownerId));
+        var resolver = s.ServiceProvider.GetRequiredService<IEntityResolver>();
+        var ctx = await resolver.ResolveAsync(DocumentView.From(inst!));
+        var diagnostics = new List<ResolutionDiagnostic>();
+        ResolutionScanner.ScanLeftoverRefs(ctx, diagnostics);
+
+        var d = Assert.Single(diagnostics, x => x.Code == "quality-out-of-scope");
+        Assert.Contains("вне области видимости", d.Message);
+        Assert.DoesNotContain(diagnostics, x => x.Code == "leftover-ref");
+    }
+
+    /// <summary>
+    /// Ссылка в никуда по-прежнему помечается как отсутствие цели — новая причина не поглотила
+    /// старую (иначе «документ удалён» перестало бы диагностироваться вовсе).
+    /// </summary>
+    [Fact]
+    public async Task UnknownId_Diagnostic_StaysNotFound()
+    {
+        var seed = await SeedAsync();
+        var ownerId = await DocRefencingAsync(seed, Guid.NewGuid());
+
+        using var s = fixture.Services.CreateScope();
+        var inst = await M(s).Send(new GetDocumentInstanceQuery(ownerId));
+        var resolver = s.ServiceProvider.GetRequiredService<IEntityResolver>();
+        var ctx = await resolver.ResolveAsync(DocumentView.From(inst!));
+
+        var diagnostics = new List<ResolutionDiagnostic>();
+        ResolutionScanner.ScanLeftoverRefs(ctx, diagnostics);
+
+        Assert.Single(diagnostics, x => x.Code == "leftover-ref");
     }
 
     /// <summary>
@@ -274,6 +330,115 @@ public class EntityResolverQualityCascadeTests(IntegrationTestFixture fixture) :
         var labels = await MaterializeByIdMode.ResolveLabelsAsync(db, [Guid.NewGuid()], seed.SetId, default);
 
         Assert.Empty(labels);
+    }
+
+    // ── Смежные потребители instance-ссылки ──────────────────────────────────────
+
+    /// <summary>
+    /// Внешнее чтение (MCP <c>get_document</c>) отдаёт реквизиты документа качества, а не стаб
+    /// «сходи за ним отдельным вызовом».
+    ///
+    /// <para>Свёртка снимка заменяет развёрнутый документ на <c>{"$document": id}</c> в расчёте, что
+    /// агент дочитает его сам, — но дочитать документ качества внешнему чтению пока негде: тем же
+    /// идентификатором <c>get_document</c> не найдёт ничего. Свернув его, мы выбросили бы только что
+    /// найденные данные и подменили их мёртвым указателем.</para>
+    /// </summary>
+    [Fact]
+    public async Task Snapshot_QualityDocument_NotFoldedIntoDeadPointer()
+    {
+        var seed = await SeedAsync();
+        Guid qualityId;
+        using (var scope = fixture.Services.CreateScope())
+            qualityId = (await AddQualityAsync(scope, seed.CertTypeId, "EKF — автоматы",
+                "{'НомерДок':'ЕАЭС RU С-CN.1'}", CatalogScope.Set, seed.SetId)).Id;
+        var ownerId = await DocRefencingAsync(seed, qualityId);
+
+        using var s = fixture.Services.CreateScope();
+        var snapshot = s.ServiceProvider.GetRequiredService<IDomainSnapshotService>();
+        var detail = await snapshot.GetDocumentAsync(ownerId);
+
+        var quality = detail!.Requisites.GetProperty("Качество");
+        Assert.False(quality.TryGetProperty("$document", out _), "документ качества свёрнут в нефетчабельный адрес");
+        Assert.Equal("ЕАЭС RU С-CN.1", quality.GetProperty("НомерДок").GetString());
+    }
+
+    /// <summary>
+    /// Документ комплекта по-прежнему сворачивается — новый домен не отменил экономию, ради которой
+    /// свёртка сделана: за документом комплекта агент сходит тем же <c>get_document</c>.
+    /// </summary>
+    [Fact]
+    public async Task Snapshot_SetDocument_StillFolded()
+    {
+        var seed = await SeedAsync();
+        Guid targetId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var target = await M(scope).Send(new AddDocumentToSetCommand(seed.SetId, seed.DocTypeId));
+            await M(scope).Send(new UpdateRequisitesCommand(target.Id, J("{'Номер':'АОСР-7'}")));
+            targetId = target.Id;
+        }
+        var ownerId = await DocRefencingAsync(seed, targetId);
+
+        using var s = fixture.Services.CreateScope();
+        var snapshot = s.ServiceProvider.GetRequiredService<IDomainSnapshotService>();
+        var detail = await snapshot.GetDocumentAsync(ownerId);
+
+        Assert.Equal(targetId.ToString(), detail!.Requisites.GetProperty("Качество").GetProperty("$document").GetString());
+    }
+
+    /// <summary>
+    /// Копирование в другой комплект НЕ стирает ссылку на документ качества уровня System: она
+    /// разрешается и в новом расположении. Скраб исходит из того, что instance-ссылки структурно
+    /// same-set, — с появлением второго домена это верно уже не для всех, и стереть такую ссылку
+    /// значило бы молча выбросить рабочие данные, доложив о них как о «ссылках на документы комплекта».
+    /// </summary>
+    [Fact]
+    public async Task CopyToAnotherSet_KeepsVisibleQualityRef()
+    {
+        var seed = await SeedAsync();
+        Guid qualityId, targetSetId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            qualityId = (await AddQualityAsync(scope, seed.CertTypeId, "Системный сертификат",
+                "{'НомерДок':'S-1'}", CatalogScope.System, null)).Id;
+            targetSetId = (await M(scope).Send(new CreateDocumentSetCommand(seed.SectionId, "Цель"))).Id;
+        }
+        var ownerId = await DocRefencingAsync(seed, qualityId);
+
+        using var s = fixture.Services.CreateScope();
+        var result = await M(s).Send(new CopyDocumentToSetCommand(ownerId, targetSetId, CopyStrategy.SmartCleanup));
+
+        using var data = result.Instance.Data;
+        var kept = data.RootElement.GetProperty("Качество");
+        Assert.Equal(qualityId.ToString(), kept.GetProperty("instanceId").GetString());
+        Assert.DoesNotContain(result.Warnings, w => w.Kind == "doc-ref");
+    }
+
+    /// <summary>
+    /// А ссылку на документ качества, который в целевом расположении НЕ виден, скраб убирает вместе
+    /// с остальными неразрешимыми — иначе копия унесла бы заведомо висячую ссылку.
+    /// </summary>
+    [Fact]
+    public async Task CopyToAnotherConstruction_StripsInvisibleQualityRef()
+    {
+        var seed = await SeedAsync();
+        Guid qualityId, targetSetId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            qualityId = (await AddQualityAsync(scope, seed.CertTypeId, "Сертификат стройки",
+                "{'НомерДок':'C-1'}", CatalogScope.Construction, seed.ConstructionId)).Id;
+            var otherConstruction = await M(scope).Send(new CreateConstructionCommand("Другой объект", _userId));
+            var otherSection = await M(scope).Send(new CreateSectionCommand(otherConstruction.Id, "ЭОМ"));
+            targetSetId = (await M(scope).Send(new CreateDocumentSetCommand(otherSection.Id, "Цель"))).Id;
+        }
+        var ownerId = await DocRefencingAsync(seed, qualityId);
+
+        using var s = fixture.Services.CreateScope();
+        var result = await M(s).Send(new CopyDocumentToSetCommand(ownerId, targetSetId, CopyStrategy.SmartCleanup));
+
+        using var data = result.Instance.Data;
+        Assert.False(data.RootElement.TryGetProperty("Качество", out _));
+        Assert.Contains(result.Warnings, w => w.Kind == "doc-ref");
     }
 
     // ── Сквозной путь живого кейса ───────────────────────────────────────────────

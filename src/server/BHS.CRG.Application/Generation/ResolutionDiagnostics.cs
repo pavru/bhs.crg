@@ -88,18 +88,24 @@ public static class ResolutionScanner
                         _ => $"объект типа «{kind}»",
                     };
                     var id = target is null ? "" : $" (id {target})";
-                    // Резолвер помечает СВОЙ отказ (issue #723). Без пометки причина одна — цели нет;
-                    // с пометкой цель, скорее всего, на месте, и звать человека её искать — враньё.
-                    var stoppedByDepth = el.TryGetProperty(RefUnresolved.Key, out var why)
-                        && why.GetString() == RefUnresolved.DepthLimit;
-                    diagnostics.Add(stoppedByDepth
-                        ? new ResolutionDiagnostic(DiagnosticSeverity.Error, path,
+                    // Резолвер помечает СВОЙ отказ (issue #723, #733). Без пометки причина одна — цели
+                    // нет; с пометкой цель, скорее всего, на месте, и звать человека её искать — враньё.
+                    var reason = el.TryGetProperty(RefUnresolved.Key, out var why) ? why.GetString() : null;
+                    diagnostics.Add(reason switch
+                    {
+                        RefUnresolved.DepthLimit => new ResolutionDiagnostic(DiagnosticSeverity.Error, path,
                             $"Ссылка на {kindHuman}{id} не развёрнута — исчерпан предел длины цепочки ссылок. " +
                             "Целевая запись при этом может существовать: укоротите цепочку либо поднимите предел.",
-                            "ref-depth-limit")
-                        : new ResolutionDiagnostic(DiagnosticSeverity.Error, path,
+                            "ref-depth-limit"),
+                        RefUnresolved.QualityOutOfScope => new ResolutionDiagnostic(DiagnosticSeverity.Error, path,
+                            $"Ссылка на {kindHuman}{id} не развёрнута — это документ качества вне области " +
+                            "видимости комплекта. Запись существует: поднимите её на общий уровень " +
+                            "(стройка или система) либо ссылайтесь на документ качества своей ветки.",
+                            "quality-out-of-scope"),
+                        _ => new ResolutionDiagnostic(DiagnosticSeverity.Error, path,
                             $"Ссылка на {kindHuman}{id} не разрешена — целевая запись не найдена или удалена.",
-                            "leftover-ref"));
+                            "leftover-ref"),
+                    });
                     return; // глубже не идём — внутренность ссылки не данные
                 }
                 foreach (var p in el.EnumerateObject())

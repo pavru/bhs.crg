@@ -274,10 +274,21 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
                 when allowInstanceRefs
                      && node.TryGetProperty("instanceId", out var docInstIdProp) && Guid.TryParse(docInstIdProp.GetString(), out var docInstId):
             {
-                var resolved = await ResolveDocumentInstanceAsync(docInstId, scope, refDepth, nodeDepth,
+                var (resolved, kind) = await ResolveDocumentInstanceAsync(docInstId, scope, refDepth, nodeDepth,
                     keepRefProvenance, ct);
-                if (resolved.ValueKind == JsonValueKind.Undefined) return node.Clone();
-                return keepRefProvenance
+                if (resolved.ValueKind == JsonValueKind.Undefined)
+                    // «Цель вне области» — не «цели нет»: запись жива, и звать человека её искать
+                    // было бы враньём (та же идиома, что у предела глубины, issue #723).
+                    return kind == InstanceRefTarget.QualityOutOfScope
+                        ? WithMeta(node, RefUnresolved.Key, RefUnresolved.QualityOutOfScope)
+                        : node.Clone();
+
+                // Провенанс — АДРЕС для повторного чтения (issues #594/#595), и ставится он только
+                // документу комплекта: свёртка снимка (RequisiteFolding) по этому адресу заменяет
+                // развёрнутый объект стабом «сходи за ним отдельным вызовом», а сходить за
+                // документом качества внешнему чтению пока некуда. Пометь мы его — MCP отдавал бы
+                // вместо реквизитов сертификата мёртвый указатель, потеряв только что найденные данные.
+                return keepRefProvenance && kind == InstanceRefTarget.SetDocument
                     ? WithMeta(resolved, RefProvenance.InstanceIdKey, docInstId.ToString())
                     : resolved;
             }
@@ -354,8 +365,8 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
     /// поведение существующих ссылок байт-в-байт прежнее (второй домен опрашивается только при
     /// промахе). Коллизия идентификаторов между доменами исключена — это GUID.</para>
     /// </summary>
-    private async Task<JsonElement> ResolveDocumentInstanceAsync(Guid instanceId, ScopeChain scope, int refDepth,
-        int nodeDepth, bool keepRefProvenance, CancellationToken ct)
+    private async Task<(JsonElement Value, InstanceRefTarget Kind)> ResolveDocumentInstanceAsync(
+        Guid instanceId, ScopeChain scope, int refDepth, int nodeDepth, bool keepRefProvenance, CancellationToken ct)
     {
         var obj = await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
             .FirstOrDefaultAsync(o => o.Id == instanceId && o.ScopeLevel == CatalogScope.Set
@@ -373,7 +384,7 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
 
         // Фактический тип развёрнутого документа-ссылки (issue #344) — Application развернёт в _type.
         dict[TypeStamper.TypeIdKey] = JsonSerializer.SerializeToElement(obj.CompositeTypeId.ToString());
-        return JsonSerializer.SerializeToElement(dict);
+        return (JsonSerializer.SerializeToElement(dict), InstanceRefTarget.SetDocument);
     }
 
     /// <summary>
@@ -397,11 +408,15 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
     /// реквизит (если тип его объявляет) остаётся нетронутым — пустое вложение было бы хуже, чем
     /// его отсутствие, шаблон не отличил бы «скана нет» от «скан не загрузился».</para>
     /// </summary>
-    private async Task<JsonElement> ResolveQualityDocumentAsync(Guid id, ScopeChain scope, int refDepth,
-        int nodeDepth, bool keepRefProvenance, CancellationToken ct)
+    private async Task<(JsonElement Value, InstanceRefTarget Kind)> ResolveQualityDocumentAsync(
+        Guid id, ScopeChain scope, int refDepth, int nodeDepth, bool keepRefProvenance, CancellationToken ct)
     {
         var doc = await db.QualityDocuments.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id, ct);
-        if (doc is null || !scope.Contains(doc.Scope, doc.ScopeId)) return default;
+        if (doc is null) return (default, InstanceRefTarget.NotFound);
+
+        // Жив, но не виден отсюда — это ДРУГОЙ отказ, чем «записи нет», и человеку он говорит другое:
+        // искать нечего, документ надо поднять выше по оси либо ссылаться на него из своей ветки.
+        if (!scope.Contains(doc.Scope, doc.ScopeId)) return (default, InstanceRefTarget.QualityOutOfScope);
 
         var dict = new Dictionary<string, JsonElement>();
         if (doc.Requisites.RootElement.ValueKind == JsonValueKind.Object)
@@ -421,7 +436,7 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
                 ["mimeType"] = doc.ScanMimeType,
             });
 
-        return JsonSerializer.SerializeToElement(dict);
+        return (JsonSerializer.SerializeToElement(dict), InstanceRefTarget.QualityDocument);
     }
 
     /// <summary>
@@ -429,6 +444,19 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
     /// Имя фиксировано намеренно: на него завязываются шаблоны, и менять его потом — ломать их все.
     /// </summary>
     public const string QualityScanKey = "Скан";
+
+    /// <summary>
+    /// Чем оказалась цель instance-ссылки (issue #733). Вызывающему важны все четыре исхода
+    /// по-разному: домен решает, ставить ли адрес для повторного чтения, а два вида промаха
+    /// требуют от человека противоположных действий («записи нет» против «есть, но не отсюда»).
+    /// </summary>
+    private enum InstanceRefTarget
+    {
+        NotFound,
+        SetDocument,
+        QualityDocument,
+        QualityOutOfScope,
+    }
 
     /// <summary>
     /// Рекурсивно разрешает объект общих данных по id с поддержкой _baseRef: если в data есть

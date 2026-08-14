@@ -34,4 +34,11 @@ public static class RefUnresolved
 
     /// <summary>Резолвер упёрся в предел глубины и оставил ссылку как есть.</summary>
     public const string DepthLimit = "depth-limit";
+
+    /// <summary>
+    /// Цель — документ качества, живой, но вне области видимости документа-владельца (issue #733).
+    /// Отдельная причина по той же логике, что и предел глубины: искать запись человеку незачем —
+    /// она на месте, — и чинится это перемещением документа качества выше по оси, а не поиском.
+    /// </summary>
+    public const string QualityOutOfScope = "quality-out-of-scope";
 }
