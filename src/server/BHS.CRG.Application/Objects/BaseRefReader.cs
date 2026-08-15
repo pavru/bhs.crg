@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 
 namespace BHS.CRG.Application.Objects;
@@ -84,16 +85,42 @@ public static class RefReader
 public static class DomainObjectReferences
 {
     /// <summary>
-    /// Другие объекты, ссылающиеся на <paramref name="targetId"/>: как на базовый экземпляр
-    /// («_baseRef», issue #71) ИЛИ через «$ref» в значениях полей (issue #269 — doc-ref/@@ref).
-    /// Сканирование в памяти (предикат по JSON не транслируется в SQL); масштаб приложения это
-    /// допускает, как и прочие guard'ы удаления.
+    /// Кто ссылается на цель — для сообщения отказа. Держатели ссылок живут в ДВУХ таблицах
+    /// (<c>domain_objects</c> и <c>quality_documents</c>), а сущность у них общего предка не имеет:
+    /// объединяет их не тип, а роль «нашлась ссылка, и удаление цели её оборвёт».
     /// </summary>
-    public static async Task<IReadOnlyList<DomainObject>> FindReferrersAsync(
-        IRepository<DomainObject> repo, Guid targetId, CancellationToken ct)
+    /// <param name="Label">Готовое описание для текста отказа: у документа качества род назван прямо
+    /// («документ качества „…“»), иначе одно имя ничего не сказало бы о том, ГДЕ искать ссылку —
+    /// библиотека и комплекты редактируются на разных экранах.</param>
+    public record Referrer(Guid Id, string Label);
+
+    /// <summary>
+    /// Всё, что ссылается на <paramref name="targetId"/>: как на базовый экземпляр («_baseRef»,
+    /// issue #71) ИЛИ через «$ref» в значениях полей (issue #269 — doc-ref/@@ref). Сканируются обе
+    /// таблицы-держателя ссылок, потому что ссылаться умеют обе и в обе стороны (issue #735):
+    /// реквизиты документа качества проходят тот же <c>ResolveNode</c>, что и реквизиты документа
+    /// комплекта, — «$ref» в них такая же рабочая ссылка, а не декорация.
+    ///
+    /// <para>Сканирование в памяти (предикат по JSON не транслируется в SQL); масштаб приложения это
+    /// допускает, как и прочие guard'ы удаления.</para>
+    /// </summary>
+    public static async Task<IReadOnlyList<Referrer>> FindReferrersAsync(
+        IRepository<DomainObject> objRepo, IRepository<QualityDocument> qualityRepo,
+        Guid targetId, CancellationToken ct)
     {
-        var all = await repo.GetAllAsync(ct);
-        return all.Where(o => o.Id != targetId && ReferencesObject(o.Data.RootElement, targetId)).ToList();
+        var objects = await objRepo.GetAllAsync(ct);
+        var quality = await qualityRepo.GetAllAsync(ct);
+
+        var found = objects
+            .Where(o => o.Id != targetId && ReferencesObject(o.Data.RootElement, targetId))
+            .Select(o => new Referrer(o.Id, o.DisplayName ?? "без имени"));
+
+        // Документ качества базового экземпляра не имеет — только «$ref» в реквизитах.
+        var fromQuality = quality
+            .Where(d => d.Id != targetId && RefReader.CollectRefIds(d.Requisites.RootElement).Contains(targetId))
+            .Select(d => new Referrer(d.Id, $"документ качества «{d.DisplayName}»"));
+
+        return found.Concat(fromQuality).ToList();
     }
 
     private static bool ReferencesObject(JsonElement data, Guid targetId)

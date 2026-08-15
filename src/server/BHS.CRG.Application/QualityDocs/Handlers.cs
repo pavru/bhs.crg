@@ -1,6 +1,8 @@
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Domain.Objects;
 using MediatR;
 
 namespace BHS.CRG.Application.QualityDocs;
@@ -8,7 +10,8 @@ namespace BHS.CRG.Application.QualityDocs;
 public class QualityDocHandlers(
     IRepository<QualityDocument> repo,
     IRepository<MaterialQualityLink> linkRepo,
-    IRepository<DocumentType> typeRepo
+    IRepository<DocumentType> typeRepo,
+    IRepository<DomainObject> objRepo
 ) :
     IRequestHandler<CreateQualityDocumentCommand, QualityDocument>,
     IRequestHandler<UpdateQualityDocumentCommand, QualityDocument>,
@@ -83,9 +86,29 @@ public class QualityDocHandlers(
         return doc;
     }
 
+    /// <summary>
+    /// Удаление документа качества (issue #735).
+    ///
+    /// <para>Связки материалов документ уносит с собой — это его собственный «хвост», отдельного
+    /// смысла без документа не имеющий, и диалог удаления называет их число заранее. А вот ссылка
+    /// на документ из чужих реквизитов — не хвост, а чужие данные: удаление оставило бы её висеть,
+    /// и всплыла бы она много позже и не здесь — при генерации, как «целевая запись не найдена или
+    /// удалена». Правило то же, что у документа комплекта: на что ссылаются — не удаляем.</para>
+    ///
+    /// <para>До #733 оберегать было нечего: <c>$ref:"instance"</c> на документ качества резолвер не
+    /// находил вовсе. Теперь это рабочая ссылка второго домена, и guard ставится ДО того, как
+    /// doc-ref-поле в UI научится выбирать документ качества, — после будет поздно, данные
+    /// разъедутся раньше.</para>
+    /// </summary>
     public async Task Handle(DeleteQualityDocumentCommand cmd, CancellationToken ct)
     {
         var doc = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException($"QualityDocument {cmd.Id} not found");
+
+        var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, repo, cmd.Id, ct);
+        if (referrers.Count > 0)
+            throw new ConflictException(
+                $"Нельзя удалить документ качества — на него ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.Label))}.");
+
         // удаляем связи, ссылающиеся на документ
         var links = await linkRepo.FindAsync(l => l.QualityDocumentId == cmd.Id, ct);
         foreach (var l in links) linkRepo.Remove(l);
