@@ -77,8 +77,14 @@ public class OrphanBindingKeyTests(IntegrationTestFixture fixture) : IAsyncLifet
 
     // ── 1. Резолвер: честный отказ вместо молчаливой записи ──────────────────────
 
+    /// <summary>
+    /// Отказ — ПРЕДУПРЕЖДЕНИЕ, а не ошибка: Error обрывает выпуск документа целиком
+    /// (<c>GenerateDocumentHandler</c> бросает <c>ResolutionValidationException</c> на любой), и
+    /// живой комплект с одной устаревшей привязкой перестал бы и генерироваться, и показываться в
+    /// предпросмотре. Данные при этом всё равно не пишутся — цель достигнута.
+    /// </summary>
     [Fact]
-    public async Task Resolver_OrphanTargetKey_ReportsError_AndWritesNothing()
+    public async Task Resolver_OrphanTargetKey_Warns_AndWritesNothing()
     {
         using var scope = fixture.Services.CreateScope();
         var seed = await SeedAsync(scope);
@@ -92,8 +98,11 @@ public class OrphanBindingKeyTests(IntegrationTestFixture fixture) : IAsyncLifet
         // Ключа в контексте нет: молча-не-туда хуже честного отказа — иначе данные уезжают в
         // data.json под мёртвым ключом и выглядят как «взялись из ниоткуда».
         Assert.False(ctx.Data.ContainsKey("ОсновнойДокументы"));
-        var issue = Assert.Single(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        var issue = Assert.Single(diagnostics, d => d.Path == "ОсновнойДокументы");
+        Assert.Equal(DiagnosticSeverity.Warning, issue.Severity);
         Assert.Contains("ОсновнойДокументы", issue.Message);
+        // Ни одной ошибки: документ обязан остаться выпускаемым.
+        Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
     }
 
     [Fact]
@@ -206,6 +215,48 @@ public class OrphanBindingKeyTests(IntegrationTestFixture fixture) : IAsyncLifet
         var template = Assert.Single(await Svc(scope).ListTemplatesAsync(seed.TypeId, default));
         Assert.True(template.ColumnMappings.ContainsKey("ОсновныеДокументы"));
         Assert.False(template.ColumnMappings.ContainsKey("ОсновнойДокументы"));
+    }
+
+    /// <summary>
+    /// Ключи маппинга ТАБЛИЧНОЙ привязки принадлежат типу СТРОКИ, а не владельцу, и переименование
+    /// поля документа их касаться не должно. Случай не выдуманный: одноимённое поле в обоих типах
+    /// («Номер» и у реестра, и у его строки) — обычное дело, и слепой перенос оставил бы в строке
+    /// ключ, которого в её типе нет, тихо перестав заполнять колонку.
+    /// </summary>
+    [Fact]
+    public async Task MigrateFieldKey_DoesNotTouchMappingKeysOfTableBinding()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var m = M(scope);
+        var svc = Svc(scope);
+
+        // «Наименование» есть И у строки, И у документа — переименовываем документное.
+        var rowType = await m.Send(new CreateDocumentTypeCommand("Строка", $"ROW{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Composite, null, J("{'fields':[{'key':'Наименование','type':'string'}]}")));
+        var docType = await m.Send(new CreateDocumentTypeCommand("Реестр", $"REG{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null,
+            J($"{{'fields':[{{'key':'Наименование','type':'string'}},"
+              + $"{{'key':'Строки','type':'array','typeId':'{rowType.Id}'}}]}}")));
+
+        var construction = await m.Send(new CreateConstructionCommand("Объект", Guid.NewGuid()));
+        var section = await m.Send(new CreateSectionCommand(construction.Id, "ЭОМ"));
+        var set = await m.Send(new CreateDocumentSetCommand(section.Id, "Комплект"));
+        var instance = await m.Send(new AddDocumentToSetCommand(set.Id, docType.Id));
+
+        var file = await svc.UploadFileAsync(new UploadFileInput(
+            Encoding.UTF8.GetBytes("A\nАкт №1\n"), "docs.csv", "text/csv", "Тест", "System", null), default);
+        var candidate = (await svc.DetectSourceCandidatesAsync(file.Id, default)).Single();
+        var source = await svc.CreateSourceAsync(file.Id, new CreateSourceInput("Документы", candidate.SheetOrPath, null), default);
+        // Табличная привязка: свой маппинг по полю ТИПА СТРОКИ.
+        await svc.CreateBindingAsync(new CreateBindingInput(instance.Id, source.Id, "Строки",
+            new Dictionary<string, string> { ["Наименование"] = "A" }), default);
+
+        await m.Send(new MigrateFieldKeyCommand(docType.Id, "Наименование", "НаименованиеДокумента"));
+
+        var binding = Assert.Single(await svc.ListBindingsAsync(instance.Id, default));
+        Assert.Equal("Строки", binding.TargetFieldKey);
+        Assert.True(binding.Mapping.ContainsKey("Наименование"), "ключ строки не должен переименовываться");
+        Assert.False(binding.Mapping.ContainsKey("НаименованиеДокумента"));
     }
 
     /// <summary>

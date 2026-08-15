@@ -105,11 +105,18 @@ public class DataSetResolver(
                 //
                 // Ключи вне схемы в контексте легальны у вычисляемых полей и служебных «_», но у
                 // привязки легального случая нет: интерфейс заводит её только по полю схемы.
+                //
+                // Предупреждение, а не ошибка, и это осознанно: Error обрывает выпуск документа
+                // целиком (GenerateDocumentHandler бросает ResolutionValidationException на любой),
+                // и живой комплект с одной устаревшей привязкой перестал бы и генерироваться, и
+                // показываться в предпросмотре. Данные при этом всё равно не пишутся — цель
+                // достигнута, — а несобираемый документ был бы лечением тяжелее болезни. Тот же
+                // довод, что у соседнего WarnUnbuiltDocRef.
                 if (binding.TargetFieldKey is { } targetKey
                     && DocumentTypeSchemaReader.Field(typeId, targetKey, await TypesAsync()) is null)
                 {
                     diagnostics?.Add(new ResolutionDiagnostic(
-                        DiagnosticSeverity.Error, targetKey,
+                        DiagnosticSeverity.Warning, targetKey,
                         $"Привязка источника «{binding.Source.Name}» указывает на несуществующее поле " +
                         $"«{targetKey}» — поле не заполнено, данные в документ не попадают. " +
                         "Удалите привязку или переключите её на поле текущей схемы."));
@@ -199,8 +206,11 @@ public class DataSetResolver(
                             // отказа документ получил бы половину значений молча, а не «пусто целиком».
                             if (field is null)
                             {
+                                // Предупреждение по той же причине, что и у табличной привязки выше:
+                                // Error здесь снял бы с выпуска весь документ, причём из-за одного
+                                // ключа маппинга — остальные поля этой же привязки заполняются.
                                 diagnostics?.Add(new ResolutionDiagnostic(
-                                    DiagnosticSeverity.Error, fieldKey,
+                                    DiagnosticSeverity.Warning, fieldKey,
                                     $"Маппинг привязки источника «{binding.Source.Name}» указывает на " +
                                     $"несуществующее поле «{fieldKey}» — значение не записано."));
                                 continue;

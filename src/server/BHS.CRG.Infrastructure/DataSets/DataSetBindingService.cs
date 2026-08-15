@@ -54,7 +54,19 @@ public class DataSetBindingService(
         foreach (var b in bindings)
         {
             var key = b.TargetFieldKey == oldKey ? newKey : b.TargetFieldKey;
-            var mapping = RenameMappingKey(b.Mapping, oldKey, newKey, out var mappingChanged);
+
+            // Ключи маппинга трогаем ТОЛЬКО у скалярной привязки. У табличной они принадлежат типу
+            // СТРОКИ, а не владельцу (резолвер ищет их в rowFields, редактор предлагает поля типа
+            // элемента), и переименование поля документа к ним отношения не имеет. Одноимённое поле
+            // в типе строки — не редкость («Номер» и там, и там), и слепой перенос сломал бы
+            // работающий маппинг, оставив в строке ключ, которого в её типе нет. Ту же границу
+            // соблюдает BindingKeyAuditor — иначе аудит и перенос разошлись бы в понимании того,
+            // чьё это поле.
+            var mapping = b.Mapping;
+            var mappingChanged = false;
+            if (b.TargetFieldKey is null)
+                mapping = RenameMappingKey(b.Mapping, oldKey, newKey, out mappingChanged);
+
             if (key == b.TargetFieldKey && !mappingChanged) continue;
             b.Update(key, mapping);
             touchedBindings++;
@@ -68,7 +80,13 @@ public class DataSetBindingService(
         foreach (var t in templates)
         {
             var key = t.TargetFieldKey == oldKey ? newKey : t.TargetFieldKey;
-            var mappings = RenameMappingKey(t.ColumnMappings, oldKey, newKey, out var mappingChanged);
+            // Та же граница, что и у привязки: у табличного шаблона ключи ColumnMappings — поля
+            // типа строки.
+            var mappings = t.ColumnMappings;
+            var mappingChanged = false;
+            if (t.TargetFieldKey is null)
+                mappings = RenameMappingKey(t.ColumnMappings, oldKey, newKey, out mappingChanged);
+
             if (key == t.TargetFieldKey && !mappingChanged) continue;
             t.Update(t.Name, key, mappings, t.SortOrder);
             touchedTemplates++;
@@ -89,7 +107,19 @@ public class DataSetBindingService(
     private static string RenameMappingKey(string mappingJson, string oldKey, string newKey, out bool changed)
     {
         changed = false;
-        var map = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson) ?? [];
+        Dictionary<string, string>? map;
+        try
+        {
+            map = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson);
+        }
+        catch (JsonException)
+        {
+            // Неразбираемый маппинг оставляем как есть. Уронить здесь значило бы оборвать перенос
+            // на полпути: реквизиты уже переехали на новый ключ, а привязки остались на старом —
+            // ровно то расхождение, ради устранения которого перенос и написан.
+            return mappingJson;
+        }
+        if (map is null) return mappingJson;
         if (!map.TryGetValue(oldKey, out var value) || map.ContainsKey(newKey)) return mappingJson;
 
         map.Remove(oldKey);

@@ -18,7 +18,18 @@ const CATEGORY_LABEL: Record<string, string> = {
   // issue #642: тонкий слой — базовый тип, шаблон и границы примитива, разбор даты. Те же правила,
   // что и при выпуске документа, но здесь их видят и записи общих данных.
   'value-type': 'Значение не соответствует объявленному типу',
+  // issue #737: держатели ключа поля вне реквизитов — привязки наборов и шаблоны привязок.
+  'orphan-binding': 'Привязки наборов данных на несуществующие поля',
+  'orphan-binding-template': 'Шаблоны привязок на несуществующие поля',
 };
+
+/**
+ * Находки, которые правятся НЕ здесь (issue #737). Осиротела настройка, а не запись: исправления
+ * этого окна мутируют реквизиты инстанса и к привязке неприменимы. Для шаблона они и технически
+ * невозможны — у его находки на месте документа стоит сам тип, и «удалить» ушло бы в
+ * несуществующий объект.
+ */
+const FIXED_ELSEWHERE = new Set(['orphan-binding', 'orphan-binding-template']);
 
 interface Row { code: string; path: string; message: string; instances: { id: string; name: string }[] }
 
@@ -121,6 +132,12 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                               <ul className="space-y-0.5">
                                 {row.instances.map(i => <li key={i.id} className="text-xs text-fg3 truncate">{i.name}</li>)}
                               </ul>
+                              {FIXED_ELSEWHERE.has(row.code) ? (
+                                <p className="pt-1 text-xs text-fg4">
+                                  Правится в настройке привязок: переключите на поле текущей схемы
+                                  или удалите привязку.
+                                </p>
+                              ) : (
                               <div className="flex flex-wrap items-center gap-2 pt-1">
                                 {/* Приведение (issue #643) идёт ПЕРВЫМ и без подтверждения: для
                                     расхождения с типом это исправление, а удаление — потеря. */}
@@ -152,6 +169,7 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                                   </>
                                 )}
                               </div>
+                              )}
                             </div>
                           )}
                         </div>

@@ -141,7 +141,12 @@ export function useMigrateFieldKey(typeId: string | undefined) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['document-type-audit', typeId] });
       qc.invalidateQueries({ queryKey: ['document-sets'] });
-      qc.invalidateQueries({ queryKey: ['dataset-bindings'] });
+      // Ключи именно такие, как их заводят сами списки (datasets.ts / bindingTemplates.ts).
+      // Промахнись мы мимо — панель привязок осталась бы с дореформенным ключом, и сохранение
+      // из этой устаревшей формы вернуло бы старый ключ обратно, осиротив только что
+      // починенную привязку.
+      qc.invalidateQueries({ queryKey: ['datasets', 'bindings'] });
+      qc.invalidateQueries({ queryKey: ['binding-templates'] });
     },
   });
 }

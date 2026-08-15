@@ -17,7 +17,16 @@ const CATEGORY_LABEL: Record<string, string> = {
   'orphan-key': 'Поля, которых нет в текущей схеме',
   'type-mismatch': 'Несовпадение вида значения с типом поля',
   'value-type': 'Значение не соответствует объявленному типу', // issue #642
+  'orphan-binding': 'Привязки наборов данных на несуществующие поля', // issue #737
 };
+
+/**
+ * Находки, которые правятся НЕ здесь (issue #737). Осиротела не запись, а настройка: привязка живёт
+ * в «Наборах данных», и здешние исправления к ней неприменимы — «удалить» стёрло бы значение из
+ * реквизитов, оставив саму привязку на месте, то есть находка вернулась бы следующим же прогоном, а
+ * данные пропали. Показываем находку без кнопок и говорим, куда идти.
+ */
+const FIXED_ELSEWHERE = new Set(['orphan-binding', 'orphan-binding-template']);
 
 export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys, open, onClose }: {
   setId: string; instanceId: string; docName: string; schemaFieldKeys: string[]; open: boolean; onClose: () => void;
@@ -87,6 +96,12 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
                             <span className="block text-xs text-fg4">{f.message}</span>
                           </span>
                         </div>
+                        {FIXED_ELSEWHERE.has(f.code) ? (
+                          <p className="pt-1.5 text-xs text-fg4">
+                            Правится на вкладке «Данные»: переключите привязку на поле текущей схемы
+                            или удалите её.
+                          </p>
+                        ) : (
                         <div className="flex flex-wrap items-center gap-2 pt-1.5">
                           {/* Для расхождения с типом приведение — исправление, а удаление — потеря
                               значения; поэтому оно первое и без подтверждения (issue #643). */}
@@ -116,6 +131,7 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
                             </>
                           )}
                         </div>
+                        )}
                       </div>
                     );
                   })}
