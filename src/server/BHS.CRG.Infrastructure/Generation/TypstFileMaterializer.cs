@@ -30,22 +30,38 @@ public sealed class TypstFileMaterializer(IBlobStorage blob)
     /// поломку. Имена файлов генерируются приёмником — не из <c>fileName</c> (защита от path traversal).
     /// </summary>
     public async Task MaterializeAsync(JsonNode? root, Func<byte[], string, string> place, CancellationToken ct = default)
-        => await WalkAsync(root, place, ct);
+        => await WalkAsync(root, place, new Dictionary<string, PlacedFile>(StringComparer.Ordinal), ct);
 
-    private async Task WalkAsync(JsonNode? node, Func<byte[], string, string> place, CancellationToken ct)
+    /// <summary>Уже размещённый блоб: путь для <c>src</c> и число страниц (у PDF).</summary>
+    private readonly record struct PlacedFile(string Src, int? PageCount);
+
+    /// <summary>
+    /// Один блоб материализуется ОДИН раз за проход (issue #736).
+    ///
+    /// <para>Раньше дублей практически не бывало, и обход честно обрабатывал каждый узел отдельно.
+    /// С единой формой документа качества скан попадает в КАЖДУЮ строку материала, связанную с этим
+    /// сертификатом, — на живом акте это сотня строк на десяток сертификатов. Без памяти о
+    /// размещённых блобах одна и та же PDF-ка скачивалась бы из хранилища и писалась на диск
+    /// столько раз, сколько строк, причём и в предпросмотре, который люди открывают постоянно.</para>
+    ///
+    /// <para>Ключ — путь блоба: содержимое по нему одно и то же, а <c>fileName</c>/<c>mimeType</c>
+    /// берутся из самого узла, поэтому разные подписи одного файла не теряются.</para>
+    /// </summary>
+    private async Task WalkAsync(JsonNode? node, Func<byte[], string, string> place,
+        Dictionary<string, PlacedFile> placed, CancellationToken ct)
     {
         switch (node)
         {
             case JsonObject obj when TryGetBlobPath(obj, out var blobPath):
-                await ReplaceFileNode(obj, blobPath, place, ct);
+                await ReplaceFileNode(obj, blobPath, place, placed, ct);
                 break;
             case JsonObject obj:
                 foreach (var child in obj.Select(kv => kv.Value).ToList())
-                    await WalkAsync(child, place, ct);
+                    await WalkAsync(child, place, placed, ct);
                 break;
             case JsonArray arr:
                 foreach (var child in arr.ToList())
-                    await WalkAsync(child, place, ct);
+                    await WalkAsync(child, place, placed, ct);
                 break;
         }
     }
@@ -61,24 +77,31 @@ public sealed class TypstFileMaterializer(IBlobStorage blob)
     }
 
     private async Task ReplaceFileNode(JsonObject fileNode, string blobPath,
-        Func<byte[], string, string> place, CancellationToken ct)
+        Func<byte[], string, string> place, Dictionary<string, PlacedFile> placed, CancellationToken ct)
     {
-        var bytes = await TryDownload(blobPath, ct);
-        if (bytes is null) return; // отсутствует/слишком большой — оставляем узел как есть, не роняем генерацию
-
         var fileName = fileNode["fileName"]?.GetValue<string>() ?? "attachment";
         var mimeType = fileNode["mimeType"]?.GetValue<string>() ?? "application/octet-stream";
-        var ext = ExtFor(fileName, mimeType);
-        var isPdf = ext == "pdf" || mimeType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase);
 
-        var src = place(bytes, ext);
+        if (!placed.TryGetValue(blobPath, out var already))
+        {
+            var bytes = await TryDownload(blobPath, ct);
+            if (bytes is null) return; // отсутствует/слишком большой — оставляем узел как есть, не роняем генерацию
+
+            var ext = ExtFor(fileName, mimeType);
+            var isPdf = ext == "pdf" || mimeType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase);
+            already = new PlacedFile(
+                place(bytes, ext),
+                isPdf && TryPageCount(bytes, out var pages) ? pages : null);
+            placed[blobPath] = already;
+        }
+
         var replacement = new JsonObject
         {
-            ["src"] = src,
+            ["src"] = already.Src,
             ["fileName"] = fileName,
             ["mimeType"] = mimeType,
         };
-        if (isPdf && TryPageCount(bytes, out var pages)) replacement["pageCount"] = pages;
+        if (already.PageCount is { } pageCount) replacement["pageCount"] = pageCount;
 
         fileNode.ReplaceWith(replacement);
     }

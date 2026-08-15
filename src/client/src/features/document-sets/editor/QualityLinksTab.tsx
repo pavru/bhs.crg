@@ -695,7 +695,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
 
       {materials.length === 0 ? (
         <p className="text-sm text-fg4 text-center py-6">
-          Нет материалов. Настройте набор данных (вкладка «Данные») и нажмите «Обновить материалы».
+          Нет материалов. Настройте набор данных (кнопка «Источники» в шапке документа) и нажмите «Обновить материалы».
         </p>
       ) : (
         <div className="border border-stroke rounded-lg overflow-hidden">
