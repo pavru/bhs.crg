@@ -52,8 +52,10 @@ public class DataSetUnionDiscriminatorTests(IntegrationTestFixture fixture) : IA
             J($"{{'tags':['type.union'],'fields':[" +
               $"{{'key':'АОСР','type':'doc-ref','typeId':'{aosrType.Id}'}}," +
               $"{{'key':'РеестрРабот','type':'doc-ref','typeId':'{workRegistryType.Id}'}}]}}")));
+        // «Состав» объявлен в схеме владельца: резолвер не пишет в ключ вне схемы (issue #737).
         var reestrType = await m.Send(new CreateDocumentTypeCommand("Сводный реестр", $"SUM{Guid.NewGuid():N}"[..12],
-            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+            DocumentTypeKind.Document, null,
+            J($"{{'fields':[{{'key':'Состав','type':'array','typeId':'{unionType.Id}'}}]}}")));
 
         var construction = await m.Send(new CreateConstructionCommand("Объект", Guid.NewGuid()));
         var section = await m.Send(new CreateSectionCommand(construction.Id, "Раздел"));

@@ -146,6 +146,29 @@ public interface IDataSetService
 
     // ── Bindings (владелец — единый DomainObject.OwnerId, issue #84) ─────────────────
     Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid ownerId, CancellationToken ct);
+
+    /// <summary>
+    /// Привязки СРАЗУ МНОГИХ владельцев — для аудита типа (issue #737), который обходит все его
+    /// инстансы. Поштучный вызов дал бы запрос на объект: у типа с сотней документов это сотня
+    /// обращений ради проверки, которую база делает одним IN.
+    /// </summary>
+    Task<IReadOnlyList<DataSetBindingDto>> ListBindingsForOwnersAsync(
+        IReadOnlyCollection<Guid> ownerIds, CancellationToken ct);
+
+    /// <summary>
+    /// Переносит ключ поля <paramref name="oldKey"/> → <paramref name="newKey"/> у привязок
+    /// перечисленных владельцев и у шаблонов привязок перечисленных типов (issue #737).
+    ///
+    /// <para>Спутник миграции данных при переименовании поля (issue #357): та переносит значения в
+    /// реквизитах, а ключ живёт и здесь. Не перенеси — привязка осиротеет и перестанет заполнять
+    /// поле, причём молча: пользователь переименовал поле и увидел пустоту там, где были данные.</para>
+    ///
+    /// <para>Затрагивает и <c>TargetFieldKey</c>, и ключи маппинга (у скалярной привязки целевые
+    /// поля перечислены только в нём).</para>
+    /// </summary>
+    Task<BindingKeyMigrationResult> MigrateFieldKeyAsync(
+        IReadOnlyCollection<Guid> ownerIds, IReadOnlyCollection<Guid> documentTypeIds,
+        string oldKey, string newKey, CancellationToken ct);
     Task<DataSetBindingDto?> CreateBindingAsync(CreateBindingInput input, CancellationToken ct);
     Task<DataSetBindingDto?> UpdateBindingAsync(Guid id, UpdateBindingInput input, CancellationToken ct);
     Task<bool> DeleteBindingAsync(Guid id, CancellationToken ct);

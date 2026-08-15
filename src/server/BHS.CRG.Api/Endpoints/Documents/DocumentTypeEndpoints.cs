@@ -91,8 +91,13 @@ public static class DocumentTypeEndpoints
             => Results.Ok(await m.Send(new ApplyAuditFixesCommand(req.Fixes))));
 
         // Миграция ключа поля в данных инстансов при переименовании ключа в схеме (issue #357).
-        admin.MapPost("/{id:guid}/migrate-field-key", async (Guid id, MigrateFieldKeyRequest req, IMediator m)
-            => Results.Ok(new { migrated = await m.Send(new MigrateFieldKeyCommand(id, req.OldKey, req.NewKey)) }));
+        admin.MapPost("/{id:guid}/migrate-field-key", async (Guid id, MigrateFieldKeyRequest req, IMediator m) =>
+        {
+            var r = await m.Send(new MigrateFieldKeyCommand(id, req.OldKey, req.NewKey));
+            // «migrated» — прежнее имя поля (число инстансов): клиент читает его с issue #357, и
+            // ломать ответ ради стройности незачем. Привязки и шаблоны добавлены рядом (issue #737).
+            return Results.Ok(new { migrated = r.Instances, bindings = r.Bindings, templates = r.Templates });
+        });
 
         // Использование типа (issue #275) — проактивный показ «чем занят тип» до попытки удаления.
         admin.MapGet("/{id:guid}/usage", async (Guid id, IMediator m) =>

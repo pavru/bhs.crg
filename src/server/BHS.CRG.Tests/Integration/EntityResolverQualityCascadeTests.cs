@@ -470,7 +470,12 @@ public class EntityResolverQualityCascadeTests(IntegrationTestFixture fixture) :
             DocumentTypeKind.Composite, null,
             J($"{{'fields':[{{'key':'Документ','type':'doc-ref','typeId':'{seed.CertTypeId}'}}]}}")));
 
-        var owner = await m.Send(new AddDocumentToSetCommand(seed.SetId, seed.DocTypeId));
+        // Свой тип владельца с объявленным полем «Качество»: резолвер не пишет в ключ вне схемы
+        // (issue #737), а общий тип «Акт» из Seed полей не имеет — он нужен другим тестам пустым.
+        var ownerType = await m.Send(new CreateDocumentTypeCommand("АктСКачеством", $"AQ{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, null,
+            J($"{{'fields':[{{'key':'Качество','type':'array','typeId':'{rowType.Id}'}}]}}")));
+        var owner = await m.Send(new AddDocumentToSetCommand(seed.SetId, ownerType.Id));
 
         var file = await svc.UploadFileAsync(new UploadFileInput(
             Encoding.UTF8.GetBytes($"Ид\n{quality.Id}\n"), "quality.csv", "text/csv", "Тест", "System", null), default);

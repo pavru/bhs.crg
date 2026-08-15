@@ -28,6 +28,76 @@ public class DataSetBindingService(
         return bindings.Select(DataSetDtoMapper.MapBinding).ToList();
     }
 
+    /// <inheritdoc cref="Application.DataSets.IDataSetService.ListBindingsForOwnersAsync" />
+    public async Task<IReadOnlyList<DataSetBindingDto>> ListBindingsForOwnersAsync(
+        IReadOnlyCollection<Guid> ownerIds, CancellationToken ct)
+    {
+        if (ownerIds.Count == 0) return [];
+        var bindings = await db.DataSetBindings
+            .Include(b => b.Source).ThenInclude(s => s.File)
+            .Where(b => ownerIds.Contains(b.OwnerId))
+            .AsNoTracking()
+            .ToListAsync(ct);
+        return bindings.Select(DataSetDtoMapper.MapBinding).ToList();
+    }
+
+    /// <inheritdoc cref="Application.DataSets.IDataSetService.MigrateFieldKeyAsync" />
+    public async Task<BindingKeyMigrationResult> MigrateFieldKeyAsync(
+        IReadOnlyCollection<Guid> ownerIds, IReadOnlyCollection<Guid> documentTypeIds,
+        string oldKey, string newKey, CancellationToken ct)
+    {
+        var bindings = ownerIds.Count == 0
+            ? []
+            : await db.DataSetBindings.Where(b => ownerIds.Contains(b.OwnerId)).ToListAsync(ct);
+
+        var touchedBindings = 0;
+        foreach (var b in bindings)
+        {
+            var key = b.TargetFieldKey == oldKey ? newKey : b.TargetFieldKey;
+            var mapping = RenameMappingKey(b.Mapping, oldKey, newKey, out var mappingChanged);
+            if (key == b.TargetFieldKey && !mappingChanged) continue;
+            b.Update(key, mapping);
+            touchedBindings++;
+        }
+
+        var templates = documentTypeIds.Count == 0
+            ? []
+            : await db.DataSetBindingTemplates.Where(t => documentTypeIds.Contains(t.DocumentTypeId)).ToListAsync(ct);
+
+        var touchedTemplates = 0;
+        foreach (var t in templates)
+        {
+            var key = t.TargetFieldKey == oldKey ? newKey : t.TargetFieldKey;
+            var mappings = RenameMappingKey(t.ColumnMappings, oldKey, newKey, out var mappingChanged);
+            if (key == t.TargetFieldKey && !mappingChanged) continue;
+            t.Update(t.Name, key, mappings, t.SortOrder);
+            touchedTemplates++;
+        }
+
+        if (touchedBindings + touchedTemplates > 0) await db.SaveChangesAsync(ct);
+        return new BindingKeyMigrationResult(touchedBindings, touchedTemplates);
+    }
+
+    /// <summary>
+    /// Переименование КЛЮЧА в JSON-маппинге «поле → колонка». Значение (имя колонки в файле) не
+    /// трогаем: переименовали поле схемы, а не заголовок в источнике.
+    ///
+    /// <para>В занятую цель не пишем — то же правило, что у миграции данных
+    /// (<c>JsonPathEditor.Rename</c>): если новый ключ в маппинге уже есть, значит привязку успели
+    /// перенастроить вручную, и её настройка авторитетнее нашей догадки.</para>
+    /// </summary>
+    private static string RenameMappingKey(string mappingJson, string oldKey, string newKey, out bool changed)
+    {
+        changed = false;
+        var map = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson) ?? [];
+        if (!map.TryGetValue(oldKey, out var value) || map.ContainsKey(newKey)) return mappingJson;
+
+        map.Remove(oldKey);
+        map[newKey] = value;
+        changed = true;
+        return JsonSerializer.Serialize(map);
+    }
+
     public async Task<DataSetBindingDto?> CreateBindingAsync(CreateBindingInput input, CancellationToken ct)
     {
         var source = await db.DataSetSources.Include(s => s.File)

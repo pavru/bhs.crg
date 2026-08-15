@@ -39,7 +39,10 @@ public class DataSetResolverDefaultsTests(IntegrationTestFixture fixture) : IAsy
         var rowType = await m.Send(new CreateDocumentTypeCommand("ROW", "ROW", DocumentTypeKind.Composite, null,
             J("{'fields':[{'key':'Поле','type':'string','required':false},{'key':'ВидДокумента','type':'string','required':false,'defaultValue':'исполнительная схема'}]}")));
 
-        var docType = await m.Send(new CreateDocumentTypeCommand("REESTR", "REESTR", DocumentTypeKind.Document, null, J("{'fields':[]}")));
+        // Целевое поле привязки ОБЪЯВЛЕНО в схеме владельца (issue #737): резолвер больше не пишет в
+        // ключ, которого в схеме нет, а интерфейс и не даёт завести такую привязку.
+        var docType = await m.Send(new CreateDocumentTypeCommand("REESTR", "REESTR", DocumentTypeKind.Document, null,
+            J($"{{'fields':[{{'key':'Строки','type':'array','typeId':'{rowType.Id}'}}]}}")));
 
         var construction = await m.Send(new CreateConstructionCommand("Объект", Guid.NewGuid()));
         var section = await m.Send(new CreateSectionCommand(construction.Id, "Раздел"));
@@ -87,7 +90,8 @@ public class DataSetResolverDefaultsTests(IntegrationTestFixture fixture) : IAsy
         // «ВидДокумента» ИМЕЕТ и defaultValue, И явный маппинг (на колонку B) — маппинг должен победить.
         var rowType = await m.Send(new CreateDocumentTypeCommand("ROW2", "ROW2", DocumentTypeKind.Composite, null,
             J("{'fields':[{'key':'ВидДокумента','type':'string','required':false,'defaultValue':'дефолт'}]}")));
-        var docType = await m.Send(new CreateDocumentTypeCommand("REESTR2", "REESTR2", DocumentTypeKind.Document, null, J("{'fields':[]}")));
+        var docType = await m.Send(new CreateDocumentTypeCommand("REESTR2", "REESTR2", DocumentTypeKind.Document, null,
+            J($"{{'fields':[{{'key':'Строки','type':'array','typeId':'{rowType.Id}'}}]}}")));
 
         var construction = await m.Send(new CreateConstructionCommand("Объект", Guid.NewGuid()));
         var section = await m.Send(new CreateSectionCommand(construction.Id, "Раздел"));
