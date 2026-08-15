@@ -44,6 +44,26 @@ public static class MaintenanceEndpoints
             });
         });
 
+        // Объекты хранилища, на которые больше никто не ссылается (issue #741).
+        //
+        // Возрастной порог наружу НЕ выведен. Соблазн был — «пусть будет, вдруг пригодится для
+        // разбора», — но это единственное, что защищает файл, который человек прямо сейчас
+        // прикрепляет: путь попадает в хранилище раньше, чем ссылка на него сохраняется в
+        // документ. Параметр в строке запроса означал бы, что порог отключается одним
+        // `&minAgeHours=0` из чьего-нибудь сохранённого curl'а. Тесты зовут сервис напрямую.
+        g.MapPost("/orphan-blobs/cleanup", async (
+            OrphanBlobCleanup cleanup, bool? dryRun, CancellationToken ct) =>
+        {
+            var isDryRun = dryRun ?? true;
+            var report = await cleanup.RunAsync(isDryRun, minAgeHours: null, ct);
+            return Results.Ok(new
+            {
+                report.Registered, report.Referenced, report.Orphans, report.TooYoung, report.Batch,
+                report.Bytes, report.Missing, report.Sample, report.Deleted, report.Failed,
+                report.Remaining, report.StorageUnreachable, report.MinAgeHours, dryRun = isDryRun,
+            });
+        });
+
         // Дозаполнение человеческих имён материалов у связок, заведённых до появления метки (#561).
         // Читает и разбирает файлы наборов, поэтому тоже действие администратора, а не миграция.
         g.MapPost("/material-links/backfill-labels", async (
