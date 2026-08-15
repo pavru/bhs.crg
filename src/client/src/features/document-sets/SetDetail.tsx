@@ -467,8 +467,9 @@ export function SetDetail() {
             : undefined
         }
         confirmLabel="Удалить комплект"
-        onConfirm={() => {
-          deleteSet.mutate({ id: set.id, constructionId: constructionId! });
+        onConfirm={async () => {
+          // mutateAsync ради видимости отказа 409 (issue #739) — см. ConstructionDetail.
+          await deleteSet.mutateAsync({ id: set.id, constructionId: constructionId! });
           navigate(`/document-sets/${constructionId}/sections/${set.sectionId}`);
         }}
       />

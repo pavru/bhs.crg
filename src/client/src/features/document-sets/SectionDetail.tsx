@@ -183,8 +183,9 @@ export function SectionDetail() {
         }
         confirmLabel={`Удалить раздел «${section.name}»`}
         requireCheckbox={setsInSection > 0 ? 'Понимаю, что это необратимо' : undefined}
-        onConfirm={() => {
-          deleteSection.mutate({ id: section.id, constructionId: constructionId! });
+        onConfirm={async () => {
+          // mutateAsync ради видимости отказа 409 (issue #739) — см. ConstructionDetail.
+          await deleteSection.mutateAsync({ id: section.id, constructionId: constructionId! });
           navigate(`/document-sets/${constructionId}`);
         }}
       />

@@ -219,7 +219,10 @@ export function ConstructionsList() {
         })()}
         confirmLabel={`Удалить стройку «${deleteTarget?.name ?? ''}»`}
         requireCheckbox={deleteTarget && deleteTarget.sections.length > 0 ? 'Понимаю, что это необратимо' : undefined}
-        onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id); }}
+        onConfirm={async () => {
+          // mutateAsync ради видимости отказа 409 (issue #739) — см. ConstructionDetail.
+          if (deleteTarget) await deleteMutation.mutateAsync(deleteTarget.id);
+        }}
       />
     </div>
   );

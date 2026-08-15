@@ -174,8 +174,12 @@ export function ConstructionDetail() {
         }
         confirmLabel={`Удалить стройку «${construction.name}»`}
         requireCheckbox={sectionsN > 0 ? 'Понимаю, что это необратимо' : undefined}
-        onConfirm={() => {
-          deleteConstruction.mutate(construction.id);
+        onConfirm={async () => {
+          // mutateAsync, а не mutate: удаление уровня может отказать 409 («на содержимое ссылаются
+          // извне», issue #739). Fire-and-forget закрывал бы диалог и уводил со страницы так, будто
+          // всё удалилось, — отказ не увидел бы никто. ConfirmDialog на reject остаётся открытым и
+          // показывает причину, поэтому и навигация только после успеха.
+          await deleteConstruction.mutateAsync(construction.id);
           navigate('/document-sets');
         }}
       />

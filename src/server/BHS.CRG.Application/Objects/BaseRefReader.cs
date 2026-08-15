@@ -125,22 +125,40 @@ public static class DomainObjectReferences
     /// в трекере ради проверки, которая ничего не меняет, — превью переноса зовёт этот же скан и не
     /// сохраняет вовсе.</para>
     /// </summary>
-    public static async Task<IReadOnlyList<Referrer>> FindReferrersAsync(
+    public static Task<IReadOnlyList<Referrer>> FindReferrersAsync(
         IRepository<DomainObject> objRepo, IRepository<QualityDocument> qualityRepo,
         Guid targetId, CancellationToken ct)
+        => FindReferrersAsync(objRepo, qualityRepo, new HashSet<Guid> { targetId }, ct);
+
+    /// <summary>
+    /// То же для ГРУППЫ целей — каскадное удаление уровня (issue #739): удаляя комплект, раздел или
+    /// стройку, мы уносим все объекты поддерева разом, и спрашивать про каждый отдельно значило бы
+    /// сканировать обе таблицы по разу на объект.
+    ///
+    /// <para><b>Держатель из самой группы не считается</b> — и это не оптимизация, а суть проверки.
+    /// Документ комплекта, ссылающийся на соседний документ того же комплекта, уходит вместе с ним:
+    /// ссылка исчезает целиком, а не повисает. Блокируй мы и такие, комплект с двумя связанными
+    /// документами стал бы неудаляемым навсегда — распутать это можно было бы только правкой
+    /// реквизитов вручную. Одиночный случай — частный: цель не блокирует сама себя.</para>
+    /// </summary>
+    public static async Task<IReadOnlyList<Referrer>> FindReferrersAsync(
+        IRepository<DomainObject> objRepo, IRepository<QualityDocument> qualityRepo,
+        IReadOnlySet<Guid> targetIds, CancellationToken ct)
     {
+        if (targetIds.Count == 0) return [];
+
         var objects = await objRepo.FindAsync(_ => true, ct);
         var quality = await qualityRepo.FindAsync(_ => true, ct);
 
         var found = objects
-            .Where(o => o.Id != targetId && ReferencesObject(o.Data.RootElement, targetId))
+            .Where(o => !targetIds.Contains(o.Id) && ReferencesAny(o.Data.RootElement, targetIds))
             .Select(o => new Referrer(o.Id, Name(o.DisplayName)));
 
         // Документ качества базового экземпляра не имеет — только «$ref» в реквизитах.
         var fromQuality = quality
-            .Where(d => d.Id != targetId
+            .Where(d => !targetIds.Contains(d.Id)
                         && RefReader.CollectRefIds(d.Requisites.RootElement, includeInstanceRefs: false)
-                            .Contains(targetId))
+                            .Any(targetIds.Contains))
             .Select(d => new Referrer(d.Id, $"документ качества «{Name(d.DisplayName)}»"));
 
         return found.Concat(fromQuality).ToList();
@@ -152,9 +170,45 @@ public static class DomainObjectReferences
     private static string Name(string? displayName)
         => string.IsNullOrWhiteSpace(displayName) ? "без имени" : displayName;
 
-    private static bool ReferencesObject(JsonElement data, Guid targetId)
-        => BaseRefReader.GetBaseRefId(data) == targetId
-           || RefReader.CollectRefIds(data).Contains(targetId);
+    /// <summary>
+    /// Какие из <paramref name="candidateIds"/> ещё держат ссылками записи ВНЕ этого множества.
+    ///
+    /// <para>Обратная задача к <see cref="FindReferrersAsync(IRepository{DomainObject},
+    /// IRepository{QualityDocument}, IReadOnlySet{Guid}, CancellationToken)"/>: там спрашивают «кто
+    /// держит», здесь — «что держат». Нужна уборке осиротевших записей (issue #739): сирота не
+    /// обязательно мусор — её мог оставить прежний каскад, а ссылка на неё резолвится по
+    /// идентификатору и работает по сей день. Удали такую — рабочая ссылка стала бы висячей, то
+    /// есть уборка своими руками сделала бы то, ради предотвращения чего вся эта работа.</para>
+    ///
+    /// <para>Держатель, сам входящий в множество, не в счёт: «сирота ссылается на сироту» —
+    /// замкнутый остаток, держать его вечно незачем.</para>
+    /// </summary>
+    public static async Task<IReadOnlySet<Guid>> FindHeldTargetsAsync(
+        IRepository<DomainObject> objRepo, IRepository<QualityDocument> qualityRepo,
+        IReadOnlySet<Guid> candidateIds, CancellationToken ct)
+    {
+        if (candidateIds.Count == 0) return new HashSet<Guid>();
+
+        var held = new HashSet<Guid>();
+        foreach (var o in await objRepo.FindAsync(_ => true, ct))
+        {
+            if (candidateIds.Contains(o.Id)) continue;
+            if (BaseRefReader.GetBaseRefId(o.Data.RootElement) is { } b && candidateIds.Contains(b)) held.Add(b);
+            foreach (var id in RefReader.CollectRefIds(o.Data.RootElement))
+                if (candidateIds.Contains(id)) held.Add(id);
+        }
+        foreach (var d in await qualityRepo.FindAsync(_ => true, ct))
+        {
+            if (candidateIds.Contains(d.Id)) continue;
+            foreach (var id in RefReader.CollectRefIds(d.Requisites.RootElement, includeInstanceRefs: false))
+                if (candidateIds.Contains(id)) held.Add(id);
+        }
+        return held;
+    }
+
+    private static bool ReferencesAny(JsonElement data, IReadOnlySet<Guid> targetIds)
+        => (BaseRefReader.GetBaseRefId(data) is { } baseId && targetIds.Contains(baseId))
+           || RefReader.CollectRefIds(data).Any(targetIds.Contains);
 }
 
 /// <summary>
