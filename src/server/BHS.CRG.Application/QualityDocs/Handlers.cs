@@ -11,7 +11,8 @@ public class QualityDocHandlers(
     IRepository<QualityDocument> repo,
     IRepository<MaterialQualityLink> linkRepo,
     IRepository<DocumentType> typeRepo,
-    IRepository<DomainObject> objRepo
+    IRepository<DomainObject> objRepo,
+    IReferenceIndex refIndex
 ) :
     IRequestHandler<CreateQualityDocumentCommand, QualityDocument>,
     IRequestHandler<UpdateQualityDocumentCommand, QualityDocument>,
@@ -104,7 +105,7 @@ public class QualityDocHandlers(
     {
         var doc = await repo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException($"QualityDocument {cmd.Id} not found");
 
-        var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, repo, cmd.Id, ct);
+        var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, repo, refIndex, cmd.Id, ct);
         if (referrers.Count > 0)
             throw new ConflictException(
                 $"Нельзя удалить документ качества — на него ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.Label))}.");

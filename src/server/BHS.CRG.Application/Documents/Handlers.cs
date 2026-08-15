@@ -515,6 +515,7 @@ public class DocumentSetHandlers(
     IDomainObjectRepository objRepo,
     IRepository<DocumentType> docTypeRepo,
     IRepository<QualityDocument> qualityDocRepo,
+    IReferenceIndex refIndex,
     IBlobStorage blobStorage,
     IScopeSubtree scopeSubtree,
     IScopeCascade cascade) :
@@ -632,7 +633,7 @@ public class DocumentSetHandlers(
         // issue #71/#269: удаление объекта, на который ссылаются (базовый экземпляр "_baseRef" или
         // "$ref" в значениях полей), оставило бы висячую ссылку — при генерации она молча
         // разворачивается в ничто (EntityResolver возвращает исходный узел / пропускает базу).
-        var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, qualityDocRepo, cmd.Id, ct);
+        var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, qualityDocRepo, refIndex, cmd.Id, ct);
         if (referrers.Count > 0)
             throw new ConflictException(
                 $"Нельзя удалить документ — на него ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.Label))}.");
@@ -700,7 +701,7 @@ public class DocumentSetHandlers(
         var srcSetId = source.ScopeId!.Value;
         if (srcSetId == targetSet.Id) throw new ConflictException("Документ уже в этом комплекте.");
 
-        var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, qualityDocRepo, source.Id, ct);
+        var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, qualityDocRepo, refIndex, source.Id, ct);
         if (referrers.Count > 0)
             throw new ConflictException(
                 $"Нельзя перенести документ — на него ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.Label))}.");
@@ -726,7 +727,7 @@ public class DocumentSetHandlers(
     public async Task<MovePreview> Handle(PreviewMoveDocumentQuery q, CancellationToken ct)
     {
         var (source, targetSet) = await LoadCopyEndpointsAsync(q.SourceId, q.TargetSetId, ct);
-        var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, qualityDocRepo, source.Id, ct);
+        var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, qualityDocRepo, refIndex, source.Id, ct);
         var (_, warnings) = await BuildCopyPlanAsync(source, targetSet, q.Strategy, ct);
         return new MovePreview(warnings, referrers.Select(r => r.Label).ToList());
     }
@@ -887,6 +888,7 @@ public class CommonDataHandlers(
     IRepository<Section> sectionRepo,
     IRepository<Construction> constructionRepo,
     IRepository<QualityDocument> qualityDocRepo,
+    IReferenceIndex refIndex,
     IDataSetResolver dataSetResolver,
     ILevelProfileService levelProfiles) :
     IRequestHandler<CreateCommonDataEntryCommand, DomainObject>,
@@ -930,7 +932,7 @@ public class CommonDataHandlers(
             throw new ConflictException("Это профиль уровня — его нельзя удалить. Он редактируется на странице «Общие данные» уровня.");
         // issue #71/#269: запись, на которую ссылаются другие объекты (базовый экземпляр "_baseRef"
         // или "$ref" в значениях полей), — тот же guard, что и для документа: иначе висячая ссылка.
-        var referrers = await DomainObjectReferences.FindReferrersAsync(repo, qualityDocRepo, cmd.Id, ct);
+        var referrers = await DomainObjectReferences.FindReferrersAsync(repo, qualityDocRepo, refIndex, cmd.Id, ct);
         if (referrers.Count > 0)
             throw new ConflictException(
                 $"Нельзя удалить запись — на неё ссылаются другие объекты: {string.Join(", ", referrers.Select(r => r.Label))}.");

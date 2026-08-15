@@ -44,7 +44,8 @@ public record OrphanCleanupReport(
 public class OrphanObjectCleanup(
     AppDbContext db,
     IRepository<DomainObject> objRepo,
-    IRepository<QualityDocument> qualityRepo)
+    IRepository<QualityDocument> qualityRepo,
+    IReferenceIndex refIndex)
 {
     /// <param name="dryRun">Только посчитать, ничего не удаляя.</param>
     public async Task<OrphanCleanupReport> RunAsync(bool dryRun, CancellationToken ct = default)
@@ -89,7 +90,7 @@ public class OrphanObjectCleanup(
             .ToListAsync(ct);
 
         var candidates = objectIds.Concat(qualityIds).ToHashSet();
-        var held = await DomainObjectReferences.FindHeldTargetsAsync(objRepo, qualityRepo, candidates, ct);
+        var held = await DomainObjectReferences.FindHeldTargetsAsync(objRepo, qualityRepo, refIndex, candidates, ct);
 
         var report = new OrphanCleanupReport(
             Objects: objectIds.Count,

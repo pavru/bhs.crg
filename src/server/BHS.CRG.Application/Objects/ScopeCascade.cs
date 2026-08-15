@@ -58,6 +58,7 @@ public class ScopeCascade(
     IRepository<QualityDocument> qualityRepo,
     IRepository<MaterialQualityLink> linkRepo,
     IRepository<Section> sectionRepo,
+    IReferenceIndex refIndex,
     IScopeSubtree subtree) : IScopeCascade
 {
     /// <summary>
@@ -107,7 +108,7 @@ public class ScopeCascade(
         // уровня комплекта — сертификат, заведённый в этом же комплекте и ссылающийся на его
         // запись общих данных, объявил бы комплект неудаляемым, «сославшись извне» на самого себя.
         var targetIds = objects.Select(o => o.Id).Concat(quality.Select(d => d.Id)).ToHashSet();
-        var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, qualityRepo, targetIds, ct);
+        var referrers = await DomainObjectReferences.FindReferrersAsync(objRepo, qualityRepo, refIndex, targetIds, ct);
         return new ScopeCascadePlan(objects, quality, links, referrers);
     }
 

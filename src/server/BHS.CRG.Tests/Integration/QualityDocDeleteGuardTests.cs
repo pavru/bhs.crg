@@ -215,4 +215,30 @@ public class QualityDocDeleteGuardTests(IntegrationTestFixture fixture) : IAsync
         using var scope = fixture.Services.CreateScope();
         Assert.Null(await M(scope).Send(new GetDocumentInstanceQuery(docId)));
     }
+
+    /// <summary>
+    /// Идентификатор в ссылке записан НЕ канонически — заглавными и в фигурных скобках. Guard обязан
+    /// сработать так же (issue #745).
+    ///
+    /// <para>Правило «что считать ссылкой» живёт в C#, а <c>Guid.TryParse</c> принимает и <c>D</c>, и
+    /// <c>N</c>, и формы в скобках, и любой регистр. Отбор кандидатов ушёл в SQL, и стоит ему
+    /// сравнивать строки буквально — держатель с такой записью не попадёт в кандидаты, разбирать
+    /// будет нечего, и удаление пройдёт, оборвав рабочую ссылку. Отказ при этом будет выглядеть как
+    /// успех: ни ошибки, ни предупреждения. Сужение обязано быть НАДмножеством того, что понимает
+    /// C#, — тест держит именно это.</para>
+    /// </summary>
+    [Fact]
+    public async Task DeletingQualityDoc_ReferencedByNonCanonicalGuid_IsRejected()
+    {
+        var seed = await SeedAsync();
+        var cert = await AddQualityAsync(seed.CertTypeId, "Сертификат ИЭК", "{}", null);
+        var written = "{" + cert.Id.ToString().ToUpperInvariant() + "}";   // «B»-форма, верхний регистр
+        await AddDocumentAsync(seed, $"{{'Качество':{{'$ref':'instance','instanceId':'{written}'}}}}",
+            name: "Акт с нестандартной записью");
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(
+            () => SendAsync(new DeleteQualityDocumentCommand(cert.Id)));
+
+        Assert.Contains("Акт с нестандартной записью", ex.Message);
+    }
 }
