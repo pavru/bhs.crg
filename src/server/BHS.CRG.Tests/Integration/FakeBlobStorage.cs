@@ -9,6 +9,25 @@ public class FakeBlobStorage : IBlobStorage
 {
     private readonly ConcurrentDictionary<string, byte[]> _store = new();
 
+    /// <summary>
+    /// Хранилище «не отвечает»: размер не узнать, удаление падает (issue #741).
+    ///
+    /// Заведено потому, что настоящий MinIO на недоступность и на отсутствие объекта отвечает
+    /// одинаково — <c>GetSizeAsync</c> возвращает <c>null</c> в обоих случаях, — а последствия
+    /// разные: приняв связь за отсутствие, уборка сняла бы записи реестра у живых файлов и сделала
+    /// бы их недоступными навсегда. Воспроизвести это без флага нечем.
+    ///
+    /// <para>Сбрасывать обязательно (<c>try/finally</c>): подделка — синглтон на всю коллекцию.</para>
+    /// </summary>
+    public bool Offline { get; set; }
+
+    /// <summary>
+    /// Размер отдаём, а удаление роняем. Отдельно от <see cref="Offline" />: связь может быть, а
+    /// прав на удаление не быть, и именно в этом случае терялась правда об освобождённом месте —
+    /// байты складывались до цикла удаления, а сбои цикла проглатывались.
+    /// </summary>
+    public bool FailDeletes { get; set; }
+
     public async Task<string> UploadAsync(string fileName, Stream content, string contentType, CancellationToken ct = default)
     {
         // Раскладка — та же, что у настоящего хранилища (issue #672). Прежняя выдумка
@@ -34,6 +53,7 @@ public class FakeBlobStorage : IBlobStorage
 
     public Task DeleteAsync(string blobPath, CancellationToken ct = default)
     {
+        if (Offline || FailDeletes) throw new IOException("Хранилище недоступно");
         _store.TryRemove(blobPath, out _);
         return Task.CompletedTask;
     }
@@ -46,7 +66,8 @@ public class FakeBlobStorage : IBlobStorage
     }
 
     public Task<long?> GetSizeAsync(string blobPath, CancellationToken ct = default)
-        => Task.FromResult(_store.TryGetValue(blobPath, out var bytes) ? bytes.LongLength : (long?)null);
+        => Task.FromResult(!Offline && _store.TryGetValue(blobPath, out var bytes)
+            ? bytes.LongLength : (long?)null);
 
     /// <summary>Для тестов best-effort очистки осиротевших blob'ов — проверить, что путь реально удалён/не существовал.</summary>
     public bool Exists(string blobPath) => _store.ContainsKey(blobPath);

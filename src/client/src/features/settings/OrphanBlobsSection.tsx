@@ -13,11 +13,17 @@ interface Report {
   orphans: number;
   /** Без ссылок, но моложе порога — их сборщик не трогает: файл может прямо сейчас прикрепляться. */
   tooYoung: number;
+  /** Сколько кандидатов берёт один прогон: остальные подберёт следующий. */
+  batch: number;
   bytes: number;
-  /** Из удаляемых уже нет в хранилище — уйдёт только запись реестра. */
+  /** Из партии уже нет в хранилище — уйдёт только запись реестра. */
   missing: number;
   sample: string[];
   deleted: number;
+  failed: number;
+  remaining: number;
+  /** Хранилище не ответило — числа недостоверны, уборка не делалась. */
+  storageUnreachable: boolean;
   minAgeHours: number;
   dryRun: boolean;
 }
@@ -52,17 +58,25 @@ export function OrphanBlobsSection() {
   /**
    * Ошибку НЕ глотаем: диалог подтверждения — единый канал для отказов (см. ConfirmDialog), и при
    * reject он остаётся открытым с причиной.
+   *
+   * Автоматического пересчёта здесь нет намеренно. У соседней уборки объектов он стоит и стоит
+   * дёшево — там один запрос к базе. Здесь пересчёт это ПОЛНЫЙ скан всех JSONB-колонок плюс запрос
+   * размера на каждого оставшегося кандидата, то есть удвоение самой дорогой части операции сразу
+   * после необратимого действия. Ответ на удаление и так говорит, сколько удалено и сколько
+   * осталось; кому нужны свежие числа — «Посчитать» рядом.
    */
   async function apply() {
     setBusy(true); setError('');
     try {
       const result = await run(false);
       setDone(result);
-      setReport(await run(true)); // пересчёт: перечитать реестр дёшево
+      setReport(result);
     } finally { setBusy(false); }
   }
 
-  const nothingToDo = report !== null && report.orphans === 0;
+  // Считаем по «осталось»: после уборки orphans хранит то, что было НАЙДЕНО, а не то, что ещё есть.
+  const nothingToDo = report !== null && report.remaining === 0;
+  const blocked = report?.storageUnreachable === true;
 
   return (
     <CollapsibleSection title="Осиротевшие файлы хранилища" storageKey="orphan-blobs" defaultOpen={false}>
@@ -78,7 +92,7 @@ export function OrphanBlobsSection() {
             icon={<Trash2 size={14} />}>
             Посчитать
           </Button>
-          {report && !nothingToDo && (
+          {report && !nothingToDo && !blocked && (
             <Button variant="filled" size="sm" danger onClick={() => setConfirmOpen(true)} disabled={busy}>
               Удалить
             </Button>
@@ -94,12 +108,32 @@ export function OrphanBlobsSection() {
           </p>
         )}
 
+        {blocked && (
+          <p className="text-xs text-danger">
+            Хранилище не отвечает — ничего не удалено. Числа ниже недостоверны: «нет размера» и «нет
+            связи» с этой стороны выглядят одинаково, а снять записи о живых файлах значило бы
+            сделать их недоступными навсегда. Повторите, когда хранилище ответит.
+          </p>
+        )}
+
         {report && (
           <ul className="text-xs text-fg2 space-y-1">
             <li>Всего числится за приложением: {report.registered}, из них используются: {report.referenced}</li>
-            {nothingToDo
-              ? <li className="text-fg3">Осиротевших файлов нет.</li>
-              : <li>Будет удалено: <b>{report.orphans}</b>, освободится {formatBytes(report.bytes)}</li>}
+            {nothingToDo && <li className="text-fg3">Осиротевших файлов нет.</li>}
+            {!nothingToDo && (done
+              ? <li>Осталось кандидатов: <b>{report.remaining}</b> — нажмите «Удалить» ещё раз</li>
+              : <li>Будет удалено: <b>{report.batch}</b>, освободится {formatBytes(report.bytes)}</li>)}
+            {report.failed > 0 && (
+              <li className="text-warning">
+                Не удалось удалить: {report.failed} — подберёт следующий прогон, подробности в журнале.
+              </li>
+            )}
+            {!done && report.remaining > report.batch && (
+              <li className="text-fg3">
+                Всего кандидатов: {report.remaining} — за один прогон берётся не больше {report.batch},
+                чтобы уборка не переросла таймаут прокси. Прогонов понадобится несколько.
+              </li>
+            )}
             {report.missing > 0 && (
               <li className="text-fg3">
                 Из них {report.missing} в хранилище уже нет — уйдёт только запись о них.
@@ -112,10 +146,10 @@ export function OrphanBlobsSection() {
                 только что загруженное вложение от сироты неотличимо.
               </li>
             )}
-            {report.sample.length > 0 && (
+            {!done && report.sample.length > 0 && (
               <li className="text-fg3">
                 Например: {report.sample.join(', ')}
-                {report.orphans > report.sample.length && ' …'}
+                {report.batch > report.sample.length && ' …'}
               </li>
             )}
           </ul>
@@ -127,7 +161,7 @@ export function OrphanBlobsSection() {
         title="Удалить осиротевшие файлы?"
         description={
           report
-            ? `Будет удалено файлов: ${report.orphans}, освободится ${formatBytes(report.bytes)}.`
+            ? `Будет удалено файлов: ${report.batch}, освободится ${formatBytes(report.bytes)}.`
               + ' Файлы удаляются из хранилища окончательно — восстановить их можно будет только из'
               + ' резервной копии, если они в неё попадали.'
             : ''

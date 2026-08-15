@@ -53,33 +53,44 @@ public class LiveBlobPathScan(AppDbContext db)
     public async Task<HashSet<string>> RunAsync(CancellationToken ct = default)
     {
         var connection = (NpgsqlConnection)db.Database.GetDbConnection();
-        if (connection.State != System.Data.ConnectionState.Open)
-            await db.Database.OpenConnectionAsync(ct);
 
-        var columns = new List<PathColumn>();
-        await using (var cmd = connection.CreateCommand())
+        // Открыли — закрываем сами. Открытие через EF увеличивает его счётчик, и без парного
+        // закрытия соединение из пула остаётся приколотым к контексту до конца запроса — а после
+        // скана идёт цикл удаления, который на большой партии длится минуты.
+        var openedHere = connection.State != System.Data.ConnectionState.Open;
+        if (openedHere) await db.Database.OpenConnectionAsync(ct);
+        try
         {
-            cmd.CommandText = ColumnsSql;
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct))
-                columns.Add(new PathColumn(reader.GetString(0), reader.GetString(1), reader.GetBoolean(2)));
-        }
+            var columns = new List<PathColumn>();
+            await using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = ColumnsSql;
+                cmd.CommandTimeout = 600;
+                await using var reader = await cmd.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                    columns.Add(new PathColumn(reader.GetString(0), reader.GetString(1), reader.GetBoolean(2)));
+            }
 
-        var paths = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var column in columns)
+            var paths = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var column in columns)
+            {
+                await using var cmd = connection.CreateCommand();
+                cmd.CommandText = column.IsJsonb ? JsonbSql(column) : TextSql(column);
+                cmd.CommandTimeout = 600;
+                cmd.Parameters.Add(new NpgsqlParameter("shape", BlobPathShape.Pattern));
+                if (column.IsJsonb) cmd.Parameters.Add(new NpgsqlParameter("rough", BlobPathShape.RoughPattern));
+
+                await using var reader = await cmd.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                    if (!reader.IsDBNull(0)) paths.Add(reader.GetString(0));
+            }
+
+            return paths;
+        }
+        finally
         {
-            await using var cmd = connection.CreateCommand();
-            cmd.CommandText = column.IsJsonb ? JsonbSql(column) : TextSql(column);
-            cmd.CommandTimeout = 600;
-            cmd.Parameters.Add(new NpgsqlParameter("shape", BlobPathShape.Pattern));
-            if (column.IsJsonb) cmd.Parameters.Add(new NpgsqlParameter("rough", BlobPathShape.RoughPattern));
-
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct))
-                if (!reader.IsDBNull(0)) paths.Add(reader.GetString(0));
+            if (openedHere) await db.Database.CloseConnectionAsync();
         }
-
-        return paths;
     }
 
     /// <remarks>

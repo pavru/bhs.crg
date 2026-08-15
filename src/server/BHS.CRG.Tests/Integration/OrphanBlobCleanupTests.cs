@@ -216,6 +216,70 @@ public class OrphanBlobCleanupTests(IntegrationTestFixture fixture) : IAsyncLife
         Assert.False(await InRegistryAsync(path));
     }
 
+    // ── Отчёт не должен обещать больше, чем сделано ──────────────────────────────
+
+    /// <summary>
+    /// Освобождённые байты считаются ЗА УДАЛЁННОЕ, а не за намеченное.
+    ///
+    /// <para>Складывались они раньше до цикла удаления, а сбой каждого удаления при этом
+    /// проглатывался — и отчёт получался «удалено 0, освобождено 1,2 ГБ», зелёной строкой на
+    /// экране. Ровно то, от чего предостерегает комментарий у самого <c>catch</c>.</para>
+    /// </summary>
+    [Fact]
+    public async Task Cleanup_StorageRefusesDelete_ReportsNothingFreed()
+    {
+        var referenced = await UploadAsync("cert.pdf");
+        await SeedQualityDocAsync(referenced);   // живой объект — чтобы проба сказала «связь есть»
+        await UploadAsync("забытый.pdf");
+        var storage = fixture.Services.GetRequiredService<FakeBlobStorage>();
+
+        OrphanBlobReport report;
+        try
+        {
+            // Размеры отдаём, а удаление роняем: сбой ровно на том шаге, где раньше терялась правда.
+            report = await RunAsync(dryRun: true);
+            Assert.True(report.Bytes > 0);       // подсчёт всё ещё показывает вес
+            storage.FailDeletes = true;
+            report = await RunAsync(dryRun: false);
+        }
+        finally { storage.FailDeletes = false; }
+
+        Assert.Equal(0, report.Deleted);
+        Assert.Equal(1, report.Failed);
+        Assert.Equal(0, report.Bytes);
+    }
+
+    /// <summary>
+    /// Хранилище молчит — уборка не идёт.
+    ///
+    /// <para>Различить «объекта нет» и «до хранилища не достучаться» по ответу нельзя: MinIO на
+    /// любой отказ отдаёт то же самое. Прими сборщик молчание за отсутствие — он снял бы записи
+    /// реестра у ЖИВЫХ файлов, а без записи файл не отдаётся и больше никогда не попадётся этой же
+    /// уборке. То есть данные не удалялись бы, но исчезали.</para>
+    /// </summary>
+    [Fact]
+    public async Task Cleanup_StorageUnreachable_RefusesToRun()
+    {
+        var referenced = await UploadAsync("cert.pdf");
+        await SeedQualityDocAsync(referenced);
+        var orphan = await UploadAsync("забытый.pdf");
+        var storage = fixture.Services.GetRequiredService<FakeBlobStorage>();
+
+        OrphanBlobReport report;
+        try
+        {
+            storage.Offline = true;
+            report = await RunAsync(dryRun: false);
+        }
+        finally { storage.Offline = false; }
+
+        Assert.True(report.StorageUnreachable);
+        Assert.Equal(0, report.Deleted);
+        Assert.Equal(0, report.Bytes);
+        Assert.True(await InRegistryAsync(orphan));   // запись цела — прогон можно повторить
+        Assert.True(InStorage(orphan));
+    }
+
     // ── Согласованность со сбором реестра ────────────────────────────────────────
 
     /// <summary>
