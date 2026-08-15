@@ -119,16 +119,21 @@ public static class DomainObjectReferences
     /// сделать документ-цель неудаляемым из-за указателя, которым генерация не пользуется, поэтому
     /// с этой стороны учитываются только <c>catalog</c> и <c>document</c>.</para>
     ///
-    /// <para>Сканирование в памяти (предикат по JSON не транслируется в SQL); масштаб приложения это
-    /// допускает, как и прочие guard'ы удаления. Обе выборки — <c>FindAsync</c>, а не
-    /// <c>GetAllAsync</c>: она без отслеживания (см. <c>Repository</c>), и целые таблицы не оседают
-    /// в трекере ради проверки, которая ничего не меняет, — превью переноса зовёт этот же скан и не
-    /// сохраняет вовсе.</para>
+    /// <para><b>Кого разбирать, спрашиваем у базы</b> (issue #745). Предикат по JSON в SQL не
+    /// транслируется, и раньше обе таблицы читались ЦЕЛИКОМ, а решение принималось в памяти —
+    /// приём законный при малых данных, но проверка стоит перед каждым удалением и растёт вместе с
+    /// общими данными. Теперь <see cref="IReferenceIndex" /> отбирает строки, где идентификатор
+    /// вообще упоминается, а разбирается только этот десяток. Само правило «что считать ссылкой»
+    /// осталось здесь, в C#, и ни одна его тонкость в SQL не уехала: индекс лишь СУЖАЕТ.</para>
+    ///
+    /// <para>Выборка — <c>FindAsync</c>, а не <c>GetAllAsync</c>: она без отслеживания
+    /// (см. <c>Repository</c>), и найденное не оседает в трекере ради проверки, которая ничего не
+    /// меняет, — превью переноса зовёт этот же скан и не сохраняет вовсе.</para>
     /// </summary>
     public static Task<IReadOnlyList<Referrer>> FindReferrersAsync(
         IRepository<DomainObject> objRepo, IRepository<QualityDocument> qualityRepo,
-        Guid targetId, CancellationToken ct)
-        => FindReferrersAsync(objRepo, qualityRepo, new HashSet<Guid> { targetId }, ct);
+        IReferenceIndex index, Guid targetId, CancellationToken ct)
+        => FindReferrersAsync(objRepo, qualityRepo, index, new HashSet<Guid> { targetId }, ct);
 
     /// <summary>
     /// То же для ГРУППЫ целей — каскадное удаление уровня (issue #739): удаляя комплект, раздел или
@@ -143,12 +148,11 @@ public static class DomainObjectReferences
     /// </summary>
     public static async Task<IReadOnlyList<Referrer>> FindReferrersAsync(
         IRepository<DomainObject> objRepo, IRepository<QualityDocument> qualityRepo,
-        IReadOnlySet<Guid> targetIds, CancellationToken ct)
+        IReferenceIndex index, IReadOnlySet<Guid> targetIds, CancellationToken ct)
     {
         if (targetIds.Count == 0) return [];
 
-        var objects = await objRepo.FindAsync(_ => true, ct);
-        var quality = await qualityRepo.FindAsync(_ => true, ct);
+        var (objects, quality) = await CandidatesAsync(objRepo, qualityRepo, index, targetIds, ct);
 
         var found = objects
             .Where(o => !targetIds.Contains(o.Id) && ReferencesAny(o.Data.RootElement, targetIds))
@@ -164,6 +168,30 @@ public static class DomainObjectReferences
         return found.Concat(fromQuality).ToList();
     }
 
+    /// <summary>
+    /// Кандидаты в держатели: строки, где идентификаторы вообще упоминаются. Настоящую ссылку среди
+    /// них ищет вызывающий — сужение и решение сознательно разнесены (см. <see cref="IReferenceIndex" />).
+    /// </summary>
+    private static async Task<(IReadOnlyList<DomainObject> Objects, IReadOnlyList<QualityDocument> Quality)>
+        CandidatesAsync(
+            IRepository<DomainObject> objRepo, IRepository<QualityDocument> qualityRepo,
+            IReferenceIndex index, IReadOnlySet<Guid> targetIds, CancellationToken ct)
+    {
+        var ids = targetIds.ToList();
+        var objectIds = await index.ObjectsMentioningAsync(ids, ct);
+        var qualityIds = await index.QualityDocumentsMentioningAsync(ids, ct);
+
+        // Пустой список — не повод идти в базу за «ничем»: EF всё равно построил бы запрос.
+        var objects = objectIds.Count == 0
+            ? (IReadOnlyList<DomainObject>)[]
+            : await objRepo.FindAsync(o => objectIds.Contains(o.Id), ct);
+        var quality = qualityIds.Count == 0
+            ? (IReadOnlyList<QualityDocument>)[]
+            : await qualityRepo.FindAsync(d => qualityIds.Contains(d.Id), ct);
+
+        return (objects, quality);
+    }
+
     /// <summary>Имя держателя для текста отказа. Пустое имя пропускает и сама библиотека
     /// (<c>EnsureNameFreeAsync</c> считает это заботой валидации формы) — а строка отказа затем
     /// существует ровно для того, чтобы человек нашёл держателя, и ««»» ему в этом не помогает.</summary>
@@ -174,7 +202,7 @@ public static class DomainObjectReferences
     /// Какие из <paramref name="candidateIds"/> ещё держат ссылками записи ВНЕ этого множества.
     ///
     /// <para>Обратная задача к <see cref="FindReferrersAsync(IRepository{DomainObject},
-    /// IRepository{QualityDocument}, IReadOnlySet{Guid}, CancellationToken)"/>: там спрашивают «кто
+    /// IRepository{QualityDocument}, IReferenceIndex, IReadOnlySet{Guid}, CancellationToken)"/>: там спрашивают «кто
     /// держит», здесь — «что держат». Нужна уборке осиротевших записей (issue #739): сирота не
     /// обязательно мусор — её мог оставить прежний каскад, а ссылка на неё резолвится по
     /// идентификатору и работает по сей день. Удали такую — рабочая ссылка стала бы висячей, то
@@ -185,19 +213,21 @@ public static class DomainObjectReferences
     /// </summary>
     public static async Task<IReadOnlySet<Guid>> FindHeldTargetsAsync(
         IRepository<DomainObject> objRepo, IRepository<QualityDocument> qualityRepo,
-        IReadOnlySet<Guid> candidateIds, CancellationToken ct)
+        IReferenceIndex index, IReadOnlySet<Guid> candidateIds, CancellationToken ct)
     {
         if (candidateIds.Count == 0) return new HashSet<Guid>();
 
+        var (objects, quality) = await CandidatesAsync(objRepo, qualityRepo, index, candidateIds, ct);
+
         var held = new HashSet<Guid>();
-        foreach (var o in await objRepo.FindAsync(_ => true, ct))
+        foreach (var o in objects)
         {
             if (candidateIds.Contains(o.Id)) continue;
             if (BaseRefReader.GetBaseRefId(o.Data.RootElement) is { } b && candidateIds.Contains(b)) held.Add(b);
             foreach (var id in RefReader.CollectRefIds(o.Data.RootElement))
                 if (candidateIds.Contains(id)) held.Add(id);
         }
-        foreach (var d in await qualityRepo.FindAsync(_ => true, ct))
+        foreach (var d in quality)
         {
             if (candidateIds.Contains(d.Id)) continue;
             foreach (var id in RefReader.CollectRefIds(d.Requisites.RootElement, includeInstanceRefs: false))

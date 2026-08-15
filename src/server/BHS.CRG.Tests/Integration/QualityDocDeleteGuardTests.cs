@@ -215,4 +215,41 @@ public class QualityDocDeleteGuardTests(IntegrationTestFixture fixture) : IAsync
         using var scope = fixture.Services.CreateScope();
         Assert.Null(await M(scope).Send(new GetDocumentInstanceQuery(docId)));
     }
+
+    /// <summary>
+    /// Идентификатор в ссылке записан НЕ канонически — заглавными и в фигурных скобках. Guard обязан
+    /// сработать так же (issue #745).
+    ///
+    /// <para>Правило «что считать ссылкой» живёт в C#, а <c>Guid.TryParse</c> принимает и <c>D</c>, и
+    /// <c>N</c>, и формы в скобках, и любой регистр. Отбор кандидатов ушёл в SQL, и стоит ему
+    /// сравнивать строки буквально — держатель с такой записью не попадёт в кандидаты, разбирать
+    /// будет нечего, и удаление пройдёт, оборвав рабочую ссылку. Отказ при этом будет выглядеть как
+    /// успех: ни ошибки, ни предупреждения. Сужение обязано быть НАДмножеством того, что понимает
+    /// C#, — тест держит именно это.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("B")]   // {11111111-…}
+    [InlineData("N")]   // 32 знака без дефисов
+    [InlineData("P")]   // (11111111-…)
+    [InlineData("X")]   // {0x11111111,0x2222,…}
+    [InlineData("padded")]  // канонический с пробелами по краям
+    public async Task DeletingQualityDoc_ReferencedByNonCanonicalGuid_IsRejected(string format)
+    {
+        var seed = await SeedAsync();
+        var cert = await AddQualityAsync(seed.CertTypeId, "Сертификат ИЭК", "{}", null);
+        var written = format == "padded"
+            ? $"  {cert.Id}  "
+            : cert.Id.ToString(format).ToUpperInvariant();
+        // Убеждаемся, что C# такую запись действительно понимает: иначе тест проверял бы,
+        // что guard не срабатывает на мусоре, и был бы зелёным по неверной причине.
+        Assert.True(Guid.TryParse(written, out var parsed) && parsed == cert.Id);
+
+        await AddDocumentAsync(seed, $"{{'Качество':{{'$ref':'instance','instanceId':'{written}'}}}}",
+            name: $"Акт с записью {format}");
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(
+            () => SendAsync(new DeleteQualityDocumentCommand(cert.Id)));
+
+        Assert.Contains($"Акт с записью {format}", ex.Message);
+    }
 }

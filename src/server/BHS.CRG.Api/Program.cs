@@ -383,6 +383,8 @@ builder.Services.AddScoped<BHS.CRG.Application.Documents.ILevelProfileService, B
 // AppDbContext ему недоступен, а копия обхода была у него своя.
 builder.Services.AddScoped<BHS.CRG.Application.Common.IScopeSubtree, BHS.CRG.Infrastructure.Common.ScopeSubtreeService>();
 builder.Services.AddScoped<BHS.CRG.Application.Objects.IScopeCascade, BHS.CRG.Application.Objects.ScopeCascade>();
+builder.Services.AddScoped<BHS.CRG.Application.Objects.IReferenceIndex,
+    BHS.CRG.Infrastructure.Persistence.ReferenceIndex>();
 builder.Services.AddScoped<IMetadataExtractor, MetadataExtractor>();
 builder.Services.AddScoped<IDataSetResolver, DataSetResolver>();
 builder.Services.AddScoped<IObjectResolver, ObjectResolver>();
