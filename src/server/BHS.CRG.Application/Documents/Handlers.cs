@@ -371,9 +371,7 @@ public class DocumentTypeHandlers(
 public class ConstructionHandlers(
     IRepository<Construction> constructionRepo,
     IRepository<Section> sectionRepo,
-    IRepository<DomainObject> objRepo,
-    IRepository<QualityDocument> qualityDocRepo,
-    IScopeSubtree scopeSubtree) :
+    IScopeCascade cascade) :
     IRequestHandler<CreateConstructionCommand, Construction>,
     IRequestHandler<RenameConstructionCommand, Construction>,
     IRequestHandler<DeleteConstructionCommand>,
@@ -409,11 +407,9 @@ public class ConstructionHandlers(
     public async Task Handle(DeleteConstructionCommand cmd, CancellationToken ct)
     {
         var c = await constructionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
-        var plan = await ScopeCascade.PlanAsync(objRepo, qualityDocRepo, sectionRepo, scopeSubtree,
-            CatalogScope.Construction, cmd.Id, ct);
-        if (plan.ExternalReferrers.Count > 0)
-            throw new ConflictException(ScopeCascade.RefusalMessage("стройку", plan.ExternalReferrers));
-        foreach (var o in plan.Objects) objRepo.Remove(o);
+        var plan = await cascade.PlanAsync(CatalogScope.Construction, cmd.Id, ct);
+        cascade.EnsureDeletable(plan, "стройку");
+        cascade.Remove(plan);
         constructionRepo.Remove(c);
         await constructionRepo.SaveChangesAsync(ct);
     }
@@ -450,11 +446,9 @@ public class ConstructionHandlers(
     public async Task Handle(DeleteSectionCommand cmd, CancellationToken ct)
     {
         var s = await sectionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
-        var plan = await ScopeCascade.PlanAsync(objRepo, qualityDocRepo, sectionRepo, scopeSubtree,
-            CatalogScope.Section, cmd.Id, ct);
-        if (plan.ExternalReferrers.Count > 0)
-            throw new ConflictException(ScopeCascade.RefusalMessage("раздел", plan.ExternalReferrers));
-        foreach (var o in plan.Objects) objRepo.Remove(o);
+        var plan = await cascade.PlanAsync(CatalogScope.Section, cmd.Id, ct);
+        cascade.EnsureDeletable(plan, "раздел");
+        cascade.Remove(plan);
         sectionRepo.Remove(s);
         await sectionRepo.SaveChangesAsync(ct);
     }
@@ -467,7 +461,8 @@ public class DocumentSetHandlers(
     IRepository<DocumentType> docTypeRepo,
     IRepository<QualityDocument> qualityDocRepo,
     IBlobStorage blobStorage,
-    IScopeSubtree scopeSubtree) :
+    IScopeSubtree scopeSubtree,
+    IScopeCascade cascade) :
     IRequestHandler<CreateDocumentSetCommand, DocumentSet>,
     IRequestHandler<RenameDocumentSetCommand, DocumentSet>,
     IRequestHandler<DeleteDocumentSetCommand>,
@@ -509,14 +504,13 @@ public class DocumentSetHandlers(
     public async Task Handle(DeleteDocumentSetCommand cmd, CancellationToken ct)
     {
         var set = await setRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
-        // Объекты на оси (Set, этот Id) — документы и Set-скоуп общих данных — принадлежат комплекту:
-        // FK-каскада на комплект нет (единая ось, полиморфный ScopeId), удаляем прикладно.
+        // Всё, что висит на оси (Set, этот Id) — документы, Set-скоуп общих данных, документы
+        // качества уровня комплекта и связки материалов, — принадлежит комплекту: FK-каскада на
+        // комплект нет (единая ось, полиморфный ScopeId), удаляем прикладно.
         // issue #739: и тот же guard, что у поштучного удаления, — иначе каскад обходит его с фланга.
-        var plan = await ScopeCascade.PlanAsync(objRepo, qualityDocRepo, sectionRepo, scopeSubtree,
-            CatalogScope.Set, cmd.Id, ct);
-        if (plan.ExternalReferrers.Count > 0)
-            throw new ConflictException(ScopeCascade.RefusalMessage("комплект", plan.ExternalReferrers));
-        foreach (var o in plan.Objects) objRepo.Remove(o); // фасета + generated_files каскадируются в БД
+        var plan = await cascade.PlanAsync(CatalogScope.Set, cmd.Id, ct);
+        cascade.EnsureDeletable(plan, "комплект");
+        cascade.Remove(plan);
         setRepo.Remove(set);
         await setRepo.SaveChangesAsync(ct);
     }

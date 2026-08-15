@@ -170,6 +170,42 @@ public static class DomainObjectReferences
     private static string Name(string? displayName)
         => string.IsNullOrWhiteSpace(displayName) ? "без имени" : displayName;
 
+    /// <summary>
+    /// Какие из <paramref name="candidateIds"/> ещё держат ссылками записи ВНЕ этого множества.
+    ///
+    /// <para>Обратная задача к <see cref="FindReferrersAsync(IRepository{DomainObject},
+    /// IRepository{QualityDocument}, IReadOnlySet{Guid}, CancellationToken)"/>: там спрашивают «кто
+    /// держит», здесь — «что держат». Нужна уборке осиротевших записей (issue #739): сирота не
+    /// обязательно мусор — её мог оставить прежний каскад, а ссылка на неё резолвится по
+    /// идентификатору и работает по сей день. Удали такую — рабочая ссылка стала бы висячей, то
+    /// есть уборка своими руками сделала бы то, ради предотвращения чего вся эта работа.</para>
+    ///
+    /// <para>Держатель, сам входящий в множество, не в счёт: «сирота ссылается на сироту» —
+    /// замкнутый остаток, держать его вечно незачем.</para>
+    /// </summary>
+    public static async Task<IReadOnlySet<Guid>> FindHeldTargetsAsync(
+        IRepository<DomainObject> objRepo, IRepository<QualityDocument> qualityRepo,
+        IReadOnlySet<Guid> candidateIds, CancellationToken ct)
+    {
+        if (candidateIds.Count == 0) return new HashSet<Guid>();
+
+        var held = new HashSet<Guid>();
+        foreach (var o in await objRepo.FindAsync(_ => true, ct))
+        {
+            if (candidateIds.Contains(o.Id)) continue;
+            if (BaseRefReader.GetBaseRefId(o.Data.RootElement) is { } b && candidateIds.Contains(b)) held.Add(b);
+            foreach (var id in RefReader.CollectRefIds(o.Data.RootElement))
+                if (candidateIds.Contains(id)) held.Add(id);
+        }
+        foreach (var d in await qualityRepo.FindAsync(_ => true, ct))
+        {
+            if (candidateIds.Contains(d.Id)) continue;
+            foreach (var id in RefReader.CollectRefIds(d.Requisites.RootElement, includeInstanceRefs: false))
+                if (candidateIds.Contains(id)) held.Add(id);
+        }
+        return held;
+    }
+
     private static bool ReferencesAny(JsonElement data, IReadOnlySet<Guid> targetIds)
         => (BaseRefReader.GetBaseRefId(data) is { } baseId && targetIds.Contains(baseId))
            || RefReader.CollectRefIds(data).Any(targetIds.Contains);

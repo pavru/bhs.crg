@@ -7,10 +7,12 @@ import { apiError } from '@/shared/utils/apiError';
 import { CollapsibleSection } from './CollapsibleSection';
 
 interface Report {
-  sets: number;
-  sections: number;
-  constructions: number;
+  objects: number;
+  qualityDocuments: number;
+  materialLinks: number;
   withData: number;
+  /** Сирот, на которые ещё ссылаются живые записи — их уборка не трогает. */
+  referenced: number;
   total: number;
   dryRun: boolean;
 }
@@ -45,15 +47,17 @@ export function OrphanObjectsSection() {
     finally { setBusy(false); }
   }
 
+  /**
+   * Ошибку НЕ глотаем: диалог подтверждения — единый канал для отказов (см. ConfirmDialog), и при
+   * reject он остаётся открытым с причиной. Проглоти мы её здесь — диалог закрылся бы так, будто
+   * удаление прошло, а провал остался бы мелкой строкой в свёрнутой секции.
+   */
   async function apply() {
-    setConfirmOpen(false);
     setBusy(true); setError('');
     try {
       const result = await run(false);
       setDone(result.total);
       setReport(await run(true)); // пересчёт дёшев — один запрос к базе, без разбора файлов
-    } catch (e) {
-      setError(apiError(e, 'Не удалось выполнить'));
     } finally { setBusy(false); }
   }
 
@@ -89,14 +93,20 @@ export function OrphanObjectsSection() {
             ? <p className="text-xs text-fg3">Потерянных объектов нет.</p>
             : (
               <ul className="text-xs text-fg2 space-y-1">
-                <li>Всего: <b>{report.total}</b></li>
-                {report.sets > 0 && <li>На несуществующих комплектах: {report.sets}</li>}
-                {report.sections > 0 && <li>На несуществующих разделах: {report.sections}</li>}
-                {report.constructions > 0 && <li>На несуществующих стройках: {report.constructions}</li>}
+                <li>Будет удалено: <b>{report.total}</b></li>
+                {report.objects > 0 && <li>Документов и записей общих данных: {report.objects}</li>}
+                {report.qualityDocuments > 0 && <li>Документов качества: {report.qualityDocuments}</li>}
+                {report.materialLinks > 0 && <li>Связок материалов: {report.materialLinks}</li>}
                 {report.withData > 0 && (
                   <li className="text-warning">
                     С непустыми данными: {report.withData} — удаление необратимо, содержимое
                     восстановить будет неоткуда.
+                  </li>
+                )}
+                {report.referenced > 0 && (
+                  <li className="text-fg3">
+                    Останутся: {report.referenced} — на них ещё ссылаются живые записи, и ссылки эти
+                    работают. Удалить их значило бы своими руками сделать ссылку висячей.
                   </li>
                 )}
               </ul>

@@ -39,8 +39,8 @@ public static class MaintenanceEndpoints
             var report = await cleanup.RunAsync(isDryRun, ct);
             return Results.Ok(new
             {
-                report.Sets, report.Sections, report.Constructions,
-                report.WithData, report.Total, dryRun = isDryRun,
+                report.Objects, report.QualityDocuments, report.MaterialLinks,
+                report.WithData, report.Referenced, report.Total, dryRun = isDryRun,
             });
         });
 

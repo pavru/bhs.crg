@@ -225,7 +225,7 @@ public class ScopeCascadeDeleteTests(IntegrationTestFixture fixture) : IAsyncLif
 
             var dry = await cleanup.RunAsync(dryRun: true);
             Assert.Equal(1, dry.Total);
-            Assert.Equal(1, dry.Sets);
+            Assert.Equal(1, dry.Objects);
             Assert.Equal(1, dry.WithData); // непустой — повод посмотреть глазами, а не жать «удалить»
             Assert.Equal(2, await CountObjectsAsync()); // сухой прогон ничего не тронул
 
@@ -235,5 +235,109 @@ public class ScopeCascadeDeleteTests(IntegrationTestFixture fixture) : IAsyncLif
 
             Assert.Equal(0, (await cleanup.RunAsync(dryRun: true)).Total);
         }
+    }
+
+    /// <summary>
+    /// Сирота, на которую ещё ссылается ЖИВАЯ запись, уборкой не трогается. Ссылки резолвятся по
+    /// идентификатору, а не по месту: такая ссылка работает по сей день, и снеси мы её цель —
+    /// уборка своими руками сделала бы висячей ровно ту ссылку, ради которой всё затевалось.
+    /// </summary>
+    [Fact]
+    public async Task OrphanCleanup_KeepsOrphansStillReferencedByLiveRecords()
+    {
+        var seed = await SeedAsync();
+        Guid orphanId;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var repo = scope.ServiceProvider.GetRequiredService<IRepository<DomainObject>>();
+            var orphan = DomainObject.Create(seed.DocTypeId, "Потерянная запись", J("{'Поле':'значение'}"),
+                CatalogScope.Set, Guid.NewGuid());
+            await repo.AddAsync(orphan);
+            await repo.SaveChangesAsync();
+            orphanId = orphan.Id;
+        }
+        // Живой документ ссылается на сироту — ссылка по идентификатору, и она резолвится.
+        await AddDocumentAsync(seed, "Живой акт", $"{{'Ссылка':{{'$ref':'catalog','entryId':'{orphanId}'}}}}");
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var cleanup = scope.ServiceProvider.GetRequiredService<OrphanObjectCleanup>();
+            var dry = await cleanup.RunAsync(dryRun: true);
+            Assert.Equal(1, dry.Objects);
+            Assert.Equal(1, dry.Referenced);
+            Assert.Equal(0, dry.Total); // удалять нечего: единственная сирота держится ссылкой
+
+            await cleanup.RunAsync(dryRun: false);
+            Assert.Equal(2, await CountObjectsAsync()); // сирота на месте
+        }
+    }
+
+    // ── Документы качества и связки на той же оси ────────────────────────────────
+
+    /// <summary>
+    /// Документ качества уровня комплекта и связки материалов висят на той же полиморфной оси, что и
+    /// объекты, и внешнего ключа у них тоже нет. Не унеси их каскад — они остались бы сиротами: на
+    /// рабочей базе таких документов 14, а связок 54, так что это не теоретическая полнота.
+    /// </summary>
+    [Fact]
+    public async Task DeletingSet_RemovesQualityDocsAndLinksOfThatScope()
+    {
+        var seed = await SeedAsync();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var cert = await M(scope).Send(new CreateQualityDocumentCommand(
+                seed.DocTypeId, "Сертификат комплекта", J("{}"),
+                CatalogScope.Set, seed.SetId, QualityDocSource.Manual, null, null, null));
+            await M(scope).Send(new SetMaterialLinksCommand(
+                CatalogScope.Set, seed.SetId, [new MaterialLinkInput("ВВГнг|3х2,5", "Кабель")], cert.Id));
+        }
+
+        await SendAsync(new DeleteDocumentSetCommand(seed.SetId));
+
+        using var check = fixture.Services.CreateScope();
+        var quality = await check.ServiceProvider.GetRequiredService<IRepository<QualityDocument>>()
+            .FindAsync(_ => true);
+        var links = await check.ServiceProvider.GetRequiredService<IRepository<MaterialQualityLink>>()
+            .FindAsync(_ => true);
+        Assert.Empty(quality);
+        Assert.Empty(links);
+    }
+
+    /// <summary>
+    /// Документ качества, лежащий В УДАЛЯЕМОМ комплекте, не должен считаться внешним держателем.
+    /// Он уходит вместе с комплектом, ссылка исчезает целиком — а объяви мы его «ссылающимся
+    /// извне», комплект стал бы неудаляемым из-за собственного содержимого, и сообщение об отказе
+    /// называло бы документ, который лежит внутри.
+    /// </summary>
+    [Fact]
+    public async Task DeletingSet_WithQualityDocOfSameScopeReferencingInside_Succeeds()
+    {
+        var seed = await SeedAsync();
+        var docId = await AddDocumentAsync(seed, "Акт", "{'Номер':'7'}");
+        using (var scope = fixture.Services.CreateScope())
+            await M(scope).Send(new CreateQualityDocumentCommand(
+                seed.DocTypeId, "Сертификат комплекта",
+                J($"{{'Основание':{{'$ref':'document','instanceId':'{docId}','fieldKey':'Номер'}}}}"),
+                CatalogScope.Set, seed.SetId, QualityDocSource.Manual, null, null, null));
+
+        await SendAsync(new DeleteDocumentSetCommand(seed.SetId));
+
+        Assert.Equal(0, await CountObjectsAsync());
+    }
+
+    /// <summary>А документ качества ОБЩЕЙ библиотеки — по-прежнему внешний держатель.</summary>
+    [Fact]
+    public async Task DeletingSet_WithSystemQualityDocReferencingInside_IsRejected()
+    {
+        var seed = await SeedAsync();
+        var docId = await AddDocumentAsync(seed, "Акт", "{'Номер':'7'}");
+        using (var scope = fixture.Services.CreateScope())
+            await M(scope).Send(new CreateQualityDocumentCommand(
+                seed.DocTypeId, "Сертификат библиотеки",
+                J($"{{'Основание':{{'$ref':'document','instanceId':'{docId}','fieldKey':'Номер'}}}}"),
+                CatalogScope.System, null, QualityDocSource.Manual, null, null, null));
+
+        await Assert.ThrowsAsync<ConflictException>(
+            () => SendAsync(new DeleteDocumentSetCommand(seed.SetId)));
     }
 }
