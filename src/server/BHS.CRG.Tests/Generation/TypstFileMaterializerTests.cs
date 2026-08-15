@@ -107,6 +107,61 @@ public class TypstFileMaterializerTests
         Assert.Empty(placed);
     }
 
+    /// <summary>
+    /// Один блоб — одно скачивание и один файл на диске, сколько бы узлов на него ни ссылалось
+    /// (issue #736).
+    ///
+    /// <para>Дубли перестали быть редкостью, когда документ качества стал приезжать в КАЖДУЮ строку
+    /// материала вместе со сканом: на живом акте это сотня строк на десяток сертификатов. Без памяти
+    /// о размещённом блобе одна и та же PDF-ка качалась бы из хранилища и писалась на диск сотню
+    /// раз — и в генерации, и в предпросмотре, который открывают постоянно.</para>
+    /// </summary>
+    [Fact]
+    public async Task Materialize_SameBlobInManyNodes_DownloadedAndPlacedOnce()
+    {
+        var blob = new FakeBlobStorage();
+        var path = await blob.UploadAsync("Сертификат.pdf", new MemoryStream(MakePdf(2)), "application/pdf");
+        var root = new JsonObject
+        {
+            ["Материалы"] = new JsonArray(
+                new JsonObject { ["Качество"] = FileNode(path, "Сертификат.pdf", "application/pdf") },
+                new JsonObject { ["Качество"] = FileNode(path, "Сертификат.pdf", "application/pdf") },
+                new JsonObject { ["Качество"] = FileNode(path, "Сертификат.pdf", "application/pdf") }),
+        };
+        var (placed, place) = Recorder();
+
+        await new TypstFileMaterializer(blob).MaterializeAsync(root, place);
+
+        Assert.Single(placed);
+        var rows = root["Материалы"]!.AsArray();
+        // Все три строки показывают на один и тот же файл и знают число страниц.
+        foreach (var row in rows)
+        {
+            Assert.Equal("/assets/att_0.pdf", row!["Качество"]!["src"]!.GetValue<string>());
+            Assert.Equal(2, row["Качество"]!["pageCount"]!.GetValue<int>());
+        }
+    }
+
+    /// <summary>Разные блобы по-прежнему размещаются каждый своим файлом.</summary>
+    [Fact]
+    public async Task Materialize_DifferentBlobs_PlacedSeparately()
+    {
+        var blob = new FakeBlobStorage();
+        var first = await blob.UploadAsync("a.png", new MemoryStream([1]), "image/png");
+        var second = await blob.UploadAsync("b.png", new MemoryStream([2]), "image/png");
+        var root = new JsonObject
+        {
+            ["Первый"] = FileNode(first, "a.png", "image/png"),
+            ["Второй"] = FileNode(second, "b.png", "image/png"),
+        };
+        var (placed, place) = Recorder();
+
+        await new TypstFileMaterializer(blob).MaterializeAsync(root, place);
+
+        Assert.Equal(2, placed.Count);
+        Assert.NotEqual(root["Первый"]!["src"]!.GetValue<string>(), root["Второй"]!["src"]!.GetValue<string>());
+    }
+
     private static byte[] MakePdf(int pages)
     {
         using var doc = new PdfDocument();

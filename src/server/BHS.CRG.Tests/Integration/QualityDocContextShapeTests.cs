@@ -109,6 +109,11 @@ public class QualityDocContextShapeTests(IntegrationTestFixture fixture) : IAsyn
     /// <summary>
     /// Обе двери дают ОДИН объект. Проверяем сравнением, а не двумя списками ключей: разойдись формы
     /// снова хоть одним ключом, шаблон опять начнёт работать через раз, а сломается это молча.
+    ///
+    /// <para>Реквизиты здесь скалярные, и это не случайность: выравнена ОБОЛОЧКА, а разрешение
+    /// вложенных instance-ссылок у двух путей по-прежнему разное (см. <see cref="QualityDocShape"/>).
+    /// Сравнивать объекты с такой ссылкой внутри значило бы закреплять тестом то, чего изменение
+    /// не обещает.</para>
     /// </summary>
     [Fact]
     public async Task BothPaths_ProduceIdenticalShape()
@@ -134,6 +139,45 @@ public class QualityDocContextShapeTests(IntegrationTestFixture fixture) : IAsyn
                 .ToDictionary(p => p.Name, p => p.Value.GetRawText())),
             JsonSerializer.Serialize(viaRef.EnumerateObject().OrderBy(p => p.Name, StringComparer.Ordinal)
                 .ToDictionary(p => p.Name, p => p.Value.GetRawText())));
+    }
+
+    /// <summary>
+    /// То, что видит ШАБЛОН: после штамповки у сертификата стоит <c>_type</c> его ФАКТИЧЕСКОГО типа,
+    /// а не объявленного типа поля.
+    ///
+    /// <para>Проверяется отдельно от <c>_typeId</c>, потому что это разные вещи: сырой маркер
+    /// <c>TypeStamper</c> потребляет и убирает, а шаблон диспетчеризуется по развёрнутому
+    /// <c>_type</c>. Поле документа качества объявлено на БАЗОВЫЙ тип («Документ подтверждающий
+    /// качество»), а записи имеют конкретные подтипы — сертификат, декларация, отказное письмо, —
+    /// и различать их шаблон раньше не мог: через связь материала фактический тип не приезжал.</para>
+    /// </summary>
+    [Fact]
+    public async Task MaterialLink_StampsActualDocumentType()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var seed = await SeedAsync(scope);
+        // Подтип базового типа сертификата — как «Сертификат соответствия» под «Документом
+        // подтверждающим качество» в рабочей настройке.
+        var subType = await M(scope).Send(new CreateDocumentTypeCommand(
+            "Сертификат соответствия", $"SUB{Guid.NewGuid():N}"[..12],
+            DocumentTypeKind.Document, seed.CertTypeId, J("{'fields':[]}")));
+        var cert = await M(scope).Send(new CreateQualityDocumentCommand(
+            subType.Id, "EKF — автоматы", J("{'НомерДок':'1'}"),
+            CatalogScope.System, null, QualityDocSource.Manual, null, null, null));
+        await M(scope).Send(new SetMaterialLinksCommand(
+            CatalogScope.Set, seed.SetId, [new MaterialLinkInput("ВВГ-3х2.5", null)], cert.Id));
+
+        var act = await M(scope).Send(new AddDocumentToSetCommand(seed.SetId, seed.ActTypeId));
+        await M(scope).Send(new UpdateRequisitesCommand(act.Id, J("{'Материалы':[{'Артикул':'ВВГ-3х2.5'}]}")));
+
+        var ctx = await ResolveAsync(scope, act.Id);
+        var types = (await M(scope).Send(new ListDocumentTypesQuery())).ToDictionary(t => t.Id);
+        TypeStamper.Stamp(ctx, seed.ActTypeId, types);
+
+        var quality = ((JsonElement)ctx.Data["Материалы"]!).EnumerateArray().Single().GetProperty("Качество");
+        Assert.Equal("Сертификат соответствия", quality.GetProperty(TypeStamper.MetaKey).GetProperty("name").GetString());
+        // Сырой маркер потреблён штамповкой и в вывод не уезжает.
+        Assert.False(quality.TryGetProperty(TypeStamper.TypeIdKey, out _));
     }
 
     /// <summary>

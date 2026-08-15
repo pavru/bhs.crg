@@ -49,7 +49,7 @@ function SourceBoundDocField() {
 /// недоступен / источник не дал значения — чтобы пустой read-only бокс не выглядел как «немой».
 function BoundStateHint({ loading, error }: { loading: boolean; error: boolean }) {
   const text = loading ? 'Загрузка значения из источника…'
-    : error ? 'Источник недоступен — проверьте на вкладке «Данные»'
+    : error ? 'Источник недоступен — проверьте в «Источниках»'
     : 'Источник не дал значения';
   return <p className="text-[11px] text-fg4 mt-0.5 italic">{text}</p>;
 }
@@ -221,7 +221,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
     isMissing(f, val) && !sourceBoundFields.has(f.key) && !baseCoveredFields.has(f.key);
 
   // Предпросмотр значений привязок (issue #67): скалярный биндинг не пишет значение в реквизиты —
-  // оно резолвится только при генерации. Тот же preview-эндпоинт, что и на вкладке «Данные»,
+  // оно резолвится только при генерации. Тот же preview-эндпоинт, что и в «Источниках»,
   // даёт резолвнутое значение для показа read-only прямо в поле (в saved-values НЕ пишем).
   const { data: bindingPreviews, isFetching: previewingBindings, refetch: runBindingPreview, error: previewError } =
     usePreviewDataSetBindings({ ownerId: instance.id });
