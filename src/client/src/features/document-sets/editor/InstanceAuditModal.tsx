@@ -98,8 +98,8 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
                         </div>
                         {FIXED_ELSEWHERE.has(f.code) ? (
                           <p className="pt-1.5 text-xs text-fg4">
-                            Правится на вкладке «Данные»: переключите привязку на поле текущей схемы
-                            или удалите её.
+                            Правится в «Источниках» (кнопка в шапке документа): переключите привязку
+                            на поле текущей схемы или удалите её.
                           </p>
                         ) : (
                         <div className="flex flex-wrap items-center gap-2 pt-1.5">

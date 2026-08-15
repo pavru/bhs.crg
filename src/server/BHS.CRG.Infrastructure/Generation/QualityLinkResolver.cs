@@ -35,12 +35,23 @@ public class QualityLinkResolver(AppDbContext db) : IQualityLinkResolver
             .ToDictionary(kv => kv.Key, kv => kv.Value.QualityDocumentId);
         if (byKey.Count == 0) return;
 
-        // 3) реквизиты нужных документов
+        // 3) нужные документы — в ТОЙ ЖЕ форме, что даёт развёрнутая instance-ссылка (issue #736):
+        //    реквизиты плюс наименование, штамп типа и скан. Раньше здесь клались голые реквизиты,
+        //    и один и тот же сертификат выглядел в контексте по-разному в зависимости от того, каким
+        //    путём пришёл. Шаблон, написанный на «ссылочную» форму, молча давал пустоту на этой —
+        //    в первую очередь на «.Скан», а печать сертификата приложением к акту идёт именно
+        //    через связь материала.
+        //
+        //    Вложенные ссылки в реквизитах здесь НЕ разворачиваем, как и раньше: их разберёт второй
+        //    проход резолвера (ResolveContextRefsAsync). Общая функция от этого не зависит — она
+        //    только собирает форму.
         var docIds = byKey.Values.Distinct().ToList();
         var docs = await db.QualityDocuments.AsNoTracking()
             .Where(d => docIds.Contains(d.Id))
             .ToListAsync(ct);
-        var reqByDoc = docs.ToDictionary(d => d.Id, d => d.Requisites.RootElement.Clone());
+        var reqByDoc = docs.ToDictionary(d => d.Id, d => QualityDocShape.Build(
+            d.Requisites.RootElement, d.DisplayName, d.DocumentTypeId,
+            d.ScanBlobPath, d.ScanFileName, d.ScanMimeType));
 
         // 4) проход по контексту: каждому объекту с совпавшей идентичностью проставляем
         //    TargetField = реквизиты документа (вложенные $ref разрешит второй проход).

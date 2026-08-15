@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Objects;
+using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Objects;
@@ -418,32 +419,23 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
         // искать нечего, документ надо поднять выше по оси либо ссылаться на него из своей ветки.
         if (!scope.Contains(doc.Scope, doc.ScopeId)) return (default, InstanceRefTarget.QualityOutOfScope);
 
-        var dict = new Dictionary<string, JsonElement>();
+        // Реквизиты разворачиваем ЗДЕСЬ (у нас есть база и цепочка областей), а форму собирает общая
+        // чистая функция — та же, что у связи материал→документ (issue #736). Иначе один и тот же
+        // сертификат попадал бы в контекст двумя разными объектами в зависимости от пути.
+        var requisites = new List<KeyValuePair<string, JsonElement>>();
         if (doc.Requisites.RootElement.ValueKind == JsonValueKind.Object)
             foreach (var p in doc.Requisites.RootElement.EnumerateObject())
-                dict[p.Name] = await ResolveNode(p.Value, scope, refDepth + 1, nodeDepth + 1,
-                    allowInstanceRefs: false, keepRefProvenance, ct);
+                requisites.Add(new(p.Name, await ResolveNode(p.Value, scope, refDepth + 1, nodeDepth + 1,
+                    allowInstanceRefs: false, keepRefProvenance, ct)));
 
-        dict["displayName"] = JsonSerializer.SerializeToElement(doc.DisplayName);
-        dict[TypeStamper.TypeIdKey] = JsonSerializer.SerializeToElement(doc.DocumentTypeId.ToString());
+        var shaped = QualityDocShape.Build(requisites, doc.DisplayName, doc.DocumentTypeId,
+            doc.ScanBlobPath, doc.ScanFileName, doc.ScanMimeType);
 
-        if (!string.IsNullOrWhiteSpace(doc.ScanBlobPath))
-            dict[QualityScanKey] = JsonSerializer.SerializeToElement(new Dictionary<string, string?>
-            {
-                ["$type"] = "file",
-                ["blobPath"] = doc.ScanBlobPath,
-                ["fileName"] = doc.ScanFileName,
-                ["mimeType"] = doc.ScanMimeType,
-            });
-
-        return (JsonSerializer.SerializeToElement(dict), InstanceRefTarget.QualityDocument);
+        return (shaped, InstanceRefTarget.QualityDocument);
     }
 
-    /// <summary>
-    /// Ключ, под которым скан документа качества попадает в развёрнутый объект (issue #733).
-    /// Имя фиксировано намеренно: на него завязываются шаблоны, и менять его потом — ломать их все.
-    /// </summary>
-    public const string QualityScanKey = "Скан";
+    /// <inheritdoc cref="QualityDocShape.ScanKey" />
+    public const string QualityScanKey = QualityDocShape.ScanKey;
 
     /// <summary>
     /// Чем оказалась цель instance-ссылки (issue #733). Вызывающему важны все четыре исхода
