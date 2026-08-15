@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 
 namespace BHS.CRG.Application.Objects;
@@ -56,25 +57,37 @@ public static class BaseRefReader
 /// </summary>
 public static class RefReader
 {
-    /// <summary>id всех объектов, на которые ссылается data через «$ref», рекурсивно.</summary>
-    public static IEnumerable<Guid> CollectRefIds(JsonElement el)
+    /// <summary>
+    /// id всех объектов, на которые ссылается data через «$ref», рекурсивно.
+    /// </summary>
+    /// <param name="includeInstanceRefs">
+    /// Учитывать ли <c>$ref:"instance"</c> — разворачивание целого документа. Ложно там, где резолвер
+    /// зовётся с <c>allowInstanceRefs: false</c> и такую ссылку НЕ разворачивает: внутри реквизитов
+    /// документа качества (issue #735) он отдаёт <c>StripRef</c> — стаб из самого узла, в базу за
+    /// целью не ходя. Считай её guard ссылкой, документ-цель стал бы неудаляемым из-за указателя,
+    /// которым генерация не пользуется. <c>catalog</c> и <c>document</c> разворачиваются и там —
+    /// они учитываются всегда.
+    /// </param>
+    public static IEnumerable<Guid> CollectRefIds(JsonElement el, bool includeInstanceRefs = true)
     {
         switch (el.ValueKind)
         {
             case JsonValueKind.Object:
                 if (el.TryGetProperty("$ref", out var rt) && rt.ValueKind == JsonValueKind.String)
                 {
+                    var refType = rt.GetString();
                     // id живёт в entryId (catalog) либо instanceId (document/instance).
-                    var idProp = rt.GetString() == "catalog" ? "entryId" : "instanceId";
-                    if (el.TryGetProperty(idProp, out var idEl) && Guid.TryParse(idEl.GetString(), out var g))
+                    var idProp = refType == "catalog" ? "entryId" : "instanceId";
+                    if ((includeInstanceRefs || refType != "instance")
+                        && el.TryGetProperty(idProp, out var idEl) && Guid.TryParse(idEl.GetString(), out var g))
                         yield return g;
                 }
                 foreach (var p in el.EnumerateObject())
-                    foreach (var id in CollectRefIds(p.Value)) yield return id;
+                    foreach (var id in CollectRefIds(p.Value, includeInstanceRefs)) yield return id;
                 break;
             case JsonValueKind.Array:
                 foreach (var item in el.EnumerateArray())
-                    foreach (var id in CollectRefIds(item)) yield return id;
+                    foreach (var id in CollectRefIds(item, includeInstanceRefs)) yield return id;
                 break;
         }
     }
@@ -84,17 +97,60 @@ public static class RefReader
 public static class DomainObjectReferences
 {
     /// <summary>
-    /// Другие объекты, ссылающиеся на <paramref name="targetId"/>: как на базовый экземпляр
-    /// («_baseRef», issue #71) ИЛИ через «$ref» в значениях полей (issue #269 — doc-ref/@@ref).
-    /// Сканирование в памяти (предикат по JSON не транслируется в SQL); масштаб приложения это
-    /// допускает, как и прочие guard'ы удаления.
+    /// Кто ссылается на цель — для сообщения отказа. Держатели ссылок живут в ДВУХ таблицах
+    /// (<c>domain_objects</c> и <c>quality_documents</c>), а сущность у них общего предка не имеет:
+    /// объединяет их не тип, а роль «нашлась ссылка, и удаление цели её оборвёт».
     /// </summary>
-    public static async Task<IReadOnlyList<DomainObject>> FindReferrersAsync(
-        IRepository<DomainObject> repo, Guid targetId, CancellationToken ct)
+    /// <param name="Label">Готовое описание для текста отказа: у документа качества род назван прямо
+    /// («документ качества „…“»), иначе одно имя ничего не сказало бы о том, ГДЕ искать ссылку —
+    /// библиотека и комплекты редактируются на разных экранах.</param>
+    public record Referrer(Guid Id, string Label);
+
+    /// <summary>
+    /// Всё, что ссылается на <paramref name="targetId"/>: как на базовый экземпляр («_baseRef»,
+    /// issue #71) ИЛИ через «$ref» в значениях полей (issue #269 — doc-ref/@@ref). Сканируются обе
+    /// таблицы-держателя ссылок, потому что ссылаться умеют обе и в обе стороны (issue #735):
+    /// реквизиты документа качества проходят тот же <c>ResolveNode</c>, что и реквизиты документа
+    /// комплекта, — «$ref» в них рабочая ссылка, а не декорация.
+    ///
+    /// <para><b>Но не всякая.</b> Реквизиты документа качества резолвер обходит с
+    /// <c>allowInstanceRefs: false</c>, и <c>$ref:"instance"</c> там не разворачивается — отдаётся
+    /// стаб из самого узла, в базу за целью резолвер не ходит. Оберегать эту ссылку значило бы
+    /// сделать документ-цель неудаляемым из-за указателя, которым генерация не пользуется, поэтому
+    /// с этой стороны учитываются только <c>catalog</c> и <c>document</c>.</para>
+    ///
+    /// <para>Сканирование в памяти (предикат по JSON не транслируется в SQL); масштаб приложения это
+    /// допускает, как и прочие guard'ы удаления. Обе выборки — <c>FindAsync</c>, а не
+    /// <c>GetAllAsync</c>: она без отслеживания (см. <c>Repository</c>), и целые таблицы не оседают
+    /// в трекере ради проверки, которая ничего не меняет, — превью переноса зовёт этот же скан и не
+    /// сохраняет вовсе.</para>
+    /// </summary>
+    public static async Task<IReadOnlyList<Referrer>> FindReferrersAsync(
+        IRepository<DomainObject> objRepo, IRepository<QualityDocument> qualityRepo,
+        Guid targetId, CancellationToken ct)
     {
-        var all = await repo.GetAllAsync(ct);
-        return all.Where(o => o.Id != targetId && ReferencesObject(o.Data.RootElement, targetId)).ToList();
+        var objects = await objRepo.FindAsync(_ => true, ct);
+        var quality = await qualityRepo.FindAsync(_ => true, ct);
+
+        var found = objects
+            .Where(o => o.Id != targetId && ReferencesObject(o.Data.RootElement, targetId))
+            .Select(o => new Referrer(o.Id, Name(o.DisplayName)));
+
+        // Документ качества базового экземпляра не имеет — только «$ref» в реквизитах.
+        var fromQuality = quality
+            .Where(d => d.Id != targetId
+                        && RefReader.CollectRefIds(d.Requisites.RootElement, includeInstanceRefs: false)
+                            .Contains(targetId))
+            .Select(d => new Referrer(d.Id, $"документ качества «{Name(d.DisplayName)}»"));
+
+        return found.Concat(fromQuality).ToList();
     }
+
+    /// <summary>Имя держателя для текста отказа. Пустое имя пропускает и сама библиотека
+    /// (<c>EnsureNameFreeAsync</c> считает это заботой валидации формы) — а строка отказа затем
+    /// существует ровно для того, чтобы человек нашёл держателя, и ««»» ему в этом не помогает.</summary>
+    private static string Name(string? displayName)
+        => string.IsNullOrWhiteSpace(displayName) ? "без имени" : displayName;
 
     private static bool ReferencesObject(JsonElement data, Guid targetId)
         => BaseRefReader.GetBaseRefId(data) == targetId
