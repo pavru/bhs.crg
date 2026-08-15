@@ -202,7 +202,7 @@ public static class DomainObjectReferences
     /// Какие из <paramref name="candidateIds"/> ещё держат ссылками записи ВНЕ этого множества.
     ///
     /// <para>Обратная задача к <see cref="FindReferrersAsync(IRepository{DomainObject},
-    /// IRepository{QualityDocument}, IReadOnlySet{Guid}, CancellationToken)"/>: там спрашивают «кто
+    /// IRepository{QualityDocument}, IReferenceIndex, IReadOnlySet{Guid}, CancellationToken)"/>: там спрашивают «кто
     /// держит», здесь — «что держат». Нужна уборке осиротевших записей (issue #739): сирота не
     /// обязательно мусор — её мог оставить прежний каскад, а ссылка на неё резолвится по
     /// идентификатору и работает по сей день. Удали такую — рабочая ссылка стала бы висячей, то
