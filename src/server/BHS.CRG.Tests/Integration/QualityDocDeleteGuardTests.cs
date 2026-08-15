@@ -157,6 +157,10 @@ public class QualityDocDeleteGuardTests(IntegrationTestFixture fixture) : IAsync
     }
 
     // ── Зеркальная сторона: ссылается САМ документ качества ──────────────────────
+    //
+    // Формы здесь ровно те, что резолвер разворачивает ВНУТРИ реквизитов документа качества
+    // (он обходит их с allowInstanceRefs: false): «catalog» — запись целиком, «document» —
+    // протягивание одного поля. Граница — тестом ниже.
 
     [Fact]
     public async Task DeletingCommonDataEntry_ReferencedByQualityDocRequisites_IsRejected()
@@ -168,7 +172,7 @@ public class QualityDocDeleteGuardTests(IntegrationTestFixture fixture) : IAsync
                 "ООО «Завод»", seed.DocTypeId, J("{}"), CatalogScope.System, null))).Id;
 
         await AddQualityAsync(seed.CertTypeId, "Сертификат завода",
-            $"{{'Изготовитель':{{'$ref':'instance','instanceId':'{entryId}'}}}}", null);
+            $"{{'Изготовитель':{{'$ref':'catalog','entryId':'{entryId}'}}}}", null);
 
         var ex = await Assert.ThrowsAsync<ConflictException>(
             () => SendAsync(new DeleteCommonDataEntryCommand(entryId)));
@@ -178,16 +182,37 @@ public class QualityDocDeleteGuardTests(IntegrationTestFixture fixture) : IAsync
     }
 
     [Fact]
-    public async Task DeletingDocumentInstance_ReferencedByQualityDocRequisites_IsRejected()
+    public async Task DeletingDocumentInstance_ReferencedByQualityDocFieldRef_IsRejected()
     {
         var seed = await SeedAsync();
-        var docId = await AddDocumentAsync(seed, "{}");
+        var docId = await AddDocumentAsync(seed, "{'Номер':'7'}");
         await AddQualityAsync(seed.CertTypeId, "Протокол испытаний",
-            $"{{'Основание':{{'$ref':'instance','instanceId':'{docId}'}}}}", seed.SetId);
+            $"{{'Основание':{{'$ref':'document','instanceId':'{docId}','fieldKey':'Номер'}}}}", seed.SetId);
 
         var ex = await Assert.ThrowsAsync<ConflictException>(
             () => SendAsync(new DeleteDocumentInstanceCommand(docId)));
 
         Assert.Contains("документ качества «Протокол испытаний»", ex.Message);
+    }
+
+    /// <summary>
+    /// Граница guard'а. <c>$ref:"instance"</c> внутри реквизитов документа качества резолвер НЕ
+    /// разворачивает: реквизиты обходятся с <c>allowInstanceRefs: false</c>, и такая ссылка отдаётся
+    /// как <c>StripRef</c> — стаб из самого узла, в базу за целью резолвер не ходит. Блокируй мы
+    /// удаление и по ней, документ-цель стал бы неудаляемым из-за указателя, которым генерация не
+    /// пользуется, — запрет без выигрыша.
+    /// </summary>
+    [Fact]
+    public async Task DeletingDocumentInstance_ReferencedByQualityDocInstanceRef_IsAllowed()
+    {
+        var seed = await SeedAsync();
+        var docId = await AddDocumentAsync(seed, "{}");
+        await AddQualityAsync(seed.CertTypeId, "Сертификат со стабом",
+            $"{{'Основание':{{'$ref':'instance','instanceId':'{docId}'}}}}", seed.SetId);
+
+        await SendAsync(new DeleteDocumentInstanceCommand(docId));
+
+        using var scope = fixture.Services.CreateScope();
+        Assert.Null(await M(scope).Send(new GetDocumentInstanceQuery(docId)));
     }
 }

@@ -76,9 +76,7 @@ export function MoveDocumentDialog({ open, onClose, setId, currentSetName, insta
         onOpenChange={o => { if (!o) { setTarget(null); targetRef.current = null; onClose(); } }}
         title={`Перенести «${instance.name}» в «${target?.name ?? ''}»?`}
         errorTitle="Перенос невозможен"
-        blocked={isBlocked
-          ? <BlockedByRefs currentSetName={currentSetName} names={blockedBy} />
-          : undefined}
+        blocked={isBlocked ? <BlockedByRefs names={blockedBy} /> : undefined}
         description={
           isFetching
             ? <p className="text-fg4">Проверка ссылок…</p>
@@ -94,10 +92,16 @@ export function MoveDocumentDialog({ open, onClose, setId, currentSetName, insta
   );
 }
 
-function BlockedByRefs({ currentSetName, names }: { currentSetName: string; names: string[] }) {
+/**
+ * Список держателей ссылок. Комплект НЕ называем: с issue #735 сюда попадают и документы качества
+ * из общей библиотеки (уровня System или другой стройки) — их в текущем комплекте нет вовсе, и
+ * фраза «ссылаются в комплекте „…“» отправила бы человека искать ссылку туда, где её не найти.
+ * Род держателя назван в самой строке, приходящей с сервера.
+ */
+function BlockedByRefs({ names }: { names: string[] }) {
   return (
     <div>
-      <p className="mb-1.5 font-medium">На документ ссылаются в комплекте «{currentSetName}» — сначала снимите ссылки:</p>
+      <p className="mb-1.5 font-medium">На документ ссылаются — сначала снимите ссылки:</p>
       <ul className="list-disc pl-4 space-y-0.5">
         {names.map(n => <li key={n}>{n}</li>)}
       </ul>
