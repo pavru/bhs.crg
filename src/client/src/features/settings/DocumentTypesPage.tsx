@@ -831,6 +831,12 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
             <ul className="text-xs font-mono text-fg3">
               {pendingMigration.map(r => <li key={r.from}>{r.from} → {r.to}</li>)}
             </ul>
+            {/* issue #737: ключ держат не только реквизиты — привязки наборов ссылаются на него
+                своим целевым полем и ключами маппинга. Переносим вместе, иначе привязка осиротеет
+                и перестанет заполнять поле молча. */}
+            <p className="text-xs text-fg4">
+              Вместе с данными переедут привязки наборов данных и шаблоны привязок, нацеленные на этот ключ.
+            </p>
             <p className="text-xs text-fg4">Без переноса старые значения останутся под прежним ключом (осиротеют) — их потом покажет «Аудит».</p>
           </div>
         )}
@@ -838,12 +844,21 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
         onConfirm={async () => {
           const renames = pendingMigration ?? [];
           setPendingMigration(null);
-          let total = 0;
+          let docs = 0, bindings = 0, templates = 0;
           for (const r of renames) {
-            try { total += (await migrateKey.mutateAsync({ oldKey: r.from, newKey: r.to })).migrated; }
+            try {
+              const res = await migrateKey.mutateAsync({ oldKey: r.from, newKey: r.to });
+              docs += res.migrated; bindings += res.bindings; templates += res.templates;
+            }
             catch { schemaToast.error(`Не удалось перенести «${r.from}»`); }
           }
-          schemaToast.success(`Перенесено документов: ${total}`);
+          // Привязки называем только когда они были: в обычном переименовании их нет, и нулевой
+          // счётчик в тосте — шум.
+          const extra = [
+            bindings > 0 ? `привязок: ${bindings}` : null,
+            templates > 0 ? `шаблонов: ${templates}` : null,
+          ].filter(Boolean).join(', ');
+          schemaToast.success(`Перенесено документов: ${docs}${extra ? `; ${extra}` : ''}`);
         }}
       />
     </div>

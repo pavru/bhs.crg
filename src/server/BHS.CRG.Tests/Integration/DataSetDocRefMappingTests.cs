@@ -82,8 +82,9 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
 
         var aosrType = await m.Send(new CreateDocumentTypeCommand("АОСР", $"AOSR{Guid.NewGuid():N}"[..12],
             DocumentTypeKind.Document, null, J("{'fields':[{'key':'Номер','type':'string'}]}")));
+        // «Строки» объявлены в схеме владельца: резолвер не пишет в ключ вне схемы (issue #737).
         var reestrType = await m.Send(new CreateDocumentTypeCommand("Реестр", $"REG{Guid.NewGuid():N}"[..12],
-            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+            DocumentTypeKind.Document, null, J("{'fields':[{'key':'Строки','type':'array'}]}")));
         var rowType = await m.Send(new CreateDocumentTypeCommand("СтрокаРеестра", $"ROW{Guid.NewGuid():N}"[..12],
             DocumentTypeKind.Composite, null,
             J($"{{'fields':[{{'key':'Документ','type':'doc-ref','typeId':'{aosrType.Id}'}}]}}")));
@@ -119,8 +120,9 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
 
         var aosrType = await m.Send(new CreateDocumentTypeCommand("АОСР", $"AOSR{Guid.NewGuid():N}"[..12],
             DocumentTypeKind.Document, null, J("{'fields':[{'key':'Номер','type':'string'}]}")));
+        // «Строки» объявлены в схеме владельца: резолвер не пишет в ключ вне схемы (issue #737).
         var reestrType = await m.Send(new CreateDocumentTypeCommand("Реестр", $"REG{Guid.NewGuid():N}"[..12],
-            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+            DocumentTypeKind.Document, null, J("{'fields':[{'key':'Строки','type':'array'}]}")));
         var rowType = await m.Send(new CreateDocumentTypeCommand("СтрокаРеестра", $"ROW{Guid.NewGuid():N}"[..12],
             DocumentTypeKind.Composite, null,
             J($"{{'fields':[{{'key':'Документ','type':'doc-ref','typeId':'{aosrType.Id}'}}]}}")));
@@ -163,8 +165,9 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
         using var scope = fixture.Services.CreateScope();
         var m = M(scope);
 
+        // «Строки» объявлены в схеме владельца: резолвер не пишет в ключ вне схемы (issue #737).
         var reestrType = await m.Send(new CreateDocumentTypeCommand("Реестр", $"REG{Guid.NewGuid():N}"[..12],
-            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+            DocumentTypeKind.Document, null, J("{'fields':[{'key':'Строки','type':'array'}]}")));
         var rowType = await m.Send(new CreateDocumentTypeCommand("СтрокаРеестра", $"ROW{Guid.NewGuid():N}"[..12],
             DocumentTypeKind.Composite, null, J("{'fields':[{'key':'Поле','type':'string'}]}")));
         var aosrType = await m.Send(new CreateDocumentTypeCommand("АОСР", $"AOSR{Guid.NewGuid():N}"[..12],
@@ -228,8 +231,9 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
         using var scope = fixture.Services.CreateScope();
         var m = M(scope);
 
+        // «Строки» объявлены в схеме владельца: резолвер не пишет в ключ вне схемы (issue #737).
         var reestrType = await m.Send(new CreateDocumentTypeCommand("Реестр", $"REG{Guid.NewGuid():N}"[..12],
-            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+            DocumentTypeKind.Document, null, J("{'fields':[{'key':'Строки','type':'array'}]}")));
         var rowType = await m.Send(new CreateDocumentTypeCommand("СтрокаРеестра", $"ROW{Guid.NewGuid():N}"[..12],
             DocumentTypeKind.Composite, null, J("{'fields':[{'key':'Поле','type':'string'}]}")));
         var aosrType = await m.Send(new CreateDocumentTypeCommand("АОСР", $"AOSR{Guid.NewGuid():N}"[..12],
@@ -262,8 +266,9 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
 
         var aosrType = await m.Send(new CreateDocumentTypeCommand("АОСР", $"AOSR{Guid.NewGuid():N}"[..12],
             DocumentTypeKind.Document, null, J("{'fields':[{'key':'Номер','type':'string'}]}")));
+        // «Строки» объявлены в схеме владельца: резолвер не пишет в ключ вне схемы (issue #737).
         var reestrType = await m.Send(new CreateDocumentTypeCommand("Реестр", $"REG{Guid.NewGuid():N}"[..12],
-            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+            DocumentTypeKind.Document, null, J("{'fields':[{'key':'Строки','type':'array'}]}")));
         var rowType = await m.Send(new CreateDocumentTypeCommand("СтрокаРеестра", $"ROW{Guid.NewGuid():N}"[..12],
             DocumentTypeKind.Composite, null,
             J($"{{'fields':[{{'key':'Документ','type':'doc-ref','typeId':'{aosrType.Id}'}}]}}")));
@@ -298,8 +303,9 @@ public class DataSetDocRefMappingTests(IntegrationTestFixture fixture) : IAsyncL
         using var scope = fixture.Services.CreateScope();
         var m = M(scope);
 
+        // «Строки» объявлены в схеме владельца: резолвер не пишет в ключ вне схемы (issue #737).
         var reestrType = await m.Send(new CreateDocumentTypeCommand("Реестр", $"REG{Guid.NewGuid():N}"[..12],
-            DocumentTypeKind.Document, null, J("{'fields':[]}")));
+            DocumentTypeKind.Document, null, J("{'fields':[{'key':'Строки','type':'array'}]}")));
         var rowType = await m.Send(new CreateDocumentTypeCommand("СтрокаРеестра", $"ROW{Guid.NewGuid():N}"[..12],
             DocumentTypeKind.Composite, null, J("{'fields':[{'key':'Поле','type':'string'}]}")));
         var aosrType = await m.Send(new CreateDocumentTypeCommand("АОСР", $"AOSR{Guid.NewGuid():N}"[..12],

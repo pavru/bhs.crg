@@ -32,13 +32,23 @@ public class DocumentTypeHandlers(
     IRequestHandler<GetDocumentTypeUsageQuery, DocumentTypeUsage>,
     IRequestHandler<AuditDocumentTypeQuery, DocumentTypeAuditReport>,
     IRequestHandler<AuditInstanceQuery, IReadOnlyList<AuditFinding>>,
-    IRequestHandler<MigrateFieldKeyCommand, int>,
+    IRequestHandler<MigrateFieldKeyCommand, MigrateFieldKeyResult>,
     IRequestHandler<ApplyAuditFixesCommand, ApplyAuditFixesResult>
 {
-    public async Task<int> Handle(MigrateFieldKeyCommand cmd, CancellationToken ct)
+    /// <summary>
+    /// Перенос ключа поля при переименовании его в схеме (issue #357) — и в данных, и у держателей
+    /// ключа вне данных (issue #737).
+    ///
+    /// <para>Держателей три: реквизиты инстансов, привязки наборов данных (целевое поле и ключи
+    /// маппинга) и шаблоны привязок типа. Перенеси мы только данные — привязка осталась бы на
+    /// старом ключе и перестала заполнять поле, причём молча: человек переименовал поле и увидел
+    /// пустоту там, где были данные. Ровно так и разъехался живой реестр исполнительной
+    /// документации, с которого началась issue.</para>
+    /// </summary>
+    public async Task<MigrateFieldKeyResult> Handle(MigrateFieldKeyCommand cmd, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(cmd.OldKey) || string.IsNullOrWhiteSpace(cmd.NewKey) || cmd.OldKey == cmd.NewKey)
-            return 0;
+            return new MigrateFieldKeyResult(0, 0, 0);
         var all = await repo.GetAllAsync(ct);
         var byId = all.ToDictionary(t => t.Id);
         var typeIds = all.Where(t => Schema.DocumentTypeSchemaReader.IsSameOrDescendant(t.Id, cmd.TypeId, byId))
@@ -57,8 +67,21 @@ public class DocumentTypeHandlers(
                 migrated++;
             }
         }
-        if (migrated > 0) await objectRepo.SaveChangesAsync(ct); // атомарно
-        return migrated;
+        // Реквизиты — одним сохранением: либо все инстансы переехали, либо ни один.
+        if (migrated > 0) await objectRepo.SaveChangesAsync(ct);
+
+        // Держатели ключа вне реквизитов. Владельцы привязок — те же инстансы; шаблоны принадлежат
+        // самому типу и его подтипам (ключ мог быть объявлен выше по цепочке).
+        //
+        // Второе сохранение, а не общая транзакция: обе половины идут через один контекст, но
+        // делить транзакцию между слоями значило бы протащить её в контракт службы наборов.
+        // Расхождение между половинами не тупик — операция ИДЕМПОТЕНТНА: повторный вызов не тронет
+        // уже переехавшие реквизиты (старого ключа в них больше нет) и доделает привязки. А самое
+        // вероятное исключение здесь — неразбираемый маппинг — обезврежено в RenameMappingKey.
+        var holders = await dataSetService.MigrateFieldKeyAsync(
+            instances.Select(i => i.Id).ToList(), typeIds, cmd.OldKey, cmd.NewKey, ct);
+
+        return new MigrateFieldKeyResult(migrated, holders.Bindings, holders.Templates);
     }
 
     public async Task<IReadOnlyList<AuditFinding>> Handle(AuditInstanceQuery q, CancellationToken ct)
@@ -67,7 +90,15 @@ public class DocumentTypeHandlers(
             ?? throw new NotFoundException($"Instance {q.InstanceId} not found");
         var byId = (await repo.GetAllAsync(ct)).ToDictionary(t => t.Id);
         var primitives = (await primitiveRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
-        return Schema.SchemaDataAuditor.Audit(inst.Data.RootElement, inst.CompositeTypeId, byId, primitives)
+
+        // Ключ поля держат не только реквизиты (issue #737): привязки наборов данных ссылаются на
+        // него своим TargetFieldKey и ключами маппинга. Осиротевший ключ ТАМ аудит данных не видит —
+        // он сверяет Data, а разошлась настройка, и живой случай выглядел как «данные из ниоткуда».
+        var bindings = await dataSetService.ListBindingsAsync(inst.Id, ct);
+        var issues = Schema.SchemaDataAuditor.Audit(inst.Data.RootElement, inst.CompositeTypeId, byId, primitives)
+            .Concat(Schema.BindingKeyAuditor.AuditBindings(bindings, inst.CompositeTypeId, byId));
+
+        return issues
             .Select(iss => new AuditFinding(inst.Id, inst.DisplayName, iss.Code, iss.Severity.ToString(), iss.Path, iss.Message))
             .ToList();
     }
@@ -168,10 +199,34 @@ public class DocumentTypeHandlers(
         // проверки выпуска (см. SchemaCatalog, issue #628).
         var primitives = (await primitiveRepo.GetAllAsync(ct)).ToDictionary(t => t.Id);
 
+        // Привязки всех инстансов — ОДНИМ запросом (issue #737): поштучно это было бы обращение на
+        // документ, а у типа их бывает сотня.
+        var bindingsByOwner = (await dataSetService.ListBindingsForOwnersAsync(
+                instances.Select(i => i.Id).ToList(), ct))
+            .GroupBy(b => b.OwnerId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<DataSets.DataSetBindingDto>)g.ToList());
+
         var findings = new List<AuditFinding>();
         foreach (var inst in instances)
-            foreach (var iss in Schema.SchemaDataAuditor.Audit(inst.Data.RootElement, inst.CompositeTypeId, byId, primitives))
+        {
+            var issues = Schema.SchemaDataAuditor.Audit(inst.Data.RootElement, inst.CompositeTypeId, byId, primitives)
+                .Concat(Schema.BindingKeyAuditor.AuditBindings(
+                    bindingsByOwner.GetValueOrDefault(inst.Id, []), inst.CompositeTypeId, byId));
+            foreach (var iss in issues)
                 findings.Add(new(inst.Id, inst.DisplayName, iss.Code, iss.Severity.ToString(), iss.Path, iss.Message));
+        }
+
+        // Шаблоны привязок принадлежат ТИПУ, а не документу: их находки не привязаны к инстансу, и
+        // место документа в строке занимает сам тип — иначе непонятно, где искать настройку.
+        //
+        // Обходим ВЕСЬ поддерево (typeIds), как и инстансы: шаблон на подтипе проверяется против
+        // схемы своего типа. Спроси мы только корень — аудит родителя показывал бы «чисто» на
+        // поддереве, где чисто не было.
+        foreach (var tid in typeIds)
+            foreach (var iss in Schema.BindingKeyAuditor.AuditTemplates(
+                         await dataSetService.ListTemplatesAsync(tid, ct), tid, byId))
+                findings.Add(new(tid, $"Шаблоны привязок типа «{byId[tid].Name}»",
+                    iss.Code, iss.Severity.ToString(), iss.Path, iss.Message));
 
         return new(q.TypeId, type.Name, instances.Count, findings);
     }

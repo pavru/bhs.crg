@@ -58,6 +58,11 @@ public record DataSetBindingDto(
     Guid Id, Guid OwnerId, Guid SourceId, string? TargetFieldKey,
     Dictionary<string, string> Mapping, BindingSourceDto? Source);
 
+/// <summary>Сколько держателей ключа поля перенесено при переименовании (issue #737).</summary>
+/// <param name="Bindings">Привязок (целевое поле или ключ маппинга).</param>
+/// <param name="Templates">Шаблонов привязок типа.</param>
+public record BindingKeyMigrationResult(int Bindings, int Templates);
+
 /// <summary>Шаблон маппинга (для типа документа). Filter/Transformation/Sort — см. DataSetProcessingTemplateDto.</summary>
 public record DataSetBindingTemplateDto(
     Guid Id, Guid DocumentTypeId, string Name, string? TargetFieldKey,

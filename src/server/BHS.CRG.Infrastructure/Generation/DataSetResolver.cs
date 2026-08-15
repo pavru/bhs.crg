@@ -93,6 +93,36 @@ public class DataSetResolver(
         {
             try
             {
+                // Целевое поле привязки исчезло из схемы (issue #737). Отказываем ДО загрузки набора:
+                // качать файл ради записи в мёртвый ключ незачем.
+                //
+                // Молча писать «не туда» хуже честного отказа. Живой случай: поле переименовали
+                // «ОсновнойДокументы» → «ОсновныеДокументы», человек завёл привязку заново, а старая
+                // осталась — и продолжала наливать устаревшие данные в ключ, которого в схеме нет.
+                // В data.json они попадали, шаблон их не ждал, аудит инстанса о них не знал (он
+                // сверяет реквизиты, а тут разошлась привязка), и найти это можно было только
+                // глазами в отладочном ZIP.
+                //
+                // Ключи вне схемы в контексте легальны у вычисляемых полей и служебных «_», но у
+                // привязки легального случая нет: интерфейс заводит её только по полю схемы.
+                //
+                // Предупреждение, а не ошибка, и это осознанно: Error обрывает выпуск документа
+                // целиком (GenerateDocumentHandler бросает ResolutionValidationException на любой),
+                // и живой комплект с одной устаревшей привязкой перестал бы и генерироваться, и
+                // показываться в предпросмотре. Данные при этом всё равно не пишутся — цель
+                // достигнута, — а несобираемый документ был бы лечением тяжелее болезни. Тот же
+                // довод, что у соседнего WarnUnbuiltDocRef.
+                if (binding.TargetFieldKey is { } targetKey
+                    && DocumentTypeSchemaReader.Field(typeId, targetKey, await TypesAsync()) is null)
+                {
+                    diagnostics?.Add(new ResolutionDiagnostic(
+                        DiagnosticSeverity.Warning, targetKey,
+                        $"Привязка источника «{binding.Source.Name}» указывает на несуществующее поле " +
+                        $"«{targetKey}» — поле не заполнено, данные в документ не попадают. " +
+                        "Удалите привязку или переключите её на поле текущей схемы."));
+                    continue;
+                }
+
                 // Download → parse → transformation → filter → sort (shared with preview via DataSetRowLoader).
                 var rows = await rowLoader.LoadRowsAsync(binding.Source, ct);
 
@@ -170,6 +200,21 @@ public class DataSetResolver(
                         foreach (var (fieldKey, mapVal) in scalarPairs)
                         {
                             var field = ownFields.GetValueOrDefault(fieldKey);
+                            // Та же проверка, что у табличной привязки (issue #737), только ключей здесь
+                            // несколько: в скалярном режиме целевые поля перечисляет маппинг. Переживи
+                            // маппинг переименование поля — часть ключей осиротеет поодиночке, и без
+                            // отказа документ получил бы половину значений молча, а не «пусто целиком».
+                            if (field is null)
+                            {
+                                // Предупреждение по той же причине, что и у табличной привязки выше:
+                                // Error здесь снял бы с выпуска весь документ, причём из-за одного
+                                // ключа маппинга — остальные поля этой же привязки заполняются.
+                                diagnostics?.Add(new ResolutionDiagnostic(
+                                    DiagnosticSeverity.Warning, fieldKey,
+                                    $"Маппинг привязки источника «{binding.Source.Name}» указывает на " +
+                                    $"несуществующее поле «{fieldKey}» — значение не записано."));
+                                continue;
+                            }
                             var value = await ApplyMappedAsync(mapVal, row, ownerId, scopeLevel, scopeId, diagnostics, fieldKey, ct);
                             value = DataSetValueCoercion.Coerce(value, field, primitives, await TypesAsync());
                             WarnUnbuiltDocRef(field, value, mapVal, fieldKey);

@@ -47,7 +47,16 @@ public record AuditInstanceQuery(Guid InstanceId) : IRequest<IReadOnlyList<Audit
 /// Миграция ключа поля в данных всех инстансов типа (и подтипов) при переименовании ключа в схеме
 /// (issue #357): переносит значение старый→новый ключ (только в пустую цель), атомарно. Возвращает
 /// число перенесённых инстансов. Композиция «rename в схеме × rename в данных» (переиспользует JsonPathEditor).
-public record MigrateFieldKeyCommand(Guid TypeId, string OldKey, string NewKey) : IRequest<int>;
+public record MigrateFieldKeyCommand(Guid TypeId, string OldKey, string NewKey) : IRequest<MigrateFieldKeyResult>;
+
+/// <summary>
+/// Что перенесено (issue #737). Держателей ключа поля три, и раньше отвечали числом только про
+/// первого — привязки молча оставались на старом ключе.
+/// </summary>
+/// <param name="Instances">Документов и записей, где значение переехало на новый ключ.</param>
+/// <param name="Bindings">Привязок наборов данных (целевое поле или ключ маппинга).</param>
+/// <param name="Templates">Шаблонов привязок типа.</param>
+public record MigrateFieldKeyResult(int Instances, int Bindings, int Templates);
 
 /// Применение исправлений аудита (issue #350). Мутирует реквизиты инстансов по JSON-пути, атомарно
 /// (одна SaveChanges). Батч = список фиксов; фронт разворачивает «применить ко всем» в per-instance.

@@ -122,6 +122,15 @@ public class DataSetService(
     // ── Bindings ──────────────────────────────────────────────────────────────
     public Task<IReadOnlyList<DataSetBindingDto>> ListBindingsAsync(Guid ownerId, CancellationToken ct) =>
         bindings.ListBindingsAsync(ownerId, ct);
+
+    public Task<IReadOnlyList<DataSetBindingDto>> ListBindingsForOwnersAsync(
+        IReadOnlyCollection<Guid> ownerIds, CancellationToken ct) =>
+        bindings.ListBindingsForOwnersAsync(ownerIds, ct);
+
+    public Task<BindingKeyMigrationResult> MigrateFieldKeyAsync(
+        IReadOnlyCollection<Guid> ownerIds, IReadOnlyCollection<Guid> documentTypeIds,
+        string oldKey, string newKey, CancellationToken ct) =>
+        bindings.MigrateFieldKeyAsync(ownerIds, documentTypeIds, oldKey, newKey, ct);
     public Task<DataSetBindingDto?> CreateBindingAsync(CreateBindingInput input, CancellationToken ct) =>
         bindings.CreateBindingAsync(input, ct);
     public Task<DataSetBindingDto?> UpdateBindingAsync(Guid id, UpdateBindingInput input, CancellationToken ct) =>

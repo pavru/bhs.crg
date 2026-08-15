@@ -128,15 +128,25 @@ export function useApplyAuditFixes(typeId: string | undefined) {
   });
 }
 
-/** Миграция ключа поля в данных инстансов при переименовании ключа в схеме (issue #357). */
+/**
+ * Перенос ключа поля при переименовании его в схеме: данные инстансов (issue #357) и держатели
+ * ключа вне данных — привязки наборов и шаблоны привязок (issue #737).
+ */
 export function useMigrateFieldKey(typeId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ oldKey, newKey }: { oldKey: string; newKey: string }) =>
-      apiClient.post<{ migrated: number }>(`/document-types/${typeId}/migrate-field-key`, { oldKey, newKey }).then(r => r.data),
+      apiClient.post<{ migrated: number; bindings: number; templates: number }>(
+        `/document-types/${typeId}/migrate-field-key`, { oldKey, newKey }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['document-type-audit', typeId] });
       qc.invalidateQueries({ queryKey: ['document-sets'] });
+      // Ключи именно такие, как их заводят сами списки (datasets.ts / bindingTemplates.ts).
+      // Промахнись мы мимо — панель привязок осталась бы с дореформенным ключом, и сохранение
+      // из этой устаревшей формы вернуло бы старый ключ обратно, осиротив только что
+      // починенную привязку.
+      qc.invalidateQueries({ queryKey: ['datasets', 'bindings'] });
+      qc.invalidateQueries({ queryKey: ['binding-templates'] });
     },
   });
 }
