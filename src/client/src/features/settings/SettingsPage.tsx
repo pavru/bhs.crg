@@ -15,6 +15,7 @@ import { EmailSettingsSection } from './EmailSettingsSection';
 import { CollapsibleSection } from './CollapsibleSection';
 import { ImageMaintenanceSection } from './ImageMaintenanceSection';
 import { OrphanObjectsSection } from './OrphanObjectsSection';
+import { OrphanBlobsSection } from './OrphanBlobsSection';
 import { MaterialLabelSection } from './MaterialLabelSection';
 
 // ─── Settings hook (re-exported for use by other pages) ───────────────────────
@@ -487,6 +488,8 @@ export function SettingsPage() {
       <MaterialLabelSection />
 
       <OrphanObjectsSection />
+
+      <OrphanBlobsSection />
 
       <CollapsibleSection title="Резервное копирование" storageKey="backup" defaultOpen={false}>
         <p className="text-xs text-fg3">

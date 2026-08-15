@@ -44,6 +44,21 @@ public static class MaintenanceEndpoints
             });
         });
 
+        // Объекты хранилища, на которые больше никто не ссылается (issue #741). Возрастной порог
+        // задаётся снаружи только ради тестов и разбора инцидентов; интерфейс шлёт умолчание.
+        g.MapPost("/orphan-blobs/cleanup", async (
+            OrphanBlobCleanup cleanup, bool? dryRun, int? minAgeHours, CancellationToken ct) =>
+        {
+            var isDryRun = dryRun ?? true;
+            var report = await cleanup.RunAsync(isDryRun, minAgeHours, ct);
+            return Results.Ok(new
+            {
+                report.Registered, report.Referenced, report.Orphans, report.TooYoung,
+                report.Bytes, report.Missing, report.Sample, report.Deleted,
+                report.MinAgeHours, dryRun = isDryRun,
+            });
+        });
+
         // Дозаполнение человеческих имён материалов у связок, заведённых до появления метки (#561).
         // Читает и разбирает файлы наборов, поэтому тоже действие администратора, а не миграция.
         g.MapPost("/material-links/backfill-labels", async (
