@@ -29,6 +29,21 @@ public static class MaintenanceEndpoints
             });
         });
 
+        // Объекты, чьё место расположения больше не существует (issue #739). Причина закрыта
+        // прикладным каскадом удаления уровня, но след в старых базах остаётся, и восстановление
+        // прежней резервной копии способно привезти его снова.
+        g.MapPost("/orphan-objects/cleanup", async (
+            OrphanObjectCleanup cleanup, bool? dryRun, CancellationToken ct) =>
+        {
+            var isDryRun = dryRun ?? true;
+            var report = await cleanup.RunAsync(isDryRun, ct);
+            return Results.Ok(new
+            {
+                report.Sets, report.Sections, report.Constructions,
+                report.WithData, report.Total, dryRun = isDryRun,
+            });
+        });
+
         // Дозаполнение человеческих имён материалов у связок, заведённых до появления метки (#561).
         // Читает и разбирает файлы наборов, поэтому тоже действие администратора, а не миграция.
         g.MapPost("/material-links/backfill-labels", async (

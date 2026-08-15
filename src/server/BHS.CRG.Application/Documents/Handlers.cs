@@ -370,7 +370,10 @@ public class DocumentTypeHandlers(
 
 public class ConstructionHandlers(
     IRepository<Construction> constructionRepo,
-    IRepository<Section> sectionRepo) :
+    IRepository<Section> sectionRepo,
+    IRepository<DomainObject> objRepo,
+    IRepository<QualityDocument> qualityDocRepo,
+    IScopeSubtree scopeSubtree) :
     IRequestHandler<CreateConstructionCommand, Construction>,
     IRequestHandler<RenameConstructionCommand, Construction>,
     IRequestHandler<DeleteConstructionCommand>,
@@ -398,9 +401,19 @@ public class ConstructionHandlers(
         return c;
     }
 
+    /// <summary>
+    /// Удаление стройки. Разделы и комплекты уносит каскад базы, объекты на полиморфной оси — нет:
+    /// их удаляем прикладно, иначе документы и общие данные всего поддерева остаются сиротами
+    /// (issue #739). Guard тот же, что у поштучного удаления: держатели ссылок ИЗВНЕ поддерева.
+    /// </summary>
     public async Task Handle(DeleteConstructionCommand cmd, CancellationToken ct)
     {
         var c = await constructionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
+        var plan = await ScopeCascade.PlanAsync(objRepo, qualityDocRepo, sectionRepo, scopeSubtree,
+            CatalogScope.Construction, cmd.Id, ct);
+        if (plan.ExternalReferrers.Count > 0)
+            throw new ConflictException(ScopeCascade.RefusalMessage("стройку", plan.ExternalReferrers));
+        foreach (var o in plan.Objects) objRepo.Remove(o);
         constructionRepo.Remove(c);
         await constructionRepo.SaveChangesAsync(ct);
     }
@@ -433,9 +446,15 @@ public class ConstructionHandlers(
         return s;
     }
 
+    /// <inheritdoc cref="Handle(DeleteConstructionCommand, CancellationToken)" />
     public async Task Handle(DeleteSectionCommand cmd, CancellationToken ct)
     {
         var s = await sectionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
+        var plan = await ScopeCascade.PlanAsync(objRepo, qualityDocRepo, sectionRepo, scopeSubtree,
+            CatalogScope.Section, cmd.Id, ct);
+        if (plan.ExternalReferrers.Count > 0)
+            throw new ConflictException(ScopeCascade.RefusalMessage("раздел", plan.ExternalReferrers));
+        foreach (var o in plan.Objects) objRepo.Remove(o);
         sectionRepo.Remove(s);
         await sectionRepo.SaveChangesAsync(ct);
     }
@@ -492,8 +511,12 @@ public class DocumentSetHandlers(
         var set = await setRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         // Объекты на оси (Set, этот Id) — документы и Set-скоуп общих данных — принадлежат комплекту:
         // FK-каскада на комплект нет (единая ось, полиморфный ScopeId), удаляем прикладно.
-        var owned = await objRepo.FindAsync(o => o.ScopeLevel == CatalogScope.Set && o.ScopeId == cmd.Id, ct);
-        foreach (var o in owned) objRepo.Remove(o); // фасета + generated_files каскадируются в БД
+        // issue #739: и тот же guard, что у поштучного удаления, — иначе каскад обходит его с фланга.
+        var plan = await ScopeCascade.PlanAsync(objRepo, qualityDocRepo, sectionRepo, scopeSubtree,
+            CatalogScope.Set, cmd.Id, ct);
+        if (plan.ExternalReferrers.Count > 0)
+            throw new ConflictException(ScopeCascade.RefusalMessage("комплект", plan.ExternalReferrers));
+        foreach (var o in plan.Objects) objRepo.Remove(o); // фасета + generated_files каскадируются в БД
         setRepo.Remove(set);
         await setRepo.SaveChangesAsync(ct);
     }

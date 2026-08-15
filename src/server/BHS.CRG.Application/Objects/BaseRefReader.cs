@@ -125,22 +125,40 @@ public static class DomainObjectReferences
     /// в трекере ради проверки, которая ничего не меняет, — превью переноса зовёт этот же скан и не
     /// сохраняет вовсе.</para>
     /// </summary>
-    public static async Task<IReadOnlyList<Referrer>> FindReferrersAsync(
+    public static Task<IReadOnlyList<Referrer>> FindReferrersAsync(
         IRepository<DomainObject> objRepo, IRepository<QualityDocument> qualityRepo,
         Guid targetId, CancellationToken ct)
+        => FindReferrersAsync(objRepo, qualityRepo, new HashSet<Guid> { targetId }, ct);
+
+    /// <summary>
+    /// То же для ГРУППЫ целей — каскадное удаление уровня (issue #739): удаляя комплект, раздел или
+    /// стройку, мы уносим все объекты поддерева разом, и спрашивать про каждый отдельно значило бы
+    /// сканировать обе таблицы по разу на объект.
+    ///
+    /// <para><b>Держатель из самой группы не считается</b> — и это не оптимизация, а суть проверки.
+    /// Документ комплекта, ссылающийся на соседний документ того же комплекта, уходит вместе с ним:
+    /// ссылка исчезает целиком, а не повисает. Блокируй мы и такие, комплект с двумя связанными
+    /// документами стал бы неудаляемым навсегда — распутать это можно было бы только правкой
+    /// реквизитов вручную. Одиночный случай — частный: цель не блокирует сама себя.</para>
+    /// </summary>
+    public static async Task<IReadOnlyList<Referrer>> FindReferrersAsync(
+        IRepository<DomainObject> objRepo, IRepository<QualityDocument> qualityRepo,
+        IReadOnlySet<Guid> targetIds, CancellationToken ct)
     {
+        if (targetIds.Count == 0) return [];
+
         var objects = await objRepo.FindAsync(_ => true, ct);
         var quality = await qualityRepo.FindAsync(_ => true, ct);
 
         var found = objects
-            .Where(o => o.Id != targetId && ReferencesObject(o.Data.RootElement, targetId))
+            .Where(o => !targetIds.Contains(o.Id) && ReferencesAny(o.Data.RootElement, targetIds))
             .Select(o => new Referrer(o.Id, Name(o.DisplayName)));
 
         // Документ качества базового экземпляра не имеет — только «$ref» в реквизитах.
         var fromQuality = quality
-            .Where(d => d.Id != targetId
+            .Where(d => !targetIds.Contains(d.Id)
                         && RefReader.CollectRefIds(d.Requisites.RootElement, includeInstanceRefs: false)
-                            .Contains(targetId))
+                            .Any(targetIds.Contains))
             .Select(d => new Referrer(d.Id, $"документ качества «{Name(d.DisplayName)}»"));
 
         return found.Concat(fromQuality).ToList();
@@ -152,9 +170,9 @@ public static class DomainObjectReferences
     private static string Name(string? displayName)
         => string.IsNullOrWhiteSpace(displayName) ? "без имени" : displayName;
 
-    private static bool ReferencesObject(JsonElement data, Guid targetId)
-        => BaseRefReader.GetBaseRefId(data) == targetId
-           || RefReader.CollectRefIds(data).Contains(targetId);
+    private static bool ReferencesAny(JsonElement data, IReadOnlySet<Guid> targetIds)
+        => (BaseRefReader.GetBaseRefId(data) is { } baseId && targetIds.Contains(baseId))
+           || RefReader.CollectRefIds(data).Any(targetIds.Contains);
 }
 
 /// <summary>

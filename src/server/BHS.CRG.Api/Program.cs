@@ -323,6 +323,7 @@ builder.Services.AddScoped<IRepository<QualityAuditRun>, Repository<QualityAudit
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.ImageBlobMigration>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.MaterialLabelBackfill>();
+builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.OrphanObjectCleanup>();
 
 // ── Снимок данных для внешних потребителей + MCP (issue #415) ─────────────────
 builder.Services.AddScoped<BHS.CRG.Application.DataSnapshots.IDataSnapshotService,
