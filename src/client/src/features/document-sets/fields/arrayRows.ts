@@ -1,6 +1,47 @@
 import { isFieldRef } from '@/shared/api/types';
 
 /**
+ * Перестановка и удаление строк массива одним общим языком — «порядком» (issue #754).
+ *
+ * <p>Порядок здесь — массив СТАРЫХ индексов в новом порядке: <code>[2, 0, 1]</code> значит «третья
+ * строка стала первой». Операция описывается порядком, а применяется двумя способами — к самим
+ * строкам и к номерам выбранных строк. Оба берут ОДИН И ТОТ ЖЕ порядок, поэтому разъехаться не
+ * могут: нельзя переставить строки и забыть переставить выбор. Ровно этот класс расхождения —
+ * массив пересобрали, а сопутствующее состояние нет — и был дефектом #755.</p>
+ *
+ * <p>Выбор хранится номерами, а не личностями строк, потому что личностей у элементов массива нет:
+ * значение приходит пропом из формы, две одинаковые строки неразличимы, а собственные id пришлось бы
+ * синхронизировать с правками извне (таблица, вынос в общие данные) — лишний источник расхождения.
+ * Номера же переживают любую нашу операцию, если пропущены через <code>remapSelection</code>.</p>
+ */
+export function moveOrder(length: number, from: number, to: number): number[] {
+  const order = Array.from({ length }, (_, i) => i);
+  if (from < 0 || from >= length || to < 0 || to >= length || from === to) return order;
+  const [moved] = order.splice(from, 1);
+  order.splice(to, 0, moved);
+  return order;
+}
+
+/** Порядок после удаления строк: те же индексы без выброшенных. */
+export function dropOrder(length: number, dropped: Set<number>): number[] {
+  const order: number[] = [];
+  for (let i = 0; i < length; i++) if (!dropped.has(i)) order.push(i);
+  return order;
+}
+
+/** Строки в новом порядке. */
+export function applyOrder<T>(items: T[], order: number[]): T[] {
+  return order.map(i => items[i]);
+}
+
+/** Номера выбранных строк в новом порядке; выбывшие строки из выбора исчезают. */
+export function remapSelection(selected: Set<number>, order: number[]): Set<number> {
+  const next = new Set<number>();
+  order.forEach((old, i) => { if (selected.has(old)) next.add(i); });
+  return next;
+}
+
+/**
  * Возврат отредактированных в таблице строк на их места в массиве (issue #755).
  *
  * <p>Модалка «Таблица» правит только НЕссылочные строки — ссылочные из неё исключены, потому что

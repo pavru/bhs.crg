@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeTableRows } from './arrayRows';
+import { mergeTableRows, moveOrder, dropOrder, applyOrder, remapSelection } from './arrayRows';
 
 const ref = (name: string) => ({ $ref: 'catalog' as const, entryId: name, displayName: name });
 const row = (n: string) => ({ Наименование: n });
@@ -61,5 +61,59 @@ describe('mergeTableRows', () => {
     // Удалили «б», оставшиеся поменяли местами.
     expect(mergeTableRows(all, [row('в'), row('а')], [2, 0]))
       .toEqual([row('в'), ref('Р1'), row('а')]);
+  });
+});
+
+/**
+ * Перестановка и пакетное удаление в аккордеонном списке (issue #754).
+ *
+ * Тесты держат главное свойство: строки и выбор переставляет ОДИН порядок, поэтому они не могут
+ * разъехаться. Расхождение массива с сопутствующим состоянием — это #755, второй раз не надо.
+ */
+describe('порядок строк массива', () => {
+  it('moveOrder двигает элемент вниз', () => {
+    expect(moveOrder(4, 0, 2)).toEqual([1, 2, 0, 3]);
+  });
+
+  it('moveOrder двигает элемент вверх', () => {
+    expect(moveOrder(4, 3, 1)).toEqual([0, 3, 1, 2]);
+  });
+
+  it('moveOrder за краем и на месте — порядок не меняется', () => {
+    expect(moveOrder(3, 0, -1)).toEqual([0, 1, 2]);
+    expect(moveOrder(3, 2, 3)).toEqual([0, 1, 2]);
+    expect(moveOrder(3, 1, 1)).toEqual([0, 1, 2]);
+  });
+
+  it('dropOrder выбрасывает указанные и только их', () => {
+    expect(dropOrder(5, new Set([1, 3]))).toEqual([0, 2, 4]);
+    expect(dropOrder(3, new Set())).toEqual([0, 1, 2]);
+    expect(dropOrder(2, new Set([0, 1]))).toEqual([]);
+  });
+
+  it('applyOrder переставляет строки, включая ссылочные', () => {
+    const all = [row('а'), ref('Р1'), row('б')];
+    expect(applyOrder(all, moveOrder(3, 2, 0))).toEqual([row('б'), row('а'), ref('Р1')]);
+  });
+
+  it('выбор едет вместе со строками', () => {
+    // Выбраны «а» (0) и «б» (2). Тащим «б» в начало — выбранными обязаны остаться те же строки.
+    const order = moveOrder(3, 2, 0);
+    expect(applyOrder([row('а'), ref('Р1'), row('б')], order))
+      .toEqual([row('б'), row('а'), ref('Р1')]);
+    expect(remapSelection(new Set([0, 2]), order)).toEqual(new Set([1, 0]));
+  });
+
+  it('после удаления выбранных выбор пуст, соседи не выбираются', () => {
+    const order = dropOrder(4, new Set([1, 2]));
+    expect(applyOrder([row('а'), row('б'), row('в'), row('г')], order))
+      .toEqual([row('а'), row('г')]);
+    expect(remapSelection(new Set([1, 2]), order)).toEqual(new Set());
+  });
+
+  it('удаление одной строки не сдвигает выбор на чужую', () => {
+    // Выбрана «г» (3). Удаляем «б» (1) корзиной — выбранной обязана остаться «г», теперь под № 2.
+    const order = dropOrder(4, new Set([1]));
+    expect(remapSelection(new Set([3]), order)).toEqual(new Set([2]));
   });
 });
