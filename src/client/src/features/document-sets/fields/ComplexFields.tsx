@@ -143,12 +143,16 @@ export function ArrayTableModal({
   open: boolean; onOpenChange: (v: boolean) => void;
   field: SchemaField; compositeType: DocumentType | null; allDocTypes: DocumentType[];
   items: Record<string, unknown>[];
-  onSave: (rows: Record<string, unknown>[]) => void;
+  /** @param origins место каждой строки среди исходных (null — добавлена в таблице), см. mergeTableRows. */
+  onSave: (rows: Record<string, unknown>[], origins: (number | null)[]) => void;
   setId?: string; scope?: CatalogScope; scopeId?: string | null;
 }) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   // Стабильные id строк (issue #171): переживают reorder/удаление, служат ключом выбора.
   const [rowIds, setRowIds] = useState<string[]>([]);
+  // Личности строк, какими они были при ОТКРЫТИИ таблицы. Только по ним видно, КАКОЙ слот исчез
+  // при удалении: сами строки после правки неотличимы, а порядок мог измениться (issue #755).
+  const [openedIds, setOpenedIds] = useState<string[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);
@@ -159,7 +163,9 @@ export function ArrayTableModal({
   useEffect(() => {
     if (open) {
       setRows(items.map(r => ({ ...r })));
-      setRowIds(items.map(() => crypto.randomUUID()));
+      const ids = items.map(() => crypto.randomUUID());
+      setRowIds(ids);
+      setOpenedIds(ids);
       setSelected(new Set());
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -206,7 +212,11 @@ export function ArrayTableModal({
     setRowIds(prev => prev.filter((_, i) => i !== idx));
     if (id) setSelected(prev => { const n = new Set(prev); n.delete(id); return n; });
   }
-  function handleSave() { onSave(rows); onOpenChange(false); }
+  function handleSave() {
+    // Происхождение строки: её место среди тех, что были при открытии, либо null — добавлена здесь.
+    onSave(rows, rowIds.map(id => { const k = openedIds.indexOf(id); return k >= 0 ? k : null; }));
+    onOpenChange(false);
+  }
 
   // ── Выбор строк (issue #171) ────────────────────────────────────────────
   function toggleSelect(id: string) {
@@ -736,7 +746,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         open={tableOpen} onOpenChange={setTableOpen}
         field={field} compositeType={compositeType} allDocTypes={allDocTypes}
         items={inlineItems}
-        onSave={rows => onChange(mergeTableRows(allItems, rows))}
+        onSave={(rows, origins) => onChange(mergeTableRows(allItems, rows, origins))}
         setId={setId} scope={scope} scopeId={scopeId}
       />
       {compositeType && (

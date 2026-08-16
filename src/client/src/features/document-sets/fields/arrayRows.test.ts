@@ -14,39 +14,52 @@ const row = (n: string) => ({ Наименование: n });
 describe('mergeTableRows', () => {
   it('без изменений массив остаётся тем же — включая места ссылок', () => {
     const all = [row('а'), ref('Р1'), row('б'), ref('Р2'), row('в')];
-    const edited = [row('а'), row('б'), row('в')];
-    expect(mergeTableRows(all, edited)).toEqual(all);
+    expect(mergeTableRows(all, [row('а'), row('б'), row('в')], [0, 1, 2])).toEqual(all);
   });
 
   it('перестановка в таблице сохраняется, ссылки не двигаются', () => {
     const all = [row('а'), ref('Р1'), row('б'), row('в')];
     // В таблице человек поменял местами «б» и «а».
-    const edited = [row('б'), row('а'), row('в')];
-    expect(mergeTableRows(all, edited)).toEqual([row('б'), ref('Р1'), row('а'), row('в')]);
+    expect(mergeTableRows(all, [row('б'), row('а'), row('в')], [1, 0, 2]))
+      .toEqual([row('б'), ref('Р1'), row('а'), row('в')]);
   });
 
-  it('удаление строки схлопывает её слот, остальные позиции целы', () => {
+  it('удаление схлопывает слот УДАЛЁННОЙ строки, а не хвостовой', () => {
     const all = [row('а'), ref('Р1'), row('б'), ref('Р2'), row('в')];
-    const edited = [row('а'), row('в')];
-    expect(mergeTableRows(all, edited)).toEqual([row('а'), ref('Р1'), row('в'), ref('Р2')]);
+    // Удалили «б» — второй слот.
+    expect(mergeTableRows(all, [row('а'), row('в')], [0, 2]))
+      .toEqual([row('а'), ref('Р1'), ref('Р2'), row('в')]);
+  });
+
+  it('удаление первой строки не протаскивает данные сквозь ссылки', () => {
+    // Без происхождения строк схлопывался бы ХВОСТОВОЙ слот, и «и2» уехал бы перед «Р1», а «и3»
+    // перед «Р2» — тихая перестановка документа, ровно то, что эта функция и чинит.
+    const all = [row('и1'), ref('Р1'), row('и2'), ref('Р2'), row('и3'), row('и4')];
+    expect(mergeTableRows(all, [row('и2'), row('и3'), row('и4')], [1, 2, 3]))
+      .toEqual([ref('Р1'), row('и2'), ref('Р2'), row('и3'), row('и4')]);
   });
 
   it('добавленные строки идут в конец', () => {
     const all = [ref('Р1'), row('а')];
-    const edited = [row('а'), row('новая')];
-    expect(mergeTableRows(all, edited)).toEqual([ref('Р1'), row('а'), row('новая')]);
+    expect(mergeTableRows(all, [row('а'), row('новая')], [0, null]))
+      .toEqual([ref('Р1'), row('а'), row('новая')]);
   });
 
   it('массив из одних ссылок правкой таблицы не трогается', () => {
     const all = [ref('Р1'), ref('Р2')];
-    expect(mergeTableRows(all, [])).toEqual(all);
+    expect(mergeTableRows(all, [], [])).toEqual(all);
   });
 
   it('ссылка первой строкой остаётся первой', () => {
-    // Прямая проверка прежнего дефекта наоборот: раньше ссылки уезжали в начало, здесь важно, что
-    // ссылка, которая УЖЕ первая, не утаскивает за собой остальные.
     const all = [ref('Р1'), row('а'), row('б')];
-    const edited = [row('б'), row('а')];
-    expect(mergeTableRows(all, edited)).toEqual([ref('Р1'), row('б'), row('а')]);
+    expect(mergeTableRows(all, [row('б'), row('а')], [1, 0]))
+      .toEqual([ref('Р1'), row('б'), row('а')]);
+  });
+
+  it('удаление и перестановка разом', () => {
+    const all = [row('а'), ref('Р1'), row('б'), row('в')];
+    // Удалили «б», оставшиеся поменяли местами.
+    expect(mergeTableRows(all, [row('в'), row('а')], [2, 0]))
+      .toEqual([row('в'), ref('Р1'), row('а')]);
   });
 });
