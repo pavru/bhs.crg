@@ -16,8 +16,9 @@ import {
 } from '@/shared/api/schema';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { formatFieldValue, type FieldTypeDefs } from '@/shared/utils/fieldDisplay';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { objectSummary } from './objectSummary';
-import { mergeTableRows } from './arrayRows';
+import { mergeTableRows, moveOrder, dropOrder, applyOrder, remapSelection } from './arrayRows';
 import { VariantPicker } from './VariantPicker';
 import { ExtractToCommonDataModal } from './ExtractToCommonDataModal';
 import {
@@ -468,6 +469,12 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   const [tableOpen, setTableOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
   const [catalogPickerOpen, setCatalogPickerOpen] = useState(false);
+  // Перестановка и пакетное удаление прямо в списке (issue #754). Выбор — номерами строк, см.
+  // arrayRows: личностей у элементов массива нет, а номера переживают наши операции через remapSelection.
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dropIdx, setDropIdx] = useState<number | null>(null);
+  const [confirmBulk, setConfirmBulk] = useState(false);
 
   /**
    * Таблица — для ОДНОРОДНЫХ строк, поэтому union-массиву её не предлагаем (issue #748).
@@ -534,9 +541,110 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
     return { key: keys[0], ref: value, label: sub?.title ?? keys[0] };
   }
 
+  /**
+   * Единственная дверь ко всякому изменению порядка и состава строк (issue #754).
+   *
+   * <p>Порядок применяется и к строкам, и к номерам выбранных — одним и тем же значением, поэтому
+   * выбор не может указать на чужую строку. Массив ПЕРЕСТАВЛЯЕТСЯ, а не пересобирается из частей:
+   * пересборка по частям — это #755, где ссылочные строки уезжали в начало.</p>
+   */
+  function reorder(order: number[]) {
+    onChange(applyOrder(allItems, order));
+    setSelected(prev => remapSelection(prev, order));
+  }
+
+  function moveItem(from: number, to: number) {
+    if (to < 0 || to >= allItems.length || from === to) return;
+    reorder(moveOrder(allItems.length, from, to));
+  }
+
   function removeItem(i: number) {
-    onChange(allItems.filter((_, idx) => idx !== i));
+    reorder(dropOrder(allItems.length, new Set([i])));
     setRowModal(null);
+  }
+
+  // Номера выбранных, которые ещё существуют: массив мог поредеть помимо выбора (таблица, вынос).
+  // Считаем по ним и удаляем их же — подпись обязана совпадать с тем, что произойдёт.
+  const chosen = [...selected].filter(i => i < allItems.length).sort((a, b) => a - b);
+
+  function toggleSelect(i: number) {
+    setSelected(prev => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; });
+  }
+
+  function deleteSelected() {
+    reorder(dropOrder(allItems.length, new Set(chosen)));
+    setRowModal(null);
+  }
+
+  /** Свёрнутый список выбор не показывает — держать невидимый выбор значит удалить вслепую. */
+  function toggleCollapsed() {
+    if (!collapsed) setSelected(new Set());
+    setCollapsed(v => !v);
+  }
+
+  /**
+   * Строка, чью ручку надо вернуть под фокус после перестановки клавиатурой.
+   *
+   * <p>Ключ строки здесь — её номер (личностей у элементов массива нет), поэтому React после
+   * перестановки переиспользует тот же узел: фокус остался бы на МЕСТЕ, а не на уехавшей строке, и
+   * второе нажатие ↑ двинуло бы уже соседа. Без этого клавиатурная перестановка работает ровно один
+   * раз — а «довести строку до края клавиатурой» и есть тот сценарий, ради которого живёт
+   * MoveButtons (#517, #542).</p>
+   */
+  const listRef = useRef<HTMLDivElement>(null);
+  const [focusRow, setFocusRow] = useState<number | null>(null);
+  useEffect(() => {
+    if (focusRow === null) return;
+    listRef.current?.querySelector<HTMLElement>(`[data-grip="${focusRow}"]`)?.focus();
+    setFocusRow(null);
+  }, [focusRow]);
+
+  /** Чекбокс + ручка перетаскивания + номер. Обычная функция, не компонент: у компонента,
+   *  объявленного внутри рендера, каждый раз новый тип — React размонтировал бы ручку с фокусом. */
+  function rowChrome(i: number, danger = false) {
+    return (
+      <>
+        <input type="checkbox" checked={selected.has(i)} onChange={() => toggleSelect(i)}
+          aria-label={`Выбрать строку ${i + 1}`}
+          className="shrink-0 w-3.5 h-3.5 accent-brand cursor-pointer" />
+        <button type="button" draggable data-grip={i}
+          onDragStart={e => { setDragIdx(i); e.dataTransfer.effectAllowed = 'move'; }}
+          onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
+          onKeyDown={e => {
+            const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : null;
+            if (to === null || to < 0 || to >= allItems.length) return;
+            e.preventDefault(); e.stopPropagation();
+            moveItem(i, to);
+            setFocusRow(to);
+          }}
+          title="Перетащить для изменения порядка (или стрелки ↑↓)"
+          aria-label={`Переместить строку ${i + 1}: стрелки вверх и вниз`}
+          className="shrink-0 cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 focus-visible:outline-none focus-visible:text-brand">
+          <GripVertical size={12} />
+        </button>
+        <span className={`text-xs font-mono w-5 text-right shrink-0 ${danger ? 'text-danger' : 'text-fg4'}`}>
+          {i + 1}
+        </span>
+      </>
+    );
+  }
+
+  /** Обвязка строки: приём перетаскиваемой строки на своё место + подсветка цели. */
+  function dropTarget(i: number) {
+    return {
+      onDragOver: (e: React.DragEvent) => {
+        if (dragIdx === null) return;
+        e.preventDefault();
+        if (dropIdx !== i) setDropIdx(i);
+      },
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        if (dragIdx !== null) moveItem(dragIdx, i);
+        setDragIdx(null); setDropIdx(null);
+      },
+      style: dragIdx !== null && dropIdx === i && dragIdx !== i
+        ? { outline: '2px solid var(--color-brand)', outlineOffset: '-2px' } : undefined,
+    };
   }
 
   function updateRow(i: number, row: Record<string, unknown>) {
@@ -550,7 +658,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   return (
     <div className="border border-stroke rounded-lg overflow-hidden">
       <div className={`flex items-center justify-between px-3 py-2 bg-base ${collapsed ? '' : 'border-b border-stroke'}`}>
-        <button type="button" onClick={() => setCollapsed(v => !v)}
+        <button type="button" onClick={toggleCollapsed}
           className="flex items-center gap-1.5 min-w-0 text-sm font-medium text-fg2 hover:text-fg1 transition-colors">
           {collapsed
             ? <ChevronDown size={12} className="shrink-0 text-fg4" />
@@ -561,6 +669,23 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
           )}
           <span className="text-xs text-fg4 font-normal ml-1 shrink-0">{allItems.length} стр.</span>
         </button>
+        {/* Есть выбор — шапка показывает действия над выбранным вместо действий над списком (тот же
+            приём, что в подвале модалки таблицы). Место выбрано за то, что оно ВИДНО: подвал списка
+            у контейнера с overflow-hidden не «липнет», и на девятнадцати строках кнопка удаления
+            оказалась бы за экраном — отметил строки вверху, а нажать нечего. */}
+        {chosen.length > 0 ? (
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-fg2 px-1">Выбрано: {chosen.length}</span>
+            <button type="button" onClick={() => setConfirmBulk(true)}
+              className="flex items-center gap-1 text-xs text-danger hover:text-danger px-2 py-0.5 rounded hover:bg-danger-subtle transition-colors">
+              <Trash2 size={11} /> Удалить выбранные
+            </button>
+            <button type="button" onClick={() => setSelected(new Set())}
+              className="text-xs text-fg4 hover:text-fg2 px-2 py-0.5 rounded hover:bg-stroke transition-colors">
+              Снять выбор
+            </button>
+          </div>
+        ) : (
         <div className="flex items-center gap-1">
           {hasTableFields && (
             <button type="button" onClick={() => setTableOpen(true)}
@@ -579,20 +704,21 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
             <Plus size={11} /> Добавить строку
           </button>
         </div>
+        )}
       </div>
       {!collapsed && allItems.length === 0 && (
         <p className="text-xs text-fg4 text-center py-3">Нет строк — нажмите «Добавить строку» или «Из каталога»</p>
       )}
       {!collapsed && allItems.length > 0 && (
-        <div className="divide-y divide-muted">
+        <div ref={listRef} className="divide-y divide-muted">
           {allItems.map((item, i) => {
             if (isFieldRef(item)) {
               const itemBroken = !!basePath && !!brokenPaths?.has(`${basePath}[${i}]`);
               if (itemBroken) {
                 return (
                   <div key={i}>
-                    <div className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE}`}>
-                      <span className="text-xs text-danger font-mono w-5 text-right shrink-0">{i + 1}</span>
+                    <div className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE}`} {...dropTarget(i)}>
+                      {rowChrome(i, true)}
                       <Link2 size={12} className="text-danger shrink-0" />
                       <span className={`flex-1 text-sm truncate ${BROKEN_LABEL}`}>{item.displayName}</span>
                       <button type="button" onClick={() => removeItem(i)}
@@ -603,8 +729,9 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                 );
               }
               return (
-                <div key={i} className="flex items-center gap-2 px-3 py-2 hover:bg-base">
-                  <span className="text-xs text-fg4 font-mono w-5 text-right shrink-0">{i + 1}</span>
+                <div key={i} {...dropTarget(i)}
+                  className={`flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-brand-subtle' : 'hover:bg-base'}`}>
+                  {rowChrome(i)}
                   <Link2 size={12} className="text-warning shrink-0" />
                   <span className="flex-1 text-sm text-warning truncate">{item.displayName}</span>
                   <button type="button" onClick={() => removeItem(i)}
@@ -629,8 +756,10 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                 && !!brokenPaths?.has(`${basePath}[${i}].${wrapped.key}`);
               return (
                 <div key={i}>
-                <div className={`flex items-center gap-2 px-3 py-2 ${wrappedBroken ? BROKEN_PLATE : 'hover:bg-base'}`}>
-                  <span className={`text-xs font-mono w-5 text-right shrink-0 ${wrappedBroken ? 'text-danger' : 'text-fg4'}`}>{i + 1}</span>
+                <div {...dropTarget(i)}
+                  className={`flex items-center gap-2 px-3 py-2 ${wrappedBroken ? BROKEN_PLATE
+                    : selected.has(i) ? 'bg-brand-subtle' : 'hover:bg-base'}`}>
+                  {rowChrome(i, wrappedBroken)}
                   <Link2 size={12} className={`shrink-0 ${wrappedBroken ? 'text-danger' : 'text-warning'}`} />
                   <span className={`flex-1 text-sm truncate ${wrappedBroken ? BROKEN_LABEL : 'text-warning'}`}>{wrapped.ref.displayName}</span>
                   <span className="text-[11px] text-fg4 shrink-0 truncate max-w-[40%]">{wrapped.label}</span>
@@ -651,8 +780,9 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
 
             // issue #102: строка — компактная сводка + ✎ (модалка), без инлайн-раскрытия (источник «портянки»).
             return (
-              <div key={i} className="flex items-center gap-2 px-3 py-2 hover:bg-base">
-                <span className="text-xs text-fg4 font-mono w-5 text-right shrink-0">{i + 1}</span>
+              <div key={i} {...dropTarget(i)}
+                className={`flex items-center gap-2 px-3 py-2 ${selected.has(i) ? 'bg-brand-subtle' : 'hover:bg-base'}`}>
+                {rowChrome(i)}
                 <button type="button" onClick={() => setRowModal(i)}
                   className="flex-1 text-left text-sm text-fg2 hover:text-fg1 truncate">
                   {rowSummary(row)}
@@ -670,6 +800,13 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
           })}
         </div>
       )}
+      <ConfirmDialog
+        open={confirmBulk} onOpenChange={setConfirmBulk}
+        title={`Удалить строк: ${chosen.length}?`}
+        description={<p>Строки исчезнут из поля «{field.title}». Изменение попадёт в документ при
+          сохранении формы — до этого его можно отменить, закрыв форму без сохранения.</p>}
+        confirmLabel={`Удалить (${chosen.length})`}
+        onConfirm={deleteSelected} />
       {rowModal !== null && allItems[rowModal] != null && !isFieldRef(allItems[rowModal]) && (
         <Modal open onOpenChange={o => { if (!o) setRowModal(null); }} wide
           title={`${compositeType?.name ?? field.title} — строка ${rowModal + 1}`}
@@ -746,7 +883,9 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         open={tableOpen} onOpenChange={setTableOpen}
         field={field} compositeType={compositeType} allDocTypes={allDocTypes}
         items={inlineItems}
-        onSave={(rows, origins) => onChange(mergeTableRows(allItems, rows, origins))}
+        // Выбор снимаем: таблица меняет и состав, и порядок строк, и номера выбранных после неё
+        // указывали бы неизвестно на что (issue #754).
+        onSave={(rows, origins) => { onChange(mergeTableRows(allItems, rows, origins)); setSelected(new Set()); }}
         setId={setId} scope={scope} scopeId={scopeId}
       />
       {compositeType && (
