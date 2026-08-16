@@ -49,6 +49,17 @@ export function defaultColWidth(f: SchemaField) {
   return DEFAULT_COL_WIDTHS[f.type] ?? 140;
 }
 
+/**
+ * Тип полезной нагрузки при перетаскивании строки массива.
+ *
+ * <p>Класть в <code>dataTransfer</code> хоть что-то ОБЯЗАТЕЛЬНО: ручка — это <code>button</code>,
+ * не изначально перетаскиваемый элемент, а Firefox отменяет перетаскивание, если
+ * <code>dragstart</code> не положил ничего (issue #517). Тип свой, не <code>text/plain</code>:
+ * с текстовым типом ручка становится источником перетаскивания для всей страницы, и отпущенная
+ * над чужим полем ввода вставила бы туда номер строки (issue #518).</p>
+ */
+export const ROW_DRAG_MIME = 'application/x-crg-array-row';
+
 export const CELL_INPUT =
   'w-full h-full px-1.5 bg-transparent border-none outline-none text-xs text-fg1 tabular-nums focus:bg-brand-subtle';
 

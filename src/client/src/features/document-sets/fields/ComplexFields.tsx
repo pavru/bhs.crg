@@ -22,7 +22,7 @@ import { mergeTableRows, moveOrder, dropOrder, applyOrder, remapSelection } from
 import { VariantPicker } from './VariantPicker';
 import { ExtractToCommonDataModal } from './ExtractToCommonDataModal';
 import {
-  CELL_INPUT, SCOPE_COLORS, TABLE_SHOWN_TYPES, defaultColWidth, showsArrayTable,
+  CELL_INPUT, ROW_DRAG_MIME, SCOPE_COLORS, TABLE_SHOWN_TYPES, defaultColWidth, showsArrayTable,
 } from './constants';
 import { isMissing, PrimitiveInput } from './PrimitiveInput';
 import { ImageField } from './ImageField';
@@ -376,7 +376,12 @@ export function ArrayTableModal({
                 <td role="rowheader" style={{ border: BORDER, padding: 0 }} className={sel ? 'bg-brand-subtle' : 'bg-base'}>
                   <div className="flex items-center justify-center gap-0.5" style={{ height: 26 }}>
                     <button type="button" draggable
-                      onDragStart={e => { setDragIdx(i); e.dataTransfer.effectAllowed = 'move'; }}
+                      // setData обязателен: без груза Firefox отменяет перетаскивание (см. ROW_DRAG_MIME).
+                      onDragStart={e => {
+                        setDragIdx(i);
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData(ROW_DRAG_MIME, String(i));
+                      }}
                       onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
                       onKeyDown={e => {
                         if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); moveRow(i, i - 1); }
@@ -568,7 +573,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   const chosen = [...selected].filter(i => i < allItems.length).sort((a, b) => a - b);
 
   function toggleSelect(i: number) {
-    setSelected(prev => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; });
+    // delete возвращает «было ли», так что снятие и постановка — одна ветка.
+    setSelected(prev => { const n = new Set(prev); if (!n.delete(i)) n.add(i); return n; });
   }
 
   function deleteSelected() {
@@ -592,12 +598,15 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
    * MoveButtons (#517, #542).</p>
    */
   const listRef = useRef<HTMLDivElement>(null);
-  const [focusRow, setFocusRow] = useState<number | null>(null);
+  const focusRow = useRef<number | null>(null);
+  // Без списка зависимостей: заявка живёт в ref, поэтому эффекту нечего сравнивать — он просто
+  // смотрит после каждой отрисовки, не ждёт ли кто фокуса, и почти всегда сразу выходит.
   useEffect(() => {
-    if (focusRow === null) return;
-    listRef.current?.querySelector<HTMLElement>(`[data-grip="${focusRow}"]`)?.focus();
-    setFocusRow(null);
-  }, [focusRow]);
+    const target = focusRow.current;
+    if (target === null) return;
+    focusRow.current = null;
+    listRef.current?.querySelector<HTMLElement>(`[data-grip="${target}"]`)?.focus();
+  });
 
   /** Чекбокс + ручка перетаскивания + номер. Обычная функция, не компонент: у компонента,
    *  объявленного внутри рендера, каждый раз новый тип — React размонтировал бы ручку с фокусом. */
@@ -608,14 +617,23 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
           aria-label={`Выбрать строку ${i + 1}`}
           className="shrink-0 w-3.5 h-3.5 accent-brand cursor-pointer" />
         <button type="button" draggable data-grip={i}
-          onDragStart={e => { setDragIdx(i); e.dataTransfer.effectAllowed = 'move'; }}
+          // setData обязателен: без груза Firefox отменяет перетаскивание (см. ROW_DRAG_MIME).
+          onDragStart={e => {
+            setDragIdx(i);
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData(ROW_DRAG_MIME, String(i));
+          }}
           onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
           onKeyDown={e => {
             const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : null;
-            if (to === null || to < 0 || to >= allItems.length) return;
+            if (to === null) return;
+            // Стрелку гасим и на краю: иначе последнее нажатие в «довести строку до низа»
+            // достаётся браузеру, и форма уезжает прокруткой ровно в тот момент, когда строка
+            // встала на место. Тот же сценарий, ради которого MoveButtons не делает disabled (#517).
             e.preventDefault(); e.stopPropagation();
+            if (to < 0 || to >= allItems.length) return;
             moveItem(i, to);
-            setFocusRow(to);
+            focusRow.current = to;
           }}
           title="Перетащить для изменения порядка (или стрелки ↑↓)"
           aria-label={`Переместить строку ${i + 1}: стрелки вверх и вниз`}
@@ -627,6 +645,17 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         </span>
       </>
     );
+  }
+
+  /**
+   * Признак выбора для строки, у которой фон уже занят (битая ссылка — danger-плитка).
+   *
+   * <p>Иначе выбранная битая строка отличалась бы от невыбранной одним чекбоксом в 14 пикселей,
+   * при том что шапка говорит «Выбрано: 3», а удаление пачкой её и правда унесёт. Ровно то
+   * «удалить вслепую», ради которого выбор снимается при сворачивании списка.</p>
+   */
+  function selectedRing(i: number) {
+    return selected.has(i) ? 'ring-1 ring-inset ring-brand' : '';
   }
 
   /** Обвязка строки: приём перетаскиваемой строки на своё место + подсветка цели. */
@@ -717,7 +746,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               if (itemBroken) {
                 return (
                   <div key={i}>
-                    <div className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE}`} {...dropTarget(i)}>
+                    <div {...dropTarget(i)}
+                      className={`flex items-center gap-2 px-3 py-2 ${BROKEN_PLATE} ${selectedRing(i)}`}>
                       {rowChrome(i, true)}
                       <Link2 size={12} className="text-danger shrink-0" />
                       <span className={`flex-1 text-sm truncate ${BROKEN_LABEL}`}>{item.displayName}</span>
@@ -757,7 +787,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               return (
                 <div key={i}>
                 <div {...dropTarget(i)}
-                  className={`flex items-center gap-2 px-3 py-2 ${wrappedBroken ? BROKEN_PLATE
+                  className={`flex items-center gap-2 px-3 py-2 ${wrappedBroken
+                    ? `${BROKEN_PLATE} ${selectedRing(i)}`
                     : selected.has(i) ? 'bg-brand-subtle' : 'hover:bg-base'}`}>
                   {rowChrome(i, wrappedBroken)}
                   <Link2 size={12} className={`shrink-0 ${wrappedBroken ? 'text-danger' : 'text-warning'}`} />
