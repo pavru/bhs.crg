@@ -30,6 +30,18 @@ export const TABLE_SHOWN_TYPES = new Set([
   'string', 'text', 'number', 'date', 'boolean', 'enum', 'primitive', 'complex',
 ]);
 
+/**
+ * Предлагать ли массиву табличный ввод (issue #748).
+ *
+ * Отдельной функцией — ради теста: условие однострочное, но его снятие возвращает возможность
+ * нарушить инвариант union'а «ровно один ключ» (#320) молча, а такое обязано ломать сборку.
+ *
+ * @param isUnionItem элемент массива — union-тип: колонки были бы ВАРИАНТАМИ и читались как «и».
+ */
+export function showsArrayTable(subFields: SchemaField[], isUnionItem: boolean): boolean {
+  return !isUnionItem && subFields.some(f => TABLE_SHOWN_TYPES.has(f.type));
+}
+
 export const DEFAULT_COL_WIDTHS: Partial<Record<string, number>> = {
   number: 80, date: 118, boolean: 52, enum: 130, complex: 170,
 };
