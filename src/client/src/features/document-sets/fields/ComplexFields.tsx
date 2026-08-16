@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, type ReactNode } from 'react';
 import {
   Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, GripVertical, Info, Link2, Pencil, Plus, RefreshCw, Share2, Trash2, Unlink, X,
 } from 'lucide-react';
-import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -13,11 +12,12 @@ import type {
 import { isFieldRef, SCOPE_LABELS } from '@/shared/api/types';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import {
-  resolveEffectiveFields, getDefaultValues, type SchemaField,
+  resolveEffectiveFields, getDefaultValues, isUnionType, type SchemaField,
 } from '@/shared/api/schema';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { formatFieldValue, type FieldTypeDefs } from '@/shared/utils/fieldDisplay';
 import { objectSummary } from './objectSummary';
+import { VariantPicker } from './VariantPicker';
 import { ExtractToCommonDataModal } from './ExtractToCommonDataModal';
 import {
   CELL_INPUT, SCOPE_COLORS, TABLE_SHOWN_TYPES, defaultColWidth,
@@ -449,8 +449,9 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes).filter(f => !f.computed) : [];
   // Строка массива union-типа (issue #320): редактируется переключателем варианта, а не стопкой всех
   // полей — иначе диалог строки показывал оба поля union (баг). Тип union = тэг type.union на схеме.
-  const isUnionComposite = !!compositeType
-    && ((compositeType.schema as { tags?: string[] }).tags ?? []).includes(FUNCTIONAL_TAG.typeUnion);
+  // typeHasTag, а не `.tags.includes`: инлайновая проверка не видит ни УНАСЛЕДОВАННЫЙ тэг, ни
+  // параметризованную запись `type.union:2` (issue #747).
+  const isUnionComposite = !!compositeType && isUnionType(compositeType, allDocTypes);
   const [rowModal, setRowModal] = useState<number | null>(null); // issue #102: строка массива правится в модалке, не инлайн
   const [extractRow, setExtractRow] = useState<number | null>(null); // issue #663
   const [tableOpen, setTableOpen] = useState(false);
@@ -473,8 +474,27 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
     setRowModal(allItems.length); // сразу открыть модалку новой строки
   }
 
-  function addFromCatalog(ref: FieldRef) {
-    onChange([...allItems, ref]);
+  /**
+   * Запись каталога становится строкой массива. Для union'а (issue #747) она заворачивается в ключ
+   * варианта — ровно один ключ, инвариант #320 держится конструкцией; какой это вариант, решил
+   * пикер по типу записи (и спросил человека, если тип не назвал единственного).
+   */
+  function addFromCatalog(ref: FieldRef, variantKey?: string) {
+    onChange([...allItems, variantKey ? { [variantKey]: ref } : ref]);
+  }
+
+  /**
+   * Единственный заполненный вариант union-строки, если это ссылка: {ключ, ссылка, подпись}.
+   * Не union или не ссылка — null.
+   */
+  function unionRef(row: Record<string, unknown>): { key: string; ref: FieldRef; label: string } | null {
+    if (!isUnionComposite) return null;
+    const keys = Object.keys(row);
+    if (keys.length !== 1) return null;
+    const value = row[keys[0]];
+    if (!isFieldRef(value)) return null;
+    const sub = subFields.find(f => f.key === keys[0]);
+    return { key: keys[0], ref: value, label: sub?.title ?? keys[0] };
   }
 
   function removeItem(i: number) {
@@ -558,6 +578,40 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               );
             }
             const row = item as Record<string, unknown>;
+
+            // Строка union'а, чей единственный вариант — ссылка (issue #747). Без этой ветки она
+            // ушла бы в rowSummary как обычный объект: сводка вернула бы голое displayName, и
+            // строка потеряла бы и признак ссылки, и вариант — на вид обычные данные, которых на
+            // самом деле нет. Рисуем тем же языком, что соседние ref-строки, плюс метка варианта.
+            const wrapped = unionRef(row);
+            if (wrapped) {
+              // Путь битой ссылки сервер строит ВНУТРЬ объекта («Поле[0].Вариант», ResolutionDiagnostics),
+              // а не по индексу строки: проверь мы только «Поле[0]», удалённая цель показалась бы
+              // здоровой ссылкой — ровно та потеря признака, ради которой заведена эта ветка.
+              const wrappedBroken = !!basePath
+                && !!brokenPaths?.has(`${basePath}[${i}].${wrapped.key}`);
+              return (
+                <div key={i}>
+                <div className={`flex items-center gap-2 px-3 py-2 ${wrappedBroken ? BROKEN_PLATE : 'hover:bg-base'}`}>
+                  <span className={`text-xs font-mono w-5 text-right shrink-0 ${wrappedBroken ? 'text-danger' : 'text-fg4'}`}>{i + 1}</span>
+                  <Link2 size={12} className={`shrink-0 ${wrappedBroken ? 'text-danger' : 'text-warning'}`} />
+                  <span className={`flex-1 text-sm truncate ${wrappedBroken ? BROKEN_LABEL : 'text-warning'}`}>{wrapped.ref.displayName}</span>
+                  <span className="text-[11px] text-fg4 shrink-0 truncate max-w-[40%]">{wrapped.label}</span>
+                  {/* ✎ оставлен: это единственный вход сменить вариант и снять ссылку. */}
+                  <button type="button" onClick={() => setRowModal(i)} title="Редактировать"
+                    className="p-1 text-fg4 hover:text-fg2 shrink-0">
+                    <Pencil size={13} />
+                  </button>
+                  <button type="button" onClick={() => removeItem(i)}
+                    className="p-1 text-fg4 hover:text-danger shrink-0">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+                {wrappedBroken && <BrokenRefNote compact />}
+                </div>
+              );
+            }
+
             // issue #102: строка — компактная сводка + ✎ (модалка), без инлайн-раскрытия (источник «портянки»).
             return (
               <div key={i} className="flex items-center gap-2 px-3 py-2 hover:bg-base">
@@ -588,7 +642,11 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   отдельной задачей, у него свой selection-state. */}
               {canExtract ? (
                 <Button variant="text" size="sm" icon={<Share2 size={13} />}
-                  disabled={isRowEmpty(allItems[rowModal] as Record<string, unknown>, subFields)}
+                  // Строка-ссылка выносу не подлежит: получилась бы запись, всё содержимое которой —
+                  // ссылка на другую запись, то есть лишнее звено в цепочке (у неё есть предел, #723).
+                  // ComplexFieldGroup такую ветку до выноса не доводит вовсе; у массива защиты не было.
+                  disabled={isRowEmpty(allItems[rowModal] as Record<string, unknown>, subFields)
+                    || !!unionRef(allItems[rowModal] as Record<string, unknown>)}
                   title="Создать запись общих данных из этой строки"
                   onClick={() => { const i = rowModal; setRowModal(null); setExtractRow(i); }}>
                   Вынести в общие данные…
@@ -661,6 +719,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
           setId={setId} scope={scope} scopeId={scopeId}
           otherInstances={[]}
           allDocTypes={allDocTypes}
+          unionAware
           onSelect={addFromCatalog}
         />
       )}
@@ -734,8 +793,7 @@ export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showVal
 
   // Union-тип (issue #320): составной тип с тэгом type.union — «заполняется ровно одно из полей».
   // Рендерим переключатель варианта + редактор активного подполя вместо стопки всех подполей.
-  const isUnion = !!compositeType
-    && ((compositeType.schema as { tags?: string[] }).tags ?? []).includes(FUNCTIONAL_TAG.typeUnion);
+  const isUnion = !!compositeType && isUnionType(compositeType, allDocTypes);
   if (isUnion) {
     return (
       <UnionFieldGroup field={field} allDocTypes={allDocTypes} value={value} onChange={onChange}
@@ -995,61 +1053,9 @@ function isVariantFilled(v: unknown): boolean {
   return String(v).trim() !== '';
 }
 
-/**
- * Выбор ОДНОГО варианта union (issue #320/#391). Представление зависит от контента (совет Дизайнера):
- * сегмент — для ≤3 коротких подписей; вертикальный список radio-строк — для многих/длинных
- * (не обрезаются, масштабируется 2-8). `auto` выбирает сам. В списке разведены два смысла:
- * ЛЕВО = radio-выбор, ПРАВО = бейдж «задан» (есть ли значение/маппинг) — в сегменте они слипались в точку.
- */
-export function VariantPicker({ options, active, onSelect, layout = 'auto' }: {
-  options: { key: string; label: string; filled: boolean }[];
-  active: string; onSelect: (key: string) => void;
-  layout?: 'segmented' | 'list' | 'auto';
-}) {
-  const useList = layout === 'list'
-    || (layout === 'auto' && (options.length > 3 || options.some(o => o.label.length > 18)));
-
-  if (useList) {
-    return (
-      <div role="radiogroup" className="flex flex-col gap-1 text-sm">
-        {options.map(o => {
-          const on = o.key === active;
-          return (
-            <button key={o.key} type="button" role="radio" aria-checked={on} onClick={() => onSelect(o.key)}
-              className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors ${
-                on ? 'border-brand bg-brand/10 text-fg1 font-medium' : 'border-stroke bg-surface text-fg2 hover:bg-base'}`}>
-              <span className={`grid place-items-center w-4 h-4 rounded-full border shrink-0 ${on ? 'border-brand' : 'border-stroke'}`}>
-                {on && <span className="w-2 h-2 rounded-full bg-brand" />}
-              </span>
-              <span className="flex-1 min-w-0 truncate">{o.label}</span>
-              {o.filled && (
-                <span className="text-[11px] text-brand flex items-center gap-1 shrink-0" title="Значение задано">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand" /> задан
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
-
-  return (
-    <div role="radiogroup" className="inline-flex rounded-lg border border-stroke overflow-hidden text-sm">
-      {options.map((o, i) => {
-        const on = o.key === active;
-        return (
-          <button key={o.key} type="button" role="radio" aria-checked={on} onClick={() => onSelect(o.key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-stroke' : ''} ${
-              on ? 'bg-brand text-white font-medium' : 'bg-surface text-fg2 hover:bg-base'}`}>
-            {o.filled && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${on ? 'bg-white' : 'bg-brand'}`} />}
-            <span className="truncate">{o.label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+// VariantPicker живёт своим файлом (issue #747): его зовёт ещё и пикер ссылок, а импорт
+// оттуда в ComplexFields замкнул бы цикл. Реэкспорт — чтобы не трогать существующих потребителей.
+export { VariantPicker };
 
 function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, setId,
   otherInstances = [], scope, scopeId, docRefMode = 'catalog', nested = false }: {

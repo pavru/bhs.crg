@@ -191,16 +191,19 @@ export function chainFieldKeys(docType: DocumentType, allDocTypes: DocumentType[
 export function resolveEffectiveFields(
   docType: DocumentType,
   allDocTypes: DocumentType[],
+  /** Пройденные типы — защита от цикла в цепочке наследования (issue #747); внутренний параметр. */
+  visited: Set<string> = new Set(),
 ): SchemaField[] {
   const schema = docType.schema as unknown as SchemaDefinition;
   const ownFields = parseSchemaFields(docType.schema);
 
-  if (!docType.parentId) return ownFields;
+  if (!docType.parentId || visited.has(docType.id)) return ownFields;
+  visited.add(docType.id);
 
   const parent = allDocTypes.find(dt => dt.id === docType.parentId);
   if (!parent) return ownFields;
 
-  const parentFields = resolveEffectiveFields(parent, allDocTypes);
+  const parentFields = resolveEffectiveFields(parent, allDocTypes, visited);
   const excluded = new Set(schema.excludedFields ?? []);
   const overrides = schema.fieldOverrides ?? {};
 
@@ -223,12 +226,40 @@ export function resolveEffectiveFields(
   ];
 }
 
+/**
+ * Сколько шагов вверх по цепочке наследования от `childId` до `parentId`; `null` — не потомок.
+ * 0 — это тот же тип.
+ *
+ * Дистанция, а не просто «да/нет», нужна выбору варианта union'а (issue #747): когда запись
+ * подходит нескольким вариантам, побеждает БЛИЖАЙШИЙ. Ту же специфичность считает сервер при
+ * материализации наборов (`MaterializeDiscriminator.InheritanceDistance`, issue #716) — правила там
+ * задаёт админ явно, а здесь они выводятся из `typeId` варианта, но мера близости обязана совпадать.
+ *
+ * <p>Обход итеративный и с visited-set. Прежняя <code>isSubtypeOf</code> была рекурсивна без предела
+ * и без защиты от цикла: испорченный <code>parentId</code> (цепочку типов строит пользователь) вешал
+ * вкладку переполнением стека. У серверного аналога предел 32 шага, у <code>typeHasTag</code> —
+ * visited-set; здесь не было ничего. По той же цепочке ходит <code>resolveEffectiveFields</code>, и
+ * её защитили заодно: закрывать один вход из двух бессмысленно — цикл валил бы вкладку следующей же
+ * строкой.</p>
+ */
+export function inheritanceDistance(
+  childId: string, parentId: string, allDocTypes: DocumentType[],
+): number | null {
+  const visited = new Set<string>();
+  let current: string | undefined = childId;
+  let steps = 0;
+  while (current && !visited.has(current)) {
+    if (current === parentId) return steps;
+    visited.add(current);
+    current = allDocTypes.find(t => t.id === current)?.parentId ?? undefined;
+    steps++;
+  }
+  return null;
+}
+
 /** Returns true if childId equals parentId or has parentId anywhere in its ancestor chain. */
 export function isSubtypeOf(childId: string, parentId: string, allDocTypes: DocumentType[]): boolean {
-  if (childId === parentId) return true;
-  const child = allDocTypes.find(t => t.id === childId);
-  if (!child?.parentId) return false;
-  return isSubtypeOf(child.parentId, parentId, allDocTypes);
+  return inheritanceDistance(childId, parentId, allDocTypes) !== null;
 }
 
 /**
@@ -298,6 +329,67 @@ export function typeHasTag(docType: DocumentType, tag: string, allDocTypes: Docu
     current = current.parentId ? allDocTypes.find(t => t.id === current!.parentId) : undefined;
   }
   return false;
+}
+
+/** Является ли составной тип union'ом — «заполняется ровно один из вариантов» (issue #320). */
+export function isUnionType(docType: DocumentType, allDocTypes: DocumentType[]): boolean {
+  return typeHasTag(docType, FUNCTIONAL_TAG.typeUnion, allDocTypes);
+}
+
+/**
+ * Куда ляжет запись каталога, выбранная для строки union-типа (issue #747).
+ *
+ * <ul>
+ *   <li><b>self</b> — запись типизирована самим union'ом (или потомком): кладётся голая ссылка, как
+ *       у обычного составного поля. Путь не гипотетический: «Вынести в общие данные» из
+ *       union-массива создаёт запись именно union-типа (issue #663);</li>
+ *   <li><b>variant</b> — запись подходит одному варианту (или нескольким, и тогда берётся
+ *       БЛИЖАЙШИЙ по цепочке наследования): кладётся <code>{ключВарианта: ссылка}</code>;</li>
+ *   <li><b>ambiguous</b> — вариант по типу не определить, спрашиваем человека;</li>
+ *   <li><b>none</b> — запись не подходит ничему, кандидата не показываем.</li>
+ * </ul>
+ *
+ * <p><b>Почему «ambiguous» существует, а не сведён к «взять первый».</b> Наследование одиночное,
+ * поэтому все подходящие варианты лежат на ОДНОЙ цепочке предков записи и различаются глубиной;
+ * равенство дистанций возможно исключительно тогда, когда два варианта объявлены на один и тот же
+ * <code>typeId</code>. Это не порча данных, а осмысленная конфигурация: у «Кабельной линии» варианты
+ * «КабельнаяЛинияЭО» и «КабельнаяЛинияЭОН» смотрят на один тип «Основная кабельная линия» —
+ * освещение внутреннее и наружное, форма данных одна, различие живёт только в ключе варианта.
+ * Выбрать за пользователя тут нечем, а спрятать кандидата значило бы молча отнять у него запись,
+ * которую он видит в каталоге.</p>
+ *
+ * <p><b>Почему только одиночные варианты.</b> <code>array</code> и <code>doc-array</code> объявляют
+ * СПИСОК, а пикер отдаёт одну запись. Завернуть её в одноэлементный массив логично ровно до второго
+ * выбора, который сделает вторую строку вместо добавления в первую. Хуже того, отказ был бы тихим:
+ * <code>ArrayFieldEditor</code> берёт значение как <code>Array.isArray(v) ? v : []</code>, то есть
+ * одиночная ссылка исчезла бы из редактора без следа, а в шаблон уехал объект вместо перечисления.</p>
+ *
+ * <p>Ту же меру близости считает сервер при материализации наборов (issue #716); правила там задаёт
+ * админ явно, здесь они выводятся из <code>typeId</code> варианта, но исходы совпадают.</p>
+ */
+export type UnionPlacement =
+  | { kind: 'self' }
+  | { kind: 'variant'; variantKey: string }
+  | { kind: 'ambiguous'; variantKeys: string[] }
+  | { kind: 'none' };
+
+export function placeInUnion(
+  entryTypeId: string, unionType: DocumentType, allDocTypes: DocumentType[],
+): UnionPlacement {
+  if (inheritanceDistance(entryTypeId, unionType.id, allDocTypes) !== null) return { kind: 'self' };
+
+  const matches = resolveEffectiveFields(unionType, allDocTypes)
+    .filter(f => (f.type === 'complex' || f.type === 'doc-ref') && !!f.typeId)
+    .map(f => ({ key: f.key, distance: inheritanceDistance(entryTypeId, f.typeId!, allDocTypes) }))
+    .filter((m): m is { key: string; distance: number } => m.distance !== null);
+
+  if (matches.length === 0) return { kind: 'none' };
+
+  const nearest = Math.min(...matches.map(m => m.distance));
+  const winners = matches.filter(m => m.distance === nearest).map(m => m.key);
+  return winners.length === 1
+    ? { kind: 'variant', variantKey: winners[0] }
+    : { kind: 'ambiguous', variantKeys: winners };
 }
 
 /**

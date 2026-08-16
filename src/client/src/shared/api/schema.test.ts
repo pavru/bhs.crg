@@ -5,6 +5,9 @@ import {
   chainFieldKeys,
   groupEffectiveFields,
   isSubtypeOf,
+  inheritanceDistance,
+  isUnionType,
+  placeInUnion,
   getDefaultValues,
   isFieldMissing,
   isScalarField,
@@ -447,5 +450,103 @@ describe('материалы за составной обёрткой', () => {
   it('пустая обёртка и отсутствующие ключи материалов не дают', () => {
     expect(collectMaterialRows(aosr, all, {})).toEqual([]);
     expect(collectMaterialRows(aosr, all, { Материалы: {} })).toEqual([]);
+  });
+});
+
+// ── Куда ляжет запись каталога в union-строке (issue #747) ───────────────────
+
+/**
+ * Правило матчинга варианта. Проверяем не «работает ли фильтр», а те четыре исхода, спутав любые
+ * два из которых, приложение ломается по-разному: голая ссылка вместо обёртки нарушит инвариант
+ * «ровно один ключ» (#320), обёртка вместо голой — сломает round-trip с «Вынести в общие данные»,
+ * тихий выбор при ничьей поставит запись не в тот вариант, а «none» вместо ничьей уберёт из пикера
+ * запись, которую человек видит в каталоге.
+ */
+describe('placeInUnion', () => {
+  const base = dt({ fields: [] }, null, 'base');
+  const child = dt({ fields: [] }, 'base', 'child');
+  const other = dt({ fields: [] }, null, 'other');
+  const listItem = dt({ fields: [] }, null, 'listItem');
+  const union = dt({
+    tags: ['type.union'],
+    fields: [
+      { key: 'Осн', title: 'Основной', type: 'doc-ref', typeId: 'base', required: false },
+      { key: 'Список', title: 'Список', type: 'array', typeId: 'listItem', required: false },
+    ],
+  }, null, 'union');
+  const all = [base, child, other, listItem, union];
+
+  it('запись типа самого union-а кладётся голой ссылкой', () => {
+    expect(placeInUnion('union', union, all)).toEqual({ kind: 'self' });
+  });
+
+  it('запись типа варианта заворачивается в его ключ', () => {
+    expect(placeInUnion('base', union, all)).toEqual({ kind: 'variant', variantKey: 'Осн' });
+  });
+
+  it('подтип цели варианта тоже подходит', () => {
+    expect(placeInUnion('child', union, all)).toEqual({ kind: 'variant', variantKey: 'Осн' });
+  });
+
+  it('чужой тип не подходит ничему', () => {
+    expect(placeInUnion('other', union, all)).toEqual({ kind: 'none' });
+  });
+
+  it('варианты-списки не участвуют: одиночная ссылка в массиве пропала бы молча', () => {
+    expect(placeInUnion('listItem', union, all)).toEqual({ kind: 'none' });
+  });
+
+  it('из нескольких подходящих вариантов побеждает ближайший по цепочке', () => {
+    const u = dt({
+      tags: ['type.union'],
+      fields: [
+        { key: 'Дальний', title: 'Дальний', type: 'doc-ref', typeId: 'base', required: false },
+        { key: 'Ближний', title: 'Ближний', type: 'doc-ref', typeId: 'child', required: false },
+      ],
+    }, null, 'u2');
+    expect(placeInUnion('child', u, [...all, u])).toEqual({ kind: 'variant', variantKey: 'Ближний' });
+  });
+
+  it('два варианта на один тип дают ничью — выбрать за пользователя нечем', () => {
+    // Живой случай: у «Кабельной линии» варианты освещения внутреннего и наружного смотрят на один
+    // тип «Основная кабельная линия» — форма данных одна, различие живёт только в ключе варианта.
+    const u = dt({
+      tags: ['type.union'],
+      fields: [
+        { key: 'ЭО', title: 'Внутреннее', type: 'complex', typeId: 'base', required: false },
+        { key: 'ЭОН', title: 'Наружное', type: 'complex', typeId: 'base', required: false },
+      ],
+    }, null, 'u3');
+    expect(placeInUnion('base', u, [...all, u])).toEqual({ kind: 'ambiguous', variantKeys: ['ЭО', 'ЭОН'] });
+  });
+
+  it('union опознаётся по УНАСЛЕДОВАННОМУ и по параметризованному тэгу', () => {
+    const parametrized = dt({ tags: ['type.union:2'], fields: [] }, null, 'p');
+    const heir = dt({ fields: [] }, 'p', 'heir');
+    expect(isUnionType(parametrized, [parametrized, heir])).toBe(true);
+    expect(isUnionType(heir, [parametrized, heir])).toBe(true);
+  });
+});
+
+describe('inheritanceDistance', () => {
+  const a = dt({ fields: [] }, null, 'a');
+  const b = dt({ fields: [] }, 'a', 'b');
+  const c = dt({ fields: [] }, 'b', 'c');
+  const all = [a, b, c];
+
+  it('считает шаги вверх по цепочке', () => {
+    expect(inheritanceDistance('c', 'c', all)).toBe(0);
+    expect(inheritanceDistance('c', 'b', all)).toBe(1);
+    expect(inheritanceDistance('c', 'a', all)).toBe(2);
+    expect(inheritanceDistance('a', 'c', all)).toBeNull();
+  });
+
+  it('цикл в цепочке не вешает обход', () => {
+    // Цепочку типов строит пользователь, и испорченный parentId раньше валил вкладку
+    // переполнением стека: у прежней isSubtypeOf не было ни предела шагов, ни visited-set.
+    const x = dt({ fields: [] }, 'y', 'x');
+    const y = dt({ fields: [] }, 'x', 'y');
+    expect(inheritanceDistance('x', 'somewhere', [x, y])).toBeNull();
+    expect(isSubtypeOf('x', 'somewhere', [x, y])).toBe(false);
   });
 });
