@@ -20,7 +20,7 @@ import { objectSummary } from './objectSummary';
 import { VariantPicker } from './VariantPicker';
 import { ExtractToCommonDataModal } from './ExtractToCommonDataModal';
 import {
-  CELL_INPUT, SCOPE_COLORS, TABLE_SHOWN_TYPES, defaultColWidth,
+  CELL_INPUT, SCOPE_COLORS, TABLE_SHOWN_TYPES, defaultColWidth, showsArrayTable,
 } from './constants';
 import { isMissing, PrimitiveInput } from './PrimitiveInput';
 import { ImageField } from './ImageField';
@@ -458,7 +458,33 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   const [collapsed, setCollapsed] = useState(true);
   const [catalogPickerOpen, setCatalogPickerOpen] = useState(false);
 
-  const hasTableFields = subFields.some(f => TABLE_SHOWN_TYPES.has(f.type));
+  /**
+   * Таблица — для ОДНОРОДНЫХ строк, поэтому union-массиву её не предлагаем (issue #748).
+   *
+   * <p>Колонки таблицы — это подполя элемента, а у union'а подполя суть ВАРИАНТЫ. Пять колонок
+   * читаются как «и», а не «одно из»: заполнив две в одной строке, человек получает два ключа и
+   * ломает инвариант «ровно один ключ» (#320) без единого предупреждения — ни в редакторе, ни при
+   * сохранении. Исключение union'а до сих пор жило только в модалке строки и в
+   * <code>ComplexFieldGroup</code>, до кнопки не доходило.</p>
+   *
+   * <p><b>Ввода данных не теряем</b>: <code>complex</code>-колонка рендерится
+   * <code>ComplexCellPicker</code>'ом, то есть пикером ссылки на запись каталога, — инлайнового
+   * ввода полей варианта в таблице нет и не было. На единственном живом носителе («Кабельный
+   * журнал» → «Кабельные линии») это пять колонок пустых пикеров: записей каталога нужных типов в
+   * базе ноль, а само поле там привязано к набору данных, и редактор массива подменён заглушкой
+   * привязки — до кнопки не добраться вовсе.</p>
+   *
+   * <p><b>Но кое-что теряем, и это надо назвать.</b> В модалке таблицы живут три вещи, которых
+   * больше нигде нет: перетаскивание строк (порядок строк значим, #663), удаление выбранных пачкой
+   * и вставка из Excel. Для union-массива они уходят вместе с кнопкой. Перетаскивание и пакетное
+   * удаление возвращаем в аккордеонный список отдельной задачей (#754) — они полезны ВСЕМ массивам,
+   * не только union. Вставку не возвращаем сознательно: её маппинг в inline-режиме кладёт колонку в
+   * ключ варианта, то есть две колонки на два варианта дают два ключа — вторая дверь в ту же дыру.</p>
+   *
+   * <p>Массовый ввод разнородных строк — задача отдельная и это ФИЧА, а не возврат утраченного:
+   * таблице понадобится колонка-селектор варианта, иначе порядок строк и инвариант снова разойдутся.</p>
+   */
+  const hasTableFields = showsArrayTable(subFields, isUnionComposite);
   // Вынос строки в общие данные (issue #663) — только там, где известно, куда класть запись:
   // редактор документа (есть комплект) либо форма общих данных (есть свой уровень).
   const canExtract = !!compositeType && (!!setId || !!scope);
