@@ -6,13 +6,17 @@ import type {
   CommonDataEntry, DocumentInstance, DocumentType, FieldRef, CatalogScope,
 } from '@/shared/api/types';
 import { SCOPE_LABELS } from '@/shared/api/types';
-import { resolveEffectiveFields, isSubtypeOf, type SchemaField } from '@/shared/api/schema';
+import {
+  resolveEffectiveFields, isSubtypeOf, isUnionType, placeInUnion,
+  type SchemaField, type UnionPlacement,
+} from '@/shared/api/schema';
 import { SCOPE_COLORS } from './constants';
+import { VariantPicker } from './VariantPicker';
 
 export function RefPickerModal({
   open, onOpenChange, compositeType,
   setId, scope, scopeId,
-  otherInstances = [], allDocTypes, onSelect,
+  otherInstances = [], allDocTypes, unionAware = false, onSelect,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -22,7 +26,19 @@ export function RefPickerModal({
   scopeId?: string | null;
   otherInstances?: DocumentInstance[];
   allDocTypes: DocumentType[];
-  onSelect: (ref: FieldRef) => void;
+  /**
+   * Вызывающий умеет класть значение в ключ варианта union'а (issue #747) — и только тогда пикер
+   * предлагает записи типов-ВАРИАНТОВ, а не только самого составного типа.
+   *
+   * Согласие обязано быть явным, потому что тот же пикер зовёт <code>ComplexCellPicker</code>,
+   * который пишет голую ссылку и заворачивать не умеет: расширь мы фильтр молча, union получил бы
+   * значение без ключа варианта — инвариант «ровно один ключ» (#320) сломался бы там, где никто не
+   * смотрит. Сегодня дыра латентна (union-типы стоят элементами массивов, а не complex-колонками),
+   * и открылась бы она тихо.
+   */
+  unionAware?: boolean;
+  /** Второй аргумент — ключ варианта union'а; отсутствует, когда значение кладётся как есть. */
+  onSelect: (ref: FieldRef, variantKey?: string) => void;
 }) {
   const [search, setSearch] = useState('');
 
@@ -35,10 +51,46 @@ export function RefPickerModal({
     scope: effScope, scopeId: effScopeId, enabled: open && !!effScope,
   });
 
+  // Union-режим (issue #747): кандидат подходит, если его тип годится САМОМУ union'у или любому его
+  // одиночному варианту. Куда ляжет запись, считаем здесь же и несём до onSelect — второй раз тот же
+  // вопрос задавать негде: в обработчике выбора уже нет ни типов, ни цепочки наследования под рукой.
+  const unionMode = unionAware && !!compositeType && isUnionType(compositeType, allDocTypes);
+  const placementOf = (e: CommonDataEntry): UnionPlacement =>
+    placeInUnion(e.compositeTypeId, compositeType!, allDocTypes);
+
   const filtered = catalogEntries.filter(e => {
-    if (compositeType && !isSubtypeOf(e.compositeTypeId, compositeType.id, allDocTypes)) return false;
+    if (compositeType) {
+      const fits = unionMode
+        ? placementOf(e).kind !== 'none'
+        : isSubtypeOf(e.compositeTypeId, compositeType.id, allDocTypes);
+      if (!fits) return false;
+    }
     return e.displayName.toLowerCase().includes(search.toLowerCase());
   });
+
+  // Запись, для которой тип не назвал единственного варианта: показываем её вторым шагом со
+  // списком вариантов вместо того, чтобы прятать. Прятать нельзя — ничья означает, что два
+  // варианта объявлены на один тип (иначе при одиночном наследовании дистанции не совпали бы),
+  // то есть это осмысленная схема, а не порча данных, и исправить её из пикера человек не может.
+  const [askVariantFor, setAskVariantFor] = useState<CommonDataEntry | null>(null);
+  useEffect(() => { if (!open) setAskVariantFor(null); }, [open]);
+
+  /** Подписи вариантов union'а — для метки на кандидате и для второго шага. */
+  const variantFields = unionMode
+    ? resolveEffectiveFields(compositeType!, allDocTypes).filter(f => f.type === 'complex' || f.type === 'doc-ref')
+    : [];
+  const variantTitle = (key: string) => variantFields.find(f => f.key === key)?.title ?? key;
+
+  // Метка «куда ляжет» — только когда принимающих слотов больше одного: при единственном варианте
+  // она повторяла бы заголовок поля и была бы шумом.
+  function variantHint(entry: CommonDataEntry): string | null {
+    if (!unionMode || variantFields.length < 2) return null;
+    const placement = placementOf(entry);
+    if (placement.kind === 'variant') return variantTitle(placement.variantKey);
+    if (placement.kind === 'ambiguous') return `${placement.variantKeys.length} варианта`;
+    return null;
+  }
+
 
   // Группировка по scope: ближайший уровень (Комплект) вверху, дальние — ниже. Пустые группы скрыты.
   const SCOPE_ORDER: CatalogScope[] = ['Set', 'Section', 'Construction', 'System'];
@@ -47,6 +99,27 @@ export function RefPickerModal({
     .filter(g => g.entries.length > 0);
 
   const searching = search.trim().length > 0;
+
+  /**
+   * Пустое состояние объясняет ПРИЧИНУ. Раньше текст был один на три случая и в самом частом врал:
+   * записи в каталоге есть, просто других типов, — а совет «Добавьте записи в каталог общих данных»
+   * отправлял человека заводить дубль того, что уже заведено.
+   */
+  const acceptedTitles = unionMode
+    ? variantFields.map(f => allDocTypes.find(t => t.id === f.typeId)?.name).filter(Boolean) as string[]
+    : (compositeType ? [compositeType.name] : []);
+  const emptyState = searching
+    ? { title: `По запросу «${search.trim()}» ничего не найдено.`, hint: 'Измените запрос или очистите поиск.' }
+    : catalogEntries.length > 0
+      ? {
+          title: 'Подходящих записей нет.',
+          hint: acceptedTitles.length > 0
+            ? `Сюда годятся записи типов: ${acceptedTitles.slice(0, 3).join(', ')}`
+              + (acceptedTitles.length > 3 ? ` и ещё ${acceptedTitles.length - 3}` : '')
+              + `. На доступных уровнях записей: ${catalogEntries.length}, но другого типа.`
+            : `На доступных уровнях записей: ${catalogEntries.length}, но ни одна не подходит по типу.`,
+        }
+      : { title: 'Нет объектов доступных для ссылки.', hint: 'Добавьте записи в каталог общих данных.' };
   const firstScope = groups[0]?.scope; // ближайшая НЕпустая группа — раскрыта по умолчанию
   // Ручные переопределения сворачивания (действуют, когда поиск пуст). При поиске все группы с
   // совпадениями раскрыты (иначе матч спрятался бы за свёрнутой группой).
@@ -90,13 +163,29 @@ export function RefPickerModal({
     else if (e.key === 'Enter') { e.preventDefault(); const o = options[active]; if (o) activate(o); }
   }
 
+  const refOf = (entry: CommonDataEntry): FieldRef => ({
+    $ref: 'catalog',
+    entryId: entry.id,
+    displayName: entry.displayName,
+    scope: entry.scope,
+  });
+
   function selectCatalog(entry: CommonDataEntry) {
-    onSelect({
-      $ref: 'catalog',
-      entryId: entry.id,
-      displayName: entry.displayName,
-      scope: entry.scope,
-    });
+    if (!unionMode) {
+      onSelect(refOf(entry));
+      onOpenChange(false);
+      return;
+    }
+    const placement = placementOf(entry);
+    // Ничья — единственный случай, когда диалог не закрывается: спрашиваем вариант вторым шагом.
+    if (placement.kind === 'ambiguous') { setAskVariantFor(entry); return; }
+    onSelect(refOf(entry), placement.kind === 'variant' ? placement.variantKey : undefined);
+    onOpenChange(false);
+  }
+
+  function selectVariant(entry: CommonDataEntry, variantKey: string) {
+    onSelect(refOf(entry), variantKey);
+    setAskVariantFor(null);
     onOpenChange(false);
   }
 
@@ -108,6 +197,27 @@ export function RefPickerModal({
       displayName: `${dt.name} → ${field.title}`,
     });
     onOpenChange(false);
+  }
+
+  // Второй шаг: тип не назвал единственного варианта — спрашиваем. Отдельным экраном той же
+  // модалки, а не отдельным диалогом: выбор ещё не сделан, и «назад» обязано возвращать к списку.
+  if (askVariantFor) {
+    const placement = placementOf(askVariantFor);
+    const keys = placement.kind === 'ambiguous' ? placement.variantKeys : [];
+    return (
+      <Modal open={open} onOpenChange={onOpenChange} title="В какой вариант поместить?">
+        <div className="space-y-4">
+          <p className="text-sm text-fg2">
+            <span className="font-medium">{askVariantFor.displayName}</span> подходит нескольким
+            вариантам одинаково: они объявлены на один и тот же тип, и по типу выбрать нельзя.
+          </p>
+          <VariantPicker layout="list" options={keys.map(k => ({ key: k, label: variantTitle(k), filled: false }))}
+            active="" onSelect={k => selectVariant(askVariantFor, k)} />
+          <button type="button" onClick={() => setAskVariantFor(null)}
+            className="text-xs text-fg3 hover:text-fg1 transition-colors">← Назад к списку</button>
+        </div>
+      </Modal>
+    );
   }
 
   return (
@@ -150,6 +260,11 @@ export function RefPickerModal({
                               className={`w-full flex items-center px-3 py-2 text-sm text-left rounded-md transition-colors ${
                                 on ? 'bg-tonal text-on-tonal' : 'hover:bg-brand-subtle'}`}>
                               <span className={`flex-1 font-medium truncate ${on ? 'text-on-tonal' : 'text-fg1'}`}>{entry.displayName}</span>
+                              {variantHint(entry) && (
+                                <span className={`text-[11px] shrink-0 ml-2 truncate max-w-[45%] ${on ? 'text-on-tonal' : 'text-fg4'}`}>
+                                  {variantHint(entry)}
+                                </span>
+                              )}
                             </button>
                           );
                         })}
@@ -189,9 +304,21 @@ export function RefPickerModal({
 
         {filtered.length === 0 && docSources.length === 0 && (
           <p className="text-sm text-fg4 text-center py-4">
-            Нет объектов доступных для ссылки.
+            {emptyState.title}
             <br />
-            <span className="text-xs">Добавьте записи в каталог общих данных.</span>
+            <span className="text-xs">{emptyState.hint}</span>
+            {/* Шов между двумя входами (issue #751): этот диалог отвечает на вопрос «дай строку
+                целиком из справочника», а документы комплекта выбирают внутри строки. Пока диалоги
+                не сведены, единственное место, где об этом можно сказать, — здесь. */}
+            {unionMode && (
+              <>
+                <br />
+                <span className="text-xs">
+                  Документы комплекта здесь не показываются — их выбирают внутри строки:
+                  «Добавить строку» → вариант → «Выбрать документ…».
+                </span>
+              </>
+            )}
           </p>
         )}
       </div>
