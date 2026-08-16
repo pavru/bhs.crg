@@ -191,16 +191,19 @@ export function chainFieldKeys(docType: DocumentType, allDocTypes: DocumentType[
 export function resolveEffectiveFields(
   docType: DocumentType,
   allDocTypes: DocumentType[],
+  /** Пройденные типы — защита от цикла в цепочке наследования (issue #747); внутренний параметр. */
+  visited: Set<string> = new Set(),
 ): SchemaField[] {
   const schema = docType.schema as unknown as SchemaDefinition;
   const ownFields = parseSchemaFields(docType.schema);
 
-  if (!docType.parentId) return ownFields;
+  if (!docType.parentId || visited.has(docType.id)) return ownFields;
+  visited.add(docType.id);
 
   const parent = allDocTypes.find(dt => dt.id === docType.parentId);
   if (!parent) return ownFields;
 
-  const parentFields = resolveEffectiveFields(parent, allDocTypes);
+  const parentFields = resolveEffectiveFields(parent, allDocTypes, visited);
   const excluded = new Set(schema.excludedFields ?? []);
   const overrides = schema.fieldOverrides ?? {};
 
@@ -235,7 +238,9 @@ export function resolveEffectiveFields(
  * <p>Обход итеративный и с visited-set. Прежняя <code>isSubtypeOf</code> была рекурсивна без предела
  * и без защиты от цикла: испорченный <code>parentId</code> (цепочку типов строит пользователь) вешал
  * вкладку переполнением стека. У серверного аналога предел 32 шага, у <code>typeHasTag</code> —
- * visited-set; здесь не было ничего.</p>
+ * visited-set; здесь не было ничего. По той же цепочке ходит <code>resolveEffectiveFields</code>, и
+ * её защитили заодно: закрывать один вход из двух бессмысленно — цикл валил бы вкладку следующей же
+ * строкой.</p>
  */
 export function inheritanceDistance(
   childId: string, parentId: string, allDocTypes: DocumentType[],

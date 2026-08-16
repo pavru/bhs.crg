@@ -55,8 +55,17 @@ export function RefPickerModal({
   // одиночному варианту. Куда ляжет запись, считаем здесь же и несём до onSelect — второй раз тот же
   // вопрос задавать негде: в обработчике выбора уже нет ни типов, ни цепочки наследования под рукой.
   const unionMode = unionAware && !!compositeType && isUnionType(compositeType, allDocTypes);
-  const placementOf = (e: CommonDataEntry): UnionPlacement =>
-    placeInUnion(e.compositeTypeId, compositeType!, allDocTypes);
+  // Мемо по типу записи, а не по записи: решение зависит ТОЛЬКО от типа, а типов на порядки меньше,
+  // чем записей. Без него placeInUnion звался бы трижды на каждого кандидата при каждом нажатии
+  // клавиши в поиске, и каждый вызов заново разрешает схему union'а и идёт вверх по цепочке.
+  const placements = new Map<string, UnionPlacement>();
+  const placementOf = (e: CommonDataEntry): UnionPlacement => {
+    const cached = placements.get(e.compositeTypeId);
+    if (cached) return cached;
+    const computed = placeInUnion(e.compositeTypeId, compositeType!, allDocTypes);
+    placements.set(e.compositeTypeId, computed);
+    return computed;
+  };
 
   const filtered = catalogEntries.filter(e => {
     if (compositeType) {
@@ -100,13 +109,19 @@ export function RefPickerModal({
 
   const searching = search.trim().length > 0;
 
+  const hints = new Map(filtered.map(e => [e.id, variantHint(e)] as const));
+
   /**
    * Пустое состояние объясняет ПРИЧИНУ. Раньше текст был один на три случая и в самом частом врал:
    * записи в каталоге есть, просто других типов, — а совет «Добавьте записи в каталог общих данных»
    * отправлял человека заводить дубль того, что уже заведено.
    */
+  // Тип самого union'а в список входит: запись такого типа заводит «Вынести в общие данные» (#663),
+  // и фильтр её пропускает. Не назови мы его — подсказка перечисляла бы всё, кроме единственного
+  // типа, который человек уже, возможно, и создал.
   const acceptedTitles = unionMode
-    ? variantFields.map(f => allDocTypes.find(t => t.id === f.typeId)?.name).filter(Boolean) as string[]
+    ? [compositeType!.name,
+       ...variantFields.map(f => allDocTypes.find(t => t.id === f.typeId)?.name).filter(Boolean) as string[]]
     : (compositeType ? [compositeType.name] : []);
   const emptyState = searching
     ? { title: `По запросу «${search.trim()}» ничего не найдено.`, hint: 'Измените запрос или очистите поиск.' }
@@ -260,9 +275,9 @@ export function RefPickerModal({
                               className={`w-full flex items-center px-3 py-2 text-sm text-left rounded-md transition-colors ${
                                 on ? 'bg-tonal text-on-tonal' : 'hover:bg-brand-subtle'}`}>
                               <span className={`flex-1 font-medium truncate ${on ? 'text-on-tonal' : 'text-fg1'}`}>{entry.displayName}</span>
-                              {variantHint(entry) && (
+                              {hints.get(entry.id) && (
                                 <span className={`text-[11px] shrink-0 ml-2 truncate max-w-[45%] ${on ? 'text-on-tonal' : 'text-fg4'}`}>
-                                  {variantHint(entry)}
+                                  {hints.get(entry.id)}
                                 </span>
                               )}
                             </button>

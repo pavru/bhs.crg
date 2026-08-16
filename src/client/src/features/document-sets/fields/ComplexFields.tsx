@@ -585,11 +585,17 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
             // самом деле нет. Рисуем тем же языком, что соседние ref-строки, плюс метка варианта.
             const wrapped = unionRef(row);
             if (wrapped) {
+              // Путь битой ссылки сервер строит ВНУТРЬ объекта («Поле[0].Вариант», ResolutionDiagnostics),
+              // а не по индексу строки: проверь мы только «Поле[0]», удалённая цель показалась бы
+              // здоровой ссылкой — ровно та потеря признака, ради которой заведена эта ветка.
+              const wrappedBroken = !!basePath
+                && !!brokenPaths?.has(`${basePath}[${i}].${wrapped.key}`);
               return (
-                <div key={i} className="flex items-center gap-2 px-3 py-2 hover:bg-base">
-                  <span className="text-xs text-fg4 font-mono w-5 text-right shrink-0">{i + 1}</span>
-                  <Link2 size={12} className="text-warning shrink-0" />
-                  <span className="flex-1 text-sm text-warning truncate">{wrapped.ref.displayName}</span>
+                <div key={i}>
+                <div className={`flex items-center gap-2 px-3 py-2 ${wrappedBroken ? BROKEN_PLATE : 'hover:bg-base'}`}>
+                  <span className={`text-xs font-mono w-5 text-right shrink-0 ${wrappedBroken ? 'text-danger' : 'text-fg4'}`}>{i + 1}</span>
+                  <Link2 size={12} className={`shrink-0 ${wrappedBroken ? 'text-danger' : 'text-warning'}`} />
+                  <span className={`flex-1 text-sm truncate ${wrappedBroken ? BROKEN_LABEL : 'text-warning'}`}>{wrapped.ref.displayName}</span>
                   <span className="text-[11px] text-fg4 shrink-0 truncate max-w-[40%]">{wrapped.label}</span>
                   {/* ✎ оставлен: это единственный вход сменить вариант и снять ссылку. */}
                   <button type="button" onClick={() => setRowModal(i)} title="Редактировать"
@@ -600,6 +606,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                     className="p-1 text-fg4 hover:text-danger shrink-0">
                     <Trash2 size={13} />
                   </button>
+                </div>
+                {wrappedBroken && <BrokenRefNote compact />}
                 </div>
               );
             }
@@ -634,7 +642,11 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   отдельной задачей, у него свой selection-state. */}
               {canExtract ? (
                 <Button variant="text" size="sm" icon={<Share2 size={13} />}
-                  disabled={isRowEmpty(allItems[rowModal] as Record<string, unknown>, subFields)}
+                  // Строка-ссылка выносу не подлежит: получилась бы запись, всё содержимое которой —
+                  // ссылка на другую запись, то есть лишнее звено в цепочке (у неё есть предел, #723).
+                  // ComplexFieldGroup такую ветку до выноса не доводит вовсе; у массива защиты не было.
+                  disabled={isRowEmpty(allItems[rowModal] as Record<string, unknown>, subFields)
+                    || !!unionRef(allItems[rowModal] as Record<string, unknown>)}
                   title="Создать запись общих данных из этой строки"
                   onClick={() => { const i = rowModal; setRowModal(null); setExtractRow(i); }}>
                   Вынести в общие данные…
