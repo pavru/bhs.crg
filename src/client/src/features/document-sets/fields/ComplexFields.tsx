@@ -17,6 +17,7 @@ import {
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { formatFieldValue, type FieldTypeDefs } from '@/shared/utils/fieldDisplay';
 import { objectSummary } from './objectSummary';
+import { mergeTableRows } from './arrayRows';
 import { VariantPicker } from './VariantPicker';
 import { ExtractToCommonDataModal } from './ExtractToCommonDataModal';
 import {
@@ -735,7 +736,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         open={tableOpen} onOpenChange={setTableOpen}
         field={field} compositeType={compositeType} allDocTypes={allDocTypes}
         items={inlineItems}
-        onSave={rows => onChange([...allItems.filter(isFieldRef), ...rows])}
+        onSave={rows => onChange(mergeTableRows(allItems, rows))}
         setId={setId} scope={scope} scopeId={scopeId}
       />
       {compositeType && (
