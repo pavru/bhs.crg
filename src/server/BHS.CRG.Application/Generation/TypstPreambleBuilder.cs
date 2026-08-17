@@ -1,6 +1,8 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using BHS.CRG.Application.Schema;
+using BHS.CRG.Domain.Schema;
 using BHS.CRG.Domain.Documents;
 
 namespace BHS.CRG.Application.Generation;
@@ -44,7 +46,34 @@ public static class TypstPreambleBuilder
 {
     /// <summary>Обратно совместимая точка: типы → готовый текст typeblocks.typ (генерация, debug-бандл).</summary>
     public static string Build(IEnumerable<DocumentType> compositeTypes)
-        => BuildDetailed(compositeTypes.SelectMany(ExtractRenders)).Content;
+    {
+        var types = compositeTypes as IReadOnlyList<DocumentType> ?? compositeTypes.ToList();
+        return BuildDetailed(types.SelectMany(ExtractRenders), UnionCodes(types)).Content;
+    }
+
+    /// <summary>
+    /// Коды типов, у которых заполняется ровно один вариант (тэг <c>type.union</c>, issue #320).
+    ///
+    /// <para>Нужны хелперу, чтобы отличить СТРОКУ union-массива от обычного объекта (issue #768).
+    /// По форме их не различить: у строки union тоже стоит <c>_type</c> (её штампует
+    /// <see cref="TypeStamper"/>), а «ровно одно заполненное составное поле» — обычное дело, ведь
+    /// незаполненные ключи в документ не пишутся. Развернув такой объект «на всякий случай», хелпер
+    /// показал бы вложенное значение вместо пометки «нет блока для типа» — то есть ровно то молчание,
+    /// от которого пометка и заводилась.</para>
+    ///
+    /// <para>Тэг наследуется, поэтому спрашиваем его у каждого типа с проходом вверх по цепочке, а не
+    /// ищем объявление: потомок union'а — тоже union.</para>
+    /// </summary>
+    private static IReadOnlyCollection<string> UnionCodes(IReadOnlyList<DocumentType> types)
+    {
+        var byId = types.GroupBy(t => t.Id).ToDictionary(g => g.Key, g => g.First());
+        return types
+            .Where(t => !string.IsNullOrWhiteSpace(t.Code)
+                        && SchemaTags.TypeHasTag(t, byId, FunctionalTag.TypeUnion))
+            .Select(t => t.Code)
+            .Distinct()
+            .ToList();
+    }
 
     /// <summary>Адаптер: схема типа → плоские записи блоков (с провенансом). Пустые/битые — пропускаются.</summary>
     public static IEnumerable<TypstBlockRecord> ExtractRenders(DocumentType type)
@@ -81,7 +110,8 @@ public static class TypstPreambleBuilder
     }
 
     /// <summary>Чистое ядро: граф зависимостей → топосорт → эмиссия с провенансом + line-map + диагностики.</summary>
-    public static TypstPreambleResult BuildDetailed(IEnumerable<TypstBlockRecord> records)
+    public static TypstPreambleResult BuildDetailed(
+        IEnumerable<TypstBlockRecord> records, IReadOnlyCollection<string>? unionCodes = null)
     {
         var list = records.ToList();
         var diagnostics = new List<TypstBlockDiagnostic>();
@@ -165,13 +195,14 @@ public static class TypstPreambleBuilder
         // отдавала ИНН/КПП там, где в схеме первым стоит «Наименование + коды»). А «первый вариант»
         // — то, что человек видит первым в редакторе схемы; связывать его с порядком компиляции
         // значило бы менять вывод шаблона от правки чужого блока.
-        AppendDispatch(sb, list, diagnostics);
+        AppendDispatch(sb, list, unionCodes ?? Array.Empty<string>(), diagnostics);
         return new(sb.ToString(), spans, diagnostics);
     }
 
     /// <summary>Имена, которые занимает диспетч-часть; столкновение с блоком пользователя диагностируем.</summary>
     public const string DispatchTableName = "type-renders";
     public const string DispatchFnName = "render-by-type";
+    public const string UnionSetName = "union-types";
 
     /// <summary>
     /// Диспетч-таблица «код типа → варианты» и хелпер <c>render-by-type</c> (issue #768).
@@ -188,21 +219,26 @@ public static class TypstPreambleBuilder
     /// опереться, не полагаясь на порядок ключей словаря.</para>
     /// </summary>
     private static void AppendDispatch(
-        StringBuilder sb, IReadOnlyList<TypstBlockRecord> ordered, List<TypstBlockDiagnostic> diagnostics)
+        StringBuilder sb, IReadOnlyList<TypstBlockRecord> declared, IReadOnlyCollection<string> unionCodes,
+        List<TypstBlockDiagnostic> diagnostics)
     {
+        // ВАЖНО: `declared` — записи в порядке ОБЪЯВЛЕНИЯ, а не эмиссии (см. вызов). От этого зависит,
+        // какой вариант достаётся `variant: auto`; передача сюда топологически отсортированного
+        // списка тихо сменила бы вывод шаблонов (тест VariantOrder_FollowsDeclaration_...).
+        //
         // Столкновение имён: пользовательский блок с таким именем перекрыл бы наш #let (в Typst
         // повторный #let не ошибка — молча побеждает последний), и шаблоны получили бы вместо
         // хелпера чужую функцию. Молчать нельзя, отменять эмиссию — тоже: сломается ровно то, что
         // человек написал сам.
-        foreach (var reserved in new[] { DispatchTableName, DispatchFnName })
-            if (ordered.Any(r => r.FnName == reserved))
+        foreach (var reserved in new[] { DispatchTableName, DispatchFnName, UnionSetName })
+            if (declared.Any(r => r.FnName == reserved))
                 diagnostics.Add(new(TypstBlockDiagnosticSeverity.Error, "reserved-fn",
                     $"Имя «{reserved}» занято диспетчеризацией по типу (issue #768) — переименуйте функцию блока: "
-                    + string.Join("; ", ordered.Where(r => r.FnName == reserved).Select(r => r.Provenance)),
+                    + string.Join("; ", declared.Where(r => r.FnName == reserved).Select(r => r.Provenance)),
                     new[] { reserved }));
 
         // В таблицу идут только блоки типов с кодом — код и есть адрес в `_type.chain`.
-        var byCode = ordered.Where(r => !string.IsNullOrWhiteSpace(r.TypeCode))
+        var byCode = declared.Where(r => !string.IsNullOrWhiteSpace(r.TypeCode))
             .GroupBy(r => r.TypeCode)
             .ToList();
 
@@ -227,6 +263,14 @@ public static class TypstPreambleBuilder
             }
             sb.Append(")\n");
         }
+
+        // Коды union-типов — по ним хелпер узнаёт СТРОКУ union-массива. Массив, а не словарь:
+        // нужна только принадлежность, `in` работает для обоих, а массив не требует значений.
+        sb.Append("// Коды типов «заполняется ровно один вариант» (#320) — их строки разворачиваются.\n");
+        sb.Append($"#let {UnionSetName} = (");
+        foreach (var code in unionCodes) sb.Append(Str(code)).Append(", ");
+        sb.Append(")\n");
+
         sb.Append(DispatchHelper);
     }
 
@@ -269,22 +313,30 @@ public static class TypstPreambleBuilder
         pick = if variant == auto { candidates.at(0) } else { candidates.find(v => v.name == variant) }
       }
     }
+    // Строка union-массива — это {Вариант: значение}: разворачиваем единственный содержательный
+    // ключ и диспетчим по значению, у которого свой _type (после резолва ссылки — фактический).
+    // Признак — КОД ТИПА в union-types, а не форма объекта: у строки union тоже стоит _type, а
+    // «ровно одно заполненное составное поле» бывает у чего угодно (незаполненные ключи в документ
+    // не пишутся), и разворот по форме подменял бы пометку «нет блока» чужим содержимым.
+    let unwrap = none
+    if meta != none and meta.at("code", default: "") in union-types {
+      let keys = obj.keys().filter(k => k != "_type")
+      if keys.len() == 1 and type(obj.at(keys.at(0))) == dictionary { unwrap = obj.at(keys.at(0)) }
+    }
     if pick != none {
       (pick.fn)(obj)
+    } else if unwrap != none {
+      // Разворот проверяется ПЕРЕД жалобой на вариант: у union-строки запрошенный вариант обычно
+      // объявлен у типа ЗНАЧЕНИЯ, а не у самого union'а, и ранняя жалоба отменяла бы разворот,
+      // обещанный в инструкции.
+      render-by-type(unwrap, variant: variant)
     } else if variant != auto and chain.any(c => c in type-renders) {
       // Блоки у типа есть, а варианта с таким именем нет ни у кого в цепочке — это опечатка в
       // шаблоне, а не отсутствие оформления. Разные случаи — разные сообщения.
       text(fill: red)[⚠ нет варианта «#variant» ни у одного типа в цепочке]
     } else {
-      // Строка union-массива — это {Вариант: значение}: разворачиваем единственный содержательный
-      // ключ и диспетчим по значению, у которого свой _type (после резолва ссылки — фактический).
-      let keys = obj.keys().filter(k => k != "_type")
-      if keys.len() == 1 and type(obj.at(keys.at(0))) == dictionary {
-        render-by-type(obj.at(keys.at(0)), variant: variant)
-      } else {
-        let name = if meta == none { "без _type" } else { meta.at("name", default: "?") }
-        text(fill: red)[⚠ нет Typst-блока для типа «#name»]
-      }
+      let name = if meta == none { "без _type" } else { meta.at("name", default: "?") }
+      text(fill: red)[⚠ нет Typst-блока для типа «#name»]
     }
   }
 }

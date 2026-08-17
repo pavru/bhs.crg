@@ -4,6 +4,7 @@ import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
 import Editor from '@/shared/ui/CodeEditor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
+import { markTemplateModel } from '@/shared/ui/typstDispatchCompletion';
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { TextField } from '@/shared/ui/TextField';
@@ -264,6 +265,10 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
 
   function handleEditorMount(editor: monacoEditor.editor.IStandaloneCodeEditor) {
     editorRef.current = editor;
+    // Имена из typeblocks.typ (render-by-type, type-renders) доступны ТОЛЬКО шаблону — редактор
+    // блоков и библиотека их не видят. Помечаем модель, чтобы автокомплит #768 не предлагал их там,
+    // где вызов упадёт на генерации (см. typstDispatchCompletion).
+    markTemplateModel(editor.getModel());
     // Ctrl+S is handled by the window-level capture listener above. We intentionally
     // do NOT register a Monaco command for it: that fired a second, concurrent save
     // (the window handler preventDefaults but doesn't stopPropagation), branching the

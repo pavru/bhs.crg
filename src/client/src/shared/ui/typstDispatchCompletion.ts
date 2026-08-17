@@ -12,7 +12,24 @@ import type * as Monaco from 'monaco-editor';
  * (<code>TypstPreambleBuilder.AppendDispatch</code>). Ровно поэтому имена продублированы там
  * константами <code>DispatchTableName</code>/<code>DispatchFnName</code> — расхождение видно по
  * упоминанию issue с обеих сторон.</p>
+ *
+ * <p><b>Только редактор шаблона.</b> Провайдер Monaco регистрируется на ЯЗЫК, а язык `typst` общий у
+ * четырёх редакторов — шаблон, Typst-блоки типа, библиотека, системная библиотека. Но хелпер эмитится
+ * ПОСЛЕ всех блоков, а замыкание Typst захватывает область на месте определения: блок, позвавший
+ * <code>render-by-type</code>, падает с <code>unknown variable</code> (проверено), и библиотека —
+ * отдельный модуль — не видит его тоже. Подсказка там завела бы прямиком в поломку, причём тихо:
+ * проверка блоков (#309, фаза 2) только ИМПОРТИРУЕТ typeblocks и тела не зовёт, то есть осталась бы
+ * зелёной, а сломалась бы генерация.</p>
+ *
+ * <p>Поэтому модели помечаются явно, а не различаются по URI: путь у моделей не задан, Monaco выдаёт
+ * им безымянные <code>inmemory://</code>, и опереться на них нельзя.</p>
  */
+const templateModels = new WeakSet<Monaco.editor.ITextModel>();
+
+/** Пометить модель как редактор ШАБЛОНА — только в нём доступны имена из typeblocks.typ. */
+export function markTemplateModel(model: Monaco.editor.ITextModel | null): void {
+  if (model) templateModels.add(model);
+}
 interface DispatchDef { insert: string; label: string; documentation: string; snippet: boolean; }
 
 const DEFS: DispatchDef[] = [
@@ -51,6 +68,7 @@ export function registerDispatchCompletion(monaco: typeof Monaco): void {
   monaco.languages.registerCompletionItemProvider('typst', {
     triggerCharacters: ['#'],
     provideCompletionItems(model, position) {
+      if (!templateModels.has(model)) return { suggestions: [] };
       const line = model.getValueInRange({
         startLineNumber: position.lineNumber, startColumn: 1,
         endLineNumber: position.lineNumber, endColumn: position.column,

@@ -6,7 +6,7 @@ import type { TypstRender } from './schema';
 /** Проблема сборки Typst-блоков (issue #309, фаза 2). Глобальна: `typeId` — где живёт блок. */
 export interface TypstBlockProblem {
   severity: 'error' | 'warning';
-  code: 'cycle' | 'duplicate-fn' | 'syntax' | 'checker-unavailable';
+  code: 'cycle' | 'duplicate-fn' | 'reserved-fn' | 'syntax' | 'checker-unavailable';
   message: string;
   typeId: string | null;
   typeName: string | null;

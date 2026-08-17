@@ -169,6 +169,7 @@ public class TypstPreambleBuilderTests
     [Theory]
     [InlineData("render-by-type")]
     [InlineData("type-renders")]
+    [InlineData("union-types")]
     public void ReservedName_IsDiagnosed(string reserved)
     {
         var res = TypstPreambleBuilder.BuildDetailed(new[] { C(reserved, "Код") });
@@ -203,6 +204,26 @@ public class TypstPreambleBuilderTests
         Assert.True(Idx(res.Content, "helper") < Idx(res.Content, "main"));   // порядок ОПРЕДЕЛЕНИЙ
         Assert.Contains("(name: \"Основной\", fn: main), (name: \"Вспомогательный\", fn: helper)",
             res.Content);                                                     // порядок ВАРИАНТОВ
+    }
+
+    /// <summary>
+    /// Коды union-типов эмитируются отдельным набором: по форме объекта union-строку от обычного
+    /// объекта не отличить (у обеих стоит `_type`, а «одно заполненное составное поле» бывает у
+    /// чего угодно — незаполненные ключи в документ не пишутся). Без набора хелпер разворачивал бы
+    /// любой такой объект и показывал вложенное значение вместо пометки «нет блока для типа».
+    /// </summary>
+    [Fact]
+    public void UnionCodes_AreEmittedAsSeparateSet()
+    {
+        var res = TypstPreambleBuilder.BuildDetailed(new[] { C("f", "Строка") }, new[] { "Строка", "Другой" });
+        Assert.Contains("#let union-types = (\"Строка\", \"Другой\", )", res.Content);
+    }
+
+    [Fact]
+    public void WithoutUnionCodes_SetIsEmpty_SoNothingUnwrapsByShape()
+    {
+        var res = TypstPreambleBuilder.BuildDetailed(new[] { C("f", "Код") });
+        Assert.Contains("#let union-types = ()", res.Content);
     }
 
     /// <summary>Line-map указывает на блоки, а не на диспетч-часть: она идёт после, номера строк
