@@ -6,7 +6,13 @@ using BHS.CRG.Domain.Documents;
 namespace BHS.CRG.Application.Generation;
 
 /// <summary>Плоская запись одного Typst-блока (вариант отображения типа) с провенансом.</summary>
-public sealed record TypstBlockRecord(string FnName, string Block, string Provenance, Guid TypeId, string TypeName, string VariantName);
+/// <param name="TypeCode">Код типа — ключ диспетч-таблицы (issue #768). Тем же кодом штампуется
+/// <c>_type.chain</c>, поэтому шаблон находит блок по метаполю объекта. Пустой код — не ошибка
+/// данных, а тип, до которого не добрались: такой блок в таблицу не попадает (адресовать нечем),
+/// но обычным вызовом по имени функции остаётся доступен.</param>
+public sealed record TypstBlockRecord(
+    string FnName, string Block, string Provenance, Guid TypeId, string TypeName, string VariantName,
+    string TypeCode = "");
 
 public enum TypstBlockDiagnosticSeverity { Warning, Error }
 
@@ -63,7 +69,7 @@ public static class TypstPreambleBuilder
             var variant = render.TryGetProperty("name", out var nm) ? nm.GetString() ?? "" : "";
             var fnTrim = fnName.Trim();
             yield return new TypstBlockRecord(fnTrim, block, Provenance(typeName, code, variant, fnTrim),
-                typeId, typeName, variant);
+                typeId, typeName, variant, code ?? "");
         }
     }
 
@@ -154,8 +160,135 @@ public static class TypstPreambleBuilder
             sb.Append(def).Append('\n');
             line += defLines;
         }
+        // Таблица — в ИСХОДНОМ порядке записей, а не в порядке эмиссии: топосорт переставляет блоки
+        // по зависимостям, и на живых типах это уже перемешало варианты внутри типа («Организация»
+        // отдавала ИНН/КПП там, где в схеме первым стоит «Наименование + коды»). А «первый вариант»
+        // — то, что человек видит первым в редакторе схемы; связывать его с порядком компиляции
+        // значило бы менять вывод шаблона от правки чужого блока.
+        AppendDispatch(sb, list, diagnostics);
         return new(sb.ToString(), spans, diagnostics);
     }
+
+    /// <summary>Имена, которые занимает диспетч-часть; столкновение с блоком пользователя диагностируем.</summary>
+    public const string DispatchTableName = "type-renders";
+    public const string DispatchFnName = "render-by-type";
+
+    /// <summary>
+    /// Диспетч-таблица «код типа → варианты» и хелпер <c>render-by-type</c> (issue #768).
+    ///
+    /// <para>Ставится ПОСЛЕ всех <c>#let</c>: таблица держит сами функции значениями, а замыкание в
+    /// Typst захватывает область на месте определения — до своего блока имя ещё не связано. Порядок
+    /// блоков между собой уже разрешён топосортом, поэтому «в конец» здесь достаточно.</para>
+    ///
+    /// <para>Варианты — МАССИВ пар, а не словарь «имя → функция», хотя словарь читался бы короче.
+    /// Имя варианта задаёт админ в UI и ничем не ограничено, а <b>повторяющийся ключ словаря Typst —
+    /// ошибка компиляции</b> (проверено: <c>error: duplicate key</c>), то есть два одинаково названных
+    /// варианта у одного типа уронили бы весь <c>typeblocks.typ</c>, а с ним генерацию ВСЕХ документов.
+    /// Массив такой возможности не даёт вовсе. Порядок в нём явный — на «первый по порядку» можно
+    /// опереться, не полагаясь на порядок ключей словаря.</para>
+    /// </summary>
+    private static void AppendDispatch(
+        StringBuilder sb, IReadOnlyList<TypstBlockRecord> ordered, List<TypstBlockDiagnostic> diagnostics)
+    {
+        // Столкновение имён: пользовательский блок с таким именем перекрыл бы наш #let (в Typst
+        // повторный #let не ошибка — молча побеждает последний), и шаблоны получили бы вместо
+        // хелпера чужую функцию. Молчать нельзя, отменять эмиссию — тоже: сломается ровно то, что
+        // человек написал сам.
+        foreach (var reserved in new[] { DispatchTableName, DispatchFnName })
+            if (ordered.Any(r => r.FnName == reserved))
+                diagnostics.Add(new(TypstBlockDiagnosticSeverity.Error, "reserved-fn",
+                    $"Имя «{reserved}» занято диспетчеризацией по типу (issue #768) — переименуйте функцию блока: "
+                    + string.Join("; ", ordered.Where(r => r.FnName == reserved).Select(r => r.Provenance)),
+                    new[] { reserved }));
+
+        // В таблицу идут только блоки типов с кодом — код и есть адрес в `_type.chain`.
+        var byCode = ordered.Where(r => !string.IsNullOrWhiteSpace(r.TypeCode))
+            .GroupBy(r => r.TypeCode)
+            .ToList();
+
+        sb.Append('\n').Append("// ── Диспетчеризация по типу (issue #768) ──\n");
+        sb.Append("// Таблица «код типа → варианты отображения». Ключ совпадает с кодом в data._type.chain.\n");
+        sb.Append($"#let {DispatchTableName} = (");
+        if (byCode.Count == 0)
+        {
+            // Пустой словарь в Typst — `(:)`; `()` был бы пустым МАССИВОМ, и `code in type-renders`
+            // на нём работает иначе (ищет элемент, а не ключ).
+            sb.Append(":)\n");
+        }
+        else
+        {
+            sb.Append('\n');
+            foreach (var g in byCode)
+            {
+                sb.Append("  ").Append(Str(g.Key)).Append(": (");
+                foreach (var r in g)
+                    sb.Append("(name: ").Append(Str(r.VariantName)).Append(", fn: ").Append(r.FnName).Append("), ");
+                sb.Append("),\n");
+            }
+            sb.Append(")\n");
+        }
+        sb.Append(DispatchHelper);
+    }
+
+    /// <summary>Строковый литерал Typst: экранируются кавычка и обратный слэш, переводы строк не
+    /// проходят в однострочный литерал.</summary>
+    private static string Str(string? s)
+    {
+        var v = (s ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"")
+            .Replace("\r", " ").Replace("\n", " ");
+        return $"\"{v}\"";
+    }
+
+    /// <summary>
+    /// Хелпер диспетчеризации. Поведение проверено на живом Typst до написания эмиссии:
+    /// подтип берёт блок предка; без <c>variant</c> — первый по порядку; именованный вариант
+    /// находится; union-строка разворачивается; всё непокрытое даёт ВИДИМУЮ заглушку, а не пустоту —
+    /// молчащий рендер невозможно отличить от «объекта не было».
+    /// </summary>
+    private const string DispatchHelper = """
+
+// Отобразить объект его собственным блоком: идём по data._type.chain от фактического типа вверх,
+// берём первый тип, у которого блок есть (наследование — как у матчеров вариантов на сервере).
+//   #render-by-type(строка)                     — первый вариант
+//   #render-by-type(строка, variant: "Краткое") — именованный
+#let render-by-type(obj, variant: auto) = {
+  if type(obj) != dictionary {
+    text(fill: red)[⚠ render-by-type: ожидался объект, получено #type(obj)]
+  } else {
+    let meta = obj.at("_type", default: none)
+    let chain = if meta == none { () } else { meta.at("chain", default: ()) }
+    // Ищем ПОДХОДЯЩИЙ вариант по всей цепочке, а не блок у первого попавшегося типа: имя варианта
+    // («Полное», «ИНН/КПП») описывает СПОСОБ показа и живёт на уровне семейства типов. Подтип,
+    // объявивший свой единственный вариант, не должен отнимать у шаблона право попросить вариант
+    // предка — на живых данных ровно так и вышло: «Подрядчик» имеет тип «Организация в СРО» с одним
+    // вариантом, а «ИНН/КПП» объявлен у «Организации» выше по цепочке.
+    let pick = none
+    for code in chain {
+      if pick == none and code in type-renders {
+        let candidates = type-renders.at(code)
+        pick = if variant == auto { candidates.at(0) } else { candidates.find(v => v.name == variant) }
+      }
+    }
+    if pick != none {
+      (pick.fn)(obj)
+    } else if variant != auto and chain.any(c => c in type-renders) {
+      // Блоки у типа есть, а варианта с таким именем нет ни у кого в цепочке — это опечатка в
+      // шаблоне, а не отсутствие оформления. Разные случаи — разные сообщения.
+      text(fill: red)[⚠ нет варианта «#variant» ни у одного типа в цепочке]
+    } else {
+      // Строка union-массива — это {Вариант: значение}: разворачиваем единственный содержательный
+      // ключ и диспетчим по значению, у которого свой _type (после резолва ссылки — фактический).
+      let keys = obj.keys().filter(k => k != "_type")
+      if keys.len() == 1 and type(obj.at(keys.at(0))) == dictionary {
+        render-by-type(obj.at(keys.at(0)), variant: variant)
+      } else {
+        let name = if meta == none { "без _type" } else { meta.at("name", default: "?") }
+        text(fill: red)[⚠ нет Typst-блока для типа «#name»]
+      }
+    }
+  }
+}
+""";
 
     /// <summary>Ссылки блока на ДРУГИЕ известные функции: скан вызова `name(` по границе идентификатора,
     /// с очисткой комментариев/строк (чтобы упоминание в комментарии не давало ложное ребро/цикл).</summary>

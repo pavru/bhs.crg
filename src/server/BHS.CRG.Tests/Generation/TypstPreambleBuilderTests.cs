@@ -92,4 +92,127 @@ public class TypstPreambleBuilderTests
         Assert.True(Idx(res.Content, "b") < Idx(res.Content, "c"));
         Assert.Empty(res.Diagnostics);
     }
+
+    // ── Диспетч-таблица и render-by-type (issue #768) ────────────────────────
+
+    private static TypstBlockRecord C(string fn, string code, string variant = "осн", string block = "{ it.x }") =>
+        new(fn, block, $"prov:{fn}", Guid.NewGuid(), "T", variant, code);
+
+    /// <summary>
+    /// Таблица держит сами функции значениями, а замыкание Typst захватывает область НА МЕСТЕ
+    /// определения: стой она выше своих блоков — `unknown variable` на каждом. Та же причина, по
+    /// которой блоки топологически сортируются (#309), поэтому проверяем не «таблица есть», а её
+    /// место относительно последнего определения.
+    /// </summary>
+    [Fact]
+    public void DispatchTable_ComesAfterAllBlockDefinitions()
+    {
+        var res = TypstPreambleBuilder.BuildDetailed(new[] { C("a", "КодA"), C("b", "КодB") });
+        var table = res.Content.IndexOf("#let type-renders", StringComparison.Ordinal);
+        Assert.True(table > Idx(res.Content, "a"));
+        Assert.True(table > Idx(res.Content, "b"));
+        Assert.True(res.Content.IndexOf("#let render-by-type", StringComparison.Ordinal) > table);
+    }
+
+    [Fact]
+    public void DispatchTable_KeyedByTypeCode_WithAllVariantsInOrder()
+    {
+        var res = TypstPreambleBuilder.BuildDetailed(new[]
+        {
+            C("full", "Организация", "Полная"),
+            C("short", "Организация", "Краткая"),
+        });
+        Assert.Contains("\"Организация\": ((name: \"Полная\", fn: full), (name: \"Краткая\", fn: short), ),",
+            res.Content);
+    }
+
+    /// <summary>
+    /// Варианты — массив пар, а не словарь: повторяющийся ключ словаря Typst это ОШИБКА КОМПИЛЯЦИИ
+    /// (`duplicate key`), то есть два одинаково названных варианта у одного типа уронили бы весь
+    /// typeblocks.typ, а с ним генерацию всех документов. Имя варианта пишет админ, ограничений на
+    /// него нет — значит форма таблицы обязана переживать совпадение.
+    /// </summary>
+    [Fact]
+    public void DuplicateVariantNames_DoNotCollapseAndDoNotBreakTheFile()
+    {
+        var res = TypstPreambleBuilder.BuildDetailed(new[]
+        {
+            C("first", "Тип", "одно"),
+            C("second", "Тип", "одно"),
+        });
+        Assert.Contains("(name: \"одно\", fn: first), (name: \"одно\", fn: second)", res.Content);
+    }
+
+    /// <summary>Пустой код адресовать нечем: в таблицу такой блок не попадает, но определение остаётся —
+    /// шаблон, зовущий функцию по имени, продолжает работать.</summary>
+    [Fact]
+    public void BlockOfTypeWithoutCode_IsSkippedInTable_ButStillDefined()
+    {
+        var res = TypstPreambleBuilder.BuildDetailed(new[] { C("named", ""), C("coded", "Код") });
+        Assert.Contains("#let named(it)", res.Content);
+        Assert.DoesNotContain("fn: named", res.Content);
+        Assert.Contains("fn: coded", res.Content);
+    }
+
+    /// <summary>Без единого кодированного блока таблица обязана быть пустым СЛОВАРЁМ `(:)`, а не `()`:
+    /// `()` — пустой массив, и `code in type-renders` на нём ищет элемент, а не ключ.</summary>
+    [Fact]
+    public void EmptyTable_IsEmptyDictionaryNotArray()
+    {
+        var res = TypstPreambleBuilder.BuildDetailed(new[] { R("a", "{ it.x }") });
+        Assert.Contains("#let type-renders = (:)", res.Content);
+    }
+
+    /// <summary>Пользовательский блок с зарезервированным именем молча перекрыл бы хелпер (повторный
+    /// `#let` в Typst не ошибка — побеждает последний), и шаблоны получили бы вместо диспетчера чужую
+    /// функцию.</summary>
+    [Theory]
+    [InlineData("render-by-type")]
+    [InlineData("type-renders")]
+    public void ReservedName_IsDiagnosed(string reserved)
+    {
+        var res = TypstPreambleBuilder.BuildDetailed(new[] { C(reserved, "Код") });
+        var d = Assert.Single(res.Diagnostics);
+        Assert.Equal("reserved-fn", d.Code);
+        Assert.Equal(TypstBlockDiagnosticSeverity.Error, d.Severity);
+    }
+
+    /// <summary>Кавычка в имени варианта не должна рвать строковый литерал таблицы.</summary>
+    [Fact]
+    public void VariantName_WithQuote_IsEscaped()
+    {
+        var res = TypstPreambleBuilder.BuildDetailed(new[] { C("f", "Код", """с "кавычкой" """) });
+        Assert.Contains("""(name: "с \"кавычкой\" ", fn: f)""", res.Content);
+    }
+
+    /// <summary>
+    /// Порядок вариантов в таблице — порядок ОБЪЯВЛЕНИЯ, а не эмиссии. Топосорт двигает блоки по
+    /// зависимостям, и на живых типах это уже перемешало варианты: «Организация» отдавала первым
+    /// «ИНН/КПП», хотя в схеме первым стоит «Наименование + коды». «Первый вариант» — тот, что
+    /// человек видит первым в редакторе; иначе вывод шаблона менялся бы от правки ЧУЖОГО блока.
+    /// </summary>
+    [Fact]
+    public void VariantOrder_FollowsDeclaration_NotTopologicalOrder()
+    {
+        // Первый по объявлению вариант зависит от второго → топосорт поставит его определение НИЖЕ.
+        var res = TypstPreambleBuilder.BuildDetailed(new[]
+        {
+            C("main", "Тип", "Основной", "{ helper(it) }"),
+            C("helper", "Тип", "Вспомогательный"),
+        });
+        Assert.True(Idx(res.Content, "helper") < Idx(res.Content, "main"));   // порядок ОПРЕДЕЛЕНИЙ
+        Assert.Contains("(name: \"Основной\", fn: main), (name: \"Вспомогательный\", fn: helper)",
+            res.Content);                                                     // порядок ВАРИАНТОВ
+    }
+
+    /// <summary>Line-map указывает на блоки, а не на диспетч-часть: она идёт после, номера строк
+    /// блоков не смещаются, и ошибка Typst по-прежнему маппится на свой тип.</summary>
+    [Fact]
+    public void DispatchSection_DoesNotShiftBlockLineMap()
+    {
+        var res = TypstPreambleBuilder.BuildDetailed(new[] { C("f", "Код") });
+        var span = Assert.Single(res.Spans);
+        var lines = res.Content.Split('\n');
+        Assert.StartsWith("#let f(", lines[span.StartLine - 1]);
+    }
 }
