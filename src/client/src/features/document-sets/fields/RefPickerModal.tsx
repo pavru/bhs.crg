@@ -13,6 +13,26 @@ import {
 import { SCOPE_COLORS } from './constants';
 import { VariantPicker } from './VariantPicker';
 
+/**
+ * Подпись источника: «имя документа → поле», с откатом на имя типа.
+ *
+ * <p>Раньше подпись строилась от типа — «АОСР → Представитель подрядчика». В комплекте АОСР бывает
+ * несколько (у живого их два), и такие строки становились неотличимы: какой именно документ
+ * протягивается, из списка не видно, а после выбора не видно и в самой ссылке — та же строка едет
+ * в её displayName. Имя экземпляра там, где оно есть, ровно как в InstancePickerModal.</p>
+ */
+function sourceLabel(inst: DocumentInstance, dt: DocumentType, f: SchemaField): string {
+  return `${inst.name || dt.name} → ${f.title}`;
+}
+
+/** Значение поля-источника отсутствует: null/undefined, пустая строка, пустой объект или массив. */
+function isBlank(v: unknown): boolean {
+  if (v == null || v === '') return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === 'object') return Object.keys(v as object).length === 0;
+  return false;
+}
+
 export function RefPickerModal({
   open, onOpenChange, compositeType,
   setId, scope, scopeId,
@@ -144,6 +164,18 @@ export function RefPickerModal({
   const toggleGroup = (scope: CatalogScope) =>
     setCollapseOverride(o => ({ ...o, [scope]: !isExpanded(scope) }));
 
+  /**
+   * Поля других документов комплекта того же типа — второй источник значения.
+   *
+   * <p>Поиск фильтрует и этот список тоже (issue #750). Пока раздел был мёртв, это было незаметно;
+   * с живым разделом набранный запрос сузил бы только каталог, а первым в клавиатурном порядке
+   * остался бы документ, запросу НЕ отвечающий, — и Enter выбрал бы не то, что человек искал.</p>
+   *
+   * <p><code>filled</code> — заполнено ли поле-источник. Пустое не прячем: связать сейчас, а
+   * заполнить потом — нормальный порядок работы. Но и молчать нельзя: неразвёрнутая ссылка доходит
+   * до проверки как ошибка «целевая запись не найдена или удалена», хотя документ на месте и не
+   * заполнено всего одно поле (см. issue про ветку <code>case "document"</code> резолвера).</p>
+   */
   const docSources = compositeType && setId
     ? otherInstances.flatMap(inst => {
         const dt = allDocTypes.find(t => t.id === inst.documentTypeId);
@@ -151,7 +183,10 @@ export function RefPickerModal({
         const fields = resolveEffectiveFields(dt, allDocTypes).filter(
           f => f.type === 'complex' && f.typeId === compositeType.id,
         );
-        return fields.map(f => ({ inst, dt, field: f }));
+        return fields
+          .map(f => ({ inst, dt, field: f, label: sourceLabel(inst, dt, f),
+                       filled: !isBlank(inst.requisites?.[f.key]) }))
+          .filter(o => o.label.toLowerCase().includes(search.trim().toLowerCase()));
       })
     : [];
 
@@ -159,7 +194,8 @@ export function RefPickerModal({
   // каталога + источники-документы — в порядке отображения. Стрелки/Enter ходят по ним.
   type RpOption =
     | { type: 'catalog'; entry: CommonDataEntry }
-    | { type: 'doc'; inst: DocumentInstance; dt: DocumentType; field: SchemaField };
+    | { type: 'doc'; inst: DocumentInstance; dt: DocumentType; field: SchemaField;
+        label: string; filled: boolean };
   const options: RpOption[] = [
     ...groups.flatMap(g => isExpanded(g.scope) ? g.entries.map(entry => ({ type: 'catalog' as const, entry })) : []),
     ...docSources.map(d => ({ type: 'doc' as const, ...d })),
@@ -209,7 +245,7 @@ export function RefPickerModal({
       $ref: 'document',
       instanceId: inst.id,
       fieldKey: field.key,
-      displayName: `${dt.name} → ${field.title}`,
+      displayName: sourceLabel(inst, dt, field),
     });
     onOpenChange(false);
   }
@@ -298,7 +334,7 @@ export function RefPickerModal({
               Из других документов комплекта
             </p>
             <div className="space-y-1">
-              {docSources.map(({ inst, dt, field }) => {
+              {docSources.map(({ inst, dt, field, label, filled }) => {
                 const gi = indexByKey.get(`d:${inst.id}-${field.key}`) ?? -1;
                 const on = gi === active;
                 return (
@@ -308,8 +344,14 @@ export function RefPickerModal({
                       on ? 'bg-tonal text-on-tonal' : 'hover:bg-brand-subtle'}`}>
                     <FileText size={14} className={`shrink-0 ${on ? 'text-on-tonal' : 'text-fg4'}`} />
                     <span className={`flex-1 font-medium truncate ${on ? 'text-on-tonal' : 'text-fg1'}`}>
-                      {dt.name} → {field.title}
+                      {label}
                     </span>
+                    {!filled && (
+                      <span className={`text-[11px] shrink-0 ${on ? 'text-on-tonal' : 'text-warning'}`}
+                        title="Поле-источник пока не заполнено — ссылка останется неразвёрнутой, пока его не заполнят">
+                        не заполнено
+                      </span>
+                    )}
                   </button>
                 );
               })}

@@ -114,7 +114,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
           <span className="block text-sm text-warning font-medium truncate">{cRef.displayName}</span>
           <span className="block text-xs text-warning truncate">Общие данные</span>
         </span>
-        {replaceButton('text-warning hover:text-warning')}
+        {replaceButton('text-warning hover:text-brand')}
         <button type="button" onClick={() => onChange(null)} title="Снять ссылку"
           className="p-1 text-warning hover:text-danger transition-colors">
           <Unlink size={13} />

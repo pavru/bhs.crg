@@ -22,7 +22,7 @@ export function DocRefCatalogPickerField({ field, allDocTypes, value, onChange, 
           {/* «Заменить» рядом со «Снять» (issue #749): без неё замена шла в два шага, причём первый
               стирал то, на что смотришь, выбирая второй. Пикер тот же, что и при первом выборе. */}
           <button type="button" onClick={() => setPickerOpen(true)} title="Заменить ссылку"
-            className="p-1 text-warning hover:text-warning transition-colors shrink-0">
+            className="p-1 text-warning hover:text-brand transition-colors shrink-0">
             <RefreshCw size={13} />
           </button>
           <button type="button" onClick={() => onChange(null)} title="Снять ссылку"
