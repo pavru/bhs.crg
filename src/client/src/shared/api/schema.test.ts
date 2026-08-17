@@ -520,6 +520,63 @@ describe('placeInUnion', () => {
     expect(placeInUnion('base', u, [...all, u])).toEqual({ kind: 'ambiguous', variantKeys: ['ЭО', 'ЭОН'] });
   });
 
+  /**
+   * Документ комплекта целиком — второй вид источника (issue #751).
+   *
+   * Проверяем именно РАЗЛИЧИЕ видов, а не «фильтр работает»: complex-вариант объявлен на составной
+   * тип и ждёт значение, doc-ref — документ. Сотри мы различие, документ уехал бы в complex-вариант
+   * всюду, где типы случайно совпали, и никто бы не заметил: строка осталась бы валидной по форме.
+   */
+  describe('источник — документ комплекта, а не значение', () => {
+    const mixed = dt({
+      tags: ['type.union'],
+      fields: [
+        { key: 'Док', title: 'Документ', type: 'doc-ref', typeId: 'base', required: false },
+        { key: 'Знач', title: 'Значение', type: 'complex', typeId: 'other', required: false },
+      ],
+    }, null, 'mixed');
+    const mixedAll = [...all, mixed];
+
+    it('документ ложится в doc-ref-вариант', () => {
+      expect(placeInUnion('base', mixed, mixedAll, 'document'))
+        .toEqual({ kind: 'variant', variantKey: 'Док' });
+    });
+
+    it('в complex-вариант документ не ложится, хотя значение того же типа — ложится', () => {
+      expect(placeInUnion('other', mixed, mixedAll, 'document')).toEqual({ kind: 'none' });
+      expect(placeInUnion('other', mixed, mixedAll, 'value'))
+        .toEqual({ kind: 'variant', variantKey: 'Знач' });
+    });
+
+    it('документ типа самого union-а не становится строкой целиком', () => {
+      // Для значения это «self» — запись каталога заводит «Вынести в общие данные». Для документа
+      // self означал бы «положить документ вместо всей строки», а строкой типизирован union.
+      expect(placeInUnion('union', union, all, 'value')).toEqual({ kind: 'self' });
+      expect(placeInUnion('union', union, all, 'document')).toEqual({ kind: 'none' });
+    });
+
+    it('ничья среди doc-ref-вариантов спрашивается так же, как у записи', () => {
+      const u = dt({
+        tags: ['type.union'],
+        fields: [
+          { key: 'А', title: 'А', type: 'doc-ref', typeId: 'base', required: false },
+          { key: 'Б', title: 'Б', type: 'doc-ref', typeId: 'base', required: false },
+        ],
+      }, null, 'u4');
+      expect(placeInUnion('base', u, [...all, u], 'document'))
+        .toEqual({ kind: 'ambiguous', variantKeys: ['А', 'Б'] });
+    });
+
+    it('подтип цели doc-ref-варианта подходит и документом', () => {
+      expect(placeInUnion('child', mixed, mixedAll, 'document'))
+        .toEqual({ kind: 'variant', variantKey: 'Док' });
+    });
+
+    it('вид источника по умолчанию — значение: прежние вызовы ведут себя как раньше', () => {
+      expect(placeInUnion('base', union, all)).toEqual(placeInUnion('base', union, all, 'value'));
+    });
+  });
+
   it('union опознаётся по УНАСЛЕДОВАННОМУ и по параметризованному тэгу', () => {
     const parametrized = dt({ tags: ['type.union:2'], fields: [] }, null, 'p');
     const heir = dt({ fields: [] }, 'p', 'heir');

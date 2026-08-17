@@ -373,13 +373,40 @@ export type UnionPlacement =
   | { kind: 'ambiguous'; variantKeys: string[] }
   | { kind: 'none' };
 
+/**
+ * Что именно кладут в union — от этого зависит, какие варианты его принимают (issue #751).
+ *
+ * <ul>
+ *   <li><b>value</b> — ЗНАЧЕНИЕ составного типа: запись каталога либо поле другого документа. Годится
+ *       и самому union'у, и варианту любого вида: <code>doc-ref</code>-вариант принимает запись
+ *       каталога наравне с документом — так же, как <code>InstancePickerModal</code> внутри
+ *       варианта;</li>
+ *   <li><b>document</b> — ДОКУМЕНТ комплекта целиком (<code>$ref:'instance'</code>). Его принимают
+ *       только <code>doc-ref</code>-варианты: <code>complex</code>-вариант объявлен на составной
+ *       тип и ждёт значение, а не документ. И <code>self</code> для него не бывает — union'ом
+ *       типизирована СТРОКА, а не документ, и совпадение по типу тут означало бы, что документ
+ *       кладут вместо всей строки.</li>
+ * </ul>
+ *
+ * <p>Различие видов, а не одна общая проверка по типу: на живых схемах четыре union-массива из пяти
+ * набраны исключительно <code>doc-ref</code>-вариантами (реестры документов, приложения АОСР), и без
+ * разделения документ комплекта попадал бы в <code>complex</code>-вариант всюду, где типы случайно
+ * совпали, — молча и мимо смысла поля.</p>
+ */
+export type UnionSource = 'value' | 'document';
+
 export function placeInUnion(
   entryTypeId: string, unionType: DocumentType, allDocTypes: DocumentType[],
+  source: UnionSource = 'value',
 ): UnionPlacement {
-  if (inheritanceDistance(entryTypeId, unionType.id, allDocTypes) !== null) return { kind: 'self' };
+  if (source === 'value' && inheritanceDistance(entryTypeId, unionType.id, allDocTypes) !== null) {
+    return { kind: 'self' };
+  }
 
+  const accepts = (f: SchemaField) =>
+    source === 'document' ? f.type === 'doc-ref' : (f.type === 'complex' || f.type === 'doc-ref');
   const matches = resolveEffectiveFields(unionType, allDocTypes)
-    .filter(f => (f.type === 'complex' || f.type === 'doc-ref') && !!f.typeId)
+    .filter(f => accepts(f) && !!f.typeId)
     .map(f => ({ key: f.key, distance: inheritanceDistance(entryTypeId, f.typeId!, allDocTypes) }))
     .filter((m): m is { key: string; distance: number } => m.distance !== null);
 

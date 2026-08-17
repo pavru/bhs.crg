@@ -3,9 +3,10 @@ import { FileText } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { useCommonDataForSet } from '@/shared/api/commonData';
 import type { CommonDataEntry, DocumentInstance, DocumentType, FieldRef } from '@/shared/api/types';
-import { SCOPE_LABELS } from '@/shared/api/types';
 import { isSubtypeOf, type SchemaField } from '@/shared/api/schema';
 import { STATUS_COLORS, STATUS_LABELS } from './constants';
+import { useScopeGroups } from './catalogGroups';
+import { ScopeGroupList } from './ScopeGroupList';
 
 export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, otherInstances, setId, onSelect }: {
   open: boolean;
@@ -50,6 +51,12 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
 
   const hasAny = filteredInstances.length > 0 || filteredCatalog.length > 0;
 
+  // Каталог показываем так же, как «Из каталога» в шапке массива, — группами по уровню с бейджами
+  // (issue #751). Множество записей у обоих входов одно и то же: и for-set, и for-scope идут вверх
+  // по цепочке Комплект→Раздел→Стройка→Система. Разной была только подача, и человек не мог
+  // сопоставить список, открытый одной кнопкой, со списком, открытым другой.
+  const { groups, isExpanded, toggle } = useScopeGroups(filteredCatalog, search.trim().length > 0);
+
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Выбрать документ">
       <div className="space-y-4">
@@ -61,26 +68,17 @@ export function InstancePickerModal({ open, onOpenChange, field, allDocTypes, ot
         />
         {filteredCatalog.length > 0 && (
           <div>
-            <p className="text-xs font-medium text-fg3 uppercase tracking-wide mb-2">Из общих данных</p>
-            <div className="space-y-1 max-h-48 overflow-y-auto">
-              {filteredCatalog.map(entry => (
-                <button key={entry.id} onClick={() => selectCatalog(entry)}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md hover:bg-warning-subtle transition-colors">
-                  <FileText size={14} className="text-warning shrink-0" />
-                  <span className="flex-1 min-w-0">
-                    <span className="block font-medium text-fg1 truncate">{entry.displayName}</span>
-                    <span className="block text-xs text-fg4 truncate">{SCOPE_LABELS[entry.scope]}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
+            <p className="text-xs font-medium text-fg3 uppercase tracking-wide mb-2">Каталог общих данных</p>
+            <ScopeGroupList groups={groups} isExpanded={isExpanded} toggle={toggle}
+              onSelect={selectCatalog} maxHeight="max-h-48" />
           </div>
         )}
         {filteredInstances.length > 0 && (
           <div>
-            {filteredCatalog.length > 0 && (
-              <p className="text-xs font-medium text-fg3 uppercase tracking-wide mb-2">Из комплектов стройки</p>
-            )}
+            {/* Заголовок стоит всегда, а не только рядом с каталогом: тот же раздел в «Из каталога»
+                подписан постоянно, и пропадающая подпись делала два списка неодинаковыми там, где
+                они как раз про одно и то же (issue #751). */}
+            <p className="text-xs font-medium text-fg3 uppercase tracking-wide mb-2">Документы комплекта</p>
             <div className="space-y-1 max-h-48 overflow-y-auto">
               {filteredInstances.map(inst => {
                 const dt = allDocTypes.find(t => t.id === inst.documentTypeId);
