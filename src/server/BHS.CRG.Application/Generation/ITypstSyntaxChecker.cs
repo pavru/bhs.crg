@@ -1,7 +1,7 @@
 namespace BHS.CRG.Application.Generation;
 
 /// <summary>Одна синтаксическая ошибка Typst. <paramref name="File"/> — путь внутри сборки блоков
-/// (<c>typeblocks.typ</c> или <c>typeblocks-&lt;слаг&gt;.typ</c>): с расколом по файлам (issue #772)
+/// (<c>typeblocks.typ</c> или <c>typeblocks/&lt;слаг&gt;.typ</c>): с расколом по файлам (issue #772)
 /// строки в разных модулях нумеруются заново, и без файла координата неоднозначна.</summary>
 public record TypstSyntaxError(string File, int Line, int Column, string Message);
 

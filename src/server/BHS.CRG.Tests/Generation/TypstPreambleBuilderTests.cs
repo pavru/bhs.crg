@@ -38,7 +38,7 @@ public class TypstPreambleBuilderTests
     private static string Entry(TypstPreambleResult res) => res.Entrypoint;
 
     private static string Module(TypstPreambleResult res, string slug) =>
-        res.Files.Single(f => f.Path == $"typeblocks-{slug}.typ").Content;
+        res.Files.Single(f => f.Path == $"typeblocks/{slug}.typ").Content;
 
     /// <summary>Модуль единственного типа — когда слаг для теста не важен.</summary>
     private static string OnlyModule(TypstPreambleResult res) =>
@@ -54,8 +54,8 @@ public class TypstPreambleBuilderTests
         var res = TypstPreambleBuilder.BuildDetailed(new[] { C("a", "КодA"), C("b", "КодB") });
 
         Assert.Equal("typeblocks.typ", res.Files[0].Path);
-        Assert.Contains("#import \"typeblocks-КодA.typ\": *", Entry(res));
-        Assert.Contains("#import \"typeblocks-КодB.typ\": *", Entry(res));
+        Assert.Contains("#import \"typeblocks/КодA.typ\": *", Entry(res));
+        Assert.Contains("#import \"typeblocks/КодB.typ\": *", Entry(res));
         Assert.Equal(3, res.Files.Count);
     }
 
@@ -89,7 +89,7 @@ public class TypstPreambleBuilderTests
         var res = TypstPreambleBuilder.BuildDetailed(new[] { C("a", "КодA"), C("b", "КодB") });
         foreach (var slug in new[] { "КодA", "КодB" })
             Assert.Contains(
-                "#let render-by-type(..args) = { import \"typeblocks.typ\": render-by-type as _fn; _fn(..args) }",
+                "#let render-by-type(..args) = { import \"../typeblocks.typ\": render-by-type as _fn; _fn(..args) }",
                 Module(res, slug));
     }
 
@@ -101,8 +101,8 @@ public class TypstPreambleBuilderTests
             C("caller", "Вызывающий", "осн", "{ callee(it) }"),
             C("callee", "Вызываемый"),
         });
-        Assert.Contains("#import \"typeblocks-Вызываемый.typ\": *", Module(res, "Вызывающий"));
-        Assert.DoesNotContain("#import", Module(res, "Вызываемый").Replace("import \"typeblocks.typ\"", ""));
+        Assert.Contains("#import \"Вызываемый.typ\": *", Module(res, "Вызывающий"));
+        Assert.DoesNotContain("#import", Module(res, "Вызываемый").Replace("import \"../typeblocks.typ\"", ""));
         Assert.Empty(res.Diagnostics);
     }
 
@@ -121,14 +121,52 @@ public class TypstPreambleBuilderTests
             C("b", "ТипB", "осн", "{ a(it) }"),
         });
 
-        Assert.Contains("#let b(..args) = { import \"typeblocks-ТипB.typ\": b as _fn; _fn(..args) }", Module(res, "ТипA"));
-        Assert.Contains("#let a(..args) = { import \"typeblocks-ТипA.typ\": a as _fn; _fn(..args) }", Module(res, "ТипB"));
-        Assert.DoesNotContain("#import \"typeblocks-ТипB.typ\"", Module(res, "ТипA"));
+        Assert.Contains("#let b(..args) = { import \"ТипB.typ\": b as _fn; _fn(..args) }", Module(res, "ТипA"));
+        Assert.Contains("#let a(..args) = { import \"ТипA.typ\": a as _fn; _fn(..args) }", Module(res, "ТипB"));
+        Assert.DoesNotContain("#import \"ТипB.typ\"", Module(res, "ТипA"));
 
         var d = Assert.Single(res.Diagnostics);
         Assert.Equal("cycle-cross-type", d.Code);
         Assert.Equal(TypstBlockDiagnosticSeverity.Warning, d.Severity);
     }
+
+    // ── Пути внутри блока после переезда в подпапку (issue #772) ─────────────
+
+    /// <summary>
+    /// Блоки лежат в подпапке, и точка отсчёта относительных путей внутри блока сместилась:
+    /// `import "userlib.typ"` ищется как `typeblocks/userlib.typ`. Сказать об этом обязана сборка —
+    /// импорт в теле функции ленив, проверка блоков только парсит и до него не доходит, так что
+    /// иначе поломка была бы тихой и вылезла бы на генерации каждого документа.
+    /// </summary>
+    [Fact]
+    public void RelativePathInsideBlock_IsWarned_WithRootedSuggestion()
+    {
+        var res = TypstPreambleBuilder.BuildDetailed(new[]
+        {
+            R("f", "{ import \"userlib.typ\": dig\n dig(it, \"x\") }"),
+        });
+        var d = Assert.Single(res.Diagnostics, x => x.Code == "relative-path");
+        Assert.Equal(TypstBlockDiagnosticSeverity.Warning, d.Severity);
+        Assert.Contains("«/userlib.typ»", d.Message);
+    }
+
+    [Theory]
+    [InlineData("{ image(\"assets/logo.png\") }")]        // картинка ассета
+    [InlineData("{ let d = json(\"data.json\") }")]       // данные
+    public void OtherRelativeFileReferences_AreWarnedToo(string block)
+        => Assert.Contains(TypstPreambleBuilder.BuildDetailed(new[] { R("f", block) }).Diagnostics,
+            d => d.Code == "relative-path");
+
+    /// <summary>Уже правильные записи предупреждения не получают — иначе оно превратилось бы в шум,
+    /// который перестают читать.</summary>
+    [Theory]
+    [InlineData("{ import \"/userlib.typ\": dig }")]      // от корня проекта Typst — так и надо
+    [InlineData("{ import \"../userlib.typ\": dig }")]    // тоже находится
+    [InlineData("{ [https://example.com/a.pdf] }")]       // не путь к файлу
+    [InlineData("{ // import \"userlib.typ\"\n it.x }")]  // упоминание в комментарии
+    public void CorrectOrIrrelevantPaths_AreNotWarned(string block)
+        => Assert.DoesNotContain(TypstPreambleBuilder.BuildDetailed(new[] { R("f", block) }).Diagnostics,
+            d => d.Code == "relative-path");
 
     // ── Порядок определений внутри модуля (issue #309) ───────────────────────
 
@@ -194,7 +232,7 @@ public class TypstPreambleBuilderTests
         Assert.Contains("// prov:f", m);
         var span = Assert.Single(res.Spans);
         Assert.Equal("f", span.FnName);
-        Assert.Equal("typeblocks-T.typ", span.File);
+        Assert.Equal("typeblocks/T.typ", span.File);
         Assert.StartsWith("#let f(", m.Split('\n')[span.StartLine - 1]);
     }
 
@@ -239,7 +277,7 @@ public class TypstPreambleBuilderTests
     {
         var res = TypstPreambleBuilder.BuildDetailed(new[] { C("f", "А/Б:В") });
         var path = res.Files.Single(f => f.Path != "typeblocks.typ").Path;
-        Assert.Equal("typeblocks-А_Б_В.typ", path);
+        Assert.Equal("typeblocks/А_Б_В.typ", path);
         Assert.Contains($"#import \"{path}\": *", Entry(res));
     }
 
@@ -249,7 +287,7 @@ public class TypstPreambleBuilderTests
     public void TypeWithoutCode_StillGetsModule_NamedAfterType()
     {
         var res = TypstPreambleBuilder.BuildDetailed(new[] { R("named", "{ it.x }") });
-        Assert.Contains(res.Files, f => f.Path == "typeblocks-T.typ");
+        Assert.Contains(res.Files, f => f.Path == "typeblocks/T.typ");
     }
 
     // ── Диспетч-таблица и render-by-type (issue #768) ────────────────────────
@@ -264,8 +302,8 @@ public class TypstPreambleBuilderTests
         var res = TypstPreambleBuilder.BuildDetailed(new[] { C("a", "КодA"), C("b", "КодB") });
         var e = Entry(res);
         var table = e.IndexOf("#let type-renders", StringComparison.Ordinal);
-        Assert.True(table > e.IndexOf("#import \"typeblocks-КодA.typ\"", StringComparison.Ordinal));
-        Assert.True(table > e.IndexOf("#import \"typeblocks-КодB.typ\"", StringComparison.Ordinal));
+        Assert.True(table > e.IndexOf("#import \"typeblocks/КодA.typ\"", StringComparison.Ordinal));
+        Assert.True(table > e.IndexOf("#import \"typeblocks/КодB.typ\"", StringComparison.Ordinal));
         Assert.True(e.IndexOf("#let render-by-type", StringComparison.Ordinal) > table);
     }
 

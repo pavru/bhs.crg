@@ -10,7 +10,7 @@ namespace BHS.CRG.Infrastructure.Generation;
 ///
 /// <code>
 /// &lt;dir&gt;/typeblocks.typ        — агрегатор; его импортирует шаблон (#353, дословно)
-/// &lt;dir&gt;/typeblocks-&lt;слаг&gt;.typ — модуль на тип (рядом, не в подпапке — см. TypeBlockSlug.FilePrefix)
+/// &lt;dir&gt;/typeblocks/&lt;слаг&gt;.typ — модуль на тип
 /// </code>
 /// </summary>
 public static class TypeBlocksMaterializer

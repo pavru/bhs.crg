@@ -46,7 +46,7 @@ public sealed record TypstPreambleResult(
 
 /// <summary>
 /// Собирает блоки отображения составных типов (схема, свойство "typstRenders") — агрегатор
-/// <c>typeblocks.typ</c> и по файлу-модулю на тип рядом с ним (issue #772).
+/// <c>typeblocks.typ</c> и по файлу-модулю на тип в подпапке <c>typeblocks/</c> (issue #772).
 ///
 /// <para><b>Порядок внутри модуля КРИТИЧЕН</b> (issue #309): в Typst замыкание захватывает лексическую
 /// область НА МЕСТЕ определения, поэтому если блок A вызывает блок B ТОГО ЖЕ типа, <c>#let B</c> обязан
@@ -156,6 +156,14 @@ public static class TypstPreambleBuilder
                 $"Имя функции «{g.Key}» задано более чем в одном варианте: {string.Join("; ", g.Select(r => r.Provenance))}",
                 new[] { g.Key }));
 
+        foreach (var r in list)
+            foreach (var path in RelativePathsIn(r.Block))
+                diagnostics.Add(new(TypstBlockDiagnosticSeverity.Warning, "relative-path",
+                    $"Путь «{path}» отсчитывается от файла блока, а блоки лежат в подпапке "
+                    + $"{TypeBlockSlug.FolderName}/ — из неё он не найдётся. Укажите его от корня "
+                    + $"проекта Typst: «/{path}». Блок: {r.Provenance}",
+                    new[] { r.FnName }));
+
         var known = new HashSet<string>(list.Select(r => r.FnName));
         var nameToIndices = new Dictionary<string, List<int>>();
         for (int i = 0; i < n; i++)
@@ -232,7 +240,7 @@ public static class TypstPreambleBuilder
         var spans = new List<TypstBlockSpan>(n);
         foreach (var (m, mi) in modules.Select((m, i) => (m, i)))
         {
-            var path = TypeBlockSlug.FileNameFor(m.Slug);
+            var path = TypeBlockSlug.PathFor(m.Slug);
             var sb = new StringBuilder();
             int line = 1;
             void Emit(string text) { sb.Append(text).Append('\n'); line++; }
@@ -247,7 +255,8 @@ public static class TypstPreambleBuilder
             if (statics.Count > 0)
             {
                 Emit("// Блоки других типов, вызываемые отсюда:");
-                foreach (var d in statics) Emit($"#import \"{TypeBlockSlug.FileNameFor(modules[d].Slug)}\": *");
+                // Соседний модуль — по имени без пути: оба лежат в одной папке.
+                foreach (var d in statics) Emit($"#import \"{modules[d].Slug}.typ\": *");
             }
 
             foreach (var d in modDeps[mi].Where(d => lazyEdges.Contains((mi, d)))
@@ -255,7 +264,7 @@ public static class TypstPreambleBuilder
             {
                 Emit($"// Взаимная ссылка с типом «{San(modules[d].TypeName)}» — импорт отложен (иначе cyclic import):");
                 foreach (var fn in CalledFrom(m.Indices, modules[d].Indices, deps, list))
-                    Emit(LazyImport(fn, TypeBlockSlug.FileNameFor(modules[d].Slug)));
+                    Emit(LazyImport(fn, $"{modules[d].Slug}.typ"));
             }
 
             // Доступ блока к диспетчу (#768). Статический импорт агрегатора здесь дал бы
@@ -263,7 +272,7 @@ public static class TypstPreambleBuilder
             // создаёт: он исполняется при первом вызове, когда агрегатор уже вычислен и закеширован.
             // Во flat-файле такой возможности не было вовсе — хелпер эмитился ниже блоков.
             Emit("// Диспетчеризация по типу (#768) — импорт отложенный, статический дал бы cyclic import:");
-            Emit(LazyImport(DispatchFnName, TypeBlockSlug.EntrypointName));
+            Emit(LazyImport(DispatchFnName, $"../{TypeBlockSlug.EntrypointName}"));
 
             foreach (var idx in TopoSortWithin(m.Indices, deps, list, diagnostics))
             {
@@ -284,11 +293,11 @@ public static class TypstPreambleBuilder
 
         // ── Агрегатор ─────────────────────────────────────────────────────────────────────────
         var agg = new StringBuilder();
-        agg.Append("// Блоки отображения типов: по файлу на тип, рядом с этим файлом (issue #772).\n");
+        agg.Append($"// Блоки отображения типов: по файлу на тип в {TypeBlockSlug.FolderName}/ (issue #772).\n");
         agg.Append("// Точка входа: шаблон импортирует ЭТОТ файл, а он реэкспортирует модули —\n");
         agg.Append("// имена блоков остаются глобальными, как и были.\n");
         foreach (var m in modules)
-            agg.Append($"#import \"{TypeBlockSlug.FileNameFor(m.Slug)}\": *\n");
+            agg.Append($"#import \"{TypeBlockSlug.PathFor(m.Slug)}\": *\n");
         // Таблица — в ИСХОДНОМ порядке записей, а не в порядке эмиссии: топосорт переставляет блоки
         // по зависимостям, и на живых типах это уже перемешало варианты внутри типа («Организация»
         // отдавала ИНН/КПП там, где в схеме первым стоит «Наименование + коды»). А «первый вариант»
@@ -522,6 +531,64 @@ public static class TypstPreambleBuilder
   }
 }
 """;
+
+    /// <summary>
+    /// Пути к файлам в тексте блока, записанные ОТНОСИТЕЛЬНО (issue #772). Блоки переехали в
+    /// подпапку, и точка отсчёта у таких путей сместилась на уровень вниз: <c>import "userlib.typ"</c>
+    /// ищется как <c>typeblocks/userlib.typ</c> и не находится.
+    ///
+    /// <para>Сказать об этом обязана сборка, потому что больше некому: импорт внутри тела функции
+    /// ленив, проверка блоков (#309, фаза 2) только парсит файлы и до него не доходит — она осталась
+    /// бы зелёной, а падала бы генерация каждого документа с таким блоком.</para>
+    ///
+    /// <para>Ищем строковые литералы, похожие на путь к файлу (по расширению), кроме уже правильных:
+    /// начинающихся с «/» (от корня проекта Typst), с «../» и сетевых. Правильный ответ —
+    /// <c>"/userlib.typ"</c>: корень задаёт сама компиляция, и такой путь не зависит от того, где
+    /// лежит файл блока.</para>
+    ///
+    /// <para>Severity — предупреждение, хотя генерация с таким путём падает. Признак эвристический
+    /// (строка «похожа на путь»), а Error в этой сборке означает «файл не соберётся» и обязан быть
+    /// точным: «data.json» в тексте документа — законный текст, и краснеть на него нельзя.</para>
+    /// </summary>
+    private static IEnumerable<string> RelativePathsIn(string block)
+    {
+        var cleaned = StripComments(block);
+        foreach (Match m in FilePathLiteral.Matches(cleaned))
+        {
+            var path = m.Groups[1].Value;
+            if (path.StartsWith('/') || path.StartsWith("../", StringComparison.Ordinal)
+                || path.Contains("://", StringComparison.Ordinal)) continue;
+            yield return path;
+        }
+    }
+
+    private static readonly Regex FilePathLiteral = new(
+        @"""([^""\n]+\.(?:typ|json|csv|toml|yaml|yml|xml|png|jpg|jpeg|gif|svg|pdf|bib))""",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>Только комментарии — строки оставляем: именно в них живут пути, которые мы ищем.</summary>
+    private static string StripComments(string s)
+    {
+        var sb = new StringBuilder(s.Length);
+        for (int i = 0; i < s.Length; i++)
+        {
+            if (s[i] == '/' && i + 1 < s.Length && s[i + 1] == '/')
+            {
+                while (i < s.Length && s[i] != '\n') i++;
+                if (i < s.Length) sb.Append('\n');
+                continue;
+            }
+            if (s[i] == '/' && i + 1 < s.Length && s[i + 1] == '*')
+            {
+                i += 2;
+                while (i + 1 < s.Length && !(s[i] == '*' && s[i + 1] == '/')) { if (s[i] == '\n') sb.Append('\n'); i++; }
+                i++;
+                continue;
+            }
+            sb.Append(s[i]);
+        }
+        return sb.ToString();
+    }
 
     /// <summary>Ссылки блока на ДРУГИЕ известные функции: скан вызова `name(` по границе идентификатора,
     /// с очисткой комментариев/строк (чтобы упоминание в комментарии не давало ложное ребро/цикл).</summary>

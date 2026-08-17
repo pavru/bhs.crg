@@ -61,7 +61,7 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
             // чтобы `#import "systemlib.typ"` в шаблоне резолвился.
             await File.WriteAllTextAsync(Path.Combine(tmpDir, SystemTypstLib.FileName), SystemTypstLib.Content, Encoding.UTF8, ct);
 
-            // Блоки типов: агрегатор typeblocks.typ + модули typeblocks-<слаг>.typ (issue #772).
+            // Блоки типов: агрегатор typeblocks.typ + модули typeblocks/<слаг>.typ (issue #772).
             // Шаблон импортирует напрямую только агрегатор (#import "typeblocks.typ": *), поэтому он
             // пишется ВСЕГДА, хотя бы заглушкой: без файла упал бы каждый документ.
             var typeBlocksPath = Path.Combine(tmpDir, TypeBlocksFileName);

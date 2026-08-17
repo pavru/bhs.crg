@@ -6,7 +6,7 @@ import { useTypeBlocks, type TypeBlockFile } from '@/shared/api/typstUserLib';
 import { NavSection } from '@/shared/ui/ListDetailShell';
 import { FileCode, LogIn, Lock } from 'lucide-react';
 
-/** Точка входа — её импортирует шаблон; модули лежат рядом, с префиксом `typeblocks-`. */
+/** Точка входа — её импортирует шаблон; модули лежат в подпапке `typeblocks/`. */
 const ENTRYPOINT = 'typeblocks.typ';
 
 /** Модульная константа, а не `?? []` в теле: новый массив на каждый рендер запускает цикл memo→effect. */
@@ -23,7 +23,7 @@ const EMPTY: TypeBlockFile[] = [];
  *
  * <p>Список файлов, а не одна простыня: с #772 блоки разложены по файлу на тип, и склеивать их назад
  * значило бы отменять адресность ошибок ровно там, где по ней ищут — Typst сообщает
- * «typeblocks-Организация.typ:12», и найти эту строку человек должен в том же файле.</p>
+ * «typeblocks/Организация.typ:12», и найти эту строку человек должен в том же файле.</p>
  *
  * <p>Правка отсюда не предусмотрена намеренно: файлы производные, единственное место блоков —
  * схема типа. Панель отвечает на вопрос «что реально уходит в Typst», а не заменяет редактор.</p>
@@ -85,7 +85,7 @@ export function TypeBlocksPanel() {
             <NavSection label={`Модули типов (${modules.length})`} />
             {modules.map(f => (
               <FileRow
-                key={f.path} label={f.path.replace(/^typeblocks-/, '')} icon={<FileCode size={13} />}
+                key={f.path} label={f.path.replace(/^typeblocks\//, '')} icon={<FileCode size={13} />}
                 title={f.path} active={current?.path === f.path} onClick={() => setSelected(f.path)}
               />
             ))}

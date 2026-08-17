@@ -12,7 +12,7 @@ public record GenerationRequest(
     string TemplateContent,
     OutputFormat Format,
     GenerationContext Context,
-    // Блоки типов (issue #772) — агрегатор typeblocks.typ + модули typeblocks-<слаг>.typ.
+    // Блоки типов (issue #772) — агрегатор typeblocks.typ + модули typeblocks/<слаг>.typ.
     // Раскладываются в tmpDir по своим относительным путям; агрегатор обязан быть даже пустым.
     IReadOnlyList<TypstBlockFile>? TypeBlocksFiles = null,
     string? UserLibContent = null,

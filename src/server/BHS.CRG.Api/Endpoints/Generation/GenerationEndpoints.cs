@@ -187,7 +187,7 @@ public static class GenerationEndpoints
                     await WriteEntry(zip, "template.typ", bundle.TemplateContent);
                     await WriteEntry(zip, SystemTypstLib.FileName, SystemTypstLib.Content);
                     await WriteEntry(zip, "data.json", dataJson);
-                    // Блоки типов (issue #772) — агрегатор и модули typeblocks-<слаг>.typ.
+                    // Блоки типов (issue #772) — агрегатор и модули typeblocks/<слаг>.typ.
                     // Кладём той же раскладкой, что и генерация: бандл воспроизводит ВХОД, а не
                     // своё представление о нём — иначе отладка расходится с тем, что происходит на сервере.
                     if (bundle.TypeBlocks.Count == 0)
