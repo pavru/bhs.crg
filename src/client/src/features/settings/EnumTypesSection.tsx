@@ -50,8 +50,11 @@ export function ValuesEditor({ values, onChange }: { values: EnumOptionDef[]; on
           onDragOver={dragIdx !== null ? e => e.preventDefault() : undefined}
           onDrop={dragIdx !== null ? e => { e.preventDefault(); move(dragIdx, i); setDragIdx(null); } : undefined}>
           <span className="flex justify-center text-fg4 cursor-grab" draggable
-            /* Пустой payload Firefox считает отсутствием перетаскивания и отменяет его — кладём
-               заглушку (та же ловушка описана в TemplateParamsPanel). */
+            /* Заглушка в dataTransfer — страховка по спецификации, а не требование Firefox:
+               утверждение «пустой payload отменяет перетаскивание» проверено вручную 2026-08-17 и
+               не подтвердилось (см. ROW_DRAG_MIME в document-sets/fields).
+               Тип здесь text/plain, а не свой, как требует #518, — но значение ПУСТОЕ, и ронять в
+               соседние поля «Код»/«Название» нечего. Ставить свой тип всё равно правильнее. */
             onDragStart={e => { e.dataTransfer.setData('text/plain', ''); setDragIdx(i); }}
             onDragEnd={() => setDragIdx(null)} title="Перетащить">
             <GripVertical size={14} />
