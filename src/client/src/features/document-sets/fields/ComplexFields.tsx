@@ -379,7 +379,7 @@ export function ArrayTableModal({
                 <td role="rowheader" style={{ border: BORDER, padding: 0 }} className={sel ? 'bg-brand-subtle' : 'bg-base'}>
                   <div className="flex items-center justify-center gap-0.5" style={{ height: 26 }}>
                     <button type="button" draggable
-                      // setData обязателен: без груза Firefox отменяет перетаскивание (см. ROW_DRAG_MIME).
+                      // Груз — страховка по спецификации, свой тип вместо text/plain (см. ROW_DRAG_MIME).
                       onDragStart={e => {
                         setDragIdx(i);
                         e.dataTransfer.effectAllowed = 'move';
@@ -663,7 +663,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
           aria-label={`Выбрать строку ${i + 1}`}
           className="shrink-0 w-3.5 h-3.5 accent-brand cursor-pointer" />
         <button type="button" draggable data-grip={i}
-          // setData обязателен: без груза Firefox отменяет перетаскивание (см. ROW_DRAG_MIME).
+          // Груз — страховка по спецификации, свой тип вместо text/plain (см. ROW_DRAG_MIME).
           onDragStart={e => {
             setDragIdx(i);
             e.dataTransfer.effectAllowed = 'move';
