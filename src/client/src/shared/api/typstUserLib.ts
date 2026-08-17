@@ -52,6 +52,23 @@ export function useTypstUserLib() {
 }
 
 /** Системная Typst-библиотека (issue #344) — хардкод, только чтение. */
+/**
+ * Собранный `typeblocks.typ` для просмотра (issue #770) — функции отображения ВСЕХ типов плюс
+ * диспетч-часть (#768). Файл производный: собирается из схем при каждом запросе тем же ядром, что
+ * генерация, поэтому `staleTime` здесь нулевой, в отличие от системной библиотеки-константы —
+ * правка блока у типа обязана быть видна сразу, иначе экран противоречил бы редактору.
+ */
+export function useTypeBlocks(enabled = true) {
+  return useQuery({
+    queryKey: ['typst-typeblocks'],
+    queryFn: async () => {
+      const r = await apiClient.get<{ content: string }>('/templates/typeblocks');
+      return r.data.content;
+    },
+    enabled,
+  });
+}
+
 export function useSystemTypstLib() {
   return useQuery({
     queryKey: ['typst-systemlib'],

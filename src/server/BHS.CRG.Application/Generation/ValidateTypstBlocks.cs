@@ -8,7 +8,7 @@ namespace BHS.CRG.Application.Generation;
 /// <summary>Одна проблема сборки Typst-блоков, привязанная к конкретному блоку (тип + вариант).</summary>
 public record TypstBlockProblem(
     string Severity,        // "error" | "warning"
-    string Code,            // "cycle" | "duplicate-fn" | "syntax" | "checker-unavailable"
+    string Code,            // "cycle" | "duplicate-fn" | "reserved-fn" | "syntax" | "checker-unavailable"
     string Message,
     Guid? TypeId,
     string? TypeName,
