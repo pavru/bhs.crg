@@ -1281,7 +1281,7 @@ function SubfieldEditor({ sf, value, onChange, allDocTypes, showValidation, setI
 }
 
 // ─── Union-поле (issue #320): заполняется РОВНО ОДИН вариант (подполе union-типа) ──
-/** Вариант считается заполненным: непустой массив / FieldRef / непустой объект / непустая строка. */
+
 /**
  * Подписи заполненных вариантов union-значения (issue #756).
  *
@@ -1290,17 +1290,27 @@ function SubfieldEditor({ sf, value, onChange, allDocTypes, showValidation, setI
  * что значение с двумя ключами приезжает из восстановленной копии, правки JSONB руками или импорта.
  * Единственный путь через такие данные в редакторе — потеря части: он показывает ПЕРВЫЙ заполненный
  * вариант, а первая же правка выбрасывает остальные. Поэтому — сказать заранее.</p>
+ *
+ * <p><code>subFields</code> приходит уже без расчётных подполей (#368) — их значение считает
+ * генерация, вариантами они не являются, и серверная проверка арности их так же исключает.</p>
  */
 function filledVariants(row: Record<string, unknown>, subFields: SchemaField[]): string[] {
   return subFields.filter(sf => isVariantFilled(row[sf.key])).map(sf => sf.title);
 }
 
-/** Текст предупреждения о нескольких заполненных вариантах — одинаковый в списке и в редакторе. */
+/**
+ * Текст предупреждения о нескольких заполненных вариантах — одинаковый в списке и в редакторе.
+ *
+ * <p>Про «попадёт в документ» не говорим: в data.json уходят оба ключа, а что напечатается, решает
+ * блок типа в шаблоне — утверждать за него нечего. Обещаем только то, что гарантирует код.</p>
+ */
 function overfilledNote(titles: string[]): string {
   return `Заполнено вариантов: ${titles.length} (${titles.join(', ')}), а должен быть один. `
-    + 'В документ попадёт первый; при правке этого значения остальные будут потеряны.';
+    + 'В данные уйдут все; что попадёт в документ, решит блок типа в шаблоне. '
+    + 'Редактор откроет первый и при правке потеряет остальные.';
 }
 
+/** Вариант считается заполненным: непустой массив / FieldRef / непустой объект / непустая строка. */
 function isVariantFilled(v: unknown): boolean {
   if (v == null) return false;
   if (isFieldRef(v)) return true;
@@ -1391,6 +1401,15 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
             className="flex-1 min-w-0 text-left text-sm text-fg2 hover:text-fg1 truncate">
             {unionSummary(activeSf, subValues[activeKey], { primitiveTypes, enumTypes })}
           </button>
+          {/* Свёрнутая строка показывает ТОЛЬКО активный вариант, поэтому без метки она выглядела бы
+              обычными данными — а ✎ и первая правка унесли бы второй вариант (issue #756). Ровно та
+              же дверь, что закрыта в списке строк массива; здесь она оставалась открытой. */}
+          {overfilled.length > 1 && (
+            <span className="flex items-center gap-1 text-[11px] text-warning shrink-0"
+              title={overfilledNote(overfilled)} role="img" aria-label={overfilledNote(overfilled)}>
+              <AlertTriangle size={12} /> вариантов: {overfilled.length}
+            </span>
+          )}
           <button type="button" onClick={() => setModalOpen(true)} title="Редактировать"
             className="p-1 text-fg4 hover:text-fg2 transition-colors shrink-0"><Pencil size={13} /></button>
         </div>

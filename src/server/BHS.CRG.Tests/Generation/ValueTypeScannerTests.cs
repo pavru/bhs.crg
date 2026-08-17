@@ -191,11 +191,14 @@ public class ValueTypeScannerTests
     [Fact]
     public void InheritedUnionTag_IsHonoured()
     {
-        // Тэг — на предке, варианты — у потомка; поле объявлено ПОТОМКОМ.
+        // Тэг — на предке, варианты — у потомка; поле объявлено ПОТОМКОМ. Схема потомка БЕЗ тэга:
+        // с тэгом обход предков не понадобился бы вовсе, и тест прошёл бы, даже если этот обход
+        // удалить, — то есть охранял бы не то, что обещает в заголовке.
         var types = new Dictionary<Guid, DocumentType>
         {
             [UnionTypeId] = Union(UnionTypeId, "База", "{'tags':['type.union'],'fields':[]}"),
-            [UnionChildId] = Union(UnionChildId, "Потомок", UnionSchema, UnionTypeId),
+            [UnionChildId] = Union(UnionChildId, "Потомок",
+                UnionSchema.Replace("'tags':['type.union'],", ""), UnionTypeId),
         };
         var diagnostics = new List<ResolutionDiagnostic>();
         ValueTypeScanner.Scan(Context("""{"Документ":{"Проект":{"x":1},"Реестр":{"y":2}}}"""),
@@ -206,6 +209,20 @@ public class ValueTypeScannerTests
         Assert.Equal("union-arity", d.Code);
         Assert.Contains("заполнено 2", d.Message);
     }
+
+    /// <summary>
+    /// Расчётное подполе вариантом не считается. Иначе union с одним таким подполем предъявлял бы
+    /// претензию КАЖДОМУ здоровому значению: <c>ComputedFieldResolver</c> проставляет его во всех
+    /// вложенных объектах ДО этой проверки, и снять предупреждение человеку было бы нечем.
+    /// </summary>
+    [Fact]
+    public void ComputedSubfield_IsNotAVariant()
+        => Assert.Empty(ScanUnion(
+            """{"Документ":{"Проект":{"$ref":"catalog","entryId":"a"},"Подпись":"Проект ЭОМ (РД)"}}""",
+            Union(UnionTypeId, "Документ произвольный",
+                "{'tags':['type.union'],'fields':["
+                + "{'key':'Проект','type':'doc-ref','title':'Проект'},"
+                + "{'key':'Подпись','type':'string','title':'Подпись','computed':true,'expression':'1'}]}")));
 
     /// <summary>Обычному составному типу арность не предъявляем — там «и», а не «одно из».</summary>
     [Fact]

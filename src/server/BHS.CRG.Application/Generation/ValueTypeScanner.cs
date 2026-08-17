@@ -122,16 +122,23 @@ public static class ValueTypeScanner
     {
         if (!SchemaTags.TypeHasTag(composite, typesById, FunctionalTag.TypeUnion)) return;
 
+        // Расчётные подполя вариантами не считаются: их значение пишет ComputedFieldResolver, и к
+        // моменту этой проверки оно уже проставлено. Не отфильтруй мы их — union с одним расчётным
+        // подполем предъявлял бы претензию КАЖДОМУ здоровому значению, и снять её человеку нечем.
+        // Редактор их тоже не показывает (#368), так что счёт обязан совпадать.
         var filled = inners
-            .Where(f => value.TryGetProperty(f.Key, out var v) && IsVariantFilled(v))
+            .Where(f => !f.Computed && value.TryGetProperty(f.Key, out var v) && IsVariantFilled(v))
             .Select(f => f.Title ?? f.Key)
             .ToList();
         if (filled.Count < 2) return;
 
+        // Про «попадёт в документ» не говорим: и тот и другой ключ уходят в data.json, а что
+        // напечатается, решает блок типа в шаблоне — утверждать за него нечего.
         diagnostics.Add(new ResolutionDiagnostic(DiagnosticSeverity.Warning, path,
             $"«{composite.Name}» — выбор одного из вариантов, а заполнено {filled.Count}: "
             + string.Join(", ", filled.Select(t => $"«{t}»"))
-            + ". В документ попадёт первый; при правке этого значения в редакторе остальные будут потеряны.",
+            + ". В данные уйдут все; что попадёт в документ, решит блок типа в шаблоне. "
+            + "Редактор откроет первый и при правке потеряет остальные.",
             "union-arity"));
     }
 
