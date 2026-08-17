@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   mergeTableRows, moveOrder, dropOrder, applyOrder, remapSelection,
-  identityOrigins, appendOrigins, unknownOrigins,
+  identityOrigins, appendOrigins, mergeTableSources, mergeTableOrigins,
 } from './arrayRows';
 
 const ref = (name: string) => ({ $ref: 'catalog' as const, entryId: name, displayName: name });
@@ -148,8 +148,19 @@ describe('происхождение строк для серверных пут
     expect(appendOrigins([0, 1], 2)).toEqual([0, 1, null, null]);
   });
 
-  it('непрослеживаемая правка снимает метки со всех строк', () => {
-    expect(unknownOrigins(3)).toEqual([null, null, null]);
+  it('после правки таблицей номера сохраняются у ссылок и переживших строк', () => {
+    // [и1, Р1, и2, Р2] — правим таблицей: «и1» удалили, «и2» оставили, одну строку добавили.
+    const all = [row('и1'), ref('Р1'), row('и2'), ref('Р2')];
+    const sources = mergeTableSources(all, [row('и2'), row('новая')], [1, null]);
+    // Ссылки на своих местах и со своими номерами; добавленная — без номера.
+    expect(mergeTableOrigins(sources, identityOrigins(4))).toEqual([1, 2, 3, null]);
+  });
+
+  it('после правки таблицей номера учитывают прежнюю перестановку', () => {
+    const all = [ref('Р1'), row('и1')];
+    const prev = applyOrder(identityOrigins(2), moveOrder(2, 0, 1));   // [1, 0]
+    const sources = mergeTableSources(all, [row('и1')], [0]);
+    expect(mergeTableOrigins(sources, prev)).toEqual([1, 0]);
   });
 
   it('добавление после перестановки не путает номера', () => {

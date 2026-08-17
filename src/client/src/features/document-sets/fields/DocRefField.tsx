@@ -136,24 +136,26 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
   );
 }
 
-export function DocArrayField({ field, allDocTypes, value, onChange, otherInstances, setId, brokenPaths, basePath }: {
+export function DocArrayField({ field, allDocTypes, value, onChange, otherInstances, setId, brokenPaths, basePath, savedAt }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
   onChange: (val: unknown[]) => void; otherInstances: DocumentInstance[];
   setId?: string;
   /** Пути битых ссылок (issue #332) + базовый путь этого массива — для пометки конкретных элементов. */
   brokenPaths?: Set<string>; basePath?: string;
+  /** Отметка времени сохранённого документа: её смена значит «пути диагностики перенумерованы» (#759). */
+  savedAt?: string;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const items = (Array.isArray(value) ? value : []).filter(isFieldRef);
   const linkedInstanceIds = new Set(items.map(r => r.instanceId).filter(Boolean));
 
   // Метки битых ссылок адресуют строку номером и считаются по СОХРАНЁННОМУ состоянию (issue #759):
-  // тот же учёт происхождения, что в редакторе массива. Здесь порядок не меняют, но удаление
-  // сдвигает номера — и метка уезжала на соседнюю ссылку.
-  const [marks, setMarks] = useState<{ src?: Set<string>; origins: PathOrigins }>(
-    () => ({ src: brokenPaths, origins: identityOrigins(items.length) }));
-  if (marks.src !== brokenPaths) {
-    setMarks({ src: brokenPaths, origins: identityOrigins(items.length) });
+  // тот же учёт происхождения, что в редакторе массива, и тот же признак сброса — факт сохранения,
+  // а не приход диагностики. Порядок здесь не меняют, но удаление сдвигает номера.
+  const [marks, setMarks] = useState<{ savedAt?: string; origins: PathOrigins }>(
+    () => ({ savedAt, origins: identityOrigins(items.length) }));
+  if (marks.savedAt !== savedAt) {
+    setMarks({ savedAt, origins: identityOrigins(items.length) });
   }
   const markPath = (i: number) => {
     const origin = marks.origins[i];

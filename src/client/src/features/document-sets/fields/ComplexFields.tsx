@@ -19,8 +19,8 @@ import { formatFieldValue, type FieldTypeDefs } from '@/shared/utils/fieldDispla
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { objectSummary } from './objectSummary';
 import {
-  mergeTableRows, moveOrder, dropOrder, applyOrder, remapSelection,
-  identityOrigins, appendOrigins, unknownOrigins, type PathOrigins,
+  mergeTableSources, mergeTableOrigins, moveOrder, dropOrder, applyOrder, remapSelection,
+  identityOrigins, appendOrigins, type PathOrigins,
 } from './arrayRows';
 import { VariantPicker } from './VariantPicker';
 import { ExtractToCommonDataModal } from './ExtractToCommonDataModal';
@@ -452,7 +452,7 @@ export function ArrayTableModal({
 // ─── Array field editor ───────────────────────────────────────────────────────
 
 export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showValidation,
-  setId, otherInstances = [], scope, scopeId, docRefMode = 'catalog', brokenPaths, basePath,
+  setId, otherInstances = [], scope, scopeId, docRefMode = 'catalog', brokenPaths, basePath, savedAt,
 }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
   onChange: (val: unknown[]) => void; showValidation: boolean;
@@ -461,6 +461,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   docRefMode?: 'catalog' | 'instance';
   /** Пути битых ссылок (issue #332) + базовый путь массива — для пометки элементов-ссылок на удалённое. */
   brokenPaths?: Set<string>; basePath?: string;
+  /** Отметка времени сохранённого документа: её смена значит «пути диагностики перенумерованы» (#759). */
+  savedAt?: string;
 }) {
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
   const allItems = Array.isArray(value) ? value as unknown[] : [];
@@ -482,16 +484,28 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   /**
    * Соответствие «строка → номер, о котором говорил сервер» (issue #759).
    *
-   * <p>Сбрасывается всякий раз, когда приходит НОВАЯ диагностика: её пути описывают уже сохранённое
-   * состояние, и прежние поправки к ним неверны. Сравниваем по ссылке на множество — оно приходит из
-   * <code>useMemo</code> по ответу сервера, так что новый объект и означает «пришёл новый ответ».
-   * Правка состояния прямо в рендере — тот самый случай, для которого React её и допускает: значение
-   * ПРОИЗВОДНОЕ от пропа, эффект здесь дал бы лишний кадр со старыми метками.</p>
+   * <p>Сбрасывается по факту СОХРАНЕНИЯ, а не по приходу новой диагностики. Разница существенна в
+   * обе стороны:</p>
+   *
+   * <ul>
+   * <li>диагностика может прийти (первая загрузка, фоновой refetch по возврату фокуса), когда
+   * человек уже переставил строки, — сбрось мы тогда в тождество, метка села бы на живую строку,
+   * ровно тот дефект, который эта задача и чинит;</li>
+   * <li>после сохранения сервер перенумеровывает пути под НОВЫЙ порядок, и прежние поправки к ним
+   * становятся неверны — тождество тут единственно правильное.</li>
+   * </ul>
+   *
+   * <p>Сравнивать по объекту <code>brokenPaths</code> нельзя ещё и технически: React Query по
+   * умолчанию делает structural sharing, и при неизменившейся диагностике возвращает ТУ ЖЕ ссылку —
+   * сброс не сработал бы вовсе.</p>
+   *
+   * <p>Правка состояния прямо в рендере — тот случай, для которого React её и допускает: значение
+   * производное от пропа, эффект дал бы лишний кадр со старым соответствием.</p>
    */
-  const [marks, setMarks] = useState<{ src?: Set<string>; origins: PathOrigins }>(
-    () => ({ src: brokenPaths, origins: identityOrigins(allItems.length) }));
-  if (marks.src !== brokenPaths) {
-    setMarks({ src: brokenPaths, origins: identityOrigins(allItems.length) });
+  const [marks, setMarks] = useState<{ savedAt?: string; origins: PathOrigins }>(
+    () => ({ savedAt, origins: identityOrigins(allItems.length) }));
+  if (marks.savedAt !== savedAt) {
+    setMarks({ savedAt, origins: identityOrigins(allItems.length) });
   }
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -963,13 +977,13 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         // Выбор снимаем: таблица меняет и состав, и порядок строк, и номера выбранных после неё
         // указывали бы неизвестно на что (issue #754).
         onSave={(rows, origins) => {
-          const merged = mergeTableRows(allItems, rows, origins);
-          onChange(merged);
+          // Источники строк считаем ОДИН раз и берём из них и сами строки, и их серверные номера
+          // (issue #759). Гасить метки целиком было бы неверно: слоты известны точно, а вернуть их
+          // потом нечему — при неизменившейся диагностике сервер отдаёт тот же объект.
+          const sources = mergeTableSources(allItems, rows, origins);
+          onChange(sources.map(s => (s.edited != null ? rows[s.edited] : allItems[s.at!])));
           setSelected(new Set());
-          // Метки снимаем со ВСЕХ строк: таблица меняет и состав, и порядок нессылочных строк, и
-          // проследить, куда уехал серверный номер, отсюда нельзя (issue #759). Не рисовать честнее,
-          // чем рисовать наугад; следующий ответ сервера их вернёт.
-          setMarks(m => ({ ...m, origins: unknownOrigins(merged.length) }));
+          setMarks(m => ({ ...m, origins: mergeTableOrigins(sources, m.origins) }));
         }}
         setId={setId} scope={scope} scopeId={scopeId}
       />
