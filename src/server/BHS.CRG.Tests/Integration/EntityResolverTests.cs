@@ -59,6 +59,13 @@ public class EntityResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         return inst.Id;
     }
 
+    /// <summary>Перезаписать реквизиты уже созданного документа — нужно, чтобы замкнуть цикл ссылок.</summary>
+    private async Task UpdateRequisitesAsync(Guid instanceId, string requisites)
+    {
+        using var scope = fixture.Services.CreateScope();
+        await M(scope).Send(new UpdateRequisitesCommand(instanceId, J(requisites)));
+    }
+
     private async Task<GenerationContext> ResolveAsync(Guid instanceId)
     {
         using var scope = fixture.Services.CreateScope();
@@ -363,6 +370,78 @@ public class EntityResolverTests(IntegrationTestFixture fixture) : IAsyncLifetim
         Assert.Equal(JsonValueKind.Object, leaked.ValueKind);
         Assert.Equal("document", leaked.GetProperty("$ref").GetString());
         Assert.Equal(sourceId.ToString(), leaked.GetProperty("instanceId").GetString());
+    }
+
+    // ── Протягивание поля чужого документа: рекурсия и пустой источник (issue #762) ─
+
+    /// <summary>
+    /// Поле-источник хранит НЕ объект, а ссылку на запись каталога — так его кладёт пикер. Без
+    /// рекурсии за один проход получался бы сырой <c>$ref:'catalog'</c>: генерация гоняет резолв
+    /// дважды и потому не замечала, а снимок для внешнего чтения — один раз, и MCP отдавал стаб.
+    /// Поэтому проверяем ОДИН проход.
+    /// </summary>
+    [Fact]
+    public async Task DocumentRef_ToFieldHoldingCatalogRef_ResolvedInSinglePass()
+    {
+        var setId = await SetupSetAsync();
+        var docType = await TypeAsync(DocumentTypeKind.Document, "DOC_762A");
+        var composite = await TypeAsync(DocumentTypeKind.Composite, "CMP_762A");
+        var entryId = await EntryAsync(composite, "{'Наименование':'ООО Подрядчик'}");
+
+        var sourceId = await DocAsync(setId, docType,
+            "{'Заказчик':{'$ref':'catalog','entryId':'" + entryId + "'}}");
+        var docId = await DocAsync(setId, docType,
+            "{'ТотЖеЗаказчик':{'$ref':'document','instanceId':'" + sourceId + "','fieldKey':'Заказчик'}}");
+
+        var value = E(await ResolveAsync(docId), "ТотЖеЗаказчик");
+
+        Assert.False(value.TryGetProperty("$ref", out _));           // ссылка развёрнута, а не скопирована
+        Assert.Equal("ООО Подрядчик", value.GetProperty("Наименование").GetString());
+    }
+
+    /// <summary>
+    /// Документ-источник на месте, а поля в нём нет. Раньше сырая ссылка доходила до сканера как
+    /// «целевая запись не найдена или удалена» — человека звали искать пропажу, которой нет.
+    /// </summary>
+    [Fact]
+    public async Task DocumentRef_ToMissingField_MarkedAsEmptySource_NotAsDeleted()
+    {
+        var setId = await SetupSetAsync();
+        var docType = await TypeAsync(DocumentTypeKind.Document, "DOC_762B");
+        var sourceId = await DocAsync(setId, docType, "{'Другое':'есть'}");
+        var docId = await DocAsync(setId, docType,
+            "{'Номер':{'$ref':'document','instanceId':'" + sourceId + "','fieldKey':'Номер'}}");
+
+        var ctx = await ResolveAsync(docId);
+        var value = E(ctx, "Номер");
+        Assert.Equal(RefUnresolved.SourceFieldEmpty,
+            value.GetProperty(RefUnresolved.Key).GetString());
+
+        var diagnostics = new List<ResolutionDiagnostic>();
+        ResolutionScanner.ScanLeftoverRefs(ctx, diagnostics);
+        var d = Assert.Single(diagnostics);
+        Assert.Equal("source-field-empty", d.Code);
+        Assert.Equal(DiagnosticSeverity.Warning, d.Severity);   // незаконченная работа, не порча данных
+        Assert.Contains("пока не заполнено", d.Message);
+        Assert.DoesNotContain("удалена", d.Message);
+    }
+
+    /// <summary>Цикл A→B→A по document-ссылкам держит тот же бюджет цепочки, что и остальные ветки:
+    /// не виснет и помечается пределом, а не «целью не найдена».</summary>
+    [Fact]
+    public async Task DocumentRef_Cycle_StopsAtDepthLimit()
+    {
+        var setId = await SetupSetAsync();
+        var docType = await TypeAsync(DocumentTypeKind.Document, "DOC_762C");
+        var aId = await DocAsync(setId, docType, "{'Поле':'заглушка'}");
+        var bId = await DocAsync(setId, docType,
+            "{'Поле':{'$ref':'document','instanceId':'" + aId + "','fieldKey':'Поле'}}");
+        await UpdateRequisitesAsync(aId,
+            "{'Поле':{'$ref':'document','instanceId':'" + bId + "','fieldKey':'Поле'}}");
+
+        var value = E(await ResolveAsync(aId), "Поле");
+        Assert.True(value.TryGetProperty("$ref", out _));
+        Assert.Equal(RefUnresolved.DepthLimit, value.GetProperty(RefUnresolved.Key).GetString());
     }
 
     // ── Исправленные баги ────────────────────────────────────────────────────────
