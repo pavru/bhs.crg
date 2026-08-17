@@ -924,7 +924,15 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
           open={catalogPickerOpen} onOpenChange={setCatalogPickerOpen}
           compositeType={compositeType}
           setId={setId} scope={scope} scopeId={scopeId}
-          otherInstances={[]}
+          // Второй раздел пикера — поля других документов комплекта того же типа, что элемент
+          // массива (issue #750). До сих пор сюда приходил жёсткий `[]`, и раздел был пуст ВСЕГДА:
+          // возможность выглядела существующей, а её не было. На живых схемах предлагать есть что —
+          // пятнадцать пар вида «АОСР → Представитель заказчика» для массивов типа «Подписант» и
+          // «Организация». Опасности из #750 здесь нет: раздел берёт только поля type='complex'
+          // ровно того же типа, то есть до doc-ref-варианта (ссылка на ссылку) дело не доходит, а
+          // для union'а поле такого же типа — это поле-union целиком, и оборачивать его в ключ
+          // варианта не надо (то же, что placeInUnion возвращает для kind:'self').
+          otherInstances={otherInstances}
           allDocTypes={allDocTypes}
           unionAware
           onSelect={addFromCatalog}
