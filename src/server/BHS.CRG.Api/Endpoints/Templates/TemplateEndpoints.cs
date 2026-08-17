@@ -20,8 +20,7 @@ public static class TemplateEndpoints
         // Собранный typeblocks.typ (issue #770) — только чтение. Не Admin: шаблон пишут против этого
         // файла, а читать его вправе всякий, кто вправе смотреть шаблоны; правка блоков живёт у типа
         // и остаётся под Admin.
-        g.MapGet("/typeblocks", async (IMediator m)
-            => Results.Ok(new { content = await m.Send(new GetTypeBlocksQuery()) }));
+        g.MapGet("/typeblocks", async (IMediator m) => Results.Ok(await m.Send(new GetTypeBlocksQuery())));
 
         g.MapGet("/active", async (Guid documentTypeId, IMediator m) =>
         {

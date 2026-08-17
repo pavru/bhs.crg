@@ -21,7 +21,11 @@ export function SystemLibPanel() {
       <div className="flex items-center gap-2 px-4 py-2 border-b border-stroke bg-surface">
         <Lock size={13} className="text-fg4 shrink-0" />
         <p className="text-xs text-fg3">
-          Системная библиотека — только чтение. Авто-подключается к каждому шаблону (импортировать не нужно).
+          {/* Было «авто-подключается, импортировать не нужно» — неверно: шаблон пишется в tmpDir
+              ДОСЛОВНО (issue #353), преамбулу компиляция не подставляет. Импорт живёт в самом
+              шаблоне; в новые его кладёт buildBlankTypst, старым и рукописным нужен свой. */}
+          Системная библиотека — только чтение. Шаблон подключает её импортом{' '}
+          <code className="font-mono">#import "systemlib.typ": *</code> (в новых шаблонах строка уже стоит).
         </p>
       </div>
       <div className="flex-1 overflow-hidden">

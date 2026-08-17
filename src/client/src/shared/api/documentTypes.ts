@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { TYPEBLOCKS_KEY } from './typstUserLib';
 import type { DocumentType, DocumentTypeKind } from './types';
 import type { TypstRender } from './schema';
 
@@ -188,6 +189,12 @@ export function useUpdateDocumentTypeSchema() {
   return useMutation({
     mutationFn: ({ id, schema }: { id: string; schema: string }) =>
       apiClient.put<DocumentType>(`/document-types/${id}/schema`, { schema }).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['document-types'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['document-types'] });
+      // Typst-блоки живут в схеме, а собранный typeblocks.typ показывается отдельным экраном
+      // (issue #770). Без сброса он остался бы дореформенным до истечения таймера — экран
+      // противоречил бы редактору, из которого только что сохранили.
+      qc.invalidateQueries({ queryKey: TYPEBLOCKS_KEY });
+    },
   });
 }

@@ -91,6 +91,7 @@ export function TemplatesPage() {
   // Заголовок вкладки: библиотека / выбранный шаблон / просматриваемый тип замещают раздел.
   useDocumentTitle(
     mode === 'systemlib' ? 'Системная библиотека Typst'
+    : mode === 'typeblocks' ? 'Блоки типов Typst'
     : mode === 'userlib' ? 'Библиотека Typst'
     : selectedTemplate ? `Шаблон «${selectedTemplate.name}»`
     : selectedDocType ? selectedDocType.name

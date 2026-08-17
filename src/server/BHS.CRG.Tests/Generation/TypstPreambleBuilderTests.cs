@@ -1,4 +1,6 @@
+using System.Text.Json;
 using BHS.CRG.Application.Generation;
+using BHS.CRG.Domain.Documents;
 
 namespace BHS.CRG.Tests.Generation;
 
@@ -224,6 +226,32 @@ public class TypstPreambleBuilderTests
     {
         var res = TypstPreambleBuilder.BuildDetailed(new[] { C("f", "Код") });
         Assert.Contains("#let union-types = ()", res.Content);
+    }
+
+    /// <summary>
+    /// Сборка не зависит от порядка, в котором типы пришли из репозитория (issue #770). Тот отдаёт их
+    /// без ORDER BY, и PostgreSQL после UPDATE любой строки возвращает набор иначе — файл менялся
+    /// перестановкой независимых блоков. Работе это не мешало, но ломало сравнение файла с самим собой
+    /// и обещание экрана «показываю то, что уходит в Typst»: экран и генерация делают РАЗНЫЕ запросы.
+    /// </summary>
+    [Fact]
+    public void Build_IsIndependentOfRepositoryOrder()
+    {
+        var a = Type("КодA", "a-block");
+        var b = Type("КодB", "b-block");
+        Assert.Equal(
+            TypstPreambleBuilder.Build(new[] { a, b }),
+            TypstPreambleBuilder.Build(new[] { b, a }));
+    }
+
+    private static DocumentType Type(string code, string fn)
+    {
+        var t = (DocumentType)Activator.CreateInstance(typeof(DocumentType), nonPublic: true)!;
+        typeof(DocumentType).GetProperty(nameof(DocumentType.Code))!.SetValue(t, code);
+        typeof(DocumentType).GetProperty(nameof(DocumentType.Name))!.SetValue(t, code);
+        typeof(DocumentType).GetProperty(nameof(DocumentType.Schema))!.SetValue(t, JsonDocument.Parse(
+            $$"""{"typstRenders":[{"name":"осн","fnName":"{{fn}}","block":"{ it.x }"}]}"""));
+        return t;
     }
 
     /// <summary>Line-map указывает на блоки, а не на диспетч-часть: она идёт после, номера строк

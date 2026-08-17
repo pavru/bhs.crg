@@ -54,20 +54,26 @@ export function useTypstUserLib() {
 /** Системная Typst-библиотека (issue #344) — хардкод, только чтение. */
 /**
  * Собранный `typeblocks.typ` для просмотра (issue #770) — функции отображения ВСЕХ типов плюс
- * диспетч-часть (#768). Файл производный: собирается из схем при каждом запросе тем же ядром, что
- * генерация, поэтому `staleTime` здесь нулевой, в отличие от системной библиотеки-константы —
- * правка блока у типа обязана быть видна сразу, иначе экран противоречил бы редактору.
+ * диспетч-часть (#768).
+ *
+ * `staleTime: 0` задан ЯВНО: глобальный дефолт — 30 секунд (см. App.tsx), и с ним админ, поправивший
+ * блок у типа и сразу перешедший на вкладку, увидел бы файл ДО правки — ровно то противоречие с
+ * редактором, ради устранения которого экран и заводился. Системная библиотека тем и отличается:
+ * она константа, ей протухание безразлично.
  */
 export function useTypeBlocks(enabled = true) {
   return useQuery({
-    queryKey: ['typst-typeblocks'],
+    queryKey: TYPEBLOCKS_KEY,
     queryFn: async () => {
-      const r = await apiClient.get<{ content: string }>('/templates/typeblocks');
-      return r.data.content;
+      const r = await apiClient.get<{ content: string; blockCount: number }>('/templates/typeblocks');
+      return r.data;
     },
     enabled,
+    staleTime: 0,
   });
 }
+
+export const TYPEBLOCKS_KEY = ['typst-typeblocks'] as const;
 
 export function useSystemTypstLib() {
   return useQuery({

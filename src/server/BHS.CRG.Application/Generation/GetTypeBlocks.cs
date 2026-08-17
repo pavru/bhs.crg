@@ -16,11 +16,22 @@ namespace BHS.CRG.Application.Generation;
 /// путь и отличается от debug-бандла, где тот же файл достаётся только вместе с конкретным
 /// документом и в ZIP.</para>
 /// </summary>
-public record GetTypeBlocksQuery : IRequest<string>;
+/// <param name="BlockCount">Сколько блоков собрано. «Файл пуст» по содержимому не определить: с #768
+/// сборка ВСЕГДА дописывает диспетч-часть (таблица, набор union-типов, хелпер), поэтому даже при нуле
+/// блоков файл непустой. Без счётчика экран на свежей установке показывал бы каркас без объяснения,
+/// откуда берутся блоки.</param>
+public record TypeBlocksView(string Content, int BlockCount);
+
+public record GetTypeBlocksQuery : IRequest<TypeBlocksView>;
 
 public class GetTypeBlocksHandler(IRepository<DocumentType> docTypeRepo)
-    : IRequestHandler<GetTypeBlocksQuery, string>
+    : IRequestHandler<GetTypeBlocksQuery, TypeBlocksView>
 {
-    public async Task<string> Handle(GetTypeBlocksQuery q, CancellationToken ct)
-        => TypstPreambleBuilder.Build(await docTypeRepo.GetAllAsync(ct));
+    public async Task<TypeBlocksView> Handle(GetTypeBlocksQuery q, CancellationToken ct)
+    {
+        var types = await docTypeRepo.GetAllAsync(ct);
+        return new TypeBlocksView(
+            TypstPreambleBuilder.Build(types),
+            types.SelectMany(TypstPreambleBuilder.ExtractRenders).Count());
+    }
 }
