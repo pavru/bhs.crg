@@ -17,6 +17,11 @@ public static class TemplateEndpoints
         // Системная Typst-библиотека (issue #344) — хардкод, только чтение (просмотр на странице шаблонов).
         g.MapGet("/systemlib", () => Results.Ok(new { content = SystemTypstLib.Content }));
 
+        // Собранный typeblocks.typ (issue #770) — только чтение. Не Admin: шаблон пишут против этого
+        // файла, а читать его вправе всякий, кто вправе смотреть шаблоны; правка блоков живёт у типа
+        // и остаётся под Admin.
+        g.MapGet("/typeblocks", async (IMediator m) => Results.Ok(await m.Send(new GetTypeBlocksQuery())));
+
         g.MapGet("/active", async (Guid documentTypeId, IMediator m) =>
         {
             var t = await m.Send(new GetActiveTemplateQuery(documentTypeId));

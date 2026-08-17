@@ -47,7 +47,15 @@ public static class TypstPreambleBuilder
     /// <summary>Обратно совместимая точка: типы → готовый текст typeblocks.typ (генерация, debug-бандл).</summary>
     public static string Build(IEnumerable<DocumentType> compositeTypes)
     {
-        var types = compositeTypes as IReadOnlyList<DocumentType> ?? compositeTypes.ToList();
+        // Порядок типов задаём САМИ, а не берём как пришло: репозиторий отдаёт их без ORDER BY, и
+        // PostgreSQL после UPDATE любой строки возвращает набор в другом физическом порядке. Файл от
+        // этого менялся между вызовами — не по содержанию, а перестановкой независимых блоков и строк
+        // диспетч-таблицы. Работать это не мешало (топосорт держит зависимости, поиск в таблице по
+        // ключу), но ломало две вещи: сравнение файла с самим собой (шумные диффы на пустом месте) и
+        // обещание экрана «показываю ровно то, что уходит в Typst» — экран и генерация делают РАЗНЫЕ
+        // запросы к репозиторию, и совпадение было делом случая. Ключ сортировки — Code: он уникален
+        // (реестр типов) и стабилен, в отличие от порядка вставки.
+        var types = compositeTypes.OrderBy(t => t.Code, StringComparer.Ordinal).ToList();
         return BuildDetailed(types.SelectMany(ExtractRenders), UnionCodes(types)).Content;
     }
 

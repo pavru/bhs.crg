@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Library, Lock } from 'lucide-react';
+import { Library, Lock, Boxes } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { Button } from '@/shared/ui/Button';
@@ -15,6 +15,7 @@ import { buildBlankTypst } from './templateBlank';
 import { EditorPanel } from './EditorPanel';
 import { UserLibPanel } from './UserLibPanel';
 import { SystemLibPanel } from './SystemLibPanel';
+import { TypeBlocksPanel } from './TypeBlocksPanel';
 import { TemplateSidebar, DocTypeSelector, VersionCleanupModal, groupTemplates, type TemplateGroup } from './TemplateSidebar';
 // ─── New template form ────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose, onCrea
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type PageMode = 'templates' | 'userlib' | 'systemlib';
+type PageMode = 'templates' | 'userlib' | 'systemlib' | 'typeblocks';
 
 export function TemplatesPage() {
   const [mode, setMode] = useState<PageMode>('templates');
@@ -90,6 +91,7 @@ export function TemplatesPage() {
   // Заголовок вкладки: библиотека / выбранный шаблон / просматриваемый тип замещают раздел.
   useDocumentTitle(
     mode === 'systemlib' ? 'Системная библиотека Typst'
+    : mode === 'typeblocks' ? 'Блоки типов Typst'
     : mode === 'userlib' ? 'Библиотека Typst'
     : selectedTemplate ? `Шаблон «${selectedTemplate.name}»`
     : selectedDocType ? selectedDocType.name
@@ -198,6 +200,19 @@ export function TemplatesPage() {
               <Lock size={14} className="shrink-0" />
               Системные функции
             </button>
+            {/* Собранный typeblocks.typ (issue #770): рядом с двумя другими библиотеками, потому что
+                шаблон видит все три одинаково — импортом. Только чтение, как и системные функции. */}
+            <button
+              onClick={() => setMode('typeblocks')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md whitespace-nowrap transition-colors ${
+                mode === 'typeblocks'
+                  ? 'bg-surface text-fg1 font-medium shadow-sm'
+                  : 'text-fg3 hover:text-fg2'
+              }`}
+            >
+              <Boxes size={14} className="shrink-0" />
+              Блоки типов
+            </button>
           </div>
 
           {/* Doc type selector — only in templates mode */}
@@ -211,6 +226,10 @@ export function TemplatesPage() {
       {mode === 'systemlib' ? (
         <div className="flex-1 min-h-0 overflow-hidden">
           <SystemLibPanel />
+        </div>
+      ) : mode === 'typeblocks' ? (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <TypeBlocksPanel />
         </div>
       ) : mode === 'userlib' ? (
         <div className="flex-1 min-h-0 overflow-hidden">
