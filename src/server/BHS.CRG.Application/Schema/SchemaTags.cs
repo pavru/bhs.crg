@@ -158,6 +158,26 @@ public static class SchemaTags
     }
 
     /// <summary>
+    /// То же по словарю типов — для обходов, которые спрашивают это на каждое значение.
+    ///
+    /// <para>Список-перегрузка ищет родителя линейным <c>FirstOrDefault</c>; на строку таблицы это
+    /// незаметно, а на таблицу в две сотни строк с составными подполями — уже нет.</para>
+    /// </summary>
+    public static bool TypeHasTag(DocumentType docType, IReadOnlyDictionary<Guid, DocumentType> typesById, string tag)
+    {
+        var visited = new HashSet<Guid>();
+        var current = docType;
+        while (current is not null && visited.Add(current.Id))
+        {
+            if (SchemaHasTypeTag(current.Schema, tag)) return true;
+            current = current.ParentId.HasValue && typesById.TryGetValue(current.ParentId.Value, out var parent)
+                ? parent
+                : null;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Накладывает метаданные на реквизиты: для каждого (key, tag) берёт meta[tag], если есть.
     /// </summary>
     public static JsonDocument PatchMetadata(

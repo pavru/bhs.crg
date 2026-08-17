@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import {
-  Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, GripVertical, Info, Link2, Pencil, Plus, RefreshCw, Share2, Trash2, Unlink, X,
+  AlertTriangle, Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, GripVertical, Info, Link2, Pencil, Plus, RefreshCw, Share2, Trash2, Unlink, X,
 } from 'lucide-react';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Modal } from '@/shared/ui/Modal';
@@ -809,6 +809,12 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               );
             }
 
+            // Строка union'а, где заполнен не один вариант (issue #756). До этой ветки она доходит
+            // именно потому, что ключей больше одного: unionRef выше требует ровно одного и
+            // возвращает null, так что строка рисовалась обычной сводкой — без единого признака,
+            // что открыть её значит потерять часть данных.
+            const extraVariants = isUnionComposite ? filledVariants(row, subFields) : [];
+
             // issue #102: строка — компактная сводка + ✎ (модалка), без инлайн-раскрытия (источник «портянки»).
             return (
               <div key={i} {...dropTarget(i)}
@@ -818,6 +824,12 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
                   className="flex-1 text-left text-sm text-fg2 hover:text-fg1 truncate">
                   {rowSummary(row)}
                 </button>
+                {extraVariants.length > 1 && (
+                  <span className="flex items-center gap-1 text-[11px] text-warning shrink-0"
+                    title={overfilledNote(extraVariants)} role="img" aria-label={overfilledNote(extraVariants)}>
+                    <AlertTriangle size={12} /> вариантов: {extraVariants.length}
+                  </span>
+                )}
                 <button type="button" onClick={() => setRowModal(i)} title="Редактировать"
                   className="p-1 text-fg4 hover:text-fg2 shrink-0">
                   <Pencil size={13} />
@@ -1269,6 +1281,35 @@ function SubfieldEditor({ sf, value, onChange, allDocTypes, showValidation, setI
 }
 
 // ─── Union-поле (issue #320): заполняется РОВНО ОДИН вариант (подполе union-типа) ──
+
+/**
+ * Подписи заполненных вариантов union-значения (issue #756).
+ *
+ * <p>Инвариант — «заполнен ровно один» (#320), и записать иное приложение не даёт. Но
+ * <code>PUT …/requisites</code> кладёт тело как есть (путь записи схема-агностичен сознательно), так
+ * что значение с двумя ключами приезжает из восстановленной копии, правки JSONB руками или импорта.
+ * Единственный путь через такие данные в редакторе — потеря части: он показывает ПЕРВЫЙ заполненный
+ * вариант, а первая же правка выбрасывает остальные. Поэтому — сказать заранее.</p>
+ *
+ * <p><code>subFields</code> приходит уже без расчётных подполей (#368) — их значение считает
+ * генерация, вариантами они не являются, и серверная проверка арности их так же исключает.</p>
+ */
+function filledVariants(row: Record<string, unknown>, subFields: SchemaField[]): string[] {
+  return subFields.filter(sf => isVariantFilled(row[sf.key])).map(sf => sf.title);
+}
+
+/**
+ * Текст предупреждения о нескольких заполненных вариантах — одинаковый в списке и в редакторе.
+ *
+ * <p>Про «попадёт в документ» не говорим: в data.json уходят оба ключа, а что напечатается, решает
+ * блок типа в шаблоне — утверждать за него нечего. Обещаем только то, что гарантирует код.</p>
+ */
+function overfilledNote(titles: string[]): string {
+  return `Заполнено вариантов: ${titles.length} (${titles.join(', ')}), а должен быть один. `
+    + 'В данные уйдут все; что попадёт в документ, решит блок типа в шаблоне. '
+    + 'Редактор откроет первый и при правке потеряет остальные.';
+}
+
 /** Вариант считается заполненным: непустой массив / FieldRef / непустой объект / непустая строка. */
 function isVariantFilled(v: unknown): boolean {
   if (v == null) return false;
@@ -1325,7 +1366,15 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
     key: sf.key, label: sf.title,
     filled: isVariantFilled(subValues[sf.key]) || isVariantFilled(stash[sf.key]),
   }));
-  const chip = (
+  // Значение пришло с несколькими заполненными вариантами (issue #756) — считаем по СОХРАНЁННОМУ
+  // значению, не по options: там к заполненным приплюсован стэш, а он наш собственный и законен.
+  const overfilled = filledVariants(subValues, subFields);
+  const chip = overfilled.length > 1 ? (
+    <span className="text-[11px] text-warning flex items-start gap-1" role="alert">
+      <AlertTriangle size={11} className="shrink-0 mt-0.5" />
+      <span>{overfilledNote(overfilled)}</span>
+    </span>
+  ) : (
     <span className="text-[11px] text-fg4 flex items-center gap-1 shrink-0" title="Заполняется ровно один из вариантов">
       <Info size={11} /> заполните одно из
     </span>
@@ -1352,6 +1401,15 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
             className="flex-1 min-w-0 text-left text-sm text-fg2 hover:text-fg1 truncate">
             {unionSummary(activeSf, subValues[activeKey], { primitiveTypes, enumTypes })}
           </button>
+          {/* Свёрнутая строка показывает ТОЛЬКО активный вариант, поэтому без метки она выглядела бы
+              обычными данными — а ✎ и первая правка унесли бы второй вариант (issue #756). Ровно та
+              же дверь, что закрыта в списке строк массива; здесь она оставалась открытой. */}
+          {overfilled.length > 1 && (
+            <span className="flex items-center gap-1 text-[11px] text-warning shrink-0"
+              title={overfilledNote(overfilled)} role="img" aria-label={overfilledNote(overfilled)}>
+              <AlertTriangle size={12} /> вариантов: {overfilled.length}
+            </span>
+          )}
           <button type="button" onClick={() => setModalOpen(true)} title="Редактировать"
             className="p-1 text-fg4 hover:text-fg2 transition-colors shrink-0"><Pencil size={13} /></button>
         </div>
