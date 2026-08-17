@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Plus, Trash2, Unlink } from 'lucide-react';
+import { FileText, Plus, RefreshCw, Trash2, Unlink } from 'lucide-react';
 import type { CatalogScope, DocumentInstance, DocumentType, FieldRef } from '@/shared/api/types';
 import { isFieldRef, isInstanceRef } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
@@ -18,6 +18,36 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
   const iRef = isInstanceRef(value) ? value : null;
   const cRef = isFieldRef(value) && (value as FieldRef).$ref === 'catalog' ? value as FieldRef : null;
 
+  /**
+   * Пикер один на все состояния поля (issue #749).
+   *
+   * <p>Он же выбирает ссылку впервые, он же её заменяет: показывает и записи общих данных, и
+   * документы комплекта, а значит из ЛЮБОГО состояния можно перейти в любое другое.</p>
+   */
+  const picker = (
+    <InstancePickerModal open={pickerOpen} onOpenChange={setPickerOpen}
+      field={field} allDocTypes={allDocTypes} otherInstances={otherInstances}
+      setId={setId} onSelect={ref => onChange(ref)} />
+  );
+
+  /**
+   * «Заменить ссылку» — рядом со «Снять» в каждом состоянии, где ссылка уже стоит.
+   *
+   * <p>Была она ровно в одном состоянии из четырёх — у битой instance-ссылки. В остальных трёх
+   * (здоровая instance, здоровая и битая catalog) замена делалась в два шага: снять, потом открыть
+   * пикер заново — при том что снятие уже стёрло, на что смотреть при выборе замены. Значок и
+   * подпись — как у составного поля (<code>ComplexFieldGroup</code>), чтобы одно и то же действие
+   * везде называлось одинаково.</p>
+   */
+  function replaceButton(tone: string) {
+    return (
+      <button type="button" onClick={() => setPickerOpen(true)} title="Заменить ссылку"
+        className={`p-1 transition-colors shrink-0 ${tone}`}>
+        <RefreshCw size={13} />
+      </button>
+    );
+  }
+
   if (iRef) {
     const inst = otherInstances.find(i => i.id === iRef.instanceId);
     const dt = inst ? allDocTypes.find(t => t.id === inst.documentTypeId) : undefined;
@@ -30,15 +60,12 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
           <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${BROKEN_PLATE}`}>
             <FileText size={14} className="text-danger shrink-0" />
             <span className={`flex-1 min-w-0 text-sm font-medium truncate ${BROKEN_LABEL}`}>{iRef.displayName}</span>
-            <button type="button" onClick={() => setPickerOpen(true)} title="Выбрать другой документ"
-              className="p-1 text-danger hover:text-fg1 transition-colors"><FileText size={13} /></button>
+            {replaceButton('text-danger hover:text-fg1')}
             <button type="button" onClick={() => onChange(null)} title="Снять ссылку"
               className="p-1 text-danger hover:text-fg1 transition-colors"><Unlink size={13} /></button>
           </div>
           <BrokenRefNote />
-          <InstancePickerModal open={pickerOpen} onOpenChange={setPickerOpen}
-            field={field} allDocTypes={allDocTypes} otherInstances={otherInstances}
-            setId={setId} onSelect={ref => onChange(ref)} />
+          {picker}
         </div>
       );
     }
@@ -54,10 +81,12 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
             {STATUS_LABELS[inst.status]}
           </span>
         )}
+        {replaceButton('text-indigo-400 hover:text-indigo-700')}
         <button type="button" onClick={() => onChange(null)} title="Снять ссылку"
           className="p-1 text-indigo-400 hover:text-danger transition-colors">
           <Unlink size={13} />
         </button>
+        {picker}
       </div>
     );
   }
@@ -69,10 +98,12 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
           <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${BROKEN_PLATE}`}>
             <FileText size={14} className="text-danger shrink-0" />
             <span className={`flex-1 min-w-0 text-sm font-medium truncate ${BROKEN_LABEL}`}>{cRef.displayName}</span>
+            {replaceButton('text-danger hover:text-fg1')}
             <button type="button" onClick={() => onChange(null)} title="Снять ссылку"
               className="p-1 text-danger hover:text-fg1 transition-colors"><Unlink size={13} /></button>
           </div>
           <BrokenRefNote />
+          {picker}
         </div>
       );
     }
@@ -83,10 +114,12 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
           <span className="block text-sm text-warning font-medium truncate">{cRef.displayName}</span>
           <span className="block text-xs text-warning truncate">Общие данные</span>
         </span>
+        {replaceButton('text-warning hover:text-brand')}
         <button type="button" onClick={() => onChange(null)} title="Снять ссылку"
           className="p-1 text-warning hover:text-danger transition-colors">
           <Unlink size={13} />
         </button>
+        {picker}
       </div>
     );
   }
@@ -97,9 +130,7 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
         className="flex items-center gap-2 px-3 py-2 text-sm text-indigo-600 hover:text-indigo-700 border border-dashed border-indigo-300 rounded-lg hover:bg-indigo-50 transition-colors w-full">
         <FileText size={13} /> Выбрать документ...
       </button>
-      <InstancePickerModal open={pickerOpen} onOpenChange={setPickerOpen}
-        field={field} allDocTypes={allDocTypes} otherInstances={otherInstances}
-        setId={setId} onSelect={ref => onChange(ref)} />
+      {picker}
     </>
   );
 }
