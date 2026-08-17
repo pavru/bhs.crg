@@ -34,6 +34,36 @@ export function applyOrder<T>(items: T[], order: number[]): T[] {
   return order.map(i => items[i]);
 }
 
+/**
+ * Место строки в нумерации, к которой относятся СЕРВЕРНЫЕ пути (issue #759).
+ *
+ * <p>Диагностика битых ссылок приходит с сервера путями вида <code>Поле[2]</code> и считается по
+ * СОХРАНЁННОМУ состоянию. Редактор сверял её с текущим индексом строки — и любое изменение состава
+ * или порядка до сохранения уводило метку на чужую строку: удалили строку выше битой, и красная
+ * плитка «ссылка на удалённую запись» переезжает на живую запись, а битая выглядит целой.</p>
+ *
+ * <p>Поэтому у каждой строки помнится её номер в той нумерации, о которой говорил сервер.
+ * <code>null</code> — «сервер про эту строку ничего не говорил»: строку добавили после ответа либо
+ * состав изменился так, что проследить нельзя. Метка тогда не рисуется вовсе — это честнее, чем
+ * рисовать её наугад.</p>
+ */
+export type PathOrigins = (number | null)[];
+
+/** Исходное соответствие: строка i — это то, что сервер называл `[i]`. */
+export function identityOrigins(count: number): PathOrigins {
+  return Array.from({ length: count }, (_, i) => i);
+}
+
+/** Строки добавлены в конец: сервер про них не знает. */
+export function appendOrigins(origins: PathOrigins, count: number): PathOrigins {
+  return [...origins, ...Array.from({ length: count }, () => null)];
+}
+
+/** Состав изменился непрослеживаемо (правка через таблицу) — метки снимаем со всех строк. */
+export function unknownOrigins(count: number): PathOrigins {
+  return Array.from({ length: count }, () => null);
+}
+
 /** Номера выбранных строк в новом порядке; выбывшие строки из выбора исчезают. */
 export function remapSelection(selected: Set<number>, order: number[]): Set<number> {
   const next = new Set<number>();

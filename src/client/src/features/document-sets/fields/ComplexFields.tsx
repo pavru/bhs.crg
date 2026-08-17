@@ -18,7 +18,10 @@ import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { formatFieldValue, type FieldTypeDefs } from '@/shared/utils/fieldDisplay';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { objectSummary } from './objectSummary';
-import { mergeTableRows, moveOrder, dropOrder, applyOrder, remapSelection } from './arrayRows';
+import {
+  mergeTableRows, moveOrder, dropOrder, applyOrder, remapSelection,
+  identityOrigins, appendOrigins, unknownOrigins, type PathOrigins,
+} from './arrayRows';
 import { VariantPicker } from './VariantPicker';
 import { ExtractToCommonDataModal } from './ExtractToCommonDataModal';
 import {
@@ -476,6 +479,21 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   const [catalogPickerOpen, setCatalogPickerOpen] = useState(false);
   // Перестановка и пакетное удаление прямо в списке (issue #754). Выбор — номерами строк, см.
   // arrayRows: личностей у элементов массива нет, а номера переживают наши операции через remapSelection.
+  /**
+   * Соответствие «строка → номер, о котором говорил сервер» (issue #759).
+   *
+   * <p>Сбрасывается всякий раз, когда приходит НОВАЯ диагностика: её пути описывают уже сохранённое
+   * состояние, и прежние поправки к ним неверны. Сравниваем по ссылке на множество — оно приходит из
+   * <code>useMemo</code> по ответу сервера, так что новый объект и означает «пришёл новый ответ».
+   * Правка состояния прямо в рендере — тот самый случай, для которого React её и допускает: значение
+   * ПРОИЗВОДНОЕ от пропа, эффект здесь дал бы лишний кадр со старыми метками.</p>
+   */
+  const [marks, setMarks] = useState<{ src?: Set<string>; origins: PathOrigins }>(
+    () => ({ src: brokenPaths, origins: identityOrigins(allItems.length) }));
+  if (marks.src !== brokenPaths) {
+    setMarks({ src: brokenPaths, origins: identityOrigins(allItems.length) });
+  }
+
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);
@@ -520,6 +538,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   function addRow() {
     const newRow = getDefaultValues(subFields);
     onChange([...allItems, newRow]);
+    setMarks(m => ({ ...m, origins: appendOrigins(m.origins, 1) }));
     setRowModal(allItems.length); // сразу открыть модалку новой строки
   }
 
@@ -530,6 +549,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
    */
   function addFromCatalog(ref: FieldRef, variantKey?: string) {
     onChange([...allItems, variantKey ? { [variantKey]: ref } : ref]);
+    setMarks(m => ({ ...m, origins: appendOrigins(m.origins, 1) }));
   }
 
   /**
@@ -556,6 +576,18 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   function reorder(order: number[]) {
     onChange(applyOrder(allItems, order));
     setSelected(prev => remapSelection(prev, order));
+    // Метки битых ссылок едут тем же порядком (issue #759): иначе красная плитка осталась бы на
+    // МЕСТЕ, а не на строке, и указывала бы на живую запись.
+    setMarks(m => ({ ...m, origins: applyOrder(m.origins, order) }));
+  }
+
+  /**
+   * Путь строки в нумерации серверной диагностики; null — сервер про эту строку не говорил.
+   * Рисовать метку в этом случае не по чему, и рисовать её наугад хуже, чем не рисовать.
+   */
+  function markPath(i: number): string | null {
+    const origin = marks.origins[i];
+    return basePath && origin != null ? `${basePath}[${origin}]` : null;
   }
 
   function moveItem(from: number, to: number) {
@@ -742,7 +774,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         <div ref={listRef} className="divide-y divide-muted">
           {allItems.map((item, i) => {
             if (isFieldRef(item)) {
-              const itemBroken = !!basePath && !!brokenPaths?.has(`${basePath}[${i}]`);
+              const path = markPath(i);
+              const itemBroken = !!path && !!brokenPaths?.has(path);
               if (itemBroken) {
                 return (
                   <div key={i}>
@@ -782,8 +815,9 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               // Путь битой ссылки сервер строит ВНУТРЬ объекта («Поле[0].Вариант», ResolutionDiagnostics),
               // а не по индексу строки: проверь мы только «Поле[0]», удалённая цель показалась бы
               // здоровой ссылкой — ровно та потеря признака, ради которой заведена эта ветка.
-              const wrappedBroken = !!basePath
-                && !!brokenPaths?.has(`${basePath}[${i}].${wrapped.key}`);
+              const wrappedPath = markPath(i);
+              const wrappedBroken = !!wrappedPath
+                && !!brokenPaths?.has(`${wrappedPath}.${wrapped.key}`);
               return (
                 <div key={i}>
                 <div {...dropTarget(i)}
@@ -928,7 +962,15 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         items={inlineItems}
         // Выбор снимаем: таблица меняет и состав, и порядок строк, и номера выбранных после неё
         // указывали бы неизвестно на что (issue #754).
-        onSave={(rows, origins) => { onChange(mergeTableRows(allItems, rows, origins)); setSelected(new Set()); }}
+        onSave={(rows, origins) => {
+          const merged = mergeTableRows(allItems, rows, origins);
+          onChange(merged);
+          setSelected(new Set());
+          // Метки снимаем со ВСЕХ строк: таблица меняет и состав, и порядок нессылочных строк, и
+          // проследить, куда уехал серверный номер, отсюда нельзя (issue #759). Не рисовать честнее,
+          // чем рисовать наугад; следующий ответ сервера их вернёт.
+          setMarks(m => ({ ...m, origins: unknownOrigins(merged.length) }));
+        }}
         setId={setId} scope={scope} scopeId={scopeId}
       />
       {compositeType && (
@@ -971,6 +1013,11 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
           setId={setId} scope={scope} scopeId={scopeId}
           onExtracted={ref => {
             onChange(allItems.map((item, i) => (i === extractRow ? ref : item)));
+            // Строка стала ссылкой на ТОЛЬКО ЧТО созданную запись — битой она быть не может, а
+            // серверная метка по её прежнему номеру относилась к прежнему содержимому (issue #759).
+            setMarks(m => ({
+              ...m, origins: m.origins.map((o, i) => (i === extractRow ? null : o)),
+            }));
             setExtractRow(null);
           }} />
       )}
