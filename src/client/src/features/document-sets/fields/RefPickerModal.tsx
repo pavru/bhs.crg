@@ -1,28 +1,34 @@
 import { useState, useEffect } from 'react';
-import { FileText, ChevronDown, ChevronRight } from 'lucide-react';
+import { FileText, Files } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { useCommonDataForScope } from '@/shared/api/commonData';
 import type {
   CommonDataEntry, DocumentInstance, DocumentType, FieldRef, CatalogScope,
 } from '@/shared/api/types';
-import { SCOPE_LABELS } from '@/shared/api/types';
 import {
   resolveEffectiveFields, isSubtypeOf, isUnionType, placeInUnion,
-  type SchemaField, type UnionPlacement,
+  type SchemaField, type UnionPlacement, type UnionSource,
 } from '@/shared/api/schema';
-import { SCOPE_COLORS } from './constants';
+import { STATUS_COLORS, STATUS_LABELS } from './constants';
 import { VariantPicker } from './VariantPicker';
+import { useScopeGroups } from './catalogGroups';
+import { ScopeGroupList } from './ScopeGroupList';
 
 /**
- * Подпись источника: «имя документа → поле», с откатом на имя типа.
+ * Подпись источника-поля: «имя документа → поле», с откатом на имя типа.
  *
  * <p>Раньше подпись строилась от типа — «АОСР → Представитель подрядчика». В комплекте АОСР бывает
  * несколько (у живого их два), и такие строки становились неотличимы: какой именно документ
  * протягивается, из списка не видно, а после выбора не видно и в самой ссылке — та же строка едет
- * в её displayName. Имя экземпляра там, где оно есть, ровно как в InstancePickerModal.</p>
+ * в её displayName. Имя экземпляра там, где оно есть, ровно как у документа целиком.</p>
  */
 function sourceLabel(inst: DocumentInstance, dt: DocumentType, f: SchemaField): string {
   return `${inst.name || dt.name} → ${f.title}`;
+}
+
+/** Подпись документа целиком — та же, что кладёт «Выбрать документ…» (InstancePickerModal). */
+function instanceLabel(inst: DocumentInstance, dt: DocumentType): string {
+  return inst.name ? `${inst.name} (${dt.name})` : dt.name;
 }
 
 /** Значение поля-источника отсутствует: null/undefined, пустая строка, пустой объект или массив. */
@@ -32,6 +38,16 @@ function isBlank(v: unknown): boolean {
   if (typeof v === 'object') return Object.keys(v as object).length === 0;
   return false;
 }
+
+/**
+ * Кандидат в строку: чем подписан, какой ссылкой ляжет и в какой вариант union'а (issue #751).
+ *
+ * <p>Три источника — запись каталога, документ комплекта целиком, поле другого документа — до сих пор
+ * были раскиданы по двум диалогам с разными множествами кандидатов. Здесь они приведены к одному
+ * виду, поэтому и выбор, и второй шаг «в какой вариант положить» у них общие: разойтись, как
+ * разошлись диалоги, им больше нечем.</p>
+ */
+type Candidate = { label: string; ref: FieldRef; placement: UnionPlacement };
 
 export function RefPickerModal({
   open, onOpenChange, compositeType,
@@ -48,7 +64,8 @@ export function RefPickerModal({
   allDocTypes: DocumentType[];
   /**
    * Вызывающий умеет класть значение в ключ варианта union'а (issue #747) — и только тогда пикер
-   * предлагает записи типов-ВАРИАНТОВ, а не только самого составного типа.
+   * предлагает записи типов-ВАРИАНТОВ, а не только самого составного типа, и документы комплекта
+   * целиком (issue #751).
    *
    * Согласие обязано быть явным, потому что тот же пикер зовёт <code>ComplexCellPicker</code>,
    * который пишет голую ссылку и заворачивать не умеет: расширь мы фильтр молча, union получил бы
@@ -72,36 +89,67 @@ export function RefPickerModal({
   });
 
   // Union-режим (issue #747): кандидат подходит, если его тип годится САМОМУ union'у или любому его
-  // одиночному варианту. Куда ляжет запись, считаем здесь же и несём до onSelect — второй раз тот же
-  // вопрос задавать негде: в обработчике выбора уже нет ни типов, ни цепочки наследования под рукой.
+  // варианту. Куда ляжет кандидат, считаем здесь же и несём до onSelect — второй раз тот же вопрос
+  // задавать негде: в обработчике выбора уже нет ни типов, ни цепочки наследования под рукой.
   const unionMode = unionAware && !!compositeType && isUnionType(compositeType, allDocTypes);
-  // Мемо по типу записи, а не по записи: решение зависит ТОЛЬКО от типа, а типов на порядки меньше,
-  // чем записей. Без него placeInUnion звался бы трижды на каждого кандидата при каждом нажатии
-  // клавиши в поиске, и каждый вызов заново разрешает схему union'а и идёт вверх по цепочке.
-  const placements = new Map<string, UnionPlacement>();
-  const placementOf = (e: CommonDataEntry): UnionPlacement => {
-    const cached = placements.get(e.compositeTypeId);
-    if (cached) return cached;
-    const computed = placeInUnion(e.compositeTypeId, compositeType!, allDocTypes);
-    placements.set(e.compositeTypeId, computed);
-    return computed;
+  const searching = search.trim().length > 0;
+  // Запрос ОДИН на все три раздела. Пока их было два, каталог фильтровался нетримленной строкой, а
+  // остальное — тримленной: «аоср » с хвостовым пробелом опустошал каталог, оставив документы, и
+  // клавиатурный порядок молча перестраивался под другой список.
+  const query = search.trim().toLowerCase();
+  /**
+   * Размещения считаем по ТИПУ и заранее, а не по кандидату и лениво.
+   *
+   * <p>Решение зависит только от типа источника, а типов на порядки меньше, чем записей и
+   * документов: у живого комплекта тридцать записей каталога дают четыре-пять типов. Каждый вызов
+   * <code>placeInUnion</code> заново разрешает схему union'а и идёт вверх по цепочке наследования,
+   * поэтому считать его на кандидата — значит платить за это при каждом нажатии клавиши в поиске.</p>
+   *
+   * <p>Именно готовыми таблицами, а не кэшем-по-требованию: спрашивают их теперь и колбэки,
+   * отданные наружу (подсказки строк каталога), а такой кэш заполнялся бы уже ПОСЛЕ рендера — и
+   * следующий рендер видел бы другое содержимое, чем предыдущий.</p>
+   *
+   * <p>Таблицы раздельные по виду источника: у одного и того же типа исходы для значения и для
+   * документа разные (см. <code>UnionSource</code>).</p>
+   *
+   * <p>Покрывают они не всё: типы полей-источников заранее неизвестны — чтобы их перечислить,
+   * пришлось бы обойти схемы всех документов комплекта, то есть проделать ту же работу, которую и
+   * оценивали. Для них <code>placeInUnion</code> вызывается на месте; список полей короткий, а вот
+   * записей каталога бывают десятки — на них экономия и рассчитана.</p>
+   *
+   * <p>Всё это считается только при открытом диалоге. Пикер смонтирован постоянно (его держит
+   * <code>ArrayFieldEditor</code>), поэтому тело компонента исполняется на КАЖДЫЙ рендер формы —
+   * а закрытому диалогу кандидаты не нужны ни одному.</p>
+   */
+  const placementsFor = (typeIds: string[], source: UnionSource) =>
+    new Map<string, UnionPlacement>(
+      unionMode && open
+        ? [...new Set(typeIds)].map(id => [id, placeInUnion(id, compositeType!, allDocTypes, source)] as const)
+        : [],
+    );
+  const valuePlacements = placementsFor(catalogEntries.map(e => e.compositeTypeId), 'value');
+  const docPlacements = placementsFor(otherInstances.map(i => i.documentTypeId), 'document');
+  /** Тип поля-источника среди записей каталога может и не встретиться — тогда считаем на месте. */
+  const placementOf = (typeId: string, source: UnionSource = 'value'): UnionPlacement => {
+    const table = source === 'document' ? docPlacements : valuePlacements;
+    return table.get(typeId) ?? placeInUnion(typeId, compositeType!, allDocTypes, source);
   };
 
-  const filtered = catalogEntries.filter(e => {
+  const filtered = !open ? [] : catalogEntries.filter(e => {
     if (compositeType) {
       const fits = unionMode
-        ? placementOf(e).kind !== 'none'
+        ? placementOf(e.compositeTypeId).kind !== 'none'
         : isSubtypeOf(e.compositeTypeId, compositeType.id, allDocTypes);
       if (!fits) return false;
     }
-    return e.displayName.toLowerCase().includes(search.toLowerCase());
+    return e.displayName.toLowerCase().includes(query);
   });
 
-  // Запись, для которой тип не назвал единственного варианта: показываем её вторым шагом со
+  // Кандидат, для которого тип не назвал единственного варианта: показываем его вторым шагом со
   // списком вариантов вместо того, чтобы прятать. Прятать нельзя — ничья означает, что два
   // варианта объявлены на один тип (иначе при одиночном наследовании дистанции не совпали бы),
   // то есть это осмысленная схема, а не порча данных, и исправить её из пикера человек не может.
-  const [askVariantFor, setAskVariantFor] = useState<CommonDataEntry | null>(null);
+  const [askVariantFor, setAskVariantFor] = useState<Candidate | null>(null);
   useEffect(() => { if (!open) setAskVariantFor(null); }, [open]);
 
   /** Подписи вариантов union'а — для метки на кандидате и для второго шага. */
@@ -112,24 +160,145 @@ export function RefPickerModal({
 
   // Метка «куда ляжет» — только когда принимающих слотов больше одного: при единственном варианте
   // она повторяла бы заголовок поля и была бы шумом.
-  function variantHint(entry: CommonDataEntry): string | null {
+  function variantHint(placement: UnionPlacement): string | null {
     if (!unionMode || variantFields.length < 2) return null;
-    const placement = placementOf(entry);
     if (placement.kind === 'variant') return variantTitle(placement.variantKey);
     if (placement.kind === 'ambiguous') return `${placement.variantKeys.length} варианта`;
     return null;
   }
 
+  const { groups, isExpanded, toggle, visible } = useScopeGroups(filtered, searching);
 
-  // Группировка по scope: ближайший уровень (Комплект) вверху, дальние — ниже. Пустые группы скрыты.
-  const SCOPE_ORDER: CatalogScope[] = ['Set', 'Section', 'Construction', 'System'];
-  const groups = SCOPE_ORDER
-    .map(s => ({ scope: s, entries: filtered.filter(e => e.scope === s) }))
-    .filter(g => g.entries.length > 0);
+  const refOfEntry = (entry: CommonDataEntry): FieldRef => ({
+    $ref: 'catalog',
+    entryId: entry.id,
+    displayName: entry.displayName,
+    scope: entry.scope,
+  });
 
-  const searching = search.trim().length > 0;
+  /**
+   * Документы комплекта целиком — источник, которого у этого диалога не было (issue #751).
+   *
+   * <p>Строка union-массива вида <code>{Вариант: {"$ref":"instance"}}</code> совершенно законна, и для
+   * реестров это основной случай: строки реестра суть документы комплекта. Раньше «Из каталога» их
+   * не предлагал вовсе, и документ ставили обходом — создать строку, открыть её, выбрать вариант,
+   * «Выбрать документ…». Ограничение было свойством КНОПКИ, а не модели.</p>
+   *
+   * <p>Принимают документ только <code>doc-ref</code>-варианты (см. <code>UnionSource</code>), поэтому
+   * там, где вариантов такого вида нет — например у «Кабельной линии», набранной одними
+   * <code>complex</code>, — раздел просто пуст, а не заполнен неподходящими документами.</p>
+   */
+  const instanceCandidates = unionMode && open
+    ? otherInstances.flatMap(inst => {
+        const dt = allDocTypes.find(t => t.id === inst.documentTypeId);
+        if (!dt) return [];
+        const placement = placementOf(inst.documentTypeId, 'document');
+        if (placement.kind === 'none') return [];
+        const label = instanceLabel(inst, dt);
+        // Поиск ведём и по имени документа, и по имени типа — имя у экземпляра необязательно.
+        if (query && !label.toLowerCase().includes(query) && !dt.name.toLowerCase().includes(query)) return [];
+        return [{ inst, dt, label, placement }];
+      })
+    : [];
 
-  const hints = new Map(filtered.map(e => [e.id, variantHint(e)] as const));
+  /**
+   * Поля других документов комплекта — второй источник значения.
+   *
+   * <p>Поиск фильтрует и этот список тоже (issue #750). Пока раздел был мёртв, это было незаметно;
+   * с живым разделом набранный запрос сузил бы только каталог, а первым в клавиатурном порядке
+   * остался бы документ, запросу НЕ отвечающий, — и Enter выбрал бы не то, что человек искал.</p>
+   *
+   * <p>В union-режиме годность поля считает <code>placeInUnion</code>, а не равенство типов: поле
+   * типа ВАРИАНТА — такой же законный источник строки, как запись каталога того же типа, и прежнее
+   * ограничение «ровно тип всего union'а» отсекало его без причины (issue #751).</p>
+   *
+   * <p>Берём только <code>complex</code>-поля: <code>doc-ref</code>-поле само хранит ссылку, и
+   * <code>$ref:'document'</code> на него дал бы ссылку на ссылку — известный дефект #762, который
+   * незачем делать частым.</p>
+   *
+   * <p><code>filled</code> — заполнено ли поле-источник. Пустое не прячем: связать сейчас, а
+   * заполнить потом — нормальный порядок работы. Но и молчать нельзя: неразвёрнутая ссылка доходит
+   * до проверки как ошибка «целевая запись не найдена или удалена», хотя документ на месте и не
+   * заполнено всего одно поле.</p>
+   */
+  const fieldCandidates = compositeType && setId && open
+    ? otherInstances.flatMap(inst => {
+        const dt = allDocTypes.find(t => t.id === inst.documentTypeId);
+        if (!dt) return [];
+        const fields = resolveEffectiveFields(dt, allDocTypes).filter(f => {
+          if (f.type !== 'complex' || !f.typeId) return false;
+          return unionMode ? placementOf(f.typeId).kind !== 'none' : f.typeId === compositeType.id;
+        });
+        return fields
+          .map(f => ({
+            inst, dt, field: f, label: sourceLabel(inst, dt, f),
+            filled: !isBlank(inst.requisites?.[f.key]),
+            placement: unionMode ? placementOf(f.typeId!) : ({ kind: 'self' } as UnionPlacement),
+          }))
+          .filter(o => o.label.toLowerCase().includes(query));
+      })
+    : [];
+
+  // Плоский список навигируемых опций (issue #107 F5): видимые (в раскрытых группах) записи
+  // каталога + документы целиком + поля-источники — в порядке отображения. Стрелки/Enter ходят по ним.
+  type RpOption =
+    | { type: 'catalog'; entry: CommonDataEntry }
+    | { type: 'instance'; inst: DocumentInstance; dt: DocumentType; label: string; placement: UnionPlacement }
+    | { type: 'field'; inst: DocumentInstance; dt: DocumentType; field: SchemaField;
+        label: string; filled: boolean; placement: UnionPlacement };
+  const options: RpOption[] = [
+    ...visible.map(entry => ({ type: 'catalog' as const, entry })),
+    ...instanceCandidates.map(d => ({ type: 'instance' as const, ...d })),
+    ...fieldCandidates.map(d => ({ type: 'field' as const, ...d })),
+  ];
+  const [active, setActive] = useState(0);
+  useEffect(() => { setActive(0); }, [search]);
+  const optKey = (o: RpOption) =>
+    o.type === 'catalog' ? `c:${o.entry.id}`
+      : o.type === 'instance' ? `i:${o.inst.id}`
+        : `d:${o.inst.id}-${o.field.key}`;
+  const indexByKey = new Map(options.map((o, i) => [optKey(o), i]));
+  const optionId = (key: string) => {
+    const i = indexByKey.get(key);
+    return i == null ? undefined : `rp-opt-${i}`;
+  };
+  const isOn = (key: string) => indexByKey.get(key) === active;
+
+  function toCandidate(o: RpOption): Candidate {
+    if (o.type === 'catalog') {
+      return {
+        label: o.entry.displayName,
+        ref: refOfEntry(o.entry),
+        placement: unionMode ? placementOf(o.entry.compositeTypeId) : { kind: 'self' },
+      };
+    }
+    if (o.type === 'instance') {
+      return {
+        label: o.label,
+        ref: { $ref: 'instance', instanceId: o.inst.id, displayName: o.label },
+        placement: o.placement,
+      };
+    }
+    return {
+      label: o.label,
+      ref: { $ref: 'document', instanceId: o.inst.id, fieldKey: o.field.key, displayName: o.label },
+      placement: o.placement,
+    };
+  }
+
+  /** Единственная дверь к выбору: ничья спрашивает вариант, всё остальное закрывает диалог. */
+  function choose(o: RpOption) {
+    const c = toCandidate(o);
+    if (c.placement.kind === 'ambiguous') { setAskVariantFor(c); return; }
+    onSelect(c.ref, c.placement.kind === 'variant' ? c.placement.variantKey : undefined);
+    onOpenChange(false);
+  }
+
+  function onKey(e: React.KeyboardEvent) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, options.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
+    else if (e.key === 'Enter') { e.preventDefault(); const o = options[active]; if (o) choose(o); }
+  }
 
   /**
    * Пустое состояние объясняет ПРИЧИНУ. Раньше текст был один на три случая и в самом частом врал:
@@ -155,115 +324,20 @@ export function RefPickerModal({
             : `На доступных уровнях записей: ${catalogEntries.length}, но ни одна не подходит по типу.`,
         }
       : { title: 'Нет объектов доступных для ссылки.', hint: 'Добавьте записи в каталог общих данных.' };
-  const firstScope = groups[0]?.scope; // ближайшая НЕпустая группа — раскрыта по умолчанию
-  // Ручные переопределения сворачивания (действуют, когда поиск пуст). При поиске все группы с
-  // совпадениями раскрыты (иначе матч спрятался бы за свёрнутой группой).
-  const [collapseOverride, setCollapseOverride] = useState<Partial<Record<CatalogScope, boolean>>>({});
-  const isExpanded = (scope: CatalogScope) =>
-    searching ? true : (collapseOverride[scope] ?? scope === firstScope);
-  const toggleGroup = (scope: CatalogScope) =>
-    setCollapseOverride(o => ({ ...o, [scope]: !isExpanded(scope) }));
-
-  /**
-   * Поля других документов комплекта того же типа — второй источник значения.
-   *
-   * <p>Поиск фильтрует и этот список тоже (issue #750). Пока раздел был мёртв, это было незаметно;
-   * с живым разделом набранный запрос сузил бы только каталог, а первым в клавиатурном порядке
-   * остался бы документ, запросу НЕ отвечающий, — и Enter выбрал бы не то, что человек искал.</p>
-   *
-   * <p><code>filled</code> — заполнено ли поле-источник. Пустое не прячем: связать сейчас, а
-   * заполнить потом — нормальный порядок работы. Но и молчать нельзя: неразвёрнутая ссылка доходит
-   * до проверки как ошибка «целевая запись не найдена или удалена», хотя документ на месте и не
-   * заполнено всего одно поле (см. issue про ветку <code>case "document"</code> резолвера).</p>
-   */
-  const docSources = compositeType && setId
-    ? otherInstances.flatMap(inst => {
-        const dt = allDocTypes.find(t => t.id === inst.documentTypeId);
-        if (!dt) return [];
-        const fields = resolveEffectiveFields(dt, allDocTypes).filter(
-          f => f.type === 'complex' && f.typeId === compositeType.id,
-        );
-        return fields
-          .map(f => ({ inst, dt, field: f, label: sourceLabel(inst, dt, f),
-                       filled: !isBlank(inst.requisites?.[f.key]) }))
-          .filter(o => o.label.toLowerCase().includes(search.trim().toLowerCase()));
-      })
-    : [];
-
-  // Плоский список навигируемых опций (issue #107 F5): видимые (в раскрытых группах) записи
-  // каталога + источники-документы — в порядке отображения. Стрелки/Enter ходят по ним.
-  type RpOption =
-    | { type: 'catalog'; entry: CommonDataEntry }
-    | { type: 'doc'; inst: DocumentInstance; dt: DocumentType; field: SchemaField;
-        label: string; filled: boolean };
-  const options: RpOption[] = [
-    ...groups.flatMap(g => isExpanded(g.scope) ? g.entries.map(entry => ({ type: 'catalog' as const, entry })) : []),
-    ...docSources.map(d => ({ type: 'doc' as const, ...d })),
-  ];
-  const [active, setActive] = useState(0);
-  useEffect(() => { setActive(0); }, [search, collapseOverride]);
-  const optKey = (o: RpOption) => o.type === 'catalog' ? `c:${o.entry.id}` : `d:${o.inst.id}-${o.field.key}`;
-  const indexByKey = new Map(options.map((o, i) => [optKey(o), i]));
-  function activate(o: RpOption) {
-    if (o.type === 'catalog') selectCatalog(o.entry);
-    else selectDocument(o.inst, o.dt, o.field);
-  }
-  function onKey(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, options.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
-    else if (e.key === 'Enter') { e.preventDefault(); const o = options[active]; if (o) activate(o); }
-  }
-
-  const refOf = (entry: CommonDataEntry): FieldRef => ({
-    $ref: 'catalog',
-    entryId: entry.id,
-    displayName: entry.displayName,
-    scope: entry.scope,
-  });
-
-  function selectCatalog(entry: CommonDataEntry) {
-    if (!unionMode) {
-      onSelect(refOf(entry));
-      onOpenChange(false);
-      return;
-    }
-    const placement = placementOf(entry);
-    // Ничья — единственный случай, когда диалог не закрывается: спрашиваем вариант вторым шагом.
-    if (placement.kind === 'ambiguous') { setAskVariantFor(entry); return; }
-    onSelect(refOf(entry), placement.kind === 'variant' ? placement.variantKey : undefined);
-    onOpenChange(false);
-  }
-
-  function selectVariant(entry: CommonDataEntry, variantKey: string) {
-    onSelect(refOf(entry), variantKey);
-    setAskVariantFor(null);
-    onOpenChange(false);
-  }
-
-  function selectDocument(inst: DocumentInstance, dt: DocumentType, field: SchemaField) {
-    onSelect({
-      $ref: 'document',
-      instanceId: inst.id,
-      fieldKey: field.key,
-      displayName: sourceLabel(inst, dt, field),
-    });
-    onOpenChange(false);
-  }
 
   // Второй шаг: тип не назвал единственного варианта — спрашиваем. Отдельным экраном той же
   // модалки, а не отдельным диалогом: выбор ещё не сделан, и «назад» обязано возвращать к списку.
   if (askVariantFor) {
-    const placement = placementOf(askVariantFor);
-    const keys = placement.kind === 'ambiguous' ? placement.variantKeys : [];
+    const keys = askVariantFor.placement.kind === 'ambiguous' ? askVariantFor.placement.variantKeys : [];
     return (
       <Modal open={open} onOpenChange={onOpenChange} title="В какой вариант поместить?">
         <div className="space-y-4">
           <p className="text-sm text-fg2">
-            <span className="font-medium">{askVariantFor.displayName}</span> подходит нескольким
+            <span className="font-medium">{askVariantFor.label}</span> подходит нескольким
             вариантам одинаково: они объявлены на один и тот же тип, и по типу выбрать нельзя.
           </p>
           <VariantPicker layout="list" options={keys.map(k => ({ key: k, label: variantTitle(k), filled: false }))}
-            active="" onSelect={k => selectVariant(askVariantFor, k)} />
+            active="" onSelect={k => { onSelect(askVariantFor.ref, k); setAskVariantFor(null); onOpenChange(false); }} />
           <button type="button" onClick={() => setAskVariantFor(null)}
             className="text-xs text-fg3 hover:text-fg1 transition-colors">← Назад к списку</button>
         </div>
@@ -286,66 +360,80 @@ export function RefPickerModal({
             <p className="text-xs font-medium text-fg3 uppercase tracking-wide mb-2">
               Каталог общих данных
             </p>
-            <div className="space-y-1 max-h-64 overflow-y-auto">
-              {groups.map(g => {
-                const expanded = isExpanded(g.scope);
+            <ScopeGroupList
+              groups={groups} isExpanded={isExpanded}
+              // Сворачивание меняет состав навигируемого списка: не сбрось мы активную позицию,
+              // стрелки продолжили бы с номера, который теперь указывает на чужую запись.
+              toggle={s => { toggle(s); setActive(0); }}
+              isActive={e => isOn(`c:${e.id}`)}
+              onHover={e => { const i = indexByKey.get(`c:${e.id}`); if (i != null) setActive(i); }}
+              onSelect={e => { const i = indexByKey.get(`c:${e.id}`); if (i != null) choose(options[i]); }}
+              optionIdOf={e => optionId(`c:${e.id}`)}
+              hintOf={e => variantHint(unionMode ? placementOf(e.compositeTypeId) : { kind: 'self' })}
+            />
+          </div>
+        )}
+
+        {instanceCandidates.length > 0 && (
+          <div>
+            <p className="text-xs font-medium text-fg3 uppercase tracking-wide mb-2">
+              Документы комплекта
+            </p>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {instanceCandidates.map(({ inst, label, placement }) => {
+                const key = `i:${inst.id}`;
+                const on = isOn(key);
+                const hint = variantHint(placement);
                 return (
-                  <div key={g.scope}>
-                    {/* Заголовок группы = scope-бейдж + счётчик; сворачиваемая секция (a11y-кнопка). */}
-                    <button type="button" onClick={() => toggleGroup(g.scope)} aria-expanded={expanded}
-                      className="w-full flex items-center gap-2 px-1 py-1.5 text-left rounded-md hover:bg-base transition-colors">
-                      {expanded ? <ChevronDown size={13} className="text-fg4 shrink-0" /> : <ChevronRight size={13} className="text-fg4 shrink-0" />}
-                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${SCOPE_COLORS[g.scope]}`}>
-                        {SCOPE_LABELS[g.scope]}
+                  <button key={inst.id} type="button" role="option" aria-selected={on} id={optionId(key)}
+                    onMouseEnter={() => { const i = indexByKey.get(key); if (i != null) setActive(i); }}
+                    onClick={() => { const i = indexByKey.get(key); if (i != null) choose(options[i]); }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors ${
+                      on ? 'bg-tonal text-on-tonal' : 'hover:bg-brand-subtle'}`}>
+                    <Files size={14} className={`shrink-0 ${on ? 'text-on-tonal' : 'text-fg4'}`} />
+                    <span className={`flex-1 font-medium truncate ${on ? 'text-on-tonal' : 'text-fg1'}`}>
+                      {label}
+                    </span>
+                    {hint && (
+                      <span className={`text-[11px] shrink-0 truncate max-w-[35%] ${on ? 'text-on-tonal' : 'text-fg4'}`}>
+                        {hint}
                       </span>
-                      <span className="text-xs text-fg4">{g.entries.length}</span>
-                    </button>
-                    {expanded && (
-                      <div className="space-y-0.5 pl-1.5">
-                        {g.entries.map(entry => {
-                          const gi = indexByKey.get(`c:${entry.id}`) ?? -1;
-                          const on = gi === active;
-                          return (
-                            <button key={entry.id} type="button" role="option" aria-selected={on} id={`rp-opt-${gi}`}
-                              onMouseEnter={() => setActive(gi)} onClick={() => selectCatalog(entry)}
-                              className={`w-full flex items-center px-3 py-2 text-sm text-left rounded-md transition-colors ${
-                                on ? 'bg-tonal text-on-tonal' : 'hover:bg-brand-subtle'}`}>
-                              <span className={`flex-1 font-medium truncate ${on ? 'text-on-tonal' : 'text-fg1'}`}>{entry.displayName}</span>
-                              {hints.get(entry.id) && (
-                                <span className={`text-[11px] shrink-0 ml-2 truncate max-w-[45%] ${on ? 'text-on-tonal' : 'text-fg4'}`}>
-                                  {hints.get(entry.id)}
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
                     )}
-                  </div>
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[inst.status]}`}>
+                      {STATUS_LABELS[inst.status]}
+                    </span>
+                  </button>
                 );
               })}
             </div>
           </div>
         )}
 
-        {docSources.length > 0 && (
+        {fieldCandidates.length > 0 && (
           <div>
             <p className="text-xs font-medium text-fg3 uppercase tracking-wide mb-2">
-              Из других документов комплекта
+              Поля других документов
             </p>
-            <div className="space-y-1">
-              {docSources.map(({ inst, dt, field, label, filled }) => {
-                const gi = indexByKey.get(`d:${inst.id}-${field.key}`) ?? -1;
-                const on = gi === active;
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {fieldCandidates.map(({ inst, field, label, filled, placement }) => {
+                const key = `d:${inst.id}-${field.key}`;
+                const on = isOn(key);
+                const hint = variantHint(placement);
                 return (
-                  <button key={`${inst.id}-${field.key}`} type="button" role="option" aria-selected={on} id={`rp-opt-${gi}`}
-                    onMouseEnter={() => setActive(gi)} onClick={() => selectDocument(inst, dt, field)}
+                  <button key={key} type="button" role="option" aria-selected={on} id={optionId(key)}
+                    onMouseEnter={() => { const i = indexByKey.get(key); if (i != null) setActive(i); }}
+                    onClick={() => { const i = indexByKey.get(key); if (i != null) choose(options[i]); }}
                     className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors ${
                       on ? 'bg-tonal text-on-tonal' : 'hover:bg-brand-subtle'}`}>
                     <FileText size={14} className={`shrink-0 ${on ? 'text-on-tonal' : 'text-fg4'}`} />
                     <span className={`flex-1 font-medium truncate ${on ? 'text-on-tonal' : 'text-fg1'}`}>
                       {label}
                     </span>
+                    {hint && (
+                      <span className={`text-[11px] shrink-0 truncate max-w-[35%] ${on ? 'text-on-tonal' : 'text-fg4'}`}>
+                        {hint}
+                      </span>
+                    )}
                     {!filled && (
                       <span className={`text-[11px] shrink-0 ${on ? 'text-on-tonal' : 'text-warning'}`}
                         title="Поле-источник пока не заполнено — ссылка останется неразвёрнутой, пока его не заполнят">
@@ -359,26 +447,14 @@ export function RefPickerModal({
           </div>
         )}
 
-        {filtered.length === 0 && docSources.length === 0 && (
+        {/* Считаем по КАНДИДАТАМ, а не по навигируемым опциям: опции — это записи РАСКРЫТЫХ групп,
+            и стоило свернуть единственную группу, как под её же заголовком «Комплект 3» появлялось
+            «Подходящих записей нет». Свёрнутая группа — это спрятано, а не пусто. */}
+        {filtered.length === 0 && instanceCandidates.length === 0 && fieldCandidates.length === 0 && (
           <p className="text-sm text-fg4 text-center py-4">
             {emptyState.title}
             <br />
             <span className="text-xs">{emptyState.hint}</span>
-            {/* Шов между двумя входами (issue #751): этот диалог отвечает на вопрос «дай строку
-                ЦЕЛИКОМ», а документ в ОДИН вариант строки выбирают внутри неё. Пока диалоги не
-                сведены, единственное место, где об этом можно сказать, — здесь.
-                Формулировка правится вместе с #750: раздел документов комплекта у массива больше
-                не пуст всегда — он показывает поля того же типа, что вся строка. */}
-            {unionMode && (
-              <>
-                <br />
-                <span className="text-xs">
-                  Документы комплекта предлагаются здесь только целой строкой — полем того же типа.
-                  Чтобы поставить документ в ОДИН вариант: «Добавить строку» → вариант →
-                  «Выбрать документ…».
-                </span>
-              </>
-            )}
           </p>
         )}
       </div>
