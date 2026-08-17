@@ -12,7 +12,9 @@ public record GenerationRequest(
     string TemplateContent,
     OutputFormat Format,
     GenerationContext Context,
-    string? TypeBlocksContent = null,
+    // Блоки типов (issue #772) — агрегатор typeblocks.typ + модули typeblocks/<слаг>.typ.
+    // Раскладываются в tmpDir по своим относительным путям; агрегатор обязан быть даже пустым.
+    IReadOnlyList<TypstBlockFile>? TypeBlocksFiles = null,
     string? UserLibContent = null,
     ResolvedTemplateAssets? TemplateAssets = null,
     // Дерево библиотеки (issue #473) — материализуется в подпапку userlib/ рядом с точкой входа.

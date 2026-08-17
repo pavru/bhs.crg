@@ -9,7 +9,9 @@ namespace BHS.CRG.Infrastructure.Generation;
 
 public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
 {
-    public const string TypeBlocksFileName = "typeblocks.typ";
+    // Имя точки входа — одно на всю систему: сборка (TypeBlockSlug), раскладка на диск, проверка
+    // блоков и заглушка в проверке библиотеки обязаны звать один и тот же файл.
+    public const string TypeBlocksFileName = TypeBlockSlug.EntrypointName;
     public const string DataFileName = "data.json";
     public const string UserLibFileName = "userlib.typ";
     public const string AssetsSubdir = "assets";
@@ -59,13 +61,11 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
             // чтобы `#import "systemlib.typ"` в шаблоне резолвился.
             await File.WriteAllTextAsync(Path.Combine(tmpDir, SystemTypstLib.FileName), SystemTypstLib.Content, Encoding.UTF8, ct);
 
-            // Всегда записываем typeblocks.typ — даже пустым.
-            // Шаблон импортирует его напрямую: #import "typeblocks.typ": *
+            // Блоки типов: агрегатор typeblocks.typ + модули typeblocks/<слаг>.typ (issue #772).
+            // Шаблон импортирует напрямую только агрегатор (#import "typeblocks.typ": *), поэтому он
+            // пишется ВСЕГДА, хотя бы заглушкой: без файла упал бы каждый документ.
             var typeBlocksPath = Path.Combine(tmpDir, TypeBlocksFileName);
-            var typeBlocksContent = string.IsNullOrEmpty(request.TypeBlocksContent)
-                ? "// no composite-type render functions defined"
-                : request.TypeBlocksContent;
-            await File.WriteAllTextAsync(typeBlocksPath, typeBlocksContent, Encoding.UTF8, ct);
+            await TypeBlocksMaterializer.WriteAsync(tmpDir, request.TypeBlocksFiles, ct);
 
             if (!File.Exists(typeBlocksPath))
                 throw new InvalidOperationException($"Failed to write {TypeBlocksFileName} to {tmpDir}");

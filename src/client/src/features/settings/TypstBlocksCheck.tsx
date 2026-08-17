@@ -11,8 +11,10 @@ import type { TypstRender } from '@/shared/api/schema';
  */
 const CODE_LABEL: Record<string, string> = {
   cycle: 'взаимные ссылки',
+  'cycle-cross-type': 'взаимные ссылки типов',
   'duplicate-fn': 'дубликат имени',
   'reserved-fn': 'имя занято системой',
+  'relative-path': 'путь не от корня',
   syntax: 'синтаксис',
   'checker-unavailable': 'проверка недоступна',
 };

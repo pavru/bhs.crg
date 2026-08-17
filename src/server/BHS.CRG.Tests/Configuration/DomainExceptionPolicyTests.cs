@@ -45,6 +45,7 @@ public class DomainExceptionPolicyTests
         ["BHS.CRG.Infrastructure/Recognition/RecognitionProfileProvider.cs"] = "не сработал сидинг при старте — дефект развёртывания",
         ["BHS.CRG.Infrastructure/DataSets/DataSetParserFactory.cs"] = "нет парсера для формата — дефект реестра парсеров",
         ["BHS.CRG.Infrastructure/Generation/UserLibMaterializer.cs"] = "сработала защита от записи за пределы дерева — обязана быть громкой, а не тихим 409",
+        ["BHS.CRG.Infrastructure/Generation/TypeBlocksMaterializer.cs"] = "та же защита для блоков типов: пути формирует сервер, выход за папку компиляции — дефект, не отказ пользователю",
         ["BHS.CRG.Infrastructure/Storage/BlobStorage.cs"] = "путь берётся из базы, а не из запроса: «исправьте запрос» тут неверно по существу",
         ["BHS.CRG.Domain/Objects/DomainObject.cs"] = "документные свойства спросили у не-документа — дефект вызывающего кода",
         ["BHS.CRG.Infrastructure/Backup/CountingStream.cs"] = "счётчик байтов: чтения и перемотки у него нет по устройству, до пользователя это не доходит",

@@ -111,9 +111,6 @@ public static class GenerationEndpoints
             var bundle = await m.Send(new GetGenerationDebugBundleQuery(instanceId), ct);
             if (bundle is null) return Results.NotFound();
 
-            var typeBlocks = string.IsNullOrEmpty(bundle.TypeBlocks)
-                ? "// no composite-type render functions defined"
-                : bundle.TypeBlocks;
             var userLib = string.IsNullOrEmpty(bundle.UserLib)
                 ? "// user typst library is empty"
                 : bundle.UserLib;
@@ -190,7 +187,14 @@ public static class GenerationEndpoints
                     await WriteEntry(zip, "template.typ", bundle.TemplateContent);
                     await WriteEntry(zip, SystemTypstLib.FileName, SystemTypstLib.Content);
                     await WriteEntry(zip, "data.json", dataJson);
-                    await WriteEntry(zip, "typeblocks.typ", typeBlocks);
+                    // Блоки типов (issue #772) — агрегатор и модули typeblocks/<слаг>.typ.
+                    // Кладём той же раскладкой, что и генерация: бандл воспроизводит ВХОД, а не
+                    // своё представление о нём — иначе отладка расходится с тем, что происходит на сервере.
+                    if (bundle.TypeBlocks.Count == 0)
+                        await WriteEntry(zip, TypeBlockSlug.EntrypointName,
+                            "// no composite-type render functions defined");
+                    foreach (var tb in bundle.TypeBlocks)
+                        await WriteEntry(zip, tb.Path, tb.Content);
                     await WriteEntry(zip, "userlib.typ", userLib);
 
                     // Дерево библиотеки (issue #473) — той же раскладкой, что при генерации: точка

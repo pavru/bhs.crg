@@ -22,30 +22,63 @@ public enum TypstBlockDiagnosticSeverity { Warning, Error }
 public sealed record TypstBlockDiagnostic(
     TypstBlockDiagnosticSeverity Severity, string Code, string Message, IReadOnlyList<string> FnNames);
 
-/// <summary>Карта строк: где в итоговом typeblocks.typ лежит блок (для маппинга ошибок Typst назад на тип/вариант).</summary>
-public sealed record TypstBlockSpan(string FnName, string Provenance, Guid TypeId, int StartLine, int EndLine);
+/// <summary>Один файл сборки блоков. <paramref name="Path"/> — относительно корня компиляции,
+/// с прямыми слэшами (это же путь, который Typst печатает в диагностиках и который кладётся в ZIP).</summary>
+public sealed record TypstBlockFile(string Path, string Content);
 
+/// <summary>Карта строк: в каком файле и на каких строках лежит блок (для маппинга ошибок Typst
+/// назад на тип/вариант). С расколом по файлам (issue #772) координата — пара «файл + строка»:
+/// номера строк в разных модулях совпадают, и одной строки для поиска больше не хватает.</summary>
+public sealed record TypstBlockSpan(
+    string FnName, string Provenance, Guid TypeId, int StartLine, int EndLine, string File);
+
+/// <param name="Files">Агрегатор и модули. Агрегатор — всегда первый и всегда присутствует, даже
+/// когда блоков нет вовсе: шаблон импортирует его дословно (#353), и отсутствие файла было бы
+/// ошибкой компиляции у КАЖДОГО документа.</param>
 public sealed record TypstPreambleResult(
-    string Content, IReadOnlyList<TypstBlockSpan> Spans, IReadOnlyList<TypstBlockDiagnostic> Diagnostics);
+    IReadOnlyList<TypstBlockFile> Files,
+    IReadOnlyList<TypstBlockSpan> Spans,
+    IReadOnlyList<TypstBlockDiagnostic> Diagnostics)
+{
+    /// <summary>Содержимое агрегатора — для мест, которым нужен только он (harness, тесты).</summary>
+    public string Entrypoint => Files[0].Content;
+}
 
 /// <summary>
-/// Собирает typeblocks.typ — функции рендеринга составных типов (схема, свойство "typstRenders").
+/// Собирает блоки отображения составных типов (схема, свойство "typstRenders") — агрегатор
+/// <c>typeblocks.typ</c> и по файлу-модулю на тип в подпапке <c>typeblocks/</c> (issue #772).
 ///
-/// Порядок КРИТИЧЕН (issue #309): в Typst замыкание захватывает лексическую область НА МЕСТЕ
-/// определения, поэтому если блок A вызывает функцию B, `#let B` обязан стоять ВЫШЕ, иначе
-/// `unknown variable`. Блоки топологически сортируются по зависимостям (Kahn, тай-брейк по исходному
-/// индексу → стабильно и обратно совместимо); межтиповые циклы неразрешимы во flat-`#let` и
-/// выдаются диагностикой (best-effort порядок, без pre-throw — Typst ленив и сам финальный арбитр).
+/// <para><b>Порядок внутри модуля КРИТИЧЕН</b> (issue #309): в Typst замыкание захватывает лексическую
+/// область НА МЕСТЕ определения, поэтому если блок A вызывает блок B ТОГО ЖЕ типа, <c>#let B</c> обязан
+/// стоять ВЫШЕ. Топосорт (Kahn, тай-брейк по исходному индексу → стабильно) остался, но стал
+/// внутримодульным: рёбра МЕЖДУ типами порядком больше не разрешаются — их разводят импорты.</para>
 ///
-/// Адаптер (<see cref="ExtractRenders"/>: тип → плоские записи) отделён от чистого ядра
-/// (<see cref="BuildDetailed"/>: граф+сорт+эмиссия). Генерация и debug-бандл зовут одно ядро —
-/// единый источник правды порядка/номеров строк. Фаза 2 (проверка блоков) переиспользует ядро с
-/// draft-overlay.
+/// <para><b>Циклы теперь двух разных природ.</b> Внутри модуля цикл неразрешим, как и был: Error
+/// плюс best-effort порядок (Typst ленив и сам финальный арбитр). Между модулями статический импорт
+/// по кругу — <c>error: cyclic import</c>, отказ компиляции ВСЕГО файла, то есть локальная поломка
+/// стала бы глобальной. Поэтому рёбра, замыкающие межмодульный цикл, эмитятся отложенным импортом
+/// (см. <see cref="LazyImport"/>) — они работают, а пользователь получает предупреждение.</para>
+///
+/// <para><b>Зачем раскол вообще</b> — не только ради адресных ошибок и дерева в просмотрщике.
+/// Диспетч <c>render-by-type</c> (#768) обязан знать все типы, поэтому живёт в агрегаторе, а нужен
+/// он внутри блоков; во flat-файле блок его позвать не мог в принципе (эмитится ниже). Второй файл
+/// даёт отложенный импорт, а с ним и доступ блока к диспетчу.</para>
+///
+/// <para>Адаптер (<see cref="ExtractRenders"/>: тип → плоские записи) отделён от чистого ядра
+/// (<see cref="BuildDetailed"/>: граф+сорт+эмиссия). Генерация, debug-бандл и просмотрщик зовут одно
+/// ядро — единый источник правды порядка/номеров строк. Фаза 2 (проверка блоков) переиспользует ядро
+/// с draft-overlay.</para>
 /// </summary>
 public static class TypstPreambleBuilder
 {
-    /// <summary>Обратно совместимая точка: типы → готовый текст typeblocks.typ (генерация, debug-бандл).</summary>
-    public static string Build(IEnumerable<DocumentType> compositeTypes)
+    /// <summary>Типы → готовый набор файлов (генерация, debug-бандл, просмотрщик).</summary>
+    public static IReadOnlyList<TypstBlockFile> Build(IEnumerable<DocumentType> compositeTypes)
+        => BuildWithDiagnostics(compositeTypes).Files;
+
+    /// <summary>То же, но с диагностиками сборки — для мест, которые обязаны их показать
+    /// (просмотрщик #770). Генерация их намеренно игнорирует: Typst ленив и сам финальный арбитр,
+    /// а обрывать выпуск документа из-за предупреждения о чужом блоке было бы хуже поломки.</summary>
+    public static TypstPreambleResult BuildWithDiagnostics(IEnumerable<DocumentType> compositeTypes)
     {
         // Порядок типов задаём САМИ, а не берём как пришло: репозиторий отдаёт их без ORDER BY, и
         // PostgreSQL после UPDATE любой строки возвращает набор в другом физическом порядке. Файл от
@@ -56,7 +89,7 @@ public static class TypstPreambleBuilder
         // запросы к репозиторию, и совпадение было делом случая. Ключ сортировки — Code: он уникален
         // (реестр типов) и стабилен, в отличие от порядка вставки.
         var types = compositeTypes.OrderBy(t => t.Code, StringComparer.Ordinal).ToList();
-        return BuildDetailed(types.SelectMany(ExtractRenders), UnionCodes(types)).Content;
+        return BuildDetailed(types.SelectMany(ExtractRenders), UnionCodes(types));
     }
 
     /// <summary>
@@ -112,10 +145,7 @@ public static class TypstPreambleBuilder
 
     /// <summary>Провенанс-строка над блоком (одна строка — без переводов строк, чтобы не сбить line-map).</summary>
     private static string Provenance(string typeName, string code, string variant, string fnName)
-    {
-        static string San(string? s) => (s ?? "").Replace('\r', ' ').Replace('\n', ' ').Trim();
-        return $"[type: {San(typeName)} ({San(code)})] variant: {San(variant)} -> {fnName}";
-    }
+        => $"[type: {San(typeName)} ({San(code)})] variant: {San(variant)} -> {fnName}";
 
     /// <summary>Чистое ядро: граф зависимостей → топосорт → эмиссия с провенансом + line-map + диагностики.</summary>
     public static TypstPreambleResult BuildDetailed(
@@ -131,6 +161,14 @@ public static class TypstPreambleBuilder
             diagnostics.Add(new(TypstBlockDiagnosticSeverity.Error, "duplicate-fn",
                 $"Имя функции «{g.Key}» задано более чем в одном варианте: {string.Join("; ", g.Select(r => r.Provenance))}",
                 new[] { g.Key }));
+
+        foreach (var r in list)
+            foreach (var path in RelativePathsIn(r.Block))
+                diagnostics.Add(new(TypstBlockDiagnosticSeverity.Warning, "relative-path",
+                    $"Путь «{path}» отсчитывается от файла блока, а блоки лежат в подпапке "
+                    + $"{TypeBlockSlug.FolderName}/ — из неё он не найдётся. Укажите его от корня "
+                    + $"проекта Typst: «/{path}». Блок: {r.Provenance}",
+                    new[] { r.FnName }));
 
         var known = new HashSet<string>(list.Select(r => r.FnName));
         var nameToIndices = new Dictionary<string, List<int>>();
@@ -151,60 +189,210 @@ public static class TypstPreambleBuilder
             deps.Add(set);
         }
 
-        // Kahn с тай-брейком по исходному индексу: зависимости раньше зависимых, независимые — в
-        // исходном порядке (двигается только реально неверно упорядоченное → обратная совместимость).
-        var dependents = new List<List<int>>();
-        for (int i = 0; i < n; i++) dependents.Add(new());
-        for (int i = 0; i < n; i++) foreach (var d in deps[i]) dependents[d].Add(i);
-
-        var remaining = deps.Select(d => d.Count).ToArray();
-        var emitted = new bool[n];
-        var ready = new SortedSet<int>();
-        for (int i = 0; i < n; i++) if (remaining[i] == 0) ready.Add(i);
-
-        var order = new List<int>(n);
-        while (ready.Count > 0)
+        // ── Модули: один тип — один файл ──────────────────────────────────────────────────────
+        // Порядок модулей задаём САМИ (код → имя → id), а не берём как пришло: от него зависит
+        // порядок импортов в агрегаторе и — что важнее — кому из столкнувшихся слагов достанется
+        // суффикс. Порядок записей репозитория для этого негоден, он меняется после любого UPDATE.
+        var modules = new List<ModuleBuild>();
+        var moduleOf = new int[n];
+        var byTypeId = new Dictionary<Guid, int>();
+        foreach (var (r, i) in list.Select((r, i) => (r, i))
+                     .OrderBy(x => x.r.TypeCode, StringComparer.Ordinal)
+                     .ThenBy(x => x.r.TypeName, StringComparer.Ordinal)
+                     .ThenBy(x => x.r.TypeId))
         {
-            var i = ready.Min; ready.Remove(i);
-            order.Add(i); emitted[i] = true;
-            foreach (var dep in dependents[i])
-                if (!emitted[dep] && --remaining[dep] == 0) ready.Add(dep);
+            if (!byTypeId.TryGetValue(r.TypeId, out var m))
+            {
+                m = modules.Count;
+                byTypeId[r.TypeId] = m;
+                modules.Add(new ModuleBuild(r.TypeId, r.TypeName, r.TypeCode));
+            }
+            modules[m].Indices.Add(i);   // OrderBy стабилен → внутри типа сохраняется порядок схемы
+            moduleOf[i] = m;
         }
 
-        // Оставшиеся — в циклах (или ниже по течению цикла). Best-effort: добавляем в исходном порядке.
-        if (order.Count < n)
+        var slugs = TypeBlockSlug.AssignUnique(modules.Select(m =>
+            (m.TypeId, string.IsNullOrWhiteSpace(m.TypeCode) ? m.TypeName : m.TypeCode)));
+        foreach (var m in modules) m.Slug = slugs[m.TypeId];
+
+        // Межмодульные рёбра: modDeps[a] — модули, чьи блоки зовут блоки модуля a.
+        var modDeps = modules.Select(_ => new HashSet<int>()).ToList();
+        for (int i = 0; i < n; i++)
+            foreach (var d in deps[i])
+                if (moduleOf[d] != moduleOf[i]) modDeps[moduleOf[i]].Add(moduleOf[d]);
+
+        // Круговой статический импорт Typst запрещает целиком (`error: cyclic import`), то есть один
+        // взаимный вызов между двумя типами обрушил бы генерацию ВСЕХ документов — куда хуже, чем
+        // было во flat-файле, где ломался только сам вызов. Поэтому рёбра внутри цикла эмитятся
+        // отложенным импортом: связь работает, а пользователь получает предупреждение.
+        var lazyEdges = new HashSet<(int From, int To)>();
+        foreach (var comp in FindCycles(modDeps, new bool[modules.Count]))
         {
-            foreach (var cycle in FindCycles(deps, emitted))
-                diagnostics.Add(new(TypstBlockDiagnosticSeverity.Error, "cycle",
-                    $"Взаимные ссылки между блоками — Typst не может их упорядочить: "
-                    + string.Join(" → ", cycle.Select(i => list[i].FnName)) + " → " + list[cycle[0]].FnName,
-                    cycle.Select(i => list[i].FnName).ToList()));
-            for (int i = 0; i < n; i++) if (!emitted[i]) { order.Add(i); emitted[i] = true; }
+            var inComp = comp.ToHashSet();
+            foreach (var a in comp)
+                foreach (var b in modDeps[a])
+                    if (inComp.Contains(b)) lazyEdges.Add((a, b));
+            var names = comp.SelectMany(m => modules[m].Indices).Select(i => list[i].FnName).ToList();
+            diagnostics.Add(new(TypstBlockDiagnosticSeverity.Warning, "cycle-cross-type",
+                "Типы ссылаются друг на друга блоками: "
+                + string.Join(" → ", comp.Select(m => modules[m].Title())) + " → " + modules[comp[0]].Title()
+                + ". Связь разрешена отложенным импортом и работает, но убедитесь, что рекурсия конечна:"
+                + " взаимный вызов без условия остановки зациклит компиляцию документа.",
+                names));
         }
 
-        // Эмиссия + line-map. Явный '\n' (не Environment.NewLine) — чтобы номера строк совпадали
-        // с тем, что видит Typst, кросс-платформенно.
-        var sb = new StringBuilder();
+        // ── Эмиссия модулей ───────────────────────────────────────────────────────────────────
+        var files = new List<TypstBlockFile>(modules.Count + 1);
         var spans = new List<TypstBlockSpan>(n);
-        int line = 1;
-        foreach (var idx in order)
+        foreach (var (m, mi) in modules.Select((m, i) => (m, i)))
         {
-            var r = list[idx];
-            sb.Append("// ").Append(r.Provenance).Append('\n');
-            line++;
-            var def = $"#let {r.FnName}(it) = {r.Block}";
-            int defLines = 1 + def.Count(c => c == '\n');
-            spans.Add(new(r.FnName, r.Provenance, r.TypeId, line, line + defLines - 1));
-            sb.Append(def).Append('\n');
-            line += defLines;
+            var path = TypeBlockSlug.PathFor(m.Slug);
+            var sb = new StringBuilder();
+            int line = 1;
+            void Emit(string text) { sb.Append(text).Append('\n'); line++; }
+
+            // Полный код и имя типа — здесь: имя файла это лишь слаг, и без строки провенанса по
+            // адресу ошибки нельзя было бы узнать тип, если слаг разошёлся с кодом.
+            Emit($"// Блоки отображения типа «{San(m.TypeName)}» (код: {San(m.TypeCode)}).");
+            Emit("// Файл собран автоматически (issue #772) — правки будут затёрты при генерации.");
+
+            var statics = modDeps[mi].Where(d => !lazyEdges.Contains((mi, d)))
+                .OrderBy(d => modules[d].Slug, StringComparer.Ordinal).ToList();
+            if (statics.Count > 0)
+            {
+                Emit("// Блоки других типов, вызываемые отсюда:");
+                // Соседний модуль — по имени без пути: оба лежат в одной папке.
+                foreach (var d in statics) Emit($"#import \"{modules[d].Slug}.typ\": *");
+            }
+
+            foreach (var d in modDeps[mi].Where(d => lazyEdges.Contains((mi, d)))
+                         .OrderBy(d => modules[d].Slug, StringComparer.Ordinal))
+            {
+                Emit($"// Взаимная ссылка с типом «{San(modules[d].TypeName)}» — импорт отложен (иначе cyclic import):");
+                foreach (var fn in CalledFrom(m.Indices, modules[d].Indices, deps, list))
+                    Emit(LazyImport(fn, $"{modules[d].Slug}.typ"));
+            }
+
+            // Доступ блока к диспетчу (#768). Статический импорт агрегатора здесь дал бы
+            // `cyclic import` — агрегатор импортирует этот модуль. Импорт в ТЕЛЕ функции петли не
+            // создаёт: он исполняется при первом вызове, когда агрегатор уже вычислен и закеширован.
+            // Во flat-файле такой возможности не было вовсе — хелпер эмитился ниже блоков.
+            Emit("// Диспетчеризация по типу (#768) — импорт отложенный, статический дал бы cyclic import:");
+            Emit(LazyImport(DispatchFnName, $"../{TypeBlockSlug.EntrypointName}"));
+
+            foreach (var idx in TopoSortWithin(m.Indices, deps, list, diagnostics))
+            {
+                var r = list[idx];
+                sb.Append("// ").Append(r.Provenance).Append('\n');
+                line++;
+                // Явный '\n' (не Environment.NewLine) — чтобы номера строк совпадали с тем, что
+                // видит Typst, кросс-платформенно.
+                var def = $"#let {r.FnName}(it) = {r.Block}";
+                int defLines = 1 + def.Count(c => c == '\n');
+                spans.Add(new(r.FnName, r.Provenance, r.TypeId, line, line + defLines - 1, path));
+                sb.Append(def).Append('\n');
+                line += defLines;
+            }
+
+            files.Add(new(path, sb.ToString()));
         }
+
+        // ── Агрегатор ─────────────────────────────────────────────────────────────────────────
+        var agg = new StringBuilder();
+        agg.Append($"// Блоки отображения типов: по файлу на тип в {TypeBlockSlug.FolderName}/ (issue #772).\n");
+        agg.Append("// Точка входа: шаблон импортирует ЭТОТ файл, а он реэкспортирует модули —\n");
+        agg.Append("// имена блоков остаются глобальными, как и были.\n");
+        foreach (var m in modules)
+            agg.Append($"#import \"{TypeBlockSlug.PathFor(m.Slug)}\": *\n");
         // Таблица — в ИСХОДНОМ порядке записей, а не в порядке эмиссии: топосорт переставляет блоки
         // по зависимостям, и на живых типах это уже перемешало варианты внутри типа («Организация»
         // отдавала ИНН/КПП там, где в схеме первым стоит «Наименование + коды»). А «первый вариант»
         // — то, что человек видит первым в редакторе схемы; связывать его с порядком компиляции
         // значило бы менять вывод шаблона от правки чужого блока.
-        AppendDispatch(sb, list, unionCodes ?? Array.Empty<string>(), diagnostics);
-        return new(sb.ToString(), spans, diagnostics);
+        AppendDispatch(agg, list, unionCodes ?? Array.Empty<string>(), diagnostics);
+        files.Insert(0, new(TypeBlockSlug.EntrypointName, agg.ToString()));
+
+        return new(files, spans, diagnostics);
+    }
+
+    /// <summary>Данные модуля во время сборки (тип → файл).</summary>
+    private sealed class ModuleBuild(Guid typeId, string typeName, string typeCode)
+    {
+        public Guid TypeId { get; } = typeId;
+        public string TypeName { get; } = typeName;
+        public string TypeCode { get; } = typeCode;
+        public string Slug { get; set; } = "";
+        public List<int> Indices { get; } = new();
+
+        public string Title() => string.IsNullOrWhiteSpace(TypeCode) ? TypeName : $"{TypeName} ({TypeCode})";
+    }
+
+    /// <summary>Одна строка без переводов строк — провенанс не должен сбивать line-map.</summary>
+    private static string San(string? s) => (s ?? "").Replace('\r', ' ').Replace('\n', ' ').Trim();
+
+    /// <summary>
+    /// Отложенный импорт: имя связывается функцией-переходником, и сам <c>import</c> исполняется
+    /// только при вызове. Так разрывается любая петля импортов — Typst видит статический граф без
+    /// обратного ребра. Цена — порядка сотой доли миллисекунды на вызов.
+    /// </summary>
+    private static string LazyImport(string fnName, string modulePath) =>
+        $"#let {fnName}(..args) = {{ import \"{modulePath}\": {fnName} as _fn; _fn(..args) }}";
+
+    /// <summary>Имена функций модуля <paramref name="target"/>, которые вызывают блоки модуля
+    /// <paramref name="source"/> (для точечного отложенного импорта — wildcard в теле функции
+    /// привязок наружу не даёт).</summary>
+    private static IEnumerable<string> CalledFrom(
+        List<int> source, List<int> target, List<HashSet<int>> deps, List<TypstBlockRecord> list)
+    {
+        var t = target.ToHashSet();
+        return source.SelectMany(i => deps[i]).Where(t.Contains).Distinct()
+            .Select(i => list[i].FnName).OrderBy(x => x, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Топосорт блоков ОДНОГО модуля (Kahn с тай-брейком по исходному индексу: зависимости раньше
+    /// зависимых, независимые — в порядке схемы). Рёбра к чужим типам игнорируются: их разводит
+    /// импорт, а не порядок строк. Цикл внутри модуля неразрешим (все блоки в одной области) —
+    /// Error и best-effort порядок, как было во flat-файле.
+    /// </summary>
+    private static List<int> TopoSortWithin(
+        List<int> indices, List<HashSet<int>> deps, List<TypstBlockRecord> list,
+        List<TypstBlockDiagnostic> diagnostics)
+    {
+        var inModule = indices.ToHashSet();
+        var local = new Dictionary<int, HashSet<int>>();
+        foreach (var i in indices) local[i] = deps[i].Where(inModule.Contains).ToHashSet();
+
+        var remaining = indices.ToDictionary(i => i, i => local[i].Count);
+        var dependents = indices.ToDictionary(i => i, _ => new List<int>());
+        foreach (var i in indices) foreach (var d in local[i]) dependents[d].Add(i);
+
+        var ready = new SortedSet<int>(indices.Where(i => remaining[i] == 0));
+        var order = new List<int>(indices.Count);
+        var done = new HashSet<int>();
+        while (ready.Count > 0)
+        {
+            var i = ready.Min; ready.Remove(i);
+            order.Add(i); done.Add(i);
+            foreach (var dep in dependents[i])
+                if (!done.Contains(dep) && --remaining[dep] == 0) ready.Add(dep);
+        }
+
+        if (order.Count < indices.Count)
+        {
+            // Индексы блоков плотные только глобально, поэтому цикл ищем по локальной карте.
+            var pos = indices.Select((i, k) => (i, k)).ToDictionary(x => x.i, x => x.k);
+            var compact = indices.Select(i => local[i].Select(d => pos[d]).ToHashSet()).ToList();
+            var emitted = indices.Select(done.Contains).ToArray();
+            foreach (var cycle in FindCycles(compact, emitted))
+                diagnostics.Add(new(TypstBlockDiagnosticSeverity.Error, "cycle",
+                    "Взаимные ссылки между блоками одного типа — Typst не может их упорядочить: "
+                    + string.Join(" → ", cycle.Select(k => list[indices[k]].FnName))
+                    + " → " + list[indices[cycle[0]]].FnName,
+                    cycle.Select(k => list[indices[k]].FnName).ToList()));
+            order.AddRange(indices.Where(i => !done.Contains(i)));
+        }
+        return order;
     }
 
     /// <summary>Имена, которые занимает диспетч-часть; столкновение с блоком пользователя диагностируем.</summary>
@@ -349,6 +537,84 @@ public static class TypstPreambleBuilder
   }
 }
 """;
+
+    /// <summary>
+    /// Пути к файлам в тексте блока, записанные ОТНОСИТЕЛЬНО (issue #772). Блоки переехали в
+    /// подпапку, и точка отсчёта у таких путей сместилась на уровень вниз: <c>import "userlib.typ"</c>
+    /// ищется как <c>typeblocks/userlib.typ</c> и не находится.
+    ///
+    /// <para>Сказать об этом обязана сборка, потому что больше некому: импорт внутри тела функции
+    /// ленив, проверка блоков (#309, фаза 2) только парсит файлы и до него не доходит — она осталась
+    /// бы зелёной, а падала бы генерация каждого документа с таким блоком.</para>
+    ///
+    /// <para>Ищем строковые литералы, похожие на путь к файлу (по расширению), кроме уже правильных:
+    /// начинающихся с «/» (от корня проекта Typst), с «../» и сетевых. Правильный ответ —
+    /// <c>"/userlib.typ"</c>: корень задаёт сама компиляция, и такой путь не зависит от того, где
+    /// лежит файл блока.</para>
+    ///
+    /// <para>Severity — предупреждение, хотя генерация с таким путём падает. Признак эвристический
+    /// (строка «похожа на путь»), а Error в этой сборке означает «файл не соберётся» и обязан быть
+    /// точным: «data.json» в тексте документа — законный текст, и краснеть на него нельзя.</para>
+    /// </summary>
+    private static IEnumerable<string> RelativePathsIn(string block)
+    {
+        var cleaned = StripComments(block);
+        foreach (Match m in FilePathLiteral.Matches(cleaned))
+        {
+            var path = m.Groups[1].Value;
+            if (path.StartsWith('/') || path.StartsWith("../", StringComparison.Ordinal)
+                || path.Contains("://", StringComparison.Ordinal)) continue;
+            yield return path;
+        }
+    }
+
+    private static readonly Regex FilePathLiteral = new(
+        @"""([^""\n]+\.(?:typ|json|csv|toml|yaml|yml|xml|png|jpg|jpeg|gif|svg|pdf|bib))""",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Вырезает комментарии, СОХРАНЯЯ строковые литералы: именно в них живут пути, которые ищет
+    /// <see cref="RelativePathsIn"/>.
+    ///
+    /// <para>Строку приходится не просто оставлять, а проходить целиком: «//» встречается ВНУТРИ неё
+    /// — <c>link("https://gost.ru/spec.pdf")</c>, — и наивная проверка приняла бы его за начало
+    /// комментария, срезав остаток строки вместе со следующим путём. Тогда предупреждение о
+    /// «logo.png» на той же строке не выдавалось бы вовсе, а это единственная защита от тихой
+    /// поломки генерации.</para>
+    /// </summary>
+    private static string StripComments(string s)
+    {
+        var sb = new StringBuilder(s.Length);
+        for (int i = 0; i < s.Length; i++)
+        {
+            if (s[i] == '"')
+            {
+                sb.Append(s[i++]);
+                while (i < s.Length && s[i] != '"')
+                {
+                    if (s[i] == '\\' && i + 1 < s.Length) sb.Append(s[i++]);
+                    sb.Append(s[i++]);
+                }
+                if (i < s.Length) sb.Append(s[i]);
+                continue;
+            }
+            if (s[i] == '/' && i + 1 < s.Length && s[i + 1] == '/')
+            {
+                while (i < s.Length && s[i] != '\n') i++;
+                if (i < s.Length) sb.Append('\n');
+                continue;
+            }
+            if (s[i] == '/' && i + 1 < s.Length && s[i + 1] == '*')
+            {
+                i += 2;
+                while (i + 1 < s.Length && !(s[i] == '*' && s[i + 1] == '/')) { if (s[i] == '\n') sb.Append('\n'); i++; }
+                i++;
+                continue;
+            }
+            sb.Append(s[i]);
+        }
+        return sb.ToString();
+    }
 
     /// <summary>Ссылки блока на ДРУГИЕ известные функции: скан вызова `name(` по границе идентификатора,
     /// с очисткой комментариев/строк (чтобы упоминание в комментарии не давало ложное ребро/цикл).</summary>

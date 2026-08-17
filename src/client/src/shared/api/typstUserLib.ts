@@ -51,10 +51,22 @@ export function useTypstUserLib() {
   });
 }
 
-/** Системная Typst-библиотека (issue #344) — хардкод, только чтение. */
+/** Один файл собранных блоков: агрегатор либо модуль типа (issue #772). */
+export interface TypeBlockFile {
+  path: string;
+  content: string;
+}
+
+/** Диагностика сборки блоков — по всей системе разом, а не по одному типу. */
+export interface TypeBlocksProblem {
+  severity: 'error' | 'warning';
+  code: string;
+  message: string;
+}
+
 /**
- * Собранный `typeblocks.typ` для просмотра (issue #770) — функции отображения ВСЕХ типов плюс
- * диспетч-часть (#768).
+ * Собранные блоки типов для просмотра (issue #770) — агрегатор `typeblocks.typ` и по файлу на тип
+ * в подпапке `typeblocks/` (#772), плюс диспетч-часть (#768).
  *
  * `staleTime: 0` задан ЯВНО: глобальный дефолт — 30 секунд (см. App.tsx), и с ним админ, поправивший
  * блок у типа и сразу перешедший на вкладку, увидел бы файл ДО правки — ровно то противоречие с
@@ -65,8 +77,14 @@ export function useTypeBlocks(enabled = true) {
   return useQuery({
     queryKey: TYPEBLOCKS_KEY,
     queryFn: async () => {
-      const r = await apiClient.get<{ content: string; blockCount: number }>('/templates/typeblocks');
-      return r.data;
+      const r = await apiClient.get<{
+        files?: TypeBlockFile[]; blockCount: number; problems?: TypeBlocksProblem[];
+      }>('/templates/typeblocks');
+      return {
+        files: r.data.files ?? [],
+        blockCount: r.data.blockCount,
+        problems: r.data.problems ?? [],
+      };
     },
     enabled,
     staleTime: 0,
@@ -75,6 +93,7 @@ export function useTypeBlocks(enabled = true) {
 
 export const TYPEBLOCKS_KEY = ['typst-typeblocks'] as const;
 
+/** Системная Typst-библиотека (issue #344) — хардкод, только чтение. */
 export function useSystemTypstLib() {
   return useQuery({
     queryKey: ['typst-systemlib'],

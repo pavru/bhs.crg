@@ -5,6 +5,7 @@ import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { useTheme } from '@/shared/ui/ThemeProvider';
 import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
+import { markTypeBlockModel } from '@/shared/ui/typstDispatchCompletion';
 import { Plus, Trash2, Maximize2, Code, AlertCircle, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -160,7 +161,10 @@ function TypstBlockDialog({ render, onSave, onClose }: {
             beforeMount={beforeMountTypstBlock}
             // Фокус сразу в область кода (issue #314): Monaco монтируется асинхронно, после
             // Radix-autofocus диалога, поэтому editor.focus() здесь выигрывает.
-            onMount={editor => editor.focus()}
+            // Пометка модели (issue #772) — блок теперь вправе звать render-by-type: с расколом по
+            // файлам в шапку модуля эмитится переходник с отложенным импортом. Подсказку он получает
+            // одну, без type-renders: таблица живёт в агрегаторе и модулю недоступна.
+            onMount={editor => { markTypeBlockModel(editor.getModel()); editor.focus(); }}
             options={{
               minimap: { enabled: false },
               fontSize: 13,
