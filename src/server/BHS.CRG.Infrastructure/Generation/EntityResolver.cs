@@ -256,8 +256,16 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
                     : stamped;
             }
 
-            // Протягивание одного поля из реквизитов другого документа — значение как есть, без рекурсии
-            // (сохраняем текущее поведение). Работает на любой глубине — это чинит баг A (ссылка в массиве).
+            // Протягивание одного поля из реквизитов другого документа. Значение РАЗВОРАЧИВАЕМ дальше
+            // (issue #762): поле type='complex' сплошь и рядом хранит не объект, а ссылку на запись
+            // каталога — её кладёт туда пикер, — поэтому без рекурсии $ref:'document' указывал бы на
+            // $ref:'catalog' и за один проход оставался сырым. Генерация, предпросмотр и проверка
+            // гоняют резолв дважды и потому не замечали; снимок для внешнего чтения — один раз, и
+            // MCP-клиент молча получал стаб вместо данных.
+            //
+            // Раньше здесь было «значение как есть, без рекурсии — сохраняем текущее поведение».
+            // Цикл держит тот же бюджет цепочки (refDepth), что и остальные ветки: A→B→A упрётся в
+            // MaxRefDepth и будет помечен пределом, а не уйдёт в бесконечность.
             case "document"
                 when node.TryGetProperty("instanceId", out var instIdProp) && Guid.TryParse(instIdProp.GetString(), out var instId)
                      && node.TryGetProperty("fieldKey", out var fieldKeyProp):
@@ -265,9 +273,13 @@ public class EntityResolver(AppDbContext db, IExpressionEvaluator expressionEval
                 var fieldKey = fieldKeyProp.GetString() ?? string.Empty;
                 var refObj = await db.DomainObjects.AsNoTracking()
                     .FirstOrDefaultAsync(o => o.Id == instId && o.ScopeLevel == CatalogScope.Set && o.ScopeId == scope.SetId, ct);
-                return refObj is not null && refObj.Data.RootElement.TryGetProperty(fieldKey, out var fieldVal)
-                    ? fieldVal.Clone()
-                    : node.Clone();
+                // Документа нет — это и есть «цель не найдена», сырая ссылка без пометки.
+                if (refObj is null) return node.Clone();
+                // Документ есть, а поля в нём нет: «источник не заполнен», не «запись удалена».
+                if (!refObj.Data.RootElement.TryGetProperty(fieldKey, out var fieldVal))
+                    return WithMeta(node, RefUnresolved.Key, RefUnresolved.SourceFieldEmpty);
+                return await ResolveNode(fieldVal, scope, refDepth + 1, nodeDepth + 1,
+                    allowInstanceRefs, keepRefProvenance, ct);
             }
 
             // Разворачивание другого документа — один раз (allowInstanceRefs → false внутри).
