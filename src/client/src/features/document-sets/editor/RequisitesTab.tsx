@@ -445,7 +445,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                   <ArrayFieldEditor field={field} allDocTypes={allDocTypes} value={raw}
                     onChange={v => setValue(field.key, v)} showValidation={showValidation}
                     setId={setId} otherInstances={otherInstances} docRefMode="instance"
-                    brokenPaths={brokenPaths} basePath={field.key} />
+                    brokenPaths={brokenPaths} basePath={field.key} savedAt={instance.updatedAt} />
                   )
                 ) : field.type === 'doc-ref' ? (
                   sourceBoundFields.has(field.key) ? <SourceBoundDocField /> : (
@@ -457,7 +457,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                   sourceBoundFields.has(field.key) ? <SourceBoundDocField /> : (
                     <DocArrayField field={field} allDocTypes={allDocTypes} value={raw}
                       onChange={v => setValue(field.key, v)} otherInstances={otherInstances} setId={setId}
-                      brokenPaths={brokenPaths} basePath={field.key} />
+                      brokenPaths={brokenPaths} basePath={field.key} savedAt={instance.updatedAt} />
                   )
                 ) : field.type === 'image' ? (
                   <ImageField value={raw} onChange={v => setValue(field.key, v)} />

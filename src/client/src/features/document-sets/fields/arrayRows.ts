@@ -34,6 +34,31 @@ export function applyOrder<T>(items: T[], order: number[]): T[] {
   return order.map(i => items[i]);
 }
 
+/**
+ * Место строки в нумерации, к которой относятся СЕРВЕРНЫЕ пути (issue #759).
+ *
+ * <p>Диагностика битых ссылок приходит с сервера путями вида <code>Поле[2]</code> и считается по
+ * СОХРАНЁННОМУ состоянию. Редактор сверял её с текущим индексом строки — и любое изменение состава
+ * или порядка до сохранения уводило метку на чужую строку: удалили строку выше битой, и красная
+ * плитка «ссылка на удалённую запись» переезжает на живую запись, а битая выглядит целой.</p>
+ *
+ * <p>Поэтому у каждой строки помнится её номер в той нумерации, о которой говорил сервер.
+ * <code>null</code> — «сервер про эту строку ничего не говорил»: строку добавили после ответа либо
+ * состав изменился так, что проследить нельзя. Метка тогда не рисуется вовсе — это честнее, чем
+ * рисовать её наугад.</p>
+ */
+export type PathOrigins = (number | null)[];
+
+/** Исходное соответствие: строка i — это то, что сервер называл `[i]`. */
+export function identityOrigins(count: number): PathOrigins {
+  return Array.from({ length: count }, (_, i) => i);
+}
+
+/** Строки добавлены в конец: сервер про них не знает. */
+export function appendOrigins(origins: PathOrigins, count: number): PathOrigins {
+  return [...origins, ...Array.from({ length: count }, () => null)];
+}
+
 /** Номера выбранных строк в новом порядке; выбывшие строки из выбора исчезают. */
 export function remapSelection(selected: Set<number>, order: number[]): Set<number> {
   const next = new Set<number>();
@@ -74,6 +99,22 @@ export function remapSelection(selected: Set<number>, order: number[]): Set<numb
 export function mergeTableRows(
   allItems: unknown[], edited: Record<string, unknown>[], origins: (number | null)[],
 ): unknown[] {
+  return mergeTableSources(allItems, edited, origins)
+    .map(s => (s.edited != null ? edited[s.edited] : allItems[s.at!]));
+}
+
+/**
+ * Откуда взялась каждая строка после правки таблицей.
+ *
+ * <p><code>at</code> — место в исходном массиве (<code>null</code> — строку добавили в таблице),
+ * <code>edited</code> — место среди отредактированных (<code>null</code> — ссылочная строка, в
+ * таблицу она не попадала). Одного этого списка хватает и на сами строки, и на их серверные номера
+ * (issue #759): раньше метки после «Применить» просто гасились ВСЕ, а вернуть их было нечему —
+ * следующий ответ сервера приходит тем же объектом, если диагностика не изменилась.</p>
+ */
+export function mergeTableSources(
+  allItems: unknown[], edited: Record<string, unknown>[], origins: (number | null)[],
+): { at: number | null; edited: number | null }[] {
   // Слоты, пережившие правку: те, на которые ссылается хоть одна оставшаяся строка.
   const survived = new Set(origins.filter((o): o is number => o != null));
   const keep = new Set<number>();
@@ -84,14 +125,27 @@ export function mergeTableRows(
     slot++;
   });
 
-  const result: unknown[] = [];
+  const result: { at: number | null; edited: number | null }[] = [];
   let next = 0;
   allItems.forEach((item, i) => {
-    if (isFieldRef(item)) { result.push(item); return; }
+    if (isFieldRef(item)) { result.push({ at: i, edited: null }); return; }
     if (!keep.has(i)) return;                      // слот удалённой строки — схлопывается на месте
-    if (next < edited.length) result.push(edited[next++]);
+    if (next < edited.length) result.push({ at: i, edited: next++ });
   });
   // Добавленные в таблице (и всё, чему не хватило слотов) — в конец.
-  for (; next < edited.length; next++) result.push(edited[next]);
+  for (; next < edited.length; next++) result.push({ at: null, edited: next });
   return result;
+}
+
+/**
+ * Серверные номера строк после правки таблицей — по тем же источникам, что и сами строки.
+ *
+ * <p>Ссылочная строка сохраняет свой номер (таблица её не трогала), пережившая правку нессылочная —
+ * номер своего слота, добавленная — <code>null</code>. Раньше здесь стояло «погасить все метки»:
+ * непрослеживаемым состав только КАЖЕТСЯ — слоты известны точно.</p>
+ */
+export function mergeTableOrigins(
+  sources: { at: number | null; edited: number | null }[], prev: PathOrigins,
+): PathOrigins {
+  return sources.map(s => (s.at == null ? null : prev[s.at] ?? null));
 }

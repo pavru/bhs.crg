@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { mergeTableRows, moveOrder, dropOrder, applyOrder, remapSelection } from './arrayRows';
+import {
+  mergeTableRows, moveOrder, dropOrder, applyOrder, remapSelection,
+  identityOrigins, appendOrigins, mergeTableSources, mergeTableOrigins,
+} from './arrayRows';
 
 const ref = (name: string) => ({ $ref: 'catalog' as const, entryId: name, displayName: name });
 const row = (n: string) => ({ Наименование: n });
@@ -115,5 +118,53 @@ describe('порядок строк массива', () => {
     // Выбрана «г» (3). Удаляем «б» (1) корзиной — выбранной обязана остаться «г», теперь под № 2.
     const order = dropOrder(4, new Set([1]));
     expect(remapSelection(new Set([3]), order)).toEqual(new Set([2]));
+  });
+});
+
+/**
+ * Метки битых ссылок едут вместе со строками (issue #759).
+ *
+ * Пути диагностики адресуют строку НОМЕРОМ и считаются по сохранённому состоянию. Сверять их с
+ * текущим индексом нельзя: удалили строку выше битой — и красная плитка уезжает на живую запись.
+ */
+describe('происхождение строк для серверных путей', () => {
+  it('до правок номера совпадают с серверными', () => {
+    expect(identityOrigins(3)).toEqual([0, 1, 2]);
+  });
+
+  it('перестановка увозит номер вместе со строкой', () => {
+    // Сервер сказал «битая — [2]». Тащим её в начало: метка обязана остаться на ней.
+    const origins = applyOrder(identityOrigins(3), moveOrder(3, 2, 0));
+    expect(origins).toEqual([2, 0, 1]);
+  });
+
+  it('удаление строки выше не переводит метку на соседа', () => {
+    // Сервер сказал «битая — [2]». Удаляем [0]: битая теперь первая, но серверный номер у неё прежний.
+    const origins = applyOrder(identityOrigins(3), dropOrder(3, new Set([0])));
+    expect(origins).toEqual([1, 2]);
+  });
+
+  it('добавленные строки метку не получают', () => {
+    expect(appendOrigins([0, 1], 2)).toEqual([0, 1, null, null]);
+  });
+
+  it('после правки таблицей номера сохраняются у ссылок и переживших строк', () => {
+    // [и1, Р1, и2, Р2] — правим таблицей: «и1» удалили, «и2» оставили, одну строку добавили.
+    const all = [row('и1'), ref('Р1'), row('и2'), ref('Р2')];
+    const sources = mergeTableSources(all, [row('и2'), row('новая')], [1, null]);
+    // Ссылки на своих местах и со своими номерами; добавленная — без номера.
+    expect(mergeTableOrigins(sources, identityOrigins(4))).toEqual([1, 2, 3, null]);
+  });
+
+  it('после правки таблицей номера учитывают прежнюю перестановку', () => {
+    const all = [ref('Р1'), row('и1')];
+    const prev = applyOrder(identityOrigins(2), moveOrder(2, 0, 1));   // [1, 0]
+    const sources = mergeTableSources(all, [row('и1')], [0]);
+    expect(mergeTableOrigins(sources, prev)).toEqual([1, 0]);
+  });
+
+  it('добавление после перестановки не путает номера', () => {
+    const afterMove = applyOrder(identityOrigins(3), moveOrder(3, 0, 2));   // [1,2,0]
+    expect(appendOrigins(afterMove, 1)).toEqual([1, 2, 0, null]);
   });
 });

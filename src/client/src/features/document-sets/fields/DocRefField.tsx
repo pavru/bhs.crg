@@ -4,6 +4,7 @@ import type { CatalogScope, DocumentInstance, DocumentType, FieldRef } from '@/s
 import { isFieldRef, isInstanceRef } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
 import { STATUS_COLORS, STATUS_LABELS } from './constants';
+import { applyOrder, dropOrder, appendOrigins, identityOrigins, type PathOrigins } from './arrayRows';
 import { InstancePickerModal } from './InstancePickerModal';
 import { BROKEN_PLATE, BROKEN_LABEL, BrokenRefNote } from './BrokenRef';
 
@@ -135,24 +136,42 @@ export function DocRefField({ field, allDocTypes, value, onChange, otherInstance
   );
 }
 
-export function DocArrayField({ field, allDocTypes, value, onChange, otherInstances, setId, brokenPaths, basePath }: {
+export function DocArrayField({ field, allDocTypes, value, onChange, otherInstances, setId, brokenPaths, basePath, savedAt }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
   onChange: (val: unknown[]) => void; otherInstances: DocumentInstance[];
   setId?: string;
   /** Пути битых ссылок (issue #332) + базовый путь этого массива — для пометки конкретных элементов. */
   brokenPaths?: Set<string>; basePath?: string;
+  /** Отметка времени сохранённого документа: её смена значит «пути диагностики перенумерованы» (#759). */
+  savedAt?: string;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const items = (Array.isArray(value) ? value : []).filter(isFieldRef);
   const linkedInstanceIds = new Set(items.map(r => r.instanceId).filter(Boolean));
 
+  // Метки битых ссылок адресуют строку номером и считаются по СОХРАНЁННОМУ состоянию (issue #759):
+  // тот же учёт происхождения, что в редакторе массива, и тот же признак сброса — факт сохранения,
+  // а не приход диагностики. Порядок здесь не меняют, но удаление сдвигает номера.
+  const [marks, setMarks] = useState<{ savedAt?: string; origins: PathOrigins }>(
+    () => ({ savedAt, origins: identityOrigins(items.length) }));
+  if (marks.savedAt !== savedAt) {
+    setMarks({ savedAt, origins: identityOrigins(items.length) });
+  }
+  const markPath = (i: number) => {
+    const origin = marks.origins[i];
+    return basePath && origin != null ? `${basePath}[${origin}]` : null;
+  };
+
   function addRef(ref: FieldRef) {
     if (ref.instanceId && linkedInstanceIds.has(ref.instanceId)) return;
     onChange([...items, ref]);
+    setMarks(m => ({ ...m, origins: appendOrigins(m.origins, 1) }));
   }
 
   function removeRef(idx: number) {
-    onChange(items.filter((_, i) => i !== idx));
+    const order = dropOrder(items.length, new Set([idx]));
+    onChange(applyOrder(items, order));
+    setMarks(m => ({ ...m, origins: applyOrder(m.origins, order) }));
   }
 
   return (
@@ -176,8 +195,9 @@ export function DocArrayField({ field, allDocTypes, value, onChange, otherInstan
             const dt = inst ? allDocTypes.find(t => t.id === inst.documentTypeId) : undefined;
             const label = inst?.name || dt?.name || ref.displayName;
             // Битый элемент: instance-промах ловим локально; catalog — по backend-пути `basePath[i]`.
+            const path = markPath(i);
             const itemBroken = (!isCatalog && !inst)
-              || (!!basePath && !!brokenPaths?.has(`${basePath}[${i}]`));
+              || (!!path && !!brokenPaths?.has(path));
             if (itemBroken) {
               return (
                 <div key={i}>

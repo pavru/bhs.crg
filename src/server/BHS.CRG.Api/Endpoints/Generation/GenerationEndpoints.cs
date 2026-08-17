@@ -277,11 +277,19 @@ public static class GenerationEndpoints
         return name + ".pdf";
     }
 
+    /// <remarks>
+    /// <c>code</c> обязателен (issue #759): по нему клиент отличает «цель удалена» от прочих
+    /// претензий и решает, красить ли поле danger-плиткой. Без него
+    /// <c>brokenRefPaths</c> отфильтровывал ВСЁ, и индикатор битых ссылок (#332) не загорался ни
+    /// разу за всё время — ни на поле, ни бейджем раздела. Панель «Проверить ссылки» при этом
+    /// работала: она показывает сообщения, а не коды, поэтому пропажа и не бросалась в глаза.
+    /// </remarks>
     static object ToDto(ResolutionDiagnostic d) => new
     {
         severity = d.Severity.ToString().ToLowerInvariant(),
         path = d.Path,
         message = d.Message,
+        code = d.Code,
     };
 
     static async Task WriteEntry(System.IO.Compression.ZipArchive zip, string name, string content)

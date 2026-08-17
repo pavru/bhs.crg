@@ -18,7 +18,10 @@ import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { formatFieldValue, type FieldTypeDefs } from '@/shared/utils/fieldDisplay';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { objectSummary } from './objectSummary';
-import { mergeTableRows, moveOrder, dropOrder, applyOrder, remapSelection } from './arrayRows';
+import {
+  mergeTableSources, mergeTableOrigins, moveOrder, dropOrder, applyOrder, remapSelection,
+  identityOrigins, appendOrigins, type PathOrigins,
+} from './arrayRows';
 import { VariantPicker } from './VariantPicker';
 import { ExtractToCommonDataModal } from './ExtractToCommonDataModal';
 import {
@@ -449,7 +452,7 @@ export function ArrayTableModal({
 // ─── Array field editor ───────────────────────────────────────────────────────
 
 export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showValidation,
-  setId, otherInstances = [], scope, scopeId, docRefMode = 'catalog', brokenPaths, basePath,
+  setId, otherInstances = [], scope, scopeId, docRefMode = 'catalog', brokenPaths, basePath, savedAt,
 }: {
   field: SchemaField; allDocTypes: DocumentType[]; value: unknown;
   onChange: (val: unknown[]) => void; showValidation: boolean;
@@ -458,6 +461,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   docRefMode?: 'catalog' | 'instance';
   /** Пути битых ссылок (issue #332) + базовый путь массива — для пометки элементов-ссылок на удалённое. */
   brokenPaths?: Set<string>; basePath?: string;
+  /** Отметка времени сохранённого документа: её смена значит «пути диагностики перенумерованы» (#759). */
+  savedAt?: string;
 }) {
   const compositeType = allDocTypes.find(dt => dt.id === field.typeId) ?? null;
   const allItems = Array.isArray(value) ? value as unknown[] : [];
@@ -476,6 +481,33 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   const [catalogPickerOpen, setCatalogPickerOpen] = useState(false);
   // Перестановка и пакетное удаление прямо в списке (issue #754). Выбор — номерами строк, см.
   // arrayRows: личностей у элементов массива нет, а номера переживают наши операции через remapSelection.
+  /**
+   * Соответствие «строка → номер, о котором говорил сервер» (issue #759).
+   *
+   * <p>Сбрасывается по факту СОХРАНЕНИЯ, а не по приходу новой диагностики. Разница существенна в
+   * обе стороны:</p>
+   *
+   * <ul>
+   * <li>диагностика может прийти (первая загрузка, фоновой refetch по возврату фокуса), когда
+   * человек уже переставил строки, — сбрось мы тогда в тождество, метка села бы на живую строку,
+   * ровно тот дефект, который эта задача и чинит;</li>
+   * <li>после сохранения сервер перенумеровывает пути под НОВЫЙ порядок, и прежние поправки к ним
+   * становятся неверны — тождество тут единственно правильное.</li>
+   * </ul>
+   *
+   * <p>Сравнивать по объекту <code>brokenPaths</code> нельзя ещё и технически: React Query по
+   * умолчанию делает structural sharing, и при неизменившейся диагностике возвращает ТУ ЖЕ ссылку —
+   * сброс не сработал бы вовсе.</p>
+   *
+   * <p>Правка состояния прямо в рендере — тот случай, для которого React её и допускает: значение
+   * производное от пропа, эффект дал бы лишний кадр со старым соответствием.</p>
+   */
+  const [marks, setMarks] = useState<{ savedAt?: string; origins: PathOrigins }>(
+    () => ({ savedAt, origins: identityOrigins(allItems.length) }));
+  if (marks.savedAt !== savedAt) {
+    setMarks({ savedAt, origins: identityOrigins(allItems.length) });
+  }
+
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);
@@ -520,6 +552,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   function addRow() {
     const newRow = getDefaultValues(subFields);
     onChange([...allItems, newRow]);
+    setMarks(m => ({ ...m, origins: appendOrigins(m.origins, 1) }));
     setRowModal(allItems.length); // сразу открыть модалку новой строки
   }
 
@@ -530,6 +563,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
    */
   function addFromCatalog(ref: FieldRef, variantKey?: string) {
     onChange([...allItems, variantKey ? { [variantKey]: ref } : ref]);
+    setMarks(m => ({ ...m, origins: appendOrigins(m.origins, 1) }));
   }
 
   /**
@@ -556,6 +590,18 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   function reorder(order: number[]) {
     onChange(applyOrder(allItems, order));
     setSelected(prev => remapSelection(prev, order));
+    // Метки битых ссылок едут тем же порядком (issue #759): иначе красная плитка осталась бы на
+    // МЕСТЕ, а не на строке, и указывала бы на живую запись.
+    setMarks(m => ({ ...m, origins: applyOrder(m.origins, order) }));
+  }
+
+  /**
+   * Путь строки в нумерации серверной диагностики; null — сервер про эту строку не говорил.
+   * Рисовать метку в этом случае не по чему, и рисовать её наугад хуже, чем не рисовать.
+   */
+  function markPath(i: number): string | null {
+    const origin = marks.origins[i];
+    return basePath && origin != null ? `${basePath}[${origin}]` : null;
   }
 
   function moveItem(from: number, to: number) {
@@ -742,7 +788,8 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         <div ref={listRef} className="divide-y divide-muted">
           {allItems.map((item, i) => {
             if (isFieldRef(item)) {
-              const itemBroken = !!basePath && !!brokenPaths?.has(`${basePath}[${i}]`);
+              const path = markPath(i);
+              const itemBroken = !!path && !!brokenPaths?.has(path);
               if (itemBroken) {
                 return (
                   <div key={i}>
@@ -782,8 +829,9 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
               // Путь битой ссылки сервер строит ВНУТРЬ объекта («Поле[0].Вариант», ResolutionDiagnostics),
               // а не по индексу строки: проверь мы только «Поле[0]», удалённая цель показалась бы
               // здоровой ссылкой — ровно та потеря признака, ради которой заведена эта ветка.
-              const wrappedBroken = !!basePath
-                && !!brokenPaths?.has(`${basePath}[${i}].${wrapped.key}`);
+              const wrappedPath = markPath(i);
+              const wrappedBroken = !!wrappedPath
+                && !!brokenPaths?.has(`${wrappedPath}.${wrapped.key}`);
               return (
                 <div key={i}>
                 <div {...dropTarget(i)}
@@ -928,7 +976,15 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
         items={inlineItems}
         // Выбор снимаем: таблица меняет и состав, и порядок строк, и номера выбранных после неё
         // указывали бы неизвестно на что (issue #754).
-        onSave={(rows, origins) => { onChange(mergeTableRows(allItems, rows, origins)); setSelected(new Set()); }}
+        onSave={(rows, origins) => {
+          // Источники строк считаем ОДИН раз и берём из них и сами строки, и их серверные номера
+          // (issue #759). Гасить метки целиком было бы неверно: слоты известны точно, а вернуть их
+          // потом нечему — при неизменившейся диагностике сервер отдаёт тот же объект.
+          const sources = mergeTableSources(allItems, rows, origins);
+          onChange(sources.map(s => (s.edited != null ? rows[s.edited] : allItems[s.at!])));
+          setSelected(new Set());
+          setMarks(m => ({ ...m, origins: mergeTableOrigins(sources, m.origins) }));
+        }}
         setId={setId} scope={scope} scopeId={scopeId}
       />
       {compositeType && (
@@ -971,6 +1027,11 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
           setId={setId} scope={scope} scopeId={scopeId}
           onExtracted={ref => {
             onChange(allItems.map((item, i) => (i === extractRow ? ref : item)));
+            // Строка стала ссылкой на ТОЛЬКО ЧТО созданную запись — битой она быть не может, а
+            // серверная метка по её прежнему номеру относилась к прежнему содержимому (issue #759).
+            setMarks(m => ({
+              ...m, origins: m.origins.map((o, i) => (i === extractRow ? null : o)),
+            }));
             setExtractRow(null);
           }} />
       )}
