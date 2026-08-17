@@ -12,6 +12,7 @@ import type { TypstRender } from '@/shared/api/schema';
 const CODE_LABEL: Record<string, string> = {
   cycle: 'взаимные ссылки',
   'duplicate-fn': 'дубликат имени',
+  'reserved-fn': 'имя занято системой',
   syntax: 'синтаксис',
   'checker-unavailable': 'проверка недоступна',
 };

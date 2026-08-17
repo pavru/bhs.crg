@@ -1,6 +1,7 @@
 import type * as Monaco from 'monaco-editor';
 import { registerUserLibCompletion } from './typstUserLibCompletion';
 import { registerAssetCompletion } from './typstAssetCompletion';
+import { registerDispatchCompletion } from './typstDispatchCompletion';
 
 let registered = false;
 
@@ -112,4 +113,6 @@ export function registerTypstLanguage(monaco: typeof Monaco) {
   registerUserLibCompletion(monaco);
   // Ассеты (issue #476): пути картинок в image("…"), семейства в #set text(font: "…").
   registerAssetCompletion(monaco);
+  // Диспетчеризация по типу (issue #768): render-by-type / type-renders из typeblocks.typ.
+  registerDispatchCompletion(monaco);
 }
