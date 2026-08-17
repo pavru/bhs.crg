@@ -1,15 +1,15 @@
 using System.Diagnostics;
 using System.Text;
-using System.Text.RegularExpressions;
 using BHS.CRG.Application.Generation;
 
 namespace BHS.CRG.Infrastructure.Generation;
 
 /// <summary>
-/// Синтакс-проверка typeblocks.typ через Typst CLI (issue #309, фаза 2). Пишет typeblocks.typ + harness
-/// `check.typ`, который лишь ИМПОРТИРУЕТ его (`#import: *`) — тела-замыкания не вызываются, ленивые
-/// семантические ошибки не всплывают; ловятся синтаксические (парсер обходит весь файл). `--diagnostic-format
-/// short` даёт разбираемые строки `typeblocks.typ:line:col: error: …`, маппящиеся по line-map на блок.
+/// Синтакс-проверка блоков типов через Typst CLI (issue #309, фаза 2). Раскладывает набор файлов той
+/// же <see cref="TypeBlocksMaterializer"/>, что и генерация, и компилирует harness `check.typ`,
+/// который лишь ИМПОРТИРУЕТ агрегатор (`#import: *`) — тела-замыкания не вызываются, ленивые
+/// семантические ошибки не всплывают; ловятся синтаксические (парсер обходит весь файл).
+/// `--diagnostic-format short` даёт разбираемые строки, которые маппятся на файл и строку блока.
 /// Тот же CLI (env TYPST_PATH) и паттерн запуска процесса, что у TypstGenerator.
 /// </summary>
 public class TypstSyntaxChecker : ITypstSyntaxChecker
@@ -17,21 +17,22 @@ public class TypstSyntaxChecker : ITypstSyntaxChecker
     private static readonly string TypstPath =
         Environment.GetEnvironmentVariable("TYPST_PATH") ?? "typst";
 
-    private const string FileName = "typeblocks.typ";
+    private const string ProbeName = "check.typ";
 
-    public async Task<IReadOnlyList<TypstSyntaxError>> CheckAsync(string typeBlocksContent, CancellationToken ct)
+    public async Task<IReadOnlyList<TypstSyntaxError>> CheckAsync(
+        IReadOnlyList<TypstBlockFile> files, CancellationToken ct)
     {
         var tmp = Path.Combine(Path.GetTempPath(), "typst-check-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tmp);
         try
         {
-            await File.WriteAllTextAsync(Path.Combine(tmp, "typeblocks.typ"),
-                string.IsNullOrEmpty(typeBlocksContent) ? "// empty" : typeBlocksContent, Encoding.UTF8, ct);
+            await TypeBlocksMaterializer.WriteAsync(tmp, files, ct);
 
-            // Harness: импорт форсит ПАРС typeblocks.typ; тела ленивы (не вызваны) → без ложных ошибок
-            // данных. Немного текста — чтобы документ имел страницу и Typst не ругался на пустой вывод.
-            await File.WriteAllTextAsync(Path.Combine(tmp, "check.typ"),
-                "#import \"typeblocks.typ\": *\n" + "x\n", Encoding.UTF8, ct);
+            // Harness: импорт форсит ПАРС агрегатора и всех модулей по цепочке импортов; тела ленивы
+            // (не вызваны) → без ложных ошибок данных. Немного текста — чтобы документ имел страницу
+            // и Typst не ругался на пустой вывод.
+            await File.WriteAllTextAsync(Path.Combine(tmp, ProbeName),
+                $"#import \"{TypeBlockSlug.EntrypointName}\": *\n" + "x\n", Encoding.UTF8, ct);
 
             var psi = new ProcessStartInfo
             {
@@ -41,20 +42,34 @@ public class TypstSyntaxChecker : ITypstSyntaxChecker
                 UseShellExecute = false,
                 WorkingDirectory = tmp,
             };
-            foreach (var a in new[] { "compile", "check.typ", "out.pdf", "--diagnostic-format", "short", "--root", tmp })
+            foreach (var a in new[] { "compile", ProbeName, "out.pdf", "--diagnostic-format", "short", "--root", tmp })
                 psi.ArgumentList.Add(a);
 
             // Проверка синтаксиса идёт по нажатию в редакторе — срок короче генеративного:
             // блок, который не разбирается за десять секунд, всё равно не годится в шаблон.
             var (_, stderr) = await TypstProcess.RunAsync(psi, ct, TimeSpan.FromSeconds(10));
 
-            // Разбор общий с проверкой библиотеки (issue #473); отбор по имени файла — здесь, а не в
-            // самом шаблоне: координаты этого контракта заявлены ВНУТРИ typeblocks.typ, и ошибка из
-            // harness'а с чужими номерами строк уехала бы по line-map не туда.
-            return TypstShortDiagnostics.Parse(stderr)
-                .Where(d => d.Severity == "error" && d.File.EndsWith(FileName, StringComparison.Ordinal))
-                .Select(d => new TypstSyntaxError(d.Line, d.Column, d.Message))
-                .ToList();
+            // Привязка диагностики к нашему файлу — по СУФФИКСУ пути: Typst печатает абсолютный путь
+            // (на Windows ещё и с префиксом «\\?\»), а приложение оперирует относительными. Отбор по
+            // одному имени «typeblocks.typ», стоявший здесь до раскола, после него не совпал бы ни с
+            // одним модулем — и проверка вернула бы пустой зелёный список вместо ошибок.
+            var known = (files ?? []).Select(f => f.Path).ToList();
+            var result = new List<TypstSyntaxError>();
+            foreach (var d in TypstShortDiagnostics.Parse(stderr).Where(d => d.Severity == "error"))
+            {
+                var match = known.FirstOrDefault(p => d.File == p || d.File.EndsWith("/" + p, StringComparison.Ordinal));
+                if (match is null)
+                {
+                    // Ошибки самого harness'а пользователю не показать — он его не писал. Всё
+                    // остальное непривязанное пропускаем наверх с путём как есть: молчать о
+                    // непонятной ошибке хуже, чем показать её без адреса.
+                    if (d.File.EndsWith("/" + ProbeName, StringComparison.Ordinal) || d.File == ProbeName) continue;
+                    result.Add(new TypstSyntaxError(d.File, d.Line, d.Column, d.Message));
+                    continue;
+                }
+                result.Add(new TypstSyntaxError(match, d.Line, d.Column, d.Message));
+            }
+            return result;
         }
         finally
         {

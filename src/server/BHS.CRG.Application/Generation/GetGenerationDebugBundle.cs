@@ -18,7 +18,9 @@ namespace BHS.CRG.Application.Generation;
 public record GenerationDebugBundle(
     string TemplateContent,
     string DataJson,
-    string TypeBlocks,
+    // Блоки типов (issue #772): агрегатор + модули по своим путям. Одной строкой их больше нет —
+    // без модулей внешняя компиляция упала бы на первом же импорте агрегатора.
+    IReadOnlyList<TypstBlockFile> TypeBlocks,
     string UserLib,
     ResolvedTemplateAssets TemplateAssets,
     // Дерево библиотеки (issue #473). Без него бандл ломается на первом же вложенном импорте —

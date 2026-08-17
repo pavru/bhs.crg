@@ -47,6 +47,10 @@ public class ValidateTypstBlocksHandler(
                 records.AddRange(TypstPreambleBuilder.ExtractRenders(t));
         }
 
+        // Порядок записей здесь произвольный (репозиторий отдаёт типы без ORDER BY), и это не влияет
+        // на результат: ядро само раскладывает модули по коду типа, а внутри модуля держит порядок
+        // схемы. Разложить их иначе, чем при генерации, оно не может — иначе слаги и номера строк
+        // проверки разошлись бы с теми, на которые упадёт генерация.
         var built = TypstPreambleBuilder.BuildDetailed(records);
         var byFn = records
             .GroupBy(r => r.FnName)
@@ -63,12 +67,15 @@ public class ValidateTypstBlocksHandler(
                 d.Code, d.Message, rec?.TypeId, rec?.TypeName, rec?.VariantName, rec?.FnName, null));
         }
 
-        // Синтаксис: компилируем отсортированный typeblocks.typ, ошибки маппим по line-map на блок.
+        // Синтаксис: компилируем собранный набор файлов, ошибки маппим по line-map на блок.
         try
         {
-            foreach (var e in await checker.CheckAsync(built.Content, ct))
+            foreach (var e in await checker.CheckAsync(built.Files, ct))
             {
-                var span = built.Spans.FirstOrDefault(s => e.Line >= s.StartLine && e.Line <= s.EndLine);
+                // Файл — часть координаты: строки в модулях нумеруются заново, и поиск только по
+                // номеру привязал бы ошибку одного типа к блоку другого.
+                var span = built.Spans.FirstOrDefault(
+                    s => s.File == e.File && e.Line >= s.StartLine && e.Line <= s.EndLine);
                 var rec = span is not null && byFn.TryGetValue(span.FnName, out var r) ? r : null;
                 problems.Add(new TypstBlockProblem(
                     "error", "syntax", e.Message,

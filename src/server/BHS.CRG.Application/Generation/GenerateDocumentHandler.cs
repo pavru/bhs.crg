@@ -112,14 +112,12 @@ public class GenerateDocumentHandler(
             // ScanMissingRequired/union, чтобы штамп непустых объектов не сбил проверки пустоты.
             TypeStamper.Stamp(context, instance.CompositeTypeId, allDocTypes.ToDictionary(t => t.Id));
 
-            string? typeBlocksContent = null;
+            IReadOnlyList<TypstBlockFile>? typeBlocksFiles = null;
             string? userLibContent = null;
             IReadOnlyList<UserLibFile>? userLibFiles = null;
             if (cmd.Format == OutputFormat.Pdf)
             {
-                var preamble = TypstPreambleBuilder.Build(allDocTypes);
-                if (!string.IsNullOrEmpty(preamble))
-                    typeBlocksContent = preamble;
+                typeBlocksFiles = TypstPreambleBuilder.Build(allDocTypes);
 
                 var snapshot = await userLib.GetAsync(ct);
                 if (!string.IsNullOrWhiteSpace(snapshot.Entrypoint))
@@ -149,7 +147,7 @@ public class GenerateDocumentHandler(
 
                 var generator = generatorFactory.Create(cmd.Format);
                 var request = new GenerationRequest(template.Content, cmd.Format, context,
-                    TypeBlocksContent: typeBlocksContent, UserLibContent: userLibContent,
+                    TypeBlocksFiles: typeBlocksFiles, UserLibContent: userLibContent,
                     TemplateAssets: templateAssets, UserLibFiles: userLibFiles);
                 var bytes = await generator.GenerateAsync(request, ct);
 

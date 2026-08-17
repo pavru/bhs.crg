@@ -92,7 +92,7 @@ public class PreviewDocumentHandler(
             // Метаполе типа объекта (issue #342) — тот же терминальный штамп, что при генерации/бандле.
             TypeStamper.Stamp(context, instance.CompositeTypeId, allDocTypes.ToDictionary(t => t.Id));
 
-            var preamble = TypstPreambleBuilder.Build(allDocTypes);
+            var typeBlocks = TypstPreambleBuilder.Build(allDocTypes);
             var libSnapshot = await userLib.GetAsync(ct);
 
             context.Set("params", TemplateParams.Effective(template.Parameters,
@@ -101,7 +101,7 @@ public class PreviewDocumentHandler(
 
             var generator = generatorFactory.Create(OutputFormat.Pdf);
             var request = new GenerationRequest(template.Content, OutputFormat.Pdf, context,
-                TypeBlocksContent: string.IsNullOrEmpty(preamble) ? null : preamble,
+                TypeBlocksFiles: typeBlocks,
                 UserLibContent: string.IsNullOrWhiteSpace(libSnapshot.Entrypoint) ? null : libSnapshot.Entrypoint,
                 TemplateAssets: assets,
                 UserLibFiles: libSnapshot.Files.Count > 0 ? libSnapshot.Files : null);
