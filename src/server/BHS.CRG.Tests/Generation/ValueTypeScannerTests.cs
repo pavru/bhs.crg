@@ -129,4 +129,103 @@ public class ValueTypeScannerTests
 
         Assert.Empty(diagnostics);
     }
+
+    // ── Арность union'а (issue #756) ──────────────────────────────────────────
+    //
+    // Записать такое приложение не даёт, но PUT …/requisites кладёт тело как есть, и строка с двумя
+    // ключами приезжает из восстановленной копии или правки JSONB руками. Проверка нужна потому, что
+    // ЕДИНСТВЕННЫЙ путь через такие данные в редакторе — потеря части из них: открыв строку, он
+    // покажет первый заполненный вариант, а первая же правка выбросит остальные.
+
+    private static readonly Guid UnionTypeId = Guid.NewGuid();
+    private static readonly Guid UnionChildId = Guid.NewGuid();
+
+    private static DocumentType Union(Guid id, string name, string schema, Guid? parentId = null) =>
+        Make<DocumentType>(("Id", id), ("Name", name), ("ParentId", parentId),
+            ("Schema", JsonDocument.Parse(schema.Replace('\'', '"'))));
+
+    private static List<ResolutionDiagnostic> ScanUnion(string json, params DocumentType[] types)
+    {
+        var diagnostics = new List<ResolutionDiagnostic>();
+        ValueTypeScanner.Scan(Context(json),
+            [new SchemaFieldInfo("Документ", "complex", UnionTypeId, "Документ")],
+            types.ToDictionary(t => t.Id),
+            new Dictionary<Guid, PrimitiveType>(),
+            diagnostics);
+        return diagnostics;
+    }
+
+    private const string UnionSchema =
+        "{'tags':['type.union'],'fields':["
+        + "{'key':'Проект','type':'doc-ref','title':'Проект'},"
+        + "{'key':'Реестр','type':'doc-ref','title':'Реестр'}]}";
+
+    [Fact]
+    public void UnionWithTwoFilledVariants_IsReported()
+    {
+        var d = Assert.Single(ScanUnion(
+            """{"Документ":{"Проект":{"$ref":"catalog","entryId":"a"},"Реестр":{"$ref":"catalog","entryId":"b"}}}""",
+            Union(UnionTypeId, "Документ произвольный", UnionSchema)));
+
+        Assert.Equal(DiagnosticSeverity.Warning, d.Severity);
+        Assert.Equal("union-arity", d.Code);
+        Assert.Equal("Документ", d.Path);
+        Assert.Contains("заполнено 2", d.Message);
+        Assert.Contains("«Проект»", d.Message);
+        Assert.Contains("«Реестр»", d.Message);
+    }
+
+    [Fact]
+    public void UnionWithOneFilledVariant_IsSilent()
+        => Assert.Empty(ScanUnion("""{"Документ":{"Проект":{"$ref":"catalog","entryId":"a"}}}""",
+            Union(UnionTypeId, "Документ произвольный", UnionSchema)));
+
+    /// <summary>Снятая ссылка — это <c>{}</c>. Считай мы её вторым вариантом, предупреждение сыпалось
+    /// бы на здоровых данных: пустой объект остаётся в реквизитах после «Снять ссылку».</summary>
+    [Fact]
+    public void EmptyObjectVariant_DoesNotCount()
+        => Assert.Empty(ScanUnion("""{"Документ":{"Проект":{"$ref":"catalog","entryId":"a"},"Реестр":{}}}""",
+            Union(UnionTypeId, "Документ произвольный", UnionSchema)));
+
+    /// <summary>Тэг union'а наследуется: подтип объявляет только свои варианты (#747).</summary>
+    [Fact]
+    public void InheritedUnionTag_IsHonoured()
+    {
+        // Тэг — на предке, варианты — у потомка; поле объявлено ПОТОМКОМ.
+        var types = new Dictionary<Guid, DocumentType>
+        {
+            [UnionTypeId] = Union(UnionTypeId, "База", "{'tags':['type.union'],'fields':[]}"),
+            [UnionChildId] = Union(UnionChildId, "Потомок", UnionSchema, UnionTypeId),
+        };
+        var diagnostics = new List<ResolutionDiagnostic>();
+        ValueTypeScanner.Scan(Context("""{"Документ":{"Проект":{"x":1},"Реестр":{"y":2}}}"""),
+            [new SchemaFieldInfo("Документ", "complex", UnionChildId, "Документ")],
+            types, new Dictionary<Guid, PrimitiveType>(), diagnostics);
+
+        var d = Assert.Single(diagnostics);
+        Assert.Equal("union-arity", d.Code);
+        Assert.Contains("заполнено 2", d.Message);
+    }
+
+    /// <summary>Обычному составному типу арность не предъявляем — там «и», а не «одно из».</summary>
+    [Fact]
+    public void NonUnionComposite_IsSilent()
+        => Assert.Empty(ScanUnion("""{"Документ":{"Проект":{"x":1},"Реестр":{"y":2}}}""",
+            Union(UnionTypeId, "Обычный", UnionSchema.Replace("'tags':['type.union'],", ""))));
+
+    /// <summary>Строки таблицы проверяются каждая: union чаще всего стоит элементом массива.</summary>
+    [Fact]
+    public void UnionInsideArrayRow_IsReportedWithRowPath()
+    {
+        var diagnostics = new List<ResolutionDiagnostic>();
+        ValueTypeScanner.Scan(
+            Context("""{"Документы":[{"Проект":{"a":1}},{"Проект":{"a":1},"Реестр":{"b":2}}]}"""),
+            [new SchemaFieldInfo("Документы", "array", UnionTypeId, "Документы")],
+            new Dictionary<Guid, DocumentType> { [UnionTypeId] = Union(UnionTypeId, "Документ", UnionSchema) },
+            new Dictionary<Guid, PrimitiveType>(),
+            diagnostics);
+
+        var d = Assert.Single(diagnostics);
+        Assert.Equal("Документы[1]", d.Path);
+    }
 }
