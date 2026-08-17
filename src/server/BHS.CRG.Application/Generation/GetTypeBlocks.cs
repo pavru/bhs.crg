@@ -22,7 +22,16 @@ namespace BHS.CRG.Application.Generation;
 /// <param name="BlockCount">Сколько блоков собрано. «Пусто» по содержимому не определить: сборка
 /// ВСЕГДА пишет агрегатор с диспетч-частью (#768), поэтому даже при нуле блоков файлы непустые. Без
 /// счётчика экран на свежей установке показывал бы каркас без объяснения, откуда берутся блоки.</param>
-public record TypeBlocksView(IReadOnlyList<TypstBlockFile> Files, int BlockCount);
+/// <param name="Problems">Диагностики сборки — те же, что видит проверка блоков, но собранные по
+/// ВСЕЙ системе разом. Экран, показывающий «что уходит в Typst», обязан показывать и то, чем этот
+/// файл нехорош: иначе о претензии узнаёшь, только открыв нужный тип и нажав «Проверить», а
+/// предупреждение о путях (#772) касается сразу многих типов и адресовано владельцу системы, а не
+/// тому, кто правит один блок.</param>
+public record TypeBlocksView(
+    IReadOnlyList<TypstBlockFile> Files, int BlockCount, IReadOnlyList<TypeBlocksProblem> Problems);
+
+/// <summary>Диагностика сборки в виде, пригодном для показа: без индексов и внутренних имён.</summary>
+public record TypeBlocksProblem(string Severity, string Code, string Message);
 
 public record GetTypeBlocksQuery : IRequest<TypeBlocksView>;
 
@@ -32,8 +41,14 @@ public class GetTypeBlocksHandler(IRepository<DocumentType> docTypeRepo)
     public async Task<TypeBlocksView> Handle(GetTypeBlocksQuery q, CancellationToken ct)
     {
         var types = await docTypeRepo.GetAllAsync(ct);
+        var built = TypstPreambleBuilder.BuildWithDiagnostics(types);
         return new TypeBlocksView(
-            TypstPreambleBuilder.Build(types),
-            types.SelectMany(TypstPreambleBuilder.ExtractRenders).Count());
+            built.Files,
+            types.SelectMany(TypstPreambleBuilder.ExtractRenders).Count(),
+            built.Diagnostics
+                .Select(d => new TypeBlocksProblem(
+                    d.Severity == TypstBlockDiagnosticSeverity.Error ? "error" : "warning",
+                    d.Code, d.Message))
+                .ToList());
     }
 }

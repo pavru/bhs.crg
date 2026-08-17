@@ -153,6 +153,9 @@ public class TypstPreambleBuilderTests
     [Theory]
     [InlineData("{ image(\"assets/logo.png\") }")]        // картинка ассета
     [InlineData("{ let d = json(\"data.json\") }")]       // данные
+    // «//» внутри строки — не начало комментария. Наивная очистка срезала бы остаток строки вместе
+    // со следующим путём, и предупреждение о нём не выдавалось бы вовсе.
+    [InlineData("{ link(\"https://gost.ru/spec.pdf\")[Спец] + image(\"logo.png\") }")]
     public void OtherRelativeFileReferences_AreWarnedToo(string block)
         => Assert.Contains(TypstPreambleBuilder.BuildDetailed(new[] { R("f", block) }).Diagnostics,
             d => d.Code == "relative-path");

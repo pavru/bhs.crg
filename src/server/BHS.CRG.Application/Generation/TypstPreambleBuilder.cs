@@ -73,6 +73,12 @@ public static class TypstPreambleBuilder
 {
     /// <summary>Типы → готовый набор файлов (генерация, debug-бандл, просмотрщик).</summary>
     public static IReadOnlyList<TypstBlockFile> Build(IEnumerable<DocumentType> compositeTypes)
+        => BuildWithDiagnostics(compositeTypes).Files;
+
+    /// <summary>То же, но с диагностиками сборки — для мест, которые обязаны их показать
+    /// (просмотрщик #770). Генерация их намеренно игнорирует: Typst ленив и сам финальный арбитр,
+    /// а обрывать выпуск документа из-за предупреждения о чужом блоке было бы хуже поломки.</summary>
+    public static TypstPreambleResult BuildWithDiagnostics(IEnumerable<DocumentType> compositeTypes)
     {
         // Порядок типов задаём САМИ, а не берём как пришло: репозиторий отдаёт их без ORDER BY, и
         // PostgreSQL после UPDATE любой строки возвращает набор в другом физическом порядке. Файл от
@@ -83,7 +89,7 @@ public static class TypstPreambleBuilder
         // запросы к репозиторию, и совпадение было делом случая. Ключ сортировки — Code: он уникален
         // (реестр типов) и стабилен, в отличие от порядка вставки.
         var types = compositeTypes.OrderBy(t => t.Code, StringComparer.Ordinal).ToList();
-        return BuildDetailed(types.SelectMany(ExtractRenders), UnionCodes(types)).Files;
+        return BuildDetailed(types.SelectMany(ExtractRenders), UnionCodes(types));
     }
 
     /// <summary>
@@ -566,12 +572,32 @@ public static class TypstPreambleBuilder
         @"""([^""\n]+\.(?:typ|json|csv|toml|yaml|yml|xml|png|jpg|jpeg|gif|svg|pdf|bib))""",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    /// <summary>Только комментарии — строки оставляем: именно в них живут пути, которые мы ищем.</summary>
+    /// <summary>
+    /// Вырезает комментарии, СОХРАНЯЯ строковые литералы: именно в них живут пути, которые ищет
+    /// <see cref="RelativePathsIn"/>.
+    ///
+    /// <para>Строку приходится не просто оставлять, а проходить целиком: «//» встречается ВНУТРИ неё
+    /// — <c>link("https://gost.ru/spec.pdf")</c>, — и наивная проверка приняла бы его за начало
+    /// комментария, срезав остаток строки вместе со следующим путём. Тогда предупреждение о
+    /// «logo.png» на той же строке не выдавалось бы вовсе, а это единственная защита от тихой
+    /// поломки генерации.</para>
+    /// </summary>
     private static string StripComments(string s)
     {
         var sb = new StringBuilder(s.Length);
         for (int i = 0; i < s.Length; i++)
         {
+            if (s[i] == '"')
+            {
+                sb.Append(s[i++]);
+                while (i < s.Length && s[i] != '"')
+                {
+                    if (s[i] == '\\' && i + 1 < s.Length) sb.Append(s[i++]);
+                    sb.Append(s[i++]);
+                }
+                if (i < s.Length) sb.Append(s[i]);
+                continue;
+            }
             if (s[i] == '/' && i + 1 < s.Length && s[i + 1] == '/')
             {
                 while (i < s.Length && s[i] != '\n') i++;

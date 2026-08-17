@@ -2,15 +2,16 @@ import { useState } from 'react';
 import Editor from '@/shared/ui/CodeEditor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
 import { useTheme } from '@/shared/ui/ThemeProvider';
-import { useTypeBlocks, type TypeBlockFile } from '@/shared/api/typstUserLib';
+import { useTypeBlocks, type TypeBlockFile, type TypeBlocksProblem } from '@/shared/api/typstUserLib';
 import { NavSection } from '@/shared/ui/ListDetailShell';
-import { FileCode, LogIn, Lock } from 'lucide-react';
+import { FileCode, LogIn, Lock, AlertTriangle, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
 
 /** Точка входа — её импортирует шаблон; модули лежат в подпапке `typeblocks/`. */
 const ENTRYPOINT = 'typeblocks.typ';
 
-/** Модульная константа, а не `?? []` в теле: новый массив на каждый рендер запускает цикл memo→effect. */
+/** Модульные константы, а не `?? []` в теле: новый массив на каждый рендер запускает цикл memo→effect. */
 const EMPTY: TypeBlockFile[] = [];
+const NO_PROBLEMS: TypeBlocksProblem[] = [];
 
 /**
  * Просмотр собранных блоков типов (issue #770) — только чтение.
@@ -45,6 +46,7 @@ export function TypeBlocksPanel() {
   }
 
   const files = data?.files ?? EMPTY;
+  const problems = data?.problems ?? NO_PROBLEMS;
   const modules = files.filter(f => f.path !== ENTRYPOINT);
   // Выбранного файла может не быть после того, как у типа убрали последний блок, — тогда его модуль
   // исчезает. Молча падать на undefined тут нельзя, откат на точку входа безопасен.
@@ -67,6 +69,8 @@ export function TypeBlocksPanel() {
           порядка в схеме. Блоки правятся у типа: Типы документов → Typst-блоки.
         </p>
       </div>
+
+      {problems.length > 0 && <ProblemsBanner problems={problems} />}
 
       {empty ? (
         <div className="flex-1 flex items-center justify-center text-fg4 text-sm text-center px-6">
@@ -115,6 +119,50 @@ export function TypeBlocksPanel() {
             />
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Претензии сборки ко ВСЕЙ системе разом (issue #772).
+ *
+ * <p>Проверка блоков (#309, фаза 2) живёт у типа: чтобы увидеть её претензию, надо открыть нужный
+ * тип и нажать «Проверить». Предупреждение о путях после переезда блоков в подпапку так не найти —
+ * оно касается сразу многих типов и адресовано владельцу системы. Экран, обещающий показать «что
+ * уходит в Typst», обязан показать и то, чем это нехорошо, иначе обещание половинчатое.</p>
+ *
+ * <p>Свёрнут по умолчанию: два десятка одинаковых по смыслу строк заслонили бы сами файлы, за
+ * которыми сюда и приходят. Но заголовок называет число и суть, а не просто «есть замечания».</p>
+ */
+function ProblemsBanner({ problems }: { problems: TypeBlocksProblem[] }) {
+  const [open, setOpen] = useState(false);
+  const errors = problems.filter(p => p.severity === 'error').length;
+  const danger = errors > 0;
+
+  return (
+    <div className={`border-b border-stroke px-4 py-2 text-xs
+                     ${danger ? 'bg-danger-subtle text-danger' : 'bg-warning-subtle text-warning'}`}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 w-full text-left" aria-expanded={open}>
+        {open ? <ChevronDown size={13} className="shrink-0" /> : <ChevronRight size={13} className="shrink-0" />}
+        {danger ? <AlertCircle size={13} className="shrink-0" /> : <AlertTriangle size={13} className="shrink-0" />}
+        <span>
+          {danger
+            ? `Сборка блоков сообщает об ошибках: ${errors}`
+            : `Замечаний к блокам: ${problems.length}`}
+          {' — '}
+          {open ? 'свернуть' : 'показать'}
+        </span>
+      </button>
+      {open && (
+        <ul className="mt-1.5 ml-6 space-y-1">
+          {problems.map((p, i) => (
+            <li key={i} className={p.severity === 'error' ? 'text-danger' : 'text-warning'}>
+              {p.message}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
