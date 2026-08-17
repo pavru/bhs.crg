@@ -30,8 +30,14 @@ export function useScopeGroups(entries: CommonDataEntry[], searching: boolean) {
   const [override, setOverride] = useState<Partial<Record<CatalogScope, boolean>>>({});
   const isExpanded = (scope: CatalogScope) =>
     searching ? true : (override[scope] ?? scope === firstScope);
-  const toggle = (scope: CatalogScope) =>
+  // При поиске сворачивание не просто бесполезно — оно ВРЕДНО: записывалось бы `!isExpanded`, то
+  // есть всегда «свёрнуто», и клик по заголовку, ничего не изменивший на экране, схлопывал бы
+  // группу потом, при очистке поиска. Схлопнуться могла и единственная группа — тогда список
+  // исчезал целиком, а причина оставалась в прошлом.
+  const toggle = (scope: CatalogScope) => {
+    if (searching) return;
     setOverride(o => ({ ...o, [scope]: !isExpanded(scope) }));
+  };
 
   /** Записи раскрытых групп в порядке отображения — ровно то, по чему ходят стрелки. */
   const visible = groups.flatMap(g => (isExpanded(g.scope) ? g.entries : []));

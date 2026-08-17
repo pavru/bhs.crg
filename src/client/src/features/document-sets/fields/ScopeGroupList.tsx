@@ -14,11 +14,22 @@ export function ScopeGroupList({
   isActive?: (entry: CommonDataEntry) => boolean;
   onHover?: (entry: CommonDataEntry) => void;
   onSelect: (entry: CommonDataEntry) => void;
+  /**
+   * Идентификатор строки как ОПЦИИ клавиатурного списка. Его наличие и означает, что вызывающий
+   * такой список ведёт: строки получают <code>role="option"</code> с <code>aria-selected</code>,
+   * а поле поиска адресует активную через <code>aria-activedescendant</code>.
+   *
+   * <p>Без него строки остаются обычными кнопками. Иначе скринридер объявлял бы список
+   * невыбранных опций, между которыми некуда перейти: ни владеющего <code>listbox</code>, ни
+   * активного элемента, ни стрелок — так это и выглядело бы в «Выбрать документ…», где никакой
+   * навигации нет.</p>
+   */
   optionIdOf?: (entry: CommonDataEntry) => string | undefined;
   /** Правая метка строки — например «куда ляжет» для union'а. */
   hintOf?: (entry: CommonDataEntry) => string | null;
   maxHeight?: string;
 }) {
+  const asOptions = !!optionIdOf;
   return (
     <div className={`space-y-1 ${maxHeight} overflow-y-auto`}>
       {groups.map(g => {
@@ -40,7 +51,9 @@ export function ScopeGroupList({
                   const on = isActive?.(entry) ?? false;
                   const hint = hintOf?.(entry) ?? null;
                   return (
-                    <button key={entry.id} type="button" role="option" aria-selected={on}
+                    <button key={entry.id} type="button"
+                      role={asOptions ? 'option' : undefined}
+                      aria-selected={asOptions ? on : undefined}
                       id={optionIdOf?.(entry)}
                       onMouseEnter={() => onHover?.(entry)} onClick={() => onSelect(entry)}
                       className={`w-full flex items-center px-3 py-2 text-sm text-left rounded-md transition-colors ${

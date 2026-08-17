@@ -92,6 +92,11 @@ export function RefPickerModal({
   // варианту. Куда ляжет кандидат, считаем здесь же и несём до onSelect — второй раз тот же вопрос
   // задавать негде: в обработчике выбора уже нет ни типов, ни цепочки наследования под рукой.
   const unionMode = unionAware && !!compositeType && isUnionType(compositeType, allDocTypes);
+  const searching = search.trim().length > 0;
+  // Запрос ОДИН на все три раздела. Пока их было два, каталог фильтровался нетримленной строкой, а
+  // остальное — тримленной: «аоср » с хвостовым пробелом опустошал каталог, оставив документы, и
+  // клавиатурный порядок молча перестраивался под другой список.
+  const query = search.trim().toLowerCase();
   /**
    * Размещения считаем по ТИПУ и заранее, а не по кандидату и лениво.
    *
@@ -106,10 +111,19 @@ export function RefPickerModal({
    *
    * <p>Таблицы раздельные по виду источника: у одного и того же типа исходы для значения и для
    * документа разные (см. <code>UnionSource</code>).</p>
+   *
+   * <p>Покрывают они не всё: типы полей-источников заранее неизвестны — чтобы их перечислить,
+   * пришлось бы обойти схемы всех документов комплекта, то есть проделать ту же работу, которую и
+   * оценивали. Для них <code>placeInUnion</code> вызывается на месте; список полей короткий, а вот
+   * записей каталога бывают десятки — на них экономия и рассчитана.</p>
+   *
+   * <p>Всё это считается только при открытом диалоге. Пикер смонтирован постоянно (его держит
+   * <code>ArrayFieldEditor</code>), поэтому тело компонента исполняется на КАЖДЫЙ рендер формы —
+   * а закрытому диалогу кандидаты не нужны ни одному.</p>
    */
   const placementsFor = (typeIds: string[], source: UnionSource) =>
     new Map<string, UnionPlacement>(
-      unionMode
+      unionMode && open
         ? [...new Set(typeIds)].map(id => [id, placeInUnion(id, compositeType!, allDocTypes, source)] as const)
         : [],
     );
@@ -121,14 +135,14 @@ export function RefPickerModal({
     return table.get(typeId) ?? placeInUnion(typeId, compositeType!, allDocTypes, source);
   };
 
-  const filtered = catalogEntries.filter(e => {
+  const filtered = !open ? [] : catalogEntries.filter(e => {
     if (compositeType) {
       const fits = unionMode
         ? placementOf(e.compositeTypeId).kind !== 'none'
         : isSubtypeOf(e.compositeTypeId, compositeType.id, allDocTypes);
       if (!fits) return false;
     }
-    return e.displayName.toLowerCase().includes(search.toLowerCase());
+    return e.displayName.toLowerCase().includes(query);
   });
 
   // Кандидат, для которого тип не назвал единственного варианта: показываем его вторым шагом со
@@ -153,8 +167,6 @@ export function RefPickerModal({
     return null;
   }
 
-  const searching = search.trim().length > 0;
-  const query = search.trim().toLowerCase();
   const { groups, isExpanded, toggle, visible } = useScopeGroups(filtered, searching);
 
   const refOfEntry = (entry: CommonDataEntry): FieldRef => ({
@@ -176,7 +188,7 @@ export function RefPickerModal({
    * там, где вариантов такого вида нет — например у «Кабельной линии», набранной одними
    * <code>complex</code>, — раздел просто пуст, а не заполнен неподходящими документами.</p>
    */
-  const instanceCandidates = unionMode
+  const instanceCandidates = unionMode && open
     ? otherInstances.flatMap(inst => {
         const dt = allDocTypes.find(t => t.id === inst.documentTypeId);
         if (!dt) return [];
@@ -209,7 +221,7 @@ export function RefPickerModal({
    * до проверки как ошибка «целевая запись не найдена или удалена», хотя документ на месте и не
    * заполнено всего одно поле.</p>
    */
-  const fieldCandidates = compositeType && setId
+  const fieldCandidates = compositeType && setId && open
     ? otherInstances.flatMap(inst => {
         const dt = allDocTypes.find(t => t.id === inst.documentTypeId);
         if (!dt) return [];
@@ -435,7 +447,10 @@ export function RefPickerModal({
           </div>
         )}
 
-        {options.length === 0 && (
+        {/* Считаем по КАНДИДАТАМ, а не по навигируемым опциям: опции — это записи РАСКРЫТЫХ групп,
+            и стоило свернуть единственную группу, как под её же заголовком «Комплект 3» появлялось
+            «Подходящих записей нет». Свёрнутая группа — это спрятано, а не пусто. */}
+        {filtered.length === 0 && instanceCandidates.length === 0 && fieldCandidates.length === 0 && (
           <p className="text-sm text-fg4 text-center py-4">
             {emptyState.title}
             <br />
