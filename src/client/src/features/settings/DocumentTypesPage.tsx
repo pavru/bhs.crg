@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Plus, ChevronRight, Trash2, Copy, Folder, FileText, Boxes, EyeOff, Check,
@@ -1037,10 +1038,37 @@ interface TypesPageProps {
   kind: DocumentTypeKind;
 }
 
+/**
+ * Конвенция (issue #778): выбор list-detail живёт в URL (`?type=<id>`, replace — стрелки браузера
+ * не ходят по каждому клику в списке), последний открытый — в localStorage. Вход без параметра
+ * открывает тот же тип, на котором работу оставили, а конкретный тип можно дать ссылкой.
+ * Обе страницы («Типы документов» и «Составные типы») — один компонент, поэтому память раздельная
+ * по kind. Кандидат на тиражирование на другие list-detail-страницы.
+ */
+const lastTypeKey = (kind: DocumentTypeKind) => `types-last:${kind}`;
+
 export function DocumentTypesPage({ kind }: TypesPageProps) {
   const [createOpen, setCreateOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+
+  // Порядок разрешения при входе: `?type=` → localStorage → первый в списке (страхует `?? filtered[0]`
+  // ниже, поэтому удалённый или не проходящий kind-фильтр id просто игнорируется).
+  // Память читаем один раз до первого выбора; kind в ключе — на случай, если роутер переиспользует
+  // экземпляр компонента между двумя маршрутами.
+  const restored = useRef<{ kind: DocumentTypeKind; id: string | null } | null>(null);
+  if (restored.current?.kind !== kind) restored.current = { kind, id: localStorage.getItem(lastTypeKey(kind)) };
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedId = searchParams.get('type') ?? restored.current.id;
+  const setSelectedId = (id: string | null) => {
+    restored.current = { kind, id: null };  // дальше выбор ведёт URL, восстановленный id не участвует
+    if (id) localStorage.setItem(lastTypeKey(kind), id);
+    else localStorage.removeItem(lastTypeKey(kind));
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (id) next.set('type', id); else next.delete('type');
+      return next;
+    }, { replace: true });
+  };
   const { data: allDocTypes = [], isLoading } = useListDocumentTypes();
 
   // Реестр незасохранённых форм текущего типа (явное сохранение, issue #197 / #210 — общий).
@@ -1164,6 +1192,18 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
   // группы раскрыты, чтобы результаты были видны.
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const searching = query.trim().length > 0;
+
+  // Группа выбранного типа раскрывается сама: иначе восстановленный при входе выбор (#778)
+  // виден только в детали, а рейл стоит свёрнутым и без единой подсветки. Раскрываем один раз
+  // на смену выбора — свернув группу руками, пользователь оставляет её свёрнутой.
+  const autoExpanded = useRef<string | null>(null);
+  if (selectedId && autoExpanded.current !== selectedId) {
+    const g = [...byGroup].find(([, items]) => items.some(t => t.id === selectedId))?.[0];
+    if (g !== undefined) {
+      autoExpanded.current = selectedId;
+      if (!expandedGroups.has(g)) setExpandedGroups(prev => new Set(prev).add(g));
+    }
+  }
   const toggleGroup = (g: string) =>
     setExpandedGroups(s => { const n = new Set(s); n.has(g) ? n.delete(g) : n.add(g); return n; });
 
