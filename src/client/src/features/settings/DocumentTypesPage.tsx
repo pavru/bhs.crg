@@ -15,6 +15,7 @@ import { TypePickerField } from '@/shared/ui/TypePickerField';
 import type { PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { countTemplatesUsingTypeCode } from '@/shared/api/typstUserLib';
 import {
   useListDocumentTypes,
   useCreateDocumentType,
@@ -235,10 +236,26 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
     setName(v);
   }
 
+  // Смена кода типа ломает вызовы «Код.имя» в шаблонах (issue #773): спрашиваем ДО сохранения,
+  // сколько шаблонов затронуто. Typst сообщил бы об этом лишь при генерации документа — когда связь
+  // с причиной уже не видна.
+  const [codeWarning, setCodeWarning] = useState<{ count: number; onConfirm: () => void } | null>(null);
+
   // Сохранение параметров: бросает при ошибке — чтобы общий «Сохранить»/гард прервались (issue #197).
   async function save() {
     if (!name.trim() || !code.trim()) { setError('Наименование и код обязательны'); throw new Error('validation'); }
     setError('');
+
+    if (docType.id && code.trim() !== docType.code) {
+      const used = await countTemplatesUsingTypeCode(docType.code).catch(() => 0);
+      if (used > 0) {
+        const confirmed = await new Promise<boolean>(resolve =>
+          setCodeWarning({ count: used, onConfirm: () => resolve(true) }));
+        setCodeWarning(null);
+        if (!confirmed) throw new Error('rename-cancelled');
+      }
+    }
+
     try {
       await mutation.mutateAsync({ id: docType.id, name: name.trim(), code: code.trim(), parentId: parentId || null });
     } catch (err: unknown) {
@@ -252,6 +269,22 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
   return (
     <form onSubmit={e => { e.preventDefault(); save().catch(() => { /* ошибка показана в форме */ }); }}
       className="space-y-3 pb-4 border-b border-stroke mb-4">
+      <ConfirmDialog
+        open={codeWarning !== null}
+        onOpenChange={o => { if (!o) setCodeWarning(null); }}
+        title="Сменить код типа?"
+        description={
+          <>
+            Шаблонов, которые обращаются к блокам этого типа по коду{' '}
+            <code className="font-mono">{docType.code}</code>: <b>{codeWarning?.count ?? 0}</b>.
+            После смены кода эти вызовы перестанут разрешаться — префикс в них придётся заменить
+            вручную. Typst сообщит об этом только при генерации документа.
+          </>
+        }
+        confirmLabel="Сменить код"
+        confirmDanger={false}
+        onConfirm={() => codeWarning?.onConfirm()}
+      />
       <p className="text-xs font-medium text-fg3 uppercase tracking-wide">Параметры типа</p>
       <div className="grid grid-cols-2 gap-3">
         <TextField label="Наименование" value={name} onChange={e => handleNameChange(e.target.value)} required />
@@ -527,21 +560,13 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
     const conflict = fields.find(f => inheritedKeys.has(f.key.trim()));
     if (conflict) { const m = `Ключ "${conflict.key}" уже есть в родительском типе`; setError(m); throw new Error(m); }
 
-    // Проверка уникальности fnName Typst-блоков в рамках всей системы
+    // Имена Typst-блоков уникальны В ПРЕДЕЛАХ ТИПА (issue #773): каждый тип — свой модуль со своей
+    // областью, и `Адрес.full` рядом с `Подписант.full` совершенно законны. Прежняя проверка на
+    // уникальность по всей системе осталась бы прямым запретом на результат миграции — она сама
+    // срезает префиксы и порождает такие совпадения, после чего схему было бы не сохранить.
     const definedFnNames = typstRenders.map(r => r.fnName.trim()).filter(Boolean);
     const localDup = definedFnNames.find((n, i) => definedFnNames.indexOf(n) !== i);
-    if (localDup) { const m = `Имя функции "${localDup}" задано дважды`; setError(m); throw new Error(m); }
-
-    const foreignFnNames = new Set<string>();
-    for (const dt of allDocTypes) {
-      if (dt.id === docType.id) continue;
-      const def = dt.schema as unknown as SchemaDefinition;
-      for (const r of def.typstRenders ?? []) {
-        if (r.fnName) foreignFnNames.add(r.fnName.trim());
-      }
-    }
-    const crossDup = definedFnNames.find(n => foreignFnNames.has(n));
-    if (crossDup) { const m = `Имя функции "${crossDup}" уже используется в другом типе`; setError(m); throw new Error(m); }
+    if (localDup) { const m = `Имя функции "${localDup}" задано дважды в этом типе`; setError(m); throw new Error(m); }
 
     const schemaJson = schemaToJson(fields, excludedFields, fieldOverrides, groups, typstRenders, docTypeTags, ungroupedOrder, help);
 
@@ -775,6 +800,7 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
               <TypstBlocksPanel problems={blocksCheck.problems} currentTypeId={docType.id} onSelectType={onSelectType} />
             )}
             <TypstRendersEditor
+              typeCode={docType.code}
               renders={typstRenders}
               onChange={r => { setTypstRenders(r); setDirty(true); }}
               onBlockCommitted={r => void blocksCheck.run(r)}

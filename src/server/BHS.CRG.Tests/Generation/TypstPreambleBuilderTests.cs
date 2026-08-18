@@ -19,7 +19,13 @@ public class TypstPreambleBuilderTests
     private static readonly Guid OneType = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     private static TypstBlockRecord R(string fn, string block) =>
-        new(fn, block, $"prov:{fn}", OneType, "T", fn);
+        new(fn, block, $"prov:{fn}", OneType, "T", fn, "T");
+
+    /// <summary>Запись типа БЕЗ кода: после #773 такой тип нечем адресовать — ни импортом, ни в
+    /// диспетч-таблице. Блоки при этом не пропадают, они просто никому не видны.</summary>
+    private static TypstBlockRecord NoCode(string fn, string block = "{ it.x }") =>
+        new(fn, block, $"prov:{fn}", Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            "БезКода", fn, "");
 
     private static readonly Dictionary<string, Guid> IdsByCode = new();
     private static Guid IdFor(string code)
@@ -54,20 +60,73 @@ public class TypstPreambleBuilderTests
         var res = TypstPreambleBuilder.BuildDetailed(new[] { C("a", "КодA"), C("b", "КодB") });
 
         Assert.Equal("typeblocks.typ", res.Files[0].Path);
-        Assert.Contains("#import \"typeblocks/КодA.typ\": *", Entry(res));
-        Assert.Contains("#import \"typeblocks/КодB.typ\": *", Entry(res));
+        Assert.Contains("#import \"typeblocks/КодA.typ\" as КодA", Entry(res));
+        Assert.Contains("#import \"typeblocks/КодB.typ\" as КодB", Entry(res));
         Assert.Equal(3, res.Files.Count);
     }
 
-    /// <summary>Реэкспорт wildcard'ом, а не алиасом: имена блоков остаются глобальными, поэтому
-    /// шаблоны и тексты блоков после раскола не переписываются (адресация `Код.Имя` — это #773).</summary>
+    /// <summary>Модули импортируются под алиасом-кодом, а не «: *» (issue #773). Wildcard свёл бы
+    /// имена обратно в общее пространство, и одноимённые блоки разных типов — теперь законные —
+    /// перекрывали бы друг друга молча, побеждал бы последний импортированный.</summary>
     [Fact]
-    public void Entrypoint_ReexportsFlatNames_NoAliasing()
+    public void Entrypoint_ImportsModulesUnderTypeCodeAlias()
     {
-        var res = TypstPreambleBuilder.BuildDetailed(new[] { C("org-full", "Организация") });
-        Assert.Contains(": *", Entry(res));
-        Assert.DoesNotContain(" as Организация", Entry(res));
+        var res = TypstPreambleBuilder.BuildDetailed(new[] { C("full", "Организация") });
+        Assert.Contains("#import \"typeblocks/Организация.typ\" as Организация", Entry(res));
+        Assert.DoesNotContain(": *", Entry(res));
     }
+
+    /// <summary>Одинаковые имена у РАЗНЫХ типов — норма после #773: у каждого своя область.</summary>
+    [Fact]
+    public void SameBlockName_InDifferentTypes_IsNotADuplicate()
+    {
+        var res = TypstPreambleBuilder.BuildDetailed(new[] { C("full", "Адрес"), C("full", "Подписант") });
+        Assert.DoesNotContain(res.Diagnostics, d => d.Code == "duplicate-fn");
+        Assert.Contains("#let full(it)", Module(res, "Адрес"));
+        Assert.Contains("#let full(it)", Module(res, "Подписант"));
+    }
+
+    /// <summary>А внутри ОДНОГО типа совпадение по-прежнему ошибка: в Typst второй `#let` перекроет
+    /// первый, и адресовать перекрытый блок будет нечем.</summary>
+    [Fact]
+    public void SameBlockName_WithinType_IsStillDuplicate()
+        => Assert.Contains(
+            TypstPreambleBuilder.BuildDetailed(new[]
+            {
+                C("full", "Адрес", "первый"),
+                C("full", "Адрес", "второй"),
+            }).Diagnostics,
+            d => d.Code == "duplicate-fn");
+
+    /// <summary>
+    /// Код типа становится ИМЕНЕМ в Typst (алиас модуля), поэтому «неудобный» код теперь не
+    /// косметика: строка `as 2Тип` не скомпилируется и уронит весь агрегатор. Такой тип не
+    /// импортируется вовсе — его блоки остаются в файле, но недоступны шаблонам, и об этом Error.
+    /// </summary>
+    [Theory]
+    [InlineData("2АОСР")]
+    [InlineData("Акт документа")]
+    [InlineData("Акт.черновик")]
+    public void CodeThatIsNotAnIdentifier_IsNotImported_AndDiagnosed(string code)
+    {
+        var res = TypstPreambleBuilder.BuildDetailed(new[] { C("f", code) });
+
+        var d = Assert.Single(res.Diagnostics, x => x.Code == "code-not-identifier");
+        Assert.Equal(TypstBlockDiagnosticSeverity.Error, d.Severity);
+        Assert.DoesNotContain("#import", Entry(res));
+        Assert.Contains(res.Files, f => f.Path != "typeblocks.typ");   // блоки не потеряны
+    }
+
+    [Theory]
+    [InlineData("АОСР", true)]
+    [InlineData("PROJECT_DOC_PDF", true)]
+    [InlineData("АОСР-1", true)]          // дефис легален в Typst, проверено на CLI
+    [InlineData("_служебный", true)]
+    [InlineData("2АОСР", false)]
+    [InlineData("Акт документа", false)]
+    [InlineData("", false)]
+    public void IsTypstIdentifier_MatchesLanguageRule(string code, bool expected)
+        => Assert.Equal(expected, TypstPreambleBuilder.IsTypstIdentifier(code));
 
     /// <summary>Агрегатор существует ВСЕГДА: шаблон импортирует его дословно (#353), и отсутствие
     /// файла было бы ошибкой компиляции у каждого документа, а не «пустой библиотекой».</summary>
@@ -93,41 +152,57 @@ public class TypstPreambleBuilderTests
                 Module(res, slug));
     }
 
+    /// <summary>Вызов чужого блока пишется через префикс типа — по нему и строится ребро графа.</summary>
     [Fact]
     public void CrossTypeCall_BecomesStaticImport_NotOrdering()
     {
         var res = TypstPreambleBuilder.BuildDetailed(new[]
         {
-            C("caller", "Вызывающий", "осн", "{ callee(it) }"),
+            C("caller", "Вызывающий", "осн", "{ Вызываемый.callee(it) }"),
             C("callee", "Вызываемый"),
         });
-        Assert.Contains("#import \"Вызываемый.typ\": *", Module(res, "Вызывающий"));
+        Assert.Contains("#import \"Вызываемый.typ\" as Вызываемый", Module(res, "Вызывающий"));
         Assert.DoesNotContain("#import", Module(res, "Вызываемый").Replace("import \"../typeblocks.typ\"", ""));
         Assert.Empty(res.Diagnostics);
     }
 
-    /// <summary>
-    /// Взаимная ссылка между ТИПАМИ: статические импорты по кругу Typst запрещает целиком
-    /// (`error: cyclic import`), и один такой вызов обрушил бы генерацию ВСЕХ документов — хуже, чем
-    /// было во flat-файле, где ломался только сам вызов. Поэтому ребро цикла эмитится отложенным
-    /// импортом: связь работает, диагностика предупреждающая.
-    /// </summary>
+    /// <summary>Голое имя чужого блока ребра НЕ даёт: после #773 оно в чужом модуле и не видно.
+    /// Иначе топосорт двигал бы блоки под несуществующую зависимость.</summary>
     [Fact]
-    public void CrossTypeCycle_UsesLazyImport_AndWarns()
+    public void BareNameOfForeignBlock_IsNotADependency()
     {
         var res = TypstPreambleBuilder.BuildDetailed(new[]
         {
-            C("a", "ТипA", "осн", "{ b(it) }"),
-            C("b", "ТипB", "осн", "{ a(it) }"),
+            C("caller", "Вызывающий", "осн", "{ callee(it) }"),   // без префикса — чужого не видит
+            C("callee", "Вызываемый"),
+        });
+        Assert.DoesNotContain("#import \"Вызываемый.typ\"", Module(res, "Вызывающий"));
+    }
+
+    /// <summary>
+    /// Взаимная ссылка между ТИПАМИ: круговой импорт Typst запрещает целиком, а обойти его, как в
+    /// #772, больше нельзя — там ребро разрывалось отложенным импортом функции, а обращение
+    /// `Код.имя(…)` требует, чтобы `Код` был модулем в момент вызова (словарь переходников не
+    /// подходит: «cannot directly call dictionary keys as functions»). Поэтому связь не эмитится
+    /// вовсе: файлы собираются, падает только сам вызов, и об этом Error.
+    /// </summary>
+    [Fact]
+    public void CrossTypeCycle_DropsEdge_AndErrors()
+    {
+        var res = TypstPreambleBuilder.BuildDetailed(new[]
+        {
+            C("a", "ТипA", "осн", "{ ТипB.b(it) }"),
+            C("b", "ТипB", "осн", "{ ТипA.a(it) }"),
         });
 
-        Assert.Contains("#let b(..args) = { import \"ТипB.typ\": b as _fn; _fn(..args) }", Module(res, "ТипA"));
-        Assert.Contains("#let a(..args) = { import \"ТипA.typ\": a as _fn; _fn(..args) }", Module(res, "ТипB"));
-        Assert.DoesNotContain("#import \"ТипB.typ\"", Module(res, "ТипA"));
+        // Обе стороны цикла: хотя бы одна связь обязана быть не подключена, иначе Typst упадёт
+        // целиком. Модули при этом на месте.
+        var aHasImport = Module(res, "ТипA").Contains("#import \"ТипB.typ\"", StringComparison.Ordinal);
+        var bHasImport = Module(res, "ТипB").Contains("#import \"ТипA.typ\"", StringComparison.Ordinal);
+        Assert.False(aHasImport && bHasImport);
 
-        var d = Assert.Single(res.Diagnostics);
-        Assert.Equal("cycle-cross-type", d.Code);
-        Assert.Equal(TypstBlockDiagnosticSeverity.Warning, d.Severity);
+        var d = Assert.Single(res.Diagnostics, x => x.Code == "cycle-cross-type");
+        Assert.Equal(TypstBlockDiagnosticSeverity.Error, d.Severity);
     }
 
     // ── Пути внутри блока после переезда в подпапку (issue #772) ─────────────
@@ -281,7 +356,8 @@ public class TypstPreambleBuilderTests
         var res = TypstPreambleBuilder.BuildDetailed(new[] { C("f", "А/Б:В") });
         var path = res.Files.Single(f => f.Path != "typeblocks.typ").Path;
         Assert.Equal("typeblocks/А_Б_В.typ", path);
-        Assert.Contains($"#import \"{path}\": *", Entry(res));
+        // Импорта нет: «А/Б:В» не идентификатор Typst, алиасом его не записать (отдельный тест).
+        Assert.DoesNotContain("#import", Entry(res));
     }
 
     /// <summary>Тип без кода не теряет блоки: слаг берётся из имени. Адресовать его в диспетч-таблице
@@ -289,8 +365,8 @@ public class TypstPreambleBuilderTests
     [Fact]
     public void TypeWithoutCode_StillGetsModule_NamedAfterType()
     {
-        var res = TypstPreambleBuilder.BuildDetailed(new[] { R("named", "{ it.x }") });
-        Assert.Contains(res.Files, f => f.Path == "typeblocks/T.typ");
+        var res = TypstPreambleBuilder.BuildDetailed(new[] { NoCode("named") });
+        Assert.Contains(res.Files, f => f.Path == "typeblocks/БезКода.typ");
     }
 
     // ── Диспетч-таблица и render-by-type (issue #768) ────────────────────────
@@ -318,7 +394,7 @@ public class TypstPreambleBuilderTests
             C("full", "Организация", "Полная"),
             C("short", "Организация", "Краткая"),
         });
-        Assert.Contains("\"Организация\": ((name: \"Полная\", fn: full), (name: \"Краткая\", fn: short), ),",
+        Assert.Contains("\"Организация\": ((name: \"Полная\", fn: Организация.full), (name: \"Краткая\", fn: Организация.short), ),",
             Entry(res));
     }
 
@@ -336,7 +412,7 @@ public class TypstPreambleBuilderTests
             C("first", "Тип", "одно"),
             C("second", "Тип", "одно"),
         });
-        Assert.Contains("(name: \"одно\", fn: first), (name: \"одно\", fn: second)", Entry(res));
+        Assert.Contains("(name: \"одно\", fn: Тип.first), (name: \"одно\", fn: Тип.second)", Entry(res));
     }
 
     /// <summary>Пустой код адресовать нечем: в таблицу такой блок не попадает, но определение остаётся —
@@ -344,10 +420,10 @@ public class TypstPreambleBuilderTests
     [Fact]
     public void BlockOfTypeWithoutCode_IsSkippedInTable_ButStillDefined()
     {
-        var res = TypstPreambleBuilder.BuildDetailed(new[] { R("named", "{ it.x }"), C("coded", "Код") });
-        Assert.Contains("#let named(it)", Module(res, "T"));
+        var res = TypstPreambleBuilder.BuildDetailed(new[] { NoCode("named"), C("coded", "Код") });
+        Assert.Contains("#let named(it)", Module(res, "БезКода"));
         Assert.DoesNotContain("fn: named", Entry(res));
-        Assert.Contains("fn: coded", Entry(res));
+        Assert.Contains("fn: Код.coded", Entry(res));
     }
 
     /// <summary>Без единого кодированного блока таблица обязана быть пустым СЛОВАРЁМ `(:)`, а не `()`:
@@ -355,7 +431,7 @@ public class TypstPreambleBuilderTests
     [Fact]
     public void EmptyTable_IsEmptyDictionaryNotArray()
     {
-        var res = TypstPreambleBuilder.BuildDetailed(new[] { R("a", "{ it.x }") });
+        var res = TypstPreambleBuilder.BuildDetailed(new[] { NoCode("a") });
         Assert.Contains("#let type-renders = (:)", Entry(res));
     }
 
@@ -379,7 +455,7 @@ public class TypstPreambleBuilderTests
     public void VariantName_WithQuote_IsEscaped()
     {
         var res = TypstPreambleBuilder.BuildDetailed(new[] { C("f", "Код", """с "кавычкой" """) });
-        Assert.Contains("""(name: "с \"кавычкой\" ", fn: f)""", Entry(res));
+        Assert.Contains("""(name: "с \"кавычкой\" ", fn: Код.f)""", Entry(res));
     }
 
     /// <summary>
@@ -399,7 +475,7 @@ public class TypstPreambleBuilderTests
         });
         var m = Module(res, "Тип");
         Assert.True(Idx(m, "helper") < Idx(m, "main"));                          // порядок ОПРЕДЕЛЕНИЙ
-        Assert.Contains("(name: \"Основной\", fn: main), (name: \"Вспомогательный\", fn: helper)",
+        Assert.Contains("(name: \"Основной\", fn: Тип.main), (name: \"Вспомогательный\", fn: Тип.helper)",
             Entry(res));                                                         // порядок ВАРИАНТОВ
     }
 
