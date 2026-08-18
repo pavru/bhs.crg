@@ -1060,7 +1060,11 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get('type') ?? restored.current.id;
   const setSelectedId = (id: string | null) => {
-    restored.current = { kind, id: null };  // дальше выбор ведёт URL, восстановленный id не участвует
+    // Сбрасываем восстановленный id только когда выбор снимается (тип удалён): при обычном выборе
+    // его и так перекроет `?type=`, а обнулить сразу нельзя — URL пишется через startTransition,
+    // и любое срочное обновление в том же такте успело бы отрисовать кадр без выбора (деталь
+    // смонтировалась бы на первом типе списка и тут же перемонтировалась на нужный).
+    if (!id) restored.current = { kind, id: null };
     if (id) localStorage.setItem(lastTypeKey(kind), id);
     else localStorage.removeItem(lastTypeKey(kind));
     setSearchParams(prev => {
@@ -1086,12 +1090,6 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   const [routeLeave, setRouteLeave] = useState<(() => void) | null>(null);
   useLeaveGuard(anyDirty, (proceed) => setRouteLeave(() => proceed));
 
-  // Заголовок вкладки: выбранный тип замещает раздел.
-  const selectedType = allDocTypes.find(dt => dt.id === selectedId);
-  useDocumentTitle(selectedType
-    ? `${kind === 'Composite' ? 'Составной тип' : 'Тип'} «${selectedType.name}»`
-    : null);
-
   const filtered = allDocTypes
     .filter(dt => dt.kind === kind)
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
@@ -1115,6 +1113,12 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
 
   // Выбранный тип: из выбора (если ещё в отфильтрованных) иначе первый.
   const selected = filtered.find(t => t.id === selectedId) ?? filtered[0];
+
+  // Заголовок вкладки: показанный тип замещает раздел. Именно показанный, а не `selectedId`:
+  // тот приходит из URL/памяти и может называть удалённый тип или тип другого kind.
+  useDocumentTitle(selected
+    ? `${kind === 'Composite' ? 'Составной тип' : 'Тип'} «${selected.name}»`
+    : null);
 
   // Дублирование типа со схемой (клиентский клон, issue #210 Этап 2).
   const createDoc = useCreateDocumentType();
@@ -1197,10 +1201,12 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
   // виден только в детали, а рейл стоит свёрнутым и без единой подсветки. Раскрываем один раз
   // на смену выбора — свернув группу руками, пользователь оставляет её свёрнутой.
   const autoExpanded = useRef<string | null>(null);
-  if (selectedId && autoExpanded.current !== selectedId) {
+  if (selectedId) {
     const g = [...byGroup].find(([, items]) => items.some(t => t.id === selectedId))?.[0];
-    if (g !== undefined) {
-      autoExpanded.current = selectedId;
+    // Ключ — тип вместе с группой: сменив группу у открытого типа, пользователь иначе потерял бы
+    // его из рейла (id прежний, новая группа свёрнута).
+    if (g !== undefined && autoExpanded.current !== `${selectedId}:${g}`) {
+      autoExpanded.current = `${selectedId}:${g}`;
       if (!expandedGroups.has(g)) setExpandedGroups(prev => new Set(prev).add(g));
     }
   }
