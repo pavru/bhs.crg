@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router';
 import { Library, Lock, Boxes } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
@@ -68,10 +69,42 @@ function NewTemplateForm({ documentTypeId, docType, allDocTypes, onClose, onCrea
 
 type PageMode = 'templates' | 'userlib' | 'systemlib' | 'typeblocks';
 
+/**
+ * Конвенция (issue #778 → #780): выбор list-detail живёт в URL (replace — стрелки браузера не
+ * ходят по кликам в рейле), последний открытый — в localStorage. Здесь выбор двухступенчатый,
+ * поэтому в URL два параметра (`?type=&template=`), а в памяти пара `{ typeId, templateId }`:
+ * templateId указывает конкретную версию — она и есть единица выбора в рейле.
+ *
+ * Режим страницы (общие функции / системные / блоки типов) сознательно НЕ восстанавливается:
+ * вход всегда в «Шаблоны», иначе возврат в библиотеку, открытую неделю назад, был бы сюрпризом.
+ */
+const TEMPLATES_LAST_KEY = 'templates-last';
+
+function readLastTemplate(): { typeId: string; templateId: string } {
+  try {
+    const raw = localStorage.getItem(TEMPLATES_LAST_KEY);
+    const v = raw ? JSON.parse(raw) as { typeId?: string; templateId?: string } : null;
+    return { typeId: v?.typeId ?? '', templateId: v?.templateId ?? '' };
+  } catch { return { typeId: '', templateId: '' }; }
+}
+
 export function TemplatesPage() {
   const [mode, setMode] = useState<PageMode>('templates');
-  const [selectedTypeId, setSelectedTypeId] = useState('');
+
+  // Порядок разрешения при входе: `?type=&template=` → localStorage → пусто (прежнее поведение).
+  // Читаем один раз: дальше состояние ведёт страница, а URL и память лишь зеркалят выбор.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [restored] = useState(() => {
+    const urlType = searchParams.get('type') ?? '';
+    return urlType
+      ? { typeId: urlType, templateId: searchParams.get('template') ?? '' }
+      : readLastTemplate();
+  });
+
+  const [pickedTypeId, setPickedTypeId] = useState(restored.typeId);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  // Восстанавливаемая версия ждёт здесь загрузки списка: сброс шаблона при смене типа её не трёт.
+  const pendingTemplateId = useRef(restored.templateId);
   const [newModalOpen, setNewModalOpen] = useState(false);
   const [cleanupGroup, setCleanupGroup] = useState<TemplateGroup | null>(null);
   const [maxVersions] = useMaxTemplateVersions();
@@ -79,13 +112,19 @@ export function TemplatesPage() {
   const [deleteGroupTarget, setDeleteGroupTarget] = useState<TemplateGroup | null>(null);
 
   const { data: docTypes = [] } = useListDocumentTypes();
+
+  // Тип из памяти или из ссылки мог быть удалён, стать абстрактным или сменить kind — селектор
+  // такой не показывает. Поэтому выбранным считаем только пригодный тип: fallback молчаливый
+  // («Выберите тип документа»), и запрос за шаблонами несуществующего типа не уходит.
+  const selectedDocType = docTypes.find(dt => dt.id === pickedTypeId && dt.kind === 'Document' && !dt.isAbstract) ?? null;
+  const selectedTypeId = selectedDocType?.id ?? '';
+
   const { data: templates = [], isLoading: templatesLoading } = useListTemplates(selectedTypeId || undefined);
   const { data: usage = {} } = useTemplatesUsage(selectedTypeId || undefined);
   const deleteMutation = useDeleteTemplate();
   const duplicateMutation = useDuplicateTemplate();
   const toast = useToast();
 
-  const selectedDocType = docTypes.find(dt => dt.id === selectedTypeId) ?? null;
   const groups = groupTemplates(templates);
 
   // Заголовок вкладки: библиотека / выбранный шаблон / просматриваемый тип замещают раздел.
@@ -97,20 +136,55 @@ export function TemplatesPage() {
     : selectedDocType ? selectedDocType.name
     : null);
 
+  // Зеркалим выбор в URL и в память. Авто-выбор версии (ниже) сюда не попадает — он
+  // детерминированно повторяется при следующем входе, а память хранит осознанный выбор.
+  const persist = (typeId: string, templateId: string) => {
+    // try/catch как на чтении: приватный режим или переполнение не должны ронять обработчик —
+    // удаление версии зовёт selectTemplate до самого запроса на удаление.
+    try { localStorage.setItem(TEMPLATES_LAST_KEY, JSON.stringify({ typeId, templateId })); } catch { /* память необязательна */ }
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (typeId) next.set('type', typeId); else next.delete('type');
+      if (templateId) next.set('template', templateId); else next.delete('template');
+      return next;
+    }, { replace: true });
+  };
+
+  const selectTemplate = (t: Template | null) => {
+    setSelectedTemplate(t);
+    pendingTemplateId.current = '';   // осознанный выбор отменяет восстановление
+    persist(t?.documentTypeId ?? selectedTypeId, t?.id ?? '');
+  };
+
   useEffect(() => { setSelectedTemplate(null); }, [selectedTypeId]);
 
   useEffect(() => {
     if (templates.length > 0 && !selectedTemplate) {
-      const active = templates.find(t => t.isDefault && t.isActive)
+      // Ожидание версии не сбрасываем по факту применения: StrictMode прогоняет setup эффекта
+      // дважды с тем же замыканием (`selectedTemplate` там всё ещё null), и сброшенное ожидание
+      // во втором заходе подменило бы восстановленную версию авто-выбором. Ожидание снимают
+      // осознанный выбор и смена типа.
+      const pending = pendingTemplateId.current;
+      const wanted = pending ? templates.find(t => t.id === pending) : undefined;
+      const active = wanted
+        ?? templates.find(t => t.isDefault && t.isActive)
         ?? templates.find(t => t.isActive)
         ?? templates[0];
       setSelectedTemplate(active);
+      // Версию вычистили или удалили вместе с шаблоном: подменяем молча, но адрес не должен и
+      // дальше называть мёртвую версию — ссылка вела бы не туда, куда обещает.
+      if (pending && !wanted) {
+        pendingTemplateId.current = '';
+        persist(selectedTypeId, active.id);
+      }
     }
   }, [templates]);
 
   function handleTypeChange(id: string) {
-    setSelectedTypeId(id);
+    setPickedTypeId(id);
     setSelectedTemplate(null);
+    pendingTemplateId.current = '';
+    persist(id, '');
   }
 
   function handleDelete(t: Template) {
@@ -120,7 +194,7 @@ export function TemplatesPage() {
   async function confirmDelete() {
     if (!deleteTarget) return;
     const target = deleteTarget;
-    if (selectedTemplate?.id === target.id) setSelectedTemplate(null);
+    if (selectedTemplate?.id === target.id) selectTemplate(null);
     // Если версия запиннута — сбрасываем документы на дефолт (reassign). Иначе обычное удаление.
     const reassign = (usage[target.id]?.count ?? 0) > 0;
     try {
@@ -137,7 +211,7 @@ export function TemplatesPage() {
 
   async function confirmDeleteGroup() {
     if (!deleteGroupTarget) return;
-    if (selectedTemplate?.name === deleteGroupTarget.name) setSelectedTemplate(null);
+    if (selectedTemplate?.name === deleteGroupTarget.name) selectTemplate(null);
     // Удаление всего шаблона: снимаем пины у всех документов (→ дефолт) и удаляем все версии.
     try {
       for (const t of deleteGroupTarget.versions)
@@ -152,12 +226,12 @@ export function TemplatesPage() {
     const source = group.versions.find(t => t.isActive) ?? group.versions[0];
     if (!source) return;
     const created = await duplicateMutation.mutateAsync({ id: source.id, documentTypeId: source.documentTypeId });
-    setSelectedTemplate(created);
+    selectTemplate(created);
   }
 
   function handleCleanupDeleted(deletedIds: Set<string>) {
     if (selectedTemplate && deletedIds.has(selectedTemplate.id)) {
-      setSelectedTemplate(null);
+      selectTemplate(null);
     }
   }
 
@@ -247,7 +321,7 @@ export function TemplatesPage() {
             maxVersions={maxVersions}
             documentTypeId={selectedTypeId}
             usage={usage}
-            onSelect={setSelectedTemplate}
+            onSelect={selectTemplate}
             onNew={() => setNewModalOpen(true)}
             onDelete={handleDelete}
             onDeleteGroup={handleDeleteGroup}
@@ -261,7 +335,7 @@ export function TemplatesPage() {
                 template={selectedTemplate}
                 docType={selectedDocType}
                 allDocTypes={docTypes}
-                onSaved={(updated) => setSelectedTemplate(updated)}
+                onSaved={(updated) => selectTemplate(updated)}
               />
             ) : (
               <div className="h-full flex items-center justify-center text-fg4 text-sm">
@@ -279,7 +353,7 @@ export function TemplatesPage() {
             docType={selectedDocType}
             allDocTypes={docTypes}
             onClose={() => setNewModalOpen(false)}
-            onCreated={(t) => setSelectedTemplate(t)}
+            onCreated={(t) => selectTemplate(t)}
           />
         )}
       </Modal>
