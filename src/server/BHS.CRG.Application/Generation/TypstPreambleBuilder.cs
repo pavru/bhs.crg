@@ -155,12 +155,16 @@ public static class TypstPreambleBuilder
         var diagnostics = new List<TypstBlockDiagnostic>();
         var n = list.Count;
 
-        // Дубликаты fnName между типами: typeblocks глобален → одноимённые функции делают граф
-        // неоднозначным и в самом Typst перекрывают друг друга (последняя побеждает).
-        foreach (var g in list.GroupBy(r => r.FnName).Where(g => g.Count() > 1))
+        // Дубликаты имени — теперь В ПРЕДЕЛАХ ТИПА (issue #773). До префиксной адресации имена были
+        // глобальными и совпадение у разных типов ломало сборку; теперь каждый тип — свой модуль со
+        // своей областью, и `Адрес.full` рядом с `Подписант.full` совершенно законны. А вот два
+        // одноимённых блока ОДНОГО типа по-прежнему перекрывают друг друга в Typst (побеждает
+        // последний), и адресовать второй нечем.
+        foreach (var g in list.GroupBy(r => (r.TypeId, r.FnName)).Where(g => g.Count() > 1))
             diagnostics.Add(new(TypstBlockDiagnosticSeverity.Error, "duplicate-fn",
-                $"Имя функции «{g.Key}» задано более чем в одном варианте: {string.Join("; ", g.Select(r => r.Provenance))}",
-                new[] { g.Key }));
+                $"Имя функции «{g.Key.FnName}» задано более чем в одном варианте этого типа: "
+                + string.Join("; ", g.Select(r => r.Provenance)),
+                new[] { g.Key.FnName }));
 
         foreach (var r in list)
             foreach (var path in RelativePathsIn(r.Block))
@@ -170,22 +174,24 @@ public static class TypstPreambleBuilder
                     + $"проекта Typst: «/{path}». Блок: {r.Provenance}",
                     new[] { r.FnName }));
 
-        var known = new HashSet<string>(list.Select(r => r.FnName));
-        var nameToIndices = new Dictionary<string, List<int>>();
-        for (int i = 0; i < n; i++)
-        {
-            if (!nameToIndices.TryGetValue(list[i].FnName, out var l)) { l = new(); nameToIndices[list[i].FnName] = l; }
-            l.Add(i);
-        }
-
-        // deps[i] = индексы блоков, которые блок i вызывает (они должны идти ВЫШЕ i).
+        // deps[i] = индексы блоков, которые блок i вызывает. Со сменой адресации (issue #773) вызов
+        // выглядит по-разному в зависимости от того, СВОЙ блок или чужой: свой — просто по имени
+        // (общая область модуля), чужой — через префикс типа. Искать надо обе формы, иначе рёбра
+        // потеряются и порядок внутри модуля станет случайным.
         var deps = new List<HashSet<int>>(n);
         for (int i = 0; i < n; i++)
         {
+            var masked = TypstTextMask.Mask(list[i].Block, TypstTextMask.Keep.CodeOnly);
             var set = new HashSet<int>();
-            foreach (var refName in FindReferencedFnNames(list[i].Block, known, list[i].FnName))
-                if (nameToIndices.TryGetValue(refName, out var targets))
-                    foreach (var t in targets) if (t != i) set.Add(t);
+            for (int j = 0; j < n; j++)
+            {
+                if (j == i) continue;   // саморекурсию Typst допускает — не ребро
+                var callee = list[j];
+                var pattern = callee.TypeId == list[i].TypeId
+                    ? CallOfOwn(callee.FnName)
+                    : CallOfOther(callee.TypeCode, callee.FnName);
+                if (pattern is not null && Regex.IsMatch(masked, pattern)) set.Add(j);
+            }
             deps.Add(set);
         }
 
@@ -221,23 +227,34 @@ public static class TypstPreambleBuilder
             foreach (var d in deps[i])
                 if (moduleOf[d] != moduleOf[i]) modDeps[moduleOf[i]].Add(moduleOf[d]);
 
-        // Круговой статический импорт Typst запрещает целиком (`error: cyclic import`), то есть один
-        // взаимный вызов между двумя типами обрушил бы генерацию ВСЕХ документов — куда хуже, чем
-        // было во flat-файле, где ломался только сам вызов. Поэтому рёбра внутри цикла эмитятся
-        // отложенным импортом: связь работает, а пользователь получает предупреждение.
+        // Круговой статический импорт Typst запрещает целиком (`error: cyclic import`): один взаимный
+        // вызов между типами обрушил бы сборку, а с ней генерацию ВСЕХ документов. Поэтому ребро,
+        // замыкающее цикл, не эмитируется вовсе — файлы собираются, падает только сам вызов, и то
+        // при рендере. Это осознанный размен: локальная поломка вместо глобальной.
+        //
+        // До префиксной адресации (#772) такое ребро разрывалось отложенным импортом и продолжало
+        // работать. С алиасами приём неприменим: обращение `Код.имя(…)` требует, чтобы `Код` был
+        // модулем в момент вызова, а подменить его словарём переходников нельзя — Typst запрещает
+        // вызывать ключ словаря как функцию напрямую (проверено: «cannot directly call dictionary
+        // keys as functions»). Отложить же сам импорт модуля в значение язык не позволяет.
         var lazyEdges = new HashSet<(int From, int To)>();
         foreach (var comp in FindCycles(modDeps, new bool[modules.Count]))
         {
+            // Рвём ОДНО ребро — этого достаточно, чтобы круг перестал быть кругом. Отбрасывать все
+            // рёбра сразу значило бы сломать и те вызовы, которые могли бы работать: в паре A↔B
+            // отказали бы обе стороны вместо одной.
             var inComp = comp.ToHashSet();
-            foreach (var a in comp)
-                foreach (var b in modDeps[a])
-                    if (inComp.Contains(b)) lazyEdges.Add((a, b));
+            var from = comp[^1];
+            var to = modDeps[from].First(inComp.Contains);
+            lazyEdges.Add((from, to));
             var names = comp.SelectMany(m => modules[m].Indices).Select(i => list[i].FnName).ToList();
-            diagnostics.Add(new(TypstBlockDiagnosticSeverity.Warning, "cycle-cross-type",
+            diagnostics.Add(new(TypstBlockDiagnosticSeverity.Error, "cycle-cross-type",
                 "Типы ссылаются друг на друга блоками: "
                 + string.Join(" → ", comp.Select(m => modules[m].Title())) + " → " + modules[comp[0]].Title()
-                + ". Связь разрешена отложенным импортом и работает, но убедитесь, что рекурсия конечна:"
-                + " взаимный вызов без условия остановки зациклит компиляцию документа.",
+                + $". Typst запрещает круговой импорт, поэтому связь «{modules[from].Title()} → "
+                + $"{modules[to].Title()}» не подключена и этот вызов упадёт при генерации. Разорвите"
+                + " цикл: вынесите общую часть в Typst-библиотеку либо принимайте готовое значение"
+                + " параметром.",
                 names));
         }
 
@@ -256,22 +273,25 @@ public static class TypstPreambleBuilder
             Emit($"// Блоки отображения типа «{San(m.TypeName)}» (код: {San(m.TypeCode)}).");
             Emit("// Файл собран автоматически (issue #772) — правки будут затёрты при генерации.");
 
-            var statics = modDeps[mi].Where(d => !lazyEdges.Contains((mi, d)))
+            // Тот же guard, что в агрегаторе: `#import … as 2Тип` не парсится и уронил бы сборку
+            // целиком — ради одного чужого типа с неудачным кодом.
+            var statics = modDeps[mi].Where(d => !lazyEdges.Contains((mi, d))
+                                                 && IsTypstIdentifier(modules[d].TypeCode))
                 .OrderBy(d => modules[d].Slug, StringComparer.Ordinal).ToList();
             if (statics.Count > 0)
             {
-                Emit("// Блоки других типов, вызываемые отсюда:");
-                // Соседний модуль — по имени без пути: оба лежат в одной папке.
-                foreach (var d in statics) Emit($"#import \"{modules[d].Slug}.typ\": *");
+                Emit("// Блоки других типов, вызываемые отсюда (обращение — Код.имя):");
+                // Соседний модуль — по имени без пути: оба лежат в одной папке. Алиас = код типа
+                // (#773): имена блоков больше не глобальны, поэтому импортировать «: *» нельзя —
+                // одноимённые блоки разных типов перекрыли бы друг друга молча.
+                foreach (var d in statics)
+                    Emit($"#import \"{modules[d].Slug}.typ\" as {modules[d].TypeCode}");
             }
 
             foreach (var d in modDeps[mi].Where(d => lazyEdges.Contains((mi, d)))
                          .OrderBy(d => modules[d].Slug, StringComparer.Ordinal))
-            {
-                Emit($"// Взаимная ссылка с типом «{San(modules[d].TypeName)}» — импорт отложен (иначе cyclic import):");
-                foreach (var fn in CalledFrom(m.Indices, modules[d].Indices, deps, list))
-                    Emit(LazyImport(fn, $"{modules[d].Slug}.typ"));
-            }
+                Emit($"// Взаимная ссылка с типом «{San(modules[d].TypeName)}» — импорт НЕ эмитируется,"
+                     + " иначе cyclic import обрушил бы сборку целиком. Вызов упадёт при рендере.");
 
             // Доступ блока к диспетчу (#768). Статический импорт агрегатора здесь дал бы
             // `cyclic import` — агрегатор импортирует этот модуль. Импорт в ТЕЛЕ функции петли не
@@ -300,10 +320,24 @@ public static class TypstPreambleBuilder
         // ── Агрегатор ─────────────────────────────────────────────────────────────────────────
         var agg = new StringBuilder();
         agg.Append($"// Блоки отображения типов: по файлу на тип в {TypeBlockSlug.FolderName}/ (issue #772).\n");
-        agg.Append("// Точка входа: шаблон импортирует ЭТОТ файл, а он реэкспортирует модули —\n");
-        agg.Append("// имена блоков остаются глобальными, как и были.\n");
+        agg.Append("// Точка входа: шаблон импортирует ЭТОТ файл и обращается к блокам по коду типа —\n");
+        agg.Append("// #Организация.полный(...). Имена блоков уникальны внутри типа (issue #773).\n");
         foreach (var m in modules)
-            agg.Append($"#import \"{TypeBlockSlug.PathFor(m.Slug)}\": *\n");
+        {
+            // Тип, чей код нельзя записать как имя Typst, не импортируется вовсе: строка `as <код>`
+            // не скомпилировалась бы, и вместе с ней рухнула бы вся сборка — из-за одного типа.
+            // Его блоки остаются в своём файле (видны в просмотрщике и в бандле), но не адресуемы.
+            if (!IsTypstIdentifier(m.TypeCode))
+            {
+                diagnostics.Add(new(TypstBlockDiagnosticSeverity.Error, "code-not-identifier",
+                    $"Код типа «{San(m.TypeCode)}» ({San(m.TypeName)}) нельзя использовать как имя в Typst"
+                    + " — блоки этого типа недоступны шаблонам. Код должен начинаться с буквы или «_»"
+                    + " и состоять из букв, цифр, «_» и «-».",
+                    m.Indices.Select(i => list[i].FnName).ToList()));
+                continue;
+            }
+            agg.Append($"#import \"{TypeBlockSlug.PathFor(m.Slug)}\" as {m.TypeCode}\n");
+        }
         // Таблица — в ИСХОДНОМ порядке записей, а не в порядке эмиссии: топосорт переставляет блоки
         // по зависимостям, и на живых типах это уже перемешало варианты внутри типа («Организация»
         // отдавала ИНН/КПП там, где в схеме первым стоит «Наименование + коды»). А «первый вариант»
@@ -433,8 +467,10 @@ public static class TypstPreambleBuilder
                     + string.Join("; ", declared.Where(r => r.FnName == reserved).Select(r => r.Provenance)),
                     new[] { reserved }));
 
-        // В таблицу идут только блоки типов с кодом — код и есть адрес в `_type.chain`.
-        var byCode = declared.Where(r => !string.IsNullOrWhiteSpace(r.TypeCode))
+        // В таблицу идут только блоки типов с кодом — код и есть адрес в `_type.chain`. И только с
+        // кодом-идентификатором: значение записи — `Код.имя`, а модуль типа с «неудобным» кодом не
+        // импортирован (см. эмиссию агрегатора), так что запись о нём уронила бы весь файл.
+        var byCode = declared.Where(r => IsTypstIdentifier(r.TypeCode))
             .GroupBy(r => r.TypeCode)
             .ToList();
 
@@ -454,7 +490,10 @@ public static class TypstPreambleBuilder
             {
                 sb.Append("  ").Append(Str(g.Key)).Append(": (");
                 foreach (var r in g)
-                    sb.Append("(name: ").Append(Str(r.VariantName)).Append(", fn: ").Append(r.FnName).Append("), ");
+                    // Функция адресуется через алиас модуля (#773): в агрегаторе голого имени блока
+                    // больше нет — модули импортируются `as <Код>`, а не «: *».
+                    sb.Append("(name: ").Append(Str(r.VariantName))
+                      .Append(", fn: ").Append(r.TypeCode).Append('.').Append(r.FnName).Append("), ");
                 sb.Append("),\n");
             }
             sb.Append(")\n");
@@ -558,7 +597,7 @@ public static class TypstPreambleBuilder
     /// </summary>
     private static IEnumerable<string> RelativePathsIn(string block)
     {
-        var cleaned = StripComments(block);
+        var cleaned = TypstTextMask.Mask(block, TypstTextMask.Keep.StringsOnly);
         foreach (Match m in FilePathLiteral.Matches(cleaned))
         {
             var path = m.Groups[1].Value;
@@ -573,98 +612,41 @@ public static class TypstPreambleBuilder
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
-    /// Вырезает комментарии, СОХРАНЯЯ строковые литералы: именно в них живут пути, которые ищет
-    /// <see cref="RelativePathsIn"/>.
-    ///
-    /// <para>Строку приходится не просто оставлять, а проходить целиком: «//» встречается ВНУТРИ неё
-    /// — <c>link("https://gost.ru/spec.pdf")</c>, — и наивная проверка приняла бы его за начало
-    /// комментария, срезав остаток строки вместе со следующим путём. Тогда предупреждение о
-    /// «logo.png» на той же строке не выдавалось бы вовсе, а это единственная защита от тихой
-    /// поломки генерации.</para>
+    /// Годится ли код типа как имя в Typst (issue #773): им называется алиас модуля, и через него
+    /// шаблон обращается к блокам. Правило языка: первый символ — буква (любого алфавита, кириллица
+    /// в том числе) или «_», дальше буквы, цифры, «_» и «-». Проверено на живом CLI: код с цифры
+    /// даёт «expected identifier», код с дефисом внутри легален.
     /// </summary>
-    private static string StripComments(string s)
+    public static bool IsTypstIdentifier(string? code)
     {
-        var sb = new StringBuilder(s.Length);
-        for (int i = 0; i < s.Length; i++)
-        {
-            if (s[i] == '"')
-            {
-                sb.Append(s[i++]);
-                while (i < s.Length && s[i] != '"')
-                {
-                    if (s[i] == '\\' && i + 1 < s.Length) sb.Append(s[i++]);
-                    sb.Append(s[i++]);
-                }
-                if (i < s.Length) sb.Append(s[i]);
-                continue;
-            }
-            if (s[i] == '/' && i + 1 < s.Length && s[i + 1] == '/')
-            {
-                while (i < s.Length && s[i] != '\n') i++;
-                if (i < s.Length) sb.Append('\n');
-                continue;
-            }
-            if (s[i] == '/' && i + 1 < s.Length && s[i + 1] == '*')
-            {
-                i += 2;
-                while (i + 1 < s.Length && !(s[i] == '*' && s[i + 1] == '/')) { if (s[i] == '\n') sb.Append('\n'); i++; }
-                i++;
-                continue;
-            }
-            sb.Append(s[i]);
-        }
-        return sb.ToString();
+        if (string.IsNullOrWhiteSpace(code)) return false;
+        if (!char.IsLetter(code[0]) && code[0] != '_') return false;
+        if (code[^1] == '-') return false;                       // «АОСР-» обрывает выражение
+        if (TypstKeywords.Contains(code)) return false;
+        return code.All(c => char.IsLetterOrDigit(c) || c == '_' || c == '-');
     }
 
-    /// <summary>Ссылки блока на ДРУГИЕ известные функции: скан вызова `name(` по границе идентификатора,
-    /// с очисткой комментариев/строк (чтобы упоминание в комментарии не давало ложное ребро/цикл).</summary>
-    private static IEnumerable<string> FindReferencedFnNames(string block, HashSet<string> known, string self)
+    /// <summary>Слова, которые Typst не отдаёт под имя: `as none` не парсится — проверено на CLI
+    /// (`expected identifier, found none`). Список короткий и закрытый, поэтому здесь, а не в
+    /// настройке.</summary>
+    private static readonly HashSet<string> TypstKeywords = new(StringComparer.Ordinal)
     {
-        var cleaned = StripCommentsAndStrings(block);
-        foreach (var name in known)
-        {
-            if (name == self) continue; // саморекурсию Typst допускает — не ребро
-            if (Regex.IsMatch(cleaned, $@"(?<![\w\-]){Regex.Escape(name)}\s*\("))
-                yield return name;
-        }
-    }
+        "none", "auto", "true", "false", "let", "set", "show", "context", "if", "else", "for",
+        "while", "break", "continue", "return", "import", "include", "as", "in", "and", "or", "not",
+    };
 
-    /// <summary>Одно-проходная очистка Typst line/block-комментариев и строк "…" (переводы строк
-    /// сохраняются). Не полный парсинг — достаточно, чтобы убрать ложные упоминания имён функций.</summary>
-    private static string StripCommentsAndStrings(string s)
-    {
-        var sb = new StringBuilder(s.Length);
-        for (int i = 0; i < s.Length; i++)
-        {
-            char c = s[i];
-            if (c == '/' && i + 1 < s.Length && s[i + 1] == '/')
-            {
-                while (i < s.Length && s[i] != '\n') i++;
-                if (i < s.Length) sb.Append('\n');
-                continue;
-            }
-            if (c == '/' && i + 1 < s.Length && s[i + 1] == '*')
-            {
-                i += 2;
-                while (i + 1 < s.Length && !(s[i] == '*' && s[i + 1] == '/')) { if (s[i] == '\n') sb.Append('\n'); i++; }
-                i++; // встанем на '/', внешний i++ пройдёт дальше
-                continue;
-            }
-            if (c == '"')
-            {
-                i++;
-                while (i < s.Length && s[i] != '"')
-                {
-                    if (s[i] == '\\' && i + 1 < s.Length) { i++; }
-                    else if (s[i] == '\n') sb.Append('\n');
-                    i++;
-                }
-                continue;
-            }
-            sb.Append(c);
-        }
-        return sb.ToString();
-    }
+    /// <summary>Вызов блока СВОЕГО типа: просто имя — оно в общей области модуля.</summary>
+    private static string CallOfOwn(string fnName)
+        => $@"(?<![\w\-.]){Regex.Escape(fnName)}\s*\(";
+
+    /// <summary>
+    /// Вызов блока ЧУЖОГО типа: <c>Код.имя(</c> — модуль импортируется под алиасом-кодом (#773).
+    /// Тип без кода адресовать нечем: его блоки в чужих модулях недоступны, и ребра не будет.
+    /// </summary>
+    private static string? CallOfOther(string typeCode, string fnName)
+        => string.IsNullOrWhiteSpace(typeCode)
+            ? null
+            : $@"(?<![\w\-.]){Regex.Escape(typeCode)}\s*\.\s*{Regex.Escape(fnName)}\s*\(";
 
     /// <summary>Нетривиальные SCC (циклы) среди ещё не отсортированных узлов — Tarjan. Саморефы исключены,
     /// поэтому SCC размера &gt;1 = реальный цикл взаимных ссылок.</summary>

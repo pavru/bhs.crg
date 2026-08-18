@@ -93,6 +93,18 @@ export function useTypeBlocks(enabled = true) {
 
 export const TYPEBLOCKS_KEY = ['typst-typeblocks'] as const;
 
+/**
+ * Сколько активных шаблонов зовёт блоки типа по его коду (issue #773).
+ *
+ * Спрашивается ПЕРЕД сменой кода: с префиксной адресацией код попал в тексты шаблонов
+ * (`#Организация.full(…)`), и переименование обрывает эти вызовы. Ошибку об этом Typst выдаст
+ * только при генерации документа — когда связь с причиной уже потеряна.
+ */
+export async function countTemplatesUsingTypeCode(code: string): Promise<number> {
+  const r = await apiClient.get<{ count: number }>('/templates/code-usage', { params: { code } });
+  return r.data.count;
+}
+
 /** Системная Typst-библиотека (issue #344) — хардкод, только чтение. */
 export function useSystemTypstLib() {
   return useQuery({

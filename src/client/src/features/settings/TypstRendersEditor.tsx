@@ -97,8 +97,10 @@ function beforeMountTypstBlock(monaco: typeof Monaco) {
 
 // ─── Typst block dialog ────────────────────────────────────────────────────────
 
-function TypstBlockDialog({ render, onSave, onClose }: {
+function TypstBlockDialog({ render, typeCode, onSave, onClose }: {
   render: TypstRender;
+  /** Код типа — им шаблон адресует блок после #773; в подсказке показываем настоящий адрес. */
+  typeCode: string;
   onSave: (r: TypstRender) => void;
   onClose: () => void;
 }) {
@@ -185,7 +187,10 @@ function TypstBlockDialog({ render, onSave, onClose }: {
           <p className="text-xs text-fg4 shrink-0">
             Импорт: <code className="font-mono text-purple-600">#import "typeblocks.typ": *</code>
             {' · '}
-            Вызов: <code className="font-mono text-brand">#{draft.fnName}(data.КлючПоля)</code>
+            Вызов из шаблона:{' '}
+            <code className="font-mono text-brand">#{typeCode || 'КодТипа'}.{draft.fnName}(data.КлючПоля)</code>
+            {' · '}
+            из блока этого же типа: <code className="font-mono text-brand">{draft.fnName}(…)</code>
           </p>
         )}
       </div>
@@ -195,11 +200,13 @@ function TypstBlockDialog({ render, onSave, onClose }: {
 
 // ─── Typst renders editor ─────────────────────────────────────────────────────
 
-export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, onBlockCommitted, problemsByFn }: {
+export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, typeCode, onBlockCommitted, problemsByFn }: {
   renders: TypstRender[];
   onChange: (r: TypstRender[]) => void;
   fields: SchemaField[];
   allDocTypes: DocumentType[];
+  /** Код редактируемого типа — часть адреса блока (`#Код.имя(…)`, issue #773). */
+  typeCode: string;
   /** Вызывается при коммите одного блока («Применить» в диалоге) — триггер проверки сборки (#309). */
   onBlockCommitted?: (renders: TypstRender[]) => void;
   /** fnName → severity: бейдж на карточке блока с проблемой сборки. */
@@ -273,7 +280,7 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, onB
               <p className="text-xs text-fg4">
                 Импорт: <code className="font-mono text-purple-600">#import "typeblocks.typ": *</code>
                 {' · '}
-                Вызов: <code className="font-mono text-brand">#{r.fnName}(data.КлючПоля)</code>
+                Вызов: <code className="font-mono text-brand">#{typeCode || 'КодТипа'}.{r.fnName}(data.КлючПоля)</code>
               </p>
             )}
           </div>
@@ -287,6 +294,7 @@ export function TypstRendersEditor({ renders, onChange, fields, allDocTypes, onB
       {editingIndex !== null && renders[editingIndex] && (
         <TypstBlockDialog
           render={renders[editingIndex]}
+          typeCode={typeCode}
           onSave={r => {
             const next = renders.map((rr, idx) => idx === editingIndex ? { ...rr, ...r } : rr);
             onChange(next);

@@ -22,6 +22,17 @@ public static class TemplateEndpoints
         // и остаётся под Admin.
         g.MapGet("/typeblocks", async (IMediator m) => Results.Ok(await m.Send(new GetTypeBlocksQuery())));
 
+        // Одноразовый переход на адресацию Код.Имя (issue #773). Только Admin и только явным
+        // запуском: команда переписывает пользовательские тексты и заводит новые версии шаблонов.
+        // dryRun=true (по умолчанию) считает и показывает план, ничего не записывая.
+        admin.MapPost("/migrate-prefixed-addressing", async (bool? dryRun, IMediator m)
+            => Results.Ok(await m.Send(new MigrateToPrefixedAddressingCommand(dryRun ?? true))));
+
+        // Сколько активных шаблонов зовёт блоки этого типа по коду (issue #773) — спрашивается
+        // перед переименованием кода: оно обрывает вызовы «Код.имя» в их текстах.
+        g.MapGet("/code-usage", async (string code, IMediator m)
+            => Results.Ok(new { count = await m.Send(new CountTemplatesUsingTypeCodeQuery(code)) }));
+
         g.MapGet("/active", async (Guid documentTypeId, IMediator m) =>
         {
             var t = await m.Send(new GetActiveTemplateQuery(documentTypeId));

@@ -52,7 +52,13 @@ public class ValidateTypstBlocksHandler(
         // схемы. Разложить их иначе, чем при генерации, оно не может — иначе слаги и номера строк
         // проверки разошлись бы с теми, на которые упадёт генерация.
         var built = TypstPreambleBuilder.BuildDetailed(records);
-        var byFn = records
+        // Ключ — ПАРА (тип, имя): после #773 имена уникальны только внутри типа, и словарь по одному
+        // имени привязывал бы диагностику к тому типу, который попался первым. Панель проверки
+        // фильтрует по typeId, так что проблема показалась бы на чужом типе и спряталась у своего.
+        var byKey = records
+            .GroupBy(r => (r.TypeId, r.FnName))
+            .ToDictionary(g => g.Key, g => g.First());
+        var byFnAnyType = records
             .GroupBy(r => r.FnName)
             .ToDictionary(g => g.Key, g => g.First());
 
@@ -61,7 +67,9 @@ public class ValidateTypstBlocksHandler(
         // Диагностики графа (цикл, дубликат) → привязываем к первой участвующей функции.
         foreach (var d in built.Diagnostics)
         {
-            var rec = d.FnNames.Count > 0 && byFn.TryGetValue(d.FnNames[0], out var r) ? r : null;
+            // У диагностики графа типа нет — только имена функций; берём любую запись с таким
+            // именем. Неоднозначность здесь безобидна: текст диагностики называет тип сам.
+            var rec = d.FnNames.Count > 0 && byFnAnyType.TryGetValue(d.FnNames[0], out var r) ? r : null;
             problems.Add(new TypstBlockProblem(
                 d.Severity == TypstBlockDiagnosticSeverity.Error ? "error" : "warning",
                 d.Code, d.Message, rec?.TypeId, rec?.TypeName, rec?.VariantName, rec?.FnName, null));
@@ -76,7 +84,8 @@ public class ValidateTypstBlocksHandler(
                 // номеру привязал бы ошибку одного типа к блоку другого.
                 var span = built.Spans.FirstOrDefault(
                     s => s.File == e.File && e.Line >= s.StartLine && e.Line <= s.EndLine);
-                var rec = span is not null && byFn.TryGetValue(span.FnName, out var r) ? r : null;
+                var rec = span is not null && byKey.TryGetValue((span.TypeId, span.FnName), out var r)
+                    ? r : null;
                 problems.Add(new TypstBlockProblem(
                     "error", "syntax", e.Message,
                     rec?.TypeId, rec?.TypeName, rec?.VariantName, span?.FnName,

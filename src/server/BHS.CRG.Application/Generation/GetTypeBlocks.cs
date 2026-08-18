@@ -52,3 +52,30 @@ public class GetTypeBlocksHandler(IRepository<DocumentType> docTypeRepo)
                 .ToList());
     }
 }
+
+/// <summary>
+/// Сколько активных шаблонов обращается к блокам типа по его коду (issue #773).
+///
+/// <para>С префиксной адресацией код типа попал в тексты шаблонов: <c>#Организация.full(…)</c>.
+/// Переименование кода молча обрывает эти вызовы — Typst сообщит об этом только при генерации
+/// документа, то есть тогда, когда связь между причиной и следствием уже потеряна. Поэтому число
+/// затронутых шаблонов спрашивается ДО сохранения нового кода.</para>
+/// </summary>
+public record CountTemplatesUsingTypeCodeQuery(string Code) : IRequest<int>;
+
+public class CountTemplatesUsingTypeCodeHandler(IRepository<Domain.Templates.Template> templateRepo)
+    : IRequestHandler<CountTemplatesUsingTypeCodeQuery, int>
+{
+    public async Task<int> Handle(CountTemplatesUsingTypeCodeQuery q, CancellationToken ct)
+    {
+        if (!TypstPreambleBuilder.IsTypstIdentifier(q.Code)) return 0;
+
+        // Считаем только активные версии: исторические и так не собираются после любой миграции,
+        // и пугать ими человека, который просто правит код типа, незачем.
+        var pattern = new System.Text.RegularExpressions.Regex(
+            $@"(?<![\w\-.]){System.Text.RegularExpressions.Regex.Escape(q.Code)}\s*\.\s*[\p{{L}}_][\w\-]*\s*\(");
+        return (await templateRepo.GetAllAsync(ct))
+            .Where(t => t.IsActive)
+            .Count(t => pattern.IsMatch(TypstTextMask.Mask(t.Content, TypstTextMask.Keep.CodeOnly)));
+    }
+}

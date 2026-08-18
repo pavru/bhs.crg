@@ -67,21 +67,21 @@ public class ValidateTypstBlocksHandlerTests
     [Fact]
     public async Task DraftOverlay_ChangesGraph_IntroducesCrossTypeCycle()
     {
-        // Персист: addr-contacts вызывает addr-full — упорядочиваемо, цикла нет.
+        // Персист: CONT вызывает блок ADDR через префикс типа — упорядочиваемо, цикла нет.
         var addr = Type("Адрес", "ADDR", ("Полный", "addr-full", "{ it.x }"));
-        var contacts = Type("Контакты", "CONT", ("Строка", "addr-contacts", "{ addr-full(it) }"));
+        var contacts = Type("Контакты", "CONT", ("Строка", "addr-contacts", "{ ADDR.addr-full(it) }"));
         var handler = Handler(new[] { addr, contacts });
 
         var clean = await handler.Handle(new ValidateTypstBlocksQuery(null, null), default);
         Assert.DoesNotContain(clean, p => p.Code.StartsWith("cycle", StringComparison.Ordinal));
 
-        // Черновик делает addr-full вызывающим addr-contacts → взаимная ссылка между ТИПАМИ. С
-        // расколом по файлам (#772) это не ошибка порядка, а петля импортов: сборка разрывает её
-        // отложенным импортом, поэтому диагностика предупреждающая, а не Error.
-        var draft = Draft(("Полный", "addr-full", "{ addr-contacts(it) }"));
+        // Черновик разворачивает связь в обе стороны → взаимная ссылка между ТИПАМИ. Круговой импорт
+        // Typst запрещает, обойти его при префиксной адресации нечем (#773), поэтому связь не
+        // подключается и это Error, а не предупреждение.
+        var draft = Draft(("Полный", "addr-full", "{ CONT.addr-contacts(it) }"));
         var withCycle = await handler.Handle(new ValidateTypstBlocksQuery(addr.Id, draft), default);
         var cycle = Assert.Single(withCycle, p => p.Code == "cycle-cross-type");
-        Assert.Equal("warning", cycle.Severity);
+        Assert.Equal("error", cycle.Severity);
     }
 
     [Fact]
@@ -126,13 +126,19 @@ public class ValidateTypstBlocksHandlerTests
         Assert.Equal("Контакты", syntax.TypeName);
     }
 
+    /// <summary>После #773 имена уникальны только внутри типа: одноимённые блоки РАЗНЫХ типов —
+    /// норма, а два одноимённых у одного типа по-прежнему перекрывают друг друга в Typst.</summary>
     [Fact]
-    public async Task DuplicateFnName_AcrossTypes_IsReported()
+    public async Task DuplicateFnName_WithinType_IsReported_ButAcrossTypesIsFine()
     {
         var a = Type("A", "A", ("v", "dup", "{ it.x }"));
         var b = Type("B", "B", ("v", "dup", "{ it.y }"));
-        var res = await Handler(new[] { a, b }).Handle(new ValidateTypstBlocksQuery(null, null), default);
-        Assert.Contains(res, p => p.Code == "duplicate-fn");
+        var across = await Handler(new[] { a, b }).Handle(new ValidateTypstBlocksQuery(null, null), default);
+        Assert.DoesNotContain(across, p => p.Code == "duplicate-fn");
+
+        var one = Type("A", "A", ("первый", "dup", "{ it.x }"), ("второй", "dup", "{ it.y }"));
+        var within = await Handler(new[] { one }).Handle(new ValidateTypstBlocksQuery(null, null), default);
+        Assert.Contains(within, p => p.Code == "duplicate-fn");
     }
 
     [Fact]
