@@ -58,8 +58,12 @@ export default function App() {
                 <Route path="reconciliations" element={<ReconciliationsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route element={<AdminRoute />}>
-                  <Route path="document-types/*" element={<DocumentTypesPage kind="Document" />} />
-                  <Route path="composite-types/*" element={<DocumentTypesPage kind="Composite" />} />
+                  {/* key — чтобы React перемонтировал страницу между двумя маршрутами: без него это
+                      один экземпляр компонента (тот же тип в той же позиции дерева), и поиск,
+                      раскрытые группы и восстановленный выбор переезжали с одной страницы на
+                      другую (issue #782). */}
+                  <Route path="document-types/*" element={<DocumentTypesPage key="document" kind="Document" />} />
+                  <Route path="composite-types/*" element={<DocumentTypesPage key="composite" kind="Composite" />} />
                   <Route path="templates/*" element={<TemplatesPage />} />
                   <Route path="field-types" element={<PrimitiveTypesPage />} />
                   <Route path="recognition-profiles" element={<RecognitionProfilesPage />} />

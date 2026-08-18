@@ -1053,18 +1053,17 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
 
   // Порядок разрешения при входе: `?type=` → localStorage → первый в списке (страхует `?? filtered[0]`
   // ниже, поэтому удалённый или не проходящий kind-фильтр id просто игнорируется).
-  // Память читаем один раз до первого выбора; kind в ключе — на случай, если роутер переиспользует
-  // экземпляр компонента между двумя маршрутами.
-  const restored = useRef<{ kind: DocumentTypeKind; id: string | null } | null>(null);
-  if (restored.current?.kind !== kind) restored.current = { kind, id: localStorage.getItem(lastTypeKey(kind)) };
+  // Память читаем один раз при монтировании: страницы двух kind разведены `key` в App.tsx, так что
+  // прочитанное всегда своё.
   const [searchParams, setSearchParams] = useSearchParams();
-  const selectedId = searchParams.get('type') ?? restored.current.id;
+  const [restoredId, setRestoredId] = useState<string | null>(() => localStorage.getItem(lastTypeKey(kind)));
+  const selectedId = searchParams.get('type') ?? restoredId;
   const setSelectedId = (id: string | null) => {
     // Сбрасываем восстановленный id только когда выбор снимается (тип удалён): при обычном выборе
     // его и так перекроет `?type=`, а обнулить сразу нельзя — URL пишется через startTransition,
     // и любое срочное обновление в том же такте успело бы отрисовать кадр без выбора (деталь
     // смонтировалась бы на первом типе списка и тут же перемонтировалась на нужный).
-    if (!id) restored.current = { kind, id: null };
+    if (!id) setRestoredId(null);
     if (id) localStorage.setItem(lastTypeKey(kind), id);
     else localStorage.removeItem(lastTypeKey(kind));
     setSearchParams(prev => {
@@ -1192,26 +1191,26 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
   query: string;
   onQuery: (q: string) => void;
 }) {
-  // Сворачиваемые группы навигации (по умолчанию свёрнуты). При активном поиске все
-  // группы раскрыты, чтобы результаты были видны.
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  // Группы навигации: храним только то, что пользователь переключил руками (true — раскрыл,
+  // false — свернул). Нетронутая группа раскрыта, если в ней лежит выбранный тип — иначе
+  // восстановленный при входе выбор (#778) виден только в детали, а рейл стоит свёрнутым и без
+  // единой подсветки. При активном поиске все группы раскрыты, чтобы результаты были видны.
+  //
+  // Сворачивание группы с выбранным типом помним вместе с самим выбором (ключ «тип:группа»):
+  // иначе оно пережило бы и смену группы у открытого типа, и переход выбора в свёрнутую ранее
+  // группу — тип пропал бы из рейла, а подсветки не было бы вовсе.
+  const [toggled, setToggled] = useState<Map<string, boolean>>(new Map());
   const searching = query.trim().length > 0;
-
-  // Группа выбранного типа раскрывается сама: иначе восстановленный при входе выбор (#778)
-  // виден только в детали, а рейл стоит свёрнутым и без единой подсветки. Раскрываем один раз
-  // на смену выбора — свернув группу руками, пользователь оставляет её свёрнутой.
-  const autoExpanded = useRef<string | null>(null);
-  if (selectedId) {
-    const g = [...byGroup].find(([, items]) => items.some(t => t.id === selectedId))?.[0];
-    // Ключ — тип вместе с группой: сменив группу у открытого типа, пользователь иначе потерял бы
-    // его из рейла (id прежний, новая группа свёрнута).
-    if (g !== undefined && autoExpanded.current !== `${selectedId}:${g}`) {
-      autoExpanded.current = `${selectedId}:${g}`;
-      if (!expandedGroups.has(g)) setExpandedGroups(prev => new Set(prev).add(g));
-    }
-  }
-  const toggleGroup = (g: string) =>
-    setExpandedGroups(s => { const n = new Set(s); n.has(g) ? n.delete(g) : n.add(g); return n; });
+  const selectedGroup = [...byGroup].find(([, items]) => items.some(t => t.id === selectedId))?.[0];
+  const groupKey = (g: string) => g === selectedGroup ? `${selectedId}:${g}` : g;
+  const groupOpen = (g: string) => toggled.get(groupKey(g)) ?? g === selectedGroup;
+  // Считаем от того, что нарисовано (`searching` форсирует раскрытие): клик по шапке во время
+  // поиска иначе записывал бы обратное тому, о чём просил пользователь. Предыдущее значение
+  // читаем из аргумента, а не из замыкания, — два клика в одном такте не схлопываются в один.
+  const toggleGroup = (g: string) => {
+    const key = groupKey(g);
+    setToggled(m => new Map(m).set(key, !(searching || (m.get(key) ?? g === selectedGroup))));
+  };
 
   return (
     <>
@@ -1220,7 +1219,7 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
         {groupOrder.length === 0 && <p className="px-3 py-6 text-center text-sm text-fg4">Ничего не найдено</p>}
         {groupOrder.map(g => {
           const items = byGroup.get(g)!;
-          const open = searching || expandedGroups.has(g);
+          const open = searching || groupOpen(g);
           return (
             <div key={g || '__ungrouped__'}>
               <button type="button" onClick={() => toggleGroup(g)}
