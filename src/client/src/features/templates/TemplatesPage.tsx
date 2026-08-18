@@ -139,7 +139,9 @@ export function TemplatesPage() {
   // Зеркалим выбор в URL и в память. Авто-выбор версии (ниже) сюда не попадает — он
   // детерминированно повторяется при следующем входе, а память хранит осознанный выбор.
   const persist = (typeId: string, templateId: string) => {
-    localStorage.setItem(TEMPLATES_LAST_KEY, JSON.stringify({ typeId, templateId }));
+    // try/catch как на чтении: приватный режим или переполнение не должны ронять обработчик —
+    // удаление версии зовёт selectTemplate до самого запроса на удаление.
+    try { localStorage.setItem(TEMPLATES_LAST_KEY, JSON.stringify({ typeId, templateId })); } catch { /* память необязательна */ }
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       if (typeId) next.set('type', typeId); else next.delete('type');
@@ -150,6 +152,7 @@ export function TemplatesPage() {
 
   const selectTemplate = (t: Template | null) => {
     setSelectedTemplate(t);
+    pendingTemplateId.current = '';   // осознанный выбор отменяет восстановление
     persist(t?.documentTypeId ?? selectedTypeId, t?.id ?? '');
   };
 
@@ -157,17 +160,23 @@ export function TemplatesPage() {
 
   useEffect(() => {
     if (templates.length > 0 && !selectedTemplate) {
-      // Восстановленная версия — только на первый показ списка; дальше обычный авто-выбор.
-      // Версию могли вычистить или удалить вместе с шаблоном — тогда fallback молчаливый.
-      const wanted = pendingTemplateId.current
-        ? templates.find(t => t.id === pendingTemplateId.current)
-        : undefined;
-      pendingTemplateId.current = '';
+      // Ожидание версии не сбрасываем по факту применения: StrictMode прогоняет setup эффекта
+      // дважды с тем же замыканием (`selectedTemplate` там всё ещё null), и сброшенное ожидание
+      // во втором заходе подменило бы восстановленную версию авто-выбором. Ожидание снимают
+      // осознанный выбор и смена типа.
+      const pending = pendingTemplateId.current;
+      const wanted = pending ? templates.find(t => t.id === pending) : undefined;
       const active = wanted
         ?? templates.find(t => t.isDefault && t.isActive)
         ?? templates.find(t => t.isActive)
         ?? templates[0];
       setSelectedTemplate(active);
+      // Версию вычистили или удалили вместе с шаблоном: подменяем молча, но адрес не должен и
+      // дальше называть мёртвую версию — ссылка вела бы не туда, куда обещает.
+      if (pending && !wanted) {
+        pendingTemplateId.current = '';
+        persist(selectedTypeId, active.id);
+      }
     }
   }, [templates]);
 
