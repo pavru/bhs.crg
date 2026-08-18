@@ -1194,13 +1194,23 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
   // Группы навигации: храним только то, что пользователь переключил руками (true — раскрыл,
   // false — свернул). Нетронутая группа раскрыта, если в ней лежит выбранный тип — иначе
   // восстановленный при входе выбор (#778) виден только в детали, а рейл стоит свёрнутым и без
-  // единой подсветки. Производная открытость сама отрабатывает и смену группы у открытого типа.
-  // При активном поиске все группы раскрыты, чтобы результаты были видны.
+  // единой подсветки. При активном поиске все группы раскрыты, чтобы результаты были видны.
+  //
+  // Сворачивание группы с выбранным типом помним вместе с самим выбором (ключ «тип:группа»):
+  // иначе оно пережило бы и смену группы у открытого типа, и переход выбора в свёрнутую ранее
+  // группу — тип пропал бы из рейла, а подсветки не было бы вовсе.
   const [toggled, setToggled] = useState<Map<string, boolean>>(new Map());
   const searching = query.trim().length > 0;
   const selectedGroup = [...byGroup].find(([, items]) => items.some(t => t.id === selectedId))?.[0];
-  const groupOpen = (g: string) => toggled.get(g) ?? g === selectedGroup;
-  const toggleGroup = (g: string) => setToggled(m => new Map(m).set(g, !groupOpen(g)));
+  const groupKey = (g: string) => g === selectedGroup ? `${selectedId}:${g}` : g;
+  const groupOpen = (g: string) => toggled.get(groupKey(g)) ?? g === selectedGroup;
+  // Считаем от того, что нарисовано (`searching` форсирует раскрытие): клик по шапке во время
+  // поиска иначе записывал бы обратное тому, о чём просил пользователь. Предыдущее значение
+  // читаем из аргумента, а не из замыкания, — два клика в одном такте не схлопываются в один.
+  const toggleGroup = (g: string) => {
+    const key = groupKey(g);
+    setToggled(m => new Map(m).set(key, !(searching || (m.get(key) ?? g === selectedGroup))));
+  };
 
   return (
     <>
