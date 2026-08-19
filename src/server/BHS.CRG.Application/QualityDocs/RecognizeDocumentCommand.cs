@@ -48,6 +48,10 @@ public class RecognizeDocumentHandler(
                 userId: cmd.UserId, ct: ct);
             return result with { PageCount = pageCount };
         }
+        // Отмену пользователем не объявляем ошибкой: уведомлять некого (запрос уже брошен), а
+        // публиковать его тем же `ct` — значит уронить публикацию и подменить причину (issue #797).
+        // Таймаут движка сюда доходит уже нашим RecognitionUnavailableException и уведомляет как надо.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             if (cmd.Notify)

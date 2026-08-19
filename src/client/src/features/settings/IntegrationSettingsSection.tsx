@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
@@ -82,14 +83,20 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function EngineCard({
-  meta, form, onChange, reorder, modelOptions,
+  meta, form, onChange, reorder, modelOptions, missing,
 }: {
   meta: EngineMeta;
   form: EngineForm;
   onChange: (next: EngineForm) => void;
   reorder?: { onUp?: () => void; onDown?: () => void };
   modelOptions?: string[];
+  /** Чего не хватает движку по СОХРАНЁННЫМ настройкам (с сервера); null — настроен. */
+  missing?: string | null;
 }) {
+  // Бейдж говорит о том, что происходит СЕЙЧАС, — потому и считается по сохранённому состоянию, а
+  // не по набранному в форме: пока изменения не сохранены, движок в самом деле не участвует.
+  // Галку «включён» берём из формы: сняв её, пользователь уже не обещает участия — и упрёк ни к чему.
+  const notParticipating = form.enabled && !!missing;
   return (
     <div className={`rounded-lg border p-3 space-y-3 ${form.enabled ? 'border-stroke bg-surface' : 'border-stroke bg-base'}`}>
       <div className="flex items-start gap-2">
@@ -102,6 +109,14 @@ function EngineCard({
           />
           <span className="text-sm font-medium text-fg1">{meta.label}</span>
         </label>
+        {notParticipating && (
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning-subtle text-warning border border-warning-border shrink-0"
+            title={`Движок включён, но в работе не участвует: ${missing}. Распознавание идёт следующим по списку.`}
+          >
+            <AlertTriangle size={11} /> не участвует: {missing}
+          </span>
+        )}
         {reorder && (
           <div className="flex gap-1">
             <button type="button" onClick={reorder.onUp} disabled={!reorder.onUp}
@@ -269,6 +284,7 @@ export function IntegrationSettingsSection() {
                   form={recog[k]}
                   onChange={f => setRecog(prev => ({ ...prev, [k]: f }))}
                   modelOptions={modelOptionsFor(k)}
+                  missing={data.recognition[k]?.missing}
                   reorder={{
                     onUp: i > 0 ? () => move(i, -1) : undefined,
                     onDown: i < order.length - 1 ? () => move(i, 1) : undefined,
@@ -289,6 +305,7 @@ export function IntegrationSettingsSection() {
                   meta={WEB_ENGINES[k]}
                   form={web[k]}
                   onChange={f => setWeb(prev => ({ ...prev, [k]: f }))}
+                  missing={data.webSearch[k]?.missing}
                 />
               ))}
             </div>

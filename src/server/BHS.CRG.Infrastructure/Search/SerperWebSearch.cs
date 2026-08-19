@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Http;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Search;
@@ -11,6 +12,9 @@ public class SerperEngine(
 ) : IWebSearchEngine
 {
     private const string ApiUrl = "https://google.serper.dev/search";
+
+    /// <summary>Срок ответа поисковика: выдача либо приходит за секунды, либо не приходит вовсе.</summary>
+    public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
     public string Name => "Serper";
 
@@ -43,6 +47,14 @@ public class SerperEngine(
                         item.TryGetProperty("snippet", out var s) ? s.GetString() ?? "" : ""));
                 }
             return list;
+        }
+        catch (Exception ex) when (HttpFailure.IsTimeout(ex, ct))
+        {
+            // Таймаут — такая же неудача движка, как сетевая ошибка: пустая выдача от него, поиск
+            // продолжают остальные движки и тиры (issue #797). Раньше он летел сквозь Task.WhenAll
+            // в TieredWebSearch и ронял весь поиск в 500.
+            logger.LogWarning("Serper не ответил за {Timeout}", HttpFailure.Format(Timeout));
+            return [];
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

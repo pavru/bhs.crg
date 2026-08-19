@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Xml.Linq;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Http;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Search;
@@ -10,6 +11,9 @@ public class YandexEngine(
     HttpClient http, IIntegrationSettings settings, ILogger<YandexEngine> logger
 ) : IWebSearchEngine
 {
+    /// <inheritdoc cref="SerperEngine.Timeout" />
+    public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
+
     public string Name => "Yandex";
 
     public async Task<IReadOnlyList<WebHit>> QueryAsync(string query, CancellationToken ct = default)
@@ -57,6 +61,12 @@ public class YandexEngine(
                 list.Add(new WebHit(title, link, passage));
             }
             return list;
+        }
+        catch (Exception ex) when (HttpFailure.IsTimeout(ex, ct))
+        {
+            // Как у Serper: таймаут одного движка не роняет поиск целиком (issue #797).
+            logger.LogWarning("Yandex не ответил за {Timeout}", HttpFailure.Format(Timeout));
+            return [];
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

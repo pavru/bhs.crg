@@ -20,7 +20,7 @@ public class TieredWebSearch(IEnumerable<IWebSearchEngine> engines, IIntegration
     public async Task<IReadOnlyList<SearchCandidate>> SearchAsync(string query, CancellationToken ct = default)
     {
         var s = await settings.GetEffectiveAsync(ct);
-        var active = engines.Where(e => IsUsable(e.Name, s)).ToList();
+        var active = engines.Where(e => EngineReadiness.IsUsableForWebSearch(e.Name, s.Web(e.Name))).ToList();
         if (active.Count == 0)
             throw new SearchUnavailableException("Веб-поиск не настроен (нет включённых провайдеров с ключами). Проверьте «Настройки → Поиск и распознавание».");
 
@@ -117,7 +117,13 @@ public class TieredWebSearch(IEnumerable<IWebSearchEngine> engines, IIntegration
             if (!ctype.Contains("html", StringComparison.OrdinalIgnoreCase)) return [];
             html = await resp.Content.ReadAsStringAsync(ct);
         }
-        catch { return []; }
+        catch (Exception ex) when (!HttpFailure.IsUserCancellation(ex, ct))
+        {
+            // Страница не раскрылась — не беда, ссылки на файлы поищутся на остальных. Но ОТМЕНУ
+            // пробрасываем: голый `catch` глотал и её, и запрос, который никому не нужен, дочитывал
+            // страницы до конца (issue #797).
+            return [];
+        }
 
         var found = new List<SearchCandidate>();
         var local = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -142,15 +148,6 @@ public class TieredWebSearch(IEnumerable<IWebSearchEngine> engines, IIntegration
     }
 
     private static string StripTags(string s) => Regex.Replace(s, "<[^>]+>", " ").Replace(" ", " ").Trim();
-
-    private static bool IsUsable(string name, IntegrationSettingsModel s)
-    {
-        var e = s.Web(name);
-        if (!e.Enabled) return false;
-        return name.Equals("Yandex", StringComparison.OrdinalIgnoreCase)
-            ? !string.IsNullOrWhiteSpace(e.ApiKey) && !string.IsNullOrWhiteSpace(e.FolderId)
-            : !string.IsNullOrWhiteSpace(e.ApiKey);
-    }
 
     private static async Task<(string, IReadOnlyList<WebHit>)> Run(IWebSearchEngine e, string source, string q, CancellationToken ct)
         => (source, await e.QueryAsync(q, ct));

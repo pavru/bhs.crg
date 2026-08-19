@@ -202,7 +202,7 @@ public class IntegrationSettingsService(
             }),
             BaseUrl = Pick(r.BaseUrl, name == "Ollama" ? (config["Ollama:BaseUrl"] ?? "http://localhost:11434") : null),
         };
-        e.Enabled = has ? r.Enabled : HasKey(name, e);
+        e.Enabled = has ? r.Enabled : HasKey(name, e, web: false);
         return e;
     }
 
@@ -216,16 +216,18 @@ public class IntegrationSettingsService(
             FolderId = Pick(r.FolderId, name == "Yandex" ? config["WebSearch:Yandex:FolderId"] : null),
             Host = Pick(r.Host, name == "Yandex" ? (config["WebSearch:Yandex:Host"] ?? "https://yandex.ru/search/xml") : null),
         };
-        e.Enabled = has ? r.Enabled : HasKey(name, e);
+        e.Enabled = has ? r.Enabled : HasKey(name, e, web: true);
         return e;
     }
 
-    private static bool HasKey(string name, IntegrationEngine e) => name switch
-    {
-        "Ollama" => !string.IsNullOrWhiteSpace(e.Model),
-        "Yandex" => !string.IsNullOrWhiteSpace(e.ApiKey) && !string.IsNullOrWhiteSpace(e.FolderId),
-        _ => !string.IsNullOrWhiteSpace(e.ApiKey),
-    };
+    /// <summary>
+    /// Есть ли у движка то, без чего он бесполезен, — правило общее с цепочкой распознавания,
+    /// веб-поиском и бейджем в настройках (<see cref="EngineReadiness" />, issue #797). Копий было
+    /// три, и расходясь, они означали бы, что «включён по умолчанию» и «участвует в работе» —
+    /// разные вещи.
+    /// </summary>
+    private static bool HasKey(string name, IntegrationEngine e, bool web)
+        => (web ? EngineReadiness.MissingForWebSearch(name, e) : EngineReadiness.MissingForRecognition(name, e)) is null;
 
     private static string? Pick(string? primary, string? fallback) => string.IsNullOrWhiteSpace(primary) ? fallback : primary;
 }
