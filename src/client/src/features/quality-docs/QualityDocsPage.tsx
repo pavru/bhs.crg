@@ -193,13 +193,16 @@ export function QualityDocsPage() {
             {docRow(outsideList)}
           </>
         )}
-        <NavSection label={stateFilter ? STATE_META[stateFilter].label : 'Документы'} />
+        {(visibleDocs.length > 0 || !outsideList) &&
+          <NavSection label={stateFilter ? STATE_META[stateFilter].label : 'Документы'} />}
         {/* Одноимённым документам дописываем номер (issue #588): в библиотеке два сертификата
             назывались одинаково, а внутри — разные номера, органы и области продукции. Приписывать
             номер ВСЕМ незачем: тогда он примелькается и перестанет читаться там, где нужен. */}
         {visibleDocs.map(docRow)}
         {visibleDocs.length === 0 && (
-          <p className="text-xs text-fg4 px-3 py-4 text-center">Ничего не найдено.</p>
+          <p className="text-xs text-fg4 px-3 py-4 text-center">
+            {outsideList ? 'Больше ничего не найдено.' : 'Ничего не найдено.'}
+          </p>
         )}
       </div>
     </>

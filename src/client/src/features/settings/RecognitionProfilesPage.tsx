@@ -343,9 +343,8 @@ export function RecognitionProfilesPage() {
   const { data: profiles = [], isLoading } = useListRecognitionProfiles();
   const { data: kinds = [] } = useRecognitionKinds();
   // Удалённый id страхует `?? filtered[0]` ниже — восстановление молча уходит на первый профиль.
-  // Отфильтрованный поиском НЕ страхует: `selected` ищет по всем профилям, поэтому выбранный
-  // остаётся открытым в детали, даже когда его строки в списке нет. Поведение прежнее (поиск при
-  // входе пуст, так что восстановления это не касается), меняем его не здесь.
+  // Выбранный ищется по всем профилям, а не по отфильтрованным: не прошедший поиск профиль
+  // остаётся открытым и показывается в рейле отдельной строкой (issue #792, см. `outsideFilter`).
   const { values, remember } = useRememberedSelection(PROFILES_LAST_KEY, SELECTION_KEYS);
   const selectedId = values.profile || null;
   const setSelectedId = (id: string | null) => remember({ profile: id ?? '' });
@@ -405,7 +404,11 @@ export function RecognitionProfilesPage() {
               {builtIn.map(row)}
               {custom.length > 0 && <NavSection label="Свои" />}
               {custom.map(row)}
-              {filtered.length === 0 && <p className="text-sm text-fg4 px-3 py-2">Ничего не найдено</p>}
+              {filtered.length === 0 && (
+                <p className="text-sm text-fg4 px-3 py-2">
+                  {outsideFilter ? 'Больше ничего не найдено' : 'Ничего не найдено'}
+                </p>
+              )}
             </div>
           </div>
         }
