@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Pencil, Trash2, ShieldCheck, FileText, Search, Globe, ExternalLink, Download, Loader2,
@@ -93,8 +93,26 @@ export function QualityDocsPage() {
   }, [docs, docTypes, linksByDoc]);
 
   // Состояние могло рассосаться, пока нас не было (сроки продлили, связки добавили): фильтр с
-  // пустым списком снимаем молча — иначе вход выглядел бы как «библиотека пуста».
-  const stateFilter = restoredState && (states.get(restoredState)?.length ?? 0) > 0 ? restoredState : null;
+  // пустым списком снимаем молча — иначе вход выглядел бы как «библиотека пуста». Снимаем и тогда,
+  // когда восстановленный документ в него не попадает: пара «состояние + документ» согласована
+  // при выборе, но данные могли поменяться, а показывать в детали то, чего нет в рейле, нельзя —
+  // ни строки, ни подсветки, и снять выбор неоткуда.
+  // Пока список не пришёл, состояний нет ни у кого — судить о «пустом фильтре» рано: иначе
+  // подавление срабатывало бы на каждом входе и стирало фильтр из памяти навсегда.
+  const dataReady = !isLoading && docs.length > 0;
+  const restoredGroup = restoredState ? (states.get(restoredState) ?? []) : [];
+  const stateFilter = restoredState && (!dataReady
+    || (restoredGroup.length > 0 && (!selected || restoredGroup.some(d => d.id === selected))))
+    ? restoredState : null;
+
+  // Подавили фильтр — забываем его: иначе он остался бы в памяти, всплыл бы обратно в адрес при
+  // следующей записи выбора (`remember` сливает прежние значения) и однажды применился бы сам —
+  // когда состояние снова появится, а пользователь его не выбирал.
+  useEffect(() => {
+    if (dataReady && restoredState && !stateFilter) remember({ state: '' });
+    // remember стабилен по смыслу вызова; следим за самим фактом подавления
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataReady, restoredState, stateFilter]);
 
   /**
    * Поиск переопределяет список: документ остаётся, если совпало его имя/номер ИЛИ хоть одна его
