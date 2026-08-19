@@ -342,8 +342,10 @@ const PROFILES_LAST_KEY = 'recognition-profiles-last';
 export function RecognitionProfilesPage() {
   const { data: profiles = [], isLoading } = useListRecognitionProfiles();
   const { data: kinds = [] } = useRecognitionKinds();
-  // Удалённый или отфильтрованный поиском id страхует `?? filtered[0]` ниже — восстановление
-  // молча уходит на первый профиль.
+  // Удалённый id страхует `?? filtered[0]` ниже — восстановление молча уходит на первый профиль.
+  // Отфильтрованный поиском НЕ страхует: `selected` ищет по всем профилям, поэтому выбранный
+  // остаётся открытым в детали, даже когда его строки в списке нет. Поведение прежнее (поиск при
+  // входе пуст, так что восстановления это не касается), меняем его не здесь.
   const { values, remember } = useRememberedSelection(PROFILES_LAST_KEY, SELECTION_KEYS);
   const selectedId = values.profile || null;
   const setSelectedId = (id: string | null) => remember({ profile: id ?? '' });

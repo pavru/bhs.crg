@@ -53,13 +53,22 @@ function readStored<K extends string>(storageKey: string, keys: readonly K[]): P
 export function useRememberedSelection<K extends string>(storageKey: string, keys: readonly K[]) {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Память читаем один раз при монтировании; дальше значение ведёт URL, а `restored` затухает
-  // по мере того, как страница записывает выбор.
-  const [restored, setRestored] = useState<Record<K, string>>(() => {
+  // Память читаем один раз на ключ; дальше значение ведёт URL, а `restored` затухает по мере
+  // того, как страница записывает выбор. Ключ входит в состояние: один компонент может
+  // обслуживать несколько уровней (наборы данных — систему, стройку, раздел, комплект), а роутер
+  // переиспользует экземпляр при смене параметров маршрута — с прочитанной один раз памятью
+  // выбор с прошлого уровня всплыл бы на новом.
+  const readForKey = (): Record<K, string> => {
     const fromUrl = {} as Partial<Record<K, string>>;
     for (const k of keys) fromUrl[k] = searchParams.get(k) ?? '';
     return resolveRemembered(keys, fromUrl, readStored(storageKey, keys));
-  });
+  };
+  const [restoredState, setRestoredState] = useState<{ key: string; values: Record<K, string> }>(
+    () => ({ key: storageKey, values: readForKey() }));
+  if (restoredState.key !== storageKey) setRestoredState({ key: storageKey, values: readForKey() });
+  const restored = restoredState.values;
+  const setRestored = (update: (prev: Record<K, string>) => Record<K, string>) =>
+    setRestoredState(prev => ({ key: prev.key, values: update(prev.values) }));
 
   const values = useMemo(() => {
     const out = {} as Record<K, string>;
@@ -73,7 +82,12 @@ export function useRememberedSelection<K extends string>(storageKey: string, key
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, restored]);
 
-  const remember = (next: Partial<Record<K, string>>) => {
+  /**
+   * @param mutate необязательная правка соседних параметров адреса. Делать её отдельным
+   *   `setSearchParams` нельзя: колбэк получает значение времени рендера, поэтому два вызова в
+   *   одном такте не накапливаются — второй перетирает первый (документировано в react-router).
+   */
+  const remember = (next: Partial<Record<K, string>>, mutate?: (params: URLSearchParams) => void) => {
     const merged = { ...values, ...next } as Record<K, string>;
     try { localStorage.setItem(storageKey, JSON.stringify(merged)); } catch { /* память необязательна */ }
     // Оба обновления — одним переходом. Порознь нельзя: адрес пишется через startTransition, а
@@ -93,6 +107,7 @@ export function useRememberedSelection<K extends string>(storageKey: string, key
           const v = merged[k];
           if (v) params.set(k, v); else params.delete(k);
         }
+        mutate?.(params);
         return params;
       }, { replace: true });
     });

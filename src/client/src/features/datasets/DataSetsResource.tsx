@@ -211,18 +211,20 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
   // один компонент обслуживает систему, стройку, раздел и комплект, и набор одной стройки не должен
   // всплывать на другой. Раскрытость группы унаследованных (`?inherited=`) не запоминаем — она
   // выводится из выбора и живёт только в адресе.
-  const { values, remember } = useRememberedSelection(`datasets-last:${scope}:${scopeId ?? ''}`, SELECTION_KEYS);
+  // Регистр уровня приводим так же, как в `isOwn` ниже: иначе адрес с другим регистром завёл бы
+  // вторую, отдельную память для того же уровня.
+  const { values, remember } = useRememberedSelection(
+    `datasets-last:${scope}:${scopeId?.toLowerCase() ?? ''}`, SELECTION_KEYS);
   const setSelected = (v: string | null) => remember({ file: v ?? '' });
 
   // Свернув группу, снимаем выбор с унаследованного набора: иначе detail показывал бы набор,
   // строки которого в рейле уже нет, и подсвечивать было бы нечего.
   const setInheritedOpen = (open: boolean, dropSelection = false) => {
-    if (!open && dropSelection) setSelected(null);   // через память: иначе она вернула бы набор назад
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.set('inherited', open ? '1' : '0');
-      return next;
-    }, { replace: true });
+    const flag = (params: URLSearchParams) => params.set('inherited', open ? '1' : '0');
+    // Снятие выбора и флаг группы — одним обновлением: два setSearchParams в одном такте не
+    // накапливаются, и второй вернул бы удалённый `file` обратно.
+    if (!open && dropSelection) remember({ file: '' }, flag);
+    else setSearchParams(prev => { const next = new URLSearchParams(prev); flag(next); return next; }, { replace: true });
   };
 
   // Свои — наборы этого уровня; унаследованные — всё остальное из цепочки родителей.
@@ -244,13 +246,14 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
     [allFiles, isOwn]);
 
   // Восстановленный набор мог быть удалён или относиться к другому уровню — тогда память молча
-  // пропускается; иначе экран открывался бы на «Набор не найден». Пока список едет, дефолт не
-  // подставляем: он бы мигнул «Всеми наборами» и тут же сменился восстановленным.
+  // пропускается; иначе экран открывался бы на «Набор не найден».
   const remembered = values.file || null;
   const known = remembered === ALL || (remembered && allFiles.some(f => f.id === remembered))
     ? remembered : null;
   // Дефолт по числу файлов: без явного выбора — 1 файл открывается сразу, 2+ → «Все наборы».
-  const selected = known ?? (isLoading ? ALL : (files.length === 1 ? files[0].id : ALL));
+  // Пока список едет, он пуст, и дефолтом оказывается «Все наборы» — рейл в это время всё равно
+  // закрыт индикатором загрузки.
+  const selected = known ?? (files.length === 1 ? files[0].id : ALL);
   const isAll = selected === ALL;
   const selectedFile = !isAll ? allFiles.find(f => f.id === selected) : undefined;
   const selectedInherited = !!selectedFile && !files.some(f => f.id === selectedFile.id);
