@@ -1,5 +1,6 @@
 import type { SchemaField, FieldGroup, TypstRender } from '@/shared/api/schema';
 import { danglingKeyRefs } from './schemaKeyChecks';
+import { ruCount } from '@/shared/utils/pluralize';
 
 /**
  * Состояние типа как объекта, а не как формы (issue #794).
@@ -77,6 +78,9 @@ export function typeHealth(
   for (const n of new Set(fns.filter((n, i) => fns.indexOf(n) !== i)))
     blocking.push({ kind: 'duplicate-fn', text: `Имя функции «${n}» задано дважды` });
 
+  // Ключи для сравнения со ссылками берём КАК СОХРАНЕНЫ, без trim: группы, исключения и
+  // переопределения хранят ровно тот же ключ, а редактор сверяет их так же. Обрезав пробелы здесь,
+  // мы объявили бы висячей живую ссылку — и предложили бы её удалить.
   const soft: SoftIssue[] = danglingKeyRefs(
     {
       groups: refs.groups,
@@ -84,18 +88,22 @@ export function typeHealth(
       ungroupedOrder: refs.ungroupedOrder,
       fieldOverrideKeys: Object.keys(refs.fieldOverrides ?? {}),
     },
-    [...chainKeys, ...keys],
+    [...chainKeys, ...own.map(f => f.key)],
   ).map(r => ({ kind: 'dangling-ref' as const, text: `Ссылка на несуществующее поле «${r.key}»` }));
 
   return { blocking, soft };
 }
 
-/** Короткая подпись чипа: счётчик, а не перечисление — детали уходят в подсказку. */
+/**
+ * Короткая подпись чипа: счётчик, а не перечисление — детали уходят в подсказку.
+ * Склонение — общим `ruCount`: свой «1 / 2-4 / остальное» врал бы на 21 («21 ошибок»), а число
+ * ошибок легко переваливает за двадцать — перепривязка типа даёт по конфликту на каждое совпавшее поле.
+ */
 export function healthBadgeLabel(health: TypeHealth): { blocking?: string; soft?: string } {
   const n = health.blocking.length;
   const m = health.soft.length;
   return {
-    blocking: n ? `не сохранится — ${n} ${n === 1 ? 'ошибка' : n < 5 ? 'ошибки' : 'ошибок'}` : undefined,
-    soft: m ? `${m} ${m === 1 ? 'висячая ссылка' : m < 5 ? 'висячие ссылки' : 'висячих ссылок'}` : undefined,
+    blocking: n ? `не сохранится — ${ruCount(n, 'ошибка', 'ошибки', 'ошибок')}` : undefined,
+    soft: m ? ruCount(m, 'висячая ссылка', 'висячие ссылки', 'висячих ссылок') : undefined,
   };
 }

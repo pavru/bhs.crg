@@ -42,8 +42,9 @@ describe('typeHealth — блокирующие проблемы', () => {
 
   it('дублирующееся имя Typst-функции', () => {
     const h = typeHealth([field()], [], [], {}, [
-      { fnName: 'full', body: '' }, { fnName: 'full', body: '' },
-    ] as never);
+      { name: 'Полное', fnName: 'full', block: '[#it]' },
+      { name: 'Ещё одно', fnName: 'full', block: '[#it]' },
+    ]);
     expect(h.blocking.map(b => b.kind)).toEqual(['duplicate-fn']);
   });
 });
@@ -79,5 +80,29 @@ describe('healthBadgeLabel', () => {
       { kind: 'dangling-ref', text: '' }, { kind: 'dangling-ref', text: '' },
     ] });
     expect(two.soft).toBe('2 висячие ссылки');
+  });
+
+  it('склонение верно и за двадцатью — там свой «1/2-4/прочее» врёт', () => {
+    const blocking = (n: number) => healthBadgeLabel({
+      blocking: Array.from({ length: n }, () => ({ kind: 'key-conflict' as const, text: '' })), soft: [],
+    }).blocking;
+    expect(blocking(21)).toBe('не сохранится — 21 ошибка');
+    expect(blocking(22)).toBe('не сохранится — 22 ошибки');
+    expect(blocking(11)).toBe('не сохранится — 11 ошибок');
+    const soft = (n: number) => healthBadgeLabel({
+      blocking: [], soft: Array.from({ length: n }, () => ({ kind: 'dangling-ref' as const, text: '' })),
+    }).soft;
+    expect(soft(21)).toBe('21 висячая ссылка');
+    expect(soft(14)).toBe('14 висячих ссылок');
+  });
+});
+
+describe('typeHealth — ключи сравниваются как сохранены', () => {
+  it('пробел в ключе не делает живую ссылку висячей', () => {
+    // ключ сохраняется как введён; группы и переопределения хранят ровно его
+    const h = typeHealth([{ key: 'Дата ', title: 'Дата', type: 'string' } as SchemaField], [], [], {
+      groups: [{ key: 'g1', title: 'Шапка', fieldKeys: ['Дата '] }],
+    });
+    expect(h.soft).toEqual([]);
   });
 });
