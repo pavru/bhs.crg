@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Plus, ChevronRight, Trash2, Copy, Folder, FileText, Boxes, EyeOff, Check,
@@ -954,6 +954,17 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
   }
 
   const badge = 'text-xs px-2 py-0.5 rounded-full font-medium';
+  // Переход по иерархии в обе стороны (issue #784): бейдж родителя и чипы прямых наследников —
+  // кнопки, а не подписи. Дойти до родителя иначе можно было только поиском в списке слева, хотя
+  // на него ссылается вся работа с наследованием («Как у родителя», «Ключ уже есть в родительском
+  // типе»). Родитель и наследники всегда того же kind, так что переход не покидает страницу.
+  const jumpBadge = `${badge} truncate max-w-[200px] transition-colors focus-visible:outline-none `
+    + 'focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface';
+  // kind сверяем сами: клиентские пикеры родителя его держат, а команды создания/обновления
+  // валидируют только циклы и уникальность — из восстановления бэкапа кросс-kind связь пройдёт.
+  const children = allDocTypes
+    .filter(t => t.parentId === docType.id && t.kind === docType.kind)
+    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   return (
     <div className="flex flex-col min-h-0 flex-1">
       {/* Шапка типа — доменные heading/actions поверх общего DetailHeader (issue #210 Этап 1b) */}
@@ -964,7 +975,11 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
               <h2 className="text-xl font-normal text-fg1 truncate">{docType.name}</h2>
               <span className="text-xs text-fg4 font-mono">{docType.code}</span>
               {parentType && (
-                <span className={`${badge} bg-brand-subtle text-brand truncate max-w-[200px]`}>↑ {parentType.name}</span>
+                <button type="button" onClick={() => onSelectType(parentType.id)}
+                  title="Перейти к родительскому типу"
+                  className={`${jumpBadge} bg-brand-subtle text-brand hover:text-brand-hover hover:underline`}>
+                  ↑ {parentType.name}
+                </button>
               )}
               {docType.isAbstract && <span className={`${badge} bg-warning-subtle text-warning`}>абстрактный</span>}
               {docType.allowsProxy && <span className={`${badge} bg-brand-subtle text-brand`}>роль/прокси</span>}
@@ -987,6 +1002,18 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
                 </span>
               )}
             </div>
+            {children.length > 0 && (
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                <span className="text-xs text-fg4 shrink-0">наследники:</span>
+                {children.map(c => (
+                  <button key={c.id} type="button" onClick={() => onSelectType(c.id)}
+                    title={`Перейти к типу «${c.name}»`}
+                    className={`${jumpBadge} bg-muted text-fg2 hover:text-brand-hover hover:underline`}>
+                    ↓ {c.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         }
         actions={
@@ -1056,6 +1083,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   // Память читаем один раз при монтировании: страницы двух kind разведены `key` в App.tsx, так что
   // прочитанное всегда своё.
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [restoredId, setRestoredId] = useState<string | null>(() => localStorage.getItem(lastTypeKey(kind)));
   const selectedId = searchParams.get('type') ?? restoredId;
   const setSelectedId = (id: string | null) => {
@@ -1078,11 +1106,29 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   const { registry, anyDirty, saving, saveAll, resetAll } = useTypeEditorRegistry();
 
   // Гард при уходе с типа с несохранёнными правками (общий useDirtyGuard, issue #210 Этап 1b).
-  const { request, dialogProps } = useDirtyGuard<string | null>({
+  // Всё, что делает переход, живёт в onCommit — то есть ПОСЛЕ подтверждения: отменив диалог,
+  // пользователь должен остаться ровно там же, с тем же поиском.
+  const { request, dialogProps } = useDirtyGuard<{ id: string | null; jump?: boolean }>({
     isDirty: anyDirty, saving, saveAll,
-    onCommit: id => setSelectedId(id),
+    onCommit: ({ id, jump }) => {
+      // Переход из панели проверки Typst-блоков может указать на тип другого kind (граф блоков
+      // строится по всем типам): такой id страница не покажет — `filtered` его не содержит, и
+      // выбор молча съехал бы на первый тип, а память страницы осталась бы отравленной. Уводим
+      // на соседнюю страницу — гард уже отработал, правки сохранены или отброшены осознанно.
+      const target = id ? allDocTypes.find(t => t.id === id) : null;
+      if (target && target.kind !== kind) {
+        navigate(`/${target.kind === 'Composite' ? 'composite-types' : 'document-types'}?type=${target.id}`);
+        return;
+      }
+      setSelectedId(id);
+      // Программный переход обязан сделать цель видимой: при активном поиске тип открывается в
+      // детали, но в рейле его нет — ни строки, ни подсветки, и непонятно, где ты оказался.
+      if (jump) setQuery('');
+    },
   });
-  const requestSelect = (id: string) => { if (id !== selectedId) request(id); };
+  const requestSelect = (id: string) => { if (id !== selectedId) request({ id }); };
+  // Переход по иерархии и из панели блоков (issue #784).
+  const jumpToType = (id: string) => { if (id !== selectedId) request({ id, jump: true }); };
 
   // Гард ухода со страницы по маршруту (issue #307): сайдбар-навигация перехватывается, показываем
   // тот же диалог. `routeLeave` хранит отложенный переход (proceed).
@@ -1151,7 +1197,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
             <TypeDetail key={selected.id} docType={selected} allDocTypes={allDocTypes}
               allGroups={allGroups} onDeleted={() => setSelectedId(null)}
               dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll}
-              onDuplicate={() => duplicateType(selected)} onSelectType={requestSelect} />
+              onDuplicate={() => duplicateType(selected)} onSelectType={jumpToType} />
           ) : (
             <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Ничего не найдено</div>
           )} />
@@ -1201,6 +1247,10 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
   // группу — тип пропал бы из рейла, а подсветки не было бы вовсе.
   const [toggled, setToggled] = useState<Map<string, boolean>>(new Map());
   const searching = query.trim().length > 0;
+  // Строку выбранного типа подкручиваем в видимую часть: раскрыть группу мало — на длинном списке
+  // цель программного перехода (#784) осталась бы ниже сгиба, то есть снова «не видно, где ты».
+  const activeRow = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => { activeRow.current?.scrollIntoView({ block: 'nearest' }); }, [selectedId]);
   const selectedGroup = [...byGroup].find(([, items]) => items.some(t => t.id === selectedId))?.[0];
   const groupKey = (g: string) => g === selectedGroup ? `${selectedId}:${g}` : g;
   const groupOpen = (g: string) => toggled.get(groupKey(g)) ?? g === selectedGroup;
@@ -1235,6 +1285,7 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
                 const Icon = t.kind === 'Composite' ? Boxes : FileText;
                 return (
                   <button key={t.id} type="button" onClick={() => onSelect(t.id)}
+                    ref={active ? activeRow : undefined}
                     aria-current={active ? 'true' : undefined}
                     className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
                       active ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
