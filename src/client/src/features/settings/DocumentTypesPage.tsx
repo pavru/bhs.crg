@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Plus, ChevronRight, Trash2, Copy, Folder, FileText, Boxes, EyeOff, Check,
@@ -960,8 +960,10 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
   // типе»). Родитель и наследники всегда того же kind, так что переход не покидает страницу.
   const jumpBadge = `${badge} truncate max-w-[200px] transition-colors focus-visible:outline-none `
     + 'focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface';
+  // kind сверяем сами: клиентские пикеры родителя его держат, а команды создания/обновления
+  // валидируют только циклы и уникальность — из восстановления бэкапа кросс-kind связь пройдёт.
   const children = allDocTypes
-    .filter(t => t.parentId === docType.id)
+    .filter(t => t.parentId === docType.id && t.kind === docType.kind)
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -1081,6 +1083,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   // Память читаем один раз при монтировании: страницы двух kind разведены `key` в App.tsx, так что
   // прочитанное всегда своё.
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [restoredId, setRestoredId] = useState<string | null>(() => localStorage.getItem(lastTypeKey(kind)));
   const selectedId = searchParams.get('type') ?? restoredId;
   const setSelectedId = (id: string | null) => {
@@ -1103,15 +1106,29 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   const { registry, anyDirty, saving, saveAll, resetAll } = useTypeEditorRegistry();
 
   // Гард при уходе с типа с несохранёнными правками (общий useDirtyGuard, issue #210 Этап 1b).
-  const { request, dialogProps } = useDirtyGuard<string | null>({
+  // Всё, что делает переход, живёт в onCommit — то есть ПОСЛЕ подтверждения: отменив диалог,
+  // пользователь должен остаться ровно там же, с тем же поиском.
+  const { request, dialogProps } = useDirtyGuard<{ id: string | null; jump?: boolean }>({
     isDirty: anyDirty, saving, saveAll,
-    onCommit: id => setSelectedId(id),
+    onCommit: ({ id, jump }) => {
+      // Переход из панели проверки Typst-блоков может указать на тип другого kind (граф блоков
+      // строится по всем типам): такой id страница не покажет — `filtered` его не содержит, и
+      // выбор молча съехал бы на первый тип, а память страницы осталась бы отравленной. Уводим
+      // на соседнюю страницу — гард уже отработал, правки сохранены или отброшены осознанно.
+      const target = id ? allDocTypes.find(t => t.id === id) : null;
+      if (target && target.kind !== kind) {
+        navigate(`/${target.kind === 'Composite' ? 'composite-types' : 'document-types'}?type=${target.id}`);
+        return;
+      }
+      setSelectedId(id);
+      // Программный переход обязан сделать цель видимой: при активном поиске тип открывается в
+      // детали, но в рейле его нет — ни строки, ни подсветки, и непонятно, где ты оказался.
+      if (jump) setQuery('');
+    },
   });
-  const requestSelect = (id: string) => { if (id !== selectedId) request(id); };
-  // Программный переход (бейдж родителя, чипы наследников, панель проверки Typst-блоков) обязан
-  // сделать цель видимой: при активном поиске тип открывается в детали, но в рейле его нет — ни
-  // строки, ни подсветки, и непонятно, где ты оказался. Поэтому фильтр списка снимаем.
-  const jumpToType = (id: string) => { setQuery(''); requestSelect(id); };
+  const requestSelect = (id: string) => { if (id !== selectedId) request({ id }); };
+  // Переход по иерархии и из панели блоков (issue #784).
+  const jumpToType = (id: string) => { if (id !== selectedId) request({ id, jump: true }); };
 
   // Гард ухода со страницы по маршруту (issue #307): сайдбар-навигация перехватывается, показываем
   // тот же диалог. `routeLeave` хранит отложенный переход (proceed).
@@ -1230,6 +1247,10 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
   // группу — тип пропал бы из рейла, а подсветки не было бы вовсе.
   const [toggled, setToggled] = useState<Map<string, boolean>>(new Map());
   const searching = query.trim().length > 0;
+  // Строку выбранного типа подкручиваем в видимую часть: раскрыть группу мало — на длинном списке
+  // цель программного перехода (#784) осталась бы ниже сгиба, то есть снова «не видно, где ты».
+  const activeRow = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => { activeRow.current?.scrollIntoView({ block: 'nearest' }); }, [selectedId]);
   const selectedGroup = [...byGroup].find(([, items]) => items.some(t => t.id === selectedId))?.[0];
   const groupKey = (g: string) => g === selectedGroup ? `${selectedId}:${g}` : g;
   const groupOpen = (g: string) => toggled.get(groupKey(g)) ?? g === selectedGroup;
@@ -1264,6 +1285,7 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
                 const Icon = t.kind === 'Composite' ? Boxes : FileText;
                 return (
                   <button key={t.id} type="button" onClick={() => onSelect(t.id)}
+                    ref={active ? activeRow : undefined}
                     aria-current={active ? 'true' : undefined}
                     className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
                       active ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
