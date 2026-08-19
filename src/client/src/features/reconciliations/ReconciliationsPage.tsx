@@ -191,6 +191,10 @@ export function ReconciliationsPage() {
     return q ? items.filter(i => i.name.toLowerCase().includes(q)) : items;
   }, [items, search]);
 
+  // Открытая сверка, не прошедшая поиск, остаётся в рейле отдельной строкой (issue #792): иначе
+  // деталь показывает её, а в списке ни строки, ни подсветки.
+  const outsideSearch = selected && !filtered.some(i => i.id === selected.id) ? selected : null;
+
   const attentionCount = findings.filter(needsAttention).length;
   const shown = onlyAttention ? findings.filter(needsAttention) : findings;
 
@@ -202,18 +206,28 @@ export function ReconciliationsPage() {
     else toast.success(runSummary(result));
   }
 
+  const reconciliationRow = (i: typeof items[number]) => (
+    <NavItem key={i.id} icon={<Scale size={16} />} label={i.name}
+      active={view === 'reconciliation' && i.id === selectedId}
+      onClick={() => { setView('reconciliation'); setSelectedId(i.id); setRunId(null); }} />
+  );
+
   const nav = (
     <>
       <NavSearchInput value={search} onChange={setSearch} placeholder="Поиск сверки…" />
       <div className="flex-1 overflow-y-auto px-2 pb-2">
-        <NavSection label="Сверки" />
-        {filtered.map(i => (
-          <NavItem key={i.id} icon={<Scale size={16} />} label={i.name}
-            active={view === 'reconciliation' && i.id === selectedId}
-            onClick={() => { setView('reconciliation'); setSelectedId(i.id); setRunId(null); }} />
-        ))}
+        {outsideSearch && (
+          <>
+            <NavSection label="Открыта, вне поиска" />
+            {reconciliationRow(outsideSearch)}
+          </>
+        )}
+        {filtered.length > 0 && <NavSection label="Сверки" />}
+        {filtered.map(reconciliationRow)}
         {filtered.length === 0 && !isLoading && (
-          <p className="px-3 py-2 text-sm text-fg4">Сверок нет</p>
+          <p className="px-3 py-2 text-sm text-fg4">
+            {outsideSearch ? 'Больше ничего не найдено' : 'Сверок нет'}
+          </p>
         )}
 
         {/* Отдельной секцией, а не в общем списке: находка сверки — результат арифметики,

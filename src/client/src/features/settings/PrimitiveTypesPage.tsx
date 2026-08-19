@@ -6,7 +6,7 @@ import {
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
-import { ListDetailShell, NavSearchInput, DetailHeader, useDirtyGuard } from '@/shared/ui/ListDetailShell';
+import { ListDetailShell, NavSearchInput, NavSection, DetailHeader, useDirtyGuard } from '@/shared/ui/ListDetailShell';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
 import { TextField } from '@/shared/ui/TextField';
@@ -544,14 +544,39 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
   query: string; onQuery: (q: string) => void;
 }) {
   const q = query.trim().toLowerCase();
-  const items: { id: string; name: string; code: string; chip: string; preview: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] =
-    mode === 'primitive'
-      ? primitives.filter(t => !q || `${t.name} ${t.code}`.toLowerCase().includes(q))
-          .map(t => ({ id: t.id, name: t.name, code: t.code, chip: BASE_TYPE_LABEL[t.baseType] ?? t.baseType, preview: humanConstraintPreview(t.baseType, t.constraints), icon: baseTypeIcon(t.baseType) }))
-      : enums.filter(t => !q || `${t.name} ${t.code}`.toLowerCase().includes(q))
-          // Чип во вкладке «Перечисления» = счётчик вариантов (безликое «Перечисление» = шум);
-          // в primitive-режиме чип — базовый тип. Единый смысл: одна вторичная метка, различающая строки.
-          .map(t => ({ id: t.id, name: t.name, code: t.code, chip: `${t.values.length} вар.`, preview: humanEnumPreview(t.values), icon: ListIcon }));
+  // Чип во вкладке «Перечисления» = счётчик вариантов (безликое «Перечисление» = шум);
+  // в primitive-режиме чип — базовый тип. Единый смысл: одна вторичная метка, различающая строки.
+  type Row = { id: string; name: string; code: string; chip: string; preview: string; icon: React.ComponentType<{ size?: number; className?: string }> };
+  const allRows: Row[] = mode === 'primitive'
+    ? primitives.map(t => ({ id: t.id, name: t.name, code: t.code, chip: BASE_TYPE_LABEL[t.baseType] ?? t.baseType, preview: humanConstraintPreview(t.baseType, t.constraints), icon: baseTypeIcon(t.baseType) }))
+    : enums.map(t => ({ id: t.id, name: t.name, code: t.code, chip: `${t.values.length} вар.`, preview: humanEnumPreview(t.values), icon: ListIcon }));
+  const items = q ? allRows.filter(t => `${t.name} ${t.code}`.toLowerCase().includes(q)) : allRows;
+  // Открытый тип, не прошедший поиск, остаётся в рейле отдельной строкой (issue #792): иначе он
+  // виден только в детали, а в списке ни строки, ни подсветки.
+  const outside = selectedId && !items.some(t => t.id === selectedId)
+    ? allRows.find(t => t.id === selectedId) ?? null : null;
+
+  const typeRow = (t: Row) => {
+    const active = t.id === selectedId;
+    const Icon = t.icon;
+    return (
+      <button key={t.id} type="button" onClick={() => onSelect(t.id)} aria-current={active ? 'true' : undefined}
+        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors ${
+          active ? 'bg-brand-subtle text-brand-hover' : 'hover:bg-muted'}`}>
+        <Icon size={17} className={`shrink-0 ${active ? 'text-brand-hover' : 'text-fg4'}`} />
+        <span className="min-w-0 flex-1">
+          {/* Строка 1 — только имя, полный приоритет ширины. */}
+          <span className={`block text-sm font-medium truncate ${active ? 'text-brand-hover' : 'text-fg1'}`}>{t.name}</span>
+          {/* Строка 2 — код (mono, capped) · превью; оба truncate, длинный код не ломает строку 1. */}
+          <span className="flex items-baseline gap-1 min-w-0 text-fg4">
+            <span className="font-mono text-[11px] truncate max-w-[45%] shrink-0" title={t.code}>{t.code}</span>
+            {t.preview && <span className="text-xs truncate min-w-0">{`· ${t.preview}`}</span>}
+          </span>
+        </span>
+        <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{t.chip}</span>
+      </button>
+    );
+  };
 
   const tab = (m: Mode, label: string) => (
     <button type="button" onClick={() => onMode(m)}
@@ -569,28 +594,18 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
       </div>
       <NavSearchInput value={query} onChange={onQuery} placeholder="Поиск типа…" />
       <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
-        {items.length === 0 && <p className="px-3 py-6 text-center text-sm text-fg4">Ничего не найдено</p>}
-        {items.map(t => {
-          const active = t.id === selectedId;
-          const Icon = t.icon;
-          return (
-            <button key={t.id} type="button" onClick={() => onSelect(t.id)} aria-current={active ? 'true' : undefined}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors ${
-                active ? 'bg-brand-subtle text-brand-hover' : 'hover:bg-muted'}`}>
-              <Icon size={17} className={`shrink-0 ${active ? 'text-brand-hover' : 'text-fg4'}`} />
-              <span className="min-w-0 flex-1">
-                {/* Строка 1 — только имя, полный приоритет ширины. */}
-                <span className={`block text-sm font-medium truncate ${active ? 'text-brand-hover' : 'text-fg1'}`}>{t.name}</span>
-                {/* Строка 2 — код (mono, capped) · превью; оба truncate, длинный код не ломает строку 1. */}
-                <span className="flex items-baseline gap-1 min-w-0 text-fg4">
-                  <span className="font-mono text-[11px] truncate max-w-[45%] shrink-0" title={t.code}>{t.code}</span>
-                  {t.preview && <span className="text-xs truncate min-w-0">{`· ${t.preview}`}</span>}
-                </span>
-              </span>
-              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{t.chip}</span>
-            </button>
-          );
-        })}
+        {outside && (
+          <>
+            <NavSection label="Открыт, вне поиска" />
+            {typeRow(outside)}
+          </>
+        )}
+        {items.length === 0 && (
+          <p className="px-3 py-6 text-center text-sm text-fg4">
+            {outside ? 'Больше ничего не найдено' : 'Ничего не найдено'}
+          </p>
+        )}
+        {items.map(typeRow)}
       </div>
     </>
   );

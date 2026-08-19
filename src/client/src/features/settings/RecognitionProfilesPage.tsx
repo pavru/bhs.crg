@@ -343,9 +343,8 @@ export function RecognitionProfilesPage() {
   const { data: profiles = [], isLoading } = useListRecognitionProfiles();
   const { data: kinds = [] } = useRecognitionKinds();
   // Удалённый id страхует `?? filtered[0]` ниже — восстановление молча уходит на первый профиль.
-  // Отфильтрованный поиском НЕ страхует: `selected` ищет по всем профилям, поэтому выбранный
-  // остаётся открытым в детали, даже когда его строки в списке нет. Поведение прежнее (поиск при
-  // входе пуст, так что восстановления это не касается), меняем его не здесь.
+  // Выбранный ищется по всем профилям, а не по отфильтрованным: не прошедший поиск профиль
+  // остаётся открытым и показывается в рейле отдельной строкой (issue #792, см. `outsideFilter`).
   const { values, remember } = useRememberedSelection(PROFILES_LAST_KEY, SELECTION_KEYS);
   const selectedId = values.profile || null;
   const setSelectedId = (id: string | null) => remember({ profile: id ?? '' });
@@ -362,6 +361,9 @@ export function RecognitionProfilesPage() {
   const builtIn = filtered.filter(p => p.isBuiltIn);
   const custom = filtered.filter(p => !p.isBuiltIn);
   const selected = profiles.find(p => p.id === selectedId) ?? filtered[0];
+  // Открытый профиль, не прошедший поиск, показываем отдельной строкой (issue #792): иначе он
+  // остаётся в детали, но пропадает из рейла — ни строки, ни подсветки, и снять выбор неоткуда.
+  const outsideFilter = selected && !filtered.some(p => p.id === selected.id) ? selected : null;
 
   const row = (p: RecognitionProfile) => (
     <button key={p.id} type="button" onClick={() => setSelectedId(p.id)}
@@ -392,11 +394,21 @@ export function RecognitionProfilesPage() {
           <div className="flex flex-col min-h-0">
             <div className="p-2"><NavSearchInput value={query} onChange={setQuery} placeholder="Поиск профиля…" /></div>
             <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 space-y-0.5">
+              {outsideFilter && (
+                <>
+                  <NavSection label="Открыт, вне поиска" />
+                  {row(outsideFilter)}
+                </>
+              )}
               {builtIn.length > 0 && <NavSection label="Встроенные" />}
               {builtIn.map(row)}
               {custom.length > 0 && <NavSection label="Свои" />}
               {custom.map(row)}
-              {filtered.length === 0 && <p className="text-sm text-fg4 px-3 py-2">Ничего не найдено</p>}
+              {filtered.length === 0 && (
+                <p className="text-sm text-fg4 px-3 py-2">
+                  {outsideFilter ? 'Больше ничего не найдено' : 'Ничего не найдено'}
+                </p>
+              )}
             </div>
           </div>
         }

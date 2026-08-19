@@ -1243,11 +1243,44 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
     setToggled(m => new Map(m).set(key, !(searching || (m.get(key) ?? g === selectedGroup))));
   };
 
+  const typeRow = (t: DocumentType) => {
+    const active = t.id === selectedId;
+    const Icon = t.kind === 'Composite' ? Boxes : FileText;
+    return (
+      <button key={t.id} type="button" onClick={() => onSelect(t.id)}
+        ref={active ? activeRow : undefined}
+        aria-current={active ? 'true' : undefined}
+        className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
+          active ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
+        <Icon size={17} className="shrink-0" />
+        <span className="flex-1 truncate text-sm">{t.name}</span>
+        <span className="text-xs text-fg4 shrink-0">{fieldCount(t, allDocTypes)}</span>
+      </button>
+    );
+  };
+
+  // Открытый тип, не прошедший поиск, остаётся в рейле отдельной строкой (issue #792). Программный
+  // переход (#784) снимает поиск сам, а вот набранный руками запрос иначе прятал бы открытый тип:
+  // деталь показывает его, а в списке ни строки, ни подсветки.
+  const listedIds = new Set([...byGroup.values()].flat().map(t => t.id));
+  const outside = selectedId && !listedIds.has(selectedId)
+    ? allDocTypes.find(t => t.id === selectedId) ?? null : null;
+
   return (
     <>
       <NavSearchInput value={query} onChange={onQuery} placeholder="Поиск типа…" />
       <div className="flex-1 overflow-y-auto px-2 pb-3">
-        {groupOrder.length === 0 && <p className="px-3 py-6 text-center text-sm text-fg4">Ничего не найдено</p>}
+        {outside && (
+          <>
+            <div className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-fg4">Открыт, вне поиска</div>
+            {typeRow(outside)}
+          </>
+        )}
+        {groupOrder.length === 0 && (
+          <p className="px-3 py-6 text-center text-sm text-fg4">
+            {outside ? 'Больше ничего не найдено' : 'Ничего не найдено'}
+          </p>
+        )}
         {groupOrder.map(g => {
           const items = byGroup.get(g)!;
           const open = searching || groupOpen(g);
@@ -1261,21 +1294,7 @@ function TypeListPanel({ groupOrder, byGroup, allDocTypes, selectedId, onSelect,
                 <span className="truncate flex-1 text-left">{g || 'Без группы'}</span>
                 <span className="opacity-70">{items.length}</span>
               </button>
-              {open && items.map(t => {
-                const active = t.id === selectedId;
-                const Icon = t.kind === 'Composite' ? Boxes : FileText;
-                return (
-                  <button key={t.id} type="button" onClick={() => onSelect(t.id)}
-                    ref={active ? activeRow : undefined}
-                    aria-current={active ? 'true' : undefined}
-                    className={`w-full flex items-center gap-2.5 px-3 h-11 rounded-full text-left transition-colors ${
-                      active ? 'bg-brand-subtle text-brand-hover font-medium' : 'text-fg2 hover:bg-muted'}`}>
-                    <Icon size={17} className="shrink-0" />
-                    <span className="flex-1 truncate text-sm">{t.name}</span>
-                    <span className="text-xs text-fg4 shrink-0">{fieldCount(t, allDocTypes)}</span>
-                  </button>
-                );
-              })}
+              {open && items.map(typeRow)}
             </div>
           );
         })}
