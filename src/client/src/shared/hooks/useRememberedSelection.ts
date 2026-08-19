@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { startTransition, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 
 /**
@@ -29,15 +29,20 @@ export function resolveRemembered<K extends string>(
   return out;
 }
 
-function readStored<K extends string>(storageKey: string, keys: readonly K[]): Partial<Record<K, string>> | null {
+/** Разбор сохранённого значения; вынесен из хука, чтобы форматы проверялись тестами. */
+export function parseStored<K extends string>(raw: string | null, keys: readonly K[]): Partial<Record<K, string>> | null {
   try {
-    const raw = localStorage.getItem(storageKey);
     if (!raw) return null;
+    // Совместимость: первая реализация (#778) хранила голый id строкой — не JSON, и разбирать её
+    // как JSON бесполезно (`JSON.parse` на «3fa85f64-…» бросает, а не возвращает строку).
+    if (!raw.startsWith('{')) return { [keys[0]]: raw } as Partial<Record<K, string>>;
     const parsed: unknown = JSON.parse(raw);
-    // Совместимость: первая реализация (#778) хранила голый id строкой.
-    if (typeof parsed === 'string') return { [keys[0]]: parsed } as Partial<Record<K, string>>;
     return typeof parsed === 'object' && parsed !== null ? parsed as Partial<Record<K, string>> : null;
   } catch { return null; }
+}
+
+function readStored<K extends string>(storageKey: string, keys: readonly K[]): Partial<Record<K, string>> | null {
+  try { return parseStored(localStorage.getItem(storageKey), keys); } catch { return null; }
 }
 
 /**
@@ -58,7 +63,10 @@ export function useRememberedSelection<K extends string>(storageKey: string, key
 
   const values = useMemo(() => {
     const out = {} as Record<K, string>;
-    for (const k of keys) out[k] = searchParams.get(k) ?? restored[k] ?? '';
+    // `get` отдаёт '' для параметра, который в адресе есть, но пуст, — за источник его не берём:
+    // иначе `?mode=` погасил бы режим и оставил тип из памяти, то есть собрал бы пару, которой
+    // пользователь не выбирал (ровно то, от чего страхует resolveRemembered).
+    for (const k of keys) out[k] = searchParams.get(k) || restored[k] || '';
     return out;
     // keys — литеральный массив страницы, в зависимости не берём: его пересоздание на каждом
     // рендере обнуляло бы memo без пользы.
@@ -68,22 +76,26 @@ export function useRememberedSelection<K extends string>(storageKey: string, key
   const remember = (next: Partial<Record<K, string>>) => {
     const merged = { ...values, ...next } as Record<K, string>;
     try { localStorage.setItem(storageKey, JSON.stringify(merged)); } catch { /* память необязательна */ }
-    // Снятый выбор гасит и восстановленное значение: иначе оно всплыло бы обратно, как только
-    // параметр уходит из адреса.
-    setRestored(prev => {
-      const cleared = { ...prev };
-      let changed = false;
-      for (const k of keys) if ((next[k] ?? '') === '' && k in next && cleared[k] !== '') { cleared[k] = ''; changed = true; }
-      return changed ? cleared : prev;
+    // Оба обновления — одним переходом. Порознь нельзя: адрес пишется через startTransition, а
+    // срочный сброс восстановленного успел бы отрисовать кадр, где часть выбора уже снята, а часть
+    // ещё берётся из старого адреса — деталь смонтировалась бы на чужом объекте и тут же
+    // перемонтировалась на нужный.
+    startTransition(() => {
+      setRestored(prev => {
+        const cleared = { ...prev };
+        let changed = false;
+        for (const k of keys) if ((next[k] ?? '') === '' && k in next && cleared[k] !== '') { cleared[k] = ''; changed = true; }
+        return changed ? cleared : prev;
+      });
+      setSearchParams(prev => {
+        const params = new URLSearchParams(prev);
+        for (const k of keys) {
+          const v = merged[k];
+          if (v) params.set(k, v); else params.delete(k);
+        }
+        return params;
+      }, { replace: true });
     });
-    setSearchParams(prev => {
-      const params = new URLSearchParams(prev);
-      for (const k of keys) {
-        const v = merged[k];
-        if (v) params.set(k, v); else params.delete(k);
-      }
-      return params;
-    }, { replace: true });
   };
 
   return { values, remember };
