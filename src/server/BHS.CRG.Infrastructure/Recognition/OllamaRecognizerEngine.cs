@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Http;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Recognition;
@@ -16,6 +17,15 @@ public class OllamaRecognizerEngine(
 ) : IRecognizerEngine
 {
     private const string PdfMime = "application/pdf";
+
+    /// <summary>
+    /// Срок ответа. Он ЗАВЕДОМО больше облачных: модель считается на этой же машине, часто на CPU, и
+    /// vision-проход по странице там измеряется минутами, а не секундами. Пять минут — не «на всякий
+    /// случай», а замеренный порядок: в сравнении движков локальные модели отставали от облачных
+    /// вдесятеро. Ставить им общие две минуты значило бы объявлять локальное распознавание сломанным
+    /// на машинах без видеокарты.
+    /// </summary>
+    public static readonly TimeSpan Timeout = TimeSpan.FromMinutes(5);
 
     public string Name => "Ollama";
 
@@ -77,18 +87,26 @@ public class OllamaRecognizerEngine(
         var json = JsonSerializer.Serialize(requestBody);
 
         HttpResponseMessage resp;
+        string body;
         try
         {
             using var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/api/generate")
             { Content = new StringContent(json, Encoding.UTF8, "application/json") };
             resp = await http.SendAsync(req, ct);
+            // Чтение тела — внутри того же try: HttpClient.Timeout отмеряет и его, а снаружи таймаут
+            // снова стал бы голой отменой, мимо всей классификации (issue #797).
+            body = await resp.Content.ReadAsStringAsync(ct);
+        }
+        catch (Exception ex) when (HttpFailure.IsTimeout(ex, ct))
+        {
+            logger.LogWarning("Ollama ({BaseUrl}) не ответил за {Timeout}", baseUrl, HttpFailure.Format(Timeout));
+            throw new RecognitionTimeoutException($"Ollama: не ответил за {HttpFailure.Format(Timeout)}.");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             throw new RecognitionUnavailableException($"Ollama недоступен ({baseUrl}): {ex.Message}");
         }
 
-        var body = await resp.Content.ReadAsStringAsync(ct);
         if (!resp.IsSuccessStatusCode)
         {
             logger.LogWarning("Ollama {Status}: {Body}", resp.StatusCode, RecognitionShared.Truncate(body, 300));

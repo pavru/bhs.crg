@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Http;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Recognition;
@@ -14,6 +15,9 @@ public class AnthropicRecognizerEngine(
 {
     private const string ApiUrl = "https://api.anthropic.com/v1/messages";
     private const string AnthropicVersion = "2023-06-01";
+
+    /// <summary>Срок ответа. Здесь же, чтобы сообщение о таймауте называло настоящее число (см. Gemini).</summary>
+    public static readonly TimeSpan Timeout = TimeSpan.FromMinutes(2);
 
     public string Name => "Anthropic";
 
@@ -53,14 +57,22 @@ public class AnthropicRecognizerEngine(
             req.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
             HttpResponseMessage resp;
-            try { resp = await http.SendAsync(req, ct); }
+            string body;
+            // Тело читаем здесь же: HttpClient.Timeout отмеряет и чтение контента, а снаружи try
+            // таймаут снова стал бы голой отменой, мимо классификации (issue #797).
+            try { resp = await http.SendAsync(req, ct); body = await resp.Content.ReadAsStringAsync(ct); }
+            catch (Exception ex) when (HttpFailure.IsTimeout(ex, ct))
+            {
+                // Без ретрая — см. Gemini: повтор докупает только ожидание.
+                logger.LogWarning("Anthropic не ответил за {Timeout}", HttpFailure.Format(Timeout));
+                throw new RecognitionTimeoutException($"Anthropic: не ответил за {HttpFailure.Format(Timeout)}.");
+            }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 if (attempt >= maxAttempts) throw new RecognitionUnavailableException($"Anthropic: ошибка обращения: {ex.Message}");
                 await Task.Delay(TimeSpan.FromSeconds(2 * attempt), ct); continue;
             }
 
-            var body = await resp.Content.ReadAsStringAsync(ct);
             if (resp.IsSuccessStatusCode) return ExtractText(body);
 
             if (resp.StatusCode == HttpStatusCode.TooManyRequests || (int)resp.StatusCode == 529)

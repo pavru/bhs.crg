@@ -24,8 +24,17 @@ public class ChainDocumentRecognizer(
         var ordered = order.Where(byName.ContainsKey)
             .Concat(byName.Keys.Where(n => !order.Contains(n, StringComparer.OrdinalIgnoreCase)))
             .Select(n => byName[n])
-            .Where(e => IsUsable(e.Name, s))
             .ToList();
+
+        // Движок с галкой «включён», но без ключа/модели из перебора выпадает. Уровень Debug, а не
+        // Warning, намеренно: распознавание вызывается ПОСТРАНИЧНО, и на альбоме в двести листов
+        // предупреждение повторилось бы двести раз, ничего не добавив. Пользовательский сигнал об
+        // этом — бейдж «не участвует» в настройках, он виден до запуска и не тонет в логе (#797).
+        foreach (var e in ordered.Where(e => s.Rec(e.Name).Enabled))
+            if (EngineReadiness.MissingForRecognition(e.Name, s.Rec(e.Name)) is { } missing)
+                logger.LogDebug("Движок {Engine} включён, но не участвует: {Missing}", e.Name, missing);
+
+        ordered = ordered.Where(e => EngineReadiness.IsUsableForRecognition(e.Name, s.Rec(e.Name))).ToList();
 
         if (ordered.Count == 0)
             throw new RecognitionUnavailableException("Нет включённых и настроенных движков распознавания. Проверьте «Настройки → Поиск и распознавание».");
@@ -44,14 +53,5 @@ public class ChainDocumentRecognizer(
             catch (RecognitionUnavailableException ex) { logger.LogWarning("Движок {Engine}: недоступен — следующий. {Msg}", engine.Name, ex.Message); last = ex; }
         }
         throw last ?? new RecognitionUnavailableException("Распознавание не удалось ни одним движком.");
-    }
-
-    private static bool IsUsable(string name, IntegrationSettingsModel s)
-    {
-        var e = s.Rec(name);
-        if (!e.Enabled) return false;
-        return name.Equals("Ollama", StringComparison.OrdinalIgnoreCase)
-            ? !string.IsNullOrWhiteSpace(e.Model)
-            : !string.IsNullOrWhiteSpace(e.ApiKey);
     }
 }

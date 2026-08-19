@@ -62,14 +62,17 @@ public class HealthMonitorService(
             await CheckAsync("Хранилище (MinIO)", () => CheckMinioAsync(ct)),
         };
 
-        // Ollama проверяем только если он включён как движок распознавания.
+        // Движки распознавания проверяем ровно те, что РЕАЛЬНО участвуют в работе, — тем же
+        // правилом, что и цепочка (EngineReadiness, issue #797). Раньше условия были свои: Ollama
+        // проверялась при одной галке «включён», и без выбранной модели мониторинг сообщал бы о
+        // недоступности движка, которым система всё равно не пользуется.
         var ollama = settings.Rec("Ollama");
-        if (ollama.Enabled)
+        if (EngineReadiness.IsUsableForRecognition("Ollama", ollama))
             checks.Add(await CheckAsync("Ollama (распознавание)", () => CheckOllamaAsync(ollama.BaseUrl, ct)));
 
-        // Gemini — только если включён и задан ключ (лёгкий GET метаданных модели, без расхода квоты генерации).
+        // Gemini — лёгкий GET метаданных модели, без расхода квоты генерации.
         var gemini = settings.Rec("Gemini");
-        if (gemini.Enabled && !string.IsNullOrWhiteSpace(gemini.ApiKey))
+        if (EngineReadiness.IsUsableForRecognition("Gemini", gemini))
             checks.Add(await CheckAsync("Gemini (распознавание)", () => CheckGeminiAsync(gemini.ApiKey!, gemini.Model, ct)));
 
         _snapshot = checks;

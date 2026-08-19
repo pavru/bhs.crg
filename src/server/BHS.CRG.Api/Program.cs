@@ -396,9 +396,11 @@ builder.Services.AddScoped<BHS.CRG.Application.Generation.IInstanceResolutionVal
 builder.Services.AddScoped<BHS.CRG.Application.QualityDocs.IQualitySetAuditRunner,
     BHS.CRG.Application.QualityDocs.QualitySetAuditRunner>();
 builder.Services.AddScoped<ITemplateAssetResolver, TemplateAssetResolver>();
-builder.Services.AddHttpClient<AnthropicRecognizerEngine>().ConfigureHttpClient(c => c.Timeout = TimeSpan.FromMinutes(2));
-builder.Services.AddHttpClient<GeminiRecognizerEngine>().ConfigureHttpClient(c => c.Timeout = TimeSpan.FromMinutes(2));
-builder.Services.AddHttpClient<OllamaRecognizerEngine>().ConfigureHttpClient(c => c.Timeout = TimeSpan.FromMinutes(3));
+// Сроки ответа — константами на самих движках (issue #797): движок называет своё число
+// пользователю в сообщении о таймауте, и число из регистрации разъехалось бы с текстом.
+builder.Services.AddHttpClient<AnthropicRecognizerEngine>().ConfigureHttpClient(c => c.Timeout = AnthropicRecognizerEngine.Timeout);
+builder.Services.AddHttpClient<GeminiRecognizerEngine>().ConfigureHttpClient(c => c.Timeout = GeminiRecognizerEngine.Timeout);
+builder.Services.AddHttpClient<OllamaRecognizerEngine>().ConfigureHttpClient(c => c.Timeout = OllamaRecognizerEngine.Timeout);
 builder.Services.AddScoped<IRecognizerEngine>(sp => sp.GetRequiredService<AnthropicRecognizerEngine>());
 builder.Services.AddScoped<IRecognizerEngine>(sp => sp.GetRequiredService<GeminiRecognizerEngine>());
 builder.Services.AddScoped<IRecognizerEngine>(sp => sp.GetRequiredService<OllamaRecognizerEngine>());
@@ -421,8 +423,8 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddSingleton<HealthMonitorService>();
 builder.Services.AddSingleton<IHealthState>(sp => sp.GetRequiredService<HealthMonitorService>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<HealthMonitorService>());
-builder.Services.AddHttpClient<SerperEngine>().ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(30));
-builder.Services.AddHttpClient<YandexEngine>().ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient<SerperEngine>().ConfigureHttpClient(c => c.Timeout = SerperEngine.Timeout);
+builder.Services.AddHttpClient<YandexEngine>().ConfigureHttpClient(c => c.Timeout = YandexEngine.Timeout);
 builder.Services.AddScoped<IWebSearchEngine>(sp => sp.GetRequiredService<SerperEngine>());
 builder.Services.AddScoped<IWebSearchEngine>(sp => sp.GetRequiredService<YandexEngine>());
 // Автоследование за перенаправлениями выключено намеренно: переходы проходит SafeHttpGet, проверяя

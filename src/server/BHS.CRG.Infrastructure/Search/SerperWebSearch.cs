@@ -1,6 +1,8 @@
 using System.Text;
 using System.Text.Json;
+using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Http;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Search;
@@ -11,6 +13,9 @@ public class SerperEngine(
 ) : IWebSearchEngine
 {
     private const string ApiUrl = "https://google.serper.dev/search";
+
+    /// <summary>Срок ответа поисковика: выдача либо приходит за секунды, либо не приходит вовсе.</summary>
+    public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
     public string Name => "Serper";
 
@@ -28,7 +33,7 @@ public class SerperEngine(
             if (!resp.IsSuccessStatusCode)
             {
                 logger.LogWarning("Serper {Status}: {Body}", resp.StatusCode, body.Length > 200 ? body[..200] : body);
-                return [];
+                throw new SearchUnavailableException($"Serper ответил {(int)resp.StatusCode}.");
             }
             var list = new List<WebHit>();
             using var doc = JsonDocument.Parse(body);
@@ -44,10 +49,18 @@ public class SerperEngine(
                 }
             return list;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (HttpFailure.IsTimeout(ex, ct))
+        {
+            // Таймаут — такая же неудача движка, как сетевая ошибка: пустая выдача от него, поиск
+            // продолжают остальные движки и тиры (issue #797). Раньше он летел сквозь Task.WhenAll
+            // в TieredWebSearch и ронял весь поиск в 500.
+            logger.LogWarning("Serper не ответил за {Timeout}", HttpFailure.Format(Timeout));
+            throw new SearchUnavailableException($"Serper: не ответил за {HttpFailure.Format(Timeout)}.");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not SearchUnavailableException)
         {
             logger.LogWarning(ex, "Serper-запрос не выполнен");
-            return [];
+            throw new SearchUnavailableException($"Serper: ошибка обращения: {ex.Message}");
         }
     }
 }

@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Http;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Recognition;
@@ -12,6 +13,13 @@ public class GeminiRecognizerEngine(
     HttpClient http, IIntegrationSettings settings, ILogger<GeminiRecognizerEngine> logger
 ) : IRecognizerEngine
 {
+    /// <summary>
+    /// Срок ответа. Задан здесь, а не только при регистрации клиента: движок сам называет его
+    /// пользователю в сообщении о таймауте, и разъехавшись, текст врал бы про чужое число.
+    /// Облачная модель отвечает секунды; две минуты — запас на большой PDF, а не рабочее время.
+    /// </summary>
+    public static readonly TimeSpan Timeout = TimeSpan.FromMinutes(2);
+
     public string Name => "Gemini";
 
     public async Task<string> RecognizeRawAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
@@ -51,14 +59,23 @@ public class GeminiRecognizerEngine(
             using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
             req.Headers.TryAddWithoutValidation("x-goog-api-key", apiKey);
             HttpResponseMessage resp;
-            try { resp = await http.SendAsync(req, ct); }
+            string body;
+            // Тело читаем здесь же: HttpClient.Timeout отмеряет и чтение контента, а снаружи try
+            // таймаут снова стал бы голой отменой, мимо классификации (issue #797).
+            try { resp = await http.SendAsync(req, ct); body = await resp.Content.ReadAsStringAsync(ct); }
+            catch (Exception ex) when (HttpFailure.IsTimeout(ex, ct))
+            {
+                // Не ретраим: повтор — это ещё столько же ожидания на движке, который уже показал,
+                // что не отвечает. Цепочке полезнее сразу перейти к следующему.
+                logger.LogWarning("Gemini не ответил за {Timeout}", HttpFailure.Format(Timeout));
+                throw new RecognitionTimeoutException($"Gemini: не ответил за {HttpFailure.Format(Timeout)}.");
+            }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 if (attempt >= maxAttempts) throw new RecognitionUnavailableException($"Gemini: ошибка обращения: {ex.Message}");
                 await Task.Delay(TimeSpan.FromSeconds(2 * attempt), ct); continue;
             }
 
-            var body = await resp.Content.ReadAsStringAsync(ct);
             if (resp.IsSuccessStatusCode) return ExtractText(body);
 
             if (resp.StatusCode == HttpStatusCode.TooManyRequests)

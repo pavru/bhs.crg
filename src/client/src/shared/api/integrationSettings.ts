@@ -8,6 +8,12 @@ export interface EngineDto {
   baseUrl?: string | null;
   folderId?: string | null;
   host?: string | null;
+  /**
+   * Чего движку не хватает, чтобы участвовать в работе («не задан ключ», «не выбрана модель»);
+   * null — настроен. Считает СЕРВЕР тем же правилом, по которому цепочка решает, брать движок
+   * (issue #797): своя копия правила на клиенте обещала бы участие движку, который сервер не берёт.
+   */
+  missing?: string | null;
 }
 
 export interface SmtpDto {

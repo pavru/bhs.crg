@@ -26,8 +26,12 @@ public static class SettingsEndpoints
             return Results.Ok(new
             {
                 recognitionOrder = m.RecognitionOrder,
-                recognition = m.Recognition.ToDictionary(kv => kv.Key, kv => Mask(kv.Value)),
-                webSearch = m.WebSearch.ToDictionary(kv => kv.Key, kv => Mask(kv.Value)),
+                // «Чего не хватает» считает сервер (EngineReadiness) — тем же правилом, по которому
+                // цепочка распознавания и веб-поиск решают, брать движок в работу (issue #797).
+                recognition = m.Recognition.ToDictionary(kv => kv.Key,
+                    kv => Mask(kv.Value, EngineReadiness.MissingForRecognition(kv.Key, kv.Value))),
+                webSearch = m.WebSearch.ToDictionary(kv => kv.Key,
+                    kv => Mask(kv.Value, EngineReadiness.MissingForWebSearch(kv.Key, kv.Value))),
                 fgisDomains = m.FgisDomains,
                 manufacturerDomains = m.ManufacturerDomains,
                 smtp = MaskSmtp(m.Smtp),
@@ -146,7 +150,8 @@ public static class SettingsEndpoints
         }
     }
 
-    private static object Mask(IntegrationEngine e) => new
+    /// <param name="missing">Чего не хватает движку, чтобы участвовать в работе; <c>null</c> — настроен.</param>
+    private static object Mask(IntegrationEngine e, string? missing) => new
     {
         enabled = e.Enabled,
         hasKey = !string.IsNullOrWhiteSpace(e.ApiKey),
@@ -154,6 +159,7 @@ public static class SettingsEndpoints
         baseUrl = e.BaseUrl,
         folderId = e.FolderId,
         host = e.Host,
+        missing,
     };
 
     // Пароль SMTP не возвращаем — только признак «задан» (как ключи движков).
