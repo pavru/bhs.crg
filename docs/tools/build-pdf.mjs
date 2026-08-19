@@ -82,8 +82,11 @@ const chromium = await loadChromium();
 mkdirSync(OUT, { recursive: true });
 
 const arg = process.argv[2];
+// Заголовок берём из DEFAULT_DOCS и при сборке одного файла: иначе пересборка «того же» документа
+// молча подменяла титул и колонтитул именем файла («ADMIN_GUIDE» вместо «Инструкция администратора»).
 const jobs = arg
-  ? [[arg, basename(arg).replace(/\.md$/i, '')]]
+  ? [[arg, DEFAULT_DOCS.find(([f]) => f.toLowerCase() === basename(arg).toLowerCase())?.[1]
+      ?? basename(arg).replace(/\.md$/i, '')]]
   : DEFAULT_DOCS.filter(([f]) => existsSync(resolve(DOCS, f)));
 
 const browser = await chromium.launch(
