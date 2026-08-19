@@ -82,8 +82,13 @@ const chromium = await loadChromium();
 mkdirSync(OUT, { recursive: true });
 
 const arg = process.argv[2];
+// Заголовок берём из DEFAULT_DOCS и при сборке одного файла: иначе пересборка «того же» документа
+// молча подменяла титул и колонтитул именем файла («ADMIN_GUIDE» вместо «Инструкция администратора»).
+// Сверяем полный путь, а не только имя: копия под другим каталогом (архив, перевод) иначе
+// молча получила бы обложку и колонтитул канонического документа.
 const jobs = arg
-  ? [[arg, basename(arg).replace(/\.md$/i, '')]]
+  ? [[arg, DEFAULT_DOCS.find(([f]) => resolve(DOCS, f) === resolve(DOCS, arg))?.[1]
+      ?? basename(arg).replace(/\.md$/i, '')]]
   : DEFAULT_DOCS.filter(([f]) => existsSync(resolve(DOCS, f)));
 
 const browser = await chromium.launch(
@@ -117,7 +122,7 @@ for (const [file, title] of jobs) {
   });
   await page.close();
   rmSync(tmp, { force: true });
-  console.log('собрано:', outPdf);
+  console.log(`собрано: ${outPdf} — «${title}»`);   // заголовок в выводе: подмена титула видна сразу
 }
 
 await browser.close();

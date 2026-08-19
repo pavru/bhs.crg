@@ -14,9 +14,9 @@ public static class FunctionalTag
     // ── Тэги поля: метаданные генерации (автозаполнение) ────────────────────────
     /// <summary>Количество страниц сгенерированного PDF.</summary>
     public const string DocPageCount = "doc.pageCount";
-    /// <summary>Дата генерации (YYYY-MM-DD).</summary>
+    /// <summary>Дата генерации (YYYY-MM-DD); пользователю показывается как «Дата публикации».</summary>
     public const string DocGeneratedAt = "doc.generatedAt";
-    /// <summary>Имя пользователя, запустившего генерацию.</summary>
+    /// <summary>Имя пользователя, запустившего генерацию; пользователю — «Публикатор».</summary>
     public const string DocGeneratedBy = "doc.generatedBy";
     /// <summary>Поле-файл с загруженной печатной формой (триггер извлечения метаданных).</summary>
     public const string DocPrintForm = "doc.printForm";
