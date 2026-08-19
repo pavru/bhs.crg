@@ -362,6 +362,9 @@ export function RecognitionProfilesPage() {
   const builtIn = filtered.filter(p => p.isBuiltIn);
   const custom = filtered.filter(p => !p.isBuiltIn);
   const selected = profiles.find(p => p.id === selectedId) ?? filtered[0];
+  // Открытый профиль, не прошедший поиск, показываем отдельной строкой (issue #792): иначе он
+  // остаётся в детали, но пропадает из рейла — ни строки, ни подсветки, и снять выбор неоткуда.
+  const outsideFilter = selected && !filtered.some(p => p.id === selected.id) ? selected : null;
 
   const row = (p: RecognitionProfile) => (
     <button key={p.id} type="button" onClick={() => setSelectedId(p.id)}
@@ -392,6 +395,12 @@ export function RecognitionProfilesPage() {
           <div className="flex flex-col min-h-0">
             <div className="p-2"><NavSearchInput value={query} onChange={setQuery} placeholder="Поиск профиля…" /></div>
             <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 space-y-0.5">
+              {outsideFilter && (
+                <>
+                  <NavSection label="Открыт, вне поиска" />
+                  {row(outsideFilter)}
+                </>
+              )}
               {builtIn.length > 0 && <NavSection label="Встроенные" />}
               {builtIn.map(row)}
               {custom.length > 0 && <NavSection label="Свои" />}

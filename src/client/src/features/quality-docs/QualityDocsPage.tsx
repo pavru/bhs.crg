@@ -134,6 +134,16 @@ export function QualityDocsPage() {
 
 
   const current = selected ? docs.find(d => d.id === selected) ?? null : null;
+  const outsideList = current && !visibleDocs.some(d => d.id === current.id) ? current : null;
+
+  const docRow = (d: QualityDocument) => (
+    <NavItem key={d.id} icon={<ShieldCheck size={15} />}
+      label={isAmbiguous(d, ambiguousNames)
+        ? `${d.displayName} · ${docNumberOf(d, docTypes) || 'без номера'}`
+        : d.displayName}
+      count={linksByDoc.get(d.id)?.length ?? 0}
+      active={selected === d.id} onClick={() => setSelected(d.id)} />
+  );
 
   // Если ни у одного документа срок не резолвится тэгом, состояния по сроку посчитать нельзя —
   // и об этом надо сказать, а не показывать пустоту (в живой базе ровно так: реквизит
@@ -174,18 +184,20 @@ export function QualityDocsPage() {
             причине просроченные документы не прячутся из подсказок.
           </p>
         )}
+        {/* Открытый документ, не прошедший поиск, показываем отдельной строкой (issue #792): иначе
+            он остаётся в детали, но пропадает из рейла — ни строки, ни подсветки, и снять выбор
+            неоткуда. */}
+        {outsideList && (
+          <>
+            <NavSection label="Открыт, вне поиска" />
+            {docRow(outsideList)}
+          </>
+        )}
         <NavSection label={stateFilter ? STATE_META[stateFilter].label : 'Документы'} />
         {/* Одноимённым документам дописываем номер (issue #588): в библиотеке два сертификата
             назывались одинаково, а внутри — разные номера, органы и области продукции. Приписывать
             номер ВСЕМ незачем: тогда он примелькается и перестанет читаться там, где нужен. */}
-        {visibleDocs.map(d => (
-          <NavItem key={d.id} icon={<ShieldCheck size={15} />}
-            label={isAmbiguous(d, ambiguousNames)
-              ? `${d.displayName} · ${docNumberOf(d, docTypes) || 'без номера'}`
-              : d.displayName}
-            count={linksByDoc.get(d.id)?.length ?? 0}
-            active={selected === d.id} onClick={() => setSelected(d.id)} />
-        ))}
+        {visibleDocs.map(docRow)}
         {visibleDocs.length === 0 && (
           <p className="text-xs text-fg4 px-3 py-4 text-center">Ничего не найдено.</p>
         )}
