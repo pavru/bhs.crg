@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Pencil, Trash2, ShieldCheck, FileText, Search, Globe, ExternalLink, Download, Loader2,
@@ -28,6 +28,7 @@ import { recognizeAndUpdate } from './recognizeImported';
 import { QualityDocLinks, matchesLink } from './QualityDocLinks';
 import { ScopeReachNote } from './ScopeReachNote';
 import { docState, EXPIRING_SOON_DAYS, type DocState } from './docState';
+import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
 
 // Метки областей — только из общего словаря (issue #649). Локальный дубль называл System «Общей»,
 // и на одном экране уровень документа и уровень его связок читались бы разными словами.
@@ -43,10 +44,23 @@ const STATE_META: Record<DocState, { label: string; icon: typeof AlertTriangle; 
   unlinked: { label: 'Без связок', icon: CircleSlash, danger: false },
 };
 
+// Выбор в URL + память последнего открытого (issue #787, общий хелпер). Фильтр состояния входит
+// в выбор: клик по нему и так снимает выбранный документ, то есть пара «состояние + документ»
+// согласована по построению, и возврат должен воспроизводить именно её — работа тут идёт пачкой
+// («разбираю просроченные»). Поиск не запоминаем: он про разовый акт, а не про место работы.
+const DOC_STATES = ['expired', 'expiring', 'unlinked'] as const;
+const SELECTION_KEYS = ['state', 'doc'] as const;
+const QUALITY_LAST_KEY = 'quality-docs-last';
+
 export function QualityDocsPage() {
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<string | null>(null);
-  const [stateFilter, setStateFilter] = useState<DocState | null>(null);
+  const { values, remember } = useRememberedSelection(QUALITY_LAST_KEY, SELECTION_KEYS);
+  const selected = values.doc || null;
+  const setSelected = (id: string | null) => remember({ doc: id ?? '' });
+  // Состояние и документ пишем одним вызовом: два подряд не накапливаются — второй считает от
+  // значения времени рендера и вернул бы снятый документ обратно.
+  const setStateFilter = (s: DocState | null) => remember({ state: s ?? '', doc: '' });
+  const restoredState = DOC_STATES.find(s => s === values.state) ?? null;
   const [createOpen, setCreateOpen] = useState(false);
   const [webOpen, setWebOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<QualityDocument | null>(null);
@@ -78,6 +92,28 @@ export function QualityDocsPage() {
     return m;
   }, [docs, docTypes, linksByDoc]);
 
+  // Состояние могло рассосаться, пока нас не было (сроки продлили, связки добавили): фильтр с
+  // пустым списком снимаем молча — иначе вход выглядел бы как «библиотека пуста». Снимаем и тогда,
+  // когда восстановленный документ в него не попадает: пара «состояние + документ» согласована
+  // при выборе, но данные могли поменяться, а показывать в детали то, чего нет в рейле, нельзя —
+  // ни строки, ни подсветки, и снять выбор неоткуда.
+  // Пока список не пришёл, состояний нет ни у кого — судить о «пустом фильтре» рано: иначе
+  // подавление срабатывало бы на каждом входе и стирало фильтр из памяти навсегда.
+  const dataReady = !isLoading && docs.length > 0;
+  const restoredGroup = restoredState ? (states.get(restoredState) ?? []) : [];
+  const stateFilter = restoredState && (!dataReady
+    || (restoredGroup.length > 0 && (!selected || restoredGroup.some(d => d.id === selected))))
+    ? restoredState : null;
+
+  // Подавили фильтр — забываем его: иначе он остался бы в памяти, всплыл бы обратно в адрес при
+  // следующей записи выбора (`remember` сливает прежние значения) и однажды применился бы сам —
+  // когда состояние снова появится, а пользователь его не выбирал.
+  useEffect(() => {
+    if (dataReady && restoredState && !stateFilter) remember({ state: '' });
+    // remember стабилен по смыслу вызова; следим за самим фактом подавления
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataReady, restoredState, stateFilter]);
+
   /**
    * Поиск переопределяет список: документ остаётся, если совпало его имя/номер ИЛИ хоть одна его
    * связка. Иначе поиск по материалу молча прятал бы ровно то, что нашёл.
@@ -95,6 +131,7 @@ export function QualityDocsPage() {
   // Имена, которые в библиотеке встречаются дважды (issue #588) — считаем по ВСЕЙ библиотеке, а не
   // по видимой части: имя не перестаёт быть неоднозначным оттого, что второй документ отфильтрован.
   const ambiguousNames = useMemo(() => ambiguousDocNames(docs), [docs]);
+
 
   const current = selected ? docs.find(d => d.id === selected) ?? null : null;
 
@@ -125,7 +162,7 @@ export function QualityDocsPage() {
                   active={stateFilter === s}
                   count={meta.danger ? undefined : items.length}
                   alert={meta.danger ? items.length : undefined} alertDanger={meta.danger}
-                  onClick={() => { setStateFilter(stateFilter === s ? null : s); setSelected(null); }} />
+                  onClick={() => setStateFilter(stateFilter === s ? null : s)} />
               );
             })}
           </>
