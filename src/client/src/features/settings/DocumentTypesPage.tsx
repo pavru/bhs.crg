@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Plus, ChevronRight, Trash2, Copy, Folder, FileText, Boxes, EyeOff, Check,
@@ -58,6 +58,7 @@ import {
 import { ListDetailShell, NavSearchInput, DetailHeader, useDirtyGuard } from '@/shared/ui/ListDetailShell';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
+import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
 import { useToast } from '@/shared/ui/Toast';
 import { uniqueCode } from './PrimitiveTypesPage';
 
@@ -1065,14 +1066,10 @@ interface TypesPageProps {
   kind: DocumentTypeKind;
 }
 
-/**
- * Конвенция (issue #778): выбор list-detail живёт в URL (`?type=<id>`, replace — стрелки браузера
- * не ходят по каждому клику в списке), последний открытый — в localStorage. Вход без параметра
- * открывает тот же тип, на котором работу оставили, а конкретный тип можно дать ссылкой.
- * Обе страницы («Типы документов» и «Составные типы») — один компонент, поэтому память раздельная
- * по kind. Кандидат на тиражирование на другие list-detail-страницы.
- */
+// Выбор в URL + память последнего открытого — общий хелпер (issue #787). Обе страницы («Типы
+// документов» и «Составные типы») — один компонент, поэтому память раздельная по kind.
 const lastTypeKey = (kind: DocumentTypeKind) => `types-last:${kind}`;
+const SELECTION_KEYS = ['type'] as const;
 
 export function DocumentTypesPage({ kind }: TypesPageProps) {
   const [createOpen, setCreateOpen] = useState(false);
@@ -1080,26 +1077,10 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
 
   // Порядок разрешения при входе: `?type=` → localStorage → первый в списке (страхует `?? filtered[0]`
   // ниже, поэтому удалённый или не проходящий kind-фильтр id просто игнорируется).
-  // Память читаем один раз при монтировании: страницы двух kind разведены `key` в App.tsx, так что
-  // прочитанное всегда своё.
-  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [restoredId, setRestoredId] = useState<string | null>(() => localStorage.getItem(lastTypeKey(kind)));
-  const selectedId = searchParams.get('type') ?? restoredId;
-  const setSelectedId = (id: string | null) => {
-    // Сбрасываем восстановленный id только когда выбор снимается (тип удалён): при обычном выборе
-    // его и так перекроет `?type=`, а обнулить сразу нельзя — URL пишется через startTransition,
-    // и любое срочное обновление в том же такте успело бы отрисовать кадр без выбора (деталь
-    // смонтировалась бы на первом типе списка и тут же перемонтировалась на нужный).
-    if (!id) setRestoredId(null);
-    if (id) localStorage.setItem(lastTypeKey(kind), id);
-    else localStorage.removeItem(lastTypeKey(kind));
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      if (id) next.set('type', id); else next.delete('type');
-      return next;
-    }, { replace: true });
-  };
+  const { values, remember } = useRememberedSelection(lastTypeKey(kind), SELECTION_KEYS);
+  const selectedId = values.type || null;
+  const setSelectedId = (id: string | null) => remember({ type: id ?? '' });
   const { data: allDocTypes = [], isLoading } = useListDocumentTypes();
 
   // Реестр незасохранённых форм текущего типа (явное сохранение, issue #197 / #210 — общий).

@@ -8,6 +8,7 @@ import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { ListDetailShell, NavSearchInput, DetailHeader, useDirtyGuard } from '@/shared/ui/ListDetailShell';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
+import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
 import { TextField } from '@/shared/ui/TextField';
 import { DateInput } from '@/shared/ui/DateInput';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -597,9 +598,17 @@ function FieldTypeListPanel({ mode, onMode, primitives, enums, selectedId, onSel
 
 // ─── Page ─────────────────────────────────────────────────────────────────────────
 
+// Выбор в URL + память последнего открытого (issue #787). Режим здесь — часть выбора, а не вид
+// страницы: перечисления и типы полей это два разных списка, и восстановленный id без своего
+// режима не открылся бы.
+const SELECTION_KEYS = ['mode', 'type'] as const;
+const FIELD_TYPES_LAST_KEY = 'field-types-last';
+
 export function PrimitiveTypesPage() {
-  const [mode, setMode] = useState<Mode>('primitive');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { values, remember } = useRememberedSelection(FIELD_TYPES_LAST_KEY, SELECTION_KEYS);
+  const mode: Mode = values.mode === 'enum' ? 'enum' : 'primitive';
+  const selectedId = values.type || null;
+  const setSelection = (m: Mode, id: string | null) => remember({ mode: m, type: id ?? '' });
   const [query, setQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -617,7 +626,7 @@ export function PrimitiveTypesPage() {
   // Общий гард несохранённых изменений (ключ = {mode,id}) — issue #210 Этап 1 (ListDetailShell).
   const { request, dialogProps } = useDirtyGuard<{ mode: Mode; id: string | null }>({
     isDirty: anyDirty, saving, saveAll,
-    onCommit: ({ mode: m, id }) => { setMode(m); setSelectedId(id); },
+    onCommit: ({ mode: m, id }) => setSelection(m, id),
   });
   const requestSelect = (id: string) => { if (id !== selectedId) request({ mode, id }); };
   const requestMode = (m: Mode) => { if (m !== mode) request({ mode: m, id: null }); };
@@ -642,12 +651,12 @@ export function PrimitiveTypesPage() {
     <PrimitiveTypeDetail key={selectedPrim.id} type={selectedPrim} allGroups={allGroups}
       usedByNames={findReferencingTypeNames(selectedPrim.id, 'primitive', allDocTypes)}
       dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll}
-      onDuplicate={() => duplicatePrim(selectedPrim)} onDeleted={() => setSelectedId(null)} />
+      onDuplicate={() => duplicatePrim(selectedPrim)} onDeleted={() => setSelection('primitive', null)} />
   ) : mode === 'enum' && selectedEnum ? (
     <EnumTypeDetail key={selectedEnum.id} type={selectedEnum} allGroups={allGroups}
       usedByNames={findReferencingTypeNames(selectedEnum.id, 'enum', allDocTypes)}
       dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll}
-      onDuplicate={() => duplicateEnum(selectedEnum)} onDeleted={() => setSelectedId(null)} />
+      onDuplicate={() => duplicateEnum(selectedEnum)} onDeleted={() => setSelection('enum', null)} />
   ) : (
     <div className="flex-1 flex items-center justify-center text-fg4 text-sm">
       {mode === 'primitive' ? 'Типов полей ещё нет' : 'Перечислений ещё нет'} — создайте первый.
