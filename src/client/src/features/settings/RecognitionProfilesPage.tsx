@@ -6,6 +6,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { moveItem } from '@/shared/utils/moveItem';
+import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
 import { rowKey, withRowUid, withRowUids } from '@/shared/utils/rowIdentity';
 import { useToast } from '@/shared/ui/Toast';
 import { ListDetailShell, NavSearchInput, NavSection, DetailHeader } from '@/shared/ui/ListDetailShell';
@@ -334,10 +335,20 @@ function CreateProfileForm({ kinds, onSaved, onCancel }: {
 
 // ─── Страница ──────────────────────────────────────────────────────────────────
 
+// Выбор в URL + память последнего открытого (issue #787, общий хелпер).
+const SELECTION_KEYS = ['profile'] as const;
+const PROFILES_LAST_KEY = 'recognition-profiles-last';
+
 export function RecognitionProfilesPage() {
   const { data: profiles = [], isLoading } = useListRecognitionProfiles();
   const { data: kinds = [] } = useRecognitionKinds();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Удалённый id страхует `?? filtered[0]` ниже — восстановление молча уходит на первый профиль.
+  // Отфильтрованный поиском НЕ страхует: `selected` ищет по всем профилям, поэтому выбранный
+  // остаётся открытым в детали, даже когда его строки в списке нет. Поведение прежнее (поиск при
+  // входе пуст, так что восстановления это не касается), меняем его не здесь.
+  const { values, remember } = useRememberedSelection(PROFILES_LAST_KEY, SELECTION_KEYS);
+  const selectedId = values.profile || null;
+  const setSelectedId = (id: string | null) => remember({ profile: id ?? '' });
   const [query, setQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
 
