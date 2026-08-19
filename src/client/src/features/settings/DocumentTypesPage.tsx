@@ -954,6 +954,15 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
   }
 
   const badge = 'text-xs px-2 py-0.5 rounded-full font-medium';
+  // Переход по иерархии в обе стороны (issue #784): бейдж родителя и чипы прямых наследников —
+  // кнопки, а не подписи. Дойти до родителя иначе можно было только поиском в списке слева, хотя
+  // на него ссылается вся работа с наследованием («Как у родителя», «Ключ уже есть в родительском
+  // типе»). Родитель и наследники всегда того же kind, так что переход не покидает страницу.
+  const jumpBadge = `${badge} truncate max-w-[200px] transition-colors focus-visible:outline-none `
+    + 'focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface';
+  const children = allDocTypes
+    .filter(t => t.parentId === docType.id)
+    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   return (
     <div className="flex flex-col min-h-0 flex-1">
       {/* Шапка типа — доменные heading/actions поверх общего DetailHeader (issue #210 Этап 1b) */}
@@ -964,7 +973,11 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
               <h2 className="text-xl font-normal text-fg1 truncate">{docType.name}</h2>
               <span className="text-xs text-fg4 font-mono">{docType.code}</span>
               {parentType && (
-                <span className={`${badge} bg-brand-subtle text-brand truncate max-w-[200px]`}>↑ {parentType.name}</span>
+                <button type="button" onClick={() => onSelectType(parentType.id)}
+                  title="Перейти к родительскому типу"
+                  className={`${jumpBadge} bg-brand-subtle text-brand hover:text-brand-hover hover:underline`}>
+                  ↑ {parentType.name}
+                </button>
               )}
               {docType.isAbstract && <span className={`${badge} bg-warning-subtle text-warning`}>абстрактный</span>}
               {docType.allowsProxy && <span className={`${badge} bg-brand-subtle text-brand`}>роль/прокси</span>}
@@ -987,6 +1000,18 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
                 </span>
               )}
             </div>
+            {children.length > 0 && (
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                <span className="text-xs text-fg4 shrink-0">наследники:</span>
+                {children.map(c => (
+                  <button key={c.id} type="button" onClick={() => onSelectType(c.id)}
+                    title={`Перейти к типу «${c.name}»`}
+                    className={`${jumpBadge} bg-muted text-fg2 hover:text-brand-hover hover:underline`}>
+                    ↓ {c.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         }
         actions={
@@ -1083,6 +1108,10 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
     onCommit: id => setSelectedId(id),
   });
   const requestSelect = (id: string) => { if (id !== selectedId) request(id); };
+  // Программный переход (бейдж родителя, чипы наследников, панель проверки Typst-блоков) обязан
+  // сделать цель видимой: при активном поиске тип открывается в детали, но в рейле его нет — ни
+  // строки, ни подсветки, и непонятно, где ты оказался. Поэтому фильтр списка снимаем.
+  const jumpToType = (id: string) => { setQuery(''); requestSelect(id); };
 
   // Гард ухода со страницы по маршруту (issue #307): сайдбар-навигация перехватывается, показываем
   // тот же диалог. `routeLeave` хранит отложенный переход (proceed).
@@ -1151,7 +1180,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
             <TypeDetail key={selected.id} docType={selected} allDocTypes={allDocTypes}
               allGroups={allGroups} onDeleted={() => setSelectedId(null)}
               dirty={anyDirty} saving={saving} onSaveAll={saveAll} onRevert={resetAll}
-              onDuplicate={() => duplicateType(selected)} onSelectType={requestSelect} />
+              onDuplicate={() => duplicateType(selected)} onSelectType={jumpToType} />
           ) : (
             <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Ничего не найдено</div>
           )} />
