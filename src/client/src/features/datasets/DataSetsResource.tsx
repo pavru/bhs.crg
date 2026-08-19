@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
+import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
 import { Upload, Trash2, Database, RefreshCw, Download, FileText, LayoutGrid, ChevronRight, Loader2 } from 'lucide-react';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
@@ -191,6 +192,8 @@ function AllFilesOverview({ files, inheritedCount, onOpen }: {
  * слева «Все наборы» + файлы, справа detail выбранного набора (источники) или обзор-сводки. Рейл ради
  * ФОКУСА (один файл = один экран), инлайн-«простыня» источников исключена. Выбор — в URL `?file=id`.
  */
+const SELECTION_KEYS = ['file'] as const;
+
 export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scopeId?: string }) {
   const { data: allFiles = [], isLoading } = useListDataSetFiles(scope, scopeId, true);
   const upload = useUploadDataSetFile();
@@ -204,21 +207,23 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
   const [dragOver, setDragOver] = useState(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const fileParam = searchParams.get('file');
-  const setSelected = (v: string | null) => setSearchParams(prev => {
-    const next = new URLSearchParams(prev);
-    if (v) next.set('file', v); else next.delete('file');
-    return next;
-  }, { replace: true });
+  // Выбор в URL + память последнего открытого (issue #787, общий хелпер). Ключ памяти — на уровень:
+  // один компонент обслуживает систему, стройку, раздел и комплект, и набор одной стройки не должен
+  // всплывать на другой. Раскрытость группы унаследованных (`?inherited=`) не запоминаем — она
+  // выводится из выбора и живёт только в адресе.
+  const { values, remember } = useRememberedSelection(`datasets-last:${scope}:${scopeId ?? ''}`, SELECTION_KEYS);
+  const setSelected = (v: string | null) => remember({ file: v ?? '' });
 
   // Свернув группу, снимаем выбор с унаследованного набора: иначе detail показывал бы набор,
   // строки которого в рейле уже нет, и подсвечивать было бы нечего.
-  const setInheritedOpen = (open: boolean, dropSelection = false) => setSearchParams(prev => {
-    const next = new URLSearchParams(prev);
-    next.set('inherited', open ? '1' : '0');
-    if (!open && dropSelection) next.delete('file');
-    return next;
-  }, { replace: true });
+  const setInheritedOpen = (open: boolean, dropSelection = false) => {
+    if (!open && dropSelection) setSelected(null);   // через память: иначе она вернула бы набор назад
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('inherited', open ? '1' : '0');
+      return next;
+    }, { replace: true });
+  };
 
   // Свои — наборы этого уровня; унаследованные — всё остальное из цепочки родителей.
   // Всё, что говорит о владении (счётчик, пустое состояние, гейт «Данные системы», обзор),
@@ -238,8 +243,14 @@ export function DataSetsResource({ scope, scopeId }: { scope: CatalogScope; scop
       .sort((a, b) => INHERIT_ORDER.indexOf(a.scope) - INHERIT_ORDER.indexOf(b.scope) || a.name.localeCompare(b.name, 'ru')),
     [allFiles, isOwn]);
 
+  // Восстановленный набор мог быть удалён или относиться к другому уровню — тогда память молча
+  // пропускается; иначе экран открывался бы на «Набор не найден». Пока список едет, дефолт не
+  // подставляем: он бы мигнул «Всеми наборами» и тут же сменился восстановленным.
+  const remembered = values.file || null;
+  const known = remembered === ALL || (remembered && allFiles.some(f => f.id === remembered))
+    ? remembered : null;
   // Дефолт по числу файлов: без явного выбора — 1 файл открывается сразу, 2+ → «Все наборы».
-  const selected = fileParam ?? (files.length === 1 ? files[0].id : ALL);
+  const selected = known ?? (isLoading ? ALL : (files.length === 1 ? files[0].id : ALL));
   const isAll = selected === ALL;
   const selectedFile = !isAll ? allFiles.find(f => f.id === selected) : undefined;
   const selectedInherited = !!selectedFile && !files.some(f => f.id === selectedFile.id);
