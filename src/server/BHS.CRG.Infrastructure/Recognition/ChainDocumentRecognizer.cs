@@ -26,12 +26,13 @@ public class ChainDocumentRecognizer(
             .Select(n => byName[n])
             .ToList();
 
-        // Движок с галкой «включён», но без ключа/модели из перебора выпадает — пишем об этом в лог
-        // поимённо. Молча пропущенный движок выглядел в настройках работающим, и понять, почему
-        // распознаёт не он, было неоткуда (issue #797); в UI то же самое видно бейджем.
+        // Движок с галкой «включён», но без ключа/модели из перебора выпадает. Уровень Debug, а не
+        // Warning, намеренно: распознавание вызывается ПОСТРАНИЧНО, и на альбоме в двести листов
+        // предупреждение повторилось бы двести раз, ничего не добавив. Пользовательский сигнал об
+        // этом — бейдж «не участвует» в настройках, он виден до запуска и не тонет в логе (#797).
         foreach (var e in ordered.Where(e => s.Rec(e.Name).Enabled))
             if (EngineReadiness.MissingForRecognition(e.Name, s.Rec(e.Name)) is { } missing)
-                logger.LogWarning("Движок {Engine} включён, но не участвует: {Missing}", e.Name, missing);
+                logger.LogDebug("Движок {Engine} включён, но не участвует: {Missing}", e.Name, missing);
 
         ordered = ordered.Where(e => EngineReadiness.IsUsableForRecognition(e.Name, s.Rec(e.Name))).ToList();
 

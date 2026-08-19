@@ -100,7 +100,7 @@ public class OllamaRecognizerEngine(
         catch (Exception ex) when (HttpFailure.IsTimeout(ex, ct))
         {
             logger.LogWarning("Ollama ({BaseUrl}) не ответил за {Timeout}", baseUrl, HttpFailure.Format(Timeout));
-            throw new RecognitionUnavailableException($"Ollama: не ответил за {HttpFailure.Format(Timeout)}.");
+            throw new RecognitionTimeoutException($"Ollama: не ответил за {HttpFailure.Format(Timeout)}.");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

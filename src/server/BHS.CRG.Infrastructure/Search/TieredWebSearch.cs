@@ -36,11 +36,20 @@ public class TieredWebSearch(IEnumerable<IWebSearchEngine> engines, IIntegration
         if (manufacturers.Length > 0) tiers.Add(("manufacturer", $"{query} сертификат {SiteFilter(manufacturers)}"));
         tiers.Add(("web", $"{query} {docTerms}"));
 
-        var tasks = new List<Task<(string Source, IReadOnlyList<WebHit> Hits)>>();
+        var tasks = new List<Task<(string Source, IReadOnlyList<WebHit>? Hits)>>();
         foreach (var tier in tiers)
             foreach (var engine in active)
                 tasks.Add(Run(engine, tier.Source, tier.Q, ct));
-        var all = await Task.WhenAll(tasks);
+        var results = await Task.WhenAll(tasks);
+
+        // Ни один запрос ни к одному движку не ответил — это отказ поиска, а не отсутствие
+        // результатов (issue #797). Пустой список здесь означал бы «ничего не найдено», и полная
+        // недоступность выглядела бы для пользователя обычной пустой выдачей.
+        if (Array.TrueForAll(results, r => r.Hits is null))
+            throw new SearchUnavailableException(
+                "Ни один движок веб-поиска не ответил. Проверьте подключение и «Настройки → Поиск и распознавание».");
+
+        var all = results.Where(r => r.Hits is not null).Select(r => (r.Source, Hits: r.Hits!)).ToArray();
 
         var order = new Dictionary<string, int> { ["file"] = 0, ["fgis"] = 1, ["manufacturer"] = 2, ["web"] = 3 };
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -149,8 +158,16 @@ public class TieredWebSearch(IEnumerable<IWebSearchEngine> engines, IIntegration
 
     private static string StripTags(string s) => Regex.Replace(s, "<[^>]+>", " ").Replace(" ", " ").Trim();
 
-    private static async Task<(string, IReadOnlyList<WebHit>)> Run(IWebSearchEngine e, string source, string q, CancellationToken ct)
-        => (source, await e.QueryAsync(q, ct));
+    /// <summary>
+    /// Один запрос к одному движку. Отказ движка (таймаут, сетевой сбой, ошибка API) — <c>null</c>,
+    /// НЕ пустой список: пустой означал бы «ничего не нашлось», и различить их выше было бы нечем.
+    /// Отказ одного движка поиск не роняет — на то и агрегирование выдачи нескольких.
+    /// </summary>
+    private static async Task<(string, IReadOnlyList<WebHit>?)> Run(IWebSearchEngine e, string source, string q, CancellationToken ct)
+    {
+        try { return (source, await e.QueryAsync(q, ct)); }
+        catch (SearchUnavailableException) { return (source, null); }
+    }
 
     private static string SiteFilter(string[] domains) => "(" + string.Join(" OR ", domains.Select(d => $"site:{d}")) + ")";
     private static string NormalizeUrl(string url) => url.TrimEnd('/').ToLowerInvariant();

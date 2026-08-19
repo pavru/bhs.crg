@@ -68,7 +68,10 @@ public static class QualityDocEndpoints
         // ── Распознавание скана (vision-LLM) ─────────────────────────────────────
         // PromptKind — необязательный выбор промпта: "titleblock" — под штамп чертежа/документа
         // по ГОСТ Р 21.101-2020 (см. PDF-наборы данных), иначе — общий (сертификат/декларация).
-        g.MapPost("/recognize", async (RecognizeReq req, IMediator m, System.Security.Claims.ClaimsPrincipal user) =>
+        // CancellationToken принимаем и прокидываем в MediatR НЕ для порядка: без него токен в
+        // обработчике равен default, и любая проверка «пользователь ушёл» там мертва — а
+        // распознавание идёт минутами, то есть уйти успевают (issue #797).
+        g.MapPost("/recognize", async (RecognizeReq req, IMediator m, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
         {
             var fields = (req.Fields ?? []).Select(f => new RecognitionField(f.Path, f.Title, f.Type, f.Options)).ToList();
             var uidStr = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? user.FindFirst("sub")?.Value;
@@ -81,7 +84,7 @@ public static class QualityDocEndpoints
             try
             {
                 var res = await m.Send(new RecognizeDocumentCommand(
-                    req.BlobPath, req.MimeType, fields, userId, Notify: !(req.Silent ?? false), promptBuilder));
+                    req.BlobPath, req.MimeType, fields, userId, Notify: !(req.Silent ?? false), promptBuilder), ct);
                 return Results.Ok(new { values = res.Values, pageCount = res.PageCount });
             }
             catch (RecognitionLimitException ex)
@@ -168,9 +171,11 @@ public static class QualityDocEndpoints
         });
 
         // ── Веб-поиск документов (ФГИС → производитель → веб) ─────────────────────
-        g.MapPost("/search", async (SearchReq req, IMediator m) =>
+        g.MapPost("/search", async (SearchReq req, IMediator m, CancellationToken ct) =>
         {
-            try { return Results.Ok(await m.Send(new SearchQualityDocsQuery(req.Query))); }
+            // Токен нужен по существу: поиск раскрывает найденные страницы по одной, и без него
+            // брошенный запрос дочитывал бы их все впустую.
+            try { return Results.Ok(await m.Send(new SearchQualityDocsQuery(req.Query), ct)); }
             catch (SearchUnavailableException ex) { return Results.Json(new { error = ex.Message }, statusCode: 503); }
         });
 

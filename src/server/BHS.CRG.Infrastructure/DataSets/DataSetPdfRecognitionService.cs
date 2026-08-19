@@ -385,6 +385,10 @@ public class DataSetPdfRecognitionService(
             }
             catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
             {
+                // Таймаут (RecognitionTimeoutException) — тоже сюда: на первой странице прогон
+                // прекращается, не тратя часы на сотню страниц у движка, который не ответил ни
+                // одной, а дальше первой строка остаётся пустой. Это и есть прежнее поведение,
+                // только теперь по классифицированному типу, а не по сырой отмене.
                 if (i == 0)
                     throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
                 logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, file.Id);
@@ -394,11 +398,8 @@ public class DataSetPdfRecognitionService(
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                // Страховка. Таймаут ДВИЖКА сюда больше не доходит: с issue #797 он приезжает
-                // RecognitionUnavailableException и обрабатывается веткой выше — на странице после первой
-                // строка так же остаётся пустой, а на первой прогон честно прекращается, не тратя часы на
-                // сотню страниц у движка, который уже не ответил ни одним. Ветка остаётся на случай отмены
-                // из мест, которые классификацию не проходят (внутренние сроки, будущие движки).
+                // Страховка: отмена при живом токене из мест, которые классификацию не проходят
+                // (внутренние сроки, будущие движки).
                 logger.LogWarning("Таймаут распознавания страницы {Page} источника {SourceId} — строка останется пустой", i + 1, file.Id);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
                 failedPages++;
@@ -1071,16 +1072,20 @@ public class DataSetPdfRecognitionService(
                 var result = await recognizer.RecognizeAsync(png, "image/png", fields, promptBuilder, ct: ct);
                 values = new Dictionary<string, string?>(result.Values);
             }
-            catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
+            catch (Exception ex) when (ex is RecognitionTimeoutException or OperationCanceledException && !ct.IsCancellationRequested)
             {
-                throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
-            }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-            {
-                // Страховка (см. выше): таймаут движка приходит уже обёрнутым, сюда попадает лишь
-                // неклассифицированная отмена при живом токене — поля страницы остаются пустыми.
+                // Таймаут ОДНОЙ страницы — её поля пусты, документ перераспознаётся дальше. Ловим
+                // ПЕРЕД общей недоступностью, иначе таймаут (её наследник) уносил бы весь прогон,
+                // выбрасывая уже обработанные страницы: до классификации таймаута он приходил сырым
+                // OperationCanceledException и в эту ветку попадал сам собой.
                 logger.LogWarning("Таймаут распознавания стр. {Page} при перераспознавании документа {FileId}", idx + 1, file.Id);
                 values = fields.ToDictionary(f => f.Path, string? (f) => null);
+            }
+            catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
+            {
+                // Движок не работает вовсе (нет ключа, лимит, отказ) — перебирать оставшиеся страницы
+                // незачем, каждая упрётся в то же самое.
+                throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
             }
 
             var nameMissing = string.IsNullOrWhiteSpace(values.GetValueOrDefault("НаименованиеДокумента"));

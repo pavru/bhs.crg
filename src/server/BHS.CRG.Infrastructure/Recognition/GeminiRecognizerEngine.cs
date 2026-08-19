@@ -68,7 +68,7 @@ public class GeminiRecognizerEngine(
                 // Не ретраим: повтор — это ещё столько же ожидания на движке, который уже показал,
                 // что не отвечает. Цепочке полезнее сразу перейти к следующему.
                 logger.LogWarning("Gemini не ответил за {Timeout}", HttpFailure.Format(Timeout));
-                throw new RecognitionUnavailableException($"Gemini: не ответил за {HttpFailure.Format(Timeout)}.");
+                throw new RecognitionTimeoutException($"Gemini: не ответил за {HttpFailure.Format(Timeout)}.");
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

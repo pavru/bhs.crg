@@ -65,7 +65,7 @@ public class AnthropicRecognizerEngine(
             {
                 // Без ретрая — см. Gemini: повтор докупает только ожидание.
                 logger.LogWarning("Anthropic не ответил за {Timeout}", HttpFailure.Format(Timeout));
-                throw new RecognitionUnavailableException($"Anthropic: не ответил за {HttpFailure.Format(Timeout)}.");
+                throw new RecognitionTimeoutException($"Anthropic: не ответил за {HttpFailure.Format(Timeout)}.");
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Xml.Linq;
+using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Http;
 using Microsoft.Extensions.Logging;
@@ -38,7 +39,7 @@ public class YandexEngine(
             if (!resp.IsSuccessStatusCode)
             {
                 logger.LogWarning("Yandex XML {Status}: {Body}", resp.StatusCode, body.Length > 200 ? body[..200] : body);
-                return [];
+                throw new SearchUnavailableException($"Яндекс ответил {(int)resp.StatusCode}.");
             }
 
             var xml = XDocument.Parse(body);
@@ -47,7 +48,7 @@ public class YandexEngine(
             if (err is not null)
             {
                 logger.LogWarning("Yandex XML error: {Err}", err.Value);
-                return [];
+                throw new SearchUnavailableException("Яндекс вернул ошибку поиска.");
             }
 
             var list = new List<WebHit>();
@@ -66,12 +67,12 @@ public class YandexEngine(
         {
             // Как у Serper: таймаут одного движка не роняет поиск целиком (issue #797).
             logger.LogWarning("Yandex не ответил за {Timeout}", HttpFailure.Format(Timeout));
-            return [];
+            throw new SearchUnavailableException($"Яндекс: не ответил за {HttpFailure.Format(Timeout)}.");
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException and not SearchUnavailableException)
         {
             logger.LogWarning(ex, "Yandex-запрос не выполнен");
-            return [];
+            throw new SearchUnavailableException($"Яндекс: ошибка обращения: {ex.Message}");
         }
     }
 

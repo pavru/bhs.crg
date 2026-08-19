@@ -78,7 +78,9 @@ public class EngineTimeoutTests
             Settings("rec", "Gemini", new IntegrationEngine { Enabled = true, ApiKey = "k" }),
             NullLogger<GeminiRecognizerEngine>.Instance);
 
-        var ex = await Assert.ThrowsAsync<RecognitionUnavailableException>(
+        // Именно RecognitionTimeoutException, а не базовый: постраничные прогоны отличают
+        // «движок не работает» от «страница не уложилась в срок» (см. DataSetPdfRecognitionService).
+        var ex = await Assert.ThrowsAsync<RecognitionTimeoutException>(
             () => engine.RecognizeRawAsync(Png, "image/png", Fields));
 
         Assert.Contains("не ответил за", ex.Message);
@@ -96,7 +98,7 @@ public class EngineTimeoutTests
             Settings("rec", "Anthropic", new IntegrationEngine { Enabled = true, ApiKey = "k" }),
             NullLogger<AnthropicRecognizerEngine>.Instance);
 
-        var ex = await Assert.ThrowsAsync<RecognitionUnavailableException>(
+        var ex = await Assert.ThrowsAsync<RecognitionTimeoutException>(
             () => engine.RecognizeRawAsync(Png, "image/png", Fields));
         Assert.Contains("не ответил за", ex.Message);
         Assert.Equal(1, handler.Calls);
@@ -110,7 +112,7 @@ public class EngineTimeoutTests
             Settings("rec", "Ollama", new IntegrationEngine { Enabled = true, Model = "qwen2.5vl:7b" }),
             NullLogger<OllamaRecognizerEngine>.Instance);
 
-        var ex = await Assert.ThrowsAsync<RecognitionUnavailableException>(
+        var ex = await Assert.ThrowsAsync<RecognitionTimeoutException>(
             () => engine.RecognizeRawAsync(Png, "image/png", Fields));
         Assert.Contains("не ответил за", ex.Message);
         // Локальная модель считается на этой же машине — срок у неё свой и заведомо больше облачного.
@@ -149,25 +151,27 @@ public class EngineTimeoutTests
     // ── Веб-поиск: тот же паттерн ───────────────────────────────────────────────
 
     [Fact]
-    public async Task Serper_Timeout_ReturnsNoHits_InsteadOfBreakingTheSearch()
+    public async Task Serper_Timeout_IsReportedAsOutage()
     {
         var engine = new SerperEngine(new HttpClient(new TimingOutHandler()),
             Settings("web", "Serper", new IntegrationEngine { Enabled = true, ApiKey = "k" }),
             NullLogger<SerperEngine>.Instance);
 
-        // Пустая выдача одного движка — поиск продолжают остальные; раньше исключение летело
-        // сквозь Task.WhenAll в TieredWebSearch и роняло весь поиск.
-        Assert.Empty(await engine.QueryAsync("кабель ВВГнг"));
+        // Отказ движка назван отказом: оркестратор гасит его до пустой выдачи, но отличает от
+        // «ничего не нашлось» — иначе полная недоступность выглядела бы пустым результатом
+        // (см. SearchOutageTests). Раньше таймаут летел сквозь Task.WhenAll и ронял весь поиск.
+        var ex = await Assert.ThrowsAsync<SearchUnavailableException>(() => engine.QueryAsync("кабель ВВГнг"));
+        Assert.Contains("не ответил за", ex.Message);
     }
 
     [Fact]
-    public async Task Yandex_Timeout_ReturnsNoHits()
+    public async Task Yandex_Timeout_IsReportedAsOutage()
     {
         var engine = new YandexEngine(new HttpClient(new TimingOutHandler()),
             Settings("web", "Yandex", new IntegrationEngine { Enabled = true, ApiKey = "k", FolderId = "f" }),
             NullLogger<YandexEngine>.Instance);
 
-        Assert.Empty(await engine.QueryAsync("кабель ВВГнг"));
+        await Assert.ThrowsAsync<SearchUnavailableException>(() => engine.QueryAsync("кабель ВВГнг"));
     }
 
     [Fact]
@@ -226,7 +230,9 @@ public class EngineTimeoutTests
             ],
             settings, NullLogger<ChainDocumentRecognizer>.Instance);
 
-        var ex = await Assert.ThrowsAsync<RecognitionUnavailableException>(
+        // Цепочка ловит базовый RecognitionUnavailableException — таймаут его наследник, и ни одно
+        // место, ловящее базовый тип, о новом знать не обязано.
+        var ex = await Assert.ThrowsAnyAsync<RecognitionUnavailableException>(
             () => chain.RecognizeAsync(Png, "image/png", Fields));
         Assert.Contains("не ответил за", ex.Message);
     }

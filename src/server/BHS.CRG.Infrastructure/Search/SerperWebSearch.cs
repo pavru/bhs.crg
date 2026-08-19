@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Http;
 using Microsoft.Extensions.Logging;
@@ -32,7 +33,7 @@ public class SerperEngine(
             if (!resp.IsSuccessStatusCode)
             {
                 logger.LogWarning("Serper {Status}: {Body}", resp.StatusCode, body.Length > 200 ? body[..200] : body);
-                return [];
+                throw new SearchUnavailableException($"Serper ответил {(int)resp.StatusCode}.");
             }
             var list = new List<WebHit>();
             using var doc = JsonDocument.Parse(body);
@@ -54,12 +55,12 @@ public class SerperEngine(
             // продолжают остальные движки и тиры (issue #797). Раньше он летел сквозь Task.WhenAll
             // в TieredWebSearch и ронял весь поиск в 500.
             logger.LogWarning("Serper не ответил за {Timeout}", HttpFailure.Format(Timeout));
-            return [];
+            throw new SearchUnavailableException($"Serper: не ответил за {HttpFailure.Format(Timeout)}.");
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException and not SearchUnavailableException)
         {
             logger.LogWarning(ex, "Serper-запрос не выполнен");
-            return [];
+            throw new SearchUnavailableException($"Serper: ошибка обращения: {ex.Message}");
         }
     }
 }
