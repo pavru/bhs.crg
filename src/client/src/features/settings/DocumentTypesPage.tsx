@@ -46,6 +46,7 @@ import {
   type TypstRender,
 } from '@/shared/api/schema';
 import { danglingKeyRefs, danglingRefPlaces } from './schemaKeyChecks';
+import { typeHealth, healthBadgeLabel } from './typeHealth';
 import { TypstRendersEditor } from './TypstRendersEditor';
 import { useTypstBlocksCheck, TypstBlocksPanel, blocksCheckProblemsByFn } from './TypstBlocksCheck';
 import { schemaToJson, validateFields, TYPE_LABELS, nextAutoKey } from './schemaConstants';
@@ -966,6 +967,24 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
   const children = allDocTypes
     .filter(t => t.parentId === docType.id && t.kind === docType.kind)
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+
+  // Состояние типа (issue #794): красный чип — то, из-за чего схема не сохранится, жёлтый —
+  // «нездоров, но сохраняется». Считаем по сохранённой схеме: правку показывает сама форма, а
+  // сюда тип может приехать не своей правкой, а изменением предка.
+  const schemaDef = docType.schema as unknown as SchemaDefinition;
+  const health = typeHealth(
+    parseSchemaFields(docType.schema),
+    parentType ? resolveEffectiveFields(parentType, allDocTypes).map(f => f.key) : [],
+    parentType ? chainFieldKeys(parentType, allDocTypes) : [],
+    {
+      groups: schemaDef.groups,
+      excludedFields: schemaDef.excludedFields,
+      ungroupedOrder: schemaDef.ungroupedOrder,
+      fieldOverrides: schemaDef.fieldOverrides,
+    },
+    schemaDef.typstRenders ?? [],
+  );
+  const healthLabel = healthBadgeLabel(health);
   return (
     <div className="flex flex-col min-h-0 flex-1">
       {/* Шапка типа — доменные heading/actions поверх общего DetailHeader (issue #210 Этап 1b) */}
@@ -1000,6 +1019,18 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
               {referencedBy.length > 0 && (
                 <span className={`${badge} bg-brand-subtle text-brand`} title={`Используется в: ${referencedBy.map(t => t.name).join(', ')}`}>
                   используется: {referencedBy.length}
+                </span>
+              )}
+              {healthLabel.blocking && (
+                <span className={`${badge} bg-danger-subtle text-danger`}
+                  title={health.blocking.map(b => `• ${b.text}`).join(String.fromCharCode(10))}>
+                  ⚠ {healthLabel.blocking}
+                </span>
+              )}
+              {healthLabel.soft && (
+                <span className={`${badge} bg-warning-subtle text-warning`}
+                  title={health.soft.map(i => `• ${i.text}`).join(String.fromCharCode(10))}>
+                  {healthLabel.soft}
                 </span>
               )}
             </div>
