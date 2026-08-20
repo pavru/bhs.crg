@@ -23,13 +23,36 @@ import {
 import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 
 /** Поля, занимающие обе колонки сетки — тот же набор, что в редакторе реквизитов (`RequisitesTab`). */
+/** Подсказка у помеченного поля — одна на все места, где пометка рисуется (issue #807). */
+export const RECOGNIZED_HINT = 'Заполнено распознаванием — проверьте';
+
 const WIDE_TYPES = new Set(['complex', 'array', 'doc-ref', 'doc-array', 'image', 'file', 'text']);
+
+/**
+ * Пути, которые распознавание РЕАЛЬНО подставит: пустые значения не применяются, значит и пометки
+ * не заслуживают (issue #807). Правило одно на подстановку и на пометку — вычислив «что тронуто»
+ * отдельно, мы завели бы вторую копию, и она разошлась бы с первой на первом же частном случае.
+ */
+export function recognizedPaths(flat: Record<string, string>): string[] {
+  return Object.entries(flat)
+    .filter(([, val]) => val != null && String(val).trim() !== '')
+    .map(([path]) => path);
+}
+
+/**
+ * Ключи полей ВЕРХНЕГО уровня, затронутые распознаванием, — по ним форма помечает поля. Верхнего,
+ * потому что помечается поле целиком: у составного значения («Организация.ИНН») отдельной рамки нет,
+ * да и проверять человек будет весь блок.
+ */
+export function recognizedFieldKeys(flat: Record<string, string>): Set<string> {
+  return new Set(recognizedPaths(flat).map(path => path.split('.')[0]));
+}
 
 /** Раскладывает плоские значения (путь через точку) во вложенный объект и сливает с текущими. */
 export function applyRecognized(values: Record<string, unknown>, flat: Record<string, string>): Record<string, unknown> {
   const next: Record<string, unknown> = JSON.parse(JSON.stringify(values ?? {}));
-  for (const [path, val] of Object.entries(flat)) {
-    if (val == null || String(val).trim() === '') continue;
+  for (const path of recognizedPaths(flat)) {
+    const val = flat[path];
     const parts = path.split('.');
     let cur = next;
     for (let i = 0; i < parts.length - 1; i++) {
@@ -63,6 +86,13 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
   // Нарушения ограничений по путям («ПериодДействия.До»); сбрасываются при правке значения, иначе
   // претензия висела бы на исправленном поле (issue #655).
   const [constraintErrors, setConstraintErrors] = useState<Record<string, string>>({});
+  /**
+   * Поля, которые заполнило распознавание и которых человек ещё не касался (issue #807). Сразу после
+   * подстановки распознанное неотличимо от набранного руками, а проверять надо именно его: это
+   * данные вероятностные. Состояние сессионное — вечная маркировка происхождения потребовала бы
+   * признака на каждом реквизите в базе.
+   */
+  const [recognizedKeys, setRecognizedKeys] = useState<Set<string>>(() => new Set());
   const scanInputRef = useRef<HTMLInputElement>(null);
   // Картинка поля ещё едет в хранилище — сохранять рано: значение появится только после (issue #522).
   // Своё `uploading` выше — про скан документа качества, это разные загрузки.
@@ -94,6 +124,15 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
    */
   function setValue(key: string, v: unknown) {
     setValues(p => ({ ...p, [key]: v }));
+    // Пометка гаснет при первом касании: она говорит «проверь то, что тебе подставили», и, как
+    // только человек поле тронул, вопрос закрыт — держать её дальше значит превращать подсказку
+    // в украшение, которое перестают замечать.
+    setRecognizedKeys(prev => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
     const f = fields.find(x => x.key === key);
     const def = f && f.type === 'primitive' ? primitiveDef(f) : undefined;
     const err = def ? validateConstraint(v, def) : null;
@@ -162,6 +201,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
         if (p) fieldValues[p.join('.')] = String(rec.pageCount);
       }
       setValues(v => applyRecognized(v, fieldValues));
+      setRecognizedKeys(recognizedFieldKeys(fieldValues));
       if (summary) setDisplayName(summary);
     } catch (e: unknown) {
       const resp = (e as { response?: { data?: { error?: string; limit?: boolean } } })?.response;
@@ -253,26 +293,29 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
       <div className="grid grid-cols-2 gap-x-4 gap-y-4 border-t border-muted pt-3">
         {fields.map(f => {
           const v = values[f.key];
-          const cls = WIDE_TYPES.has(f.type) ? 'col-span-2' : 'col-span-1 min-w-0';
+          // Тонкая левая полоска, а не значок: полей в форме бывает сорок, а в плотной сетке в две
+          // колонки значок съедает ширину у самого значения.
+          const mark = recognizedKeys.has(f.key) ? ' border-l-2 border-brand pl-2' : '';
+          const cls = (WIDE_TYPES.has(f.type) ? 'col-span-2' : 'col-span-1 min-w-0') + mark;
           const label = (
             <label className="block text-xs font-medium text-fg2 mb-1">{f.title}
               {f.required && <span className="ml-0.5 text-danger">*</span>}</label>
           );
           if (f.type === 'complex')
-            return <div key={f.key} className={cls}>{label}<ComplexFieldGroup field={f} allDocTypes={allDocTypes} value={v}
+            return <div key={f.key} className={cls} title={recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined}>{label}<ComplexFieldGroup field={f} allDocTypes={allDocTypes} value={v}
               onChange={x => setValue(f.key, x)} showValidation={false} docRefMode="catalog" scope={scope} scopeId={scopeId} /></div>;
           if (f.type === 'array')
-            return <div key={f.key} className={cls}>{label}<ArrayFieldEditor field={f} allDocTypes={allDocTypes} value={v}
+            return <div key={f.key} className={cls} title={recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined}>{label}<ArrayFieldEditor field={f} allDocTypes={allDocTypes} value={v}
               onChange={x => setValue(f.key, x)} showValidation={false} docRefMode="catalog" scope={scope} scopeId={scopeId} /></div>;
           if (f.type === 'doc-ref')
-            return <div key={f.key} className={cls}>{label}<DocRefCatalogPickerField field={f} allDocTypes={allDocTypes} value={v}
+            return <div key={f.key} className={cls} title={recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined}>{label}<DocRefCatalogPickerField field={f} allDocTypes={allDocTypes} value={v}
               onChange={x => setValue(f.key, x ?? undefined)} scope={scope} scopeId={scopeId} /></div>;
           if (f.type === 'image')
-            return <div key={f.key} className={cls}>{label}<ImageField value={v} onChange={x => setValue(f.key, x)} /></div>;
+            return <div key={f.key} className={cls} title={recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined}>{label}<ImageField value={v} onChange={x => setValue(f.key, x)} /></div>;
           if (f.type === 'file')
-            return <div key={f.key} className={cls}>{label}<FileField value={v} onChange={x => setValue(f.key, x ?? undefined)} /></div>;
+            return <div key={f.key} className={cls} title={recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined}>{label}<FileField value={v} onChange={x => setValue(f.key, x ?? undefined)} /></div>;
           return (
-            <div key={f.key} className={cls}>
+            <div key={f.key} className={cls} title={recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined}>
               <PrimitiveInput field={f} value={v} label={f.title}
                 onChange={x => setValue(f.key, x)} invalid={!!constraintErrors[f.key]}
                 primitiveTypeDef={primitiveDef(f)} enumTypeDef={enumDef(f)} />

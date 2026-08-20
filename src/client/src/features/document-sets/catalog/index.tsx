@@ -21,7 +21,7 @@ import {
 } from '@/shared/api/schema';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 import { recognizeDocument } from '@/shared/api/qualityDocs';
-import { applyRecognized } from '@/features/quality-docs/QualityDocForm';
+import { applyRecognized, recognizedFieldKeys, RECOGNIZED_HINT } from '@/features/quality-docs/QualityDocForm';
 import { buildRecognitionFields, codesFromLabels } from '@/features/quality-docs/recognitionFields';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
@@ -111,6 +111,11 @@ export function CatalogEntryForm({
   const [typeId, setTypeId] = useState(entry?.compositeTypeId ?? '');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [values, setValues] = useState<Record<string, unknown>>(() => entry?.data ?? {});
+  /**
+   * Поля, заполненные распознаванием и ещё не тронутые человеком (issue #807): сразу после
+   * подстановки распознанное неотличимо от набранного руками, а проверять надо именно его.
+   */
+  const [recognizedKeys, setRecognizedKeys] = useState<Set<string>>(() => new Set());
   // Нарушения ограничений по путям («ЮридическийАдрес.Web»); сбрасываются при правке значения,
   // иначе претензия висела бы на исправленном поле.
   const [constraintErrors, setConstraintErrors] = useState<Record<string, string>>({});
@@ -265,6 +270,13 @@ export function CatalogEntryForm({
   }
 
   function setValue(key: string, val: unknown) {
+    // Тронул поле — вопрос «проверь подставленное» закрыт, пометка гаснет.
+    setRecognizedKeys(prev => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
     setValues(p => {
       if (val === undefined) { const n = { ...p }; delete n[key]; return n; }
       return { ...p, [key]: val };
@@ -305,13 +317,19 @@ export function CatalogEntryForm({
         fields: plan.fields,
         promptKind: 'titleblock',
       });
-      let next = applyRecognized(values, codesFromLabels(rec.values, plan.enumCodes));
+      const recognizedFlat = codesFromLabels(rec.values, plan.enumCodes);
+      let next = applyRecognized(values, recognizedFlat);
+      const marked = recognizedFieldKeys(recognizedFlat);
       // Число страниц надёжнее брать из самого файла, чем просить модель прочитать его на штампе.
       if (rec.pageCount != null) {
         const p = findTaggedFieldPath(selectedType, FUNCTIONAL_TAG.docPageCount, allDocTypes);
-        if (p) next = applyRecognized(next, { [p.join('.')]: String(rec.pageCount) });
+        if (p) {
+          next = applyRecognized(next, { [p.join('.')]: String(rec.pageCount) });
+          marked.add(p[0]);
+        }
       }
       setValues(next);
+      setRecognizedKeys(marked);
     } catch (e: unknown) {
       const resp = (e as { response?: { data?: { error?: string; limit?: boolean } } })?.response;
       if (resp?.data?.limit) setError('Лимит LLM исчерпан — повторите распознавание позже.');
@@ -506,7 +524,16 @@ export function CatalogEntryForm({
     }
 
     function fieldStack(fields: SchemaField[]) {
-      return <div className="space-y-4">{fields.map(renderCell)}</div>;
+      // Пометка навешивается ОБЁРТКОЙ, а не внутрь renderCell: у него дюжина веток по типам поля,
+      // и класс пришлось бы дописать в каждую — то есть завести дюжину мест, где о пометке надо
+      // помнить. Стек вертикальный, лишний div раскладку не ломает.
+      return (
+        <div className="space-y-4">
+          {fields.map(f => recognizedKeys.has(f.key)
+            ? <div key={f.key} className="border-l-2 border-brand pl-2" title={RECOGNIZED_HINT}>{renderCell(f)}</div>
+            : renderCell(f))}
+        </div>
+      );
     }
 
     // Поля из источника данных (read-only) — под сворачиваемую секцию «Заполняются автоматически»
