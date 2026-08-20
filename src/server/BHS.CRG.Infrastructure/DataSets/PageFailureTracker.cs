@@ -1,4 +1,4 @@
-using BHS.CRG.Application.QualityDocs;
+﻿using BHS.CRG.Application.QualityDocs;
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
@@ -23,6 +23,7 @@ public class PageFailureTracker(int silenceLimit = PageFailureTracker.DefaultSil
     public const int DefaultSilenceLimit = 3;
 
     private int silentInARow;
+    private readonly HashSet<int> pagesWithoutAnswer = [];
 
     /// <summary>Листов без ответа — для уведомления.</summary>
     public int FailedPages { get; private set; }
@@ -36,17 +37,34 @@ public class PageFailureTracker(int silenceLimit = PageFailureTracker.DefaultSil
     /// <summary>Прекращать ли прогон: движок молчит подряд слишком долго.</summary>
     public bool ShouldStop { get; private set; }
 
+    /// <summary>
+    /// Листы, по которым ответа не было, — чтобы признак дошёл до данных, а не только до уведомления
+    /// (issue #803). Уведомление гаснет, а таблица с пустыми строками живёт в наборе и уезжает в
+    /// реквизиты: без пометки на самих страницах «модель не ответила» становится неотличимо от
+    /// «на листе нечего распознавать».
+    /// </summary>
+    public IReadOnlySet<int> PagesWithoutAnswer => pagesWithoutAnswer;
+
     /// <summary>Лист остался без ответа: движок промолчал (<paramref name="silent" />) либо отказал.</summary>
-    public void PageFailed(Exception ex, bool silent)
+    /// <param name="pageIndex">Индекс листа, если он известен вызывающему, — для пометки на данных.</param>
+    public void PageFailed(Exception ex, bool silent, int? pageIndex = null)
     {
         FailedPages++;
         FirstReason ??= ex.Message;
+        if (pageIndex is { } idx) pagesWithoutAnswer.Add(idx);
         if (!silent) { silentInARow = 0; return; }
         if (++silentInARow >= silenceLimit) ShouldStop = true;
     }
 
-    /// <inheritdoc cref="PageFailed(Exception, bool)" />
-    public void PageFailed(Exception ex) => PageFailed(ex, ex is RecognitionSilentException);
+    /// <inheritdoc cref="PageFailed(Exception, bool, int?)" />
+    public void PageFailed(Exception ex, int? pageIndex = null)
+        => PageFailed(ex, ex is RecognitionSilentException, pageIndex);
+
+    /// <summary>
+    /// Лист, до которого прогон не дошёл: работу прекратили раньше. В счётчик отказов он НЕ идёт —
+    /// движок по нему не ошибался, — но на данных помечается так же: полей нет и взяться им неоткуда.
+    /// </summary>
+    public void MarkNotAttempted(int pageIndex) => pagesWithoutAnswer.Add(pageIndex);
 
     /// <summary>Лист распознан — счёт молчаний подряд начинается заново.</summary>
     public void PageSucceeded() => silentInARow = 0;

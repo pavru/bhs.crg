@@ -214,7 +214,7 @@ public class DataSetPdfRecognitionService(
                 // молчание прекращает работу — с сохранением уже распознанного.
                 logger.LogWarning("Страница {Page} источника {SourceId}: ответа не было — {Msg}", i + 1, sourceId, ex.Message);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
-                failures.PageFailed(ex, silent: true);
+                failures.PageFailed(ex, silent: true, pageIndex: i);
                 if (failures.ShouldStop)
                 {
                     logger.LogWarning("Прогон источника {SourceId} прекращён: {Reason}", sourceId, failures.StopReason);
@@ -237,8 +237,18 @@ public class DataSetPdfRecognitionService(
             }
         }
         if (failures.FailedPages > 0)
+        {
             logger.LogWarning("Источник {SourceId}: листов без ответа {Failed} из {Total}. Причина: {Reason}",
                 sourceId, failures.FailedPages, pages.Count, failures.FirstReason);
+            // Уведомления у этого цикла не было ВОВСЕ: страницы уходили пустыми, и узнать об этом
+            // человеку было неоткуда — прогон выглядел удавшимся (issue #803).
+            var reason = failures.ShouldStop ? failures.StopReason : failures.FirstReason;
+            await notifications.PublishAsync(NotificationSeverity.Warning,
+                "Распознавание источника завершено с пропусками",
+                $"Обработано листов: {pages.Count}. Модель не ответила по листам: {failures.FailedPages}." +
+                (string.IsNullOrWhiteSpace(reason) ? "" : $" Причина: {reason.TrimEnd('.')}."),
+                "Распознавание PDF", ct: ct);
+        }
 
         var columns = fields.Select(f => new DataSetColumnInfo(f.Path,
             rows.Take(3).Select(r => r.TryGetValue(f.Path, out var v) ? v ?? "" : "").ToArray()
@@ -398,6 +408,9 @@ public class DataSetPdfRecognitionService(
         // Счётчик листов без ответа, первая причина и отсечка «движок замолчал» — общим накопителем
         // на все постраничные прогоны (issue #801, #802).
         var failures = new PageFailureTracker();
+        // Кем распозналось — в уведомление (issue #803): «почему у меня плохо распозналось» спрашивают
+        // после прогона, и ответ начинается с имени движка и модели.
+        string? engineUsed = null;
         for (var i = 0; i < pngPages.Count; i++)
         {
             if (onProgress is not null) await onProgress(i + 1, pngPages.Count); // честный прогресс для индикатора
@@ -414,6 +427,7 @@ public class DataSetPdfRecognitionService(
                 var result = await recognizer.RecognizeAsync(
                     pngPages[i], "image/png", fields, promptBuilder, ct: ct);
                 values = new Dictionary<string, string?>(result.Values);
+                engineUsed ??= result.Engine;
                 failures.PageSucceeded();
             }
             catch (RecognitionSilentException ex)
@@ -432,7 +446,12 @@ public class DataSetPdfRecognitionService(
                     // и выходим к материализации: сорок девять распознанных листов из двухсот
                     // человеку нужнее, чем отменённая задача.
                     for (var rest = i + 1; rest < pngPages.Count; rest++)
+                    {
                         rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
+                        // Эти листы движку даже не показывали — «ответа не было» про них тем более
+                        // правда, и молча выдавать их за пустые нельзя.
+                        failures.MarkNotAttempted(rest);
+                    }
                     break;
                 }
                 continue;
@@ -447,7 +466,7 @@ public class DataSetPdfRecognitionService(
                     throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
                 logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, file.Id);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
-                failures.PageFailed(ex, silent: false);
+                failures.PageFailed(ex, silent: false, pageIndex: i);
                 continue;
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
@@ -456,7 +475,7 @@ public class DataSetPdfRecognitionService(
                 // (внутренние сроки, будущие движки).
                 logger.LogWarning("Таймаут распознавания страницы {Page} источника {SourceId} — строка останется пустой", i + 1, file.Id);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
-                failures.PageFailed(new RecognitionTimeoutException("движок не ответил за отведённый срок."), silent: false);
+                failures.PageFailed(new RecognitionTimeoutException("движок не ответил за отведённый срок."), silent: false, pageIndex: i);
                 continue;
             }
 
@@ -527,7 +546,9 @@ public class DataSetPdfRecognitionService(
         var existingGrouping = ParseGrouping(file.Grouping);
         // carryUserData: полное ре-распознавание переносит тэги/табличное сырьё с прежних групп по
         // стабильному id (свежие группы приходят без тэгов — иначе пользовательская разметка потерялась бы).
-        var unified = GostStableIds.Assign(GostUnifiedGroupingBuilder.Build(routed, rows, manuallyEdited: false), existingGrouping, carryUserData: true);
+        var unified = GostStableIds.Assign(
+            GostUnifiedGroupingBuilder.Build(routed, rows, manuallyEdited: false, failures.PagesWithoutAnswer),
+            existingGrouping, carryUserData: true);
 
         // Материализация СЫРЬЯ на наборе: режем под-PDF в группы (BlobPath в Grouping), пишем Grouping,
         // переспроецируем существующие источники-проекции, чистим осиротевшие блобы. Источников НЕ создаём.
@@ -537,7 +558,7 @@ public class DataSetPdfRecognitionService(
         var nothingRecognized = rows.All(r => r.Values.All(string.IsNullOrWhiteSpace));
         await PublishGostRecognitionResultAsync(matResult.DocumentCount, rows.Count, failures.FailedPages,
             failures.ShouldStop ? failures.StopReason : failures.FirstReason,
-            nothingRecognized, matResult.FailedSplits, matResult.InvalidatedTables, ct);
+            nothingRecognized, matResult.FailedSplits, matResult.InvalidatedTables, engineUsed, ct);
     }
 
     private record GostMaterializeResult(int DocumentCount, int FailedSplits, int InvalidatedTables);
@@ -643,10 +664,10 @@ public class DataSetPdfRecognitionService(
     // распознавания не несёт контекст пользователя, действие админ-конфигурационное.
     private async Task PublishGostRecognitionResultAsync(
         int documentCount, int pageCount, int failedPages, string? failureReason, bool nothingRecognized,
-        int failedSplits, int invalidatedTables, CancellationToken ct)
+        int failedSplits, int invalidatedTables, string? engine, CancellationToken ct)
     {
         var (severity, title, msg) = DescribeGostResult(
-            documentCount, pageCount, failedPages, failureReason, nothingRecognized, failedSplits, invalidatedTables);
+            documentCount, pageCount, failedPages, failureReason, nothingRecognized, failedSplits, invalidatedTables, engine);
         await notifications.PublishAsync(severity, title, msg, "Распознавание PDF", ct: ct);
     }
 
@@ -660,7 +681,7 @@ public class DataSetPdfRecognitionService(
     /// </summary>
     public static (NotificationSeverity Severity, string Title, string Message) DescribeGostResult(
         int documentCount, int pageCount, int failedPages, string? failureReason, bool nothingRecognized,
-        int failedSplits, int invalidatedTables)
+        int failedSplits, int invalidatedTables, string? engine = null)
     {
         // «Не ответила», а не «не распозналось»: пустой штамп — законный исход, и обвинять модель в
         // нём незачем. Речь именно о листах, ответа по которым не было вовсе.
@@ -677,6 +698,10 @@ public class DataSetPdfRecognitionService(
         if (invalidatedTables > 0)
             msg += $" Табличные источники ({invalidatedTables}) инвалидированы — границы документов изменились," +
                    " проверьте/перераспознайте их вручную.";
+
+        // Кем распознавали — в конце, отдельной фразой: при удачном прогоне это справка, при
+        // неудачном — первое, что нужно знать, чтобы понимать, что менять.
+        if (!string.IsNullOrWhiteSpace(engine)) msg += $" Распознавал: {engine}.";
 
         var hasIssues = failedPages > 0 || failedSplits > 0 || invalidatedTables > 0;
         // Не распозналось НИ ОДНОГО листа — это не «завершено с пропусками», а полный провал, и
@@ -797,7 +822,8 @@ public class DataSetPdfRecognitionService(
         var pageCount = await GetPdfPageCountAsync(file.BlobPath, ct);
         var grouping = ParseGrouping(file.Grouping);
         var groups = (grouping?.Groups ?? [])
-            .Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId))
+            .Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId,
+                g.Pages.Where(p => p.NoAnswer).Select(p => p.PageIndex).ToList()))
             .ToList();
         return new GostGroupingDto(groups, grouping?.ManuallyEdited ?? false, pageCount);
     }
@@ -1007,7 +1033,8 @@ public class DataSetPdfRecognitionService(
         var pageCount = await GetPdfPageCountAsync(file.BlobPath, ct);
         return new GostGroupingDto(
             groups.Select(g => new GostGroupingGroupDto(
-                g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId)).ToList(),
+                g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId,
+                g.Pages.Where(p => p.NoAnswer).Select(p => p.PageIndex).ToList())).ToList(),
             manuallyEdited, pageCount);
     }
 
@@ -1104,12 +1131,22 @@ public class DataSetPdfRecognitionService(
             ?.UpdateCache(schemaJson, rows.Count, dataJson);
         await db.SaveChangesAsync(ct);
 
-        await notifications.PublishAsync(NotificationSeverity.Info, "Таблица распознана",
-            $"«{tableName}» — строк: {rows.Count}. Доступна как кандидат — создайте из него источник в наборе.", "Распознавание PDF", ct: ct);
+        // Ноль строк на ЯВНОМ вызове — предупреждение, а не отчёт об успехе (issue #803). Постранично
+        // по альбому пустой результат законен: лист без штампа бывает. Здесь человек сам указал, что
+        // на этих страницах таблица, — и «распознана, строк: 0» отвечает ему, что всё в порядке,
+        // ровно тогда, когда не в порядке ничего.
+        await notifications.PublishAsync(
+            rows.Count == 0 ? NotificationSeverity.Warning : NotificationSeverity.Info,
+            rows.Count == 0 ? "Таблица не распознана" : "Таблица распознана",
+            rows.Count == 0
+                ? $"«{tableName}» — модель не нашла в этих страницах ни одной строки таблицы. Проверьте границы документа и профиль распознавания."
+                : $"«{tableName}» — строк: {rows.Count}. Доступна как кандидат — создайте из него источник в наборе.",
+            "Распознавание PDF", ct: ct);
 
         var pageCount = await GetPdfPageCountAsync(file.BlobPath, ct);
         return new GostGroupingDto(
-            updated.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId)).ToList(),
+            updated.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId,
+                g.Pages.Where(p => p.NoAnswer).Select(p => p.PageIndex).ToList())).ToList(),
             updated.ManuallyEdited, pageCount);
     }
 
@@ -1247,7 +1284,8 @@ public class DataSetPdfRecognitionService(
         await notifications.PublishAsync(NotificationSeverity.Info, "Документ перераспознан",
             $"«{(string.IsNullOrWhiteSpace(freshName) ? freshShifr : freshName)}» — обновлены поля {target.Pages.Count} листов.", "Распознавание PDF", ct: ct);
         return new GostGroupingDto(
-            unified.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId)).ToList(),
+            unified.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId,
+                g.Pages.Where(p => p.NoAnswer).Select(p => p.PageIndex).ToList())).ToList(),
             unified.ManuallyEdited, pageCount);
     }
 
@@ -1298,7 +1336,8 @@ public class DataSetPdfRecognitionService(
 
         var pageCount = GetPdfPageCount(bytes);
         return new GostGroupingDto(
-            unified.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId)).ToList(),
+            unified.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId,
+                g.Pages.Where(p => p.NoAnswer).Select(p => p.PageIndex).ToList())).ToList(),
             true, pageCount);
     }
 

@@ -1,4 +1,4 @@
-using BHS.CRG.Application.Common;
+﻿using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Domain.Documents;
@@ -43,9 +43,17 @@ public class RecognizeDocumentHandler(
             // Число страниц берём из файла (надёжнее LLM) — для поля с тэгом doc.pageCount.
             var pageCount = ComputePageCount(bytes, cmd.MimeType);
 
-            await notifications.PublishAsync(NotificationSeverity.Info, "Распознавание завершено",
-                $"Извлечено полей: {result.Values.Count} из {cmd.Fields.Count}.", "Распознавание",
-                userId: cmd.UserId, ct: ct);
+            // Ноль полей — предупреждение (issue #803): человек принёс скан документа и попросил
+            // прочитать его реквизиты; ответ «извлечено 0 из 40» под заголовком «завершено» говорит
+            // ему, что всё прошло хорошо. Ни одно поле при этом не заполнено.
+            var nothing = result.Values.Count == 0;
+            await notifications.PublishAsync(
+                nothing ? NotificationSeverity.Warning : NotificationSeverity.Info,
+                nothing ? "Реквизиты не распознаны" : "Распознавание завершено",
+                nothing
+                    ? $"Модель не нашла в документе ни одного из {cmd.Fields.Count} реквизитов. Проверьте качество скана."
+                    : $"Извлечено полей: {result.Values.Count} из {cmd.Fields.Count}.",
+                "Распознавание", userId: cmd.UserId, ct: ct);
             return result with { PageCount = pageCount };
         }
         // Отмену пользователем не объявляем ошибкой: уведомлять некого (запрос уже брошен), а

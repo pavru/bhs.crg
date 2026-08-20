@@ -37,12 +37,22 @@ public class ChainDocumentRecognizer(
                 var text = await engine.RecognizeRawAsync(file, mimeType, fields, promptBuilder, ct);
                 var values = RecognitionShared.ParseValues(text, fields);
                 logger.LogInformation("Распознавание выполнено движком {Engine}, полей: {N}", engine.Name, values.Count);
-                return new RecognitionResult(values, text);
+                return new RecognitionResult(values, text, Engine: await DescribeAsync(engine, ct));
             }
             catch (RecognitionLimitException ex) { logger.LogWarning("Движок {Engine}: лимит — следующий. {Msg}", engine.Name, ex.Message); last = Keep(last, ex); }
             catch (RecognitionUnavailableException ex) { logger.LogWarning("Движок {Engine}: недоступен — следующий. {Msg}", engine.Name, ex.Message); last = Keep(last, ex); }
         }
         throw last ?? new RecognitionUnavailableException("Распознавание не удалось ни одним движком.");
+    }
+
+    /// <summary>
+    /// Кем распозналось — «Ollama · qwen2.5vl:7b». Модель берём из настроек: без неё имя движка
+    /// отвечает лишь на половину вопроса, а разбираются обычно именно с моделью.
+    /// </summary>
+    private async Task<string> DescribeAsync(IRecognizerEngine engine, CancellationToken ct)
+    {
+        var model = (await selector.ModelOfAsync(engine.Name, ct));
+        return string.IsNullOrWhiteSpace(model) ? engine.Name : $"{engine.Name} · {model}";
     }
 
     /// <summary>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router';
-import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, Save, ZoomIn, Table2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, AlertCircle, Save, ZoomIn, Table2, RefreshCw } from 'lucide-react';
 import {
   useFilePages, useApplyGrouping, useRecognizeDocumentTable, useRecognizeDocument, useSetDocumentProfile,
   loadPageThumbnailUrl, loadPageImageUrl, recognitionRefusal, type RecognitionRefusal,
@@ -31,6 +31,12 @@ interface EditableGroup {
   tags: string[];
   /** Привязанный профиль распознавания (issue #410); правится точечным PUT, а не сохранением разбиения. */
   profileId: string | null;
+  /**
+   * Листы, по которым движок не ответил (issue #803). Признак приходит с сервера и живёт на ДАННЫХ,
+   * а не только в уведомлении: уведомление гаснет, а лист с пустыми полями остаётся в наборе и
+   * уезжает в реквизиты документа.
+   */
+  pagesWithoutAnswer: number[];
 }
 
 /** Подпись группы для меню переноса и заголовка. */
@@ -50,13 +56,14 @@ function makeGroups(groups: GostGroupingGroup[]): EditableGroup[] {
     kind: g.kind,
     code: g.code ?? DEFAULT_CODE,
     name: g.name,
+    pagesWithoutAnswer: g.pagesWithoutAnswer ?? [],
     pageIndices: [...g.pageIndices].sort((a, b) => a - b),
     tags: g.tags ?? [],
     profileId: g.profileId ?? null,
   }));
   // Обложка и титульный лист всегда присутствуют как группы (пустые — как цель для переноса).
   const ensure = (kind: Exclude<GostGroupKind, 'Document'>): EditableGroup[] =>
-    mapped.some(g => g.kind === kind) ? [] : [{ id: crypto.randomUUID(), kind, code: DEFAULT_CODE, name: null, pageIndices: [], tags: [], profileId: null }];
+    mapped.some(g => g.kind === kind) ? [] : [{ id: crypto.randomUUID(), kind, code: DEFAULT_CODE, name: null, pageIndices: [], tags: [], profileId: null, pagesWithoutAnswer: [] }];
   const cover = mapped.filter(g => g.kind === 'Cover');
   const title = mapped.filter(g => g.kind === 'TitlePage');
   const docs = mapped.filter(g => g.kind === 'Document');
@@ -100,9 +107,11 @@ function PageThumbnail({ fileId, pageIndex }: { fileId: string; pageIndex: numbe
 // крупный просмотр листа.
 
 function PageTile({
-  fileId, pageIndex, selected, suspicious, onToggle, onView,
+  fileId, pageIndex, selected, suspicious, noAnswer, onToggle, onView,
 }: {
   fileId: string; pageIndex: number; selected: boolean; suspicious: boolean;
+  /** Движок не ответил по этому листу — признак ЛИСТА, а не группы (issue #803). */
+  noAnswer: boolean;
   onToggle: (pageIndex: number, e: React.MouseEvent) => void;
   onView: (pageIndex: number) => void;
 }) {
@@ -112,7 +121,9 @@ function PageTile({
       className={`group/tile relative rounded-md p-1 border-2 transition-colors text-left cursor-pointer ${
         selected ? 'border-brand bg-brand-subtle' : 'border-transparent hover:border-stroke'
       }`}
-      title={`Страница ${pageIndex + 1}`}>
+      title={noAnswer
+        ? `Страница ${pageIndex + 1} — модель не ответила по этому листу, поля пусты`
+        : `Страница ${pageIndex + 1}`}>
       <PageThumbnail fileId={fileId} pageIndex={pageIndex} />
       <button
         onClick={e => { e.stopPropagation(); onView(pageIndex); }}
@@ -122,7 +133,11 @@ function PageTile({
       </button>
       <div className="flex items-center justify-between mt-1 px-0.5">
         <span className="text-[10px] text-fg4">{pageIndex + 1}</span>
-        {suspicious && <AlertTriangle size={10} className="text-warning" />}
+        {/* Лист без ответа виден отдельно от «подозрительной» группы: у первого поля пусты потому,
+            что их неоткуда взять, у второй — потому что распозналось не то. Лечится это по-разному. */}
+        {noAnswer
+          ? <AlertCircle size={10} className="text-danger" />
+          : suspicious && <AlertTriangle size={10} className="text-warning" />}
       </div>
     </div>
   );
@@ -340,6 +355,7 @@ function GroupSection({
         <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))' }}>
           {group.pageIndices.map(p => (
             <PageTile key={p} fileId={fileId} pageIndex={p} selected={selected.has(p)} suspicious={suspicious}
+              noAnswer={group.pagesWithoutAnswer.includes(p)}
               onToggle={onToggle} onView={onView} />
           ))}
         </div>
@@ -403,6 +419,11 @@ export function PdfGroupingEditor() {
     () => Array.from({ length: pageCount }, (_, i) => i).filter(i => !assignedPages.has(i)),
     [pageCount, assignedPages],
   );
+  // Листы без ответа — по всем группам разом: они нужны и плиткам вне групп, и счётчику в шапке.
+  const pagesWithoutAnswer = useMemo(
+    () => new Set((groups ?? []).flatMap(g => g.pagesWithoutAnswer)),
+    [groups],
+  );
 
   const suspiciousPageCount = useMemo(
     () => (groups ?? []).filter(isSuspicious).reduce((acc, g) => acc + g.pageIndices.length, 0) + unassignedPages.length,
@@ -440,7 +461,13 @@ export function PdfGroupingEditor() {
     mutateGroups(prev => {
       const cleared = removeFromAllGroups(prev, selected);
       if (targetGroupId === 'new') {
-        return [...cleared, { id: crypto.randomUUID(), kind: 'Document', code: DEFAULT_CODE, name: null, pageIndices: [...selected].sort((a, b) => a - b), tags: [], profileId: null }];
+        // Признак «ответа не было» принадлежит ЛИСТУ, а не группе: перенося листы в новую группу,
+        // переносим и его — иначе ручная правка разбиения молча стирала бы отметки.
+        return [...cleared, {
+          id: crypto.randomUUID(), kind: 'Document', code: DEFAULT_CODE, name: null,
+          pageIndices: [...selected].sort((a, b) => a - b), tags: [], profileId: null,
+          pagesWithoutAnswer: prev.flatMap(g => g.pagesWithoutAnswer).filter(p => selected.has(p)),
+        }];
       }
       return cleared.map(g => g.id === targetGroupId
         ? { ...g, pageIndices: [...g.pageIndices, ...selected].sort((a, b) => a - b) }
@@ -505,6 +532,15 @@ export function PdfGroupingEditor() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {/* Листы без ответа — отдельным счётчиком, не в куче с «подозрительными»: там разбираются
+              с тем, ЧТО распозналось, а здесь распознавания не было вовсе, и это чинится другим —
+              перераспознать, сменить движок или модель (issue #803). */}
+          {pagesWithoutAnswer.size > 0 && (
+            <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-danger-border bg-danger-subtle text-danger"
+              title="По этим листам движок не ответил — их поля пусты не потому, что на листе ничего нет. Перераспознайте документ или смените модель.">
+              <AlertCircle size={12} /> {pagesWithoutAnswer.size} без ответа
+            </span>
+          )}
           {suspiciousPageCount > 0 && (
             <button onClick={() => setSuspiciousOnly(v => !v)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
@@ -560,7 +596,7 @@ export function PdfGroupingEditor() {
             <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))' }}>
               {unassignedPages.map(p => (
                 <PageTile key={p} fileId={fileId} pageIndex={p} selected={selected.has(p)} suspicious={false}
-                  onToggle={toggle} onView={setViewerPage} />
+                  noAnswer={pagesWithoutAnswer.has(p)} onToggle={toggle} onView={setViewerPage} />
               ))}
             </div>
             {unassignedPages.some(p => selected.has(p)) && (

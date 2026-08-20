@@ -179,12 +179,30 @@ public class OllamaRecognizerEngine(
                 "данные пришли неполными.");
 
         var text = doc.RootElement.TryGetProperty("response", out var r) ? r.GetString() : null;
-        if (string.IsNullOrWhiteSpace(text))
-            // Пустой ответ наверх не отдаём (issue #802): там он неотличим от «модель ответила, что
-            // полей нет». У Ollama это в первую очередь thinking-модели — содержательный текст ушёл
-            // в отдельное поле; доставать его оттуда будем в #803, но молчать об этом нельзя уже
-            // сейчас.
-            throw new RecognitionSilentException("Ollama: модель вернула пустой ответ.");
-        return text;
+        if (!string.IsNullOrWhiteSpace(text)) return text;
+
+        // Пустой `response` у думающих моделей значит не «нечего сказать», а «сказано не туда»:
+        // содержательный ответ уехал в `thinking`. Проверено 2026-08-20 на qwen3-vl — с
+        // format:"json" в `thinking` лежал ровно тот JSON, который должен был прийти в `response`
+        // (issue #318, #803). Достаём его оттуда, а не притворяемся, что ответа нет.
+        //
+        // Работает это НЕ всегда, и знать об этом важно: если модель упёрлась в лимит
+        // (done_reason: length — проверено выше), в `thinking` лежит оборванное рассуждение, до
+        // ответа не дошедшее. Тот случай фоллбэком не лечится и не должен создавать видимость,
+        // будто лечится.
+        var thinking = doc.RootElement.TryGetProperty("thinking", out var th) ? th.GetString() : null;
+        if (!string.IsNullOrWhiteSpace(thinking)
+            && RecognitionShared.ExtractFirstJsonObject(thinking) is { } rescued)
+        {
+            logger.LogInformation("Ollama: ответ пришёл пустым, JSON извлечён из размышлений модели ({Chars} симв.)",
+                thinking.Length);
+            return rescued;
+        }
+
+        // Пустой ответ наверх не отдаём (issue #802): там он неотличим от «модель ответила, что
+        // полей нет».
+        throw new RecognitionSilentException(string.IsNullOrWhiteSpace(thinking)
+            ? "Ollama: модель вернула пустой ответ."
+            : "Ollama: ответ пуст, а в размышлениях модели данных не нашлось — похоже, она не дошла до ответа.");
     }
 }

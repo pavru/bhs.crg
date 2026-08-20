@@ -114,9 +114,15 @@ public record GostGroupingDto(IReadOnlyList<GostGroupingGroupDto> Groups, bool M
 /// <summary>Одна группа страниц. Для документа Code/Name как в реестре; для обложки/титула — null.
 /// PageIndices — 0-based индексы исходного PDF. Tags — функциональные тэги документа (тип таблицы).</summary>
 /// <param name="ProfileId">Привязанный профиль распознавания (issue #410); null — привязки нет.</param>
+/// <param name="PagesWithoutAnswer">
+/// Индексы листов группы, по которым движок не ответил (issue #803). Отдельно от пустых полей: лист
+/// без штампа даёт пустые поля законно, и пометив его наравне с неотвеченным, интерфейс кричал бы на
+/// каждом графическом листе — а признак, который горит всегда, перестают замечать.
+/// </param>
 public record GostGroupingGroupDto(
     GostGroupKind Kind, string? Code, string? Name, IReadOnlyList<int> PageIndices,
-    IReadOnlyList<string>? Tags = null, Guid? ProfileId = null);
+    IReadOnlyList<string>? Tags = null, Guid? ProfileId = null,
+    IReadOnlyList<int>? PagesWithoutAnswer = null);
 
 // ── Input DTOs (assembled by the HTTP layer, free of ASP.NET types) ─────────────
 

@@ -7,7 +7,13 @@ public record RecognitionField(string Path, string Title, string Type, IReadOnly
 /// Результат распознавания: значения по плоским путям полей + сырой текст (для отладки)
 /// + число страниц скана (для автозаполнения поля с тэгом doc.pageCount).
 /// </summary>
-public record RecognitionResult(IReadOnlyDictionary<string, string?> Values, string? RawText, int? PageCount = null);
+/// <param name="Engine">
+/// Кто распознал — имя движка и модель («Ollama · qwen2.5vl:7b»), для уведомления о результате
+/// (issue #803). Вопрос «почему у меня плохо распозналось» задают ПОСЛЕ прогона, и ответ на него
+/// начинается с того, кем он делался; выбор движка при этом знает только цепочка.
+/// </param>
+public record RecognitionResult(IReadOnlyDictionary<string, string?> Values, string? RawText, int? PageCount = null,
+    string? Engine = null);
 
 /// <summary>
 /// Извлекает реквизиты документа из скан-копии (image/pdf) по заданному списку полей.

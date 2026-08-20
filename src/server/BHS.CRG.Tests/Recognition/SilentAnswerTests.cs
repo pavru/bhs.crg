@@ -200,3 +200,34 @@ public class PageFailureTrackerTests
         Assert.Equal("лимит ответа исчерпан", t.FirstReason);
     }
 }
+
+/// <summary>
+/// Ответ, уехавший в размышления модели (issue #318, #803): у думающих моделей содержательный текст
+/// приходит не в том поле, и до этой правки конвейер считал такой ответ отсутствующим.
+/// </summary>
+public class ThinkingRescueTests
+{
+    private static readonly IReadOnlyList<RecognitionField> Fields =
+        [new RecognitionField("Шифр", "Шифр", "string")];
+
+    [Fact]
+    public void JsonFromThinking_IsAnAnswer()
+    {
+        // Проверено на живой модели 2026-08-20: при пустом `response` в `thinking` лежит ровно тот
+        // JSON, который должен был прийти. Достаём его тем же разбором, что и из ответа.
+        const string thinking = "Хорошо, посмотрим на штамп. Шифр читается как 25-04-063-ЭМ.\n" +
+                                "{\"Шифр\": \"25-04-063-ЭМ\"}";
+        var rescued = RecognitionShared.ExtractFirstJsonObject(thinking);
+        Assert.NotNull(rescued);
+        Assert.Equal("25-04-063-ЭМ", RecognitionShared.ParseValues(rescued!, Fields)["Шифр"]);
+    }
+
+    [Fact]
+    public void ThinkingWithoutJson_StaysSilence()
+    {
+        // Второй случай пустого ответа, который фоллбэком НЕ лечится: модель упёрлась в лимит и до
+        // ответа не дошла — в размышлениях оборванное рассуждение, доставать оттуда нечего.
+        const string thinking = "Так, мне нужно рассмотреть штамп. Сначала посмотрю на правый нижний угол, там";
+        Assert.Null(RecognitionShared.ExtractFirstJsonObject(thinking));
+    }
+}

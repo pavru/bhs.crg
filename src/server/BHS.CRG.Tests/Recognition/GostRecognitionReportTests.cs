@@ -13,9 +13,9 @@ public class GostRecognitionReportTests
 {
     private static (NotificationSeverity Severity, string Title, string Message) Describe(
         int failedPages = 0, string? reason = null, bool nothingRecognized = false,
-        int documents = 4, int pages = 16, int failedSplits = 0, int invalidatedTables = 0)
+        int documents = 4, int pages = 16, int failedSplits = 0, int invalidatedTables = 0, string? engine = null)
         => DataSetPdfRecognitionService.DescribeGostResult(
-            documents, pages, failedPages, reason, nothingRecognized, failedSplits, invalidatedTables);
+            documents, pages, failedPages, reason, nothingRecognized, failedSplits, invalidatedTables, engine);
 
     [Fact]
     public void CleanRun_IsInfo()
@@ -86,6 +86,16 @@ public class GostRecognitionReportTests
     public void NoReason_NoEmptyClause()
     {
         Assert.DoesNotContain("Причина", Describe(failedPages: 2, reason: "   ").Message);
+    }
+
+    [Fact]
+    public void EngineIsNamed_WhenKnown()
+    {
+        // «Почему у меня плохо распозналось» спрашивают после прогона, и ответ начинается с того,
+        // кем он делался. При удачном прогоне это справка, при неудачном — первое, что нужно знать.
+        Assert.Contains("Распознавал: Ollama · qwen2.5vl:7b.", Describe(engine: "Ollama · qwen2.5vl:7b").Message);
+        // Движок неизвестен (ни один лист не удался) — пустой фразы в тексте быть не должно.
+        Assert.DoesNotContain("Распознавал", Describe(failedPages: 3).Message);
     }
 
     [Fact]
