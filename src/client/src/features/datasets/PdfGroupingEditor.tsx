@@ -31,12 +31,6 @@ interface EditableGroup {
   tags: string[];
   /** Привязанный профиль распознавания (issue #410); правится точечным PUT, а не сохранением разбиения. */
   profileId: string | null;
-  /**
-   * Листы, по которым движок не ответил (issue #803). Признак приходит с сервера и живёт на ДАННЫХ,
-   * а не только в уведомлении: уведомление гаснет, а лист с пустыми полями остаётся в наборе и
-   * уезжает в реквизиты документа.
-   */
-  pagesWithoutAnswer: number[];
 }
 
 /** Подпись группы для меню переноса и заголовка. */
@@ -56,14 +50,13 @@ function makeGroups(groups: GostGroupingGroup[]): EditableGroup[] {
     kind: g.kind,
     code: g.code ?? DEFAULT_CODE,
     name: g.name,
-    pagesWithoutAnswer: g.pagesWithoutAnswer ?? [],
     pageIndices: [...g.pageIndices].sort((a, b) => a - b),
     tags: g.tags ?? [],
     profileId: g.profileId ?? null,
   }));
   // Обложка и титульный лист всегда присутствуют как группы (пустые — как цель для переноса).
   const ensure = (kind: Exclude<GostGroupKind, 'Document'>): EditableGroup[] =>
-    mapped.some(g => g.kind === kind) ? [] : [{ id: crypto.randomUUID(), kind, code: DEFAULT_CODE, name: null, pageIndices: [], tags: [], profileId: null, pagesWithoutAnswer: [] }];
+    mapped.some(g => g.kind === kind) ? [] : [{ id: crypto.randomUUID(), kind, code: DEFAULT_CODE, name: null, pageIndices: [], tags: [], profileId: null }];
   const cover = mapped.filter(g => g.kind === 'Cover');
   const title = mapped.filter(g => g.kind === 'TitlePage');
   const docs = mapped.filter(g => g.kind === 'Document');
@@ -231,7 +224,7 @@ function SelectionActionBar({
 // ─── Группа (документ / обложка / титульный лист) ────────────────────────────────────────────────
 
 function GroupSection({
-  fileId, group, otherGroups, selected, suspiciousOnly, dirty,
+  fileId, group, otherGroups, selected, suspiciousOnly, dirty, pagesWithoutAnswer,
   onToggle, onRename, onMoveSelected, onSplitSelected, onDisband, onView, onSetTag,
   onSetProfile, tableProfiles, savingProfile,
   onRecognizeTable, onRecognizeDoc, tableBusyPage, docBusyPage,
@@ -240,6 +233,8 @@ function GroupSection({
   group: EditableGroup;
   otherGroups: EditableGroup[];
   selected: Set<number>;
+  /** Листы без ответа — с сервера, один набор на весь редактор (issue #803). */
+  pagesWithoutAnswer: Set<number>;
   suspiciousOnly: boolean;
   dirty: boolean;
   onToggle: (pageIndex: number, e: React.MouseEvent) => void;
@@ -355,7 +350,7 @@ function GroupSection({
         <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))' }}>
           {group.pageIndices.map(p => (
             <PageTile key={p} fileId={fileId} pageIndex={p} selected={selected.has(p)} suspicious={suspicious}
-              noAnswer={group.pagesWithoutAnswer.includes(p)}
+              noAnswer={pagesWithoutAnswer.has(p)}
               onToggle={onToggle} onView={onView} />
           ))}
         </div>
@@ -419,10 +414,14 @@ export function PdfGroupingEditor() {
     () => Array.from({ length: pageCount }, (_, i) => i).filter(i => !assignedPages.has(i)),
     [pageCount, assignedPages],
   );
-  // Листы без ответа — по всем группам разом: они нужны и плиткам вне групп, и счётчику в шапке.
+  // Листы без ответа считаем из ОТВЕТА СЕРВЕРА, а не из редактируемых групп. Признак принадлежит
+  // листу, и локальная перегруппировка не меняет того, ответила ли по нему модель. Пока он лежал в
+  // состоянии редактора, каждая мутация групп обязана была помнить про перенос отметок — и помнила
+  // одна из трёх: перенос в существующую группу терял отметку у плитки, но не у счётчика (число
+  // расходилось с картинкой), а расформирование теряло её молча.
   const pagesWithoutAnswer = useMemo(
-    () => new Set((groups ?? []).flatMap(g => g.pagesWithoutAnswer)),
-    [groups],
+    () => new Set(data?.groups.flatMap(g => g.pagesWithoutAnswer ?? []) ?? []),
+    [data],
   );
 
   const suspiciousPageCount = useMemo(
@@ -461,13 +460,7 @@ export function PdfGroupingEditor() {
     mutateGroups(prev => {
       const cleared = removeFromAllGroups(prev, selected);
       if (targetGroupId === 'new') {
-        // Признак «ответа не было» принадлежит ЛИСТУ, а не группе: перенося листы в новую группу,
-        // переносим и его — иначе ручная правка разбиения молча стирала бы отметки.
-        return [...cleared, {
-          id: crypto.randomUUID(), kind: 'Document', code: DEFAULT_CODE, name: null,
-          pageIndices: [...selected].sort((a, b) => a - b), tags: [], profileId: null,
-          pagesWithoutAnswer: prev.flatMap(g => g.pagesWithoutAnswer).filter(p => selected.has(p)),
-        }];
+        return [...cleared, { id: crypto.randomUUID(), kind: 'Document', code: DEFAULT_CODE, name: null, pageIndices: [...selected].sort((a, b) => a - b), tags: [], profileId: null }];
       }
       return cleared.map(g => g.id === targetGroupId
         ? { ...g, pageIndices: [...g.pageIndices, ...selected].sort((a, b) => a - b) }
@@ -528,19 +521,23 @@ export function PdfGroupingEditor() {
             <h1 className="text-lg font-semibold text-fg1">
               Разбиение{location.state?.sourceName ? ` — ${location.state.sourceName}` : ''}
             </h1>
-            <p className="text-xs text-fg4">{pageCount} стр. · {documentCount} документ{documentCount === 1 ? '' : 'ов'}</p>
+            <p className="text-xs text-fg4">
+              {pageCount} стр. · {documentCount} документ{documentCount === 1 ? '' : 'ов'}
+              {/* Третьим фактом в ту же строку, а не плашкой в ряду действий: плашка того же
+                  размера и формы рядом с кнопкой читается как кнопка, и первое, что с ней сделают, —
+                  нажмут. Фильтровать тут нечего: листы без ответа рассыпаны по группам, и, скрыв
+                  остальное, человек увидит обрубки документов. Где именно проблема — видно на
+                  плитках, там сигнал и громкий. */}
+              {pagesWithoutAnswer.size > 0 && (
+                <span className="text-danger"
+                  title="По этим листам движок не ответил — их поля пусты не потому, что на листе ничего нет. Перераспознайте документ или смените модель.">
+                  {' · '}{pagesWithoutAnswer.size} лист{pagesWithoutAnswer.size === 1 ? '' : pagesWithoutAnswer.size < 5 ? 'а' : 'ов'} без ответа
+                </span>
+              )}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* Листы без ответа — отдельным счётчиком, не в куче с «подозрительными»: там разбираются
-              с тем, ЧТО распозналось, а здесь распознавания не было вовсе, и это чинится другим —
-              перераспознать, сменить движок или модель (issue #803). */}
-          {pagesWithoutAnswer.size > 0 && (
-            <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-danger-border bg-danger-subtle text-danger"
-              title="По этим листам движок не ответил — их поля пусты не потому, что на листе ничего нет. Перераспознайте документ или смените модель.">
-              <AlertCircle size={12} /> {pagesWithoutAnswer.size} без ответа
-            </span>
-          )}
           {suspiciousPageCount > 0 && (
             <button onClick={() => setSuspiciousOnly(v => !v)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
@@ -574,6 +571,7 @@ export function PdfGroupingEditor() {
           <GroupSection
             key={g.id} fileId={fileId} group={g} otherGroups={groups.filter(o => o.id !== g.id)}
             selected={selected} suspiciousOnly={suspiciousOnly} dirty={dirty}
+            pagesWithoutAnswer={pagesWithoutAnswer}
             onToggle={toggle} onRename={handleRename} onMoveSelected={handleMoveSelected}
             onSplitSelected={handleSplitSelected} onDisband={handleDisband} onView={setViewerPage}
             onSetTag={handleSetTag}

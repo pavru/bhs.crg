@@ -1201,6 +1201,9 @@ public class DataSetPdfRecognitionService(
         var stampFields = (await ProfileForFileAsync(file, RecognitionProfileKind.TitleBlock, ct)).ToRecognitionFields();
         var fields = GostTitleBlockFields.WithClassifiers(stampFields);
         var freshRows = new Dictionary<int, IReadOnlyDictionary<string, string?>>();
+        // Тот же накопитель, что и у полного прогона: отметки «ответа не было» нужны и здесь, иначе
+        // перераспознавание документа снимало бы их со всех листов независимо от исхода.
+        var docFailures = new PageFailureTracker();
         var done = 0;
         foreach (var p in target.Pages)
         {
@@ -1225,6 +1228,8 @@ public class DataSetPdfRecognitionService(
                 // OperationCanceledException и в эту ветку попадал сам собой.
                 logger.LogWarning("Таймаут распознавания стр. {Page} при перераспознавании документа {FileId}", idx + 1, file.Id);
                 values = fields.ToDictionary(f => f.Path, string? (f) => null);
+                docFailures.PageFailed(new RecognitionTimeoutException("движок не ответил за отведённый срок."),
+                    silent: false, pageIndex: idx);
             }
             catch (RecognitionSilentException ex)
             {
@@ -1234,6 +1239,7 @@ public class DataSetPdfRecognitionService(
                 logger.LogWarning("Стр. {Page} при перераспознавании документа {FileId}: ответа не было — {Msg}",
                     idx + 1, file.Id, ex.Message);
                 values = fields.ToDictionary(f => f.Path, string? (f) => null);
+                docFailures.PageFailed(ex, silent: true, pageIndex: idx);
             }
             catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
             {
@@ -1264,8 +1270,14 @@ public class DataSetPdfRecognitionService(
 
         // Пересобираем ТОЛЬКО целевую группу: свежие поля страниц, шифр/имя из свежего распознавания;
         // границы страниц и тэги документа сохраняем (тэг — ручной выбор типа таблицы, не трогаем).
+        // Отметка «ответа не было» пересчитывается: перераспознавание для того и запускают, чтобы её
+        // снять. Лист, на который свежий ответ пришёл, её теряет; лист, промолчавший снова, —
+        // сохраняет (в freshRows он лежит с пустыми полями, см. catch выше).
         var newPages = target.Pages
-            .Select(p => new GostGroupingPage(p.PageIndex, GostUnifiedGroupingBuilder.StripPerPage(freshRows.GetValueOrDefault(p.PageIndex) ?? p.Fields)))
+            .Select(p => new GostGroupingPage(
+                p.PageIndex,
+                GostUnifiedGroupingBuilder.StripPerPage(freshRows.GetValueOrDefault(p.PageIndex) ?? p.Fields),
+                docFailures.PagesWithoutAnswer.Contains(p.PageIndex)))
             .ToList();
         var freshName = newPages.Select(pg => pg.Fields.GetValueOrDefault("НаименованиеДокумента")).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
         var freshShifr = newPages.Select(pg => pg.Fields.GetValueOrDefault("Шифр")).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
@@ -1313,10 +1325,17 @@ public class DataSetPdfRecognitionService(
         // страницы в другую группу — сохраняет её реальные распознанные поля).
         var existing = ParseGrouping(file.Grouping);
         var pageFields = new Dictionary<int, IReadOnlyDictionary<string, string?>>();
+        // «Ответа по листу не было» — свойство ЛИСТА, а не группы (issue #803): перенос страницы в
+        // другую группу его не отменяет, как не отменяет и распознанных полей. Без этого первое же
+        // «Сохранить» стирало бы отметки, и признак жил бы ровно до первой ручной правки.
+        var pageNoAnswer = new HashSet<int>();
         if (existing is not null)
             foreach (var g in existing.Groups)
                 foreach (var p in g.Pages)
+                {
                     pageFields[p.PageIndex] = p.Fields;
+                    if (p.NoAnswer) pageNoAnswer.Add(p.PageIndex);
+                }
 
         // Новая единая группировка целиком из ввода (все виды: обложка/титул/документы).
         var unified = new GostGroupingData(
@@ -1324,7 +1343,8 @@ public class DataSetPdfRecognitionService(
                 .Where(g => g.PageIndices.Count > 0)
                 .Select(g => new GostGroupingGroup(g.Kind, g.Code, g.Name,
                     g.PageIndices.OrderBy(i => i)
-                        .Select(i => new GostGroupingPage(i, pageFields.GetValueOrDefault(i) ?? new Dictionary<string, string?>()))
+                        .Select(i => new GostGroupingPage(i, pageFields.GetValueOrDefault(i) ?? new Dictionary<string, string?>(),
+                            pageNoAnswer.Contains(i)))
                         .ToList(),
                     g.Tags))
                 .ToList(),
