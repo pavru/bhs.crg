@@ -77,14 +77,6 @@ public static class EngineReadiness
     }
 
     /// <summary>
-    /// Движок включён, настроен И не уличён в слепоте — цепочка его возьмёт. Отдельная перегрузка, а
-    /// не поле в <see cref="IntegrationEngine" />: зрение — свойство пары (движок, модель), про
-    /// которое отвечает <see cref="IRecognitionModelCatalog" />, а не сохранённая настройка.
-    /// </summary>
-    public static bool IsUsableForRecognition(string name, IntegrationEngine e, VisionStatus vision)
-        => IsUsableForRecognition(name, e) && vision.State != VisionState.Blind;
-
-    /// <summary>
     /// Одна ли это модель. Для Ollama имя без тега равно имени с тегом <c>latest</c> — так их пишет и
     /// сама Ollama, и человек в поле настроек, и считать «qwen3-vl» отсутствующей при установленной
     /// «qwen3-vl:latest» было бы придиркой к записи.

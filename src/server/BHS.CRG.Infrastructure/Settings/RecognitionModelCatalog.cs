@@ -46,6 +46,15 @@ public partial class RecognitionModelCatalog(
     private static readonly TimeSpan BlindTtl = TimeSpan.FromMinutes(15);
 
     /// <summary>
+    /// «Канарейка ничего не выяснила» — двадцать минут, и это НЕ та же величина, что у облачной
+    /// пробы, хотя случай на вид тот же. У облачного повтора срок задан кругом health-мониторинга;
+    /// канарейку health не зовёт вовсе, зато повтор её стоит до полутора минут ВНУТРИ распознавания
+    /// страницы. Модель, отвечающая на канарейку молчанием (замер 2026-08-20: 196 с и пустота),
+    /// при трёхминутном сроке съедала бы прогон альбома пробой, которой заведомо нечего выяснить.
+    /// </summary>
+    private static readonly TimeSpan CanaryUnknownTtl = TimeSpan.FromMinutes(20);
+
+    /// <summary>
     /// Срок ожидания канарейки. Ответ на неё — секунды (замер: 6 с на трёхполосной картинке,
     /// 13 с с полным промптом штампа), но ПЕРВЫЙ вызов после простоя грузит модель с диска в память,
     /// и это уже минуты. Полторы минуты — компромисс: холодный старт укладывается, а страница
@@ -173,7 +182,7 @@ public partial class RecognitionModelCatalog(
             {
                 VisionState.Sighted => SightedTtl,
                 VisionState.Blind => BlindTtl,
-                _ => CloudRetryTtl,
+                _ => CanaryUnknownTtl,
             },
             async token =>
             {

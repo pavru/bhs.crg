@@ -366,6 +366,10 @@ public class DataSetPdfRecognitionService(
         var coverFields = (await ProfileForFileAsync(file, RecognitionProfileKind.CoverTitle, ct)).ToRecognitionFields();
         var rows = new List<IReadOnlyDictionary<string, string?>>();
         var failedPages = 0; // листы, распознавание которых не удалось (строка осталась пустой) — для уведомления
+        // ПОЧЕМУ не удалось — первым отказом. Без причины уведомление говорит «не распозналось 16
+        // листов» и не называет ни виновника, ни лекарства: человек видит, что плохо, и не знает,
+        // что чинить. Первым, а не последним: он объясняет, с чего всё посыпалось (issue #801).
+        string? failureReason = null;
         for (var i = 0; i < pngPages.Count; i++)
         {
             if (onProgress is not null) await onProgress(i + 1, pngPages.Count); // честный прогресс для индикатора
@@ -393,6 +397,7 @@ public class DataSetPdfRecognitionService(
                     throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
                 logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, file.Id);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
+                failureReason ??= ex.Message;
                 failedPages++;
                 continue;
             }
@@ -402,6 +407,7 @@ public class DataSetPdfRecognitionService(
                 // (внутренние сроки, будущие движки).
                 logger.LogWarning("Таймаут распознавания страницы {Page} источника {SourceId} — строка останется пустой", i + 1, file.Id);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
+                failureReason ??= "движок не ответил за отведённый срок.";
                 failedPages++;
                 continue;
             }
@@ -478,7 +484,8 @@ public class DataSetPdfRecognitionService(
         // Материализация СЫРЬЯ на наборе: режем под-PDF в группы (BlobPath в Grouping), пишем Grouping,
         // переспроецируем существующие источники-проекции, чистим осиротевшие блобы. Источников НЕ создаём.
         var matResult = await MaterializeFileGroupingAsync(file, unified, bytes, ct);
-        await PublishGostRecognitionResultAsync(matResult.DocumentCount, rows.Count, failedPages, matResult.FailedSplits, matResult.InvalidatedTables, ct);
+        await PublishGostRecognitionResultAsync(matResult.DocumentCount, rows.Count, failedPages, failureReason,
+            matResult.FailedSplits, matResult.InvalidatedTables, ct);
     }
 
     private record GostMaterializeResult(int DocumentCount, int FailedSplits, int InvalidatedTables);
@@ -583,19 +590,27 @@ public class DataSetPdfRecognitionService(
     // источники — последнее требует ручной перепроверки). Системное (userId=null): эндпоинт
     // распознавания не несёт контекст пользователя, действие админ-конфигурационное.
     private async Task PublishGostRecognitionResultAsync(
-        int documentCount, int pageCount, int failedPages, int failedSplits, int invalidatedTables, CancellationToken ct)
+        int documentCount, int pageCount, int failedPages, string? failureReason,
+        int failedSplits, int invalidatedTables, CancellationToken ct)
     {
+        // «Не ответила», а не «не распозналось»: пустой штамп — законный исход, и обвинять модель в
+        // нём незачем. Речь именно о листах, ответа по которым не было вовсе.
         var msg = $"Распознано: {documentCount} документов, {pageCount} листов.";
-        if (failedPages > 0) msg += $" Не распозналось листов: {failedPages}.";
+        if (failedPages > 0) msg += $" Модель не ответила по листам: {failedPages}.";
+        if (failureReason is not null) msg += $" Причина: {failureReason}";
         if (failedSplits > 0) msg += $" Документов без файла: {failedSplits}.";
         if (invalidatedTables > 0)
             msg += $" Табличные источники ({invalidatedTables}) инвалидированы — границы документов изменились," +
                    " проверьте/перераспознайте их вручную.";
 
         var hasIssues = failedPages > 0 || failedSplits > 0 || invalidatedTables > 0;
+        // Не распозналось НИ ОДНОГО листа — это не «завершено с пропусками», а полный провал, и
+        // называть его предупреждением значит приуменьшать: в наборе не появилось ничего.
+        var total = failedPages > 0 && failedPages >= pageCount;
         await notifications.PublishAsync(
-            hasIssues ? NotificationSeverity.Warning : NotificationSeverity.Info,
-            "Распознавание групп листов PDF завершено", msg, "Распознавание PDF", ct: ct);
+            total ? NotificationSeverity.Error : hasIssues ? NotificationSeverity.Warning : NotificationSeverity.Info,
+            total ? "Распознавание PDF не удалось" : "Распознавание групп листов PDF завершено",
+            msg, "Распознавание PDF", ct: ct);
     }
 
     // Тип поля схемы → тип поля распознавания (консервативно: число/дата, остальное — строка).

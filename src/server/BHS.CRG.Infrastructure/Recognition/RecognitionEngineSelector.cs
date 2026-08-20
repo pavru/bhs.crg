@@ -1,4 +1,4 @@
-using BHS.CRG.Application.QualityDocs;
+﻿using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
 using Microsoft.Extensions.Logging;
 
@@ -83,7 +83,10 @@ public class RecognitionPreflight(RecognitionEngineSelector selector) : IRecogni
         // разное. «Не настроено» чинится галкой и ключом, слепота — сменой модели, и совет
         // «проверьте настройки» во втором случае отправляет человека искать то, что и так на месте.
         if (selection.Blind.Count > 0)
-            return new RecognitionBlock(RecognitionBlock.Blind, string.Join(" ", selection.Blind.Select(b => b.Issue)));
+            // С именем движка: претензия про модель, а движков с моделями может быть несколько, и
+            // два одинаковых абзаца подряд не сказали бы, к какому из них идти.
+            return new RecognitionBlock(RecognitionBlock.Blind,
+                string.Join(" ", selection.Blind.Select(b => $"{b.Engine}: {b.Issue}")));
 
         return new RecognitionBlock(RecognitionBlock.NoEngine,
             "Нет включённых и настроенных движков распознавания. Проверьте «Настройки → Поиск и распознавание».");

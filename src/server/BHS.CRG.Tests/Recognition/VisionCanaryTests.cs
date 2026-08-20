@@ -24,11 +24,14 @@ public class VisionCanaryTests
     [InlineData("green, magenta, yellow")]
     [InlineData("```json\n{\"colors\":[\"Зелёная\",\"Фуксия\",\"Золотая\"]}\n```")]
     [InlineData("Слева зелёная полоса, в середине сиреневая, справа жёлтая.")]
+    // Порядок вердиктом не проверяется: набор из трёх редких цветов наугад не составить, а зрячая
+    // модель, перепутавшая две правые полосы, за это лишилась бы права работать.
+    [InlineData("{\"colors\": [\"жёлтый\", \"зелёный\", \"пурпурный\"]}")]
+    [InlineData("{\"colors\": [\"лаймовая\", \"пурпурная\", \"лимонная\"]}")]
     public void SeesImage_AcceptsSynonymsAndProse(string raw)
         => Assert.True(VisionCanary.SeesImage(raw));
 
     [Theory]
-    [InlineData("{\"colors\": [\"жёлтый\", \"зелёный\", \"пурпурный\"]}")]   // порядок неверный
     [InlineData("{\"colors\": [\"зелёный\", \"жёлтый\"]}")]                  // одной полосы нет
     [InlineData("{\"colors\": [\"красный\", \"синий\", \"белый\"]}")]        // угадывание наугад
     [InlineData("Я не могу определить цвета на изображении.")]
@@ -64,16 +67,6 @@ public class VisionCanaryTests
     }
 
     [Fact]
-    public void VisionIssue_OnlyForBlind()
-    {
-        var cfg = new IntegrationEngine { Enabled = true, Model = "gemma4:latest" };
-        Assert.Null(EngineReadiness.VisionIssue("Ollama", cfg, VisionStatus.Unknown));
-        Assert.Null(EngineReadiness.VisionIssue("Ollama", cfg, VisionStatus.Sighted));
-        Assert.Contains("не принимает изображения",
-            EngineReadiness.VisionIssue("Ollama", cfg, new VisionStatus(VisionState.Blind))!);
-    }
-
-    [Fact]
     public void VisionIssue_SilentWhenEngineIsNotConfigured()
     {
         // У ненастроенного движка своя претензия («не выбрана модель»), и вторая, про зрение, только
@@ -83,13 +76,16 @@ public class VisionCanaryTests
     }
 
     [Fact]
-    public void UsableForRecognition_BlindIsExcluded_UnknownIsNot()
+    public void OnlyBlindIsAClaim_SightedAndUnknownAreNot()
     {
-        var cfg = new IntegrationEngine { Enabled = true, Model = "qwen2.5vl:7b" };
-        Assert.True(EngineReadiness.IsUsableForRecognition("Ollama", cfg, VisionStatus.Sighted));
+        // Тем же вопросом, каким спрашивает отбор движков (VisionIssue): второго способа задать его
+        // заводить нельзя — разъехавшись, они дали бы зелёный тест на неиспользуемую ветку.
+        var cfg = new IntegrationEngine { Enabled = true, Model = "gemma4:latest" };
+        Assert.Null(EngineReadiness.VisionIssue("Ollama", cfg, VisionStatus.Sighted));
         // «Не проверено» работу не запрещает: иначе первый же таймаут канарейки отключил бы
         // распознавание, которое исправно работает.
-        Assert.True(EngineReadiness.IsUsableForRecognition("Ollama", cfg, VisionStatus.Unknown));
-        Assert.False(EngineReadiness.IsUsableForRecognition("Ollama", cfg, new VisionStatus(VisionState.Blind)));
+        Assert.Null(EngineReadiness.VisionIssue("Ollama", cfg, VisionStatus.Unknown));
+        Assert.Contains("не принимает изображения",
+            EngineReadiness.VisionIssue("Ollama", cfg, new VisionStatus(VisionState.Blind))!);
     }
 }
