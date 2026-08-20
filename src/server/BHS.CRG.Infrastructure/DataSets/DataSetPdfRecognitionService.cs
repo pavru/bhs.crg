@@ -596,14 +596,34 @@ public class DataSetPdfRecognitionService(
         int documentCount, int pageCount, int failedPages, string? failureReason, bool nothingRecognized,
         int failedSplits, int invalidatedTables, CancellationToken ct)
     {
+        var (severity, title, msg) = DescribeGostResult(
+            documentCount, pageCount, failedPages, failureReason, nothingRecognized, failedSplits, invalidatedTables);
+        await notifications.PublishAsync(severity, title, msg, "Распознавание PDF", ct: ct);
+    }
+
+    /// <summary>
+    /// Чем отчитаться о прогоне: серьёзность, заголовок, текст. Отдельной чистой функцией, потому что
+    /// это единственное место, где решается, назвать прогон провалом или пропусками, — и решение
+    /// такого рода обязано быть проверяемым. Прежний признак полного провала был недостижим и
+    /// выглядел рабочим; нашли это чтением, потому что смотреть прогоном было не на что (issue #801).
+    ///
+    /// Открыт ради теста — как <c>RecognitionModelCatalog.AdviceFrom</c> и по той же причине.
+    /// </summary>
+    public static (NotificationSeverity Severity, string Title, string Message) DescribeGostResult(
+        int documentCount, int pageCount, int failedPages, string? failureReason, bool nothingRecognized,
+        int failedSplits, int invalidatedTables)
+    {
         // «Не ответила», а не «не распозналось»: пустой штамп — законный исход, и обвинять модель в
         // нём незачем. Речь именно о листах, ответа по которым не было вовсе.
         var msg = $"Распознано: {documentCount} документов, {pageCount} листов.";
         if (failedPages > 0) msg += $" Модель не ответила по листам: {failedPages}.";
         // Точку добавляем сами: тексты причин приходят из разных мест (сообщение исключения движка,
         // наша формулировка про таймаут), и половина из них её не несёт.
-        if (failureReason is not null)
-            msg += $" Причина: {failureReason.TrimEnd()}" + (failureReason.TrimEnd().EndsWith('.') ? "" : ".");
+        if (!string.IsNullOrWhiteSpace(failureReason))
+        {
+            var reason = failureReason.TrimEnd();
+            msg += $" Причина: {reason}" + (reason.EndsWith('.') ? "" : ".");
+        }
         if (failedSplits > 0) msg += $" Документов без файла: {failedSplits}.";
         if (invalidatedTables > 0)
             msg += $" Табличные источники ({invalidatedTables}) инвалидированы — границы документов изменились," +
@@ -620,10 +640,10 @@ public class DataSetPdfRecognitionService(
         // прошёл, остальные 199 отвалились — по существу тот же провал, и прежним условием он
         // уходил предупреждением.
         var total = failedPages > 0 && nothingRecognized;
-        await notifications.PublishAsync(
+        return (
             total ? NotificationSeverity.Error : hasIssues ? NotificationSeverity.Warning : NotificationSeverity.Info,
             total ? "Распознавание PDF не удалось" : "Распознавание групп листов PDF завершено",
-            msg, "Распознавание PDF", ct: ct);
+            msg);
     }
 
     // Тип поля схемы → тип поля распознавания (консервативно: число/дата, остальное — строка).
