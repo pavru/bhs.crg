@@ -199,7 +199,7 @@ public class DataSetPdfRecognitionService(
         // Тот же накопитель, что и у прогона набора: этот цикл до issue #802 не считал отказы вовсе —
         // страницы молча уходили пустыми, и узнать об этом было неоткуда.
         var failures = new PageFailureTracker();
-        string? sourceEngine = null;
+        var sourceEngines = new List<string>();
         for (var i = 0; i < pages.Count; i++)
         {
             try
@@ -207,7 +207,7 @@ public class DataSetPdfRecognitionService(
                 var result = await recognizer.RecognizeAsync(
                     pages[i], "image/png", fields, RecognitionShared.BuildTitleBlockPrompt, ct: ct);
                 rows.Add(result.Values);
-                sourceEngine ??= result.Engine;
+                if (result.Engine is { } used && !sourceEngines.Contains(used)) sourceEngines.Add(used);
                 failures.PageSucceeded();
             }
             catch (RecognitionSilentException ex)
@@ -221,7 +221,10 @@ public class DataSetPdfRecognitionService(
                 {
                     logger.LogWarning("Прогон источника {SourceId} прекращён: {Reason}", sourceId, failures.StopReason);
                     for (var rest = i + 1; rest < pages.Count; rest++)
+                    {
                         rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
+                        failures.MarkNotAttempted(rest);
+                    }
                     break;
                 }
             }
@@ -250,8 +253,12 @@ public class DataSetPdfRecognitionService(
                 // «Листов в источнике», а не «обработано»: при остановке по счётчику молчаний часть
                 // листов движку не показывали вовсе, и назвать их обработанными было бы неправдой.
                 $"Листов в источнике: {pages.Count}. Модель не ответила по листам: {failures.FailedPages}." +
+                // Пропущенные — отдельным числом: назвав только неотвеченные, сообщение о прогоне,
+                // прекращённом на третьем листе из двухсот, говорило бы про три, а пустых строк было
+                // бы сто девяносто семь.
+                (failures.NotAttemptedPages > 0 ? $" Прогон прекращён, ещё {failures.NotAttemptedPages} листов не обработаны." : "") +
                 (string.IsNullOrWhiteSpace(reason) ? "" : $" Причина: {reason.TrimEnd('.')}.") +
-                (string.IsNullOrWhiteSpace(sourceEngine) ? "" : $" Распознавал: {sourceEngine}."),
+                (sourceEngines.Count == 0 ? "" : $" Распознавал: {string.Join(", ", sourceEngines)}."),
                 "Распознавание PDF", ct: ct);
         }
 
@@ -414,8 +421,10 @@ public class DataSetPdfRecognitionService(
         // на все постраничные прогоны (issue #801, #802).
         var failures = new PageFailureTracker();
         // Кем распозналось — в уведомление (issue #803): «почему у меня плохо распозналось» спрашивают
-        // после прогона, и ответ начинается с имени движка и модели.
-        string? engineUsed = null;
+        // после прогона, и ответ начинается с имени движка и модели. ВСЕ участвовавшие, а не первый:
+        // цепочка может переключиться на середине альбома (у облачного кончилась квота), и назвать
+        // движок, который проблемных листов не касался, хуже, чем не называть никого.
+        var enginesUsed = new List<string>();
         for (var i = 0; i < pngPages.Count; i++)
         {
             if (onProgress is not null) await onProgress(i + 1, pngPages.Count); // честный прогресс для индикатора
@@ -432,7 +441,7 @@ public class DataSetPdfRecognitionService(
                 var result = await recognizer.RecognizeAsync(
                     pngPages[i], "image/png", fields, promptBuilder, ct: ct);
                 values = new Dictionary<string, string?>(result.Values);
-                engineUsed ??= result.Engine;
+                if (result.Engine is { } usedEngine && !enginesUsed.Contains(usedEngine)) enginesUsed.Add(usedEngine);
                 failures.PageSucceeded();
             }
             catch (RecognitionSilentException ex)
@@ -443,7 +452,7 @@ public class DataSetPdfRecognitionService(
                 // отменяет его: распознанное сохраняется.
                 logger.LogWarning("Страница {Page} источника {SourceId}: ответа не было — {Msg}", i + 1, file.Id, ex.Message);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
-                failures.PageFailed(ex, silent: true);
+                failures.PageFailed(ex, silent: true, pageIndex: i);
                 if (failures.ShouldStop)
                 {
                     logger.LogWarning("Прогон набора {SourceId} прекращён: {Reason}", file.Id, failures.StopReason);
@@ -562,8 +571,11 @@ public class DataSetPdfRecognitionService(
         // это полным провалом, и признак должен совпадать с обещанием текста.
         var nothingRecognized = rows.All(r => r.Values.All(string.IsNullOrWhiteSpace));
         await PublishGostRecognitionResultAsync(matResult.DocumentCount, rows.Count, failures.FailedPages,
-            failures.ShouldStop ? failures.StopReason : failures.FirstReason,
-            nothingRecognized, matResult.FailedSplits, matResult.InvalidatedTables, engineUsed, ct);
+            failures.ShouldStop
+                ? $"{failures.StopReason} Ещё {failures.NotAttemptedPages} листов не обработаны."
+                : failures.FirstReason,
+            nothingRecognized, matResult.FailedSplits, matResult.InvalidatedTables,
+            enginesUsed.Count > 0 ? string.Join(", ", enginesUsed) : null, ct);
     }
 
     private record GostMaterializeResult(int DocumentCount, int FailedSplits, int InvalidatedTables);

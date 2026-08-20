@@ -192,10 +192,18 @@ public class OllamaRecognizerEngine(
         // будто лечится.
         var thinking = doc.RootElement.TryGetProperty("thinking", out var th) ? th.GetString() : null;
         if (!string.IsNullOrWhiteSpace(thinking)
-            && RecognitionShared.ExtractFirstJsonObject(thinking) is { } rescued)
+            && RecognitionShared.ExtractFirstJsonObject(thinking) is { } rescued
+            // Найденного объекта МАЛО: размышления часто начинаются с пересказа схемы из промпта
+            // («сейчас заполню {"Шифр": "", "Наименование": ""}»), и первый попавшийся объект
+            // оказывается этим шаблоном. Вернув его, мы отдали бы наверх разобранный пустой словарь —
+            // то есть выдали бы молчание за законный ноль полей, ровно ту подмену, ради устранения
+            // которой затевались #802 и #803, только теперь с активно неверным вердиктом.
+            // Поэтому спасаем лишь то, где есть хоть одно запрошенное поле со значением.
+            && RecognitionShared.TryParseValues(rescued, fields, out var rescuedValues, out _)
+            && rescuedValues.Count > 0)
         {
-            logger.LogInformation("Ollama: ответ пришёл пустым, JSON извлечён из размышлений модели ({Chars} симв.)",
-                thinking.Length);
+            logger.LogInformation("Ollama: ответ пришёл пустым, данные извлечены из размышлений модели ({Chars} симв., полей: {N})",
+                thinking.Length, rescuedValues.Count);
             return rescued;
         }
 
@@ -203,6 +211,6 @@ public class OllamaRecognizerEngine(
         // полей нет».
         throw new RecognitionSilentException(string.IsNullOrWhiteSpace(thinking)
             ? "Ollama: модель вернула пустой ответ."
-            : "Ollama: ответ пуст, а в размышлениях модели данных не нашлось — похоже, она не дошла до ответа.");
+            : "Ollama: ответ пуст, а в размышлениях данных не нашлось — похоже, модель не дошла до ответа.");
     }
 }

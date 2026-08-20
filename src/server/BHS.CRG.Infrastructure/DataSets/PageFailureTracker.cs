@@ -64,7 +64,18 @@ public class PageFailureTracker(int silenceLimit = PageFailureTracker.DefaultSil
     /// Лист, до которого прогон не дошёл: работу прекратили раньше. В счётчик отказов он НЕ идёт —
     /// движок по нему не ошибался, — но на данных помечается так же: полей нет и взяться им неоткуда.
     /// </summary>
-    public void MarkNotAttempted(int pageIndex) => pagesWithoutAnswer.Add(pageIndex);
+    public void MarkNotAttempted(int pageIndex)
+    {
+        if (pagesWithoutAnswer.Add(pageIndex)) NotAttemptedPages++;
+    }
+
+    /// <summary>
+    /// Сколько листов остались необработанными из-за прекращения прогона. Отдельно от
+    /// <see cref="FailedPages" /> и в тексте, и в счёте: движок по ним не ошибался, но и данных по
+    /// ним нет — а сообщение, называющее только неотвеченные, на прогоне, прекращённом третьим
+    /// листом из двухсот, говорило бы про три при ста девяноста семи пустых строках.
+    /// </summary>
+    public int NotAttemptedPages { get; private set; }
 
     /// <summary>Лист распознан — счёт молчаний подряд начинается заново.</summary>
     public void PageSucceeded() => silentInARow = 0;

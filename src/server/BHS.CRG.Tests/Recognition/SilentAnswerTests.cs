@@ -191,6 +191,34 @@ public class PageFailureTrackerTests
     }
 
     [Fact]
+    public void SilentPage_IsMarkedOnTheSheet()
+    {
+        // Тест, которого не было, — и потому главный случай задачи не помечался вовсе: в основном
+        // прогоне вызов забыл передать номер листа, отметки не появлялись, а уведомление при этом
+        // честно называло число. Счётчик и пометки обязаны идти вместе.
+        var t = new PageFailureTracker();
+        t.PageFailed(Silent(), silent: true, pageIndex: 2);
+        t.PageFailed(Silent(), silent: true, pageIndex: 6);
+        Assert.Equal([2, 6], t.PagesWithoutAnswer.OrderBy(i => i));
+        Assert.Equal(2, t.FailedPages);
+    }
+
+    [Fact]
+    public void NotAttemptedPages_AreMarkedButCountedApart()
+    {
+        // Листы, до которых прогон не дошёл: данных по ним нет — значит помечаем; но движок по ним
+        // не ошибался — значит в счётчик отказов они не идут, иначе сообщение про «не ответила по N»
+        // называло бы чужую вину.
+        var t = new PageFailureTracker();
+        t.PageFailed(Silent(), silent: true, pageIndex: 0);
+        t.MarkNotAttempted(1);
+        t.MarkNotAttempted(2);
+        Assert.Equal(1, t.FailedPages);
+        Assert.Equal(2, t.NotAttemptedPages);
+        Assert.Equal([0, 1, 2], t.PagesWithoutAnswer.OrderBy(i => i));
+    }
+
+    [Fact]
     public void FirstReasonWins()
     {
         // Первая причина объясняет, с чего прогон посыпался; последняя чаще всего лишь следствие.
@@ -220,6 +248,22 @@ public class ThinkingRescueTests
         var rescued = RecognitionShared.ExtractFirstJsonObject(thinking);
         Assert.NotNull(rescued);
         Assert.Equal("25-04-063-ЭМ", RecognitionShared.ParseValues(rescued!, Fields)["Шифр"]);
+    }
+
+    [Fact]
+    public void SchemaEchoFromThinking_IsNotAnAnswer()
+    {
+        // Размышления часто начинаются с пересказа схемы из промпта, и первый найденный объект
+        // оказывается этим шаблоном. Приняв его, движок вернул бы разобранный ПУСТОЙ словарь — то
+        // есть выдал бы молчание за законный ноль полей: подмена, ради устранения которой затевались
+        // #802 и #803, только теперь с активно неверным вердиктом вместо тихого.
+        const string thinking = "Так, мне нужно заполнить {\"Шифр\": \"\", \"Наименование\": \"\"}. Смотрю на штамп…";
+        var echoed = RecognitionShared.ExtractFirstJsonObject(thinking);
+        Assert.NotNull(echoed);
+        // Объект найден и даже разбирается — отличает его от настоящего ответа только то, что
+        // запрошенных полей со значениями в нём нет.
+        Assert.True(RecognitionShared.TryParseValues(echoed!, Fields, out var values, out _));
+        Assert.Empty(values);
     }
 
     [Fact]
