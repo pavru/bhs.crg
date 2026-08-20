@@ -68,12 +68,22 @@ public class HealthMonitorService(
         // недоступности движка, которым система всё равно не пользуется.
         var ollama = settings.Rec("Ollama");
         if (EngineReadiness.IsUsableForRecognition("Ollama", ollama))
-            checks.Add(await CheckAsync("Ollama (распознавание)", () => CheckOllamaAsync(ollama.BaseUrl, ct)));
+            checks.Add(await CheckAsync("Ollama (распознавание)", async () =>
+            {
+                await CheckOllamaAsync(ollama.BaseUrl, ct);
+                return await ModelDetailAsync(sp, "Ollama", ollama, ct);
+            }));
 
-        // Gemini — лёгкий GET метаданных модели, без расхода квоты генерации.
+        // Gemini — сначала лёгкий GET метаданных (доступен ли движок вообще), потом проверка самой
+        // модели. Вторая стоит одного запроса генерации на ответ (см. ModelDetailAsync): метаданные
+        // про снятую с обслуживания модель молчат, и без пробы мониторинг её не увидит.
         var gemini = settings.Rec("Gemini");
         if (EngineReadiness.IsUsableForRecognition("Gemini", gemini))
-            checks.Add(await CheckAsync("Gemini (распознавание)", () => CheckGeminiAsync(gemini.ApiKey!, gemini.Model, ct)));
+            checks.Add(await CheckAsync("Gemini (распознавание)", async () =>
+            {
+                await CheckGeminiAsync(gemini.ApiKey!, gemini.Model, ct);
+                return await ModelDetailAsync(sp, "Gemini", gemini, ct);
+            }));
 
         _snapshot = checks;
 
@@ -133,6 +143,29 @@ public class HealthMonitorService(
         return null;
     }
 
+    /// <summary>
+    /// Отвечать движок может и с моделью, которой у поставщика больше нет, — тогда мониторинг молчит,
+    /// а каждый документ получает отказ. Проверки доступности этого не ловят по устройству: метаданные
+    /// модели Google отдаёт с кодом 200 и после того, как generateContent начал отвечать 404
+    /// (issue #799), а Ollama на <c>/api/tags</c> исправно перечисляет то, что скачано, не сверяя со
+    /// своими настройками.
+    ///
+    /// Для облачного движка это РАСХОД: проба — настоящий запрос генерации (с ответом в один токен).
+    /// На круг мониторинга он не приходится — определённый ответ каталог держит четверть часа, а
+    /// неопределённый три минуты, что заведомо длиннее 45-секундного круга. Срок кэша короче круга
+    /// означал бы запрос на каждом круге, то есть беспрерывный стук в поставщика ровно тогда, когда
+    /// он и так отказывает.
+    /// </summary>
+    private static async Task<string?> ModelDetailAsync(IServiceProvider sp, string name, IntegrationEngine cfg, CancellationToken ct)
+    {
+        var status = await sp.GetRequiredService<IRecognitionModelCatalog>()
+            .GetStatusAsync(name, cfg, cfg.Model ?? string.Empty, ct: ct);
+        var issue = EngineReadiness.ModelIssue(name, cfg, status);
+        // Через исключение — потому что «нездоров» в этом мониторинге выражается только так (CheckAsync).
+        if (issue is not null) throw new InvalidOperationException(char.ToUpperInvariant(issue[0]) + issue[1..]);
+        return null;
+    }
+
     private async Task<string?> CheckOllamaAsync(string? baseUrl, CancellationToken ct)
     {
         var url = (string.IsNullOrWhiteSpace(baseUrl) ? "http://localhost:11434" : baseUrl).TrimEnd('/') + "/api/tags";
@@ -146,7 +179,7 @@ public class HealthMonitorService(
 
     private async Task<string?> CheckGeminiAsync(string apiKey, string? model, CancellationToken ct)
     {
-        var m = string.IsNullOrWhiteSpace(model) ? "gemini-2.5-flash" : model;
+        var m = string.IsNullOrWhiteSpace(model) ? RecognitionDefaults.GeminiModel : model;
         // Ключ заголовком, а не в строке запроса — см. GeminiRecognizerEngine: URL уходит в тексты
         // исключений и в логи прокси, а сюда мы ходим по расписанию, то есть постоянно.
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{m}";

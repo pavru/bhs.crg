@@ -78,10 +78,29 @@ export function useIntegrationSettings() {
   });
 }
 
+/** Модель, про которую поставщик сказал «нет такой», и его совет, если он был. */
+export interface UnavailableModel {
+  model: string;
+  advice?: string | null;
+}
+
 export interface IntegrationModelsDto {
   anthropic: string[];
   gemini: string[];
   ollama: string[];   // только реально скачанные модели Ollama
+  /**
+   * Пункты списка, которые поставщик ТОЧНО не принимает (issue #799). «Не проверили» сюда не
+   * попадает: сравнение делает сервер, клиент только отображает — своя копия сравнения разъехалась
+   * бы с серверной на первом частном случае («qwen3-vl» против «qwen3-vl:latest»).
+   */
+  unavailable: Record<string, UnavailableModel[]>;
+  /** Беда с ВЫБРАННОЙ моделью движка, готовой строкой. Ключи — имена движков. */
+  issues: Record<string, string>;
+  /**
+   * Удалось ли спросить Ollama про скачанные модели. Без этого признака пустой список читался бы
+   * как «моделей нет», хотя означать он может «Ollama не запущена».
+   */
+  ollamaChecked: boolean;
 }
 
 export function useIntegrationModels() {
@@ -97,7 +116,14 @@ export function useSaveIntegrationSettings() {
   return useMutation({
     mutationFn: (update: IntegrationSettingsUpdate) =>
       apiClient.put('/settings/integrations', update).then(() => undefined),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['integration-settings'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integration-settings'] });
+      // И то, что известно про модели: предупреждение «модель больше не обслуживается» считается по
+      // ВЫБРАННОЙ модели, а пользователь именно её сейчас и сменил — по подсказке из этого же
+      // предупреждения. Без сброса оно продолжало бы называть прежнюю модель, и человек не увидел
+      // бы, что послушался не зря. То же с ключом и адресом Ollama: список моделей зависит от них.
+      qc.invalidateQueries({ queryKey: ['integration-models'] });
+    },
   });
 }
 
