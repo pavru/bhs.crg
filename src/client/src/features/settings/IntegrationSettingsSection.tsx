@@ -11,6 +11,7 @@ import {
   type EngineDto,
   type EngineUpdate,
   type IntegrationSettingsUpdate,
+  type UnavailableModel,
 } from '../../shared/api/integrationSettings';
 import { CollapsibleSection } from './CollapsibleSection';
 
@@ -83,7 +84,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function EngineCard({
-  meta, form, onChange, reorder, modelOptions, missing,
+  meta, form, onChange, reorder, modelOptions, missing, modelIssue, unavailable, modelsChecked,
 }: {
   meta: EngineMeta;
   form: EngineForm;
@@ -92,6 +93,12 @@ function EngineCard({
   modelOptions?: string[];
   /** Чего не хватает движку по СОХРАНЁННЫМ настройкам (с сервера); null — настроен. */
   missing?: string | null;
+  /** Беда с выбранной моделью (её у поставщика нет); null — либо всё хорошо, либо не проверяли. */
+  modelIssue?: string | null;
+  /** Пункты списка, которые поставщик точно не принимает. */
+  unavailable?: UnavailableModel[];
+  /** Удалось ли вообще спросить поставщика про модели (для честной подсказки при пустом списке). */
+  modelsChecked?: boolean;
 }) {
   // Бейдж говорит о том, что происходит СЕЙЧАС, — потому и считается по сохранённому состоянию, а
   // не по набранному в форме: пока изменения не сохранены, движок в самом деле не участвует.
@@ -128,6 +135,17 @@ function EngineCard({
       </div>
       <p className="text-xs text-fg4">{meta.hint}</p>
 
+      {/* Беда с моделью — отдельной строкой, а не бейджем в шапке: там она не поместится, а совет
+          поставщика («перейдите на такую-то») — самое полезное в этом сообщении и прятать его в
+          подсказку по наведению незачем. Отдельно от «не участвует» ещё и по смыслу: ненастроенный
+          движок цепочка пропускает, а этот — берёт и получает отказ. */}
+      {form.enabled && modelIssue && (
+        <p className="flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-warning-subtle text-warning border border-warning-border">
+          <AlertTriangle size={13} className="shrink-0 mt-px" />
+          <span>{modelIssue}</span>
+        </p>
+      )}
+
       {!meta.keyless && (
         <TextField label="API-ключ" type="password" autoComplete="off" value={form.apiKey}
           onChange={e => onChange({ ...form, apiKey: e.target.value })}
@@ -137,19 +155,33 @@ function EngineCard({
       {meta.modelLabel && (() => {
         // в список добавляем текущее значение, чтобы кастомная модель из конфига не потерялась
         const opts = Array.from(new Set([...(modelOptions ?? []), form.model].filter(Boolean)));
+        const gone = (o: string) => unavailable?.find(u => u.model === o);
         return (
           opts.length === 0 ? (
             <Field label={meta.modelLabel}>
               <div className="text-xs text-fg4 px-2.5 py-2 rounded-md border border-dashed border-stroke">
-                {meta.key === 'Ollama'
-                  ? <>Нет скачанных моделей. Выполните <code className="font-mono text-fg3">ollama pull qwen2.5vl:7b</code></>
-                  : 'Список моделей недоступен'}
+                {meta.key !== 'Ollama'
+                  ? 'Список моделей недоступен'
+                  : modelsChecked
+                    // Спросили и получили ноль — моделей действительно нет.
+                    ? <>Нет скачанных моделей. Выполните <code className="font-mono text-fg3">ollama pull qwen2.5vl:7b</code></>
+                    // Спросить не вышло. Советовать «скачайте модель» тут нельзя: скачано может быть
+                    // всё что угодно, просто Ollama не отвечает.
+                    : <>Ollama не отвечает — список скачанных моделей узнать не удалось.</>}
               </div>
             </Field>
           ) : (
             <Select label={meta.modelLabel} value={form.model || undefined} placeholder="— выберите —"
               onValueChange={m => onChange({ ...form, model: m })}>
-              {opts.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              {opts.map(o => {
+                // Пометка приходит с сервера (он же и сравнивал имена) — здесь только показываем.
+                const u = gone(o);
+                return (
+                  <SelectItem key={o} value={o}>
+                    {u ? `${o} — недоступна` : o}
+                  </SelectItem>
+                );
+              })}
             </Select>
           )
         );
@@ -285,6 +317,9 @@ export function IntegrationSettingsSection() {
                   onChange={f => setRecog(prev => ({ ...prev, [k]: f }))}
                   modelOptions={modelOptionsFor(k)}
                   missing={data.recognition[k]?.missing}
+                  modelIssue={models?.issues?.[k]}
+                  unavailable={models?.unavailable?.[k]}
+                  modelsChecked={k === 'Ollama' ? models?.ollamaChecked : undefined}
                   reorder={{
                     onUp: i > 0 ? () => move(i, -1) : undefined,
                     onDown: i < order.length - 1 ? () => move(i, 1) : undefined,

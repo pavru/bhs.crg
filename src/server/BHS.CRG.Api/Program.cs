@@ -409,6 +409,12 @@ builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<SettingsSecretProtector>();
 builder.Services.AddScoped<IntegrationSettingsService>();
 builder.Services.AddScoped<IIntegrationSettings>(sp => sp.GetRequiredService<IntegrationSettingsService>());
+// Каталог моделей движков (issue #799). Сам он без состояния — кэш ответов живёт в IMemoryCache,
+// то есть переживает запрос, а HTTP-клиент берётся у фабрики, как у движков распознавания.
+builder.Services.AddHttpClient<BHS.CRG.Infrastructure.Settings.RecognitionModelCatalog>()
+    .ConfigureHttpClient(c => c.Timeout = BHS.CRG.Infrastructure.Settings.RecognitionModelCatalog.Timeout);
+builder.Services.AddScoped<BHS.CRG.Application.Settings.IRecognitionModelCatalog>(
+    sp => sp.GetRequiredService<BHS.CRG.Infrastructure.Settings.RecognitionModelCatalog>());
 builder.Services.AddScoped<BHS.CRG.Application.Email.IEmailSender, BHS.CRG.Infrastructure.Email.MailKitEmailSender>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Email.AccountEmailService>();
 builder.Services.AddScoped<RefreshTokenService>();

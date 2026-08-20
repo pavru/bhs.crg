@@ -9,20 +9,32 @@ namespace BHS.CRG.Api.Endpoints.Settings;
 
 public static class SettingsEndpoints
 {
-    // Курируемые списки моделей для облачных движков (их каталог не перечисляем по сети).
+    // Курируемые списки моделей для облачных движков: их каталог не перечисляем по сети — там лежат
+    // и эмбеддинги, и синтез речи, а выбирать надо из vision-моделей.
+    //
+    // У курирования есть цена, и она уже была заплачена (issue #799): к августу 2026 из четырёх
+    // предлагавшихся моделей Gemini три отвечали «нет такой», а работавшая в списке отсутствовала, —
+    // пользователь не мог выбрать ни одной пригодной, и выяснилось это только разбором. Поэтому
+    // рядом живёт проверка выбранной модели (IRecognitionModelCatalog): список всё так же может
+    // протухнуть, но молча — уже нет.
+    //
+    // Список Gemini сверен пробой 2026-08-20; список Anthropic сверить НЕ удалось: на ключе нет
+    // средств, и любое имя модели, включая заведомо несуществующее, получает 400 раньше проверки.
     private static readonly string[] AnthropicModels =
         ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"];
     private static readonly string[] GeminiModels =
-        ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
+        ["gemini-3.1-pro-preview", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"];
 
     public static void MapSettingsEndpoints(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/api/settings/integrations").RequireAuthorization("Admin");
 
-        // Чтение: ключи НЕ возвращаем, только признак «ключ задан».
-        g.MapGet("/", async (IIntegrationSettings settings) =>
+        // Чтение: ключи НЕ возвращаем, только признак «ключ задан». Сюда НЕ добавляем проверок,
+        // ходящих в сеть: этот запрос рисует страницу настроек, и секунда ожидания поставщика — это
+        // секунда пустого экрана. Что известно про модели, отдаёт /models, отдельным запросом.
+        g.MapGet("/", async (IIntegrationSettings settings, CancellationToken ct) =>
         {
-            var m = await settings.GetEffectiveAsync();
+            var m = await settings.GetEffectiveAsync(ct);
             return Results.Ok(new
             {
                 recognitionOrder = m.RecognitionOrder,
@@ -105,16 +117,61 @@ public static class SettingsEndpoints
             }));
         });
 
-        // Доступные модели для выпадающих списков. Ollama — только реально скачанные (через /api/tags).
-        g.MapGet("/models", async (IIntegrationSettings settings, IHttpClientFactory httpFactory, CancellationToken ct) =>
+        // Модели для выпадающих списков: облачные — курируемым списком, Ollama — только реально
+        // скачанные. Плюс то, что поставщик отвечает про сами модели (issue #799): курируемый список
+        // протухает молча, и без этого «модель больше не обслуживается» выясняется разбором логов.
+        g.MapGet("/models", async (IIntegrationSettings settings, IRecognitionModelCatalog catalog, CancellationToken ct) =>
         {
             var m = await settings.GetEffectiveAsync(ct);
-            var ollama = await GetOllamaModelsAsync(m.Rec("Ollama").BaseUrl, httpFactory, ct);
+            var installed = await catalog.GetInstalledAsync("Ollama", m.Rec("Ollama"), ct);
+
+            // Что предлагаем выбрать. Текущее значение — наравне с курируемыми: именно оно и протухает.
+            IEnumerable<string> Offered(string engine, string[] curated) =>
+                curated.Concat([m.Rec(engine).Model ?? string.Empty])
+                    .Where(o => !string.IsNullOrWhiteSpace(o))
+                    .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            // К поставщику ходим ТОЛЬКО за выбранной моделью — той, на которой всё и стоит; про
+            // остальные пункты отвечаем тем, что уже лежит в кэше. Проверять пробой весь список
+            // заманчиво, но замерено: тринадцать моделей — 28 секунд на открытии настроек.
+            // Сравнение «что просили» с «что подтвердили» делает СЕРВЕР: своя копия на клиенте
+            // разъехалась бы на первом же частном случае (Ollama пишет «qwen3-vl:latest» там, где в
+            // настройках стоит «qwen3-vl»), и вышло бы худшее — бейдж говорит «модель на месте»,
+            // а в списке она помечена недоступной.
+            async Task<(string Engine, object[] Gone, string? Issue)> CheckAsync(string engine, string[] curated)
+            {
+                var cfg = m.Rec(engine);
+                var selected = cfg.Model ?? string.Empty;
+                var checks = await Task.WhenAll(Offered(engine, curated).Select(async o =>
+                    (Model: o, Status: await catalog.GetStatusAsync(engine, cfg, o,
+                        probe: o.Equals(selected, StringComparison.OrdinalIgnoreCase)
+                               && EngineReadiness.IsUsableForRecognition(engine, cfg), ct))));
+                var gone = checks.Where(c => c.Status.State == ModelState.Gone)
+                    .Select(object (c) => new { model = c.Model, advice = c.Status.Advice })
+                    .ToArray();
+                var status = checks.FirstOrDefault(c => c.Model.Equals(selected, StringComparison.OrdinalIgnoreCase)).Status
+                             ?? ModelStatus.Unknown;
+                return (engine, gone, EngineReadiness.ModelIssue(engine, cfg, status));
+            }
+
+            var checked_ = await Task.WhenAll(
+                CheckAsync("Gemini", GeminiModels),
+                CheckAsync("Anthropic", AnthropicModels),
+                CheckAsync("Ollama", []));
+
             return Results.Ok(new
             {
                 anthropic = AnthropicModels,
                 gemini = GeminiModels,
-                ollama,
+                ollama = installed ?? [],
+                // Только те, про которые ТОЧНО известно «нет такой»; «не проверили» сюда не попадает.
+                unavailable = checked_.ToDictionary(c => c.Engine, c => c.Gone),
+                // Беда с выбранной моделью, одной строкой — для бейджа рядом с движком.
+                issues = checked_.Where(c => c.Issue is not null).ToDictionary(c => c.Engine, c => c.Issue),
+                // Пустой список моделей Ollama значит одно, если её спросили, и совсем другое, если
+                // спросить не вышло. Без этого признака интерфейс советовал бы «скачайте модель»
+                // остановленной Ollama.
+                ollamaChecked = installed is not null,
             });
         });
 
@@ -124,30 +181,6 @@ public static class SettingsEndpoints
             await settings.SaveAsync(model);
             return Results.NoContent();
         });
-    }
-
-    private static async Task<string[]> GetOllamaModelsAsync(string? baseUrl, IHttpClientFactory httpFactory, CancellationToken ct)
-    {
-        var url = (string.IsNullOrWhiteSpace(baseUrl) ? "http://localhost:11434" : baseUrl).TrimEnd('/') + "/api/tags";
-        try
-        {
-            using var http = httpFactory.CreateClient();
-            http.Timeout = TimeSpan.FromSeconds(5);
-            using var stream = await http.GetStreamAsync(url, ct);
-            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
-            if (!doc.RootElement.TryGetProperty("models", out var models) || models.ValueKind != JsonValueKind.Array)
-                return [];
-            return models.EnumerateArray()
-                .Select(e => e.TryGetProperty("name", out var n) ? n.GetString() : null)
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Select(s => s!)
-                .ToArray();
-        }
-        catch
-        {
-            // Ollama не запущен / недоступен — пустой список (UI покажет подсказку).
-            return [];
-        }
     }
 
     /// <param name="missing">Чего не хватает движку, чтобы участвовать в работе; <c>null</c> — настроен.</param>

@@ -29,7 +29,7 @@ public class GeminiRecognizerEngine(
         var apiKey = cfg.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new RecognitionUnavailableException("Не задан ключ Gemini.");
-        var model = string.IsNullOrWhiteSpace(cfg.Model) ? "gemini-2.5-flash" : cfg.Model;
+        var model = string.IsNullOrWhiteSpace(cfg.Model) ? RecognitionDefaults.GeminiModel : cfg.Model;
 
         var mt = string.Equals(mimeType, "application/pdf", StringComparison.OrdinalIgnoreCase)
             ? "application/pdf"

@@ -196,7 +196,7 @@ public class IntegrationSettingsService(
             Model = Pick(r.Model, name switch
             {
                 "Anthropic" => config["Anthropic:Model"] ?? "claude-sonnet-4-6",
-                "Gemini" => config["Gemini:Model"] ?? "gemini-2.5-flash",
+                "Gemini" => config["Gemini:Model"] ?? RecognitionDefaults.GeminiModel,
                 "Ollama" => config["Ollama:Model"],
                 _ => null,
             }),
