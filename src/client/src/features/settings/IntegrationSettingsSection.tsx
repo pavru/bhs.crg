@@ -86,7 +86,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function EngineCard({
   meta, form, onChange, reorder, modelOptions, missing, modelIssue, blindIssue, unavailable, modelsChecked,
-  visionCheckable,
+  visionCheckable, savedModel,
 }: {
   meta: EngineMeta;
   form: EngineForm;
@@ -106,6 +106,12 @@ function EngineCard({
   blindIssue?: string | null;
   /** Показывать ли кнопку проверки зрения (спрашиваем только локальную Ollama). */
   visionCheckable?: boolean;
+  /**
+   * Модель по СОХРАНЁННЫМ настройкам. Нужна ровно затем, чтобы не соврать: проверка идёт к той
+   * модели, что записана в базе, а в форме уже может стоять другая — и «✓ зрение проверено» встало
+   * бы рядом с моделью, которой никто не показывал картинку.
+   */
+  savedModel?: string | null;
   /** Пункты списка, которые поставщик точно не принимает. */
   unavailable?: UnavailableModel[];
   /** Удалось ли вообще спросить поставщика про модели (для честной подсказки при пустом списке). */
@@ -225,25 +231,32 @@ function EngineCard({
           сменив модель, человек получает НЕПРОВЕРЕННУЮ пару, а не прежний вердикт. Автоматически
           при открытии секции не запускаем: она общая, сюда заходят и за доменами ФГИС, а канарейка
           на холодной модели ждёт минуты. */}
-      {visionCheckable && form.enabled && !missing && form.model && (
+      {visionCheckable && form.enabled && !missing && form.model && (() => {
+        // Проверяется пара (движок, модель), а модель сервер берёт сохранённую: пока форма не
+        // сохранена, проверять нечего — вердикт относился бы к другой модели.
+        const unsaved = (form.model || '').trim() !== (savedModel ?? '').trim();
+        return (
         <div className="flex items-center gap-2 flex-wrap">
           <Button type="button" variant="text" onClick={() => checkVision.mutate(meta.key)}
-            disabled={checkVision.isPending}>
+            disabled={checkVision.isPending || unsaved}>
             <Eye size={13} className="mr-1" /> Проверить зрение
           </Button>
           <span className="text-xs text-fg4">
-            {checkVision.isPending
-              ? 'Показываю модели картинку и спрашиваю цвета…'
-              : checked?.state === 'sighted'
-                ? <span className="text-success">✓ зрение проверено</span>
-                : checked?.state === 'unknown'
-                  // «Не проверили» — не приговор модели: остановленная Ollama выглядела бы слепой.
-                  ? (checked.error ?? 'проверить не удалось')
-                  // Про слепоту уже сказано полосой выше — второй раз не повторяем.
-                  : checked?.state === 'blind' ? '' : 'зрение не проверялось'}
+            {unsaved
+              ? 'сохраните настройки — проверим выбранную модель'
+              : checkVision.isPending
+                ? 'Показываю модели картинку и спрашиваю цвета…'
+                : checked?.state === 'sighted'
+                  ? <span className="text-success">✓ зрение проверено</span>
+                  : checked?.state === 'unknown'
+                    // «Не проверили» — не приговор модели: остановленная Ollama выглядела бы слепой.
+                    ? (checked.error ?? 'проверить не удалось')
+                    // Про слепоту уже сказано полосой выше — второй раз не повторяем.
+                    : checked?.state === 'blind' ? '' : 'зрение не проверялось'}
           </span>
         </div>
-      )}
+        );
+      })()}
 
       {meta.showBaseUrl && (
         <TextField label="Базовый URL" value={form.baseUrl} hint="http://localhost:11434"
@@ -378,6 +391,7 @@ export function IntegrationSettingsSection() {
                   modelIssue={models?.issues?.[k]}
                   blindIssue={models?.blind?.[k]}
                   visionCheckable={k === 'Ollama'}
+                  savedModel={data.recognition[k]?.model}
                   unavailable={models?.unavailable?.[k]}
                   modelsChecked={k === 'Ollama' ? models?.ollamaChecked : undefined}
                   reorder={{

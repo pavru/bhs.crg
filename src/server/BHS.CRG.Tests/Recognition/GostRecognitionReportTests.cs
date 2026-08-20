@@ -37,13 +37,27 @@ public class GostRecognitionReportTests
     }
 
     [Fact]
-    public void NothingRecognized_IsError_EvenWhenFirstPageSucceeded()
+    public void NothingRecognized_IsError()
     {
-        // Случай, который РЕАЛЬНО происходит и который прежнее условие пропускало: первый лист
-        // прошёл, остальные отвалились. По существу это провал, а не «завершено с пропусками».
+        // Достижимый вид полного провала: первый лист ответил пустотой (лист без штампа — законно),
+        // остальные отвалились по отказу. Прежнее условие «failedPages == pageCount» сюда не
+        // попадало вовсе: провал ПЕРВОГО листа прекращает прогон раньше уведомления, поэтому
+        // счётчик с числом листов не сравняется никогда.
         var (severity, title, _) = Describe(failedPages: 199, pages: 200, nothingRecognized: true);
         Assert.Equal(NotificationSeverity.Error, severity);
         Assert.Equal("Распознавание PDF не удалось", title);
+    }
+
+    [Fact]
+    public void SomethingRecognized_StaysWarning_EvenIfMostPagesFailed()
+    {
+        // Граница, которую стоит держать на виду: первый лист распознался, следующие 199 отвалились —
+        // это Warning, потому что в наборе что-то появилось. Порог вроде «девяносто процентов
+        // отказов» пришлось бы выдумать, а причину отказа текст теперь называет и без него.
+        var (severity, _, msg) = Describe(failedPages: 199, pages: 200, nothingRecognized: false,
+            reason: "Ollama: модель не принимает изображения");
+        Assert.Equal(NotificationSeverity.Warning, severity);
+        Assert.Contains("Причина: Ollama: модель не принимает изображения.", msg);
     }
 
     [Fact]

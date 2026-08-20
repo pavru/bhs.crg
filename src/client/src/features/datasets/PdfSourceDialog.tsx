@@ -13,7 +13,10 @@ import { useTagRegistry, datasetTags } from '@/shared/api/tags';
  * оба пишут сырьё на набор (Grouping/InvoiceRawData), кандидаты (Обложка/Титул/Документы или
  * Шапка/Товары) создаёт пользователь. Распознавание больше не прячется в меню источника.
  */
-export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: () => void }) {
+export function PdfSourceDialog(
+  { fileId, onClose, onRecognizeError }:
+  { fileId: string; onClose: () => void; onRecognizeError?: (err: unknown) => void },
+) {
   const [name, setName] = useState('');
   const [profile, setProfile] = useState<'gost-titleblock' | 'invoice'>('gost-titleblock');
   const [tags, setTags] = useState<string[]>([]);
@@ -36,10 +39,11 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
       });
       // Профиль выбран → сразу распознаём, единым вызовом по НАБОРУ для любого профиля.
       //
-      // Именно ЖДЁМ ответа и НЕ закрываем окно при отказе (issue #801). Раньше запуск уходил
-      // fire-and-forget, а окно закрывалось следом: отказ распознавания — в том числе «модель не
-      // принимает изображения» — проваливался молча, хотя показать его было где, строкой ниже.
-      await recognizeFile.mutateAsync({ fileId });
+      // Окно закрывается сразу, а отказ всплывает у родителя (issue #801). Ждать здесь нельзя:
+      // профиль «Счёт» распознаётся СИНХРОННО, то есть ожидание ответа держало бы модалку открытой
+      // весь прогон — минуты на локальной модели. Но и терять отказ, как было раньше (mutate без
+      // onError и сразу onClose), нельзя: именно так молчала слепая модель.
+      recognizeFile.mutate({ fileId }, { onError: err => onRecognizeError?.(err) });
       onClose();
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -52,13 +56,8 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
-          <Button type="button" variant="filled" onClick={handleSave}
-            loading={create.isPending || recognizeFile.isPending}>
-            {create.isPending ? 'Создание…'
-              // Между нажатием и стартом задачи сервер проверяет, есть ли кому распознавать
-              // (issue #801) — на холодной локальной модели это десятки секунд, и молчащая кнопка
-              // читалась бы как зависшая.
-              : recognizeFile.isPending ? 'Запуск распознавания…' : 'Создать и распознать'}
+          <Button type="button" variant="filled" onClick={handleSave} loading={create.isPending}>
+            {create.isPending ? 'Создание…' : 'Создать и распознать'}
           </Button>
         </div>
       }>

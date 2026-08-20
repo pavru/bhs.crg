@@ -3,7 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router';
 import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, Save, ZoomIn, Table2, RefreshCw } from 'lucide-react';
 import {
   useFilePages, useApplyGrouping, useRecognizeDocumentTable, useRecognizeDocument, useSetDocumentProfile,
-  loadPageThumbnailUrl, loadPageImageUrl, recognitionBlockMessage,
+  loadPageThumbnailUrl, loadPageImageUrl, recognitionRefusal, type RecognitionRefusal,
 } from '@/shared/api/datasets';
 import { useListRecognitionProfiles } from '@/shared/api/recognitionProfiles';
 import type { GostGroupingGroup, GostGroupKind } from '@/shared/api/types';
@@ -378,16 +378,13 @@ export function PdfGroupingEditor() {
   const [groups, setGroups] = useState<EditableGroup[] | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [suspiciousOnly, setSuspiciousOnly] = useState(false);
-  const [recognizeError, setRecognizeError] = useState<string | null>(null);
-  const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<RecognitionRefusal | null>(null);
 
-  // Отказ «распознавать некому» показываем диалогом, прочие — строкой: первый требует пойти и
-  // сменить настройку, второй чаще всего сам себя объясняет («сначала сохраните разбиение»).
+  // Кнопки таблицы и перераспознавания стоят внутри карточки документа, и место для строки ошибки
+  // тут одно — под шапкой, далеко от нажатой кнопки. Поэтому отказ показываем диалогом, тем же, что
+  // и на других входах: совет про настройки в нём появляется, только если отказ им и лечится.
   function showRecognizeError(err: unknown) {
-    const blocked = recognitionBlockMessage(err);
-    if (blocked) { setBlockedMessage(blocked); setRecognizeError(null); return; }
-    setRecognizeError((err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      ?? 'Не удалось запустить распознавание.');
+    setRefusal(recognitionRefusal(err));
   }
   const [dirty, setDirty] = useState(false);
   const [viewerPage, setViewerPage] = useState<number | null>(null);
@@ -530,12 +527,10 @@ export function PdfGroupingEditor() {
       )}
 
       {/* Отказ распознавания таблицы/документа. Раньше эти две операции молчали при любой неудаче:
-          кнопка переставала крутиться, и всё — при том, что место для сообщения было готово строкой
-          выше (issue #801). */}
-      {recognizeError && <p className="text-sm text-danger mb-3">{recognizeError}</p>}
-
-      {blockedMessage && (
-        <RecognitionBlockedDialog message={blockedMessage} onClose={() => setBlockedMessage(null)} />
+          кнопка переставала крутиться, и всё (issue #801). */}
+      {refusal && (
+        <RecognitionBlockedDialog message={refusal.message} configurable={refusal.configurable}
+          onClose={() => setRefusal(null)} />
       )}
 
       <div className="flex-1 overflow-auto space-y-3 pb-4">

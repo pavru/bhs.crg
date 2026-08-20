@@ -338,20 +338,35 @@ export function isManualGroupingConflict(err: unknown): boolean {
   return (err as { response?: { status?: number } })?.response?.status === 409;
 }
 
-/**
- * Отказ распознавания, пришедший ДО постановки задачи (issue #801): распознавать некому — движки не
- * настроены либо их модель не принимает изображения. Код и текст даёт сервер; здесь только чтение —
- * своя копия правила разъехалась бы с серверной (тот же урок, что у бейджа «не участвует», #797).
- */
-export function recognitionBlockMessage(err: unknown): string | null {
-  const resp = (err as { response?: { status?: number; data?: { error?: string; code?: string } } })?.response;
-  if (resp?.status !== 422) return null;
-  return resp.data?.error ?? 'Распознавание сейчас недоступно.';
+/** Почему распознавание не запустилось и стоит ли звать администратора. */
+export interface RecognitionRefusal {
+  message: string;
+  /**
+   * Отказ пришёл от предполётной проверки (422): распознавать некому — движки не настроены либо их
+   * модель не принимает изображения. Тогда уместен совет «поменяйте модель в настройках»; при любом
+   * другом отказе он отправил бы человека чинить не то, что сломано.
+   */
+  configurable: boolean;
 }
 
-/** Отказ именно из-за слепой модели — у него другое лекарство, чем у «движок не настроен». */
-export function isBlindModelBlock(err: unknown): boolean {
-  return (err as { response?: { data?: { code?: string } } })?.response?.data?.code === 'recognition_model_blind';
+/**
+ * Разбор отказа НА ЗАПУСКЕ распознавания (issue #801). Возвращает null только для 409 — конфликта
+ * ручной группировки, у которого свой диалог с вопросом.
+ *
+ * Общей функцией, потому что расходились именно копии: один обработчик знал про 409, другой про 422,
+ * и всё, чего не знал каждый, проваливалось молча. Текст и код даёт сервер — своя копия правила
+ * разъехалась бы с серверной (урок бейджа «не участвует», #797).
+ */
+export function recognitionRefusal(err: unknown): RecognitionRefusal | null {
+  const resp = (err as { response?: { status?: number; data?: { error?: string; code?: string } } })?.response;
+  if (resp?.status === 409) return null;
+  if (resp?.status === 422)
+    return { message: resp.data?.error ?? 'Распознавание сейчас недоступно.', configurable: true };
+  return {
+    message: resp?.data?.error
+      ?? (err instanceof Error ? err.message : 'Не удалось запустить распознавание.'),
+    configurable: false,
+  };
 }
 
 // ── Редактор разбиения PDF — на уровне НАБОРА (issue #38, fileId) ────────

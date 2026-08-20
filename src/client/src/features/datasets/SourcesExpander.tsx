@@ -11,7 +11,7 @@ import { FileProfilesDialog } from './FileProfilesDialog';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
   usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizeFile,
-  isManualGroupingConflict, recognitionBlockMessage, exportDataSetSource, useSourceCandidates, useCreateDataSetSource, useRenameSource,
+  isManualGroupingConflict, recognitionRefusal, type RecognitionRefusal, exportDataSetSource, useSourceCandidates, useCreateDataSetSource, useRenameSource,
   useRecognizeDocumentTable, type SourceCandidate,
 } from '@/shared/api/datasets';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -341,19 +341,19 @@ export function FileRecognizeActions({ file }: { file: DataSetFile }) {
     || file.sources.some(s => s.sheetOrPath === 'gost-documents' || s.sheetOrPath === 'gost-cover'
       || s.sheetOrPath === 'gost-titlepage' || s.sheetOrPath.startsWith('gost-table:'));
   const recognizing = useSourceRecognizing(file.id);
-  const [recognizeBlocked, setRecognizeBlocked] = useState<string | null>(null);
+  const [recognizeRefusal, setRecognizeRefusal] = useState<RecognitionRefusal | null>(null);
+
+  // Один обработчик на все запуски распознавания этого набора: у 409 свой диалог с вопросом,
+  // остальное — отказ, и показать его надо ЛЮБОЙ, а не только тот код, про который здесь знали.
+  function handleRecognizeError(err: unknown) {
+    if (isManualGroupingConflict(err)) { setRecognizeConflict(true); return; }
+    setRecognizeRefusal(recognitionRefusal(err));
+  }
   const { data: candidates = [] } = useSourceCandidates(isPdf ? file.id : undefined);
 
   function handleRecognizeDataset(confirm = false) {
     if (profile || candidates.length > 0) {
-      recognizeFile.mutate({ fileId: file.id, confirm }, {
-        onError: (err: unknown) => {
-          if (isManualGroupingConflict(err)) setRecognizeConflict(true);
-          // Распознавать некому (движки не настроены либо модель слепа, issue #801). Раньше отказ
-          // тут просто терялся: обработчик знал ровно об одном коде, а всё прочее уходило в никуда.
-          else setRecognizeBlocked(recognitionBlockMessage(err));
-        },
-      });
+      recognizeFile.mutate({ fileId: file.id, confirm }, { onError: handleRecognizeError });
     } else {
       setProfileDialog(true); // профиль не выбран → диалог выбора профиля (ставит профиль + распознаёт)
     }
@@ -378,19 +378,21 @@ export function FileRecognizeActions({ file }: { file: DataSetFile }) {
         onClick={() => setFileProfilesDialog(true)}>
         <SlidersHorizontal size={15} />
       </IconButton>
-      {profileDialog && <PdfSourceDialog fileId={file.id} onClose={() => setProfileDialog(false)} />}
+      {profileDialog && (
+        <PdfSourceDialog fileId={file.id} onClose={() => setProfileDialog(false)}
+          onRecognizeError={handleRecognizeError} />
+      )}
       {fileProfilesDialog && <FileProfilesDialog file={file} onClose={() => setFileProfilesDialog(false)} />}
-      {recognizeBlocked && (
-        <RecognitionBlockedDialog message={recognizeBlocked} onClose={() => setRecognizeBlocked(null)} />
+      {recognizeRefusal && (
+        <RecognitionBlockedDialog message={recognizeRefusal.message} configurable={recognizeRefusal.configurable}
+          onClose={() => setRecognizeRefusal(null)} />
       )}
       <ConfirmDialog open={recognizeConflict} onOpenChange={o => { if (!o) setRecognizeConflict(false); }}
         title="Разбиение было скорректировано вручную"
         description={<p>Повторное автораспознавание сотрёт ручные правки разбиения на документы. Продолжить?</p>}
         confirmLabel="Распознать заново"
-        onConfirm={() => recognizeFile.mutate({ fileId: file.id, confirm: true }, {
-          // Подтверждённый перезапуск — тот же путь, и отказать ему могут ровно так же.
-          onError: (err: unknown) => setRecognizeBlocked(recognitionBlockMessage(err)),
-        })} />
+        // Подтверждённый перезапуск — тот же путь, и отказать ему могут ровно так же.
+        onConfirm={() => recognizeFile.mutate({ fileId: file.id, confirm: true }, { onError: handleRecognizeError })} />
     </>
   );
 }

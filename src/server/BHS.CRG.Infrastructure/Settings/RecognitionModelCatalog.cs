@@ -155,7 +155,7 @@ public partial class RecognitionModelCatalog(
     }
 
     public async Task<VisionStatus> GetVisionAsync(string engine, IntegrationEngine cfg, string model,
-        bool probe = true, CancellationToken ct = default)
+        VisionProbe probe = VisionProbe.IfUnknown, CancellationToken ct = default)
     {
         // Облачные движки канарейку не получают, и это решение, а не пропуск: там модель выбирается
         // из курируемого списка vision-моделей, а незнакомое имя поставщик отвергает вслух (см. #799).
@@ -173,9 +173,12 @@ public partial class RecognitionModelCatalog(
         var cacheKey = $"vision:{engine}:{model}:{cfg.BaseUrl}:{digest}";
 
         // Кэш смотрим ДО обращения к движку — иначе постраничный прогон разошёлся бы мимо кэша по
-        // счастью, а не по устройству.
-        if (cache.TryGetValue<VisionStatus>(cacheKey, out var known)) return known!;
-        if (!probe) return VisionStatus.Unknown;
+        // счастью, а не по устройству. Кроме случая, когда человек нажал «проверить заново»: там
+        // спрашивают именно потому, что прежнему ответу больше не верят (обновили Ollama, перекачали
+        // веса), и отдать ему кэш значило бы сделать единственное средство перепроверки пустышкой.
+        if (probe == VisionProbe.Refresh) cache.Remove(cacheKey);
+        else if (cache.TryGetValue<VisionStatus>(cacheKey, out var known)) return known!;
+        if (probe == VisionProbe.CacheOnly) return VisionStatus.Unknown;
 
         return await Cached(cacheKey, ct, VisionStatus.Unknown,
             v => v.State switch

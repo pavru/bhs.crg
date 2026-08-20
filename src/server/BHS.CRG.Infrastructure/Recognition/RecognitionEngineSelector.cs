@@ -52,7 +52,8 @@ public class RecognitionEngineSelector(
         foreach (var e in configured)
         {
             var cfg = s.Rec(e.Name);
-            var vision = await catalog.GetVisionAsync(e.Name, cfg, cfg.Model ?? "", probeVision, ct);
+            var vision = await catalog.GetVisionAsync(e.Name, cfg, cfg.Model ?? "",
+                probeVision ? VisionProbe.IfUnknown : VisionProbe.CacheOnly, ct);
             if (EngineReadiness.VisionIssue(e.Name, cfg, vision) is { } issue)
             {
                 // Debug по той же причине, что и выше: на альбоме это двести одинаковых строк.

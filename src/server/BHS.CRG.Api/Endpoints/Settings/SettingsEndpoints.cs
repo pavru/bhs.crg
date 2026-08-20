@@ -154,7 +154,7 @@ public static class SettingsEndpoints
                 // Зрение — ТОЛЬКО из кэша (probe: false). Канарейка стоит секунд, а на холодной
                 // модели — минуты: страница настроек столько не ждёт. Проверку запускает человек
                 // кнопкой, и он же видит, что она идёт.
-                var vision = await catalog.GetVisionAsync(engine, cfg, selected, probe: false, ct);
+                var vision = await catalog.GetVisionAsync(engine, cfg, selected, VisionProbe.CacheOnly, ct);
                 return (engine, gone, EngineReadiness.ModelIssue(engine, cfg, status),
                         EngineReadiness.VisionIssue(engine, cfg, vision));
             }
@@ -196,7 +196,9 @@ public static class SettingsEndpoints
             if (EngineReadiness.MissingForRecognition(engine, cfg) is { } missing)
                 return Results.Ok(new { state = "unknown", error = $"Движок не настроен: {missing}." });
 
-            var vision = await catalog.GetVisionAsync(engine, cfg, cfg.Model ?? "", probe: true, ct);
+            // Заново, а не «если неизвестно»: сюда приходят по нажатию кнопки, то есть именно затем,
+            // чтобы перепроверить — чаще всего после того, как послушались нашего же совета.
+            var vision = await catalog.GetVisionAsync(engine, cfg, cfg.Model ?? "", VisionProbe.Refresh, ct);
             return Results.Ok(new
             {
                 state = vision.State switch

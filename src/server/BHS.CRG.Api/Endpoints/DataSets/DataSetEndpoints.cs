@@ -242,9 +242,12 @@ public static class DataSetEndpoints
         {
             try
             {
-                if (await BlockedAsync(preflight, ct) is { } blocked) return blocked;
                 if (await jobs.HasActiveForTargetAsync(UserId(user), fileId, ct))
                     return Results.Conflict(new { error = "По этому набору уже идёт распознавание." });
+                // Предполёт ПОСЛЕ проверки «уже идёт»: он может уйти к движку на полторы минуты
+                // (холодная модель), и всё это время окно для второй такой же задачи оставалось бы
+                // открытым — два запроса подряд прошли бы оба.
+                if (await BlockedAsync(preflight, ct) is { } blocked) return blocked;
                 var plan = await svc.PlanFileRecognitionAsync(fileId, confirm ?? false, ct);
                 if (plan is null) return Results.NotFound();
                 if (plan.Background)
@@ -265,10 +268,12 @@ public static class DataSetEndpoints
         {
             try
             {
-                if (await BlockedAsync(preflight, ct) is { } blocked) return blocked;
                 // Защита от повторного запуска, пока по этому источнику уже идёт распознавание.
+                // Раньше предполёта: канарейка может ждать движок полторы минуты, и всё это время
+                // защита не работала бы (см. тот же порядок выше).
                 if (await jobs.HasActiveForTargetAsync(UserId(user), sourceId, ct))
                     return Results.Conflict(new { error = "По этому источнику уже идёт распознавание." });
+                if (await BlockedAsync(preflight, ct) is { } blocked) return blocked;
                 // Пред-валидация синхронно (формат, 409 ручной правки). GOST-набор (минуты) → фоновая
                 // задача, 202+jobId сразу (реквест не держится). Счёт/legacy (секунды) → синхронно.
                 var plan = await svc.PlanRecognitionAsync(sourceId, confirm ?? false, ct);
@@ -364,9 +369,9 @@ public static class DataSetEndpoints
         g.MapPost("/files/{fileId:guid}/recognize-table", async (
             Guid fileId, RecognizeTableRequest req, IJobService jobs, IRecognitionPreflight preflight, ClaimsPrincipal user, CancellationToken ct) =>
         {
-            if (await BlockedAsync(preflight, ct) is { } blocked) return blocked;
             if (await jobs.HasActiveForTargetAsync(UserId(user), fileId, ct))
                 return Results.Conflict(new { error = "По этому набору уже идёт распознавание." });
+            if (await BlockedAsync(preflight, ct) is { } blocked) return blocked;
             var payload = JsonSerializer.Serialize(new { firstPageIndex = req.FirstPageIndex });
             var jobId = await jobs.EnqueueAsync(JobKind.RecognizeTable, UserId(user), fileId, "Распознавание таблицы", payload, ct);
             return Results.Accepted($"/api/jobs/active", new { jobId });
@@ -376,9 +381,9 @@ public static class DataSetEndpoints
         g.MapPost("/files/{fileId:guid}/recognize-document", async (
             Guid fileId, RecognizeTableRequest req, IJobService jobs, IRecognitionPreflight preflight, ClaimsPrincipal user, CancellationToken ct) =>
         {
-            if (await BlockedAsync(preflight, ct) is { } blocked) return blocked;
             if (await jobs.HasActiveForTargetAsync(UserId(user), fileId, ct))
                 return Results.Conflict(new { error = "По этому набору уже идёт распознавание." });
+            if (await BlockedAsync(preflight, ct) is { } blocked) return blocked;
             var payload = JsonSerializer.Serialize(new { firstPageIndex = req.FirstPageIndex });
             var jobId = await jobs.EnqueueAsync(JobKind.RecognizeDocument, UserId(user), fileId, "Перераспознавание документа", payload, ct);
             return Results.Accepted($"/api/jobs/active", new { jobId });
