@@ -1,4 +1,4 @@
-namespace BHS.CRG.Application.Settings;
+﻿namespace BHS.CRG.Application.Settings;
 
 /// <summary>Что известно про конкретную модель движка.</summary>
 public enum ModelState
@@ -17,6 +17,25 @@ public record ModelStatus(ModelState State, string? Advice = null)
 {
     public static readonly ModelStatus Unknown = new(ModelState.Unknown);
     public static readonly ModelStatus Ok = new(ModelState.Ok);
+}
+
+/// <summary>Что известно про ЗРЕНИЕ модели — принимает ли она изображения (issue #801).</summary>
+public enum VisionState
+{
+    /// <summary>Проверить не удалось. НЕ «слепа» — просто нечего сказать.</summary>
+    Unknown,
+    /// <summary>Модель картинку получила и описала — распознавать ею можно.</summary>
+    Sighted,
+    /// <summary>Модель ответила, но изображения не увидела.</summary>
+    Blind,
+}
+
+/// <param name="State">Что известно.</param>
+/// <param name="Detail">Чем именно ответила модель (для сообщения пользователю и лога).</param>
+public record VisionStatus(VisionState State, string? Detail = null)
+{
+    public static readonly VisionStatus Unknown = new(VisionState.Unknown);
+    public static readonly VisionStatus Sighted = new(VisionState.Sighted);
 }
 
 /// <summary>
@@ -54,5 +73,33 @@ public interface IRecognitionModelCatalog
     /// тринадцать моделей, то есть на открытие страницы настроек с пометками у каждого пункта списка.
     /// </param>
     Task<ModelStatus> GetStatusAsync(string engine, IntegrationEngine cfg, string model,
+        bool probe = true, CancellationToken ct = default);
+
+    /// <summary>
+    /// Видит ли модель изображения — «канарейка зрения» (issue #801, выделено из #481).
+    ///
+    /// Вопрос отдельный от <see cref="GetStatusAsync" /> и осью отдельной намеренно. Слепая модель —
+    /// это <see cref="ModelState.Ok" /> на вопрос «знает ли её поставщик» и «нет» на вопрос «увидит
+    /// ли она лист»; слив их в один перечислимый тип, мы заставили бы значения конкурировать, а
+    /// каждое место, сравнивающее с <see cref="ModelState.Gone" />, молча забывало бы про слепоту —
+    /// то есть завело бы ровно тот молчаливый отказ, ради которого проверка и пишется.
+    ///
+    /// Проверка нужна потому, что слепота НЕ даёт отказа: gemma4 под ollama 0.32.3 не получала
+    /// изображения ни одним из трёх способов, при этом <c>/api/show</c> заявляла
+    /// <c>capabilities: ['vision']</c>, а прогон альбома из 16 листов завершался успехом с
+    /// правдоподобной выдумкой в каждом поле — 0 совпадений из 106 с эталоном.
+    ///
+    /// Спрашивается ТОЛЬКО у Ollama; облачным движкам отвечаем <see cref="VisionState.Unknown" />,
+    /// никуда не ходя, — как <see cref="GetInstalledAsync" /> отвечает им <c>null</c>. Причина не в
+    /// экономии: у облачных модель выбирается из курируемого списка vision-моделей, а незнакомое имя
+    /// поставщик отвергает вслух (404, см. #799) — класс отказа там громкий. Появится тихий —
+    /// хватит снять это условие.
+    /// </summary>
+    /// <param name="probe">
+    /// Можно ли ради ответа сходить к движку. <c>false</c> — отвечать только из кэша. Проба стоит
+    /// секунд (замер: 6 с у локальной модели), а распознавание вызывается ПОСТРАНИЧНО — на альбоме
+    /// в двести листов её нельзя гнать двести раз, потому ответ и кэшируется.
+    /// </param>
+    Task<VisionStatus> GetVisionAsync(string engine, IntegrationEngine cfg, string model,
         bool probe = true, CancellationToken ct = default);
 }

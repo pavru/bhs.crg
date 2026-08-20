@@ -1,7 +1,9 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Recognition;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
@@ -12,7 +14,8 @@ namespace BHS.CRG.Infrastructure.Settings;
 /// Смысл проверки и почему она устроена именно так — в <see cref="IRecognitionModelCatalog" />.
 /// </summary>
 public partial class RecognitionModelCatalog(
-    HttpClient http, IMemoryCache cache, ILogger<RecognitionModelCatalog> logger
+    HttpClient http, IMemoryCache cache, ILogger<RecognitionModelCatalog> logger,
+    IEnumerable<IRecognizerEngine> engines
 ) : IRecognitionModelCatalog
 {
     /// <summary>
@@ -28,6 +31,27 @@ public partial class RecognitionModelCatalog(
     /// отказывает (кончились деньги, превышен лимит).
     /// </summary>
     private static readonly TimeSpan CloudRetryTtl = TimeSpan.FromMinutes(3);
+
+    /// <summary>
+    /// «Модель видит картинку» живёт час: свойство это у пары (модель, сборка Ollama) постоянное, а
+    /// смена любой из них меняет ключ кэша и без срока. Час — не про экономию секунд, а про то, что
+    /// распознавание вызывается постранично: без кэша альбом в двести листов оплатил бы двести проб.
+    /// </summary>
+    private static readonly TimeSpan SightedTtl = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// «Модель слепа» — четверть часа. Короче, чем у зрячей, намеренно: вердикт запрещает работу, и
+    /// человек, обновивший Ollama, должен увидеть это в обозримое время, а не через час.
+    /// </summary>
+    private static readonly TimeSpan BlindTtl = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// Срок ожидания канарейки. Ответ на неё — секунды (замер: 6 с на трёхполосной картинке,
+    /// 13 с с полным промптом штампа), но ПЕРВЫЙ вызов после простоя грузит модель с диска в память,
+    /// и это уже минуты. Полторы минуты — компромисс: холодный старт укладывается, а страница
+    /// настроек не висит пять минут, как позволял бы клиент движка.
+    /// </summary>
+    private static readonly TimeSpan CanaryTimeout = TimeSpan.FromMinutes(1.5);
 
     /// <summary>
     /// Список моделей Ollama — на полминуты, каким бы он ни был. Она рядом, спросить её дёшево, а
@@ -52,9 +76,21 @@ public partial class RecognitionModelCatalog(
     private static readonly TimeSpan LocalTimeout = TimeSpan.FromSeconds(5);
 
     public async Task<IReadOnlyList<string>?> GetInstalledAsync(string engine, IntegrationEngine cfg, CancellationToken ct = default)
+        => (await InstalledEntriesAsync(engine, cfg, ct))?.Select(e => e.Name).ToArray();
+
+    /// <summary>Модель Ollama так, как её отдаёт <c>/api/tags</c>: имя и дайджест весов.</summary>
+    private record InstalledModel(string Name, string? Digest);
+
+    /// <summary>
+    /// Установленные модели с дайджестами. Дайджест нужен канарейке: имя модели при перекачке
+    /// (<c>ollama pull</c> той же версии) не меняется, а веса и поведение — могут, и вердикт о зрении
+    /// должен тогда протухнуть сам. Ключ кэша общий с <see cref="GetInstalledAsync" /> — список
+    /// один, спрашивается один раз.
+    /// </summary>
+    private async Task<IReadOnlyList<InstalledModel>?> InstalledEntriesAsync(string engine, IntegrationEngine cfg, CancellationToken ct)
     {
         if (!engine.Equals("Ollama", StringComparison.OrdinalIgnoreCase)) return null;
-        return await Cached<IReadOnlyList<string>?>($"installed:{cfg.BaseUrl}", ct, fallback: null,
+        return await Cached<IReadOnlyList<InstalledModel>?>($"installed:{cfg.BaseUrl}", ct, fallback: null,
             _ => LocalTtl,
             async token =>
             {
@@ -70,8 +106,10 @@ public partial class RecognitionModelCatalog(
                 if (!doc.RootElement.TryGetProperty("models", out var arr) || arr.ValueKind != JsonValueKind.Array)
                     return null;   // ответ не той формы — «не проверили», а не «моделей нет»
                 return arr.EnumerateArray()
-                    .Select(e => e.TryGetProperty("name", out var n) ? n.GetString() : null)
-                    .Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).ToArray();
+                    .Select(e => new InstalledModel(
+                        e.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
+                        e.TryGetProperty("digest", out var d) ? d.GetString() : null))
+                    .Where(e => !string.IsNullOrWhiteSpace(e.Name)).ToArray();
             });
     }
 
@@ -105,6 +143,84 @@ public partial class RecognitionModelCatalog(
                 : engine.Equals("Anthropic", StringComparison.OrdinalIgnoreCase)
                     ? ProbeAnthropicAsync(cfg.ApiKey!, model, token)
                     : Task.FromResult(ModelStatus.Unknown));
+    }
+
+    public async Task<VisionStatus> GetVisionAsync(string engine, IntegrationEngine cfg, string model,
+        bool probe = true, CancellationToken ct = default)
+    {
+        // Облачные движки канарейку не получают, и это решение, а не пропуск: там модель выбирается
+        // из курируемого списка vision-моделей, а незнакомое имя поставщик отвергает вслух (см. #799).
+        // Слепота без отказа — свойство конкретной сборки Ollama.
+        if (string.IsNullOrWhiteSpace(model) || !engine.Equals("Ollama", StringComparison.OrdinalIgnoreCase))
+            return VisionStatus.Unknown;
+
+        var target = engines.FirstOrDefault(e => e.Name.Equals(engine, StringComparison.OrdinalIgnoreCase));
+        if (target is null) return VisionStatus.Unknown;
+
+        // Дайджест в ключе: имя модели при перекачке не меняется, а веса могут — тогда прежний
+        // вердикт о зрении обязан протухнуть сам, без чьей-либо памяти о том, что его надо сбросить.
+        var digest = (await InstalledEntriesAsync(engine, cfg, ct))
+            ?.FirstOrDefault(m => EngineReadiness.SameModel(m.Name, model))?.Digest;
+        var cacheKey = $"vision:{engine}:{model}:{cfg.BaseUrl}:{digest}";
+
+        // Кэш смотрим ДО обращения к движку — иначе постраничный прогон разошёлся бы мимо кэша по
+        // счастью, а не по устройству.
+        if (cache.TryGetValue<VisionStatus>(cacheKey, out var known)) return known!;
+        if (!probe) return VisionStatus.Unknown;
+
+        return await Cached(cacheKey, ct, VisionStatus.Unknown,
+            v => v.State switch
+            {
+                VisionState.Sighted => SightedTtl,
+                VisionState.Blind => BlindTtl,
+                _ => CloudRetryTtl,
+            },
+            async token =>
+            {
+                // Свой срок: клиент движка живёт с пятиминутным таймаутом (страница из альбома на
+                // CPU считается минутами), но канарейку столько ждать незачем — и страница настроек
+                // тем более. ProbeGate здесь НЕ берём: он сериализует облачные пробы из-за гонки
+                // IPv6 на первом соединении, а локальная Ollama встала бы в очередь за чужим облаком.
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+                deadline.CancelAfter(CanaryTimeout);
+                string raw;
+                try
+                {
+                    // Движок вызывается НАПРЯМУЮ, минуя цепочку (IDocumentRecognizer). Через неё
+                    // вышло бы «цепочка → каталог → цепочка»: цепочка спрашивает про зрение, а
+                    // канарейка возвращается в неё же. Соблазн реальный — цепочка выглядит
+                    // правильным входом в распознавание.
+                    raw = await target.RecognizeRawAsync(
+                        VisionCanary.Png, VisionCanary.MimeType, VisionCanary.Fields, VisionCanary.BuildPrompt, deadline.Token);
+                }
+                catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
+                {
+                    // Движок не ответил — это «не проверили», а не приговор модели.
+                    logger.LogInformation("Канарейка зрения {Engine}/{Model}: движок не ответил — {Message}", engine, model, ex.Message);
+                    return VisionStatus.Unknown;
+                }
+
+                if (VisionCanary.SeesImage(raw))
+                {
+                    logger.LogInformation("Канарейка зрения {Engine}/{Model}: модель видит изображение", engine, model);
+                    return VisionStatus.Sighted;
+                }
+
+                // Пустой ответ слепотой НЕ считаем, хотя соблазн есть: замер 2026-08-20 показал, что
+                // модель, не получившая картинку, может уйти в размышления на три минуты и вернуть
+                // пустоту. Отсюда цена ошибки: «слепа» запрещает работу, и назначить этот вердикт по
+                // молчанию значило бы отключать движок за медлительность. Ограничение известное —
+                // слепоту такой модели канарейка не увидит, её ловит уже разбор ответа (issue #803).
+                if (string.IsNullOrWhiteSpace(raw))
+                {
+                    logger.LogInformation("Канарейка зрения {Engine}/{Model}: пустой ответ — считаем непроверенной", engine, model);
+                    return VisionStatus.Unknown;
+                }
+
+                logger.LogWarning("Канарейка зрения {Engine}/{Model}: модель ответила, но цветов не назвала — {Excerpt}",
+                    engine, model, VisionCanary.Excerpt(raw));
+                return new VisionStatus(VisionState.Blind, VisionCanary.Excerpt(raw));
+            });
     }
 
     /// <summary>

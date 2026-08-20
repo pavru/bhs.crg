@@ -1,43 +1,33 @@
-using BHS.CRG.Application.QualityDocs;
-using BHS.CRG.Application.Settings;
+﻿using BHS.CRG.Application.QualityDocs;
 using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Recognition;
 
 /// <summary>
 /// Распознаватель-цепочка: порядок и доступность движков берутся из настроек интеграций
-/// (enable/disable + приоритет). Использует первый включённый и настроенный; при
+/// (enable/disable + приоритет). Использует первый включённый, настроенный и зрячий; при
 /// недоступности/лимите переходит к следующему.
+///
+/// Отбор движков живёт не здесь, а в <see cref="RecognitionEngineSelector" />: тем же правилом
+/// пользуется предполётная проверка, и разъехаться им нельзя (issue #801).
 /// </summary>
 public class ChainDocumentRecognizer(
-    IEnumerable<IRecognizerEngine> engines, IIntegrationSettings settings, ILogger<ChainDocumentRecognizer> logger
+    RecognitionEngineSelector selector, ILogger<ChainDocumentRecognizer> logger
 ) : IDocumentRecognizer
 {
     public async Task<RecognitionResult> RecognizeAsync(byte[] file, string mimeType, IReadOnlyList<RecognitionField> fields,
         Func<IReadOnlyList<RecognitionField>, string>? promptBuilder = null, CancellationToken ct = default)
     {
-        var s = await settings.GetEffectiveAsync(ct);
-        var byName = engines.ToDictionary(e => e.Name, StringComparer.OrdinalIgnoreCase);
-
-        // порядок из настроек; затем движки не упомянутые в порядке
-        var order = s.RecognitionOrder.Count > 0 ? s.RecognitionOrder : ["Gemini", "Anthropic", "Ollama"];
-        var ordered = order.Where(byName.ContainsKey)
-            .Concat(byName.Keys.Where(n => !order.Contains(n, StringComparer.OrdinalIgnoreCase)))
-            .Select(n => byName[n])
-            .ToList();
-
-        // Движок с галкой «включён», но без ключа/модели из перебора выпадает. Уровень Debug, а не
-        // Warning, намеренно: распознавание вызывается ПОСТРАНИЧНО, и на альбоме в двести листов
-        // предупреждение повторилось бы двести раз, ничего не добавив. Пользовательский сигнал об
-        // этом — бейдж «не участвует» в настройках, он виден до запуска и не тонет в логе (#797).
-        foreach (var e in ordered.Where(e => s.Rec(e.Name).Enabled))
-            if (EngineReadiness.MissingForRecognition(e.Name, s.Rec(e.Name)) is { } missing)
-                logger.LogDebug("Движок {Engine} включён, но не участвует: {Missing}", e.Name, missing);
-
-        ordered = ordered.Where(e => EngineReadiness.IsUsableForRecognition(e.Name, s.Rec(e.Name))).ToList();
+        var selection = await selector.SelectAsync(probeVision: true, ct);
+        var ordered = selection.Ordered;
 
         if (ordered.Count == 0)
-            throw new RecognitionUnavailableException("Нет включённых и настроенных движков распознавания. Проверьте «Настройки → Поиск и распознавание».");
+            throw new RecognitionUnavailableException(selection.Blind.Count > 0
+                // Слепой движок мы не «пропускаем молча»: если работать больше некому, человек
+                // обязан узнать ИМЕННО про слепоту — иначе он пойдёт проверять ключи и настройки,
+                // которые в полном порядке.
+                ? string.Join(" ", selection.Blind.Select(b => b.Issue))
+                : "Нет включённых и настроенных движков распознавания. Проверьте «Настройки → Поиск и распознавание».");
 
         Exception? last = null;
         foreach (var engine in ordered)

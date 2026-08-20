@@ -338,6 +338,22 @@ export function isManualGroupingConflict(err: unknown): boolean {
   return (err as { response?: { status?: number } })?.response?.status === 409;
 }
 
+/**
+ * Отказ распознавания, пришедший ДО постановки задачи (issue #801): распознавать некому — движки не
+ * настроены либо их модель не принимает изображения. Код и текст даёт сервер; здесь только чтение —
+ * своя копия правила разъехалась бы с серверной (тот же урок, что у бейджа «не участвует», #797).
+ */
+export function recognitionBlockMessage(err: unknown): string | null {
+  const resp = (err as { response?: { status?: number; data?: { error?: string; code?: string } } })?.response;
+  if (resp?.status !== 422) return null;
+  return resp.data?.error ?? 'Распознавание сейчас недоступно.';
+}
+
+/** Отказ именно из-за слепой модели — у него другое лекарство, чем у «движок не настроен». */
+export function isBlindModelBlock(err: unknown): boolean {
+  return (err as { response?: { data?: { code?: string } } })?.response?.data?.code === 'recognition_model_blind';
+}
+
 // ── Редактор разбиения PDF — на уровне НАБОРА (issue #38, fileId) ────────
 
 export function useFilePages(fileId: string | null) {

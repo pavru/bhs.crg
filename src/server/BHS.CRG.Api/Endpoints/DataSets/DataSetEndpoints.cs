@@ -1,6 +1,7 @@
 ﻿using System.Security.Claims;
 using System.Text.Json;
 using BHS.CRG.Application.DataSets;
+using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Domain.Jobs;
 
@@ -224,14 +225,24 @@ public static class DataSetEndpoints
             catch (NotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
         });
 
+        // Предполётная проверка распознавания (issue #801): отказ ДО постановки задачи. Задача,
+        // которая стартует и выясняет негодность движка на сто восемьдесят седьмом листе, — это то
+        // же самое молчание, только через два часа. Отвечает сервер: копия правила на клиенте
+        // разъехалась бы с этой (тот же урок, что у бейджа «не участвует», #797).
+        static async Task<IResult?> BlockedAsync(IRecognitionPreflight preflight, CancellationToken ct)
+            => await preflight.CheckAsync(ct) is { } b
+                ? Results.UnprocessableEntity(new { error = b.Message, code = b.Code })
+                : null;
+
         // Распознавание PDF-набора (issue #38/#44, набор-centric) — по fileId, для ВСЕХ профилей (unifies
         // VERB вызова: ГОСТ и «Счёт» теперь оба входят через fileId, не только ГОСТ). confirm=true
         // подтверждает перезапись ручной правки разбиения (409 без него, только ГОСТ). Долгая операция
         // (ГОСТ, минуты) → фоновая задача, 202+jobId; короткая (Счёт, секунды) → синхронно, 200.
-        g.MapPost("/files/{fileId:guid}/recognize", async (Guid fileId, bool? confirm, IDataSetService svc, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
+        g.MapPost("/files/{fileId:guid}/recognize", async (Guid fileId, bool? confirm, IDataSetService svc, IJobService jobs, IRecognitionPreflight preflight, ClaimsPrincipal user, CancellationToken ct) =>
         {
             try
             {
+                if (await BlockedAsync(preflight, ct) is { } blocked) return blocked;
                 if (await jobs.HasActiveForTargetAsync(UserId(user), fileId, ct))
                     return Results.Conflict(new { error = "По этому набору уже идёт распознавание." });
                 var plan = await svc.PlanFileRecognitionAsync(fileId, confirm ?? false, ct);
@@ -250,10 +261,11 @@ public static class DataSetEndpoints
 
         // confirm=true — подтверждение перезаписи ручной корректировки разбиения (см.
         // ApplyGroupingAsync); без него, если источник уже правился вручную, — 409 Conflict.
-        g.MapPost("/sources/{sourceId:guid}/recognize", async (Guid sourceId, bool? confirm, IDataSetService svc, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
+        g.MapPost("/sources/{sourceId:guid}/recognize", async (Guid sourceId, bool? confirm, IDataSetService svc, IJobService jobs, IRecognitionPreflight preflight, ClaimsPrincipal user, CancellationToken ct) =>
         {
             try
             {
+                if (await BlockedAsync(preflight, ct) is { } blocked) return blocked;
                 // Защита от повторного запуска, пока по этому источнику уже идёт распознавание.
                 if (await jobs.HasActiveForTargetAsync(UserId(user), sourceId, ct))
                     return Results.Conflict(new { error = "По этому источнику уже идёт распознавание." });
@@ -350,8 +362,9 @@ public static class DataSetEndpoints
         // Распознать таблицу помеченного документа (спецификация/кабельный журнал) → отдельный табличный
         // источник. Vision-вызов (минуты на большом документе) → фоновая задача, 202+jobId сразу.
         g.MapPost("/files/{fileId:guid}/recognize-table", async (
-            Guid fileId, RecognizeTableRequest req, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
+            Guid fileId, RecognizeTableRequest req, IJobService jobs, IRecognitionPreflight preflight, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (await BlockedAsync(preflight, ct) is { } blocked) return blocked;
             if (await jobs.HasActiveForTargetAsync(UserId(user), fileId, ct))
                 return Results.Conflict(new { error = "По этому набору уже идёт распознавание." });
             var payload = JsonSerializer.Serialize(new { firstPageIndex = req.FirstPageIndex });
@@ -361,8 +374,9 @@ public static class DataSetEndpoints
 
         // Точечное перераспознавание ОДНОГО документа набора (не всего альбома, P6) → фоновая задача.
         g.MapPost("/files/{fileId:guid}/recognize-document", async (
-            Guid fileId, RecognizeTableRequest req, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
+            Guid fileId, RecognizeTableRequest req, IJobService jobs, IRecognitionPreflight preflight, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            if (await BlockedAsync(preflight, ct) is { } blocked) return blocked;
             if (await jobs.HasActiveForTargetAsync(UserId(user), fileId, ct))
                 return Results.Conflict(new { error = "По этому набору уже идёт распознавание." });
             var payload = JsonSerializer.Serialize(new { firstPageIndex = req.FirstPageIndex });

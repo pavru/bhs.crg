@@ -188,6 +188,16 @@ public class EngineTimeoutTests
 
     // ── Цепочка: таймаут первого движка не обрывает перебор ─────────────────────
 
+    /// <summary>
+    /// Цепочка с отбором движков (issue #801). Каталог пуст — то есть про зрение ничего не известно,
+    /// и это НАМЕРЕННО главный случай: «не проверено» обязано вести себя ровно как прежде, иначе
+    /// канарейка отключила бы работающее распознавание.
+    /// </summary>
+    private static ChainDocumentRecognizer Chain(FakeSettings settings, IRecognizerEngine[] engines)
+        => new(new RecognitionEngineSelector(engines, settings, new FakeCatalog(),
+                   NullLogger<RecognitionEngineSelector>.Instance),
+               NullLogger<ChainDocumentRecognizer>.Instance);
+
     private static IntegrationSettingsModel TwoEngines() => new()
     {
         RecognitionOrder = ["Ollama", "Gemini"],
@@ -204,12 +214,11 @@ public class EngineTimeoutTests
         var timingOut = new TimingOutHandler();
         var answering = new JsonHandler(GeminiAnswer);
         var settings = new FakeSettings(TwoEngines());
-        var chain = new ChainDocumentRecognizer(
+        var chain = Chain(settings,
             [
                 new OllamaRecognizerEngine(new HttpClient(timingOut), settings, NullLogger<OllamaRecognizerEngine>.Instance),
                 new GeminiRecognizerEngine(new HttpClient(answering), settings, NullLogger<GeminiRecognizerEngine>.Instance),
-            ],
-            settings, NullLogger<ChainDocumentRecognizer>.Instance);
+            ]);
 
         var result = await chain.RecognizeAsync(Png, "image/png", Fields);
 
@@ -223,12 +232,11 @@ public class EngineTimeoutTests
     {
         // Эндпоинт отвечает 503 с этим текстом; голое OperationCanceledException доезжало 500-й.
         var settings = new FakeSettings(TwoEngines());
-        var chain = new ChainDocumentRecognizer(
+        var chain = Chain(settings,
             [
                 new OllamaRecognizerEngine(new HttpClient(new TimingOutHandler()), settings, NullLogger<OllamaRecognizerEngine>.Instance),
                 new GeminiRecognizerEngine(new HttpClient(new TimingOutHandler()), settings, NullLogger<GeminiRecognizerEngine>.Instance),
-            ],
-            settings, NullLogger<ChainDocumentRecognizer>.Instance);
+            ]);
 
         // Цепочка ловит базовый RecognitionUnavailableException — таймаут его наследник, и ни одно
         // место, ловящее базовый тип, о новом знать не обязано.
@@ -252,12 +260,11 @@ public class EngineTimeoutTests
                 ["Gemini"] = new IntegrationEngine { Enabled = true, ApiKey = "k" },
             },
         });
-        var chain = new ChainDocumentRecognizer(
+        var chain = Chain(settings,
             [
                 new AnthropicRecognizerEngine(new HttpClient(untouched), settings, NullLogger<AnthropicRecognizerEngine>.Instance),
                 new GeminiRecognizerEngine(new HttpClient(answering), settings, NullLogger<GeminiRecognizerEngine>.Instance),
-            ],
-            settings, NullLogger<ChainDocumentRecognizer>.Instance);
+            ]);
 
         Assert.Equal("7", (await chain.RecognizeAsync(Png, "image/png", Fields)).Values["Номер"]);
         Assert.Equal(0, untouched.Calls);

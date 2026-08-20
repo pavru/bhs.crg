@@ -35,7 +35,11 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
         tags: profile === 'gost-titleblock' && tags.length ? tags : null,
       });
       // Профиль выбран → сразу распознаём, единым вызовом по НАБОРУ для любого профиля.
-      recognizeFile.mutate({ fileId });
+      //
+      // Именно ЖДЁМ ответа и НЕ закрываем окно при отказе (issue #801). Раньше запуск уходил
+      // fire-and-forget, а окно закрывалось следом: отказ распознавания — в том числе «модель не
+      // принимает изображения» — проваливался молча, хотя показать его было где, строкой ниже.
+      await recognizeFile.mutateAsync({ fileId });
       onClose();
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -48,8 +52,13 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="text" onClick={onClose}>Отмена</Button>
-          <Button type="button" variant="filled" onClick={handleSave} loading={create.isPending}>
-            {create.isPending ? 'Создание…' : 'Создать и распознать'}
+          <Button type="button" variant="filled" onClick={handleSave}
+            loading={create.isPending || recognizeFile.isPending}>
+            {create.isPending ? 'Создание…'
+              // Между нажатием и стартом задачи сервер проверяет, есть ли кому распознавать
+              // (issue #801) — на холодной локальной модели это десятки секунд, и молчащая кнопка
+              // читалась бы как зависшая.
+              : recognizeFile.isPending ? 'Запуск распознавания…' : 'Создать и распознать'}
           </Button>
         </div>
       }>

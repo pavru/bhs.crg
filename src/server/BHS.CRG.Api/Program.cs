@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using BHS.CRG.Api.Auth;
@@ -404,7 +404,11 @@ builder.Services.AddHttpClient<OllamaRecognizerEngine>().ConfigureHttpClient(c =
 builder.Services.AddScoped<IRecognizerEngine>(sp => sp.GetRequiredService<AnthropicRecognizerEngine>());
 builder.Services.AddScoped<IRecognizerEngine>(sp => sp.GetRequiredService<GeminiRecognizerEngine>());
 builder.Services.AddScoped<IRecognizerEngine>(sp => sp.GetRequiredService<OllamaRecognizerEngine>());
+// Отбор движков — один на цепочку и на предполётную проверку (issue #801): разъехавшись, они дали
+// бы задачу, которую разрешили поставить и тут же отказались выполнять.
+builder.Services.AddScoped<RecognitionEngineSelector>();
 builder.Services.AddScoped<IDocumentRecognizer, ChainDocumentRecognizer>();
+builder.Services.AddScoped<BHS.CRG.Application.QualityDocs.IRecognitionPreflight, RecognitionPreflight>();
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<SettingsSecretProtector>();
 builder.Services.AddScoped<IntegrationSettingsService>();

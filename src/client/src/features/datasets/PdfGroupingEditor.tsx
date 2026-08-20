@@ -3,12 +3,13 @@ import { useNavigate, useParams, useLocation } from 'react-router';
 import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, Save, ZoomIn, Table2, RefreshCw } from 'lucide-react';
 import {
   useFilePages, useApplyGrouping, useRecognizeDocumentTable, useRecognizeDocument, useSetDocumentProfile,
-  loadPageThumbnailUrl, loadPageImageUrl,
+  loadPageThumbnailUrl, loadPageImageUrl, recognitionBlockMessage,
 } from '@/shared/api/datasets';
 import { useListRecognitionProfiles } from '@/shared/api/recognitionProfiles';
 import type { GostGroupingGroup, GostGroupKind } from '@/shared/api/types';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { RecognitionBlockedDialog } from './RecognitionBlockedDialog';
 
 const DEFAULT_CODE = '(без шифра)';
 /** Тэги типа таблицы документа (спецификация / кабельный журнал) — распознаются и выгружаются. */
@@ -377,6 +378,17 @@ export function PdfGroupingEditor() {
   const [groups, setGroups] = useState<EditableGroup[] | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [suspiciousOnly, setSuspiciousOnly] = useState(false);
+  const [recognizeError, setRecognizeError] = useState<string | null>(null);
+  const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
+
+  // Отказ «распознавать некому» показываем диалогом, прочие — строкой: первый требует пойти и
+  // сменить настройку, второй чаще всего сам себя объясняет («сначала сохраните разбиение»).
+  function showRecognizeError(err: unknown) {
+    const blocked = recognitionBlockMessage(err);
+    if (blocked) { setBlockedMessage(blocked); setRecognizeError(null); return; }
+    setRecognizeError((err as { response?: { data?: { error?: string } } })?.response?.data?.error
+      ?? 'Не удалось запустить распознавание.');
+  }
   const [dirty, setDirty] = useState(false);
   const [viewerPage, setViewerPage] = useState<number | null>(null);
   const lastClickedRef = useRef<number | null>(null);
@@ -517,6 +529,15 @@ export function PdfGroupingEditor() {
         </p>
       )}
 
+      {/* Отказ распознавания таблицы/документа. Раньше эти две операции молчали при любой неудаче:
+          кнопка переставала крутиться, и всё — при том, что место для сообщения было готово строкой
+          выше (issue #801). */}
+      {recognizeError && <p className="text-sm text-danger mb-3">{recognizeError}</p>}
+
+      {blockedMessage && (
+        <RecognitionBlockedDialog message={blockedMessage} onClose={() => setBlockedMessage(null)} />
+      )}
+
       <div className="flex-1 overflow-auto space-y-3 pb-4">
         {groups.map(g => (
           <GroupSection
@@ -528,8 +549,8 @@ export function PdfGroupingEditor() {
             onSetProfile={(page, profileId) => setProfile.mutate({ firstPageIndex: page, profileId })}
             tableProfiles={tableProfiles}
             savingProfile={setProfile.isPending}
-            onRecognizeTable={p => recognizeTable.mutate(p)}
-            onRecognizeDoc={p => recognizeDoc.mutate(p)}
+            onRecognizeTable={p => recognizeTable.mutate(p, { onError: showRecognizeError })}
+            onRecognizeDoc={p => recognizeDoc.mutate(p, { onError: showRecognizeError })}
             tableBusyPage={recognizeTable.isPending ? (recognizeTable.variables ?? null) : null}
             docBusyPage={recognizeDoc.isPending ? (recognizeDoc.variables ?? null) : null}
           />

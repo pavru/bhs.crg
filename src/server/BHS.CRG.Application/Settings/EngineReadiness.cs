@@ -1,4 +1,4 @@
-namespace BHS.CRG.Application.Settings;
+﻿namespace BHS.CRG.Application.Settings;
 
 /// <summary>
 /// Настроен ли движок настолько, чтобы им пользоваться, — и если нет, чего именно не хватает (issue #797).
@@ -54,6 +54,35 @@ public static class EngineReadiness
             : $"модель «{e.Model}» больше не обслуживается";
         return status.Advice is null ? head : $"{head} — {status.Advice}";
     }
+
+    /// <summary>
+    /// Беда со ЗРЕНИЕМ выбранной модели: движок настроен, модель у поставщика есть, но изображения
+    /// она не принимает (issue #801). <c>null</c> — претензий нет.
+    ///
+    /// Третья по счёту и худшая из трёх претензий, потому и отдельная. Ненастроенный движок цепочка
+    /// пропускает (данные целы), движок с несуществующей моделью получает отказ (данные целы), а
+    /// слепой — ОТВЕЧАЕТ, и ответ его правдоподобен и полностью выдуман: замер на альбоме из
+    /// 16 листов дал 0 совпадений из 106 полей при успешно завершённой задаче.
+    ///
+    /// <see cref="VisionState.Unknown" /> претензией не считается по той же причине, что и у
+    /// <see cref="ModelIssue" />: остановленная Ollama не повод объявлять модель слепой.
+    /// </summary>
+    public static string? VisionIssue(string name, IntegrationEngine e, VisionStatus vision)
+    {
+        if (vision.State != VisionState.Blind || Blank(e.Model) || MissingForRecognition(name, e) is not null)
+            return null;
+        return $"Модель «{e.Model}» не принимает изображения. Распознавание ею невозможно: картинку она " +
+               "не получит, но ответ придумает. Выберите vision-модель (qwen2.5vl:7b, llama3.2-vision) " +
+               "или обновите Ollama.";
+    }
+
+    /// <summary>
+    /// Движок включён, настроен И не уличён в слепоте — цепочка его возьмёт. Отдельная перегрузка, а
+    /// не поле в <see cref="IntegrationEngine" />: зрение — свойство пары (движок, модель), про
+    /// которое отвечает <see cref="IRecognitionModelCatalog" />, а не сохранённая настройка.
+    /// </summary>
+    public static bool IsUsableForRecognition(string name, IntegrationEngine e, VisionStatus vision)
+        => IsUsableForRecognition(name, e) && vision.State != VisionState.Blind;
 
     /// <summary>
     /// Одна ли это модель. Для Ollama имя без тега равно имени с тегом <c>latest</c> — так их пишет и

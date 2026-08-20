@@ -11,7 +11,7 @@ import { FileProfilesDialog } from './FileProfilesDialog';
 import {
   useDeleteDataSetSource, useDuplicateDataSetSource, useSetDataSetSourceProcessing, useListProcessingTemplates,
   usePreviewDataSetSource, useCreateProcessingTemplate, useApplyProcessingTemplate, useRecognizeFile,
-  isManualGroupingConflict, exportDataSetSource, useSourceCandidates, useCreateDataSetSource, useRenameSource,
+  isManualGroupingConflict, recognitionBlockMessage, exportDataSetSource, useSourceCandidates, useCreateDataSetSource, useRenameSource,
   useRecognizeDocumentTable, type SourceCandidate,
 } from '@/shared/api/datasets';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -22,6 +22,7 @@ import { RowActionsMenu, type RowAction } from '@/shared/ui/RowActionsMenu';
 import { SourceEditorDialog } from './SourceEditorDialog';
 import { MaterializationDialog } from './MaterializationDialog';
 import { PdfSourceDialog } from './PdfSourceDialog';
+import { RecognitionBlockedDialog } from './RecognitionBlockedDialog';
 import { SourcePreviewDialog } from './SourcePreviewDialog';
 import { RowFilterDialog } from './RowFilterDialog';
 import { ComputedColumnsDialog } from './ComputedColumnsDialog';
@@ -340,12 +341,18 @@ export function FileRecognizeActions({ file }: { file: DataSetFile }) {
     || file.sources.some(s => s.sheetOrPath === 'gost-documents' || s.sheetOrPath === 'gost-cover'
       || s.sheetOrPath === 'gost-titlepage' || s.sheetOrPath.startsWith('gost-table:'));
   const recognizing = useSourceRecognizing(file.id);
+  const [recognizeBlocked, setRecognizeBlocked] = useState<string | null>(null);
   const { data: candidates = [] } = useSourceCandidates(isPdf ? file.id : undefined);
 
   function handleRecognizeDataset(confirm = false) {
     if (profile || candidates.length > 0) {
       recognizeFile.mutate({ fileId: file.id, confirm }, {
-        onError: (err: unknown) => { if (isManualGroupingConflict(err)) setRecognizeConflict(true); },
+        onError: (err: unknown) => {
+          if (isManualGroupingConflict(err)) setRecognizeConflict(true);
+          // Распознавать некому (движки не настроены либо модель слепа, issue #801). Раньше отказ
+          // тут просто терялся: обработчик знал ровно об одном коде, а всё прочее уходило в никуда.
+          else setRecognizeBlocked(recognitionBlockMessage(err));
+        },
       });
     } else {
       setProfileDialog(true); // профиль не выбран → диалог выбора профиля (ставит профиль + распознаёт)
@@ -373,11 +380,17 @@ export function FileRecognizeActions({ file }: { file: DataSetFile }) {
       </IconButton>
       {profileDialog && <PdfSourceDialog fileId={file.id} onClose={() => setProfileDialog(false)} />}
       {fileProfilesDialog && <FileProfilesDialog file={file} onClose={() => setFileProfilesDialog(false)} />}
+      {recognizeBlocked && (
+        <RecognitionBlockedDialog message={recognizeBlocked} onClose={() => setRecognizeBlocked(null)} />
+      )}
       <ConfirmDialog open={recognizeConflict} onOpenChange={o => { if (!o) setRecognizeConflict(false); }}
         title="Разбиение было скорректировано вручную"
         description={<p>Повторное автораспознавание сотрёт ручные правки разбиения на документы. Продолжить?</p>}
         confirmLabel="Распознать заново"
-        onConfirm={() => recognizeFile.mutate({ fileId: file.id, confirm: true })} />
+        onConfirm={() => recognizeFile.mutate({ fileId: file.id, confirm: true }, {
+          // Подтверждённый перезапуск — тот же путь, и отказать ему могут ровно так же.
+          onError: (err: unknown) => setRecognizeBlocked(recognitionBlockMessage(err)),
+        })} />
     </>
   );
 }
