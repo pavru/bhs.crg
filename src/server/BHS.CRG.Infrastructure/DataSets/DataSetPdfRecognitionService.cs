@@ -484,8 +484,11 @@ public class DataSetPdfRecognitionService(
         // Материализация СЫРЬЯ на наборе: режем под-PDF в группы (BlobPath в Grouping), пишем Grouping,
         // переспроецируем существующие источники-проекции, чистим осиротевшие блобы. Источников НЕ создаём.
         var matResult = await MaterializeFileGroupingAsync(file, unified, bytes, ct);
+        // «В наборе не появилось ничего» считаем ЗДЕСЬ, где строки под рукой: уведомление называет
+        // это полным провалом, и признак должен совпадать с обещанием текста.
+        var nothingRecognized = rows.All(r => r.Values.All(string.IsNullOrWhiteSpace));
         await PublishGostRecognitionResultAsync(matResult.DocumentCount, rows.Count, failedPages, failureReason,
-            matResult.FailedSplits, matResult.InvalidatedTables, ct);
+            nothingRecognized, matResult.FailedSplits, matResult.InvalidatedTables, ct);
     }
 
     private record GostMaterializeResult(int DocumentCount, int FailedSplits, int InvalidatedTables);
@@ -590,14 +593,17 @@ public class DataSetPdfRecognitionService(
     // источники — последнее требует ручной перепроверки). Системное (userId=null): эндпоинт
     // распознавания не несёт контекст пользователя, действие админ-конфигурационное.
     private async Task PublishGostRecognitionResultAsync(
-        int documentCount, int pageCount, int failedPages, string? failureReason,
+        int documentCount, int pageCount, int failedPages, string? failureReason, bool nothingRecognized,
         int failedSplits, int invalidatedTables, CancellationToken ct)
     {
         // «Не ответила», а не «не распозналось»: пустой штамп — законный исход, и обвинять модель в
         // нём незачем. Речь именно о листах, ответа по которым не было вовсе.
         var msg = $"Распознано: {documentCount} документов, {pageCount} листов.";
         if (failedPages > 0) msg += $" Модель не ответила по листам: {failedPages}.";
-        if (failureReason is not null) msg += $" Причина: {failureReason}";
+        // Точку добавляем сами: тексты причин приходят из разных мест (сообщение исключения движка,
+        // наша формулировка про таймаут), и половина из них её не несёт.
+        if (failureReason is not null)
+            msg += $" Причина: {failureReason.TrimEnd()}" + (failureReason.TrimEnd().EndsWith('.') ? "" : ".");
         if (failedSplits > 0) msg += $" Документов без файла: {failedSplits}.";
         if (invalidatedTables > 0)
             msg += $" Табличные источники ({invalidatedTables}) инвалидированы — границы документов изменились," +
@@ -606,7 +612,14 @@ public class DataSetPdfRecognitionService(
         var hasIssues = failedPages > 0 || failedSplits > 0 || invalidatedTables > 0;
         // Не распозналось НИ ОДНОГО листа — это не «завершено с пропусками», а полный провал, и
         // называть его предупреждением значит приуменьшать: в наборе не появилось ничего.
-        var total = failedPages > 0 && failedPages >= pageCount;
+        //
+        // Условие именно «все строки пусты», а не «failedPages == pageCount»: второе недостижимо и
+        // выглядело бы рабочим. Провал ПЕРВОГО листа по классифицированному пути прекращает прогон
+        // ещё до уведомления (не тратим часы на движок, не ответивший ни разу), так что счётчик
+        // никогда не сравняется с числом листов. А случай, который РЕАЛЬНО происходит, — первый лист
+        // прошёл, остальные 199 отвалились — по существу тот же провал, и прежним условием он
+        // уходил предупреждением.
+        var total = failedPages > 0 && nothingRecognized;
         await notifications.PublishAsync(
             total ? NotificationSeverity.Error : hasIssues ? NotificationSeverity.Warning : NotificationSeverity.Info,
             total ? "Распознавание PDF не удалось" : "Распознавание групп листов PDF завершено",

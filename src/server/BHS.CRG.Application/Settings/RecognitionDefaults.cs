@@ -1,4 +1,4 @@
-namespace BHS.CRG.Application.Settings;
+﻿namespace BHS.CRG.Application.Settings;
 
 /// <summary>
 /// Значения по умолчанию для движков распознавания — на случай, когда ни база, ни конфигурация
@@ -16,4 +16,14 @@ public static class RecognitionDefaults
     /// таймаута у «gemini-2.5-flash» и «gemini-3.5-flash».
     /// </summary>
     public const string GeminiModel = "gemini-3.5-flash-lite";
+
+    /// <summary>
+    /// Модели Ollama, про которые известно, что они принимают изображения, — их называют пользователю,
+    /// когда выбранная оказалась слепой (issue #801). Проверены 2026-08-20.
+    ///
+    /// Здесь, а не в тексте сообщения: список моделей протухает (см. описание типа), и протухший
+    /// должен находиться поиском по одному файлу, а не по формулировкам. В сообщении они идут как
+    /// пример — предписывать установку модели, которую мы не проверяли на его машине, мы не вправе.
+    /// </summary>
+    public static readonly string[] OllamaVisionExamples = ["qwen2.5vl:7b", "qwen3-vl", "llama3.2-vision"];
 }

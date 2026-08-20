@@ -72,8 +72,8 @@ public static class EngineReadiness
         if (vision.State != VisionState.Blind || Blank(e.Model) || MissingForRecognition(name, e) is not null)
             return null;
         return $"Модель «{e.Model}» не принимает изображения. Распознавание ею невозможно: картинку она " +
-               "не получит, но ответ придумает. Выберите vision-модель (qwen2.5vl:7b, llama3.2-vision) " +
-               "или обновите Ollama.";
+               "не получит, но ответ придумает. Выберите модель, которая работает с изображениями " +
+               $"(например, {string.Join(", ", RecognitionDefaults.OllamaVisionExamples)}), или обновите Ollama.";
     }
 
     /// <summary>
