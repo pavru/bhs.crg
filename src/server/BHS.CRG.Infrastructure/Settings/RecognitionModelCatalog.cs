@@ -16,37 +16,57 @@ public partial class RecognitionModelCatalog(
 ) : IRecognitionModelCatalog
 {
     /// <summary>
-    /// Насколько живёт ответ. Определённый («принимает» / «нет такой») — на четверть часа: каталог
-    /// поставщика меняется раз в месяцы, а спрашивают его на каждом открытии настроек. Неопределённый —
-    /// на полминуты, чтобы поднятая Ollama не числилась недоступной ещё четверть часа после запуска.
+    /// Определённый ответ облачного поставщика («принимает» / «нет такой») живёт четверть часа:
+    /// каталог моделей меняется раз в месяцы, а спрашивают его на каждом открытии настроек.
     /// </summary>
     private static readonly TimeSpan KnownTtl = TimeSpan.FromMinutes(15);
-    private static readonly TimeSpan UnknownTtl = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Срок ответа (задаётся при регистрации типизированного клиента). Восемь секунд не хватало:
-    /// первый запрос к облачному поставщику на холодном соединении занимал ~5 с, и при двух движках
-    /// сразу проверка срывалась в таймаут, показывая «не проверено» там, где всё работало. Больше
-    /// десяти ставить нельзя: этого ответа ждёт список моделей на странице настроек.
+    /// Неопределённый ответ облачного поставщика. Три минуты, а НЕ полминуты, и это не про удобство:
+    /// пробу шлёт в том числе health-мониторинг раз в 45 секунд, и срок короче его круга означал бы
+    /// запрос на каждом круге — то есть беспрерывный стук в поставщика ровно тогда, когда он и так
+    /// отказывает (кончились деньги, превышен лимит).
+    /// </summary>
+    private static readonly TimeSpan CloudRetryTtl = TimeSpan.FromMinutes(3);
+
+    /// <summary>
+    /// Список моделей Ollama — на полминуты, каким бы он ни был. Она рядом, спросить её дёшево, а
+    /// цена долгого кэша тут прямая: пользователю сказали «скачайте модель», он скачал — и должен
+    /// увидеть это сразу, а не через четверть часа.
+    /// </summary>
+    private static readonly TimeSpan LocalTtl = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Срок ответа облачной пробы (задаётся при регистрации типизированного клиента). Восемь секунд
+    /// не хватало: первый запрос к облачному поставщику на холодном соединении занимал ~5 с, и при
+    /// двух движках сразу проверка срывалась в таймаут, показывая «не проверено» там, где всё работало.
     ///
-    /// Ждёт он его редко: результат живёт четверть часа, а обновляет его по своему кругу
-    /// health-мониторинг (он проверяет те же выбранные модели каждые 45 с) — то есть к моменту, когда
-    /// настройки открывают, ответ обычно уже лежит готовым.
+    /// Худший случай для списка моделей на странице настроек — сумма: пробы идут по одной, и два
+    /// молчащих поставщика подряд дадут около полуминуты ожидания. Случай именно худший, а не
+    /// обычный: определённый ответ живёт четверть часа и обновляется по кругу health-мониторинга, а
+    /// сама страница к этому моменту уже отрисована — ждёт только выпадающий список моделей.
     /// </summary>
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(12);
+
+    /// <summary>Срок ответа локальной Ollama: она на этой же машине, ждать её 12 секунд незачем.</summary>
+    private static readonly TimeSpan LocalTimeout = TimeSpan.FromSeconds(5);
 
     public async Task<IReadOnlyList<string>?> GetInstalledAsync(string engine, IntegrationEngine cfg, CancellationToken ct = default)
     {
         if (!engine.Equals("Ollama", StringComparison.OrdinalIgnoreCase)) return null;
         return await Cached<IReadOnlyList<string>?>($"installed:{cfg.BaseUrl}", ct, fallback: null,
-            list => list is null ? UnknownTtl : KnownTtl,
+            _ => LocalTtl,
             async token =>
             {
                 var url = (string.IsNullOrWhiteSpace(cfg.BaseUrl) ? "http://localhost:11434" : cfg.BaseUrl).TrimEnd('/') + "/api/tags";
                 using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                using var resp = await http.SendAsync(req, token);
+                // Свой срок поверх общего: клиент один на все проверки, а ждать соседнюю программу
+                // столько же, сколько облако за океаном, — это задерживать страницу настроек впустую.
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+                deadline.CancelAfter(LocalTimeout);
+                using var resp = await http.SendAsync(req, deadline.Token);
                 if (!resp.IsSuccessStatusCode) return null;
-                using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(token));
+                using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(deadline.Token));
                 if (!doc.RootElement.TryGetProperty("models", out var arr) || arr.ValueKind != JsonValueKind.Array)
                     return null;   // ответ не той формы — «не проверили», а не «моделей нет»
                 return arr.EnumerateArray()
@@ -79,7 +99,7 @@ public partial class RecognitionModelCatalog(
             // а не на каждый пункт списка (см. IRecognitionModelCatalog).
             return cache.TryGetValue<ModelStatus>(cacheKey, out var known) ? known! : ModelStatus.Unknown;
         return await Cached(cacheKey, ct, ModelStatus.Unknown,
-            s => s.State == ModelState.Unknown ? UnknownTtl : KnownTtl,
+            s => s.State == ModelState.Unknown ? CloudRetryTtl : KnownTtl,
             token => engine.Equals("Gemini", StringComparison.OrdinalIgnoreCase)
                 ? ProbeGeminiAsync(cfg.ApiKey!, model, token)
                 : engine.Equals("Anthropic", StringComparison.OrdinalIgnoreCase)
@@ -117,11 +137,6 @@ public partial class RecognitionModelCatalog(
     }
 
     /// <summary>
-    /// Отправить пробу и прочитать ответ. «Нет такой модели» — ТОЛЬКО 404. Всё остальное (кончились
-    /// деньги, превышен лимит, ключ отозван, сеть молчит) — «не проверено»: объявить модель
-    /// несуществующей из-за пустого счёта значит отправить пользователя менять то, что работает.
-    /// </summary>
-    /// <summary>
     /// Пробы идут по одной. Запущенные разом, они срывались в таймаут: на машине с нерабочим IPv6
     /// первое соединение с облачным хостом обходится в несколько секунд (сначала AAAA, потом откат на
     /// IPv4), и параллельные пробы этот срок друг другу только удлиняли — до таймаута у всех сразу.
@@ -129,6 +144,11 @@ public partial class RecognitionModelCatalog(
     /// </summary>
     private static readonly SemaphoreSlim ProbeGate = new(1);
 
+    /// <summary>
+    /// Отправить пробу и прочитать ответ. «Нет такой модели» — ТОЛЬКО 404. Всё остальное (кончились
+    /// деньги, превышен лимит, ключ отозван, сеть молчит) — «не проверено»: объявить модель
+    /// несуществующей из-за пустого счёта значит отправить пользователя менять то, что работает.
+    /// </summary>
     private async Task<ModelStatus> ProbeAsync(string engine, string model, HttpRequestMessage req, CancellationToken ct)
     {
         await ProbeGate.WaitAsync(ct);

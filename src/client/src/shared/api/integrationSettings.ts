@@ -116,7 +116,14 @@ export function useSaveIntegrationSettings() {
   return useMutation({
     mutationFn: (update: IntegrationSettingsUpdate) =>
       apiClient.put('/settings/integrations', update).then(() => undefined),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['integration-settings'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integration-settings'] });
+      // И то, что известно про модели: предупреждение «модель больше не обслуживается» считается по
+      // ВЫБРАННОЙ модели, а пользователь именно её сейчас и сменил — по подсказке из этого же
+      // предупреждения. Без сброса оно продолжало бы называть прежнюю модель, и человек не увидел
+      // бы, что послушался не зря. То же с ключом и адресом Ollama: список моделей зависит от них.
+      qc.invalidateQueries({ queryKey: ['integration-models'] });
+    },
   });
 }
 
