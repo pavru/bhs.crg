@@ -199,6 +199,7 @@ public class DataSetPdfRecognitionService(
         // Тот же накопитель, что и у прогона набора: этот цикл до issue #802 не считал отказы вовсе —
         // страницы молча уходили пустыми, и узнать об этом было неоткуда.
         var failures = new PageFailureTracker();
+        string? sourceEngine = null;
         for (var i = 0; i < pages.Count; i++)
         {
             try
@@ -206,6 +207,7 @@ public class DataSetPdfRecognitionService(
                 var result = await recognizer.RecognizeAsync(
                     pages[i], "image/png", fields, RecognitionShared.BuildTitleBlockPrompt, ct: ct);
                 rows.Add(result.Values);
+                sourceEngine ??= result.Engine;
                 failures.PageSucceeded();
             }
             catch (RecognitionSilentException ex)
@@ -245,8 +247,11 @@ public class DataSetPdfRecognitionService(
             var reason = failures.ShouldStop ? failures.StopReason : failures.FirstReason;
             await notifications.PublishAsync(NotificationSeverity.Warning,
                 "Распознавание источника завершено с пропусками",
-                $"Обработано листов: {pages.Count}. Модель не ответила по листам: {failures.FailedPages}." +
-                (string.IsNullOrWhiteSpace(reason) ? "" : $" Причина: {reason.TrimEnd('.')}."),
+                // «Листов в источнике», а не «обработано»: при остановке по счётчику молчаний часть
+                // листов движку не показывали вовсе, и назвать их обработанными было бы неправдой.
+                $"Листов в источнике: {pages.Count}. Модель не ответила по листам: {failures.FailedPages}." +
+                (string.IsNullOrWhiteSpace(reason) ? "" : $" Причина: {reason.TrimEnd('.')}.") +
+                (string.IsNullOrWhiteSpace(sourceEngine) ? "" : $" Распознавал: {sourceEngine}."),
                 "Распознавание PDF", ct: ct);
         }
 

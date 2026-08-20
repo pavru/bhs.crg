@@ -9,6 +9,7 @@ import { useListRecognitionProfiles } from '@/shared/api/recognitionProfiles';
 import type { GostGroupingGroup, GostGroupKind } from '@/shared/api/types';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { ruCount } from '@/shared/utils/pluralize';
 import { RecognitionBlockedDialog } from './RecognitionBlockedDialog';
 
 const DEFAULT_CODE = '(без шифра)';
@@ -531,7 +532,7 @@ export function PdfGroupingEditor() {
               {pagesWithoutAnswer.size > 0 && (
                 <span className="text-danger"
                   title="По этим листам движок не ответил — их поля пусты не потому, что на листе ничего нет. Перераспознайте документ или смените модель.">
-                  {' · '}{pagesWithoutAnswer.size} лист{pagesWithoutAnswer.size === 1 ? '' : pagesWithoutAnswer.size < 5 ? 'а' : 'ов'} без ответа
+                  {' · '}{ruCount(pagesWithoutAnswer.size, 'лист', 'листа', 'листов')} без ответа
                 </span>
               )}
             </p>
