@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, AlertCircle, Eye } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
@@ -8,6 +8,7 @@ import {
   useIntegrationSettings,
   useSaveIntegrationSettings,
   useIntegrationModels,
+  useCheckVision,
   type EngineDto,
   type EngineUpdate,
   type IntegrationSettingsUpdate,
@@ -84,7 +85,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function EngineCard({
-  meta, form, onChange, reorder, modelOptions, missing, modelIssue, unavailable, modelsChecked,
+  meta, form, onChange, reorder, modelOptions, missing, modelIssue, blindIssue, unavailable, modelsChecked,
+  visionCheckable, savedModel,
 }: {
   meta: EngineMeta;
   form: EngineForm;
@@ -95,6 +97,21 @@ function EngineCard({
   missing?: string | null;
   /** Беда с выбранной моделью (её у поставщика нет); null — либо всё хорошо, либо не проверяли. */
   modelIssue?: string | null;
+  /**
+   * Модель не принимает изображения (issue #801); null — либо не уличена, либо не проверяли.
+   * Отдельно от modelIssue, потому что это претензия иного веса: ненастроенный движок цепочка
+   * пропускает, движок с несуществующей моделью получает отказ, а слепой — ОТВЕЧАЕТ, и ответ его
+   * выдуман целиком. Единственная из трёх, которая портит данные.
+   */
+  blindIssue?: string | null;
+  /** Показывать ли кнопку проверки зрения (спрашиваем только локальную Ollama). */
+  visionCheckable?: boolean;
+  /**
+   * Модель по СОХРАНЁННЫМ настройкам. Нужна ровно затем, чтобы не соврать: проверка идёт к той
+   * модели, что записана в базе, а в форме уже может стоять другая — и «✓ зрение проверено» встало
+   * бы рядом с моделью, которой никто не показывал картинку.
+   */
+  savedModel?: string | null;
   /** Пункты списка, которые поставщик точно не принимает. */
   unavailable?: UnavailableModel[];
   /** Удалось ли вообще спросить поставщика про модели (для честной подсказки при пустом списке). */
@@ -104,8 +121,14 @@ function EngineCard({
   // не по набранному в форме: пока изменения не сохранены, движок в самом деле не участвует.
   // Галку «включён» берём из формы: сняв её, пользователь уже не обещает участия — и упрёк ни к чему.
   const notParticipating = form.enabled && !!missing;
+  const blind = form.enabled && !!blindIssue;
+  // Проверка зрения по кнопке — её результат живёт до перезагрузки списка моделей: сервер кэширует
+  // вердикт сам, здесь только то, что человек видит сразу после нажатия.
+  const checkVision = useCheckVision();
+  const checked = checkVision.data;
   return (
-    <div className={`rounded-lg border p-3 space-y-3 ${form.enabled ? 'border-stroke bg-surface' : 'border-stroke bg-base'}`}>
+    <div className={`rounded-lg border p-3 space-y-3 ${
+      blind ? 'border-danger bg-surface' : form.enabled ? 'border-stroke bg-surface' : 'border-stroke bg-base'}`}>
       <div className="flex items-start gap-2">
         <label className="flex items-center gap-2 flex-1 cursor-pointer">
           <input
@@ -116,7 +139,17 @@ function EngineCard({
           />
           <span className="text-sm font-medium text-fg1">{meta.label}</span>
         </label>
-        {notParticipating && (
+        {/* Один сигнал, не три: слепота > «модель не обслуживается» > «не участвует». Слепой движок
+            не «не участвует» — он участвует и портит данные, и назвать это мягче значит соврать. */}
+        {blind && (
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-danger-subtle text-danger border border-danger-border shrink-0"
+            title={blindIssue ?? undefined}
+          >
+            <AlertCircle size={11} /> не работает: модель без зрения
+          </span>
+        )}
+        {!blind && notParticipating && (
           <span
             className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning-subtle text-warning border border-warning-border shrink-0"
             title={`Движок включён, но в работе не участвует: ${missing}. Распознавание идёт следующим по списку.`}
@@ -139,7 +172,14 @@ function EngineCard({
           поставщика («перейдите на такую-то») — самое полезное в этом сообщении и прятать его в
           подсказку по наведению незачем. Отдельно от «не участвует» ещё и по смыслу: ненастроенный
           движок цепочка пропускает, а этот — берёт и получает отказ. */}
-      {form.enabled && modelIssue && (
+      {blind && (
+        <p className="flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-danger-subtle text-danger border border-danger-border">
+          <AlertCircle size={13} className="shrink-0 mt-px" />
+          <span>{blindIssue}</span>
+        </p>
+      )}
+
+      {form.enabled && !blind && modelIssue && (
         <p className="flex items-start gap-1.5 rounded px-2 py-1.5 text-xs bg-warning-subtle text-warning border border-warning-border">
           <AlertTriangle size={13} className="shrink-0 mt-px" />
           <span>{modelIssue}</span>
@@ -184,6 +224,37 @@ function EngineCard({
               })}
             </Select>
           )
+        );
+      })()}
+
+      {/* Проверка зрения — в строке модели, а не у движка: проверяется пара (движок, модель), и
+          сменив модель, человек получает НЕПРОВЕРЕННУЮ пару, а не прежний вердикт. Автоматически
+          при открытии секции не запускаем: она общая, сюда заходят и за доменами ФГИС, а канарейка
+          на холодной модели ждёт минуты. */}
+      {visionCheckable && form.enabled && !missing && form.model && (() => {
+        // Проверяется пара (движок, модель), а модель сервер берёт сохранённую: пока форма не
+        // сохранена, проверять нечего — вердикт относился бы к другой модели.
+        const unsaved = (form.model || '').trim() !== (savedModel ?? '').trim();
+        return (
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button type="button" variant="text" onClick={() => checkVision.mutate(meta.key)}
+            disabled={checkVision.isPending || unsaved}>
+            <Eye size={13} className="mr-1" /> Проверить зрение
+          </Button>
+          <span className="text-xs text-fg4">
+            {unsaved
+              ? 'сохраните настройки — проверим выбранную модель'
+              : checkVision.isPending
+                ? 'Показываю модели картинку и спрашиваю цвета…'
+                : checked?.state === 'sighted'
+                  ? <span className="text-success">✓ зрение проверено</span>
+                  : checked?.state === 'unknown'
+                    // «Не проверили» — не приговор модели: остановленная Ollama выглядела бы слепой.
+                    ? (checked.error ?? 'проверить не удалось')
+                    // Про слепоту уже сказано полосой выше — второй раз не повторяем.
+                    : checked?.state === 'blind' ? '' : 'зрение не проверялось'}
+          </span>
+        </div>
         );
       })()}
 
@@ -318,6 +389,9 @@ export function IntegrationSettingsSection() {
                   modelOptions={modelOptionsFor(k)}
                   missing={data.recognition[k]?.missing}
                   modelIssue={models?.issues?.[k]}
+                  blindIssue={models?.blind?.[k]}
+                  visionCheckable={k === 'Ollama'}
+                  savedModel={data.recognition[k]?.model}
                   unavailable={models?.unavailable?.[k]}
                   modelsChecked={k === 'Ollama' ? models?.ollamaChecked : undefined}
                   reorder={{

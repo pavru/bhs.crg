@@ -13,7 +13,10 @@ import { useTagRegistry, datasetTags } from '@/shared/api/tags';
  * оба пишут сырьё на набор (Grouping/InvoiceRawData), кандидаты (Обложка/Титул/Документы или
  * Шапка/Товары) создаёт пользователь. Распознавание больше не прячется в меню источника.
  */
-export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: () => void }) {
+export function PdfSourceDialog(
+  { fileId, onClose, onRecognizeError }:
+  { fileId: string; onClose: () => void; onRecognizeError?: (err: unknown) => void },
+) {
   const [name, setName] = useState('');
   const [profile, setProfile] = useState<'gost-titleblock' | 'invoice'>('gost-titleblock');
   const [tags, setTags] = useState<string[]>([]);
@@ -35,7 +38,12 @@ export function PdfSourceDialog({ fileId, onClose }: { fileId: string; onClose: 
         tags: profile === 'gost-titleblock' && tags.length ? tags : null,
       });
       // Профиль выбран → сразу распознаём, единым вызовом по НАБОРУ для любого профиля.
-      recognizeFile.mutate({ fileId });
+      //
+      // Окно закрывается сразу, а отказ всплывает у родителя (issue #801). Ждать здесь нельзя:
+      // профиль «Счёт» распознаётся СИНХРОННО, то есть ожидание ответа держало бы модалку открытой
+      // весь прогон — минуты на локальной модели. Но и терять отказ, как было раньше (mutate без
+      // onError и сразу onClose), нельзя: именно так молчала слепая модель.
+      recognizeFile.mutate({ fileId }, { onError: err => onRecognizeError?.(err) });
       onClose();
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;

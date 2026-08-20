@@ -1,4 +1,4 @@
-namespace BHS.CRG.Application.Settings;
+﻿namespace BHS.CRG.Application.Settings;
 
 /// <summary>Что известно про конкретную модель движка.</summary>
 public enum ModelState
@@ -17,6 +17,44 @@ public record ModelStatus(ModelState State, string? Advice = null)
 {
     public static readonly ModelStatus Unknown = new(ModelState.Unknown);
     public static readonly ModelStatus Ok = new(ModelState.Ok);
+}
+
+/// <summary>Что известно про ЗРЕНИЕ модели — принимает ли она изображения (issue #801).</summary>
+public enum VisionState
+{
+    /// <summary>Проверить не удалось. НЕ «слепа» — просто нечего сказать.</summary>
+    Unknown,
+    /// <summary>Модель картинку получила и описала — распознавать ею можно.</summary>
+    Sighted,
+    /// <summary>Модель ответила, но изображения не увидела.</summary>
+    Blind,
+}
+
+/// <summary>
+/// Насколько дорого разрешено отвечать на вопрос о зрении (issue #801).
+///
+/// Три значения, а не флаг «можно сходить»: кроме «спроси, если не знаешь», нужен ещё и «спроси
+/// заново». Человек, которому система сказала «обновите Ollama», обновляет её и жмёт «Проверить
+/// зрение» — а модель, адрес и веса те же, то есть ключ кэша тот же. Двузначным флагом кнопка
+/// вернула бы прежний приговор мгновенно и молча, и единственное средство перепроверки оказалось бы
+/// пустышкой на всё время жизни записи.
+/// </summary>
+public enum VisionProbe
+{
+    /// <summary>Только кэш. Для мест, где ждать нельзя, — например при отрисовке страницы настроек.</summary>
+    CacheOnly,
+    /// <summary>Спросить движок, если ответа ещё нет. Обычный режим: прогон платит за пробу один раз.</summary>
+    IfUnknown,
+    /// <summary>Спросить движок заново, что бы ни лежало в кэше. Только по явному действию человека.</summary>
+    Refresh,
+}
+
+/// <param name="State">Что известно.</param>
+/// <param name="Detail">Чем именно ответила модель (для сообщения пользователю и лога).</param>
+public record VisionStatus(VisionState State, string? Detail = null)
+{
+    public static readonly VisionStatus Unknown = new(VisionState.Unknown);
+    public static readonly VisionStatus Sighted = new(VisionState.Sighted);
 }
 
 /// <summary>
@@ -55,4 +93,32 @@ public interface IRecognitionModelCatalog
     /// </param>
     Task<ModelStatus> GetStatusAsync(string engine, IntegrationEngine cfg, string model,
         bool probe = true, CancellationToken ct = default);
+
+    /// <summary>
+    /// Видит ли модель изображения — «канарейка зрения» (issue #801, выделено из #481).
+    ///
+    /// Вопрос отдельный от <see cref="GetStatusAsync" /> и осью отдельной намеренно. Слепая модель —
+    /// это <see cref="ModelState.Ok" /> на вопрос «знает ли её поставщик» и «нет» на вопрос «увидит
+    /// ли она лист»; слив их в один перечислимый тип, мы заставили бы значения конкурировать, а
+    /// каждое место, сравнивающее с <see cref="ModelState.Gone" />, молча забывало бы про слепоту —
+    /// то есть завело бы ровно тот молчаливый отказ, ради которого проверка и пишется.
+    ///
+    /// Проверка нужна потому, что слепота НЕ даёт отказа: gemma4 под ollama 0.32.3 не получала
+    /// изображения ни одним из трёх способов, при этом <c>/api/show</c> заявляла
+    /// <c>capabilities: ['vision']</c>, а прогон альбома из 16 листов завершался успехом с
+    /// правдоподобной выдумкой в каждом поле — 0 совпадений из 106 с эталоном.
+    ///
+    /// Спрашивается ТОЛЬКО у Ollama; облачным движкам отвечаем <see cref="VisionState.Unknown" />,
+    /// никуда не ходя, — как <see cref="GetInstalledAsync" /> отвечает им <c>null</c>. Причина не в
+    /// экономии: у облачных модель выбирается из курируемого списка vision-моделей, а незнакомое имя
+    /// поставщик отвергает вслух (404, см. #799) — класс отказа там громкий. Появится тихий —
+    /// хватит снять это условие.
+    /// </summary>
+    /// <param name="probe">
+    /// Насколько дорого разрешено отвечать. Проба стоит секунд (замер: 6 с у горячей локальной
+    /// модели, до полутора минут у холодной), а распознавание вызывается ПОСТРАНИЧНО — на альбоме в
+    /// двести листов её нельзя гнать двести раз, потому ответ и кэшируется.
+    /// </param>
+    Task<VisionStatus> GetVisionAsync(string engine, IntegrationEngine cfg, string model,
+        VisionProbe probe = VisionProbe.IfUnknown, CancellationToken ct = default);
 }

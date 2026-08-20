@@ -97,6 +97,15 @@ export interface IntegrationModelsDto {
   /** Беда с ВЫБРАННОЙ моделью движка, готовой строкой. Ключи — имена движков. */
   issues: Record<string, string>;
   /**
+   * Движки, чья модель уличена в слепоте — не принимает изображения (issue #801). Отдельно от
+   * `issues` потому, что это претензия иного веса: ненастроенный движок цепочка пропускает, движок
+   * с несуществующей моделью получает отказ, а слепой ОТВЕЧАЕТ — и ответ его выдуман целиком.
+   *
+   * Пусто здесь значит «не уличён», а НЕ «проверен»: вердикт берётся из кэша сервера, саму проверку
+   * запускает человек кнопкой (канарейка ходит к модели и на холодной ждёт минуты).
+   */
+  blind: Record<string, string>;
+  /**
    * Удалось ли спросить Ollama про скачанные модели. Без этого признака пустой список читался бы
    * как «моделей нет», хотя означать он может «Ollama не запущена».
    */
@@ -150,6 +159,31 @@ export function useTestSmtpConnection() {
   return useMutation({
     mutationFn: (smtp: SmtpUpdate) =>
       apiClient.post<{ ok: boolean; error?: string }>('/settings/integrations/email/test-connection', smtp).then(r => r.data),
+  });
+}
+
+/** Чем ответила канарейка зрения. `unknown` — «не проверили», а НЕ «модель плоха». */
+export interface VisionCheckResult {
+  state: 'sighted' | 'blind' | 'unknown';
+  /** Готовая претензия для показа, если модель слепа. */
+  issue?: string | null;
+  /** Чем именно ответила модель — для любопытных и для отчёта об ошибке. */
+  detail?: string | null;
+  /** Почему проверить не вышло (движок не ответил). Не приговор модели. */
+  error?: string | null;
+}
+
+/**
+ * Проверка «видит ли модель картинку» по кнопке (issue #801). Отдельно от useIntegrationModels:
+ * канарейка ходит к движку и на холодной модели ждёт минуты, а страница настроек рисуется сразу.
+ */
+export function useCheckVision() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (engine: string) =>
+      apiClient.post<VisionCheckResult>('/settings/integrations/vision-check', { engine }).then(r => r.data),
+    // Вердикт кэширует сервер, а список моделей несёт его в UI — после проверки он устарел.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['integration-models'] }),
   });
 }
 

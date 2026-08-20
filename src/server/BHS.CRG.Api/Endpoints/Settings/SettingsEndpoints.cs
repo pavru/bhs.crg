@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.Email;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Persistence;
@@ -138,7 +138,7 @@ public static class SettingsEndpoints
             // разъехалась бы на первом же частном случае (Ollama пишет «qwen3-vl:latest» там, где в
             // настройках стоит «qwen3-vl»), и вышло бы худшее — бейдж говорит «модель на месте»,
             // а в списке она помечена недоступной.
-            async Task<(string Engine, object[] Gone, string? Issue)> CheckAsync(string engine, string[] curated)
+            async Task<(string Engine, object[] Gone, string? Issue, string? Blind)> CheckAsync(string engine, string[] curated)
             {
                 var cfg = m.Rec(engine);
                 var selected = cfg.Model ?? string.Empty;
@@ -151,7 +151,12 @@ public static class SettingsEndpoints
                     .ToArray();
                 var status = checks.FirstOrDefault(c => c.Model.Equals(selected, StringComparison.OrdinalIgnoreCase)).Status
                              ?? ModelStatus.Unknown;
-                return (engine, gone, EngineReadiness.ModelIssue(engine, cfg, status));
+                // Зрение — ТОЛЬКО из кэша (probe: false). Канарейка стоит секунд, а на холодной
+                // модели — минуты: страница настроек столько не ждёт. Проверку запускает человек
+                // кнопкой, и он же видит, что она идёт.
+                var vision = await catalog.GetVisionAsync(engine, cfg, selected, VisionProbe.CacheOnly, ct);
+                return (engine, gone, EngineReadiness.ModelIssue(engine, cfg, status),
+                        EngineReadiness.VisionIssue(engine, cfg, vision));
             }
 
             var checked_ = await Task.WhenAll(
@@ -168,10 +173,46 @@ public static class SettingsEndpoints
                 unavailable = checked_.ToDictionary(c => c.Engine, c => c.Gone),
                 // Беда с выбранной моделью, одной строкой — для бейджа рядом с движком.
                 issues = checked_.Where(c => c.Issue is not null).ToDictionary(c => c.Engine, c => c.Issue),
+                // Слепота — отдельно от issues, а не строкой в общей куче: она запрещает работу, и
+                // интерфейс красит её иначе (issue #801). Пусто здесь значит «не уличён», а не
+                // «проверен»: вердикт берётся из кэша, проверку запускает человек кнопкой.
+                blind = checked_.Where(c => c.Blind is not null).ToDictionary(c => c.Engine, c => c.Blind),
                 // Пустой список моделей Ollama значит одно, если её спросили, и совсем другое, если
                 // спросить не вышло. Без этого признака интерфейс советовал бы «скачайте модель»
                 // остановленной Ollama.
                 ollamaChecked = installed is not null,
+            });
+        });
+
+        // Проверка зрения модели по кнопке (issue #801). Отдельно от GET /models намеренно: канарейка
+        // ходит к движку и на холодной модели ждёт минуты, а страница настроек рисуется сразу.
+        // Ответ «не проверено» — не отказ и не приговор: остановленная Ollama не делает модель слепой.
+        g.MapPost("/vision-check", async (VisionCheckRequest req, IIntegrationSettings settings,
+            IRecognitionModelCatalog catalog, CancellationToken ct) =>
+        {
+            var engine = req.Engine ?? "Ollama";
+            var m = await settings.GetEffectiveAsync(ct);
+            var cfg = m.Rec(engine);
+            if (EngineReadiness.MissingForRecognition(engine, cfg) is { } missing)
+                return Results.Ok(new { state = "unknown", error = $"Движок не настроен: {missing}." });
+
+            // Заново, а не «если неизвестно»: сюда приходят по нажатию кнопки, то есть именно затем,
+            // чтобы перепроверить — чаще всего после того, как послушались нашего же совета.
+            var vision = await catalog.GetVisionAsync(engine, cfg, cfg.Model ?? "", VisionProbe.Refresh, ct);
+            return Results.Ok(new
+            {
+                state = vision.State switch
+                {
+                    VisionState.Sighted => "sighted",
+                    VisionState.Blind => "blind",
+                    _ => "unknown",
+                },
+                issue = EngineReadiness.VisionIssue(engine, cfg, vision),
+                detail = vision.Detail,
+                error = vision.State == VisionState.Unknown
+                    ? $"Проверить не удалось: {engine} не ответила ({(string.IsNullOrWhiteSpace(cfg.BaseUrl) ? "http://localhost:11434" : cfg.BaseUrl)}). " +
+                      "Это не приговор модели — повторите, когда сервис поднимется."
+                    : null,
             });
         });
 
@@ -209,4 +250,7 @@ public static class SettingsEndpoints
     };
 
     private record EmailTestRequest(string? To);
+
+    /// <summary>Какой движок проверять канарейкой; по умолчанию — Ollama, единственный, кого спрашиваем.</summary>
+    private record VisionCheckRequest(string? Engine);
 }
