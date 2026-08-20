@@ -1,4 +1,4 @@
-using BHS.CRG.Application.DataSets;
+﻿using BHS.CRG.Application.DataSets;
 
 namespace BHS.CRG.Infrastructure.DataSets;
 
@@ -54,4 +54,13 @@ public record GostGroupingGroup(
 
 /// <param name="PageIndex">Индекс страницы исходного PDF (0-based).</param>
 /// <param name="Fields">Распознанные поля штампа этой страницы (без служебных ТипСтраницы/Форма).</param>
-public record GostGroupingPage(int PageIndex, IReadOnlyDictionary<string, string?> Fields);
+/// <param name="NoAnswer">
+/// Ответа по этому листу НЕ БЫЛО: движок промолчал, отказал или не успел (issue #803). Отличается от
+/// пустых <paramref name="Fields" /> принципиально — лист без штампа даёт пустые поля законно, и
+/// красить его как проблемный значит кричать на каждом графическом листе альбома, обесценивая сам
+/// признак. Пустые поля — «модель посмотрела и ничего не нашла»; этот флаг — «модель не ответила».
+///
+/// Значение по умолчанию <c>false</c> сохраняет разбор ранее записанных группировок: у них поля есть,
+/// а флага нет — и это правда, они распознавались, когда молчание ещё не отличали от пустоты.
+/// </param>
+public record GostGroupingPage(int PageIndex, IReadOnlyDictionary<string, string?> Fields, bool NoAnswer = false);

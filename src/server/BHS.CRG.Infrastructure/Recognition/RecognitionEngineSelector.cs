@@ -66,6 +66,10 @@ public class RecognitionEngineSelector(
         }
         return new EngineSelection(usable, blind);
     }
+
+    /// <summary>Какая модель назначена движку сейчас; пусто — не задана.</summary>
+    public async Task<string?> ModelOfAsync(string engine, CancellationToken ct = default)
+        => (await settings.GetEffectiveAsync(ct)).Rec(engine).Model;
 }
 
 /// <summary>

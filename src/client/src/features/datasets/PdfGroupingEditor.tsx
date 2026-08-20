@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router';
-import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, Save, ZoomIn, Table2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Loader2, Pencil, Trash2, AlertTriangle, AlertCircle, Save, ZoomIn, Table2, RefreshCw } from 'lucide-react';
 import {
   useFilePages, useApplyGrouping, useRecognizeDocumentTable, useRecognizeDocument, useSetDocumentProfile,
   loadPageThumbnailUrl, loadPageImageUrl, recognitionRefusal, type RecognitionRefusal,
@@ -9,6 +9,7 @@ import { useListRecognitionProfiles } from '@/shared/api/recognitionProfiles';
 import type { GostGroupingGroup, GostGroupKind } from '@/shared/api/types';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
+import { ruCount } from '@/shared/utils/pluralize';
 import { RecognitionBlockedDialog } from './RecognitionBlockedDialog';
 
 const DEFAULT_CODE = '(без шифра)';
@@ -100,9 +101,11 @@ function PageThumbnail({ fileId, pageIndex }: { fileId: string; pageIndex: numbe
 // крупный просмотр листа.
 
 function PageTile({
-  fileId, pageIndex, selected, suspicious, onToggle, onView,
+  fileId, pageIndex, selected, suspicious, noAnswer, onToggle, onView,
 }: {
   fileId: string; pageIndex: number; selected: boolean; suspicious: boolean;
+  /** Движок не ответил по этому листу — признак ЛИСТА, а не группы (issue #803). */
+  noAnswer: boolean;
   onToggle: (pageIndex: number, e: React.MouseEvent) => void;
   onView: (pageIndex: number) => void;
 }) {
@@ -112,7 +115,9 @@ function PageTile({
       className={`group/tile relative rounded-md p-1 border-2 transition-colors text-left cursor-pointer ${
         selected ? 'border-brand bg-brand-subtle' : 'border-transparent hover:border-stroke'
       }`}
-      title={`Страница ${pageIndex + 1}`}>
+      title={noAnswer
+        ? `Страница ${pageIndex + 1} — модель не ответила по этому листу, поля пусты`
+        : `Страница ${pageIndex + 1}`}>
       <PageThumbnail fileId={fileId} pageIndex={pageIndex} />
       <button
         onClick={e => { e.stopPropagation(); onView(pageIndex); }}
@@ -122,7 +127,11 @@ function PageTile({
       </button>
       <div className="flex items-center justify-between mt-1 px-0.5">
         <span className="text-[10px] text-fg4">{pageIndex + 1}</span>
-        {suspicious && <AlertTriangle size={10} className="text-warning" />}
+        {/* Лист без ответа виден отдельно от «подозрительной» группы: у первого поля пусты потому,
+            что их неоткуда взять, у второй — потому что распозналось не то. Лечится это по-разному. */}
+        {noAnswer
+          ? <AlertCircle size={10} className="text-danger" />
+          : suspicious && <AlertTriangle size={10} className="text-warning" />}
       </div>
     </div>
   );
@@ -216,7 +225,7 @@ function SelectionActionBar({
 // ─── Группа (документ / обложка / титульный лист) ────────────────────────────────────────────────
 
 function GroupSection({
-  fileId, group, otherGroups, selected, suspiciousOnly, dirty,
+  fileId, group, otherGroups, selected, suspiciousOnly, dirty, pagesWithoutAnswer,
   onToggle, onRename, onMoveSelected, onSplitSelected, onDisband, onView, onSetTag,
   onSetProfile, tableProfiles, savingProfile,
   onRecognizeTable, onRecognizeDoc, tableBusyPage, docBusyPage,
@@ -225,6 +234,8 @@ function GroupSection({
   group: EditableGroup;
   otherGroups: EditableGroup[];
   selected: Set<number>;
+  /** Листы без ответа — с сервера, один набор на весь редактор (issue #803). */
+  pagesWithoutAnswer: Set<number>;
   suspiciousOnly: boolean;
   dirty: boolean;
   onToggle: (pageIndex: number, e: React.MouseEvent) => void;
@@ -340,6 +351,7 @@ function GroupSection({
         <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))' }}>
           {group.pageIndices.map(p => (
             <PageTile key={p} fileId={fileId} pageIndex={p} selected={selected.has(p)} suspicious={suspicious}
+              noAnswer={pagesWithoutAnswer.has(p)}
               onToggle={onToggle} onView={onView} />
           ))}
         </div>
@@ -402,6 +414,15 @@ export function PdfGroupingEditor() {
   const unassignedPages = useMemo(
     () => Array.from({ length: pageCount }, (_, i) => i).filter(i => !assignedPages.has(i)),
     [pageCount, assignedPages],
+  );
+  // Листы без ответа считаем из ОТВЕТА СЕРВЕРА, а не из редактируемых групп. Признак принадлежит
+  // листу, и локальная перегруппировка не меняет того, ответила ли по нему модель. Пока он лежал в
+  // состоянии редактора, каждая мутация групп обязана была помнить про перенос отметок — и помнила
+  // одна из трёх: перенос в существующую группу терял отметку у плитки, но не у счётчика (число
+  // расходилось с картинкой), а расформирование теряло её молча.
+  const pagesWithoutAnswer = useMemo(
+    () => new Set(data?.groups.flatMap(g => g.pagesWithoutAnswer ?? []) ?? []),
+    [data],
   );
 
   const suspiciousPageCount = useMemo(
@@ -501,7 +522,20 @@ export function PdfGroupingEditor() {
             <h1 className="text-lg font-semibold text-fg1">
               Разбиение{location.state?.sourceName ? ` — ${location.state.sourceName}` : ''}
             </h1>
-            <p className="text-xs text-fg4">{pageCount} стр. · {documentCount} документ{documentCount === 1 ? '' : 'ов'}</p>
+            <p className="text-xs text-fg4">
+              {pageCount} стр. · {documentCount} документ{documentCount === 1 ? '' : 'ов'}
+              {/* Третьим фактом в ту же строку, а не плашкой в ряду действий: плашка того же
+                  размера и формы рядом с кнопкой читается как кнопка, и первое, что с ней сделают, —
+                  нажмут. Фильтровать тут нечего: листы без ответа рассыпаны по группам, и, скрыв
+                  остальное, человек увидит обрубки документов. Где именно проблема — видно на
+                  плитках, там сигнал и громкий. */}
+              {pagesWithoutAnswer.size > 0 && (
+                <span className="text-danger"
+                  title="По этим листам движок не ответил — их поля пусты не потому, что на листе ничего нет. Перераспознайте документ или смените модель.">
+                  {' · '}{ruCount(pagesWithoutAnswer.size, 'лист', 'листа', 'листов')} без ответа
+                </span>
+              )}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -538,6 +572,7 @@ export function PdfGroupingEditor() {
           <GroupSection
             key={g.id} fileId={fileId} group={g} otherGroups={groups.filter(o => o.id !== g.id)}
             selected={selected} suspiciousOnly={suspiciousOnly} dirty={dirty}
+            pagesWithoutAnswer={pagesWithoutAnswer}
             onToggle={toggle} onRename={handleRename} onMoveSelected={handleMoveSelected}
             onSplitSelected={handleSplitSelected} onDisband={handleDisband} onView={setViewerPage}
             onSetTag={handleSetTag}
@@ -560,7 +595,7 @@ export function PdfGroupingEditor() {
             <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))' }}>
               {unassignedPages.map(p => (
                 <PageTile key={p} fileId={fileId} pageIndex={p} selected={selected.has(p)} suspicious={false}
-                  onToggle={toggle} onView={setViewerPage} />
+                  noAnswer={pagesWithoutAnswer.has(p)} onToggle={toggle} onView={setViewerPage} />
               ))}
             </div>
             {unassignedPages.some(p => selected.has(p)) && (

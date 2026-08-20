@@ -179,12 +179,38 @@ public class OllamaRecognizerEngine(
                 "данные пришли неполными.");
 
         var text = doc.RootElement.TryGetProperty("response", out var r) ? r.GetString() : null;
-        if (string.IsNullOrWhiteSpace(text))
-            // Пустой ответ наверх не отдаём (issue #802): там он неотличим от «модель ответила, что
-            // полей нет». У Ollama это в первую очередь thinking-модели — содержательный текст ушёл
-            // в отдельное поле; доставать его оттуда будем в #803, но молчать об этом нельзя уже
-            // сейчас.
-            throw new RecognitionSilentException("Ollama: модель вернула пустой ответ.");
-        return text;
+        if (!string.IsNullOrWhiteSpace(text)) return text;
+
+        // Пустой `response` у думающих моделей значит не «нечего сказать», а «сказано не туда»:
+        // содержательный ответ уехал в `thinking`. Проверено 2026-08-20 на qwen3-vl — с
+        // format:"json" в `thinking` лежал ровно тот JSON, который должен был прийти в `response`
+        // (issue #318, #803). Достаём его оттуда, а не притворяемся, что ответа нет.
+        //
+        // Работает это НЕ всегда, и знать об этом важно: если модель упёрлась в лимит
+        // (done_reason: length — проверено выше), в `thinking` лежит оборванное рассуждение, до
+        // ответа не дошедшее. Тот случай фоллбэком не лечится и не должен создавать видимость,
+        // будто лечится.
+        var thinking = doc.RootElement.TryGetProperty("thinking", out var th) ? th.GetString() : null;
+        if (!string.IsNullOrWhiteSpace(thinking)
+            && RecognitionShared.ExtractFirstJsonObject(thinking) is { } rescued
+            // Найденного объекта МАЛО: размышления часто начинаются с пересказа схемы из промпта
+            // («сейчас заполню {"Шифр": "", "Наименование": ""}»), и первый попавшийся объект
+            // оказывается этим шаблоном. Вернув его, мы отдали бы наверх разобранный пустой словарь —
+            // то есть выдали бы молчание за законный ноль полей, ровно ту подмену, ради устранения
+            // которой затевались #802 и #803, только теперь с активно неверным вердиктом.
+            // Поэтому спасаем лишь то, где есть хоть одно запрошенное поле со значением.
+            && RecognitionShared.TryParseValues(rescued, fields, out var rescuedValues, out _)
+            && rescuedValues.Count > 0)
+        {
+            logger.LogInformation("Ollama: ответ пришёл пустым, данные извлечены из размышлений модели ({Chars} симв., полей: {N})",
+                thinking.Length, rescuedValues.Count);
+            return rescued;
+        }
+
+        // Пустой ответ наверх не отдаём (issue #802): там он неотличим от «модель ответила, что
+        // полей нет».
+        throw new RecognitionSilentException(string.IsNullOrWhiteSpace(thinking)
+            ? "Ollama: модель вернула пустой ответ."
+            : "Ollama: ответ пуст, а в размышлениях данных не нашлось — похоже, модель не дошла до ответа.");
     }
 }
