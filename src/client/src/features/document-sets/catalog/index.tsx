@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   ChevronDown, ChevronUp, ShieldCheck, Loader2,
-  DatabaseZap, RefreshCw, X, CornerUpLeft, Link2,
+  RefreshCw, X, CornerUpLeft, Link2,
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
@@ -25,7 +25,9 @@ import { applyRecognized, recognizedFieldKeys, RECOGNIZED_HINT } from '@/feature
 import { buildRecognitionFields, codesFromLabels } from '@/features/quality-docs/recognitionFields';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
-import { computeBoundFieldKeys, mergeBindingPreviewsIntoValues } from '@/shared/api/datasetHelpers';
+import { SourceOriginIcon } from '@/shared/ui/SourceOriginIcon';
+import { computeBoundFieldKeys, mergeBindingPreviewsIntoValues, computeRecognizedFieldKeys
+} from '@/shared/api/datasetHelpers';
 import { EntryDataSetBindings } from './EntryDataSetBindings';
 import {
   SCOPE_COLORS, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
@@ -259,6 +261,9 @@ export function CatalogEntryForm({
   // Наборы данных: биндинги существуют только у уже сохранённой записи (нужен id-владелец).
   const { data: bindings = [] } = useListDataSetBindings({ ownerId: entry?.id });
   const { scalarKeys: boundFieldKeys, arrayKeys: boundArrayKeys } = computeBoundFieldKeys(bindings);
+  // Какие из связанных полей приходят из распознанного источника: человек видит значок «из
+  // источника» и не знает, что значение прочитала модель со скана (см. SourceOriginIcon).
+  const recognizedBoundKeys = computeRecognizedFieldKeys(bindings);
   const { refetch: refetchBindingPreview, isFetching: refreshingFromSource } =
     usePreviewDataSetBindings({ ownerId: entry?.id });
   // Проверка связок (issue #99) — по требованию.
@@ -386,7 +391,7 @@ export function CatalogEntryForm({
               <div key={field.key}>
                 <label className="flex items-center gap-1.5 text-sm font-medium text-fg2 mb-1">
                   {field.title}
-                  <span title="Значения подставляются из источника данных"><DatabaseZap size={12} className="text-brand" /></span>
+                  <SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined} plural />
                 </label>
                 <div className="rounded-md border border-stroke overflow-x-auto bg-muted">
                   {rows.length === 0 ? (
@@ -429,7 +434,7 @@ export function CatalogEntryForm({
               <div key={field.key}>
                 <label className="flex items-center gap-1.5 text-sm font-medium text-fg2 mb-1">
                   {field.title}
-                  <span title="Значение подставляется из источника данных"><DatabaseZap size={12} className="text-brand" /></span>
+                  <SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined} />
                 </label>
                 <div className="w-full border border-stroke rounded-md px-3 py-2 text-sm bg-muted text-fg2">
                   {refId ? <BoundRefValue entryId={refId} /> : (display ?? <em className="text-fg4">нет данных</em>)}
@@ -545,7 +550,10 @@ export function CatalogEntryForm({
       return (
         <div className="space-y-4">
           {normal.length > 0 && fieldStack(normal)}
-          <AutoFieldsSection count={auto.length}>{fieldStack(auto)}</AutoFieldsSection>
+          <AutoFieldsSection count={auto.length}
+            recognizedCount={auto.filter(f => recognizedBoundKeys.has(f.key)).length}>
+            {fieldStack(auto)}
+          </AutoFieldsSection>
         </div>
       );
     }

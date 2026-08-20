@@ -270,7 +270,7 @@ public class DomainSnapshotService(
                 field.Key, field.Title, true,
                 binding.SourceId, binding.Source.Name,
                 binding.Source.FileId, binding.Source.File?.Name,
-                rowCount));
+                rowCount, binding.Source.Origin));
         }
         return result;
     }

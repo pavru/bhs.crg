@@ -1,4 +1,4 @@
-namespace BHS.CRG.Infrastructure.DataSets;
+﻿namespace BHS.CRG.Domain.DataSets;
 
 /// <summary>
 /// Профили распознавания PDF-источников и маркеры, которыми они помечаются в

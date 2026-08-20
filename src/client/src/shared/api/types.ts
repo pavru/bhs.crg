@@ -325,6 +325,12 @@ export interface DataSetSource {
   tags: string[] | null;
   /** Распознанный PDF-источник устарел: файл заменён после распознавания — нужно перераспознать. */
   recognitionStale: boolean;
+  /**
+   * Откуда взялись значения источника. Считает СЕРВЕР (правило маркеров живёт в домене): формат
+   * файла отвечает на другой вопрос — чем файл был, а не как из него получили значения, и своя
+   * копия правила на клиенте разъехалась бы с серверной.
+   */
+  origin?: DataOrigin;
   /** Сколько привязок ссылается на источник (issue #417). null/undefined — не считали (ответ мутации). */
   bindingCount?: number | null;
   /** Живая оговорка системного источника (issue #626): например, реестр раздела не знает
@@ -403,6 +409,12 @@ export interface DataSetFile {
 
 /** Привязка набора данных к объекту — только Mapping. Filter/Transformation/Sort — на DataSetSource.
  * Владелец — единый ownerId (DomainObject: документ или запись общих данных). */
+/**
+ * Происхождение значений источника: `Parsed` — детерминированный разбор файла (XML/CSV/XLSX),
+ * `Recognized` — прочитано моделью со скана, `System` — консолидация данных самой системы.
+ */
+export type DataOrigin = 'Parsed' | 'Recognized' | 'System';
+
 export interface DataSetBinding {
   id: string;
   ownerId: string;

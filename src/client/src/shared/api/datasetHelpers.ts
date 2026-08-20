@@ -1,4 +1,4 @@
-import type { FilterGroup, FilterNode, DataSetBindingPreviewResult } from './types';
+import type { FilterGroup, FilterNode, DataSetBindingPreviewResult, DataOrigin } from './types';
 
 /** A column descriptor cached on a DataSetSource. */
 export interface DataSetColumn {
@@ -178,6 +178,26 @@ export function computeBoundFieldKeys(
     }
   }
   return { scalarKeys, arrayKeys };
+}
+
+/**
+ * Происхождение значений по ключу поля: к какому источнику поле привязано, оттуда и признак
+ * (issue про точку потребления). Рядом с `computeBoundFieldKeys` и по тем же правилам разбора
+ * привязки — скалярные ключи лежат в маппинге, табличное поле названо в `targetFieldKey`.
+ *
+ * Возвращаются ТОЛЬКО распознанные: `Parsed` и `System` в интерфейсе ничего не меняют — у них нет
+ * действия для читателя, а метка без действия становится фоном, который перестают замечать.
+ */
+export function computeRecognizedFieldKeys(
+  bindings: { targetFieldKey: string | null; mapping: Record<string, string>; source?: { origin?: DataOrigin } }[],
+): Set<string> {
+  const keys = new Set<string>();
+  for (const b of bindings) {
+    if (b.source?.origin !== 'Recognized') continue;
+    if (b.targetFieldKey === null) for (const key of Object.keys(b.mapping)) keys.add(key);
+    else keys.add(b.targetFieldKey);
+  }
+  return keys;
 }
 
 /** Recursively counts non-empty conditions in a filter tree. */

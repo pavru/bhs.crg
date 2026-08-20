@@ -84,7 +84,7 @@ public static class DataSetDtoMapper
         s.MaterializeMapping is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(s.MaterializeMapping),
         bindingCount, live?.Warning,
         MaterializeVariantSelector.ParseConfig(s.MaterializeDiscriminator),
-        s.MaterializeByIdColumn);
+        s.MaterializeByIdColumn, s.Origin);
 
     /// <summary>null, если счётчики не запрашивали (одиночная мутация), иначе 0 для источника без привязок.</summary>
     private static int? BindingCountOf(IReadOnlyDictionary<Guid, int>? counts, Guid sourceId)
@@ -116,7 +116,8 @@ public static class DataSetDtoMapper
                 b.Source.File.Id, b.Source.File.Name, b.Source.File.Format.ToString(),
                 b.Source.File.Scope.ToString(), b.Source.File.ScopeId),
             b.Source.MaterializeTypeId,
-            b.Source.MaterializeMapping is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(b.Source.MaterializeMapping)));
+            b.Source.MaterializeMapping is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(b.Source.MaterializeMapping),
+            b.Source.Origin));
 
     public static DataSetBindingTemplateDto MapTemplate(DataSetBindingTemplate t) => new(
         t.Id, t.DocumentTypeId, t.Name, t.TargetFieldKey,

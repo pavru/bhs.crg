@@ -1,10 +1,25 @@
-using BHS.CRG.Domain.Common;
+﻿using BHS.CRG.Domain.Common;
 
 namespace BHS.CRG.Domain.DataSets;
 
 public class DataSetSource : Entity
 {
     public Guid FileId { get; private set; }
+    /// <summary>
+    /// Откуда взялись строки этого источника (issue #807 и далее). Вычисляется по маркеру в
+    /// <see cref="SheetOrPath" />, а не хранится колонкой: колонка была бы копией признака, который
+    /// и так однозначно следует из маркера, и разъехалась бы с ним при первом же переименовании.
+    ///
+    /// Свойство источника, а не чья-то частная классификация: до этого правило жило приватным
+    /// методом в сервисе снимков и вторым вызовом в файловом сервисе — то есть двумя копиями, и
+    /// третьим потребителем (интерфейсом, показывающим человеку, что значение распознано) стало бы
+    /// три.
+    /// </summary>
+    public DataOrigin Origin =>
+        SystemDataSets.IsSystemMarker(SheetOrPath) ? DataOrigin.System
+        : PdfProfiles.IsRecognitionMarker(SheetOrPath) ? DataOrigin.Recognized
+        : DataOrigin.Parsed;
+
     /// <summary>Display name: sheet name, XML group name, JSON key, or "default".</summary>
     public string Name { get; private set; } = null!;
     /// <summary>Internal locator: sheet name, XPath (/root/items), JSON path ($.key), "default".</summary>

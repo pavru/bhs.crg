@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseSourceColumns, parseSourceColumnNames, countFilterConditions, cleanFilterNode,
-  mergeBindingPreviewsIntoValues, computeBoundFieldKeys,
+  mergeBindingPreviewsIntoValues, computeBoundFieldKeys, computeRecognizedFieldKeys,
   isFileMappingValue, parseFileMapping, buildFileMapping, nextSourceName,
 } from './datasetHelpers';
 import type { FilterGroup, DataSetBindingPreviewResult } from './types';
@@ -215,5 +215,37 @@ describe('nextSourceName', () => {
   // Регистр не различает: «документы» рядом с «Документы» в выпадающем списке так же неразличимы.
   it('считает имена занятыми без учёта регистра', () => {
     expect(nextSourceName(['ДОКУМЕНТЫ'], 'документы')).toBe('документы — 2');
+  });
+});
+
+describe('computeRecognizedFieldKeys', () => {
+  const recognized = { origin: 'Recognized' as const };
+  const parsed = { origin: 'Parsed' as const };
+
+  it('берёт и скалярные ключи маппинга, и табличное поле', () => {
+    const keys = computeRecognizedFieldKeys([
+      { targetFieldKey: null, mapping: { Шифр: 'A', Титул: 'B' }, source: recognized },
+      { targetFieldKey: 'Схемы', mapping: {}, source: recognized },
+    ]);
+    expect(keys).toEqual(new Set(['Шифр', 'Титул', 'Схемы']));
+  });
+
+  it('нераспознанные источники не помечаются', () => {
+    // Parsed и System в интерфейсе ничего не меняют: у них нет действия для читателя, а метка без
+    // действия становится фоном, который перестают замечать.
+    const keys = computeRecognizedFieldKeys([
+      { targetFieldKey: 'Материалы', mapping: {}, source: parsed },
+      { targetFieldKey: 'Реестр', mapping: {}, source: { origin: 'System' as const } },
+      { targetFieldKey: 'Схемы', mapping: {}, source: undefined },
+    ]);
+    expect(keys.size).toBe(0);
+  });
+
+  it('смесь: помечается только распознанная часть', () => {
+    const keys = computeRecognizedFieldKeys([
+      { targetFieldKey: 'Материалы', mapping: {}, source: parsed },
+      { targetFieldKey: 'Схемы', mapping: {}, source: recognized },
+    ]);
+    expect(keys).toEqual(new Set(['Схемы']));
   });
 });

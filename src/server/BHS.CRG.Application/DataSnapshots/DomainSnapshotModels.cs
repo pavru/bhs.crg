@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using BHS.CRG.Domain.DataSets;
+using System.Text.Json;
 
 namespace BHS.CRG.Application.DataSnapshots;
 
@@ -70,9 +71,15 @@ public record DocumentDetail(
 /// <param name="RowCount">Сколько строк в таблице: у привязанного поля — после фильтра источника, то
 /// есть столько, сколько попадёт в PDF; у непривязанного — длина массива в реквизитах. Null означает
 /// «сосчитать не удалось» (источник недоступен) либо «значения нет вовсе».</param>
+/// <param name="Origin">
+/// Откуда взялись строки привязанного источника; null — привязки нет. Внешний агент строит сверку
+/// именно на этом ответе, и без происхождения он примет распознанную таблицу за первоисточник —
+/// то самое различие, ради которого <see cref="DataOrigin" /> и заводился (issue #415).
+/// </param>
 public record DocumentTableField(
     string Key, string? Title, bool BoundToDataset,
-    Guid? SourceId, string? SourceName, Guid? DatasetId, string? DatasetName, int? RowCount);
+    Guid? SourceId, string? SourceName, Guid? DatasetId, string? DatasetName, int? RowCount,
+    DataOrigin? Origin = null);
 
 /// <summary>Запись каталога (общие данные): организация, лицо, объект строительства и т.п.</summary>
 /// <param name="Scope">Уровень видимости: System / Construction / Section / Set.</param>

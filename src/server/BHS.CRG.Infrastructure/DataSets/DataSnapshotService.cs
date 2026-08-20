@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Domain.DataSets;
@@ -56,7 +56,7 @@ public class DataSnapshotService(
             {
                 var live = liveStates.TryGetValue(s.Id, out var st) ? st : (SystemSourceCounter.SystemSourceState?)null;
                 return new SourceSummary(
-                    s.Id, s.Name, OriginOf(s),
+                    s.Id, s.Name, s.Origin,
                     // Сырьё, и названо сырьём (#592). Считать здесь строки ПОСЛЕ обработки значило бы
                     // скачать и разобрать файл по разу на каждый лист ради навигационной выдачи; точное
                     // число даёт get_source, а на его нужду указывает Filtered.
@@ -126,7 +126,7 @@ public class DataSnapshotService(
 
         return new SourceDetail(
             source.Id, source.FileId, source.File.Name, source.Name,
-            OriginOf(source), loaded?.Rows.Count, rawRowCount, HasFilter(source),
+            source.Origin, loaded?.Rows.Count, rawRowCount, HasFilter(source),
             stale, reason,
             source.UpdatedAt,
             loaded is null ? null : RowsFingerprint.Of(loaded.Rows), rowsError,
@@ -184,14 +184,6 @@ public class DataSnapshotService(
     }
 
     // ── Достоверность снимка ─────────────────────────────────────────────────────
-
-    /// <summary>Распознанные источники помечены маркером — это и есть признак вероятностного
-    /// происхождения данных (см. <see cref="PdfProfiles.IsRecognitionMarker"/>). Системная
-    /// консолидация не парсится и не распознаётся — у неё своё происхождение.</summary>
-    private static DataOrigin OriginOf(DataSetSource s) =>
-        SystemDataSets.IsSystemMarker(s.SheetOrPath) ? DataOrigin.System
-        : PdfProfiles.IsRecognitionMarker(s.SheetOrPath) ? DataOrigin.Recognized
-        : DataOrigin.Parsed;
 
     /// <summary>Отсеивает ли источник строки. Признак нужен там, где отдаётся только сырое число:
     /// он объясняет, почему строк в выборке окажется меньше, — иначе разница выглядит потерей данных.</summary>

@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Domain.DataSets;
+
 namespace BHS.CRG.Infrastructure.DataSets;
 
 /// <summary>

@@ -155,7 +155,15 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
               <select value={sourceId} onChange={e => pickSource(e.target.value)}
                 className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1">
                 <option value="">— выберите —</option>
-                {sources.map(s => <option key={s.id} value={s.id}>[{SCOPE_LABELS[s.fileScope]}] {s.fileName} · {s.name}</option>)}
+                {/* Происхождение названо ДО привязки: узнать, что источник распознан, уже привязав
+                    его к полям документа, — узнать поздно. Формат файла («PDF») отвечает на другой
+                    вопрос: чем файл был, а не как из него получены значения. */}
+                {sources.map(s => (
+                  <option key={s.id} value={s.id}>
+                    [{SCOPE_LABELS[s.fileScope]}] {s.fileName} · {s.name}
+                    {s.origin === 'Recognized' ? ' — распознано со скана' : ''}
+                  </option>
+                ))}
               </select>
             </div>
 
