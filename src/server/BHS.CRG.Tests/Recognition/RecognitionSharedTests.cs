@@ -42,10 +42,14 @@ public class RecognitionSharedTests
     }
 
     [Fact]
-    public void ParseValues_EmptyOrNonJson_ReturnsEmpty()
+    public void ParseValues_EmptyOrNonJson_IsSilence()
     {
-        Assert.Empty(RecognitionShared.ParseValues("", Fields));
-        Assert.Empty(RecognitionShared.ParseValues("нет данных", Fields));
+        // Прежде оба случая давали пустой словарь, и «ответа не было» становилось неотличимо от
+        // «полей нет» — тем самым обрезанная таблица уходила успехом (issue #802). Пустой ответ и
+        // проза без JSON теперь отказ; законный ноль полей — это `{}`, он проверяется отдельно.
+        Assert.Throws<RecognitionSilentException>(() => RecognitionShared.ParseValues("", Fields));
+        Assert.Throws<RecognitionSilentException>(() => RecognitionShared.ParseValues("нет данных", Fields));
+        Assert.Empty(RecognitionShared.ParseValues("{}", Fields));
     }
 
     [Fact]

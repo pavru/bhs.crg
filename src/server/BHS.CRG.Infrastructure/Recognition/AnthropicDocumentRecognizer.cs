@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.QualityDocs;
@@ -18,6 +18,18 @@ public class AnthropicRecognizerEngine(
 
     /// <summary>Срок ответа. Здесь же, чтобы сообщение о таймауте называло настоящее число (см. Gemini).</summary>
     public static readonly TimeSpan Timeout = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// Потолок ответа. Прежние 2048 были достаточны ровно для штампа: табличный промпт просит массив
+    /// строк, и спецификация на сотню позиций не помещалась НИКОГДА — ответ обрывался на середине,
+    /// JSON не закрывался, разбор падал, и наверх уходил успешный ноль полей (issue #802).
+    ///
+    /// Число — расчёт, а не замер: строка таблицы это 40–60 токенов, сотня строк — около шести тысяч;
+    /// 16 384 берём с запасом почти втрое. Платят за выданные токены, а не за разрешённые, поэтому
+    /// запас ничего не стоит, пока модель им не пользуется. Ошибиться в обе стороны теперь ГРОМКО:
+    /// мало — <c>stop_reason: max_tokens</c> и отказ, много — 400 от поставщика.
+    /// </summary>
+    public const int MaxOutputTokens = 16384;
 
     public string Name => "Anthropic";
 
@@ -40,7 +52,7 @@ public class AnthropicRecognizerEngine(
         var requestBody = new
         {
             model,
-            max_tokens = 2048,
+            max_tokens = MaxOutputTokens,
             messages = new object[]
             {
                 new { role = "user", content = new object[] { fileBlock, new { type = "text", text = (promptBuilder ?? RecognitionShared.BuildPrompt)(fields) } } },
@@ -89,13 +101,34 @@ public class AnthropicRecognizerEngine(
         }
     }
 
+    /// <summary>
+    /// Текст ответа — либо исключение (issue #802). Пустую строку отсюда вернуть НЕЛЬЗЯ: наверху она
+    /// неотличима от «модель ответила, что полей нет», и ровно эта неразличимость превращала
+    /// обрезанную таблицу в успешный ноль полей.
+    ///
+    /// Читается и <c>stop_reason</c>: <c>max_tokens</c> значит, что ответ оборвали на середине —
+    /// текст в нём есть, он выглядит правдоподобно, и без этой проверки JSON просто не закроется.
+    /// </summary>
     private static string ExtractText(string responseJson)
     {
         using var doc = JsonDocument.Parse(responseJson);
-        if (doc.RootElement.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Array)
+        var root = doc.RootElement;
+        var stop = root.TryGetProperty("stop_reason", out var sr) ? sr.GetString() : null;
+        if (stop == "max_tokens")
+            throw new RecognitionSilentException(
+                "Anthropic: ответ не поместился в лимит и оборван на середине — данные пришли неполными.");
+
+        if (root.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Array)
             foreach (var block in content.EnumerateArray())
                 if (block.TryGetProperty("type", out var t) && t.GetString() == "text" && block.TryGetProperty("text", out var txt))
-                    return txt.GetString() ?? "";
-        return "";
+                {
+                    var text = txt.GetString();
+                    if (!string.IsNullOrWhiteSpace(text)) return text;
+                }
+
+        // Ни одного текстового блока: отказ модели (stop_reason: refusal) или пустой ответ.
+        throw new RecognitionSilentException(stop == "refusal"
+            ? "Anthropic: модель отказалась отвечать по этому документу."
+            : "Anthropic: в ответе нет текста.");
     }
 }
