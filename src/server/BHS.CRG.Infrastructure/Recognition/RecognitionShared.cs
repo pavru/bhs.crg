@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Recognition;
@@ -194,8 +194,35 @@ public static class RecognitionShared
         }
     }
 
+    /// <summary>
+    /// Разобрать ответ движка. Бросает <see cref="RecognitionSilentException" />, если ответа в нём
+    /// не было: пусто, проза без JSON, обрезанный на середине объект (issue #802).
+    ///
+    /// Раньше здесь стоял <c>catch (JsonException)</c> с пустым словарём наружу, и это гасило самый
+    /// дорогой отказ из всех: ответ, обрезанный лимитом на сотой строке таблицы, выглядел точно так
+    /// же, как честное «в этом документе ничего нет». Разница между ними и есть весь смысл проверки:
+    /// пустой JSON — законный результат, отсутствующий JSON — потеря данных.
+    /// </summary>
     public static IReadOnlyDictionary<string, string?> ParseValues(string text, IReadOnlyList<RecognitionField> fields)
+        => TryParseValues(text, fields, out var values, out var problem)
+            ? values
+            : throw new RecognitionSilentException(problem!);
+
+    /// <summary>
+    /// То же без исключения — для мест, которым нужен сам факт («ответ разобрался или нет»), а не
+    /// управление потоком: <paramref name="problem" /> описывает, чего именно не хватило.
+    /// </summary>
+    public static bool TryParseValues(string text, IReadOnlyList<RecognitionField> fields,
+        out IReadOnlyDictionary<string, string?> values, out string? problem)
     {
+        values = new Dictionary<string, string?>();
+        problem = null;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            problem = "движок вернул пустой ответ.";
+            return false;
+        }
+
         var result = new Dictionary<string, string?>();
         // Прямой парс очищенного от markdown ответа; если не JSON целиком (напр. модель дописала прозу/
         // размышления вокруг объекта) — извлекаем первый сбалансированный {...} и парсим его (issue #318).
@@ -204,25 +231,36 @@ public static class RecognitionShared
         try
         {
             using var doc = JsonDocument.Parse(jsonText);
-            if (doc.RootElement.ValueKind == JsonValueKind.Object)
-                foreach (var prop in doc.RootElement.EnumerateObject())
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                problem = "в ответе нет JSON-объекта с полями.";
+                return false;
+            }
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                var v = prop.Value.ValueKind switch
                 {
-                    var v = prop.Value.ValueKind switch
-                    {
-                        JsonValueKind.String => prop.Value.GetString(),
-                        JsonValueKind.Null => null,
-                        JsonValueKind.Number => prop.Value.GetRawText(),
-                        JsonValueKind.True => "true",
-                        JsonValueKind.False => "false",
-                        _ => prop.Value.GetRawText(),
-                    };
-                    if (!string.IsNullOrWhiteSpace(v)) result[prop.Name] = v;
-                }
+                    JsonValueKind.String => prop.Value.GetString(),
+                    JsonValueKind.Null => null,
+                    JsonValueKind.Number => prop.Value.GetRawText(),
+                    JsonValueKind.True => "true",
+                    JsonValueKind.False => "false",
+                    _ => prop.Value.GetRawText(),
+                };
+                if (!string.IsNullOrWhiteSpace(v)) result[prop.Name] = v;
+            }
         }
-        catch (JsonException) { /* не-JSON ответ — вернём пусто */ }
+        catch (JsonException ex)
+        {
+            // Именно здесь пропадала обрезанная таблица: незакрытый объект баланса не находит,
+            // разбор падает, и «ноль полей» уходило как успех.
+            problem = $"ответ не разобран как JSON ({ex.Message.TrimEnd('.')}); похоже, он обрезан.";
+            return false;
+        }
 
         var allowed = fields.Select(f => f.Path).ToHashSet();
-        return result.Where(kv => allowed.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
+        values = result.Where(kv => allowed.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
+        return true;
     }
 
     public static string StripFences(string s)

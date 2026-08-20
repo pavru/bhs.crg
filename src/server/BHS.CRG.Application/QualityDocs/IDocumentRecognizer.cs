@@ -1,4 +1,4 @@
-namespace BHS.CRG.Application.QualityDocs;
+﻿namespace BHS.CRG.Application.QualityDocs;
 
 /// <summary>Поле-цель для извлечения (плоский путь, напр. «ВыпустившаяОрганизация.ИНН»).</summary>
 public record RecognitionField(string Path, string Title, string Type, IReadOnlyList<string>? Options = null);
@@ -31,6 +31,23 @@ public class RecognitionLimitException(string message, int? retryAfterSeconds = 
 
 /// <summary>Распознаватель не настроен (нет API-ключа) или иная ошибка конфигурации.</summary>
 public class RecognitionUnavailableException(string message) : Exception(message);
+
+/// <summary>
+/// Движок ответил, но ответа в ответе не было (issue #802): пустой текст, обрезанный на середине
+/// JSON, проза вместо данных. «Не смог» и «промолчал» — разные вещи, и раньше вторая была
+/// невыразима: пустая строка возвращалась как успех, разбор отдавал пустой словарь, задача
+/// завершалась `Succeeded` — и ноль полей выглядел законным результатом распознавания.
+///
+/// Наследник <see cref="RecognitionUnavailableException" /> по тому же правилу, что и таймаут:
+/// цепочке этого достаточно, чтобы перейти к следующему движку, и ни одно место, ловящее базовый
+/// тип, о новом знать не обязано.
+///
+/// Отдельный тип нужен ровно там, где разница ЕСТЬ, — в постраничном прогоне. Молчание страничное:
+/// три пустых листа из шестнадцати не значат, что движок негоден, поэтому молчание на ПЕРВОЙ
+/// странице прогон не роняет (в отличие от таймаута, который его прекращает). Обратная страховка —
+/// счётчик подряд идущих молчаний, чтобы не потратить часы на движок, который не отвечает вовсе.
+/// </summary>
+public class RecognitionSilentException(string message) : RecognitionUnavailableException(message);
 
 /// <summary>
 /// Движок не ответил за отведённый срок (issue #797).

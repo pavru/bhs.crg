@@ -39,9 +39,17 @@ public class ChainDocumentRecognizer(
                 logger.LogInformation("Распознавание выполнено движком {Engine}, полей: {N}", engine.Name, values.Count);
                 return new RecognitionResult(values, text);
             }
-            catch (RecognitionLimitException ex) { logger.LogWarning("Движок {Engine}: лимит — следующий. {Msg}", engine.Name, ex.Message); last = ex; }
-            catch (RecognitionUnavailableException ex) { logger.LogWarning("Движок {Engine}: недоступен — следующий. {Msg}", engine.Name, ex.Message); last = ex; }
+            catch (RecognitionLimitException ex) { logger.LogWarning("Движок {Engine}: лимит — следующий. {Msg}", engine.Name, ex.Message); last = Keep(last, ex); }
+            catch (RecognitionUnavailableException ex) { logger.LogWarning("Движок {Engine}: недоступен — следующий. {Msg}", engine.Name, ex.Message); last = Keep(last, ex); }
         }
         throw last ?? new RecognitionUnavailableException("Распознавание не удалось ни одним движком.");
     }
+
+    /// <summary>
+    /// Какую из неудач показать человеку. Раньше побеждала последняя по порядку, то есть при
+    /// «Gemini исчерпал лимит, Ollama промолчала» наверх уезжало молчание Ollama — а починить нужно
+    /// лимит. Лимит важнее прочего: он называет причину, которая пройдёт сама, и срок.
+    /// </summary>
+    private static Exception Keep(Exception? previous, Exception current)
+        => previous is RecognitionLimitException ? previous : current;
 }

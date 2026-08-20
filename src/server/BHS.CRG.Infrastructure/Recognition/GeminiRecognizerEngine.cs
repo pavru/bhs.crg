@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.QualityDocs;
@@ -19,6 +19,17 @@ public class GeminiRecognizerEngine(
     /// Облачная модель отвечает секунды; две минуты — запас на большой PDF, а не рабочее время.
     /// </summary>
     public static readonly TimeSpan Timeout = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// Потолок ответа. Задан ЯВНО, хотя поставщик разрешает его не указывать: без него действует
+    /// умолчание модели — число, которое меняется вместе с моделью, в коде отсутствует и потому не
+    /// может быть названо в тексте отказа. Та же причина, по которой сроки ответа живут константами
+    /// на движках (issue #797): движок обязан называть пользователю СВОЁ число.
+    ///
+    /// Величина — как у Anthropic и по тому же расчёту (см. там). Обрыв по лимиту здесь особенно
+    /// тих: мы просим ответ в JSON, и недописанный ответ не разберётся заведомо.
+    /// </summary>
+    public const int MaxOutputTokens = 16384;
 
     public string Name => "Gemini";
 
@@ -46,7 +57,12 @@ public class GeminiRecognizerEngine(
                     new { text = (promptBuilder ?? RecognitionShared.BuildPrompt)(fields) },
                 } },
             },
-            generationConfig = new { response_mime_type = "application/json", temperature = 0 },
+            generationConfig = new
+            {
+                response_mime_type = "application/json",
+                temperature = 0,
+                maxOutputTokens = MaxOutputTokens,
+            },
         };
         var json = JsonSerializer.Serialize(requestBody);
         // Ключ — заголовком, а не в строке запроса: URL целиком попадает в текст сетевых исключений,
@@ -90,18 +106,44 @@ public class GeminiRecognizerEngine(
         }
     }
 
+    /// <summary>
+    /// Текст ответа — либо исключение (issue #802). Пустую строку отсюда вернуть НЕЛЬЗЯ: наверху она
+    /// неотличима от «модель ответила, что полей нет».
+    ///
+    /// Причин промолчать у Gemini несколько, и все они лежат в ответе, который до issue #802 никто
+    /// не читал: запрос отклонён фильтром (<c>promptFeedback.blockReason</c>), ответ оборван по
+    /// лимиту или фильтру (<c>finishReason</c>). Обрыв по лимиту здесь особенно тих: мы просим
+    /// <c>response_mime_type: application/json</c>, поэтому недописанный ответ гарантированно не
+    /// разберётся — и раньше уходил как ноль полей.
+    /// </summary>
     private static string ExtractText(string responseJson)
     {
         using var doc = JsonDocument.Parse(responseJson);
-        if (doc.RootElement.TryGetProperty("candidates", out var cands) && cands.ValueKind == JsonValueKind.Array)
+        var root = doc.RootElement;
+
+        if (root.TryGetProperty("promptFeedback", out var feedback)
+            && feedback.TryGetProperty("blockReason", out var blocked) && blocked.GetString() is { } reason)
+            throw new RecognitionSilentException($"Gemini: запрос отклонён ({reason}) — ответа нет.");
+
+        if (root.TryGetProperty("candidates", out var cands) && cands.ValueKind == JsonValueKind.Array)
             foreach (var c in cands.EnumerateArray())
+            {
+                var finish = c.TryGetProperty("finishReason", out var fr) ? fr.GetString() : null;
+                if (finish == "MAX_TOKENS")
+                    throw new RecognitionSilentException(
+                        "Gemini: ответ не поместился в лимит и оборван на середине — данные пришли неполными.");
+                if (finish is "SAFETY" or "RECITATION" or "PROHIBITED_CONTENT")
+                    throw new RecognitionSilentException($"Gemini: ответ остановлен фильтром ({finish}).");
+
                 if (c.TryGetProperty("content", out var content) && content.TryGetProperty("parts", out var parts) && parts.ValueKind == JsonValueKind.Array)
                 {
                     var sb = new StringBuilder();
                     foreach (var p in parts.EnumerateArray())
                         if (p.TryGetProperty("text", out var t)) sb.Append(t.GetString());
-                    return sb.ToString();
+                    if (sb.Length > 0) return sb.ToString();
                 }
-        return "";
+            }
+
+        throw new RecognitionSilentException("Gemini: в ответе нет текста.");
     }
 }

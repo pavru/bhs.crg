@@ -196,6 +196,9 @@ public class DataSetPdfRecognitionService(
 
         var fields = (await ProfileForFileAsync(source.File, RecognitionProfileKind.TitleBlock, ct)).ToRecognitionFields();
         var rows = new List<IReadOnlyDictionary<string, string?>>();
+        // Тот же накопитель, что и у прогона набора: этот цикл до issue #802 не считал отказы вовсе —
+        // страницы молча уходили пустыми, и узнать об этом было неоткуда.
+        var failures = new PageFailureTracker();
         for (var i = 0; i < pages.Count; i++)
         {
             try
@@ -203,6 +206,22 @@ public class DataSetPdfRecognitionService(
                 var result = await recognizer.RecognizeAsync(
                     pages[i], "image/png", fields, RecognitionShared.BuildTitleBlockPrompt, ct: ct);
                 rows.Add(result.Values);
+                failures.PageSucceeded();
+            }
+            catch (RecognitionSilentException ex)
+            {
+                // Молчание страничное: прогон на первой странице не роняем, но подряд идущее
+                // молчание прекращает работу — с сохранением уже распознанного.
+                logger.LogWarning("Страница {Page} источника {SourceId}: ответа не было — {Msg}", i + 1, sourceId, ex.Message);
+                rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
+                failures.PageFailed(ex, silent: true);
+                if (failures.ShouldStop)
+                {
+                    logger.LogWarning("Прогон источника {SourceId} прекращён: {Reason}", sourceId, failures.StopReason);
+                    for (var rest = i + 1; rest < pages.Count; rest++)
+                        rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
+                    break;
+                }
             }
             catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
             {
@@ -214,8 +233,12 @@ public class DataSetPdfRecognitionService(
                     throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
                 logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, sourceId);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
+                failures.PageFailed(ex, silent: false);
             }
         }
+        if (failures.FailedPages > 0)
+            logger.LogWarning("Источник {SourceId}: листов без ответа {Failed} из {Total}. Причина: {Reason}",
+                sourceId, failures.FailedPages, pages.Count, failures.FirstReason);
 
         var columns = fields.Select(f => new DataSetColumnInfo(f.Path,
             rows.Take(3).Select(r => r.TryGetValue(f.Path, out var v) ? v ?? "" : "").ToArray()
@@ -253,6 +276,13 @@ public class DataSetPdfRecognitionService(
         {
             result = await recognizer.RecognizeAsync(bytes, "application/pdf",
                 RecognitionKinds.ComposeCallFields(invoiceProfile), RecognitionShared.BuildInvoicePrompt, ct: ct);
+        }
+        catch (RecognitionSilentException ex)
+        {
+            // Одиночный вызов по прямой просьбе человека: он указал, ЧТО распознать, и «ответа не
+            // было» тут не страничная случайность, а результат. Отдельно от «недоступно» ради
+            // текста: движок работает, но ответа не отдал, и совет проверять настройки был бы ложью.
+            throw new InvalidRequestException($"Модель не отдала ответ: {ex.Message}");
         }
         catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
         {
@@ -365,11 +395,9 @@ public class DataSetPdfRecognitionService(
         var fields = GostTitleBlockFields.WithClassifiers(stampFields);
         var coverFields = (await ProfileForFileAsync(file, RecognitionProfileKind.CoverTitle, ct)).ToRecognitionFields();
         var rows = new List<IReadOnlyDictionary<string, string?>>();
-        var failedPages = 0; // листы, распознавание которых не удалось (строка осталась пустой) — для уведомления
-        // ПОЧЕМУ не удалось — первым отказом. Без причины уведомление говорит «не распозналось 16
-        // листов» и не называет ни виновника, ни лекарства: человек видит, что плохо, и не знает,
-        // что чинить. Первым, а не последним: он объясняет, с чего всё посыпалось (issue #801).
-        string? failureReason = null;
+        // Счётчик листов без ответа, первая причина и отсечка «движок замолчал» — общим накопителем
+        // на все постраничные прогоны (issue #801, #802).
+        var failures = new PageFailureTracker();
         for (var i = 0; i < pngPages.Count; i++)
         {
             if (onProgress is not null) await onProgress(i + 1, pngPages.Count); // честный прогресс для индикатора
@@ -386,6 +414,28 @@ public class DataSetPdfRecognitionService(
                 var result = await recognizer.RecognizeAsync(
                     pngPages[i], "image/png", fields, promptBuilder, ct: ct);
                 values = new Dictionary<string, string?>(result.Values);
+                failures.PageSucceeded();
+            }
+            catch (RecognitionSilentException ex)
+            {
+                // Молчание — НЕ повод бросить прогон на первой же странице, в отличие от таймаута:
+                // лист мог оказаться нечитаемым для модели, а следующие пятнадцать — нормальными.
+                // Отсечка тут другая — подряд идущие молчания, и она ПРЕКРАЩАЕТ прогон, а не
+                // отменяет его: распознанное сохраняется.
+                logger.LogWarning("Страница {Page} источника {SourceId}: ответа не было — {Msg}", i + 1, file.Id, ex.Message);
+                rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
+                failures.PageFailed(ex, silent: true);
+                if (failures.ShouldStop)
+                {
+                    logger.LogWarning("Прогон набора {SourceId} прекращён: {Reason}", file.Id, failures.StopReason);
+                    // Остальные листы дописываем пустыми, чтобы строки соответствовали страницам, —
+                    // и выходим к материализации: сорок девять распознанных листов из двухсот
+                    // человеку нужнее, чем отменённая задача.
+                    for (var rest = i + 1; rest < pngPages.Count; rest++)
+                        rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
+                    break;
+                }
+                continue;
             }
             catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
             {
@@ -397,8 +447,7 @@ public class DataSetPdfRecognitionService(
                     throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
                 logger.LogWarning(ex, "Распознавание страницы {Page} источника {SourceId} не удалось — строка останется пустой", i + 1, file.Id);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
-                failureReason ??= ex.Message;
-                failedPages++;
+                failures.PageFailed(ex, silent: false);
                 continue;
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
@@ -407,8 +456,7 @@ public class DataSetPdfRecognitionService(
                 // (внутренние сроки, будущие движки).
                 logger.LogWarning("Таймаут распознавания страницы {Page} источника {SourceId} — строка останется пустой", i + 1, file.Id);
                 rows.Add(fields.ToDictionary(f => f.Path, string? (f) => null));
-                failureReason ??= "движок не ответил за отведённый срок.";
-                failedPages++;
+                failures.PageFailed(new RecognitionTimeoutException("движок не ответил за отведённый срок."), silent: false);
                 continue;
             }
 
@@ -487,7 +535,8 @@ public class DataSetPdfRecognitionService(
         // «В наборе не появилось ничего» считаем ЗДЕСЬ, где строки под рукой: уведомление называет
         // это полным провалом, и признак должен совпадать с обещанием текста.
         var nothingRecognized = rows.All(r => r.Values.All(string.IsNullOrWhiteSpace));
-        await PublishGostRecognitionResultAsync(matResult.DocumentCount, rows.Count, failedPages, failureReason,
+        await PublishGostRecognitionResultAsync(matResult.DocumentCount, rows.Count, failures.FailedPages,
+            failures.ShouldStop ? failures.StopReason : failures.FirstReason,
             nothingRecognized, matResult.FailedSplits, matResult.InvalidatedTables, ct);
     }
 
@@ -1019,6 +1068,13 @@ public class DataSetPdfRecognitionService(
             result = await recognizer.RecognizeAsync(subPdf, "application/pdf",
                 RecognitionKinds.ComposeCallFields(kind, [], columns), tablePrompt, ct: ct);
         }
+        catch (RecognitionSilentException ex)
+        {
+            // Одиночный вызов по прямой просьбе человека: он указал, ЧТО распознать, и «ответа не
+            // было» тут не страничная случайность, а результат. Отдельно от «недоступно» ради
+            // текста: движок работает, но ответа не отдал, и совет проверять настройки был бы ложью.
+            throw new InvalidRequestException($"Модель не отдала ответ: {ex.Message}");
+        }
         catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
         {
             throw new InvalidRequestException($"Распознавание недоступно: {ex.Message}");
@@ -1131,6 +1187,15 @@ public class DataSetPdfRecognitionService(
                 // выбрасывая уже обработанные страницы: до классификации таймаута он приходил сырым
                 // OperationCanceledException и в эту ветку попадал сам собой.
                 logger.LogWarning("Таймаут распознавания стр. {Page} при перераспознавании документа {FileId}", idx + 1, file.Id);
+                values = fields.ToDictionary(f => f.Path, string? (f) => null);
+            }
+            catch (RecognitionSilentException ex)
+            {
+                // Молчание — свойство страницы, а не движка (issue #802): бросив здесь, мы выкинули
+                // бы уже перераспознанные страницы документа ради одного листа, на котором модель
+                // не ответила. Ловим ПЕРЕД общей недоступностью — Silent её наследник.
+                logger.LogWarning("Стр. {Page} при перераспознавании документа {FileId}: ответа не было — {Msg}",
+                    idx + 1, file.Id, ex.Message);
                 values = fields.ToDictionary(f => f.Path, string? (f) => null);
             }
             catch (Exception ex) when (ex is RecognitionUnavailableException or RecognitionLimitException)
