@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseSourceColumns, parseSourceColumnNames, countFilterConditions, cleanFilterNode,
   mergeBindingPreviewsIntoValues, computeBoundFieldKeys, computeRecognizedFieldKeys,
-  computeStaleFieldKeys, staleReasonText,
+  computeStaleFieldKeys, computeStaleReasonByField, staleReasonText,
   isFileMappingValue, parseFileMapping, buildFileMapping, nextSourceName,
 } from './datasetHelpers';
 import type { FilterGroup, DataSetBindingPreviewResult } from './types';
@@ -313,5 +313,32 @@ describe('staleReasonText', () => {
     for (const r of ['FileReplaced', 'NotParsedAgainstNewFile', 'TableBoundariesChanged', 'ProfileChanged'] as const) {
       expect(staleReasonText(r)).not.toMatch(/[Пп]ерераспозна|[Пп]роверьте|[Оо]ткройте/);
     }
+  });
+});
+
+describe('computeStaleReasonByField', () => {
+  it('поле получает причину СВОЕГО источника, а не совпавшего по ключу', () => {
+    // Табличная привязка названа целевым полем, и её маппинг описывает колонки строк, а не
+    // реквизиты. Отдельный поиск причины совпадал и по тому, и по другому — и поле «Шифр»
+    // получало причину от таблицы, которая его не заполняет.
+    const reasons = computeStaleReasonByField([
+      {
+        targetFieldKey: 'Схемы', mapping: { Шифр: 'A' },
+        source: { recognitionStale: true, staleReason: 'TableBoundariesChanged' },
+      },
+      {
+        targetFieldKey: null, mapping: { Шифр: 'B' },
+        source: { recognitionStale: true, staleReason: 'FileReplaced' },
+      },
+    ]);
+    expect(reasons.get('Схемы')).toBe('TableBoundariesChanged');
+    expect(reasons.get('Шифр')).toBe('FileReplaced');
+  });
+
+  it('свежие источники в карту не попадают', () => {
+    const reasons = computeStaleReasonByField([
+      { targetFieldKey: 'Схемы', mapping: {}, source: { recognitionStale: false, staleReason: 'FileReplaced' } },
+    ]);
+    expect(reasons.size).toBe(0);
   });
 });

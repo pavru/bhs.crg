@@ -17,7 +17,7 @@ import { validateConstraint, isMissing, PrimitiveInput, FileField, ImageField, c
 import { evalComputed, referencedKeys } from '@/shared/utils/computedExpression';
 import { DocumentPreviewPanel } from './DocumentPreviewPanel';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
-import { computeRecognizedFieldKeys, computeStaleFieldKeys, staleReasonText } from '@/shared/api/datasetHelpers';
+import { computeRecognizedFieldKeys, computeStaleFieldKeys, computeStaleReasonByField, staleReasonText } from '@/shared/api/datasetHelpers';
 import { SourceOriginIcon } from '@/shared/ui/SourceOriginIcon';
 import { mergeBindingPreviewsIntoValues } from '@/shared/api/datasetHelpers';
 import { Button } from '@/shared/ui/Button';
@@ -143,11 +143,10 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
     // формы (и терять несохранённое) не нужно.
     return `${what}. Перераспознать можно в «Источниках».`;
   }, [dsBindings]);
-  const staleReasonOf = (key: string) =>
-    dsBindings.find(b => b.source?.recognitionStale
-      && (b.targetFieldKey === key
-        || Object.keys(Object.keys(b.mapping).length > 0 ? b.mapping : (b.source?.materializeMapping ?? {})).includes(key)))
-      ?.source?.staleReason ?? null;
+  // Причина берётся ТЕМ ЖЕ разбором привязки, что и множества выше (issue #815): свой поиск здесь
+  // расходился с ним на табличных привязках и мог показать полю причину чужого источника.
+  const staleReasons = useMemo(() => computeStaleReasonByField(dsBindings), [dsBindings]);
+  const staleReasonOf = (key: string) => staleReasons.get(key) ?? null;
   // Скалярные поля — для per-field привязки «линза» (issue #296, фаза 1): выбор источника на поле +
   // авто-предложение покрыть остальные скалярные поля этого источника.
   const scalarSchemaFields = useMemo(() => schemaFields.filter(f => isScalarField(f) && f.type !== 'file'), [schemaFields]);

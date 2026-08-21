@@ -26,7 +26,7 @@ import { buildRecognitionFields, codesFromLabels } from '@/features/quality-docs
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
 import { SourceOriginIcon } from '@/shared/ui/SourceOriginIcon';
-import { computeBoundFieldKeys, mergeBindingPreviewsIntoValues, computeRecognizedFieldKeys, computeStaleFieldKeys, staleReasonText
+import { computeBoundFieldKeys, mergeBindingPreviewsIntoValues, computeRecognizedFieldKeys, computeStaleFieldKeys, computeStaleReasonByField, staleReasonText
 } from '@/shared/api/datasetHelpers';
 import { EntryDataSetBindings } from './EntryDataSetBindings';
 import {
@@ -267,11 +267,8 @@ export function CatalogEntryForm({
   // Устаревшие источники записи: та же оговорка, что в форме документа, но здесь у неё есть ещё
   // один адресат — кнопка «Обновить из источника» (issue #815).
   const staleBoundKeys = computeStaleFieldKeys(bindings);
-  const staleReasonOfKey = (key: string) =>
-    bindings.find(b => b.source?.recognitionStale
-      && (b.targetFieldKey === key
-        || Object.keys(Object.keys(b.mapping).length > 0 ? b.mapping : (b.source?.materializeMapping ?? {})).includes(key)))
-      ?.source?.staleReason ?? null;
+  const staleReasons = computeStaleReasonByField(bindings);
+  const staleReasonOfKey = (key: string) => staleReasons.get(key) ?? null;
   const staleBindings = bindings.filter(b => b.source?.recognitionStale);
   // Причину называем только когда она у всех устаревших источников ОДНА: смешав четыре под одной
   // формулировкой, подсказка соврала бы про три из них.

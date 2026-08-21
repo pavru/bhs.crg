@@ -7,7 +7,7 @@ import {
   useCreateDataSetBinding, useUpdateDataSetBinding, useDeleteDataSetBinding,
   useAutoMapDataSetSource, usePreviewDataSetBindings,
 } from '@/shared/api/datasets';
-import type { DocumentInstance, DocumentType, DataSetSource, DataSetBinding, DataSetBindingPreviewResult } from '@/shared/api/types';
+import type { DocumentInstance, DocumentType, DataSetBinding, DataSetBindingPreviewResult, ComputedColumn } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
 import { parseSourceColumnNames, parseRefMapping, buildRefMappingByName, buildRefMappingByIdentity, parseFileMapping, buildFileMapping, parseInlineMapping, buildInlineMapping } from '@/shared/api/datasetHelpers';
@@ -214,7 +214,9 @@ export function MappingEditor({
   hideModeSelector = false,
   allowDocRef = false,
 }: {
-  source: DataSetSource;
+  // Узкий контракт вместо полного источника: редактору нужны ровно две вещи, а привязка приносит
+  // урезанный DTO — требуя здесь DataSetSource, тип обещал бы поля, которых в ответе нет (issue #815).
+  source: { cachedSchema: string; computedColumns?: ComputedColumn[] | null };
   schemaFields: SchemaField[];
   tabularFields: SchemaField[];
   allDocTypes: DocumentType[];

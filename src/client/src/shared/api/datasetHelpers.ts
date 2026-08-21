@@ -181,14 +181,6 @@ export function computeBoundFieldKeys(
 }
 
 /**
- * Происхождение значений по ключу поля: к какому источнику поле привязано, оттуда и признак
- * (issue про точку потребления). Рядом с `computeBoundFieldKeys` и по тем же правилам разбора
- * привязки — скалярные ключи лежат в маппинге, табличное поле названо в `targetFieldKey`.
- *
- * Возвращаются ТОЛЬКО распознанные: `Parsed` и `System` в интерфейсе ничего не меняют — у них нет
- * действия для читателя, а метка без действия становится фоном, который перестают замечать.
- */
-/**
  * Почему данные источника устарели — ОДНОЙ фразой-констатацией, без глагола (issue #815).
  *
  * Действие дописывает место показа, а не эта функция: путь к «Перераспознать» есть не отовсюду, и
@@ -218,6 +210,7 @@ interface FieldKeyBinding {
   source?: {
     origin?: DataOrigin;
     recognitionStale?: boolean;
+    staleReason?: DataSetStaleReason | null;
     materializeMapping?: Record<string, string> | null;
   };
 }
@@ -229,6 +222,21 @@ interface FieldKeyBinding {
  * спрашивают о разном, но отвечают об одних и тех же полях. Своя копия у каждого признака уже
  * однажды разъехалась по правилу fallback'а — и часть полей осталась read-only без объяснения.
  */
+/**
+ * Ключи полей ОДНОЙ привязки — единственное место, где привязка разбирается на поля.
+ *
+ * Табличная привязка названа целевым полем и маппингом поля НЕ покрывает: у неё маппинг описывает
+ * колонки строк, а не реквизиты документа. Смешай эти два случая — и поле получило бы признак от
+ * источника, который его не заполняет.
+ */
+function bindingFieldKeys(b: FieldKeyBinding): string[] {
+  if (b.targetFieldKey) return [b.targetFieldKey];
+  // Эффективный маппинг — собственный, а при пустом берётся с материализации источника: ровно так
+  // же считаются поля, которые форма делает read-only. Разойдись эти два правила — часть полей
+  // стала бы нередактируемой без объяснения, откуда взялось значение.
+  return Object.keys(Object.keys(b.mapping).length > 0 ? b.mapping : (b.source?.materializeMapping ?? {}));
+}
+
 function computeFieldKeysWhere(
   bindings: FieldKeyBinding[],
   matches: (b: FieldKeyBinding) => boolean,
@@ -236,16 +244,19 @@ function computeFieldKeysWhere(
   const keys = new Set<string>();
   for (const b of bindings) {
     if (!matches(b)) continue;
-    if (b.targetFieldKey) { keys.add(b.targetFieldKey); continue; }
-    // Эффективный маппинг — собственный, а при пустом берётся с материализации источника: ровно так
-    // же считаются поля, которые форма делает read-only. Разойдись эти два правила — часть полей
-    // стала бы нередактируемой без объяснения, откуда взялось значение.
-    const effective = Object.keys(b.mapping).length > 0 ? b.mapping : (b.source?.materializeMapping ?? {});
-    for (const key of Object.keys(effective)) keys.add(key);
+    for (const key of bindingFieldKeys(b)) keys.add(key);
   }
   return keys;
 }
 
+/**
+ * Происхождение значений по ключу поля: к какому источнику поле привязано, оттуда и признак
+ * (issue про точку потребления). Рядом с `computeBoundFieldKeys` и по тем же правилам разбора
+ * привязки — скалярные ключи лежат в маппинге, табличное поле названо в `targetFieldKey`.
+ *
+ * Возвращаются ТОЛЬКО распознанные: `Parsed` и `System` в интерфейсе ничего не меняют — у них нет
+ * действия для читателя, а метка без действия становится фоном, который перестают замечать.
+ */
 export function computeRecognizedFieldKeys(bindings: FieldKeyBinding[]): Set<string> {
   return computeFieldKeysWhere(bindings, b => b.source?.origin === 'Recognized');
 }
@@ -258,6 +269,27 @@ export function computeRecognizedFieldKeys(bindings: FieldKeyBinding[]): Set<str
  */
 export function computeStaleFieldKeys(bindings: FieldKeyBinding[]): Set<string> {
   return computeFieldKeysWhere(bindings, b => b.source?.recognitionStale === true);
+}
+
+/**
+ * Поле → причина, по которой его источник устарел. Тем же разбором привязки, что и множества выше:
+ * искать причину отдельным условием уже приводило к тому, что полю показывали причину чужого
+ * источника — табличная привязка совпадала и по целевому полю, и по ключам своего маппинга.
+ *
+ * Поле заполняет одна привязка; если их всё же две, берётся первая — спорить о причине бессмысленно,
+ * когда сама настройка противоречива.
+ */
+export function computeStaleReasonByField(
+  bindings: FieldKeyBinding[],
+): Map<string, DataSetStaleReason | null | undefined> {
+  const byField = new Map<string, DataSetStaleReason | null | undefined>();
+  for (const b of bindings) {
+    if (b.source?.recognitionStale !== true) continue;
+    for (const key of bindingFieldKeys(b)) {
+      if (!byField.has(key)) byField.set(key, b.source?.staleReason);
+    }
+  }
+  return byField;
 }
 
 /** Recursively counts non-empty conditions in a filter tree. */
