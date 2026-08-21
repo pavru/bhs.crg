@@ -212,16 +212,30 @@ export function staleReasonText(reason: DataSetStaleReason | null | undefined): 
   }
 }
 
-export function computeRecognizedFieldKeys(
-  bindings: {
-    targetFieldKey: string | null;
-    mapping: Record<string, string>;
-    source?: { origin?: DataOrigin; materializeMapping?: Record<string, string> | null };
-  }[],
+interface FieldKeyBinding {
+  targetFieldKey: string | null;
+  mapping: Record<string, string>;
+  source?: {
+    origin?: DataOrigin;
+    recognitionStale?: boolean;
+    materializeMapping?: Record<string, string> | null;
+  };
+}
+
+/**
+ * Ключи полей, которые заполняет привязка, удовлетворяющая условию.
+ *
+ * Разбор привязки на ключи полей — ОДИН на все признаки (issue #815): происхождение и устаревание
+ * спрашивают о разном, но отвечают об одних и тех же полях. Своя копия у каждого признака уже
+ * однажды разъехалась по правилу fallback'а — и часть полей осталась read-only без объяснения.
+ */
+function computeFieldKeysWhere(
+  bindings: FieldKeyBinding[],
+  matches: (b: FieldKeyBinding) => boolean,
 ): Set<string> {
   const keys = new Set<string>();
   for (const b of bindings) {
-    if (b.source?.origin !== 'Recognized') continue;
+    if (!matches(b)) continue;
     if (b.targetFieldKey) { keys.add(b.targetFieldKey); continue; }
     // Эффективный маппинг — собственный, а при пустом берётся с материализации источника: ровно так
     // же считаются поля, которые форма делает read-only. Разойдись эти два правила — часть полей
@@ -230,6 +244,20 @@ export function computeRecognizedFieldKeys(
     for (const key of Object.keys(effective)) keys.add(key);
   }
   return keys;
+}
+
+export function computeRecognizedFieldKeys(bindings: FieldKeyBinding[]): Set<string> {
+  return computeFieldKeysWhere(bindings, b => b.source?.origin === 'Recognized');
+}
+
+/**
+ * Поля, чей источник УСТАРЕЛ: данные разошлись с файлом, из которого их читали (issue #815).
+ *
+ * Считается по всем источникам, а не только распознанным: устареть может и парсерный источник,
+ * не разобравшийся против нового файла, — и человеку у поля это так же важно, как распознавание.
+ */
+export function computeStaleFieldKeys(bindings: FieldKeyBinding[]): Set<string> {
+  return computeFieldKeysWhere(bindings, b => b.source?.recognitionStale === true);
 }
 
 /** Recursively counts non-empty conditions in a filter tree. */

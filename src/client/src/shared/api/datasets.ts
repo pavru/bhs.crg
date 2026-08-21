@@ -333,6 +333,31 @@ export function useRecognizeFile() {
   });
 }
 
+/**
+ * Перераспознать ОДИН источник (issue #815) — то же действие, что «Распознать» в наборах, но адресно.
+ *
+ * Нужно там, где на устаревшие данные смотрят: в форме документа их видно, а файлового «Распознать
+ * заново» оттуда предлагать нельзя — оно перезаписывает ручную корректировку разбиения всего набора.
+ * ГОСТ-набор уходит в фоновую задачу (202 + jobId), счёт распознаётся синхронно; 409 — тот же
+ * конфликт ручной правки, что и у файлового вызова.
+ */
+export function useRecognizeSource() {
+  const qc = useQueryClient();
+  return useMutation<{ jobId?: string }, Error, { sourceId: string; confirm?: boolean }>({
+    mutationFn: ({ sourceId, confirm }) =>
+      apiClient.post(`/datasets/sources/${sourceId}/recognize`, undefined,
+        { params: confirm ? { confirm: true } : undefined }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['jobs', 'active'] });
+      invalidateSources(qc);
+      // Привязки везут копию источника (в т.ч. признак устаревания) — без этого чип «устарело»
+      // остался бы висеть в форме документа до её перезакрытия. Синхронный путь (счёт) обновится
+      // здесь, фоновый — по завершении задачи (useActiveJobs).
+      qc.invalidateQueries({ queryKey: ['datasets', 'bindings'] });
+    },
+  });
+}
+
 /** 409 от /recognize — набор уже правился вручную, нужно явное подтверждение перезаписи. */
 export function isManualGroupingConflict(err: unknown): boolean {
   return (err as { response?: { status?: number } })?.response?.status === 409;

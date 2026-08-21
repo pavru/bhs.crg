@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Pencil, Database, X } from 'lucide-react';
 import { DocumentObservationsChip } from './DocumentObservations';
 import { useRenameDocumentInstance, useResolutionDiagnostics, brokenRefPaths } from '@/shared/api/documentSets';
+import { useListDataSetBindings } from '@/shared/api/datasets';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import type { DocumentInstance, DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields, compositeFieldHasTag } from '@/shared/api/schema';
@@ -77,6 +78,14 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
   // (тот же queryKey) — без второго запроса; гейт по наличию ссылок в сохранённых реквизитах.
   const { data: editorDiagnostics } = useResolutionDiagnostics(instance.id, containsRef(instance.requisites));
   const brokenTabCount = useMemo(() => brokenRefPaths(editorDiagnostics).size, [editorDiagnostics]);
+  // Устаревшие источники документа (issue #815) — счёт по ИСТОЧНИКАМ, а не по полям: действие
+  // («Перераспознать») применяется к источнику, и «устарели источники: 2» отвечает на вопрос
+  // «сколько раз мне это делать». Признак висит здесь потому, что шапка видна всегда: секция
+  // связанных полей свёрнута по умолчанию, а из разделов формы виден только открытый.
+  const { data: docBindings = [] } = useListDataSetBindings({ ownerId: instance.id });
+  const staleSourceCount = useMemo(
+    () => new Set(docBindings.filter(b => b.source?.recognitionStale).map(b => b.sourceId)).size,
+    [docBindings]);
   const [dataSourcesOpen, setDataSourcesOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [pendingTab, setPendingTab] = useState<InstanceTab | null>(null);
@@ -202,8 +211,21 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
           {/* Источники данных (issue #296, фаза 3): пакетные операции уровня документа — обзор
               привязок, «Проверить данные», «Из шаблона». Точечная привязка — на самих полях. */}
           <Button variant="text" size="sm" icon={<Database size={15} />} onClick={() => setDataSourcesOpen(true)}
-            className="shrink-0" title="Обзор привязок, проверка данных, шаблоны">
+            className="shrink-0"
+            title={staleSourceCount > 0
+              ? `${ruCount(staleSourceCount, 'источник устарел', 'источника устарели', 'источников устарели')}: данные от прежнего файла. Откройте, чтобы перераспознать.`
+              : 'Обзор привязок, проверка данных, шаблоны'}
+            // На узком окне подпись скрыта и кнопка становится icon-only, а title доступен только
+            // мышью — счётчик обязан попасть в доступное имя, иначе для клавиатуры и скринридера
+            // сигнала нет вовсе ровно там, где он единственный.
+            aria-label={staleSourceCount > 0 ? `Источники: устарели ${staleSourceCount}` : 'Источники'}>
             <span className="hidden sm:inline">Источники</span>
+            {staleSourceCount > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full
+                bg-warning-subtle text-warning text-[10px] font-medium tabular-nums align-middle">
+                {staleSourceCount}
+              </span>
+            )}
           </Button>
           {editable && (
             <div className="flex items-center gap-2 shrink-0">

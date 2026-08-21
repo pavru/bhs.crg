@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Database, Pencil, Trash2, Plus } from 'lucide-react';
 import { IconButton } from '@/shared/ui/Button';
+import { StaleSourceAction } from '@/shared/ui/StaleSourceAction';
+import { ruCount } from '@/shared/utils/pluralize';
 import {
   useListDataSetFiles, useAvailableDataSetFiles,
   useCreateDataSetBinding, useUpdateDataSetBinding, useDeleteDataSetBinding, useAutoMapDataSetSource,
@@ -158,10 +160,13 @@ function EntryBindingRow({
           <div className="text-xs text-fg4 mt-0.5">
             {file?.name} · {source?.materializeTypeId
               ? `материализация → ${allDocTypes.find(t => t.id === source.materializeTypeId)?.name ?? 'тип'}`
-              : `${mappedCount} пол${mappedCount === 1 ? 'е' : 'я'} привязано`}
+              : `${ruCount(mappedCount, 'поле привязано', 'поля привязано', 'полей привязано')}`}
             {targetFieldKey && ` · таблица: ${targetFieldKey}`}
           </div>
         </div>
+        {/* Тот же признак и то же действие, что в форме документа (issue #815): строки привязок у
+            каталога и документа свои, но расходиться им в этом нельзя. */}
+        <StaleSourceAction source={source} />
         <IconButton label="Редактировать маппинг" size="sm" onClick={() => setEditing(e => !e)}>
           <Pencil size={13} />
         </IconButton>

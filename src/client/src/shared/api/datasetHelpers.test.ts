@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseSourceColumns, parseSourceColumnNames, countFilterConditions, cleanFilterNode,
   mergeBindingPreviewsIntoValues, computeBoundFieldKeys, computeRecognizedFieldKeys,
+  computeStaleFieldKeys, staleReasonText,
   isFileMappingValue, parseFileMapping, buildFileMapping, nextSourceName,
 } from './datasetHelpers';
 import type { FilterGroup, DataSetBindingPreviewResult } from './types';
@@ -256,5 +257,61 @@ describe('computeRecognizedFieldKeys', () => {
       { targetFieldKey: 'Схемы', mapping: {}, source: recognized },
     ]);
     expect(keys).toEqual(new Set(['Схемы']));
+  });
+});
+
+describe('computeStaleFieldKeys', () => {
+  const stale = { origin: 'Recognized' as const, recognitionStale: true };
+  const fresh = { origin: 'Recognized' as const, recognitionStale: false };
+
+  it('устаревание считается по ВСЕМ источникам, а не только распознанным', () => {
+    // Парсерный источник, не разобравшийся против нового файла, тоже устарел — и человеку у поля
+    // это так же важно. Свяжи признак с распознаванием, и такое поле промолчало бы.
+    const keys = computeStaleFieldKeys([
+      { targetFieldKey: 'Материалы', mapping: {}, source: { origin: 'Parsed', recognitionStale: true } },
+      { targetFieldKey: 'Схемы', mapping: {}, source: fresh },
+    ]);
+    expect(keys).toEqual(new Set(['Материалы']));
+  });
+
+  it('разбирает привязку теми же правилами, что и происхождение', () => {
+    const bindings: Parameters<typeof computeStaleFieldKeys>[0] = [
+      { targetFieldKey: null, mapping: { Шифр: 'A' }, source: stale },
+      { targetFieldKey: null, mapping: {}, source: { ...stale, materializeMapping: { Титул: 'B' } } },
+      { targetFieldKey: 'Схемы', mapping: {}, source: stale },
+    ];
+    expect(computeStaleFieldKeys(bindings)).toEqual(new Set(['Шифр', 'Титул', 'Схемы']));
+    // Ровно те же ключи считает признак происхождения — множества разные только по условию.
+    expect(computeRecognizedFieldKeys(bindings)).toEqual(new Set(['Шифр', 'Титул', 'Схемы']));
+  });
+
+  it('свежие источники не помечаются', () => {
+    expect(computeStaleFieldKeys([
+      { targetFieldKey: 'Схемы', mapping: {}, source: fresh },
+      { targetFieldKey: 'Прочее', mapping: {}, source: undefined },
+    ]).size).toBe(0);
+  });
+});
+
+describe('staleReasonText', () => {
+  it('каждая причина называется своим словом', () => {
+    const texts = (['FileReplaced', 'NotParsedAgainstNewFile', 'TableBoundariesChanged', 'ProfileChanged'] as const)
+      .map(r => staleReasonText(r));
+    expect(new Set(texts).size).toBe(4);
+    expect(texts.every(t => t.length > 0)).toBe(true);
+  });
+
+  it('незнакомая причина не оставляет читателя без ответа', () => {
+    // Признак пришёл с сервера, значит что-то случилось; промолчать хуже, чем сказать общее.
+    expect(staleReasonText(null)).toBe('Данные источника устарели');
+    expect(staleReasonText(undefined)).toBe('Данные источника устарели');
+  });
+
+  it('текст — констатация, без глагола', () => {
+    // Действие дописывает место показа: путь к «Перераспознать» есть не отовсюду, а подсказка,
+    // требующая невыполнимого, обесценивается так же, как та, что горит всегда.
+    for (const r of ['FileReplaced', 'NotParsedAgainstNewFile', 'TableBoundariesChanged', 'ProfileChanged'] as const) {
+      expect(staleReasonText(r)).not.toMatch(/[Пп]ерераспозна|[Пп]роверьте|[Оо]ткройте/);
+    }
   });
 });

@@ -7,7 +7,7 @@ import { useUpdateRequisites, useResolutionDiagnostics, brokenRefPaths, useAudit
 import { valueIssuesByPath, deepIssueCount, issueCountInFields } from '@/shared/api/valueIssues';
 import { ValueIssueHint, ValueIssueBadge } from '@/shared/ui/ValueIssue';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
-import type { DocumentInstance, DocumentType, PrimitiveTypeDef, EnumTypeDef, CommonDataEntry } from '@/shared/api/types';
+import type { DocumentInstance, DocumentType, PrimitiveTypeDef, EnumTypeDef, CommonDataEntry, DataSetStaleReason } from '@/shared/api/types';
 import { SCOPE_LABELS, isFieldRef } from '@/shared/api/types';
 import { useCommonDataForSet } from '@/shared/api/commonData';
 import { groupEffectiveFields, parseSchemaFields, getDefaultValues, isScalarField, type SchemaField } from '@/shared/api/schema';
@@ -17,7 +17,7 @@ import { validateConstraint, isMissing, PrimitiveInput, FileField, ImageField, c
 import { evalComputed, referencedKeys } from '@/shared/utils/computedExpression';
 import { DocumentPreviewPanel } from './DocumentPreviewPanel';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
-import { computeRecognizedFieldKeys } from '@/shared/api/datasetHelpers';
+import { computeRecognizedFieldKeys, computeStaleFieldKeys, staleReasonText } from '@/shared/api/datasetHelpers';
 import { SourceOriginIcon } from '@/shared/ui/SourceOriginIcon';
 import { mergeBindingPreviewsIntoValues } from '@/shared/api/datasetHelpers';
 import { Button } from '@/shared/ui/Button';
@@ -36,18 +36,25 @@ export type SaveRef = { current: (() => Promise<boolean>) | null };
 /// Плашка для doc-ref/doc-array поля, которое заполняется привязанным источником данных:
 /// ручные ссылки скрываем, т.к. при генерации источник перезаписывает поле целиком
 /// (см. issue #17 — «источник ИЛИ ссылки», взаимоисключающе).
-function SourceBoundDocField({ recognized }: { recognized?: boolean }) {
+function SourceBoundDocField(
+  { recognized, stale, staleReason }:
+  { recognized?: boolean; stale?: boolean; staleReason?: DataSetStaleReason | null },
+) {
+  const tone = stale ? 'text-warning' : 'text-brand';
   return (
     <div className="flex items-center gap-2 border border-brand/40 rounded-lg px-3 py-2 bg-brand/5">
       {recognized
-        ? <ScanText size={14} className="text-brand shrink-0" />
-        : <Database size={14} className="text-brand shrink-0" />}
+        ? <ScanText size={14} className={`${tone} shrink-0`} />
+        : <Database size={14} className={`${tone} shrink-0`} />}
       <span className="text-xs text-fg3">
         {recognized
           // Плашка вместо самих ссылок — единственное, что человек тут видит; промолчав о
           // происхождении здесь, мы оставили бы doc-ref немым, закрыв дверь у соседних полей.
           ? 'Заполняется из привязанного источника — значения распознаны со скана, возможны ошибки чтения.'
           : 'Заполняется из привязанного источника данных — правьте связку по иконке источника у поля.'}
+        {/* Устаревание дописывается второй фразой, а не заменяет первую: происхождение и годность —
+            разные вопросы, и ответ на один не отменяет другого (issue #815). */}
+        {stale && <span className="text-warning"> {staleReasonText(staleReason)}.</span>}
       </span>
     </div>
   );
@@ -120,6 +127,27 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
   // происхождения считает сервер). Человеку у read-only поля иначе неоткуда узнать, что значение
   // прочитала модель, — а к прочитанному моделью и доверие другое.
   const recognizedBoundFields = useMemo(() => computeRecognizedFieldKeys(dsBindings), [dsBindings]);
+  // Поля, чей источник УСТАРЕЛ (issue #815): данные разошлись с файлом, из которого их читали. Это
+  // не подмножество распознанных — устареть может и парсерный источник, не разобравшийся против
+  // нового файла, поэтому счёт и подпись отдельные.
+  const staleBoundFields = useMemo(() => computeStaleFieldKeys(dsBindings), [dsBindings]);
+  // Причина в подсказке — только когда она у всех устаревших источников ОДНА. Смешав четыре
+  // причины под одной формулировкой, подсказка соврала бы про три из них.
+  const staleHint = useMemo(() => {
+    const reasons = new Set(dsBindings.filter(b => b.source?.recognitionStale).map(b => b.source?.staleReason ?? null));
+    const common = reasons.size === 1 ? [...reasons][0] : undefined;
+    const what = common !== undefined
+      ? staleReasonText(common)
+      : 'Источники этих полей изменились после распознавания';
+    // Глагол здесь законен: обзор источников документа открывается кнопкой в шапке, уходить из
+    // формы (и терять несохранённое) не нужно.
+    return `${what}. Перераспознать можно в «Источниках».`;
+  }, [dsBindings]);
+  const staleReasonOf = (key: string) =>
+    dsBindings.find(b => b.source?.recognitionStale
+      && (b.targetFieldKey === key
+        || Object.keys(Object.keys(b.mapping).length > 0 ? b.mapping : (b.source?.materializeMapping ?? {})).includes(key)))
+      ?.source?.staleReason ?? null;
   // Скалярные поля — для per-field привязки «линза» (issue #296, фаза 1): выбор источника на поле +
   // авто-предложение покрыть остальные скалярные поля этого источника.
   const scalarSchemaFields = useMemo(() => schemaFields.filter(f => isScalarField(f) && f.type !== 'file'), [schemaFields]);
@@ -436,15 +464,19 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     {/* Широкие поля (многострочный текст, картинка, файл) подписываются здесь, и
                         признак происхождения им нужен ровно так же: связанное текстовое поле
                         read-only, и узнать, что значение прочитано со скана, иначе неоткуда. */}
-                    {recognizedBoundFields.has(field.key) && (
+                    {(recognizedBoundFields.has(field.key) || staleBoundFields.has(field.key)) && (
                       <span className="ml-1 inline-block align-text-bottom">
-                        <SourceOriginIcon origin="Recognized" />
+                        <SourceOriginIcon
+                          origin={recognizedBoundFields.has(field.key) ? 'Recognized' : undefined}
+                          stale={staleBoundFields.has(field.key)}
+                          staleReason={staleReasonOf(field.key)} />
                       </span>
                     )}
                   </label>
                 )}
                 {field.type === 'complex' ? (
-                  bound ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)} /> : (
+                  bound ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)}
+                    stale={staleBoundFields.has(field.key)} staleReason={staleReasonOf(field.key)} /> : (
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-xs font-medium text-fg2 pr-5">
@@ -461,20 +493,23 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                   </div>
                   )
                 ) : field.type === 'array' ? (
-                  bound ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)} /> : (
+                  bound ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)}
+                    stale={staleBoundFields.has(field.key)} staleReason={staleReasonOf(field.key)} /> : (
                   <ArrayFieldEditor field={field} allDocTypes={allDocTypes} value={raw}
                     onChange={v => setValue(field.key, v)} showValidation={showValidation}
                     setId={setId} otherInstances={otherInstances} docRefMode="instance"
                     brokenPaths={brokenPaths} basePath={field.key} savedAt={instance.updatedAt} />
                   )
                 ) : field.type === 'doc-ref' ? (
-                  sourceBoundFields.has(field.key) ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)} /> : (
+                  sourceBoundFields.has(field.key) ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)}
+                    stale={staleBoundFields.has(field.key)} staleReason={staleReasonOf(field.key)} /> : (
                     <DocRefField field={field} allDocTypes={allDocTypes} value={raw}
                       onChange={v => setValue(field.key, v)} otherInstances={otherInstances} setId={setId}
                       broken={brokenPaths.has(field.key)} />
                   )
                 ) : field.type === 'doc-array' ? (
-                  sourceBoundFields.has(field.key) ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)} /> : (
+                  sourceBoundFields.has(field.key) ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)}
+                    stale={staleBoundFields.has(field.key)} staleReason={staleReasonOf(field.key)} /> : (
                     <DocArrayField field={field} allDocTypes={allDocTypes} value={raw}
                       onChange={v => setValue(field.key, v)} otherInstances={otherInstances} setId={setId}
                       brokenPaths={brokenPaths} basePath={field.key} savedAt={instance.updatedAt} />
@@ -520,9 +555,12 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     {field.title}
                     {field.required && <span className="ml-0.5 text-danger">*</span>}
                     {primitiveDef && <span className="ml-1 text-[10px] text-fg4 font-normal">· {primitiveDef.name}</span>}
-                    {recognizedBoundFields.has(field.key) && (
+                    {(recognizedBoundFields.has(field.key) || staleBoundFields.has(field.key)) && (
                       <span className="ml-1 inline-block align-text-bottom">
-                        <SourceOriginIcon origin="Recognized" />
+                        <SourceOriginIcon
+                          origin={recognizedBoundFields.has(field.key) ? 'Recognized' : undefined}
+                          stale={staleBoundFields.has(field.key)}
+                          staleReason={staleReasonOf(field.key)} />
                       </span>
                     )}
                   </label>
@@ -558,7 +596,9 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
         <div className="space-y-4">
           {normal.length > 0 && fieldGrid(normal)}
           <AutoFieldsSection count={auto.length}
-            recognizedCount={auto.filter(f => recognizedBoundFields.has(f.key)).length}>
+            recognizedCount={auto.filter(f => recognizedBoundFields.has(f.key)).length}
+            staleCount={auto.filter(f => staleBoundFields.has(f.key)).length}
+            staleHint={staleHint}>
             {fieldGrid(auto)}
           </AutoFieldsSection>
         </div>
