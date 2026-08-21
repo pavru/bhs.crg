@@ -33,12 +33,6 @@ public class DataSetFile : Entity
     /// </summary>
     public string? Grouping { get; private set; }
 
-    /// <summary>
-    /// true — блоб заменён ПОСЛЕ распознавания: группировка/проекции относятся к прежнему содержимому.
-    /// Сбрасывается при следующем распознавании. Ранее <see cref="DataSetSource.RecognitionStale"/>.
-    /// </summary>
-    public bool RecognitionStale { get; private set; }
-
     /// <summary>Сырьё профиля «Счёт на оплату» (issue #44) — JSON {Header, LineItems}, аналог
     /// <see cref="Grouping"/> для ГОСТ (иная, непостраничная форма — своя колонка, не обобщение).
     /// Пишется распознаванием; источники «Шапка»/«Товары» — кандидаты, проецируются пользователем.</summary>
@@ -120,11 +114,13 @@ public class DataSetFile : Entity
         TouchUpdatedAt();
     }
 
-    /// <summary>Задать/обновить авторитетную группировку набора (JSON GostGroupingData) и снять stale.</summary>
+    /// <summary>Задать/обновить авторитетную группировку набора (JSON GostGroupingData).
+    /// Устаревание снимается НЕ здесь, а на источниках свежим кэшем (issue #815): группировку пишут и
+    /// смена тэгов, и привязка профиля, и ручная правка разбиения — то есть пути, где ничего не
+    /// распознавали. Сбрасывая признак тут, мы объявляли бы данные свежими после переименования тэга.</summary>
     public void SetGrouping(string? groupingJson)
     {
         Grouping = groupingJson;
-        RecognitionStale = false;
         TouchUpdatedAt();
     }
 
@@ -132,14 +128,7 @@ public class DataSetFile : Entity
     public void SetInvoiceRawData(string? rawDataJson)
     {
         InvoiceRawData = rawDataJson;
-        RecognitionStale = false;
         TouchUpdatedAt();
     }
 
-    /// <summary>Пометить набор устаревшим — блоб заменён после распознавания (данные к прежнему файлу).</summary>
-    public void MarkRecognitionStale()
-    {
-        RecognitionStale = true;
-        TouchUpdatedAt();
-    }
 }

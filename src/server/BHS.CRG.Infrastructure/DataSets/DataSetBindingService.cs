@@ -25,7 +25,8 @@ public class DataSetBindingService(
             .Where(b => b.OwnerId == ownerId)
             .AsNoTracking()
             .ToListAsync(ct);
-        return bindings.Select(DataSetDtoMapper.MapBinding).ToList();
+        var counts = await BindingCountsAsync(bindings, ct);
+        return bindings.Select(b => DataSetDtoMapper.MapBinding(b, counts)).ToList();
     }
 
     /// <inheritdoc cref="Application.DataSets.IDataSetService.ListBindingsForOwnersAsync" />
@@ -38,7 +39,25 @@ public class DataSetBindingService(
             .Where(b => ownerIds.Contains(b.OwnerId))
             .AsNoTracking()
             .ToListAsync(ct);
-        return bindings.Select(DataSetDtoMapper.MapBinding).ToList();
+        var counts = await BindingCountsAsync(bindings, ct);
+        return bindings.Select(b => DataSetDtoMapper.MapBinding(b, counts)).ToList();
+    }
+
+    /// <summary>Сколько привязок ссылается на каждый из встреченных источников (issue #815) — одним
+    /// запросом на список, а не по разу на привязку. Нужно подтверждению перед перераспознаванием:
+    /// человек жмёт кнопку в своём документе и не ждёт, что тронет данные в чужих.</summary>
+    private async Task<Dictionary<Guid, int>> BindingCountsAsync(
+        IReadOnlyCollection<DataSetBinding> bindings, CancellationToken ct)
+    {
+        // Считаем только по источникам, которые перераспознают: у прочих число никому не показывают.
+        var sourceIds = bindings.Where(b => b.Source?.RecognitionStale == true)
+            .Select(b => b.SourceId).Distinct().ToList();
+        if (sourceIds.Count == 0) return [];
+        return await db.DataSetBindings.AsNoTracking()
+            .Where(b => sourceIds.Contains(b.SourceId))
+            .GroupBy(b => b.SourceId)
+            .Select(g => new { SourceId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.SourceId, x => x.Count, ct);
     }
 
     /// <inheritdoc cref="Application.DataSets.IDataSetService.MigrateFieldKeyAsync" />

@@ -54,13 +54,17 @@ public class DataSetSource : Entity
     public string? SortSpec { get; private set; }
 
     /// <summary>
-    /// true — исходный файл заменён (<see cref="DataSetFile"/>.ReplaceFileAsync) ПОСЛЕ последнего
-    /// распознавания: кэш/группировка относятся к прежнему содержимому файла и устарели. Только для
-    /// распознаваемых PDF-источников (парсер их не детектит — при замене не удаляются, а помечаются).
-    /// Сбрасывается при следующем распознавании (свежий <see cref="UpdateCache"/>). Пока true —
-    /// генерация опирается на устаревшие данные, пользователю показывается «перераспознать».
+    /// Почему данные источника устарели, или null — данные соответствуют своему происхождению.
+    /// Сбрасывается свежим <see cref="UpdateCache"/> (перераспознали/перечитали). Пока причина есть,
+    /// генерация опирается на устаревшие данные, а пользователю показывается «Перераспознать».
     /// </summary>
-    public bool RecognitionStale { get; private set; }
+    public DataSetStaleReason? StaleReason { get; private set; }
+
+    /// <summary>Устарели ли данные — то же, что «причина есть». Существует отдельно от
+    /// <see cref="StaleReason"/> потому, что подавляющему большинству читателей (фильтры, агрегаты,
+    /// признак в списке) нужен ответ «да/нет», и заставлять каждого сравнивать с null — значит
+    /// разводить это сравнение по кодовой базе.</summary>
+    public bool RecognitionStale => StaleReason is not null;
 
     /// <summary>
     /// Материализация (issue #19): ID типа документа (Composite или Document, различаем по Kind),
@@ -137,18 +141,35 @@ public class DataSetSource : Entity
         CachedSchema = cachedSchema;
         CachedRowCount = cachedRowCount;
         CachedData = cachedData;
-        RecognitionStale = false; // свежий кэш соответствует текущему файлу
+        StaleReason = null; // свежий кэш соответствует текущему файлу
         TouchUpdatedAt();
     }
 
-    /// <summary>Пометить распознанный PDF-источник устаревшим — исходный файл заменён после
-    /// распознавания (см. <see cref="RecognitionStale"/>). Данные не трогаем, чтобы не терять их до
-    /// перераспознавания.</summary>
-    public void MarkRecognitionStale()
+    /// <summary>Пометить источник устаревшим с указанием причины (см. <see cref="DataSetStaleReason"/>).
+    /// Данные не трогаем, чтобы не терять их до перераспознавания: устаревшие строки лучше пустых,
+    /// решение принимает человек.
+    ///
+    /// У уже помеченного источника причина меняется, только если новая ОБЪЯСНЯЕТ БОЛЬШЕ. Порядок не
+    /// «кто первый»: события приходят в любой последовательности — привязали профиль, потом заменили
+    /// файл, — и рассказывать человеку про смену профиля там, где подменили весь файл, значит
+    /// занизить беду. Замена файла и неразобравшийся источник обесценивают ВСЁ, что из файла
+    /// выведено; сдвиг границ и смена профиля — только часть.</summary>
+    public void MarkRecognitionStale(DataSetStaleReason reason)
     {
-        RecognitionStale = true;
+        if (Weight(reason) <= Weight(StaleReason)) return;
+        StaleReason = reason;
         TouchUpdatedAt();
     }
+
+    private static int Weight(DataSetStaleReason? reason) => reason switch
+    {
+        null => 0,
+        DataSetStaleReason.ProfileChanged => 1,
+        DataSetStaleReason.TableBoundariesChanged => 2,
+        DataSetStaleReason.NotParsedAgainstNewFile => 3,
+        DataSetStaleReason.FileReplaced => 3,
+        _ => 1,
+    };
 
     /// <summary>Функциональные тэги источника (scope Dataset) — JSON-массив кодов или null.</summary>
     public void SetTags(string? tagsJson)

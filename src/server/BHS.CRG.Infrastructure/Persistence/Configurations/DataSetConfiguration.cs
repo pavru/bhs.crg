@@ -13,7 +13,6 @@ public class DataSetFileConfiguration : IEntityTypeConfiguration<DataSetFile>
         b.Property(e => e.Grouping).HasColumnType("jsonb");
         b.Property(e => e.InvoiceRawData).HasColumnType("jsonb");
         b.Property(e => e.RecognitionProfiles).HasColumnType("jsonb");
-        b.Property(e => e.RecognitionStale).HasDefaultValue(false);
         b.HasKey(e => e.Id);
         b.Property(e => e.Name).HasMaxLength(512).IsRequired();
         b.Property(e => e.Format).HasConversion<string>().HasMaxLength(16).IsRequired();
@@ -48,6 +47,12 @@ public class DataSetSourceConfiguration : IEntityTypeConfiguration<DataSetSource
         b.Property(e => e.MaterializeMapping).HasColumnType("jsonb");
         b.Property(e => e.MaterializeDiscriminator).HasColumnType("jsonb");
         b.Property(e => e.MaterializeByIdColumn).HasMaxLength(256);
+        // Причина устаревания — строкой (issue #815): в базу смотрят и глазами, и «4» там ничего не
+        // объясняет. RecognitionStale же вычисляется из неё и колонкой быть перестал — иначе два
+        // представления одного факта разъезжались бы ровно так, как это уже случилось с признаком
+        // на файле.
+        b.Property(e => e.StaleReason).HasConversion<string>().HasMaxLength(32);
+        b.Ignore(e => e.RecognitionStale);
         b.HasMany(e => e.Bindings)
          .WithOne(b => b.Source)
          .HasForeignKey(b => b.SourceId)

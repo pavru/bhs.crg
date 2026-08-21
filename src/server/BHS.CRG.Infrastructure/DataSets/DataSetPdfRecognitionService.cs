@@ -135,7 +135,12 @@ public class DataSetPdfRecognitionService(
                     "Разбиение этого источника было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
             return new RecognizePlan(descriptor.Background, Title: "Распознавание листов PDF");
         }
-        // Счёт/legacy — короткие, синхронно.
+        // Таблица документа — один vision-вызов на под-PDF; счёт/legacy тоже короткие. Синхронно.
+        if (source.SheetOrPath.StartsWith(PdfProfiles.GostTableMarkerPrefix, StringComparison.Ordinal))
+            return new RecognizePlan(Background: false, Title: "Распознавание таблицы документа");
+        if (descriptor is null && source.SheetOrPath != PdfProfiles.LegacyTitleBlockRegistryMarker)
+            throw new InvalidRequestException(
+                $"Источник «{source.Name}» не распознаётся по отдельности — запустите распознавание набора.");
         return new RecognizePlan(Background: false, Title: "Распознавание PDF");
     }
 
@@ -175,9 +180,33 @@ public class DataSetPdfRecognitionService(
             return DataSetDtoMapper.MapSource(source);
         }
 
+        // Табличная проекция документа: перераспознаём ИМЕННО её таблицу, а не файл (issue #815).
+        // Без этой ветки вызов проваливался в legacy-путь ниже и прогонял по всему альбому
+        // распознавание ШТАМПОВ, записывая их строки в табличный источник, — то есть кнопка
+        // «Перераспознать» у таблицы стирала бы таблицу. Дверь была открыта, но из UI в неё никто
+        // не ходил: хука на этот эндпоинт не существовало.
+        if (source.SheetOrPath.StartsWith(PdfProfiles.GostTableMarkerPrefix, StringComparison.Ordinal))
+        {
+            var idStr = source.SheetOrPath[PdfProfiles.GostTableMarkerPrefix.Length..];
+            var grouping = ParseGrouping(source.File.Grouping);
+            var group = Guid.TryParse(idStr, out var gid)
+                ? grouping?.Groups.FirstOrDefault(g => g.Id == gid)
+                : null;
+            if (group is null || group.Pages.Count == 0)
+                throw new InvalidRequestException(
+                    "Документ этой таблицы больше не существует в разбиении — проверьте разбиение набора.");
+            await RecognizeDocumentTableAsync(source.File.Id, group.Pages[0].PageIndex, ct);
+            var refreshed = await db.DataSetSources.AsNoTracking().FirstAsync(x => x.Id == sourceId, ct);
+            return DataSetDtoMapper.MapSource(refreshed);
+        }
+
         // Дальше — legacy-путь для источников, созданных до тройки обложка/титул/документы
         // (маркер "titleblock-registry") — постраничный плоский реестр без группировки/
-        // разрезания, поведение не меняем.
+        // разрезания, поведение не меняем. Всё остальное сюда попадать не должно: постраничный
+        // реестр штампов, записанный в чужой источник, — не распознавание, а порча данных.
+        if (source.SheetOrPath != PdfProfiles.LegacyTitleBlockRegistryMarker)
+            throw new InvalidRequestException(
+                $"Источник «{source.Name}» не распознаётся по отдельности — запустите распознавание набора.");
         await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms, ct);
@@ -809,7 +838,7 @@ public class DataSetPdfRecognitionService(
                 {
                     var rowCount = JsonSerializer.Deserialize<List<Dictionary<string, string?>>>(g.TableData)?.Count ?? 0;
                     ts.UpdateCache(g.TableColumns ?? "[]", rowCount, g.TableData);
-                    if (g.TableStale) ts.MarkRecognitionStale();
+                    if (g.TableStale) ts.MarkRecognitionStale(DataSetStaleReason.TableBoundariesChanged);
                 }
                 continue;
             }
@@ -918,6 +947,9 @@ public class DataSetPdfRecognitionService(
         if (file == null) return false;
 
         var current = ParseFileProfileMap(file.RecognitionProfiles);
+        // Виды, у которых привязка ДЕЙСТВИТЕЛЬНО изменилась: повторная установка того же профиля
+        // ничего не обесценивает, и помечать по ней — то же, что горящая всегда лампа.
+        var changedKinds = new List<string>();
         foreach (var (kindName, profileId) in map)
         {
             if (!Enum.TryParse<RecognitionProfileKind>(kindName, out var kind))
@@ -926,17 +958,36 @@ public class DataSetPdfRecognitionService(
                 throw new InvalidRequestException(
                     $"Профиль вида «{RecognitionKinds.Describe(kind).Label}» привязывается к группе листов, а не к набору.");
 
-            if (profileId is null) { current.Remove(kindName); continue; }
+            if (profileId is null)
+            {
+                if (current.Remove(kindName)) changedKinds.Add(kindName);
+                continue;
+            }
 
             var profile = await profiles.GetByIdAsync(profileId.Value, ct)
                 ?? throw new InvalidRequestException("Профиль распознавания не найден.");
             if (profile.Kind != kind)
                 throw new InvalidRequestException(
                     $"Профиль «{profile.Name}» имеет вид «{RecognitionKinds.Describe(profile.Kind).Label}» — он не подходит для «{RecognitionKinds.Describe(kind).Label}».");
+            if (current.GetValueOrDefault(kindName) != profileId.Value) changedKinds.Add(kindName);
             current[kindName] = profileId.Value;
         }
 
         file.SetRecognitionProfiles(current.Count > 0 ? JsonSerializer.Serialize(current) : null);
+
+        // Данные, прочитанные ПРЕЖНИМИ параметрами, устарели — помечаем источники затронутых видов
+        // (issue #815). Групповой аналог (SetDocumentProfileAsync) делал это с самого начала, а
+        // файловый молчал: штамп, обложка и счёт оставались с прежними значениями, и ни один экран
+        // не говорил, что читали их по другим правилам. Распознавание не перезапускаем — оно дорогое,
+        // решает пользователь; наше дело сказать, что данные разошлись с настройкой.
+        if (changedKinds.Count > 0)
+        {
+            var markers = changedKinds.SelectMany(PdfProfiles.MarkersForFileProfileKind).ToHashSet();
+            var affected = await db.DataSetSources
+                .Where(s => s.FileId == fileId && markers.Contains(s.SheetOrPath)).ToListAsync(ct);
+            foreach (var src in affected) src.MarkRecognitionStale(DataSetStaleReason.ProfileChanged);
+        }
+
         await db.SaveChangesAsync(ct);
         return true;
     }
@@ -1033,12 +1084,31 @@ public class DataSetPdfRecognitionService(
                     $"Профиль «{profile.Name}» привязывается к набору, а не к группе листов.");
         }
 
+        var touched = grouping.Groups.FirstOrDefault(
+            g => g.Kind == GostGroupKind.Document && g.Pages.Any(p => p.PageIndex == firstPageIndex));
         var updated = grouping.Groups
             .Select(g => g.Kind == GostGroupKind.Document && g.Pages.Any(p => p.PageIndex == firstPageIndex)
                 ? g with { ProfileId = profileId, TableStale = g.TableStale || !string.IsNullOrEmpty(g.TableData) }
                 : g)
             .ToList();
         file.SetGrouping(JsonSerializer.Serialize(new GostGroupingData(updated, grouping.ManuallyEdited)));
+
+        // Признак ставим и на САМ ИСТОЧНИК, а не только на группу (issue #815). Раньше `TableStale`
+        // доезжал до источника лишь при ближайшей ре-проекции (ReprojectTableSourcesAsync), которую
+        // этот путь не запускает: снимок MCP читал устаревание прямо из группировки и видел его, а
+        // клиент знает только поле источника — и не показывал ничего. Расхождение двух потребителей
+        // на одном признаке лечится тем, что признак заводится в одном месте.
+        // Повторное сохранение ТОГО ЖЕ профиля ничего не обесценивает — и метка по нему была бы той
+        // самой лампой, что горит всегда (тот же гейт, что у файловых профилей).
+        var profileActuallyChanged = touched is not null && touched.ProfileId != profileId;
+        if (profileActuallyChanged && !string.IsNullOrEmpty(touched!.TableData))
+        {
+            var marker = PdfProfiles.GostTableMarkerPrefix + touched!.Id;
+            var tableSource = await db.DataSetSources
+                .FirstOrDefaultAsync(s => s.FileId == fileId && s.SheetOrPath == marker, ct);
+            tableSource?.MarkRecognitionStale(DataSetStaleReason.ProfileChanged);
+        }
+
         await db.SaveChangesAsync(ct);
 
         return await ToGroupingDtoAsync(file, updated, grouping.ManuallyEdited, ct);

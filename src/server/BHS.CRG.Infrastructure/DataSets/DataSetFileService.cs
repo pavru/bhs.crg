@@ -164,7 +164,7 @@ public class DataSetFileService(
             // пере-распознавание — только явным действием пользователя.
             if (PdfProfiles.IsRecognitionMarker(src.SheetOrPath))
             {
-                src.MarkRecognitionStale();
+                src.MarkRecognitionStale(DataSetStaleReason.FileReplaced);
                 staleSources++;
                 continue;
             }
@@ -178,7 +178,7 @@ public class DataSetFileService(
                 // Источник не разбирается против нового файла (лист/путь исчез или сменился формат) —
                 // помечаем устаревшим, но НЕ удаляем (источник создан пользователем явно).
                 logger.LogWarning(ex, "Источник {SourceId} не разобран при замене файла {FileId}", src.Id, id);
-                src.MarkRecognitionStale();
+                src.MarkRecognitionStale(DataSetStaleReason.NotParsedAgainstNewFile);
                 staleSources++;
             }
         }

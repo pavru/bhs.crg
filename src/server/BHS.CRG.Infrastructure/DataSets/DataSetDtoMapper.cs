@@ -84,7 +84,7 @@ public static class DataSetDtoMapper
         s.MaterializeMapping is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(s.MaterializeMapping),
         bindingCount, live?.Warning,
         MaterializeVariantSelector.ParseConfig(s.MaterializeDiscriminator),
-        s.MaterializeByIdColumn, s.Origin);
+        s.MaterializeByIdColumn, s.Origin, s.StaleReason);
 
     /// <summary>null, если счётчики не запрашивали (одиночная мутация), иначе 0 для источника без привязок.</summary>
     private static int? BindingCountOf(IReadOnlyDictionary<Guid, int>? counts, Guid sourceId)
@@ -107,7 +107,10 @@ public static class DataSetDtoMapper
     private static string? LiveSchemaOf(SystemSourceCounter.SystemSourceState? live)
         => live is { Columns.Count: > 0 } l ? SerializeSchema(l.Columns) : null;
 
-    public static DataSetBindingDto MapBinding(DataSetBinding b) => new(
+    /// <param name="bindingCounts">Сколько привязок у каждого источника; null — не считали (ответ
+    /// одиночной мутации). Показывать из-за этого ложный ноль нельзя, поэтому и в DTO едет null.</param>
+    public static DataSetBindingDto MapBinding(
+        DataSetBinding b, IReadOnlyDictionary<Guid, int>? bindingCounts = null) => new(
         b.Id, b.OwnerId, b.SourceId, b.TargetFieldKey,
         JsonSerializer.Deserialize<Dictionary<string, string>>(b.Mapping) ?? [],
         b.Source is null ? null : new BindingSourceDto(
@@ -117,7 +120,26 @@ public static class DataSetDtoMapper
                 b.Source.File.Scope.ToString(), b.Source.File.ScopeId),
             b.Source.MaterializeTypeId,
             b.Source.MaterializeMapping is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(b.Source.MaterializeMapping),
-            b.Source.Origin));
+            b.Source.Origin, b.Source.RecognitionStale, b.Source.StaleReason,
+            bindingCounts?.GetValueOrDefault(b.SourceId),
+            RecognizeScopeOf(b.Source), DeserializeJson(b.Source.ComputedColumns)));
+
+    /// <summary>Что перезапустит «Перераспознать» у этого источника. Знание живёт на сервере, потому
+    /// что оно и есть поведение <c>RecognizePdfSourceAsync</c>: маркер ГОСТ-проекции уводит в
+    /// распознавание ВСЕГО набора, табличная проекция и счёт перезапускают только себя, а источник
+    /// не из PDF отбивается на входе.</summary>
+    private static RecognizeScope RecognizeScopeOf(DataSetSource s)
+    {
+        if (s.File is null || s.File.Format != DataSetFormat.Pdf) return RecognizeScope.None;
+        if (s.SheetOrPath.StartsWith(PdfProfiles.GostTableMarkerPrefix, StringComparison.Ordinal))
+            return RecognizeScope.Source;
+        var descriptor = PdfProfileRegistry.BySourceMarker(s.SheetOrPath);
+        if (descriptor is null)
+            return s.SheetOrPath == PdfProfiles.LegacyTitleBlockRegistryMarker
+                ? RecognizeScope.Source
+                : RecognizeScope.None;
+        return descriptor.Kind == PdfProfileKind.Gost ? RecognizeScope.File : RecognizeScope.Source;
+    }
 
     public static DataSetBindingTemplateDto MapTemplate(DataSetBindingTemplate t) => new(
         t.Id, t.DocumentTypeId, t.Name, t.TargetFieldKey,

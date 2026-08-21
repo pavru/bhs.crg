@@ -8,7 +8,11 @@ public record DataSetSourceDto(
     Guid Id, Guid FileId, string Name, string SheetOrPath, string? ColumnExpressions,
     string CachedSchema, int CachedRowCount,
     object? RowFilter, object? ComputedColumns, object? SortSpec,
-    IReadOnlyList<string>? Tags, bool RecognitionStale = false,
+    IReadOnlyList<string>? Tags,
+    /// <summary>Данные источника разошлись со своим происхождением. Признак и его причина едут
+    /// вместе (issue #815): «да/нет» отвечает на вопрос «показывать ли метку», а причина — на
+    /// вопрос «что человеку сказать», и вычислить одно из другого нельзя ни в одну сторону.</summary>
+    bool RecognitionStale = false,
     Guid? MaterializeTypeId = null, Dictionary<string, string>? MaterializeMapping = null,
     /// <summary>Сколько привязок ссылается на источник (issue #417) — чтобы удаление не было вслепую.
     /// null = «не считали» (ответ одиночной мутации): UI не должен показывать из-за этого ложный ноль,
@@ -26,7 +30,10 @@ public record DataSetSourceDto(
     /// <summary>Откуда взялись значения (см. <see cref="DataOrigin" />). В списке выбора источника
     /// это единственное место, где видно, что за «PDF» стоит распознавание: формат файла отвечает на
     /// другой вопрос — чем файл был, а не как из него получили значения.</summary>
-    DataOrigin Origin = DataOrigin.Parsed);
+    DataOrigin Origin = DataOrigin.Parsed,
+    /// <summary>Почему данные устарели; null — не устарели. Текст пишет клиент: он у каждой точки
+    /// показа свой (у поля документа — без глагола, в списке источников — с действием).</summary>
+    DataSetStaleReason? StaleReason = null);
 
 /// <summary>
 /// Материализованный предпросмотр источника: строки, развёрнутые в объекты формы типа (issue #19).
@@ -63,7 +70,46 @@ public record BindingFileDto(Guid Id, string Name, string Format, string Scope, 
 public record BindingSourceDto(
     Guid Id, string Name, string SheetOrPath, string CachedSchema, int CachedRowCount, BindingFileDto? File,
     Guid? MaterializeTypeId = null, Dictionary<string, string>? MaterializeMapping = null,
-    DataOrigin Origin = DataOrigin.Parsed);
+    DataOrigin Origin = DataOrigin.Parsed,
+    /// <summary>Данные источника разошлись со своим файлом (issue #815). Едет ЗДЕСЬ, а не только в
+    /// <see cref="DataSetSourceDto"/>: точка потребления видит источник исключительно через привязку,
+    /// и признака, оставшегося в широком DTO, для неё всё равно что нет.</summary>
+    bool RecognitionStale = false,
+    /// <summary>Почему данные устарели; null — не устарели. Текст пишет клиент: он у каждой точки
+    /// показа свой (у поля документа — без глагола, в списке источников — с действием).</summary>
+    DataSetStaleReason? StaleReason = null,
+    /// <summary>Сколько привязок ссылается на источник — подтверждение перед перераспознаванием
+    /// обязано сказать, что данные обновятся не только в этом документе.</summary>
+    int? BindingCount = null,
+    /// <summary>Что именно перезапустит «Перераспознать» (см. <see cref="RecognizeScope"/>). Считает
+    /// сервер: правило живёт в реестре PDF-профилей, и копия его на клиенте разъехалась бы — а цена
+    /// расхождения здесь не косметическая, это минуты работы модели и перезапись чужих данных.</summary>
+    RecognizeScope RecognizeScope = RecognizeScope.None,
+    /// <summary>Вычисляемые колонки источника (Transformation). В <c>CachedSchema</c> их нет — они
+    /// считаются на чтении, — а редактор маппинга обязан предлагать их наравне с колонками файла
+    /// (issue #49). Не приезжая сюда, они молча выпадали из списка: комментарий в редакторе на них
+    /// рассчитывает, а поле всегда было пустым.</summary>
+    object? ComputedColumns = null);
+
+/// <summary>
+/// Область действия «Перераспознать» для конкретного источника (issue #815).
+///
+/// Нужна интерфейсу, чтобы не обещать невыполнимого и не умалчивать о масштабе: у парсерного
+/// источника действия нет вовсе, у табличной проекции оно точечное, а у проекций ГОСТ-альбома
+/// запускает распознавание ВСЕГО набора — и человек, жмущий кнопку в своём документе, должен об
+/// этом знать до, а не после.
+/// </summary>
+public enum RecognizeScope
+{
+    /// <summary>Перераспознать нельзя: источник не из PDF либо не наполняется распознаванием.</summary>
+    None,
+
+    /// <summary>Перезапустится только этот источник (табличная проекция документа, счёт).</summary>
+    Source,
+
+    /// <summary>Перезапустится распознавание всего набора — все его проекции разом.</summary>
+    File,
+}
 
 /// <summary>Привязка — только Mapping. Filter/Transformation/Sort живут на DataSetSource.
 /// Владелец — единый <see cref="OwnerId"/> (DomainObject: документ или запись общих данных).</summary>
