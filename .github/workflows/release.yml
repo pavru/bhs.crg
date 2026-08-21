@@ -1,0 +1,73 @@
+# Релиз по тегу vX.Y.Z: образы api и web в GHCR + GitHub Release с автозаметками.
+# Релиз — осознанный акт, отдельный от bump-а версии в PR (версия меняется почти каждым PR,
+# релиз — только тегом). Поставка ест эти образы: deploy/docker-compose.yml, APP_VERSION в .env.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write   # создание Release
+  packages: write   # публикация образов в GHCR
+
+env:
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/bhs.crg
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Версия из тега и сверка с Directory.Build.props
+        # Расхождение тега с версией сборки — падение, а не молчаливый релиз не той версии:
+        # /api/version отдаёт версию из Directory.Build.props, и образ с чужим тегом
+        # рассказывал бы о себе неправду (в т.ч. проверке обновлений).
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PROPS=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/server/Directory.Build.props)
+          if [ "$VERSION" != "$PROPS" ]; then
+            echo "::error::Тег v$VERSION не совпадает с версией $PROPS в src/server/Directory.Build.props"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Образ api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.api
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-api:${{ env.VERSION }}
+            ${{ env.IMAGE_PREFIX }}-api:latest
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Образ web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.web
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-web:${{ env.VERSION }}
+            ${{ env.IMAGE_PREFIX }}-web:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: GitHub Release
+        # Release создаётся ПОСЛЕ публикации образов: запись в /releases/latest означает
+        # «образы этой версии уже можно тянуть» — на это полагается проверка обновлений.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "v$VERSION"

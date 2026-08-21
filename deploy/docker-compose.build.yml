@@ -1,0 +1,16 @@
+# Сборка образов api и web из исходников вместо готовых из GHCR — для разработки и для
+# установок без доступа к registry. Подключается ВТОРЫМ файлом:
+#
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up -d --build
+#
+# APP_VERSION в .env при этом задаёт лишь тег собранного образа.
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web

@@ -80,9 +80,10 @@ services:
     restart: "no"
 
   api:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.api
+    # Готовый образ из GHCR (публикуется workflow-ом release.yml по тегу vX.Y.Z).
+    # Обновление = смена APP_VERSION в .env → pull → up -d (см. docs/DEPLOYMENT.md §8).
+    # Сборка из исходников (dev, офлайн) — добавьте docker-compose.build.yml вторым -f.
+    image: ghcr.io/pavru/bhs.crg-api:${APP_VERSION:?задайте APP_VERSION в .env — версия поставки, напр. 0.135.0}
     depends_on:
       postgres:
         condition: service_healthy
@@ -129,9 +130,7 @@ services:
           memory: ${API_MEMORY_LIMIT:-3g}
 
   web:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.web
+    image: ghcr.io/pavru/bhs.crg-web:${APP_VERSION:?задайте APP_VERSION в .env — версия поставки, напр. 0.135.0}
     depends_on:
       - api
     environment:

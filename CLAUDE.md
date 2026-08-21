@@ -108,8 +108,10 @@ cd src/client && npm test
 - `docs/` — инструкции (Markdown + PDF): `DEPLOYMENT.md`, `USER_GUIDE.md`, `ADMIN_GUIDE.md`
   (индекс — `docs/README.md`). Сборка PDF: `docs/tools/` (`npm run pdf`).
 - `deploy/` — Docker Compose на весь стек (postgres, minio, ollama, api, web) + Dockerfile'ы
-  и `.env.example`. Запуск: `cp deploy/.env.example deploy/.env` → `docker compose -f deploy/docker-compose.yml up -d --build`.
-  Образ `api` включает **Typst CLI**.
+  и `.env.example`. Запуск: `cp deploy/.env.example deploy/.env` → `docker compose -f deploy/docker-compose.yml up -d`.
+  Образы `api`/`web` тянутся из GHCR по `APP_VERSION` из `.env` (публикует `.github/workflows/release.yml`
+  по тегу `vX.Y.Z`; тег обязан совпадать с версией в `Directory.Build.props`). Сборка из исходников —
+  вторым файлом `deploy/docker-compose.build.yml`. Образ `api` включает **Typst CLI**.
 
 ### Статус первой версии
 
