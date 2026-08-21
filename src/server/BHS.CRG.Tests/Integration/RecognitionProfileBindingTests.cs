@@ -212,6 +212,52 @@ public class RecognitionProfileBindingTests(IntegrationTestFixture fixture) : IA
         }
     }
 
+    // ── Куда ведёт «Перераспознать» у отдельного источника (issue #815) ──────────
+
+    [Fact]
+    public async Task PlanRecognition_TableSource_TargetsItsOwnTable()
+    {
+        // До этого табличная проекция не совпадала ни с одним дескриптором и проваливалась в
+        // legacy-ветку — постраничное распознавание ШТАМПОВ по всему альбому с записью результата
+        // в табличный источник. То есть действие, которым мы собирались лечить устаревание,
+        // стирало бы ровно те данные, ради которых его зовут.
+        var (fileId, scope) = await SeedAsync(RecognizedGrouping());
+        using (scope)
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var tableId = await AddTableSourceAsync(db, fileId, DocId);
+            db.ChangeTracker.Clear();
+
+            var plan = await scope.ServiceProvider.GetRequiredService<IDataSetService>()
+                .PlanRecognitionAsync(tableId, confirm: false, default);
+
+            Assert.NotNull(plan);
+            Assert.False(plan!.Background);
+            Assert.Contains("таблиц", plan.Title, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public async Task RecognizeSource_ForeignMarker_Refuses_InsteadOfOverwriting()
+    {
+        // Источник с маркером, не принадлежащим ни одному PDF-профилю: молча прогнать по нему
+        // реестр штампов — значит подменить его данные чужими. Отказ, а не «на всякий случай».
+        var (fileId, scope) = await SeedAsync(UntaggedGrouping());
+        using (scope)
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var file = await db.DataSetFiles.Include(f => f.Sources).FirstAsync(f => f.Id == fileId);
+            var alien = file.AddSource("Чужой", "Лист1", "[]", 0);
+            db.DataSetSources.Add(alien);
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+
+            var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
+            await Assert.ThrowsAsync<InvalidRequestException>(
+                () => svc.PlanRecognitionAsync(alien.Id, false, default));
+        }
+    }
+
     // ── Разблокировка произвольных таблиц ────────────────────────────────────────
 
     [Fact]

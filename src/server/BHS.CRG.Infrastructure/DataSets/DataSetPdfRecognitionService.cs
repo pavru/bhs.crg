@@ -135,7 +135,12 @@ public class DataSetPdfRecognitionService(
                     "Разбиение этого источника было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
             return new RecognizePlan(descriptor.Background, Title: "Распознавание листов PDF");
         }
-        // Счёт/legacy — короткие, синхронно.
+        // Таблица документа — один vision-вызов на под-PDF; счёт/legacy тоже короткие. Синхронно.
+        if (source.SheetOrPath.StartsWith(PdfProfiles.GostTableMarkerPrefix, StringComparison.Ordinal))
+            return new RecognizePlan(Background: false, Title: "Распознавание таблицы документа");
+        if (descriptor is null && source.SheetOrPath != PdfProfiles.LegacyTitleBlockRegistryMarker)
+            throw new InvalidRequestException(
+                $"Источник «{source.Name}» не распознаётся по отдельности — запустите распознавание набора.");
         return new RecognizePlan(Background: false, Title: "Распознавание PDF");
     }
 
@@ -175,9 +180,33 @@ public class DataSetPdfRecognitionService(
             return DataSetDtoMapper.MapSource(source);
         }
 
+        // Табличная проекция документа: перераспознаём ИМЕННО её таблицу, а не файл (issue #815).
+        // Без этой ветки вызов проваливался в legacy-путь ниже и прогонял по всему альбому
+        // распознавание ШТАМПОВ, записывая их строки в табличный источник, — то есть кнопка
+        // «Перераспознать» у таблицы стирала бы таблицу. Дверь была открыта, но из UI в неё никто
+        // не ходил: хука на этот эндпоинт не существовало.
+        if (source.SheetOrPath.StartsWith(PdfProfiles.GostTableMarkerPrefix, StringComparison.Ordinal))
+        {
+            var idStr = source.SheetOrPath[PdfProfiles.GostTableMarkerPrefix.Length..];
+            var grouping = ParseGrouping(source.File.Grouping);
+            var group = Guid.TryParse(idStr, out var gid)
+                ? grouping?.Groups.FirstOrDefault(g => g.Id == gid)
+                : null;
+            if (group is null || group.Pages.Count == 0)
+                throw new InvalidRequestException(
+                    "Документ этой таблицы больше не существует в разбиении — проверьте разбиение набора.");
+            await RecognizeDocumentTableAsync(source.File.Id, group.Pages[0].PageIndex, ct);
+            var refreshed = await db.DataSetSources.AsNoTracking().FirstAsync(x => x.Id == sourceId, ct);
+            return DataSetDtoMapper.MapSource(refreshed);
+        }
+
         // Дальше — legacy-путь для источников, созданных до тройки обложка/титул/документы
         // (маркер "titleblock-registry") — постраничный плоский реестр без группировки/
-        // разрезания, поведение не меняем.
+        // разрезания, поведение не меняем. Всё остальное сюда попадать не должно: постраничный
+        // реестр штампов, записанный в чужой источник, — не распознавание, а порча данных.
+        if (source.SheetOrPath != PdfProfiles.LegacyTitleBlockRegistryMarker)
+            throw new InvalidRequestException(
+                $"Источник «{source.Name}» не распознаётся по отдельности — запустите распознавание набора.");
         await using var stream = await blob.DownloadAsync(source.File.BlobPath, ct);
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms, ct);
