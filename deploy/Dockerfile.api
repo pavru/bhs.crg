@@ -43,8 +43,9 @@ COPY --from=build /app ./
 # Каталог ключей Data Protection создаём здесь и отдаём ему — пустой том Docker при первом
 # подключении наследует владельца и права каталога из образа.
 # ВНИМАНИЕ при обновлении УЖЕ РАБОТАЮЩЕЙ установки: том dp_keys создавался от root, владелец
-# у него не поменяется сам. Разово выполнить (см. docs/DEPLOYMENT.md §8):
-#   docker compose -f deploy/docker-compose.yml run --rm --user root api chown -R app:app /app/dp-keys
+# у него не поменяется сам. Разово выполнить (см. docs/DEPLOYMENT.md §8) — обратите внимание на
+# --entrypoint: без него аргументы уедут в ENTRYPOINT ниже и вместо chown запустится сам сервер:
+#   docker compose -f deploy/docker-compose.yml run --rm --user root --entrypoint chown api -R app:app /app/dp-keys
 RUN mkdir -p /app/dp-keys && chown -R app:app /app
 USER app
 

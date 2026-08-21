@@ -150,8 +150,10 @@ catch (Exception ex)
     throw new InvalidOperationException(
         $"Каталог ключей Data Protection «{dpKeysPath}» недоступен для записи ({ex.Message}). " +
         "Без него токены сброса пароля и подтверждения почты будут инвалидироваться при каждом " +
-        "перезапуске. В поставке Docker: docker compose -f deploy/docker-compose.yml run --rm " +
-        "--user root api chown -R app:app /app/dp-keys", ex);
+        "перезапуске. В поставке Docker выполните (--entrypoint обязателен, иначе аргументы " +
+        "достанутся серверу приложений и chown не выполнится): docker compose -f " +
+        "deploy/docker-compose.yml run --rm --user root --entrypoint chown api -R app:app " +
+        "/app/dp-keys", ex);
 }
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath))
