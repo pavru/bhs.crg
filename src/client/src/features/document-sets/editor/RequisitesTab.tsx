@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { AlertTriangle, AlertCircle, CheckCircle2, Circle, CircleDot, Database, Info, ChevronDown, ChevronRight, FunctionSquare } from 'lucide-react';
+import { AlertTriangle, AlertCircle, CheckCircle2, Circle, CircleDot, Database, ScanText, Info, ChevronDown, ChevronRight, FunctionSquare } from 'lucide-react';
 import { Markdown } from '@/shared/ui/Markdown';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
@@ -17,6 +17,8 @@ import { validateConstraint, isMissing, PrimitiveInput, FileField, ImageField, c
 import { evalComputed, referencedKeys } from '@/shared/utils/computedExpression';
 import { DocumentPreviewPanel } from './DocumentPreviewPanel';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
+import { computeRecognizedFieldKeys } from '@/shared/api/datasetHelpers';
+import { SourceOriginIcon } from '@/shared/ui/SourceOriginIcon';
 import { mergeBindingPreviewsIntoValues } from '@/shared/api/datasetHelpers';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -34,12 +36,18 @@ export type SaveRef = { current: (() => Promise<boolean>) | null };
 /// Плашка для doc-ref/doc-array поля, которое заполняется привязанным источником данных:
 /// ручные ссылки скрываем, т.к. при генерации источник перезаписывает поле целиком
 /// (см. issue #17 — «источник ИЛИ ссылки», взаимоисключающе).
-function SourceBoundDocField() {
+function SourceBoundDocField({ recognized }: { recognized?: boolean }) {
   return (
     <div className="flex items-center gap-2 border border-brand/40 rounded-lg px-3 py-2 bg-brand/5">
-      <Database size={14} className="text-brand shrink-0" />
+      {recognized
+        ? <ScanText size={14} className="text-brand shrink-0" />
+        : <Database size={14} className="text-brand shrink-0" />}
       <span className="text-xs text-fg3">
-        Заполняется из привязанного источника данных — правьте связку по иконке источника у поля.
+        {recognized
+          // Плашка вместо самих ссылок — единственное, что человек тут видит; промолчав о
+          // происхождении здесь, мы оставили бы doc-ref немым, закрыв дверь у соседних полей.
+          ? 'Заполняется из привязанного источника — значения распознаны со скана, возможны ошибки чтения.'
+          : 'Заполняется из привязанного источника данных — правьте связку по иконке источника у поля.'}
       </span>
     </div>
   );
@@ -108,6 +116,10 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
     }
     return s;
   }, [dsBindings]);
+  // Поля, чей источник — распознанный скан (то же правило разбора привязки, что выше; признак
+  // происхождения считает сервер). Человеку у read-only поля иначе неоткуда узнать, что значение
+  // прочитала модель, — а сверять с оригиналом надо именно такие.
+  const recognizedBoundFields = useMemo(() => computeRecognizedFieldKeys(dsBindings), [dsBindings]);
   // Скалярные поля — для per-field привязки «линза» (issue #296, фаза 1): выбор источника на поле +
   // авто-предложение покрыть остальные скалярные поля этого источника.
   const scalarSchemaFields = useMemo(() => schemaFields.filter(f => isScalarField(f) && f.type !== 'file'), [schemaFields]);
@@ -421,10 +433,18 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     {!field.required && <span className="ml-1 text-[10px] text-fg4 font-normal">опц.</span>}
                     <BrokenCountBadge count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
                     <ValueIssueBadge count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
+                    {/* Широкие поля (многострочный текст, картинка, файл) подписываются здесь, и
+                        признак происхождения им нужен ровно так же: связанное текстовое поле
+                        read-only, и узнать, что значение прочитано со скана, иначе неоткуда. */}
+                    {recognizedBoundFields.has(field.key) && (
+                      <span className="ml-1 inline-block align-text-bottom">
+                        <SourceOriginIcon origin="Recognized" />
+                      </span>
+                    )}
                   </label>
                 )}
                 {field.type === 'complex' ? (
-                  bound ? <SourceBoundDocField /> : (
+                  bound ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)} /> : (
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-xs font-medium text-fg2 pr-5">
@@ -441,20 +461,20 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                   </div>
                   )
                 ) : field.type === 'array' ? (
-                  bound ? <SourceBoundDocField /> : (
+                  bound ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)} /> : (
                   <ArrayFieldEditor field={field} allDocTypes={allDocTypes} value={raw}
                     onChange={v => setValue(field.key, v)} showValidation={showValidation}
                     setId={setId} otherInstances={otherInstances} docRefMode="instance"
                     brokenPaths={brokenPaths} basePath={field.key} savedAt={instance.updatedAt} />
                   )
                 ) : field.type === 'doc-ref' ? (
-                  sourceBoundFields.has(field.key) ? <SourceBoundDocField /> : (
+                  sourceBoundFields.has(field.key) ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)} /> : (
                     <DocRefField field={field} allDocTypes={allDocTypes} value={raw}
                       onChange={v => setValue(field.key, v)} otherInstances={otherInstances} setId={setId}
                       broken={brokenPaths.has(field.key)} />
                   )
                 ) : field.type === 'doc-array' ? (
-                  sourceBoundFields.has(field.key) ? <SourceBoundDocField /> : (
+                  sourceBoundFields.has(field.key) ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)} /> : (
                     <DocArrayField field={field} allDocTypes={allDocTypes} value={raw}
                       onChange={v => setValue(field.key, v)} otherInstances={otherInstances} setId={setId}
                       brokenPaths={brokenPaths} basePath={field.key} savedAt={instance.updatedAt} />
@@ -500,6 +520,11 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     {field.title}
                     {field.required && <span className="ml-0.5 text-danger">*</span>}
                     {primitiveDef && <span className="ml-1 text-[10px] text-fg4 font-normal">· {primitiveDef.name}</span>}
+                    {recognizedBoundFields.has(field.key) && (
+                      <span className="ml-1 inline-block align-text-bottom">
+                        <SourceOriginIcon origin="Recognized" />
+                      </span>
+                    )}
                   </label>
                   <PrimitiveInput field={field} value={displayValue}
                     onChange={v => setValue(field.key, v, primitiveDef)}
@@ -532,7 +557,10 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
       return (
         <div className="space-y-4">
           {normal.length > 0 && fieldGrid(normal)}
-          <AutoFieldsSection count={auto.length}>{fieldGrid(auto)}</AutoFieldsSection>
+          <AutoFieldsSection count={auto.length}
+            recognizedCount={auto.filter(f => recognizedBoundFields.has(f.key)).length}>
+            {fieldGrid(auto)}
+          </AutoFieldsSection>
         </div>
       );
     }

@@ -1,4 +1,4 @@
-import type { FilterGroup, FilterNode, DataSetBindingPreviewResult } from './types';
+import type { FilterGroup, FilterNode, DataSetBindingPreviewResult, DataOrigin } from './types';
 
 /** A column descriptor cached on a DataSetSource. */
 export interface DataSetColumn {
@@ -178,6 +178,34 @@ export function computeBoundFieldKeys(
     }
   }
   return { scalarKeys, arrayKeys };
+}
+
+/**
+ * Происхождение значений по ключу поля: к какому источнику поле привязано, оттуда и признак
+ * (issue про точку потребления). Рядом с `computeBoundFieldKeys` и по тем же правилам разбора
+ * привязки — скалярные ключи лежат в маппинге, табличное поле названо в `targetFieldKey`.
+ *
+ * Возвращаются ТОЛЬКО распознанные: `Parsed` и `System` в интерфейсе ничего не меняют — у них нет
+ * действия для читателя, а метка без действия становится фоном, который перестают замечать.
+ */
+export function computeRecognizedFieldKeys(
+  bindings: {
+    targetFieldKey: string | null;
+    mapping: Record<string, string>;
+    source?: { origin?: DataOrigin; materializeMapping?: Record<string, string> | null };
+  }[],
+): Set<string> {
+  const keys = new Set<string>();
+  for (const b of bindings) {
+    if (b.source?.origin !== 'Recognized') continue;
+    if (b.targetFieldKey) { keys.add(b.targetFieldKey); continue; }
+    // Эффективный маппинг — собственный, а при пустом берётся с материализации источника: ровно так
+    // же считаются поля, которые форма делает read-only. Разойдись эти два правила — часть полей
+    // стала бы нередактируемой без объяснения, откуда взялось значение.
+    const effective = Object.keys(b.mapping).length > 0 ? b.mapping : (b.source?.materializeMapping ?? {});
+    for (const key of Object.keys(effective)) keys.add(key);
+  }
+  return keys;
 }
 
 /** Recursively counts non-empty conditions in a filter tree. */

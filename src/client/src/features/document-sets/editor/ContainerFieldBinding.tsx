@@ -169,7 +169,7 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
                   <option value="">— выберите источник —</option>
                   {sources.map(s => (
                     <option key={s.id} value={s.id}>
-                      [{SCOPE_LABELS[s.fileScope]}] {s.fileName} · {s.name}{s.materializeTypeId ? ` (материализация → ${allDocTypes.find(t => t.id === s.materializeTypeId)?.name ?? 'тип'})` : ''}
+                      [{SCOPE_LABELS[s.fileScope]}] {s.fileName} · {s.name}{s.materializeTypeId ? ` (материализация → ${allDocTypes.find(t => t.id === s.materializeTypeId)?.name ?? 'тип'})` : ''}{s.origin === 'Recognized' ? ' — распознано со скана' : ''}
                     </option>
                   ))}
                 </select>

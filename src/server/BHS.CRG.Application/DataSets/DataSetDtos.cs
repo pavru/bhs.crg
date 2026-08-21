@@ -1,4 +1,6 @@
-﻿namespace BHS.CRG.Application.DataSets;
+﻿using BHS.CRG.Domain.DataSets;
+
+namespace BHS.CRG.Application.DataSets;
 
 // ── Output DTOs (JSON shapes consumed by the SPA) ───────────────────────────────
 
@@ -20,7 +22,11 @@ public record DataSetSourceDto(
     MaterializeDiscriminatorConfig? MaterializeDiscriminator = null,
     /// <summary>Колонка с Ид существующего документа (issue #725): непустая = строка целиком
     /// становится ссылкой на документ, маппинг при этом пуст. Null — обычная сборка из колонок.</summary>
-    string? MaterializeByIdColumn = null);
+    string? MaterializeByIdColumn = null,
+    /// <summary>Откуда взялись значения (см. <see cref="DataOrigin" />). В списке выбора источника
+    /// это единственное место, где видно, что за «PDF» стоит распознавание: формат файла отвечает на
+    /// другой вопрос — чем файл был, а не как из него получили значения.</summary>
+    DataOrigin Origin = DataOrigin.Parsed);
 
 /// <summary>
 /// Материализованный предпросмотр источника: строки, развёрнутые в объекты формы типа (issue #19).
@@ -48,9 +54,16 @@ public record DataSetFileDto(
 
 public record BindingFileDto(Guid Id, string Name, string Format, string Scope, Guid? ScopeId);
 
+/// <param name="Origin">
+/// Откуда взялись значения источника. Нужен в точке ПОТРЕБЛЕНИЯ: человек, заполняющий документ,
+/// видит у поля значок «из источника данных» и не знает, что источник — распознанный скан, то есть
+/// значение прочитала модель и его стоит сверить с оригиналом. Считает сервер: правило маркеров
+/// живёт в домене, и копия его на клиенте разъехалась бы — тот же урок, что у бейджа «не участвует».
+/// </param>
 public record BindingSourceDto(
     Guid Id, string Name, string SheetOrPath, string CachedSchema, int CachedRowCount, BindingFileDto? File,
-    Guid? MaterializeTypeId = null, Dictionary<string, string>? MaterializeMapping = null);
+    Guid? MaterializeTypeId = null, Dictionary<string, string>? MaterializeMapping = null,
+    DataOrigin Origin = DataOrigin.Parsed);
 
 /// <summary>Привязка — только Mapping. Filter/Transformation/Sort живут на DataSetSource.
 /// Владелец — единый <see cref="OwnerId"/> (DomainObject: документ или запись общих данных).</summary>
