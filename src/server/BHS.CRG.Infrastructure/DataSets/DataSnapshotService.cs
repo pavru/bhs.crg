@@ -35,7 +35,7 @@ public class DataSnapshotService(
             f.Id, f.Name, f.Format.ToString(), f.Scope.ToString(), f.ScopeId,
             scopeNames.GetValueOrDefault(f.ScopeId ?? Guid.Empty),
             f.Sources.Count,
-            f.RecognitionStale || f.Sources.Any(s => s.RecognitionStale))).ToArray();
+            f.Sources.Any(s => s.RecognitionStale))).ToArray();
 
         return SnapshotPage<DatasetSummary>.Of(all, offset, limit, DomainSnapshotLimits.NavigationMax);
     }
@@ -62,7 +62,7 @@ public class DataSnapshotService(
                     // число даёт get_source, а на его нужду указывает Filtered.
                     live?.RowCount ?? s.CachedRowCount,
                     HasFilter(s),
-                    IsStale(file, s, grouping, out _),
+                    s.RecognitionStale,
                     LiveColumnNames(live?.Columns) ?? ColumnNames(s.CachedSchema),
                     SheetOf(s, grouping),
                     live?.Warning);
@@ -72,7 +72,7 @@ public class DataSnapshotService(
         return new DatasetDetail(
             file.Id, file.Name, file.Format.ToString(), file.Scope.ToString(), file.ScopeId,
             (await ScopeNamesAsync([file], ct)).GetValueOrDefault(file.ScopeId ?? Guid.Empty),
-            file.RecognitionStale, file.PreprocessingProfile, sources);
+            file.Sources.Any(s => s.RecognitionStale), file.PreprocessingProfile, sources);
     }
 
     public async Task<SourceDetail?> GetSourceAsync(Guid sourceId, CancellationToken ct = default)
@@ -82,7 +82,7 @@ public class DataSnapshotService(
         if (source?.File is null) return null;
 
         var grouping = GostGroupingSerialization.Parse(source.File.Grouping);
-        var stale = IsStale(source.File, source, grouping, out var reason);
+        var stale = IsStale(source, out var reason);
 
         // Обе величины — из ОДНОЙ загрузки: описание источника обязано сходиться с его же строками,
         // а «сколько строк» без указания, до фильтра или после, уже произвело неверный анализ (#592).
@@ -216,28 +216,29 @@ public class DataSnapshotService(
         return names;
     }
 
-    /// <summary>Устарели ли данные источника. Три независимых причины, и каждая означает, что сверка
-    /// по этим строкам может быть неверной, — поэтому возвращаем ещё и человекочитаемую причину.</summary>
-    private static bool IsStale(
-        DataSetFile file, DataSetSource source, GostGroupingData? grouping, out string? reason)
+    /// <summary>Устарели ли данные источника, и почему — сверка по устаревшим строкам может быть
+    /// неверной, поэтому причина едет вместе с признаком.
+    ///
+    /// Читает ОДНО поле источника (issue #815). Прежде здесь были три ветви: признак файла, признак
+    /// источника и <c>TableStale</c> прямо из группировки. Первая была недостижима (колонку на файле
+    /// не выставлял никто), третья компенсировала то, что смена профиля группы не доходила до
+    /// источника, — и ровно из-за этой компенсации снимок видел устаревание, которого не видел
+    /// клиент. Причина теперь заводится там же, где событие, и оба потребителя читают её одинаково.</summary>
+    private static bool IsStale(DataSetSource source, out string? reason)
     {
-        if (file.RecognitionStale)
+        reason = source.StaleReason switch
         {
-            reason = "Файл набора заменён после распознавания — данные относятся к прежнему содержимому.";
-            return true;
-        }
-        if (source.RecognitionStale)
-        {
-            reason = "Источник помечен устаревшим — данные требуют повторного распознавания.";
-            return true;
-        }
-        if (TableGroupOf(source, grouping) is { TableStale: true })
-        {
-            reason = "Состав страниц документа изменился после распознавания таблицы — строки относятся к прежним границам.";
-            return true;
-        }
-        reason = null;
-        return false;
+            DataSetStaleReason.FileReplaced =>
+                "Файл набора заменён после распознавания — данные относятся к прежнему содержимому.",
+            DataSetStaleReason.NotParsedAgainstNewFile =>
+                "Источник не разобрался против нового файла — лист или путь исчез, данные остались от прежнего.",
+            DataSetStaleReason.TableBoundariesChanged =>
+                "Состав страниц документа изменился после распознавания таблицы — строки относятся к прежним границам.",
+            DataSetStaleReason.ProfileChanged =>
+                "Профиль распознавания изменён после распознавания — данные прочитаны прежними параметрами.",
+            _ => null,
+        };
+        return reason is not null;
     }
 
     /// <summary>Группа-документ, из которой спроецирован табличный источник (маркер несёт её id).</summary>

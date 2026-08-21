@@ -311,7 +311,37 @@ public class DataSetPdfGroupingTests(IntegrationTestFixture fixture) : IAsyncLif
 
             var src = await db.DataSetSources.FirstOrDefaultAsync(s => s.Id == sourceId);
             Assert.NotNull(src);
-            Assert.True(src!.RecognitionStale);
+            // Не просто «устарел», а почему (issue #815): текст человеку («перераспознайте — файл
+            // заменён») пишется по причине, и голого флага для него не хватает.
+            Assert.Equal(DataSetStaleReason.FileReplaced, src!.StaleReason);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateSourceAsync_OnPdfProjection_Rejected_AndKeepsRecognizedData()
+    {
+        // Правка определения PDF-проекции отбивается не проверкой в UpdateSourceAsync (её там нет), а
+        // самим PdfDataSetParser — за два вызова до UpdateCache. Держится всё на этом, и из точки
+        // правки не видно: пройди вызов дальше, он затёр бы CachedData и заодно снял устаревание.
+        var (_, sourceId, scope) = await SeedGostDocumentsSourceAsync(3);
+        using (scope)
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var src = await db.DataSetSources.FirstAsync(s => s.Id == sourceId);
+            src.UpdateCache(src.CachedSchema, 7, """[{"Шифр":"01-ЭМ"}]""");
+            src.MarkRecognitionStale(DataSetStaleReason.FileReplaced);
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+
+            var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
+            await Assert.ThrowsAsync<InvalidRequestException>(() => svc.UpdateSourceAsync(
+                sourceId, new UpdateSourceInput("Документы", PdfProfiles.GostDocumentsMarker, null), default));
+
+            db.ChangeTracker.Clear();
+            var after = await db.DataSetSources.AsNoTracking().FirstAsync(s => s.Id == sourceId);
+            Assert.Equal(7, after.CachedRowCount);
+            Assert.False(string.IsNullOrEmpty(after.CachedData));
+            Assert.Equal(DataSetStaleReason.FileReplaced, after.StaleReason);
         }
     }
 

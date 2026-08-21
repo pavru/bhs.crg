@@ -8,7 +8,11 @@ public record DataSetSourceDto(
     Guid Id, Guid FileId, string Name, string SheetOrPath, string? ColumnExpressions,
     string CachedSchema, int CachedRowCount,
     object? RowFilter, object? ComputedColumns, object? SortSpec,
-    IReadOnlyList<string>? Tags, bool RecognitionStale = false,
+    IReadOnlyList<string>? Tags,
+    /// <summary>Данные источника разошлись со своим происхождением. Признак и его причина едут
+    /// вместе (issue #815): «да/нет» отвечает на вопрос «показывать ли метку», а причина — на
+    /// вопрос «что человеку сказать», и вычислить одно из другого нельзя ни в одну сторону.</summary>
+    bool RecognitionStale = false,
     Guid? MaterializeTypeId = null, Dictionary<string, string>? MaterializeMapping = null,
     /// <summary>Сколько привязок ссылается на источник (issue #417) — чтобы удаление не было вслепую.
     /// null = «не считали» (ответ одиночной мутации): UI не должен показывать из-за этого ложный ноль,
@@ -26,7 +30,10 @@ public record DataSetSourceDto(
     /// <summary>Откуда взялись значения (см. <see cref="DataOrigin" />). В списке выбора источника
     /// это единственное место, где видно, что за «PDF» стоит распознавание: формат файла отвечает на
     /// другой вопрос — чем файл был, а не как из него получили значения.</summary>
-    DataOrigin Origin = DataOrigin.Parsed);
+    DataOrigin Origin = DataOrigin.Parsed,
+    /// <summary>Почему данные устарели; null — не устарели. Текст пишет клиент: он у каждой точки
+    /// показа свой (у поля документа — без глагола, в списке источников — с действием).</summary>
+    DataSetStaleReason? StaleReason = null);
 
 /// <summary>
 /// Материализованный предпросмотр источника: строки, развёрнутые в объекты формы типа (issue #19).
@@ -63,7 +70,10 @@ public record BindingFileDto(Guid Id, string Name, string Format, string Scope, 
 public record BindingSourceDto(
     Guid Id, string Name, string SheetOrPath, string CachedSchema, int CachedRowCount, BindingFileDto? File,
     Guid? MaterializeTypeId = null, Dictionary<string, string>? MaterializeMapping = null,
-    DataOrigin Origin = DataOrigin.Parsed);
+    DataOrigin Origin = DataOrigin.Parsed,
+    /// <summary>Почему данные устарели; null — не устарели. Текст пишет клиент: он у каждой точки
+    /// показа свой (у поля документа — без глагола, в списке источников — с действием).</summary>
+    DataSetStaleReason? StaleReason = null);
 
 /// <summary>Привязка — только Mapping. Filter/Transformation/Sort живут на DataSetSource.
 /// Владелец — единый <see cref="OwnerId"/> (DomainObject: документ или запись общих данных).</summary>

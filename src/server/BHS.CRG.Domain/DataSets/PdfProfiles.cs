@@ -31,6 +31,21 @@ public static class PdfProfiles
     /// <summary>Legacy-маркер плоского постраничного реестра (до тройки обложка/титул/документы).</summary>
     public const string LegacyTitleBlockRegistryMarker = "titleblock-registry";
 
+    /// <summary>Маркеры источников, наполняемых профилем ФАЙЛОВОГО вида (issue #815). Смена такого
+    /// профиля обесценивает ровно эти источники: параметры чтения изменились, а данные остались от
+    /// прежних. Группового вида здесь нет — таблица привязана к группе листов, и её источник
+    /// адресуется по id группы (<see cref="GostTableMarkerPrefix"/>), а не по виду.
+    ///
+    /// Пустой список для незнакомого вида — сознательно: новый вид профиля не должен молча помечать
+    /// устаревшим всё подряд, он должен попасть в этот список явно.</summary>
+    public static IReadOnlyList<string> MarkersForFileProfileKind(string kindName) => kindName switch
+    {
+        "TitleBlock" => [GostDocumentsMarker, LegacyTitleBlockRegistryMarker],
+        "CoverTitle" => [GostCoverMarker, GostTitlePageMarker],
+        "Invoice" => [InvoiceHeaderMarker, InvoiceLineItemsMarker],
+        _ => [],
+    };
+
     /// <summary>Источник, наполняемый распознаванием (vision-LLM), а не детерминированным парсером:
     /// <see cref="PdfDataSetParser"/> такие НЕ детектит. При замене файла их нельзя удалять как
     /// «отсутствующие в файле» — данные приходят из распознавания, а не из структуры файла.</summary>

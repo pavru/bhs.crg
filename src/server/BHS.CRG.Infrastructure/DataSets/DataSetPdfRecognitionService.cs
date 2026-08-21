@@ -809,7 +809,7 @@ public class DataSetPdfRecognitionService(
                 {
                     var rowCount = JsonSerializer.Deserialize<List<Dictionary<string, string?>>>(g.TableData)?.Count ?? 0;
                     ts.UpdateCache(g.TableColumns ?? "[]", rowCount, g.TableData);
-                    if (g.TableStale) ts.MarkRecognitionStale();
+                    if (g.TableStale) ts.MarkRecognitionStale(DataSetStaleReason.TableBoundariesChanged);
                 }
                 continue;
             }
@@ -918,6 +918,9 @@ public class DataSetPdfRecognitionService(
         if (file == null) return false;
 
         var current = ParseFileProfileMap(file.RecognitionProfiles);
+        // Виды, у которых привязка ДЕЙСТВИТЕЛЬНО изменилась: повторная установка того же профиля
+        // ничего не обесценивает, и помечать по ней — то же, что горящая всегда лампа.
+        var changedKinds = new List<string>();
         foreach (var (kindName, profileId) in map)
         {
             if (!Enum.TryParse<RecognitionProfileKind>(kindName, out var kind))
@@ -926,17 +929,36 @@ public class DataSetPdfRecognitionService(
                 throw new InvalidRequestException(
                     $"Профиль вида «{RecognitionKinds.Describe(kind).Label}» привязывается к группе листов, а не к набору.");
 
-            if (profileId is null) { current.Remove(kindName); continue; }
+            if (profileId is null)
+            {
+                if (current.Remove(kindName)) changedKinds.Add(kindName);
+                continue;
+            }
 
             var profile = await profiles.GetByIdAsync(profileId.Value, ct)
                 ?? throw new InvalidRequestException("Профиль распознавания не найден.");
             if (profile.Kind != kind)
                 throw new InvalidRequestException(
                     $"Профиль «{profile.Name}» имеет вид «{RecognitionKinds.Describe(profile.Kind).Label}» — он не подходит для «{RecognitionKinds.Describe(kind).Label}».");
+            if (current.GetValueOrDefault(kindName) != profileId.Value) changedKinds.Add(kindName);
             current[kindName] = profileId.Value;
         }
 
         file.SetRecognitionProfiles(current.Count > 0 ? JsonSerializer.Serialize(current) : null);
+
+        // Данные, прочитанные ПРЕЖНИМИ параметрами, устарели — помечаем источники затронутых видов
+        // (issue #815). Групповой аналог (SetDocumentProfileAsync) делал это с самого начала, а
+        // файловый молчал: штамп, обложка и счёт оставались с прежними значениями, и ни один экран
+        // не говорил, что читали их по другим правилам. Распознавание не перезапускаем — оно дорогое,
+        // решает пользователь; наше дело сказать, что данные разошлись с настройкой.
+        if (changedKinds.Count > 0)
+        {
+            var markers = changedKinds.SelectMany(PdfProfiles.MarkersForFileProfileKind).ToHashSet();
+            var affected = await db.DataSetSources
+                .Where(s => s.FileId == fileId && markers.Contains(s.SheetOrPath)).ToListAsync(ct);
+            foreach (var src in affected) src.MarkRecognitionStale(DataSetStaleReason.ProfileChanged);
+        }
+
         await db.SaveChangesAsync(ct);
         return true;
     }
@@ -1033,12 +1055,28 @@ public class DataSetPdfRecognitionService(
                     $"Профиль «{profile.Name}» привязывается к набору, а не к группе листов.");
         }
 
+        var touched = grouping.Groups.FirstOrDefault(
+            g => g.Kind == GostGroupKind.Document && g.Pages.Any(p => p.PageIndex == firstPageIndex));
         var updated = grouping.Groups
             .Select(g => g.Kind == GostGroupKind.Document && g.Pages.Any(p => p.PageIndex == firstPageIndex)
                 ? g with { ProfileId = profileId, TableStale = g.TableStale || !string.IsNullOrEmpty(g.TableData) }
                 : g)
             .ToList();
         file.SetGrouping(JsonSerializer.Serialize(new GostGroupingData(updated, grouping.ManuallyEdited)));
+
+        // Признак ставим и на САМ ИСТОЧНИК, а не только на группу (issue #815). Раньше `TableStale`
+        // доезжал до источника лишь при ближайшей ре-проекции (ReprojectTableSourcesAsync), которую
+        // этот путь не запускает: снимок MCP читал устаревание прямо из группировки и видел его, а
+        // клиент знает только поле источника — и не показывал ничего. Расхождение двух потребителей
+        // на одном признаке лечится тем, что признак заводится в одном месте.
+        if (touched is not null && !string.IsNullOrEmpty(touched.TableData))
+        {
+            var marker = PdfProfiles.GostTableMarkerPrefix + touched.Id;
+            var tableSource = await db.DataSetSources
+                .FirstOrDefaultAsync(s => s.FileId == fileId && s.SheetOrPath == marker, ct);
+            tableSource?.MarkRecognitionStale(DataSetStaleReason.ProfileChanged);
+        }
+
         await db.SaveChangesAsync(ct);
 
         return await ToGroupingDtoAsync(file, updated, grouping.ManuallyEdited, ct);

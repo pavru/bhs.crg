@@ -1,4 +1,4 @@
-import type { FilterGroup, FilterNode, DataSetBindingPreviewResult, DataOrigin } from './types';
+import type { FilterGroup, FilterNode, DataSetBindingPreviewResult, DataOrigin, DataSetStaleReason } from './types';
 
 /** A column descriptor cached on a DataSetSource. */
 export interface DataSetColumn {
@@ -188,6 +188,30 @@ export function computeBoundFieldKeys(
  * Возвращаются ТОЛЬКО распознанные: `Parsed` и `System` в интерфейсе ничего не меняют — у них нет
  * действия для читателя, а метка без действия становится фоном, который перестают замечать.
  */
+/**
+ * Почему данные источника устарели — ОДНОЙ фразой-констатацией, без глагола (issue #815).
+ *
+ * Действие дописывает место показа, а не эта функция: путь к «Перераспознать» есть не отовсюду, и
+ * подсказка, требующая невыполнимого, обесценивается ровно так же, как та, что горит всегда.
+ * Причину пишет сервер — своего правила у клиента нет, иначе тексты разъедутся с событиями.
+ */
+export function staleReasonText(reason: DataSetStaleReason | null | undefined): string {
+  switch (reason) {
+    case 'FileReplaced':
+      return 'Файл набора заменён после распознавания — значения относятся к прежнему содержимому';
+    case 'NotParsedAgainstNewFile':
+      return 'Источник не разобрался против нового файла — лист или путь исчез, значения остались от прежнего';
+    case 'TableBoundariesChanged':
+      return 'Состав страниц документа изменился после распознавания таблицы — строки относятся к прежним границам';
+    case 'ProfileChanged':
+      return 'Профиль распознавания изменён после распознавания — значения прочитаны прежними параметрами';
+    default:
+      // Причина с сервера незнакома (новее клиента) — сказать «устарело» всё равно честнее, чем
+      // промолчать: признак сюда попал не сам по себе.
+      return 'Данные источника устарели';
+  }
+}
+
 export function computeRecognizedFieldKeys(
   bindings: {
     targetFieldKey: string | null;

@@ -80,6 +80,10 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
         });
         var source = file.AddSource("Таблица — Список деталей ТКШ1",
             PdfProfiles.GostTableMarkerPrefix + GroupId, schema, rows.Length, null, JsonSerializer.Serialize(rows));
+        // Признак сдвинувшихся границ висит на ИСТОЧНИКЕ (issue #815). Прежде снимок читал TableStale
+        // прямо из группировки — и видел устаревание, которого не видел клиент; группа его больше не
+        // несёт для читателя, только для ре-проекции.
+        if (tableStale) source.MarkRecognitionStale(DataSetStaleReason.TableBoundariesChanged);
 
         db.DataSetFiles.Add(file);
         db.DataSetSources.Add(source);
@@ -390,14 +394,14 @@ public class DataSnapshotServiceTests(IntegrationTestFixture fixture) : IAsyncLi
     [Fact]
     public async Task Stale_ReflectsReplacedFile_WithReason()
     {
-        var (fileId, sourceId, scope) = await SeedCsvAsync(2);
+        var (_, sourceId, scope) = await SeedCsvAsync(2);
         using (scope)
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             Assert.False((await Svc(scope).GetSourceAsync(sourceId))!.Stale);
 
-            var file = await db.DataSetFiles.FirstAsync(f => f.Id == fileId);
-            file.MarkRecognitionStale();
+            var source = await db.DataSetSources.FirstAsync(x => x.Id == sourceId);
+            source.MarkRecognitionStale(DataSetStaleReason.FileReplaced);
             await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
 

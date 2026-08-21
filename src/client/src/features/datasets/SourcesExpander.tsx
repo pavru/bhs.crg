@@ -4,7 +4,7 @@ import {
   Plus, Pencil, Trash2, Copy, Eye, Filter, FunctionSquare, ArrowUpDown, Loader2,
   BookmarkPlus, ScanText, FileDown, Download, AlertTriangle, Boxes, Scissors, Type, SlidersHorizontal, Link2,
 } from 'lucide-react';
-import { parseSourceColumnNames, countFilterConditions, nextSourceName } from '@/shared/api/datasetHelpers';
+import { parseSourceColumnNames, countFilterConditions, nextSourceName, staleReasonText } from '@/shared/api/datasetHelpers';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useSourceRecognizing } from '@/shared/api/jobs';
 import { FileProfilesDialog } from './FileProfilesDialog';
@@ -211,7 +211,9 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
           <div className="font-medium text-fg1">
             {src.name}
             {src.recognitionStale && (
-              <span title="Файл заменён после распознавания — данные относятся к прежнему файлу. Распознайте набор заново."
+              // Причина приезжает с сервера (issue #815): раньше чип во всех случаях говорил про
+              // замену файла, хотя сменить могли и профиль распознавания, и границы документа.
+              <span title={`${staleReasonText(src.staleReason)}. Распознайте заново.`}
                 className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning-subtle text-warning align-middle">
                 <AlertTriangle size={10} /> устарело
               </span>

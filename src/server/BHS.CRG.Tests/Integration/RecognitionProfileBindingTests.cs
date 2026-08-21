@@ -89,6 +89,129 @@ public class RecognitionProfileBindingTests(IntegrationTestFixture fixture) : IA
         return table.Id;
     }
 
+    /// <summary>Та же группа, но с уже распознанной таблицей — только такую и обесценивает смена профиля.</summary>
+    private static GostGroupingData RecognizedGrouping(Guid? profileId = null) => new(
+        [new GostGroupingGroup(GostGroupKind.Document, "A113", "Список деталей ТКШ1",
+            [new GostGroupingPage(0, new Dictionary<string, string?>()), new GostGroupingPage(1, new Dictionary<string, string?>())],
+            Tags: null, Id: DocId, ProfileId: profileId,
+            TableData: """[{"Поз":"1"}]""", TableColumns: """[{"name":"Поз"}]""")],
+        ManuallyEdited: false);
+
+    private static async Task<Guid> CustomTitleBlockProfileAsync(AppDbContext db)
+    {
+        var profile = RecognitionProfile.Create(
+            "Штамп заказчика", RecognitionProfileKind.TitleBlock,
+            fields: RecognitionProfileJson.WriteFields([new RecognitionProfileField("Шифр", "Обозначение листа")]),
+            rowColumns: RecognitionProfileJson.WriteFields([]),
+            shape: null);
+        db.RecognitionProfiles.Add(profile);
+        await db.SaveChangesAsync();
+        return profile.Id;
+    }
+
+    // ── Смена профиля обесценивает распознанное (issue #815) ─────────────────────
+
+    [Fact]
+    public async Task SetDocumentProfile_MarksTableSourceStale_NotOnlyGroup()
+    {
+        var (fileId, scope) = await SeedAsync(RecognizedGrouping());
+        using (scope)
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var tableId = await AddTableSourceAsync(db, fileId, DocId);
+            var profileId = await CustomTableProfileAsync(db);
+            db.ChangeTracker.Clear();
+
+            await scope.ServiceProvider.GetRequiredService<IDataSetService>()
+                .SetDocumentProfileAsync(fileId, firstPageIndex: 0, profileId, default);
+
+            // Признак обязан лежать НА ИСТОЧНИКЕ. Раньше он ставился только на группу и доезжал сюда
+            // при ближайшей ре-проекции: снимок MCP устаревание видел, а интерфейс — нет.
+            db.ChangeTracker.Clear();
+            var table = await db.DataSetSources.AsNoTracking().FirstAsync(x => x.Id == tableId);
+            Assert.Equal(DataSetStaleReason.ProfileChanged, table.StaleReason);
+        }
+    }
+
+    [Fact]
+    public async Task SetDocumentProfile_WithoutRecognizedTable_MarksNothing()
+    {
+        // Профиль сменили ДО распознавания — обесценивать нечего, и метка «устарело» здесь была бы
+        // ровно той лампой, что горит всегда.
+        var (fileId, scope) = await SeedAsync(UntaggedGrouping());
+        using (scope)
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var tableId = await AddTableSourceAsync(db, fileId, DocId);
+            var profileId = await CustomTableProfileAsync(db);
+            db.ChangeTracker.Clear();
+
+            await scope.ServiceProvider.GetRequiredService<IDataSetService>()
+                .SetDocumentProfileAsync(fileId, 0, profileId, default);
+
+            db.ChangeTracker.Clear();
+            Assert.Null((await db.DataSetSources.AsNoTracking().FirstAsync(x => x.Id == tableId)).StaleReason);
+        }
+    }
+
+    [Fact]
+    public async Task SetFileProfiles_MarksOnlySourcesOfThatKind()
+    {
+        var (fileId, scope) = await SeedAsync(UntaggedGrouping());
+        using (scope)
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var file = await db.DataSetFiles.Include(f => f.Sources).FirstAsync(f => f.Id == fileId);
+            var documents = file.AddSource("Документы", PdfProfiles.GostDocumentsMarker, "[]", 4);
+            var cover = file.AddSource("Обложка", PdfProfiles.GostCoverMarker, "[]", 1);
+            db.DataSetSources.AddRange(documents, cover);
+            var profileId = await CustomTitleBlockProfileAsync(db);
+            db.ChangeTracker.Clear();
+
+            await scope.ServiceProvider.GetRequiredService<IDataSetService>()
+                .SetFileRecognitionProfilesAsync(fileId, new Dictionary<string, Guid?> { ["TitleBlock"] = profileId }, default);
+
+            db.ChangeTracker.Clear();
+            var sources = await db.DataSetSources.AsNoTracking().Where(x => x.FileId == fileId).ToListAsync();
+            Assert.Equal(DataSetStaleReason.ProfileChanged,
+                sources.Single(x => x.SheetOrPath == PdfProfiles.GostDocumentsMarker).StaleReason);
+            // Обложку читает другой профиль — её значения не изменились ни на йоту.
+            Assert.Null(sources.Single(x => x.SheetOrPath == PdfProfiles.GostCoverMarker).StaleReason);
+        }
+    }
+
+    [Fact]
+    public async Task SetFileProfiles_SameProfileAgain_MarksNothing()
+    {
+        var (fileId, scope) = await SeedAsync(UntaggedGrouping());
+        using (scope)
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var file = await db.DataSetFiles.Include(f => f.Sources).FirstAsync(f => f.Id == fileId);
+            var documents = file.AddSource("Документы", PdfProfiles.GostDocumentsMarker, "[]", 4);
+            db.DataSetSources.Add(documents);
+            var profileId = await CustomTitleBlockProfileAsync(db);
+            db.ChangeTracker.Clear();
+
+            var svc = scope.ServiceProvider.GetRequiredService<IDataSetService>();
+            var map = new Dictionary<string, Guid?> { ["TitleBlock"] = profileId };
+            await svc.SetFileRecognitionProfilesAsync(fileId, map, default);
+
+            // Перераспознали — признак снят; повторное сохранение ТОГО ЖЕ профиля ничего не меняет,
+            // а значит и обесценивать ему нечего.
+            db.ChangeTracker.Clear();
+            var src = await db.DataSetSources.FirstAsync(x => x.Id == documents.Id);
+            src.UpdateCache("[]", 4);
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+
+            await svc.SetFileRecognitionProfilesAsync(fileId, map, default);
+
+            db.ChangeTracker.Clear();
+            Assert.Null((await db.DataSetSources.AsNoTracking().FirstAsync(x => x.Id == documents.Id)).StaleReason);
+        }
+    }
+
     // ── Разблокировка произвольных таблиц ────────────────────────────────────────
 
     [Fact]
