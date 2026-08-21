@@ -80,9 +80,10 @@ services:
     restart: "no"
 
   api:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.api
+    # Готовый образ из GHCR, версия закреплена в .env (issue #812). Не `latest`: на хосте должно
+    # быть можно ответить, что именно там крутится, и вернуться на прошлую версию. Собрать из
+    # исходников по-прежнему можно — docker-compose.build.yml рядом.
+    image: ghcr.io/pavru/bhs.crg-api:${APP_VERSION:?APP_VERSION не задан — укажите версию в .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -123,17 +124,27 @@ services:
     # Ограничение процессора намеренно не задано: на хосте с одним ядром значение вроде `cpus: '2'`
     # отвергается Docker'ом, и поставка перестала бы подниматься. Кому нужно — добавляет `cpus`
     # рядом, зная своё железо.
+    # Готов = отвечает на запросы. Проверяем /api/version: он анонимен и не ходит в базу, а до
+    # первого ответа приложение всё равно не доходит — миграции применяются раньше.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/version || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
     deploy:
       resources:
         limits:
           memory: ${API_MEMORY_LIMIT:-3g}
 
   web:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.web
+    image: ghcr.io/pavru/bhs.crg-web:${APP_VERSION:?APP_VERSION не задан — укажите версию в .env}
     depends_on:
-      - api
+      # Ждём готовности api, а не просто его запуска: миграции идут ДО того, как приложение начнёт
+      # отвечать, и без этого условия web поднимался бы раньше — первые запросы уходили бы в 502.
+      # На обновлении это выглядит как «после обновления система не работает».
+      api:
+        condition: service_healthy
     environment:
       # Тот же предел, что у api: из него считается client_max_body_size (deploy/nginx-body-size.sh).
       # Значение по умолчанию здесь и в скрипте одно и то же — 500.

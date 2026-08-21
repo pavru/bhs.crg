@@ -63,22 +63,43 @@ docker compose version
 
 ## 3. Быстрый старт
 
+Исходный код для установки **не нужен**: api и web поставляются готовыми образами из GHCR.
+Достаточно двух файлов со страницы выпуска.
+
 ```bash
-# 1. Получить исходный код
-git clone https://github.com/pavru/bhs.crg.git
-cd bhs.crg
+# 1. Взять со страницы выпуска (https://github.com/pavru/bhs.crg/releases/latest)
+#    docker-compose.yml и .env.example — они приложены к релизу.
+mkdir bhs-crg && cd bhs-crg
+curl -LO https://github.com/pavru/bhs.crg/releases/latest/download/docker-compose.yml
+curl -Lo .env.example https://github.com/pavru/bhs.crg/releases/latest/download/.env.example
 
 # 2. Подготовить конфигурацию
-cp deploy/.env.example deploy/.env
-nano deploy/.env          # задать пароли и JWT‑секрет (см. раздел 4)
+cp .env.example .env
+nano .env                 # задать пароли, JWT‑секрет и APP_VERSION (см. раздел 4)
 
-# 3. Собрать и запустить весь стек
-docker compose -f deploy/docker-compose.yml up -d --build
+# 3. Запустить весь стек (образы скачаются из GHCR)
+docker compose up -d
 
 # 4. Проверить статус
-docker compose -f deploy/docker-compose.yml ps
-docker compose -f deploy/docker-compose.yml logs -f api
+docker compose ps
+docker compose logs -f api
 ```
+
+> Дальше в инструкции команды пишутся в виде `docker compose -f deploy/docker-compose.yml …` —
+> это форма для запуска из клона репозитория. Если вы поставили систему из релиза, файл лежит
+> рядом, и `-f deploy/docker-compose.yml` можно опускать.
+
+**Сборка из исходников** (разработка, проверка правки до релиза, установка без доступа к ghcr.io):
+
+```bash
+git clone https://github.com/pavru/bhs.crg.git && cd bhs.crg
+cp deploy/.env.example deploy/.env && nano deploy/.env
+docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up -d --build
+```
+
+> Образы публичные — `docker login ghcr.io` для установки не нужен. Если `pull` требует
+> авторизации, значит пакет в GitHub остался приватным (так создаётся первый): владельцу
+> репозитория надо один раз открыть его в *Packages → Package settings → Change visibility*.
 
 После запуска веб‑интерфейс доступен по адресу **http://СЕРВЕР:8080**
 (порт задаётся `WEB_PORT` в `.env`).
@@ -88,13 +109,15 @@ docker compose -f deploy/docker-compose.yml logs -f api
 
 ---
 
-## 4. Конфигурация (`deploy/.env`)
+## 4. Конфигурация (`.env`)
 
-Скопируйте `deploy/.env.example` → `deploy/.env` и заполните. Файл `.env`
-содержит секреты и **не** хранится в репозитории.
+Скопируйте `.env.example` → `.env` и заполните. Файл `.env` содержит секреты и **не** хранится в
+репозитории. При установке из релиза оба файла лежат в рабочем каталоге; в клоне репозитория —
+в `deploy/`.
 
 | Переменная | Назначение | Обязательно |
 |---|---|---|
+| `APP_VERSION` | Версия системы: под этим тегом тянутся образы `api` и `web` из GHCR. Без неё стек не поднимется — умолчания намеренно нет, иначе установка молча работала бы на непонятной версии. Номер берётся со [страницы выпусков](https://github.com/pavru/bhs.crg/releases); в шаблоне из релиза он уже проставлен | **да** |
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | Параметры БД. Пароль из примера останавливает запуск | да (сменить пароль) |
 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | Учётные данные MinIO — это **администратор хранилища**. Незаданные или взятые из примера останавливают запуск | да (сменить **оба**) |
 | `MINIO_BUCKET` | Имя bucket для файлов. Пустое значение останавливает запуск | да (по умолч. `bhs-crg`) |
@@ -251,21 +274,58 @@ openssl rand -base64 48
 
 ## 8. Обновление системы
 
+Обновление — это смена номера версии в `.env` и подтягивание образов.
+
 ```bash
-cd bhs.crg
-git pull
-docker compose -f deploy/docker-compose.yml up -d --build
+# 1. РЕЗЕРВНАЯ КОПИЯ — до всего остального (раздел 9). Схема базы мигрирует при старте новой
+#    версии, и отката миграций нет: вернуть прошлый образ можно, прошлую схему — только из копии.
+
+# 2. Посмотреть, что вышло: https://github.com/pavru/bhs.crg/releases
+
+# 3. Обновить compose-файл и сверить шаблон окружения — они приложены к каждому выпуску.
+#    Новые версии добавляют в них переменные, тома и лимиты; обновив только образы, вы получите
+#    новую настройку в её умолчании и не узнаете об этом.
+curl -LO https://github.com/pavru/bhs.crg/releases/latest/download/docker-compose.yml
+curl -Lo .env.example.new https://github.com/pavru/bhs.crg/releases/latest/download/.env.example
+diff .env.example.new .env.example    # что добавилось — перенести в свой .env
+
+# 4. Указать версию и обновиться
+nano .env                             # APP_VERSION=X.Y.Z
+docker compose pull
+docker compose up -d
+
+# 5. Проверить
+docker compose ps
+curl -s http://localhost:8080/api/version
 ```
+
+> Анонимный ответ `/api/version` показывает только номер версии: хеш коммита и дату сборки
+> система отдаёт вошедшему пользователю — они видны внизу боковой панели интерфейса (`v0.136.0 ·
+> a1b2c3d`, дата сборки в подсказке). Пустое поле `commit` в ответе `curl` — не признак
+> неправильно собранного образа.
 
 Миграции БД применяются автоматически при старте `api`. Данные сохраняются в томах
 (`postgres_data`, `minio_data`, `ollama_data`).
 
+**Откат.** Вернуть прошлый `APP_VERSION` и повторить `pull` + `up -d` — но только если новая
+версия не успела применить миграции: старый образ с новой схемой работать не обязан. Если
+миграции применились, откат делается восстановлением резервной копии (раздел 9).
+
+> **Разово при переходе на поставку образами (с версии ниже 0.137.0).** Прежде api и web
+> собирались на хосте из исходников (`up -d --build`), теперь тянутся из GHCR. Тома, имена
+> сервисов и данные те же; достаточно задать `APP_VERSION` в `.env` и выполнить
+> `docker compose pull && docker compose up -d`. Локально собранные образы после этого можно
+> удалить (`docker image prune`). Обратный путь — сборка из исходников — остаётся:
+> `-f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up -d --build`.
+
 > **Разово при обновлении с версии ниже 0.91.0.** Контейнеры перестали работать от `root`.
 > Том `dp_keys` (ключи шифрования одноразовых ссылок) создавался от `root`, и владелец у
 > существующего тома сам не поменяется — сервер сможет читать ключи, но не сможет выписать
-> очередной, и через несколько недель ссылки сброса пароля начнут отказывать. Выполните один раз:
+> очередной, и через несколько недель ссылки сброса пароля начнут отказывать. Выполните один раз
+> (`--entrypoint chown` обязателен: без него аргументы достанутся серверу приложений, он запустится
+> от root — и ничего не поменяет, притом без единой ошибки):
 > ```bash
-> docker compose -f deploy/docker-compose.yml run --rm --user root api chown -R app:app /app/dp-keys
+> docker compose -f deploy/docker-compose.yml run --rm --user root --entrypoint chown api -R app:app /app/dp-keys
 > ```
 > На новой установке делать ничего не нужно: пустой том наследует владельца из образа.
 

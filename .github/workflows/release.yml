@@ -1,0 +1,140 @@
+# Выпуск версии: образы в GHCR + тег + GitHub Release (issue #812).
+#
+# Номер версии НЕ вводится руками: workflow читает <Version> из src/server/Directory.Build.props и
+# сам называет по нему тег, релиз и образы. Ввести номер во второй раз негде — значит нечему и
+# разъехаться (в .env.example значение подставляется этим же workflow при выкладке ассета).
+# Проверка «тег уже существует» заодно ловит забытый bump версии: тот самый случай, когда 104 PR
+# подряд прошли на одной версии и никто не заметил (issue #550).
+#
+# Запуск ручной: версия меняется почти каждым PR, а релиз — решение о том, что накопилось.
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # тег и Release
+  packages: write   # публикация образов в GHCR
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Выпускаем только master
+        # Диалог запуска предлагает любую ветку, а промах в нём необратим: версия ушла бы в GHCR и
+        # заняла номер, перевыпустить который потом нельзя.
+        if: github.ref != 'refs/heads/master'
+        run: |
+          echo "::error::Выпуск делается только из master, а запрошен ${{ github.ref }}."
+          exit 1
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # нужны теги: по ним проверяем, что версия действительно новая
+
+      - name: Версия из Directory.Build.props
+        id: ver
+        run: |
+          # `|| true` обязателен: шаги идут под `bash -e`, и grep без совпадения оборвал бы шаг
+          # прямо на присваивании — с голым «exit 1» вместо внятного сообщения ниже.
+          version=$(grep -oPm1 '(?<=<Version>)[^<]+' src/server/Directory.Build.props || true)
+          if [ -z "$version" ]; then
+            echo "::error::В src/server/Directory.Build.props не найден <Version>"; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "Версия: $version"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Тег ещё не занят
+        run: |
+          tag="${{ steps.ver.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::error::Тег $tag уже существует — версия не менялась с прошлого выпуска. Поднимите <Version> в Directory.Build.props."
+            exit 1
+          fi
+          # Тот же довод и для образов: пересборка того же тега дала бы ДРУГОЙ бинарь (базовые
+          # образы node:22-alpine и nginx-unprivileged:alpine плавающие), и один номер версии стал
+          # бы означать две разные поставки. Проверка идёт ПОСЛЕ логина: без авторизации манифест
+          # приватного пакета неотличим от несуществующего.
+          for image in bhs.crg-api bhs.crg-web; do
+            ref="ghcr.io/${{ github.repository_owner }}/$image:${{ steps.ver.outputs.version }}"
+            set +e
+            out=$(docker manifest inspect "$ref" 2>&1)
+            rc=$?
+            set -e
+            if [ $rc -eq 0 ]; then
+              echo "::error::Образ $ref уже опубликован — тег версии неизменяем."
+              exit 1
+            fi
+            # Отличаем «нет такого образа» от «не смогли спросить». Свалив всё в «нет», проверка
+            # пропускала бы перезапись при любом сбое реестра — то есть отказывала бы ровно тогда,
+            # когда нужна. Незнакомая ошибка = падаем, а не выпускаем вслепую.
+            if ! grep -qiE 'manifest unknown|not found|no such manifest|denied' <<<"$out"; then
+              echo "::error::Не удалось проверить $ref в реестре: $out"
+              exit 1
+            fi
+          done
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Образ api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.api
+          push: true
+          # Хеш коммита в образ: .git в контекст сборки не попадает (.dockerignore), сам себя
+          # образ пометить не может.
+          build-args: |
+            SOURCE_REVISION=${{ github.sha }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/bhs.crg-api:${{ steps.ver.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/bhs.crg-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Образ web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.web
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/bhs.crg-web:${{ steps.ver.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/bhs.crg-web:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Тег и Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          tag="${{ steps.ver.outputs.tag }}"
+          # Версия в шаблоне окружения проставляется ЗДЕСЬ, а не хранится в репозитории: иначе это
+          # второе место, где живёт номер, и свежая установка со следующего релиза подняла бы
+          # образы прошлой версии, не заметив подмены.
+          sed -i "s/^APP_VERSION=.*/APP_VERSION=$VERSION/" deploy/.env.example
+          git tag "$tag"
+          git push origin "$tag"
+          # Compose-файл и шаблон окружения — АССЕТЫ релиза: они не внутри образа, а новые версии
+          # добавляют в них переменные, тома и лимиты (так было с dp_keys, BACKUP_MAX_ARCHIVE_MB,
+          # потолками памяти). Обновивший только образы получил бы новую настройку в умолчании и не
+          # узнал об этом. docker-compose.build.yml сюда НЕ идёт: его пути (context: ..) живут
+          # только внутри клона репозитория, и рядом со скачанным compose он был бы ловушкой.
+          gh release create "$tag" \
+            --title "$tag" \
+            --generate-notes \
+            deploy/docker-compose.yml \
+            deploy/.env.example
+
+      - name: Что делать, если выпуск оборвался
+        if: failure()
+        run: |
+          echo "::warning::Если образы уже опубликованы, а тег ${{ steps.ver.outputs.tag }} не создан, повторный запуск упрётся в проверку неизменяемости. Удалите версию ${{ steps.ver.outputs.version }} обоих пакетов (GitHub → Packages → bhs.crg-api / bhs.crg-web → Manage versions) и запустите выпуск заново."
