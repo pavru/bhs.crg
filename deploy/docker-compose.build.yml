@@ -1,0 +1,19 @@
+# Сборка api и web ИЗ ИСХОДНИКОВ вместо готовых образов из GHCR (issue #812).
+#
+# Штатная поставка тянет образы (docker-compose.yml), но путь «собрать самому» должен оставаться:
+# он нужен разработке, проверке правки до релиза и установке без доступа к ghcr.io.
+#
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up -d --build
+#
+# APP_VERSION при этом всё равно нужен — под ним соберётся локальный образ с тем же именем, так что
+# `docker compose pull` потом честно заменит его на опубликованный.
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web

@@ -3,15 +3,24 @@
 ARG DOTNET=10.0
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET} AS build
 WORKDIR /src
+# Хеш коммита приходит СНАРУЖИ: .git исключён из контекста сборки (.dockerignore), поэтому таргет
+# SetGitCommitId в Directory.Build.props внутри контейнера тихо отдал бы пусто — и релизный образ
+# сообщал бы `commit: ""` ровно там, где трассировка сборки нужнее всего. Таргет уже написан с
+# условием «если SourceRevisionId не задан», так что аргумент его просто перекрывает.
+ARG SOURCE_REVISION=""
 COPY src/server ./server
 RUN dotnet restore server/BHS.CRG.Api/BHS.CRG.Api.csproj
-RUN dotnet publish server/BHS.CRG.Api/BHS.CRG.Api.csproj -c Release -o /app --no-restore
+RUN dotnet publish server/BHS.CRG.Api/BHS.CRG.Api.csproj -c Release -o /app --no-restore -p:SourceRevisionId="$SOURCE_REVISION"
 
 # ── Рантайм ─────────────────────────────────────────────────────────────────────
 FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET} AS runtime
 
 # Typst CLI (генерация PDF) + шрифты (в т.ч. кириллица) + либы для SkiaSharp/PDFium
 # 0.15+ нужен для нативной вставки страниц PDF-вложений: image(src, page: n) с текстовым слоем.
+# ВНИМАНИЕ: curl здесь не только инструмент установки — на нём держится healthcheck контейнера
+# (см. docker-compose.yml, api). Уберёте его «как ненужный после сборки» — healthcheck перестанет
+# проходить, а web не поднимется вовсе (он ждёт api по condition: service_healthy), и симптом
+# «после обновления сайт не открывается» будет в другом файле, чем причина.
 ARG TYPST_VERSION=0.15.0
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl ca-certificates xz-utils \

@@ -1,0 +1,107 @@
+# Выпуск версии: образы в GHCR + тег + GitHub Release (issue #812).
+#
+# Номер версии НЕ вводится руками: workflow читает <Version> из src/server/Directory.Build.props и
+# сам называет по нему тег, релиз и образы. Ввести номер во второй раз негде — значит нечему и
+# разъехаться. Проверка «тег уже существует» заодно ловит забытый bump версии: тот самый случай,
+# когда 104 PR подряд прошли на одной версии и никто не заметил (issue #550).
+#
+# Запуск ручной: версия меняется почти каждым PR, а релиз — решение о том, что накопилось.
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # тег и Release
+  packages: write   # публикация образов в GHCR
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # нужны теги: по ним проверяем, что версия действительно новая
+
+      - name: Версия из Directory.Build.props
+        id: ver
+        run: |
+          version=$(grep -oPm1 '(?<=<Version>)[^<]+' src/server/Directory.Build.props)
+          if [ -z "$version" ]; then
+            echo "::error::В src/server/Directory.Build.props не найден <Version>"; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "Версия: $version"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Тег ещё не занят
+        run: |
+          tag="${{ steps.ver.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::error::Тег $tag уже существует — версия не менялась с прошлого выпуска. Поднимите <Version> в Directory.Build.props."
+            exit 1
+          fi
+          # Тот же довод и для образов: пересборка того же тега дала бы ДРУГОЙ бинарь (базовые
+          # образы node:22-alpine и nginx-unprivileged:alpine плавающие), и один номер версии стал
+          # бы означать две разные поставки. Проверка идёт ПОСЛЕ логина: без авторизации манифест
+          # приватного пакета неотличим от несуществующего, и защита пропустила бы перезапись.
+          for image in bhs.crg-api bhs.crg-web; do
+            if docker manifest inspect "ghcr.io/${{ github.repository_owner }}/$image:${{ steps.ver.outputs.version }}" >/dev/null 2>&1; then
+              echo "::error::Образ $image:${{ steps.ver.outputs.version }} уже опубликован — тег версии неизменяем."
+              exit 1
+            fi
+          done
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Образ api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.api
+          push: true
+          # Хеш коммита в образ: .git в контекст сборки не попадает (.dockerignore), сам себя
+          # образ пометить не может.
+          build-args: |
+            SOURCE_REVISION=${{ github.sha }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/bhs.crg-api:${{ steps.ver.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/bhs.crg-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Образ web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.web
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/bhs.crg-web:${{ steps.ver.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/bhs.crg-web:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Тег и Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ steps.ver.outputs.tag }}"
+          git tag "$tag"
+          git push origin "$tag"
+          # Compose-файл и шаблон окружения — АССЕТЫ релиза: они не внутри образа, а новые версии
+          # добавляют в них переменные, тома и лимиты (так было с dp_keys, BACKUP_MAX_ARCHIVE_MB,
+          # потолками памяти). Обновивший только образы получил бы новую настройку в умолчании и не
+          # узнал об этом.
+          gh release create "$tag" \
+            --title "$tag" \
+            --generate-notes \
+            deploy/docker-compose.yml \
+            deploy/docker-compose.build.yml \
+            deploy/.env.example

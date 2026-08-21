@@ -134,6 +134,25 @@ var dpKeysPath = cfg["DataProtection:KeysPath"];
 if (string.IsNullOrWhiteSpace(dpKeysPath))
     dpKeysPath = Path.Combine(builder.Environment.ContentRootPath, "dp-keys");
 Directory.CreateDirectory(dpKeysPath);
+// Каталог должен быть ЗАПИСЫВАЕМ, и проверяем это здесь. Data Protection при невозможности записи
+// не падает, а молча переходит на ключи в памяти — снаружи это выглядит как «ссылки сброса пароля
+// протухают сами собой», причём заново после каждого рестарта, и ищется такое долго. Случай не
+// умозрительный: том dp_keys, созданный до перехода контейнера на непривилегированного
+// пользователя, остаётся принадлежать root (лечится разовым chown, см. docs/DEPLOYMENT.md §8).
+try
+{
+    var probe = Path.Combine(dpKeysPath, ".write-probe");
+    File.WriteAllText(probe, string.Empty);
+    File.Delete(probe);
+}
+catch (Exception ex)
+{
+    throw new InvalidOperationException(
+        $"Каталог ключей Data Protection «{dpKeysPath}» недоступен для записи ({ex.Message}). " +
+        "Без него токены сброса пароля и подтверждения почты будут инвалидироваться при каждом " +
+        "перезапуске. В поставке Docker: docker compose -f deploy/docker-compose.yml run --rm " +
+        "--user root api chown -R app:app /app/dp-keys", ex);
+}
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath))
     .SetApplicationName("BHS.CRG");

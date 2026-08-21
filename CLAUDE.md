@@ -108,7 +108,10 @@ cd src/client && npm test
 - `docs/` — инструкции (Markdown + PDF): `DEPLOYMENT.md`, `USER_GUIDE.md`, `ADMIN_GUIDE.md`
   (индекс — `docs/README.md`). Сборка PDF: `docs/tools/` (`npm run pdf`).
 - `deploy/` — Docker Compose на весь стек (postgres, minio, ollama, api, web) + Dockerfile'ы
-  и `.env.example`. Запуск: `cp deploy/.env.example deploy/.env` → `docker compose -f deploy/docker-compose.yml up -d --build`.
+  и `.env.example`. api и web поставляются образами из GHCR (`APP_VERSION` в `.env`), выпуск —
+  ручной запуск workflow `Release`, который берёт номер из `Directory.Build.props`. Запуск:
+  `cp deploy/.env.example deploy/.env` → `docker compose -f deploy/docker-compose.yml up -d`;
+  сборка из исходников — с оверлеем `-f deploy/docker-compose.build.yml`.
   Образ `api` включает **Typst CLI**.
 
 ### Статус первой версии
