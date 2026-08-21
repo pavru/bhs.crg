@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -33,10 +33,14 @@ namespace BHS.CRG.Infrastructure.Migrations
                 """
                 UPDATE dataset_sources s SET "StaleReason" = 'TableBoundariesChanged'
                 FROM dataset_files f,
-                     LATERAL jsonb_array_elements(f."Grouping" -> 'Groups') g
+                     -- Проверка типа стоит ВНУТРИ LATERAL, а не в WHERE: FROM вычисляется раньше
+                     -- предикатов, и на группировке, где Groups оказался объектом или скаляром,
+                     -- jsonb_array_elements упал бы прямо в автомиграции при старте приложения.
+                     LATERAL jsonb_array_elements(
+                         CASE WHEN jsonb_typeof(f."Grouping" -> 'Groups') = 'array'
+                              THEN f."Grouping" -> 'Groups' ELSE '[]'::jsonb END) g
                 WHERE s."FileId" = f."Id"
                   AND s."StaleReason" IS NULL
-                  AND jsonb_typeof(f."Grouping" -> 'Groups') = 'array'
                   AND (g ->> 'TableStale')::boolean IS TRUE
                   AND s."SheetOrPath" = 'gost-table:' || (g ->> 'Id');
                 """);

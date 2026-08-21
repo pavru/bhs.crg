@@ -34,13 +34,35 @@ public class StaleReasonTests
     }
 
     [Fact]
-    public void SecondMark_KeepsFirstReason()
+    public void SecondMark_KeepsWiderReason()
     {
         // Файл заменили, а потом сменили профиль: сказать надо про замену файла — она объясняет
-        // расхождение полностью, а смена профиля поверх неё лишь описывает часть беды.
+        // расхождение полностью, а смена профиля поверх неё описывает лишь часть беды.
         var s = Source();
         s.MarkRecognitionStale(DataSetStaleReason.FileReplaced);
         s.MarkRecognitionStale(DataSetStaleReason.ProfileChanged);
+        Assert.Equal(DataSetStaleReason.FileReplaced, s.StaleReason);
+    }
+
+    [Fact]
+    public void WiderReason_OverridesNarrowerOne_RegardlessOfOrder()
+    {
+        // Обратный порядок событий так же законен: профиль привязали вчера, файл подменили сегодня.
+        // Правило «первая причина выигрывает» рассказывало бы тут про профиль — и занижало бы беду.
+        var s = Source();
+        s.MarkRecognitionStale(DataSetStaleReason.ProfileChanged);
+        s.MarkRecognitionStale(DataSetStaleReason.FileReplaced);
+        Assert.Equal(DataSetStaleReason.FileReplaced, s.StaleReason);
+    }
+
+    [Fact]
+    public void EqualWeightReasons_DoNotChurn()
+    {
+        // Замена файла и неразобравшийся источник обесценивают одно и то же — переписывать первую
+        // причину второй незачем: сообщение человеку от этого не станет точнее.
+        var s = Source();
+        s.MarkRecognitionStale(DataSetStaleReason.FileReplaced);
+        s.MarkRecognitionStale(DataSetStaleReason.NotParsedAgainstNewFile);
         Assert.Equal(DataSetStaleReason.FileReplaced, s.StaleReason);
     }
 

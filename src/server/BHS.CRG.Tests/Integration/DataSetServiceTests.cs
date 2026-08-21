@@ -1,7 +1,10 @@
 ﻿using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
+using BHS.CRG.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -212,6 +215,38 @@ public class DataSetServiceTests(IntegrationTestFixture fixture) : IAsyncLifetim
         var list = await Svc(scope).ListBindingsAsync(entry.Id, default);
         Assert.Single(list);
         Assert.Equal(src.Id, list[0].SourceId);
+    }
+
+    [Fact]
+    public async Task Binding_StaleSource_ExposesStalenessOnSource()
+    {
+        // issue #815: точка потребления видит источник ТОЛЬКО через привязку, а BindingSourceDto —
+        // узкий DTO, не полный DataSetSourceDto. Признак, оставшийся в широком, для формы документа
+        // всё равно что отсутствует: ни значка у поля, ни чипа, ни кнопки. Первый заход именно так и
+        // ушёл в PR — клиентский тип обещал полный источник, и TypeScript промолчал.
+        var typeId = await CreateDocumentTypeAsync();
+        using var scope = fixture.Services.CreateScope();
+        var svc = Svc(scope);
+        var (_, src) = await UploadCsvWithSourceAsync(scope);
+        var entry = await scope.ServiceProvider.GetRequiredService<MediatR.IMediator>().Send(
+            new CreateCommonDataEntryCommand("Запись", typeId, JsonDocument.Parse("{}"),
+                BHS.CRG.Domain.Catalog.CatalogScope.System, null));
+        await svc.CreateBindingAsync(new CreateBindingInput(entry.Id, src.Id, null, new() { ["Поле"] = "A" }), default);
+
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var source = await db.DataSetSources.FirstAsync(x => x.Id == src.Id);
+        source.MarkRecognitionStale(DataSetStaleReason.NotParsedAgainstNewFile);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var binding = Assert.Single(await svc.ListBindingsAsync(entry.Id, default));
+        Assert.NotNull(binding.Source);
+        Assert.True(binding.Source!.RecognitionStale);
+        Assert.Equal(DataSetStaleReason.NotParsedAgainstNewFile, binding.Source.StaleReason);
+        Assert.Equal(1, binding.Source.BindingCount);
+        // Источник не из PDF — перераспознать его нельзя вовсе, и предлагать действие интерфейс не
+        // должен: эндпоинт отбил бы вызов на входе, оставив человека в тупике с диалогом отказа.
+        Assert.Equal(RecognizeScope.None, binding.Source.RecognizeScope);
     }
 
     [Fact]

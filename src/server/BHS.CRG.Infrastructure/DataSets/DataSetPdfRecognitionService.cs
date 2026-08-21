@@ -1098,9 +1098,12 @@ public class DataSetPdfRecognitionService(
         // этот путь не запускает: снимок MCP читал устаревание прямо из группировки и видел его, а
         // клиент знает только поле источника — и не показывал ничего. Расхождение двух потребителей
         // на одном признаке лечится тем, что признак заводится в одном месте.
-        if (touched is not null && !string.IsNullOrEmpty(touched.TableData))
+        // Повторное сохранение ТОГО ЖЕ профиля ничего не обесценивает — и метка по нему была бы той
+        // самой лампой, что горит всегда (тот же гейт, что у файловых профилей).
+        var profileActuallyChanged = touched is not null && touched.ProfileId != profileId;
+        if (profileActuallyChanged && !string.IsNullOrEmpty(touched!.TableData))
         {
-            var marker = PdfProfiles.GostTableMarkerPrefix + touched.Id;
+            var marker = PdfProfiles.GostTableMarkerPrefix + touched!.Id;
             var tableSource = await db.DataSetSources
                 .FirstOrDefaultAsync(s => s.FileId == fileId && s.SheetOrPath == marker, ct);
             tableSource?.MarkRecognitionStale(DataSetStaleReason.ProfileChanged);

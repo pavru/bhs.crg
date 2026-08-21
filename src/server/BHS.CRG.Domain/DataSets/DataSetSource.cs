@@ -149,15 +149,27 @@ public class DataSetSource : Entity
     /// Данные не трогаем, чтобы не терять их до перераспознавания: устаревшие строки лучше пустых,
     /// решение принимает человек.
     ///
-    /// Уже помеченный источник причину НЕ меняет: первая причина — та, после которой данные
-    /// разошлись с файлом, и она же самая полная. Перезаписав её второй, мы бы рассказывали
-    /// человеку про смену профиля там, где на деле подменили весь файл.</summary>
+    /// У уже помеченного источника причина меняется, только если новая ОБЪЯСНЯЕТ БОЛЬШЕ. Порядок не
+    /// «кто первый»: события приходят в любой последовательности — привязали профиль, потом заменили
+    /// файл, — и рассказывать человеку про смену профиля там, где подменили весь файл, значит
+    /// занизить беду. Замена файла и неразобравшийся источник обесценивают ВСЁ, что из файла
+    /// выведено; сдвиг границ и смена профиля — только часть.</summary>
     public void MarkRecognitionStale(DataSetStaleReason reason)
     {
-        if (StaleReason is not null) return;
+        if (Weight(reason) <= Weight(StaleReason)) return;
         StaleReason = reason;
         TouchUpdatedAt();
     }
+
+    private static int Weight(DataSetStaleReason? reason) => reason switch
+    {
+        null => 0,
+        DataSetStaleReason.ProfileChanged => 1,
+        DataSetStaleReason.TableBoundariesChanged => 2,
+        DataSetStaleReason.NotParsedAgainstNewFile => 3,
+        DataSetStaleReason.FileReplaced => 3,
+        _ => 1,
+    };
 
     /// <summary>Функциональные тэги источника (scope Dataset) — JSON-массив кодов или null.</summary>
     public void SetTags(string? tagsJson)
