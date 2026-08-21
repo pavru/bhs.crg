@@ -273,9 +273,19 @@ export function CatalogEntryForm({
         || Object.keys(Object.keys(b.mapping).length > 0 ? b.mapping : (b.source?.materializeMapping ?? {})).includes(key)))
       ?.source?.staleReason ?? null;
   const staleBindings = bindings.filter(b => b.source?.recognitionStale);
-  const staleBindingHint = staleBindings.length === 0
+  // Причину называем только когда она у всех устаревших источников ОДНА: смешав четыре под одной
+  // формулировкой, подсказка соврала бы про три из них.
+  const staleReasonCommon = new Set(staleBindings.map(b => b.source?.staleReason ?? null)).size === 1
+    ? staleReasonText(staleBindings[0]?.source?.staleReason)
+    : 'Источники этих полей изменились после распознавания';
+  // Два адресата — две подсказки: у кнопки речь о том, ЧТО она сейчас подтянет, у секции полей —
+  // о том, откуда взялись показанные значения. Один текст на обоих был бы неточен на каждом.
+  const staleRefreshHint = staleBindings.length === 0
     ? undefined
-    : `${staleReasonText(staleBindings[0].source?.staleReason)} — подтянутся значения от прежнего файла.`;
+    : `${staleReasonCommon} — подтянутся значения от прежнего файла.`;
+  const staleFieldsHint = staleBindings.length === 0
+    ? undefined
+    : `${staleReasonCommon}. Перераспознать можно в списке наборов данных ниже.`;
   const { refetch: refetchBindingPreview, isFetching: refreshingFromSource } =
     usePreviewDataSetBindings({ ownerId: entry?.id });
   // Проверка связок (issue #99) — по требованию.
@@ -567,7 +577,7 @@ export function CatalogEntryForm({
           <AutoFieldsSection count={auto.length}
             recognizedCount={auto.filter(f => recognizedBoundKeys.has(f.key)).length}
             staleCount={auto.filter(f => staleBoundKeys.has(f.key)).length}
-            staleHint={staleBindingHint}>
+            staleHint={staleFieldsHint}>
             {fieldStack(auto)}
           </AutoFieldsSection>
         </div>
@@ -704,7 +714,7 @@ export function CatalogEntryForm({
                   худший вариант из трёх: обновление выглядит удавшимся. */}
               <Button type="button" variant="outlined" size="sm" onClick={handleRefreshFromSource}
                 loading={refreshingFromSource} icon={<RefreshCw size={14} />}
-                title={staleBindingHint}>
+                title={staleRefreshHint}>
                 Обновить из источника
               </Button>
               <Button type="button" variant="outlined" size="sm" onClick={() => runBindingCheck()}
