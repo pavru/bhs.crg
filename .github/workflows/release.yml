@@ -121,6 +121,10 @@ jobs:
           # второе место, где живёт номер, и свежая установка со следующего релиза подняла бы
           # образы прошлой версии, не заметив подмены.
           sed -i "s/^APP_VERSION=.*/APP_VERSION=$VERSION/" deploy/.env.example
+          # Имя ассета БЕЗ ведущей точки — обязательно: GitHub переименовывает такие файлы, и
+          # `.env.example` выложился бы как `default.env.example`, то есть по адресу из инструкции
+          # его бы не оказалось вовсе. Проверено на первом же выпуске (v0.137.0).
+          cp deploy/.env.example env.example
           git tag "$tag"
           git push origin "$tag"
           # Compose-файл и шаблон окружения — АССЕТЫ релиза: они не внутри образа, а новые версии
@@ -132,7 +136,7 @@ jobs:
             --title "$tag" \
             --generate-notes \
             deploy/docker-compose.yml \
-            deploy/.env.example
+            env.example
 
       - name: Что делать, если выпуск оборвался
         if: failure()

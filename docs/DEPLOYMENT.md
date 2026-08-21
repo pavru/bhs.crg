@@ -71,7 +71,7 @@ docker compose version
 #    docker-compose.yml и .env.example — они приложены к релизу.
 mkdir bhs-crg && cd bhs-crg
 curl -LO https://github.com/pavru/bhs.crg/releases/latest/download/docker-compose.yml
-curl -Lo .env.example https://github.com/pavru/bhs.crg/releases/latest/download/.env.example
+curl -Lo .env.example https://github.com/pavru/bhs.crg/releases/latest/download/env.example
 
 # 2. Подготовить конфигурацию
 cp .env.example .env
@@ -97,9 +97,10 @@ cp deploy/.env.example deploy/.env && nano deploy/.env
 docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up -d --build
 ```
 
-> Образы публичные — `docker login ghcr.io` для установки не нужен. Если `pull` требует
-> авторизации, значит пакет в GitHub остался приватным (так создаётся первый): владельцу
-> репозитория надо один раз открыть его в *Packages → Package settings → Change visibility*.
+> Образы публичные — `docker login ghcr.io` для установки не нужен: пакеты наследуют видимость
+> репозитория, и проверено это на первом же выпуске (анонимный pull обоих образов работает).
+> Если однажды `pull` всё же потребует авторизации, значит видимость пакета изменили вручную —
+> вернуть её можно в *Packages → Package settings → Change visibility*.
 
 После запуска веб‑интерфейс доступен по адресу **http://СЕРВЕР:8080**
 (порт задаётся `WEB_PORT` в `.env`).
@@ -286,7 +287,7 @@ openssl rand -base64 48
 #    Новые версии добавляют в них переменные, тома и лимиты; обновив только образы, вы получите
 #    новую настройку в её умолчании и не узнаете об этом.
 curl -LO https://github.com/pavru/bhs.crg/releases/latest/download/docker-compose.yml
-curl -Lo .env.example.new https://github.com/pavru/bhs.crg/releases/latest/download/.env.example
+curl -Lo .env.example.new https://github.com/pavru/bhs.crg/releases/latest/download/env.example
 diff .env.example.new .env.example    # что добавилось — перенести в свой .env
 
 # 4. Указать версию и обновиться
