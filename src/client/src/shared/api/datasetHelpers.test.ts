@@ -241,6 +241,15 @@ describe('computeRecognizedFieldKeys', () => {
     expect(keys.size).toBe(0);
   });
 
+  it('пустой маппинг — берём маппинг материализации источника', () => {
+    // Тем же правилом форма решает, какие поля сделать read-only. Разойдись они — часть полей стала
+    // бы нередактируемой без объяснения, откуда взялось значение.
+    const keys = computeRecognizedFieldKeys([
+      { targetFieldKey: null, mapping: {}, source: { ...recognized, materializeMapping: { Шифр: 'A' } } },
+    ]);
+    expect(keys).toEqual(new Set(['Шифр']));
+  });
+
   it('смесь: помечается только распознанная часть', () => {
     const keys = computeRecognizedFieldKeys([
       { targetFieldKey: 'Материалы', mapping: {}, source: parsed },

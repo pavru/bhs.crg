@@ -407,14 +407,14 @@ export interface DataSetFile {
   recognitionProfiles?: Record<string, string> | null;
 }
 
-/** Привязка набора данных к объекту — только Mapping. Filter/Transformation/Sort — на DataSetSource.
- * Владелец — единый ownerId (DomainObject: документ или запись общих данных). */
 /**
  * Происхождение значений источника: `Parsed` — детерминированный разбор файла (XML/CSV/XLSX),
  * `Recognized` — прочитано моделью со скана, `System` — консолидация данных самой системы.
  */
 export type DataOrigin = 'Parsed' | 'Recognized' | 'System';
 
+/** Привязка набора данных к объекту — только Mapping. Filter/Transformation/Sort — на DataSetSource.
+ * Владелец — единый ownerId (DomainObject: документ или запись общих данных). */
 export interface DataSetBinding {
   id: string;
   ownerId: string;

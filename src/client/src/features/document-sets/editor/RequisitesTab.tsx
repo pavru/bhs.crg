@@ -17,6 +17,7 @@ import { validateConstraint, isMissing, PrimitiveInput, FileField, ImageField, c
 import { evalComputed, referencedKeys } from '@/shared/utils/computedExpression';
 import { DocumentPreviewPanel } from './DocumentPreviewPanel';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
+import { computeRecognizedFieldKeys } from '@/shared/api/datasetHelpers';
 import { SourceOriginIcon } from '@/shared/ui/SourceOriginIcon';
 import { mergeBindingPreviewsIntoValues } from '@/shared/api/datasetHelpers';
 import { Button } from '@/shared/ui/Button';
@@ -118,16 +119,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
   // Поля, чей источник — распознанный скан (то же правило разбора привязки, что выше; признак
   // происхождения считает сервер). Человеку у read-only поля иначе неоткуда узнать, что значение
   // прочитала модель, — а сверять с оригиналом надо именно такие.
-  const recognizedBoundFields = useMemo(() => {
-    const s = new Set<string>();
-    for (const b of dsBindings) {
-      if (b.source?.origin !== 'Recognized') continue;
-      if (b.targetFieldKey) { s.add(b.targetFieldKey); continue; }
-      const effectiveMapping = Object.keys(b.mapping).length > 0 ? b.mapping : (b.source?.materializeMapping ?? {});
-      for (const key of Object.keys(effectiveMapping)) s.add(key);
-    }
-    return s;
-  }, [dsBindings]);
+  const recognizedBoundFields = useMemo(() => computeRecognizedFieldKeys(dsBindings), [dsBindings]);
   // Скалярные поля — для per-field привязки «линза» (issue #296, фаза 1): выбор источника на поле +
   // авто-предложение покрыть остальные скалярные поля этого источника.
   const scalarSchemaFields = useMemo(() => schemaFields.filter(f => isScalarField(f) && f.type !== 'file'), [schemaFields]);
@@ -441,6 +433,14 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     {!field.required && <span className="ml-1 text-[10px] text-fg4 font-normal">опц.</span>}
                     <BrokenCountBadge count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
                     <ValueIssueBadge count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
+                    {/* Широкие поля (многострочный текст, картинка, файл) подписываются здесь, и
+                        признак происхождения им нужен ровно так же: связанное текстовое поле
+                        read-only, и узнать, что значение прочитано со скана, иначе неоткуда. */}
+                    {recognizedBoundFields.has(field.key) && (
+                      <span className="ml-1 inline-block align-text-bottom">
+                        <SourceOriginIcon origin="Recognized" />
+                      </span>
+                    )}
                   </label>
                 )}
                 {field.type === 'complex' ? (
@@ -474,7 +474,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                       broken={brokenPaths.has(field.key)} />
                   )
                 ) : field.type === 'doc-array' ? (
-                  sourceBoundFields.has(field.key) ? <SourceBoundDocField /> : (
+                  sourceBoundFields.has(field.key) ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)} /> : (
                     <DocArrayField field={field} allDocTypes={allDocTypes} value={raw}
                       onChange={v => setValue(field.key, v)} otherInstances={otherInstances} setId={setId}
                       brokenPaths={brokenPaths} basePath={field.key} savedAt={instance.updatedAt} />
