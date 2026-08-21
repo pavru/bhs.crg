@@ -430,13 +430,50 @@ export type DataOrigin = 'Parsed' | 'Recognized' | 'System';
 
 /** Привязка набора данных к объекту — только Mapping. Filter/Transformation/Sort — на DataSetSource.
  * Владелец — единый ownerId (DomainObject: документ или запись общих данных). */
+/**
+ * Что перезапустит «Перераспознать» у источника — считает СЕРВЕР (issue #815).
+ *
+ * `None` — действия нет вовсе (источник не из PDF): предлагать его значит вести в тупик, эндпоинт
+ * отобьёт вызов на входе. `Source` — перезапустится только этот источник. `File` — распознавание
+ * ВСЕГО набора: минуты работы модели и перезапись всех его проекций, о чём человек должен узнать
+ * до нажатия, а не после.
+ */
+export type RecognizeScope = 'None' | 'Source' | 'File';
+
+/**
+ * Источник в составе привязки — УЗКИЙ DTO (`BindingSourceDto` на сервере), а не полный
+ * `DataSetSource`.
+ *
+ * Перечислен полями, а не выведен из `DataSetSource`, потому что однажды именно это и подвело:
+ * тип обещал полный источник, точка потребления читала `recognitionStale`, сервер его не слал —
+ * и весь показ устаревания молча ничего не рисовал, а TypeScript был доволен. Добавляя сюда поле,
+ * добавьте его и в `BindingSourceDto`, иначе оно будет вечно `undefined`.
+ */
+export interface DataSetBindingSource {
+  id: string;
+  name: string;
+  sheetOrPath: string;
+  cachedSchema: string;
+  cachedRowCount: number;
+  file?: Pick<DataSetFile, 'id' | 'name' | 'format' | 'scope' | 'scopeId'>;
+  materializeTypeId: string | null;
+  materializeMapping: Record<string, string> | null;
+  origin?: DataOrigin;
+  recognitionStale?: boolean;
+  staleReason?: DataSetStaleReason | null;
+  bindingCount?: number | null;
+  recognizeScope?: RecognizeScope;
+  /** Вычисляемые колонки: в `cachedSchema` их нет, а маппить по ним можно (issue #49). */
+  computedColumns?: ComputedColumn[] | null;
+}
+
 export interface DataSetBinding {
   id: string;
   ownerId: string;
   sourceId: string;
   targetFieldKey: string | null;
   mapping: Record<string, string>;
-  source?: DataSetSource & { file?: Pick<DataSetFile, 'id' | 'name' | 'format' | 'scope' | 'scopeId'> };
+  source?: DataSetBindingSource;
 }
 
 /** Владелец привязки к набору данных — единый объект (документ или запись общих данных). */

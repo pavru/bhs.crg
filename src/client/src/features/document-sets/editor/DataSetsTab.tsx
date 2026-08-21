@@ -7,10 +7,12 @@ import {
   useCreateDataSetBinding, useUpdateDataSetBinding, useDeleteDataSetBinding,
   useAutoMapDataSetSource, usePreviewDataSetBindings,
 } from '@/shared/api/datasets';
-import type { DocumentInstance, DocumentType, DataSetSource, DataSetBinding, DataSetBindingPreviewResult } from '@/shared/api/types';
+import type { DocumentInstance, DocumentType, DataSetBinding, DataSetBindingPreviewResult, ComputedColumn } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
 import { parseSourceColumnNames, parseRefMapping, buildRefMappingByName, buildRefMappingByIdentity, parseFileMapping, buildFileMapping, parseInlineMapping, buildInlineMapping } from '@/shared/api/datasetHelpers';
+import { StaleSourceAction } from '@/shared/ui/StaleSourceAction';
+import { ruCount } from '@/shared/utils/pluralize';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 /** Совместимость по наследованию: childId == ancestorId либо childId — потомок ancestorId по parentId. */
@@ -212,7 +214,9 @@ export function MappingEditor({
   hideModeSelector = false,
   allowDocRef = false,
 }: {
-  source: DataSetSource;
+  // Узкий контракт вместо полного источника: редактору нужны ровно две вещи, а привязка приносит
+  // урезанный DTO — требуя здесь DataSetSource, тип обещал бы поля, которых в ответе нет (issue #815).
+  source: { cachedSchema: string; computedColumns?: ComputedColumn[] | null };
   schemaFields: SchemaField[];
   tabularFields: SchemaField[];
   allDocTypes: DocumentType[];
@@ -615,11 +619,12 @@ function BindingRow({
             <span className="text-xs text-fg4">
               {file?.name} · {source?.materializeTypeId
                 ? `материализация → ${allDocTypes.find(t => t.id === source.materializeTypeId)?.name ?? 'тип'}`
-                : `${mappedCount} пол${mappedCount === 1 ? 'е' : 'я'} привязано`}
+                : `${ruCount(mappedCount, 'поле привязано', 'поля привязано', 'полей привязано')}`}
               {targetFieldKey && ` · таблица: ${targetFieldKey}`}
             </span>
           </div>
         </div>
+        <StaleSourceAction source={source} />
         <button
           onClick={() => setEditing(e => !e)}
           className="p-1.5 rounded text-xs text-fg3"

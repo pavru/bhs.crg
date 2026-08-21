@@ -45,6 +45,12 @@ export function useActiveJobs(): ActiveJob[] {
       qc.invalidateQueries({ queryKey: ['datasets', 'files'] });
       // Кандидаты источника меняются после распознавания таблицы (issue #385) — обновляем их тоже.
       qc.invalidateQueries({ queryKey: ['datasets', 'source-candidates'] });
+      // Привязки везут копию источника — в том числе признак устаревания и число строк (issue #815).
+      // Без них человек, дождавшийся конца перераспознавания, видел бы в форме документа прежний чип
+      // «устарело» и прежние значения: расхождение картинки с фактом читается не как задержка, а как
+      // «не сработало», и следующим движением жмут кнопку ещё раз.
+      qc.invalidateQueries({ queryKey: ['datasets', 'bindings'] });
+      qc.invalidateQueries({ queryKey: ['datasets', 'bindings-preview'] });
       qc.invalidateQueries({ queryKey: ['notifications'] });
     }
     prevIds.current = current;

@@ -26,7 +26,7 @@ import { buildRecognitionFields, codesFromLabels } from '@/features/quality-docs
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
 import { SourceOriginIcon } from '@/shared/ui/SourceOriginIcon';
-import { computeBoundFieldKeys, mergeBindingPreviewsIntoValues, computeRecognizedFieldKeys
+import { computeBoundFieldKeys, mergeBindingPreviewsIntoValues, computeRecognizedFieldKeys, computeStaleFieldKeys, computeStaleReasonByField, staleReasonText
 } from '@/shared/api/datasetHelpers';
 import { EntryDataSetBindings } from './EntryDataSetBindings';
 import {
@@ -264,6 +264,25 @@ export function CatalogEntryForm({
   // Какие из связанных полей приходят из распознанного источника: человек видит значок «из
   // источника» и не знает, что значение прочитала модель со скана (см. SourceOriginIcon).
   const recognizedBoundKeys = computeRecognizedFieldKeys(bindings);
+  // Устаревшие источники записи: та же оговорка, что в форме документа, но здесь у неё есть ещё
+  // один адресат — кнопка «Обновить из источника» (issue #815).
+  const staleBoundKeys = computeStaleFieldKeys(bindings);
+  const staleReasons = computeStaleReasonByField(bindings);
+  const staleReasonOfKey = (key: string) => staleReasons.get(key) ?? null;
+  const staleBindings = bindings.filter(b => b.source?.recognitionStale);
+  // Причину называем только когда она у всех устаревших источников ОДНА: смешав четыре под одной
+  // формулировкой, подсказка соврала бы про три из них.
+  const staleReasonCommon = new Set(staleBindings.map(b => b.source?.staleReason ?? null)).size === 1
+    ? staleReasonText(staleBindings[0]?.source?.staleReason)
+    : 'Источники этих полей изменились после распознавания';
+  // Два адресата — две подсказки: у кнопки речь о том, ЧТО она сейчас подтянет, у секции полей —
+  // о том, откуда взялись показанные значения. Один текст на обоих был бы неточен на каждом.
+  const staleRefreshHint = staleBindings.length === 0
+    ? undefined
+    : `${staleReasonCommon} — подтянутся значения от прежнего файла.`;
+  const staleFieldsHint = staleBindings.length === 0
+    ? undefined
+    : `${staleReasonCommon}. Перераспознать можно в списке наборов данных ниже.`;
   const { refetch: refetchBindingPreview, isFetching: refreshingFromSource } =
     usePreviewDataSetBindings({ ownerId: entry?.id });
   // Проверка связок (issue #99) — по требованию.
@@ -391,7 +410,8 @@ export function CatalogEntryForm({
               <div key={field.key}>
                 <label className="flex items-center gap-1.5 text-sm font-medium text-fg2 mb-1">
                   {field.title}
-                  <SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined} plural />
+                  <SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined} plural
+                    stale={staleBoundKeys.has(field.key)} staleReason={staleReasonOfKey(field.key)} />
                 </label>
                 <div className="rounded-md border border-stroke overflow-x-auto bg-muted">
                   {rows.length === 0 ? (
@@ -434,7 +454,8 @@ export function CatalogEntryForm({
               <div key={field.key}>
                 <label className="flex items-center gap-1.5 text-sm font-medium text-fg2 mb-1">
                   {field.title}
-                  <SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined} />
+                  <SourceOriginIcon origin={recognizedBoundKeys.has(field.key) ? 'Recognized' : undefined}
+                    stale={staleBoundKeys.has(field.key)} staleReason={staleReasonOfKey(field.key)} />
                 </label>
                 <div className="w-full border border-stroke rounded-md px-3 py-2 text-sm bg-muted text-fg2">
                   {refId ? <BoundRefValue entryId={refId} /> : (display ?? <em className="text-fg4">нет данных</em>)}
@@ -551,7 +572,9 @@ export function CatalogEntryForm({
         <div className="space-y-4">
           {normal.length > 0 && fieldStack(normal)}
           <AutoFieldsSection count={auto.length}
-            recognizedCount={auto.filter(f => recognizedBoundKeys.has(f.key)).length}>
+            recognizedCount={auto.filter(f => recognizedBoundKeys.has(f.key)).length}
+            staleCount={auto.filter(f => staleBoundKeys.has(f.key)).length}
+            staleHint={staleFieldsHint}>
             {fieldStack(auto)}
           </AutoFieldsSection>
         </div>
@@ -683,8 +706,12 @@ export function CatalogEntryForm({
           />
           {bindings.length > 0 && (
             <div className="flex items-center gap-2">
+              {/* Оговорка при устаревшем источнике (issue #815): кнопка подтянет ИМЕННО СТАРЫЕ
+                  значения, а человек будет уверен, что обновился до актуальных. Молчать здесь —
+                  худший вариант из трёх: обновление выглядит удавшимся. */}
               <Button type="button" variant="outlined" size="sm" onClick={handleRefreshFromSource}
-                loading={refreshingFromSource} icon={<RefreshCw size={14} />}>
+                loading={refreshingFromSource} icon={<RefreshCw size={14} />}
+                title={staleRefreshHint}>
                 Обновить из источника
               </Button>
               <Button type="button" variant="outlined" size="sm" onClick={() => runBindingCheck()}

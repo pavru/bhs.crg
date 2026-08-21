@@ -1049,7 +1049,8 @@ function isRowEmpty(row: Record<string, unknown> | undefined, subFields: SchemaF
 /** Сворачиваемая секция «Заполняются автоматически» (issue #102, P2): read-only поля из источника
  *  прячем по умолчанию, чтобы длинная форма не выглядела «портянкой» одинаковых боксов. */
 export function AutoFieldsSection(
-  { count, recognizedCount = 0, children }: { count: number; recognizedCount?: number; children: ReactNode },
+  { count, recognizedCount = 0, staleCount = 0, staleHint, children }:
+  { count: number; recognizedCount?: number; staleCount?: number; staleHint?: string; children: ReactNode },
 ) {
   const [open, setOpen] = useState(false);
   return (
@@ -1076,6 +1077,14 @@ export function AutoFieldsSection(
               {/* Совпали — говорим словом: сравнивать два числа на глаз читателю не должно
                   приходиться (в прошлый раз этот дефект пришлось записать в «не чиним»). */}
               {recognizedCount === count ? 'все со сканов' : `со сканов: ${recognizedCount}`}
+            </span>
+          )}
+          {/* Устаревание — ОТДЕЛЬНОЕ слагаемое, а не оттенок предыдущего (issue #815): устареть
+              может и обычный источник, не разобравшийся против нового файла, так что «со сканов: 0 ·
+              устарело: 2» — законная строка. Цвет warning: это оговорка к данным, а не поломка. */}
+          {staleCount > 0 && (
+            <span className="text-warning" title={staleHint}>
+              {' · '}устарело: {staleCount}
             </span>
           )}
         </span>

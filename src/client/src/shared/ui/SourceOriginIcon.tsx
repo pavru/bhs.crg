@@ -1,25 +1,33 @@
 import { DatabaseZap, ScanText } from 'lucide-react';
-import type { DataOrigin } from '@/shared/api/types';
+import type { DataOrigin, DataSetStaleReason } from '@/shared/api/types';
+import { staleReasonText } from '@/shared/api/datasetHelpers';
 
 /**
  * Значок «откуда это значение» у поля, заполняемого источником данных.
  *
  * Значок ОДИН и меняет форму, а не добавляется рядом: у поля и так конкурируют метки о поломках
  * (нерешённые ссылки, нарушенные ограничения, обязательность), и шестая отняла бы у них внимание.
- * Цветом различие тоже не передаётся — warning и danger в проекте означают «есть оговорка» и
- * «данные испорчены», а происхождение не про поломку: здесь ничего не сломано.
  *
- * Показывается только распознанное. `Parsed` и `System` оставляют прежний вид: у них нет действия
- * для читателя, а метка без действия превращается в фон.
+ * У него две НЕЗАВИСИМЫЕ оси (issue #815):
+ *   форма — происхождение (распознано со скана / подставляется из источника),
+ *   цвет  — состояние (норма / данные разошлись с файлом).
+ * Независимость здесь не украшение: устареть может и парсерный источник, у которого происхождение
+ * обычное, — свяжи цвет с формой, и такое поле промолчало бы.
+ *
+ * Происхождение показывается только распознанное: у `Parsed` и `System` нет действия для читателя,
+ * а метка без действия превращается в фон. Устаревание показывается у любого.
  */
-export function SourceOriginIcon({ origin, plural }: { origin?: DataOrigin; plural?: boolean }) {
+export function SourceOriginIcon(
+  { origin, plural, stale, staleReason }:
+  { origin?: DataOrigin; plural?: boolean; stale?: boolean; staleReason?: DataSetStaleReason | null },
+) {
   const recognized = origin === 'Recognized';
   // «Возможны ошибки чтения», а НЕ «сверьте с оригиналом»: сверять неоткуда — пути к самому скану
   // из формы нет (ссылка у поля ведёт на запись каталога, пикер источника — только на выбор
   // источника). Подсказка, требующая невыполнимого, обесценивается ровно так же, как та, что висит
   // всегда. Поэтому здесь констатация свойства и его следствия, без глагола: что делать дальше,
   // человек решит сам, а появится путь к листу — вернём и действие.
-  const title = recognized
+  const originText = recognized
     ? plural
       ? 'Строки распознаны со скана — возможны ошибки чтения'
       : 'Значение распознано со скана — возможны ошибки чтения'
@@ -27,11 +35,17 @@ export function SourceOriginIcon({ origin, plural }: { origin?: DataOrigin; plur
       ? 'Значения подставляются из источника данных'
       : 'Значение подставляется из источника данных';
 
+  // Причина устаревания — без глагола по той же причине: «Перераспознать» живёт в наборах данных,
+  // а уход туда из формы документа потерял бы несохранённые реквизиты. Действие человек найдёт там,
+  // где путь к нему есть, — в обзоре источников документа (кнопка «Источники» в шапке).
+  const title = stale ? `${originText}. ${staleReasonText(staleReason)}` : originText;
+  const cls = stale ? 'text-warning' : 'text-brand';
+
   return (
     <span title={title}>
       {recognized
-        ? <ScanText size={12} className="text-brand" aria-hidden />
-        : <DatabaseZap size={12} className="text-brand" aria-hidden />}
+        ? <ScanText size={12} className={cls} aria-hidden />
+        : <DatabaseZap size={12} className={cls} aria-hidden />}
       {/* Подсказка на span доступна только мышью — тем, кто ведёт форму с клавиатуры, признак
           обязан достаться текстом (проект keyboard-first, issue #107). */}
       <span className="sr-only">{title}</span>
