@@ -1,5 +1,7 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+
+const REGISTRATION_OPEN_KEY = ['auth', 'registration-open'];
 
 /**
  * Открыта ли регистрация первого администратора (issue #826).
@@ -14,9 +16,13 @@ import { apiClient } from './client';
  */
 export function useRegistrationOpen() {
   return useQuery({
-    queryKey: ['auth', 'registration-open'],
+    queryKey: REGISTRATION_OPEN_KEY,
+    // Срок ответа СВОЙ и короткий: у apiClient общего таймаута нет, а пока ответа нет, экран
+    // входа пуст. Сервер, который принял соединение и замолчал (пул базы, медленный старт за
+    // уже здоровым прокси), держал бы пустую карточку до таймаута nginx — минуту без единого
+    // слова и без единой кнопки. Отвалившись за 6 с, мы показываем обычный вход.
     queryFn: async () =>
-      (await apiClient.get<{ open: boolean }>('/auth/registration-open')).data.open,
+      (await apiClient.get<{ open: boolean }>('/auth/registration-open', { timeout: 6000 })).data.open,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -24,9 +30,17 @@ export function useRegistrationOpen() {
 
 /** Регистрация первого администратора. 403 — кто-то успел раньше (см. registerErrorText). */
 export function useRegisterFirstAdmin() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (dto: { email: string; password: string; displayName: string }) =>
       apiClient.post('/auth/register', dto),
+    // Ответ на флаг теперь известен точно — записываем его, а не помечаем устаревшим.
+    // Иначе: QueryClient живёт модулем, `staleTime` 30 с, переходы клиентские, — и первый же
+    // «Выйти» после первичной настройки вернул бы на настроенной системе экран «Первый вход»
+    // с плашкой «эта форма открыта любому», подменяемый входом через мгновение. Кто успел
+    // отправить форму, получил бы 403. Инвалидация от этого не спасает: старое значение
+    // отдаётся, пока идёт перезапрос.
+    onSuccess: () => queryClient.setQueryData(REGISTRATION_OPEN_KEY, false),
   });
 }
 

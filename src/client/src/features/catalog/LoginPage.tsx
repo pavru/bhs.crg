@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router';
 import { FileCheck2, Eye, EyeOff, ShieldAlert } from 'lucide-react';
@@ -6,7 +6,7 @@ import { useAuth } from '@/shared/hooks/useAuth';
 import { useAppVersion } from '@/shared/api/version';
 import { useRegistrationOpen, useRegisterFirstAdmin } from '@/shared/api/auth';
 import { PASSWORD_MIN_LENGTH, PASSWORD_HINT } from '@/shared/auth/passwordPolicy';
-import { registerErrorText } from '@/shared/auth/identityErrors';
+import { registerErrorText, autoLoginFailedText } from '@/shared/auth/identityErrors';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 
@@ -64,7 +64,7 @@ export function LoginPage() {
           </div>
           <div className="text-xs tracking-wide text-white/55"
             title={version?.buildDate ? new Date(version.buildDate).toLocaleString('ru-RU') : undefined}>
-            {versionLabel || ' '}
+            {versionLabel || ' '}
           </div>
         </div>
 
@@ -82,7 +82,7 @@ export function LoginPage() {
           {/* Пока не знаем, есть ли в системе пользователи, не рисуем НИЧЕГО. Показать вход и
               через мгновение подменить его регистрацией — значит первым делом мигнуть в лицо
               администратору формой, которой он воспользоваться не может. */}
-          {isPending ? <div className="min-h-[320px]" aria-busy="true" />
+          {isPending ? <Waiting />
             : registrationOpen ? <FirstAdminForm /> : <SignInForm />}
 
           {version && (
@@ -93,6 +93,28 @@ export function LoginPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Ожидание ответа о состоянии системы.
+ *
+ * Обычно занимает миллисекунды и не успевает быть увиденным — поэтому подпись появляется с
+ * задержкой: показывать её сразу значило бы мигать текстом на КАЖДОМ входе. Но если сервер
+ * молчит, пустая карточка без слов и без кнопок читается как «система сломана», и молчать в
+ * ответ нельзя. Дольше 6 с это не длится: запрос отваливается по своему сроку, и открывается
+ * обычная форма входа.
+ */
+function Waiting() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div className="min-h-[320px] flex items-center" aria-busy="true">
+      {slow && <p className="text-sm text-fg3">Проверяем состояние системы…</p>}
     </div>
   );
 }
@@ -204,12 +226,21 @@ function FirstAdminForm() {
     setBusy(true);
     try {
       await register.mutateAsync({ email, password, displayName });
-      // Сразу входим: заставлять человека вводить те же данные второй раз — на ровном месте
-      // повод усомниться, создалась ли учётная запись вообще.
-      await login(email, password, true);
-      navigate('/document-sets', { replace: true });
     } catch (err) {
       setError(registerErrorText(err));
+      setBusy(false);
+      return;
+    }
+    // Вход — ОТДЕЛЬНОЙ попыткой, и отказ у него свой: учётная запись к этому мигу уже создана,
+    // а регистрация закрыта. Сказать здесь «не удалось создать администратора» значит отправить
+    // человека регистрироваться заново — и получить в ответ «регистрация уже закрыта».
+    try {
+      // Заставлять вводить те же данные второй раз — на ровном месте повод усомниться,
+      // создалась ли учётная запись вообще.
+      await login(email, password, true);
+      navigate('/document-sets', { replace: true });
+    } catch {
+      setError(autoLoginFailedText());
     } finally {
       setBusy(false);
     }

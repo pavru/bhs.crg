@@ -1,48 +1,58 @@
 import { describe, it, expect } from 'vitest';
-import { registerErrorText } from './identityErrors';
+import { registerErrorText, autoLoginFailedText } from './identityErrors';
 
 /** Ответ axios на отказ регистрации. */
 const fail = (status: number, data?: unknown) => ({ response: { status, data } });
 
 describe('registerErrorText', () => {
-  it('называет требование к паролю, а не английский текст Identity', () => {
-    const e = fail(400, [
-      { code: 'PasswordRequiresUpper', description: "Passwords must have at least one uppercase ('A'-'Z')." },
-    ]);
-    const text = registerErrorText(e);
-    expect(text).toContain('Пароль');
-    expect(text).toContain('8');
-    expect(text).not.toContain('Passwords');
+  it('показывает точный текст сервера, а не пересказ политики', () => {
+    // Identity уже отвечает по-русски (RuIdentityErrorDescriber) и называет НАРУШЕННОЕ правило.
+    // Подменять это общей фразой значит заставить человека перечитывать политику целиком.
+    const e = fail(400, { error: 'Пароль должен содержать хотя бы одну заглавную букву.' });
+    expect(registerErrorText(e)).toBe('Пароль должен содержать хотя бы одну заглавную букву.');
   });
 
-  it('разбирает по коду, а не по формулировке', () => {
-    // Тот же случай с пустым description: формулировки Identity меняются, коды — нет.
-    expect(registerErrorText(fail(400, [{ code: 'PasswordTooShort' }]))).toContain('Пароль');
-  });
-
-  it('отличает занятый адрес', () => {
-    expect(registerErrorText(fail(400, [{ code: 'DuplicateUserName' }]))).toContain('таким адресом уже есть');
-  });
-
-  it('отличает недействительный адрес', () => {
-    expect(registerErrorText(fail(400, [{ code: 'InvalidEmail' }]))).toContain('недействительным');
+  it('склеенные требования доходят как есть', () => {
+    const e = fail(400, { error: 'Пароль должен быть не короче 8 символов.; Пароль должен содержать хотя бы одну цифру.' });
+    expect(registerErrorText(e)).toContain('не короче 8 символов');
+    expect(registerErrorText(e)).toContain('одну цифру');
   });
 
   it('403 — регистрация закрыта, и это НЕ ошибка ввода', () => {
-    // Гонка двух вкладок либо второй заход по старой странице: винить пароль здесь нельзя,
-    // человек начал бы его менять, хотя система просто уже настроена.
-    const text = registerErrorText(fail(403));
+    // Гонка двух вкладок либо второй заход по старой странице: винить пароль здесь нельзя —
+    // человек начнёт его менять, хотя система просто уже настроена. Свой текст, а не серверный
+    // («обратитесь к администратору»): администратор здесь — он сам, ему нужно просто войти.
+    const text = registerErrorText(fail(403, { detail: 'Регистрация закрыта. Обратитесь к администратору.' }));
     expect(text).toContain('закрыта');
     expect(text).toContain('войдите');
   });
 
   it('429 — предел частоты, а не отказ данных', () => {
+    // Тела у ответа нет вовсе: без своего текста человек увидел бы общую фразу про адрес и пароль.
     expect(registerErrorText(fail(429))).toContain('через несколько минут');
   });
 
-  it('незнакомое тело не притворяется разобранным', () => {
-    expect(registerErrorText(fail(400, 'что-то своё'))).toBe(
-      'Не удалось создать администратора. Проверьте адрес и пароль.');
-    expect(registerErrorText(new Error('сеть'))).toContain('Не удалось создать администратора');
+  it('без внятного тела отвечает по-русски, а не сообщением axios', () => {
+    // У axios `message` есть ВСЕГДА («Request failed with status code 400»), и общий apiError
+    // вернул бы именно его. На первом экране системы это худший ответ: и непонятно, и не на том
+    // языке. Пусто в теле — говорим своё.
+    expect(registerErrorText(fail(400, {}))).toContain('Не удалось создать администратора');
+    expect(registerErrorText(new Error('Network Error'))).toContain('Не удалось создать администратора');
+  });
+
+  it('текст ProblemDetails тоже доходит', () => {
+    expect(registerErrorText(fail(400, { detail: 'Что-то пошло не так на сервере.' })))
+      .toBe('Что-то пошло не так на сервере.');
+  });
+});
+
+describe('autoLoginFailedText', () => {
+  it('не отправляет регистрироваться заново', () => {
+    // Учётная запись уже создана: «не удалось создать» увело бы на повторную попытку, а она
+    // ответит «регистрация закрыта» — два сообщения, противоречащих друг другу.
+    const text = autoLoginFailedText();
+    expect(text).toContain('создан');
+    expect(text).toContain('войдите');
+    expect(text).not.toContain('Не удалось создать');
   });
 });
