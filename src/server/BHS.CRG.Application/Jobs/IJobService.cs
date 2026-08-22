@@ -28,6 +28,16 @@ public interface IJobService
     /// <summary>Есть ли у пользователя активная (Queued/Running) задача по данной цели — защита от дубля.</summary>
     Task<bool> HasActiveForTargetAsync(Guid userId, Guid targetId, CancellationToken ct);
 
+    /// <summary>
+    /// Есть ли активная задача такого вида — у КОГО УГОДНО, а не только у спросившего.
+    ///
+    /// Заведено для операций, у которых цель не объект, а система целиком (резервное копирование,
+    /// issue #831): защита по цели там вырождается в <c>Guid.Empty</c>, а защита по владельцу не
+    /// защищает вовсе — второй администратор о задаче первого не знает, потому что список активных
+    /// показывает только свои.
+    /// </summary>
+    Task<bool> HasActiveOfKindAsync(JobKind kind, CancellationToken ct);
+
     /// <summary>Отменить свою задачу — ТОЛЬКО пока она в очереди (Queued). true — отменена; false —
     /// нельзя (уже выполняется/завершена/не найдена/чужая). Выполняемые добегают до конца.</summary>
     Task<bool> CancelAsync(Guid jobId, Guid userId, CancellationToken ct);

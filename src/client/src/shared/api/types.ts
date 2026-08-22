@@ -254,6 +254,37 @@ export interface BackupSizeEstimate {
   exceedsLimit: boolean;
 }
 
+/** Раздел копии и число записей в нём — «состав» в списке копий (issue #831). */
+export interface BackupSectionCount {
+  label: string;
+  count: number;
+}
+
+/**
+ * Копия, лежащая в каталоге на сервере (issue #831).
+ *
+ * `problem` — не техническая деталь, а единственный честный ответ про файл без паспорта: копию,
+ * снятую старой версией, восстановить можно, чужой zip — нельзя, и спрятать оба было бы хуже всего.
+ */
+export interface BackupFileInfo {
+  fileName: string;
+  sizeBytes: number;
+  createdAt: string;
+  appVersion: string | null;
+  schemaVersion: number | null;
+  blobCount: number | null;
+  sections: BackupSectionCount[] | null;
+  problem: string | null;
+}
+
+export interface BackupFilesResponse {
+  files: BackupFileInfo[];
+  /** Предел числа копий: достигнут — новая не создаётся, пока не удалят старые. */
+  keepCount: number;
+  /** Каталог на сервере: по этому пути копию кладут и забирают в обход браузера. */
+  directory: string;
+}
+
 export interface RestoreReport {
   success: boolean;
   conversionNotice: string | null;

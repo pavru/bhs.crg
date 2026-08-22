@@ -34,6 +34,10 @@ public class JobService(AppDbContext db, JobQueue queue) : IJobService
         => db.Jobs.AsNoTracking().AnyAsync(j => j.UserId == userId && j.TargetId == targetId
             && (j.Status == JobStatus.Queued || j.Status == JobStatus.Running), ct);
 
+    public Task<bool> HasActiveOfKindAsync(JobKind kind, CancellationToken ct)
+        => db.Jobs.AsNoTracking().AnyAsync(j => j.Kind == kind
+            && (j.Status == JobStatus.Queued || j.Status == JobStatus.Running), ct);
+
     public async Task<bool> CancelAsync(Guid jobId, Guid userId, CancellationToken ct)
     {
         var job = await db.Jobs.FirstOrDefaultAsync(j => j.Id == jobId && j.UserId == userId, ct);

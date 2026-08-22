@@ -162,6 +162,16 @@ builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath))
     .SetApplicationName("BHS.CRG");
 
+// Каталог резервных копий (issue #831) — здесь же и по той же причине, что каталог ключей выше:
+// контейнер работает не от root, и каталог, смонтированный с хоста с чужим владельцем, — самый
+// вероятный отказ подсистемы. Узнать о нём при попытке снять копию значит узнать в тот
+// единственный раз, когда копия была нужна.
+var backupStorage = BHS.CRG.Application.Backup.BackupStorageOptions.Parse(
+    cfg["Backup:Directory"], cfg["Backup:KeepCount"],
+    Path.Combine(builder.Environment.ContentRootPath, "backups"));
+backupStorage.EnsureUsable();
+builder.Services.AddSingleton(backupStorage);
+
 // Время жизни токенов сброса пароля / подтверждения (дефолтный token-провайдер) — 1 час.
 builder.Services.Configure<DataProtectionTokenProviderOptions>(o => o.TokenLifespan = TimeSpan.FromHours(1));
 
@@ -345,6 +355,8 @@ builder.Services.AddScoped<IRepository<QualityAuditRun>, Repository<QualityAudit
 
 // ── Backup ────────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<BackupService>();
+builder.Services.AddSingleton<BHS.CRG.Infrastructure.Backup.BackupFileStore>();
+builder.Services.AddScoped<BHS.CRG.Infrastructure.Backup.BackupJobRunner>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.ImageBlobMigration>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.MaterialLabelBackfill>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.OrphanObjectCleanup>();
