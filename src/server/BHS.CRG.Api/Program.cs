@@ -9,6 +9,9 @@ using BHS.CRG.Api.Endpoints.Attachments;
 using BHS.CRG.Api.Endpoints.Auth;
 using BHS.CRG.Api.Endpoints.Backup;
 using BHS.CRG.Api.Endpoints.Maintenance;
+using BHS.CRG.Api.Updates;
+using BHS.CRG.Application.Updates;
+using BHS.CRG.Infrastructure.Updates;
 using BHS.CRG.Api.Endpoints.Catalog;
 using BHS.CRG.Api.Endpoints.Recognition;
 using BHS.CRG.Api.Endpoints.DataSets;
@@ -451,6 +454,14 @@ builder.Services.AddHostedService<JobBackgroundService>();
 
 // ── Notifications + health monitoring ───────────────────────────────────────────
 builder.Services.AddScoped<INotificationService, NotificationService>();
+// Проверка новых версий (issue #813): служба — singleton (её же зовёт кнопка «Проверить сейчас»),
+// чтение состояния — scoped, потому что ходит в базу.
+builder.Services.AddScoped<ServiceStateStore>();
+builder.Services.AddScoped<IUpdateCheck, UpdateCheckReader>();
+builder.Services.AddScoped<UpdateNotifier>();
+builder.Services.AddSingleton<UpdateCheckService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService>());
+
 builder.Services.AddSingleton<HealthMonitorService>();
 builder.Services.AddSingleton<IHealthState>(sp => sp.GetRequiredService<HealthMonitorService>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<HealthMonitorService>());
@@ -649,6 +660,7 @@ app.MapReconciliationEndpoints();
 app.MapObservationEndpoints();
 app.MapObjectResolveEndpoints();
 app.MapSettingsEndpoints();
+app.MapUpdateEndpoints();
 app.MapEmailEndpoints();
 app.MapSubscriptionEndpoints();
 

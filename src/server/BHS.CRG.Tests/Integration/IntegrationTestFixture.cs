@@ -121,6 +121,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         "dataset_sources",
         "dataset_files",
         "integration_settings",
+        "service_state",
     ];
 
     /// <summary>Truncates all domain tables so each test class starts clean.</summary>

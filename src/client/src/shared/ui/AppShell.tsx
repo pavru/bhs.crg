@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, Link, Outlet } from 'react-router';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAppVersion } from '@/shared/api/version';
+import { useUpdateStatus } from '@/shared/api/updates';
 import { useAccount, useResendConfirmation } from '@/shared/api/account';
 import { useTheme, type Theme } from '@/shared/ui/ThemeProvider';
 import { NotificationsCenter } from '@/features/notifications/NotificationsCenter';
@@ -223,17 +224,26 @@ function EmailConfirmBanner() {
 }
 
 // Версия приложения (низ сайдбара). Подробности (сборка/дата) — в подсказке при наведении.
+//
+// Здесь же — ПАССИВНЫЙ носитель новости о новой версии (issue #813): виден на каждом экране, всем и
+// всегда, и никого не дёргает. Уведомлением тревожим только администратора — того, у кого есть путь
+// к действию; остальным знать полезно («мы на свежей?»), но требовать от них нечего.
 function VersionLabel() {
   const { data } = useAppVersion();
+  const { user } = useAuth();
+  const { data: update } = useUpdateStatus(!!user);
   if (!data) return null;
+  const newer = update?.updateAvailable ? update.latest : null;
   const title = [
     `Версия ${data.version}`,
     data.commit && `сборка ${data.commit}`,
     data.buildDate && new Date(data.buildDate).toLocaleString('ru-RU'),
+    newer && `доступна версия ${newer} — обновление выполняет администратор`,
   ].filter(Boolean).join(' · ');
   return (
     <div className="text-[11px] text-fg3 truncate px-4 pt-2.5 pb-1.5" title={title}>
       v{data.version}{data.commit ? ` · ${data.commit}` : ''}
+      {newer && <span className="text-brand"> · доступна {newer}</span>}
     </div>
   );
 }

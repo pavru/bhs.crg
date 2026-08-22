@@ -44,9 +44,24 @@ public class SmtpSettings
         && UseSsl == other.UseSsl;
 }
 
+/// <summary>Проверка новых версий на GitHub (issue #813).</summary>
+public class UpdateCheckSettings
+{
+    /// <summary>
+    /// Выключено — служба НЕ ходит в сеть вовсе, а не просто молчит. Каждый запрос сообщает GitHub
+    /// адрес установки и сам факт её существования; «выключил, а оно всё равно стучится» —
+    /// поведение, за которое систему справедливо ругают. Для установок без интернета это
+    /// единственный способ не видеть в журнале бесконечные неудачи.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+}
+
 /// <summary>
-/// Управляемые из UI настройки интеграций (распознавание + веб-поиск + почта).
+/// Управляемые из UI настройки ВНЕШНИХ служб: распознавание, веб-поиск, почта, проверка обновлений.
 /// Хранятся в БД; пустой ключ движка означает fallback на конфигурацию (user-secrets/appsettings).
+///
+/// Имя класса уже́ уже своего содержания (issue #813) — переименование задело бы API, клиент и
+/// разбор сохранённого JSON, поэтому отложено до собственной причины, а не сделано попутно.
 /// </summary>
 public class IntegrationSettingsModel
 {
@@ -58,6 +73,9 @@ public class IntegrationSettingsModel
     public List<string> FgisDomains { get; set; } = [];
     public List<string> ManufacturerDomains { get; set; } = [];
     public SmtpSettings Smtp { get; set; } = new();
+    /// <summary>Проверка обновлений. Здесь живёт ТОЛЬКО то, что задал человек: след самой службы
+    /// («о какой версии уведомляли», «когда проверяли») — в ServiceState, см. issue #813.</summary>
+    public UpdateCheckSettings Updates { get; set; } = new();
 
     public IntegrationEngine Rec(string name)
         => Recognition.TryGetValue(name, out var e) ? e : new IntegrationEngine();
@@ -74,5 +92,7 @@ public interface IIntegrationSettings
     Task SaveAsync(IntegrationSettingsModel update, CancellationToken ct = default);
     /// <summary>Сохраняет только секцию SMTP (не трогая распознавание/поиск) — отдельные формы не затирают друг друга.</summary>
     Task SaveSmtpAsync(SmtpSettings smtp, CancellationToken ct = default);
+    /// <summary>Сохраняет только секцию обновлений — по той же причине, что и SMTP.</summary>
+    Task SaveUpdatesAsync(UpdateCheckSettings updates, CancellationToken ct = default);
     void Invalidate();
 }

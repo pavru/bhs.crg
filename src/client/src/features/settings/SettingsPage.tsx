@@ -13,6 +13,7 @@ import {
 import { IntegrationSettingsSection } from './IntegrationSettingsSection';
 import { EmailSettingsSection } from './EmailSettingsSection';
 import { CollapsibleSection } from './CollapsibleSection';
+import { UpdateSettingsSection } from './UpdateSettingsSection';
 import { ImageMaintenanceSection } from './ImageMaintenanceSection';
 import { OrphanObjectsSection } from './OrphanObjectsSection';
 import { OrphanBlobsSection } from './OrphanBlobsSection';
@@ -481,6 +482,9 @@ export function SettingsPage() {
 
       {/* ── Почта (SMTP) ───────────────────────────────────────────────────── */}
       <EmailSettingsSection />
+
+      {/* ── Обновления системы (issue #813) ────────────────────────────────── */}
+      <UpdateSettingsSection />
 
       {/* ── Backup & Restore ───────────────────────────────────────────────── */}
       <ImageMaintenanceSection />
