@@ -31,10 +31,22 @@ public static class BackupEndpoints
         g.MapPost("/files", async (
             BackupFileStore store, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
         {
+            // Одна копия за раз, и проверка — по ВИДУ задачи, а не по владельцу: список активных
+            // задач у каждого свой, поэтому второй администратор о снятии, начатом первым, не
+            // знает вовсе, а кнопка в интерфейсе гаснет лишь на следующем опросе — двойное нажатие
+            // успевает поставить две. Цена дубля не только в лишних минутах работы: копии
+            // адресуются по имени с точностью до секунды.
+            if (await jobs.HasActiveOfKindAsync(JobKind.CreateBackup, ct))
+                return Results.Conflict(new
+                {
+                    error = "Копия уже снимается — дождитесь окончания. Ход виден в списке задач " +
+                            "рядом с колокольчиком; о завершении система сообщит."
+                });
+
             store.EnsureRoomForNewCopy();
             var jobId = await jobs.EnqueueAsync(
                 JobKind.CreateBackup, UserId(user), Guid.Empty, "Резервное копирование", null, ct);
-            return Results.Accepted($"/api/jobs/active", new { jobId });
+            return Results.Accepted("/api/jobs/active", new { jobId });
         });
 
         g.MapGet("/files/{fileName}", (string fileName, BackupFileStore store) =>

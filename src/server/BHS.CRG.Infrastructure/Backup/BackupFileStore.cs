@@ -29,11 +29,22 @@ public sealed class BackupFileStore(BackupStorageOptions options, ILogger<Backup
 
     private const string ManifestEntryName = "manifest.json";
 
+
     /// <summary>Незавершённая запись. Точка в начале и расширение не .zip — в список не попадёт.</summary>
     private const string IncomingPrefix = ".incoming-";
 
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web) { WriteIndented = true };
+
+    /// <summary>
+    /// Перебор файлов БЕЗ учёта регистра расширения. Умолчание .NET считается с файловой системой,
+    /// то есть на Windows регистр не важен, а на Linux — важен; сервер работает на Linux. Приём
+    /// файла при этом сверяет расширение через OrdinalIgnoreCase, и рассогласование выглядело бы
+    /// так: копию `Backup.ZIP` загрузили, ответ успешный — а в списке её нет и в предел она не
+    /// считается. Одно правило на приём и на перебор.
+    /// </summary>
+    private static readonly EnumerationOptions ZipEnumeration =
+        new() { MatchCasing = MatchCasing.CaseInsensitive, RecurseSubdirectories = false };
 
     public string Directory => options.Directory;
 
@@ -52,7 +63,7 @@ public sealed class BackupFileStore(BackupStorageOptions options, ILogger<Backup
     {
         EnsureDirectory();
         return new DirectoryInfo(options.Directory)
-            .EnumerateFiles("*.zip", SearchOption.TopDirectoryOnly)
+            .EnumerateFiles("*.zip", ZipEnumeration)
             .Select(Describe)
             .OrderByDescending(f => f.CreatedAt)
             .ToList();
@@ -62,7 +73,7 @@ public sealed class BackupFileStore(BackupStorageOptions options, ILogger<Backup
     public int Count()
     {
         EnsureDirectory();
-        return System.IO.Directory.EnumerateFiles(options.Directory, "*.zip", SearchOption.TopDirectoryOnly).Count();
+        return System.IO.Directory.EnumerateFiles(options.Directory, "*.zip", ZipEnumeration).Count();
     }
 
     /// <summary>
@@ -116,10 +127,16 @@ public sealed class BackupFileStore(BackupStorageOptions options, ILogger<Backup
         return Path.Combine(options.Directory, $"{IncomingPrefix}{Guid.NewGuid():N}.tmp");
     }
 
-    /// <summary>Сделать записанный временный файл копией под окончательным именем.</summary>
+    /// <summary>
+    /// Сделать записанный временный файл копией под окончательным именем.
+    ///
+    /// Имя разводится с уже лежащим (<see cref="UniqueName" />), хотя в нём и есть секунды: две
+    /// копии, начатые в одну секунду, роняли бы вторую на <c>File.Move</c> — то есть после
+    /// нескольких минут работы, и в колокольчик уходила бы «внутренняя ошибка» вместо копии.
+    /// </summary>
     public BackupFileInfo Publish(string tempPath, string fileName)
     {
-        var target = Resolve(fileName);
+        var target = Resolve(UniqueName(fileName));
         File.Move(tempPath, target, overwrite: false);
         logger.LogInformation("Резервная копия создана: {FileName}", fileName);
         return Describe(new FileInfo(target));
@@ -134,7 +151,7 @@ public sealed class BackupFileStore(BackupStorageOptions options, ILogger<Backup
     public async Task<BackupFileInfo> AcceptUploadAsync(Stream source, string suggestedName, CancellationToken ct)
     {
         EnsureDirectory();
-        var fileName = UniqueName(SanitizeName(suggestedName));
+        var fileName = SanitizeName(suggestedName);
         var temp = CreateTempPath();
         try
         {
@@ -220,9 +237,18 @@ public sealed class BackupFileStore(BackupStorageOptions options, ILogger<Backup
 
             // Паспорта нет. Это либо копия, снятая версией до issue #831, либо чужой zip. Разница
             // существенная — восстанавливать первое можно, второе нет, — и молчать о ней нельзя.
-            var problem = zip.GetEntry(ManifestEntryName) is not null
-                ? "Копия снята версией до 0.141.0: состав и дату из неё не прочитать. Восстановить можно."
-                : "Файл не похож на резервную копию системы: в архиве нет manifest.json.";
+            //
+            // «Восстановить можно» здесь НЕ говорим наугад: копии в формате до issue #84 (schema v1)
+            // восстановление отклоняет, и обещание в списке оказалось бы обещанием, которого не
+            // держит соседний экран. Версию формата читаем из начала манифеста — она первым полем.
+            var manifestEntry = zip.GetEntry(ManifestEntryName);
+            var problem = manifestEntry is null
+                ? "Файл не похож на резервную копию системы: в архиве нет manifest.json."
+                : ReadSchemaVersion(manifestEntry) is { } v && v < BackupService.CurrentSchemaVersion
+                    ? $"Копия в устаревшем формате (v{v}): восстановление её отклонит. " +
+                      "Формат сменился при объединении объектов — перенести из неё нечего."
+                    : "Копия снята версией до 0.141.0: состав и дату из неё не прочитать. " +
+                      "Восстановлению это не мешает.";
             return new BackupFileInfo(file.Name, file.Length, file.LastWriteTimeUtc,
                 VersionFromName(file.Name), null, null, null, problem);
         }
@@ -232,6 +258,37 @@ public sealed class BackupFileStore(BackupStorageOptions options, ILogger<Backup
             return new BackupFileInfo(file.Name, file.Length, file.LastWriteTimeUtc, null, null, null, null,
                 $"Файл не читается как архив: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Версия формата из начала манифеста; <c>null</c> — не нашлась там, где ожидалась.
+    ///
+    /// Читаем ПЕРВЫЕ килобайты, а не разбираем манифест: он несёт картинки в base64 и на рабочей
+    /// системе весит сотни мегабайт, а список копий обязан стоить одинаково для копии в 5 МБ и в
+    /// 3 ГБ. Поле идёт первым (порядок параметров записи), так что этого хватает; не нашлось —
+    /// молчим, а не выдумываем.
+    /// </summary>
+    private static int? ReadSchemaVersion(ZipArchiveEntry manifest)
+    {
+        try
+        {
+            using var s = manifest.Open();
+            var buffer = new byte[4096];
+            var read = s.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
+            var reader = new Utf8JsonReader(buffer.AsSpan(0, read), isFinalBlock: false, state: default);
+            while (reader.Read())
+            {
+                if (reader.TokenType != JsonTokenType.PropertyName) continue;
+                if (!reader.ValueTextEquals("SchemaVersion") && !reader.ValueTextEquals("schemaVersion")) continue;
+                return reader.Read() && reader.TokenType == JsonTokenType.Number ? reader.GetInt32() : null;
+            }
+        }
+        catch (Exception)
+        {
+            // Обрыв на границе буфера — обычное дело для незавершённого JSON: молча признаём,
+            // что версия неизвестна. Отказ здесь означал бы, что одна копия ломает весь список.
+        }
+        return null;
     }
 
     /// <summary>Версия из имени вида <c>crg-backup-20260822-141530-v0.140.1.zip</c>; иначе null.</summary>

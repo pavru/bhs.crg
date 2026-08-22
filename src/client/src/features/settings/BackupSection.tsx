@@ -102,6 +102,7 @@ function BackupFilesPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [downloading, setDownloading] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<BackupFileInfo | null>(null);
   const [toRestore, setToRestore] = useState<BackupFileInfo | null>(null);
@@ -143,6 +144,24 @@ function BackupFilesPanel() {
       setError(apiError(err, 'Не удалось загрузить файл.'));
     } finally {
       setUploading(false);
+    }
+  }
+
+  /**
+   * Скачивание — единственное действие, у которого отказ некому показать: кнопка не открывает
+   * диалога. Молчащая кнопка при этом худший исход из возможных — копию удалили из другой вкладки
+   * или унесли с диска, а выглядит это как «не нажалось».
+   */
+  async function handleDownload(file: BackupFileInfo) {
+    setError('');
+    setDownloading(file.fileName);
+    try {
+      await downloadBackupFile(file.fileName);
+    } catch (e) {
+      setError(apiError(e, `Не удалось скачать «${file.fileName}».`));
+      qc.invalidateQueries({ queryKey: ['backup', 'files'] });
+    } finally {
+      setDownloading(null);
     }
   }
 
@@ -232,8 +251,11 @@ function BackupFilesPanel() {
                   )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <IconAction title="Скачать" onClick={() => downloadBackupFile(f.fileName)}>
-                    <Download size={14} />
+                  <IconAction title="Скачать" onClick={() => handleDownload(f)}
+                    disabled={downloading !== null}>
+                    {downloading === f.fileName
+                      ? <Loader2 size={14} className="animate-spin" />
+                      : <Download size={14} />}
                   </IconAction>
                   <IconAction title="Восстановить из этой копии" onClick={() => setToRestore(f)}>
                     <RotateCcw size={14} />
@@ -329,10 +351,11 @@ function BackupFilesPanel() {
   );
 }
 
-function IconAction({ title, onClick, danger, children }: {
+function IconAction({ title, onClick, danger, disabled, children }: {
   title: string;
   onClick: () => void;
   danger?: boolean;
+  disabled?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -341,7 +364,8 @@ function IconAction({ title, onClick, danger, children }: {
       title={title}
       aria-label={title}
       onClick={onClick}
-      className={`p-1.5 rounded-md transition-colors ${
+      disabled={disabled}
+      className={`p-1.5 rounded-md transition-colors disabled:opacity-50 ${
         danger ? 'text-fg3 hover:text-danger hover:bg-danger-subtle' : 'text-fg3 hover:text-fg1 hover:bg-base'
       }`}
     >

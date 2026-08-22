@@ -114,10 +114,10 @@ public class BackupFileStoreTests : IDisposable
         Directory.CreateDirectory(_dir);
         using (var zip = ZipFile.Open(Path.Combine(_dir, "crg-backup-20250101-000000-v0.100.0.zip"),
                    ZipArchiveMode.Create))
-            Write(zip, "manifest.json", "{}");
+            Write(zip, "manifest.json", "{\"SchemaVersion\":2}");
 
         var file = Assert.Single(Store().List());
-        Assert.Contains("Восстановить можно", file.Problem);
+        Assert.Contains("Восстановлению это не мешает", file.Problem);
         Assert.Equal("0.100.0", file.AppVersion); // версия достаётся хотя бы из имени
         Assert.Null(file.Sections);
     }
@@ -141,6 +141,61 @@ public class BackupFileStoreTests : IDisposable
         var temp = store.CreateTempPath();
         File.WriteAllText(temp, "недописано");
         Assert.Empty(store.List());
+    }
+
+    /// <summary>
+    /// Расширение в другом регистре не должно делать копию невидимой. Приём файла сверяет
+    /// расширение без учёта регистра, а перебор каталога на Linux по умолчанию регистр учитывает:
+    /// разойдись эти два правила — загруженная `Backup.ZIP` отвечала бы успехом и пропадала из
+    /// списка, не считаясь и в предел.
+    ///
+    /// Оговорка: на Windows файловая система регистр и так не различает, поэтому здесь тест
+    /// прошёл бы и без правки — он закрепляет ПРАВИЛО, а сторожит его прогон на Linux (CI).
+    /// </summary>
+    [Fact]
+    public void List_FindsUppercaseExtension()
+    {
+        WriteBackup("CRG-BACKUP-20260822-101500-V0.141.0.ZIP", records: 1);
+        var store = Store();
+        Assert.Single(store.List());
+        Assert.Equal(1, store.Count());
+    }
+
+    /// <summary>
+    /// Две копии, начатые в одну секунду, дают одно имя. Падать на этом нельзя: экспорт к тому
+    /// моменту отработал минуты, а в колокольчик ушла бы «внутренняя ошибка» вместо копии.
+    /// </summary>
+    [Fact]
+    public void Publish_DoesNotCollideWithSameSecondName()
+    {
+        var store = Store();
+        var name = BackupFileStore.BuildFileName(DateTimeOffset.UtcNow, "0.141.0");
+        WriteBackup(name, records: 1);
+
+        var temp = store.CreateTempPath();
+        File.WriteAllBytes(temp, File.ReadAllBytes(Path.Combine(_dir, name)));
+        var info = store.Publish(temp, name);
+
+        Assert.NotEqual(name, info.FileName);
+        Assert.Equal(2, store.Count());
+    }
+
+    /// <summary>
+    /// Копия в формате до объединения объектов (schema v1) восстановлению не поддаётся — и список
+    /// обязан сказать это, а не пообещать обратное: обещание, которого не держит соседний экран,
+    /// хуже молчания.
+    /// </summary>
+    [Fact]
+    public void List_DoesNotPromiseRestoreForObsoleteFormat()
+    {
+        Directory.CreateDirectory(_dir);
+        using (var zip = ZipFile.Open(Path.Combine(_dir, "crg-backup-20250101-000000-v0.60.0.zip"),
+                   ZipArchiveMode.Create))
+            Write(zip, "manifest.json", "{\"SchemaVersion\":1,\"AppVersion\":\"0.60.0\"}");
+
+        var file = Assert.Single(Store().List());
+        Assert.Contains("устаревшем формате (v1)", file.Problem);
+        Assert.DoesNotContain("Восстановлению это не мешает", file.Problem);
     }
 
     // ── Принесённая копия ─────────────────────────────────────────────────────
