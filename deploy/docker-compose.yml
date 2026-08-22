@@ -50,8 +50,19 @@ services:
     restart: "no"
 
   # Локальная модель распознавания сканов (опционально)
+  #
+  # За ПРОФИЛЕМ: по умолчанию не поднимается (issue #824). Образ с моделью — это ~6 ГБ диска и до
+  # 10 ГБ памяти, и до сих пор их получала каждая установка, включая те, где распознавание идёт
+  # облачным движком или не нужно вовсе. Инструкция называла Ollama опциональной, а отказаться от
+  # неё можно было только правкой этого файла — который с issue #812 приезжает ассетом релиза и
+  # перезаписывается при каждом обновлении.
+  #
+  # Включается двумя строками в .env (обе, см. .env.example):
+  #   COMPOSE_PROFILES=ollama     — поднять контейнеры
+  #   OLLAMA_MODEL=qwen2.5vl:7b   — какую модель качать и какой пользоваться приложению
   ollama:
     image: ollama/ollama:latest
+    profiles: ["ollama"]
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
@@ -66,13 +77,20 @@ services:
   # Одноразовый сервис: загружает модель в Ollama (тяжёлая ~6 ГБ)
   ollama-init:
     image: ollama/ollama:latest
+    profiles: ["ollama"]
     depends_on:
       - ollama
     environment:
       OLLAMA_HOST: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL}
+      # `:-` обязательно: без него Compose печатает «The "OLLAMA_MODEL" variable is not set»
+      # на КАЖДОЙ команде установки по умолчанию — переменная там намеренно не задана, а
+      # предупреждение неотличимо от настоящей недостачи.
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
     entrypoint: >
       /bin/sh -c "
+      if [ x$$OLLAMA_MODEL = x ]; then
+      echo 'OLLAMA_MODEL в .env не задан: модель не загружена, распознавание Ollama выключено';
+      exit 0; fi;
       sleep 3;
       echo 'загрузка модели '$$OLLAMA_MODEL' (может занять время)...';
       ollama pull $$OLLAMA_MODEL || echo 'не удалось загрузить модель — распознавание будет недоступно';
@@ -98,7 +116,15 @@ services:
       BlobStorage__UseSSL: "false"
       Jwt__Key: ${JWT_KEY}
       Ollama__BaseUrl: "http://ollama:11434"
-      Ollama__Model: ${OLLAMA_MODEL}
+      # Пусто — Ollama выключена и в приложении: движок считается включённым ровно тогда, когда у
+      # него выбрана модель (EngineReadiness, #797). Без этого выключенный профиль оборачивался бы
+      # предупреждением мониторинга «Ollama перестала отвечать» на каждой свежей установке — про
+      # компонент, которого там нет.
+      #
+      # Действует, пока настройки интеграций не сохраняли в интерфейсе: сохранённое значение
+      # лежит в базе, а база сильнее переменной окружения (IntegrationSettingsService.EffRec).
+      # На такой установке движок выключают там же, в настройках.
+      Ollama__Model: ${OLLAMA_MODEL:-}
       Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
       Gemini__ApiKey: ${GEMINI_API_KEY:-}
       WebSearch__ApiKey: ${SERPER_API_KEY:-}

@@ -52,8 +52,12 @@ function htmlTemplate(title, bodyHtml) {
   a { color: var(--brand); text-decoration: none; }
   code { font-family: "Cascadia Code", Consolas, "Courier New", monospace; font-size: 9.2pt;
          background: var(--code-bg); padding: 1px 4px; border-radius: 3px; }
+  /* pre-wrap, а не overflow-x: на бумаге прокрутки нет, и «auto» означает, что хвост длинной
+     строки просто не будет НАПЕЧАТАН — команда молча теряет часть аргументов (так в §8
+     DEPLOYMENT обрезалась команда chown: на экране в Markdown она целая, в PDF — нет). */
   pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px;
-        padding: 10px 12px; overflow-x: auto; page-break-inside: avoid; }
+        padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere;
+        page-break-inside: avoid; }
   pre code { background: none; padding: 0; font-size: 8.8pt; line-height: 1.45; }
   table { border-collapse: collapse; width: 100%; margin: .6em 0; font-size: 9.6pt; page-break-inside: avoid; }
   th, td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; vertical-align: top; }
