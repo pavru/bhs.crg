@@ -57,6 +57,33 @@ public class UpdateCheckSettings
 }
 
 /// <summary>
+/// Расписание резервного копирования (issue #832).
+///
+/// Здесь, а не в <c>.env</c>: «когда снимать копию и сколько хранить» — продуктовое решение
+/// администратора, которое меняют из интерфейса, а не параметр развёртывания, ради которого
+/// пересоздают контейнер. Пределом развёртывания остаётся вместимость каталога
+/// (<c>BACKUP_KEEP_COUNT</c>): сколько копий вообще влезет на диск, знает тот, кто этот диск дал.
+/// </summary>
+public class BackupScheduleSettings
+{
+    /// <summary>
+    /// Включено ПО УМОЛЧАНИЮ — и это главное решение issue #832. Копия, которую забыли настроить, —
+    /// самый частый способ потерять данные; установка, где никто ничего не трогал, обязана быть
+    /// защищена без единого действия администратора.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Время суток «ЧЧ:ММ» по часам сервера. Ночь: копирование читает всю базу.</summary>
+    public string TimeOfDay { get; set; } = "03:00";
+
+    /// <summary>
+    /// Сколько ПЛАНОВЫХ копий хранить. Ручные и принесённые в этот счёт не входят и уборкой не
+    /// затрагиваются — их клали осознанно.
+    /// </summary>
+    public int KeepCount { get; set; } = 7;
+}
+
+/// <summary>
 /// Управляемые из UI настройки ВНЕШНИХ служб: распознавание, веб-поиск, почта, проверка обновлений.
 /// Хранятся в БД; пустой ключ движка означает fallback на конфигурацию (user-secrets/appsettings).
 ///
@@ -77,6 +104,10 @@ public class IntegrationSettingsModel
     /// («о какой версии уведомляли», «когда проверяли») — в ServiceState, см. issue #813.</summary>
     public UpdateCheckSettings Updates { get; set; } = new();
 
+    /// <summary>Расписание резервного копирования (issue #832). След службы — там же, где у
+    /// проверки обновлений: в ServiceState, а не здесь.</summary>
+    public BackupScheduleSettings Backup { get; set; } = new();
+
     public IntegrationEngine Rec(string name)
         => Recognition.TryGetValue(name, out var e) ? e : new IntegrationEngine();
     public IntegrationEngine Web(string name)
@@ -94,5 +125,8 @@ public interface IIntegrationSettings
     Task SaveSmtpAsync(SmtpSettings smtp, CancellationToken ct = default);
     /// <summary>Сохраняет только секцию обновлений — по той же причине, что и SMTP.</summary>
     Task SaveUpdatesAsync(UpdateCheckSettings updates, CancellationToken ct = default);
+
+    /// <summary>Сохраняет только расписание копирования — по той же причине, что и SMTP.</summary>
+    Task SaveBackupScheduleAsync(BackupScheduleSettings backup, CancellationToken ct = default);
     void Invalidate();
 }

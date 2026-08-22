@@ -12,8 +12,11 @@ import { apiError } from '@/shared/utils/apiError';
 import {
   downloadBackupFile, fetchBackupSize, uploadBackupFile,
   useBackupFiles, useBackupJob, useCreateBackup, useDeleteBackupFile, useRestoreFromFile,
+  useSaveBackupSchedule,
 } from '@/shared/api/backup';
-import type { BackupFileInfo, RestoreReport } from '@/shared/api/types';
+import type {
+  BackupFileInfo, BackupScheduleSettings, BackupScheduleStatus, RestoreReport,
+} from '@/shared/api/types';
 import { formatDate, useLocale } from '@/shared/hooks/useLocale';
 import { CollapsibleSection } from './CollapsibleSection';
 
@@ -89,6 +92,115 @@ function BackupSizeLine() {
 }
 
 // ─── Каталог копий ────────────────────────────────────────────────────────────
+
+/**
+ * Расписание планового копирования (issue #832).
+ *
+ * Включено по умолчанию, и это главное решение здесь: копия, которую забыли настроить, — самый
+ * частый способ потерять данные, поэтому установка, где администратор не сделал ничего, всё равно
+ * защищена. Выключатель на месте — но выключать приходится осознанно, а не включать.
+ *
+ * «Последняя плановая» показывается не потому, что данные есть, а потому, что без неё галка
+ * «включено» неопровержима: она выглядит одинаково и когда копии снимаются, и когда они полгода
+ * падают на нехватке места.
+ */
+function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
+  const [locale] = useLocale();
+  const save = useSaveBackupSchedule();
+  const [form, setForm] = useState<BackupScheduleSettings>({
+    enabled: status.enabled, timeOfDay: status.timeOfDay, keepCount: status.keepCount,
+  });
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  // Ответ сервера — источник истины: расписание могли поменять из другой вкладки, и форма,
+  // оставшаяся на своём, показывала бы не то, чем система живёт.
+  useEffect(() => {
+    setForm({ enabled: status.enabled, timeOfDay: status.timeOfDay, keepCount: status.keepCount });
+  }, [status.enabled, status.timeOfDay, status.keepCount]);
+
+  const dirty = form.enabled !== status.enabled
+    || form.timeOfDay !== status.timeOfDay
+    || form.keepCount !== status.keepCount;
+
+  async function submit() {
+    setError('');
+    try {
+      await save.mutateAsync(form);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setError(apiError(e, 'Не удалось сохранить расписание.'));
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-muted p-3 space-y-2">
+      <label className="flex items-start gap-2 text-sm text-fg2">
+        <input type="checkbox" className="mt-0.5" checked={form.enabled}
+          onChange={e => setForm({ ...form, enabled: e.target.checked })} />
+        <span>
+          Снимать копию автоматически
+          <span className="block text-xs text-fg4">
+            Раз в сутки. Пропущенный запуск (сервер был выключен) выполняется при следующем старте;
+            за неделю простоя снимается одна копия, а не семь.
+          </span>
+        </span>
+      </label>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-xs text-fg3">
+          <span className="block mb-1">Время (часы сервера)</span>
+          <input type="time" value={form.timeOfDay} disabled={!form.enabled}
+            onChange={e => setForm({ ...form, timeOfDay: e.target.value })}
+            className="h-8 px-2 rounded-md border border-stroke bg-surface text-sm text-fg1 disabled:opacity-50" />
+        </label>
+        <label className="text-xs text-fg3">
+          <span className="block mb-1">Хранить плановых</span>
+          <input type="number" min={1} max={1000} value={form.keepCount} disabled={!form.enabled}
+            onChange={e => setForm({ ...form, keepCount: Number(e.target.value) })}
+            className="h-8 w-20 px-2 rounded-md border border-stroke bg-surface text-sm text-fg1 disabled:opacity-50" />
+        </label>
+        <Button variant="outlined" onClick={submit} disabled={!dirty || save.isPending}>
+          {save.isPending ? 'Сохранение…' : 'Сохранить'}
+        </Button>
+        {saved && <span className="text-xs text-success">Сохранено</span>}
+      </div>
+
+      <p className="text-xs text-fg4">
+        Уборка старых копий касается <b>только плановых</b>: снятые вручную и принесённые с другого
+        сервера остаются, пока их не удалят руками.
+      </p>
+
+      {error && (
+        <p className="text-xs text-danger flex items-start gap-1">
+          <XCircle size={13} className="shrink-0 mt-px" /> <span>{error}</span>
+        </p>
+      )}
+
+      {status.lastError ? (
+        <p className="text-xs text-danger flex items-start gap-1">
+          <AlertTriangle size={13} className="shrink-0 mt-px" />
+          <span>
+            Последняя плановая копия не удалась
+            {status.lastErrorAt && <> ({formatDate(status.lastErrorAt, locale, {
+              day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+            })})</>}: {status.lastError}
+          </span>
+        </p>
+      ) : status.lastSuccessAt ? (
+        <p className="text-xs text-fg4">
+          Последняя плановая копия: {formatDate(status.lastSuccessAt, locale, {
+            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+          })}
+          {status.lastFileName && <> · {status.lastFileName}</>}
+        </p>
+      ) : (
+        <p className="text-xs text-fg4">Плановых копий ещё не было.</p>
+      )}
+    </div>
+  );
+}
 
 function BackupFilesPanel() {
   const [locale] = useLocale();
@@ -178,8 +290,12 @@ function BackupFilesPanel() {
   const files = data?.files ?? [];
   const full = data ? files.length >= data.keepCount : false;
 
+  const scheduled = new Set(data?.scheduledFiles ?? []);
+
   return (
     <div className="space-y-3">
+      {data && <ScheduleForm status={data.schedule} />}
+
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="filled" onClick={handleCreate} disabled={!!job || create.isPending || full}>
           {job ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
@@ -234,7 +350,14 @@ function BackupFilesPanel() {
                   {expanded === f.fileName ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </button>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-fg1 truncate">{f.fileName}</p>
+                  <p className="text-sm text-fg1 truncate">
+                    {f.fileName}
+                    {scheduled.has(f.fileName) && (
+                      <span className="ml-2 text-[11px] text-fg4 font-normal" title="Снята расписанием — попадает под уборку старых">
+                        плановая
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-fg3">
                     {formatDate(f.createdAt, locale, {
                       day: '2-digit', month: '2-digit', year: 'numeric',

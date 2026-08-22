@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { BackupFileInfo, BackupFilesResponse, BackupSizeEstimate, RestoreReport } from './types';
+import type {
+  BackupFileInfo, BackupFilesResponse, BackupScheduleSettings, BackupSizeEstimate, RestoreReport,
+} from './types';
 import type { ActiveJob } from './jobs';
 
 const FILES_KEY = ['backup', 'files'];
@@ -53,6 +55,18 @@ export function useBackupJob(): ActiveJob | undefined {
     refetchInterval: q => ((q.state.data?.length ?? 0) > 0 ? 2000 : 10000),
   });
   return (data ?? []).find(j => j.kind === 'CreateBackup');
+}
+
+/**
+ * Сохранить расписание. Отдельным вызовом, а не куском общих настроек: формы разделов не должны
+ * затирать друг друга (та же причина, что у почты и проверки обновлений).
+ */
+export function useSaveBackupSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: BackupScheduleSettings) => apiClient.put('/backup/schedule', dto),
+    onSuccess: () => qc.invalidateQueries({ queryKey: FILES_KEY }),
+  });
 }
 
 export function useDeleteBackupFile() {

@@ -98,7 +98,7 @@ public class JobBackgroundService(
                     // Цели у задачи нет: копия снимается со всей системы, а не с объекта. Прогресс
                     // честный — по числу файлов, которые перекачиваются из хранилища в архив.
                     await scope.ServiceProvider.GetRequiredService<BHS.CRG.Infrastructure.Backup.BackupJobRunner>()
-                        .RunAsync(userId, (c, t) => report("файлов", c, t), ct);
+                        .RunAsync(userId, ParseFlag(payload, "scheduled"), (c, t) => report("файлов", c, t), ct);
                     break;
 
                 case JobKind.SendEmail:
@@ -135,9 +135,21 @@ public class JobBackgroundService(
         {
             using var scope = scopeFactory.CreateScope();
             var notifications = scope.ServiceProvider.GetRequiredService<INotificationService>();
-            await notifications.PublishAsync(NotificationSeverity.Error, $"Ошибка: {title}", error, "Фоновые задачи", userId: userId);
+            // Задача без владельца — системная (её поставило расписание, а не человек), и её отказ
+            // адресован всем администраторам: уведомление, посланное «пользователю Guid.Empty», не
+            // увидел бы никто, то есть ночная неудача копирования пропала бы бесследно.
+            await notifications.PublishAsync(NotificationSeverity.Error, $"Ошибка: {title}", error,
+                "Фоновые задачи", userId: userId == Guid.Empty ? null : userId);
         }
         catch (Exception ex) { logger.LogWarning(ex, "Не удалось опубликовать уведомление об ошибке задачи"); }
+    }
+
+    /// <summary>Булев флаг из payload задачи — напр. {"scheduled":true}.</summary>
+    private static bool ParseFlag(string? payload, string name)
+    {
+        if (string.IsNullOrEmpty(payload)) return false;
+        using var doc = JsonDocument.Parse(payload);
+        return doc.RootElement.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
     }
 
     private async Task UpdateJobAsync(Guid jobId, Action<Job> mutate, CancellationToken ct)

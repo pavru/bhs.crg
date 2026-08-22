@@ -357,6 +357,9 @@ builder.Services.AddScoped<IRepository<QualityAuditRun>, Repository<QualityAudit
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddSingleton<BHS.CRG.Infrastructure.Backup.BackupFileStore>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Backup.BackupJobRunner>();
+// Плановое копирование (issue #832): служба ставит ту же задачу, что и кнопка в интерфейсе, —
+// одна дорога снятия копии на систему.
+builder.Services.AddHostedService<BHS.CRG.Infrastructure.Backup.BackupScheduleService>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.ImageBlobMigration>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.MaterialLabelBackfill>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.OrphanObjectCleanup>();

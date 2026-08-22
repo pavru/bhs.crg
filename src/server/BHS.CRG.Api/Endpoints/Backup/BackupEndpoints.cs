@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using BHS.CRG.Application.Jobs;
+using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Infrastructure.Backup;
+using BHS.CRG.Infrastructure.Updates;
 
 using BHS.CRG.Api.Configuration;
 using Microsoft.AspNetCore.Http.Features;
@@ -22,8 +24,62 @@ public static class BackupEndpoints
 
         // ── Каталог копий на сервере (issue #831) ─────────────────────────────
 
-        g.MapGet("/files", (BackupFileStore store) =>
-            Results.Ok(new { files = store.List(), keepCount = store.KeepCount, directory = store.Directory }));
+        // Список копий плюс всё, что о нём нужно знать интерфейсу: вместимость каталога, расписание
+        // и его последний исход, и какие из копий сняло расписание (issue #832) — уборка трогает
+        // только их, и человек вправе видеть это до того, как удивится.
+        g.MapGet("/files", async (
+            BackupFileStore store, IIntegrationSettings settings, ServiceStateStore stateStore,
+            IJobService jobs, CancellationToken ct) =>
+        {
+            var schedule = (await settings.GetEffectiveAsync(ct)).Backup;
+            var state = await stateStore.LoadAsync<BackupScheduleState>(BackupScheduleStateKeys.Schedule, ct);
+            return Results.Ok(new
+            {
+                files = store.List(),
+                keepCount = store.KeepCount,
+                directory = store.Directory,
+                scheduledFiles = state.Managed,
+                schedule = new
+                {
+                    schedule.Enabled,
+                    schedule.TimeOfDay,
+                    schedule.KeepCount,
+                    state.LastRunAt,
+                    state.LastSuccessAt,
+                    state.LastFileName,
+                    state.LastError,
+                    state.LastErrorAt,
+                    running = await jobs.HasActiveOfKindAsync(JobKind.CreateBackup, ct),
+                },
+            });
+        });
+
+        // Расписание — продуктовая настройка (в БД, рядом с прочими), а не параметр развёртывания.
+        // Проверяем ЗДЕСЬ, а не в службе: негодное время суток, принятое молча, означало бы
+        // расписание, которое выглядит настроенным и не срабатывает никогда.
+        g.MapPut("/schedule", async (
+            BackupScheduleSettings input, BackupFileStore store, IIntegrationSettings settings,
+            CancellationToken ct) =>
+        {
+            if (BackupScheduleService.ParseTimeOfDay(input.TimeOfDay) is null)
+                return Results.BadRequest(new { error = "Время указывают в виде ЧЧ:ММ, например 03:00." });
+
+            if (input.KeepCount < 1)
+                return Results.BadRequest(new { error = "Хранить нужно хотя бы одну плановую копию." });
+
+            // Больше, чем вмещает каталог, хранить нельзя — и молчать об этом нельзя тем более:
+            // расписание упиралось бы в предел каждую ночь, а выглядело бы настроенным.
+            if (input.KeepCount > store.KeepCount)
+                return Results.BadRequest(new
+                {
+                    error = $"Каталог вмещает {store.KeepCount} копий — больше плановых хранить негде. " +
+                            "Уменьшите число или поднимите вместимость каталога (BACKUP_KEEP_COUNT в " +
+                            "deploy/.env), если на диске есть место."
+                });
+
+            await settings.SaveBackupScheduleAsync(input, ct);
+            return Results.NoContent();
+        });
 
         // Снятие копии — фоновой задачей: минуты чтения базы и перекачки сканов, HTTP-запрос столько
         // не живёт. Предел числа копий проверяем ЗДЕСЬ, чтобы отказ пришёл ответом на нажатие
