@@ -94,6 +94,13 @@ public class JobBackgroundService(
                         .RunAndStoreAsync(targetId, userId, (c, t) => report("документов", c, t), ct);
                     break;
 
+                case JobKind.CreateBackup:
+                    // Цели у задачи нет: копия снимается со всей системы, а не с объекта. Прогресс
+                    // честный — по числу файлов, которые перекачиваются из хранилища в архив.
+                    await scope.ServiceProvider.GetRequiredService<BHS.CRG.Infrastructure.Backup.BackupJobRunner>()
+                        .RunAsync(userId, (c, t) => report("файлов", c, t), ct);
+                    break;
+
                 case JobKind.SendEmail:
                     var (subj, body, emailKind, to) = ParseEmailPayload(payload);
                     var emailSvc = scope.ServiceProvider.GetRequiredService<BHS.CRG.Infrastructure.Email.DocumentSetEmailService>();

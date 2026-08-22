@@ -39,6 +39,11 @@ ENV TYPST_PATH=/usr/local/bin/typst \
 WORKDIR /app
 COPY --from=build /app ./
 
+# Каталог резервных копий (issue #831) создаётся здесь же. В поставке compose он ПЕРЕКРЫВАЕТСЯ
+# монтированием с хоста, и права тогда берутся от хостового каталога — сервер проверяет их на
+# старте и отказывается запускаться, называя нужный chown. Здесь каталог нужен для установок без
+# монтирования (запуск образа как есть), где иначе копии некуда класть.
+#
 # Работаем не от root: в образе aspnet непривилегированный пользователь `app` уже заведён.
 # Каталог ключей Data Protection создаём здесь и отдаём ему — пустой том Docker при первом
 # подключении наследует владельца и права каталога из образа.
@@ -46,7 +51,7 @@ COPY --from=build /app ./
 # у него не поменяется сам. Разово выполнить (см. docs/DEPLOYMENT.md §8) — обратите внимание на
 # --entrypoint: без него аргументы уедут в ENTRYPOINT ниже и вместо chown запустится сам сервер:
 #   docker compose -f deploy/docker-compose.yml run --rm --user root --entrypoint chown api -R app:app /app/dp-keys
-RUN mkdir -p /app/dp-keys && chown -R app:app /app
+RUN mkdir -p /app/dp-keys /app/backups && chown -R app:app /app
 USER app
 
 EXPOSE 8080

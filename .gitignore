@@ -46,6 +46,11 @@ Thumbs.db
 src/server/BHS.CRG.Api/dp-keys/
 dp-keys/
 
+# Резервные копии (issue #831): на dev-запуске каталог создаётся рядом с приложением, и один
+# файл там весит десятки мегабайт.
+src/server/BHS.CRG.Api/backups/
+backups/
+
 # Agent sync artifacts
 .design-sync/
 .ds-sync/

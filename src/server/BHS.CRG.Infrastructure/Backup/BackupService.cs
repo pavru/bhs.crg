@@ -1,3 +1,4 @@
+using System.Data;
 using System.IO.Compression;
 using System.Reflection;
 using System.Text;
@@ -42,7 +43,15 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
 
     // ── Export ────────────────────────────────────────────────────────────────
 
-    public async Task<(Stream ZipStream, string FileName)> ExportAsync(CancellationToken ct = default)
+    /// <summary>
+    /// Снять копию в файл по заданному пути (issue #831). Основной путь: так копия ложится в
+    /// каталог на сервере, откуда её и восстанавливают, не пересекая сеть.
+    /// </summary>
+    /// <param name="path">Куда писать. Вызывающий пишет во временный файл и переименовывает его —
+    /// прерванный экспорт не должен оставлять в каталоге огрызок, неотличимый от копии.</param>
+    /// <param name="progress">Отчёт «сколько файлов из скольких» для фоновой задачи; null — молча.</param>
+    public async Task<BackupSummary> ExportToFileAsync(
+        string path, Func<int, int, Task>? progress = null, CancellationToken ct = default)
     {
         var manifest = await BuildManifestAsync(ct);
 
@@ -51,23 +60,25 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         // размер задаётся числом сертификатов и растёт годами: MemoryStream удваивает буфер, то есть
         // на пике держит около двух объёмов архива в куче больших объектов, и упирается в
         // int.MaxValue — причём отказ пришёл бы ровно тогда, когда копия нужнее всего.
-        //
-        // DeleteOnClose: файл исчезает, как только поток закроют. Закрывает его отправка ответа
-        // (Results.File освобождает поток) — отдельной уборки не нужно, и она не потеряется при
-        // разрыве соединения.
-        var ms = new FileStream(
-            Path.Combine(Path.GetTempPath(), $"crg-backup-{Guid.NewGuid():N}.zip"),
-            FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None,
-            bufferSize: 81920, FileOptions.DeleteOnClose | FileOptions.Asynchronous);
-        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+        await using var file = new FileStream(
+            path, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+            bufferSize: 81920, FileOptions.Asynchronous);
+
+        var blobPaths = ExtractBlobPaths(manifest);
+        var summary = BuildSummary(manifest, blobPaths.Count);
+
+        using (var zip = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: true))
         {
+            // Паспорт — ПЕРВОЙ записью: список копий читает только его, не касаясь манифеста.
+            await BackupFileStore.WriteSummaryAsync(zip, summary, ct);
+
             // Write manifest.json
             var manifestEntry = zip.CreateEntry("manifest.json", CompressionLevel.Fastest);
             await using (var w = manifestEntry.Open())
                 await JsonSerializer.SerializeAsync(w, manifest, JsonOptions, ct);
 
             // Write binary blobs
-            var blobPaths = ExtractBlobPaths(manifest);
+            var done = 0;
             foreach (var blobPath in blobPaths)
             {
                 try
@@ -86,12 +97,59 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                     // Blob missing in storage — skip, DB reference kept intact
                     logger.LogWarning(ex, "Бинарный файл отсутствует в хранилище при экспорте бэкапа: {BlobPath}", blobPath);
                 }
+
+                done++;
+                if (progress is not null) await progress(done, blobPaths.Count);
             }
         }
 
-        ms.Position = 0;
-        var fileName = $"crg-backup-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.zip";
-        return (ms, fileName);
+        return summary;
+    }
+
+    /// <summary>
+    /// Копия одним потоком, без каталога на сервере. Прямого потребителя у этой формы больше нет —
+    /// экспорт идёт фоновой задачей в каталог (issue #831), — но она остаётся точкой, на которой
+    /// стоят тесты round-trip: путь внутри тот же самый, отличается только место записи.
+    /// </summary>
+    public async Task<(Stream ZipStream, string FileName)> ExportAsync(CancellationToken ct = default)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"crg-backup-{Guid.NewGuid():N}.zip");
+        var summary = await ExportToFileAsync(path, null, ct);
+
+        // DeleteOnClose: файл исчезает, как только поток закроют — отдельной уборки не нужно, и она
+        // не потеряется при разрыве соединения.
+        var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None,
+            bufferSize: 81920, FileOptions.DeleteOnClose | FileOptions.Asynchronous);
+        return (stream, BackupFileStore.BuildFileName(summary.CreatedAt, summary.AppVersion));
+    }
+
+    /// <summary>
+    /// Паспорт копии: чем снята, когда и что внутри. Счёт разделов — то, что список копий
+    /// показывает как «состав»; названия здесь, а не на клиенте, потому что новый раздел копии
+    /// добавляется здесь же и не должен требовать правки в двух местах.
+    /// </summary>
+    private static BackupSummary BuildSummary(BackupManifest manifest, int blobCount)
+    {
+        BackupSectionCount[] sections =
+        [
+            new("Типы документов", manifest.DocumentTypes.Length),
+            new("Шаблоны", manifest.Templates.Length),
+            new("Ассеты шаблонов", manifest.TemplateAssets?.Length ?? 0),
+            new("Справочник", manifest.CatalogEntities.Length),
+            new("Общие данные", manifest.CommonDataEntries.Length),
+            new("Примитивные типы", manifest.PrimitiveTypes?.Length ?? 0),
+            new("Перечисления", manifest.EnumTypes?.Length ?? 0),
+            new("Профили распознавания", manifest.RecognitionProfiles?.Length ?? 0),
+            new("Шаблоны маппинга", manifest.DataSetBindingTemplates?.Length ?? 0),
+            new("Рецепты обработки", manifest.DataSetProcessingTemplates?.Length ?? 0),
+            new("Алиасы сверки", manifest.ReconciliationAliases?.Length ?? 0),
+            new("Документы качества", manifest.QualityDocuments?.Length ?? 0),
+            new("Файлы библиотеки Typst", manifest.TypstUserLibFiles?.Count ?? 0),
+        ];
+
+        return new BackupSummary(
+            manifest.SchemaVersion, manifest.AppVersion, manifest.CreatedAt,
+            blobCount, sections.Where(s => s.Count > 0).ToArray());
     }
 
     // ── Оценка размера ────────────────────────────────────────────────────────
@@ -128,7 +186,15 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         long blobBytes = 0;
         var missing = 0;
         var paths = ExtractBlobPaths(manifest);
-        var overhead = EntryOverhead("manifest.json");
+        var overhead = EntryOverhead("manifest.json") + EntryOverhead(BackupFileStore.SummaryEntryName);
+
+        // Паспорт копии (issue #831) — вторая JSON-запись архива. Считаем её тем же Deflate: без
+        // неё оценка занижала бы вес на её размер, а сходство оценки с настоящим архивом
+        // проверяется с точностью до сотен байт — то есть разъехалось бы сразу и молча.
+        var summaryCounter = new CountingStream();
+        await using (var deflate = new DeflateStream(summaryCounter, CompressionLevel.Fastest, leaveOpen: true))
+            await deflate.WriteAsync(BackupFileStore.SummaryBytes(BuildSummary(manifest, paths.Count)), ct);
+        manifestBytes += summaryCounter.Written;
         foreach (var path in paths)
         {
             overhead += EntryOverhead($"blobs/{path}");
@@ -148,7 +214,31 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     }
 
 
+    /// <summary>
+    /// Собирает манифест в ОДНОМ снимке базы (issue #831).
+    ///
+    /// Разделов в копии два десятка, и на большой системе чтение занимает не мгновение. Без снимка
+    /// каждый запрос видел бы своё состояние: комплект, заведённый между чтением типов и чтением
+    /// шаблонов, попал бы в копию без того, на что ссылается, — а обнаружилось бы это при
+    /// восстановлении, то есть после аварии. <c>Repeatable Read</c> в PostgreSQL — это снимок на
+    /// момент первого запроса: читатели друг друга не блокируют, и работа системы во время
+    /// экспорта не останавливается.
+    ///
+    /// Транзакция берётся только когда её ещё нет и провайдер реляционный: под тестовым хостом
+    /// экспорт может идти внутри чужой транзакции, и вложенную здесь начать нельзя.
+    /// </summary>
     private async Task<BackupManifest> BuildManifestAsync(CancellationToken ct)
+    {
+        if (db.Database.CurrentTransaction is not null || !db.Database.IsRelational())
+            return await ReadManifestAsync(ct);
+
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+        var manifest = await ReadManifestAsync(ct);
+        await tx.CommitAsync(ct);
+        return manifest;
+    }
+
+    private async Task<BackupManifest> ReadManifestAsync(CancellationToken ct)
     {
         var docTypes = await db.DocumentTypes.AsNoTracking().ToListAsync(ct);
         var templates = await db.Templates.AsNoTracking().ToListAsync(ct);
@@ -244,14 +334,12 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             ?? throw new ConflictException("Файл не является резервной копией BHS.CRG (отсутствует manifest.json).");
 
         BackupManifest manifest;
-        using (var ms = new MemoryStream())
-        {
-            await using (var es = manifestEntry.Open())
-                await es.CopyToAsync(ms, ct);
-            ms.Position = 0;
-            manifest = await JsonSerializer.DeserializeAsync<BackupManifest>(ms, JsonOptions, ct)
+        // Читаем прямо из записи архива, без промежуточного MemoryStream: манифест несёт картинки
+        // в base64, на рабочей системе это сотни мегабайт, и лишняя копия целиком в куче больших
+        // объектов ничего не давала — разбор и так идёт вперёд по потоку (issue #831).
+        await using (var es = manifestEntry.Open())
+            manifest = await JsonSerializer.DeserializeAsync<BackupManifest>(es, JsonOptions, ct)
                        ?? throw new ConflictException("Не удалось прочитать manifest.json.");
-        }
 
         string? conversionNotice = null;
         var warnings = new List<string>();
