@@ -100,3 +100,52 @@ public class BackupScheduleServiceTests
     public void ParseTimeOfDay_Rejects(string? value)
         => Assert.Null(BackupScheduleService.ParseTimeOfDay(value));
 }
+
+/// <summary>
+/// Сколько плановых копий оставить перед снятием новой (issue #832).
+///
+/// Правило кажется арифметикой, но ошибка в нём даёт не кривое число, а <b>вечный ночной отказ</b>:
+/// уборка освобождает место «по бюджету расписания», каталог занят ещё и ручными копиями, места не
+/// хватает — и так каждую ночь, с уведомлением об ошибке каждое утро. Считается от фактической
+/// занятости каталога именно поэтому.
+/// </summary>
+public class BackupPruneTargetTests
+{
+    /// <summary>Обычная ночь: плановых ровно предел, места в каталоге хватает — уходит одна старая.</summary>
+    [Fact]
+    public void FullSchedule_FreesExactlyOneSlot()
+        => Assert.Equal(6, BackupJobRunner.PruneTargetBeforeExport(
+            keep: 7, managedPresent: 7, totalPresent: 7, capacity: 10));
+
+    /// <summary>
+    /// Каталог занят ещё и ручными копиями. Считать по одному лишь бюджету расписания значило бы
+    /// освобождать место, которого не хватает ровно на эти ручные, — вечный отказ.
+    /// </summary>
+    [Fact]
+    public void ManualCopiesOccupySpace_PruneGoesDeeper()
+        => Assert.Equal(8, BackupJobRunner.PruneTargetBeforeExport(
+            keep: 10, managedPresent: 9, totalPresent: 10, capacity: 10));
+
+    /// <summary>Место есть — глубже бюджета расписания не убираем.</summary>
+    [Fact]
+    public void PlentyOfRoom_KeepsBudgetMinusOne()
+        => Assert.Equal(2, BackupJobRunner.PruneTargetBeforeExport(
+            keep: 3, managedPresent: 3, totalPresent: 3, capacity: 10));
+
+    /// <summary>
+    /// Последняя плановая не удаляется НИКОГДА — даже когда места не хватает. Между уборкой и новой
+    /// копией система не должна оставаться вовсе без копий; отказ по вместимости придёт громко.
+    /// </summary>
+    [Theory]
+    [InlineData(1, 1, 2, 2)]
+    [InlineData(1, 1, 1, 1)]
+    [InlineData(2, 1, 5, 3)]
+    public void NeverBelowOne(int keep, int managed, int total, int capacity)
+        => Assert.Equal(1, BackupJobRunner.PruneTargetBeforeExport(keep, managed, total, capacity));
+
+    /// <summary>Плановых ещё нет — убирать нечего, и правило не должно требовать невозможного.</summary>
+    [Fact]
+    public void NothingManagedYet_NothingToPrune()
+        => Assert.Equal(1, BackupJobRunner.PruneTargetBeforeExport(
+            keep: 7, managedPresent: 0, totalPresent: 3, capacity: 10));
+}

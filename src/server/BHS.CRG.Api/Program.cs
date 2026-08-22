@@ -359,7 +359,14 @@ builder.Services.AddSingleton<BHS.CRG.Infrastructure.Backup.BackupFileStore>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Backup.BackupJobRunner>();
 // Плановое копирование (issue #832): служба ставит ту же задачу, что и кнопка в интерфейсе, —
 // одна дорога снятия копии на систему.
-builder.Services.AddHostedService<BHS.CRG.Infrastructure.Backup.BackupScheduleService>();
+//
+// Выключатель нужен ровно одному потребителю — тестовому хосту, который поднимает приложение
+// целиком, вместе с фоновыми службами. Расписание включено по умолчанию, и через две минуты
+// прогона служба сняла бы копию ТЕСТОВОЙ базы в каталог рядом с исходниками: гигабайты мусора,
+// чтение базы под чужим TRUNCATE и записи в notifications посреди чужого теста. В поставке эту
+// переменную не задают — расписанием управляет администратор из интерфейса.
+if (cfg.GetValue("Backup:SchedulerEnabled", true))
+    builder.Services.AddHostedService<BHS.CRG.Infrastructure.Backup.BackupScheduleService>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.ImageBlobMigration>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.MaterialLabelBackfill>();
 builder.Services.AddScoped<BHS.CRG.Infrastructure.Maintenance.OrphanObjectCleanup>();

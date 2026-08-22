@@ -289,6 +289,12 @@ function BackupFilesPanel() {
 
   const files = data?.files ?? [];
   const full = data ? files.length >= data.keepCount : false;
+  // Копию может снимать и расписание — своей задачи у пилюли в шапке при этом нет (она показывает
+  // только задачи пользователя, а у плановой владельца нет). Без этого признака кнопка оставалась
+  // бы включённой, а нажатие возвращало отказ «копия уже снимается» — про то, чего на экране не
+  // видно.
+  const scheduledRunning = data?.schedule.running === true && !job;
+  const busy = !!job || scheduledRunning;
 
   const scheduled = new Set(data?.scheduledFiles ?? []);
 
@@ -297,9 +303,11 @@ function BackupFilesPanel() {
       {data && <ScheduleForm status={data.schedule} />}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="filled" onClick={handleCreate} disabled={!!job || create.isPending || full}>
-          {job ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-          {job ? (job.progress ? `Копирование: ${job.progress}` : 'Копирование…') : 'Создать копию'}
+        <Button variant="filled" onClick={handleCreate} disabled={busy || create.isPending || full}>
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+          {job
+            ? (job.progress ? `Копирование: ${job.progress}` : 'Копирование…')
+            : scheduledRunning ? 'Идёт плановое копирование…' : 'Создать копию'}
         </Button>
         <Button variant="outlined" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
           {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}

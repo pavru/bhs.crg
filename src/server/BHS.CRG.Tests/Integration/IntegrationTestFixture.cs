@@ -46,6 +46,12 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         ["BlobStorage:AccessKey"] = "integration-tests",
         ["BlobStorage:SecretKey"] = "integration-tests",
         ["BlobStorage:Bucket"] = "integration-tests",
+        // Плановое копирование (issue #832) под тестовым хостом НЕ поднимаем. Расписание включено
+        // по умолчанию, и через две минуты прогона служба сняла бы копию тестовой базы в каталог
+        // рядом с исходниками — а её экспорт читал бы базу ровно тогда, когда соседний класс делает
+        // TRUNCATE. Прогон целиком укладывается примерно в те же две минуты, то есть встретились бы
+        // мы с этим не сразу и не там.
+        ["Backup:SchedulerEnabled"] = "false",
     };
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

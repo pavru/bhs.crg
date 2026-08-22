@@ -17,13 +17,25 @@ export async function fetchBackupSize(): Promise<BackupSizeEstimate> {
   return response.data;
 }
 
-/** Что лежит в каталоге копий на сервере (issue #831). */
+/**
+ * Что лежит в каталоге копий на сервере (issue #831).
+ *
+ * Опрашиваем ВСЕГДА, пока раздел раскрыт, а не только когда копия уже снимается. Разница не
+ * теоретическая: плановую задачу пилюля в шапке не показывает вовсе (список активных задач у
+ * каждого свой, а у плановой владельца нет), и признак «идёт копирование» приходит только этим
+ * ответом. Опрос, включающийся ПО признаку, не включился бы никогда — проверено живьём: плановая
+ * копия снялась, а экран об этом не узнал.
+ *
+ * Раздел свёрнут по умолчанию и содержимого не монтирует, так что опрос идёт только у того, кто
+ * на него смотрит; пока копия снимается — чаще, чтобы конец был виден сразу.
+ */
 export function useBackupFiles(enabled = true) {
   return useQuery({
     queryKey: FILES_KEY,
     queryFn: async () => (await apiClient.get<BackupFilesResponse>('/backup/files')).data,
     enabled,
-    refetchOnWindowFocus: false,
+    refetchInterval: q => (q.state.data?.schedule.running ? 3000 : 15000),
+    refetchOnWindowFocus: true,
   });
 }
 
