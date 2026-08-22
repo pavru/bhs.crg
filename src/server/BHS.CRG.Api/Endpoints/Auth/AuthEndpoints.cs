@@ -23,7 +23,12 @@ public static class AuthEndpoints
             // Первому админу подтверждать адрес некому — считаем подтверждённым (issue #148).
             var user = new ApplicationUser { UserName = req.Email, Email = req.Email, DisplayName = req.DisplayName, EmailConfirmed = true };
             var result = await users.CreateAsync(user, req.Password);
-            if (!result.Succeeded) return Results.BadRequest(result.Errors);
+            // Как и все прочие эндпоинты Identity в проекте: { error: "..." } с ГОТОВЫМ русским
+            // текстом (RuIdentityErrorDescriber, issue #165). Единственный, кто отдавал сырой
+            // IdentityError[], был этот — и заметилось это только когда у него наконец появился
+            // потребитель (issue #826): клиенту пришлось бы переводить коды самому, теряя
+            // «Пароль должен содержать хотя бы одну заглавную букву» ради общей фразы про политику.
+            if (!result.Succeeded) return Results.BadRequest(new { error = DescribeErrors(result) });
             await users.AddToRoleAsync(user, "Admin");
             return Results.Ok();
         }).RequireRateLimiting("login");
