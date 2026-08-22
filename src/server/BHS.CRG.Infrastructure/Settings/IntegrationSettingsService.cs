@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Settings;
 using BHS.CRG.Infrastructure.Persistence;
@@ -43,6 +43,13 @@ public class IntegrationSettingsService(
     {
         var raw = await LoadRawAsync(ct);
         raw.Smtp = MergeSmtp(raw.Smtp, smtp);
+        await PersistRawAsync(raw, ct);
+    }
+
+    public async Task SaveUpdatesAsync(UpdateCheckSettings updates, CancellationToken ct = default)
+    {
+        var raw = await LoadRawAsync(ct);
+        raw.Updates = updates;
         await PersistRawAsync(raw, ct);
     }
 
@@ -174,6 +181,10 @@ public class IntegrationSettingsService(
             FgisDomains = raw.FgisDomains.Count > 0 ? raw.FgisDomains : (config.GetSection("WebSearch:FgisDomains").Get<string[]>() ?? ["pub.fsa.gov.ru", "fsa.gov.ru"]).ToList(),
             ManufacturerDomains = raw.ManufacturerDomains.Count > 0 ? raw.ManufacturerDomains : (config.GetSection("WebSearch:ManufacturerDomains").Get<string[]>() ?? []).ToList(),
             Smtp = raw.Smtp, // SMTP настраивается из UI; config-fallback пока не требуется
+            // Эффективная модель собирается ПОЛЕ ЗА ПОЛЕМ, а не копированием: забудь здесь секцию —
+            // и она молча вернётся к умолчанию. Для проверки обновлений это значило бы, что
+            // выключатель сохраняется, показывается выключенным и при этом не действует.
+            Updates = raw.Updates,
         };
 
         foreach (var name in RecNames) m.Recognition[name] = EffRec(name, raw);

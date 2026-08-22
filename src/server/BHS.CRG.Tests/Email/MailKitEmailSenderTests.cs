@@ -13,6 +13,7 @@ public class MailKitEmailSenderTests
             Task.FromResult(new IntegrationSettingsModel { Smtp = smtp });
         public Task SaveAsync(IntegrationSettingsModel update, CancellationToken ct = default) => Task.CompletedTask;
         public Task SaveSmtpAsync(SmtpSettings s, CancellationToken ct = default) => Task.CompletedTask;
+        public Task SaveUpdatesAsync(UpdateCheckSettings u, CancellationToken ct = default) => Task.CompletedTask;
         public void Invalidate() { }
     }
 
