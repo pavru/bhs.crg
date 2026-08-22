@@ -19,10 +19,18 @@ public static class UpdateEndpoints
     {
         var g = app.MapGroup("/api/system").RequireAuthorization();
 
-        g.MapGet("/update", async (IUpdateCheck check, ClaimsPrincipal user, CancellationToken ct) =>
+        // withNotes=true — только для страницы настроек. По умолчанию заметки НЕ отдаются, и это не
+        // экономия ради экономии: статус читает подвал боковой панели, то есть каждый заход в
+        // систему. Заметки первого выпуска весят 70 КБ (`--generate-notes` собрал весь список
+        // изменений), и без этого разделения столько уезжало бы на каждый экран ради строки
+        // «доступна 0.138.0». Замерено живым вызовом: 75 146 байт против ~200.
+        g.MapGet("/update", async (IUpdateCheck check, ClaimsPrincipal user, bool? withNotes,
+            CancellationToken ct) =>
         {
             var s = await check.GetStatusAsync(ct);
-            var admin = user.IsInRole("Admin");
+            // Заметки и ссылка — администратору: остальным они ни к чему, а показывать всё, что
+            // есть, — верный способ превратить полезное в фон.
+            var notes = user.IsInRole("Admin") && withNotes == true;
             return Results.Ok(new
             {
                 s.Installed,
@@ -30,10 +38,8 @@ public static class UpdateEndpoints
                 s.UpdateAvailable,
                 s.LastCheckedAt,
                 s.Enabled,
-                // Заметки и ссылка — администратору: остальным они ни к чему, а показывать всё, что
-                // есть, — верный способ превратить полезное в фон.
-                releaseUrl = admin ? s.ReleaseUrl : null,
-                releaseNotes = admin ? s.ReleaseNotes : null,
+                releaseUrl = notes ? s.ReleaseUrl : null,
+                releaseNotes = notes ? s.ReleaseNotes : null,
             });
         });
 
@@ -43,7 +49,14 @@ public static class UpdateEndpoints
         g.MapPost("/update/check", async (UpdateCheckService svc, CancellationToken ct) =>
         {
             var s = await svc.CheckAsync(ct);
-            return Results.Ok(new { s.Installed, s.Latest, s.UpdateAvailable, s.LastCheckedAt, s.Enabled });
+            // JustChecked и LastError едут обязательно: служба глотает сбой сети и возвращает
+            // ПРЕЖНЕЕ состояние, так что без них ответ на неудачную проверку неотличим от удачной —
+            // а кнопка заведена ровно затем, чтобы делать выключатель «включено» опровержимым.
+            return Results.Ok(new
+            {
+                s.Installed, s.Latest, s.UpdateAvailable, s.LastCheckedAt, s.Enabled,
+                s.JustChecked, s.LastError,
+            });
         }).RequireAuthorization("Admin");
 
         g.MapPut("/update/settings", async (UpdateCheckSettings input, IIntegrationSettings settings) =>

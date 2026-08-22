@@ -24,16 +24,30 @@ function whenText(iso: string | null): string {
  * полгода падает на прокси.
  */
 export function UpdateSettingsSection() {
-  const { data, isLoading } = useUpdateStatus();
+  // Здесь заметки нужны — это единственное место, где их показывают.
+  const { data, isLoading } = useUpdateStatus(true, true);
   const check = useCheckUpdatesNow();
   const save = useSaveUpdateSettings();
   const [enabled, setEnabled] = useState(true);
 
+  // Исход ПОСЛЕДНЕГО нажатия: сеть могла отработать (200), а проверка не состояться.
+  const result = check.data;
+  const failed = check.isError || result?.justChecked === false;
+  const lastError = check.isError ? 'сервер не ответил' : result?.lastError ?? null;
+
   useEffect(() => { if (data) setEnabled(data.enabled); }, [data]);
 
   async function toggle(next: boolean) {
+    const prev = enabled;
     setEnabled(next);
-    await save.mutateAsync({ enabled: next });
+    try {
+      await save.mutateAsync({ enabled: next });
+    } catch {
+      // Возвращаем галку на место: иначе она показывает «выключено», служба продолжает ходить в
+      // GitHub, и расхождение не исправится до перезагрузки страницы — переключатель врёт о том,
+      // чем управляет.
+      setEnabled(prev);
+    }
   }
 
   return (
@@ -67,12 +81,25 @@ export function UpdateSettingsSection() {
         )}
       </div>
 
+      {save.isError && (
+        <p className="text-xs text-danger">Настройку сохранить не удалось — значение осталось прежним.</p>
+      )}
+
       {data && (
         // Молчать о неудачной проверке нельзя: «обновлений нет» и «мы не знаем» — разные вещи, а
         // выглядят одинаково.
         <p className={`text-xs ${data.lastCheckedAt ? 'text-fg4' : 'text-warning'}`}>
           Последняя удачная проверка: {whenText(data.lastCheckedAt)}
-          {check.isError && <span className="text-warning"> · последняя попытка не удалась</span>}
+        </p>
+      )}
+
+      {/* Неудача приходит УСПЕШНЫМ ответом (сервер не падает от того, что GitHub недоступен),
+          поэтому смотреть надо на признак в теле, а не на ошибку запроса. Иначе нажатие выглядит
+          сработавшим: на экране не меняется ничего — ровно тот отказ, переодетый в результат,
+          ради которого кнопка и заведена. */}
+      {failed && (
+        <p className="text-xs text-warning">
+          Проверить не удалось{lastError ? `: ${lastError}` : '.'}
         </p>
       )}
 

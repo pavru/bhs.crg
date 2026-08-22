@@ -65,6 +65,15 @@ public readonly record struct AppVersion(int Major, int Minor, int Patch) : ICom
     public static bool IsNewer(string? released, string? installed)
         => TryParse(released, out var r) && TryParse(installed, out var i) && r > i;
 
+    /// <summary>
+    /// Номер без обёрток: «v0.138.0» → «0.138.0». Наружу (в интерфейс) номер уходит только таким —
+    /// иначе в подвале панели рядом оказываются «v0.137.1» и «доступна v0.138.0», где «v» означает
+    /// в одном случае наше оформление, а в другом — форму тега GitHub. Возвращает исходную строку,
+    /// если она не разобралась: подменять её на пустоту хуже, чем показать как есть.
+    /// </summary>
+    public static string? Normalize(string? text)
+        => TryParse(text, out var v) ? v.ToString() : text;
+
     // ── Версия текущей сборки ───────────────────────────────────────────────────
 
     /// <summary>

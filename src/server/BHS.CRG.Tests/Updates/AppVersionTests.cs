@@ -82,6 +82,26 @@ public class AppVersionTests
         Assert.Equal(commit, c);
     }
 
+    [Theory]
+    [InlineData("v0.138.0", "0.138.0")]
+    [InlineData("0.138.0+a1b2c3d", "0.138.0")]
+    [InlineData("0.138.0", "0.138.0")]
+    public void Normalize_StripsWrappers(string text, string expected)
+    {
+        // Наружу номер уходит без «v»: иначе в подвале панели рядом стоят «v0.137.1» и «доступна
+        // v0.138.0», где «v» означает в одном случае наше оформление, а в другом — форму тега.
+        Assert.Equal(expected, AppVersion.Normalize(text));
+    }
+
+    [Fact]
+    public void Normalize_KeepsUnparsableAsIs()
+    {
+        // Подменять непонятную строку пустотой хуже, чем показать как есть: пустота выглядит как
+        // «данных нет», хотя данные пришли — просто в неизвестной форме.
+        Assert.Equal("latest", AppVersion.Normalize("latest"));
+        Assert.Null(AppVersion.Normalize(null));
+    }
+
     [Fact]
     public void OrdersByMajorThenMinorThenPatch()
     {

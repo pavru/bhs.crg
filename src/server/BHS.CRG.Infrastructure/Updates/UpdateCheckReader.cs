@@ -20,7 +20,7 @@ public class UpdateCheckReader(ServiceStateStore store, IIntegrationSettings set
 
         return new UpdateStatus(
             installed,
-            state.LatestVersion,
+            AppVersion.Normalize(state.LatestVersion),
             AppVersion.IsNewer(state.LatestVersion, installed),
             state.ReleaseUrl,
             state.ReleaseNotes,

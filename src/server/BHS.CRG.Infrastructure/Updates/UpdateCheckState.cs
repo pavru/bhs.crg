@@ -45,12 +45,38 @@ public class ServiceStateStore(AppDbContext db)
         catch (JsonException) { return new T(); }   // запись испорчена — начинаем заново, а не падаем
     }
 
+    /// <summary>
+    /// Записать след службы. Писателей ДВА — фоновый цикл и кнопка «Проверить сейчас», — и на свежей
+    /// установке они оба могут увидеть «строки ещё нет» и оба попытаться её создать. Уникальный
+    /// индекс по ключу тогда отдаёт 23505, и проигравший получал бы 500 вместо результата проверки.
+    /// Поэтому конфликт вставки не ошибка, а ожидаемый исход: перечитываем и обновляем существующую.
+    /// </summary>
     public async Task SaveAsync<T>(string key, T value, CancellationToken ct)
     {
         var json = JsonDocument.Parse(JsonSerializer.Serialize(value, Json));
         var row = await db.ServiceState.FirstOrDefaultAsync(s => s.Key == key, ct);
-        if (row is null) db.ServiceState.Add(ServiceStateEntity.Create(key, json));
-        else row.Update(json);
-        await db.SaveChangesAsync(ct);
+        if (row is not null)
+        {
+            row.Update(json);
+            await db.SaveChangesAsync(ct);
+            return;
+        }
+
+        db.ServiceState.Add(ServiceStateEntity.Create(key, json));
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            // Нас опередили. Отцепляем свою вставку и дописываем в чужую строку — состояние службы
+            // одно на систему, и «кто последний, того и запись» здесь верное поведение. Если строки
+            // всё же нет, дело было не в гонке: пробрасываем, молчать нельзя.
+            db.ChangeTracker.Clear();
+            var existing = await db.ServiceState.FirstOrDefaultAsync(s => s.Key == key, ct);
+            if (existing is null) throw;
+            existing.Update(json);
+            await db.SaveChangesAsync(ct);
+        }
     }
 }

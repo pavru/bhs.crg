@@ -36,6 +36,11 @@ public class UpdateCheckService(
     /// шесть часов. Предупреждение, повторяющееся вечно, перестают замечать вместе со всем журналом.</summary>
     private int _consecutiveFailures;
 
+    /// <summary>Текст последней неудачи — для ответа на явную проверку. В журнал он уходит по своим
+    /// правилам (первая неудача подряд предупреждением, дальше отладкой), а человеку у кнопки нужен
+    /// всегда: без него нажатие выглядит удавшимся.</summary>
+    private string? _lastError;
+
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         // Пауза на старте — из тех же соображений, что у health-мониторинга: при запуске системе
@@ -73,14 +78,23 @@ public class UpdateCheckService(
 
         // GitHub попросил подождать — ждём: долбить в исчерпанный лимит по расписанию бессмысленно.
         if (state.RateLimitedUntil is { } until && DateTimeOffset.UtcNow < until)
-            return StatusOf(state, installed, enabled: true);
+            return StatusOf(state, installed, enabled: true) with
+            {
+                JustChecked = false,
+                LastError = $"GitHub ограничил частоту запросов, следующая попытка после {until.ToLocalTime():HH:mm}.",
+            };
 
         var release = await FetchLatestAsync(state, ct);
         if (release is null)
         {
-            // Неудача НИЧЕГО не гасит: уже известная новая версия остаётся известной.
+            // Неудача НИЧЕГО не гасит: уже известная новая версия остаётся известной. Но и выдать её
+            // за свежий ответ нельзя — иначе кнопка «Проверить сейчас» отвечает успехом на неудачу.
             await store.SaveAsync(UpdateCheckStateKeys.UpdateCheck, state, ct);
-            return StatusOf(state, installed, enabled: true);
+            return StatusOf(state, installed, enabled: true) with
+            {
+                JustChecked = false,
+                LastError = _lastError ?? "Не удалось получить сведения о выпусках.",
+            };
         }
 
         state.LatestVersion = release.Value.Tag;
@@ -93,14 +107,21 @@ public class UpdateCheckService(
             await sp.GetRequiredService<UpdateNotifier>().NotifyAsync(state.LatestVersion!, installed, ct);
             state.NotifiedVersion = state.LatestVersion;
         }
+        else if (!AppVersion.IsNewer(state.LatestVersion, installed) && state.NotifiedVersion is not null)
+        {
+            // Обновились — сообщение о том, что «доступна версия», стало неправдой. Убираем его и
+            // забываем, о чём уведомляли: следующий выпуск начнёт разговор заново.
+            await sp.GetRequiredService<UpdateNotifier>().ClearAsync(ct);
+            state.NotifiedVersion = null;
+        }
 
         await store.SaveAsync(UpdateCheckStateKeys.UpdateCheck, state, ct);
-        return StatusOf(state, installed, enabled: true);
+        return StatusOf(state, installed, enabled: true) with { JustChecked = true };
     }
 
     private static UpdateStatus StatusOf(UpdateCheckState s, string installed, bool enabled) => new(
         installed,
-        s.LatestVersion,
+        AppVersion.Normalize(s.LatestVersion),
         AppVersion.IsNewer(s.LatestVersion, installed),
         s.ReleaseUrl,
         s.ReleaseNotes,
@@ -121,8 +142,12 @@ public class UpdateCheckService(
         try
         {
             using var resp = await http.SendAsync(req, ct);
+            // Именно ИСЧЕРПАННЫЙ лимит, а не любой 403: заголовок X-RateLimit-Reset приходит почти
+            // с каждым ответом GitHub, и по одному его наличию мы объявляли бы лимитом и запрет по
+            // User-Agent, и вторичное ограничение — вплоть до часа тишины и неверной подсказки в
+            // журнале, то есть ровно того, от чего предостерегает комментарий выше.
             if (resp.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests
-                && RateLimitReset(resp) is { } reset)
+                && RateLimitExhausted(resp) && RateLimitReset(resp) is { } reset)
             {
                 state.RateLimitedUntil = reset;
                 Fail("лимит запросов GitHub исчерпан, следующая попытка после {Reset}", reset);
@@ -145,6 +170,7 @@ public class UpdateCheckService(
             }
 
             _consecutiveFailures = 0;
+            _lastError = null;
             state.RateLimitedUntil = null;
             return (tag,
                 doc.RootElement.TryGetProperty("html_url", out var u) ? u.GetString() : null,
@@ -162,11 +188,19 @@ public class UpdateCheckService(
     private void Fail(string template, object? arg)
     {
         _consecutiveFailures++;
+        _lastError = arg is null ? template : template.Replace("{Reset}", "{0}")
+            .Replace("{Tag}", "{0}").Replace("{Message}", "{0}")
+            .Replace("{0}", arg.ToString() ?? "");
         if (_consecutiveFailures == 1)
             logger.LogWarning("Проверка обновлений: " + template, arg!);
         else
             logger.LogDebug("Проверка обновлений (неудача {N} подряд): " + template, _consecutiveFailures, arg!);
     }
+
+    private static bool RateLimitExhausted(HttpResponseMessage resp)
+        => resp.Headers.TryGetValues("X-RateLimit-Remaining", out var vals)
+           && int.TryParse(vals.FirstOrDefault(), out var left)
+           && left <= 0;
 
     private static DateTimeOffset? RateLimitReset(HttpResponseMessage resp)
         => resp.Headers.TryGetValues("X-RateLimit-Reset", out var vals)

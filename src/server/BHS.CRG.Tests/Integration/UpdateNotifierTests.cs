@@ -135,6 +135,27 @@ public class UpdateNotifierTests(IntegrationTestFixture fixture) : IAsyncLifetim
             .GetAsync(userId)).Where(n => n.Source == UpdateNotifier.Source));
     }
 
+    [Fact]
+    public async Task AfterUpdate_ClearsStaleMessage()
+    {
+        // Обновились до объявленной версии — сообщение «доступна 0.139.0» стало неправдой. Без
+        // очистки оно висит до СЛЕДУЮЩЕГО выпуска: сообщение о выполненной работе — тот же мусор,
+        // что и лампа, горящая всегда, только с виду осмысленный.
+        var adminId = await CreateUserAsync("Администратор", "Admin");
+        await KeepOnlyAdminsAsync(adminId);
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            await Notifier(scope).NotifyAsync("0.139.0", "0.138.0", default);
+            await Notifier(scope).ClearAsync(default);
+        }
+
+        using var check = fixture.Services.CreateScope();
+        var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Empty(await db.Notifications.AsNoTracking()
+            .Where(n => n.Source == UpdateNotifier.Source).ToListAsync());
+    }
+
     // ── Решение «сообщать или нет» ───────────────────────────────────────────────
 
     [Theory]

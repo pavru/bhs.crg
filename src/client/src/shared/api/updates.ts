@@ -16,6 +16,10 @@ export interface UpdateStatus {
   enabled: boolean;
   releaseUrl?: string | null;
   releaseNotes?: string | null;
+  /** Ответ на явную проверку: состоялась ли она. null — просто читали известное. */
+  justChecked?: boolean | null;
+  /** Почему последняя попытка не удалась. */
+  lastError?: string | null;
 }
 
 /**
@@ -24,10 +28,14 @@ export interface UpdateStatus {
  * Зовётся с каждого экрана (подвал боковой панели), поэтому дешёвый и с длинным staleTime: проверка
  * идёт раз в шесть часов, чаще спрашивать нечего.
  */
-export function useUpdateStatus(enabled = true) {
+export function useUpdateStatus(enabled = true, withNotes = false) {
   return useQuery<UpdateStatus>({
-    queryKey: ['system', 'update'],
-    queryFn: () => apiClient.get('/system/update').then(r => r.data),
+    // Ключ различает выдачи с заметками и без: иначе лёгкий ответ из подвала панели лёг бы в кеш
+    // страницы настроек, и заметки там не появились бы вовсе.
+    queryKey: ['system', 'update', withNotes ? 'notes' : 'brief'],
+    queryFn: () => apiClient
+      .get('/system/update', { params: withNotes ? { withNotes: true } : undefined })
+      .then(r => r.data),
     staleTime: 15 * 60 * 1000,
     retry: false,
     enabled,
