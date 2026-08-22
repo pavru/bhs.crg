@@ -44,7 +44,12 @@
   сертификатом (nginx, Caddy, Traefik) либо терминатор периметра. Без него допустима только
   установка, целиком закрытая внутри доверенной сети. См. §11.
 - **ОС:** Linux (Ubuntu 22.04+/Debian 12+ и совместимые).
-- **Docker Engine 24+** и **Docker Compose v2** (`docker compose`, не `docker-compose`).
+- **Docker Engine 24+** и **Docker Compose v2 или новее** — тот, что вызывается как
+  `docker compose` (через пробел), а не `docker-compose`. Номер у плагина давно ушёл вперёд
+  движка: свежая установка отвечает `v5.x`, и это не ошибка — важно, что не v1.
+  На чистом сервере их ещё нет: установка из официального репозитория — **Приложение А**.
+  Там же сказано, чего не ставить (`docker.io`, `docker-compose` v1, snap) и почему выбор
+  не того пакета выясняется не сразу.
 - **Ресурсы:**
   - Базовый стек (без Ollama): от **2 CPU / 4 ГБ RAM / 10 ГБ диска**.
   - С Ollama и моделью `qwen2.5vl:7b`: дополнительно **~8 ГБ RAM** и **~6 ГБ диска** под модель;
@@ -58,6 +63,9 @@
 docker --version
 docker compose version
 ```
+
+Обе команды должны ответить номером версии. Ответ `'compose' is not a docker command`
+означает, что плагин Compose не установлен: см. **Приложение А**.
 
 ---
 
@@ -356,6 +364,7 @@ cat backup_YYYY-MM-DD.sql | docker compose -f deploy/docker-compose.yml exec -T 
 
 | Симптом | Причина / решение |
 |---|---|
+| `docker compose` отвечает `'compose' is not a docker command` | Docker поставлен без плагина Compose v2 — обычно это пакет `docker.io` из репозитория дистрибутива. Переставьте из официального репозитория: Приложение А |
 | `api` падает при старте | Обязательное значение не задано или оставлено из примера — сообщение в логе называет, какое именно и какой переменной задаётся: `JWT_KEY`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `MINIO_BUCKET`, параметры БД. Проверьте также доступность `postgres` (healthcheck). `docker compose logs api` |
 | Генерация PDF с ошибкой шрифтов | В образ включены DejaVu/Liberation/Noto. Если шаблон требует особый шрифт — добавьте его в `Dockerfile.api` |
 | Распознавание не работает | Модель Ollama не загружена (`ollama pull`) или не задан API‑ключ. Это опциональная функция |
@@ -401,3 +410,144 @@ docker compose -f deploy/docker-compose.yml down -v      # остановить 
 - [ ] Известно, где смотреть вес встроенной резервной копии против предела восстановления
       (**Настройки → Резервное копирование**). Вес задаётся библиотекой документов качества и
       растёт вместе с ней; предел поднимается переменной `BACKUP_MAX_ARCHIVE_MB`.
+
+---
+
+## Приложение А. Установка Docker
+
+§2 требует **Docker Engine 24+** и **Compose v2 или новее**, но на чистом сервере их ещё нет. Здесь — путь
+от голой ОС до состояния, в котором «Быстрый старт» (§3) проходит целиком.
+
+Ставим **только из официального репозитория Docker**: так одной установкой получаются и свежий
+движок, и `docker compose` как его плагин. Пакеты из репозиториев дистрибутивов и snap тоже
+называются «докер», но требованиям §2 не отвечают — чем именно это кончается, в А.4.
+
+> Команды ниже прогнаны на чистых Ubuntu 24.04 и Rocky Linux 9 (август 2026): из репозитория
+> приходят Engine 29.x и плагин Compose 5.x. Официальная страница установки со временем
+> меняется (формат файла репозитория здесь уже менялся) — если команда не сработала, сверьтесь
+> с https://docs.docker.com/engine/install/.
+
+### А.1. Ubuntu 22.04+ / Debian 12+
+
+Порядок один и тот же, отличается одна переменная в начале.
+
+```bash
+DISTRO=ubuntu        # для Debian: DISTRO=debian
+
+# 1. Снять пакеты, которые займут имена команд и будут мешать.
+#    Часть из них в системе не стоит — сообщения «не найден» здесь ожидаемы.
+for p in docker.io docker-doc docker-compose docker-compose-v2 \
+         docker-buildx podman-docker containerd runc; do
+  sudo apt remove -y "$p" 2>/dev/null || true
+done
+
+# 2. Ключ и репозиторий Docker
+sudo apt update
+sudo apt install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL "https://download.docker.com/linux/$DISTRO/gpg" -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+sudo tee /etc/apt/sources.list.d/docker.sources >/dev/null <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/$DISTRO
+Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+Components: stable
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+# 3. Установка
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io \
+                    docker-buildx-plugin docker-compose-plugin
+```
+
+> Подстановки внутри `<<EOF` выполняет ваша оболочка, а не `sudo`: в файл попадают уже готовые
+> кодовое имя выпуска и архитектура. Стоит на них взглянуть — `cat /etc/apt/sources.list.d/docker.sources`.
+> Пустое `Suites:` означает, что `/etc/os-release` не назвал кодовое имя (бывает на производных
+> сборках); подставьте его вручную — `jammy`, `noble`, `bookworm`.
+
+Дальше — А.3.
+
+### А.2. RHEL‑семейство: Rocky Linux 9 / AlmaLinux 9 / CentOS Stream 9
+
+```bash
+sudo dnf -y install dnf-plugins-core
+sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo dnf -y install docker-ce docker-ce-cli containerd.io \
+                    docker-buildx-plugin docker-compose-plugin
+```
+
+> На самой **RHEL** адрес другой — `https://download.docker.com/linux/rhel/docker-ce.repo`.
+> Rocky и Alma собираются из исходников RHEL, но отдельного репозитория у Docker для них нет:
+> им предназначен именно `centos`.
+
+**firewalld.** В RHEL‑семействе он включён по умолчанию — и опубликованные Docker порты он **не
+закрывает**: правила Docker стоят раньше. С `ufw` в Ubuntu ровно так же. Ограничивать доступ
+нужно там, где порт публикуется: привязкой к адресу в `docker-compose.yml` (как сделано для
+консоли MinIO, см. §6) или фильтром периметра. И проверять снаружи, а не выводом
+`firewall-cmd --list-ports`: список честно покажет, что порт не открыт, а `curl` с соседней
+машины в это же время откроет страницу.
+
+**SELinux** трогать не нужно: поставка работает с именованными томами, метки для них
+расставляются сами. Понадобится, только если добавите свой bind‑mount, — тогда ему нужен
+суффикс `:z` в описании тома.
+
+### А.3. После установки — оба варианта
+
+```bash
+# На Debian/Ubuntu службу запустил и включил сам пакет — команда ничего не изменит.
+sudo systemctl enable --now docker
+
+# Чтобы не писать sudo перед каждой командой (о цене — сразу под блоком).
+sudo usermod -aG docker "$USER"
+newgrp docker                        # применить группу без перелогина (в этой оболочке)
+```
+
+> ⚠️ **Группа `docker` — это root на хосте**, без оговорок: её участник запускает контейнер,
+> смонтировав в него корень файловой системы, и дальше волен делать что угодно. Не «почти root»
+> и не «root внутри контейнера» — доступ ко всему серверу. Включайте в неё только тех, кому и так
+> дали бы `sudo` без пароля; на сервере с несколькими пользователями разумнее оставить
+> `sudo docker …`. (У Docker есть rootless‑режим, снимающий это ограничение; наша поставка на нём
+> не проверялась.)
+
+**Если сервер выходит в интернет через прокси**, задать его нужно демону: переменные вашей
+оболочки Docker не наследует, и без этого `docker compose up` останавливается на скачивании
+образов, жалуясь на таймаут — то есть на что угодно, только не на прокси.
+
+```bash
+sudo mkdir -p /etc/systemd/system/docker.service.d
+sudo tee /etc/systemd/system/docker.service.d/http-proxy.conf >/dev/null <<'EOF'
+[Service]
+Environment="HTTP_PROXY=http://proxy.example:3128"
+Environment="HTTPS_PROXY=http://proxy.example:3128"
+Environment="NO_PROXY=localhost,127.0.0.1"
+EOF
+sudo systemctl daemon-reload && sudo systemctl restart docker
+```
+
+### А.4. Чего не ставить
+
+| Что | Чем это кончится |
+|---|---|
+| `apt install docker.io` — пакет из репозитория дистрибутива | Движка может хватить, а плагина Compose в нём нет: `docker compose version` отвечает `'compose' is not a docker command`. Половина команд этой инструкции просто не существует, причём выглядит это как опечатка в инструкции, а не как незаконченная установка |
+| `docker-compose` v1 (через `pip` или отдельным бинарником — с дефисом) | Другая программа: реализация на Python, снята с поддержки. Наш `docker-compose.yml` написан по спецификации Compose v2 (в нём намеренно нет ключа `version:`), и v1 такой файл не понимает — падает на разборе, называя незнакомые поля |
+| snap‑пакет `docker` | Работает в изоляции snap: свои пути к данным и запрет на чтение файлов вне домашнего каталога. Отказы приходят как «нет прав» или «файл не найден» — по ним причину не угадать |
+
+Общее у всех трёх: они дают ошибки, не похожие на свою причину. Если `docker` в системе уже
+стоял и вы не знаете откуда — проверьте `docker compose version` (плагин обязан отвечать) и
+`dpkg -l | grep -i docker` / `rpm -qa | grep -i docker`.
+
+### А.5. Проверка
+
+```bash
+docker --version              # 24.0 или новее (сегодня из репозитория ставится 29.x)
+docker compose version        # плагин: через пробел, не через дефис
+docker run --rm hello-world   # запуск контейнера целиком, от скачивания до вывода
+```
+
+> `hello-world` скачивается с Docker Hub, а образы системы — с `ghcr.io`. Успех этой команды
+> означает «Docker работает», но не «до GHCR дотянемся»: это покажет уже `docker compose up`.
+
+Дальше — **§3 «Быстрый старт»**.
