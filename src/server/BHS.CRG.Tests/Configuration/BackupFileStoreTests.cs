@@ -198,6 +198,73 @@ public class BackupFileStoreTests : IDisposable
         Assert.DoesNotContain("Восстановлению это не мешает", file.Problem);
     }
 
+    // ── Уборка плановых копий (issue #832) ────────────────────────────────────
+
+    /// <summary>Сверх предела уходят САМЫЕ СТАРЫЕ, и ровно лишние.</summary>
+    [Fact]
+    public void Prune_RemovesOldestBeyondKeep()
+    {
+        var store = Store();
+        var day = new DateTimeOffset(2026, 8, 20, 3, 0, 0, TimeSpan.Zero);
+        WriteBackup("auto-1.zip", 1, day);
+        WriteBackup("auto-2.zip", 1, day.AddDays(1));
+        WriteBackup("auto-3.zip", 1, day.AddDays(2));
+
+        var deleted = store.PruneScheduled(["auto-1.zip", "auto-2.zip", "auto-3.zip"], keep: 2);
+
+        Assert.Equal(["auto-1.zip"], deleted);
+        Assert.Equal(["auto-3.zip", "auto-2.zip"], store.List().Select(f => f.FileName));
+    }
+
+    /// <summary>
+    /// Ручные и принесённые копии уборка не трогает НИКОГДА — даже если они самые старые в
+    /// каталоге. Их клали осознанно, и молчаливое исчезновение такой копии хуже переполнения:
+    /// именно её и приносят, чтобы восстановиться.
+    /// </summary>
+    [Fact]
+    public void Prune_NeverTouchesCopiesItDidNotMake()
+    {
+        var store = Store();
+        var day = new DateTimeOffset(2026, 8, 20, 3, 0, 0, TimeSpan.Zero);
+        WriteBackup("brought-from-other-server.zip", 1, day.AddYears(-1));
+        WriteBackup("manual.zip", 1, day.AddDays(-5));
+        WriteBackup("auto-1.zip", 1, day);
+        WriteBackup("auto-2.zip", 1, day.AddDays(1));
+
+        var deleted = store.PruneScheduled(["auto-1.zip", "auto-2.zip"], keep: 1);
+
+        Assert.Equal(["auto-1.zip"], deleted);
+        Assert.Contains(store.List(), f => f.FileName == "brought-from-other-server.zip");
+        Assert.Contains(store.List(), f => f.FileName == "manual.zip");
+    }
+
+    /// <summary>
+    /// Уборка вызывается и ПЕРЕД снятием новой копии — освободить место, — и там предел приходит
+    /// нулевым. Удалить последнюю имеющуюся копию ради места под ещё не снятую нельзя: между этими
+    /// двумя моментами система остаётся вовсе без копий.
+    /// </summary>
+    [Fact]
+    public void Prune_KeepsTheNewestEvenWhenAskedForNone()
+    {
+        var store = Store();
+        var day = new DateTimeOffset(2026, 8, 20, 3, 0, 0, TimeSpan.Zero);
+        WriteBackup("auto-1.zip", 1, day);
+        WriteBackup("auto-2.zip", 1, day.AddDays(1));
+
+        store.PruneScheduled(["auto-1.zip", "auto-2.zip"], keep: 0);
+
+        Assert.Equal(["auto-2.zip"], store.List().Select(f => f.FileName));
+    }
+
+    /// <summary>Имён из списка может уже не быть в каталоге — это не отказ, а обычное дело.</summary>
+    [Fact]
+    public void Prune_IgnoresNamesAlreadyGone()
+    {
+        var store = Store();
+        WriteBackup("auto-1.zip", 1);
+        Assert.Empty(store.PruneScheduled(["auto-1.zip", "удалили-вручную.zip"], keep: 5));
+    }
+
     // ── Принесённая копия ─────────────────────────────────────────────────────
 
     /// <summary>
@@ -232,10 +299,10 @@ public class BackupFileStoreTests : IDisposable
     // ── helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>Архив с паспортом — такой же, какой пишет экспорт.</summary>
-    private void WriteBackup(string name, int records)
+    private void WriteBackup(string name, int records, DateTimeOffset? at = null)
     {
         Directory.CreateDirectory(_dir);
-        var summary = new BackupSummary(2, VersionFrom(name), DateTimeOffset.UtcNow, 3,
+        var summary = new BackupSummary(2, VersionFrom(name), at ?? DateTimeOffset.UtcNow, 3,
             [new BackupSectionCount("Типы документов", records)]);
 
         using var zip = ZipFile.Open(Path.Combine(_dir, name), ZipArchiveMode.Create);

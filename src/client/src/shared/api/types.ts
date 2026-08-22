@@ -277,12 +277,38 @@ export interface BackupFileInfo {
   problem: string | null;
 }
 
+/** Расписание копирования — то, что задал администратор (issue #832). */
+export interface BackupScheduleSettings {
+  enabled: boolean;
+  /** «ЧЧ:ММ» по часам сервера. */
+  timeOfDay: string;
+  /** Сколько ПЛАНОВЫХ копий хранить; ручных и принесённых уборка не касается. */
+  keepCount: number;
+}
+
+/** Расписание вместе со следом службы: когда снимали, чем кончилось, идёт ли прямо сейчас. */
+export interface BackupScheduleStatus extends BackupScheduleSettings {
+  lastRunAt: string | null;
+  lastSuccessAt: string | null;
+  lastFileName: string | null;
+  lastError: string | null;
+  lastErrorAt: string | null;
+  running: boolean;
+}
+
 export interface BackupFilesResponse {
   files: BackupFileInfo[];
   /** Предел числа копий: достигнут — новая не создаётся, пока не удалят старые. */
   keepCount: number;
   /** Каталог на сервере: по этому пути копию кладут и забирают в обход браузера. */
   directory: string;
+  schedule: BackupScheduleStatus;
+  /**
+   * Копии, снятые расписанием на ЭТОЙ установке, — уборка трогает только их. Признак хранится у
+   * установки, а не внутри копии: иначе принесённая с другого сервера копия считалась бы плановой
+   * и здесь, попадала под уборку и однажды исчезла бы ночью.
+   */
+  scheduledFiles: string[];
 }
 
 export interface RestoreReport {
