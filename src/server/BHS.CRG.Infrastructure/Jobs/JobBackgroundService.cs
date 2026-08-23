@@ -98,7 +98,8 @@ public class JobBackgroundService(
                     // Цели у задачи нет: копия снимается со всей системы, а не с объекта. Прогресс
                     // честный — по числу файлов, которые перекачиваются из хранилища в архив.
                     await scope.ServiceProvider.GetRequiredService<BHS.CRG.Infrastructure.Backup.BackupJobRunner>()
-                        .RunAsync(userId, ParseFlag(payload, "scheduled"), (c, t) => report("файлов", c, t), ct);
+                        .RunAsync(userId, ParseFlag(payload, "scheduled"), ParseBackupScope(payload),
+                            (c, t) => report("файлов", c, t), ct);
                     break;
 
                 case JobKind.SendEmail:
@@ -146,6 +147,22 @@ public class JobBackgroundService(
                 "Фоновые задачи", userId: userId == Guid.Empty ? null : userId);
         }
         catch (Exception ex) { logger.LogWarning(ex, "Не удалось опубликовать уведомление об ошибке задачи"); }
+    }
+
+    /// <summary>
+    /// Состав копии из payload — {"scope":"Full"} (issue #833). Неизвестное значение читаем как
+    /// «настройка»: копия меньше ожидаемой заметна сразу (в списке виден состав), а вот полная
+    /// копия там, где просили конфигурационную, съела бы место молча.
+    /// </summary>
+    private static BHS.CRG.Application.Backup.BackupScope ParseBackupScope(string? payload)
+    {
+        if (string.IsNullOrEmpty(payload)) return BHS.CRG.Application.Backup.BackupScope.Configuration;
+        using var doc = JsonDocument.Parse(payload);
+        return doc.RootElement.TryGetProperty("scope", out var v)
+               && v.ValueKind == JsonValueKind.String
+               && string.Equals(v.GetString(), "Full", StringComparison.OrdinalIgnoreCase)
+            ? BHS.CRG.Application.Backup.BackupScope.Full
+            : BHS.CRG.Application.Backup.BackupScope.Configuration;
     }
 
     /// <summary>Булев флаг из payload задачи — напр. {"scheduled":true}.</summary>

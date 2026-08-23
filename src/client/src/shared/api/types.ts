@@ -243,16 +243,27 @@ export interface BackupManifest {
 }
 
 /** Вес копии, снятой прямо сейчас, и предел, на котором откажет восстановление (issue #711). */
-export interface BackupSizeEstimate {
+/** Вес копии одного состава (issue #833: составов два). */
+export interface BackupSizeVariant {
   totalBytes: number;
   manifestBytes: number;
   blobBytes: number;
   blobCount: number;
   /** Файлы, потерянные хранилищем: в копию они не попадут. */
   missingBlobCount: number;
-  limitBytes: number;
-  exceedsLimit: boolean;
 }
+
+export interface BackupSizeEstimate {
+  /** Только настройка системы — то, чем копия была до issue #833. */
+  configuration: BackupSizeVariant;
+  /** Настройка вместе с проектной работой: стройки, комплекты, документы, наборы данных. */
+  full: BackupSizeVariant;
+  /** Предел загрузки через браузер; на путь «файл в каталоге» он не действует. */
+  limitBytes: number;
+}
+
+/** Что класть в копию (issue #833). */
+export type BackupScope = 'Configuration' | 'Full';
 
 /** Раздел копии и число записей в нём — «состав» в списке копий (issue #831). */
 export interface BackupSectionCount {
@@ -275,6 +286,10 @@ export interface BackupFileInfo {
   blobCount: number | null;
   sections: BackupSectionCount[] | null;
   problem: string | null;
+  /** Полная копия (с проектными данными) или только настройка. */
+  includesProjectData: boolean;
+  /** Что экспорт пропустил и почему — например шаблоны, потерявшие свой тип документа. */
+  warnings: string[] | null;
 }
 
 /** Расписание копирования — то, что задал администратор (issue #832). */
@@ -311,6 +326,12 @@ export interface BackupFilesResponse {
   scheduledFiles: string[];
 }
 
+export interface RestoreSectionStat {
+  label: string;
+  created: number;
+  updated: number;
+}
+
 export interface RestoreReport {
   success: boolean;
   conversionNotice: string | null;
@@ -340,6 +361,11 @@ export interface RestoreReport {
   dataSetProcessingTemplatesUpdated?: number;
   qualityDocumentsCreated?: number;
   qualityDocumentsUpdated?: number;
+  /**
+   * Проектные секции (issue #833) — списком, а не парой полей на каждую: секций много, и
+   * следующая не должна означать правку типа, таблицы и сервера разом.
+   */
+  projectSections?: RestoreSectionStat[] | null;
 }
 
 // ─── DataSets ─────────────────────────────────────────────────────────────────

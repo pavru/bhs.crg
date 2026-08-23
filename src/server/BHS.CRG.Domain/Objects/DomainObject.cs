@@ -64,6 +64,32 @@ public class DomainObject : Entity
         };
 
     /// <summary>
+    /// Восстановление ДОКУМЕНТА из резервной копии (issue #833): объект вместе с документной
+    /// фасетой — статусом, порядком, выбранными шаблонами и кэшем плагинов.
+    ///
+    /// Отдельно от <see cref="Restore" /> потому, что фасета и есть то, чем документ отличается от
+    /// записи общих данных: восстановить документ без неё значило бы превратить его в общие данные
+    /// — молча и необратимо.
+    /// </summary>
+    public static DomainObject RestoreDocument(
+        Guid id, Guid compositeTypeId, string? displayName, JsonDocument data,
+        Guid setId, DateTimeOffset createdAt, DateTimeOffset updatedAt, IReadOnlyList<string>? aliases,
+        DocumentStatus status, int sortOrder, Guid? templateId, string? templateIds,
+        string? templateParams, JsonDocument pluginData)
+    {
+        var o = Restore(id, compositeTypeId, displayName, data,
+            CatalogScope.Set, setId, createdAt, updatedAt, aliases);
+        var facet = o.EnsureFacet();
+        facet.Status = status;
+        facet.SortOrder = sortOrder;
+        facet.TemplateId = templateId;
+        facet.TemplateIds = templateIds;
+        facet.TemplateParams = templateParams;
+        facet.PluginData = pluginData;
+        return o;
+    }
+
+    /// <summary>
     /// Клон как документ (issue #283, дублировать/копировать/перенести): новый объект того же типа
     /// в целевом Set-scope с переданными (уже клонированными/обработанными вызывающим) данными.
     /// Копирует конфиг шаблонов и алиасы; фасета свежая — Draft, без сгенерированных файлов,

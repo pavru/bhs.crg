@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type {
-  BackupFileInfo, BackupFilesResponse, BackupScheduleSettings, BackupSizeEstimate, RestoreReport,
+  BackupFileInfo, BackupFilesResponse, BackupScheduleSettings, BackupScope, BackupSizeEstimate,
+  RestoreReport,
 } from './types';
 import type { ActiveJob } from './jobs';
 
@@ -46,7 +47,8 @@ export function useBackupFiles(enabled = true) {
 export function useCreateBackup() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => (await apiClient.post<{ jobId: string }>('/backup/files')).data,
+    mutationFn: async (scope: BackupScope) =>
+      (await apiClient.post<{ jobId: string }>('/backup/files', null, { params: { scope } })).data,
     // Список обновится не сразу — задача только поставлена. Обновляем и задачи (пилюля появится
     // немедленно, не дожидаясь очередного опроса), и список (его освежит завершение задачи).
     onSuccess: () => {

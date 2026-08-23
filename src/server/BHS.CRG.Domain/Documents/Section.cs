@@ -19,5 +19,14 @@ public class Section : Entity
     public static Section Create(Guid constructionId, string name)
         => new() { ConstructionId = constructionId, Name = name };
 
+    /// <summary>Восстановление из резервной копии (issue #833).</summary>
+    public static Section Restore(Guid id, Guid constructionId, string name, Guid? profileObjectId,
+        DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        => new()
+        {
+            Id = id, ConstructionId = constructionId, Name = name, ProfileObjectId = profileObjectId,
+            CreatedAt = createdAt, UpdatedAt = updatedAt,
+        };
+
     public void Rename(string name) { Name = name; TouchUpdatedAt(); }
 }

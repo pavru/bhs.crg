@@ -20,5 +20,14 @@ public class Construction : Entity
     public static Construction Create(string name, Guid userId)
         => new() { Name = name, CreatedByUserId = userId };
 
+    /// <summary>Восстановление из резервной копии (issue #833): идентификатор и время — как были.</summary>
+    public static Construction Restore(Guid id, string name, Guid createdByUserId, Guid? profileObjectId,
+        DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        => new()
+        {
+            Id = id, Name = name, CreatedByUserId = createdByUserId, ProfileObjectId = profileObjectId,
+            CreatedAt = createdAt, UpdatedAt = updatedAt,
+        };
+
     public void Rename(string name) { Name = name; TouchUpdatedAt(); }
 }

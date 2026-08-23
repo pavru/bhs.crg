@@ -42,6 +42,15 @@ public class ReconciliationDefinition : Entity
     public static ReconciliationDefinition Create(string name, CatalogScope scope, Guid? scopeId, JsonDocument spec)
         => new() { Name = name, Scope = scope, ScopeId = scopeId, Spec = spec };
 
+    /// <summary>Восстановление из резервной копии (issue #833).</summary>
+    public static ReconciliationDefinition Restore(Guid id, string name, CatalogScope scope, Guid? scopeId,
+        JsonDocument spec, DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        => new()
+        {
+            Id = id, Name = name, Scope = scope, ScopeId = scopeId, Spec = spec,
+            CreatedAt = createdAt, UpdatedAt = updatedAt,
+        };
+
     public void Update(string name, JsonDocument spec)
     {
         Name = name;

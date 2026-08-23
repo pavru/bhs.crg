@@ -30,20 +30,24 @@ public sealed class BackupJobRunner(
     ILogger<BackupJobRunner> logger)
 {
     public async Task<BackupFileInfo> RunAsync(
-        Guid userId, bool scheduled, Func<int, int, Task>? progress, CancellationToken ct)
+        Guid userId, bool scheduled, BackupScope scope, Func<int, int, Task>? progress, CancellationToken ct)
     {
-        if (!scheduled) return await RunManualAsync(userId, progress, ct);
+        // Плановая копия всегда ПОЛНАЯ (issue #833): её снимают не ради страховки настройки, а
+        // ради того дня, когда восстанавливать придётся всё. Выбор состава — там, где человек
+        // жмёт кнопку и знает, зачем ему копия.
+        if (!scheduled) return await RunManualAsync(userId, scope, progress, ct);
         return await RunScheduledAsync(progress, ct);
     }
 
-    private async Task<BackupFileInfo> RunManualAsync(Guid userId, Func<int, int, Task>? progress, CancellationToken ct)
+    private async Task<BackupFileInfo> RunManualAsync(
+        Guid userId, BackupScope scope, Func<int, int, Task>? progress, CancellationToken ct)
     {
         // Проверка повторяется здесь, хотя эндпоинт уже отказал бы: между постановкой в очередь и
         // выполнением каталог мог наполниться другой задачей, а «не влезло» обязано быть отказом,
         // а не молчанием.
         store.EnsureRoomForNewCopy();
 
-        var info = await ExportAsync(progress, ct);
+        var info = await ExportAsync(scope, progress, ct);
 
         // Успех — в колокольчик: копия снимается минутами, и к её концу человек уже не смотрит на
         // экран настроек. Отказ туда же кладёт общий обработчик фоновых задач.
@@ -77,7 +81,7 @@ public sealed class BackupJobRunner(
             Forget(state, store.PruneScheduled(state.Managed, target));
             store.EnsureRoomForNewCopy();
 
-            var info = await ExportAsync(progress, ct);
+            var info = await ExportAsync(BackupScope.Full, progress, ct);
 
             state.Managed.Add(info.FileName);
             state.LastFileName = info.FileName;
@@ -137,12 +141,13 @@ public sealed class BackupJobRunner(
         return Math.Max(Math.Min(byKeep, byRoom), 1);
     }
 
-    private async Task<BackupFileInfo> ExportAsync(Func<int, int, Task>? progress, CancellationToken ct)
+    private async Task<BackupFileInfo> ExportAsync(
+        BackupScope scope, Func<int, int, Task>? progress, CancellationToken ct)
     {
         var temp = store.CreateTempPath();
         try
         {
-            var summary = await service.ExportToFileAsync(temp, progress, ct);
+            var summary = await service.ExportToFileAsync(temp, scope, progress, ct);
             return store.Publish(temp, BackupFileStore.BuildFileName(summary.CreatedAt, summary.AppVersion));
         }
         catch

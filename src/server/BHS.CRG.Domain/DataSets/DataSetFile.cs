@@ -56,6 +56,19 @@ public class DataSetFile : Entity
         CatalogScope scope, Guid? scopeId)
         => new() { Name = name, Format = format, BlobPath = blobPath, Scope = scope, ScopeId = scopeId };
 
+    /// <summary>Восстановление из резервной копии (issue #833): набор со всем разбором, как был.</summary>
+    public static DataSetFile Restore(Guid id, string name, DataSetFormat format, string blobPath,
+        CatalogScope scope, Guid? scopeId, string? preprocessingProfile, string? grouping,
+        string? invoiceRawData, string? recognitionProfiles,
+        DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        => new()
+        {
+            Id = id, Name = name, Format = format, BlobPath = blobPath, Scope = scope, ScopeId = scopeId,
+            PreprocessingProfile = preprocessingProfile, Grouping = grouping,
+            InvoiceRawData = invoiceRawData, RecognitionProfiles = recognitionProfiles,
+            CreatedAt = createdAt, UpdatedAt = updatedAt,
+        };
+
     /// <summary>
     /// Системный набор: сырьё — не файл, а данные самой системы в границах scope. Блоба нет,
     /// BlobPath несёт сентинел (колонка NOT NULL). Источники такого набора — консолидации-провайдеры.

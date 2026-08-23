@@ -21,7 +21,114 @@ public record BackupManifest(
     BackupDataSetBindingTemplate[]? DataSetBindingTemplates = null,
     BackupReconciliationAlias[]? ReconciliationAliases = null,
     BackupDataSetProcessingTemplate[]? DataSetProcessingTemplates = null,
-    BackupQualityDocument[]? QualityDocuments = null);
+    BackupQualityDocument[]? QualityDocuments = null,
+    // ── Проектные данные (issue #833) ────────────────────────────────────────────────────────
+    // Тоже аддитивно и тоже без bump SchemaVersion: копия, снятая новой версией, читается старой
+    // (лишние секции она проигнорирует), а старая копия читается новой — секций просто нет.
+    // Присутствие этих секций и означает «копия полная»; IncludesProjectData говорит это прямо,
+    // чтобы «полная копия системы, где нет ни одной стройки» не выглядела конфигурационной.
+    bool? IncludesProjectData = null,
+    BackupConstruction[]? Constructions = null,
+    BackupSection[]? Sections = null,
+    BackupDocumentSet[]? DocumentSets = null,
+    BackupDocument[]? Documents = null,
+    BackupDataSetFile[]? DataSetFiles = null,
+    BackupDataSetSource[]? DataSetSources = null,
+    BackupDataSetBinding[]? DataSetBindings = null,
+    BackupReconciliationDefinition[]? Reconciliations = null,
+    BackupMaterialQualityLink[]? MaterialQualityLinks = null);
+
+// ── Проектные данные (issue #833) ────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Стройка. Носитель области <c>Construction</c>: без неё общие данные и документы качества этого
+/// уровня восстановиться не могут — ровно те предупреждения «относятся к стройкам, которых нет»,
+/// с которых issue и начался.
+/// </summary>
+/// <remarks>
+/// <paramref name="CreatedByUserId" /> переносится как есть, хотя учётных записей в копии нет:
+/// поле фиксирует историю, а не право доступа, и подменять его на «кого-нибудь существующего»
+/// значило бы соврать о том, кто завёл стройку. На целевой системе такой пользователь может не
+/// найтись — интерфейс показывает имя только там, где оно есть.
+/// </remarks>
+public record BackupConstruction(
+    Guid Id, string Name, Guid CreatedByUserId, Guid? ProfileObjectId,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+public record BackupSection(
+    Guid Id, Guid ConstructionId, string Name, Guid? ProfileObjectId,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+public record BackupDocumentSet(
+    Guid Id, Guid SectionId, string Name, Guid? ProfileObjectId,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// Документ комплекта: объект Document-типа вместе с документной фасетой (статус, порядок,
+/// выбранные шаблоны, кэш плагинов) и выпущенными файлами.
+///
+/// Фасета едет ВНУТРИ записи, а не отдельной секцией: она и есть то, чем документ отличается от
+/// записи общих данных, и разъехавшись с объектом хотя бы в одной копии, превратила бы документ в
+/// общие данные — молча.
+/// </summary>
+public record BackupDocument(
+    Guid Id, Guid SetId, Guid CompositeTypeId, string? DisplayName, JsonElement Data,
+    string[] Aliases, string Status, int SortOrder,
+    Guid? TemplateId, string? TemplateIds, string? TemplateParams, JsonElement PluginData,
+    BackupGeneratedFile[] GeneratedFiles,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+/// <summary>Выпущенный файл документа: запись плюс сам блоб (он уезжает в архив как скан).</summary>
+public record BackupGeneratedFile(
+    Guid Id, string Format, string BlobPath, Guid? TemplateId,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// Набор данных: сам файл-сырьё (блоб) вместе с настройками разбора. Системные наборы
+/// (<c>Format = System</c>) блоба не имеют — их сырьё это данные самой системы.
+/// </summary>
+public record BackupDataSetFile(
+    Guid Id, string Name, string Format, string BlobPath, string Scope, Guid? ScopeId,
+    string? PreprocessingProfile, string? Grouping, string? InvoiceRawData, string? RecognitionProfiles,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// Источник — разбор одного листа/пути внутри набора, вместе с КЭШЕМ данных.
+///
+/// Кэш переносится не ради скорости: восстановление не запускает разборщики и не распознаёт сканы
+/// заново, поэтому источник без кэша приехал бы пустым — файл в хранилище есть, строк ноль. Он же
+/// и делает полную копию тяжёлой.
+/// </summary>
+public record BackupDataSetSource(
+    Guid Id, Guid FileId, string Name, string SheetOrPath, string? ColumnExpressions,
+    string CachedSchema, int CachedRowCount, string? CachedData, string? Tags,
+    string? RowFilter, string? ComputedColumns, string? SortSpec, string? StaleReason,
+    Guid? MaterializeTypeId, string? MaterializeMapping, string? MaterializeDiscriminator,
+    string? MaterializeByIdColumn,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+/// <summary>Привязка источника к конкретному объекту — документу комплекта или записи общих данных.</summary>
+public record BackupDataSetBinding(
+    Guid Id, Guid OwnerId, Guid SourceId, string? TargetFieldKey, string Mapping,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// Определение сверки. До issue #833 в копию не шло с ясной причиной: спека адресует источники по
+/// идентификатору, а идентификатор рождается при загрузке файла — на целевой системе такого
+/// источника не было бы никогда. Возражение снимается ровно тем, что источники теперь едут в той
+/// же копии и с теми же идентификаторами; поэтому определения идут ТОЛЬКО с проектными данными.
+/// </summary>
+public record BackupReconciliationDefinition(
+    Guid Id, string Name, string Scope, Guid? ScopeId, JsonElement Spec,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// Связка «материал ↔ документ качества». Прежде не переносилась, потому что адресует материалы
+/// комплектов, которых в копии нет; с проектными данными комплекты есть — связка едет с ними.
+/// </summary>
+public record BackupMaterialQualityLink(
+    Guid Id, string Scope, Guid? ScopeId, string MaterialKey, string? MaterialLabel,
+    Guid QualityDocumentId, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 /// <summary>
 /// Переиспользуемый рецепт обработки источника (issue #687). Внешних ключей не имеет вовсе — внутри
@@ -130,16 +237,23 @@ public record BackupRecognitionProfile(
 /// означает битые ссылки, о которых иначе узнать неоткуда.
 /// </summary>
 public record BackupSizeEstimate(
+    BackupSizeVariant Configuration,
+    BackupSizeVariant Full,
+    long LimitBytes);
+
+/// <summary>
+/// Вес копии одного состава (issue #833: составов стало два).
+///
+/// <paramref name="MissingBlobCount" /> - файлы, которых в хранилище уже нет: экспорт их пропускает
+/// с предупреждением, и в копию они не попадут. Число здесь не ради веса, а потому, что оно
+/// означает битые ссылки, о которых иначе узнать неоткуда.
+/// </summary>
+public record BackupSizeVariant(
     long TotalBytes,
     long ManifestBytes,
     long BlobBytes,
     int BlobCount,
-    int MissingBlobCount,
-    long LimitBytes)
-{
-    /// <summary>Копия уже не пройдёт собственное восстановление.</summary>
-    public bool ExceedsLimit => TotalBytes > LimitBytes;
-}
+    int MissingBlobCount);
 
 public record RestoreReport(
     bool Success,
@@ -170,4 +284,13 @@ public record RestoreReport(
     int DataSetProcessingTemplatesCreated = 0,
     int DataSetProcessingTemplatesUpdated = 0,
     int QualityDocumentsCreated = 0,
-    int QualityDocumentsUpdated = 0);
+    int QualityDocumentsUpdated = 0,
+    /// <summary>
+    /// Проектные секции (issue #833) — списком, а не парой полей на каждую. Отчёт и так
+    /// перечисляет два десятка чисел; следующая секция копии не должна означать правку в
+    /// четырёх местах ради ещё одной пары.
+    /// </summary>
+    IReadOnlyList<RestoreSectionStat>? ProjectSections = null);
+
+/// <summary>Одна секция отчёта о восстановлении: сколько добавлено и сколько обновлено.</summary>
+public record RestoreSectionStat(string Label, int Created, int Updated);
