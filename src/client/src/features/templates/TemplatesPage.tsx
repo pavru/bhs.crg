@@ -201,7 +201,7 @@ export function TemplatesPage() {
       await deleteMutation.mutateAsync({ id: target.id, documentTypeId: target.documentTypeId, reassign });
       if (reassign) toast.info(`${ruCount(usage[target.id].count, 'документ', 'документа', 'документов')} переведено в черновик — вернулись на шаблон по умолчанию`);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Не удалось удалить версию');
+      toast.apiError(err, 'Не удалось удалить версию');
     }
   }
 
@@ -217,7 +217,7 @@ export function TemplatesPage() {
       for (const t of deleteGroupTarget.versions)
         await deleteMutation.mutateAsync({ id: t.id, documentTypeId: t.documentTypeId, reassign: true });
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Не удалось удалить шаблон');
+      toast.apiError(err, 'Не удалось удалить шаблон');
     }
   }
 

@@ -70,8 +70,15 @@ public static class BugReportIssueText
         foreach (var e in errors.EnumerateArray())
         {
             if (e.ValueKind != JsonValueKind.Object) continue;
-            var status = e.TryGetProperty("status", out var s) && s.ValueKind == JsonValueKind.Number
-                ? s.GetInt32().ToString(CultureInfo.InvariantCulture)
+            // TryGetInt32, а не GetInt32: число в техблоке пришло из ТЕЛА ЗАПРОСА и сохранено как
+            // есть, а «Number» в JSON — это и 3.5, и 10^20. GetInt32 бросил бы на таком
+            // FormatException, причём на пути ЧТЕНИЯ: заготовку собирают и просмотр карточки, и
+            // сохранение текста, и смена статуса — сообщение навсегда отвечало бы 500, и
+            // администратор не смог бы ни открыть его, ни закрыть.
+            var status = e.TryGetProperty("status", out var s)
+                         && s.ValueKind == JsonValueKind.Number
+                         && s.TryGetInt32(out var code)
+                ? code.ToString(CultureInfo.InvariantCulture)
                 : "—";
             rows.Add($"| {Str(e, "at") ?? "—"} | {Str(e, "method") ?? "—"} `{Str(e, "url") ?? "—"}` " +
                      $"| {status} | `{Str(e, "traceId") ?? "—"}` |");

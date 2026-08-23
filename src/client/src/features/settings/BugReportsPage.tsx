@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react';
 import {
-  Bug, Check, ChevronDown, ChevronRight, Copy, ExternalLink, Image as ImageIcon, Undo2, X,
+  AlertTriangle, Bug, Check, ChevronDown, ChevronRight, Copy, ExternalLink,
+  Image as ImageIcon, Undo2, X,
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
+import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { apiError } from '@/shared/utils/apiError';
 import { ListDetailShell, NavSearchInput, NavSection } from '@/shared/ui/ListDetailShell';
 import { useToast } from '@/shared/ui/Toast';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
@@ -45,7 +48,8 @@ function when(iso: string): string {
 }
 
 export function BugReportsPage() {
-  const { data: reports, isLoading } = useBugReports();
+  const { data, isLoading } = useBugReports();
+  const reports = data?.items;
   const [picked, setPicked] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
@@ -86,7 +90,9 @@ export function BugReportsPage() {
   return (
     <ListDetailShell
       title="Сообщения об ошибках"
-      subtitle="Что пользователи сообщают из приложения. Наружу уходит только то, что вы отредактируете"
+      subtitle={data && data.total > data.items.length
+        ? `Показаны последние ${data.items.length} из ${data.total} — более старые в списке не видны`
+        : 'Что пользователи сообщают из приложения. Наружу уходит только то, что вы отредактируете'}
       titleIcon={<Bug size={20} className="text-fg3" />}
       overlay={isLoading
         ? <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка…</div>
@@ -135,6 +141,7 @@ function ReportBody({ report }: { report: BugReportDetail }) {
   const [fixOpen, setFixOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [version, setVersion] = useState('');
+  const [fixError, setFixError] = useState<string | null>(null);
   const [techOpen, setTechOpen] = useState(false);
 
   const dirty = draft !== report.issueDraft;
@@ -172,7 +179,8 @@ function ReportBody({ report }: { report: BugReportDetail }) {
               <Button variant="outlined" size="sm" onClick={() => setRejectOpen(true)}>
                 <X size={14} /> Отклонить
               </Button>
-              <Button variant="filled" size="sm" onClick={() => { setVersion(''); setFixOpen(true); }}>
+              <Button variant="filled" size="sm"
+                onClick={() => { setVersion(''); setFixError(null); setFixOpen(true); }}>
                 <Check size={14} /> Исправлено…
               </Button>
             </>
@@ -252,22 +260,53 @@ function ReportBody({ report }: { report: BugReportDetail }) {
         title="Отклонить сообщение?"
         description="Автор получит уведомление, что разработки по нему не будет. Решение обратимо — сообщение можно вернуть в разбор."
         confirmLabel="Отклонить" confirmDanger={false}
+        // Без своего заголовка отказ пришёл бы под чужим: у ConfirmDialog умолчание —
+        // «Удаление невозможно», а здесь ничего не удаляют.
+        errorTitle="Не удалось отклонить"
         onConfirm={() => reject.mutateAsync(report.id)}
       />
 
-      <ConfirmDialog
-        open={fixOpen} onOpenChange={setFixOpen}
+      {/*
+        Своя модалка, а не ConfirmDialog: здесь ВВОДЯТ значение, а тот про подтверждение решения.
+        Подставленный в него ввод вёл себя дурно — кнопка была активна при пустом поле, а отказ
+        сервера («укажите версию») превращал диалог в панель «Удаление невозможно» с единственной
+        кнопкой «Понятно», стирая набранное.
+      */}
+      <Modal
+        open={fixOpen}
+        onOpenChange={o => { if (!o) setFixOpen(false); }}
         title="Исправлено в версии"
-        description={
-          <div className="space-y-2">
-            <p>Автор получит уведомление с этим номером — по нему он поймёт, ждать ли обновления.</p>
-            <TextField label="Версия" value={version} autoFocus
-              onChange={e => setVersion(e.target.value)} hint="Например, 0.145.0" />
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="text" onClick={() => setFixOpen(false)}>Отмена</Button>
+            <Button variant="filled" disabled={!version.trim()} loading={markFixed.isPending}
+              onClick={async () => {
+                setFixError(null);
+                try {
+                  await markFixed.mutateAsync({ id: report.id, version });
+                  setFixOpen(false);
+                } catch (e) {
+                  setFixError(apiError(e, 'Не удалось отметить исправленным.'));
+                }
+              }}>
+              Отметить исправленным
+            </Button>
           </div>
         }
-        confirmLabel="Отметить исправленным" confirmDanger={false}
-        onConfirm={() => markFixed.mutateAsync({ id: report.id, version })}
-      />
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-fg2">
+            Автор получит уведомление с этим номером — по нему он поймёт, ждать ли обновления.
+          </p>
+          <TextField label="Версия" value={version} autoFocus
+            onChange={e => setVersion(e.target.value)} hint="Например, 0.145.0" />
+          {fixError && (
+            <p className="flex items-start gap-1.5 text-sm text-danger">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {fixError}
+            </p>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -302,7 +341,9 @@ function TechBlock({ tech }: { tech: BugReportTech | null }) {
                 <tr key={i}>
                   <td className="pr-3 whitespace-nowrap">{e.at}</td>
                   <td className="pr-3 break-all">{e.method} {e.url}</td>
-                  <td className="pr-3">{e.status || '—'}</td>
+                  <td className="pr-3">
+                    {e.status || '—'}{(e.count ?? 1) > 1 ? ` ×${e.count}` : ''}
+                  </td>
                   <td className="break-all">{e.traceId ?? '—'}</td>
                 </tr>
               ))}

@@ -169,8 +169,8 @@ export function ReconciliationsPage() {
     try {
       await downloadDiscrepancyReport(target.id, target.label);
       toast.success('Отчёт выгружен');
-    } catch {
-      toast.error('Не удалось выгрузить отчёт');
+    } catch (e) {
+      toast.apiError(e, 'Не удалось выгрузить отчёт');
     } finally {
       setReportBusy(false);
     }

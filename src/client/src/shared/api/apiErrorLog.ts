@@ -19,13 +19,31 @@ export interface ApiErrorRecord {
   status: number;
   /** Идентификатор запроса: у 500 его присылает сервер, у прочих ответов его нет. */
   traceId?: string;
+  /** Сколько раз повторилась та же неудача (метод + адрес + код). 1 — один раз. */
+  count?: number;
 }
 
-const CAPACITY = 10;
+const CAPACITY = 15;
 const buffer: ApiErrorRecord[] = [];
 
+/**
+ * Одинаковые неудачи СХЛОПЫВАЮТСЯ в одну запись со счётчиком, а не занимают по слоту.
+ *
+ * Иначе буфер жил бы секунды: пока сервер недоступен — тот самый случай, ради которого модуль и
+ * заведён, — фоновые опросы (уведомления каждые 20 с двумя запросами, задачи каждые 10 с) забили бы
+ * его целиком примерно за полминуты, и запрос, о котором человек пишет, пропал бы, пока он набирает
+ * текст. Со схлопыванием шторм опросов занимает три записи, сколько бы он ни длился.
+ */
 export function recordApiError(record: ApiErrorRecord): void {
-  buffer.push(record);
+  const same = buffer.findIndex(e =>
+    e.method === record.method && e.url === record.url && e.status === record.status);
+  if (same >= 0) {
+    const [prev] = buffer.splice(same, 1);
+    // Время и идентификатор — от ПОСЛЕДНЕЙ попытки: по ним и пойдёт поиск в журнале.
+    buffer.push({ ...record, count: (prev.count ?? 1) + 1 });
+    return;
+  }
+  buffer.push({ ...record, count: 1 });
   if (buffer.length > CAPACITY) buffer.splice(0, buffer.length - CAPACITY);
 }
 

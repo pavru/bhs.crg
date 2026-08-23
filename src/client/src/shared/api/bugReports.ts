@@ -23,6 +23,12 @@ export interface BugReportListItem {
   createdAt: string;
 }
 
+export interface BugReportList {
+  items: BugReportListItem[];
+  /** Сколько сообщений всего: больше длины списка — часть не видна, других дорог к ней нет. */
+  total: number;
+}
+
 export interface BugReportDetail {
   id: string;
   author: string;
@@ -52,7 +58,9 @@ export interface BugReportTech {
   stack?: string;
   /** Откуда открыли форму: рейл, экран сбоя или тост с ошибкой. */
   origin?: string;
-  apiErrors?: { at: string; method: string; url: string; status: number; traceId?: string }[];
+  apiErrors?: {
+    at: string; method: string; url: string; status: number; traceId?: string; count?: number;
+  }[];
   server?: { version?: string; commit?: string };
   /** Техблок не сохранён из-за размера — сервер оставил отметку вместо него. */
   dropped?: string;
@@ -89,7 +97,7 @@ export function collectBugReportTech(extra?: { stack?: string; origin?: string }
 export function useBugReports(enabled = true) {
   return useQuery({
     queryKey: ['bug-reports'],
-    queryFn: () => apiClient.get<BugReportListItem[]>('/bug-reports').then(r => r.data),
+    queryFn: () => apiClient.get<BugReportList>('/bug-reports').then(r => r.data),
     enabled,
   });
 }

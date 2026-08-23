@@ -15,6 +15,13 @@ public record BugReportListItem(
     bool HasScreenshot,
     DateTimeOffset CreatedAt);
 
+/// <summary>
+/// Страница списка. Пара «что показываем» и «сколько всего» нужна ради честности: список отдаёт
+/// только последние <see cref="IBugReportService.ListLimit" /> сообщений, и молчаливое усечение
+/// читалось бы как «больше ничего нет».
+/// </summary>
+public record BugReportList(IReadOnlyList<BugReportListItem> Items, int Total);
+
 /// <summary>Сообщение целиком — то, что видит администратор в правой панели.</summary>
 public record BugReportDetail(
     Guid Id,
@@ -48,7 +55,10 @@ public interface IBugReportService
     Task<Guid> SubmitAsync(Guid authorId, string message, JsonElement? tech,
         string? screenshotBlobPath, CancellationToken ct = default);
 
-    Task<IReadOnlyList<BugReportListItem>> ListAsync(CancellationToken ct = default);
+    /// <summary>Сколько сообщений отдаёт список за раз. Постраничности нет — сказать о пределе есть.</summary>
+    const int ListLimit = 500;
+
+    Task<BugReportList> ListAsync(CancellationToken ct = default);
     Task<BugReportDetail> GetAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Сохранить правку текста issue. Пустой текст возвращает запись к заготовке.</summary>

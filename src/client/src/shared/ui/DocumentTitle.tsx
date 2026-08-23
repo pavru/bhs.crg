@@ -24,6 +24,8 @@ const SECTION_TITLES: Record<string, string> = {
   'composite-types': 'Составные типы',
   'field-types': 'Типы полей',
   'users': 'Пользователи',
+  'recognition-profiles': 'Профили распознавания',
+  'bug-reports': 'Сообщения об ошибках',
   'settings': 'Настройки',
   'profile': 'Профиль',
   'login': 'Вход',

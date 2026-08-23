@@ -64,16 +64,19 @@ public class BugReportService(AppDbContext db, INotificationService notification
         return report.Id;
     }
 
-    public async Task<IReadOnlyList<BugReportListItem>> ListAsync(CancellationToken ct = default)
+    public async Task<BugReportList> ListAsync(CancellationToken ct = default)
     {
+        // Предел есть, постраничности нет — и об этом говорим вслух: «Total» больше отданного
+        // означает, что часть сообщений в списке не видна, а других дорог к ним нет.
+        var total = await db.Set<BugReport>().CountAsync(ct);
         var reports = await db.Set<BugReport>()
             .AsNoTracking()
             .OrderByDescending(r => r.CreatedAt)
-            .Take(500)
+            .Take(IBugReportService.ListLimit)
             .ToListAsync(ct);
 
         var authors = await AuthorsAsync(reports.Select(r => r.AuthorId), ct);
-        return [.. reports.Select(r => new BugReportListItem(
+        return new BugReportList([.. reports.Select(r => new BugReportListItem(
             r.Id,
             authors.TryGetValue(r.AuthorId, out var a) ? a.Name : "удалённый пользователь",
             r.Status,
@@ -81,7 +84,7 @@ public class BugReportService(AppDbContext db, INotificationService notification
             r.GithubIssueNumber,
             r.FixedInVersion,
             r.ScreenshotBlobPath is not null,
-            r.CreatedAt))];
+            r.CreatedAt))], total);
     }
 
     public async Task<BugReportDetail> GetAsync(Guid id, CancellationToken ct = default)

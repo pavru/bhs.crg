@@ -59,6 +59,25 @@ public class BugReportIssueTextTests
         Assert.Contains("| POST `/api/generate/1` | 500 |", text);
     }
 
+    /// <summary>
+    /// Техблок приходит из тела запроса и хранится как есть, поэтому «код ответа» может оказаться
+    /// чем угодно числовым. Проверка нужна не ради красоты вывода: заготовку собирают и просмотр
+    /// карточки, и сохранение текста, и смена статуса — исключение здесь заперло бы сообщение
+    /// навсегда, отвечая 500 на каждое обращение к нему.
+    /// </summary>
+    [Theory]
+    [InlineData("3.5")]
+    [InlineData("100000000000000000000")]
+    [InlineData("-1")]
+    public void Build_SurvivesNonIntegerStatus(string status)
+    {
+        var tech = Json($$"""{"apiErrors":[{"method":"GET","url":"/api/x","status":{{status}}}]}""");
+
+        var text = BugReportIssueText.Build("Что-то не так.", tech, hasScreenshot: false);
+
+        Assert.Contains("`/api/x`", text);
+    }
+
     [Fact]
     public void Build_WrapsStackInCodeBlock()
     {

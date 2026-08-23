@@ -293,7 +293,9 @@ public class BugReportServiceTests(IntegrationTestFixture fixture) : IAsyncLifet
         using var check = fixture.Services.CreateScope();
         var list = await Service(check).ListAsync();
 
-        Assert.Contains(list, r => r.Author == "Иванов И.И." && r.Summary == "Первое сообщение.");
-        Assert.Contains(list, r => r.Author == "удалённый пользователь");
+        Assert.Contains(list.Items, r => r.Author == "Иванов И.И." && r.Summary == "Первое сообщение.");
+        Assert.Contains(list.Items, r => r.Author == "удалённый пользователь");
+        // Сколько всего — отдельным числом: список усечён пределом, а других дорог к сообщению нет.
+        Assert.Equal(list.Items.Count, list.Total);
     }
 }
