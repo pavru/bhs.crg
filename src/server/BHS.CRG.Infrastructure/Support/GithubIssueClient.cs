@@ -32,6 +32,15 @@ public class GithubIssueClient(
     /// <summary>Срок запроса. Кнопку жмёт человек и ждёт ответа — минуты здесь неуместны.</summary>
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// Потолок тела issue у GitHub — 65 536 символов; берём с запасом на разметку ответа.
+    ///
+    /// Проверяем САМИ, потому что GitHub отвечает на перебор тем же 422, что и на любую другую
+    /// придирку к содержимому, — и общий текст про метку отправил бы администратора заводить метку,
+    /// которая давно есть, вместо того чтобы сократить текст.
+    /// </summary>
+    public const int BodyLimit = 60000;
+
     /// <summary>Настроен ли перенос: токен есть. Репозиторий имеет умолчание, токен — нет.</summary>
     public async Task<bool> IsConfiguredAsync(CancellationToken ct = default)
         => !string.IsNullOrWhiteSpace((await settings.GetEffectiveAsync(ct)).Github.Token);
@@ -50,9 +59,12 @@ public class GithubIssueClient(
                 "Сохранённый токен непригоден: в нём есть символы, недопустимые в заголовке HTTP. " +
                 "Задайте его заново в настройках интеграций.");
 
-        var repository = string.IsNullOrWhiteSpace(github.Repository)
-            ? GithubSettings.DefaultRepository
-            : github.Repository.Trim().Trim('/');
+        var repository = GithubSettings.Normalize(github.Repository);
+
+        if (body.Length > BodyLimit)
+            throw new InvalidRequestException(
+                $"Текст issue длиннее {BodyLimit} символов — GitHub столько не примет. " +
+                "Сократите его: обычно место занимает стек сбоя, который целиком в трекере не нужен.");
 
         using var req = new HttpRequestMessage(
             HttpMethod.Post, $"https://api.github.com/repos/{repository}/issues");
@@ -129,9 +141,12 @@ public class GithubIssueClient(
                 "репозиторий существует, но токен его не видит, — проверьте и адрес, и права токена.",
             HttpStatusCode.Gone =>
                 $"В репозитории «{repository}» отключены issue (410). Передавать некуда.",
+            // 422 у GitHub — общий ответ на «содержимое не годится», поэтому называем ОБЕ частые
+            // причины, а не одну: утверждение про метку отправляло бы заводить ту, что уже есть.
             HttpStatusCode.UnprocessableEntity =>
-                "GitHub отклонил содержимое issue (422). Обычная причина — метки «" + Label +
-                "» нет в репозитории; заведите её или уберите из кода.",
+                "GitHub отклонил содержимое issue (422). Частые причины: метки «" + Label +
+                "» нет в репозитории — или текст слишком длинный либо содержит то, что GitHub " +
+                "не принимает.",
             _ => $"GitHub ответил кодом {(int)resp.StatusCode}. Сообщение осталось в системе — " +
                  "попробуйте позже.",
         });

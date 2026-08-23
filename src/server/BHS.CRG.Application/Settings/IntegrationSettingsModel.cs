@@ -115,8 +115,34 @@ public class GithubSettings
     /// репозиторий с пустым полем токена, и первое же «Отправить в GitHub» уйдёт туда с нашим
     /// правом записи. Classic-токен таким способом опубликовал бы внутренний текст в чужом месте.
     /// </summary>
+    /// <summary>
+    /// «владелец/репозиторий» в одном виде: без пробелов и лишних косых, пустое — умолчание.
+    ///
+    /// В ОДНОМ месте, потому что нормализовали в трёх и по-разному: сохранение обрезало пробелы,
+    /// сравнение «тот ли репозиторий» смотрело на сырое значение, а отправка снимала ещё и косые.
+    /// Из-за расхождения «pavru/bhs.crg/» и «pavru/bhs.crg» считались разными местами — и повторное
+    /// сохранение с пустым полем токена молча стирало токен, хотя репозиторий не менялся.
+    /// </summary>
+    public static string Normalize(string? repository)
+    {
+        var text = (repository ?? "").Trim().Trim('/');
+        return text.Length == 0 ? DefaultRepository : text;
+    }
+
+    /// <summary>
+    /// Похоже ли на «владелец/репозиторий». Проверяем при сохранении: негодный адрес иначе всплывёт
+    /// ответом 404 при отправке — а его текст подозревает права токена, то есть уводит не туда.
+    /// </summary>
+    public static bool IsRepositoryWellFormed(string? repository)
+    {
+        var parts = Normalize(repository).Split('/');
+        return parts.Length == 2
+               && parts.All(p => p.Length > 0
+                                 && p.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.'));
+    }
+
     public bool SameRepositoryAs(GithubSettings other)
-        => string.Equals(Repository?.Trim(), other.Repository?.Trim(), StringComparison.OrdinalIgnoreCase);
+        => string.Equals(Normalize(Repository), Normalize(other.Repository), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Годится ли токен для заголовка HTTP: только видимые символы ASCII.

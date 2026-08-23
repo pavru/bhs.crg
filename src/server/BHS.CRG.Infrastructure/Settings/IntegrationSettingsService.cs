@@ -69,6 +69,10 @@ public class IntegrationSettingsService(
                 "В токене есть символы, недопустимые в заголовке HTTP: кириллица, пробел или " +
                 "невидимый знак. Скопируйте токен заново — вероятно, он пришёл из письма " +
                 "или мессенджера вместе с лишним символом.");
+        if (!GithubSettings.IsRepositoryWellFormed(github.Repository))
+            throw new InvalidRequestException(
+                $"«{github.Repository}» не похоже на репозиторий. Ожидается вид " +
+                $"«владелец/репозиторий», например {GithubSettings.DefaultRepository}.");
 
         var raw = await LoadRawAsync(ct);
         raw.Github = MergeGithub(raw.Github, github);
@@ -174,9 +178,7 @@ public class IntegrationSettingsService(
     // администратор не введёт токен для нового места.
     private static GithubSettings MergeGithub(GithubSettings existing, GithubSettings update) => new()
     {
-        Repository = string.IsNullOrWhiteSpace(update.Repository)
-            ? GithubSettings.DefaultRepository
-            : update.Repository.Trim(),
+        Repository = GithubSettings.Normalize(update.Repository),
         Token = !string.IsNullOrWhiteSpace(update.Token) ? update.Token
             : update.SameRepositoryAs(existing) ? existing.Token
             : null,

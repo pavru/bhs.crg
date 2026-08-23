@@ -269,9 +269,8 @@ function ReportBody({ report, githubConfigured }: {
                 className="text-brand hover:underline">Открыть issue #{report.githubIssueNumber}</a></>
             )}
           </p>
-          {/* Отправку в GitHub добавит вторая часть issue #834 — вместе с токеном в настройках
-              интеграций. До неё текст переносят копированием: это ровно та же работа руками,
-              которой сегодня нет вовсе. */}
+          {/* «Скопировать» осталось рядом с отправкой намеренно: issue заводят не только из этой
+              системы, и перенести текст руками иногда быстрее, чем разбираться с токеном. */}
         </section>
       </div>
 
@@ -294,7 +293,8 @@ function ReportBody({ report, githubConfigured }: {
                 onClick={async () => {
                   setForwardError(null);
                   try {
-                    await forward.mutateAsync({ id: report.id, title: issueTitle });
+                    // draft — то, что СЕЙЧАС в поле «Текст issue», сохранён он или нет.
+                    await forward.mutateAsync({ id: report.id, title: issueTitle, body: draft });
                     setForwardOpen(false);
                     toast.success('Передано разработчикам.');
                   } catch (e) {
@@ -317,8 +317,9 @@ function ReportBody({ report, githubConfigured }: {
               onChange={e => setIssueTitle(e.target.value)}
               hint="По нему issue будут искать в трекере" />
             <p className="text-xs text-fg3">
-              Телом уйдёт текст из поля «Текст issue» — тот, что вы отредактировали. Снимок экрана
-              не передаётся.
+              Телом уйдёт текст из поля «Текст issue» — ровно в том виде, в каком он сейчас на
+              экране{dirty ? ', вместе с несохранёнными правками (они и сохранятся)' : ''}. Снимок
+              экрана не передаётся.
             </p>
             {forwardError && (
               <p className="flex items-start gap-1.5 text-sm text-danger">

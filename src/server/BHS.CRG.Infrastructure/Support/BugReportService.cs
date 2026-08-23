@@ -7,6 +7,7 @@ using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.Support;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Support;
 
@@ -18,7 +19,8 @@ namespace BHS.CRG.Infrastructure.Support;
 /// а до них дотягивается только этот слой. Тот же приём, что у <c>UpdateNotifier</c>.
 /// </summary>
 public class BugReportService(
-    AppDbContext db, INotificationService notifications, GithubIssueClient github) : IBugReportService
+    AppDbContext db, INotificationService notifications, GithubIssueClient github,
+    ILogger<BugReportService> logger) : IBugReportService
 {
     /// <summary>Источник уведомлений — по нему же они группируются в колокольчике.</summary>
     public const string NotificationSource = "Сообщения об ошибках";
@@ -96,7 +98,7 @@ public class BugReportService(
     /// <see cref="BugReportIssueText" />, так что «отправили не то, что видели» здесь невозможно.
     /// </summary>
     public async Task<BugReportDetail> ForwardToGithubAsync(
-        Guid id, string title, CancellationToken ct = default)
+        Guid id, string title, string? body = null, CancellationToken ct = default)
     {
         var text = (title ?? "").Trim();
         if (text.Length == 0)
@@ -114,21 +116,79 @@ public class BugReportService(
             throw new ConflictException(
                 $"Это сообщение уже передано: issue #{already}. Повторная отправка завела бы второй.");
 
+        // Текст с экрана сохраняем ДО отправки: он и уйдёт, и останется в системе — иначе в базе
+        // лежал бы один текст, а в трекере другой, и сверить их было бы нечем.
+        if (!string.IsNullOrWhiteSpace(body) && body != report.IssueDraft)
+        {
+            report.SaveDraft(body);
+            await db.SaveChangesAsync(ct);
+        }
+
         var tech = ParseTech(report.TechContext);
-        var body = report.IssueDraft
-                   ?? BugReportIssueText.Build(report.Message, tech, report.ScreenshotBlobPath is not null);
+        var outgoing = report.IssueDraft
+                       ?? BugReportIssueText.Build(report.Message, tech, report.ScreenshotBlobPath is not null);
 
         // Сеть ПЕРЕД записью: откажет GitHub — в системе ничего не поменялось, и повторить можно
         // той же кнопкой. Обратный порядок оставлял бы сообщение «переданным» без issue.
-        var created = await github.CreateAsync(text, body, ct);
+        var created = await github.CreateAsync(text, outgoing, ct);
 
-        report.MarkForwarded(created.Number, created.Url);
-        await db.SaveChangesAsync(ct);
+        await RecordForwardedAsync(report, created, ct);
 
         await NotifyAuthorAsync(report, "Ваше сообщение: передано разработчикам",
             $"«{Summary(report.Message)}» — заведена задача #{created.Number}.", ct,
             linkUrl: created.Url, linkLabel: $"Открыть issue #{created.Number}");
         return await DetailAsync(report, ct);
+    }
+
+    /// <summary>
+    /// Записать «передано» — с оглядкой на то, что issue УЖЕ создан и отменить это нельзя.
+    ///
+    /// Два опасных исхода, и оба заканчиваются дублем в трекере, если промолчать:
+    ///
+    /// 1. Запись не удалась (обрыв соединения, отмена запроса). Номер известен только этому вызову,
+    ///    и потерять его — значит гарантировать второй issue при следующей попытке. Поэтому номер
+    ///    и адрес уходят в журнал уровнем Error и в сам текст отказа: администратор видит, что
+    ///    задача создана, и не жмёт кнопку повторно.
+    /// 2. Пока шла отправка, сообщение передал кто-то ещё (вторая вкладка, второй администратор).
+    ///    Проверка в начале — обычное «прочитал и записал», и от гонки не защищает. Условие
+    ///    <c>GithubIssueNumber == null</c> ПРЯМО В UPDATE делает запись состязательной: чей issue
+    ///    записался первым, тот и остался, а проигравший узнаёт номер своего дубля.
+    /// </summary>
+    private async Task RecordForwardedAsync(BugReport report, CreatedIssue created, CancellationToken ct)
+    {
+        int updated;
+        try
+        {
+            updated = await db.Set<BugReport>()
+                .Where(r => r.Id == report.Id && r.GithubIssueNumber == null)
+                .ExecuteUpdateAsync(set => set
+                    .SetProperty(r => r.GithubIssueNumber, created.Number)
+                    .SetProperty(r => r.GithubIssueUrl, created.Url)
+                    .SetProperty(r => r.Status, BugReportStatus.Forwarded)
+                    .SetProperty(r => r.UpdatedAt, DateTimeOffset.UtcNow), ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Issue #{Number} создан ({Url}), но записать это в сообщение {Report} не удалось",
+                created.Number, created.Url, report.Id);
+            throw new ConflictException(
+                $"Issue #{created.Number} создан ({created.Url}), но отметить сообщение переданным " +
+                "не удалось. НЕ отправляйте повторно — заведётся второй; сообщите разработчикам номер.");
+        }
+
+        if (updated == 0)
+        {
+            logger.LogError(
+                "Гонка при передаче сообщения {Report}: issue #{Number} ({Url}) создан вторым",
+                report.Id, created.Number, created.Url);
+            throw new ConflictException(
+                $"Пока шла отправка, сообщение передали другим окном. Только что созданный " +
+                $"issue #{created.Number} — дубль ({created.Url}), закройте его в GitHub.");
+        }
+
+        // Сущность в трекере осталась со старыми значениями: ExecuteUpdate пишет мимо него.
+        await db.Entry(report).ReloadAsync(ct);
     }
 
     public async Task<BugReportDetail> GetAsync(Guid id, CancellationToken ct = default)

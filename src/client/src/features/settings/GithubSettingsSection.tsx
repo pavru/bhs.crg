@@ -6,6 +6,11 @@ import { TextField } from '@/shared/ui/TextField';
 import { useToast } from '@/shared/ui/Toast';
 import { useIntegrationSettings, useSaveGithubSettings } from '@/shared/api/integrationSettings';
 
+/** Тот же вид, что у сервера (GithubSettings.Normalize): без пробелов, косых по краям и регистра. */
+function normalizeRepository(value: string): string {
+  return value.trim().replace(/^\/+|\/+$/g, '').toLowerCase();
+}
+
 /**
  * Передача сообщений об ошибках в GitHub (issue #834, часть 2).
  *
@@ -28,7 +33,11 @@ export function GithubSettingsSection() {
   // Значение формы = правка пользователя, иначе сохранённое. Эффектом не синхронизируем: ввод
   // затирался бы ответом сервера ровно в момент набора.
   const repositoryValue = repository ?? saved?.repository ?? '';
-  const repositoryChanged = saved != null && repositoryValue.trim() !== saved.repository;
+  // Сравниваем ТАК ЖЕ, как сервер: без учёта регистра и лишних косых. Иначе предупреждение «токен
+  // будет удалён» появлялось бы на правке регистра, которую сервер за смену места не считает, —
+  // интерфейс противоречил бы поведению, которое взялся объяснять.
+  const repositoryChanged = saved != null
+    && normalizeRepository(repositoryValue) !== normalizeRepository(saved.repository);
 
   async function submit() {
     try {

@@ -34,7 +34,7 @@ public static class BugReportEndpoints
 
         admin.MapPost("/{id:guid}/forward", async (Guid id, ForwardRequest req, IBugReportService svc,
                 CancellationToken ct) =>
-            Results.Ok(await svc.ForwardToGithubAsync(id, req.Title ?? "", ct)));
+            Results.Ok(await svc.ForwardToGithubAsync(id, req.Title ?? "", req.Body, ct)));
 
         admin.MapPost("/{id:guid}/fixed", async (Guid id, FixedRequest req, IBugReportService svc,
                 CancellationToken ct) =>
@@ -50,7 +50,8 @@ public static class BugReportEndpoints
     /// <param name="Tech">Техблок клиента: версия, экран, браузер, последние ошибки API, стек.</param>
     private record SubmitRequest(string? Message, JsonElement? Tech, string? ScreenshotBlobPath);
     private record DraftRequest(string? Text);
-    private record ForwardRequest(string? Title);
+    /// <param name="Body">Текст с экрана: уходит именно он, даже если правку ещё не сохранили.</param>
+    private record ForwardRequest(string? Title, string? Body);
     private record FixedRequest(string? Version);
 
     private static Guid UserId(ClaimsPrincipal user)

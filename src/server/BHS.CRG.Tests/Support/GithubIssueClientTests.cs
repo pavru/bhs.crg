@@ -164,6 +164,43 @@ public class GithubIssueClientTests
         Assert.DoesNotContain("недоступен", ex.Message);
     }
 
+    /// <summary>
+    /// Слишком длинное тело — наш отказ ДО отправки, а не 422 от GitHub.
+    ///
+    /// GitHub отвечает 422 и на перебор длины, и на отсутствующую метку, и на прочие придирки к
+    /// содержимому. Пропусти мы это к нему — администратор прочёл бы про метку и пошёл заводить ту,
+    /// что уже есть.
+    /// </summary>
+    [Fact]
+    public async Task Create_WithOverlongBody_RefusesBeforeSending()
+    {
+        var sent = false;
+        var client = Client(HttpStatusCode.Created, Created, capture: (_, _) => sent = true);
+
+        var ex = await Assert.ThrowsAsync<InvalidRequestException>(
+            () => client.CreateAsync("Заголовок", new string('x', GithubIssueClient.BodyLimit + 1)));
+
+        Assert.Contains("длиннее", ex.Message);
+        Assert.False(sent, "запрос всё-таки ушёл — значит проверка стоит не до отправки");
+    }
+
+    /// <summary>Репозиторий приводится к одному виду: «pavru/bhs.crg/» и « pavru/bhs.crg » — одно место.</summary>
+    [Theory]
+    [InlineData("pavru/bhs.crg/")]
+    [InlineData("  pavru/bhs.crg  ")]
+    [InlineData("/pavru/bhs.crg")]
+    public async Task Create_NormalizesRepository(string repository)
+    {
+        HttpRequestMessage? sent = null;
+        var client = Client(HttpStatusCode.Created, Created,
+            new GithubSettings { Token = "ghp_test", Repository = repository },
+            capture: (req, _) => sent = req);
+
+        await client.CreateAsync("Заголовок", "Тело");
+
+        Assert.Equal("https://api.github.com/repos/pavru/bhs.crg/issues", sent!.RequestUri!.ToString());
+    }
+
     [Fact]
     public async Task IsConfigured_FollowsTheToken_NotTheRepository()
     {

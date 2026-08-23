@@ -141,10 +141,16 @@ export function useRejectBugReport() {
     apiClient.post<BugReportDetail>(`/bug-reports/${id}/rejected`).then(r => r.data));
 }
 
-/** Завести issue из отредактированного текста и отметить сообщение переданным. */
+/**
+ * Завести issue и отметить сообщение переданным.
+ *
+ * Тело шлём С ЭКРАНА, а не полагаемся на сохранённое: администратор убирает из текста названия
+ * строек и организаций — и вполне может не нажать «Сохранить». Без этого наружу уходил бы прежний,
+ * неотредактированный текст, а на экране оставался бы тот, который человек считал отправленным.
+ */
 export function useForwardBugReport() {
-  return useReportMutation(({ id, title }: { id: string; title: string }) =>
-    apiClient.post<BugReportDetail>(`/bug-reports/${id}/forward`, { title }).then(r => r.data));
+  return useReportMutation(({ id, title, body }: { id: string; title: string; body: string }) =>
+    apiClient.post<BugReportDetail>(`/bug-reports/${id}/forward`, { title, body }).then(r => r.data));
 }
 
 export function useReopenBugReport() {

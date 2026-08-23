@@ -141,7 +141,8 @@ public class IntegrationSecretsAtRestTests(IntegrationTestFixture fixture) : IAs
         await settings.SaveGithubAsync(new GithubSettings { Repository = "pavru/bhs.crg", Token = GithubSecret });
 
         // Токен в форме пустой — «оставить прежний». Прежний остаётся только для прежнего места.
-        await settings.SaveGithubAsync(new GithubSettings { Repository = "чужой/репозиторий", Token = null });
+        // Латиницей: адрес проверяется на формат, а кириллицы в именах репозиториев не бывает.
+        await settings.SaveGithubAsync(new GithubSettings { Repository = "someone/other-repo", Token = null });
 
         var eff = await settings.GetEffectiveAsync();
         Assert.True(string.IsNullOrEmpty(eff.Github.Token));
@@ -158,6 +159,45 @@ public class IntegrationSecretsAtRestTests(IntegrationTestFixture fixture) : IAs
 
         Assert.DoesNotContain(GithubSecret, await StoredJsonAsync(scope));
         Assert.Equal(GithubSecret, (await settings.GetEffectiveAsync()).Github.Token);
+    }
+
+    /// <summary>
+    /// «pavru/bhs.crg/» и «pavru/bhs.crg» — одно место, и токен на таком сохранении не теряется.
+    ///
+    /// Нормализация раньше жила в трёх местах и была разной: сохранение обрезало пробелы, сравнение
+    /// смотрело на сырое значение, отправка снимала ещё и косые. Расхождение выглядело как
+    /// «сохранил настройки — и передача перестала работать».
+    /// </summary>
+    [Theory]
+    [InlineData("pavru/bhs.crg/")]
+    [InlineData("  pavru/bhs.crg")]
+    [InlineData("PAVRU/BHS.CRG")]
+    public async Task RepositoryWrittenDifferently_KeepsSavedGithubToken(string written)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var settings = scope.ServiceProvider.GetRequiredService<IIntegrationSettings>();
+        await settings.SaveGithubAsync(new GithubSettings { Repository = "pavru/bhs.crg", Token = GithubSecret });
+
+        await settings.SaveGithubAsync(new GithubSettings { Repository = written, Token = null });
+
+        Assert.Equal(GithubSecret, (await settings.GetEffectiveAsync()).Github.Token);
+    }
+
+    /// <summary>
+    /// Негодный адрес отвергается при вводе: иначе он всплывёт ответом 404 при отправке, а тот
+    /// текст подозревает права токена — то есть уводит не туда.
+    /// </summary>
+    [Theory]
+    [InlineData("просто-строка")]
+    [InlineData("слишком/много/частей")]
+    [InlineData("владелец/репозиторий с пробелом")]
+    public async Task SavingMalformedRepository_IsRefused(string repository)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var settings = scope.ServiceProvider.GetRequiredService<IIntegrationSettings>();
+
+        await Assert.ThrowsAsync<InvalidRequestException>(
+            () => settings.SaveGithubAsync(new GithubSettings { Repository = repository, Token = "ghp_test" }));
     }
 
     /// <summary>

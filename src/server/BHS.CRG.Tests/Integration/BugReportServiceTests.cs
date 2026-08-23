@@ -235,6 +235,33 @@ public class BugReportServiceTests(IntegrationTestFixture fixture) : IAsyncLifet
     }
 
     /// <summary>
+    /// Текст, пришедший с экрана, сохраняется КАК ЕСТЬ ещё до похода в сеть — и уходит именно он.
+    ///
+    /// Это главная защита всей конструкции: администратор убирает из текста названия строек и
+    /// организаций, и если бы отправлялась сохранённая ранее правка, наружу уехал бы прежний,
+    /// неотредактированный текст — а на экране остался бы тот, который человек считал отправленным.
+    ///
+    /// Проверяем через отказ GitHub (токена нет): до сети дело доходит после сохранения, поэтому
+    /// сам факт сохранения виден и без подмены HTTP.
+    /// </summary>
+    [Fact]
+    public async Task Forward_SavesTheTextFromTheScreen_BeforeSending()
+    {
+        var author = await CreateUserAsync("Пользователь", "User");
+        using var scope = fixture.Services.CreateScope();
+        var id = await Service(scope).SubmitAsync(author, "Съехала таблица на стройке «Комарова».", null, null);
+
+        const string redacted = "Съехала таблица при печати. Названия убраны.";
+        // Токен не задан — отправка упрётся в отказ, но текст к этому моменту уже сохранён.
+        await Assert.ThrowsAsync<InvalidRequestException>(
+            () => Service(scope).ForwardToGithubAsync(id, "Съезжает таблица", redacted));
+
+        var detail = await Service(scope).GetAsync(id);
+        Assert.Equal(redacted, detail.IssueDraft);
+        Assert.True(detail.DraftEdited);
+    }
+
+    /// <summary>
     /// Заголовок пишет администратор, и без него передавать нельзя: в трекере issue ищут именно по
     /// заголовку. Проверка тоже до сети — пустой заголовок не должен стоить обращения к GitHub.
     /// </summary>
