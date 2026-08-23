@@ -74,8 +74,8 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
         toast.success(`Применено: ${res.applied}${res.skipped ? `, пропущено: ${res.skipped}` : ''}`);
       else
         toast.info(skippedReason ?? 'Изменений не внесено');
-    } catch {
-      toast.error('Не удалось применить исправление');
+    } catch (e) {
+      toast.apiError(e, 'Не удалось применить исправление');
     }
   }
 

@@ -8,6 +8,7 @@ import { useToast } from '@/shared/ui/Toast';
 import {
   useReviewObservation, type Observation, type ObservationStatus,
 } from '@/shared/api/observations';
+import { traceIdOf } from '@/shared/api/client';
 
 /**
  * Разбор замечания внешнего анализа — ОДИН на все поверхности (issue #731).
@@ -80,10 +81,11 @@ export function ObservationReviewDialog({ observation, setPath, nameOf, onClose 
   async function decide(status: ObservationStatus) {
     try {
       await review.mutateAsync({ id: observation.id, status, note: note.trim() || null });
-    } catch {
+    } catch (e) {
       // Замечание мог отозвать или удалить агент, пока диалог открыт. Без этой ветки диалог
       // просто оставался бы на месте с ожившими кнопками — неотличимо от «клик не сработал».
-      toast.error('Не удалось сохранить разбор. Возможно, замечание изменилось — обновите страницу');
+      toast.error('Не удалось сохранить разбор. Возможно, замечание изменилось — обновите страницу',
+        { traceId: traceIdOf(e) });
       return;
     }
     onClose();

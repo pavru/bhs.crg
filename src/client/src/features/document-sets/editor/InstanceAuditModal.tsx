@@ -54,7 +54,7 @@ export function InstanceAuditModal({ setId, instanceId, docName, schemaFieldKeys
       const res = await applyFixes.mutateAsync([{ action, path, targetKey }]);
       if (res.applied > 0) toast.success('Документ исправлен');
       else toast.info(res.outcomes[0]?.reason ?? 'Изменений не внесено');
-    } catch { toast.error('Не удалось применить исправление'); }
+    } catch (e) { toast.apiError(e, 'Не удалось применить исправление'); }
   }
 
   return (

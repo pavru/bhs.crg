@@ -239,7 +239,7 @@ export function SetProblemsPanel({ setId, setName, documentNames }: {
             try {
               await downloadDiscrepancyReport(setId, setName);
               toast.success('Отчёт выгружен');
-            } catch { toast.error('Не удалось выгрузить отчёт'); }
+            } catch (e) { toast.apiError(e, 'Не удалось выгрузить отчёт'); }
             finally { setBusy(false); }
           }}>
           <FileSpreadsheet size={14} /> Отчёт

@@ -35,8 +35,8 @@ export function useTypstBlocksCheck(typeId: string, onSelectType: (id: string) =
           action: { label: 'Перейти', onClick: () => onSelectType(other.typeId!) },
         });
       }
-    } catch {
-      toast.error('Не удалось проверить блоки');
+    } catch (e) {
+      toast.apiError(e, 'Не удалось проверить блоки');
     }
   }
 

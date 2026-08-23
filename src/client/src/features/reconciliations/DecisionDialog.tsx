@@ -5,6 +5,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { useToast } from '@/shared/ui/Toast';
 import { DECISION_LABELS, STATUS_LABELS, type DecisionKind, type Finding } from '@/shared/api/reconciliations';
+import { traceIdOf } from '@/shared/api/client';
 
 /**
  * Разбор находки. Решение адресуется КЛЮЧОМ позиции, а не идентификатором находки, поэтому переживает
@@ -26,11 +27,12 @@ export function DecisionDialog({ finding, onClose, onSave, onRemove }: {
     setBusy(true);
     try {
       await action();
-    } catch {
+    } catch (e) {
       // Сверку могли удалить или переопределить, пока диалог открыт. Молча оживившая кнопка
       // «Сохранить» неотличима от «клик не сработал», а находка остаётся в списке — выглядит так,
       // будто ничего и не просили. Ошибку ловим здесь: диалог общий для обеих поверхностей.
-      toast.error('Не удалось сохранить решение. Возможно, сверка изменилась — обновите страницу');
+      toast.error('Не удалось сохранить решение. Возможно, сверка изменилась — обновите страницу',
+        { traceId: traceIdOf(e) });
     } finally {
       setBusy(false);
     }

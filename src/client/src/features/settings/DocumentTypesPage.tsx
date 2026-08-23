@@ -1052,7 +1052,7 @@ function TypeDetail({ docType, allDocTypes, allGroups, onDeleted, dirty, saving,
           <>
             <GroupPicker groups={allGroups} value={docType.group}
               onChange={group => groupMutation.mutate({ id: docType.id, group },
-                { onError: () => toast.error('Не удалось изменить группу типа') })} />
+                { onError: e => toast.apiError(e, 'Не удалось изменить группу типа') })} />
             <RowActionsMenu ariaLabel="Действия типа" actions={[
               { key: 'dup', label: 'Дублировать', icon: <Copy size={14} />, onSelect: onDuplicate },
               { key: 'audit', label: 'Аудит инстансов', icon: <ShieldCheck size={14} />, onSelect: () => setAuditOpen(true) },

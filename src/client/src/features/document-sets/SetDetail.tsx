@@ -127,7 +127,7 @@ export function SetDetail() {
     if (j < 0 || j >= ids.length) return;
     [ids[index], ids[j]] = [ids[j], ids[index]];
     reorderMutation.mutate({ setId: set!.id, orderedIds: ids },
-      { onError: () => toast.error('Не удалось изменить порядок документов') });
+      { onError: e => toast.apiError(e, 'Не удалось изменить порядок документов') });
   }
 
   // Переставить документ из позиции from в позицию вставки pos (перед instances[pos]; pos=N — в конец).
@@ -138,7 +138,7 @@ export function SetDetail() {
     const insertAt = pos > from ? pos - 1 : pos; // учёт сдвига после удаления
     ids.splice(insertAt, 0, moved);
     reorderMutation.mutate({ setId: set!.id, orderedIds: ids },
-      { onError: () => toast.error('Не удалось изменить порядок документов') });
+      { onError: e => toast.apiError(e, 'Не удалось изменить порядок документов') });
   }
   function endDrag() { setDragIndex(null); setDropPos(null); }
   // Позиция вставки по половине строки под курсором (верх → перед, низ → после) — полный диапазон, вкл. конец.
@@ -323,7 +323,7 @@ export function SetDetail() {
                         { key: 'dup', label: 'Дублировать', icon: <Copy size={14} />,
                           disabled: duplicateMutation.isPending,
                           onSelect: () => duplicateMutation.mutate({ setId: set.id, instanceId: inst.id },
-                            { onError: () => toast.error('Не удалось дублировать документ') }) },
+                            { onError: e => toast.apiError(e, 'Не удалось дублировать документ') }) },
                         { key: 'copy', label: 'Скопировать в комплект', icon: <FolderInput size={14} />,
                           onSelect: () => setCopyInstance(inst) },
                         { key: 'move', label: 'Перенести в комплект', icon: <FolderOutput size={14} />,
