@@ -27,6 +27,8 @@ export interface BugReportList {
   items: BugReportListItem[];
   /** Сколько сообщений всего: больше длины списка — часть не видна, других дорог к ней нет. */
   total: number;
+  /** Задан ли токен GitHub. Кнопку не прячем — она объясняет, чего не хватает. */
+  githubConfigured: boolean;
 }
 
 export interface BugReportDetail {
@@ -137,6 +139,12 @@ export function useMarkBugReportFixed() {
 export function useRejectBugReport() {
   return useReportMutation((id: string) =>
     apiClient.post<BugReportDetail>(`/bug-reports/${id}/rejected`).then(r => r.data));
+}
+
+/** Завести issue из отредактированного текста и отметить сообщение переданным. */
+export function useForwardBugReport() {
+  return useReportMutation(({ id, title }: { id: string; title: string }) =>
+    apiClient.post<BugReportDetail>(`/bug-reports/${id}/forward`, { title }).then(r => r.data));
 }
 
 export function useReopenBugReport() {

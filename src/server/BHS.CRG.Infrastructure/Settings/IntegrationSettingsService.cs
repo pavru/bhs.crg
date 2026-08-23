@@ -60,6 +60,21 @@ public class IntegrationSettingsService(
         await PersistRawAsync(raw, ct);
     }
 
+    public async Task SaveGithubAsync(GithubSettings github, CancellationToken ct = default)
+    {
+        // Отказ там, где человек ВВОДИТ значение: иначе он всплывёт при отправке — и не собой, а
+        // сообщением «GitHub недоступен, проверьте сеть» (см. GithubSettings.IsTokenUsable).
+        if (!GithubSettings.IsTokenUsable(github.Token))
+            throw new InvalidRequestException(
+                "В токене есть символы, недопустимые в заголовке HTTP: кириллица, пробел или " +
+                "невидимый знак. Скопируйте токен заново — вероятно, он пришёл из письма " +
+                "или мессенджера вместе с лишним символом.");
+
+        var raw = await LoadRawAsync(ct);
+        raw.Github = MergeGithub(raw.Github, github);
+        await PersistRawAsync(raw, ct);
+    }
+
     /// <summary>
     /// Перешифровать секреты, оставшиеся открытыми от версий до 0.92.0. Вызывается один раз при
     /// старте (см. Program.cs). Сделано отдельным проходом, а не при чтении: запись на пути чтения
@@ -89,6 +104,7 @@ public class IntegrationSettingsService(
         foreach (var e in raw.Recognition.Values) if (IsPlain(e.ApiKey)) n++;
         foreach (var e in raw.WebSearch.Values) if (IsPlain(e.ApiKey)) n++;
         if (IsPlain(raw.Smtp.Password)) n++;
+        if (IsPlain(raw.Github.Token)) n++;
         return n;
 
         static bool IsPlain(string? v) => !string.IsNullOrWhiteSpace(v) && !SettingsSecretProtector.IsProtected(v);
@@ -100,6 +116,7 @@ public class IntegrationSettingsService(
         foreach (var e in m.Recognition.Values) e.ApiKey = secrets.Protect(e.ApiKey);
         foreach (var e in m.WebSearch.Values) e.ApiKey = secrets.Protect(e.ApiKey);
         m.Smtp.Password = secrets.Protect(m.Smtp.Password);
+        m.Github.Token = secrets.Protect(m.Github.Token);
     }
 
     /// <summary>Обратное к <see cref="ProtectSecrets"/>: наружу модель всегда отдаётся расшифрованной.</summary>
@@ -108,6 +125,7 @@ public class IntegrationSettingsService(
         foreach (var e in m.Recognition.Values) e.ApiKey = secrets.Unprotect(e.ApiKey);
         foreach (var e in m.WebSearch.Values) e.ApiKey = secrets.Unprotect(e.ApiKey);
         m.Smtp.Password = secrets.Unprotect(m.Smtp.Password);
+        m.Github.Token = secrets.Unprotect(m.Github.Token);
     }
 
     private async Task PersistRawAsync(IntegrationSettingsModel raw, CancellationToken ct)
@@ -144,6 +162,23 @@ public class IntegrationSettingsService(
         UseSsl = update.UseSsl,
         Password = !string.IsNullOrWhiteSpace(update.Password) ? update.Password
             : update.SameServerAs(existing) ? existing.Password
+            : null,
+    };
+
+    // Токен перезаписываем только при непустом новом значении — но унаследовать сохранённый можно
+    // ТОЛЬКО для того же репозитория. Тот же урок, что у пароля SMTP: иначе форма настроек сама
+    // была бы способом опубликовать внутренний текст в чужом месте — укажи чужой репозиторий с
+    // пустым полем токена, и первое же «Отправить в GitHub» уйдёт туда с нашим правом записи.
+    //
+    // При смене репозитория токен обнуляется: кнопка честно скажет «укажите токен», пока
+    // администратор не введёт токен для нового места.
+    private static GithubSettings MergeGithub(GithubSettings existing, GithubSettings update) => new()
+    {
+        Repository = string.IsNullOrWhiteSpace(update.Repository)
+            ? GithubSettings.DefaultRepository
+            : update.Repository.Trim(),
+        Token = !string.IsNullOrWhiteSpace(update.Token) ? update.Token
+            : update.SameRepositoryAs(existing) ? existing.Token
             : null,
     };
 
@@ -198,6 +233,7 @@ public class IntegrationSettingsService(
             // EffectiveSettingsCoverageTests: правило, о котором можно забыть, обязано иметь сторожа.
             Updates = raw.Updates,
             Backup = raw.Backup,
+            Github = raw.Github,
         };
 
         foreach (var name in RecNames) m.Recognition[name] = EffRec(name, raw);

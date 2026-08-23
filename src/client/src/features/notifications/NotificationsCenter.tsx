@@ -1,7 +1,7 @@
 import * as Popover from '@radix-ui/react-popover';
 import {
   Bell, BellOff, Info, AlertTriangle, AlertCircle, X, Check, CheckCheck, Trash2, HeartPulse, Download,
-  ArrowRight,
+  ArrowRight, ExternalLink,
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { IconButton } from '@/shared/ui/Button';
@@ -13,6 +13,15 @@ import {
 } from '@/shared/api/notifications';
 import { apiClient } from '@/shared/api/client';
 import { filenameFromContentDisposition } from '@/shared/api/attachments';
+
+/**
+ * Ссылка ведёт НАРУЖУ (issue #834): issue в GitHub, заведённый из сообщения об ошибке. Такую
+ * открываем новой вкладкой — ни скачивание с токеном, ни маршрутизатор приложения к чужому адресу
+ * не применимы.
+ */
+function isExternalLink(linkUrl: string): boolean {
+  return linkUrl.startsWith('https://') || linkUrl.startsWith('http://');
+}
 
 /**
  * Куда ведёт ссылка уведомления: к ФАЙЛУ или на ЭКРАН.
@@ -75,7 +84,14 @@ function NotificationRow({ n }: { n: NotificationDto }) {
           {!n.isRead && <span className="shrink-0 w-2 h-2 rounded-full bg-brand" />}
         </div>
         <p className="text-[13px] leading-[1.45] text-fg3 mt-1 break-words whitespace-pre-wrap">{n.message}</p>
-        {n.linkUrl && (isDownloadLink(n.linkUrl) ? (
+        {n.linkUrl && (isExternalLink(n.linkUrl) ? (
+          <a
+            href={n.linkUrl} target="_blank" rel="noreferrer"
+            className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-tonal text-on-tonal hover:brightness-95 transition"
+          >
+            <ExternalLink size={13} /> {n.linkLabel ?? 'Открыть'}
+          </a>
+        ) : isDownloadLink(n.linkUrl) ? (
           <button
             type="button"
             onClick={() => { void openResult(n.linkUrl!); }}

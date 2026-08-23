@@ -47,7 +47,26 @@ public static class SettingsEndpoints
                 fgisDomains = m.FgisDomains,
                 manufacturerDomains = m.ManufacturerDomains,
                 smtp = MaskSmtp(m.Smtp),
+                // Токен наружу не отдаём — только признак «задан», как у ключей движков и пароля
+                // SMTP. Репозиторий не секрет и виден как есть: без него признак «задан» ничего не
+                // говорит — токен всегда выдаётся на конкретный репозиторий.
+                github = new
+                {
+                    repository = string.IsNullOrWhiteSpace(m.Github.Repository)
+                        ? GithubSettings.DefaultRepository
+                        : m.Github.Repository,
+                    hasToken = !string.IsNullOrWhiteSpace(m.Github.Token),
+                },
             });
+        });
+
+        // Сохранение только настроек GitHub. Пустой токен = оставить прежний, но ТОЛЬКО для того же
+        // репозитория (см. MergeGithub): смена репозитория с пустым полем обнуляет токен, иначе форма
+        // сама была бы способом отправить внутренний текст в чужое место нашим правом записи.
+        g.MapPut("/github", async (GithubSettings github, IIntegrationSettings settings) =>
+        {
+            await settings.SaveGithubAsync(github);
+            return Results.NoContent();
         });
 
         // Сохранение только SMTP (отдельно от распознавания/поиска — формы не затирают друг друга).

@@ -369,6 +369,8 @@ builder.Services.AddScoped<IRepository<QualityAuditRun>, Repository<QualityAudit
 // ── Сообщения об ошибках (issue #834) ────────────────────────────────────────
 builder.Services.AddScoped<BHS.CRG.Application.Support.IBugReportService,
     BHS.CRG.Infrastructure.Support.BugReportService>();
+builder.Services.AddHttpClient<BHS.CRG.Infrastructure.Support.GithubIssueClient>()
+    .ConfigureHttpClient(c => c.Timeout = BHS.CRG.Infrastructure.Support.GithubIssueClient.Timeout);
 
 // ── Backup ────────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<BackupService>();

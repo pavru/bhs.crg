@@ -204,6 +204,53 @@ public class BugReportServiceTests(IntegrationTestFixture fixture) : IAsyncLifet
         }
     }
 
+    /// <summary>
+    /// Повторная передача отвергается. Дубль в трекере убирают руками, а следа первого issue в
+    /// системе не осталось бы вовсе: номер перезаписался бы вторым.
+    ///
+    /// Проверка стоит ДО похода в сеть — поэтому тест обходится без GitHub и без подмены HTTP.
+    /// </summary>
+    [Fact]
+    public async Task Forward_Twice_IsRefused()
+    {
+        var author = await CreateUserAsync("Пользователь", "User");
+        Guid id;
+        using (var scope = fixture.Services.CreateScope())
+            id = await Service(scope).SubmitAsync(author, "Не печатается акт.", null, null);
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var report = await db.Set<BugReport>().FirstAsync(r => r.Id == id);
+            report.MarkForwarded(842, "https://github.com/pavru/bhs.crg/issues/842");
+            await db.SaveChangesAsync();
+        }
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var ex = await Assert.ThrowsAsync<ConflictException>(
+                () => Service(scope).ForwardToGithubAsync(id, "Заголовок"));
+            Assert.Contains("842", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Заголовок пишет администратор, и без него передавать нельзя: в трекере issue ищут именно по
+    /// заголовку. Проверка тоже до сети — пустой заголовок не должен стоить обращения к GitHub.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Forward_WithoutTitle_IsRefused(string title)
+    {
+        var author = await CreateUserAsync("Пользователь", "User");
+        using var scope = fixture.Services.CreateScope();
+        var id = await Service(scope).SubmitAsync(author, "Не печатается акт.", null, null);
+
+        await Assert.ThrowsAsync<InvalidRequestException>(
+            () => Service(scope).ForwardToGithubAsync(id, title));
+    }
+
     [Fact]
     public async Task MarkFixed_NotifiesAuthor_WithVersion()
     {

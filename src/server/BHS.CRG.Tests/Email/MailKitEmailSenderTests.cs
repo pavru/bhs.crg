@@ -15,6 +15,7 @@ public class MailKitEmailSenderTests
         public Task SaveSmtpAsync(SmtpSettings s, CancellationToken ct = default) => Task.CompletedTask;
         public Task SaveUpdatesAsync(UpdateCheckSettings u, CancellationToken ct = default) => Task.CompletedTask;
         public Task SaveBackupScheduleAsync(BackupScheduleSettings b, CancellationToken ct = default) => Task.CompletedTask;
+        public Task SaveGithubAsync(GithubSettings g, CancellationToken ct = default) => Task.CompletedTask;
         public void Invalidate() { }
     }
 

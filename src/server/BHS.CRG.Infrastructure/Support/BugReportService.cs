@@ -17,7 +17,8 @@ namespace BHS.CRG.Infrastructure.Support;
 /// уведомления («все администраторы»), и подпись автора («кто прислал») читаются из таблиц Identity,
 /// а до них дотягивается только этот слой. Тот же приём, что у <c>UpdateNotifier</c>.
 /// </summary>
-public class BugReportService(AppDbContext db, INotificationService notifications) : IBugReportService
+public class BugReportService(
+    AppDbContext db, INotificationService notifications, GithubIssueClient github) : IBugReportService
 {
     /// <summary>Источник уведомлений — по нему же они группируются в колокольчике.</summary>
     public const string NotificationSource = "Сообщения об ошибках";
@@ -76,6 +77,7 @@ public class BugReportService(AppDbContext db, INotificationService notification
             .ToListAsync(ct);
 
         var authors = await AuthorsAsync(reports.Select(r => r.AuthorId), ct);
+        var configured = await github.IsConfiguredAsync(ct);
         return new BugReportList([.. reports.Select(r => new BugReportListItem(
             r.Id,
             authors.TryGetValue(r.AuthorId, out var a) ? a.Name : "удалённый пользователь",
@@ -84,7 +86,49 @@ public class BugReportService(AppDbContext db, INotificationService notification
             r.GithubIssueNumber,
             r.FixedInVersion,
             r.ScreenshotBlobPath is not null,
-            r.CreatedAt))], total);
+            r.CreatedAt))], total, configured);
+    }
+
+    /// <summary>
+    /// Передать разработчикам: завести issue из текста, который администратор уже отредактировал.
+    ///
+    /// Тело берётся из сохранённой правки, а если её нет — из заготовки; и то и другое собирает
+    /// <see cref="BugReportIssueText" />, так что «отправили не то, что видели» здесь невозможно.
+    /// </summary>
+    public async Task<BugReportDetail> ForwardToGithubAsync(
+        Guid id, string title, CancellationToken ct = default)
+    {
+        var text = (title ?? "").Trim();
+        if (text.Length == 0)
+            throw new InvalidRequestException(
+                "Напишите заголовок issue — по нему его будут искать в трекере.");
+        if (text.Length > IBugReportService.TitleLimit)
+            throw new InvalidRequestException(
+                $"Заголовок длиннее {IBugReportService.TitleLimit} символов. Оставьте суть, " +
+                "подробности уже есть в теле.");
+
+        var report = await RequireAsync(id, ct);
+        // Повторная отправка завела бы ВТОРОЙ issue о том же, и следа первого в системе не
+        // осталось бы — номер перезаписался. Дубль в трекере убирают руками, поэтому отказ.
+        if (report.GithubIssueNumber is { } already)
+            throw new ConflictException(
+                $"Это сообщение уже передано: issue #{already}. Повторная отправка завела бы второй.");
+
+        var tech = ParseTech(report.TechContext);
+        var body = report.IssueDraft
+                   ?? BugReportIssueText.Build(report.Message, tech, report.ScreenshotBlobPath is not null);
+
+        // Сеть ПЕРЕД записью: откажет GitHub — в системе ничего не поменялось, и повторить можно
+        // той же кнопкой. Обратный порядок оставлял бы сообщение «переданным» без issue.
+        var created = await github.CreateAsync(text, body, ct);
+
+        report.MarkForwarded(created.Number, created.Url);
+        await db.SaveChangesAsync(ct);
+
+        await NotifyAuthorAsync(report, "Ваше сообщение: передано разработчикам",
+            $"«{Summary(report.Message)}» — заведена задача #{created.Number}.", ct,
+            linkUrl: created.Url, linkLabel: $"Открыть issue #{created.Number}");
+        return await DetailAsync(report, ct);
     }
 
     public async Task<BugReportDetail> GetAsync(Guid id, CancellationToken ct = default)
@@ -254,7 +298,9 @@ public class BugReportService(AppDbContext db, INotificationService notification
         }
     }
 
-    private async Task NotifyAuthorAsync(BugReport report, string title, string message, CancellationToken ct)
+    private async Task NotifyAuthorAsync(BugReport report, string title, string message,
+        CancellationToken ct, string? linkUrl = null, string? linkLabel = null)
         => await notifications.PublishAsync(NotificationSeverity.Info, title, message,
-            NotificationSource, userId: report.AuthorId, ct: ct);
+            NotificationSource, userId: report.AuthorId,
+            linkUrl: linkUrl, linkLabel: linkLabel, ct: ct);
 }

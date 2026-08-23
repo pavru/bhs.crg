@@ -1,3 +1,4 @@
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Settings;
@@ -34,6 +35,9 @@ public class IntegrationSecretsAtRestTests(IntegrationTestFixture fixture) : IAs
 
     private const string ApiKeySecret = "sk-test-3f8a1c-НЕ-ДОЛЖЕН-ЛЕЖАТЬ-ОТКРЫТО";
     private const string SmtpSecret = "smtp-pass-9b2d-НЕ-ДОЛЖЕН-ЛЕЖАТЬ-ОТКРЫТО";
+    // Только ASCII: токен уезжает в заголовок HTTP, и негодный отвергается при сохранении.
+    // «Не должен лежать открыто» здесь пишем латиницей — суть проверки от этого не меняется.
+    private const string GithubSecret = "ghp_7c1e_MUST_NOT_BE_STORED_IN_PLAIN_TEXT";
 
     private static async Task<string> StoredJsonAsync(IServiceScope scope)
     {
@@ -120,6 +124,55 @@ public class IntegrationSecretsAtRestTests(IntegrationTestFixture fixture) : IAs
 
         var eff = await settings.GetEffectiveAsync();
         Assert.Equal(SmtpSecret, eff.Smtp.Password);
+    }
+
+    /// <summary>
+    /// Смена репозитория обнуляет сохранённый токен GitHub — тот же урок, что с почтой (issue #834).
+    ///
+    /// Иначе форма настроек сама была бы способом опубликовать внутренний текст в чужом месте:
+    /// указать чужой репозиторий с пустым полем токена — и первое же «Отправить в GitHub» уйдёт
+    /// туда с нашим правом записи.
+    /// </summary>
+    [Fact]
+    public async Task ChangingRepository_DropsSavedGithubToken()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var settings = scope.ServiceProvider.GetRequiredService<IIntegrationSettings>();
+        await settings.SaveGithubAsync(new GithubSettings { Repository = "pavru/bhs.crg", Token = GithubSecret });
+
+        // Токен в форме пустой — «оставить прежний». Прежний остаётся только для прежнего места.
+        await settings.SaveGithubAsync(new GithubSettings { Repository = "чужой/репозиторий", Token = null });
+
+        var eff = await settings.GetEffectiveAsync();
+        Assert.True(string.IsNullOrEmpty(eff.Github.Token));
+    }
+
+    [Fact]
+    public async Task SameRepository_KeepsSavedGithubToken_AndStoresItEncrypted()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var settings = scope.ServiceProvider.GetRequiredService<IIntegrationSettings>();
+        await settings.SaveGithubAsync(new GithubSettings { Repository = "pavru/bhs.crg", Token = GithubSecret });
+        // Правка чего-то постороннего в том же месте токен не роняет.
+        await settings.SaveGithubAsync(new GithubSettings { Repository = "pavru/bhs.crg", Token = null });
+
+        Assert.DoesNotContain(GithubSecret, await StoredJsonAsync(scope));
+        Assert.Equal(GithubSecret, (await settings.GetEffectiveAsync()).Github.Token);
+    }
+
+    /// <summary>
+    /// Негодный токен отвергается ПРИ ВВОДЕ, а не при отправке. Иначе отказ приходит не собой:
+    /// запрос падает сетевым исключением, и человек читает «GitHub недоступен, проверьте сеть».
+    /// </summary>
+    [Fact]
+    public async Task SavingUnusableGithubToken_IsRefused()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var settings = scope.ServiceProvider.GetRequiredService<IIntegrationSettings>();
+
+        var ex = await Assert.ThrowsAsync<InvalidRequestException>(() => settings.SaveGithubAsync(
+            new GithubSettings { Repository = "pavru/bhs.crg", Token = "ghp_кириллица" }));
+        Assert.Contains("Скопируйте токен заново", ex.Message);
     }
 
     /// <summary>
