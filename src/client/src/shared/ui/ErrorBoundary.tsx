@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { AlertTriangle, RotateCcw, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { AlertTriangle, RotateCcw, RefreshCw, ChevronDown, ChevronRight, Bug } from 'lucide-react';
+import { canOpenBugReport, openBugReport } from './bugReportBus';
 
 /**
  * React error boundary (issue #305). В приложении их не было вовсе — а в React 19 любой throw при
@@ -66,6 +67,20 @@ export class ErrorBoundary extends Component<
               </p>
 
               <div className="flex flex-wrap items-center gap-2 mt-3">
+                {/* ПЕРЕД «Перезагрузить» намеренно (issue #834): перезагрузка уносит с собой стек,
+                    а он здесь единственное, чего не восстановить после. Кнопка передаёт его форме
+                    вместе с текстом ошибки. */}
+                {canOpenBugReport() && (
+                  <button type="button"
+                    onClick={() => openBugReport({
+                      origin: 'boundary',
+                      received: error.message,
+                      stack: error.stack ?? undefined,
+                    })}
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium border border-stroke text-fg2 hover:bg-base transition-colors">
+                    <Bug size={14} /> Сообщить об ошибке
+                  </button>
+                )}
                 <button type="button" onClick={this.reset}
                   className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand-hover transition-colors">
                   <RotateCcw size={14} /> Попробовать снова

@@ -1,5 +1,23 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { getToken, getRefreshToken, replaceTokens, clearToken } from './token';
+import { recordApiError } from './apiErrorLog';
+
+/**
+ * Ошибка API с идентификатором запроса (issue #834).
+ *
+ * Поле СТРУКТУРНОЕ, а не выуженное регулярным выражением из фразы «Идентификатор запроса: …»:
+ * сервер присылает `traceId` отдельным полем тела, и первая же правка формулировки не отключит
+ * молча ни кнопку «Сообщить об ошибке», ни поиск в логе (класс ошибок #773).
+ *
+ * Есть только у 500: у доменного отказа («укажите название») искать в логе нечего.
+ */
+export interface ApiErrorWithTrace extends AxiosError {
+  traceId?: string;
+}
+
+export function traceIdOf(e: unknown): string | undefined {
+  return (e as ApiErrorWithTrace | undefined)?.traceId;
+}
 
 const baseURL = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -53,9 +71,25 @@ apiClient.interceptors.response.use(
       toLogin();
     }
 
-    const serverMessage = (err.response?.data as { error?: string; detail?: string } | undefined)?.error
-      ?? (err.response?.data as { detail?: string } | undefined)?.detail;
+    const body = err.response?.data as { error?: string; detail?: string; traceId?: string } | undefined;
+    const serverMessage = body?.error ?? body?.detail;
     if (serverMessage) err.message = serverMessage;
+
+    const traceId = typeof body?.traceId === 'string' && body.traceId ? body.traceId : undefined;
+    if (traceId) (err as ApiErrorWithTrace).traceId = traceId;
+
+    // Пишем в буфер ВСЕ дошедшие сюда неудачи, включая сетевые (status 0): «сервер не ответил» —
+    // ровно тот случай, о котором сообщают чаще всего, и в форме он должен быть виден. 401, после
+    // которого токен обновился успешно, сюда не доходит (ветка выше повторяет запрос и выходит) —
+    // и правильно: для пользователя ничего не случилось.
+    recordApiError({
+      at: new Date().toLocaleTimeString('ru-RU'),
+      method: (original?.method ?? 'GET').toUpperCase(),
+      url,
+      status: err.response?.status ?? 0,
+      traceId,
+    });
+
     return Promise.reject(err);
   },
 );

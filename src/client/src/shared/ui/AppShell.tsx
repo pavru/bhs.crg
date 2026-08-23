@@ -13,7 +13,8 @@ import { CommandPalette } from '@/shared/ui/CommandPalette';
 import { ShortcutsHelp } from '@/shared/ui/ShortcutsHelp';
 import { workNav, settingsNav, type NavItem } from '@/shared/ui/navConfig';
 import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
-import { LogOut, Sun, Moon, Monitor, KeyRound, Check, ChevronsUpDown, MailWarning, X } from 'lucide-react';
+import { useBugReportDialog } from '@/shared/ui/bugReportBus';
+import { LogOut, Sun, Moon, Monitor, KeyRound, Check, ChevronsUpDown, MailWarning, X, Bug } from 'lucide-react';
 
 const themeOptions: { value: Theme; icon: typeof Sun; label: string }[] = [
   { value: 'light',  icon: Sun,     label: 'Светлая'   },
@@ -96,6 +97,7 @@ export function AppShell() {
   const [pwOpen, setPwOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const bugReport = useBugReportDialog();
   const guardedProfileClick = useGuardedNavClick();
 
   // Глобальные шорткаты (issue #107): Ctrl/⌘+K — палитра, «?» — справка (не в полях ввода).
@@ -161,6 +163,13 @@ export function AppShell() {
               className="w-full flex items-center gap-3 h-14 px-4 rounded-[28px] text-left transition-colors hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
               <KeyRound size={22} className="text-fg3 shrink-0" />
               <span className="text-sm font-medium text-fg1">Сменить пароль</span>
+            </button>
+            {/* Постоянная дверь к форме сообщения об ошибке (issue #834): она нужна и тогда, когда
+                ошибка НЕ показала своего экрана — «работает не так, как ожидал» тоже сообщение. */}
+            <button type="button" onClick={() => bugReport.open({ origin: 'rail' })}
+              className="w-full flex items-center gap-3 h-14 px-4 rounded-[28px] text-left transition-colors hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+              <Bug size={22} className="text-fg3 shrink-0" />
+              <span className="text-sm font-medium text-fg1">Сообщить об ошибке</span>
             </button>
             <button type="button" onClick={logout}
               className="w-full flex items-center gap-3 h-14 px-4 rounded-[28px] text-left transition-colors hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">

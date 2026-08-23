@@ -5,6 +5,7 @@ import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { NavigationGuardProvider } from '@/shared/ui/NavigationGuard';
 import { DocumentTitleManager } from '@/shared/ui/DocumentTitle';
 import { ToastProvider } from '@/shared/ui/Toast';
+import { BugReportProvider } from '@/shared/ui/BugReportProvider';
 import { AuthProvider } from '@/shared/ui/AuthProvider';
 import { ProtectedRoute, AdminRoute } from '@/shared/ui/ProtectedRoute';
 import { AppShell } from '@/shared/ui/AppShell';
@@ -18,6 +19,7 @@ import { PrimitiveTypesPage } from '@/features/settings/PrimitiveTypesPage';
 import { RecognitionProfilesPage } from '@/features/settings/RecognitionProfilesPage';
 import { ReconciliationsPage } from '@/features/reconciliations/ReconciliationsPage';
 import { UsersPage } from '@/features/settings/UsersPage';
+import { BugReportsPage } from '@/features/settings/BugReportsPage';
 import { DataSetsPage } from '@/features/datasets/DataSetsPage';
 import { PdfGroupingEditor } from '@/features/datasets/PdfGroupingEditor';
 import { QualityDocsPage } from '@/features/quality-docs/QualityDocsPage';
@@ -37,6 +39,10 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ToastProvider>
+        {/* Выше корневой границы ошибок намеренно (issue #834): поймав сбой, граница РАЗМОНТИРУЕТ
+            своих детей — окажись форма внутри, кнопка «Сообщить об ошибке» пропала бы ровно на том
+            экране, ради которого она и заведена. */}
+        <BugReportProvider>
         <BrowserRouter>
           <ErrorBoundary variant="page" allowReload>
           <NavigationGuardProvider>
@@ -68,6 +74,7 @@ export default function App() {
                   <Route path="field-types" element={<PrimitiveTypesPage />} />
                   <Route path="recognition-profiles" element={<RecognitionProfilesPage />} />
                   <Route path="users" element={<UsersPage />} />
+                  <Route path="bug-reports" element={<BugReportsPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>
               </Route>
@@ -77,6 +84,7 @@ export default function App() {
           </NavigationGuardProvider>
           </ErrorBoundary>
         </BrowserRouter>
+        </BugReportProvider>
         </ToastProvider>
       </AuthProvider>
     </QueryClientProvider>

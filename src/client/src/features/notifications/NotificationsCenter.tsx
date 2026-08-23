@@ -1,7 +1,9 @@
 import * as Popover from '@radix-ui/react-popover';
 import {
   Bell, BellOff, Info, AlertTriangle, AlertCircle, X, Check, CheckCheck, Trash2, HeartPulse, Download,
+  ArrowRight,
 } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { IconButton } from '@/shared/ui/Button';
 import {
   useNotifications, useHealth,
@@ -11,6 +13,18 @@ import {
 } from '@/shared/api/notifications';
 import { apiClient } from '@/shared/api/client';
 import { filenameFromContentDisposition } from '@/shared/api/attachments';
+
+/**
+ * Куда ведёт ссылка уведомления: к ФАЙЛУ или на ЭКРАН.
+ *
+ * Различать обязательно (issue #834). Файл скачивается запросом с токеном, экран открывается
+ * маршрутом — а до сих пор всё уходило в скачивание, и ссылка «Открыть проблемы комплекта»
+ * (`/document-sets/…`, issue #414) пыталась получить страницу как blob. Признак — префикс `/api`:
+ * его ставит тот же код, что публикует ссылку на скачивание.
+ */
+function isDownloadLink(linkUrl: string): boolean {
+  return linkUrl.startsWith('/api/');
+}
 
 // Прямой доступ к результату job: скачиваем через apiClient (с JWT), сохраняем файл.
 async function openResult(linkUrl: string) {
@@ -45,6 +59,7 @@ function relTime(iso: string): string {
 }
 
 function NotificationRow({ n }: { n: NotificationDto }) {
+  const navigate = useNavigate();
   const markRead = useMarkNotificationRead();
   const dismiss = useDismissNotification();
   const meta = SEVERITY[n.severity];
@@ -60,7 +75,7 @@ function NotificationRow({ n }: { n: NotificationDto }) {
           {!n.isRead && <span className="shrink-0 w-2 h-2 rounded-full bg-brand" />}
         </div>
         <p className="text-[13px] leading-[1.45] text-fg3 mt-1 break-words whitespace-pre-wrap">{n.message}</p>
-        {n.linkUrl && (
+        {n.linkUrl && (isDownloadLink(n.linkUrl) ? (
           <button
             type="button"
             onClick={() => { void openResult(n.linkUrl!); }}
@@ -68,7 +83,18 @@ function NotificationRow({ n }: { n: NotificationDto }) {
           >
             <Download size={13} /> {n.linkLabel ?? 'Открыть результат'}
           </button>
-        )}
+        ) : (
+          // Колокольчик — сигнал, а не рабочее место: уходя на экран, закрываем его за собой.
+          <Popover.Close asChild>
+            <button
+              type="button"
+              onClick={() => navigate(n.linkUrl!)}
+              className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-tonal text-on-tonal hover:brightness-95 transition"
+            >
+              <ArrowRight size={13} /> {n.linkLabel ?? 'Открыть'}
+            </button>
+          </Popover.Close>
+        ))}
         <div className="flex items-center gap-2 mt-2 text-xs text-fg3">
           {n.source && (
             <span className="inline-flex items-center h-6 px-3 rounded-lg border border-stroke font-medium">{n.source}</span>

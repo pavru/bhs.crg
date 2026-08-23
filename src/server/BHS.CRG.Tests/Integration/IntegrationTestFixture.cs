@@ -103,6 +103,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         "material_quality_links",
         "quality_audit_runs",
         "quality_documents",
+        "bug_reports",
         "notifications",
         "jobs",
         "subscriptions",

@@ -57,6 +57,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         => Set<BHS.CRG.Domain.Reconciliation.AgentObservation>();
     public DbSet<BHS.CRG.Domain.Reconciliation.ReconciliationAlias> ReconciliationAliases
         => Set<BHS.CRG.Domain.Reconciliation.ReconciliationAlias>();
+    public DbSet<BHS.CRG.Domain.Support.BugReport> BugReports
+        => Set<BHS.CRG.Domain.Support.BugReport>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<BHS.CRG.Domain.Storage.BlobRegistryEntry> BlobRegistry
         => Set<BHS.CRG.Domain.Storage.BlobRegistryEntry>();

@@ -9,6 +9,7 @@ using BHS.CRG.Api.Endpoints.Attachments;
 using BHS.CRG.Api.Endpoints.Auth;
 using BHS.CRG.Api.Endpoints.Backup;
 using BHS.CRG.Api.Endpoints.Maintenance;
+using BHS.CRG.Api.Endpoints.Support;
 using BHS.CRG.Api.Updates;
 using BHS.CRG.Application.Updates;
 using BHS.CRG.Infrastructure.Updates;
@@ -247,6 +248,18 @@ builder.Services.AddRateLimiter(o =>
     // Обновление пары токенов: у каждого пользователя раз в час, подбирать 256-битный refresh-токен
     // смысла нет — предел только против шторма из зациклившегося клиента.
     o.AddPolicy("refresh", PerClient(120, TimeSpan.FromMinutes(5)));
+    // Сообщения об ошибках (issue #834): по ПОЛЬЗОВАТЕЛЮ, а не по адресу. Эндпоинт закрыт входом,
+    // и за общим адресом офиса сидят разные люди — предел по адресу заткнул бы рот всем, кроме
+    // первого. Десяти сообщений за десять минут хватает и человеку в плохой день, и от заливки
+    // формой в цикле защищает.
+    o.AddPolicy("bug-report", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? ctx.User.FindFirst("sub")?.Value
+            ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10, Window = TimeSpan.FromMinutes(10), QueueLimit = 0,
+        }));
 });
 
 // ── JWT ───────────────────────────────────────────────────────────────────────
@@ -352,6 +365,10 @@ builder.Services.AddScoped<IRepository<TypstUserLibFile>, Repository<TypstUserLi
 builder.Services.AddScoped<IRepository<QualityDocument>, Repository<QualityDocument>>();
 builder.Services.AddScoped<IRepository<MaterialQualityLink>, Repository<MaterialQualityLink>>();
 builder.Services.AddScoped<IRepository<QualityAuditRun>, Repository<QualityAuditRun>>();
+
+// ── Сообщения об ошибках (issue #834) ────────────────────────────────────────
+builder.Services.AddScoped<BHS.CRG.Application.Support.IBugReportService,
+    BHS.CRG.Infrastructure.Support.BugReportService>();
 
 // ── Backup ────────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<BackupService>();
@@ -644,7 +661,13 @@ app.UseExceptionHandler(exApp => exApp.Run(async ctx =>
             .CreateLogger("BHS.CRG.UnhandledException")
             .LogError(ex, "Необработанное исключение, запрос {TraceId}", ctx.TraceIdentifier);
 
-    await ctx.Response.WriteAsJsonAsync(new { error = message });
+    // Идентификатор запроса уходит ОТДЕЛЬНЫМ полем, а не только внутри текста (issue #834): его
+    // читает форма «Сообщить об ошибке», и вытаскивать его регулярным выражением из фразы значило
+    // бы, что первая же правка формулировки молча отключит кнопку. Только у 500: у доменного отказа
+    // («укажите название») искать в логе нечего, и предлагать по нему сообщить об ошибке — шум.
+    await ctx.Response.WriteAsJsonAsync(status == StatusCodes.Status500InternalServerError
+        ? new { error = message, traceId = (string?)ctx.TraceIdentifier }
+        : new { error = message, traceId = (string?)null });
 }));
 
 app.UseCors();
@@ -657,6 +680,7 @@ app.MapAuthEndpoints();
 app.MapAccountEndpoints();
 app.MapUserEndpoints();
 app.MapBackupEndpoints();
+app.MapBugReportEndpoints();
 app.MapMaintenanceEndpoints();
 app.MapCatalogEndpoints();
 app.MapPrimitiveTypeEndpoints();

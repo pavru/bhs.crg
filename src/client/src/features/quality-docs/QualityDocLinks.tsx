@@ -7,7 +7,6 @@ import { ScopeReachNote } from './ScopeReachNote';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/ui/Toast';
-import { apiError } from '@/shared/utils/apiError';
 import {
   useRemoveMaterialLink, useRemoveMaterialLinks, useSetMaterialLinks, type MaterialQualityLink,
 } from '@/shared/api/qualityDocs';
@@ -62,7 +61,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
       await removeLink.mutateAsync(link.id);
       toast.success(`Связь снята: ${nameOf(link)}`);
     } catch (e) {
-      toast.error(apiError(e, 'Не удалось разорвать связь'));
+      toast.apiError(e, 'Не удалось разорвать связь');
     }
   }
 
@@ -101,7 +100,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
       toast.success(`Перепривязано материалов: ${n}`);
     } catch (e) {
       // Молчаливый отказ здесь теряет сразу N перепривязок — человек нажал бы ещё раз.
-      toast.error(apiError(e, 'Не удалось перепривязать'));
+      toast.apiError(e, 'Не удалось перепривязать');
     }
   }
 
@@ -111,7 +110,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
       setSelected(new Set());
       toast.success(`Снято связей: ${removed}`);
     } catch (e) {
-      toast.error(apiError(e, 'Не удалось разорвать связи'));
+      toast.apiError(e, 'Не удалось разорвать связи');
     }
   }
 
@@ -127,7 +126,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
       setRelinking(null);
       toast.success('Материал перепривязан');
     } catch (e) {
-      toast.error(apiError(e, 'Не удалось перепривязать'));
+      toast.apiError(e, 'Не удалось перепривязать');
     }
   }
 

@@ -1,6 +1,9 @@
 import * as RT from '@radix-ui/react-toast';
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, AlertTriangle, Info, X, type LucideIcon } from 'lucide-react';
+import { traceIdOf } from '@/shared/api/client';
+import { apiError } from '@/shared/utils/apiError';
+import { openBugReport } from './bugReportBus';
 
 /**
  * Эфемерные уведомления (issue #281) поверх `@radix-ui/react-toast` — swipe-dismiss, пауза на
@@ -18,6 +21,12 @@ export interface ToastOptions {
   duration?: number;
   /** Опциональное одиночное действие (текст-кнопка справа) — напр. «Перейти». */
   action?: { label: string; onClick: () => void };
+  /**
+   * Идентификатор запроса (issue #834). Есть — тост сам предлагает «Сообщить»: он живёт секунды, а
+   * идентификатор из него никто не перепечатает. Ставится сервером только у 500, поэтому кнопка не
+   * появляется на доменных отказах («укажите название») — сообщать о них нечего.
+   */
+  traceId?: string;
 }
 
 interface ToastItem extends ToastOptions { id: number }
@@ -27,6 +36,12 @@ interface ToastApi {
   success: (message: string, o?: Omit<ToastOptions, 'message' | 'variant'>) => void;
   error: (message: string, o?: Omit<ToastOptions, 'message' | 'variant'>) => void;
   info: (message: string, o?: Omit<ToastOptions, 'message' | 'variant'>) => void;
+  /**
+   * Ошибка ИЗ ОТВЕТА API: текст берётся из тела, идентификатор запроса — из структурного поля.
+   * Отдельный метод, а не разбор внутри `error`, потому что `error` зовут и с придуманной строкой,
+   * и подсовывать ей объект ошибки значило бы гадать, что пришло.
+   */
+  apiError: (e: unknown, fallback?: string, o?: Omit<ToastOptions, 'message' | 'variant'>) => void;
 }
 
 const ToastCtx = createContext<ToastApi | null>(null);
@@ -53,6 +68,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     success: (message, o) => push({ ...o, message, variant: 'success' }),
     error: (message, o) => push({ ...o, message, variant: 'error' }),
     info: (message, o) => push({ ...o, message, variant: 'info' }),
+    apiError: (e, fallback, o) => push({
+      ...o, message: apiError(e, fallback ?? 'Ошибка'), variant: 'error', traceId: traceIdOf(e),
+    }),
   }), [push]);
 
   return (
@@ -91,6 +109,14 @@ function ToastCard({ item, onRemove }: { item: ToastItem; onRemove: () => void }
     >
       <Icon size={18} className={`mt-0.5 shrink-0 ${VARIANT_ICON_COLOR[variant]}`} />
       <RT.Description className="flex-1 min-w-0 text-sm text-fg1">{item.message}</RT.Description>
+      {!item.action && item.traceId && (
+        <RT.Action altText="Сообщить об ошибке" asChild
+          onClick={() => openBugReport({ origin: 'toast', received: item.message })}>
+          <button type="button" className="shrink-0 text-sm font-medium text-brand hover:text-brand-hover transition-colors">
+            Сообщить
+          </button>
+        </RT.Action>
+      )}
       {item.action && (
         <RT.Action altText={item.action.label} asChild onClick={() => item.action!.onClick()}>
           <button type="button" className="shrink-0 text-sm font-medium text-brand hover:text-brand-hover transition-colors">
