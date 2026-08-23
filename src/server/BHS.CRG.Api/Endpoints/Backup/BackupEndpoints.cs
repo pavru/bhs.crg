@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Jobs;
@@ -19,8 +20,13 @@ public static class BackupEndpoints
         // Вес копии и предел, на котором откажет ЗАГРУЗКА через браузер, — одним ответом (issue #711).
         // Считается по требованию: раздел настроек свёрнут по умолчанию, и запрос уходит, когда его
         // раскрыли, а не при каждой загрузке страницы.
-        g.MapGet("/size", async (BackupService svc, BackupSizeLimits limits, CancellationToken ct) =>
-            Results.Ok(await svc.EstimateSizeAsync(limits.ArchiveBytes, ct)));
+        g.MapGet("/size", async (
+                string? scope, BackupService svc, BackupSizeLimits limits, CancellationToken ct) =>
+            Results.Ok(await svc.EstimateSizeAsync(
+                limits.ArchiveBytes,
+                string.Equals(scope, "Full", StringComparison.OrdinalIgnoreCase)
+                    ? BackupScope.Full : BackupScope.Configuration,
+                ct)));
 
         // ── Каталог копий на сервере (issue #831) ─────────────────────────────
 
@@ -84,8 +90,12 @@ public static class BackupEndpoints
         // Снятие копии — фоновой задачей: минуты чтения базы и перекачки сканов, HTTP-запрос столько
         // не живёт. Предел числа копий проверяем ЗДЕСЬ, чтобы отказ пришёл ответом на нажатие
         // кнопки, а не уведомлением через минуту; в самой задаче он проверяется ещё раз.
+        // Состав копии — параметром запроса (issue #833): «конфигурация» или «конфигурация плюс
+        // проектные данные». Умолчание — конфигурация: копия, которая внезапно оказалась в разы
+        // тяжелее ожидаемой, хуже, чем копия, состав которой видно в списке и можно снять заново.
         g.MapPost("/files", async (
-            BackupFileStore store, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
+            string? scope, BackupFileStore store, IJobService jobs, ClaimsPrincipal user,
+            CancellationToken ct) =>
         {
             // Одна копия за раз, и проверка — по ВИДУ задачи, а не по владельцу: список активных
             // задач у каждого свой, поэтому второй администратор о снятии, начатом первым, не
@@ -102,9 +112,12 @@ public static class BackupEndpoints
                             "список копий обновится сам."
                 });
 
+            var full = string.Equals(scope, "Full", StringComparison.OrdinalIgnoreCase);
             store.EnsureRoomForNewCopy();
             var jobId = await jobs.EnqueueAsync(
-                JobKind.CreateBackup, UserId(user), Guid.Empty, "Резервное копирование", null, ct);
+                JobKind.CreateBackup, UserId(user), Guid.Empty,
+                full ? "Резервное копирование (полное)" : "Резервное копирование",
+                full ? "{\"scope\":\"Full\"}" : null, ct);
             return Results.Accepted("/api/jobs/active", new { jobId });
         });
 

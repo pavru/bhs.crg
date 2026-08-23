@@ -45,6 +45,16 @@ public class MaterialQualityLink : Entity
             QualityDocumentId = qualityDocumentId,
         };
 
+    /// <summary>Восстановление из резервной копии (issue #833).</summary>
+    public static MaterialQualityLink Restore(Guid id, CatalogScope scope, Guid? scopeId, string materialKey,
+        string? materialLabel, Guid qualityDocumentId, DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        => new()
+        {
+            Id = id, Scope = scope, ScopeId = scopeId, MaterialKey = materialKey,
+            MaterialLabel = Trim(materialLabel), QualityDocumentId = qualityDocumentId,
+            CreatedAt = createdAt, UpdatedAt = updatedAt,
+        };
+
     public void Retarget(Guid qualityDocumentId)
     {
         QualityDocumentId = qualityDocumentId;

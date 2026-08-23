@@ -136,6 +136,32 @@ public class DataSetSource : Entity
             CachedData = cachedData,
         };
 
+    /// <summary>
+    /// Восстановление из резервной копии (issue #833) — со ВСЕМ разбором, включая кэш данных.
+    ///
+    /// Кэш переносится не для скорости: восстановление не запускает разборщики и не распознаёт
+    /// сканы заново, поэтому источник без кэша приехал бы пустым — с файлом в хранилище и без
+    /// единой строки. Это и есть главная причина, по которой копия с проектными данными тяжелее
+    /// конфигурационной.
+    /// </summary>
+    public static DataSetSource Restore(Guid id, Guid fileId, string name, string sheetOrPath,
+        string? columnExpressions, string cachedSchema, int cachedRowCount, string? cachedData,
+        string? tags, string? rowFilter, string? computedColumns, string? sortSpec,
+        DataSetStaleReason? staleReason, Guid? materializeTypeId, string? materializeMapping,
+        string? materializeDiscriminator, string? materializeByIdColumn,
+        DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        => new()
+        {
+            Id = id, FileId = fileId, Name = name, SheetOrPath = sheetOrPath,
+            ColumnExpressions = columnExpressions, CachedSchema = cachedSchema,
+            CachedRowCount = cachedRowCount, CachedData = cachedData, Tags = tags,
+            RowFilter = rowFilter, ComputedColumns = computedColumns, SortSpec = sortSpec,
+            StaleReason = staleReason, MaterializeTypeId = materializeTypeId,
+            MaterializeMapping = materializeMapping, MaterializeDiscriminator = materializeDiscriminator,
+            MaterializeByIdColumn = materializeByIdColumn,
+            CreatedAt = createdAt, UpdatedAt = updatedAt,
+        };
+
     public void UpdateCache(string cachedSchema, int cachedRowCount, string? cachedData = null)
     {
         CachedSchema = cachedSchema;

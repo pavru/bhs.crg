@@ -1051,17 +1051,364 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
             actualBytes = zipStream.Length;
         }
 
-        Assert.Equal(2, estimate.BlobCount);
-        Assert.Equal(0, estimate.MissingBlobCount);
+        // Сверяем КОНФИГУРАЦИОННЫЙ состав: именно его и снял ExportAsync выше (issue #833).
+        var config = estimate.Variant;
+        Assert.Equal(2, config.BlobCount);
+        Assert.Equal(0, config.MissingBlobCount);
         // Блобы лежат в архиве как есть — их вклад точен, а не приближён.
-        Assert.Equal(scanBytes.LongLength + AssetBytes.LongLength, estimate.BlobBytes);
-        Assert.False(estimate.ExceedsLimit);
+        Assert.Equal(scanBytes.LongLength + AssetBytes.LongLength, config.BlobBytes);
+        Assert.False(config.TotalBytes > estimate.LimitBytes);
 
         // Расхождение — считаные байты: заголовки zip считаются по длине имени, а не круглой
         // константой (круглая занижала оценку на рабочей базе почти на 6 КБ).
-        var diff = Math.Abs(estimate.TotalBytes - actualBytes);
+        var diff = Math.Abs(config.TotalBytes - actualBytes);
         Assert.True(diff < 256,
-            $"оценка {estimate.TotalBytes} против архива {actualBytes} (разница {diff} байт)");
+            $"оценка {config.TotalBytes} против архива {actualBytes} (разница {diff} байт)");
+    }
+
+    // ── Проектные данные (issue #833) ─────────────────────────────────────────
+
+    /// <summary>
+    /// Полная копия переносит проектную работу: стройку с разделом и комплектом, документ комплекта
+    /// со статусом и выпущенным файлом, набор данных с разобранным источником и привязкой.
+    ///
+    /// Ради этого issue и заведён: переезд dev → рабочий сервер не восстановил ни одной стройки, а
+    /// записи общих данных «относились к стройкам, которых нет». Проверяем именно переезд: снять,
+    /// стереть всё, восстановить — и увидеть работающую систему, а не набор карточек.
+    /// </summary>
+    [Fact]
+    public async Task FullBackup_RoundTrips_ProjectData()
+    {
+        var typeId = Guid.NewGuid();
+        var constructionId = Guid.NewGuid();
+        var sectionId = Guid.NewGuid();
+        var setId = Guid.NewGuid();
+        var docId = Guid.NewGuid();
+        var fileId = Guid.NewGuid();
+        var sourceId = Guid.NewGuid();
+        const string pdfPath = "generated/act-1.pdf";
+        const string rawPath = "datasets/kabelnyy-zhurnal.xlsx";
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var blob = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
+
+            db.DocumentTypes.Add(DocumentType.Restore(
+                typeId, "АОСР", $"aosr-{Guid.NewGuid():N}", DocumentTypeKind.Document, null,
+                JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
+                false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+
+            db.Constructions.Add(Construction.Restore(constructionId, "ЖК Северный", Guid.NewGuid(), null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            db.Sections.Add(Section.Restore(sectionId, constructionId, "ЭОМ", null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            db.DocumentSets.Add(DocumentSet.Restore(setId, sectionId, "Комплект 1", null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+
+            var doc = DomainObject.RestoreDocument(
+                docId, typeId, "АОСР № 1", JsonDocument.Parse("""{"Номер":"1"}"""), setId,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, ["акт номер один"],
+                DocumentStatus.Generated, sortOrder: 3, templateId: null, templateIds: null,
+                templateParams: null, pluginData: JsonDocument.Parse("{}"));
+            db.DomainObjects.Add(doc);
+            await db.SaveChangesAsync();
+
+            await blob.PutAsync(pdfPath, new MemoryStream([9, 9, 9]), "application/pdf", default);
+            db.GeneratedFiles.Add(GeneratedFile.Restore(Guid.NewGuid(), docId, OutputFormat.Pdf, pdfPath,
+                null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+
+            await blob.PutAsync(rawPath, new MemoryStream([7, 7]), "application/octet-stream", default);
+            db.DataSetFiles.Add(DataSetFile.Restore(fileId, "Кабельный журнал", DataSetFormat.Xlsx, rawPath,
+                CatalogScope.Set, setId, null, null, null, null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            db.DataSetSources.Add(DataSetSource.Restore(sourceId, fileId, "Лист1", "Лист1", null,
+                """[{"name":"Марка"}]""", 2, """[{"Марка":"ВВГнг"}]""", null, null, null, null,
+                null, null, null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+
+            db.DataSetBindings.Add(DataSetBinding.Restore(Guid.NewGuid(), docId, sourceId, "таблица",
+                """{"Марка":"Марка"}""", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        // ── Снимаем ПОЛНУЮ копию ──────────────────────────────────────────────
+        byte[] zipBytes;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var (zip, _) = await Backup(scope).ExportAsync(BackupScope.Full);
+            await using var _zipHandle = zip;
+            using var ms = new MemoryStream();
+            await zip.CopyToAsync(ms);
+            zipBytes = ms.ToArray();
+        }
+
+        // Сырьё наборов и выпущенные PDF обязаны лежать в архиве: без них восстановленная система
+        // покажет карточки без содержимого.
+        using (var check = new ZipArchive(new MemoryStream(zipBytes), ZipArchiveMode.Read))
+        {
+            Assert.Contains(check.Entries, e => e.FullName == $"blobs/{pdfPath}");
+            Assert.Contains(check.Entries, e => e.FullName == $"blobs/{rawPath}");
+        }
+
+        // ── Чистая установка ──────────────────────────────────────────────────
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var blob = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
+            await blob.DeleteAsync(pdfPath);
+            await blob.DeleteAsync(rawPath);
+        }
+        await fixture.ResetDatabaseAsync();
+
+        // ── Восстанавливаем ───────────────────────────────────────────────────
+        RestoreReport report;
+        using (var scope = fixture.Services.CreateScope())
+            report = await Backup(scope).ImportAsync(new MemoryStream(zipBytes));
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            Assert.Equal("ЖК Северный", (await db.Constructions.FindAsync(constructionId))!.Name);
+            Assert.Equal(constructionId, (await db.Sections.FindAsync(sectionId))!.ConstructionId);
+            Assert.Equal(sectionId, (await db.DocumentSets.FindAsync(setId))!.SectionId);
+
+            // Документ — именно документ: фасета на месте, со статусом и порядком.
+            var doc = await db.DomainObjects.Include(o => o.Facet).FirstAsync(o => o.Id == docId);
+            Assert.NotNull(doc.Facet);
+            Assert.Equal(DocumentStatus.Generated, doc.Facet!.Status);
+            Assert.Equal(3, doc.Facet.SortOrder);
+            Assert.Equal(setId, doc.ScopeId);
+            Assert.Equal(["акт номер один"], doc.Aliases);
+
+            Assert.Equal(pdfPath, (await db.GeneratedFiles.FirstAsync(f => f.ObjectId == docId)).BlobPath);
+
+            // Источник восстановлен С КЭШЕМ: без него набор приехал бы пустым — файл есть, строк нет.
+            var source = await db.DataSetSources.FirstAsync(x => x.Id == sourceId);
+            Assert.Equal(2, source.CachedRowCount);
+            Assert.Contains("ВВГнг", source.CachedData);
+            Assert.Equal(fileId, source.FileId);
+
+            var binding = await db.DataSetBindings.FirstAsync(b => b.OwnerId == docId);
+            Assert.Equal(sourceId, binding.SourceId);
+
+            // Файлы вернулись в хранилище — иначе PDF документа и сырьё набора были бы битыми ссылками.
+            var blob = scope.ServiceProvider.GetRequiredService<IBlobStorage>();
+            Assert.NotNull(await blob.GetSizeAsync(pdfPath));
+            Assert.NotNull(await blob.GetSizeAsync(rawPath));
+        }
+    }
+
+    /// <summary>
+    /// Восстановление НА ЖИВУЮ систему, где тот же материал уже связан своей строкой.
+    ///
+    /// У связок есть уникальный индекс по (уровень, носитель, ключ материала), а идентификаторы у
+    /// двух систем свои. Раскладывай мы связки по одному лишь Id — вставка упёрлась бы в него, и
+    /// это не «пропустим одну строку»: 23505 откатывает ВСЮ транзакцию восстановления, то есть
+    /// администратор получает пустую систему и сообщение про нарушение ограничения. Проверяем
+    /// именно этот путь: копия одной установки поверх работающей другой.
+    /// </summary>
+    [Fact]
+    public async Task FullBackup_RestoresOntoLiveSystem_WithSameMaterialLinkedById()
+    {
+        var typeId = Guid.NewGuid();
+        var constructionId = Guid.NewGuid();
+        var sectionId = Guid.NewGuid();
+        var setId = Guid.NewGuid();
+        var qualityDocId = Guid.NewGuid();
+        var sourceLinkId = Guid.NewGuid();
+        const string materialKey = "кабель ВВГнг 3х2,5";
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.DocumentTypes.Add(DocumentType.Restore(
+                typeId, "Сертификат", $"cert-{Guid.NewGuid():N}", DocumentTypeKind.Document, null,
+                JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
+                false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+            db.Constructions.Add(Construction.Restore(constructionId, "Стройка", Guid.NewGuid(), null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            db.Sections.Add(Section.Restore(sectionId, constructionId, "Раздел", null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            db.DocumentSets.Add(DocumentSet.Restore(setId, sectionId, "Комплект", null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            db.QualityDocuments.Add(QualityDocument.Restore(
+                qualityDocId, typeId, "Сертификат на кабель", JsonDocument.Parse("{}"),
+                CatalogScope.System, null, QualityDocSource.Manual, null, null, null, null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+
+            db.MaterialQualityLinks.Add(MaterialQualityLink.Restore(
+                sourceLinkId, CatalogScope.Set, setId, materialKey, "Кабель", qualityDocId,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        byte[] zipBytes;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var (zip, _) = await Backup(scope).ExportAsync(BackupScope.Full);
+            await using var _zipHandle = zip;
+            using var ms = new MemoryStream();
+            await zip.CopyToAsync(ms);
+            zipBytes = ms.ToArray();
+        }
+
+        // Целевая система: тот же материал в том же комплекте связан ДРУГОЙ строкой — так и
+        // выглядит установка, которая жила своей жизнью.
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.MaterialQualityLinks.RemoveRange(db.MaterialQualityLinks);
+            await db.SaveChangesAsync();
+            db.MaterialQualityLinks.Add(MaterialQualityLink.Restore(
+                Guid.NewGuid(), CatalogScope.Set, setId, materialKey, "Кабель (местная связка)",
+                qualityDocId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        RestoreReport report;
+        using (var scope = fixture.Services.CreateScope())
+            report = await Backup(scope).ImportAsync(new MemoryStream(zipBytes));
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var links = await db.MaterialQualityLinks
+                .Where(l => l.ScopeId == setId && l.MaterialKey == materialKey).ToListAsync();
+            // Ровно одна связка: копия поправила ту, что была, а не завела вторую на тот же материал.
+            var link = Assert.Single(links);
+            Assert.Equal(qualityDocId, link.QualityDocumentId);
+        }
+    }
+
+    /// <summary>
+    /// Конфигурационная копия проектных данных НЕ несёт — она осталась ровно тем, чем была.
+    /// Проверяем негативом: иначе выбор состава был бы украшением, а установка, которой нужна
+    /// лёгкая копия, молча получала бы гигабайты.
+    /// </summary>
+    [Fact]
+    public async Task ConfigurationBackup_LeavesProjectDataOut()
+    {
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Constructions.Add(Construction.Restore(Guid.NewGuid(), "ЖК Южный", Guid.NewGuid(), null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        byte[] zipBytes;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var (zip, _) = await Backup(scope).ExportAsync(BackupScope.Configuration);
+            await using var _zipHandle = zip;
+            using var ms = new MemoryStream();
+            await zip.CopyToAsync(ms);
+            zipBytes = ms.ToArray();
+        }
+
+        await fixture.ResetDatabaseAsync();
+        using (var scope = fixture.Services.CreateScope())
+            await Backup(scope).ImportAsync(new MemoryStream(zipBytes));
+
+        using (var scope = fixture.Services.CreateScope())
+            Assert.Empty(await scope.ServiceProvider.GetRequiredService<AppDbContext>()
+                .Constructions.ToListAsync());
+    }
+
+    /// <summary>
+    /// Файл, которого нет в хранилище, попадает в ПАСПОРТ копии — а не только в журнал сервера.
+    ///
+    /// Поле «что пропущено» заведено затем, чтобы узнать о пропаже при снятии копии, а не при
+    /// восстановлении, то есть не после аварии. До issue #833 паспорт писался ДО прогона по
+    /// блобам и рассказать об этом не мог по устройству.
+    /// </summary>
+    [Fact]
+    public async Task Export_RecordsMissingBlobsInPassport()
+    {
+        var docTypeId = Guid.NewGuid();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.DocumentTypes.Add(DocumentType.Restore(
+                docTypeId, "Сертификат", $"cert-{Guid.NewGuid():N}", DocumentTypeKind.Document, null,
+                JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
+                false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+            db.QualityDocuments.Add(QualityDocument.Restore(
+                Guid.NewGuid(), docTypeId, "Сертификат без скана", JsonDocument.Parse("{}"),
+                CatalogScope.System, null, QualityDocSource.Manual, null,
+                "quality/2026/потерян.pdf", "потерян.pdf", "application/pdf",
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        byte[] zipBytes;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var (zip, _) = await Backup(scope).ExportAsync();
+            await using var _zipHandle = zip;
+            using var ms = new MemoryStream();
+            await zip.CopyToAsync(ms);
+            zipBytes = ms.ToArray();
+        }
+
+        using var check = new ZipArchive(new MemoryStream(zipBytes), ZipArchiveMode.Read);
+        await using var entry = check.GetEntry("summary.json")!.Open();
+        // Разбираем JSON, а не ищем подстроку: кириллица в паспорте экранируется (\uXXXX), и
+        // поиск по тексту не нашёл бы даже то, что там есть.
+        var passport = await JsonSerializer.DeserializeAsync<BackupSummary>(
+            entry, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Contains(passport!.Warnings!, w => w.Contains("не оказалось в хранилище"));
+    }
+
+    /// <summary>
+    /// Копия, снятая ДО issue #833, восстанавливается как прежде: новых секций в ней нет, и
+    /// отсутствие их — не отказ. Ради этого секции и добавлены аддитивно, без смены версии схемы.
+    /// </summary>
+    [Fact]
+    public async Task OldBackupWithoutProjectSections_StillRestores()
+    {
+        var typeId = Guid.NewGuid();
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.DocumentTypes.Add(DocumentType.Restore(
+                typeId, "Старый тип", $"old-{Guid.NewGuid():N}", DocumentTypeKind.Document, null,
+                JsonDocument.Parse("""{"fields":[]}"""), JsonDocument.Parse("{}"),
+                false, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+            await db.SaveChangesAsync();
+        }
+
+        // Архив без единой новой секции — ровно то, что писала версия до #833.
+        byte[] zipBytes;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var (zip, _) = await Backup(scope).ExportAsync();
+            await using var _zipHandle = zip;
+            using var ms = new MemoryStream();
+            await zip.CopyToAsync(ms);
+            zipBytes = ms.ToArray();
+        }
+        using (var check = new ZipArchive(new MemoryStream(zipBytes), ZipArchiveMode.Read))
+        {
+            using var reader = new StreamReader(check.GetEntry("manifest.json")!.Open());
+            var json = await reader.ReadToEndAsync();
+            Assert.Contains("\"Constructions\": null", json);
+        }
+
+        await fixture.ResetDatabaseAsync();
+        RestoreReport report;
+        using (var scope = fixture.Services.CreateScope())
+            report = await Backup(scope).ImportAsync(new MemoryStream(zipBytes));
+
+        Assert.True(report.Success);
+        Assert.Null(report.ProjectSections);
+        Assert.Equal(1, report.DocumentTypesCreated);
     }
 
     /// <summary>
@@ -1091,9 +1438,9 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using var estimateScope = fixture.Services.CreateScope();
         var estimate = await Backup(estimateScope).EstimateSizeAsync(limitBytes: 500L * 1024 * 1024);
 
-        Assert.Equal(1, estimate.BlobCount);
-        Assert.Equal(1, estimate.MissingBlobCount);
-        Assert.Equal(0, estimate.BlobBytes);
+        Assert.Equal(1, estimate.Variant.BlobCount);
+        Assert.Equal(1, estimate.Variant.MissingBlobCount);
+        Assert.Equal(0, estimate.Variant.BlobBytes);
     }
 
     /// <summary>
@@ -1107,7 +1454,7 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
         using var scope = fixture.Services.CreateScope();
         var estimate = await Backup(scope).EstimateSizeAsync(limitBytes: 1);
 
-        Assert.True(estimate.TotalBytes > 1);
-        Assert.True(estimate.ExceedsLimit);
+        Assert.True(estimate.Variant.TotalBytes > 1);
+        Assert.True(estimate.Variant.TotalBytes > estimate.LimitBytes);
     }
 }

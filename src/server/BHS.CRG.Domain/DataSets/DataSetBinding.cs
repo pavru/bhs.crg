@@ -36,6 +36,15 @@ public class DataSetBinding : Entity
             Mapping = mapping,
         };
 
+    /// <summary>Восстановление из резервной копии (issue #833).</summary>
+    public static DataSetBinding Restore(Guid id, Guid ownerId, Guid sourceId, string? targetFieldKey,
+        string mapping, DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        => new()
+        {
+            Id = id, OwnerId = ownerId, SourceId = sourceId, TargetFieldKey = targetFieldKey,
+            Mapping = mapping, CreatedAt = createdAt, UpdatedAt = updatedAt,
+        };
+
     public void Update(string? targetFieldKey, string mapping)
     {
         TargetFieldKey = targetFieldKey;

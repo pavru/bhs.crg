@@ -15,7 +15,7 @@ import {
   useSaveBackupSchedule,
 } from '@/shared/api/backup';
 import type {
-  BackupFileInfo, BackupScheduleSettings, BackupScheduleStatus, RestoreReport,
+  BackupFileInfo, BackupScheduleSettings, BackupScheduleStatus, BackupScope, RestoreReport,
 } from '@/shared/api/types';
 import { formatDate, useLocale } from '@/shared/hooks/useLocale';
 import { CollapsibleSection } from './CollapsibleSection';
@@ -33,14 +33,15 @@ export function BackupSection() {
   return (
     <CollapsibleSection title="Резервное копирование" storageKey="backup" defaultOpen={false}>
       <p className="text-xs text-fg3">
-        Копия конфигурационная: типы документов, шаблоны и их ассеты, справочники, общие данные,
-        библиотека Typst, профили распознавания, шаблоны маппинга и рецепты обработки источников,
-        подтверждённые алиасы сверки, прикреплённые файлы и изображения. Отдельно — библиотека
-        документов качества <b>вместе со сканами</b>: она и задаёт вес копии. Проектная работа —
-        стройки, разделы, комплекты, документы и выпущенные файлы — не включается, как и ключи
-        интеграций и определения сверок.
+        <b>Настройка системы</b> — типы документов, шаблоны и их ассеты, справочники, общие данные,
+        библиотека Typst, профили распознавания, шаблоны маппинга и рецепты обработки, алиасы
+        сверки — входит в копию всегда, вместе с библиотекой документов качества и сканами.
+        {' '}<b>Проектная работа</b> — стройки, разделы, комплекты, документы с выпущенными файлами,
+        наборы данных с разобранными источниками, сверки и связки с материалами — входит в
+        <b> полную</b> копию: ею переезжают на другой сервер и восстанавливаются после сбоя.
+        Не входит ни в какую: учётные записи, ключи интеграций и результаты прогонов (сверок,
+        проверок) — они пересчитываются.
       </p>
-      <BackupSizeLine />
       <BackupFilesPanel />
     </CollapsibleSection>
   );
@@ -49,19 +50,19 @@ export function BackupSection() {
 // ─── Вес копии против предела загрузки через браузер ──────────────────────────
 
 /**
- * Сколько весит копия и на каком пороге её откажется принять ЗАГРУЗКА через браузер (issue #711).
+ * Сколько весит копия ВЫБРАННОГО состава и на каком пороге её откажется принять ЗАГРУЗКА через
+ * браузер (issue #711, #833).
  *
- * С появлением каталога на сервере (issue #831) это перестало быть приговором: копия сверх предела
- * снимается и восстанавливается по-прежнему — просто не через браузер. Поэтому и текст здесь
- * теперь называет путь, а не только беду.
+ * Считается по требованию и только для выбранного состава: полный манифест — это все объекты с их
+ * данными и все источники наборов вместе с разобранным кэшем, и держать его в памяти сервера ради
+ * строки на экране настроек можно лишь тогда, когда именно этот состав человек и выбрал.
  *
- * Запрос уходит только когда раздел раскрыт: CollapsibleSection не монтирует содержимое свёрнутого,
- * а оценка стоит построения манифеста и запроса размера на каждый файл.
+ * Запрос уходит только когда раздел раскрыт: CollapsibleSection не монтирует содержимое свёрнутого.
  */
-function BackupSizeLine() {
+function BackupSizeLine({ scope }: { scope: BackupScope }) {
   const { data, isPending, isError } = useQuery({
-    queryKey: ['backup', 'size'],
-    queryFn: fetchBackupSize,
+    queryKey: ['backup', 'size', scope],
+    queryFn: () => fetchBackupSize(scope),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
@@ -71,19 +72,37 @@ function BackupSizeLine() {
   // Молча ничего не показывать нельзя, но и мешать копированию нечем: кнопка работает и без оценки.
   if (isError || !data) return <p className="text-xs text-fg4">Размер копии оценить не удалось.</p>;
 
+  const variant = data.variant;
+  const exceedsUploadLimit = variant.totalBytes > data.limitBytes;
+
   return (
     <div className="space-y-1">
       <p className="text-xs text-fg3">
-        Размер копии ≈ <b>{formatBytes(data.totalBytes)}</b>
-        {data.blobCount > 0 && <> · файлов: {data.blobCount}</>}
-        {data.exceedsLimit && <> · через браузер такую не загрузить (предел {formatBytes(data.limitBytes)})</>}
+        Размер копии ≈ <b>{formatBytes(variant.totalBytes)}</b>
+        {variant.blobCount > 0 && <> · файлов: {variant.blobCount}</>}
       </p>
-      {data.missingBlobCount > 0 && (
+      {/*
+        Предел касается ТОЛЬКО браузерной загрузки: копия сверх него снимается и восстанавливается
+        по-прежнему — просто переносится файлом. Сказать об этом надо заранее: с полным составом
+        (умолчание) перерасти предел стало обычным делом, и узнать о нём при попытке загрузить
+        копию на новый сервер значит узнать в середине переезда.
+      */}
+      {exceedsUploadLimit && (
         <p className="text-xs text-warning flex items-start gap-1">
           <AlertTriangle size={13} className="shrink-0 mt-px" />
           <span>
-            Файлов нет в хранилище: {data.missingBlobCount}. В копию они не попадут — ссылки на них
-            останутся битыми и после восстановления.
+            Копия крупнее {formatBytes(data.limitBytes)} — через браузер её не загрузить. Для
+            переноса кладите файл в каталог на сервере (путь показан ниже); скачивать и загружать
+            такую копию вкладкой браузера не стоит.
+          </span>
+        </p>
+      )}
+      {variant.missingBlobCount > 0 && (
+        <p className="text-xs text-warning flex items-start gap-1">
+          <AlertTriangle size={13} className="shrink-0 mt-px" />
+          <span>
+            Файлов нет в хранилище: {variant.missingBlobCount}. В копию они не попадут — ссылки на
+            них останутся битыми и после восстановления.
           </span>
         </p>
       )}
@@ -215,6 +234,9 @@ function BackupFilesPanel() {
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
+  // Умолчание — полная копия (issue #833): за копией приходят ради восстановления и переезда, а
+  // не ради страховки одной настройки. Кто хочет лёгкую — выбирает её осознанно.
+  const [scope, setScope] = useState<BackupScope>('Full');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<BackupFileInfo | null>(null);
   const [toRestore, setToRestore] = useState<BackupFileInfo | null>(null);
@@ -235,7 +257,7 @@ function BackupFilesPanel() {
 
   async function handleCreate() {
     setError('');
-    try { await create.mutateAsync(); }
+    try { await create.mutateAsync(scope); }
     catch (e) { setError(apiError(e, 'Не удалось поставить копирование в очередь.')); }
   }
 
@@ -302,6 +324,20 @@ function BackupFilesPanel() {
     <div className="space-y-3">
       {data && <ScheduleForm status={data.schedule} />}
 
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <span className="text-fg3 text-xs">Что включать:</span>
+        {([['Full', 'настройку и проектные данные'], ['Configuration', 'только настройку']] as const)
+          .map(([value, label]) => (
+            <label key={value} className="flex items-center gap-1.5 text-xs text-fg2">
+              <input type="radio" name="backup-scope" checked={scope === value}
+                onChange={() => setScope(value)} disabled={busy} />
+              {label}
+            </label>
+          ))}
+      </div>
+
+      <BackupSizeLine scope={scope} />
+
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="filled" onClick={handleCreate} disabled={busy || create.isPending || full}>
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
@@ -360,6 +396,9 @@ function BackupFilesPanel() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-fg1 truncate">
                     {f.fileName}
+                    <span className="ml-2 text-[11px] text-fg4 font-normal">
+                      {f.includesProjectData ? 'полная' : 'настройка'}
+                    </span>
                     {scheduled.has(f.fileName) && (
                       <span className="ml-2 text-[11px] text-fg4 font-normal" title="Снята расписанием — попадает под уборку старых">
                         плановая
@@ -380,6 +419,13 @@ function BackupFilesPanel() {
                       <AlertTriangle size={12} className="shrink-0 mt-px" /> <span>{f.problem}</span>
                     </p>
                   )}
+                  {/* Пропущенное при СНЯТИИ копии — здесь, а не только в журнале: узнать об этом
+                      при восстановлении значит узнать после аварии. */}
+                  {f.warnings?.map((w, i) => (
+                    <p key={i} className="text-xs text-warning flex items-start gap-1 mt-0.5">
+                      <AlertTriangle size={12} className="shrink-0 mt-px" /> <span>{w}</span>
+                    </p>
+                  ))}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <IconAction title="Скачать" onClick={() => handleDownload(f)}
@@ -454,6 +500,8 @@ function BackupFilesPanel() {
               <b>{toRestore?.fileName}</b>
               {toRestore?.appVersion && <> · снята версией v{toRestore.appVersion}</>}
               {toRestore && <> · {formatBytes(toRestore.sizeBytes)}</>}
+              {toRestore && <> · {toRestore.includesProjectData
+                ? 'настройка и проектные данные' : 'только настройка'}</>}
             </p>
             <p>
               Записи с совпадающими идентификаторами будут обновлены, отсутствующие — добавлены,
@@ -580,6 +628,11 @@ function RestoreResultModal({ report, onClose }: { report: RestoreReport; onClos
                   created={report.dataSetProcessingTemplatesCreated ?? 0} updated={report.dataSetProcessingTemplatesUpdated ?? 0} />
                 <StatRow label="Документы качества"
                   created={report.qualityDocumentsCreated ?? 0} updated={report.qualityDocumentsUpdated ?? 0} />
+                {/* Проектные секции приходят списком (issue #833): их много, и заводить пару полей
+                    на каждую значило бы править тип, таблицу и сервер ради каждой новой. */}
+                {report.projectSections?.map(sec => (
+                  <StatRow key={sec.label} label={sec.label} created={sec.created} updated={sec.updated} />
+                ))}
               </tbody>
             </table>
             {report.typstUserLibRestored && (

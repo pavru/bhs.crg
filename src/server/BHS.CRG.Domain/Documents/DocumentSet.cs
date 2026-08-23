@@ -20,5 +20,14 @@ public class DocumentSet : Entity
     public static DocumentSet Create(Guid sectionId, string name)
         => new() { SectionId = sectionId, Name = name };
 
+    /// <summary>Восстановление из резервной копии (issue #833).</summary>
+    public static DocumentSet Restore(Guid id, Guid sectionId, string name, Guid? profileObjectId,
+        DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        => new()
+        {
+            Id = id, SectionId = sectionId, Name = name, ProfileObjectId = profileObjectId,
+            CreatedAt = createdAt, UpdatedAt = updatedAt,
+        };
+
     public void Rename(string name) { Name = name; TouchUpdatedAt(); }
 }

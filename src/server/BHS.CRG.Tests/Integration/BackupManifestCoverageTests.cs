@@ -39,15 +39,11 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
     /// </summary>
     private static readonly Dictionary<string, string> DeliberatelyExcluded = new()
     {
-        // ── Проектные данные: копия переносит конфигурацию системы, а не работу по объекту ──
-        ["Construction"] = "проектные данные: стройка",
-        ["Section"] = "проектные данные: раздел",
-        ["DocumentSet"] = "проектные данные: комплект",
-        // Сам DomainObject покрыт (общие данные); документы отличаются наличием фасеты, и в копию
-        // не идут — экспорт отбирает Facet == null.
-        ["DocumentFacet"] = "проектные данные: документная фасета (она и отличает документ)",
-        ["GeneratedFile"] = "проектные данные: выпущенные файлы",
-        ["DocumentSetOutput"] = "проектные данные: сборка комплекта",
+        // ── Проектные данные ──
+        // С issue #833 стройки, разделы, комплекты, документы с фасетой и выпущенными файлами,
+        // наборы данных, сверки и связки с материалами В КОПИЮ ВХОДЯТ — но только в полную. Здесь
+        // остаётся то, что не входит ни в какую.
+        ["DocumentSetOutput"] = "сборка комплекта — производное от документов, пересобирается кнопкой",
 
         // След работы фоновой службы, а не пользовательские данные (issue #813): «о какой версии
         // уже уведомили» и «когда удачно проверяли». Восстановленный на другой машине, он ввёл бы
@@ -55,28 +51,19 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         // проверкой. Настройка (включена ли проверка) в копию идёт — она в IntegrationSettings.
         ["ServiceStateEntity"] = "состояние службы: воссоздаётся само, переносить между установками нечего",
 
-        // ── Наборы данных: сырьё и его разбор, привязанные к проекту и к крупным блобам ──
-        ["DataSetFile"] = "сырьё набора данных: файл в хранилище, к конфигурации не относится",
-        ["DataSetSource"] = "разбор конкретного файла: без файла бессмыслен",
-        ["DataSetBinding"] = "привязка источника к конкретному экземпляру документа",
-
         // ── Документы качества ──
-        ["MaterialQualityLink"] = "связка документа качества с материалом проекта",
         ["QualityAuditRun"] = "результат прогона проверки, пересчитывается",
 
         // ── Сверка ──
-        // Решение по issue #687. Определение не «висит на объектах, которых в копии нет» — привязка
-        // сидит ГЛУБЖЕ, внутри самой спеки: ReconciliationSide.SourceId адресует DataSetSource по
-        // идентификатору, а идентификатор рождается при загрузке файла и на целевой системе не
-        // возникнет никогда. Прогон восстановленного определения падает сразу
-        // (ReconciliationRunner: «Источник … не найден»), то есть копия принесла бы заведомо мёртвый
-        // объект. Человеческое знание этой подсистемы в копии есть — это алиасы.
-        ["ReconciliationDefinition"] = "спека адресует источники по идентификатору: на целевой системе таких источников нет и не будет",
+        // Решение #687 («спека адресует источники по идентификатору, а их на целевой системе нет
+        // и не будет») отменено issue #833 — ровно тем, что источники теперь едут в той же копии и
+        // с теми же идентификаторами. Определения входят в полную копию.
         ["ReconciliationRun"] = "результат прогона, пересчитывается",
         ["ReconciliationFinding"] = "результат прогона, пересчитывается",
-        // Решение адресовано определением (issue #414), а определение в копию не идёт — значит и
-        // решение в отрыве не к чему приложить.
-        ["ReconciliationDecision"] = "адресовано определением сверки, которое в копию не входит",
+        // Решение человека по расхождению. Определение сверки теперь в копии есть (#833), но
+        // решение относится к КОНКРЕТНОМУ расхождению конкретного прогона, а прогоны не
+        // переносятся — приложить его на целевой системе не к чему.
+        ["ReconciliationDecision"] = "относится к расхождению конкретного прогона, а прогоны не переносятся",
         ["AgentObservation"] = "наблюдения агента по конкретному прогону",
 
         // ── Производное состояние ──
@@ -127,6 +114,20 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         ["ReconciliationAlias"] = nameof(BackupManifest.ReconciliationAliases),
         ["DataSetProcessingTemplate"] = nameof(BackupManifest.DataSetProcessingTemplates),
         ["QualityDocument"] = nameof(BackupManifest.QualityDocuments),
+        // Проектные данные (issue #833) — только в полной копии, но решение по ним принято, и
+        // секция в манифесте есть.
+        ["Construction"] = nameof(BackupManifest.Constructions),
+        ["Section"] = nameof(BackupManifest.Sections),
+        ["DocumentSet"] = nameof(BackupManifest.DocumentSets),
+        // Документы и их фасета едут одной записью: фасета и есть то, чем документ отличается от
+        // записи общих данных, и разъехаться им нельзя.
+        ["DocumentFacet"] = nameof(BackupManifest.Documents),
+        ["GeneratedFile"] = nameof(BackupManifest.Documents),
+        ["DataSetFile"] = nameof(BackupManifest.DataSetFiles),
+        ["DataSetSource"] = nameof(BackupManifest.DataSetSources),
+        ["DataSetBinding"] = nameof(BackupManifest.DataSetBindings),
+        ["ReconciliationDefinition"] = nameof(BackupManifest.Reconciliations),
+        ["MaterialQualityLink"] = nameof(BackupManifest.MaterialQualityLinks),
     };
 
     [Fact]
@@ -200,7 +201,7 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
             var (zipStream, _) = await new BackupService(
                 scope.ServiceProvider.GetRequiredService<AppDbContext>(),
                 scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
-                NullLogger<BackupService>.Instance).ExportAsync();
+                NullLogger<BackupService>.Instance).ExportAsync(BackupScope.Full);
 
             await using var _zipHandle = zipStream;
             using var zip = new ZipArchive(zipStream, ZipArchiveMode.Read);
@@ -290,6 +291,41 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
             $"key-{Guid.NewGuid():N}", "Вариант", $"canon-{Guid.NewGuid():N}", "Канон", null, "человек");
         alias.Review(AliasStatus.Confirmed, null, "человек");
         db.ReconciliationAliases.Add(alias);
+
+        // ── Проектные данные (issue #833) ────────────────────────────────────
+        var constructionId = Guid.NewGuid();
+        var sectionId = Guid.NewGuid();
+        var setId = Guid.NewGuid();
+        var documentId = Guid.NewGuid();
+        var dataSetFileId = Guid.NewGuid();
+        var sourceId = Guid.NewGuid();
+
+        db.Constructions.Add(Construction.Restore(constructionId, "Стройка покрытия", Guid.NewGuid(), null, now, now));
+        db.Sections.Add(Section.Restore(sectionId, constructionId, "Раздел", null, now, now));
+        db.DocumentSets.Add(DocumentSet.Restore(setId, sectionId, "Комплект", null, now, now));
+        db.DomainObjects.Add(DomainObject.RestoreDocument(
+            documentId, docTypeId, "Документ покрытия", JsonDocument.Parse("{}"), setId, now, now, null,
+            DocumentStatus.Draft, 0, null, null, null, JsonDocument.Parse("{}")));
+
+        db.DataSetFiles.Add(DataSetFile.Restore(dataSetFileId, "Набор", DataSetFormat.Xlsx,
+            "datasets/coverage.xlsx", CatalogScope.Set, setId, null, null, null, null, now, now));
+        db.DataSetSources.Add(DataSetSource.Restore(sourceId, dataSetFileId, "Лист1", "Лист1", null,
+            "[]", 0, null, null, null, null, null, null, null, null, null, null, now, now));
+
+        db.Reconciliations.Add(ReconciliationDefinition.Restore(
+            Guid.NewGuid(), "Сверка покрытия", CatalogScope.Set, setId, JsonDocument.Parse("{}"), now, now));
+
+        await db.SaveChangesAsync();
+
+        // Файл документа и привязка — после сохранения владельцев: и то и другое адресует их
+        // внешним ключом.
+        await blob.PutAsync("generated/coverage.pdf", new MemoryStream([7, 8]), "application/pdf", default);
+        db.GeneratedFiles.Add(GeneratedFile.Restore(
+            Guid.NewGuid(), documentId, OutputFormat.Pdf, "generated/coverage.pdf", null, now, now));
+        db.DataSetBindings.Add(DataSetBinding.Restore(
+            Guid.NewGuid(), documentId, sourceId, null, "{}", now, now));
+        db.MaterialQualityLinks.Add(MaterialQualityLink.Restore(
+            Guid.NewGuid(), CatalogScope.Set, setId, "кабель ВВГнг", "Кабель", qualityDoc.Id, now, now));
 
         await db.SaveChangesAsync();
     }

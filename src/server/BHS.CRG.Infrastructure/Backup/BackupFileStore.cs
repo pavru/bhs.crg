@@ -273,7 +273,8 @@ public sealed class BackupFileStore(BackupStorageOptions options, ILogger<Backup
                 var summary = JsonSerializer.Deserialize<BackupSummary>(s, JsonOptions);
                 if (summary is not null)
                     return new BackupFileInfo(file.Name, file.Length, summary.CreatedAt,
-                        summary.AppVersion, summary.SchemaVersion, summary.BlobCount, summary.Sections, null);
+                        summary.AppVersion, summary.SchemaVersion, summary.BlobCount, summary.Sections,
+                        null, summary.IncludesProjectData, summary.Warnings);
             }
 
             // Паспорта нет. Это либо копия, снятая версией до issue #831, либо чужой zip. Разница

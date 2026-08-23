@@ -1,5 +1,22 @@
 namespace BHS.CRG.Application.Backup;
 
+/// <summary>
+/// Что кладём в копию (issue #833).
+///
+/// Различие не в объёме, а в назначении: <see cref="Configuration" /> — страховка настройки
+/// системы (то, чем копия была до #833), <see cref="Full" /> — переезд и восстановление после
+/// сбоя, ради которых эпик и заведён. Полная тяжелее в разы: в неё едут файлы наборов данных с
+/// разобранным кэшем и выпущенные PDF.
+/// </summary>
+public enum BackupScope
+{
+    /// <summary>Только настройка системы и справочники.</summary>
+    Configuration,
+
+    /// <summary>Настройка плюс проектная работа: стройки, комплекты, документы, наборы данных.</summary>
+    Full,
+}
+
 /// <summary>Раздел копии и число записей в нём — «состав» в списке копий.</summary>
 public sealed record BackupSectionCount(string Label, int Count);
 
@@ -20,7 +37,16 @@ public sealed record BackupSummary(
     string AppVersion,
     DateTimeOffset CreatedAt,
     int BlobCount,
-    IReadOnlyList<BackupSectionCount> Sections);
+    IReadOnlyList<BackupSectionCount> Sections,
+    /// <summary>Полная копия или только настройка (issue #833). У копий до 0.143.0 поля нет —
+    /// читается как <c>false</c>, что для них правда.</summary>
+    bool IncludesProjectData = false,
+    /// <summary>
+    /// Что экспорт пропустил и почему — например шаблоны, потерявшие свой тип документа. Список
+    /// живёт в паспорте, а не только в журнале: пропуск при снятии копии обнаруживается при
+    /// восстановлении, то есть после аварии, а прочитать его надо раньше.
+    /// </summary>
+    IReadOnlyList<string>? Warnings = null);
 
 /// <summary>
 /// Строка списка копий. <paramref name="Problem" /> — не техническая деталь, а единственный честный
@@ -35,4 +61,7 @@ public sealed record BackupFileInfo(
     int? SchemaVersion,
     int? BlobCount,
     IReadOnlyList<BackupSectionCount>? Sections,
-    string? Problem);
+    string? Problem,
+    /// <summary>Полная копия (с проектными данными) или только настройка — issue #833.</summary>
+    bool IncludesProjectData = false,
+    IReadOnlyList<string>? Warnings = null);
