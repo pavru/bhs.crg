@@ -92,6 +92,47 @@ public sealed class BackupFileStore(BackupStorageOptions options, ILogger<Backup
             "поднимите предел (BACKUP_KEEP_COUNT в deploy/.env), если места на диске хватает.");
     }
 
+    /// <summary>
+    /// Убрать плановые копии сверх <paramref name="keep" /> — самые старые (issue #832).
+    ///
+    /// Трогает ТОЛЬКО перечисленные в <paramref name="managed" />: то, что сняло расписание на этой
+    /// установке. Ручные и принесённые копии уборке не подлежат ни при каких обстоятельствах — их
+    /// клали осознанно, и молчаливое исчезновение такой копии хуже переполненного каталога.
+    ///
+    /// Самая новая плановая не удаляется никогда: <paramref name="keep" /> ниже единицы поднимается
+    /// до неё. Уборка вызывается в том числе ПЕРЕД снятием новой копии (иначе заполненный каталог
+    /// запирает расписание навсегда), и освобождать место ценой последней имеющейся копии нельзя.
+    /// </summary>
+    /// <returns>Имена удалённых файлов — вызывающий вычёркивает их из своего списка.</returns>
+    public IReadOnlyList<string> PruneScheduled(IReadOnlyCollection<string> managed, int keep)
+    {
+        if (managed.Count == 0) return [];
+        var known = new HashSet<string>(managed, StringComparer.OrdinalIgnoreCase);
+
+        var doomed = List()
+            .Where(f => known.Contains(f.FileName))
+            .Skip(Math.Max(keep, 1))
+            .Select(f => f.FileName)
+            .ToList();
+
+        var deleted = new List<string>();
+        foreach (var name in doomed)
+        {
+            try
+            {
+                Delete(name);
+                deleted.Add(name);
+            }
+            catch (Exception ex)
+            {
+                // Не смогли убрать одну — не повод бросать остальные и тем более не повод завалить
+                // само копирование: копия важнее уборки.
+                logger.LogWarning(ex, "Не удалось убрать плановую копию {FileName}", name);
+            }
+        }
+        return deleted;
+    }
+
     /// <summary>Открыть копию на чтение — для скачивания и для восстановления.</summary>
     public Stream OpenRead(string fileName)
     {

@@ -53,6 +53,13 @@ public class IntegrationSettingsService(
         await PersistRawAsync(raw, ct);
     }
 
+    public async Task SaveBackupScheduleAsync(BackupScheduleSettings backup, CancellationToken ct = default)
+    {
+        var raw = await LoadRawAsync(ct);
+        raw.Backup = backup;
+        await PersistRawAsync(raw, ct);
+    }
+
     /// <summary>
     /// Перешифровать секреты, оставшиеся открытыми от версий до 0.92.0. Вызывается один раз при
     /// старте (см. Program.cs). Сделано отдельным проходом, а не при чтении: запись на пути чтения
@@ -184,7 +191,13 @@ public class IntegrationSettingsService(
             // Эффективная модель собирается ПОЛЕ ЗА ПОЛЕМ, а не копированием: забудь здесь секцию —
             // и она молча вернётся к умолчанию. Для проверки обновлений это значило бы, что
             // выключатель сохраняется, показывается выключенным и при этом не действует.
+            //
+            // Предупреждение сработало ровно так, как обещало: расписание копирования (issue #832)
+            // приехало сюда без этой строки, сохранялось с ответом 204, показывалось сохранённым —
+            // и служба продолжала снимать копию в 03:00. Отсюда же тест
+            // EffectiveSettingsCoverageTests: правило, о котором можно забыть, обязано иметь сторожа.
             Updates = raw.Updates,
+            Backup = raw.Backup,
         };
 
         foreach (var name in RecNames) m.Recognition[name] = EffRec(name, raw);

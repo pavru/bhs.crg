@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { BackupFileInfo, BackupFilesResponse, BackupSizeEstimate, RestoreReport } from './types';
+import type {
+  BackupFileInfo, BackupFilesResponse, BackupScheduleSettings, BackupSizeEstimate, RestoreReport,
+} from './types';
 import type { ActiveJob } from './jobs';
 
 const FILES_KEY = ['backup', 'files'];
@@ -15,13 +17,25 @@ export async function fetchBackupSize(): Promise<BackupSizeEstimate> {
   return response.data;
 }
 
-/** Что лежит в каталоге копий на сервере (issue #831). */
+/**
+ * Что лежит в каталоге копий на сервере (issue #831).
+ *
+ * Опрашиваем ВСЕГДА, пока раздел раскрыт, а не только когда копия уже снимается. Разница не
+ * теоретическая: плановую задачу пилюля в шапке не показывает вовсе (список активных задач у
+ * каждого свой, а у плановой владельца нет), и признак «идёт копирование» приходит только этим
+ * ответом. Опрос, включающийся ПО признаку, не включился бы никогда — проверено живьём: плановая
+ * копия снялась, а экран об этом не узнал.
+ *
+ * Раздел свёрнут по умолчанию и содержимого не монтирует, так что опрос идёт только у того, кто
+ * на него смотрит; пока копия снимается — чаще, чтобы конец был виден сразу.
+ */
 export function useBackupFiles(enabled = true) {
   return useQuery({
     queryKey: FILES_KEY,
     queryFn: async () => (await apiClient.get<BackupFilesResponse>('/backup/files')).data,
     enabled,
-    refetchOnWindowFocus: false,
+    refetchInterval: q => (q.state.data?.schedule.running ? 3000 : 15000),
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -53,6 +67,18 @@ export function useBackupJob(): ActiveJob | undefined {
     refetchInterval: q => ((q.state.data?.length ?? 0) > 0 ? 2000 : 10000),
   });
   return (data ?? []).find(j => j.kind === 'CreateBackup');
+}
+
+/**
+ * Сохранить расписание. Отдельным вызовом, а не куском общих настроек: формы разделов не должны
+ * затирать друг друга (та же причина, что у почты и проверки обновлений).
+ */
+export function useSaveBackupSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: BackupScheduleSettings) => apiClient.put('/backup/schedule', dto),
+    onSuccess: () => qc.invalidateQueries({ queryKey: FILES_KEY }),
+  });
 }
 
 export function useDeleteBackupFile() {
