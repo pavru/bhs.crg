@@ -238,6 +238,11 @@ public class BugReportServiceTests(IntegrationTestFixture fixture) : IAsyncLifet
 
         // Автору уходит именно версия — без неё уведомление сообщало бы «исправлено где-то».
         await Assert.ThrowsAsync<InvalidRequestException>(() => Service(scope).MarkFixedAsync(id, " "));
+
+        // И не длиннее колонки. Найдено живой проверкой: без этой проверки администратор получал
+        // «Внутреннюю ошибку сервера» — падала вставка, а не наш отказ.
+        await Assert.ThrowsAsync<InvalidRequestException>(
+            () => Service(scope).MarkFixedAsync(id, new string('9', BugReportService.VersionLimit + 1)));
     }
 
     [Fact]

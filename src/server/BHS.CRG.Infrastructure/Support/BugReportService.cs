@@ -39,6 +39,13 @@ public class BugReportService(AppDbContext db, INotificationService notification
     /// </summary>
     public const int TechLimit = 128 * 1024;
 
+    /// <summary>
+    /// Потолок версии — ровно ширина колонки в базе. Найдено живой проверкой: без него
+    /// администратор, вставивший в поле лишнее, получал «Внутреннюю ошибку сервера» вместо отказа,
+    /// потому что до отказа дело не доходило — падала вставка.
+    /// </summary>
+    public const int VersionLimit = 32;
+
     public async Task<Guid> SubmitAsync(Guid authorId, string message, JsonElement? tech,
         string? screenshotBlobPath, CancellationToken ct = default)
     {
@@ -93,6 +100,9 @@ public class BugReportService(AppDbContext db, INotificationService notification
         var text = (version ?? "").Trim();
         if (text.Length == 0)
             throw new InvalidRequestException("Укажите версию, в которой исправлено, — её увидит автор сообщения.");
+        if (text.Length > VersionLimit)
+            throw new InvalidRequestException(
+                $"Слишком длинно для номера версии (больше {VersionLimit} символов). Ожидается вид 0.145.0.");
 
         var report = await RequireAsync(id, ct);
         report.MarkFixed(text);
