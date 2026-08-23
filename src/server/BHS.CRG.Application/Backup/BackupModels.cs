@@ -237,8 +237,9 @@ public record BackupRecognitionProfile(
 /// означает битые ссылки, о которых иначе узнать неоткуда.
 /// </summary>
 public record BackupSizeEstimate(
-    BackupSizeVariant Configuration,
-    BackupSizeVariant Full,
+    /// <summary>Состав, для которого посчитан вес: <c>Configuration</c> или <c>Full</c>.</summary>
+    string Scope,
+    BackupSizeVariant Variant,
     long LimitBytes);
 
 /// <summary>

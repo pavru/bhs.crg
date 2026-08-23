@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Jobs;
@@ -19,8 +20,13 @@ public static class BackupEndpoints
         // Вес копии и предел, на котором откажет ЗАГРУЗКА через браузер, — одним ответом (issue #711).
         // Считается по требованию: раздел настроек свёрнут по умолчанию, и запрос уходит, когда его
         // раскрыли, а не при каждой загрузке страницы.
-        g.MapGet("/size", async (BackupService svc, BackupSizeLimits limits, CancellationToken ct) =>
-            Results.Ok(await svc.EstimateSizeAsync(limits.ArchiveBytes, ct)));
+        g.MapGet("/size", async (
+                string? scope, BackupService svc, BackupSizeLimits limits, CancellationToken ct) =>
+            Results.Ok(await svc.EstimateSizeAsync(
+                limits.ArchiveBytes,
+                string.Equals(scope, "Full", StringComparison.OrdinalIgnoreCase)
+                    ? BackupScope.Full : BackupScope.Configuration,
+                ct)));
 
         // ── Каталог копий на сервере (issue #831) ─────────────────────────────
 

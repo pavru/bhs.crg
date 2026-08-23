@@ -68,12 +68,10 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
 
         var blobPaths = ExtractBlobPaths(manifest);
         var summary = BuildSummary(manifest, blobPaths.Count, warnings);
+        var missingBlobs = 0;
 
         using (var zip = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: true))
         {
-            // Паспорт — ПЕРВОЙ записью: список копий читает только его, не касаясь манифеста.
-            await BackupFileStore.WriteSummaryAsync(zip, summary, ct);
-
             // Write manifest.json
             var manifestEntry = zip.CreateEntry("manifest.json", CompressionLevel.Fastest);
             await using (var w = manifestEntry.Open())
@@ -98,11 +96,24 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 {
                     // Blob missing in storage — skip, DB reference kept intact
                     logger.LogWarning(ex, "Бинарный файл отсутствует в хранилище при экспорте бэкапа: {BlobPath}", blobPath);
+                    missingBlobs++;
                 }
 
                 done++;
                 if (progress is not null) await progress(done, blobPaths.Count);
             }
+
+            if (missingBlobs > 0)
+                warnings.Add(
+                    $"Файлов не оказалось в хранилище: {missingBlobs} из {blobPaths.Count} — " +
+                    "в копию они не попали, и после восстановления ссылки на них останутся битыми.");
+
+            // Паспорт пишем ПОСЛЕДНИМ, хотя читается он первым: до конца прогона по блобам не
+            // известно, чего в хранилище не оказалось, а поле «что пропущено» заведено именно
+            // затем, чтобы узнать это при снятии копии, а не при восстановлении. Порядок записей
+            // в архиве на чтение не влияет — оглавление zip лежит в конце файла.
+            summary = summary with { Warnings = warnings.Count > 0 ? warnings.ToArray() : null };
+            await BackupFileStore.WriteSummaryAsync(zip, summary, ct);
         }
 
         return summary;
@@ -192,25 +203,17 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     /// выкачивания содержимого). Поэтому вызывается по требованию — с раскрытого раздела настроек,
     /// а не при каждой загрузке страницы.</para>
     /// </summary>
-    public async Task<BackupSizeEstimate> EstimateSizeAsync(long limitBytes, CancellationToken ct = default)
+    public async Task<BackupSizeEstimate> EstimateSizeAsync(
+        long limitBytes, BackupScope scope = BackupScope.Configuration, CancellationToken ct = default)
     {
-        // База читается ОДИН раз, полным составом; конфигурационный вес считаем из того же
-        // манифеста, обнулив проектные секции. Два чтения базы ради двух чисел на экране
-        // настроек - цена, которую платить не за что, а расхождение между тем, что показано, и
-        // тем, что снимется, здесь недопустимо: обе цифры обязаны быть про один и тот же момент.
-        var full = await BuildManifestAsync(BackupScope.Full, [], ct);
-        var configuration = full with
-        {
-            IncludesProjectData = null,
-            Constructions = null, Sections = null, DocumentSets = null, Documents = null,
-            DataSetFiles = null, DataSetSources = null, DataSetBindings = null,
-            Reconciliations = null, MaterialQualityLinks = null,
-        };
-
-        var sizes = new Dictionary<string, long?>(StringComparer.Ordinal);
+        // Считаем ТОЛЬКО запрошенный состав. Полный манифест — это все объекты с их данными и все
+        // источники наборов ВМЕСТЕ С КЭШЕМ разбора; держать его в памяти ради строки на экране
+        // настроек можно лишь тогда, когда именно этот состав человек и выбрал. Пока выбрана
+        // «настройка», проектные данные не читаются вовсе — как и до issue #833.
+        var manifest = await BuildManifestAsync(scope, [], ct);
         return new BackupSizeEstimate(
-            await MeasureAsync(configuration, sizes, ct),
-            await MeasureAsync(full, sizes, ct),
+            scope.ToString(),
+            await MeasureAsync(manifest, new Dictionary<string, long?>(StringComparer.Ordinal), ct),
             limitBytes);
     }
 
@@ -530,14 +533,14 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             // не показать.
             await RestoreQualityDocumentsAsync(
                 manifest.QualityDocuments ?? [], restoredBlobPaths,
-                manifest.MaterialQualityLinks is { Length: > 0 }, stats, warnings, ct);
+                manifest.IncludesProjectData == true, stats, warnings, ct);
             // Наборы данных: файл → источники → привязки. Привязка адресует и источник, и объект-
             // владельца, поэтому идёт последней из трёх и после документов с общими данными.
-            await RestoreDataSetFilesAsync(manifest.DataSetFiles ?? [], stats, ct);
+            await RestoreDataSetFilesAsync(manifest.DataSetFiles ?? [], stats, warnings, ct);
             await RestoreDataSetSourcesAsync(manifest.DataSetSources ?? [], stats, warnings, ct);
             await RestoreDataSetBindingsAsync(manifest.DataSetBindings ?? [], stats, warnings, ct);
             // Определение сверки адресует источники по идентификатору — только после них.
-            await RestoreReconciliationsAsync(manifest.Reconciliations ?? [], stats, ct);
+            await RestoreReconciliationsAsync(manifest.Reconciliations ?? [], stats, warnings, ct);
             // Связка «материал ↔ документ качества» — после самих документов качества.
             await RestoreMaterialQualityLinksAsync(manifest.MaterialQualityLinks ?? [], stats, warnings, ct);
             await tx.CommitAsync(ct);
@@ -1207,7 +1210,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     /// </param>
     private async Task RestoreQualityDocumentsAsync(
         BackupQualityDocument[] items, HashSet<string> restoredBlobPaths,
-        bool linksInBackup, RestoreStats stats, List<string> warnings, CancellationToken ct)
+        bool projectDataInBackup, RestoreStats stats, List<string> warnings, CancellationToken ct)
     {
         if (items.Length == 0) return;
 
@@ -1323,14 +1326,14 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         // привязке.
         //
         // Три условия разом, и каждое своё:
-        //   • связок нет В КОПИИ — в полной они есть (issue #833), и говорить «не переносятся»
-        //     там значит объявлять потерянным то, что восстановится строкой ниже по порядку;
+        //   • копия КОНФИГУРАЦИОННАЯ — в полной связки переносятся (issue #833), даже когда их
+        //     ноль: говорить там «не переносятся» значит объявлять потерянным то, чего и не было;
         //   • связок нет и В СИСТЕМЕ — восстановление ничего не удаляет, и на самом обычном пути
         //     (админ накатывает конфигурационную копию, чтобы вернуть шаблон) все связки целы;
         //     безусловное «библиотека вернулась непривязанной» позвало бы делать заново работу,
         //     которая никуда не девалась.
         // Тем же рассуждением проверяет себя предупреждение о ссылках на документы выше.
-        if (!linksInBackup && !await db.MaterialQualityLinks.AnyAsync(ct))
+        if (!projectDataInBackup && !await db.MaterialQualityLinks.AnyAsync(ct))
             warnings.Add(
                 "Документы качества: связки с материалами копией не переносятся — они относятся к " +
                 "комплектам, которых в копии нет. Библиотека восстановлена непривязанной.");
@@ -1422,11 +1425,14 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         int created = 0, updated = 0;
         foreach (var item in ok)
         {
+            if (!TryParseEnum<DocumentStatus>(item.Status, "статус документа", warnings, out var status))
+                continue;
+
             var obj = DomainObject.RestoreDocument(
                 item.Id, item.CompositeTypeId, item.DisplayName,
                 JsonDocument.Parse(item.Data.GetRawText()), item.SetId,
                 item.CreatedAt, item.UpdatedAt, item.Aliases,
-                Enum.Parse<DocumentStatus>(item.Status), item.SortOrder,
+                status, item.SortOrder,
                 item.TemplateId, item.TemplateIds, item.TemplateParams,
                 JsonDocument.Parse(item.PluginData.GetRawText()));
 
@@ -1439,7 +1445,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         db.ChangeTracker.Clear();
         stats.Count("Документы комплектов", created, updated);
 
-        await RestoreGeneratedFilesAsync(ok, stats, ct);
+        await RestoreGeneratedFilesAsync(ok, stats, warnings, ct);
     }
 
     /// <summary>
@@ -1447,9 +1453,12 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     /// фасету, и до её появления вставка отвергается внешним ключом.
     /// </summary>
     private async Task RestoreGeneratedFilesAsync(
-        IReadOnlyList<BackupDocument> documents, RestoreStats stats, CancellationToken ct)
+        IReadOnlyList<BackupDocument> documents, RestoreStats stats, List<string> warnings,
+        CancellationToken ct)
     {
-        var files = documents.SelectMany(d => d.GeneratedFiles.Select(f => (Document: d, File: f))).ToList();
+        var files = documents.SelectMany(d => d.GeneratedFiles.Select(f => (Document: d, File: f)))
+            .Where(x => TryParseEnum<OutputFormat>(x.File.Format, "формат выпущенного файла", warnings, out _))
+            .ToList();
         if (files.Count == 0) return;
 
         var existing = await db.GeneratedFiles.Select(x => x.Id).ToHashSetAsync(ct);
@@ -1460,11 +1469,19 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     }
 
     private async Task RestoreDataSetFilesAsync(
-        BackupDataSetFile[] items, RestoreStats stats, CancellationToken ct)
+        BackupDataSetFile[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
     {
         if (items.Length == 0) return;
         var existing = await db.DataSetFiles.Select(x => x.Id).ToHashSetAsync(ct);
-        var (c, u) = await UpsertAsync(items.Select(i => (i.Id, DataSetFile.Restore(
+        var carriers = await LoadScopeCarriersAsync(ct);
+
+        var (ok, orphans) = Split(items, i =>
+            Enum.TryParse<DataSetFormat>(i.Format, out _)
+            && Enum.TryParse<CatalogScope>(i.Scope, out var sc)
+            && ScopeCarrierExists(sc, i.ScopeId, carriers.Sets, carriers.Sections, carriers.Constructions));
+        Warn(warnings, orphans.Count, "наборов данных", "их стройки, раздела или комплекта нет");
+
+        var (c, u) = await UpsertAsync(ok.Select(i => (i.Id, DataSetFile.Restore(
             i.Id, i.Name, Enum.Parse<DataSetFormat>(i.Format), i.BlobPath,
             Enum.Parse<CatalogScope>(i.Scope), i.ScopeId, i.PreprocessingProfile, i.Grouping,
             i.InvoiceRawData, i.RecognitionProfiles, i.CreatedAt, i.UpdatedAt))), existing, ct);
@@ -1484,7 +1501,10 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         var (c, u) = await UpsertAsync(ok.Select(i => (i.Id, DataSetSource.Restore(
             i.Id, i.FileId, i.Name, i.SheetOrPath, i.ColumnExpressions, i.CachedSchema,
             i.CachedRowCount, i.CachedData, i.Tags, i.RowFilter, i.ComputedColumns, i.SortSpec,
-            i.StaleReason is null ? null : Enum.Parse<DataSetStaleReason>(i.StaleReason),
+            // Неизвестная причина устаревания — не повод терять источник: причина это подсказка
+            // человеку, а данные в кэше от неё не зависят.
+            i.StaleReason is not null && Enum.TryParse<DataSetStaleReason>(i.StaleReason, out var reason)
+                ? reason : null,
             i.MaterializeTypeId, i.MaterializeMapping, i.MaterializeDiscriminator,
             i.MaterializeByIdColumn, i.CreatedAt, i.UpdatedAt))), existing, ct);
         stats.Count("Источники данных", c, u);
@@ -1508,30 +1528,95 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     }
 
     private async Task RestoreReconciliationsAsync(
-        BackupReconciliationDefinition[] items, RestoreStats stats, CancellationToken ct)
+        BackupReconciliationDefinition[] items, RestoreStats stats, List<string> warnings,
+        CancellationToken ct)
     {
         if (items.Length == 0) return;
         var existing = await db.Reconciliations.Select(x => x.Id).ToHashSetAsync(ct);
-        var (c, u) = await UpsertAsync(items.Select(i => (i.Id, ReconciliationDefinition.Restore(
+        var carriers = await LoadScopeCarriersAsync(ct);
+
+        var (ok, orphans) = Split(items, i =>
+            Enum.TryParse<CatalogScope>(i.Scope, out var sc)
+            && ScopeCarrierExists(sc, i.ScopeId, carriers.Sets, carriers.Sections, carriers.Constructions));
+        Warn(warnings, orphans.Count, "сверок", "их стройки, раздела или комплекта нет");
+
+        var (c, u) = await UpsertAsync(ok.Select(i => (i.Id, ReconciliationDefinition.Restore(
             i.Id, i.Name, Enum.Parse<CatalogScope>(i.Scope), i.ScopeId,
             JsonDocument.Parse(i.Spec.GetRawText()), i.CreatedAt, i.UpdatedAt))), existing, ct);
         stats.Count("Сверки", c, u);
     }
 
+    /// <summary>Носители областей, какие есть в системе на этот момент.</summary>
+    private async Task<(HashSet<Guid> Sets, HashSet<Guid> Sections, HashSet<Guid> Constructions)>
+        LoadScopeCarriersAsync(CancellationToken ct) => (
+            await db.DocumentSets.Select(x => x.Id).ToHashSetAsync(ct),
+            await db.Sections.Select(x => x.Id).ToHashSetAsync(ct),
+            await db.Constructions.Select(x => x.Id).ToHashSetAsync(ct));
+
+    /// <summary>
+    /// Связки «материал ↔ документ качества».
+    ///
+    /// Единственная из новых секций, которую нельзя раскладывать по одному лишь идентификатору:
+    /// у таблицы есть УНИКАЛЬНЫЙ индекс по (уровень, носитель, ключ материала). Копия, снятая
+    /// здесь, и связка, заведённая на целевой системе, описывают один и тот же материал разными
+    /// строками — вставка по Id упёрлась бы в 23505, а он в этом коде означает не «пропустим одну
+    /// строку», а откат ВСЕГО восстановления: администратор получил бы «Ошибка восстановления БД»
+    /// и пустую систему. Поэтому сначала ищем по природному ключу и правим найденную строку.
+    /// </summary>
     private async Task RestoreMaterialQualityLinksAsync(
         BackupMaterialQualityLink[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
     {
         if (items.Length == 0) return;
-        var existing = await db.MaterialQualityLinks.Select(x => x.Id).ToHashSetAsync(ct);
+        var existing = await db.MaterialQualityLinks.AsNoTracking()
+            .Select(x => new { x.Id, x.Scope, x.ScopeId, x.MaterialKey }).ToListAsync(ct);
+        var byKey = existing.ToDictionary(
+            x => (x.Scope, x.ScopeId, x.MaterialKey), x => x.Id);
+        var byId = existing.Select(x => x.Id).ToHashSet();
         var qualityIds = await db.QualityDocuments.Select(x => x.Id).ToHashSetAsync(ct);
 
         var (ok, orphans) = Split(items, i => qualityIds.Contains(i.QualityDocumentId));
         Warn(warnings, orphans.Count, "связок с материалами", "их документа качества нет");
 
-        var (c, u) = await UpsertAsync(ok.Select(i => (i.Id, MaterialQualityLink.Restore(
-            i.Id, Enum.Parse<CatalogScope>(i.Scope), i.ScopeId, i.MaterialKey, i.MaterialLabel,
-            i.QualityDocumentId, i.CreatedAt, i.UpdatedAt))), existing, ct);
-        stats.Count("Связки с материалами", c, u);
+        int created = 0, updated = 0;
+        foreach (var item in ok)
+        {
+            if (!TryParseEnum<CatalogScope>(item.Scope, "уровень связки с материалом", warnings, out var scope))
+                continue;
+
+            // Тот же материал в том же месте — правим ТУ строку, какой бы идентификатор у неё ни
+            // был: здесь личность связки задаёт материал, а не Id.
+            var targetId = byKey.TryGetValue((scope, item.ScopeId, item.MaterialKey), out var sameMaterial)
+                ? sameMaterial
+                : item.Id;
+            var exists = targetId != item.Id || byId.Contains(item.Id);
+
+            db.Entry(MaterialQualityLink.Restore(
+                targetId, scope, item.ScopeId, item.MaterialKey, item.MaterialLabel,
+                item.QualityDocumentId, item.CreatedAt, item.UpdatedAt)).State =
+                exists ? EntityState.Modified : EntityState.Added;
+
+            if (exists) updated++; else created++;
+        }
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+        stats.Count("Связки с материалами", created, updated);
+    }
+
+    /// <summary>
+    /// Разбор перечисления из копии: неизвестное значение пропускает ОДНУ запись с предупреждением,
+    /// а не валит восстановление.
+    ///
+    /// Копию из более новой версии импорт принимает намеренно («часть данных могла быть
+    /// пропущена»), и новый вариант перечисления там — обычное дело. <c>Enum.Parse</c> в этом
+    /// случае бросает, транзакция откатывается целиком, и узнаёт об этом администратор после
+    /// аварии — то есть ровно тогда, когда терять нечего.
+    /// </summary>
+    private static bool TryParseEnum<TEnum>(
+        string value, string what, List<string> warnings, out TEnum parsed) where TEnum : struct, Enum
+    {
+        if (Enum.TryParse(value, out parsed)) return true;
+        warnings.Add($"Пропущена запись: неизвестный {what} «{value}» — копия сделана более новой версией.");
+        return false;
     }
 
     /// <summary>Разделяет записи на «можно восстановить» и «не к чему приложить».</summary>

@@ -42,7 +42,6 @@ export function BackupSection() {
         Не входит ни в какую: учётные записи, ключи интеграций и результаты прогонов (сверок,
         проверок) — они пересчитываются.
       </p>
-      <BackupSizeLine />
       <BackupFilesPanel />
     </CollapsibleSection>
   );
@@ -51,19 +50,19 @@ export function BackupSection() {
 // ─── Вес копии против предела загрузки через браузер ──────────────────────────
 
 /**
- * Сколько весит копия и на каком пороге её откажется принять ЗАГРУЗКА через браузер (issue #711).
+ * Сколько весит копия ВЫБРАННОГО состава и на каком пороге её откажется принять ЗАГРУЗКА через
+ * браузер (issue #711, #833).
  *
- * С появлением каталога на сервере (issue #831) это перестало быть приговором: копия сверх предела
- * снимается и восстанавливается по-прежнему — просто не через браузер. Поэтому и текст здесь
- * теперь называет путь, а не только беду.
+ * Считается по требованию и только для выбранного состава: полный манифест — это все объекты с их
+ * данными и все источники наборов вместе с разобранным кэшем, и держать его в памяти сервера ради
+ * строки на экране настроек можно лишь тогда, когда именно этот состав человек и выбрал.
  *
- * Запрос уходит только когда раздел раскрыт: CollapsibleSection не монтирует содержимое свёрнутого,
- * а оценка стоит построения манифеста и запроса размера на каждый файл.
+ * Запрос уходит только когда раздел раскрыт: CollapsibleSection не монтирует содержимое свёрнутого.
  */
-function BackupSizeLine() {
+function BackupSizeLine({ scope }: { scope: BackupScope }) {
   const { data, isPending, isError } = useQuery({
-    queryKey: ['backup', 'size'],
-    queryFn: fetchBackupSize,
+    queryKey: ['backup', 'size', scope],
+    queryFn: () => fetchBackupSize(scope),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
@@ -73,18 +72,36 @@ function BackupSizeLine() {
   // Молча ничего не показывать нельзя, но и мешать копированию нечем: кнопка работает и без оценки.
   if (isError || !data) return <p className="text-xs text-fg4">Размер копии оценить не удалось.</p>;
 
+  const variant = data.variant;
+  const exceedsUploadLimit = variant.totalBytes > data.limitBytes;
+
   return (
     <div className="space-y-1">
       <p className="text-xs text-fg3">
-        Размер копии ≈ настройка <b>{formatBytes(data.configuration.totalBytes)}</b>
-        {' · '}полная <b>{formatBytes(data.full.totalBytes)}</b>
-        {data.full.blobCount > 0 && <> · файлов: {data.full.blobCount}</>}
+        Размер копии ≈ <b>{formatBytes(variant.totalBytes)}</b>
+        {variant.blobCount > 0 && <> · файлов: {variant.blobCount}</>}
       </p>
-      {data.full.missingBlobCount > 0 && (
+      {/*
+        Предел касается ТОЛЬКО браузерной загрузки: копия сверх него снимается и восстанавливается
+        по-прежнему — просто переносится файлом. Сказать об этом надо заранее: с полным составом
+        (умолчание) перерасти предел стало обычным делом, и узнать о нём при попытке загрузить
+        копию на новый сервер значит узнать в середине переезда.
+      */}
+      {exceedsUploadLimit && (
         <p className="text-xs text-warning flex items-start gap-1">
           <AlertTriangle size={13} className="shrink-0 mt-px" />
           <span>
-            Файлов нет в хранилище: {data.full.missingBlobCount}. В копию они не попадут — ссылки на
+            Копия крупнее {formatBytes(data.limitBytes)} — через браузер её не загрузить. Для
+            переноса кладите файл в каталог на сервере (путь показан ниже); скачивать и загружать
+            такую копию вкладкой браузера не стоит.
+          </span>
+        </p>
+      )}
+      {variant.missingBlobCount > 0 && (
+        <p className="text-xs text-warning flex items-start gap-1">
+          <AlertTriangle size={13} className="shrink-0 mt-px" />
+          <span>
+            Файлов нет в хранилище: {variant.missingBlobCount}. В копию они не попадут — ссылки на
             них останутся битыми и после восстановления.
           </span>
         </p>
@@ -318,6 +335,8 @@ function BackupFilesPanel() {
             </label>
           ))}
       </div>
+
+      <BackupSizeLine scope={scope} />
 
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="filled" onClick={handleCreate} disabled={busy || create.isPending || full}>

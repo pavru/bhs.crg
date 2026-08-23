@@ -13,8 +13,8 @@ const FILES_KEY = ['backup', 'files'];
  * построение манифеста плюс запрос размера на каждый файл — дёшево, но не настолько, чтобы уходить
  * при каждой загрузке страницы настроек.
  */
-export async function fetchBackupSize(): Promise<BackupSizeEstimate> {
-  const response = await apiClient.get<BackupSizeEstimate>('/backup/size');
+export async function fetchBackupSize(scope: BackupScope): Promise<BackupSizeEstimate> {
+  const response = await apiClient.get<BackupSizeEstimate>('/backup/size', { params: { scope } });
   return response.data;
 }
 

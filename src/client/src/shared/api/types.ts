@@ -254,10 +254,9 @@ export interface BackupSizeVariant {
 }
 
 export interface BackupSizeEstimate {
-  /** Только настройка системы — то, чем копия была до issue #833. */
-  configuration: BackupSizeVariant;
-  /** Настройка вместе с проектной работой: стройки, комплекты, документы, наборы данных. */
-  full: BackupSizeVariant;
+  /** Состав, для которого посчитан вес. */
+  scope: BackupScope;
+  variant: BackupSizeVariant;
   /** Предел загрузки через браузер; на путь «файл в каталоге» он не действует. */
   limitBytes: number;
 }
