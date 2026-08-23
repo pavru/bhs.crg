@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import {
   AlertTriangle, Bug, Check, ChevronDown, ChevronRight, Copy, ExternalLink,
-  Image as ImageIcon, Undo2, X,
+  Image as ImageIcon, Send, Undo2, X,
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
@@ -13,7 +14,7 @@ import { useToast } from '@/shared/ui/Toast';
 import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import {
   useBugReports, useBugReport, useSaveBugReportDraft, useMarkBugReportFixed,
-  useRejectBugReport, useReopenBugReport,
+  useRejectBugReport, useReopenBugReport, useForwardBugReport,
   type BugReportDetail, type BugReportListItem, type BugReportStatus, type BugReportTech,
 } from '@/shared/api/bugReports';
 
@@ -114,28 +115,31 @@ export function BugReportsPage() {
         </div>
       }
       detail={selectedId
-        ? <ReportDetail key={selectedId} id={selectedId} />
+        ? <ReportDetail key={selectedId} id={selectedId} githubConfigured={data?.githubConfigured ?? false} />
         : <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Выберите сообщение</div>}
     />
   );
 }
 
-function ReportDetail({ id }: { id: string }) {
+function ReportDetail({ id, githubConfigured }: { id: string; githubConfigured: boolean }) {
   const { data: report, isLoading } = useBugReport(id);
   if (isLoading || !report) {
     return <div className="flex-1 flex items-center justify-center text-fg4 text-sm">Загрузка…</div>;
   }
   // Ключ по времени правки: пришёл новый текст с сервера (сохранили, сменили статус) — форма
   // пересобирается на нём. Эффект-синхронизация тут делала бы то же самое, но с лишним рендером.
-  return <ReportBody key={report.updatedAt} report={report} />;
+  return <ReportBody key={report.updatedAt} report={report} githubConfigured={githubConfigured} />;
 }
 
-function ReportBody({ report }: { report: BugReportDetail }) {
+function ReportBody({ report, githubConfigured }: {
+  report: BugReportDetail; githubConfigured: boolean;
+}) {
   const toast = useToast();
   const saveDraft = useSaveBugReportDraft();
   const markFixed = useMarkBugReportFixed();
   const reject = useRejectBugReport();
   const reopen = useReopenBugReport();
+  const forward = useForwardBugReport();
 
   const [draft, setDraft] = useState(report.issueDraft);
   const [fixOpen, setFixOpen] = useState(false);
@@ -143,6 +147,9 @@ function ReportBody({ report }: { report: BugReportDetail }) {
   const [version, setVersion] = useState('');
   const [fixError, setFixError] = useState<string | null>(null);
   const [techOpen, setTechOpen] = useState(false);
+  const [forwardOpen, setForwardOpen] = useState(false);
+  const [issueTitle, setIssueTitle] = useState('');
+  const [forwardError, setForwardError] = useState<string | null>(null);
 
   const dirty = draft !== report.issueDraft;
   const closed = report.status === 'Fixed' || report.status === 'Rejected';
@@ -176,6 +183,19 @@ function ReportBody({ report }: { report: BugReportDetail }) {
             </Button>
           ) : (
             <>
+              {/* Кнопка есть и без токена — она ОБЪЯСНЯЕТ, чего не хватает. Спрятанная оставила бы
+                  администратора гадать, куда делась передача. Уже переданное не показываем: второй
+                  issue о том же убирают руками. */}
+              {report.githubIssueNumber === null && (
+                <Button variant="outlined" size="sm"
+                  onClick={() => {
+                    setForwardError(null);
+                    setIssueTitle(prev => prev || defaultIssueTitle(report.message));
+                    setForwardOpen(true);
+                  }}>
+                  <Send size={14} /> Отправить в GitHub
+                </Button>
+              )}
               <Button variant="outlined" size="sm" onClick={() => setRejectOpen(true)}>
                 <X size={14} /> Отклонить
               </Button>
@@ -249,11 +269,78 @@ function ReportBody({ report }: { report: BugReportDetail }) {
                 className="text-brand hover:underline">Открыть issue #{report.githubIssueNumber}</a></>
             )}
           </p>
-          {/* Отправку в GitHub добавит вторая часть issue #834 — вместе с токеном в настройках
-              интеграций. До неё текст переносят копированием: это ровно та же работа руками,
-              которой сегодня нет вовсе. */}
+          {/* «Скопировать» осталось рядом с отправкой намеренно: issue заводят не только из этой
+              системы, и перенести текст руками иногда быстрее, чем разбираться с токеном. */}
         </section>
       </div>
+
+      {/*
+        Своя модалка, а не ConfirmDialog: здесь ВВОДЯТ заголовок, а тот про подтверждение решения
+        (тот же случай, что с «Исправлено в версии»). Без токена показываем не поле, а объяснение —
+        отправлять всё равно нечем, и притворяться готовой формой было бы враньём.
+      */}
+      <Modal
+        open={forwardOpen}
+        onOpenChange={o => { if (!o) setForwardOpen(false); }}
+        title={githubConfigured ? 'Отправить в GitHub' : 'Токен GitHub не задан'}
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="text" onClick={() => setForwardOpen(false)}>
+              {githubConfigured ? 'Отмена' : 'Понятно'}
+            </Button>
+            {githubConfigured && (
+              <Button variant="filled" disabled={!issueTitle.trim()} loading={forward.isPending}
+                onClick={async () => {
+                  setForwardError(null);
+                  try {
+                    // draft — то, что СЕЙЧАС в поле «Текст issue», сохранён он или нет.
+                    await forward.mutateAsync({ id: report.id, title: issueTitle, body: draft });
+                    setForwardOpen(false);
+                    toast.success('Передано разработчикам.');
+                  } catch (e) {
+                    setForwardError(apiError(e, 'Не удалось создать issue.'));
+                  }
+                }}>
+                Создать issue
+              </Button>
+            )}
+          </div>
+        }
+      >
+        {githubConfigured ? (
+          <div className="space-y-3">
+            <p className="text-sm text-danger">
+              После отправки текст станет публичным: репозиторий открыт для всех. Проверьте, что в
+              нём не осталось названий строек, организаций и объектов.
+            </p>
+            <TextField label="Заголовок issue" value={issueTitle} autoFocus
+              onChange={e => setIssueTitle(e.target.value)}
+              hint="По нему issue будут искать в трекере" />
+            <p className="text-xs text-fg3">
+              Телом уйдёт текст из поля «Текст issue» — ровно в том виде, в каком он сейчас на
+              экране{dirty ? ', вместе с несохранёнными правками (они и сохранятся)' : ''}. Снимок
+              экрана не передаётся.
+            </p>
+            {forwardError && (
+              <p className="flex items-start gap-1.5 text-sm text-danger">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {forwardError}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2 text-sm text-fg2">
+            <p>
+              Чтобы заводить issue из системы, нужен токен GitHub с правом <b>issues: write</b> на
+              репозиторий продукта.
+            </p>
+            <p className="text-fg3">
+              Укажите его в <Link to="/settings" className="text-brand hover:underline">настройках
+              интеграций</Link>, раздел «Передача в GitHub». До этого текст можно перенести кнопкой
+              «Скопировать».
+            </p>
+          </div>
+        )}
+      </Modal>
 
       <ConfirmDialog
         open={rejectOpen} onOpenChange={setRejectOpen}
@@ -359,6 +446,17 @@ function TechBlock({ tech }: { tech: BugReportTech | null }) {
       )}
     </div>
   );
+}
+
+/**
+ * Заготовка заголовка issue — первая строка сообщения.
+ *
+ * Именно заготовка: заголовок пишет администратор, он один видел, что из текста убрано. Но пустое
+ * поле в диалоге отправки означало бы, что первую строку перепечатывают руками каждый раз.
+ */
+function defaultIssueTitle(message: string): string {
+  const line = message.split('\n').map(l => l.trim()).find(Boolean) ?? '';
+  return line.length <= 120 ? line : line.slice(0, 120).trimEnd() + '…';
 }
 
 function originLabel(origin: string): string {

@@ -20,7 +20,14 @@ public record BugReportListItem(
 /// только последние <see cref="IBugReportService.ListLimit" /> сообщений, и молчаливое усечение
 /// читалось бы как «больше ничего нет».
 /// </summary>
-public record BugReportList(IReadOnlyList<BugReportListItem> Items, int Total);
+public record BugReportList(
+    IReadOnlyList<BugReportListItem> Items,
+    int Total,
+    /// <summary>
+    /// Задан ли токен GitHub. Нужен интерфейсу не для того, чтобы прятать кнопку, а чтобы она
+    /// ОБЪЯСНЯЛА: спрятанная кнопка оставляет администратора гадать, куда делась передача.
+    /// </summary>
+    bool GithubConfigured);
 
 /// <summary>Сообщение целиком — то, что видит администратор в правой панели.</summary>
 public record BugReportDetail(
@@ -63,6 +70,25 @@ public interface IBugReportService
 
     /// <summary>Сохранить правку текста issue. Пустой текст возвращает запись к заготовке.</summary>
     Task<BugReportDetail> SaveDraftAsync(Guid id, string? text, CancellationToken ct = default);
+
+    /// <summary>
+    /// Завести issue в GitHub из отредактированного текста и отметить сообщение переданным.
+    /// Заголовок пишет администратор: он один видел и текст, и то, что из него убрано.
+    /// </summary>
+    /// <param name="body">
+    /// Текст issue С ЭКРАНА администратора. Пусто — берём сохранённую правку, а нет и её —
+    /// заготовку.
+    ///
+    /// Приходит из запроса, а не читается из базы, потому что иначе публиковалось бы НЕ ТО, что
+    /// человек видит: убрал он из текста названия строек, не нажал «Сохранить» — и наружу ушёл бы
+    /// прежний, неотредактированный. Ровно от этого исхода вся конструкция и защищает; узнать о нём
+    /// было бы неоткуда — на экране остался бы текст, который администратор считал отправленным.
+    /// </param>
+    Task<BugReportDetail> ForwardToGithubAsync(
+        Guid id, string title, string? body = null, CancellationToken ct = default);
+
+    /// <summary>Потолок заголовка issue. GitHub принимает и больше, но читать такое нельзя.</summary>
+    const int TitleLimit = 200;
 
     Task<BugReportDetail> MarkFixedAsync(Guid id, string version, CancellationToken ct = default);
     Task<BugReportDetail> RejectAsync(Guid id, CancellationToken ct = default);

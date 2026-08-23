@@ -84,6 +84,80 @@ public class BackupScheduleSettings
 }
 
 /// <summary>
+/// Передача сообщений об ошибках в GitHub (issue #834, часть 2).
+///
+/// Выключателя здесь нет намеренно: выключатель — сам токен. Флаг «включено» без токена означал бы
+/// кнопку, которая обещает работу и отказывает при нажатии, а токен без флага — настройку, которая
+/// лежит и ничего не делает. Одно поле не умеет расходиться само с собой.
+/// </summary>
+public class GithubSettings
+{
+    /// <summary>
+    /// Fine-grained PAT с правом <c>issues: write</c> на ОДИН репозиторий. Секрет: хранится
+    /// зашифрованным, наружу отдаётся только признак «задан».
+    /// </summary>
+    public string? Token { get; set; }
+
+    /// <summary>
+    /// Куда заводить issue, в виде «владелец/репозиторий». Умолчание — репозиторий продукта: у
+    /// установки, которая ничего не настраивала, но получила токен, не должно быть ещё одного
+    /// обязательного поля.
+    /// </summary>
+    public string Repository { get; set; } = DefaultRepository;
+
+    public const string DefaultRepository = "pavru/bhs.crg";
+
+    /// <summary>
+    /// Тот же самый репозиторий?
+    ///
+    /// От этого зависит судьба СОХРАНЁННОГО токена — ровно та же дыра, что и у пароля SMTP
+    /// (<see cref="SmtpSettings.SameServerAs" />): без проверки достаточно указать чужой
+    /// репозиторий с пустым полем токена, и первое же «Отправить в GitHub» уйдёт туда с нашим
+    /// правом записи. Classic-токен таким способом опубликовал бы внутренний текст в чужом месте.
+    /// </summary>
+    /// <summary>
+    /// «владелец/репозиторий» в одном виде: без пробелов и лишних косых, пустое — умолчание.
+    ///
+    /// В ОДНОМ месте, потому что нормализовали в трёх и по-разному: сохранение обрезало пробелы,
+    /// сравнение «тот ли репозиторий» смотрело на сырое значение, а отправка снимала ещё и косые.
+    /// Из-за расхождения «pavru/bhs.crg/» и «pavru/bhs.crg» считались разными местами — и повторное
+    /// сохранение с пустым полем токена молча стирало токен, хотя репозиторий не менялся.
+    /// </summary>
+    public static string Normalize(string? repository)
+    {
+        var text = (repository ?? "").Trim().Trim('/');
+        return text.Length == 0 ? DefaultRepository : text;
+    }
+
+    /// <summary>
+    /// Похоже ли на «владелец/репозиторий». Проверяем при сохранении: негодный адрес иначе всплывёт
+    /// ответом 404 при отправке — а его текст подозревает права токена, то есть уводит не туда.
+    /// </summary>
+    public static bool IsRepositoryWellFormed(string? repository)
+    {
+        var parts = Normalize(repository).Split('/');
+        return parts.Length == 2
+               && parts.All(p => p.Length > 0
+                                 && p.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.'));
+    }
+
+    public bool SameRepositoryAs(GithubSettings other)
+        => string.Equals(Normalize(Repository), Normalize(other.Repository), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Годится ли токен для заголовка HTTP: только видимые символы ASCII.
+    ///
+    /// Найдено живой проверкой. Заголовки HTTP не несут ни кириллицы, ни пробелов, ни невидимых
+    /// знаков, и .NET на таком значении роняет ЗАПРОС — а выглядит это как «GitHub недоступен,
+    /// проверьте сеть», то есть отправляет администратора чинить сеть вместо того, чтобы заново
+    /// скопировать токен. Случай будничный: копирование из письма или мессенджера легко приносит
+    /// неразрывный пробел, а раскладка — кириллическую «с» вместо латинской.
+    /// </summary>
+    public static bool IsTokenUsable(string? token)
+        => string.IsNullOrEmpty(token) || token.All(c => c > ' ' && c < (char)127);
+}
+
+/// <summary>
 /// Управляемые из UI настройки ВНЕШНИХ служб: распознавание, веб-поиск, почта, проверка обновлений.
 /// Хранятся в БД; пустой ключ движка означает fallback на конфигурацию (user-secrets/appsettings).
 ///
@@ -108,6 +182,9 @@ public class IntegrationSettingsModel
     /// проверки обновлений: в ServiceState, а не здесь.</summary>
     public BackupScheduleSettings Backup { get; set; } = new();
 
+    /// <summary>Передача сообщений об ошибках в GitHub (issue #834).</summary>
+    public GithubSettings Github { get; set; } = new();
+
     public IntegrationEngine Rec(string name)
         => Recognition.TryGetValue(name, out var e) ? e : new IntegrationEngine();
     public IntegrationEngine Web(string name)
@@ -128,5 +205,8 @@ public interface IIntegrationSettings
 
     /// <summary>Сохраняет только расписание копирования — по той же причине, что и SMTP.</summary>
     Task SaveBackupScheduleAsync(BackupScheduleSettings backup, CancellationToken ct = default);
+
+    /// <summary>Сохраняет только настройки GitHub — по той же причине, что и SMTP.</summary>
+    Task SaveGithubAsync(GithubSettings github, CancellationToken ct = default);
     void Invalidate();
 }

@@ -204,6 +204,80 @@ public class BugReportServiceTests(IntegrationTestFixture fixture) : IAsyncLifet
         }
     }
 
+    /// <summary>
+    /// Повторная передача отвергается. Дубль в трекере убирают руками, а следа первого issue в
+    /// системе не осталось бы вовсе: номер перезаписался бы вторым.
+    ///
+    /// Проверка стоит ДО похода в сеть — поэтому тест обходится без GitHub и без подмены HTTP.
+    /// </summary>
+    [Fact]
+    public async Task Forward_Twice_IsRefused()
+    {
+        var author = await CreateUserAsync("Пользователь", "User");
+        Guid id;
+        using (var scope = fixture.Services.CreateScope())
+            id = await Service(scope).SubmitAsync(author, "Не печатается акт.", null, null);
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var report = await db.Set<BugReport>().FirstAsync(r => r.Id == id);
+            report.MarkForwarded(842, "https://github.com/pavru/bhs.crg/issues/842");
+            await db.SaveChangesAsync();
+        }
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var ex = await Assert.ThrowsAsync<ConflictException>(
+                () => Service(scope).ForwardToGithubAsync(id, "Заголовок"));
+            Assert.Contains("842", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Текст, пришедший с экрана, сохраняется КАК ЕСТЬ ещё до похода в сеть — и уходит именно он.
+    ///
+    /// Это главная защита всей конструкции: администратор убирает из текста названия строек и
+    /// организаций, и если бы отправлялась сохранённая ранее правка, наружу уехал бы прежний,
+    /// неотредактированный текст — а на экране остался бы тот, который человек считал отправленным.
+    ///
+    /// Проверяем через отказ GitHub (токена нет): до сети дело доходит после сохранения, поэтому
+    /// сам факт сохранения виден и без подмены HTTP.
+    /// </summary>
+    [Fact]
+    public async Task Forward_SavesTheTextFromTheScreen_BeforeSending()
+    {
+        var author = await CreateUserAsync("Пользователь", "User");
+        using var scope = fixture.Services.CreateScope();
+        var id = await Service(scope).SubmitAsync(author, "Съехала таблица на стройке «Комарова».", null, null);
+
+        const string redacted = "Съехала таблица при печати. Названия убраны.";
+        // Токен не задан — отправка упрётся в отказ, но текст к этому моменту уже сохранён.
+        await Assert.ThrowsAsync<InvalidRequestException>(
+            () => Service(scope).ForwardToGithubAsync(id, "Съезжает таблица", redacted));
+
+        var detail = await Service(scope).GetAsync(id);
+        Assert.Equal(redacted, detail.IssueDraft);
+        Assert.True(detail.DraftEdited);
+    }
+
+    /// <summary>
+    /// Заголовок пишет администратор, и без него передавать нельзя: в трекере issue ищут именно по
+    /// заголовку. Проверка тоже до сети — пустой заголовок не должен стоить обращения к GitHub.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Forward_WithoutTitle_IsRefused(string title)
+    {
+        var author = await CreateUserAsync("Пользователь", "User");
+        using var scope = fixture.Services.CreateScope();
+        var id = await Service(scope).SubmitAsync(author, "Не печатается акт.", null, null);
+
+        await Assert.ThrowsAsync<InvalidRequestException>(
+            () => Service(scope).ForwardToGithubAsync(id, title));
+    }
+
     [Fact]
     public async Task MarkFixed_NotifiesAuthor_WithVersion()
     {

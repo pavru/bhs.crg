@@ -13,6 +13,7 @@ import { OrphanObjectsSection } from './OrphanObjectsSection';
 import { OrphanBlobsSection } from './OrphanBlobsSection';
 import { MaterialLabelSection } from './MaterialLabelSection';
 import { BackupSection } from './BackupSection';
+import { GithubSettingsSection } from './GithubSettingsSection';
 
 // ─── Settings hook (re-exported for use by other pages) ───────────────────────
 
@@ -172,6 +173,8 @@ export function SettingsPage() {
 
       {/* ── Обновления системы (issue #813) ────────────────────────────────── */}
       <UpdateSettingsSection />
+
+      <GithubSettingsSection />
 
       <ImageMaintenanceSection />
 

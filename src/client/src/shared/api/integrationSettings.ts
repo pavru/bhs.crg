@@ -27,6 +27,19 @@ export interface SmtpDto {
   useSsl: boolean;
 }
 
+export interface GithubDto {
+  /** «владелец/репозиторий» — не секрет, показывается как есть. */
+  repository: string;
+  /** Токен наружу не отдаётся: только признак «задан», как у ключей движков. */
+  hasToken: boolean;
+}
+
+/** Обновление настроек GitHub (пустой token = оставить прежний, но только для того же репозитория). */
+export interface GithubUpdate {
+  repository: string;
+  token?: string;
+}
+
 export interface IntegrationSettingsDto {
   recognitionOrder: string[];
   recognition: Record<string, EngineDto>;
@@ -34,6 +47,7 @@ export interface IntegrationSettingsDto {
   fgisDomains: string[];
   manufacturerDomains: string[];
   smtp: SmtpDto;
+  github: GithubDto;
 }
 
 /** Обновление SMTP (пустой password = оставить прежний). */
@@ -143,6 +157,25 @@ export function useSaveSmtp() {
     mutationFn: (update: SmtpUpdate) =>
       apiClient.put('/settings/integrations/email', update).then(() => undefined),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['integration-settings'] }),
+  });
+}
+
+/**
+ * Сохранение только настроек GitHub. Пустой токен = оставить прежний — но сервер оставит его
+ * ТОЛЬКО для того же репозитория: смена репозитория обнуляет токен намеренно (иначе форма была бы
+ * способом отправить внутренний текст в чужое место нашим правом записи).
+ */
+export function useSaveGithubSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (update: GithubUpdate) =>
+      apiClient.put('/settings/integrations/github', update).then(() => undefined),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integration-settings'] });
+      // Кнопка «Отправить в GitHub» на экране сообщений смотрит на признак «токен задан» — без
+      // сброса она объясняла бы «укажите токен» уже после того, как его указали.
+      qc.invalidateQueries({ queryKey: ['bug-reports'] });
+    },
   });
 }
 

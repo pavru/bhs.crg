@@ -90,12 +90,28 @@ public static class BugReportIssueText
         sb.Append(string.Join("\n", rows));
     }
 
+    /// <summary>
+    /// Сколько стека попадает в заготовку. Дальше первых кадров он всё равно не читается, а вот
+    /// уместиться в потолок тела issue (65 536 у GitHub) заготовка обязана: иначе отправка
+    /// отвечала бы отказом на сообщение, которое администратор уже разобрал.
+    /// </summary>
+    private const int StackLimit = 8000;
+
     private static void AppendStack(StringBuilder sb, JsonElement tech)
     {
         var stack = Str(tech, "stack");
         if (stack is null) return;
+
+        var trimmed = stack.Trim();
+        var cut = trimmed.Length > StackLimit;
+        if (cut) trimmed = trimmed[..StackLimit];
+
         // Код-блоком: стек сплошным текстом в Markdown склеивается в абзац и становится нечитаемым.
-        sb.Append("\n\n### Стек сбоя интерфейса\n\n```\n").Append(stack.Trim()).Append("\n```");
+        sb.Append("\n\n### Стек сбоя интерфейса\n\n```\n").Append(trimmed);
+        // Обрезали — говорим об этом: молча укороченный стек читается как полный, и «дальше ничего
+        // не было» становится ложным выводом.
+        if (cut) sb.Append("\n… стек обрезан; полностью он есть в техблоке сообщения");
+        sb.Append("\n```");
     }
 
     private static void Add(List<string> lines, string label, string? value)
