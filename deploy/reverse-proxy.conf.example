@@ -1,0 +1,82 @@
+# Обратный прокси с терминацией TLS — образец для nginx НА ХОСТЕ (не в Compose).
+#
+# Приложение TLS не терминирует и на HTTPS не перенаправляет: этим занимается контур перед ним.
+# Порядок установки целиком — Приложение В в docs/DEPLOYMENT.md; здесь только сам файл.
+#
+#   sudo cp reverse-proxy.conf.example /etc/nginx/sites-available/bhs-crg
+#   # заменить docs.example.ru на своё имя, при нестандартном порте — 8080 ниже
+#   sudo ln -s /etc/nginx/sites-available/bhs-crg /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#   sudo certbot --nginx -d docs.example.ru      # certbot допишет сюда TLS сам
+#
+# ВАЖНО: строки с сертификатом здесь намеренно отсутствуют. Их добавляет certbot, и добавляет
+# правильно — с путями своей установки и параметрами обновления. Вписав их заранее вручную, вы
+# получите конфигурацию, которую certbot не узнает и не станет обновлять.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name docs.example.ru;
+
+    # Место для http-01 проверки certbot и перенаправление всего остального на HTTPS.
+    # После первого выпуска сертификата certbot перепишет этот блок сам — так и должно быть.
+    location /.well-known/acme-challenge/ { root /var/www/html; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name docs.example.ru;
+
+    # ssl_certificate / ssl_certificate_key допишет certbot.
+
+    # Версию nginx в ответах не называем — как и внутренний веб-сервер системы.
+    server_tokens off;
+
+    # ── Предел размера тела ─────────────────────────────────────────────────────
+    # Должен быть НЕ МЕНЬШЕ, чем BACKUP_MAX_ARCHIVE_MB в .env (по умолчанию 500 МБ) плюс запас на
+    # обвязку multipart. Внутренний веб-сервер системы считает своё значение из этой переменной сам,
+    # и если внешний прокси окажется строже, предел приложения станет недостижимым: отказ придёт
+    # HTML-страницей nginx без поля error, а интерфейс покажет голое сообщение axios — искать
+    # причину будут в приложении, а стоит она здесь.
+    client_max_body_size 600m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;    # WEB_PORT из .env
+        proxy_http_version 1.1;
+
+        # Host — чтобы приложение видело имя, по которому к нему пришли.
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        # X-Forwarded-For ДОПИСЫВАЕТ адрес клиента к цепочке, а не заменяет её. Без этого заголовка
+        # (или при `$remote_addr` вместо `$proxy_add_x_forwarded_for`) адресом клиента для системы
+        # станет сам прокси — один на всех, — и предел частоты входов схлопнется в общую корзину:
+        # пять неудачных попыток любого сотрудника закроют вход всей организации.
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Схема: по ней приложение понимает, что снаружи HTTPS, хотя к нему пришли по HTTP.
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Сроки по умолчанию (60 с) малы для вёрстки PDF и распознавания сканов: разрыв приходит
+        # как 504 посреди работы, притом что операция продолжает выполняться.
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    # Восстановление из резервной копии читает архив, раскладывает сканы в хранилище и пишет базу.
+    # На копии в гигабайты это минуты в ОДНОМ запросе — общих 300 секунд не хватает, и обрыв
+    # выглядит как неудача, хотя восстановление в это время идёт и доходит до конца.
+    location /api/backup/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_request_buffering off;
+    }
+}
