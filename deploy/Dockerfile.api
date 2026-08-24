@@ -9,8 +9,44 @@ WORKDIR /src
 # условием «если SourceRevisionId не задан», так что аргумент его просто перекрывает.
 ARG SOURCE_REVISION=""
 COPY src/server ./server
-RUN dotnet restore server/BHS.CRG.Api/BHS.CRG.Api.csproj
-RUN dotnet publish server/BHS.CRG.Api/BHS.CRG.Api.csproj -c Release -o /app --no-restore -p:SourceRevisionId="$SOURCE_REVISION"
+# Публикуем ПОД КОНКРЕТНУЮ ПЛАТФОРМУ (linux-x64), хотя рантайм остаётся общим (--self-contained
+# false). Без -r в publish едет каталог runtimes с нативными библиотеками ВСЕХ платформ, какие
+# есть у пакетов: 18 каталогов от win-x86 до linux-musl-riscv64, а внутри win-x64 — ещё и
+# отладочные символы SkiaSharp на 80 МБ. Замер на этом проекте: 554 МБ публикации, из них 508 МБ —
+# ровно этот каталог, то есть файлы, которые в linux-x64 контейнере не могут быть загружены в
+# принципе. С -r остаётся своя платформа, и нативные библиотеки ложатся прямо в /app: 63 МБ.
+#
+# restore тоже с -r, иначе publish увидит несовпадение и перевосстановит пакеты сам — а с
+# --no-restore ответит ошибкой, то есть сборка встанет (issue #835).
+#
+# Платформу берём из TARGETARCH (её проставляет buildkit — это платформа СОБИРАЕМОГО образа, не
+# машины сборщика; для обычной сборки они совпадают, а менять на BUILDARCH нельзя: кросс-сборка
+# тогда положит библиотеки не той архитектуры). Написать «linux-x64» буквой было бы хуже всего:
+# сборка на arm-машине прошла бы, сервер бы стартовал, а упало бы распознавание PDF — у него
+# нативная библиотека одна из немногих.
+#
+# Список ЗАКРЫТЫЙ, и в нём одна платформа. Не потому, что .NET не умеет arm64, а потому что ниже
+# ставится Typst — бинарём под x86_64. Добавите сюда arm64, не тронув ту строку, — получите образ,
+# который стартует и проходит healthcheck, но отвечает отказом на КАЖДУЮ генерацию PDF (Typst не
+# запустится). Добавлять платформу — значит менять обе строки.
+ARG TARGETARCH
+RUN set -e; case "${TARGETARCH:-amd64}" in \
+        amd64) echo linux-x64 > /tmp/rid ;; \
+        *) echo "Платформа ${TARGETARCH}: добавьте её RID сюда И бинарь Typst нужной архитектуры ниже" >&2; \
+           exit 1 ;; \
+    esac
+#
+# EnableRuntimePackDownload=false — не микрооптимизация: увидев -r, SDK идёт качать паки рантайма
+# (Microsoft.NETCore.App.Runtime.linux-x64 — 135 МБ, AspNetCore — 39 МБ), хотя рантайм в образе
+# уже стоит, а запускаемся мы через `dotnet BHS.CRG.Api.dll`. Эти 174 МБ образу ничего не дают и
+# трижды подряд роняли сборку таймаутом загрузки. Флаг нужен и в restore, и в publish: паки тянет
+# именно restore. UseAppHost=false рядом — про другое: не класть в /app исполняемый файл, который
+# ENTRYPOINT не запускает (сам пакет apphost, ~2 МБ, restore скачает всё равно).
+RUN dotnet restore server/BHS.CRG.Api/BHS.CRG.Api.csproj -r "$(cat /tmp/rid)" \
+        -p:SelfContained=false -p:UseAppHost=false -p:EnableRuntimePackDownload=false
+RUN dotnet publish server/BHS.CRG.Api/BHS.CRG.Api.csproj -c Release -o /app --no-restore \
+        -r "$(cat /tmp/rid)" --self-contained false -p:UseAppHost=false \
+        -p:EnableRuntimePackDownload=false -p:SourceRevisionId="$SOURCE_REVISION"
 
 # ── Рантайм ─────────────────────────────────────────────────────────────────────
 FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET} AS runtime
@@ -21,6 +57,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET} AS runtime
 # (см. docker-compose.yml, api). Уберёте его «как ненужный после сборки» — healthcheck перестанет
 # проходить, а web не поднимется вовсе (он ждёт api по condition: service_healthy), и симптом
 # «после обновления сайт не открывается» будет в другом файле, чем причина.
+# Бинарь под x86_64 — та самая вторая половина выбора платформы выше (см. закрытый список RID).
 ARG TYPST_VERSION=0.15.0
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl ca-certificates xz-utils \
@@ -37,7 +74,6 @@ ENV TYPST_PATH=/usr/local/bin/typst \
     DOTNET_EnableDiagnostics=0
 
 WORKDIR /app
-COPY --from=build /app ./
 
 # Каталог резервных копий (issue #831) создаётся здесь же. В поставке compose он ПЕРЕКРЫВАЕТСЯ
 # монтированием с хоста, и права тогда берутся от хостового каталога — сервер проверяет их на
@@ -51,7 +87,13 @@ COPY --from=build /app ./
 # у него не поменяется сам. Разово выполнить (см. docs/DEPLOYMENT.md §8) — обратите внимание на
 # --entrypoint: без него аргументы уедут в ENTRYPOINT ниже и вместо chown запустится сам сервер:
 #   docker compose -f deploy/docker-compose.yml run --rm --user root --entrypoint chown api -R app:app /app/dp-keys
-RUN mkdir -p /app/dp-keys /app/backups && chown -R app:app /app
+# Владельца назначаем ПРИ КОПИРОВАНИИ, а не `chown -R` после. Смена прав для образа — то же, что
+# смена содержимого: слой с `chown -R /app` хранил ВТОРУЮ копию всего приложения. В образе 0.140.0
+# это видно в `docker history` двумя строками по 578 МБ подряд — COPY и следующий за ним RUN.
+# Каталоги создаём ДО копирования: COPY --chown раскладывает содержимое рядом, не трогая их, а
+# владелец у /app нужен потому, что сам каталог создаёт WORKDIR — от root (issue #835).
+RUN mkdir -p /app/dp-keys /app/backups && chown app:app /app /app/dp-keys /app/backups
+COPY --chown=app:app --from=build /app ./
 USER app
 
 EXPOSE 8080
