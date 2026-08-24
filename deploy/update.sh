@@ -21,6 +21,7 @@ REPO="pavru/bhs.crg"
 RELEASE_URL="https://github.com/$REPO/releases/download"
 SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 NEW_DIR="new"                       # сюда кладутся файлы целевой версии; сюда же человек переносит свои правки
+PRISTINE="$NEW_DIR/.docker-compose.release.yml"  # нетронутый файл целевой версии — будущий эталон
 # Эталон — copy того compose, который скрипт положил в прошлый раз: файл версии либо ваш, с
 # перенесёнными правками. Сравнение с ним отвечает на единственный нужный вопрос — «правили ли
 # файл ПОСЛЕ прошлого обновления».
@@ -89,9 +90,13 @@ env_get() {
     line="$(grep -E "^[[:space:]]*$key[[:space:]]*=" "$file" | tail -1 || true)"
     [ -n "$line" ] || return 0
     line="${line#*=}"
+    # Комментарий в конце строки Compose отбрасывает (он начинается с # после пробела) — значит и
+    # мы обязаны: иначе «APP_VERSION=0.145.1  # поставили руками» превращался бы в номер версии
+    # вместе с комментарием, и скрипт уходил бы за несуществующим релизом, ругаясь на его отсутствие.
+    line="$(printf '%s' "$line" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//')"
     line="${line%\"}"; line="${line#\"}"
     line="${line%\'}"; line="${line#\'}"
-    printf '%s' "$line" | sed -e 's/[[:space:]]*$//'
+    printf '%s' "$line"
 }
 
 env_keys() { grep -oE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=' "$1" | tr -d ' \t=' | sort -u; }
@@ -111,13 +116,20 @@ preflight_common() {
     CURRENT="$(env_get APP_VERSION)"
     [ -n "$CURRENT" ] || stop \
         "В .env не задан APP_VERSION — непонятно, с какой версии обновляемся. Впишите текущую версию и повторите."
-    # Видит ли compose эту установку. Проверка стоит первой, потому что её отсутствие даёт самый
-    # сбивающий с толку симптом: правка `name:` (или запуск не из того каталога) уводит все команды
-    # в ДРУГОЙ проект — работающая система остаётся работать, но перестаёт быть видна, и дальше
-    # скрипт спотыкался бы об «service postgres is not running» на снятии дампа, ничего не объясняя.
-    # Поймано ровно так на стенде.
-    if [ -z "$(compose ps --format '{{.Name}}' 2>/dev/null | head -1)" ]; then
-        stop "$(cat <<EOF
+    WEB_PORT="$(env_get WEB_PORT)"; WEB_PORT="${WEB_PORT:-8080}"
+    PGUSER="$(env_get POSTGRES_USER)"; PGUSER="${PGUSER:-postgres}"
+    PGDB="$(env_get POSTGRES_DB)"; PGDB="${PGDB:-bhs_crg}"
+}
+
+# Видит ли compose эту установку. Спрашиваем ПЕРЕД обновлением, потому что отсутствие ответа даёт
+# самый сбивающий с толку симптом: правка `name:` (или запуск не из того каталога) уводит все
+# команды в ДРУГОЙ проект — система остаётся работать, но перестаёт быть видна, и дальше скрипт
+# спотыкался бы об «service postgres is not running» на снятии дампа, ничего не объясняя (поймано
+# на стенде). Для ОТКАТА этой проверки нет намеренно: после неудачного обновления контейнеры
+# нередко уже остановлены — а откату они и не нужны, он возвращает файлы и поднимает заново.
+check_project_visible() {
+    [ -z "$(compose ps --format '{{.Name}}' 2>/dev/null | head -1)" ] || return 0
+    stop "$(cat <<EOF
 docker compose не видит ни одного контейнера этой установки.
 
 Так бывает в двух случаях: запуск не из того каталога — или в docker-compose.yml менялось имя
@@ -125,11 +137,6 @@ docker compose не видит ни одного контейнера этой �
 просто командам не видна. Проверьте: docker compose ps  и  docker ps
 EOF
 )"
-    fi
-
-    WEB_PORT="$(env_get WEB_PORT)"; WEB_PORT="${WEB_PORT:-8080}"
-    PGUSER="$(env_get POSTGRES_USER)"; PGUSER="${PGUSER:-postgres}"
-    PGDB="$(env_get POSTGRES_DB)"; PGDB="${PGDB:-bhs_crg}"
 }
 
 # Сравнение версий: возвращает 0, если $1 строго больше $2.
@@ -137,30 +144,72 @@ version_gt() {
     [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]
 }
 
+# Список применённых миграций — из САМОЙ базы. Пусто на выходе означает «спросить не удалось», и
+# отличить это от «миграций нет» нельзя: таблица есть на любой рабочей базе этой системы.
+migrations_snapshot() {
+    compose exec -T postgres psql -U "$PGUSER" -d "$PGDB" -t -A \
+        -c 'select "MigrationId" from "__EFMigrationsHistory" order by 1;' 2>/dev/null | grep -v '^$' || true
+}
+
 # ── Откат ───────────────────────────────────────────────────────────────────────
 # Ровно то, что §8 разрешает делать руками, и ровно с той же оговоркой: откат возможен, ПОКА
-# миграции не применились. Проверяем это по журналу api, а не по вере в лучшее — старый образ с
-# новой схемой работать не обязан, и «вроде обошлось» здесь стоит целой базы.
+# миграции не применились. Старый образ с новой схемой работать не обязан, и «вроде обошлось»
+# здесь стоит целой базы — поэтому проверка сравнивает СНИМОК СПИСКА МИГРАЦИЙ, снятый перед
+# обновлением, с тем, что в базе сейчас.
+#
+# Не по журналу api: он показывает последние строки ТЕКУЩЕГО контейнера. Откат через день, когда
+# строки «Applying migration» вытеснены, или после пересоздания контейнера — и проверка по журналу
+# радостно отвечала бы «миграций не было», подставляя старый образ под новую схему. Не знаем —
+# отказываем: неизвестность здесь равна опасности (поймано ревью).
 do_rollback() {
     preflight_common
     head2 "Откат с версии $CURRENT"
 
-    local applied
-    applied="$(compose logs api --tail=4000 2>/dev/null | grep -c 'Applying migration' || true)"
-    if [ "${applied:-0}" -gt 0 ]; then
-        local dump
-        dump="$(ls -1t backups/pre-update-*.dump 2>/dev/null | head -1 || true)"
-        stop "$(cat <<EOF
-Миграции уже применены — в журнале api есть строки «Applying migration».
+    local dump snap now
+    dump="$(ls -1t backups/pre-update-*.dump 2>/dev/null | head -1 || true)"
+    snap="$(ls -1t migrations.prev-* 2>/dev/null | head -1 || true)"
+    now="$(migrations_snapshot)"
 
-Возврат образа тут не поможет: прежняя версия не обязана понимать новую схему. Откат делается
-только восстановлением дампа, причём базу перед этим ПЕРЕСОЗДАЮТ (§9 DEPLOYMENT.md) — дамп,
-залитый поверх мигрировавшей схемы, оставит смесь новой схемы со старыми данными.
-${dump:+
+    if [ -z "$now" ]; then
+        stop "$(cat <<EOF
+Не удалось спросить базу, какие миграции применены (контейнер postgres не отвечает?).
+
+Без этого ответа откат делать нельзя: если миграции успели примениться, прежняя версия не обязана
+понимать новую схему. Поднимите базу (docker compose up -d postgres) и повторите.
+EOF
+)"
+    fi
+    if [ -z "$snap" ]; then
+        stop "$(cat <<EOF
+Нет снимка списка миграций (файла migrations.prev-*), снятого перед обновлением, — сравнить не с
+чем, а откат вслепую здесь равен потере базы.
+
+Так бывает, если обновление делалось не этим скриптом. Сверьте сами: миграции, которых не было в
+прошлой версии, видны в таблице «__EFMigrationsHistory». Если они появились — только
+восстановление дампа с пересозданием базы (§9 DEPLOYMENT.md).${dump:+
 Свежий дамп этого обновления: $dump}
 EOF
 )"
     fi
+
+    # `%s\n`, а не `%s`: снимок в файле заканчивается переводом строки, и без него diff считал
+    # списки разными ВСЕГДА — откат отказывал даже там, где миграций не появилось. Ошибка в
+    # безопасную сторону, но она делала --rollback бесполезным (поймано на стенде).
+    if ! printf '%s\n' "$now" | diff -q - "$snap" >/dev/null 2>&1; then
+        stop "$(cat <<EOF
+Миграции уже применены — список в базе отличается от снятого перед обновлением:
+
+$(printf '%s\n' "$now" | diff "$snap" - | grep '^>' | sed 's/^> /  + /')
+
+Возврат образа тут не поможет: прежняя версия не обязана понимать новую схему. Откат делается
+только восстановлением дампа, причём базу перед этим ПЕРЕСОЗДАЮТ (§9 DEPLOYMENT.md) — дамп,
+залитый поверх мигрировавшей схемы, оставит смесь новой схемы со старыми данными.${dump:+
+
+Свежий дамп этого обновления: $dump}
+EOF
+)"
+    fi
+    say "Миграции не применялись — откат возможен."
 
     local prev_compose prev_env
     prev_compose="$(ls -1t docker-compose.yml.prev-* 2>/dev/null | head -1 || true)"
@@ -245,11 +294,30 @@ EOF
 # ── Фоновые задачи ──────────────────────────────────────────────────────────────
 # Спрашиваем базу, а не интерфейс: пилюля задач показывает только СВОИ задачи, а помешает как раз
 # чужая — чужая сборка комплекта или распознавание оборвутся и сами не возобновятся.
+#
+# `group by "Status"`, а не `group by 1`: единица указывает на первое выражение SELECT, а там стоит
+# конкатенация со счётчиком, и PostgreSQL отвечает «aggregate functions are not allowed in GROUP
+# BY». Именно этот запрос и падал молча, пока ошибку глушило `2>/dev/null`: проверка отвечала
+# «задач нет» ВСЕГДА. Нашлось в ту же минуту, как ошибки перестали проглатываться.
 check_jobs() {
-    local out
+    local out rc=0
     out="$(compose exec -T postgres psql -U "$PGUSER" -d "$PGDB" -t -A \
-            -c "select \"Status\" || ': ' || count(*) from jobs where \"Status\" in ('Queued','Running') group by 1;" \
-            2>/dev/null || true)"
+            -c "select \"Status\" || ': ' || count(*) from jobs where \"Status\" in ('Queued','Running') group by \"Status\";" \
+            2>&1)" || rc=$?
+
+    # Не сумели спросить — не делаем вид, что спросили. Пустой ответ на неудавшемся запросе выглядит
+    # ровно как «задач нет», и обновление сносило бы чужую сборку комплекта, отчитавшись, что
+    # проверило (поймано ревью).
+    if [ "$rc" -ne 0 ]; then
+        if [ "$FORCE" -eq 1 ]; then
+            warn "Спросить базу о фоновых задачах не удалось — идём дальше, потому что указан --force."
+            return 0
+        fi
+        stop "$(printf 'Не удалось спросить базу о незавершённых фоновых задачах:\n\n%s\n\n%s' \
+            "$(printf '%s' "$out" | tail -3)" \
+            "Проверьте, что контейнер postgres работает и POSTGRES_USER/POSTGRES_DB в .env те же, что у него. Обойти проверку — --force.")"
+    fi
+
     out="$(printf '%s' "$out" | grep -v '^[[:space:]]*$' || true)"
     [ -n "$out" ] || return 0
 
@@ -280,11 +348,16 @@ backup_db() {
     mkdir -p backups
     DUMP="backups/pre-update-$CURRENT-to-$TARGET-$STAMP.dump"
     say "Снимаем дамп базы в $DUMP …"
-    if ! compose exec -T postgres pg_dump -U "$PGUSER" -d "$PGDB" -Fc > "$DUMP" 2>/tmp/bhs-pgdump.err; then
+    # mktemp, а не фиксированный путь в /tmp: скрипт обычно выполняют от root на общей машине, и
+    # предсказуемое имя в общедоступном каталоге — это чужой симлинк, которому наш `>` обрежет файл.
+    local err; err="$(mktemp)"
+    if ! compose exec -T postgres pg_dump -U "$PGUSER" -d "$PGDB" -Fc > "$DUMP" 2>"$err"; then
         rm -f "$DUMP"
+        local reason; reason="$(tail -5 "$err" 2>/dev/null)"; rm -f "$err"
         stop "$(printf 'Не удалось снять дамп базы:\n%s\n\nОбновление не начато — система работает на %s.' \
-                "$(tail -5 /tmp/bhs-pgdump.err 2>/dev/null)" "$CURRENT")"
+                "$reason" "$CURRENT")"
     fi
+    rm -f "$err"
     [ -s "$DUMP" ] || { rm -f "$DUMP"; stop "Дамп получился пустым. Обновление не начато."; }
     say "Дамп готов: $DUMP ($(du -h "$DUMP" | cut -f1))."
 }
@@ -292,14 +365,32 @@ backup_db() {
 # ── Файлы целевой версии ────────────────────────────────────────────────────────
 fetch_release_files() {
     mkdir -p "$NEW_DIR"
+
+    # Чистый файл версии качаем ВСЕГДА, даже когда разворачивать будем ваш merged: он станет
+    # эталоном для следующего обновления. Эталоном merged-файл быть не может — тогда через версию
+    # сравнение сойдётся, и ваши правки заменятся молча. Ровно тот отказ, ради которого остановка и
+    # заводилась (поймано ревью).
+    curl -fsSL "$RELEASE_URL/v$TARGET/docker-compose.yml" -o "$PRISTINE" \
+        || stop "Не удалось скачать docker-compose.yml версии $TARGET."
+
     if [ "$COMPOSE_MERGED" -eq 1 ]; then
         [ -f "$NEW_DIR/docker-compose.yml" ] || stop \
             "Указан --compose-merged, но $NEW_DIR/docker-compose.yml нет. Запустите без ключа — скрипт скачает файл версии."
+        local merged_for; merged_for="$(cat "$NEW_DIR/.version" 2>/dev/null || true)"
+        [ "$merged_for" = "$TARGET" ] || stop "$(cat <<EOF
+В $NEW_DIR/ лежат файлы версии ${merged_for:-неизвестной}, а обновляемся на $TARGET — развернуть их
+значит потерять всё, что версии между ними добавили в compose (сервисы, тома, лимиты), причём молча.
+
+Запустите без --compose-merged: скрипт скачает файлы $TARGET, покажет ваши правки, и перенесёте вы
+их уже в свежий файл.
+EOF
+)"
         say "Берём $NEW_DIR/docker-compose.yml как есть: вы перенесли в него свои правки."
     else
-        curl -fsSL "$RELEASE_URL/v$TARGET/docker-compose.yml" -o "$NEW_DIR/docker-compose.yml" \
-            || stop "Не удалось скачать docker-compose.yml версии $TARGET."
+        cp "$PRISTINE" "$NEW_DIR/docker-compose.yml"
+        printf '%s\n' "$TARGET" > "$NEW_DIR/.version"
     fi
+
     curl -fsSL "$RELEASE_URL/v$TARGET/env.example" -o "$NEW_DIR/env.example" \
         || stop "Не удалось скачать env.example версии $TARGET."
 }
@@ -435,6 +526,7 @@ EOF
     curl -fsIL --max-time 20 "$RELEASE_URL/v$TARGET/docker-compose.yml" -o /dev/null 2>/dev/null || stop \
         "Выпуска $TARGET нет или до github.com не достучаться. Список: https://github.com/$REPO/releases"
 
+    check_project_visible
     check_self_update
     check_jobs
     fetch_release_files
@@ -449,7 +541,9 @@ EOF
     head2 "Предполётная проверка"
     local env_new=".env.$TARGET.$STAMP"
     if grep -qE '^[[:space:]]*APP_VERSION[[:space:]]*=' .env; then
-        sed -E "s|^[[:space:]]*APP_VERSION[[:space:]]*=.*|APP_VERSION=$TARGET|" .env > "$env_new"
+        # Меняем ЗНАЧЕНИЕ, а не строку целиком: если рядом стоял комментарий («# поставили вручную
+        # тогда-то»), он про эту установку, и стирать его при обновлении незачем.
+        sed -E "s|^([[:space:]]*APP_VERSION[[:space:]]*=)[^#]*|\1$TARGET  |" .env > "$env_new"
     else
         cp .env "$env_new"; printf '\nAPP_VERSION=%s\n' "$TARGET" >> "$env_new"
     fi
@@ -470,16 +564,29 @@ EOF
     # теперь трогаем рабочие файлы — и прежние сохраняем С ДАТОЙ, чтобы второй запуск не затёр то,
     # на что откатываться.
     head2 "Переключаем версию"
+    # Снимок списка миграций — до `up -d`: он единственное, по чему потом отличают «откатиться ещё
+    # можно» от «поздно, только дамп». Журнал api для этого не годится: он живёт, пока жив контейнер.
+    if migrations_snapshot > "migrations.prev-$STAMP" && [ -s "migrations.prev-$STAMP" ]; then
+        say "Снимок списка миграций: migrations.prev-$STAMP"
+    else
+        rm -f "migrations.prev-$STAMP"
+        warn "Список миграций снять не удалось — откат командой --rollback будет отказан: без снимка он вслепую."
+    fi
+
     cp docker-compose.yml "docker-compose.yml.prev-$STAMP"
     cp .env ".env.prev-$STAMP"
     say "Прежние файлы сохранены: docker-compose.yml.prev-$STAMP, .env.prev-$STAMP"
 
     cp "$NEW_DIR/docker-compose.yml" docker-compose.yml
-    cp "$NEW_DIR/docker-compose.yml" "$RELEASE_REF"   # эталон для следующего обновления
+    cp "$PRISTINE" "$RELEASE_REF"   # эталон — ЧИСТЫЙ файл версии, см. fetch_release_files
     cp "$NEW_DIR/env.example" .env.example
     mv "$env_new" .env
 
-    compose up -d
+    # `up -d` под присмотром, а не «как получится»: он отвечает ошибкой в самом частом сценарии
+    # неудачи — web ждёт api по healthcheck (20 с + 30×10 с), и неудавшаяся миграция роняет команду
+    # минут через пять. Без этой обёртки set -e обрывал бы скрипт молча — ровно там, где обещаны
+    # журнал и подсказка про откат (поймано ревью).
+    compose up -d || update_failed "Контейнеры новой версии не поднялись."
 
     head2 "Проверка"
     if wait_for_version "$TARGET"; then
@@ -489,21 +596,28 @@ EOF
         [ "$NO_BACKUP" -eq 1 ] || say "Дамп перед обновлением: $DUMP"
         say "Прежние файлы: docker-compose.yml.prev-$STAMP, .env.prev-$STAMP"
     else
-        warn "Система не ответила версией $TARGET. Последние строки журнала api:"
-        compose logs --tail=50 api || true
-        stop "$(cat <<EOF
+        update_failed "Система не ответила версией $TARGET."
+    fi
+}
+
+# Единственное место, где система УЖЕ переключена, а результат неизвестен. Отсюда человек должен
+# уйти с причиной и следующим шагом, а не с кодом возврата docker.
+update_failed() {
+    warn "$1 Последние строки журнала api:"
+    compose logs --tail=50 api || true
+    stop "$(cat <<EOF
 Обновление до $TARGET не подтвердилось.
 
 Частые причины видны в журнале выше: не хватило переменной окружения или оборвалась миграция.
-Пока в журнале api нет строк «Applying migration», вернуть прежнюю версию можно одной командой:
+Пока миграции не применились, вернуть прежнюю версию можно одной командой (скрипт сам проверит
+это по базе и откажет, если поздно):
 
   ./update.sh --rollback
 
-Если миграции уже применились — только восстановление дампа с пересозданием базы (§9):
+Если миграции применились — только восстановление дампа с пересозданием базы (§9):
 ${DUMP:-снятый вами дамп}
 EOF
 )"
-    fi
 }
 
 if [ "$ROLLBACK" -eq 1 ]; then
