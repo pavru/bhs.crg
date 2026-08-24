@@ -11,6 +11,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { ruCount } from '@/shared/utils/pluralize';
 import { RecognitionBlockedDialog } from './RecognitionBlockedDialog';
+import { newLocalId } from '@/shared/utils/localId';
 
 const DEFAULT_CODE = '(без шифра)';
 /** Тэги типа таблицы документа (спецификация / кабельный журнал) — распознаются и выгружаются. */
@@ -47,7 +48,7 @@ function isSuspicious(g: Pick<EditableGroup, 'kind' | 'code' | 'name'>): boolean
 
 function makeGroups(groups: GostGroupingGroup[]): EditableGroup[] {
   const mapped = groups.map(g => ({
-    id: crypto.randomUUID(),
+    id: newLocalId(),
     kind: g.kind,
     code: g.code ?? DEFAULT_CODE,
     name: g.name,
@@ -57,7 +58,7 @@ function makeGroups(groups: GostGroupingGroup[]): EditableGroup[] {
   }));
   // Обложка и титульный лист всегда присутствуют как группы (пустые — как цель для переноса).
   const ensure = (kind: Exclude<GostGroupKind, 'Document'>): EditableGroup[] =>
-    mapped.some(g => g.kind === kind) ? [] : [{ id: crypto.randomUUID(), kind, code: DEFAULT_CODE, name: null, pageIndices: [], tags: [], profileId: null }];
+    mapped.some(g => g.kind === kind) ? [] : [{ id: newLocalId(), kind, code: DEFAULT_CODE, name: null, pageIndices: [], tags: [], profileId: null }];
   const cover = mapped.filter(g => g.kind === 'Cover');
   const title = mapped.filter(g => g.kind === 'TitlePage');
   const docs = mapped.filter(g => g.kind === 'Document');
@@ -461,7 +462,7 @@ export function PdfGroupingEditor() {
     mutateGroups(prev => {
       const cleared = removeFromAllGroups(prev, selected);
       if (targetGroupId === 'new') {
-        return [...cleared, { id: crypto.randomUUID(), kind: 'Document', code: DEFAULT_CODE, name: null, pageIndices: [...selected].sort((a, b) => a - b), tags: [], profileId: null }];
+        return [...cleared, { id: newLocalId(), kind: 'Document', code: DEFAULT_CODE, name: null, pageIndices: [...selected].sort((a, b) => a - b), tags: [], profileId: null }];
       }
       return cleared.map(g => g.id === targetGroupId
         ? { ...g, pageIndices: [...g.pageIndices, ...selected].sort((a, b) => a - b) }

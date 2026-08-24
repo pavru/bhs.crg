@@ -4,6 +4,7 @@ import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { useUpdateTemplateParameters } from '@/shared/api/templates';
 import { moveItem } from '@/shared/utils/moveItem';
 import type { Template, TemplateParam } from '@/shared/api/types';
+import { newLocalId } from '@/shared/utils/localId';
 
 /** Строка редактора: параметр плюс устойчивый идентификатор — он нужен ключом списка при перестановке. */
 type Row = { id: string; p: TemplateParam };
@@ -29,7 +30,7 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
   // Проверено: с ключом-индексом два нажатия Enter на «Ниже» возвращали исходный порядок — первое
   // двигало параметр вниз, второе двигало вниз того, кто занял освободившееся место (issue #517).
   const [rows, setRows] = useState<Row[]>(
-    () => parseTemplateParams(template.parameters).map(p => ({ id: crypto.randomUUID(), p })));
+    () => parseTemplateParams(template.parameters).map(p => ({ id: newLocalId(), p })));
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const update = useUpdateTemplateParameters();
 
@@ -107,7 +108,7 @@ export function TemplateParamsPanel({ template, onSaved }: { template: Template;
               </span>
             </div>
           ))}
-          <button onClick={() => save([...rows, { id: crypto.randomUUID(), p: { name: '', label: '', type: 'string', default: '' } }])}
+          <button onClick={() => save([...rows, { id: newLocalId(), p: { name: '', label: '', type: 'string', default: '' } }])}
             className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
             <Plus size={12} /> Добавить параметр
           </button>

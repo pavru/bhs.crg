@@ -35,6 +35,7 @@ import { DocRefCatalogPickerField } from './DocRefCatalogPickerField';
 import { DocRefField, DocArrayField } from './DocRefField';
 import { PasteMappingModal } from './PasteMappingModal';
 import { BROKEN_PLATE, BROKEN_LABEL, BrokenRefNote } from './BrokenRef';
+import { newLocalId } from '@/shared/utils/localId';
 
 /** Модульная пустышка для дефолта пропа: инлайновый `= []` — новый массив на каждый рендер. */
 const EMPTY_ENUM_TYPES: EnumTypeDef[] = [];
@@ -167,7 +168,7 @@ export function ArrayTableModal({
   useEffect(() => {
     if (open) {
       setRows(items.map(r => ({ ...r })));
-      const ids = items.map(() => crypto.randomUUID());
+      const ids = items.map(() => newLocalId());
       setRowIds(ids);
       setOpenedIds(ids);
       setSelected(new Set());
@@ -208,7 +209,7 @@ export function ArrayTableModal({
   }
   function addRow() {
     setRows(prev => [...prev, getDefaultValues(subFields)]);
-    setRowIds(prev => [...prev, crypto.randomUUID()]);
+    setRowIds(prev => [...prev, newLocalId()]);
   }
   function removeRow(idx: number) {
     const id = rowIds[idx];
@@ -442,7 +443,7 @@ export function ArrayTableModal({
         scope={resolveScope} scopeId={resolveScopeId}
         onApply={newRows => {
           setRows(prev => [...prev, ...newRows]);
-          setRowIds(prev => [...prev, ...newRows.map(() => crypto.randomUUID())]);
+          setRowIds(prev => [...prev, ...newRows.map(() => newLocalId())]);
         }}
       />
     </Modal>
