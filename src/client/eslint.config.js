@@ -24,10 +24,26 @@ export default defineConfig([
       // сети), метода не получает, и вызов роняет экран целиком: в инициализаторе useState он падает
       // на первом же рендере. Так и вышло с панелью параметров шаблона (issue #848) — а заметно это
       // только тем, у кого нет HTTPS, то есть проверка «у меня работает» ничего не значит.
-      'no-restricted-syntax': ['error', {
-        selector: "MemberExpression[property.name='randomUUID']",
-        message: 'crypto.randomUUID недоступен по HTTP — берите newLocalId() из @/shared/utils/localId (issue #848).',
-      }],
+      //
+      // Правило — подсказка в редакторе, а НЕ ворота: линт не запускается ни в одном workflow и
+      // локально уже отвечает сотней ошибок, накопленных раньше. Настоящий сторож — тест
+      // src/shared/utils/secureContextApis.test.ts: он виден в `npm test` и падает один.
+      'no-restricted-syntax': ['error',
+        {
+          selector: "MemberExpression[property.name='randomUUID']",
+          message: 'crypto.randomUUID недоступен по HTTP — берите newLocalId() из @/shared/utils/localId (issue #848).',
+        },
+        {
+          // crypto['randomUUID']() — то же самое, мимо селектора выше.
+          selector: "MemberExpression[computed=true][property.value='randomUUID']",
+          message: 'crypto.randomUUID недоступен по HTTP — берите newLocalId() из @/shared/utils/localId (issue #848).',
+        },
+        {
+          // const { randomUUID } = crypto — вызов уедет уже без слова «crypto».
+          selector: "ObjectPattern > Property[key.name='randomUUID']",
+          message: 'crypto.randomUUID недоступен по HTTP — берите newLocalId() из @/shared/utils/localId (issue #848).',
+        },
+      ],
     },
   },
   {
