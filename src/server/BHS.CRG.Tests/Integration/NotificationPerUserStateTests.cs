@@ -1,3 +1,6 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Infrastructure.Persistence;
@@ -36,6 +39,29 @@ public class NotificationPerUserStateTests(IntegrationTestFixture fixture) : IAs
         var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Тест" };
         Assert.True((await um.CreateAsync(user, "Passw0rd!")).Succeeded);
         return user.Id;
+    }
+
+    /// <summary>Клиент с токеном администратора: удаление пользователя разрешено только роли Admin.</summary>
+    private async Task<HttpClient> AdminClientAsync()
+    {
+        var email = $"admin_{Guid.NewGuid():N}@test.local";
+        const string password = "Passw0rd!";
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var um = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var rm = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+            if (!await rm.RoleExistsAsync("Admin")) Assert.True((await rm.CreateAsync(new IdentityRole<Guid>("Admin"))).Succeeded);
+            var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Админ", EmailConfirmed = true };
+            Assert.True((await um.CreateAsync(user, password)).Succeeded);
+            Assert.True((await um.AddToRoleAsync(user, "Admin")).Succeeded);
+        }
+
+        var client = fixture.CreateClient();
+        var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password });
+        login.EnsureSuccessStatusCode();
+        var token = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
     }
 
     private async Task<Guid> PublishAsync(Guid? userId, string title = "Событие")
@@ -209,6 +235,82 @@ public class NotificationPerUserStateTests(IntegrationTestFixture fixture) : IAs
         await db.Notifications.Where(n => n.Id == id).ExecuteDeleteAsync();
 
         Assert.False(await db.NotificationUserStates.AnyAsync(s => s.NotificationId == id));
+    }
+
+    /// <summary>
+    /// Подрезка работает по корзине того, кому только что опубликовали. В корзину удалённого
+    /// пользователя больше никто и никогда не напишет — значит её содержимое осталось бы в базе
+    /// навсегда, невидимое ниоткуда. Внешнего ключа у notifications."UserId" нет, само оно не уйдёт.
+    /// </summary>
+    [Fact]
+    public async Task DeletingUser_TakesTheirNotificationsWithThem()
+    {
+        var doomed = await CreateUserAsync();
+        var personal = await PublishAsync(doomed, "Личное обречённого");
+
+        using (var scope = fixture.Services.CreateScope())
+            await Service(scope).MarkReadAsync(personal, doomed);
+
+        var client = await AdminClientAsync();
+        var response = await client.DeleteAsync($"/api/users/{doomed}");
+        Assert.Equal(System.Net.HttpStatusCode.NoContent, response.StatusCode);
+
+        using var check = fixture.Services.CreateScope();
+        var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.False(await db.Notifications.AnyAsync(n => n.Id == personal));
+        Assert.False(await db.NotificationUserStates.AnyAsync(st => st.UserId == doomed));
+    }
+
+    /// <summary>
+    /// Строки состояния заводятся лениво, «нет строки» = «не прочитано». Значит без отсечки по дате
+    /// заведения учётной записи новый сотрудник открыл бы колокольчик с сотнями непрочитанных
+    /// сообщений из чужого прошлого. До #821 этого не было видно: отметка была общей на всех.
+    /// </summary>
+    [Fact]
+    public async Task NewUser_DoesNotSee_SystemWideNotifications_PublishedBeforeTheirAccount()
+    {
+        var old = await PublishAsync(null, "Старое общесистемное");
+        var newcomer = await CreateUserAsync();
+        var fresh = await PublishAsync(null, "Новое общесистемное");
+
+        Assert.False((await StateFor(newcomer, old)).Visible);
+        Assert.True((await StateFor(newcomer, fresh)).Visible);
+
+        var unread = await UnreadIdsAsync(newcomer);
+        Assert.DoesNotContain(old, unread);
+        Assert.Contains(fresh, unread);
+    }
+
+    /// <summary>
+    /// Токен живёт минуты и переживает удаление учётной записи. Отметка такого пользователя не
+    /// должна падать нарушением внешнего ключа — до появления строк состояния она просто ничего
+    /// не делала, и остаться должно так же.
+    /// </summary>
+    [Fact]
+    public async Task MarkingRead_WithDeletedAccount_IsNoOp_NotAnError()
+    {
+        var ghost = await CreateUserAsync();
+        var id = await PublishAsync(null, "Общесистемное");
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Users.Where(u => u.Id == ghost).ExecuteDeleteAsync();
+        }
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var svc = Service(scope);
+            await svc.MarkReadAsync(id, ghost);
+            await svc.MarkAllReadAsync(ghost);
+            await svc.DismissAsync(id, ghost);
+            await svc.ClearAsync(ghost);
+        }
+
+        using var check = fixture.Services.CreateScope();
+        var check_db = check.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.False(await check_db.NotificationUserStates.AnyAsync(st => st.UserId == ghost));
+        Assert.True(await check_db.Notifications.AnyAsync(n => n.Id == id));
     }
 
     /// <summary>

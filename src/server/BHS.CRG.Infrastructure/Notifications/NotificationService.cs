@@ -24,6 +24,12 @@ public class NotificationService(AppDbContext db, ILogger<NotificationService> l
     private static Expression<Func<Notification, bool>> VisibleTo(Guid userId)
         => n => n.UserId == userId || n.UserId == null;
 
+    // То же, но общесистемные — только выпущенные после появления учётной записи.
+    private Expression<Func<Notification, bool>> VisibleSince(Guid userId)
+        => n => n.UserId == userId
+             || (n.UserId == null
+                 && n.CreatedAt >= db.Users.Where(u => u.Id == userId).Select(u => u.CreatedAt).FirstOrDefault());
+
     public async Task PublishAsync(NotificationSeverity severity, string title, string message,
         string? source = null, Guid? userId = null, string? linkUrl = null, string? linkLabel = null,
         CancellationToken ct = default)
@@ -73,9 +79,14 @@ public class NotificationService(AppDbContext db, ILogger<NotificationService> l
     /// и не скрыто» — внутреннее соединение потеряло бы всё непрочитанное, то есть ровно то, ради
     /// чего список открывают. Проекция сразу в DTO, а не в промежуточный тип: сортировку по полю
     /// пользовательской структуры EF не переводит и падает уже на выполнении запроса.
+    ///
+    /// Общесистемные отсекаются по дате заведения учётной записи — подзапросом, а не отдельным
+    /// обращением: список опрашивают поллингом, лишний круг к базе тут не бесплатный. Отсечка
+    /// нужна ровно из-за ленивых строк состояния: «нет строки» = «не прочитано», и без неё новый
+    /// сотрудник открывал бы колокольчик с чужим прошлым, помеченным как непрочитанное.
     /// </summary>
     private IQueryable<NotificationDto> VisibleTo(Guid userId, bool unreadOnly)
-        => from n in db.Notifications.AsNoTracking().Where(VisibleTo(userId))
+        => from n in db.Notifications.AsNoTracking().Where(VisibleSince(userId))
            join st in db.NotificationUserStates.AsNoTracking().Where(x => x.UserId == userId)
                on n.Id equals st.NotificationId into states
            from st in states.DefaultIfEmpty()
@@ -99,7 +110,8 @@ public class NotificationService(AppDbContext db, ILogger<NotificationService> l
             INSERT INTO notification_user_states ("Id", "NotificationId", "UserId", "IsRead", "IsDismissed", "CreatedAt", "UpdatedAt")
             SELECT gen_random_uuid(), n."Id", {userId}, TRUE, FALSE, now(), now()
             FROM notifications n
-            WHERE n."UserId" = {userId} OR n."UserId" IS NULL
+            WHERE (n."UserId" = {userId} OR n."UserId" IS NULL)
+              AND EXISTS (SELECT 1 FROM "AspNetUsers" u WHERE u."Id" = {userId})
             ON CONFLICT ("NotificationId", "UserId") DO UPDATE
                 SET "IsRead" = TRUE, "UpdatedAt" = now()
             """, ct);
@@ -124,27 +136,41 @@ public class NotificationService(AppDbContext db, ILogger<NotificationService> l
 
     public async Task ClearAsync(Guid userId, CancellationToken ct = default)
     {
-        await db.Notifications.Where(n => n.UserId == userId).ExecuteDeleteAsync(ct);
+        // Обе половины — в одной транзакции, и НЕОБРАТИМАЯ идёт второй. Иначе отказ на втором шаге
+        // (оборванное соединение, откатившийся запрос) оставлял бы личные уведомления удалёнными
+        // навсегда, а общесистемные — на экране; повтор «Очистить все» удалённое уже не вернёт.
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
 
         await db.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO notification_user_states ("Id", "NotificationId", "UserId", "IsRead", "IsDismissed", "CreatedAt", "UpdatedAt")
             SELECT gen_random_uuid(), n."Id", {userId}, TRUE, TRUE, now(), now()
             FROM notifications n
             WHERE n."UserId" IS NULL
+              AND EXISTS (SELECT 1 FROM "AspNetUsers" u WHERE u."Id" = {userId})
             ON CONFLICT ("NotificationId", "UserId") DO UPDATE
                 SET "IsRead" = TRUE, "IsDismissed" = TRUE, "UpdatedAt" = now()
             """, ct);
+
+        await db.Notifications.Where(n => n.UserId == userId).ExecuteDeleteAsync(ct);
+
+        await tx.CommitAsync(ct);
     }
 
     /// <summary>
     /// Заводит или обновляет строку состояния. Через ON CONFLICT, а не «прочитать-и-записать»:
     /// колокольчик опрашивает список поллингом, две отметки подряд гонятся за одну и ту же пару.
     /// Флаги только поднимаются (OR) — чтобы «прочитано» не сбрасывалось более поздней отметкой.
+    ///
+    /// INSERT ... SELECT с проверкой пользователя, а не VALUES: userId приходит из токена, а токен
+    /// живёт минуты и переживает удаление учётной записи. Без проверки первая же отметка такого
+    /// пользователя падала бы нарушением внешнего ключа — ответом 500 там, где до появления
+    /// строк состояния просто ничего не происходило.
     /// </summary>
     private Task UpsertStateAsync(Guid notificationId, Guid userId, bool isRead, bool isDismissed, CancellationToken ct)
         => db.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO notification_user_states ("Id", "NotificationId", "UserId", "IsRead", "IsDismissed", "CreatedAt", "UpdatedAt")
-            VALUES (gen_random_uuid(), {notificationId}, {userId}, {isRead}, {isDismissed}, now(), now())
+            SELECT gen_random_uuid(), {notificationId}, {userId}, {isRead}, {isDismissed}, now(), now()
+            WHERE EXISTS (SELECT 1 FROM "AspNetUsers" u WHERE u."Id" = {userId})
             ON CONFLICT ("NotificationId", "UserId") DO UPDATE
                 SET "IsRead" = notification_user_states."IsRead" OR EXCLUDED."IsRead",
                     "IsDismissed" = notification_user_states."IsDismissed" OR EXCLUDED."IsDismissed",
