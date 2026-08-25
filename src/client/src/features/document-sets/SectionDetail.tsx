@@ -11,6 +11,8 @@ import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { CatalogResource } from './catalog/CatalogResource';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
 import { useProblemSummary, problemOf } from '@/shared/api/reconciliations';
+import { usePlanSummary, planOf } from '@/shared/api/plans';
+import { PlanProgressBadge } from './PlanProgressBadge';
 import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -31,6 +33,7 @@ export function SectionDetail() {
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
   const { data: docTypes = [] } = useListDocumentTypes();
   const { data: problems } = useProblemSummary('Section', sectionId);
+  const { data: plan } = usePlanSummary('Section', sectionId);
 
   const [addSetOpen, setAddSetOpen] = useState(false);
   const [newSetName, setNewSetName] = useState('');
@@ -84,8 +87,10 @@ export function SectionDetail() {
       {section.documentSets.length === 0 && <p className="px-3 py-1.5 text-xs text-fg4">Нет комплектов</p>}
       {section.documentSets.map(ds => {
         const p = problemOf(problems, ds.id);
+        const done = planOf(plan, ds.id);
         return (
           <NavItem key={ds.id} icon={<FolderOpen size={17} />} label={ds.name} count={ds.documentCount ?? 0} chevron
+            progress={done?.percent ?? null}
             alert={p?.needsAttention} alertDanger={p?.hasArithmeticProblems}
             onClick={() => navigate(`/document-sets/${constructionId}/sets/${ds.id}`)} />
         );
@@ -126,6 +131,7 @@ export function SectionDetail() {
   return (
     <>
       <ListDetailShell title={section.name} titleIcon={<Layers size={20} />} breadcrumb={contextCrumbs}
+        titleBadge={<PlanProgressBadge progress={plan?.own} />}
         headerAction={headerAction} nav={nav} detail={detail} />
 
       <Modal open={addSetOpen} onOpenChange={setAddSetOpen} title="Новый комплект"

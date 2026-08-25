@@ -7,6 +7,7 @@ import { TextField } from '@/shared/ui/TextField';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ConfirmDialog, CascadeList } from '@/shared/ui/ConfirmDialog';
 import { useProblemSummary, problemOf } from '@/shared/api/reconciliations';
+import { usePlanSummary, planOf } from '@/shared/api/plans';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListConstructions, useCreateConstruction, useRenameConstruction, useDeleteConstruction } from '@/shared/api/constructions';
 import { useSearchDocuments } from '@/shared/api/documentSets';
@@ -83,6 +84,7 @@ export function ConstructionsList() {
 
   const { data: constructions = [], isLoading } = useListConstructions();
   const { data: problems } = useProblemSummary('System');
+  const { data: plans } = usePlanSummary('System');
   const createMutation = useCreateConstruction();
   const deleteMutation = useDeleteConstruction();
   const renameMutation = useRenameConstruction();
@@ -155,7 +157,13 @@ export function ConstructionsList() {
                 <div className="flex items-center gap-4 text-xs text-fg4">
                   <span>{ruCount(c.sections.length, 'раздел', 'раздела', 'разделов')}</span>
                   <span>{ruCount(setsCount, 'комплект', 'комплекта', 'комплектов')}</span>
-                  {/* Строкой, а не пилюлей: красные пилюли на карточках дают «ёлку» раньше всего. */}
+                  {/* Строкой, а не пилюлей: красные пилюли на карточках дают «ёлку» раньше всего.
+                      Готовность — там же и тем же тоном: это соседняя по смыслу цифра, а не бейдж. */}
+                  {planOf(plans, c.id)?.percent != null && (
+                    <span className="tabular-nums">
+                      готовность: {planOf(plans, c.id)!.percent}%
+                    </span>
+                  )}
                   {(problemOf(problems, c.id)?.needsAttention ?? 0) > 0 && (
                     <span className="text-warning">
                       требует разбора: {problemOf(problems, c.id)!.needsAttention}

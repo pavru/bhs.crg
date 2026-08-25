@@ -11,6 +11,8 @@ import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { CatalogResource } from './catalog/CatalogResource';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
 import { useProblemSummary, problemOf } from '@/shared/api/reconciliations';
+import { usePlanSummary, planOf } from '@/shared/api/plans';
+import { PlanProgressBadge } from './PlanProgressBadge';
 import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
@@ -31,6 +33,7 @@ export function ConstructionDetail() {
   const { data: construction, isLoading } = useGetConstruction(constructionId!);
   const { data: docTypes = [] } = useListDocumentTypes();
   const { data: problems } = useProblemSummary('Construction', constructionId);
+  const { data: plan } = usePlanSummary('Construction', constructionId);
   const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
   const [sectionError, setSectionError] = useState('');
@@ -73,8 +76,10 @@ export function ConstructionDetail() {
       {construction.sections.length === 0 && <p className="px-3 py-1.5 text-xs text-fg4">Нет разделов</p>}
       {construction.sections.map(s => {
         const p = problemOf(problems, s.id);
+        const done = planOf(plan, s.id);
         return (
           <NavItem key={s.id} icon={<Layers size={17} />} label={s.name} count={s.documentSets.length} chevron
+            progress={done?.percent ?? null}
             alert={p?.needsAttention} alertDanger={p?.hasArithmeticProblems}
             onClick={() => navigate(`/document-sets/${constructionId}/sections/${s.id}`)} />
         );
@@ -115,6 +120,7 @@ export function ConstructionDetail() {
   return (
     <>
       <ListDetailShell title={construction.name} titleIcon={<Building2 size={20} />} breadcrumb={contextCrumbs}
+        titleBadge={<PlanProgressBadge progress={plan?.own} />}
         headerAction={headerAction} nav={nav} detail={detail} />
 
       <Modal open={addSectionOpen} onOpenChange={setAddSectionOpen} title="Новый раздел"
