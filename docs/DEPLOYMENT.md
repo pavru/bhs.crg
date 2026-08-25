@@ -731,7 +731,8 @@ docker compose -f deploy/docker-compose.yml down -v      # остановить 
       **Он же расшифровывает ключи интеграций** (см. §7): при потере тома ключи распознавания,
       веб‑поиска и пароль SMTP придётся ввести заново — данные и документы при этом не страдают.
 - [ ] **HTTPS обязателен**, если система доступна не только с локальной машины: перед `web` стоит
-      обратный прокси с терминацией TLS, порт `80` наружу закрыт. Приложение TLS не терминирует и
+      обратный прокси с терминацией TLS. Порт `80` при этом остаётся открытым — по нему идут
+      проверка Let's Encrypt и перенаправление на HTTPS, — но самого приложения на нём нет. Приложение TLS не терминирует и
       само на HTTPS не перенаправляет — без внешнего контура пароли и токены идут открытым текстом.
       Порядок установки — **Приложение В**.
 - [ ] После установки прокси: в `.env` задан `WEB_BIND=127.0.0.1`, и порт `WEB_PORT` снаружи не
@@ -1041,12 +1042,22 @@ sudo systemctl enable --now nginx
 [отсюда](https://github.com/pavru/bhs.crg/blob/master/deploy/reverse-proxy.conf.example)):
 
 ```bash
+# В установке из релиза файла нет — берём из репозитория
+curl -fsSL https://raw.githubusercontent.com/pavru/bhs.crg/master/deploy/reverse-proxy.conf.example \
+  -o reverse-proxy.conf.example
+
 sudo cp reverse-proxy.conf.example /etc/nginx/sites-available/bhs-crg
 sudo nano /etc/nginx/sites-available/bhs-crg     # заменить docs.example.ru; порт — WEB_PORT из .env
 sudo ln -s /etc/nginx/sites-available/bhs-crg /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default      # иначе стандартная страница nginx перехватит имя
 sudo nginx -t && sudo systemctl reload nginx
 ```
+
+> **В образце один server-блок, и он на 80** — так устроен `certbot --nginx`: он находит блок с
+> вашим именем, дописывает в него `listen 443 ssl` и пути к сертификату, а на 80 создаёт отдельный
+> блок с перенаправлением. Всё, что вы настроили ниже — проксирование, пределы, сроки, — переезжает
+> в HTTPS вместе с блоком. Готовый блок на 443 в образце был бы не заботой, а ошибкой: `listen …
+> ssl` без `ssl_certificate` nginx не принимает вовсе, и `nginx -t` не прошёл бы ещё до certbot.
 
 Три вещи в этом файле не косметические, и менять их не стоит:
 
@@ -1097,15 +1108,20 @@ curl -s https://docs.example.ru/api/version       # должно ответит�
 
 ```bash
 APP_PUBLIC_URL=https://docs.example.ru
-FORWARDED_TRUSTED_NETWORKS=127.0.0.1/32
 ```
 
 - **`APP_PUBLIC_URL`** — из него собираются ссылки в письмах (сброс пароля, подтверждение адреса).
   Останется прежним — письма будут звать на `http://…` и старый порт, то есть в обход прокси.
   Не задан вовсе — письмо со сбросом пароля **не отправляется** (§8.4).
-- **`FORWARDED_TRUSTED_NETWORKS`** — чьему `X-Forwarded-For` верить. Прокси на том же хосте
-  приходит с петли; пусто — тоже рабочее значение (доверяются петля и частные диапазоны), но явное
-  сужение до адреса прокси надёжнее.
+- **`FORWARDED_TRUSTED_NETWORKS`** — трогать не нужно, и это важнее, чем кажется. Переменная
+  говорит, чьему `X-Forwarded-For` верить, а запрос приходит к `api` **не от вашего прокси
+  напрямую**: между ними стоит контейнер `web`, и адресом отправителя для `api` всегда будет его
+  адрес в сети Compose (172.16/12). Значение по умолчанию (пусто) уже покрывает петлю и частные
+  диапазоны, то есть работает. А «сузить до прокси», вписав `127.0.0.1/32`, значит не оставить в
+  списке ни одного адреса, который `api` вообще видит: заголовок будет отброшен, и предел частоты
+  входов схлопнется в общую корзину — та самая беда, от которой этот заголовок и передаётся.
+  Если сужение всё же нужно, берите подсеть сети Compose:
+  `docker network inspect bhs-crg_default -f '{{(index .IPAM.Config 0).Subnet}}'`.
 
 ```bash
 docker compose up -d api
@@ -1132,8 +1148,34 @@ sudo openssl req -x509 -nodes -days 825 -newkey rsa:2048 \
   -subj "/CN=docs.internal" -addext "subjectAltName=DNS:docs.internal"
 ```
 
-Пути к этим файлам вписываются в конфигурацию вручную (`ssl_certificate` / `ssl_certificate_key`),
-certbot в этом случае не участвует.
+Certbot здесь не участвует, поэтому блок на 443 составляете вы сами: возьмите из образца тот, что
+на 80, поменяйте в нём первые строки и добавьте пути к сертификату — остальное (проксирование,
+пределы, сроки) остаётся как есть.
+
+```nginx
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name docs.internal;
+
+    ssl_certificate     /etc/ssl/certs/bhs-crg.crt;
+    ssl_certificate_key /etc/ssl/private/bhs-crg.key;
+
+    # ... дальше содержимое блока из образца: client_max_body_size, location / и location /api/backup/
+}
+
+# И перенаправление с HTTP — то, что при Let's Encrypt делает certbot
+server {
+    listen 80;
+    listen [::]:80;
+    server_name docs.internal;
+    return 301 https://$host$request_uri;
+}
+```
+
+> `http2 on;` добавляйте, только если у вас nginx **1.25.1 и новее**; на более старых (Ubuntu 22.04
+> везёт 1.18, Debian 12 — 1.22, Ubuntu 24.04 — 1.24) эта запись останавливает запуск с «unknown
+> directive», а включается HTTP/2 там иначе: `listen 443 ssl http2;`. Проверено на всех трёх.
 
 > **О «Всё равно перейти».** Возможности интерфейса после такого перехода работают: браузер
 > считает контекст защищённым по схеме `https://`, и буфер обмена, снимок экрана и `randomUUID`
@@ -1150,7 +1192,8 @@ certbot в этом случае не участвует.
 
 | Симптом | Причина |
 |---|---|
-| `nginx -t` жалуется на `ssl_certificate` | Certbot ещё не отработал: сначала конфигурация без TLS (В.2), потом `certbot --nginx` |
+| `nginx -t`: `no "ssl_certificate" is defined for the "listen ... ssl"` | В конфигурации появился блок на 443 без путей к сертификату. При Let's Encrypt их дописывает certbot — до него блока на 443 быть не должно (В.2); при своём сертификате пути вписываются вручную (В.6) |
+| `nginx -t`: `unknown directive "http2"` | Запись `http2 on;` понимает nginx 1.25.1 и новее; на 1.18/1.22/1.24 — `listen 443 ssl http2;` |
 | Certbot: «Timeout during connect» | Порт 80 закрыт снаружи или A‑запись ведёт не сюда. Проверить: `curl -I http://docs.example.ru` с другой машины |
 | Открывается стандартная страница nginx | Не удалён `/etc/nginx/sites-enabled/default` — он перехватывает имя первым |
 | В интерфейсе `502 Bad Gateway` | Стек не отвечает на `WEB_PORT`. Проверить: `docker compose ps` и `curl -s http://127.0.0.1:8080/api/version` с сервера |
