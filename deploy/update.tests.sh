@@ -27,7 +27,13 @@ cd "$SB" || exit 1
 sed '/^if \[ "\$CHECK" -eq 1 \]; then$/,$d' "$SRC" > lib.sh
 # shellcheck disable=SC1091
 source ./lib.sh
-set +e   # lib.sh включает errexit: без этого прогон обрывался бы на первом ОЖИДАЕМОМ отказе
+# lib.sh включает errexit — здесь он снят, иначе прогон обрывался бы на первом ОЖИДАЕМОМ отказе
+# (обвязка проверяет коды возврата, а errexit не дал бы их получить). Расплата за это реальна:
+# функции ниже проверяются не в том режиме, в каком работают в бою, и первая же версия набора
+# из-за этого прошла мимо двух остановок, до которых под errexit не доходило управление. Поэтому
+# всё, что зависит ОТ errexit, проверяется отдельным разделом в конце — там функции запускаются
+# в подоболочке `( set -e; … )`, то есть ровно так, как их запускает человек.
+set +e
 
 ok=0; bad=0
 check() { # check «что проверяем» ожидание факт
@@ -167,6 +173,56 @@ pull_images .env >/dev/null 2>&1
 check 'три отказа — отказ'       1 "$?"
 check 'больше трёх не пробует'   3 "$attempts"
 unset -f compose sleep
+
+echo
+echo '── остановки обязаны срабатывать ПОД errexit ──'
+# Каждая проверка здесь — про одно и то же: команда, отказавшая внутри подстановки, обрывает
+# скрипт молча, и заботливо написанная остановка строкой ниже не выполняется НИКОГДА. Три таких
+# нашлись ревью в первой версии этого кода. Запускаем в подоболочке с `set -e` — как в бою.
+run_e() { ( set -e; "$@" ) > run.out 2>&1; echo $?; }
+said() { grep -q "$1" run.out && echo да || echo нет; }
+
+# «Нет сети» для --check: обещанный код 1 и объяснение, а не код curl и тишина.
+curl() { return 6; }
+check 'нет сети: --check отвечает кодом 1' 1 "$(run_e do_check)"
+check 'и объясняет, что случилось' да "$(said 'Не удалось узнать последний выпуск')"
+unset -f curl
+
+# Дальше — --gc. Функция docker нужна не только как заглушка: `command -v docker` находит функцию
+# так же, как программу, и без неё проверки упирались бы в «Docker не найден».
+docker() { return 0; }
+printf 'APP_VERSION=0.150.0\n' > .env
+printf 'services:\n  api:\n    build: .\n' > docker-compose.yml     # ни одного образа ghcr.io
+check 'compose без наших образов: код 1' 1 "$(run_e do_gc)"
+check 'и объяснение вместо тишины'  да "$(said 'нет образов с ghcr.io')"
+
+printf 'services:\n  api:\n    image: ghcr.io/pavru/bhs.crg-api:${APP_VERSION}\n' > docker-compose.yml
+mv .env .env.hidden
+check 'без .env: --gc отказывается' 1 "$(run_e do_gc)"
+check 'и говорит почему'            да "$(said 'нет .env')"
+mv .env.hidden .env
+
+printf 'APP_VERSION=\n' > .env
+check 'пустой APP_VERSION: отказ' 1 "$(run_e do_gc)"
+check 'а не «удалить всё»'        да "$(said 'не задан APP_VERSION')"
+printf 'APP_VERSION=0.150.0\n' > .env
+
+docker() { return 1; }              # демон не отвечает
+check 'docker молчит: отказ'      1 "$(run_e do_gc)"
+check 'и объяснение'              да "$(said 'Docker не отвечает')"
+unset -f docker
+
+# env.example без единого ключа: обновление не должно обрываться на полуслове.
+: > new/env.example
+AUTOFILL=()
+check 'пустой env.example — не обрыв' 0 "$(run_e check_new_vars)"
+
+echo
+echo '── compose_default: умолчание со вложенной переменной — не умолчание ──'
+printf 'services:\n  api:\n    environment:\n      A: ${ALLOWED_ORIGINS:-http://localhost:${WEB_PORT:-8080}}\n' \
+    > new/docker-compose.yml
+compose_default ALLOWED_ORIGINS >/dev/null && r=есть || r=нет
+check 'вложенное умолчание не выдаётся за значение' нет "$r"
 
 echo
 echo '── latest_release: разбор номера версии из адреса выпуска ──'
