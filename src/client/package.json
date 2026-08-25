@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "lint:ratchet": "node scripts/lint-ratchet.mjs",
+    "lint:ratchet:update": "node scripts/lint-ratchet.mjs --update",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

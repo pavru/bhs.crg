@@ -1,0 +1,104 @@
+# Проверки на каждый PR и на каждый push в master (issue #854).
+#
+# До этого workflow в репозитории проверяло НИЧЕГО: `release` собирал образы не глядя на тесты,
+# `claude-code-review` читал диф. Единственной защитой был ручной прогон в сессии — то есть её
+# отсутствие в любом PR, слитом без него.
+#
+# Две работы идут параллельно и падают независимо: сломанный клиент не должен прятать backend и
+# наоборот. Обе обязаны быть зелёными — ветку master защищаем этими проверками.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+# Новый push в тот же PR отменяет предыдущий прогон: проверять устаревший коммит незачем, а
+# очередь съедает минуты. Для master отмену НЕ включаем — там каждый коммит должен быть проверен.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backend:
+    name: Backend (сборка + тесты)
+    runs-on: ubuntu-latest
+
+    # Интеграционные тесты ходят в ЖИВОЙ Postgres: IntegrationTestFixture прибит к
+    # localhost:5432 с postgres/xxsystem, имя базы берётся из BHS_TEST_DB. Базу заводить не нужно —
+    # приложение мигрирует при старте, а миграция создаёт её сама. MinIO подменён фейком, Typst
+    # тестам не нужен (пропусков по его отсутствию в наборе нет).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: xxsystem
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        # Без health-проверки шаги стартуют раньше, чем сервер примет соединение, и падает первый
+        # же тест — с сообщением про соединение, а не про причину.
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Кеш пакетов NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          # Только csproj: версии пакетов живут в них (центрального Directory.Packages.props нет).
+          # Directory.Build.props намеренно не в ключе — там номер версии, он меняется почти каждым
+          # PR и обнулял бы кеш на ровном месте.
+          key: nuget-${{ runner.os }}-${{ hashFiles('src/server/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Сборка
+        working-directory: src/server
+        run: dotnet build BHS.CRG.slnx -c Debug
+
+      - name: Тесты
+        working-directory: src/server
+        env:
+          BHS_TEST_DB: bhs_crg_ci
+        run: dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj -c Debug --no-build --logger "console;verbosity=normal"
+
+  frontend:
+    name: Frontend (типы + тесты + линт)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/client
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: src/client/package-lock.json
+
+      - name: Установка зависимостей
+        run: npm ci
+
+      # Именно `-b`. Корневой tsconfig состоит из одних ссылок на проекты, и `tsc --noEmit` на нём
+      # не проверяет НИЧЕГО — всегда зелёный. Эта грабля записана в CLAUDE.md.
+      - name: Проверка типов
+        run: npx tsc -b
+
+      - name: Тесты
+        run: npm test
+
+      # Не «почините 137», а «не добавляйте новых»: сравнение по правилам, детали — в самом скрипте.
+      - name: Линт (храповик)
+        run: npm run lint:ratchet
