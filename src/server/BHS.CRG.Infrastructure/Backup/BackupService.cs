@@ -164,6 +164,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             new("Стройки", manifest.Constructions?.Length ?? 0),
             new("Разделы", manifest.Sections?.Length ?? 0),
             new("Комплекты", manifest.DocumentSets?.Length ?? 0),
+            new("Строки плана", manifest.DocumentSetPlans?.Length ?? 0),
             new("Документы комплектов", manifest.Documents?.Length ?? 0),
             new("Выпущенные файлы", manifest.Documents?.Sum(d => d.GeneratedFiles.Length) ?? 0),
             new("Наборы данных", manifest.DataSetFiles?.Length ?? 0),
@@ -320,6 +321,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         var constructions = full ? await db.Constructions.AsNoTracking().ToListAsync(ct) : [];
         var sections = full ? await db.Sections.AsNoTracking().ToListAsync(ct) : [];
         var sets = full ? await db.DocumentSets.AsNoTracking().ToListAsync(ct) : [];
+        var setPlans = full ? await db.DocumentSetPlans.AsNoTracking().ToListAsync(ct) : [];
         var documents = full
             ? await db.DomainObjects.AsNoTracking().Include(o => o.Facet)
                 .Where(o => o.Facet != null).ToListAsync(ct)
@@ -413,6 +415,8 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 x.Id, x.ConstructionId, x.Name, x.ProfileObjectId, x.CreatedAt, x.UpdatedAt)).ToArray() : null,
             DocumentSets: full ? sets.Select(x => new BackupDocumentSet(
                 x.Id, x.SectionId, x.Name, x.ProfileObjectId, x.CreatedAt, x.UpdatedAt)).ToArray() : null,
+            DocumentSetPlans: full ? setPlans.Select(x => new BackupDocumentSetPlan(
+                x.Id, x.DocumentSetId, x.DocumentTypeId, x.PlannedCount, x.CreatedAt, x.UpdatedAt)).ToArray() : null,
             Documents: full ? documents.Select(o => new BackupDocument(
                 o.Id, o.ScopeId ?? Guid.Empty, o.CompositeTypeId, o.DisplayName, o.Data.RootElement.Clone(),
                 o.Aliases.ToArray(), o.Facet!.Status.ToString(), o.Facet.SortOrder,
@@ -521,6 +525,8 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             await RestoreConstructionsAsync(manifest.Constructions ?? [], stats, ct);
             await RestoreSectionsAsync(manifest.Sections ?? [], stats, warnings, ct);
             await RestoreDocumentSetsAsync(manifest.DocumentSets ?? [], stats, warnings, ct);
+            // План — после комплектов (носитель) и после типов документов (на них ссылается).
+            await RestoreDocumentSetPlansAsync(manifest.DocumentSetPlans ?? [], stats, warnings, ct);
             await RestoreCommonDataEntriesAsync(manifest.CommonDataEntries, stats, warnings, ct);
             // Документы комплектов — после типов (тип документа) и после комплектов (носитель).
             await RestoreDocumentsAsync(manifest.Documents ?? [], stats, warnings, ct);
@@ -1400,6 +1406,54 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         var (c, u) = await UpsertAsync(ok.Select(i => (i.Id, DocumentSet.Restore(
             i.Id, i.SectionId, i.Name, i.ProfileObjectId, i.CreatedAt, i.UpdatedAt))), existing, ct);
         stats.Count("Комплекты", c, u);
+    }
+
+    /// <summary>
+    /// Строки плана комплектов (issue #796).
+    ///
+    /// Строка без своего типа документа НЕ восстанавливается: план на несуществующий тип — позиция,
+    /// которую нечем закрыть, и процент готовности навсегда упирался бы в потолок ниже ста без
+    /// видимой причины. Лучше предупредить при восстановлении, чем оставить необъяснимую цифру.
+    ///
+    /// Раскладывается по ПРИРОДНОМУ ключу (комплект, тип), а не по Id — как и связки материалов
+    /// выше, и по той же причине, только острее: правка плана удаляет строки и заводит новые со
+    /// СВЕЖИМИ идентификаторами, значит после любой правки Id в копии заведомо устарел, а пара
+    /// (комплект, тип) осталась прежней. Вставка по Id упёрлась бы в уникальный индекс, а 23505
+    /// здесь означает не «пропустим строку», а откат ВСЕГО восстановления: администратор получил бы
+    /// «Ошибка восстановления БД» и пустую систему из-за одной строки плана.
+    /// </summary>
+    private async Task RestoreDocumentSetPlansAsync(
+        BackupDocumentSetPlan[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
+    {
+        if (items.Length == 0) return;
+        var existing = await db.DocumentSetPlans.AsNoTracking()
+            .Select(x => new { x.Id, x.DocumentSetId, x.DocumentTypeId }).ToListAsync(ct);
+        var byKey = existing.ToDictionary(x => (x.DocumentSetId, x.DocumentTypeId), x => x.Id);
+        var byId = existing.Select(x => x.Id).ToHashSet();
+
+        var sets = await db.DocumentSets.Select(x => x.Id).ToHashSetAsync(ct);
+        var types = await db.DocumentTypes.Select(x => x.Id).ToHashSetAsync(ct);
+
+        var (ok, orphans) = Split(items, i => sets.Contains(i.DocumentSetId) && types.Contains(i.DocumentTypeId));
+        Warn(warnings, orphans.Count, "строк плана", "их комплекта или типа документа нет ни в копии, ни в системе");
+
+        int created = 0, updated = 0;
+        foreach (var item in ok)
+        {
+            var targetId = byKey.TryGetValue((item.DocumentSetId, item.DocumentTypeId), out var samePair)
+                ? samePair
+                : item.Id;
+            var exists = targetId != item.Id || byId.Contains(item.Id);
+
+            db.Entry(DocumentSetPlanItem.Restore(
+                targetId, item.DocumentSetId, item.DocumentTypeId, item.PlannedCount,
+                item.CreatedAt, item.UpdatedAt)).State = exists ? EntityState.Modified : EntityState.Added;
+
+            if (exists) updated++; else created++;
+        }
+
+        await db.SaveChangesAsync(ct);
+        stats.Count("Строки плана", created, updated);
     }
 
     /// <summary>

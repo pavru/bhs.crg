@@ -112,6 +112,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         "generated_files",
         "document_facets",
         "domain_objects",
+        "document_set_plans",
         "document_sets",
         "sections",
         "constructions",

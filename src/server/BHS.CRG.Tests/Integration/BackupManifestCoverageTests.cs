@@ -127,6 +127,7 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         ["Construction"] = nameof(BackupManifest.Constructions),
         ["Section"] = nameof(BackupManifest.Sections),
         ["DocumentSet"] = nameof(BackupManifest.DocumentSets),
+        ["DocumentSetPlanItem"] = nameof(BackupManifest.DocumentSetPlans),
         // Документы и их фасета едут одной записью: фасета и есть то, чем документ отличается от
         // записи общих данных, и разъехаться им нельзя.
         ["DocumentFacet"] = nameof(BackupManifest.Documents),
@@ -311,6 +312,8 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         db.Constructions.Add(Construction.Restore(constructionId, "Стройка покрытия", Guid.NewGuid(), null, now, now));
         db.Sections.Add(Section.Restore(sectionId, constructionId, "Раздел", null, now, now));
         db.DocumentSets.Add(DocumentSet.Restore(setId, sectionId, "Комплект", null, now, now));
+        db.DocumentSetPlans.Add(DocumentSetPlanItem.Restore(
+            Guid.NewGuid(), setId, docTypeId, 3, now, now));
         db.DomainObjects.Add(DomainObject.RestoreDocument(
             documentId, docTypeId, "Документ покрытия", JsonDocument.Parse("{}"), setId, now, now, null,
             DocumentStatus.Draft, 0, null, null, null, JsonDocument.Parse("{}")));

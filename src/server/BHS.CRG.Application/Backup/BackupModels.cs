@@ -36,7 +36,8 @@ public record BackupManifest(
     BackupDataSetSource[]? DataSetSources = null,
     BackupDataSetBinding[]? DataSetBindings = null,
     BackupReconciliationDefinition[]? Reconciliations = null,
-    BackupMaterialQualityLink[]? MaterialQualityLinks = null);
+    BackupMaterialQualityLink[]? MaterialQualityLinks = null,
+    BackupDocumentSetPlan[]? DocumentSetPlans = null);
 
 // ── Проектные данные (issue #833) ────────────────────────────────────────────────────────────
 
@@ -61,6 +62,18 @@ public record BackupSection(
 
 public record BackupDocumentSet(
     Guid Id, Guid SectionId, string Name, Guid? ProfileObjectId,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// Строка плана комплекта (issue #796). Секция аддитивная, как и остальные проектные: копия,
+/// снятая новой версией, читается старой — план она просто не увидит.
+///
+/// Планы уровней выше в копию не попадают, потому что их не существует: раздел и стройка
+/// консолидируют комплекты на лету. Восстановился бы такой «план» — и разошёлся бы с суммой
+/// нижележащих при первой же правке.
+/// </summary>
+public record BackupDocumentSetPlan(
+    Guid Id, Guid DocumentSetId, Guid DocumentTypeId, int PlannedCount,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 /// <summary>

@@ -337,6 +337,8 @@ builder.Services.AddScoped<IRepository<DocumentType>, Repository<DocumentType>>(
 builder.Services.AddScoped<IRepository<Construction>, ConstructionRepository>();
 builder.Services.AddScoped<IRepository<Section>, Repository<Section>>();
 builder.Services.AddScoped<IRepository<DocumentSet>, DocumentSetRepository>();
+// План по документам (issue #796): строки живут на комплекте, уровни выше считаются.
+builder.Services.AddScoped<IRepository<DocumentSetPlanItem>, Repository<DocumentSetPlanItem>>();
 builder.Services.AddScoped<DomainObjectRepository>();
 builder.Services.AddScoped<IRepository<BHS.CRG.Domain.Objects.DomainObject>>(sp => sp.GetRequiredService<DomainObjectRepository>());
 builder.Services.AddScoped<IDomainObjectRepository>(sp => sp.GetRequiredService<DomainObjectRepository>());
@@ -447,6 +449,7 @@ builder.Services.AddScoped<BHS.CRG.Application.Documents.ILevelProfileService, B
 // Спуск «уровень → комплекты поддерева» (issue #625): слою приложения нужен через контракт —
 // AppDbContext ему недоступен, а копия обхода была у него своя.
 builder.Services.AddScoped<BHS.CRG.Application.Common.IScopeSubtree, BHS.CRG.Infrastructure.Common.ScopeSubtreeService>();
+builder.Services.AddScoped<BHS.CRG.Application.Common.IScopeChildren, BHS.CRG.Application.Common.ScopeChildren>();
 builder.Services.AddScoped<BHS.CRG.Application.Objects.IScopeCascade, BHS.CRG.Application.Objects.ScopeCascade>();
 builder.Services.AddScoped<BHS.CRG.Application.Objects.IReferenceIndex,
     BHS.CRG.Infrastructure.Persistence.ReferenceIndex>();
@@ -699,6 +702,7 @@ app.MapTemplateAssetEndpoints();
 app.MapTypstUserLibEndpoints();
 app.MapPrintFormEndpoints();
 app.MapDocumentSetEndpoints();
+app.MapPlanEndpoints();
 app.MapGenerationEndpoints();
 app.MapDataSetEndpoints();
 app.MapDataSetBindingEndpoints();

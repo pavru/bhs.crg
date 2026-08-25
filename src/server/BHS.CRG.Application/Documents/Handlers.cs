@@ -19,6 +19,7 @@ public class DocumentTypeHandlers(
     IRepository<Template> templateRepo,
     IRepository<QualityDocument> qualityDocRepo,
     IRepository<PrimitiveType> primitiveRepo,
+    IRepository<DocumentSetPlanItem> planRepo,
     IDataSetService dataSetService) :
     IRequestHandler<CreateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeCommand, DocumentType>,
@@ -388,6 +389,13 @@ public class DocumentTypeHandlers(
         var objects = await objectRepo.FindAsync(o => o.CompositeTypeId == dt.Id, ct);
         if (objects.Count > 0)
             reasons.Add(new("objects", "Созданы объекты (документы или записи общих данных)", objects.Count, []));
+
+        // План по документам ссылается на тип (issue #796). Внешнего ключа там нет намеренно:
+        // каскад унёс бы строки плана вместе с типом, и процент готовности молча поехал бы. Значит
+        // единственная защита — здесь.
+        var planned = await planRepo.FindAsync(p => p.DocumentTypeId == dt.Id, ct);
+        if (planned.Count > 0)
+            reasons.Add(new("plan", "Входит в план комплектов", planned.Count, []));
 
         var templates = await templateRepo.FindAsync(t => t.DocumentTypeId == dt.Id, ct);
         if (templates.Count > 0)

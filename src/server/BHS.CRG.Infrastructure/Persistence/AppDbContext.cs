@@ -28,6 +28,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Construction> Constructions => Set<Construction>();
     public DbSet<Section> Sections => Set<Section>();
     public DbSet<DocumentSet> DocumentSets => Set<DocumentSet>();
+    public DbSet<DocumentSetPlanItem> DocumentSetPlans => Set<DocumentSetPlanItem>();
     public DbSet<GeneratedFile> GeneratedFiles => Set<GeneratedFile>();
     public DbSet<DocumentSetOutput> DocumentSetOutputs => Set<DocumentSetOutput>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();

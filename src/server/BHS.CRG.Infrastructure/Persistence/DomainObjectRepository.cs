@@ -1,5 +1,6 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using Microsoft.EntityFrameworkCore;
 
@@ -51,5 +52,21 @@ public class DomainObjectRepository(AppDbContext db) : Repository<DomainObject>(
             .Select(g => new { SetId = g.Key, Count = g.Count() })
             .ToListAsync(ct);
         return rows.ToDictionary(r => r.SetId, r => r.Count);
+    }
+
+    public async Task<IReadOnlyDictionary<(Guid SetId, Guid TypeId), int>> CountReadyDocumentsByTypeAsync(
+        IReadOnlyCollection<Guid> setIds, CancellationToken ct = default)
+    {
+        if (setIds.Count == 0) return new Dictionary<(Guid, Guid), int>();
+
+        var rows = await Db.Set<DomainObject>()
+            .AsNoTracking()
+            .Where(o => o.ScopeLevel == CatalogScope.Set && o.ScopeId != null && setIds.Contains(o.ScopeId.Value)
+                        && o.Facet != null && o.Facet.Status == DocumentStatus.Generated)
+            .GroupBy(o => new { SetId = o.ScopeId!.Value, TypeId = o.CompositeTypeId })
+            .Select(g => new { g.Key.SetId, g.Key.TypeId, Count = g.Count() })
+            .ToListAsync(ct);
+
+        return rows.ToDictionary(r => (r.SetId, r.TypeId), r => r.Count);
     }
 }
