@@ -778,12 +778,13 @@ public class DataSetPdfRecognitionService(
         _ => "string",
     };
 
-    private static string SanitizeFileName(string name)
-    {
-        var invalid = Path.GetInvalidFileNameChars();
-        var sanitized = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
-        return string.IsNullOrWhiteSpace(sanitized) ? "документ" : sanitized;
-    }
+    /// <summary>
+    /// Делегат к общему санитайзеру, а не своя копия. Копия здесь и была — дословная, с тем же
+    /// платформенным изъяном: на Linux <c>GetInvalidFileNameChars()</c> это всего {'\0', '/'},
+    /// и группа с именем «АОСР\1» уезжала обратным слэшем прямо в ключ объекта в хранилище
+    /// (issue #854). Ключи блобов живут долго — расходиться реализациям тут нельзя.
+    /// </summary>
+    private static string SanitizeFileName(string name) => FileNames.Sanitize(name, "документ");
 
     /// <summary>Читает единую группировку, ТОЛЕРАНТНО к старому формату (до фазы «обложка/титул как
     /// группы»): старый JSON вида {Documents:[{Code,Name,PageIndices}]} без Kind/полей страниц

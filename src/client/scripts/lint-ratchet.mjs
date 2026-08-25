@@ -8,8 +8,11 @@
 // который и есть деградация: одна ошибка `react-refresh` починена, одна `set-state-in-effect`
 // добавлена — итог тот же, а хуже стало.
 //
-// Уровень стал ниже базового — не падаем, а печатаем строку для обновления файла: заваливать PR,
-// который что-то починил, значит отучить чинить.
+// Уровень стал ниже базового — храповик обязан довернуться, иначе он прокручивается назад:
+// PR-A починил пять ошибок и уровень не опустил, PR-B вернул те же пять — и проверка молчит,
+// пропуская ровно ту деградацию, ради которой заведена. Поэтому локально файл переписывается
+// сам (чинить и помнить про ещё одну команду — лишнее), а в CI шаг падает с просьбой сделать это
+// и закоммитить: править файл в CI бессмысленно, коммитить его оттуда некому.
 //
 //   node scripts/lint-ratchet.mjs            — проверить
 //   node scripts/lint-ratchet.mjs --update   — переписать базовый уровень по факту
@@ -79,14 +82,25 @@ for (const [rule, allowed] of Object.entries(baseline)) {
 
 console.log(`Ошибок линта: ${total} (базовый уровень: ${Object.values(baseline).reduce((a, b) => a + b, 0)}).`);
 
+const baselineTotal = Object.values(baseline).reduce((a, b) => a + b, 0);
+
 if (worse.length > 0) {
   console.error('\nОшибок линта стало БОЛЬШЕ:\n' + worse.join('\n'));
-  console.error('\nПочините добавленное. Существующие 137 чинить не требуется — требуется не добавлять новых.');
+  console.error(`\nПочините добавленное. Накопленные ${baselineTotal} чинить не требуется — требуется не добавлять новых.`);
   console.error('Если рост осознан и согласован, поднимите уровень: npm run lint:ratchet:update');
   process.exit(1);
 }
 
 if (better.length > 0) {
-  console.log('\nСтало ЛУЧШЕ (проверка не падает, но уровень стоит опустить — иначе храповик прокручивается назад):\n'
-    + better.join('\n') + '\n\n  npm run lint:ratchet:update');
+  console.log('\nСтало ЛУЧШЕ:\n' + better.join('\n'));
+
+  // process.env.CI выставляют все известные раннеры, GitHub Actions в том числе.
+  if (process.env.CI) {
+    console.error('\nУровень выше достигнутого — опустите его и закоммитьте, иначе те же ошибки вернутся молча:'
+      + '\n\n  npm run lint:ratchet:update\n');
+    process.exit(1);
+  }
+
+  writeFileSync(baselinePath, JSON.stringify(sorted, null, 2) + '\n', 'utf8');
+  console.log('\nБазовый уровень опущен по факту — закоммитьте eslint-baseline.json вместе с правкой.');
 }
