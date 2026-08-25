@@ -1,0 +1,84 @@
+# Обратный прокси с терминацией TLS — образец для nginx НА ХОСТЕ (не в Compose).
+#
+# Приложение TLS не терминирует и на HTTPS не перенаправляет: этим занимается контур перед ним.
+# Порядок установки целиком — Приложение В в docs/DEPLOYMENT.md; здесь только сам файл.
+#
+#   sudo cp reverse-proxy.conf.example /etc/nginx/sites-available/bhs-crg
+#   # заменить docs.example.ru на своё имя, при нестандартном порте — 8080 ниже
+#   sudo ln -s /etc/nginx/sites-available/bhs-crg /etc/nginx/sites-enabled/
+#   sudo rm -f /etc/nginx/sites-enabled/default
+#   sudo nginx -t && sudo systemctl reload nginx
+#   sudo certbot --nginx -d docs.example.ru
+#
+# ── Почему здесь ОДИН блок и он на 80 ────────────────────────────────────────────
+# Так устроен `certbot --nginx`: он находит server-блок с вашим именем, дописывает в него
+# `listen 443 ssl` и пути к сертификату, а на 80 создаёт отдельный блок с перенаправлением.
+# Всё, что ниже — проксирование, пределы, сроки — при этом остаётся в HTTPS-блоке.
+#
+# Готовый блок на 443 в образце был бы ошибкой, а не заботой: `listen ... ssl` без
+# `ssl_certificate` nginx не принимает вовсе — «no "ssl_certificate" is defined», — и `nginx -t`
+# не прошёл бы ещё до certbot (проверено на nginx 1.18, 1.24 и свежем).
+#
+# Без Let's Encrypt (закрытый контур, свой сертификат) — см. В.6: там те же директивы вписываются
+# руками, и тогда блок на 443 составляете вы.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name docs.example.ru;
+
+    # Версию nginx в ответах не называем — как и внутренний веб-сервер системы.
+    server_tokens off;
+
+    # ── Предел размера тела ─────────────────────────────────────────────────────
+    # Должен быть НЕ МЕНЬШЕ, чем BACKUP_MAX_ARCHIVE_MB в .env (по умолчанию 500 МБ) плюс запас на
+    # обвязку multipart. Внутренний веб-сервер системы считает своё значение из этой переменной сам,
+    # и если внешний прокси окажется строже, предел приложения станет недостижимым: отказ придёт
+    # HTML-страницей nginx без поля error, а интерфейс покажет голое сообщение axios — искать
+    # причину будут в приложении, а стоит она здесь.
+    client_max_body_size 600m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;    # WEB_PORT из .env
+        proxy_http_version 1.1;
+
+        # Host — чтобы приложение видело имя, по которому к нему пришли.
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        # X-Forwarded-For ДОПИСЫВАЕТ адрес клиента к цепочке, а не заменяет её. Без этого заголовка
+        # (или при `$remote_addr` вместо `$proxy_add_x_forwarded_for`) адресом клиента для системы
+        # станет сам прокси — один на всех, — и предел частоты входов схлопнется в общую корзину:
+        # пять неудачных попыток любого сотрудника закроют вход всей организации.
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Схема: по ней приложение понимает, что снаружи HTTPS, хотя к нему пришли по HTTP.
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Сроки по умолчанию (60 с) малы для вёрстки PDF и распознавания сканов: разрыв приходит
+        # как 504 посреди работы, притом что операция продолжает выполняться.
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    # Резервные копии — отдельным блоком ради ВРЕМЕНИ и потока, а не размера.
+    #
+    # Восстановление читает архив, раскладывает сканы в хранилище и пишет базу: на копии в
+    # гигабайты это минуты в ОДНОМ запросе, и общих 300 секунд не хватает — обрыв выглядит как
+    # неудача, хотя восстановление идёт и доходит до конца.
+    #
+    # Буферизацию выключаем в ОБЕ стороны, как это уже сделано во внутреннем nginx системы
+    # (deploy/nginx.conf): без proxy_buffering копия в гигабайты сначала целиком легла бы во
+    # временный каталог хоста, и пользователь ждал бы, не видя ни байта.
+    location /api/backup/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_request_buffering off;
+        proxy_buffering off;
+    }
+}
