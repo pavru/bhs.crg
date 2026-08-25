@@ -88,6 +88,9 @@ cd src/client && npm test
 # Линт с храповиком (issue #854): падает, если ошибок по какому-то правилу стало БОЛЬШЕ
 cd src/client && npm run lint:ratchet
 cd src/client && npm run lint:ratchet:update   # переписать базовый уровень (осознанно!)
+
+# Логика скрипта обновления (без Docker и сети; сеть нужна одной проверке — она пропускается)
+bash deploy/update.tests.sh
 ```
 
 > Тесты покрывают чистую логику: исполнители фильтра/вычисляемых колонок наборов
@@ -98,8 +101,10 @@ cd src/client && npm run lint:ratchet:update   # переписать базов
 ### CI
 
 `.github/workflows/ci.yml` гоняет всё это на каждый PR и на каждый push в master: backend
-(сборка + тесты, PostgreSQL сервисным контейнером) и frontend (`tsc -b`, `npm run build`, vitest,
-храповик линта) двумя независимыми работами. Node в CI — той же версии, что в `deploy/Dockerfile.web`.
+(сборка + тесты, PostgreSQL сервисным контейнером), frontend (`tsc -b`, `npm run build`, vitest,
+храповик линта) и логика `deploy/update.sh` — тремя независимыми работами. Node в CI — той же
+версии, что в `deploy/Dockerfile.web`. Обязательными в настройках репозитория сделаны первые две:
+третью владелец добавляет по желанию.
 
 **Проверки сообщают, а не запрещают.** Пока в настройках репозитория не включены required status
 checks на master, красный прогон не мешает ни слить PR, ни запушить в master. Включение — действие
