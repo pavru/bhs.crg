@@ -226,7 +226,14 @@ public sealed class BackupFileStore(BackupStorageOptions options, ILogger<Backup
             throw new InvalidRequestException("Имя файла резервной копии не указано.");
 
         var name = fileName.Trim();
-        if (name != Path.GetFileName(name)
+
+        // Разделители перечислены ЯВНО, оба. `Path.GetFileName` и `GetInvalidFileNameChars`
+        // зависят от платформы: на Linux обратный слэш — обычный символ имени, и «..\\secrets.zip»
+        // проходило проверку целиком. Windows отвергала, Linux принимал — а работает система
+        // именно на Linux. Поймано первым же прогоном CI (issue #854): тест был зелёным только
+        // потому, что его гоняли на Windows.
+        if (name.Contains('/') || name.Contains('\\')
+            || name != Path.GetFileName(name)
             || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
             || name is "." or "..")
             throw new InvalidRequestException($"Недопустимое имя файла резервной копии: «{fileName}».");
@@ -344,8 +351,11 @@ public sealed class BackupFileStore(BackupStorageOptions options, ILogger<Backup
 
     private static string SanitizeName(string name)
     {
-        var bare = Path.GetFileName(name.Trim());
+        // Разделители — оба и явно, по той же причине, что в Resolve: на Linux «\» именем не
+        // считается и до сих пор доживал до имени файла.
+        var bare = Path.GetFileName(name.Trim().Replace('\\', '/'));
         foreach (var c in Path.GetInvalidFileNameChars()) bare = bare.Replace(c, '_');
+        bare = bare.Replace('/', '_');
         if (string.IsNullOrWhiteSpace(bare) || bare is "." or "..")
             bare = $"crg-backup-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.zip";
         if (!bare.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) bare += ".zip";
