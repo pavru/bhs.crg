@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 
 /**
@@ -41,6 +41,22 @@ export interface PlanSummary {
 
 const KEY = ['plans'] as const;
 
+/**
+ * Сбросить проценты готовности.
+ *
+ * Зовётся ОТОВСЮДУ, где меняется то, из чего процент считается: статус документа (генерация,
+ * сборка комплекта), состав комплекта (удаление и перенос документа) и состав уровня (комплект
+ * заведён или удалён — меняется «без плана: N»). Сам план тут ни при чём: его правка сбрасывает
+ * кэш своей мутацией.
+ *
+ * Отдельная функция, а не строка в каждом обработчике: процент живёт на ЧУЖИХ экранах — в шапке
+ * раздела и стройки, — и забытый сброс выглядит не как устаревший кэш, а как неправильный счёт.
+ * Человек, дождавшийся конца сборки и видящий «0 %», решает, что сборка не сработала.
+ */
+export function invalidatePlans(qc: QueryClient) {
+  void qc.invalidateQueries({ queryKey: KEY });
+}
+
 export function usePlanSummary(scope: PlanScope, scopeId?: string) {
   return useQuery({
     queryKey: [...KEY, 'summary', scope, scopeId ?? null],
@@ -49,6 +65,21 @@ export function usePlanSummary(scope: PlanScope, scopeId?: string) {
       params: { scope, scopeId },
     })).data,
   });
+}
+
+/**
+ * Расшифровка процента словами — для подсказки там, где помещается только цифра.
+ *
+ * Живёт здесь, а не рядом с бейджем: файл компонента, экспортирующий ещё и функцию, ломает
+ * горячую перезагрузку React (это ловит линт). А расшифровка — свойство самих данных.
+ */
+export function planTitle(p: PlanProgress | undefined): string | undefined {
+  if (!p?.hasPlan || p.percent == null) return undefined;
+
+  const parts = [`Закрыто позиций плана: ${p.ready} из ${p.planned}`];
+  if (p.needsAttention > 0) parts.push(`не разобрано сверкой: ${p.needsAttention}`);
+  if (p.setsWithoutPlan > 0) parts.push(`комплектов без плана: ${p.setsWithoutPlan} (в процент не входят)`);
+  return parts.join('; ') + '.';
 }
 
 /** Готовность ребёнка по идентификатору — процент рисуется только там, где план есть. */

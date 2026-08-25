@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Trash2, Target } from 'lucide-react';
+import { Plus, Trash2, Target, AlertTriangle } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/ui/Toast';
@@ -7,12 +7,15 @@ import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useDocumentSetPlan, useReplaceDocumentSetPlan, type PlanRow } from '@/shared/api/plans';
 
-/** Строка в правке: факт приходит с сервера и не редактируется. */
+/**
+ * Строка в правке — ТОЛЬКО план. Факта здесь нет намеренно: он приходит с сервера и в состоянии
+ * формы устаревал бы (собрали комплект в соседней вкладке — цифра «выпущено» осталась бы прежней),
+ * а у только что добавленного типа его и вовсе неоткуда взять.
+ */
 interface EditRow {
   documentTypeId: string;
   typeName: string;
   plannedCount: number;
-  actualCount: number;
 }
 
 const EMPTY: PlanRow[] = [];
@@ -27,19 +30,35 @@ const EMPTY: PlanRow[] = [];
  * здесь — это убрать её из списка и сохранить, а не отдельное действие с подтверждением.
  */
 export function PlanPanel({ setId }: { setId: string }) {
-  const { data: saved = EMPTY, isLoading } = useDocumentSetPlan(setId);
+  const { data: saved = EMPTY, isLoading, isError, error, refetch } = useDocumentSetPlan(setId);
 
   if (isLoading) return <div className="text-sm text-fg4">Загрузка…</div>;
 
+  // Отказ загрузки НЕЛЬЗЯ показывать как «плана нет»: сохранение заменяет план целиком, и человек,
+  // приняв пустой экран за правду, добавил бы одну строку и стёр ею всё остальное. Пустое
+  // состояние и сорванный запрос выглядят одинаково, а стоят по-разному.
+  if (isError) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <EmptyState icon={<AlertTriangle size={22} />} title="План не загрузился"
+          description={`Экран не знает, что сейчас в плане, поэтому правка заблокирована: сохранение заменяет план целиком и стёрло бы то, чего не видит. ${
+            error instanceof Error ? error.message : ''}`}
+          action={<Button variant="filled" size="sm" onClick={() => void refetch()}>Повторить</Button>} />
+      </div>
+    );
+  }
+
   // Форма пересоздаётся КЛЮЧОМ, а не эффектом «пришли данные — перезаписать состояние». Эффект,
   // синхронизирующий состояние с пропсом, — лишний проход рендера и чужие правки поверх твоих; в
-  // этом проекте он уже давал цикл рендера. Подпись меняется только при РЕАЛЬНОМ изменении плана
-  // или факта, поэтому фоновая перепроверка тех же данных не сбрасывает недописанную строку.
+  // этом проекте он уже давал цикл рендера.
+  //
+  // В подписи ТОЛЬКО план: включи в неё факт — и документ, выпущенный кем-то другим, пересоздавал
+  // бы форму прямо под руками, молча теряя набранные числа.
   return <PlanEditor key={`${setId}:${signature(saved)}`} setId={setId} saved={saved} />;
 }
 
 function signature(rows: PlanRow[]): string {
-  return rows.map(r => `${r.documentTypeId}:${r.plannedCount}:${r.actualCount}`).sort().join('|');
+  return rows.map(r => `${r.documentTypeId}:${r.plannedCount}`).sort().join('|');
 }
 
 function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
@@ -47,8 +66,14 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
   const replace = useReplaceDocumentSetPlan();
   const toast = useToast();
 
-  const [rows, setRows] = useState<EditRow[]>(() => saved.map(r => ({ ...r })));
+  const [rows, setRows] = useState<EditRow[]>(() => saved.map(
+    r => ({ documentTypeId: r.documentTypeId, typeName: r.typeName, plannedCount: r.plannedCount })));
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Факт — всегда из ответа сервера. У типа, добавленного в план только что, его нет: показать там
+  // «0» значило бы соврать про тип, по которому документы, возможно, давно выпущены.
+  const actualOf = (typeId: string): number | null =>
+    saved.find(r => r.documentTypeId === typeId)?.actualCount ?? null;
 
   const dirty = useMemo(() => {
     if (rows.length !== saved.length) return true;
@@ -64,12 +89,13 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
     .map(t => ({ id: t.id, name: t.name, code: t.code, section: t.group ?? 'Без группы' }));
 
   const planned = rows.reduce((acc, r) => acc + r.plannedCount, 0);
-  const closed = rows.reduce((acc, r) => acc + Math.min(r.actualCount, r.plannedCount), 0);
+  const closed = rows.reduce((acc, r) => acc + Math.min(actualOf(r.documentTypeId) ?? 0, r.plannedCount), 0);
+  const unknownFacts = rows.some(r => actualOf(r.documentTypeId) === null);
 
   function addType(id: string) {
     const t = allTypes.find(x => x.id === id);
     if (!t) return;
-    setRows(prev => [...prev, { documentTypeId: t.id, typeName: t.name, plannedCount: 1, actualCount: 0 }]);
+    setRows(prev => [...prev, { documentTypeId: t.id, typeName: t.name, plannedCount: 1 }]);
     setPickerOpen(false);
   }
 
@@ -132,8 +158,9 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
                   className="h-8 px-2 rounded-lg border border-stroke bg-surface text-right tabular-nums
                              focus:outline-none focus:border-brand" />
                 <span className={`text-right tabular-nums ${
-                  r.actualCount >= r.plannedCount ? 'text-brand' : 'text-fg3'}`}>
-                  {r.actualCount}
+                  (actualOf(r.documentTypeId) ?? -1) >= r.plannedCount ? 'text-brand' : 'text-fg3'}`}
+                  title={actualOf(r.documentTypeId) === null ? 'Станет известно после сохранения' : undefined}>
+                  {actualOf(r.documentTypeId) ?? '—'}
                 </span>
                 <button type="button" aria-label={`Убрать «${r.typeName}» из плана`}
                   onClick={() => setRows(prev => prev.filter((_, j) => j !== i))}
@@ -147,6 +174,7 @@ function PlanEditor({ setId, saved }: { setId: string; saved: PlanRow[] }) {
           <p className="text-xs text-fg4">
             Закрыто позиций: <span className="tabular-nums text-fg2">{closed} из {planned}</span>.
             {' '}Документы сверх плана в счёт не идут, типы вне плана — тоже.
+            {unknownFacts && ' По добавленным строкам выпущенное посчитается после сохранения.'}
           </p>
         </>
       )}

@@ -11,7 +11,7 @@ import { useDocumentTitle } from '@/shared/ui/DocumentTitle';
 import { CatalogResource } from './catalog/CatalogResource';
 import { DataSetsResource } from '@/features/datasets/DataSetsResource';
 import { useProblemSummary, problemOf } from '@/shared/api/reconciliations';
-import { usePlanSummary, planOf } from '@/shared/api/plans';
+import { usePlanSummary, planOf, planTitle } from '@/shared/api/plans';
 import { PlanProgressBadge } from './PlanProgressBadge';
 import { SubscribersResource } from './SubscribersResource';
 import { ruCount } from '@/shared/utils/pluralize';
@@ -90,7 +90,7 @@ export function SectionDetail() {
         const done = planOf(plan, ds.id);
         return (
           <NavItem key={ds.id} icon={<FolderOpen size={17} />} label={ds.name} count={ds.documentCount ?? 0} chevron
-            progress={done?.percent ?? null}
+            progress={done?.percent ?? null} progressTitle={planTitle(done)}
             alert={p?.needsAttention} alertDanger={p?.hasArithmeticProblems}
             onClick={() => navigate(`/document-sets/${constructionId}/sets/${ds.id}`)} />
         );

@@ -159,9 +159,17 @@ export function ConstructionsList() {
                   <span>{ruCount(setsCount, 'комплект', 'комплекта', 'комплектов')}</span>
                   {/* Строкой, а не пилюлей: красные пилюли на карточках дают «ёлку» раньше всего.
                       Готовность — там же и тем же тоном: это соседняя по смыслу цифра, а не бейдж. */}
+                  {/* Оговорка «без плана» обязательна ВЕЗДЕ, где показан процент: стройка, где
+                      расписан один комплект из десяти и он закрыт, иначе читалась бы как готовая
+                      на 100 % — и именно на этом экране, с которого начинают работу. */}
                   {planOf(plans, c.id)?.percent != null && (
                     <span className="tabular-nums">
                       готовность: {planOf(plans, c.id)!.percent}%
+                      {(planOf(plans, c.id)!.setsWithoutPlan > 0) && (
+                        <span className="text-fg4">
+                          {' '}(без плана: {ruCount(planOf(plans, c.id)!.setsWithoutPlan, 'комплект', 'комплекта', 'комплектов')})
+                        </span>
+                      )}
                     </span>
                   )}
                   {(problemOf(problems, c.id)?.needsAttention ?? 0) > 0 && (

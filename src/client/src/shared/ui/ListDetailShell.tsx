@@ -77,12 +77,16 @@ export function NavSection({ label }: { label: string }) {
  * `chevron` — «ребёнок» (уводит вглубь/роут): счётчик перед chevron, НИКОГДА не подсвечивается;
  * без `chevron` — ресурс/контент уровня (меняет detail на месте): тональный бейдж-счётчик, подсветка при active.
  */
-export function NavItem({ icon, label, count, active, chevron, onClick, alert, alertDanger, progress }: {
+export function NavItem({ icon, label, count, active, chevron, onClick, alert, alertDanger, progress, progressTitle }: {
   icon: ReactNode; label: string; count?: number; active?: boolean; chevron?: boolean; onClick: () => void;
   /** Готовность по плану, % (#796). null/пусто — плана нет, и рисовать нечего: «0 %» соврал бы.
    *  Тон НЕЙТРАЛЬНЫЙ: красный на этих экранах занят арифметикой сверки, и второй красный читался
    *  бы как ошибка там, где просто не всё готово. */
   progress?: number | null;
+  /** Расшифровка процента для подсказки: сколько закрыто и сколько комплектов в счёт не вошли.
+   *  В пилюле помещается только цифра, а цифра без оговорки «без плана: N» противоречит шапке
+   *  уровня, где оговорка есть. */
+  progressTitle?: string;
   /** Сколько проблем ждёт разбора ниже по иерархии. Ноль/пусто — маркер не рисуется: он существует,
    *  чтобы отличать «есть что разобрать» от «пусто», а нарисованный ноль этой задачи не решает. */
   alert?: number;
@@ -98,7 +102,7 @@ export function NavItem({ icon, label, count, active, chevron, onClick, alert, a
       <span className={`shrink-0 ${highlight ? 'text-brand-hover' : 'text-fg4'}`}>{icon}</span>
       <span className="flex-1 truncate text-sm">{label}</span>
       {progress != null && (
-        <span title={`Готовность по плану: ${progress}%`}
+        <span title={progressTitle ?? `Готовность по плану: ${progress}%`}
           className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 tabular-nums ${
             progress === 100 ? 'bg-brand-subtle text-brand' : 'bg-muted text-fg3'}`}>
           {progress}%

@@ -1,4 +1,4 @@
-import type { PlanProgress } from '@/shared/api/plans';
+import { planTitle, type PlanProgress } from '@/shared/api/plans';
 import { ruCount } from '@/shared/utils/pluralize';
 
 /**
@@ -21,7 +21,7 @@ export function PlanProgressBadge({ progress, className = '' }: {
 
   return (
     <span className={`inline-flex items-center gap-1.5 text-[11px] ${className}`}
-      title={hint(progress)}>
+      title={planTitle(progress)}>
       <span className={`px-2 py-0.5 rounded-full tabular-nums ${
         done ? 'bg-brand-subtle text-brand' : 'bg-muted text-fg2'}`}>
         {progress.ready} / {progress.planned} · {progress.percent}%
@@ -38,11 +38,4 @@ export function PlanProgressBadge({ progress, className = '' }: {
       )}
     </span>
   );
-}
-
-function hint(p: PlanProgress): string {
-  const parts = [`Закрыто позиций плана: ${p.ready} из ${p.planned}`];
-  if (p.needsAttention > 0) parts.push(`не разобрано сверкой: ${p.needsAttention}`);
-  if (p.setsWithoutPlan > 0) parts.push(`комплектов без плана: ${p.setsWithoutPlan} (в процент не входят)`);
-  return parts.join('; ') + '.';
 }
