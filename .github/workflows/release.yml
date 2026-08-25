@@ -15,6 +15,8 @@ on:
 permissions:
   contents: write   # тег и Release
   packages: write   # публикация образов в GHCR
+  actions: read     # чтение итога прогона CI. Блок permissions ЗАКРЫВАЕТ всё неперечисленное —
+                    # без этой строки запрос к API вернул бы 403, а не ответ
 
 jobs:
   release:
@@ -50,6 +52,39 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Проверки CI на этом коммите прошли
+        # Выпуск необратим: образы уходят в GHCR под номером версии, который переиздать нельзя.
+        # Значит и решение «выпускаем» обязано опираться не на веру. Пока в репозитории не включены
+        # required status checks, красный master сливается молча — эта проверка закрывает дверь
+        # именно на выпуске, где цена ошибки максимальная (issue #854).
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sha="${{ github.sha }}"
+          # status отдельно от conclusion: у ещё идущего прогона conclusion пуст, и без различения
+          # «идёт» это выглядело бы как «прогона нет» — сообщение отправило бы чинить не то.
+          # Спрашиваем по имени файла workflow: имена работ внутри могут меняться, имя файла — договор.
+          # Присваивание через подстановку, а не heredoc: внутри блока `run: |` строки идут с
+          # отступом, а закрывающий EOF шелл принимает только с начала строки — heredoc бы не
+          # закрылся и шаг упал бы синтаксисом, а не проверкой.
+          runs="repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$sha&per_page=1"
+          out=$(gh api "$runs" --jq '.workflow_runs[0] | "\(.status // "нет") \(.conclusion // "нет")"')
+          status=${out%% *}
+          conclusion=${out##* }
+          echo "CI на $sha: status=$status conclusion=$conclusion"
+          if [ "$status" = "нет" ] || [ -z "$status" ]; then
+            echo "::error::Для коммита $sha прогона CI нет. Выпуск из непроверенного состояния не делаем."
+            exit 1
+          fi
+          if [ "$status" != "completed" ]; then
+            echo "::error::CI на коммите $sha ещё идёт ($status). Дождитесь и запустите выпуск снова."
+            exit 1
+          fi
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::CI на коммите $sha завершился как «$conclusion». Чините и выпускайте заново."
+            exit 1
+          fi
 
       - name: Тег ещё не занят
         run: |

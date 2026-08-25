@@ -1,0 +1,11 @@
+{
+  "react-hooks/set-state-in-effect": 40,
+  "react-refresh/only-export-components": 40,
+  "@typescript-eslint/no-unused-expressions": 13,
+  "no-useless-escape": 5,
+  "react-hooks/refs": 5,
+  "@typescript-eslint/no-unused-vars": 3,
+  "@typescript-eslint/no-explicit-any": 2,
+  "no-useless-assignment": 2,
+  "react-hooks/static-components": 2
+}

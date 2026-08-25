@@ -296,6 +296,22 @@ public class BackupFileStoreTests : IDisposable
         Assert.True(File.Exists(Path.Combine(_dir, "evil.zip")));
     }
 
+    /// <summary>
+    /// Обратный слэш вычищается и НА LINUX. Там он обычный символ имени, поэтому и
+    /// <c>Path.GetFileName</c>, и <c>GetInvalidFileNameChars</c> его пропускали: очистка работала
+    /// только на Windows, где её и запускали руками. Поймано первым прогоном CI (issue #854).
+    /// </summary>
+    [Fact]
+    public async Task Upload_SanitizesBackslashes_OnEveryPlatform()
+    {
+        var store = Store();
+        var info = await store.AcceptUploadAsync(new MemoryStream([1, 2, 3]), @"..\..\evil.zip", CancellationToken.None);
+
+        Assert.DoesNotContain('\\', info.FileName);
+        Assert.DoesNotContain('/', info.FileName);
+        Assert.Equal(info.FileName, Path.GetFileName(info.FileName));
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>Архив с паспортом — такой же, какой пишет экспорт.</summary>
