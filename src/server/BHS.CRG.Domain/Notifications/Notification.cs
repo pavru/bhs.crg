@@ -33,7 +33,8 @@ public class Notification : Entity
     public string? LinkUrl { get; private set; }
     public string? LinkLabel { get; private set; }
 
-    public bool IsRead { get; private set; }
+    // «Прочитано»/«скрыто» здесь НЕТ намеренно: это состояние пары (уведомление, пользователь),
+    // а не самого уведомления — см. NotificationUserState и issue #821.
 
     private Notification() { }
 
@@ -49,11 +50,4 @@ public class Notification : Entity
             LinkUrl = linkUrl,
             LinkLabel = linkLabel,
         };
-
-    public void MarkRead()
-    {
-        if (IsRead) return;
-        IsRead = true;
-        TouchUpdatedAt();
-    }
 }
