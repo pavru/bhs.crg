@@ -97,7 +97,7 @@ public static class UserEndpoints
         });
 
         g.MapDelete("/{id:guid}", async (Guid id,
-            UserManager<ApplicationUser> users, ClaimsPrincipal principal) =>
+            UserManager<ApplicationUser> users, AppDbContext db, ClaimsPrincipal principal) =>
         {
             if (id == CurrentUserId(principal))
                 return Results.BadRequest(new { error = "Нельзя удалить самого себя" });
@@ -110,7 +110,14 @@ public static class UserEndpoints
                 return Results.BadRequest(new { error = "Нельзя удалить последнего администратора" });
 
             var result = await users.DeleteAsync(user);
-            return result.Succeeded ? Results.NoContent() : Results.BadRequest(new { error = DescribeErrors(result) });
+            if (!result.Succeeded) return Results.BadRequest(new { error = DescribeErrors(result) });
+
+            // Личные уведомления удалённого — вслед за ним. Внешнего ключа у notifications."UserId"
+            // нет, а подрезка теперь работает по корзине того, кому только что опубликовали: в
+            // корзину удалённого больше никто не напишет никогда, и её три сотни строк остались бы
+            // в базе навсегда, невидимые ниоткуда. Отметки прочтения уходят каскадом сами.
+            await db.Notifications.Where(n => n.UserId == id).ExecuteDeleteAsync();
+            return Results.NoContent();
         });
     }
 

@@ -104,6 +104,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         "quality_audit_runs",
         "quality_documents",
         "bug_reports",
+        "notification_user_states",
         "notifications",
         "jobs",
         "subscriptions",

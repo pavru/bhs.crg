@@ -83,6 +83,7 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         // ── Runtime и секреты ──
         ["Job"] = "runtime: очередь фоновых задач",
         ["Notification"] = "runtime: уведомления",
+        ["NotificationUserState"] = "runtime: отметки «прочитано/скрыто» — вместе с уведомлениями",
         ["Subscription"] = "runtime: подписки пользователей на уведомления",
         ["IntegrationSettingsEntity"] = "СЕКРЕТЫ: ключи интеграций и пароль SMTP в копию не кладём",
         ["RefreshToken"] = "СЕКРЕТЫ: сессии пользователей",
