@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { invalidatePlans } from './plans';
 import type { DocumentSet, DocumentInstance, DocumentSearchResult } from './types';
 import { filenameFromContentDisposition } from './attachments';
 
@@ -95,6 +96,8 @@ export function useMoveDocument() {
     onSuccess: (_d, { setId, targetSetId }) => {
       qc.invalidateQueries({ queryKey: ['document-sets', setId] });
       qc.invalidateQueries({ queryKey: ['document-sets', targetSetId] });
+      // Выпущенный документ уехал в другой комплект — проценты обоих изменились (#796).
+      invalidatePlans(qc);
     },
   });
 }
@@ -126,7 +129,10 @@ export function useDeleteDocumentInstance() {
   return useMutation({
     mutationFn: ({ setId, instanceId }: { setId: string; instanceId: string }) =>
       apiClient.delete(`/document-sets/${setId}/documents/${instanceId}`).then(() => setId),
-    onSuccess: (_setId, { setId }) => qc.invalidateQueries({ queryKey: ['document-sets', setId] }),
+    onSuccess: (_setId, { setId }) => {
+      qc.invalidateQueries({ queryKey: ['document-sets', setId] });
+      invalidatePlans(qc);   // удалили выпущенный — закрытых позиций стало меньше (#796)
+    },
   });
 }
 
@@ -251,7 +257,11 @@ export function useGenerateDocument() {
       apiClient
         .post<{ id: string; blobPath: string; format: string }>(`/generate/${instanceId}`, { format: 'Pdf' })
         .then((r) => r.data),
-    onSuccess: (_d, { setId }) => qc.invalidateQueries({ queryKey: ['document-sets', setId] }),
+    onSuccess: (_d, { setId }) => {
+      qc.invalidateQueries({ queryKey: ['document-sets', setId] });
+      // Документ стал выпущенным — процент готовности по плану вырос (issue #796).
+      invalidatePlans(qc);
+    },
   });
 }
 

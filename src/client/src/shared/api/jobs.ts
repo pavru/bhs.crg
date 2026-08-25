@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { invalidatePlans } from './plans';
 
 /** Активная фоновая задача (Queued/Running) текущего пользователя — для индикатора. */
 export interface ActiveJob {
@@ -52,6 +53,9 @@ export function useActiveJobs(): ActiveJob[] {
       qc.invalidateQueries({ queryKey: ['datasets', 'bindings'] });
       qc.invalidateQueries({ queryKey: ['datasets', 'bindings-preview'] });
       qc.invalidateQueries({ queryKey: ['notifications'] });
+      // Сборка комплекта выпускает документы пачкой — без этого человек, дождавшийся её конца,
+      // видел бы прежний процент готовности и решил, что сборка не сработала (issue #796).
+      invalidatePlans(qc);
     }
     prevIds.current = current;
   }, [jobs, qc]);

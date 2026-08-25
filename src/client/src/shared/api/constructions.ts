@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import { invalidatePlans } from './plans';
 import type { Construction, Section, DocumentSet } from './types';
 
 const KEYS = {
@@ -89,7 +90,11 @@ export function useCreateDocumentSet() {
   return useMutation({
     mutationFn: ({ sectionId, name, constructionId }: { sectionId: string; name: string; constructionId: string }) =>
       apiClient.post<DocumentSet>(`/sections/${sectionId}/sets`, { name }).then(r => ({ ...r.data, _constructionId: constructionId })),
-    onSuccess: (data) => qc.invalidateQueries({ queryKey: KEYS.detail((data as any)._constructionId) }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: KEYS.detail((data as any)._constructionId) });
+      // Новый комплект — пока без плана: он попадает в «без плана: N» уровнем выше (#796).
+      invalidatePlans(qc);
+    },
   });
 }
 
@@ -110,6 +115,10 @@ export function useDeleteDocumentSet() {
   return useMutation({
     mutationFn: ({ id, constructionId }: { id: string; constructionId: string }) =>
       apiClient.delete(`/document-sets/${id}`).then(() => constructionId),
-    onSuccess: (constructionId) => qc.invalidateQueries({ queryKey: KEYS.detail(constructionId) }),
+    onSuccess: (constructionId) => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(constructionId) });
+      // Комплект ушёл вместе со своим планом — проценты раздела и стройки пересчитываются (#796).
+      invalidatePlans(qc);
+    },
   });
 }
