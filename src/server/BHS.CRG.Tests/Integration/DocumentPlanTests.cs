@@ -1,12 +1,18 @@
 using System.Text.Json;
+using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
+using BHS.CRG.Domain.Reconciliation;
+using BHS.CRG.Application.Reconciliation;
 using MediatR;
+using BHS.CRG.Infrastructure.Backup;
+using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -246,6 +252,91 @@ public class DocumentPlanTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         await Assert.ThrowsAsync<ConflictException>(() => M(scope).Send(new DeleteDocumentTypeCommand(type)));
     }
+
+    /// <summary>
+    /// Комплекта нет — это НЕ «комплект без плана». Разница видна на устаревшей навигации: клиент
+    /// получил бы пустую форму плана, заполнил и упёрся в 404 уже на сохранении.
+    /// </summary>
+    [Fact]
+    public async Task PlanOfMissingSet_IsNotFound_NotAnEmptyPlan()
+    {
+        using var scope = fixture.Services.CreateScope();
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => M(scope).Send(new GetDocumentSetPlanQuery(Guid.NewGuid())));
+    }
+
+    /// <summary>
+    /// Процент не показывает «сто» при неразобранном НИ НА ОДНОМ уровне — включая верхний, где
+    /// расписанная стройка складывается с бесплановой соседкой. Счётчик разбора берётся у сводки
+    /// проблем, а она знает его и по детям без плана.
+    /// </summary>
+    [Fact]
+    public async Task SystemLevel_DoesNotClaimHundred_WhenAnotherConstructionHasUnreviewedProblems()
+    {
+        var (_, _, planned) = await TreeAsync("Расписанный");
+        var type = await TypeAsync("AOSR");
+        await PlanAsync(planned.Id, (type, 1));
+        await DocumentAsync(planned.Id, type, generated: true);
+
+        // Вторая стройка: плана нет, зато есть неразобранное замечание.
+        var (_, _, other) = await TreeAsync("Без плана");
+        using (var scope = fixture.Services.CreateScope())
+            await M(scope).Send(new ReportObservationCommand(
+                CatalogScope.Set, other.Id, "key-1", "Замечание", null,
+                ObservationSeverity.Warning, JsonDocument.Parse("{}"), "agent"));
+
+        var atSystem = await SummaryAsync(CatalogScope.System, null);
+        Assert.Equal(1, atSystem.Own.Planned);
+        Assert.Equal(1, atSystem.Own.Ready);
+        Assert.Equal(1, atSystem.Own.NeedsAttention);
+        Assert.Equal(99, atSystem.Own.Percent);
+    }
+
+    /// <summary>
+    /// Восстановление поверх системы, где план УЖЕ правили, не должно ронять весь импорт.
+    ///
+    /// Правка плана удаляет строки и заводит новые со свежими идентификаторами, а пара
+    /// (комплект, тип) остаётся прежней и защищена уникальным индексом. Раскладка по одному лишь
+    /// Id упиралась бы в 23505 — а он здесь означает не «пропустим строку», а откат ВСЕЙ
+    /// транзакции: администратор получил бы «Ошибка восстановления БД» и пустую систему из-за
+    /// одной строки плана. Проверяем именно связку «сняли копию → поправили план → восстановили».
+    /// </summary>
+    [Fact]
+    public async Task Restore_AfterPlanWasEdited_SucceedsAndKeepsOneRowPerType()
+    {
+        var (_, _, set) = await TreeAsync();
+        var type = await TypeAsync("AOSR");
+        await PlanAsync(set.Id, (type, 3));
+
+        byte[] copy;
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var (zip, _) = await BackupOf(scope).ExportAsync(BackupScope.Full);
+            await using var _handle = zip;
+            using var ms = new MemoryStream();
+            await zip.CopyToAsync(ms);
+            copy = ms.ToArray();
+        }
+
+        // Та же позиция плана, другое количество — и, из-за замены целиком, ДРУГОЙ идентификатор.
+        await PlanAsync(set.Id, (type, 4));
+
+        RestoreReport report;
+        using (var scope = fixture.Services.CreateScope())
+            report = await BackupOf(scope).ImportAsync(new MemoryStream(copy));
+
+        Assert.True(report.Success, string.Join("; ", report.Warnings));
+
+        using var check = fixture.Services.CreateScope();
+        var rows = await M(check).Send(new GetDocumentSetPlanQuery(set.Id));
+        var row = Assert.Single(rows);
+        Assert.Equal(3, row.PlannedCount);   // вернулось значение из копии, а не осталось правленое
+    }
+
+    private static BackupService BackupOf(IServiceScope scope) => new(
+        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
+        NullLogger<BackupService>.Instance);
 
     /// <summary>Комплект удалён — его план уходит с ним: строки без носителя не оставляем.</summary>
     [Fact]

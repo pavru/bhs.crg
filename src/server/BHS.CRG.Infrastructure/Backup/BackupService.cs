@@ -1414,21 +1414,46 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
     /// Строка без своего типа документа НЕ восстанавливается: план на несуществующий тип — позиция,
     /// которую нечем закрыть, и процент готовности навсегда упирался бы в потолок ниже ста без
     /// видимой причины. Лучше предупредить при восстановлении, чем оставить необъяснимую цифру.
+    ///
+    /// Раскладывается по ПРИРОДНОМУ ключу (комплект, тип), а не по Id — как и связки материалов
+    /// выше, и по той же причине, только острее: правка плана удаляет строки и заводит новые со
+    /// СВЕЖИМИ идентификаторами, значит после любой правки Id в копии заведомо устарел, а пара
+    /// (комплект, тип) осталась прежней. Вставка по Id упёрлась бы в уникальный индекс, а 23505
+    /// здесь означает не «пропустим строку», а откат ВСЕГО восстановления: администратор получил бы
+    /// «Ошибка восстановления БД» и пустую систему из-за одной строки плана.
     /// </summary>
     private async Task RestoreDocumentSetPlansAsync(
         BackupDocumentSetPlan[] items, RestoreStats stats, List<string> warnings, CancellationToken ct)
     {
         if (items.Length == 0) return;
-        var existing = await db.DocumentSetPlans.Select(x => x.Id).ToHashSetAsync(ct);
+        var existing = await db.DocumentSetPlans.AsNoTracking()
+            .Select(x => new { x.Id, x.DocumentSetId, x.DocumentTypeId }).ToListAsync(ct);
+        var byKey = existing.ToDictionary(x => (x.DocumentSetId, x.DocumentTypeId), x => x.Id);
+        var byId = existing.Select(x => x.Id).ToHashSet();
+
         var sets = await db.DocumentSets.Select(x => x.Id).ToHashSetAsync(ct);
         var types = await db.DocumentTypes.Select(x => x.Id).ToHashSetAsync(ct);
 
         var (ok, orphans) = Split(items, i => sets.Contains(i.DocumentSetId) && types.Contains(i.DocumentTypeId));
         Warn(warnings, orphans.Count, "строк плана", "их комплекта или типа документа нет ни в копии, ни в системе");
 
-        var (c, u) = await UpsertAsync(ok.Select(i => (i.Id, DocumentSetPlanItem.Restore(
-            i.Id, i.DocumentSetId, i.DocumentTypeId, i.PlannedCount, i.CreatedAt, i.UpdatedAt))), existing, ct);
-        stats.Count("Строки плана", c, u);
+        int created = 0, updated = 0;
+        foreach (var item in ok)
+        {
+            var targetId = byKey.TryGetValue((item.DocumentSetId, item.DocumentTypeId), out var samePair)
+                ? samePair
+                : item.Id;
+            var exists = targetId != item.Id || byId.Contains(item.Id);
+
+            db.Entry(DocumentSetPlanItem.Restore(
+                targetId, item.DocumentSetId, item.DocumentTypeId, item.PlannedCount,
+                item.CreatedAt, item.UpdatedAt)).State = exists ? EntityState.Modified : EntityState.Added;
+
+            if (exists) updated++; else created++;
+        }
+
+        await db.SaveChangesAsync(ct);
+        stats.Count("Строки плана", created, updated);
     }
 
     /// <summary>

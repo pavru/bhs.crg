@@ -17,8 +17,11 @@ public static class PlanEndpoints
     {
         var sets = app.MapGroup("/api/document-sets").RequireAuthorization();
 
-        sets.MapGet("/{id:guid}/plan", async (Guid id, IMediator m, CancellationToken ct)
-            => Results.Ok(await m.Send(new GetDocumentSetPlanQuery(id), ct)));
+        sets.MapGet("/{id:guid}/plan", async (Guid id, IMediator m, CancellationToken ct) =>
+        {
+            try { return Results.Ok(await m.Send(new GetDocumentSetPlanQuery(id), ct)); }
+            catch (NotFoundException) { return Results.NotFound(); }
+        });
 
         // Замена целиком: пришло — то и осталось. Пустой список означает «плана нет» и убирает
         // проценты с экранов — отдельной команды «удалить план» для этого не нужно.
@@ -37,8 +40,17 @@ public static class PlanEndpoints
 
         plans.MapGet("/summary", async (string? scope, Guid? scopeId, IMediator m, CancellationToken ct) =>
         {
-            if (!Enum.TryParse<CatalogScope>(scope, ignoreCase: true, out var parsed))
-                return Results.BadRequest(new { error = "Неизвестный уровень: " + scope });
+            // IsDefined обязателен рядом с TryParse: без него «?scope=99» разбирается успешно и
+            // доезжает до обработчика неопределённым значением перечисления — то есть уровнем,
+            // которого нет, и ответом «плана нет» вместо отказа.
+            if (!Enum.TryParse<CatalogScope>(scope, ignoreCase: true, out var parsed) || !Enum.IsDefined(parsed))
+                return Results.BadRequest(new { error = $"Неизвестная область: «{scope}»." });
+
+            // Уровень без идентификатора (кроме System) — не «пустая стройка», а вопрос ни о чём:
+            // спуск по поддереву вернёт пусто, и ответ «плана нет» неотличим от настоящего уровня
+            // без плана. Сводка проблем отказывает здесь так же.
+            if (parsed != CatalogScope.System && scopeId is null)
+                return Results.BadRequest(new { error = "Для этой области нужен scopeId." });
 
             return Results.Ok(await m.Send(new GetPlanSummaryQuery(parsed, scopeId), ct));
         });

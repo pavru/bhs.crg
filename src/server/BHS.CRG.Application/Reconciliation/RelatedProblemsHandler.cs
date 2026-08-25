@@ -15,6 +15,7 @@ namespace BHS.CRG.Application.Reconciliation;
 public class RelatedProblemsHandler(
     IProblemAttribution attribution,
     IScopeSubtree scopeSubtree,
+    IRepository<AgentObservation> observationRepo,
     IMediator mediator) : IRequestHandler<GetRelatedProblemsQuery, RelatedProblems>
 {
     public async Task<RelatedProblems> Handle(GetRelatedProblemsQuery q, CancellationToken ct)
@@ -48,11 +49,13 @@ public class RelatedProblemsHandler(
         //
         // ScopeChain для этого не годится: он отвечает «видно ли отсюда», и System-запись
         // засчиталась бы каждому уровню.
+        // ОДИН запрос на всё поддерево, а не запрос на комплект: у стройки с сотней комплектов
+        // цикл давал сотню обращений на каждую отрисовку бейджа, и с приходом процента готовности
+        // (#796) эта цена стала платиться ещё раз.
         var sets = await scopeSubtree.SetIdsUnderAsync(q.Scope, q.ScopeId, ct);
-        var observations = 0;
-        foreach (var setId in sets)
-            observations += (await mediator.Send(
-                new ListObservationsQuery(CatalogScope.Set, setId, ObservationStatus.New), ct)).Count;
+        var observations = sets.Count == 0 ? 0 : (await observationRepo.FindAsync(
+            o => o.Scope == CatalogScope.Set && o.ScopeId != null
+                 && sets.Contains(o.ScopeId.Value) && o.Status == ObservationStatus.New, ct)).Count;
 
         return new RelatedProblems(
             [.. related.OrderByDescending(r => r.UnresolvedFindings).ThenBy(r => r.Name)],
