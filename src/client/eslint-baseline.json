@@ -1,6 +1,6 @@
 {
-  "react-refresh/only-export-components": 65,
   "react-hooks/set-state-in-effect": 40,
+  "react-refresh/only-export-components": 40,
   "@typescript-eslint/no-unused-expressions": 13,
   "no-useless-escape": 5,
   "react-hooks/refs": 5,
