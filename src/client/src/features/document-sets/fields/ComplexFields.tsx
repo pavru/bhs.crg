@@ -160,13 +160,22 @@ interface ArrayTableModalProps {
  * инициализатор `useState`, и первого-неправильного рендера не существует.</p>
  */
 export function ArrayTableModal(props: ArrayTableModalProps) {
-  return props.open ? <ArrayTableModalBody {...props} /> : null;
+  // Ширины колонок живут в ОБЁРТКЕ, а не в теле: их человек задаёт руками, и переживать закрытие
+  // таблицы они обязаны — как переживали, пока тело было смонтировано постоянно. Прежний эффект не
+  // трогал их намеренно, сбрасывая только строки и выбор (поймано ревью PR #861).
+  const [colWidths, setColWidths] = useState<Record<string, number>>({});
+  return props.open
+    ? <ArrayTableModalBody {...props} colWidths={colWidths} setColWidths={setColWidths} />
+    : null;
 }
 
 function ArrayTableModalBody({
   onOpenChange, field, compositeType, allDocTypes, items, onSave,
-  setId, scope, scopeId,
-}: ArrayTableModalProps) {
+  setId, scope, scopeId, colWidths, setColWidths,
+}: ArrayTableModalProps & {
+  colWidths: Record<string, number>;
+  setColWidths: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+}) {
   const [rows, setRows] = useState<Record<string, unknown>[]>(() => items.map(r => ({ ...r })));
   // Стабильные id строк (issue #171): переживают reorder/удаление, служат ключом выбора.
   const [rowIds, setRowIds] = useState<string[]>(() => items.map(() => newLocalId()));
@@ -176,7 +185,6 @@ function ArrayTableModalBody({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);
-  const [colWidths, setColWidths] = useState<Record<string, number>>({});
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
 
@@ -1461,7 +1469,16 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   }
   // persist = один ключ активного варианта; пустой активный → {} (= «не выбрано», как обычный complex).
   // Ссылочные поля в union резолвятся как обычно (issue #324) — никакой спец-обработки ссылок.
-  function setActiveValue(v: unknown) { onChange(isVariantFilled(v) ? { [activeKey]: v } : {}); }
+  //
+  // `setChosen(activeKey)` здесь обязателен, и вот почему. Активный вариант выводится из значения, а
+  // ОЧИСТКА активного варианта («Снять ссылку», стирание текста) делает значение пустым — то есть
+  // заполненного ключа не остаётся вовсе. Без пометки «человек работает вот в этом варианте» форма
+  // после очистки перескочила бы на ПЕРВЫЙ вариант, и следующее введённое значение легло бы не в тот
+  // ключ. Поймано ревью PR #861; до перехода на производное значение эту роль играло само состояние.
+  function setActiveValue(v: unknown) {
+    setChosen(activeKey);
+    onChange(isVariantFilled(v) ? { [activeKey]: v } : {});
+  }
 
   if (subFields.length === 0) return <p className="text-xs text-fg4">Union-тип без полей.</p>;
 

@@ -45,15 +45,27 @@ export function parseBaseRef(raw: unknown): { kind: BaseCandidateKind; id: strin
   return undefined;
 }
 
+interface BaseCandidatePickerProps {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  candidates: BaseCandidate[]; onSelect: (c: BaseCandidate) => void;
+}
+
 /**
  * Единый пикер базового экземпляра — презентационный: получает уже готовый (обычно отсортированный
  * по близости) список кандидатов и вызывает onSelect. Вычисление и формат хранения `_baseRef` —
  * ответственность вызывающего (документ пишет {kind,id}; каталог/система — голый id).
+ *
+ * <p>Тело монтируется по открытию (issue #858). Пикер держат формы (<code>RequisitesTab</code>,
+ * <code>BaseInstanceChip</code>), то есть он смонтирован постоянно, и набранный поиск переживал
+ * закрытие: следующее открытие молча показывало отфильтрованный список без единого намёка на
+ * причину. Ровно этот дефект чинился в <code>RefPickerModal</code>; здесь он оставался (поймано
+ * ревью PR #861).</p>
  */
-export function BaseCandidatePicker({ open, onOpenChange, candidates, onSelect }: {
-  open: boolean; onOpenChange: (o: boolean) => void;
-  candidates: BaseCandidate[]; onSelect: (c: BaseCandidate) => void;
-}) {
+export function BaseCandidatePicker(props: BaseCandidatePickerProps) {
+  return props.open ? <BaseCandidatePickerBody {...props} /> : null;
+}
+
+function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCandidatePickerProps) {
   const [search, setSearch] = useState('');
   const [active, setActive] = useState(0);
   const filtered = candidates.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
@@ -90,7 +102,7 @@ export function BaseCandidatePicker({ open, onOpenChange, candidates, onSelect }
   };
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Базовый экземпляр / роль">
+    <Modal open onOpenChange={onOpenChange} title="Базовый экземпляр / роль">
       <div className="space-y-4">
         {/* Подсветка возвращается на первую строку в ОБРАБОТЧИКЕ ввода, а не эффектом (issue #858):
             сброс — следствие набора текста, а не состояния, которое надо с чем-то синхронизировать.

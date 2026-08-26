@@ -69,6 +69,25 @@ await check('array-table-rows-on-first-render', async () => {
   if (rows !== WORKS_ROWS) throw new Error(`ожидали ${WORKS_ROWS} строк, нашли ${rows}`);
 });
 
+// Ширины колонок человек задаёт руками, и переживать закрытие таблицы они обязаны — до ревью #861
+// они жили в теле диалога и обнулялись на каждом открытии. Двигаем клавиатурой (у разделителя есть
+// стрелки ←→): синтезированный drag Playwright'а тут доверия не заслуживает, а результат тот же.
+await check('array-table-keeps-column-widths', async () => {
+  const col = table.locator('th').nth(2);
+  const before = (await col.boundingBox()).width;
+  await table.locator('[role=separator]').first().focus();
+  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(500);
+  const widened = (await col.boundingBox()).width;
+  if (widened <= before + 20) throw new Error(`колонка не расширилась: ${before} → ${widened}`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(800);
+  await editor.getByRole('button', { name: /^Таблица$/ }).first().click();
+  await page.waitForTimeout(1200);
+  const reopened = (await table.locator('th').nth(2).boundingBox()).width;
+  if (Math.abs(reopened - widened) > 2) throw new Error(`ширина не пережила закрытие: ${widened} → ${reopened}`);
+});
+
 // ── Вставка из Excel ───────────────────────────────────────────────────────────
 await table.getByRole('button', { name: /вставить из excel/i }).first().click();
 await page.waitForTimeout(900);
@@ -226,11 +245,63 @@ await check('image-field-renders-stored-image', async () => {
   await page.getByText('Техногид', { exact: false }).first().click();
   await page.waitForTimeout(2500);
   await page.getByText('ЛОГОТИП, ПЕЧАТЬ', { exact: false }).first().click();
-  await page.waitForTimeout(3500);
+  // Ждём саму картинку, а не «сколько-то секунд»: байты едут из хранилища, и на холодном MinIO
+  // фиксированная пауза даёт то зелёный, то красный прогон на одном и том же коде.
   const imgs = page.locator('img[src^="blob:"]');
-  if ((await imgs.count()) < 1) throw new Error('ни одной картинки с blob:-URL');
+  await imgs.first().waitFor({ state: 'attached', timeout: 20000 })
+    .catch(() => { throw new Error('ни одной картинки с blob:-URL за 20 с'); });
   const ok = await imgs.first().evaluate(el => el.complete && el.naturalWidth > 0);
   if (!ok) throw new Error('картинка не разобралась (naturalWidth = 0) — URL отозван или не тот');
+});
+
+// ── Пикер базового экземпляра ──────────────────────────────────────────────────
+// Тот же дефект «открылся с прежним поиском», что был у пикера ссылки: пикер держит форма, и до
+// #858 набранный текст переживал закрытие. Проверяется отдельно, потому что чинится отдельно.
+editor = await openInstance(AOSR);
+
+await check('base-picker-reopens-clean', async () => {
+  const openPicker = async () => {
+    await editor.getByRole('button', { name: /Выбрать основу/ }).first().click();
+    await page.waitForTimeout(1200);
+    const dlg = page.locator('[role=dialog]').last();
+    if (!/Базовый экземпляр/i.test(await dlg.innerText())) throw new Error('пикер основы не открылся');
+    return dlg;
+  };
+  const first = await openPicker();
+  await first.locator('input').first().fill('надзор');
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(800);
+  const again = await openPicker();
+  const val = await again.locator('input').first().inputValue();
+  if (val !== '') throw new Error(`поиск не сброшен: «${val}»`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(600);
+});
+
+// ── Очистка активного варианта union ───────────────────────────────────────────
+// Стоит ПОСЛЕДНЕЙ: правит форму в памяти, и дальше по документу ходить уже нельзя (сохранять
+// прогон ничего не сохраняет — правки уходят вместе с браузером).
+await check('union-clearing-keeps-active-variant', async () => {
+  await editor.getByRole('button', { name: /Документы соответствия/ }).first().click();
+  await page.waitForTimeout(1000);
+  await editor.getByRole('button', { name: /Документы соответствия/ }).nth(1).click();
+  await page.waitForTimeout(1000);
+  // Берём строку с НЕ-первым вариантом («Проект» стоит в списке вторым): подмена активного варианта
+  // подставляет ПЕРВЫЙ, и на строке с первым вариантом дефект был бы неотличим от исправности.
+  await editor.getByRole('button', { name: /^Редактировать$/ }).first().click();
+  await page.waitForTimeout(1600);
+  const dlg = page.locator('[role=dialog]').last();
+  const on = await checkedVariant();
+  if (on !== 'Проект') throw new Error(`строка открылась на «${on}», ждали «Проект»`);
+  const unlink = dlg.getByRole('button', { name: /снять ссылку/i })
+    .or(dlg.locator('button[title="Снять ссылку"]')).first();
+  if (!(await unlink.count())) throw new Error('нечем очистить значение — кнопки «Снять ссылку» нет');
+  await unlink.click();
+  await page.waitForTimeout(1000);
+  const after = await checkedVariant();
+  // Заполненного ключа в значении не осталось, и активный вариант держится только пометкой выбора.
+  if (after !== 'Проект') throw new Error(`после очистки активен «${after}» — ввод лёг бы не в тот ключ`);
 });
 
 } finally {
