@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Loader2, FileText, Download, Eye, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail, Stethoscope } from 'lucide-react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useEmailDocument } from '@/shared/api/documentSets';
@@ -79,10 +79,20 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
   const { data: templates = [], isLoading: templatesLoading } = useListTemplates(instance.documentTypeId);
   const activeTemplates = templates.filter((t: Template) => t.isActive);
   const noTemplates = !templatesLoading && activeTemplates.length === 0;
-  // Локальный стейт выбора (оптимистичный): функциональный апдейтер копит выбор из ПОСЛЕДНЕГО значения,
-  // а не из отрендеренного (иначе быстрый второй клик до рефетча затирал первый — «выбор не сохранялся»).
-  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>(() => parseIdArray(instance.templateIds));
-  useEffect(() => { setSelectedTemplateIds(parseIdArray(instance.templateIds)); }, [instance.templateIds]);
+  /**
+   * Выбор шаблонов — локальный ОВЕРРАЙД поверх серверного значения (issue #858), а не копия,
+   * которую эффект переливал на каждое изменение пропа.
+   *
+   * <p>Храним вместе с ним, от какого серверного значения он отсчитан. Тогда «правил ли человек» и
+   * «не устарела ли правка» — один и тот же вопрос: пришло другое серверное значение, оверрайд ему
+   * больше не отвечает, и показывается свежее. Эффектом это стоило лишнего коммита, в котором
+   * форма показывала выбор от прошлого документа.</p>
+   */
+  const [localSelection, setLocalSelection] =
+    useState<{ from: string | null | undefined; ids: string[] } | null>(null);
+  const selectedTemplateIds = localSelection && localSelection.from === instance.templateIds
+    ? localSelection.ids
+    : parseIdArray(instance.templateIds);
   // Эффективный шаблон для параметров/дефолт-скачивания: первый выбранный → по умолчанию → первый активный.
   const effectiveTemplate = activeTemplates.find((t: Template) => t.id === selectedTemplateIds[0])
     ?? activeTemplates.find((t: Template) => t.id === instance.templateId)
@@ -90,12 +100,13 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
     ?? activeTemplates[0];
   // Фокус — какой шаблон сейчас «раскрыт» в блоке параметров (ортогонально членству в генерации).
   // По умолчанию — эффективный; держим фокус при переключении галок, если он ещё валиден.
-  const [focusedTemplateId, setFocusedTemplateId] = useState<string | null>(null);
-  useEffect(() => {
-    if (activeTemplates.length === 0) return;
-    setFocusedTemplateId(prev =>
-      prev && activeTemplates.some((t: Template) => t.id === prev) ? prev : (effectiveTemplate?.id ?? null));
-  }, [templates, effectiveTemplate?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Выбранный человеком фокус держится, пока такой шаблон вообще есть среди активных; иначе
+  // показываем эффективный. Это вычисление, а не состояние: список шаблонов приходит с сервера и
+  // может смениться, и эффект-сторож просто повторял бы здесь ту же проверку — коммитом позже.
+  const [chosenFocus, setChosenFocus] = useState<string | null>(null);
+  const focusedTemplateId = chosenFocus && activeTemplates.some((t: Template) => t.id === chosenFocus)
+    ? chosenFocus
+    : (effectiveTemplate?.id ?? null);
   const focusedTemplate = activeTemplates.find((t: Template) => t.id === focusedTemplateId) ?? effectiveTemplate;
 
   async function handleGenerate() {
@@ -125,10 +136,14 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
   }
 
   function toggleTemplate(id: string, on: boolean) {
-    setSelectedTemplateIds(prev => {
-      const next = on ? [...new Set([...prev, id])] : prev.filter(x => x !== id);
+    // Функциональный апдейтер, а не отрендеренное значение: быстрый второй клик до ответа сервера
+    // обязан сложиться с первым, а не затереть его («выбор не сохранялся»). База — прежний
+    // оверрайд, если он ещё отвечает нынешнему серверному значению, иначе само серверное.
+    setLocalSelection(prev => {
+      const base = prev && prev.from === instance.templateIds ? prev.ids : parseIdArray(instance.templateIds);
+      const next = on ? [...new Set([...base, id])] : base.filter(x => x !== id);
       setTemplatesMutation.mutate({ setId, instanceId: instance.id, templateIds: next });
-      return next;
+      return { from: instance.templateIds, ids: next };
     });
   }
 
@@ -163,7 +178,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
                   <label key={t.id}
                     className={`flex items-center gap-2 pr-2.5 text-sm border-l-2 transition-colors cursor-pointer ${focused ? 'bg-brand-subtle border-brand' : 'border-transparent hover:bg-base'}`}>
                     <input type="checkbox" checked={selected} disabled={setTemplatesMutation.isPending}
-                      onChange={e => { toggleTemplate(t.id, e.target.checked); setFocusedTemplateId(t.id); }}
+                      onChange={e => { toggleTemplate(t.id, e.target.checked); setChosenFocus(t.id); }}
                       aria-label={`Использовать шаблон «${t.name}» для генерации`}
                       className="ml-2.5 shrink-0" />
                     <span className="flex-1 min-w-0 py-1.5">

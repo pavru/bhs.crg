@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type ReactNode } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import {
   Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check,
   AlertTriangle, Replace,
@@ -74,31 +74,24 @@ export interface MaterialRow { key: string; label: string; idValues: string[] }
 
 // ─── Модалка выбора/создания документа для связывания ───────────────────────────
 
-/** Выбор/создание документа качества для набора материалов. Переиспользуется экраном контроля
- *  связок (issue #555) — там материал приходит из самой связки, а не из набора данных. */
-export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, materials, onPick }: {
+interface LinkPickerModalProps {
   open: boolean; onClose: () => void; allDocTypes: DocumentType[];
   scope: CatalogScope; scopeId: string | null; materials: MaterialRow[];
   onPick: (doc: QualityDocument) => void;
-}) {
+}
+
+/** Выбор/создание документа качества для набора материалов. Переиспользуется экраном контроля
+ *  связок (issue #555) — там материал приходит из самой связки, а не из набора данных.
+ *
+ *  <p>Тело монтируется по открытию (issue #858): вкладка, строка поиска и тип документа задаются
+ *  инициализаторами состояния, а не эффектом «открылось — сбрось и заполни». Эффектом первый рендер
+ *  успевал показать вкладку и запрос от ПРОШЛОГО открытия.</p> */
+export function LinkPickerModal(props: LinkPickerModalProps) {
+  return props.open ? <LinkPickerModalBody {...props} /> : null;
+}
+
+function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, onPick }: LinkPickerModalProps) {
   const count = materials.length;
-  const [tab, setTab] = useState<'pick' | 'search' | 'create'>('pick');
-  const [includeExpired, setIncludeExpired] = useState(false);
-  // Единая строка поиска: фильтрует библиотеку и используется для веб-поиска.
-  const [query, setQuery] = useState('');
-  // Библиотека грузится ЦЕЛИКОМ, без фильтра по области, и это не небрежность: scope здесь говорит,
-  // где будет заведена СВЯЗКА (и где создастся новый документ на вкладке «Создать вручную»), а не из
-  // чего можно выбирать. Пока областью по умолчанию была System, разница не замечалась; с дефолтом
-  // «комплект» (#587) фильтр по области оставил бы пикер пустым при полной библиотеке на System — и
-  // пользователь пошёл бы заново импортировать из интернета то, что у него уже есть.
-  // Релевантность к материалу считается на клиенте.
-  const { data: docs = [], isLoading } = useListQualityDocs({ enabled: open });
-
-  const qualityTypes = useMemo(
-    () => allDocTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract && typeHasTag(dt, FUNCTIONAL_TAG.typeQualityDocument, allDocTypes)),
-    [allDocTypes],
-  );
-
   // Поисковый запрос формируем из выбранного материала (артикул + наименование).
   const baseQuery = useMemo(() => {
     const m = materials[0];
@@ -106,7 +99,28 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
     return Array.from(new Set(m.idValues.map(s => s.trim()).filter(Boolean))).join(' ');
   }, [materials]);
 
-  const [searchType, setSearchType] = useState('');
+  const [tab, setTab] = useState<'pick' | 'search' | 'create'>('pick');
+  const [includeExpired, setIncludeExpired] = useState(false);
+  // Единая строка поиска: фильтрует библиотеку и используется для веб-поиска. Заполняется
+  // материалом ПРИ ЗАВЕДЕНИИ состояния — тело монтируется на открытие, так что это и есть «сброс
+  // и инициализация при открытии», только без эффекта (issue #858).
+  const [query, setQuery] = useState(baseQuery);
+  // Библиотека грузится ЦЕЛИКОМ, без фильтра по области, и это не небрежность: scope здесь говорит,
+  // где будет заведена СВЯЗКА (и где создастся новый документ на вкладке «Создать вручную»), а не из
+  // чего можно выбирать. Пока областью по умолчанию была System, разница не замечалась; с дефолтом
+  // «комплект» (#587) фильтр по области оставил бы пикер пустым при полной библиотеке на System — и
+  // пользователь пошёл бы заново импортировать из интернета то, что у него уже есть.
+  // Релевантность к материалу считается на клиенте.
+  const { data: docs = [], isLoading } = useListQualityDocs({ enabled: true });
+
+  const qualityTypes = useMemo(
+    () => allDocTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract && typeHasTag(dt, FUNCTIONAL_TAG.typeQualityDocument, allDocTypes)),
+    [allDocTypes],
+  );
+
+  // Тип для веб-поиска по умолчанию — «сертификат», иначе первый доступный.
+  const [searchType, setSearchType] = useState(
+    () => (qualityTypes.find(t => /сертификат/i.test(t.name)) ?? qualityTypes[0])?.id ?? '');
   const [results, setResults] = useState<SearchCandidate[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [importingUrl, setImportingUrl] = useState<string | null>(null);
@@ -114,15 +128,6 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
   // Определения типов полей нужны распознаванию импортированного скана (issue #654).
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const { data: enumTypes = [] } = useListEnumTypes();
-
-  // Сброс и инициализация при открытии: строку поиска заполняем материалом.
-  useEffect(() => {
-    if (!open) return;
-    setTab('pick'); setIncludeExpired(false);
-    setResults(null); setSearchError(''); setQuery(baseQuery);
-    setSearchType(prev => prev || (qualityTypes.find(t => /сертификат/i.test(t.name)) ?? qualityTypes[0])?.id || '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
 
   // Взвешенные токены запроса (из материала или ручного ввода).
   const queryTokens = useMemo(() => weighted(query), [query]);
@@ -181,7 +186,7 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
     : `Документ качества для ${count} материал(ов)`;
 
   return (
-    <Modal open={open} onOpenChange={o => { if (!o) onClose(); }} title={title} extraWide>
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={title} extraWide>
       <div className="flex gap-1 mb-3 bg-muted rounded-lg p-0.5 w-fit">
         {(['pick', 'search', 'create'] as const).map(t => (
           <button key={t} onClick={() => { if (t === 'search') enterSearch(); else setTab(t); }}

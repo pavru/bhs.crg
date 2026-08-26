@@ -145,10 +145,12 @@ function PageViewer({ fileId, pageIndex, onClose }: { fileId: string; pageIndex:
   const [failed, setFailed] = useState(false);
   const [zoomed, setZoomed] = useState(false);
 
+  // Ни одного «сбросить перед загрузкой»: просмотрщик заводится заново на каждый лист (ключ по
+  // номеру листа на месте вызова, issue #858), поэтому «ещё грузится» — это начальное состояние
+  // свежего компонента, а не то, в которое его надо возвращать эффектом.
   useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
-    setUrl(null); setFailed(false); setZoomed(false);
     loadPageImageUrl(fileId, pageIndex)
       .then(u => { if (!cancelled) { objectUrl = u; setUrl(u); } })
       .catch(() => { if (!cancelled) setFailed(true); });
@@ -388,7 +390,6 @@ export function PdfGroupingEditor() {
     .filter(p => p.kindInfo.isTabular)
     .map(p => ({ id: p.id, name: p.name }));
 
-  const [groups, setGroups] = useState<EditableGroup[] | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [suspiciousOnly, setSuspiciousOnly] = useState(false);
   const [refusal, setRefusal] = useState<RecognitionRefusal | null>(null);
@@ -399,15 +400,22 @@ export function PdfGroupingEditor() {
   function showRecognizeError(err: unknown) {
     setRefusal(recognitionRefusal(err));
   }
-  const [dirty, setDirty] = useState(false);
   const [viewerPage, setViewerPage] = useState<number | null>(null);
   const lastClickedRef = useRef<number | null>(null);
 
-  // Инициализируем локальное редактируемое состояние из ответа сервера — только один раз при
-  // загрузке (и после успешного сохранения, когда сервер возвращает свежую группировку).
-  useEffect(() => {
-    if (data && !dirty) setGroups(makeGroups(data.groups));
-  }, [data, dirty]);
+  /**
+   * Разбиение показываем как ответ сервера ПЛЮС локальную правку поверх него (issue #858).
+   *
+   * <p>Раньше правка была копией, которую эффект переливал из ответа «пока не грязно». Копия и
+   * флаг «грязно» — два состояния об одном и том же, и рассинхронизировать их мог любой порядок
+   * приходов: свежий ответ сервера в момент, когда правка уже началась, молча затирал бы её.
+   * Оверрайд отвечает на оба вопроса разом: есть он — правка идёт и она же показывается, нет —
+   * показываем серверное. Сохранение снимает оверрайд, и экран снова следует за сервером.</p>
+   */
+  const serverGroups = useMemo(() => (data ? makeGroups(data.groups) : null), [data]);
+  const [edited, setEdited] = useState<EditableGroup[] | null>(null);
+  const groups = edited ?? serverGroups;
+  const dirty = edited !== null;
 
   const pageCount = data?.pageCount ?? 0;
   const documentCount = useMemo(() => (groups ?? []).filter(g => g.kind === 'Document').length, [groups]);
@@ -449,8 +457,12 @@ export function PdfGroupingEditor() {
   }
 
   function mutateGroups(fn: (prev: EditableGroup[]) => EditableGroup[]) {
-    setGroups(prev => (prev ? fn(prev) : prev));
-    setDirty(true);
+    // База — предыдущая правка, а если её ещё нет, то ответ сервера. Функциональный апдейтер, а не
+    // отрендеренное значение: два быстрых действия подряд обязаны сложиться, а не перебить друг друга.
+    setEdited(prev => {
+      const base = prev ?? serverGroups;
+      return base ? fn(base) : prev;
+    });
   }
 
   function removeFromAllGroups(groups: EditableGroup[], pages: Set<number>): EditableGroup[] {
@@ -501,7 +513,7 @@ export function PdfGroupingEditor() {
         tags: g.kind === 'Document' ? g.tags : [],
       }));
     await applyMutation.mutateAsync(payload);
-    setDirty(false);
+    setEdited(null);   // снимаем оверрайд — дальше экран следует за ответом сервера
   }
 
   if (!fileId) return null;
@@ -612,7 +624,7 @@ export function PdfGroupingEditor() {
       </div>
 
       {viewerPage !== null && (
-        <PageViewer fileId={fileId} pageIndex={viewerPage} onClose={() => setViewerPage(null)} />
+        <PageViewer key={viewerPage} fileId={fileId} pageIndex={viewerPage} onClose={() => setViewerPage(null)} />
       )}
     </div>
   );

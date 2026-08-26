@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -9,26 +9,33 @@ import type { Construction } from '@/shared/api/types';
 
 interface TargetSet { id: string; name: string; constructionId: string }
 
-/**
- * Поток «Перенести документ в другой комплект» (issue #283, фаза D): пикер комплекта → превью
- * (затронутые ссылки + блокировка по входящим ссылкам) → перенос → переход в целевой комплект.
- * Строже копирования: документ уходит из текущего; блокируется, если на него ссылаются (guard #269).
- */
-export function MoveDocumentDialog({ open, onClose, setId, currentSetName, instance, constructions }: {
+interface MoveDocumentDialogProps {
   open: boolean;
   onClose: () => void;
   setId: string;
   currentSetName: string;
   instance: { id: string; name: string };
   constructions: Construction[];
-}) {
+}
+
+/**
+ * Поток «Перенести документ в другой комплект» (issue #283, фаза D): пикер комплекта → превью
+ * (затронутые ссылки + блокировка по входящим ссылкам) → перенос → переход в целевой комплект.
+ * Строже копирования: документ уходит из текущего; блокируется, если на него ссылаются (guard #269).
+ *
+ * <p>Тело живёт ровно пока поток открыт (issue #858) — как у копирования: цель заводится заново на
+ * каждое открытие, эффект «закрылось — забудь цель» не нужен.</p>
+ */
+export function MoveDocumentDialog(props: MoveDocumentDialogProps) {
+  return props.open ? <MoveDocumentDialogBody {...props} /> : null;
+}
+
+function MoveDocumentDialogBody({ onClose, setId, currentSetName, instance, constructions }: MoveDocumentDialogProps) {
   const navigate = useNavigate();
   const toast = useToast();
   const moveMutation = useMoveDocument();
   const [target, setTarget] = useState<TargetSet | null>(null);
   const targetRef = useRef<TargetSet | null>(null);
-
-  useEffect(() => { if (!open) { setTarget(null); targetRef.current = null; } }, [open]);
 
   const options: PickType[] = [];
   const meta = new Map<string, TargetSet>();
@@ -63,7 +70,7 @@ export function MoveDocumentDialog({ open, onClose, setId, currentSetName, insta
   return (
     <>
       <TypePicker
-        open={open && target === null}
+        open={target === null}
         onOpenChange={o => { if (!o && !targetRef.current) onClose(); }}
         title="Перенести в комплект"
         recentKey="copy-target-set"
@@ -72,7 +79,7 @@ export function MoveDocumentDialog({ open, onClose, setId, currentSetName, insta
       />
 
       <ConfirmDialog
-        open={open && target !== null}
+        open={target !== null}
         onOpenChange={o => { if (!o) { setTarget(null); targetRef.current = null; onClose(); } }}
         title={`Перенести «${instance.name}» в «${target?.name ?? ''}»?`}
         errorTitle="Перенос невозможен"

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Info, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -24,7 +24,7 @@ import type { DataSetSource, MaterializeDiscriminator } from '@/shared/api/types
 export function MaterializationDialog({ source, onClose }: { source: DataSetSource; onClose: () => void }) {
   const { data: allDocTypes = [] } = useListDocumentTypes();
   const [typeId, setTypeId] = useState(source.materializeTypeId ?? '');
-  const [mapping, setMapping] = useState<Record<string, string>>(source.materializeMapping ?? {});
+  const [rawMapping, setMapping] = useState<Record<string, string>>(source.materializeMapping ?? {});
   const [showPreview, setShowPreview] = useState(false);
   const save = useSetMaterialization();
 
@@ -56,17 +56,42 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
   // а не все поля union разом. Материализатор кладёт один ключ на строку → корректный union-экземпляр.
   const isUnion = !!selectedType
     && ((selectedType.schema as { tags?: string[] }).tags ?? []).includes(FUNCTIONAL_TAG.typeUnion);
+  /**
+   * Легаси-настройка union'а с НЕСКОЛЬКИМИ ключами (до issue #716 такое сохранялось молча, а union
+   * при этом заполнялся весь сразу) схлопывается до одного — того, что диалог и показывает. Иначе
+   * человек правит видимую колонку, жмёт «Сохранить» и получает отказ про ключ, которого на экране
+   * нет. Это починка, а не потеря: второй ключ и раньше давал не-union.
+   *
+   * <p>Схлопываем ВИДОМ, а не правкой состояния в эффекте (issue #858). Эффект правил ровно то
+   * состояние, на которое сам же и смотрел, — то есть цикл, удерживаемый только проверкой длины;
+   * а первый рендер успевал показать и отправить в предпросмотр несхлопнутый маппинг. Ниже по
+   * коду `mapping` — уже схлопнутый: и в предпросмотр, и в сохранение, и в редактор уходит он.</p>
+   */
+  const rawMappingKeys = Object.keys(rawMapping);
+  const collapseLegacyUnion = isUnion && !byRowType && rawMappingKeys.length > 1;
+  const legacyKeep = collapseLegacyUnion
+    ? (effectiveFields.find(f => rawMapping[f.key])?.key ?? rawMappingKeys[0])
+    : '';
+  const mapping = collapseLegacyUnion ? { [legacyKeep]: rawMapping[legacyKeep] } : rawMapping;
+
   const presentVariant = isUnion ? effectiveFields.find(f => mapping[f.key])?.key : undefined;
   const firstVariant = effectiveFields[0]?.key ?? '';
-  const [activeVariant, setActiveVariant] = useState<string>('');
   // Стэш неактивных вариантов — недеструктивное переключение (как в UnionFieldGroup): persist хранит
   // ОДИН ключ, токен другого варианта живёт в локальном стэше до закрытия диалога.
   const [variantStash, setVariantStash] = useState<Record<string, string>>({});
-  // Подхватываем активный вариант из загруженного маппинга / при смене типа сбрасываем на первый.
-  useEffect(() => {
-    if (!isUnion) return;
-    setActiveVariant(presentVariant ?? firstVariant);
-  }, [isUnion, presentVariant, firstVariant]);
+  /**
+   * Активный вариант вычисляется, а не хранится копией (issue #858): замаппленный ключ главнее,
+   * выбор человека держится, пока замаппленного нет, и при смене типа отбрасывается сам — ключ
+   * чужого типа среди полей не найдётся.
+   *
+   * <p>Эффект, делавший то же самое, вдобавок ЛОМАЛ переключение на пустой вариант: switchVariant
+   * оставлял маппинг пустым, замаппленного ключа не оставалось, и эффект тут же возвращал первый
+   * вариант — выбрать незаполненный вариант было невозможно (тот же дефект, что чинился в
+   * UnionFieldGroup по ревью PR #861).</p>
+   */
+  const [chosenVariant, setChosenVariant] = useState<string | null>(null);
+  const chosenValid = chosenVariant && effectiveFields.some(f => f.key === chosenVariant) ? chosenVariant : null;
+  const activeVariant = isUnion ? (presentVariant ?? chosenValid ?? firstVariant) : '';
 
   /**
    * Переключение режима. Правила вариантов ПРЕДЗАПОЛНЯЕМ целевыми типами doc-ref-вариантов: у
@@ -114,18 +139,6 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     setByIdMode(next);
   }
 
-  // Легаси-настройка union'а с НЕСКОЛЬКИМИ ключами (до issue #716 такое сохранялось молча, а union
-  // при этом заполнялся весь сразу). Схлопываем до одного — того, что диалог и показывает. Иначе
-  // человек правит видимую колонку, жмёт «Сохранить» и получает отказ про ключ, которого на экране
-  // нет. Это починка, а не потеря: второй ключ и раньше давал не-union.
-  useEffect(() => {
-    if (!isUnion || byRowType) return;
-    const keys = Object.keys(mapping);
-    if (keys.length <= 1) return;
-    const keep = presentVariant ?? keys[0];
-    setMapping({ [keep]: mapping[keep] });
-  }, [isUnion, byRowType, mapping, presentVariant]);
-
   // Live-превью по ТЕКУЩИМ (несохранённым) типу+маппингу и правилу (issue #294, #716): обновляется
   // на каждую правку. Объявлено ПОСЛЕ isUnion/discriminator — раньше их значения ещё не существуют.
   const preview = useMaterializePreview(source.id, typeId || undefined, mapping, showPreview && !!typeId,
@@ -138,7 +151,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     setVariantStash(prev => ({ ...prev, [activeVariant]: curToken ?? '' }));
     const restored = variantStash[key];
     setMapping(restored ? { [key]: restored } : {}); // union: ровно один ключ
-    setActiveVariant(key);
+    setChosenVariant(key);
   }
 
   const useByIdMode = isDocumentType && byIdMode;
