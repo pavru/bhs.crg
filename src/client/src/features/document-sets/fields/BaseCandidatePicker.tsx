@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { FileText, Database, Link2, Unlink, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
@@ -45,15 +45,27 @@ export function parseBaseRef(raw: unknown): { kind: BaseCandidateKind; id: strin
   return undefined;
 }
 
+interface BaseCandidatePickerProps {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  candidates: BaseCandidate[]; onSelect: (c: BaseCandidate) => void;
+}
+
 /**
  * Единый пикер базового экземпляра — презентационный: получает уже готовый (обычно отсортированный
  * по близости) список кандидатов и вызывает onSelect. Вычисление и формат хранения `_baseRef` —
  * ответственность вызывающего (документ пишет {kind,id}; каталог/система — голый id).
+ *
+ * <p>Тело монтируется по открытию (issue #858). Пикер держат формы (<code>RequisitesTab</code>,
+ * <code>BaseInstanceChip</code>), то есть он смонтирован постоянно, и набранный поиск переживал
+ * закрытие: следующее открытие молча показывало отфильтрованный список без единого намёка на
+ * причину. Ровно этот дефект чинился в <code>RefPickerModal</code>; здесь он оставался (поймано
+ * ревью PR #861).</p>
  */
-export function BaseCandidatePicker({ open, onOpenChange, candidates, onSelect }: {
-  open: boolean; onOpenChange: (o: boolean) => void;
-  candidates: BaseCandidate[]; onSelect: (c: BaseCandidate) => void;
-}) {
+export function BaseCandidatePicker(props: BaseCandidatePickerProps) {
+  return props.open ? <BaseCandidatePickerBody {...props} /> : null;
+}
+
+function BaseCandidatePickerBody({ onOpenChange, candidates, onSelect }: BaseCandidatePickerProps) {
   const [search, setSearch] = useState('');
   const [active, setActive] = useState(0);
   const filtered = candidates.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
@@ -62,7 +74,6 @@ export function BaseCandidatePicker({ open, onOpenChange, candidates, onSelect }
   const baseCands = filtered.filter(c => !c.proxy);
   // Единый порядок для клавиатурной навигации (issue #107 F5): proxy-группа, затем базовые.
   const ordered = [...proxyCands, ...baseCands];
-  useEffect(() => { setActive(0); }, [search]);
 
   function pick(c: BaseCandidate) { onSelect(c); onOpenChange(false); }
   function onKey(e: React.KeyboardEvent) {
@@ -91,9 +102,12 @@ export function BaseCandidatePicker({ open, onOpenChange, candidates, onSelect }
   };
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Базовый экземпляр / роль">
+    <Modal open onOpenChange={onOpenChange} title="Базовый экземпляр / роль">
       <div className="space-y-4">
-        <input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={onKey}
+        {/* Подсветка возвращается на первую строку в ОБРАБОТЧИКЕ ввода, а не эффектом (issue #858):
+            сброс — следствие набора текста, а не состояния, которое надо с чем-то синхронизировать.
+            Эффектом это давало лишний коммит, в котором active ещё указывал в старый список. */}
+        <input value={search} onChange={e => { setSearch(e.target.value); setActive(0); }} onKeyDown={onKey}
           placeholder="Поиск…" autoFocus role="combobox" aria-expanded aria-controls="bcp-listbox"
           aria-activedescendant={ordered.length ? `bcp-opt-${active}` : undefined}
           className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />

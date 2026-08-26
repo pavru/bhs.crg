@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import type { CatalogScope, DocumentType, FieldRef } from '@/shared/api/types';
@@ -25,9 +25,39 @@ function coerceScalar(field: SchemaField, raw: string): unknown {
   return raw;
 }
 
-export function PasteMappingModal({
-  open, onOpenChange, initialText, tableFields, allDocTypes, scope, scopeId, onApply,
-}: {
+const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+
+/** Авто-сопоставление по заголовкам первой строки. */
+function headerMapping(tableFields: SchemaField[], headerRow: string[], count: number): Record<string, number> {
+  const m: Record<string, number> = {};
+  tableFields.forEach(f => {
+    const ci = headerRow.findIndex((cell, i) =>
+      i < count && (norm(cell) === norm(f.title) || norm(cell) === norm(f.key)));
+    if (ci >= 0) m[f.key] = ci;
+  });
+  return m;
+}
+
+/**
+ * Разбор вставленного текста: есть ли строка заголовков и какие колонки каким полям отвечают.
+ *
+ * <p>Чистая функция на уровне модуля (issue #858), потому что тот же ответ нужен в двух местах:
+ * обработчику вставки — чтобы обновить состояние, и инициализатору состояния — чтобы диалог,
+ * открытый с уже готовым текстом, сразу открылся на шаге сопоставления. Раньше вторым занимался
+ * эффект, и первый рендер успевал показать пустой шаг «вставьте данные».</p>
+ */
+function detectMapping(tableFields: SchemaField[], text: string): { skipHeader: boolean; fieldCol: Record<string, number> } {
+  const rows = text.trim().split('\n').map(r => r.split('\t'));
+  const maxCols = rows.length > 0 ? Math.max(...rows.map(r => r.length)) : 0;
+  const firstRow = rows[0] ?? [];
+  const skipHeader = firstRow.some(cell => {
+    const c = norm(cell);
+    return !!c && tableFields.some(f => norm(f.title) === c || norm(f.key) === c);
+  });
+  return { skipHeader, fieldCol: skipHeader ? headerMapping(tableFields, firstRow, maxCols) : {} };
+}
+
+interface PasteMappingModalProps {
   open: boolean; onOpenChange: (v: boolean) => void;
   initialText: string;
   tableFields: SchemaField[];
@@ -35,12 +65,25 @@ export function PasteMappingModal({
   /** Scope-контекст владельца — для серверного резолва «строка→объект» (issue #183). */
   scope?: CatalogScope; scopeId?: string | null;
   onApply: (rows: Record<string, unknown>[]) => void;
-}) {
-  const [step, setStep] = useState<'input' | 'map'>('input');
-  const [rawText, setRawText] = useState('');
-  const [skipHeader, setSkipHeader] = useState(false);
+}
+
+/**
+ * Вставка из Excel. Тело монтируется по открытию (issue #858): каждое открытие начинается с того
+ * текста, с которым диалог позвали, и разбирает его до первого рендера — а не эффектом после него.
+ */
+export function PasteMappingModal(props: PasteMappingModalProps) {
+  return props.open ? <PasteMappingModalBody {...props} /> : null;
+}
+
+function PasteMappingModalBody({
+  onOpenChange, initialText, tableFields, allDocTypes, scope, scopeId, onApply,
+}: PasteMappingModalProps) {
+  const [initial] = useState(() => detectMapping(tableFields, initialText));
+  const [step, setStep] = useState<'input' | 'map'>(initialText.trim() ? 'map' : 'input');
+  const [rawText, setRawText] = useState(initialText);
+  const [skipHeader, setSkipHeader] = useState(initial.skipHeader);
   // Сопоставление: ПОЛЕ таблицы → индекс колонки Excel-данных (источник). '' = пропустить.
-  const [fieldCol, setFieldCol] = useState<Record<string, number>>({});
+  const [fieldCol, setFieldCol] = useState<Record<string, number>>(initial.fieldCol);
   // Для составных (complex) полей: 'name' (имя+алиасы) / 'key' (identity-поля) — резолв ссылки на
   // каталог; 'inline' (issue #374) — собрать встроенный объект из значения без поиска.
   const [matchFields, setMatchFields] = useState<Record<string, 'name' | 'key' | 'inline'>>({});
@@ -58,40 +101,17 @@ export function PasteMappingModal({
   const [resolving, setResolving] = useState(false);
   const [pending, setPending] = useState<{ rows: Record<string, unknown>[]; linked: number; inline: number } | null>(null);
 
-  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
-
-  // Авто-сопоставление по заголовкам первой строки.
   function mapByHeader(headerRow: string[], count: number): Record<string, number> {
-    const m: Record<string, number> = {};
-    tableFields.forEach(f => {
-      const ci = headerRow.findIndex((cell, i) =>
-        i < count && (norm(cell) === norm(f.title) || norm(cell) === norm(f.key)));
-      if (ci >= 0) m[f.key] = ci;
-    });
-    return m;
+    return headerMapping(tableFields, headerRow, count);
   }
 
   function initMapping(text: string) {
-    const rows = text.trim().split('\n').map(r => r.split('\t'));
-    const maxCols = rows.length > 0 ? Math.max(...rows.map(r => r.length)) : 0;
-    const firstRow = rows[0] ?? [];
-    const isHeader = firstRow.some(cell => {
-      const c = norm(cell);
-      return !!c && tableFields.some(f => norm(f.title) === c || norm(f.key) === c);
-    });
+    const { skipHeader: isHeader, fieldCol: cols } = detectMapping(tableFields, text);
     setSkipHeader(isHeader);
-    setFieldCol(isHeader ? mapByHeader(firstRow, maxCols) : {});
+    setFieldCol(cols);
     setMatchFields({});
     setPending(null);
   }
-
-  useEffect(() => {
-    if (!open) return;
-    setRawText(initialText);
-    setPending(null);
-    if (initialText.trim()) { initMapping(initialText); setStep('map'); }
-    else setStep('input');
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const allRows = rawText.trim() ? rawText.trim().split('\n').map(r => r.split('\t')) : [];
   const maxCols = allRows.length > 0 ? Math.max(...allRows.map(r => r.length)) : 0;
@@ -177,7 +197,7 @@ export function PasteMappingModal({
 
   if (step === 'input') {
     return (
-      <Modal open={open} onOpenChange={onOpenChange} title="Вставить из Excel" wide
+      <Modal open onOpenChange={onOpenChange} title="Вставить из Excel" wide
         footer={
           <div className="flex justify-end gap-3">
             <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
@@ -204,7 +224,7 @@ export function PasteMappingModal({
   // step === 'map', промежуточная сводка перед вставкой (есть несопоставленные строки).
   if (pending) {
     return (
-      <Modal open={open} onOpenChange={onOpenChange} title="Готово к вставке" wide
+      <Modal open onOpenChange={onOpenChange} title="Готово к вставке" wide
         footer={
           <div className="flex justify-between">
             <Button variant="text" onClick={() => setPending(null)}>← Изменить сопоставление</Button>
@@ -237,7 +257,7 @@ export function PasteMappingModal({
 
   // step === 'map' — строки = ПОЛЯ таблицы, справа выбираем колонку Excel-источник.
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Сопоставление столбцов" wide
+    <Modal open onOpenChange={onOpenChange} title="Сопоставление столбцов" wide
       footer={
         <div className="flex justify-between">
           <Button variant="text" onClick={() => setStep('input')}>← Назад</Button>
