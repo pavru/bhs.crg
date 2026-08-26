@@ -27,16 +27,25 @@ export function FileTypeIcon({ mimeType }: { mimeType: string }) {
 export function FilePreviewModal({ open, onOpenChange, attachment }: {
   open: boolean; onOpenChange: (o: boolean) => void; attachment: FileAttachment;
 }) {
+  return (
+    <Modal open={open} onOpenChange={onOpenChange} title={attachment.fileName}>
+      {/* Тело заводится заново на каждое открытие и на каждый новый файл (issue #858): ключ вместо
+          эффекта, гасившего прошлую загрузку тремя setState на старте. Так «идёт загрузка» — это
+          начальное состояние свежего компонента, а не состояние, в которое его надо возвращать. */}
+      <FilePreviewBody key={attachment.blobPath} attachment={attachment} />
+    </Modal>
+  );
+}
+
+function FilePreviewBody({ attachment }: { attachment: FileAttachment }) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const category = getFileCategory(attachment.mimeType);
 
   useEffect(() => {
-    if (!open) return;
     let url: string | null = null;
     let cancelled = false;
-    setLoading(true); setError(''); setObjectUrl(null);
     loadAttachmentObjectUrl(attachment.blobPath)
       .then(res => {
         if (cancelled) { URL.revokeObjectURL(res.url); return; }
@@ -45,10 +54,10 @@ export function FilePreviewModal({ open, onOpenChange, attachment }: {
       .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : 'Ошибка загрузки'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
-  }, [open, attachment.blobPath]);
+  }, [attachment.blobPath]);
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title={attachment.fileName}>
+    <>
       {loading && (
         <div className="flex items-center justify-center py-12">
           <Loader2 size={24} className="animate-spin text-brand" />
@@ -73,7 +82,7 @@ export function FilePreviewModal({ open, onOpenChange, attachment }: {
           </a>
         </div>
       )}
-    </Modal>
+    </>
   );
 }
 

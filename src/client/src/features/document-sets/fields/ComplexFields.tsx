@@ -141,39 +141,44 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
 
 // ─── Array table modal ────────────────────────────────────────────────────────
 
-export function ArrayTableModal({
-  open, onOpenChange, field, compositeType, allDocTypes, items, onSave,
-  setId, scope, scopeId,
-}: {
+interface ArrayTableModalProps {
   open: boolean; onOpenChange: (v: boolean) => void;
   field: SchemaField; compositeType: DocumentType | null; allDocTypes: DocumentType[];
   items: Record<string, unknown>[];
   /** @param origins место каждой строки среди исходных (null — добавлена в таблице), см. mergeTableRows. */
   onSave: (rows: Record<string, unknown>[], origins: (number | null)[]) => void;
   setId?: string; scope?: CatalogScope; scopeId?: string | null;
-}) {
-  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+}
+
+/**
+ * Таблица массива. Тело монтируется по открытию (issue #858).
+ *
+ * <p>Правки идут по СВОЕЙ копии строк, и снимок с `items` раньше делал эффект на `open`. Снимок,
+ * сделанный эффектом, — это всегда лишний коммит с чужим содержимым между ними: первый рендер
+ * открытой таблицы успевал показать пустой список и старые «личности строк» (#755), по которым
+ * потом считается, какой слот удалён. Мы вместо этого заводим состояние заново — снимок делает
+ * инициализатор `useState`, и первого-неправильного рендера не существует.</p>
+ */
+export function ArrayTableModal(props: ArrayTableModalProps) {
+  return props.open ? <ArrayTableModalBody {...props} /> : null;
+}
+
+function ArrayTableModalBody({
+  onOpenChange, field, compositeType, allDocTypes, items, onSave,
+  setId, scope, scopeId,
+}: ArrayTableModalProps) {
+  const [rows, setRows] = useState<Record<string, unknown>[]>(() => items.map(r => ({ ...r })));
   // Стабильные id строк (issue #171): переживают reorder/удаление, служат ключом выбора.
-  const [rowIds, setRowIds] = useState<string[]>([]);
+  const [rowIds, setRowIds] = useState<string[]>(() => items.map(() => newLocalId()));
   // Личности строк, какими они были при ОТКРЫТИИ таблицы. Только по ним видно, КАКОЙ слот исчез
   // при удалении: сами строки после правки неотличимы, а порядок мог измениться (issue #755).
-  const [openedIds, setOpenedIds] = useState<string[]>([]);
+  const [openedIds] = useState<string[]>(rowIds);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);
   const [colWidths, setColWidths] = useState<Record<string, number>>({});
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
-
-  useEffect(() => {
-    if (open) {
-      setRows(items.map(r => ({ ...r })));
-      const ids = items.map(() => newLocalId());
-      setRowIds(ids);
-      setOpenedIds(ids);
-      setSelected(new Set());
-    }
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Единый scope-контекст владельца (issue #82): комплект → (Set, setId), иначе (scope, scopeId).
   const resolveScope = setId ? 'Set' as const : scope;
@@ -294,7 +299,7 @@ export function ArrayTableModal({
   const TH_BG = '#f3f4f6';
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange}
+    <Modal open onOpenChange={onOpenChange}
       title={`${compositeType?.name ?? field.title} — таблица`}
       extraWide
       footer={
@@ -1429,14 +1434,21 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
   const subValues = (value != null && typeof value === 'object' && !isFieldRef(value) ? value : {}) as Record<string, unknown>;
 
   const presentKey = subFields.find(sf => isVariantFilled(subValues[sf.key]))?.key;
-  const [activeKey, setActiveKey] = useState<string>(() => presentKey ?? subFields[0]?.key ?? '');
+  /**
+   * Выбранный человеком вариант — только на случай, когда ЗАПОЛНЕННОГО варианта нет (issue #858).
+   *
+   * <p>Активный вариант вычисляется, а не хранится копией: заполненный ключ значения главнее, и
+   * ровно это раньше делал эффект «значение пришло с заполненным ключом — подхватить». Эффектом это
+   * стоило лишнего коммита, в котором форма успевала показать не тот вариант, что в значении.
+   * Правило то же самое: есть заполненный — он и активен; нет — держим последний выбор.</p>
+   */
+  const [chosen, setChosen] = useState<string | null>(null);
   // Стэш неактивных вариантов — недеструктивное переключение в течение сессии (дискриминатор C, issue #320):
   // persist хранит ОДИН ключ, данные другого варианта живут в локальном стэше до закрытия редактора.
   const [stash, setStash] = useState<Record<string, unknown>>({});
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Значение пришло с заполненным ключом (загрузка/base-merge) — подхватываем активный вариант.
-  useEffect(() => { if (presentKey && presentKey !== activeKey) setActiveKey(presentKey); }, [presentKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const activeKey = presentKey ?? chosen ?? subFields[0]?.key ?? '';
 
   const activeSf = subFields.find(sf => sf.key === activeKey) ?? subFields[0] ?? null;
 
@@ -1445,7 +1457,7 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
     setStash(prev => ({ ...prev, [activeKey]: subValues[activeKey] })); // припрятать текущий вариант
     const restored = stash[key];
     onChange(isVariantFilled(restored) ? { [key]: restored } : {}); // восстановить целевой (или пусто)
-    setActiveKey(key);
+    setChosen(key);
   }
   // persist = один ключ активного варианта; пустой активный → {} (= «не выбрано», как обычный complex).
   // Ссылочные поля в union резолвятся как обычно (issue #324) — никакой спец-обработки ссылок.

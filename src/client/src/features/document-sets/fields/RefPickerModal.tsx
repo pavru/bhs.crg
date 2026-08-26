@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { FileText, Files } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { useCommonDataForScope } from '@/shared/api/commonData';
@@ -49,11 +49,7 @@ function isBlank(v: unknown): boolean {
  */
 type Candidate = { label: string; ref: FieldRef; placement: UnionPlacement };
 
-export function RefPickerModal({
-  open, onOpenChange, compositeType,
-  setId, scope, scopeId,
-  otherInstances = [], allDocTypes, unionAware = false, onSelect,
-}: {
+interface RefPickerModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   compositeType: DocumentType | null;
@@ -76,7 +72,26 @@ export function RefPickerModal({
   unionAware?: boolean;
   /** Второй аргумент — ключ варианта union'а; отсутствует, когда значение кладётся как есть. */
   onSelect: (ref: FieldRef, variantKey?: string) => void;
-}) {
+}
+
+/**
+ * Пикер ссылки. Тело живёт РОВНО пока диалог открыт (issue #858).
+ *
+ * <p>Раньше пикер был смонтирован постоянно — его держит форма, — и тело исполнялось на каждый её
+ * рендер. Отсюда брались и оговорки «только при открытом диалоге» на каждом тяжёлом вычислении, и
+ * эффект, сбрасывавший второй шаг при закрытии: состояние переживало закрытие, и следующее открытие
+ * начиналось бы с чужого «в какой вариант поместить?». Монтирование по открытию снимает и то и
+ * другое разом: закрытый пикер не считает ничего, а открытый всегда начинает с чистого листа.</p>
+ */
+export function RefPickerModal(props: RefPickerModalProps) {
+  return props.open ? <RefPickerModalBody {...props} /> : null;
+}
+
+function RefPickerModalBody({
+  onOpenChange, compositeType,
+  setId, scope, scopeId,
+  otherInstances = [], allDocTypes, unionAware = false, onSelect,
+}: RefPickerModalProps) {
   const [search, setSearch] = useState('');
 
   // Единый резолв всей цепочки скопов (issue #82): комплект-контекст → (Set, setId), иначе (scope, scopeId).
@@ -85,7 +100,7 @@ export function RefPickerModal({
   const effScope: CatalogScope | undefined = setId ? 'Set' : scope;
   const effScopeId = setId ?? scopeId;
   const { data: catalogEntries = [] } = useCommonDataForScope({
-    scope: effScope, scopeId: effScopeId, enabled: open && !!effScope,
+    scope: effScope, scopeId: effScopeId, enabled: !!effScope,
   });
 
   // Union-режим (issue #747): кандидат подходит, если его тип годится САМОМУ union'у или любому его
@@ -117,13 +132,14 @@ export function RefPickerModal({
    * оценивали. Для них <code>placeInUnion</code> вызывается на месте; список полей короткий, а вот
    * записей каталога бывают десятки — на них экономия и рассчитана.</p>
    *
-   * <p>Всё это считается только при открытом диалоге. Пикер смонтирован постоянно (его держит
-   * <code>ArrayFieldEditor</code>), поэтому тело компонента исполняется на КАЖДЫЙ рендер формы —
-   * а закрытому диалогу кандидаты не нужны ни одному.</p>
+   * <p>Всё это считается только при открытом диалоге — но теперь потому, что закрытого диалога
+   * попросту нет: тело монтируется по открытию (см. <code>RefPickerModal</code>). Прежде оно
+   * исполнялось на каждый рендер формы, и оговорку «только при открытом» приходилось повторять
+   * на каждом тяжёлом вычислении.</p>
    */
   const placementsFor = (typeIds: string[], source: UnionSource) =>
     new Map<string, UnionPlacement>(
-      unionMode && open
+      unionMode
         ? [...new Set(typeIds)].map(id => [id, placeInUnion(id, compositeType!, allDocTypes, source)] as const)
         : [],
     );
@@ -135,7 +151,7 @@ export function RefPickerModal({
     return table.get(typeId) ?? placeInUnion(typeId, compositeType!, allDocTypes, source);
   };
 
-  const filtered = !open ? [] : catalogEntries.filter(e => {
+  const filtered = catalogEntries.filter(e => {
     if (compositeType) {
       const fits = unionMode
         ? placementOf(e.compositeTypeId).kind !== 'none'
@@ -150,7 +166,6 @@ export function RefPickerModal({
   // варианта объявлены на один тип (иначе при одиночном наследовании дистанции не совпали бы),
   // то есть это осмысленная схема, а не порча данных, и исправить её из пикера человек не может.
   const [askVariantFor, setAskVariantFor] = useState<Candidate | null>(null);
-  useEffect(() => { if (!open) setAskVariantFor(null); }, [open]);
 
   /** Подписи вариантов union'а — для метки на кандидате и для второго шага. */
   const variantFields = unionMode
@@ -188,7 +203,7 @@ export function RefPickerModal({
    * там, где вариантов такого вида нет — например у «Кабельной линии», набранной одними
    * <code>complex</code>, — раздел просто пуст, а не заполнен неподходящими документами.</p>
    */
-  const instanceCandidates = unionMode && open
+  const instanceCandidates = unionMode
     ? otherInstances.flatMap(inst => {
         const dt = allDocTypes.find(t => t.id === inst.documentTypeId);
         if (!dt) return [];
@@ -221,7 +236,7 @@ export function RefPickerModal({
    * до проверки как ошибка «целевая запись не найдена или удалена», хотя документ на месте и не
    * заполнено всего одно поле.</p>
    */
-  const fieldCandidates = compositeType && setId && open
+  const fieldCandidates = compositeType && setId
     ? otherInstances.flatMap(inst => {
         const dt = allDocTypes.find(t => t.id === inst.documentTypeId);
         if (!dt) return [];
@@ -252,7 +267,6 @@ export function RefPickerModal({
     ...fieldCandidates.map(d => ({ type: 'field' as const, ...d })),
   ];
   const [active, setActive] = useState(0);
-  useEffect(() => { setActive(0); }, [search]);
   const optKey = (o: RpOption) =>
     o.type === 'catalog' ? `c:${o.entry.id}`
       : o.type === 'instance' ? `i:${o.inst.id}`
@@ -330,7 +344,7 @@ export function RefPickerModal({
   if (askVariantFor) {
     const keys = askVariantFor.placement.kind === 'ambiguous' ? askVariantFor.placement.variantKeys : [];
     return (
-      <Modal open={open} onOpenChange={onOpenChange} title="В какой вариант поместить?">
+      <Modal open onOpenChange={onOpenChange} title="В какой вариант поместить?">
         <div className="space-y-4">
           <p className="text-sm text-fg2">
             <span className="font-medium">{askVariantFor.label}</span> подходит нескольким
@@ -346,10 +360,12 @@ export function RefPickerModal({
   }
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Выбрать объект">
+    <Modal open onOpenChange={onOpenChange} title="Выбрать объект">
       <div className="space-y-4">
+        {/* Подсветку на первую строку возвращает сам ввод (issue #858): это следствие набора
+            текста, а не состояние, которое надо чем-то догонять. */}
         <input
-          value={search} onChange={e => setSearch(e.target.value)} onKeyDown={onKey}
+          value={search} onChange={e => { setSearch(e.target.value); setActive(0); }} onKeyDown={onKey}
           placeholder="Поиск…" autoFocus role="combobox" aria-expanded
           aria-activedescendant={options.length ? `rp-opt-${active}` : undefined}
           className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface"

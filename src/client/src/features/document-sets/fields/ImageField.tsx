@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image as ImageIcon, Trash2, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { formatBytes, uploadImage, loadAttachmentObjectUrl } from '@/shared/api/attachments';
 import { beginUpload, endUpload } from '@/shared/ui/uploadsInFlight';
@@ -34,12 +34,11 @@ export function ImageField({ value, onChange }: {
    */
   const pick = useRef(0);
   const img = normalize(value);
-  const shownSrc = useImageSrc(img, pending);
-  // Превью держим ровно до того мига, как картинка поехала из хранилища: дальше это лишняя копия
-  // в памяти (у печати — мегабайты) и повод показывать не то, что на самом деле сохранено.
-  useEffect(() => {
-    if (pending && shownSrc && shownSrc !== pending) setPending(null);
-  }, [pending, shownSrc]);
+  // Превью держим ровно до того мига, как картинка приехала из хранилища. Сообщает об этом сам
+  // загрузчик (issue #858) — раньше момент вычислялся эффектом-наблюдателем «показанное разошлось
+  // с превью», то есть по следствию вместо события.
+  const dropPending = useCallback(() => setPending(null), []);
+  const shownSrc = useImageSrc(img, pending, dropPending);
   const hasSize = !!(img && (img.width || img.height || img.align || img.fit));
 
   /**
@@ -232,23 +231,38 @@ function isBlobValue(v: ImageValue | ImageBlobValue | null): v is ImageBlobValue
  * Что показать: локальное превью (пока байты едут), сама data-URI (старая форма) либо скачанный из
  * хранилища объект-URL (новая). Блоб тянем один раз на путь и освобождаем URL при смене.
  */
-function useImageSrc(value: ImageValue | ImageBlobValue | null, pending: string | null): string | null {
+function useImageSrc(
+  value: ImageValue | ImageBlobValue | null,
+  pending: string | null,
+  onStored?: () => void,
+): string | null {
   const blobPath = isBlobValue(value) ? value.blobPath : null;
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  /**
+   * Скачанное храним ВМЕСТЕ С ПУТЁМ, а не голым URL (issue #858). Тогда «эта копия относится к
+   * нынешнему значению» — вопрос сравнения в рендере, а не состояния, которое надо успеть обнулить
+   * эффектом. Заодно уходит вспышка чужой картинки: при смене пути прежний URL уже отозван, а
+   * прежнее состояние всё ещё показывалось — до тех пор, пока не доедет новое.
+   */
+  const [loaded, setLoaded] = useState<{ path: string; url: string } | null>(null);
 
   useEffect(() => {
-    if (!blobPath) { setBlobUrl(null); return; }
+    if (!blobPath) return;
     let cancelled = false;
     let url: string | null = null;
     loadAttachmentObjectUrl(blobPath)
       .then(res => {
         if (cancelled) { URL.revokeObjectURL(res.url); return; }
         url = res.url;
-        setBlobUrl(res.url);
+        setLoaded({ path: blobPath, url: res.url });
+        // Картинка приехала из хранилища — локальное превью больше не нужно (у печатных форм это
+        // мегабайты в памяти) и уже вводило бы в заблуждение: показывает не то, что сохранено.
+        onStored?.();
       })
-      .catch(() => { if (!cancelled) setBlobUrl(null); });
+      .catch(() => { /* путь в loaded не совпадёт с нынешним — покажем превью либо ничего */ });
     return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
-  }, [blobPath]);
+  }, [blobPath, onStored]);
+
+  const blobUrl = loaded?.path === blobPath ? loaded.url : null;
 
   // Порядок важен: как только картинка приехала ИЗ ХРАНИЛИЩА, показываем её, а не локальное превью.
   // Иначе поле до конца жизни показывало бы копию из памяти, и «а читается ли блоб» никто бы не

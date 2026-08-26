@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { FileText, Database, Link2, Unlink, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
@@ -62,7 +62,6 @@ export function BaseCandidatePicker({ open, onOpenChange, candidates, onSelect }
   const baseCands = filtered.filter(c => !c.proxy);
   // Единый порядок для клавиатурной навигации (issue #107 F5): proxy-группа, затем базовые.
   const ordered = [...proxyCands, ...baseCands];
-  useEffect(() => { setActive(0); }, [search]);
 
   function pick(c: BaseCandidate) { onSelect(c); onOpenChange(false); }
   function onKey(e: React.KeyboardEvent) {
@@ -93,7 +92,10 @@ export function BaseCandidatePicker({ open, onOpenChange, candidates, onSelect }
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Базовый экземпляр / роль">
       <div className="space-y-4">
-        <input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={onKey}
+        {/* Подсветка возвращается на первую строку в ОБРАБОТЧИКЕ ввода, а не эффектом (issue #858):
+            сброс — следствие набора текста, а не состояния, которое надо с чем-то синхронизировать.
+            Эффектом это давало лишний коммит, в котором active ещё указывал в старый список. */}
+        <input value={search} onChange={e => { setSearch(e.target.value); setActive(0); }} onKeyDown={onKey}
           placeholder="Поиск…" autoFocus role="combobox" aria-expanded aria-controls="bcp-listbox"
           aria-activedescendant={ordered.length ? `bcp-opt-${active}` : undefined}
           className="w-full border border-stroke-strong rounded-md px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface" />

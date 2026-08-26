@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e:keyboard": "node e2e/keyboard-smoke.mjs",
-    "test:e2e:routing": "node e2e/routing-smoke.mjs"
+    "test:e2e:routing": "node e2e/routing-smoke.mjs",
+    "test:e2e:fields": "node e2e/fields-smoke.mjs"
   },
   "//engines": "Нижнюю границу Node задаёт react-router 8 (>=22.22.0). Соблюдение обеспечивает engine-strict в .npmrc: ниже порога npm ci падает с EBADENGINE. Образ сборки — node:22-alpine, см. deploy/Dockerfile.web.",
   "engines": {
