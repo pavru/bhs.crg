@@ -3,7 +3,7 @@ import {
   Search, Boxes, FileText, Building2, User, MapPin, Wrench, Package, Ruler, CalendarDays, Ban,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 // Иконка семейства по эвристике (имя+код). Категории из данных не выводятся (нет тегов/единого
 // parentId-дерева), поэтому иконку подбираем по ключевым словам; неточное совпадение безвредно.
@@ -31,7 +31,7 @@ export interface PickType { id: string; name: string; code: string; section: str
 
 const RECENTS_CAP = 6;
 
-export function TypePicker({ open, onOpenChange, types, onSelect, recentKey, title = 'Выберите тип', noneOption, onSelectNone }: {
+interface TypePickerProps {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   types: PickType[];
@@ -41,7 +41,17 @@ export function TypePicker({ open, onOpenChange, types, onSelect, recentKey, tit
   /** Строка «нет значения» первой в списке (для очищаемых пикеров — напр. «Без родителя»). */
   noneOption?: { label: string };
   onSelectNone?: () => void;
-}) {
+}
+
+/**
+ * Тело монтируется по открытию (issue #858): запрос и выделение заводятся заново, и эффект
+ * «закрылось — очисти запрос» не нужен. Заодно закрытый пикер перестаёт считать группы и недавние.
+ */
+export function TypePicker(props: TypePickerProps) {
+  return props.open ? <TypePickerBody {...props} /> : null;
+}
+
+function TypePickerBody({ onOpenChange, types, onSelect, recentKey, title = 'Выберите тип', noneOption, onSelectNone }: TypePickerProps) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
 
@@ -87,8 +97,7 @@ export function TypePicker({ open, onOpenChange, types, onSelect, recentKey, tit
   const base = noneVisible ? 1 : 0;
   const total = base + flat.length;
 
-  useEffect(() => { setActive(0); }, [query]);
-  useEffect(() => { if (!open) setQuery(''); }, [open]);
+
 
   function choose(t: PickType) { pushRecent(t.id); onSelect(t.id); onOpenChange(false); }
   function chooseNone() { onSelectNone?.(); onOpenChange(false); }
@@ -105,7 +114,7 @@ export function TypePicker({ open, onOpenChange, types, onSelect, recentKey, tit
 
   let idx = base - 1; // сквозной индекс строки типа (после none-строки, если она есть); ++idx даёт base
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root open onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" style={{ backdropFilter: 'blur(2px)' }} />
         <Dialog.Content
@@ -115,7 +124,8 @@ export function TypePicker({ open, onOpenChange, types, onSelect, recentKey, tit
           <Dialog.Title className="sr-only">{title}</Dialog.Title>
           <div className="flex items-center gap-2 border-b border-stroke px-4 shrink-0">
             <Search size={16} className="shrink-0 text-fg4" />
-            <input autoFocus value={query} onChange={e => setQuery(e.target.value)} onKeyDown={onKey}
+            {/* Выделение возвращает на первую строку сам ввод, а не эффект (issue #858). */}
+            <input autoFocus value={query} onChange={e => { setQuery(e.target.value); setActive(0); }} onKeyDown={onKey}
               placeholder="Поиск типа по имени или коду…" aria-label="Поиск типа"
               className="h-12 flex-1 bg-transparent text-sm text-fg1 outline-none placeholder:text-fg4" />
             <kbd className="rounded border border-stroke px-1 text-[10px] text-fg4">Esc</kbd>

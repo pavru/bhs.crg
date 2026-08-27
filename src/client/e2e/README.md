@@ -112,6 +112,24 @@
 Нужен ещё **MinIO** (`:9000`): экран разбиения читает страницы PDF из хранилища. Идентификатор
 PDF-набора переопределяется `SMOKE_PDF_FILE_ID`.
 
+## Smoke общих компонентов (`shared-ui-smoke.mjs`, issue #858, порция 3)
+
+`Modal`, `ConfirmDialog`, `TypePicker` и командная палитра переписаны на монтирование по открытию,
+`ThemeProvider` и `DateInput` — на производные значения. Первые четыре уже проходят под остальными
+прогонами (они открывают эти диалоги десятками), поэтому здесь только то, чего те не касаются:
+
+- **theme-choice-applies-to-dom / -survives-reload** — выбранная тема ставится на `<html>` и
+  переживает перезагрузку;
+- **system-theme-follows-os-change** — при выборе «Системная» тема следует за настройкой ОС
+  (`page.emulateMedia`). Ради этого и заведён `useSyncExternalStore`: подписка обязана быть живой.
+  Проверка прогнана на убитой подписке и краснеет — «система стала тёмной, а на `<html>` light»;
+- **date-input-shows-stored-value / -discards-partial-input-on-blur** — поле даты показывает
+  сохранённое значение, а незаконченный ввод при потере фокуса отбрасывается. Берётся сегмент
+  ГОДА: неполные день и месяц дополняются нулём и уезжают в значение (`blurD`/`blurM`), и на них
+  откат был бы неотличим от дополнения.
+
+Прогон возвращает тему в исходное состояние; значения полей не сохраняются.
+
 ## Предусловия
 
 Подняты фронт (`:5173`) и бэк (`:5000`):
@@ -137,6 +155,7 @@ MSYS_NO_PATHCONV=1 npm run test:e2e:keyboard
 MSYS_NO_PATHCONV=1 npm run test:e2e:routing
 MSYS_NO_PATHCONV=1 npm run test:e2e:fields
 MSYS_NO_PATHCONV=1 npm run test:e2e:dialogs
+MSYS_NO_PATHCONV=1 npm run test:e2e:shared-ui
 ```
 
 Учётка по умолчанию — админ `admin@bhs.local` / `Demo12345!` (переопределяется

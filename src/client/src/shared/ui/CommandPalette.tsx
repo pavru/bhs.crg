@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { Search, Sun, Moon, Monitor, LogOut, type LucideIcon } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useTheme } from '@/shared/ui/ThemeProvider';
@@ -13,8 +13,15 @@ interface Cmd { id: string; label: string; section: string; icon: LucideIcon; ru
  * v1: навигация. Стрелки ↑↓ двигают выделение, Enter — переход, Esc — закрыть, ввод фильтрует.
  * Открывается глобальным Ctrl/⌘+K (слушатель в AppShell). Только после закрытия per-widget
  * контрактов (F1–F3) — палитра ведёт в клавиатурно-проходимые экраны.
+ *
+ * <p>Тело монтируется по открытию (issue #858): строка поиска и выделение заводятся заново, и
+ * эффект «закрылось — очисти запрос» не нужен.</p>
  */
-export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function CommandPalette(props: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  return props.open ? <CommandPaletteBody {...props} /> : null;
+}
+
+function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { setTheme } = useTheme();
@@ -41,8 +48,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
     [items, query],
   );
 
-  useEffect(() => { setActive(0); }, [query]);
-  useEffect(() => { if (!open) setQuery(''); }, [open]);
+
 
   function exec(it: Cmd) { it.run(); onOpenChange(false); }
 
@@ -53,7 +59,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root open onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" style={{ backdropFilter: 'blur(2px)' }} />
         <Dialog.Content
@@ -64,7 +70,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
           <div className="flex items-center gap-2 border-b border-stroke px-4">
             <Search size={16} className="shrink-0 text-fg4" />
             <input
-              autoFocus value={query} onChange={e => setQuery(e.target.value)} onKeyDown={onKey}
+              autoFocus value={query} onChange={e => { setQuery(e.target.value); setActive(0); }} onKeyDown={onKey}
               placeholder="Перейти к разделу…"
               className="h-12 flex-1 bg-transparent text-sm text-fg1 outline-none placeholder:text-fg4"
             />
