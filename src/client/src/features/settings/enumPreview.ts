@@ -8,5 +8,5 @@ export function humanEnumPreview(values: EnumOptionDef[]): string {
   if (values.length === 0) return 'нет вариантов';
   const labels = values.map(v => v.label).filter(Boolean);
   const head = labels.slice(0, 3).join(', ');
-  return head;  // ВРЕМЕННАЯ ПОЛОМКА для доказательства красного прогона
+  return labels.length > 3 ? `${head} … (+${labels.length - 3})` : head;
 }
