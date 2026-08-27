@@ -248,6 +248,10 @@ jobs:
         env:
           SEED_API: http://localhost:5055
         run: |
+          # pipefail обязателен: код возврата конвейера — это код `tee`, то есть НОЛЬ. Без него
+          # упавший посев проходит молча, и работа краснеет позже и не там (или зеленеет на
+          # полупустой базе, где проверки сообщают «проверять нечего»).
+          set -o pipefail
           node e2e/seed.mjs | tee ${{ runner.temp }}/seed.out
           grep '^SMOKE_' ${{ runner.temp }}/seed.out >> "$GITHUB_ENV"
 
