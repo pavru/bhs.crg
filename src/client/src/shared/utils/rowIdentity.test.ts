@@ -51,3 +51,20 @@ describe('rowIdentity', () => {
     expect((row as { [ROW_UID]?: string })[ROW_UID]).toBe(rowUid(row));
   });
 });
+
+describe('withRowUids: один и тот же массив — одни и те же личности', () => {
+  it('повторный вызов на ТОМ ЖЕ массиве отдаёт тот же список', () => {
+    const rows = [{ name: 'a' }, { name: 'b' }];
+    const first = withRowUids(rows);
+    expect(withRowUids(rows)).toBe(first);
+    expect(rowKey(first[0], 0)).toBe(rowKey(withRowUids(rows)[0], 0));
+  });
+
+  it('другой массив с тем же содержимым — другие личности', () => {
+    // Так и задумано: другой массив означает, что данные пришли заново, и строки в самом деле
+    // другие. Ссылку у неизменившихся кусков бережёт React Query.
+    const a = withRowUids([{ name: 'a' }]);
+    const b = withRowUids([{ name: 'a' }]);
+    expect(rowKey(a[0], 0)).not.toBe(rowKey(b[0], 0));
+  });
+});

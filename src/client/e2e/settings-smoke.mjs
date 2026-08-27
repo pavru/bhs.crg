@@ -98,6 +98,29 @@ await check('backup-schedule-form-shows-saved-values', async () => {
     throw new Error(`время в расписании пусто: ${JSON.stringify(times)}`);
 });
 
+/**
+ * Запрос копий опрашивается каждые 15 секунд, и перечитывание, ничего не изменившее, правку
+ * выбрасывать не должно. Это стережёт инвариант «серверное значение стабильно по ссылке»: отдай в
+ * useServerForm свежесобранный объект — и форма сбрасывалась бы на каждый ответ.
+ *
+ * <p>Чего проверка НЕ ловит: сценария из ревью PR #864, где вместе с ответом меняется след службы
+ * (`running`, `lastRunAt`). Чтобы он случился, надо в самом деле снять копию — то есть записать
+ * файл в хранилище, а прогон этого делать не должен. Правка «форма поверх трёх полей расписания,
+ * а не поверх всего ответа» проверена чтением, живой проверки под ней нет.</p>
+ */
+await check('backup-schedule-edit-survives-refetch', async () => {
+  const time = page.locator('input[type=time]').first();
+  if (!(await time.count())) throw new Error('поля времени в расписании нет');
+  const before = await time.inputValue();
+  const probe = before === '04:44' ? '05:55' : '04:44';
+  await time.fill(probe);
+  await page.waitForTimeout(18000);   // дольше 15 с — опрос за это время точно случился
+  const after = await time.inputValue();
+  if (after !== probe) throw new Error(`перечитывание выбросило правку: набрано «${probe}», стало «${after}»`);
+  await time.fill(before);   // ничего не сохраняем — возвращаем как было
+  await page.waitForTimeout(400);
+});
+
 // ── Профиль ───────────────────────────────────────────────────────────────────
 await check('profile-shows-account-name-and-keeps-typing', async () => {
   await page.goto(`${BASE}/profile`);
@@ -107,8 +130,11 @@ await check('profile-shows-account-name-and-keeps-typing', async () => {
   const field = page.locator('input:not([type])').first();
   const before = await field.inputValue();
   if (!before.trim()) throw new Error('имя учётной записи в форме пусто');
+  // Набранное держится при перерисовках страницы. Настоящего перечитывания здесь НЕ происходит:
+  // у useAccount нет ни интервала, ни повода перечитать за это время — проверять «правка переживает
+  // ответ сервера» этим прогоном было бы самообманом (поймано ревью PR #864).
   await field.fill(`${before} X`);
-  await page.waitForTimeout(1200);   // за это время успевает пройти фоновое перечитывание
+  await page.waitForTimeout(1200);
   const after = await field.inputValue();
   if (after !== `${before} X`) throw new Error(`набранное имя не удержалось: «${after}»`);
   await field.fill(before);
