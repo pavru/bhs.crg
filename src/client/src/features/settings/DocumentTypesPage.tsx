@@ -48,21 +48,22 @@ import {
 import { danglingKeyRefs, danglingRefPlaces } from './schemaKeyChecks';
 import { typeHealth, healthBadgeLabel } from './typeHealth';
 import { TypstRendersEditor } from './TypstRendersEditor';
-import { useTypstBlocksCheck, TypstBlocksPanel, blocksCheckProblemsByFn } from './TypstBlocksCheck';
+import { TypstBlocksPanel } from './TypstBlocksCheck';
+import { useTypstBlocksCheck, blocksCheckProblemsByFn } from './useTypstBlocksCheck';
 import { schemaToJson, validateFields, TYPE_LABELS, nextAutoKey } from './schemaConstants';
 import { useTagRegistry, typeTags as typeTagDefs, FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { GroupedFieldsEditor } from './GroupedFieldsEditor';
-import { JsonPreview, FieldBuilder, DefaultValueCell, type FieldRegistries } from './FieldBuilder';
-import {
-  TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry, LeaveGuardDialog, SectionCard,
-} from './typeEditorShell';
+import { JsonPreview, FieldBuilder, DefaultValueCell } from './FieldBuilder';
+import type { FieldRegistries } from './fieldTypeOptions';
+import { LeaveGuardDialog, SectionCard } from './typeEditorShell';
+import { TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry } from './typeEditorRegistry';
 import { ListDetailShell, NavSearchInput, DetailHeader } from '@/shared/ui/ListDetailShell';
 import { useDirtyGuard } from '@/shared/ui/useDirtyGuard';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
 import { useToast } from '@/shared/ui/Toast';
-import { uniqueCode } from './PrimitiveTypesPage';
+import { uniqueCode } from './uniqueCode';
 
 /** Единственное членство (issue #197 Фаза C): каждый ключ поля остаётся только в первой группе,
  *  где встречается. Легаси-схемы могли класть поле в несколько групп — нормализуем при загрузке. */

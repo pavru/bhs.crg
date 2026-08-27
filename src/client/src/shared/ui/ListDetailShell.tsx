@@ -7,7 +7,7 @@ import { SearchInput } from './SearchInput';
  * Тонкий layout-примитив «list-detail со вторичной навигацией» (issue #210, разбор с Архитектором+
  * Дизайнером). Владеет ТОЛЬКО рамками (шапка страницы, колонка навигации фикс. ширины 320px, область
  * detail) и Save-кластером в шапке detail. Модель навигации (табы/группы/список) и содержимое detail —
- * per-page слоты; реестр агрегации dirty — отдельный модуль (features/settings/typeEditorShell).
+ * per-page слоты; реестр агрегации dirty — отдельный модуль (features/settings/typeEditorRegistry).
  * НЕ клиент этого shell: редактор документа (#192) — там навигация ВНУТРИ сущности + preview-панель.
  */
 export function ListDetailShell({ title, subtitle, titleIcon, titleBadge, breadcrumb, headerAction, overlay, nav, navWidth = 'w-80', detail }: {

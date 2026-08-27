@@ -36,11 +36,12 @@ import type { FieldConstraints, PrimitiveTypeDef, EnumTypeDef, EnumOptionDef, Da
 import { formatDateRu } from '@/shared/utils/date';
 import { useTagRegistry, fieldTags } from '@/shared/api/tags';
 import { GroupPicker } from './TypeGroupAccordion';
-import { ValuesEditor, EnumForm, humanEnumPreview } from './EnumTypesSection';
+import { ValuesEditor, EnumForm } from './EnumTypesSection';
+import { humanEnumPreview } from './enumPreview';
+import { uniqueCode } from './uniqueCode';
 import { withRowUids } from '@/shared/utils/rowIdentity';
-import {
-  TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry, LeaveGuardDialog,
-} from './typeEditorShell';
+import { LeaveGuardDialog } from './typeEditorShell';
+import { TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry } from './typeEditorRegistry';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -83,13 +84,6 @@ function usageBlockedNode(usedByNames: string[]): React.ReactNode | undefined {
       </ul>
     </div>
   );
-}
-
-/** Уникальный код на базе исходного: base2, base3 … (для дублирования типа, issue #210 Этап 2). */
-export function uniqueCode(base: string, existing: Set<string>): string {
-  if (!existing.has(base)) return base;
-  let i = 2; while (existing.has(`${base}${i}`)) i++;
-  return `${base}${i}`;
 }
 
 /** Человекочитаемое превью ограничений для строки списка. Regex не «переводим» (нельзя надёжно) —

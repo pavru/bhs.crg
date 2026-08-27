@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useSetDocumentTemplateParams } from '@/shared/api/documentSets';
-import { parseTemplateParams } from '@/features/templates/TemplateParamsPanel';
+import { parseTemplateParams } from '@/features/templates/templateParams';
 import type { DocumentInstance, Template, TemplateParam } from '@/shared/api/types';
 
 /**

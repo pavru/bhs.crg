@@ -11,13 +11,14 @@ import { ruCount } from '@/shared/utils/pluralize';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useListTemplates, useCreateTemplate, useDeleteTemplate, useDuplicateTemplate, useTemplatesUsage } from '@/shared/api/templates';
 import type { Template, DocumentType } from '@/shared/api/types';
-import { useMaxTemplateVersions } from '@/features/settings/SettingsPage';
+import { useMaxTemplateVersions } from '@/features/settings/useMaxTemplateVersions';
 import { buildBlankTypst } from './templateBlank';
 import { EditorPanel } from './EditorPanel';
 import { UserLibPanel } from './UserLibPanel';
 import { SystemLibPanel } from './SystemLibPanel';
 import { TypeBlocksPanel } from './TypeBlocksPanel';
-import { TemplateSidebar, DocTypeSelector, VersionCleanupModal, groupTemplates, type TemplateGroup } from './TemplateSidebar';
+import { TemplateSidebar, DocTypeSelector, VersionCleanupModal } from './TemplateSidebar';
+import { groupTemplates, type TemplateGroup } from './groupTemplates';
 // ─── New template form ────────────────────────────────────────────────────────
 
 interface NewTemplateFormProps {
