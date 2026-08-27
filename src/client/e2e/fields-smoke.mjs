@@ -31,6 +31,9 @@ const AOSR = '250701.ЭОМ-1.АОСР';              // ссылки в «Чл�
 const PDF_DOC = 'Кабельный журнал (из PDF)';   // поле-файл с настоящим вложением
 const WORKS_ROWS = 19;
 
+// Поле типа «Цело число» в разделе «Прочее» — на нём проверяется вызов validateConstraint из формы.
+const INTEGER_FIELD = 'Количество экземпляров';
+
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
 page.on('pageerror', e => console.log('  ! ошибка страницы:', e.message));
@@ -290,14 +293,19 @@ await check('base-picker-reopens-clean', async () => {
 await check('constraint-violation-shows-message', async () => {
   await editor.getByRole('button', { name: /Прочее/ }).first().click();
   await page.waitForTimeout(1200);
-  const input = editor.locator('input').first();
-  if (!(await input.count())) throw new Error('в разделе «Прочее» нет поля ввода');
+  // Поле берём ПО ПОДПИСИ, а не «первый input раздела»: с порядковым локатором проверка при любой
+  // перестановке формы молча уехала бы на чужое поле — и либо падала на исправном коде, либо (попади
+  // она на другое целочисленное) проходила, ничего не проверив.
+  const input = editor.getByLabel(INTEGER_FIELD);
+  if ((await input.count()) !== 1)
+    throw new Error(`поле «${INTEGER_FIELD}» не найдено однозначно (${await input.count()})`);
+  const before = await input.inputValue();
   await input.fill('1.5');           // тип поля — «Цело число»
   await page.waitForTimeout(700);
   const t = await editor.innerText();
   if (!/целое число/i.test(t))
     throw new Error(`дробное значение принято без замечания: ${t.slice(-300)}`);
-  await input.fill('3');             // возвращаем как было (прогон ничего не сохраняет)
+  await input.fill(before);          // возвращаем что было (прогон ничего не сохраняет)
   await page.waitForTimeout(500);
 });
 

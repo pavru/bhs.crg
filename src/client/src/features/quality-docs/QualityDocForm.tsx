@@ -26,8 +26,6 @@ import { RECOGNIZED_HINT, recognizedFieldKeys, applyRecognized } from './recogni
 /** Поля, занимающие обе колонки сетки — тот же набор, что в редакторе реквизитов (`RequisitesTab`). */
 const WIDE_TYPES = new Set(['complex', 'array', 'doc-ref', 'doc-array', 'image', 'file', 'text']);
 
-/** Поля, занимающие обе колонки сетки — тот же набор, что в редакторе реквизитов (`RequisitesTab`). */
-
 export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, onCancel }: {
   allDocTypes: DocumentType[]; scope: CatalogScope; scopeId: string | null;
   initial?: QualityDocument | null;
