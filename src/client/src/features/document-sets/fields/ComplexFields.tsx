@@ -28,7 +28,8 @@ import { ExtractToCommonDataModal } from './ExtractToCommonDataModal';
 import {
   CELL_INPUT, ROW_DRAG_MIME, SCOPE_COLORS, TABLE_SHOWN_TYPES, defaultColWidth, showsArrayTable,
 } from './constants';
-import { isMissing, PrimitiveInput } from './PrimitiveInput';
+import { PrimitiveInput } from './PrimitiveInput';
+import { isMissing } from './fieldValidation';
 import { ImageField } from './ImageField';
 import { FileField } from './FileField';
 import { RefPickerModal } from './RefPickerModal';

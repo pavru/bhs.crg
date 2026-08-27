@@ -13,7 +13,7 @@ import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
 import { TextField } from '@/shared/ui/TextField';
 import { DateInput } from '@/shared/ui/DateInput';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { validateConstraint } from '@/features/document-sets/fields/PrimitiveInput';
+import { validateConstraint } from '@/features/document-sets/fields/fieldValidation';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { parseSchemaFields } from '@/shared/api/schema';
 import {

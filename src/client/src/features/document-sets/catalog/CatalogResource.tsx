@@ -14,7 +14,8 @@ import type { CommonDataEntry, CatalogScope, DocumentType } from '@/shared/api/t
 import { SCOPE_LABELS } from '@/shared/api/types';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { CatalogEntryForm } from './index';
-import { groupObjectsByType, entryMatchesQuery, ObjectRow } from './ObjectsByTypeList';
+import { ObjectRow } from './ObjectsByTypeList';
+import { groupObjectsByType, entryMatchesQuery } from './objectsByType';
 
 const NO_TYPE = '__no_type__';
 const PROFILE = '__profile__';

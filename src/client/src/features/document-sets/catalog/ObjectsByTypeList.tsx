@@ -1,36 +1,11 @@
 import { Trash2, Link2, FileText } from 'lucide-react';
 import { IconButton } from '@/shared/ui/Button';
-import type { CommonDataEntry, DocumentType } from '@/shared/api/types';
+import type { CommonDataEntry } from '@/shared/api/types';
 
 // Общие презентационные части списка «объекты по типу» (issue #88) — устраняют дублирование между
 // системным каталогом (SystemCommonDataPage) и скоуп-панелью каталога (ScopedCatalogPanel). Обёртки
 // групп (карточка-страница vs рейл-панель) намеренно разные (issue #8, три канала иерархии) и остаются
 // на стороне страниц; здесь — группировка, строка объекта и метка роли/прокси.
-
-/**
- * Комплексный текстовый матч записи каталога (issue #249). Ищем подстроку `query` (регистронезависимо)
- * в: имени записи, её алиасах, имени её типа (искали «орга» → находим тип «Организация») и значениях
- * собственных скалярных полей. Служебные ключи (`_baseRef` и пр., префикс `_`) и составные значения
- * (объекты/массивы) пропускаем — как в превью строки. Пустой запрос матчит всё.
- */
-export function entryMatchesQuery(entry: CommonDataEntry, typeName: string | undefined, query: string): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  if (entry.displayName.toLowerCase().includes(q)) return true;
-  if (entry.aliases?.some(a => a.toLowerCase().includes(q))) return true;
-  if (typeName && typeName.toLowerCase().includes(q)) return true;
-  return Object.entries(entry.data).some(([k, v]) =>
-    !k.startsWith('_') && v != null && typeof v !== 'object' && String(v).toLowerCase().includes(q));
-}
-
-/** Группировка записей по составному типу (+ «без типа»). Порядок внутри группы — как во входе. */
-export function groupObjectsByType(entries: CommonDataEntry[], types: DocumentType[]) {
-  const groups = types
-    .map(type => ({ type, items: entries.filter(e => e.compositeTypeId === type.id) }))
-    .filter(g => g.items.length > 0);
-  const noType = entries.filter(e => !types.some(t => t.id === e.compositeTypeId));
-  return { groups, noType };
-}
 
 /** Метка роли/прокси (issue #89): если запись ссылается (`_baseRef`) на объект ТОГО ЖЕ типа —
  *  показываем «→ реальный» и открываем его по клику. Цель ищется среди `resolvePool` (если задан —

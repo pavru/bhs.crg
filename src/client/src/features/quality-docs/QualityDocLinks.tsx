@@ -8,6 +8,7 @@ import { ScopeReachNote } from './ScopeReachNote';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useToast } from '@/shared/ui/Toast';
+import { nameOf, matchesLink } from './qualityLinkSearch';
 import {
   useRemoveMaterialLink, useRemoveMaterialLinks, useSetMaterialLinks, type MaterialQualityLink,
 } from '@/shared/api/qualityDocs';
@@ -237,15 +238,4 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
       )}
     </div>
   );
-}
-
-/** Имя материала: метка, если она есть, иначе машинный ключ (у связок до #554 метки нет). */
-export function nameOf(link: MaterialQualityLink): string {
-  return link.materialLabel?.trim() || link.materialKey;
-}
-
-/** Поиск идёт по ключу И по метке: артикул ищут одним, человеческое имя — другим. */
-export function matchesLink(link: MaterialQualityLink, lowerQuery: string): boolean {
-  return link.materialKey.toLowerCase().includes(lowerQuery)
-    || (link.materialLabel ?? '').toLowerCase().includes(lowerQuery);
 }

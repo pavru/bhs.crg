@@ -4,7 +4,7 @@ import type { DocumentType } from '@/shared/api/types';
 import { resolveEffectiveFields, findTaggedFieldPath } from '@/shared/api/schema';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import type { FieldTypeDefs } from '@/shared/utils/fieldDisplay';
-import { applyRecognized } from './QualityDocForm';
+import { applyRecognized } from './recognizedMark';
 import { buildRecognitionFields, codesFromLabels } from './recognitionFields';
 
 const SUMMARY = '__summary__';

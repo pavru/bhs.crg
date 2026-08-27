@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildPreviewModel, getPath } from './MaterializationDialog';
+import { buildPreviewModel, getPath } from './materializePreviewModel';
 
 describe('buildPreviewModel (issue #393)', () => {
   it('разворачивает вложенные объекты в колонки-листья с точечными путями', () => {

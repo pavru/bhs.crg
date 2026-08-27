@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { recognizedPaths, recognizedFieldKeys, applyRecognized } from './QualityDocForm';
+import { recognizedPaths, recognizedFieldKeys, applyRecognized } from './recognizedMark';
 
 /**
  * Пометка полей, заполненных распознаванием (issue #807). Проверяется главное свойство: помечается

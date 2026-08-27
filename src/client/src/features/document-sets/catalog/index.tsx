@@ -22,7 +22,7 @@ import {
 } from '@/shared/api/schema';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
 import { recognizeDocument } from '@/shared/api/qualityDocs';
-import { applyRecognized, recognizedFieldKeys, RECOGNIZED_HINT } from '@/features/quality-docs/QualityDocForm';
+import { applyRecognized, recognizedFieldKeys, RECOGNIZED_HINT } from '@/features/quality-docs/recognizedMark';
 import { buildRecognitionFields, codesFromLabels } from '@/features/quality-docs/recognitionFields';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';

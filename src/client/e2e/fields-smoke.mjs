@@ -11,6 +11,9 @@
 //   • union-строка открывается на заполненном варианте, а переключение помнит спрятанное;
 //   • предпросмотр вложения и поле-картинка показывают файл из хранилища (blob:-URL живой).
 //
+// Порция 9 добавила сюда проверку ПРОВОДКИ: `validateConstraint` уехал из `PrimitiveInput.tsx` в
+// свой модуль, сама функция покрыта юнит-тестом, а её вызов из формы виден только в браузере.
+//
 // Требует поднятых фронта (:5173) и бэка (:5000) и демо-данных — см. e2e/README.md. Адреса
 // комплекта и стройки переопределяются через SMOKE_SET_ID / SMOKE_CONSTRUCTION_ID.
 //
@@ -277,6 +280,25 @@ await check('base-picker-reopens-clean', async () => {
   if (val !== '') throw new Error(`поиск не сброшен: «${val}»`);
   await page.keyboard.press('Escape');
   await page.waitForTimeout(600);
+});
+
+/**
+ * Ограничение типа поля проверяется на вводе (issue #858, порция 9: `validateConstraint` уехал из
+ * `PrimitiveInput.tsx` в свой модуль). Проверка стережёт ПРОВОДКУ: сама функция покрыта юнит-тестом,
+ * а вот вызов её из формы — только отсюда. Отвались он, поле молча принимало бы что угодно.
+ */
+await check('constraint-violation-shows-message', async () => {
+  await editor.getByRole('button', { name: /Прочее/ }).first().click();
+  await page.waitForTimeout(1200);
+  const input = editor.locator('input').first();
+  if (!(await input.count())) throw new Error('в разделе «Прочее» нет поля ввода');
+  await input.fill('1.5');           // тип поля — «Цело число»
+  await page.waitForTimeout(700);
+  const t = await editor.innerText();
+  if (!/целое число/i.test(t))
+    throw new Error(`дробное значение принято без замечания: ${t.slice(-300)}`);
+  await input.fill('3');             // возвращаем как было (прогон ничего не сохраняет)
+  await page.waitForTimeout(500);
 });
 
 // ── Очистка активного варианта union ───────────────────────────────────────────
