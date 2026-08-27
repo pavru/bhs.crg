@@ -1,14 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
-
-export type Theme = 'light' | 'dark' | 'system';
-
-interface ThemeCtx {
-  theme: Theme;
-  setTheme: (t: Theme) => void;
-  resolvedTheme: 'light' | 'dark';
-}
-
-const Ctx = createContext<ThemeCtx>({ theme: 'system', setTheme: () => {}, resolvedTheme: 'light' });
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { Ctx, type Theme, type ThemeCtx } from './themeContext';
 
 const STORAGE_KEY = 'crg-theme';
 
@@ -74,5 +65,3 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
-
-export function useTheme() { return useContext(Ctx); }

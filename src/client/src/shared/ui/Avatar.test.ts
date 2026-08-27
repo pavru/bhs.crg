@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { initialsOf } from './Avatar';
+import { initialsOf } from './avatarHelpers';
 
 describe('initialsOf', () => {
   it('две буквы из двух слов имени', () => {

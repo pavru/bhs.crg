@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import Editor from '@/shared/ui/CodeEditor';
 import type * as monacoEditor from 'monaco-editor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
-import { useTheme } from '@/shared/ui/ThemeProvider';
+import { useTheme } from '@/shared/ui/themeContext';
 import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
 import { Button } from '@/shared/ui/Button';

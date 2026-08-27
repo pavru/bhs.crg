@@ -1,10 +1,10 @@
-import { createContext, useContext, useRef, useState, useEffect, useLayoutEffect, type ReactNode, type MouseEvent } from 'react';
+import { createContext, useContext, useRef, useEffect, useLayoutEffect, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router';
 
 /** Обработчик ухода: показывает подтверждение и вызывает `proceed()`, если пользователь решил уйти. */
-type LeaveHandler = (proceed: () => void) => void;
+export type LeaveHandler = (proceed: () => void) => void;
 
-interface NavGuard {
+export interface NavGuard {
   /** Активная страница регистрирует свой обработчик ухода (или снимает — null). */
   register: (h: LeaveHandler | null) => void;
   /** Навигация вызывает перед переходом: есть обработчик → вызывает его (диалог) и возвращает true
@@ -12,31 +12,7 @@ interface NavGuard {
   attempt: (proceed: () => void) => boolean;
 }
 
-const Ctx = createContext<NavGuard | null>(null);
-
-/**
- * Router-agnostic гард навигации при несохранённых правках (issue #307). `<BrowserRouter>` (не
- * data-router) не поддерживает `useBlocker`, поэтому переходы перехватываются в самих ссылках
- * навигации (AppShell) через `attempt`, а страница-владелец показывает подтверждение. Один обработчик
- * за раз — под `<Outlet/>` смонтирована лишь одна страница.
- */
-export function NavigationGuardProvider({ children }: { children: ReactNode }) {
-  const handlerRef = useRef<LeaveHandler | null>(null);
-  /**
-   * Значение контекста заводится РАЗ и живёт весь срок провайдера. Через `useState` с ленивым
-   * инициализатором, а не `useRef(...).current`: чтение ref в рендере — обращение к изменяемому
-   * ящику там, где рендер обязан быть чистым (issue #858). `useMemo` тут не годится вовсе — React
-   * вправе забыть закэшированное, а подписчики держатся именно за эту ссылку.
-   */
-  const [value] = useState<NavGuard>(() => ({
-    register: (h) => { handlerRef.current = h; },
-    attempt: (proceed) => {
-      if (handlerRef.current) { handlerRef.current(proceed); return true; }
-      return false;
-    },
-  }));
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
-}
+export const Ctx = createContext<NavGuard | null>(null);
 
 export function useNavigationGuard() { return useContext(Ctx); }
 

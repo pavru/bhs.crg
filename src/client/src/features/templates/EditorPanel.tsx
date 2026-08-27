@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { useTheme } from '@/shared/ui/ThemeProvider';
+import { useTheme } from '@/shared/ui/themeContext';
 import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
 import Editor from '@/shared/ui/CodeEditor';

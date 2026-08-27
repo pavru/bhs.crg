@@ -4,7 +4,7 @@ import { useAuth } from '@/shared/hooks/useAuth';
 import { useAppVersion } from '@/shared/api/version';
 import { useUpdateStatus } from '@/shared/api/updates';
 import { useAccount, useResendConfirmation } from '@/shared/api/account';
-import { useTheme, type Theme } from '@/shared/ui/ThemeProvider';
+import { useTheme, type Theme } from '@/shared/ui/themeContext';
 import { NotificationsCenter } from '@/features/notifications/NotificationsCenter';
 import { ActiveJobsIndicator } from '@/features/jobs/ActiveJobsIndicator';
 import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';

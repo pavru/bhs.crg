@@ -3,7 +3,7 @@ import { Search, Sun, Moon, Monitor, LogOut, type LucideIcon } from 'lucide-reac
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/shared/hooks/useAuth';
-import { useTheme } from '@/shared/ui/ThemeProvider';
+import { useTheme } from '@/shared/ui/themeContext';
 import { workNav, settingsNav } from './navConfig';
 
 interface Cmd { id: string; label: string; section: string; icon: LucideIcon; run: () => void }
