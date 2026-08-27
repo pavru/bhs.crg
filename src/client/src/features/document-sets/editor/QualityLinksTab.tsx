@@ -87,10 +87,22 @@ interface LinkPickerModalProps {
  *  инициализаторами состояния, а не эффектом «открылось — сбрось и заполни». Эффектом первый рендер
  *  успевал показать вкладку и запрос от ПРОШЛОГО открытия.</p> */
 export function LinkPickerModal(props: LinkPickerModalProps) {
-  return props.open ? <LinkPickerModalBody {...props} /> : null;
+  /**
+   * Выбранный тип для веб-поиска живёт в ОБЁРТКЕ, а не в теле (поймано ревью PR #862).
+   *
+   * <p>Прежний эффект сбрасывал при открытии всё, кроме него: `setSearchType(prev => prev || …)`
+   * — то есть выбор человека переживал закрытие намеренно. Тело монтируется по открытию, и
+   * инициализатор вернул бы «Сертификат соответствия» на каждом открытии; связывают же материалы
+   * подряд, десятками, и выбор пришлось бы делать заново на каждый.</p>
+   */
+  const [searchType, setSearchType] = useState('');
+  return props.open
+    ? <LinkPickerModalBody {...props} searchType={searchType} setSearchType={setSearchType} />
+    : null;
 }
 
-function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, onPick }: LinkPickerModalProps) {
+function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, onPick, searchType, setSearchType }:
+  LinkPickerModalProps & { searchType: string; setSearchType: (v: string) => void }) {
   const count = materials.length;
   // Поисковый запрос формируем из выбранного материала (артикул + наименование).
   const baseQuery = useMemo(() => {
@@ -118,9 +130,11 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
     [allDocTypes],
   );
 
-  // Тип для веб-поиска по умолчанию — «сертификат», иначе первый доступный.
-  const [searchType, setSearchType] = useState(
-    () => (qualityTypes.find(t => /сертификат/i.test(t.name)) ?? qualityTypes[0])?.id ?? '');
+  // Пока человек тип не выбрал — «сертификат», иначе первый доступный. Умолчание вычисляем, а не
+  // записываем в состояние: типы могут доехать позже, чем откроется окно.
+  const effectiveSearchType = searchType
+    || (qualityTypes.find(t => /сертификат/i.test(t.name)) ?? qualityTypes[0])?.id
+    || '';
   const [results, setResults] = useState<SearchCandidate[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [importingUrl, setImportingUrl] = useState<string | null>(null);
@@ -163,10 +177,10 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
   }
 
   async function importAndLink(c: SearchCandidate) {
-    if (!searchType) { setSearchError('Выберите тип документа'); return; }
+    if (!effectiveSearchType) { setSearchError('Выберите тип документа'); return; }
     setImportingUrl(c.url); setSearchError('');
     try {
-      let doc = await importQualityDocFromUrl({ url: c.url, title: c.title, documentTypeId: searchType, scope, scopeId });
+      let doc = await importQualityDocFromUrl({ url: c.url, title: c.title, documentTypeId: effectiveSearchType, scope, scopeId });
       // Автоматически распознаём скан импортированного документа (best-effort).
       // Определения типов — чтобы распознавание увидело варианты перечислений и вернуло КОДЫ,
       // а не подписи (issue #654): формы здесь нет, расхождение показать некому.
@@ -258,7 +272,7 @@ function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, 
             <TypePickerField className="w-64" aria-label="Тип документа качества" title="Тип документа качества"
               placeholder="Тип"
               types={qualityTypes.map<PickType>(t => ({ id: t.id, name: t.name, code: t.code, section: 'Документы качества' }))}
-              value={searchType || undefined}
+              value={effectiveSearchType || undefined}
               onChange={id => { if (id) setSearchType(id); }} />
             {/* Ведущей лупы здесь нет (issue #668): рядом стоял селектор типа со своей замыкающей
                 лупой — обещанием модалки поиска (#565), — и два одинаковых значка подряд означали

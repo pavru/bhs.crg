@@ -81,8 +81,8 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
   const [variantStash, setVariantStash] = useState<Record<string, string>>({});
   /**
    * Активный вариант вычисляется, а не хранится копией (issue #858): замаппленный ключ главнее,
-   * выбор человека держится, пока замаппленного нет, и при смене типа отбрасывается сам — ключ
-   * чужого типа среди полей не найдётся.
+   * выбор человека держится, пока замаппленного нет, и при смене типа снимается вместе с остальной
+   * настройкой.
    *
    * <p>Эффект, делавший то же самое, вдобавок ЛОМАЛ переключение на пустой вариант: switchVariant
    * оставлял маппинг пустым, замаппленного ключа не оставалось, и эффект тут же возвращал первый
@@ -236,6 +236,10 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
             setTypeId(id ?? '');
             setMapping({});
             setVariantStash({});
+            // И пометку выбранного варианта тоже. «Отбросится сама» она только пока у типов не
+            // совпадают ключи полей: у двух union'ов с вариантом `project` пометка пережила бы
+            // смену типа, и новый тип открылся бы не на первом варианте (поймано ревью PR #862).
+            setChosenVariant(null);
             setDiscriminator({ column: '', kind: 'docTypeCode', rules: {} });
             setSingleModeStash(null);
             setByTypeStash(null);

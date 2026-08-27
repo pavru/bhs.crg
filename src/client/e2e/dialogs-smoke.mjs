@@ -5,7 +5,9 @@
 // инициализаторы состояния и локальный ОВЕРРАЙД поверх серверного значения. Ошибка в такой замене
 // не падает, а тихо показывает не то: пустой список групп, чужой поиск, забытый выбор шаблонов.
 //
-// Ничего не сохраняет: правки делаются и бросаются вместе с браузером.
+// Почти ничего не сохраняет: правки разбиения и материализации бросаются вместе с браузером. Одна
+// проверка пишет по-настоящему — галка шаблона на демо-документе уезжает PUT'ом, — и возвращает
+// исходное состояние в finally, чтобы прерванный прогон не оставил документ с чужим выбором.
 //
 // Требует поднятых фронта (:5173), бэка (:5000) и MinIO (:9000) — экран разбиения читает страницы
 // PDF из хранилища. Плюс демо-данные, см. e2e/README.md.
@@ -20,6 +22,7 @@ const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7
 const PDF_FILE = process.env.SMOKE_PDF_FILE_ID || '688d45ed-834e-4d54-b74f-db1d4220e994';
 
 const AOSR = '250701.ЭОМ-1.АОСР';
+const MATERIALS_DOC = '250701.ЭОМ-1.2.Реестр материалов';   // у него есть материалы и связки качества
 const DATASET_FILE = 'Счет на оплату';   // PDF-набор с двумя источниками
 const UNION_TYPE = 'Документ произвольный';   // union с вариантами «Документ» и «Проект»
 
@@ -128,6 +131,32 @@ await check('materialize-union-switch-to-empty-variant-sticks', async () => {
   if (on !== 'Проект') throw new Error(`после переключения активен «${on}» — выбор не удержался`);
 });
 
+// Смена типа обязана снимать и пометку выбранного варианта. «Отбросится сама» она только пока у
+// типов не совпадают ключи полей: у «Работы АОСР» и «Материалы АОСР» второй вариант — один и тот
+// же ключ «Реестр», и пометка пережила бы смену типа (поймано ревью PR #862).
+await check('materialize-type-change-resets-chosen-variant', async () => {
+  const dlg = page.locator('[role=dialog]').last();
+  const pickType = async (name) => {
+    // Поле типа — кнопка с названием выбранного типа (после первого выбора плейсхолдера уже нет).
+    await dlg.locator('button').filter({ hasText: /Документ произвольный|Работы АОСР/ }).first().click();
+    await page.waitForTimeout(900);
+    const picker = page.locator('[role=dialog]').last();
+    await picker.locator('input').first().fill(name);
+    await page.waitForTimeout(800);
+    await picker.getByText(name, { exact: true }).first().click();
+    await page.waitForTimeout(1600);
+  };
+  await pickType('Работы АОСР');
+  if ((await checkedVariant()) !== 'Работы') throw new Error('новый тип открылся не на первом варианте');
+  await dlg.getByRole('radio', { name: /^Реестр$/ }).first().click();
+  await page.waitForTimeout(900);
+  if ((await checkedVariant()) !== 'Реестр') throw new Error('второй вариант не выбрался');
+
+  await pickType('Материалы АОСР');
+  const on = await checkedVariant();
+  if (on !== 'Материалы') throw new Error(`после смены типа активен «${on}» — пометка пережила смену`);
+});
+
 await page.keyboard.press('Escape');
 await page.waitForTimeout(800);
 
@@ -186,12 +215,80 @@ await check('generation-tab-shows-templates', async () => {
 await check('generation-tab-selection-follows-click', async () => {
   const box = editor.locator('input[type=checkbox]').first();
   const before = await box.isChecked();
-  await box.click();
-  await page.waitForTimeout(1200);
-  if ((await box.isChecked()) === before) throw new Error('галка не переключилась');
-  await box.click();   // возвращаем как было
-  await page.waitForTimeout(1200);
+  try {
+    await box.click();
+    await page.waitForTimeout(1200);
+    if ((await box.isChecked()) === before) throw new Error('галка не переключилась');
+  } finally {
+    // Возврат — в finally: выбор шаблонов уходит на сервер, и провалившаяся проверка не должна
+    // оставлять демо-документ с чужой настройкой (следующий прогон стартовал бы с неё).
+    if ((await box.isChecked()) !== before) {
+      await box.click();
+      await page.waitForTimeout(1200);
+    }
+  }
   if ((await box.isChecked()) !== before) throw new Error('галка не вернулась в исходное состояние');
+});
+
+// ── Пикер документа качества: выбранный тип поиска переживает закрытие ─────────
+// Прежний эффект сбрасывал при открытии всё, кроме типа для веб-поиска, — это было сделано
+// намеренно: материалы связывают подряд, десятками, и выбирать тип заново на каждый значит делать
+// одну и ту же работу столько раз, сколько строк в реестре (поймано ревью PR #862).
+await page.goto(`${BASE}/document-sets/${CONSTRUCTION}/sets/${SET}`);
+await page.waitForSelector('tbody tr', { timeout: 15000 });
+await page.waitForTimeout(1000);
+await page.getByText(MATERIALS_DOC, { exact: false }).first().click();
+await page.waitForSelector('[role=dialog]', { timeout: 15000 });
+await page.waitForTimeout(2500);
+const matEditor = page.locator('[role=dialog]').first();
+await matEditor.locator('button').filter({ hasText: /^Документы качества$/ }).first().click();
+await page.waitForTimeout(3000);
+
+const openLinkPicker = async () => {
+  // Без якорей: hasText сверяет textContent (с переносами вокруг значка), а не innerText.
+  await matEditor.locator('button').filter({ hasText: /Связать/ }).first().click();
+  await page.waitForTimeout(2000);
+  const dlg = page.locator('[role=dialog]').last();
+  if (!/Документ качества/.test(await dlg.innerText())) throw new Error('пикер документа качества не открылся');
+  await dlg.locator('button').filter({ hasText: /^Поиск в интернете$/ }).first().click();
+  await page.waitForTimeout(900);
+  return dlg;
+};
+// Поле типа — триггер TypePickerField с aria-label «Тип документа качества»; показанное значение
+// это его первая строка (второй идёт код типа).
+const TYPE_TRIGGER = 'button[aria-label="Тип документа качества"]';
+const firstLine = (text) => text.split(/\r?\n/)[0].trim();
+const shownSearchType = async (dlg) => firstLine(await dlg.locator(TYPE_TRIGGER).first().innerText());
+
+let firstType = '';
+await check('quality-picker-opens-with-default-search-type', async () => {
+  const dlg = await openLinkPicker();
+  if (!(await dlg.locator(TYPE_TRIGGER).count())) throw new Error('поля типа для поиска нет');
+  firstType = await shownSearchType(dlg);
+  if (!firstType) throw new Error('тип для поиска не показан');
+});
+
+await check('quality-picker-keeps-chosen-search-type-across-close', async () => {
+  const dlg = page.locator('[role=dialog]').last();
+  await dlg.locator(TYPE_TRIGGER).first().click();
+  await page.waitForTimeout(1200);
+  const picker = page.locator('[role=dialog]').last();
+  const options = await picker.locator('button')
+    .evaluateAll(els => els.map(e => e.innerText.split(/\r?\n/)[0].trim()).filter(Boolean));
+  const other = options.find(o => o !== firstType && /письмо|Декларация|Паспорт|Сертификат/i.test(o));
+  if (!other) throw new Error(`второго типа в пикере нет: ${options.slice(0, 12).join(' | ')}`);
+  await picker.getByText(other, { exact: true }).first().click();
+  await page.waitForTimeout(1200);
+  if ((await shownSearchType(page.locator('[role=dialog]').last())) !== other)
+    throw new Error('тип не сменился в самом окне');
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(1000);
+  const again = await openLinkPicker();
+  const kept = await shownSearchType(again);
+  if (kept !== other) throw new Error(`после повторного открытия тип «${kept}», а выбирали «${other}»`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(700);
 });
 
 } finally {

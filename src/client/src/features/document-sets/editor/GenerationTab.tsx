@@ -136,15 +136,16 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
   }
 
   function toggleTemplate(id: string, on: boolean) {
-    // Функциональный апдейтер, а не отрендеренное значение: быстрый второй клик до ответа сервера
-    // обязан сложиться с первым, а не затереть его («выбор не сохранялся»). База — прежний
-    // оверрайд, если он ещё отвечает нынешнему серверному значению, иначе само серверное.
-    setLocalSelection(prev => {
-      const base = prev && prev.from === instance.templateIds ? prev.ids : parseIdArray(instance.templateIds);
-      const next = on ? [...new Set([...base, id])] : base.filter(x => x !== id);
-      setTemplatesMutation.mutate({ setId, instanceId: instance.id, templateIds: next });
-      return { from: instance.templateIds, ids: next };
-    });
+    // Базой берём показанный выбор — он и есть «последний»: оверрайд помнит, от какого серверного
+    // значения отсчитан, поэтому запоздавший ответ сервера его больше не перебивает. Ровно ради
+    // этого раньше стоял функциональный апдейтер — и мутация уезжала ИЗНУТРИ него, то есть
+    // побочным действием в редьюсере: под StrictMode React зовёт апдейтер дважды, и каждый щелчок
+    // слал два PUT (поймано ревью PR #862).
+    const next = on
+      ? [...new Set([...selectedTemplateIds, id])]
+      : selectedTemplateIds.filter(x => x !== id);
+    setLocalSelection({ from: instance.templateIds, ids: next });
+    setTemplatesMutation.mutate({ setId, instanceId: instance.id, templateIds: next });
   }
 
   const pdfFiles = instance.generatedFiles.filter(f => f.format === 'Pdf');
