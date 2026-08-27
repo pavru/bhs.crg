@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from './Button';
 
 interface ModalProps {
@@ -26,12 +26,24 @@ interface ModalProps {
   footer?: ReactNode;
 }
 
-export function Modal({ open, onOpenChange, title, children, wide, extraWide, fullScreen, headerless, isDirty, flushBody, footer }: ModalProps) {
-  const [confirmClose, setConfirmClose] = useState(false);
+/**
+ * Содержимое живёт ровно пока диалог открыт (issue #858).
+ *
+ * <p>`Dialog.Root` остаётся смонтированным всегда — он и есть машина состояния Radix, и focus-scope
+ * возвращает фокус на триггер при размонтировании контента. А вот подтверждение «закрыть без
+ * сохранения?» держалось в состоянии САМОГО Modal, который переживает закрытие, — и стиралось
+ * эффектом. Теперь оно заводится вместе с телом.</p>
+ */
+export function Modal(props: ModalProps) {
+  return (
+    <Dialog.Root open={props.open} onOpenChange={props.onOpenChange}>
+      {props.open && <ModalBody {...props} />}
+    </Dialog.Root>
+  );
+}
 
-  useEffect(() => {
-    if (!open) setConfirmClose(false);
-  }, [open]);
+function ModalBody({ onOpenChange, title, children, wide, extraWide, fullScreen, headerless, isDirty, flushBody, footer }: ModalProps) {
+  const [confirmClose, setConfirmClose] = useState(false);
 
   function attemptClose() {
     if (isDirty) setConfirmClose(true);
@@ -39,8 +51,7 @@ export function Modal({ open, onOpenChange, title, children, wide, extraWide, fu
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
+    <Dialog.Portal>
         <Dialog.Overlay
           className="fixed inset-0 z-40 bg-black/40"
           style={{ backdropFilter: 'blur(2px)' }}
@@ -126,7 +137,6 @@ export function Modal({ open, onOpenChange, title, children, wide, extraWide, fu
             </div>
           )}
         </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    </Dialog.Portal>
   );
 }

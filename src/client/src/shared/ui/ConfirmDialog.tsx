@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from './Button';
 import { apiError } from '@/shared/utils/apiError';
@@ -46,17 +46,20 @@ interface ConfirmDialogProps {
  * заголовок на `errorTitle` и показывает блок причины (сообщение backend как есть) вместо
  * кнопки подтверждения — единый канал для guard-отказов удаления (409), вместо alert()/тишины.
  */
-export function ConfirmDialog({
-  open, onOpenChange, title, description, confirmLabel, confirmDanger = true, cancelLabel = 'Отмена',
+export function ConfirmDialog(props: ConfirmDialogProps) {
+  // Тело монтируется по открытию (issue #858): галка, «идёт удаление» и причина отказа заводятся
+  // заново, и эффекта «закрылось — сбрось всё три» больше не нужно. Прошлая причина отказа,
+  // пережившая закрытие, — как раз то, что этот эффект и стерёг.
+  return props.open ? <ConfirmDialogBody {...props} /> : null;
+}
+
+function ConfirmDialogBody({
+  onOpenChange, title, description, confirmLabel, confirmDanger = true, cancelLabel = 'Отмена',
   requireCheckbox, errorTitle = 'Удаление невозможно', blocked, onConfirm,
 }: ConfirmDialogProps) {
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) { setChecked(false); setBusy(false); setError(null); }
-  }, [open]);
 
   const canConfirm = !requireCheckbox || checked;
   // Состояние «нельзя»: проактивная блокировка (blocked) ИЛИ реактивная ошибка после попытки (error).
@@ -77,7 +80,7 @@ export function ConfirmDialog({
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={o => { if (!busy) onOpenChange(o); }}>
+    <Dialog.Root open onOpenChange={o => { if (!busy) onOpenChange(o); }}>
       <Dialog.Portal>
         <Dialog.Overlay
           className="fixed inset-0 z-40 bg-black/40"

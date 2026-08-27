@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { CalendarDays } from 'lucide-react';
 import type { DatePrecision } from '@/shared/api/types';
@@ -24,10 +24,19 @@ interface DateInputProps {
   compact?: boolean;
 }
 
+const EMPTY_SEGMENTS = { d: '', m: '', y: '' };
+
 export function DateInput({ value, onChange, precision = 'day', className = '', disabled = false, calendar = true, compact = false }: DateInputProps) {
-  const [d, setD] = useState('');
-  const [m, setM] = useState('');
-  const [y, setY] = useState('');
+  /**
+   * Набранное человеком, пока он печатает. Показанные сегменты ВЫЧИСЛЯЮТСЯ (issue #858): пока поле
+   * в фокусе — из набранного, иначе прямо из значения.
+   *
+   * <p>Раньше сегменты были копией значения, которую эффект переливал «когда не редактируют».
+   * Копия жила своей жизнью между приходом нового значения и запуском эффекта — то есть кадр поле
+   * показывало прежнюю дату. Правило осталось прежним, включая то, что незаконченный ввод при
+   * потере фокуса отбрасывается: набранное снимается вместе с фокусом.</p>
+   */
+  const [typed, setTyped] = useState<{ d: string; m: string; y: string } | null>(null);
   const [focused, setFocused] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -44,16 +53,18 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
   const yrRef  = useRef<HTMLInputElement>(null);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Sync from external value only when not actively editing
-  useEffect(() => {
-    if (focused) return;
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? '');
-    if (match) {
-      setD(match[3]); setM(match[2]); setY(match[1]);
-    } else if (!value) {
-      setD(''); setM(''); setY('');
-    }
-  }, [value, focused]);
+  const parsed = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? '');
+  const fromValue = parsed ? { d: parsed[3], m: parsed[2], y: parsed[1] } : EMPTY_SEGMENTS;
+  const shown = focused ? (typed ?? fromValue) : fromValue;
+  const { d, m, y } = shown;
+  // Функциональные апдейтеры, хотя сегодня ни один обработчик не пишет два сегмента за раз:
+  // сборка от отрендеренного `shown` молча потеряла бы первую правку, если бы такой обработчик
+  // появился — например вставка «дд.мм.гггг» целиком в поле дня (поймано ревью PR #863).
+  const setSeg = (key: 'd' | 'm' | 'y', v: string) =>
+    setTyped(prev => ({ ...(prev ?? fromValue), [key]: v }));
+  const setD = (v: string) => setSeg('d', v);
+  const setM = (v: string) => setSeg('m', v);
+  const setY = (v: string) => setSeg('y', v);
 
   function onFocus() {
     clearTimeout(blurTimer.current);
@@ -61,7 +72,9 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
   }
   function onBlur() {
     // Delay so focus transitions between segments don't flicker focused=false
-    blurTimer.current = setTimeout(() => setFocused(false), 120);
+    // Набранное снимаем вместе с фокусом: незаконченный ввод не сохраняется, и поле возвращается
+    // к тому, что в значении, — ровно это делал прежний эффект-синхронизатор.
+    blurTimer.current = setTimeout(() => { setFocused(false); setTyped(null); }, 120);
   }
 
   // Emit полный ISO из видимых сегментов; скрытые части допоняем '01'. Пустой ввод — явная очистка.
