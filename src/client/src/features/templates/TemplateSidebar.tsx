@@ -9,28 +9,10 @@ import type { Template, DocumentType } from '@/shared/api/types';
 import { useDeleteTemplate, type TemplateUsage } from '@/shared/api/templates';
 import { ruCount } from '@/shared/utils/pluralize';
 import { TemplateAssetsPanel } from './TemplateAssetsPanel';
+import type { TemplateGroup } from './groupTemplates';
 
 /** Карта использования версий (templateId → usage); пустой объект, пока не загружено. */
 export type TemplateUsageMap = Record<string, TemplateUsage>;
-// ─── Template grouping ────────────────────────────────────────────────────────
-
-export interface TemplateGroup {
-  name: string;
-  versions: Template[];
-}
-
-export function groupTemplates(templates: Template[]): TemplateGroup[] {
-  const map = new Map<string, Template[]>();
-  for (const t of templates) {
-    const arr = map.get(t.name) ?? [];
-    arr.push(t);
-    map.set(t.name, arr);
-  }
-  return [...map.entries()].map(([name, versions]) => ({
-    name,
-    versions: [...versions].sort((a, b) => b.version - a.version),
-  }));
-}
 
 // ─── Version cleanup modal ────────────────────────────────────────────────────
 

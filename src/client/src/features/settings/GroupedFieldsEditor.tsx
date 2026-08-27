@@ -3,7 +3,8 @@ import { GripVertical, Layers, Trash2, Plus, Lock } from 'lucide-react';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Button } from '@/shared/ui/Button';
 import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/shared/api/schema';
-import { FieldCard, fieldTypeSummary, type FieldRegistries } from './FieldBuilder';
+import { FieldCard } from './FieldBuilder';
+import { fieldTypeSummary, type FieldRegistries } from './fieldTypeOptions';
 
 /**
  * Группированный редактор собственных полей (issue #197 Фаза C): группы = карточки-контейнеры,

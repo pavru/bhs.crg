@@ -203,6 +203,38 @@ Playwright берётся из npx-кеша, браузер — из `ms-playwri
 `PLAYWRIGHT_PKG` (путь к `playwright/index.js`) и `CHROMIUM_EXE`
 (путь к `chrome-headless-shell.exe`).
 
+## Smoke редакторов типов и шаблонов (`types-smoke.mjs`, issue #858, порция 8)
+
+Порция вынесла из файлов-компонентов тринадцать функций и хуков (правило
+`react-refresh/only-export-components`). Типы стерегут перенос от опечатки, но не от
+импорта, уведённого к другому символу с подходящей сигнатурой: экран остаётся рабочим и
+показывает не то.
+
+- **field-summary-covers-three-kinds** — свёрнутые карточки полей показывают человеческую
+  сводку типа во всех трёх ветвях `fieldTypeSummary`: составной тип, тип из реестра,
+  базовый скаляр; технических имён (`complex`, `primitive`) наружу не выходит;
+- **field-type-picker-has-all-sections** — пикер типа поля собран `buildFieldTypeOptions`:
+  разделы «Базовые», «Типы полей (реестр)», «Перечисления», «Составные типы»;
+- **field-type-pick-updates-summary** — выбор пишется обратно `decodeFieldType`: сводка
+  поля становится выбранным типом;
+- **dirty-badge-reaches-page-header** — правка формы поднимается реестром редакторов до
+  шапки страницы («есть изменения»);
+- **leave-guard-asks-before-switching-type** — уход с несохранённым спрашивает; это стык
+  реестра и `useDirtyGuard`, которые теперь в разных модулях;
+- **typst-blocks-check-reports-result** — «Проверить блоки» возвращает результат
+  (`useTypstBlocksCheck`);
+- **enum-preview-in-list** — у перечисления длиннее трёх вариантов превью показывает хвост
+  `(+N−3)` — арифметика `humanEnumPreview`;
+- **template-versions-grouped-by-name** — версии сложены под одно имя и отсортированы по
+  убыванию: имя в списке не повторяется, а на строке группы стоит самая свежая версия;
+- **template-params-parsed-from-declaration** — счётчик у «Параметров шаблона» непустой,
+  то есть объявление разобрано (`parseTemplateParams`).
+
+Каждая проверка проверена поломкой того, что стережёт (девять поломок — девять красных
+прогонов). **Не покрыты**: `uniqueCode` (дублирование типа пишет данные — под smoke не
+берём) и `useMaxTemplateVersions` (порог версий виден только на шаблоне, где версий
+больше порога). Их перенос сверен чтением и типами.
+
 ## Запуск
 
 ```bash
@@ -214,6 +246,7 @@ MSYS_NO_PATHCONV=1 npm run test:e2e:dialogs
 MSYS_NO_PATHCONV=1 npm run test:e2e:shared-ui
 MSYS_NO_PATHCONV=1 npm run test:e2e:settings
 MSYS_NO_PATHCONV=1 npm run test:e2e:pages
+MSYS_NO_PATHCONV=1 npm run test:e2e:types
 ```
 
 Учётка по умолчанию — админ `admin@bhs.local` / `Demo12345!` (переопределяется

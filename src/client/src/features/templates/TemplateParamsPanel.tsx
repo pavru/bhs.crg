@@ -5,17 +5,13 @@ import { useUpdateTemplateParameters } from '@/shared/api/templates';
 import { moveItem } from '@/shared/utils/moveItem';
 import type { Template, TemplateParam } from '@/shared/api/types';
 import { newLocalId } from '@/shared/utils/localId';
+import { parseTemplateParams } from './templateParams';
 
 /** Строка редактора: параметр плюс устойчивый идентификатор — он нужен ключом списка при перестановке. */
 type Row = { id: string; p: TemplateParam };
 
 /** Свой тип перетаскиваемых данных: текстовый сделал бы ручку источником текста для всей страницы. */
 const DRAG_MIME = 'application/x-crg-template-param';
-
-export function parseTemplateParams(json: string | null): TemplateParam[] {
-  if (!json) return [];
-  try { const a = JSON.parse(json); return Array.isArray(a) ? (a as TemplateParam[]) : []; } catch { return []; }
-}
 
 /**
  * Объявление параметров шаблона (имя/подпись/тип/значение по умолчанию) — чтобы одним шаблоном
