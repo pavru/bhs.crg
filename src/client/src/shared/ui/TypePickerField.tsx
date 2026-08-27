@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { createElement, useId, useRef, useState } from 'react';
 import { Boxes, Search, X } from 'lucide-react';
 import { TypePicker, typeIcon, type PickType } from './TypePicker';
 import { OutlinedField } from './OutlinedField';
@@ -51,7 +51,7 @@ export function TypePickerField({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const labelId = useId();
   const selected = value ? types.find(t => t.id === value) : undefined;
-  const Icon = selected ? typeIcon(selected) : Boxes;
+  const icon = selected ? typeIcon(selected) : Boxes;
   const code = selected?.code.trim();
   const framed = label !== undefined;
   /**
@@ -86,7 +86,9 @@ export function TypePickerField({
       className={`inline-flex items-center gap-2 overflow-hidden ${triggerClass}`}
       data-state={open ? 'open' : 'closed'}
     >
-      <Icon size={16} className={`shrink-0 ${selected ? 'text-fg3' : 'text-fg4'}`} />
+      {/* createElement, а не <Icon/>: переменная с большой буквы читается линтом как компонент,
+          определённый в рендере, — здесь же это готовый компонент из набора (issue #858). */}
+      {createElement(icon, { size: 16, className: `shrink-0 ${selected ? 'text-fg3' : 'text-fg4'}` })}
       {/* Подсказка — на самом обрезаемом тексте, а не на кнопке (issue #548): подсказку кнопки
           наследуют и лупа, и код типа, и всплывало бы имя типа поверх них. */}
       <span className={`flex-1 truncate ${selected ? 'text-fg1' : 'text-fg4'}`}

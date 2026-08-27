@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -118,7 +119,7 @@ export function TypeAuditModal({ typeId, typeName, schemaFieldKeys, open, onClos
                       return (
                         <div key={k}>
                           <button type="button"
-                            onClick={() => setExpanded(s => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; })}
+                            onClick={() => setExpanded(s => toggleInSet(s, k))}
                             className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-base transition-colors">
                             {isOpen ? <ChevronDown size={14} className="text-fg4 shrink-0 mt-0.5" /> : <ChevronRight size={14} className="text-fg4 shrink-0 mt-0.5" />}
                             <span className="min-w-0 flex-1">

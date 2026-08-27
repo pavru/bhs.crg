@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle, Link2, Unlink, Replace } from 'lucide-react';
+import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Button } from '@/shared/ui/Button';
 import { ScopeIcon } from '@/shared/ui/ScopeIcon';
 import { linkAnomaly } from './linkScopes';
@@ -73,7 +74,7 @@ export function QualityDocLinks({ links, allLinks, allDocTypes, search }: {
   const sameScope = chosen.every(l => l.scope === chosen[0]?.scope && (l.scopeId ?? null) === (chosen[0]?.scopeId ?? null));
 
   function toggle(id: string) {
-    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setSelected(prev => toggleInSet(prev, id));
   }
 
   const anomalyOf = (link: MaterialQualityLink) => linkAnomaly(link, { inDocument: links, all: allLinks });

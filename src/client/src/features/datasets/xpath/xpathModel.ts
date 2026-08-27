@@ -29,7 +29,8 @@ export interface XPathModel {
   steps: XPathStep[];
 }
 
-const NAME_RE = /[\p{L}_][\p{L}\p{N}_.\-]*/u;
+// Дефис — последним символом класса, поэтому экранировать его не нужно.
+const NAME_RE = /[\p{L}_][\p{L}\p{N}_.-]*/u;
 const SIMPLE_PATH_RE = new RegExp(
   `^(?:@${NAME_RE.source}|${NAME_RE.source}(?:\\/${NAME_RE.source})*(?:\\/@${NAME_RE.source})?)$`,
   'u',

@@ -446,7 +446,8 @@ export function PdfGroupingEditor() {
         const [from, to] = [lastClickedRef.current, pageIndex].sort((a, b) => a - b);
         for (let i = from; i <= to; i++) next.add(i);
       } else if (e.ctrlKey || e.metaKey) {
-        next.has(pageIndex) ? next.delete(pageIndex) : next.add(pageIndex);
+        if (next.has(pageIndex)) next.delete(pageIndex);
+        else next.add(pageIndex);
       } else {
         next.clear();
         next.add(pageIndex);

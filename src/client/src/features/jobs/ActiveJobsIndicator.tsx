@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentType } from 'react';
+import { createElement, useEffect, useState, type ComponentType } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { Loader2, X, ScanText, FileText, Layers, Activity } from 'lucide-react';
 import { useActiveJobs, useCancelJob, type ActiveJob } from '@/shared/api/jobs';
@@ -83,13 +83,16 @@ function JobRow({ job }: { job: ActiveJob }) {
   const now = useNow();
   const cancel = useCancelJob();
   const queued = job.status === 'Queued';
-  const Icon = kindIcon(job.kind);
+
   return (
     <div className="group flex items-center gap-3.5 pl-5 pr-3 py-3 hover:bg-muted/60 transition-colors">
       {/* Аватар-статус: иконка типа в круге + вращающийся спиннер-кольцо (indeterminate). */}
       <div className="relative w-10 h-10 shrink-0">
         <div className="absolute inset-0 rounded-full bg-muted flex items-center justify-center text-fg3">
-          <Icon size={18} />
+          {/* Через createElement, а не <Icon/>: локальная переменная с большой буквы читается
+              линтом как компонент, ОПРЕДЕЛЁННЫЙ в рендере, — а здесь это готовый компонент,
+              выбранный из модульного набора по виду задачи (issue #858). */}
+          {createElement(kindIcon(job.kind), { size: 18 })}
         </div>
         <Loader2 size={40} className="absolute inset-0 animate-spin motion-reduce:animate-none text-brand" strokeWidth={2} />
       </div>

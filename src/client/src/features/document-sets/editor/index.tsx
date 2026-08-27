@@ -142,7 +142,9 @@ export function InstanceEditor({ instance, setId, docType, allDocTypes, otherIns
   // APG-tablist (issue #107 F3): стрелки/Home/End двигают ФОКУС между вкладками (manual
   // activation — переключение по Enter/Space через onClick, чтобы dirty-guard не срабатывал на скролле).
   function onTabKey(e: React.KeyboardEvent, i: number) {
-    let ni = -1;
+    // Без начального значения: любая ветка либо присваивает, либо выходит — присвоенный «-1»
+    // не читался никогда.
+    let ni: number;
     if (e.key === 'ArrowRight') ni = (i + 1) % tabs.length;
     else if (e.key === 'ArrowLeft') ni = (i - 1 + tabs.length) % tabs.length;
     else if (e.key === 'Home') ni = 0;

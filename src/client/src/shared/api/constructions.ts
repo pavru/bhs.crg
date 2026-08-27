@@ -91,7 +91,7 @@ export function useCreateDocumentSet() {
     mutationFn: ({ sectionId, name, constructionId }: { sectionId: string; name: string; constructionId: string }) =>
       apiClient.post<DocumentSet>(`/sections/${sectionId}/sets`, { name }).then(r => ({ ...r.data, _constructionId: constructionId })),
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: KEYS.detail((data as any)._constructionId) });
+      qc.invalidateQueries({ queryKey: KEYS.detail(data._constructionId) });
       // Новый комплект — пока без плана: он попадает в «без плана: N» уровнем выше (#796).
       invalidatePlans(qc);
     },
@@ -104,7 +104,7 @@ export function useRenameDocumentSet() {
     mutationFn: ({ id, name, constructionId }: { id: string; name: string; constructionId: string }) =>
       apiClient.put<DocumentSet>(`/document-sets/${id}`, { name }).then(r => ({ ...r.data, _constructionId: constructionId })),
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: KEYS.detail((data as any)._constructionId) });
+      qc.invalidateQueries({ queryKey: KEYS.detail(data._constructionId) });
       qc.invalidateQueries({ queryKey: ['document-sets', data.id] });
     },
   });

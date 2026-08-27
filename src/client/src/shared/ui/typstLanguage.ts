@@ -54,13 +54,13 @@ export function registerTypstLanguage(monaco: typeof Monaco) {
         [/_[^_]+_/, 'markup.italic'],
 
         // Brackets
-        [/[{}()\[\]]/, '@brackets'],
+        [/[{}()[\]]/, '@brackets'],
 
         // Identifiers
         [/[a-zA-Zа-яА-ЯёЁ_][a-zA-Zа-яА-ЯёЁ0-9_-]*/, 'identifier'],
 
         // Operators / punctuation
-        [/[+\-*\/<>=!&|,.:;]/, 'operator'],
+        [/[+\-*/<>=!&|,.:;]/, 'operator'],
       ],
 
       blockComment: [

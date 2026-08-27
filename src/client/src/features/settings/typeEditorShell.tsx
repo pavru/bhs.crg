@@ -20,9 +20,16 @@ export const TypeEditorProvider = TypeEditorContext.Provider;
 export function useRegisterEditor(key: string, dirty: boolean, save: () => Promise<void>, reset?: () => void) {
   const ctx = useContext(TypeEditorContext);
   const saveRef = useRef(save);
-  saveRef.current = save;
   const resetRef = useRef(reset);
-  resetRef.current = reset;
+  /**
+ * Свежий колбэк для отложенного вызова. Обновляется ЭФФЕКТОМ, а не присваиванием в рендере
+ * (issue #858): рендер обязан быть чистым, а запись в ref — побочное действие, которое к тому же
+ * случалось бы и на брошенном рендере (StrictMode, прерванный конкурентный проход).
+ */
+  useEffect(() => {
+    saveRef.current = save;
+    resetRef.current = reset;
+  });
   useEffect(() => {
     ctx?.publish(key, dirty, () => saveRef.current(), () => resetRef.current?.());
   }, [ctx, key, dirty]);

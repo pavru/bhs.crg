@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type ReactNode } from 'react';
 import {
   AlertTriangle, Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, GripVertical, Info, Link2, Pencil, Plus, RefreshCw, Share2, Trash2, Unlink, X,
 } from 'lucide-react';
+import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { DateInput } from '@/shared/ui/DateInput';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -238,7 +239,7 @@ function ArrayTableModalBody({
 
   // ── Выбор строк (issue #171) ────────────────────────────────────────────
   function toggleSelect(id: string) {
-    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setSelected(prev => toggleInSet(prev, id));
   }
   function toggleAll() {
     setSelected(prev => prev.size === rowIds.length ? new Set() : new Set(rowIds));

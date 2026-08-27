@@ -25,6 +25,17 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
+      // Имя с подчёркиванием впереди — «я знаю, что не использую». Так в проекте уже записана
+      // единственная идиома, которой это нужно: выбросить ключ из объекта разбором —
+      // `const { [SUMMARY]: _omit, ...rest } = values`. Правило про неиспользуемое при этом
+      // остаётся в силе для всего остального: договорённость названа явно, а не выключена
+      // (issue #858).
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+        ignoreRestSiblings: true,
+      }],
       // crypto.randomUUID есть только в ЗАЩИЩЁННОМ контексте — по HTTPS или на localhost. Установка,
       // открытая по http://<ip>:8080 (руководство по развёртыванию такие допускает внутри доверенной
       // сети), метода не получает, и вызов роняет экран целиком: в инициализаторе useState он падает

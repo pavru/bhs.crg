@@ -127,7 +127,12 @@ export function UserLibPanel() {
   // e.code, потому что на русской раскладке e.key даёт «ы». Команду Monaco НЕ регистрируем: она
   // сработала бы вторым, параллельным сохранением.
   const saveRef = useRef(handleSave);
-  saveRef.current = handleSave;
+  /**
+ * Свежий колбэк для отложенного вызова. Обновляется ЭФФЕКТОМ, а не присваиванием в рендере
+ * (issue #858): рендер обязан быть чистым, а запись в ref — побочное действие, которое к тому же
+ * случалось бы и на брошенном рендере (StrictMode, прерванный конкурентный проход).
+ */
+  useEffect(() => { saveRef.current = handleSave; });
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') {
