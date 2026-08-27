@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -62,10 +62,10 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
   const PathBuilder = pathFormat === 'Json' ? JsonPathBuilder : XPathBuilder;
 
   const initialSplit = splitZipPath(initial?.sheetOrPath, isZip, pathFormat);
-  const [name, setName] = useState(initial?.name ?? '');
+  const [typedName, setName] = useState(initial?.name ?? '');
   const [entryPath, setEntryPath] = useState(initialSplit.entryPath);
   // В табличном режиме sheetOrPath — имя листа (XLSX) / «весь файл» (CSV); в path-режиме — row-selector.
-  const [sheetOrPath, setSheetOrPath] = useState(tabular ? (initial?.sheetOrPath ?? '') : initialSplit.rowSelector);
+  const [pickedSheet, setSheetOrPath] = useState(tabular ? (initial?.sheetOrPath ?? '') : initialSplit.rowSelector);
   const [columns, setColumns] = useState<ColumnExprDef[]>(() => {
     try { return initial?.columnExpressions ? JSON.parse(initial.columnExpressions) : []; }
     catch { return []; }
@@ -112,14 +112,24 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
     () => readyCandidates.map(c => nextSourceName(existingNames, c.name)),
     [readyCandidates, existingNames]);
 
-  useEffect(() => {
-    if (initial || !usesCandidates || shownCandidates.length === 0) return;
-    const first = shownCandidates[0];
-    setSheetOrPath(prev => (prev && shownCandidates.some(c => c.sheetOrPath === prev)) ? prev : first.sheetOrPath);
-    setName(prev => (!prev || readyCandidates.some(c => c.name === prev) || autoNames.includes(prev))
-      ? nextSourceName(existingNames, first.name)
-      : prev);
-  }, [initial, usesCandidates, shownCandidates, readyCandidates, autoNames, existingNames]);
+  /**
+   * Подстановка ВЫЧИСЛЯЕТСЯ, а не переливается эффектом (issue #858). Правила те же, что описаны
+   * выше; ниже по коду `name` и `sheetOrPath` — уже подставленные значения, а состояние держит
+   * только то, что человек выбрал и набрал сам.
+   *
+   * <p>Эффектом первый рендер открытого диалога успевал показать пустое поле имени и «— выберите —»
+   * в списке — при том, что кандидаты уже приехали.</p>
+   */
+  const autoFill = !initial && usesCandidates && shownCandidates.length > 0;
+  const firstShown = autoFill ? shownCandidates[0] : undefined;
+  const sheetStillShown = !!pickedSheet && shownCandidates.some(c => c.sheetOrPath === pickedSheet);
+  const sheetOrPath = autoFill && !sheetStillShown ? firstShown!.sheetOrPath : pickedSheet;
+  // Имя считаем «нашим», пока оно пустое, совпадает с именем кандидата или с авто-именем: набранное
+  // руками — решение пользователя, и переписывать его нельзя.
+  const nameIsOurs = !typedName
+    || readyCandidates.some(c => c.name === typedName)
+    || autoNames.includes(typedName);
+  const name = autoFill && nameIsOurs ? nextSourceName(existingNames, firstShown!.name) : typedName;
 
   // Текущее значение может отсутствовать в списке (архив обновился) — не терять его молча.
   const entryOptions = entryPath && !zipEntries.includes(entryPath) ? [entryPath, ...zipEntries] : zipEntries;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus, Trash2, Star, ChevronDown, ChevronUp, AlertTriangle, Copy, Lock, FileText, ExternalLink } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
@@ -187,23 +187,31 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
   onDuplicate: (g: TemplateGroup) => void;
   onCleanup: (g: TemplateGroup) => void;
 }) {
-  const [expandedNames, setExpandedNames] = useState<Set<string>>(() => {
-    const s = new Set<string>();
-    if (selectedTemplate) s.add(selectedTemplate.name);
-    return s;
-  });
-
-  useEffect(() => {
-    if (selectedTemplate) {
-      setExpandedNames(prev => new Set([...prev, selectedTemplate.name]));
-    }
-  }, [selectedTemplate?.name]);
+  /**
+   * Раскрытые группы. Группа выбранного шаблона раскрывается САМА — но вычислением, а не эффектом
+   * (issue #858).
+   *
+   * <p>Правило прежнее и держится на паре «набор + имя, для которого он посчитан». Пока выбрано
+   * другое имя, оно подмешивается в набор на лету; свернул человек эту группу руками — запись
+   * помечается его именем, и дальше набор берётся как есть. Смена выбора снова подмешает новое
+   * имя, не тронув то, что человек свернул.</p>
+   */
+  const selectedName = selectedTemplate?.name ?? null;
+  const [expanded, setExpanded] = useState<{ forName: string | null; names: Set<string> }>(
+    () => ({ forName: null, names: new Set<string>() }),
+  );
+  const expandedNames = expanded.forName === selectedName || !selectedName
+    ? expanded.names
+    : new Set([...expanded.names, selectedName]);
 
   function toggleExpand(name: string) {
-    setExpandedNames(prev => {
-      const next = new Set(prev);
+    setExpanded(prev => {
+      const base = prev.forName === selectedName || !selectedName
+        ? prev.names
+        : new Set([...prev.names, selectedName]);
+      const next = new Set(base);
       next.has(name) ? next.delete(name) : next.add(name);
-      return next;
+      return { forName: selectedName, names: next };
     });
   }
 
