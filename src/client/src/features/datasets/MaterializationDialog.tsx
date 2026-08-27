@@ -16,17 +16,20 @@ import { resolveEffectiveFields, type SchemaField } from '@/shared/api/schema';
 import { parseSourceColumnNames } from '@/shared/api/datasetHelpers';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
-import type { DataSetSource, MaterializeDiscriminator } from '@/shared/api/types';
+import type { DataSetSource, DocumentType, MaterializeDiscriminator } from '@/shared/api/types';
+
+// Пустые значения — модульными константами, а не инлайновыми `[]`: инлайновый литерал даёт новую
+// ссылку каждый рендер и ломает мемоизацию ниже по течению (issue #305, #870).
+const NO_FIELDS: SchemaField[] = [];
+const NO_TYPES: DocumentType[] = [];
 
 /**
  * Материализация источника в тип (issue #19): пользователь выбирает тип (составной/документ) и
  * маппинг колонок → поля типа ОДИН РАЗ на источнике. Дальше поля документов, чьи тип совместим,
  * ссылаются на этот источник без маппинга (тип↔тип). Материализация — после всех обработок.
  */
-const NO_FIELDS: SchemaField[] = [];
-
 export function MaterializationDialog({ source, onClose }: { source: DataSetSource; onClose: () => void }) {
-  const { data: allDocTypes = [] } = useListDocumentTypes();
+  const { data: allDocTypes = NO_TYPES } = useListDocumentTypes();
   const [typeId, setTypeId] = useState(source.materializeTypeId ?? '');
   const [rawMapping, setMapping] = useState<Record<string, string>>(source.materializeMapping ?? {});
   const [showPreview, setShowPreview] = useState(false);
@@ -64,8 +67,7 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
    * модель не пересобиралась вовсе, то есть видимой платы на этом экране может и не быть. Правка
    * не про скорость, а про то, чтобы мемо либо работало, либо его не стояло.
    *
-   * Пустой список — модульной константой: инлайновый `[]` — новая ссылка каждый раз, ровно та
-   * нестабильная пустышка, что уже давала в проекте цикл memo → effect (issue #305).
+   * Пустой список — модульная константа `NO_FIELDS`, причина — в комментарии у её объявления.
    */
   const effectiveFields = useMemo(
     () => (selectedType ? resolveEffectiveFields(selectedType, allDocTypes) : NO_FIELDS),
