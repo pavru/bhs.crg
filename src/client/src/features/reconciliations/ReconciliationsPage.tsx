@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import {
   Plus, Play, AlertTriangle, CheckCircle2, CircleSlash, History, Scale, Bot, FileSpreadsheet, Link2,
 } from 'lucide-react';
+import { useServerForm } from '@/shared/hooks/useServerForm';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { useListConstructions } from '@/shared/api/constructions';
@@ -114,20 +115,31 @@ function RunPicker({ runs, value, onChange }: {
   );
 }
 
+/** Секции раздела: сама сверка, замечания агента и алиасы — все три отвечают «что не так». */
+type ReconciliationView = 'reconciliation' | 'observations' | 'aliases';
+
+/** Что говорит адрес: своя секция либо открытая сверка. Разбор чистый — по строке запроса. */
+function navFromQuery(query: string): { view: ReconciliationView; selectedId: string | null; runId: string | null } {
+  const params = new URLSearchParams(query);
+  const requested = params.get('view');
+  if (requested === 'observations' || requested === 'aliases') {
+    return { view: requested, selectedId: null, runId: null };
+  }
+  const id = params.get('id');
+  return { view: 'reconciliation', selectedId: id, runId: null };
+}
+
 export function ReconciliationsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'Admin';
   const toast = useToast();
 
   const [search, setSearch] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [runId, setRunId] = useState<string | null>(null);
+
   const [editing, setEditing] = useState<'new' | string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deciding, setDeciding] = useState<Finding | null>(null);
   const [onlyAttention, setOnlyAttention] = useState(false);
-  // Замечания агента — вторая секция того же раздела: оба отвечают «что не так с комплектом».
-  const [view, setView] = useState<'reconciliation' | 'observations' | 'aliases'>('reconciliation');
   // Связывание позиций: выбираем ровно две несопоставленные находки.
   const [linking, setLinking] = useState<string[]>([]);
 
@@ -136,17 +148,21 @@ export function ReconciliationsPage() {
    * комплекта отсылает сюда за тем, чего там нет — историей прогонов, алиасами, чисткой журнала, —
    * и приводить на пустой экран «Выберите сверку» после явного «Открыть в „Сверке“» нельзя.
    *
-   * Эффектом, а не только начальным значением состояния: смена одной строки запроса компонент не
-   * размонтирует, и вторая такая ссылка подряд иначе ничего бы не сделала. Дальше выбор ведёт
-   * обычное состояние — держать его в адресе целиком эта страница не умеет.
+   * <p>Адрес читается ВЫЧИСЛЕНИЕМ, а выбор человека живёт поверх него (issue #858). Прежде это
+   * делал эффект — ради того, чтобы вторая такая ссылка подряд сработала: смена одной строки
+   * запроса компонент не размонтирует. Теперь это выходит само: новая строка запроса — другое
+   * «серверное» значение, и прежний выбор ей уже не отвечает.</p>
+   *
+   * <p>Замечание про `?view=`: он приводит и на свою секцию, и к снятому выбору сверки. Прежний
+   * эффект выбор не трогал, но добраться до этой разницы можно было только второй ссылкой подряд
+   * — а такая ссылка и есть новая команда, после которой держаться за прежний выбор нечестно.</p>
    */
   const [searchParams] = useSearchParams();
-  useEffect(() => {
-    const id = searchParams.get('id');
-    const requested = searchParams.get('view');
-    if (requested === 'observations' || requested === 'aliases') setView(requested);
-    else if (id) { setView('reconciliation'); setSelectedId(id); setRunId(null); }
-  }, [searchParams]);
+  const [place, setPlace] = useServerForm(searchParams.toString(), navFromQuery);
+  const { view, selectedId, runId } = place;
+  const setView = (v: ReconciliationView) => setPlace(p => ({ ...p, view: v }));
+  const setSelectedId = (id: string | null) => setPlace(p => ({ ...p, selectedId: id }));
+  const setRunId = (id: string | null) => setPlace(p => ({ ...p, runId: id }));
 
   const { data: items = [], isLoading } = useReconciliations();
   const { data: observations = [] } = useObservations();

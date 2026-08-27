@@ -102,7 +102,13 @@ export function TemplatesPage() {
   });
 
   const [pickedTypeId, setPickedTypeId] = useState(restored.typeId);
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  /**
+   * Выбранный шаблон — вместе с типом документа, к которому относится (issue #858). Смена типа
+   * снимает выбор сама: он больше не отвечает показанному типу. Прежде это делал эффект, и между
+   * сменой типа и его запуском умещался кадр, в котором справа стоял шаблон ЧУЖОГО типа.
+   */
+  const [chosenTemplate, setChosenTemplate] =
+    useState<{ typeId: string; template: Template | null } | null>(null);
   // Восстанавливаемая версия ждёт здесь загрузки списка: сброс шаблона при смене типа её не трёт.
   const pendingTemplateId = useRef(restored.templateId);
   const [newModalOpen, setNewModalOpen] = useState(false);
@@ -121,6 +127,8 @@ export function TemplatesPage() {
 
   const { data: templates = [], isLoading: templatesLoading } = useListTemplates(selectedTypeId || undefined);
   const { data: usage = {} } = useTemplatesUsage(selectedTypeId || undefined);
+  const selectedTemplate = chosenTemplate?.typeId === selectedTypeId ? chosenTemplate.template : null;
+  const setSelectedTemplate = (t: Template | null) => setChosenTemplate({ typeId: selectedTypeId, template: t });
   const deleteMutation = useDeleteTemplate();
   const duplicateMutation = useDuplicateTemplate();
   const toast = useToast();
@@ -156,7 +164,6 @@ export function TemplatesPage() {
     persist(t?.documentTypeId ?? selectedTypeId, t?.id ?? '');
   };
 
-  useEffect(() => { setSelectedTemplate(null); }, [selectedTypeId]);
 
   useEffect(() => {
     if (templates.length > 0 && !selectedTemplate) {

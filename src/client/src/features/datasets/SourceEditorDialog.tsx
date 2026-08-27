@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
-import { useCreateDataSetSource, useUpdateDataSetSource, useListZipXmlEntries, useSourceCandidates } from '@/shared/api/datasets';
+import { useCreateDataSetSource, useUpdateDataSetSource, useListZipXmlEntries, useSourceCandidates, type SourceCandidate } from '@/shared/api/datasets';
 import { nextSourceName } from '@/shared/api/datasetHelpers';
 import { XPathBuilder } from './xpath/XPathBuilder';
 import { JsonPathBuilder } from './jsonpath/JsonPathBuilder';
@@ -62,10 +62,11 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
   const PathBuilder = pathFormat === 'Json' ? JsonPathBuilder : XPathBuilder;
 
   const initialSplit = splitZipPath(initial?.sheetOrPath, isZip, pathFormat);
-  const [name, setName] = useState(initial?.name ?? '');
+  const [typedName, setTypedName] = useState(initial?.name ?? '');
+  const [nameTouched, setNameTouched] = useState(false);
   const [entryPath, setEntryPath] = useState(initialSplit.entryPath);
   // В табличном режиме sheetOrPath — имя листа (XLSX) / «весь файл» (CSV); в path-режиме — row-selector.
-  const [sheetOrPath, setSheetOrPath] = useState(tabular ? (initial?.sheetOrPath ?? '') : initialSplit.rowSelector);
+  const [pickedSheet, setSheetOrPath] = useState(tabular ? (initial?.sheetOrPath ?? '') : initialSplit.rowSelector);
   const [columns, setColumns] = useState<ColumnExprDef[]>(() => {
     try { return initial?.columnExpressions ? JSON.parse(initial.columnExpressions) : []; }
     catch { return []; }
@@ -101,25 +102,36 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
    * Именно показанный, а не первый вообще (issue #627): поиск сужает список, и выбранное могло из
    * него выпасть. Оставить прежний выбор значило бы сохранить не то, что человек видит — он ищет
    * «Приказ», в списке пусто, а сохраняется «Единица измерения», подставленная при открытии.
-   * Имя обновляем, только пока оно совпадает с именем какого-то кандидата: набранное руками —
-   * решение пользователя, и переписывать его нельзя.
+   * Имя обновляем, пока человек его не трогал: набранное руками — решение пользователя, и
+   * переписывать его нельзя.
    *
    * Подставляем ближайшее СВОБОДНОЕ имя (issue #717): занятые консолидации больше не исчезают из
    * кандидатов, и голое имя кандидата у них заведомо занято — форма встречала бы отказом сервера.
-   * «Занятым» считаем и авто-имя: иначе смена выбранного кандидата перестала бы обновлять поле.
    */
-  const autoNames = useMemo(
-    () => readyCandidates.map(c => nextSourceName(existingNames, c.name)),
-    [readyCandidates, existingNames]);
+  /**
+   * Подстановка ВЫЧИСЛЯЕТСЯ, а не переливается эффектом (issue #858). Правила те же, что описаны
+   * выше; ниже по коду `name` и `sheetOrPath` — уже подставленные значения, а состояние держит
+   * только то, что человек выбрал и набрал сам.
+   *
+   * <p>Эффектом первый рендер открытого диалога успевал показать пустое поле имени и «— выберите —»
+   * в списке — при том, что кандидаты уже приехали.</p>
+   */
+  const firstShown: SourceCandidate | undefined = shownCandidates[0];
+  // Имя берём от первого ПОКАЗАННОГО, а если поиск не нашёл ничего — от первого вообще: иначе
+  // пустой результат поиска стирал бы уже подставленное имя (поймано ревью PR #865).
+  const nameBasis: SourceCandidate | undefined = firstShown ?? readyCandidates[0];
+  const autoFill = !initial && usesCandidates && !!nameBasis;
 
-  useEffect(() => {
-    if (initial || !usesCandidates || shownCandidates.length === 0) return;
-    const first = shownCandidates[0];
-    setSheetOrPath(prev => (prev && shownCandidates.some(c => c.sheetOrPath === prev)) ? prev : first.sheetOrPath);
-    setName(prev => (!prev || readyCandidates.some(c => c.name === prev) || autoNames.includes(prev))
-      ? nextSourceName(existingNames, first.name)
-      : prev);
-  }, [initial, usesCandidates, shownCandidates, readyCandidates, autoNames, existingNames]);
+  const sheetStillShown = !!pickedSheet && shownCandidates.some(c => c.sheetOrPath === pickedSheet);
+  const sheetOrPath = autoFill && !sheetStillShown && firstShown ? firstShown.sheetOrPath : pickedSheet;
+
+  /**
+   * Имя подставляется, пока человек его НЕ ТРОГАЛ. Признак явный, а не «похоже на наше»: считать
+   * своим пустое имя значило бы, что поле нельзя очистить — стёртое тут же заполнялось бы обратно,
+   * а следующая буква приписывалась бы к подставленному (поймано ревью PR #865). Тронул — дальше
+   * решает он: набранное руками не переписываем, даже если оно совпало с именем кандидата.
+   */
+  const name = autoFill && !nameTouched ? nextSourceName(existingNames, nameBasis!.name) : typedName;
 
   // Текущее значение может отсутствовать в списке (архив обновился) — не терять его молча.
   const entryOptions = entryPath && !zipEntries.includes(entryPath) ? [entryPath, ...zipEntries] : zipEntries;
@@ -201,7 +213,8 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
       }>
       <div className="space-y-4 min-w-[520px]">
         {!nothingToPick && (
-          <TextField label="Название" value={name} onChange={e => setName(e.target.value)}
+          <TextField label="Название" value={name}
+            onChange={e => { setTypedName(e.target.value); setNameTouched(true); }}
             hint="Например: Позиции спецификации" />
         )}
 
@@ -237,7 +250,7 @@ export function SourceEditorDialog({ fileId, format, existingNames = [], initial
                       hint={`Показано ${shownCandidates.length} из ${readyCandidates.length}`} />
                   )}
                   <Select label={isSystem ? 'Данные системы' : 'Данные набора'} value={sheetOrPath || undefined} placeholder="— выберите —"
-                    onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setName(prev => prev || c.name); }}>
+                    onValueChange={v => { setSheetOrPath(v); const c = candidates.find(x => x.sheetOrPath === v); if (c) setTypedName(prev => prev || c.name); }}>
                     {shownCandidates.map(c => (
                       <SelectItem key={c.sheetOrPath} value={c.sheetOrPath}>
                         {c.name} · {c.rowCount} строк{c.warning ? ' · с оговоркой' : ''}

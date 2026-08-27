@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus, Trash2, Star, ChevronDown, ChevronUp, AlertTriangle, Copy, Lock, FileText, ExternalLink } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
@@ -187,23 +187,36 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
   onDuplicate: (g: TemplateGroup) => void;
   onCleanup: (g: TemplateGroup) => void;
 }) {
-  const [expandedNames, setExpandedNames] = useState<Set<string>>(() => {
-    const s = new Set<string>();
-    if (selectedTemplate) s.add(selectedTemplate.name);
-    return s;
-  });
-
-  useEffect(() => {
-    if (selectedTemplate) {
-      setExpandedNames(prev => new Set([...prev, selectedTemplate.name]));
-    }
-  }, [selectedTemplate?.name]);
+  /**
+   * Раскрытые группы. Группа выбранного шаблона раскрывается САМА — но вычислением, а не эффектом
+   * (issue #858).
+   *
+   * <p>Правило прежнее и держится на паре «набор + имя, для которого он посчитан». Пока выбрано
+   * другое имя, оно подмешивается в набор на лету; свернул человек эту группу руками — запись
+   * помечается его именем, и дальше набор берётся как есть. Смена выбора снова подмешает новое
+   * имя, не тронув то, что человек свернул.</p>
+   */
+  const selectedName = selectedTemplate?.name ?? null;
+  // Метка — ИДЕНТИФИКАТОР выбранного шаблона, а не имя группы. По имени свёрнутая группа не
+  // раскрывалась бы снова: выбрали шаблон из другой группы, вернулись в эту — имя то же, метка
+  // совпадает, и подмешивание не срабатывает. Новая версия, дубликат, свежесозданный шаблон — это
+  // другой идентификатор, и группа раскроется, как раскрывалась эффектом (поймано ревью PR #865).
+  const selectedId = selectedTemplate?.id ?? null;
+  const [expanded, setExpanded] = useState<{ forId: string | null; names: Set<string> }>(
+    () => ({ forId: null, names: new Set<string>() }),
+  );
+  const withSelected = (names: Set<string>) =>
+    expanded.forId === selectedId || !selectedName ? names : new Set([...names, selectedName]);
+  const expandedNames = withSelected(expanded.names);
 
   function toggleExpand(name: string) {
-    setExpandedNames(prev => {
-      const next = new Set(prev);
+    setExpanded(prev => {
+      const base = prev.forId === selectedId || !selectedName
+        ? prev.names
+        : new Set([...prev.names, selectedName]);
+      const next = new Set(base);
       next.has(name) ? next.delete(name) : next.add(name);
-      return next;
+      return { forId: selectedId, names: next };
     });
   }
 

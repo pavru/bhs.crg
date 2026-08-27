@@ -53,7 +53,7 @@ export function SetDetail() {
   const { data: plan } = usePlanSummary('Set', setId);
   const { data: docTypes = [] } = useListDocumentTypes();
   const [addDocOpen, setAddDocOpen] = useState(false);
-  const [editInstance, setEditInstance] = useState<DocumentInstance | null>(null);
+  const [chosenInstance, setChosenInstance] = useState<DocumentInstance | null>(null);
   const [editDirty, setEditDirty] = useState(false);
   const addMutation = useAddDocumentToSet();
   const deleteMutation = useDeleteDocumentInstance();
@@ -91,17 +91,43 @@ export function SetDetail() {
     }
   }, [watching, output]);
 
-  // Deep-link из результатов поиска: ?doc={instanceId} авто-открывает документ (один раз, затем чистим).
+  /**
+   * Deep-link из результатов поиска: `?doc={instanceId}` открывает документ.
+   *
+   * <p>Открытый документ ВЫЧИСЛЯЕТСЯ: выбранный вручную, а если его нет — названный адресом
+   * (issue #858). Прежде адрес отрабатывал эффектом, который клал документ в состояние и тут же
+   * вычищал параметр; между приходом комплекта и запуском эффекта умещался кадр, где по ссылке
+   * ещё ничего не открыто.</p>
+   *
+   * <p>Отсюда одно изменение: параметр живёт, пока документ открыт, и снимается его закрытием, а
+   * не первым же рендером. Обновление страницы теперь открывает то же, что и было, — а прежде
+   * возвращало к списку.</p>
+   */
   const [searchParams, setSearchParams] = useSearchParams();
   const docParam = searchParams.get('doc');
-  useEffect(() => {
-    if (!docParam || !set) return;
-    const found = set.instances.find(i => i.id === docParam);
-    if (found) {
-      setEditInstance(found);
-      setSearchParams(prev => { prev.delete('doc'); return prev; }, { replace: true });
-    }
-  }, [docParam, set, setSearchParams]);
+  const linkedInstance = docParam && set ? set.instances.find(i => i.id === docParam) ?? null : null;
+  const editInstance = chosenInstance ?? linkedInstance;
+
+  /**
+   * Появились несохранённые правки — закрепляем открытый документ в состоянии.
+   *
+   * <p>Открытый по ссылке документ до сих пор жил только вычислением из ответа сервера. Если бы
+   * ответ перестал его содержать (другой пользователь удалил документ, пока его правят), редактор
+   * закрылся бы сам — молча, мимо предупреждения о несохранённом. Закреплённый снимок это
+   * закрывает, а заодно уравнивает оба входа: открытый из списка вёл себя так и раньше (поймано
+   * ревью PR #865).</p>
+   */
+  function onEditorDirtyChange(dirty: boolean) {
+    setEditDirty(dirty);
+    if (dirty && !chosenInstance && linkedInstance) setChosenInstance(linkedInstance);
+  }
+
+  /** Закрытие редактора: снимаем и свой выбор, и параметр адреса — иначе он открылся бы снова. */
+  function closeEditor() {
+    setChosenInstance(null);
+    setEditDirty(false);
+    if (docParam) setSearchParams(prev => { prev.delete('doc'); return prev; }, { replace: true });
+  }
 
   // Заголовок вкладки: открытый документ замещает имя комплекта («Документ — «Комплект»»).
   const openDocName = editInstance
@@ -269,7 +295,7 @@ export function SetDetail() {
                   <tr key={inst.id}
                     className={`border-b border-muted last:border-0 hover:bg-base cursor-pointer group transition-opacity ${isDragging ? 'opacity-40' : ''}`}
                     style={rowStyle}
-                    onClick={() => setEditInstance(inst)}
+                    onClick={() => setChosenInstance(inst)}
                     onDragOver={e => onRowDragOver(e, index)}
                     onDrop={() => { if (dragIndex !== null && dropPos !== null) moveDocToPos(dragIndex, dropPos); endDrag(); }}>
                     <td className="px-2 py-3" onClick={e => e.stopPropagation()}>
@@ -319,7 +345,7 @@ export function SetDetail() {
                           </>
                         )}
                         {pdfFiles.length > 1 && (
-                          <button onClick={() => setEditInstance(inst)}
+                          <button onClick={() => setChosenInstance(inst)}
                             className="flex items-center gap-1 px-2 py-1 text-xs border border-stroke rounded hover:bg-brand-subtle hover:border-brand-subtle text-fg2 hover:text-brand-hover transition-colors"
                             title="Несколько PDF — открыть документ для выбора">
                             <Eye size={11} /> {pdfFiles.length} PDF
@@ -397,7 +423,7 @@ export function SetDetail() {
       {editInstance && setId && (() => {
         const liveInstance = set.instances.find(i => i.id === editInstance.id) ?? editInstance;
         return (
-          <Modal open={!!editInstance} onOpenChange={open => { if (!open) { setEditInstance(null); setEditDirty(false); } }}
+          <Modal open={!!editInstance} onOpenChange={open => { if (!open) closeEditor(); }}
             title={liveInstance.name || docTypeMap[liveInstance.documentTypeId]?.name || 'Редактировать документ'}
             fullScreen headerless isDirty={editDirty} flushBody>
             {requestClose => (
@@ -408,7 +434,7 @@ export function SetDetail() {
                 title="Не удалось открыть документ">
                 <InstanceEditor key={liveInstance.id} instance={liveInstance} setId={setId} docType={docTypeMap[liveInstance.documentTypeId]}
                   allDocTypes={docTypes} otherInstances={otherInstances}
-                  onClose={() => { setEditInstance(null); setEditDirty(false); }} onDirtyChange={setEditDirty}
+                  onClose={closeEditor} onDirtyChange={onEditorDirtyChange}
                   requestClose={requestClose} />
               </ErrorBoundary>
             )}
@@ -424,7 +450,7 @@ export function SetDetail() {
         onConfirm={async () => {
           if (!deleteTarget) return;
           await deleteMutation.mutateAsync({ setId: set.id, instanceId: deleteTarget.id });
-          if (editInstance?.id === deleteTarget.id) setEditInstance(null);
+          if (editInstance?.id === deleteTarget.id) closeEditor();
         }}
       />
 
