@@ -72,6 +72,18 @@ await check('system-theme-follows-os-change', async () => {
   if ((await domTheme()) !== 'light') throw new Error('обратная смена системной темы не дошла');
 });
 
+// Обратная сторона того же правила: при закреплённой теме системная настройка не должна её
+// трогать вовсе. Подписки в этом режиме теперь нет — но отвечает за исход не она, а разрешение
+// темы, и проверять надо именно исход.
+await check('pinned-theme-ignores-os-change', async () => {
+  await pickTheme('Светлая');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.waitForTimeout(800);
+  if ((await domTheme()) !== 'light') throw new Error(`система тёмная перебила закреплённую светлую: «${await domTheme()}»`);
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.waitForTimeout(400);
+});
+
 await pickTheme('Светлая');   // возвращаем окружение в исходное
 
 // ── Поле даты ──────────────────────────────────────────────────────────────────
@@ -85,24 +97,25 @@ const editor = page.locator('[role=dialog]').first();
 await editor.getByRole('button', { name: /Даты работ/ }).first().click();
 await page.waitForTimeout(1200);
 
-// Сегменты поля даты — отдельные однострочные инпуты (ДД/ММ/ГГГГ) в общем контейнере.
-let filled = null;
+// Сегменты поля даты адресуем по их собственным плейсхолдерам, а не «любой input с четырьмя
+// цифрами»: под ту примету попадёт и обычное числовое поле, и проверка покраснела бы на исправном
+// компоненте, ткнув в чужое поле (поймано ревью PR #863).
+const yearSegs = editor.locator('input[placeholder="ГГГГ"]');
+
 await check('date-input-shows-stored-value', async () => {
-  const groups = await editor.locator('div').filter({ has: page.locator('input') }).count();
-  if (groups < 1) throw new Error('на разделе «Даты работ» нет полей');
-  const inputs = await editor.locator('input').evaluateAll(els =>
-    els.map((e, i) => ({ i, v: e.value })).filter(x => /^\d{1,4}$/.test(x.v)));
-  if (inputs.length < 3) throw new Error(`заполненных сегментов даты меньше трёх: ${JSON.stringify(inputs)}`);
-  filled = inputs;
+  if ((await yearSegs.count()) < 1) throw new Error('на разделе «Даты работ» нет полей даты');
+  const values = await yearSegs.evaluateAll(els => els.map(e => e.value));
+  if (!values.some(v => /^\d{4}$/.test(v)))
+    throw new Error(`ни одно поле даты не показывает сохранённый год: ${JSON.stringify(values)}`);
 });
 
 await check('date-input-discards-partial-input-on-blur', async () => {
-  if (!filled) throw new Error('нечего править — сегменты не найдены');
-  // Берём ГОД: незаконченный день или месяц при потере фокуса дополняются нулём (blurD/blurM) и
-  // уезжают в значение, а неполный год — нет, и потому виден именно откат к сохранённому.
-  const year = filled.find(x => x.v.length === 4);
-  if (!year) throw new Error(`сегмента года среди найденных нет: ${JSON.stringify(filled)}`);
-  const seg = editor.locator('input').nth(year.i);
+  // Берём ГОД: незаконченные день и месяц при потере фокуса дополняются нулём (blurD/blurM) и
+  // уезжают в значение, и на них откат был бы неотличим от дополнения.
+  const values = await yearSegs.evaluateAll(els => els.map(e => e.value));
+  const idx = values.findIndex(v => /^\d{4}$/.test(v));
+  if (idx < 0) throw new Error('нет заполненного года — нечего откатывать');
+  const seg = yearSegs.nth(idx);
   const before = await seg.inputValue();
   await seg.click();
   await seg.fill('20');   // два разряда из четырёх — значение так не соберётся
@@ -111,7 +124,7 @@ await check('date-input-discards-partial-input-on-blur', async () => {
   // Уводим фокус, не закрывая редактор: щелчок по заголовку раздела.
   await editor.getByRole('button', { name: /Даты работ/ }).first().click();
   await page.waitForTimeout(900);
-  const after = await editor.locator('input').nth(year.i).inputValue();
+  const after = await yearSegs.nth(idx).inputValue();
   if (after !== before) throw new Error(`после потери фокуса в сегменте «${after}», а в значении «${before}»`);
 });
 

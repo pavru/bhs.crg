@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -30,6 +30,13 @@ function subscribeSystemTheme(onChange: () => void): () => void {
   return () => mq.removeEventListener('change', onChange);
 }
 
+/**
+ * Подписка нужна ТОЛЬКО в режиме «как в системе»: при закреплённой светлой или тёмной смена
+ * системной настройки ничего не меняет, а перерисовку провайдера вызывала бы — вместе со всеми
+ * потребителями useTheme, включая пять редакторов Monaco (поймано ревью PR #863).
+ */
+const NO_SUBSCRIPTION = () => () => {};
+
 function getSystemTheme(): 'light' | 'dark' {
   return window.matchMedia(SYSTEM_DARK).matches ? 'dark' : 'light';
 }
@@ -41,7 +48,10 @@ function storedTheme(): Theme {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(storedTheme);
-  const systemTheme = useSyncExternalStore(subscribeSystemTheme, getSystemTheme);
+  const systemTheme = useSyncExternalStore(
+    theme === 'system' ? subscribeSystemTheme : NO_SUBSCRIPTION,
+    getSystemTheme,
+  );
   const resolvedTheme: 'light' | 'dark' = theme === 'system' ? systemTheme : theme;
 
   // В эффекте остаётся только то, что и есть побочное действие: запись в DOM и в localStorage.
@@ -55,9 +65,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, theme);
   }, [theme]);
 
-  function setTheme(t: Theme) { setThemeState(t); }
+  // Значение контекста — мемоизированное: свежий объект-литерал на каждый рендер провайдера
+  // перерисовывал бы всех потребителей useTheme даже тогда, когда тема не изменилась.
+  const value = useMemo<ThemeCtx>(
+    () => ({ theme, setTheme: setThemeState, resolvedTheme }),
+    [theme, resolvedTheme],
+  );
 
-  return <Ctx.Provider value={{ theme, setTheme, resolvedTheme }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export function useTheme() { return useContext(Ctx); }

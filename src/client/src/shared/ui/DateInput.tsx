@@ -57,9 +57,14 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
   const fromValue = parsed ? { d: parsed[3], m: parsed[2], y: parsed[1] } : EMPTY_SEGMENTS;
   const shown = focused ? (typed ?? fromValue) : fromValue;
   const { d, m, y } = shown;
-  const setD = (v: string) => setTyped({ ...shown, d: v });
-  const setM = (v: string) => setTyped({ ...shown, m: v });
-  const setY = (v: string) => setTyped({ ...shown, y: v });
+  // Функциональные апдейтеры, хотя сегодня ни один обработчик не пишет два сегмента за раз:
+  // сборка от отрендеренного `shown` молча потеряла бы первую правку, если бы такой обработчик
+  // появился — например вставка «дд.мм.гггг» целиком в поле дня (поймано ревью PR #863).
+  const setSeg = (key: 'd' | 'm' | 'y', v: string) =>
+    setTyped(prev => ({ ...(prev ?? fromValue), [key]: v }));
+  const setD = (v: string) => setSeg('d', v);
+  const setM = (v: string) => setSeg('m', v);
+  const setY = (v: string) => setSeg('y', v);
 
   function onFocus() {
     clearTimeout(blurTimer.current);
