@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { AlertTriangle, CheckCircle } from 'lucide-react';
+import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { useRecipients } from '@/shared/api/subscriptions';
@@ -46,7 +47,7 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
   }, [validSubs, unchecked, externalValid]);
 
   function toggleSub(userId: string) {
-    setUnchecked(prev => { const n = new Set(prev); n.has(userId) ? n.delete(userId) : n.add(userId); return n; });
+    setUnchecked(prev => toggleInSet(prev, userId));
   }
 
   async function handleSend() {

@@ -3,6 +3,7 @@ import {
   Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check,
   AlertTriangle, Replace,
 } from 'lucide-react';
+import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -528,7 +529,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
   }, [materials, libHays, linkByKey]);
 
   function toggle(key: string) {
-    setSelected(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+    setSelected(prev => toggleInSet(prev, key));
   }
 
   /** Название документа + все его строковые реквизиты — «стог», с которым сравниваем материал. */
@@ -980,7 +981,7 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
             {(suggestions ?? []).map(s => (
               <label key={s.materialKey} className="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-base">
                 <input type="checkbox" checked={suggestSel.has(s.materialKey)}
-                  onChange={() => setSuggestSel(prev => { const n = new Set(prev); n.has(s.materialKey) ? n.delete(s.materialKey) : n.add(s.materialKey); return n; })}
+                  onChange={() => setSuggestSel(prev => toggleInSet(prev, s.materialKey))}
                   className="w-4 h-4 rounded border-stroke-strong text-brand" />
                 <span className="flex-1 truncate text-fg1">{s.materialName}</span>
                 <span className="text-fg4">→</span>

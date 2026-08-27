@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Plus, Trash2, Star, ChevronDown, ChevronUp, AlertTriangle, Copy, Lock, FileText, ExternalLink } from 'lucide-react';
+import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal } from '@/shared/ui/Modal';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
@@ -69,11 +70,7 @@ export function VersionCleanupModal({ group, usage = {}, onClose, onDeleted }: {
   );
 
   function toggleVersion(id: string) {
-    setToDeleteIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    setToDeleteIds(prev => toggleInSet(prev, id));
   }
 
   const toDelete = group.versions.filter(t => toDeleteIds.has(t.id));
@@ -214,9 +211,7 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
       const base = prev.forId === selectedId || !selectedName
         ? prev.names
         : new Set([...prev.names, selectedName]);
-      const next = new Set(base);
-      next.has(name) ? next.delete(name) : next.add(name);
-      return { forId: selectedId, names: next };
+      return { forId: selectedId, names: toggleInSet(base, name) };
     });
   }
 

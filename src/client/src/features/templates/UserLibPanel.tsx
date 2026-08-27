@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import Editor from '@/shared/ui/CodeEditor';
 import type * as monacoEditor from 'monaco-editor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
@@ -127,7 +127,17 @@ export function UserLibPanel() {
   // e.code, потому что на русской раскладке e.key даёт «ы». Команду Monaco НЕ регистрируем: она
   // сработала бы вторым, параллельным сохранением.
   const saveRef = useRef(handleSave);
-  saveRef.current = handleSave;
+  /**
+   * Свежий колбэк для отложенного вызова. Обновляется ЭФФЕКТОМ, а не присваиванием в рендере
+   * (issue #858): рендер обязан быть чистым, а запись в ref — побочное действие, которое к тому же
+   * случалось бы и на брошенном рендере (StrictMode, прерванный конкурентный проход).
+   *
+   * Эффект именно СЛОЙНЫЙ (useLayoutEffect). Обычный отложен до после отрисовки, и между коммитом
+   * и его срабатыванием ref держит ПРЕДЫДУЩИЙ колбэк — с прежними entry/files. Ctrl+S, попавший в
+   * эту щель, молча сохранил бы старое содержимое библиотеки. Слойный эффект выполняется в том же
+   * задании, что и коммит: события в промежуток не попадают, щели нет.
+   */
+  useLayoutEffect(() => { saveRef.current = handleSave; });
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') {

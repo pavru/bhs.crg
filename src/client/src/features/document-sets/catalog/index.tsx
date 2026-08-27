@@ -3,6 +3,7 @@ import {
   ChevronDown, ChevronUp, ShieldCheck, Loader2,
   RefreshCw, X, CornerUpLeft, Link2,
 } from 'lucide-react';
+import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Button } from '@/shared/ui/Button';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
@@ -314,7 +315,7 @@ export function CatalogEntryForm({
     });
   }
   function toggleGroup(key: string) {
-    setExpandedGroups(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+    setExpandedGroups(prev => toggleInSet(prev, key));
   }
   // Навигация по разделам большой формы (issue #102, P3): раскрыть раздел и проскроллить к нему.
   function goToSection(key: string) {

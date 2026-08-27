@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useTheme } from '@/shared/ui/ThemeProvider';
 import { useUserLibCompletion } from '@/shared/ui/typstUserLibCompletion';
 import { useAssetCompletion } from '@/shared/ui/typstAssetCompletion';
@@ -233,7 +233,9 @@ export function EditorPanel({ template, docType, allDocTypes, onSaved }: EditorP
   // Keep a stable ref so the Monaco command (registered once at mount) always
   // calls the latest handleSave without capturing a stale closure.
   const handleSaveRef = useRef(handleSave);
-  useEffect(() => { handleSaveRef.current = handleSave; });
+  // Эффект СЛОЙНЫЙ: обычный отложен до после отрисовки, и в щель между коммитом и ним Ctrl+S молча
+  // сохранил бы прежнее содержимое шаблона (issue #858).
+  useLayoutEffect(() => { handleSaveRef.current = handleSave; });
 
   // Закрытие меню сохранения по клику вне.
   useEffect(() => {

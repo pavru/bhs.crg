@@ -168,7 +168,7 @@ function SourceRow({ src, isPdf, fixedExtraction, canManageExtraction, templates
     applyTemplateMutation.mutate({ sourceId: src.id, templateId });
   }
   async function saveAsTemplate(name: string) {
-    let columnExpressions: ColumnExprDef[] | null = null;
+    let columnExpressions: ColumnExprDef[] | null;
     try { columnExpressions = src.columnExpressions ? JSON.parse(src.columnExpressions) : null; } catch { columnExpressions = null; }
     await createTemplate.mutateAsync({
       name, sheetOrPath: src.sheetOrPath, columnExpressions,

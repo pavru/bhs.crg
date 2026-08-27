@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { Plus, Search, ChevronDown, ChevronUp, Database, FileText, Layers, X, Building2, Pencil, Copy, Check } from 'lucide-react';
+import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { SearchInput } from '@/shared/ui/SearchInput';
@@ -55,7 +56,7 @@ export function CatalogResource({ scope, scopeId, allDocTypes }: {
   }, { replace: true });
 
   function toggleType(id: string) {
-    setExpandedTypes(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setExpandedTypes(prev => toggleInSet(prev, id));
   }
 
   const { data: entries = [], isLoading } = useListCommonData({ scope, scopeId: scopeId ?? undefined });

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Database, Pencil, Trash2, Plus, LayoutTemplate, PlayCircle, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Link2 } from 'lucide-react';
+import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { dtTable, dtTh, dtTd, dtRow } from '@/shared/ui/dataTable';
 import { ApplyTemplateDialog } from './ApplyTemplateDialog';
 import {
@@ -176,7 +177,7 @@ function CompositeFieldMapping({ field, token, onChange, columnNames, allDocType
               return (
                 <div key={sf.key}>
                   <button type="button"
-                    onClick={() => setExpanded(p => { const n = new Set(p); n.has(sf.key) ? n.delete(sf.key) : n.add(sf.key); return n; })}
+                    onClick={() => setExpanded(p => toggleInSet(p, sf.key))}
                     className="flex items-center gap-1 py-0.5 text-[11px] text-fg3 hover:text-fg1">
                     {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     <span className={`text-left ${MAP_LABEL}`} title={`${sf.title} (${sf.key}) — составное поле`}>{sf.title}</span>

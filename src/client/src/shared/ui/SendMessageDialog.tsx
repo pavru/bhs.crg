@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
+import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { useSendEmail } from '@/shared/api/users';
 import { apiError } from '@/shared/utils/apiError';
 
@@ -28,7 +29,7 @@ export function SendMessageDialog({ open, onClose, candidates, title = 'Отпр
   const [result, setResult] = useState<{ ok: boolean; sent?: number; skipped?: string[]; error?: string } | null>(null);
 
   function toggle(id: string) {
-    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setSelected(prev => toggleInSet(prev, id));
     setResult(null);
   }
 

@@ -19,7 +19,7 @@ function coerceScalar(field: SchemaField, raw: string): unknown {
     return opts.find(o => o.toLowerCase() === raw.toLowerCase());
   }
   if (field.type === 'date') {
-    const m = /^(\d{1,2})[./\-](\d{1,2})[./\-](\d{4})$/.exec(raw);
+    const m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(raw);
     return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : raw;
   }
   return raw;

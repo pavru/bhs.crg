@@ -1,4 +1,4 @@
-import { createContext, useContext, useRef, useEffect, type ReactNode, type MouseEvent } from 'react';
+import { createContext, useContext, useRef, useState, useEffect, useLayoutEffect, type ReactNode, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router';
 
 /** Обработчик ухода: показывает подтверждение и вызывает `proceed()`, если пользователь решил уйти. */
@@ -22,13 +22,19 @@ const Ctx = createContext<NavGuard | null>(null);
  */
 export function NavigationGuardProvider({ children }: { children: ReactNode }) {
   const handlerRef = useRef<LeaveHandler | null>(null);
-  const value = useRef<NavGuard>({
+  /**
+   * Значение контекста заводится РАЗ и живёт весь срок провайдера. Через `useState` с ленивым
+   * инициализатором, а не `useRef(...).current`: чтение ref в рендере — обращение к изменяемому
+   * ящику там, где рендер обязан быть чистым (issue #858). `useMemo` тут не годится вовсе — React
+   * вправе забыть закэшированное, а подписчики держатся именно за эту ссылку.
+   */
+  const [value] = useState<NavGuard>(() => ({
     register: (h) => { handlerRef.current = h; },
     attempt: (proceed) => {
       if (handlerRef.current) { handlerRef.current(proceed); return true; }
       return false;
     },
-  }).current;
+  }));
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -56,7 +62,17 @@ export function useGuardedNavClick() {
 export function useLeaveGuard(active: boolean, onLeave: LeaveHandler) {
   const guard = useNavigationGuard();
   const cbRef = useRef(onLeave);
-  cbRef.current = onLeave;
+  /**
+   * Свежий колбэк для отложенного вызова. Обновляется ЭФФЕКТОМ, а не присваиванием в рендере
+   * (issue #858): рендер обязан быть чистым, а запись в ref — побочное действие, которое к тому же
+   * случалось бы и на брошенном рендере (StrictMode, прерванный конкурентный проход).
+   *
+   * Эффект именно СЛОЙНЫЙ (useLayoutEffect). Обычный отложен до после отрисовки, и между коммитом
+   * и его срабатыванием ref держит ПРЕДЫДУЩИЙ колбэк — клик по ссылке, попавший в эту щель, показал
+   * бы диалог ухода с устаревшим замыканием. Слойный эффект выполняется в том же задании, что и
+   * коммит: события в промежуток не попадают, щели нет.
+   */
+  useLayoutEffect(() => { cbRef.current = onLeave; });
   useEffect(() => {
     if (!guard) return;
     guard.register(active ? (proceed) => cbRef.current(proceed) : null);
