@@ -13,18 +13,24 @@ export function ConfirmEmailChangePage() {
   const userId = params.get('uid') ?? '';
   const newEmail = params.get('email') ?? '';
   const token = params.get('token') ?? '';
-  const [status, setStatus] = useState<'pending' | 'ok' | 'error'>('pending');
-  const [error, setError] = useState('');
+  /**
+   * Годность ссылки видна прямо из адреса — это ВЫЧИСЛЕНИЕ, а не состояние (issue #858). Прежде
+   * «ссылка недействительна» ставил эффект, то есть страница успевала показать «Подтверждаем…»
+   * там, где подтверждать было нечего.
+   */
+  const linkOk = !(!userId || !newEmail || !token);
+  const [result, setResult] = useState<{ ok: boolean; error?: string } | null>(null);
+  const status: 'pending' | 'ok' | 'error' = !linkOk ? 'error' : result ? (result.ok ? 'ok' : 'error') : 'pending';
+  const error = linkOk ? (result?.error ?? '') : 'Ссылка недействительна или устарела.';
   const ran = useRef(false);
 
   useEffect(() => {
-    if (ran.current) return;
+    if (!linkOk || ran.current) return;
     ran.current = true;
-    if (!userId || !newEmail || !token) { setStatus('error'); setError('Ссылка недействительна или устарела.'); return; }
     confirm.mutateAsync({ userId, newEmail, token })
-      .then(() => setStatus('ok'))
-      .catch(err => { setStatus('error'); setError(apiError(err, 'Не удалось сменить адрес. Возможно, ссылка устарела.')); });
-  }, [userId, newEmail, token, confirm]);
+      .then(() => setResult({ ok: true }))
+      .catch(err => setResult({ ok: false, error: apiError(err, 'Не удалось сменить адрес. Возможно, ссылка устарела.') }));
+  }, [userId, newEmail, token, linkOk, confirm]);
 
   return (
     <AuthCard title="Смена адреса входа">

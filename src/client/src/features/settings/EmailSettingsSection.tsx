@@ -1,15 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Mail, Send, CheckCircle, XCircle, AlertTriangle, PlugZap } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
+import { useServerForm } from '@/shared/hooks/useServerForm';
 import {
   useIntegrationSettings, useSaveSmtp, useTestEmail, useTestSmtpConnection, useEmailUserStatus,
-  type SmtpUpdate,
+  type SmtpUpdate, type IntegrationSettingsDto,
 } from '@/shared/api/integrationSettings';
 import { CollapsibleSection } from './CollapsibleSection';
 import { apiError } from '@/shared/utils/apiError';
 
 const EMPTY: SmtpUpdate = { enabled: false, host: '', port: 587, user: '', password: '', from: '', fromName: '', useSsl: true };
+
+/** Настройки SMTP → форма. Пароль всегда пуст: сервер его не отдаёт, а пустой означает «не менять». */
+function smtpForm(settings: IntegrationSettingsDto | undefined): SmtpUpdate {
+  if (!settings) return EMPTY;
+  const s = settings.smtp;
+  return {
+    enabled: s.enabled, host: s.host ?? '', port: s.port, user: s.user ?? '',
+    password: '', from: s.from ?? '', fromName: s.fromName ?? '', useSsl: s.useSsl,
+  };
+}
 
 export function EmailSettingsSection() {
   const { data: settings } = useIntegrationSettings();
@@ -19,23 +30,14 @@ export function EmailSettingsSection() {
   const { data: userStatus = [] } = useEmailUserStatus();
   const [connResult, setConnResult] = useState<{ ok: boolean; error?: string } | null>(null);
 
-  const [form, setForm] = useState<SmtpUpdate>(EMPTY);
-  const [hasPassword, setHasPassword] = useState(false);
+  // Форма поверх загруженных настроек (issue #858); пароль с сервера не приходит — только признак
+  // hasPassword, поэтому он и остаётся производным от ответа, а не отдельным состоянием.
+  const [form, setForm] = useServerForm(settings, smtpForm);
+  const hasPassword = !!settings?.smtp.hasPassword;
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [testTo, setTestTo] = useState('');
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null);
-
-  // Инициализируем форму из загруженных настроек (пароль не приходит — только признак hasPassword).
-  useEffect(() => {
-    if (!settings) return;
-    const s = settings.smtp;
-    setForm({
-      enabled: s.enabled, host: s.host ?? '', port: s.port, user: s.user ?? '',
-      password: '', from: s.from ?? '', fromName: s.fromName ?? '', useSsl: s.useSsl,
-    });
-    setHasPassword(s.hasPassword);
-  }, [settings]);
 
   function set<K extends keyof SmtpUpdate>(key: K, value: SmtpUpdate[K]) {
     setForm(f => ({ ...f, [key]: value }));

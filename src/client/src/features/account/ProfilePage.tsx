@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
+import { useServerForm } from '@/shared/hooks/useServerForm';
 import { useAccount, useUpdateAccount, useResendConfirmation, useChangeEmail, useUpdateAvatar } from '@/shared/api/account';
 import { TextField } from '@/shared/ui/TextField';
 import { Button } from '@/shared/ui/Button';
@@ -6,6 +7,9 @@ import { Avatar, downscaleToDataUri } from '@/shared/ui/Avatar';
 import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
 import { apiError } from '@/shared/utils/apiError';
 import { KeyRound, CheckCircle2, AlertCircle, Mail, Upload, Trash2 } from 'lucide-react';
+
+/** Ответ сервера → имя в форме. Пока учётка не загружена — пусто, как и раньше. */
+const accountName = (a: { displayName: string } | undefined) => a?.displayName ?? '';
 
 /** Профиль текущего пользователя (issue #148): просмотр учётных данных,
  *  редактирование отображаемого имени, смена пароля. Доступно любой роли. */
@@ -15,7 +19,9 @@ export function ProfilePage() {
   const updateAvatar = useUpdateAvatar();
   const resend = useResendConfirmation();
   const changeEmail = useChangeEmail();
-  const [displayName, setDisplayName] = useState('');
+  // Имя правится поверх ответа сервера (issue #858): своя правка показывается, пока отвечает
+  // тому ответу, при котором начата; пришёл другой — показывается он.
+  const [displayName, setDisplayName] = useServerForm(account, accountName);
   const [pwOpen, setPwOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -27,8 +33,6 @@ export function ProfilePage() {
   const [emailPassword, setEmailPassword] = useState('');
   const [emailMsg, setEmailMsg] = useState('');
   const [emailError, setEmailError] = useState('');
-
-  useEffect(() => { if (account) setDisplayName(account.displayName); }, [account]);
 
   async function resendConfirmation() {
     setResendMsg('');

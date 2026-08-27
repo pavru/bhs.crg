@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, Trash2, Lock, RotateCcw, ScanText, AlertTriangle } from 'lucide-react';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Button } from '@/shared/ui/Button';
@@ -7,6 +7,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { moveItem } from '@/shared/utils/moveItem';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';
+import { useServerForm } from '@/shared/hooks/useServerForm';
 import { rowKey, withRowUid, withRowUids } from '@/shared/utils/rowIdentity';
 import { useToast } from '@/shared/ui/Toast';
 import { ListDetailShell, NavSearchInput, NavSection, DetailHeader } from '@/shared/ui/ListDetailShell';
@@ -35,14 +36,11 @@ const EMPTY_SHAPE: RecognitionTableShape = { twoTierHeader: false, pairedSection
 
 // ─── Редактор списка полей/колонок ─────────────────────────────────────────────
 
-/**
- * Состояние строк при синхронизации с сервером: если пришло то же самое, оставляем СВОИ строки.
- * Иначе каждое обновление профиля выдавало бы новые личности, а с ними — новые ключи React: строки
- * пересоздавались бы целиком, роняя каретку в поле, куда пользователь только что кликнул.
- */
-function keepIfSame(prev: RecognitionProfileField[], incoming: RecognitionProfileField[]): RecognitionProfileField[] {
-  return JSON.stringify(prev) === JSON.stringify(incoming) ? prev : withRowUids(incoming);
-}
+/** Значение как есть — для кусков формы, которые не надо переводить (имя, форма таблицы). */
+const asIs = <T,>(x: T): T => x;
+
+/** Ошибка сохранения относится к ТОМУ профилю, при котором случилась: пришёл другой — она снята. */
+const noError = () => '';
 
 function FieldsEditor({ fields, onChange, systemNames, addLabel }: {
   fields: RecognitionProfileField[];
@@ -142,23 +140,23 @@ function ProfileDetail({ profile }: { profile: RecognitionProfile }) {
   const reset = useResetRecognitionProfile();
   const del = useDeleteRecognitionProfile();
 
-  const [name, setName] = useState(profile.name);
-  // Личности строк — здесь, у владельца состояния (issue #517).
-  const [fields, setFields] = useState<RecognitionProfileField[]>(() => withRowUids(profile.fields));
-  const [rowColumns, setRowColumns] = useState<RecognitionProfileField[]>(() => withRowUids(profile.rowColumns));
-  const [shape, setShape] = useState<RecognitionTableShape>(profile.shape ?? EMPTY_SHAPE);
-  const [error, setError] = useState('');
+  /**
+   * Форма поверх ответа сервера (issue #858) — но каждый кусок поверх СВОЕГО куска ответа, а не
+   * поверх профиля целиком.
+   *
+   * <p>Это и есть замена прежнему `keepIfSame`. Личности строк (issue #517) заводятся при переливе
+   * списка в форму, а новые личности означают новые ключи React: строки пересоздаются, роняя
+   * каретку. Пока сервер отдаёт ТОТ ЖЕ массив полей (React Query бережёт ссылку у неизменившихся
+   * кусков), перелива не происходит вовсе — даже если в профиле поменялось имя. Прежний эффект
+   * сбрасывал всё сразу и от каретки спасался сравнением JSON.</p>
+   */
+  const [name, setName] = useServerForm(profile.name, asIs);
+  const [fields, setFields] = useServerForm(profile.fields, withRowUids);
+  const [rowColumns, setRowColumns] = useServerForm(profile.rowColumns, withRowUids);
+  const [shape, setShape] = useServerForm(profile.shape ?? EMPTY_SHAPE, asIs);
+  const [error, setError] = useServerForm(profile, noError);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
-
-  // Сервер — источник истины после сохранения/сброса: подхватываем его ответ.
-  useEffect(() => {
-    setName(profile.name);
-    setFields(prev => keepIfSame(prev, profile.fields));
-    setRowColumns(prev => keepIfSame(prev, profile.rowColumns));
-    setShape(profile.shape ?? EMPTY_SHAPE);
-    setError('');
-  }, [profile]);
 
   const info = profile.kindInfo;
   const dirty =

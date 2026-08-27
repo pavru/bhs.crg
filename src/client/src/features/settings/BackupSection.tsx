@@ -1,4 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useServerForm } from '@/shared/hooks/useServerForm';
+
+/** Значение как есть — когда серверный кусок и есть форма. */
+const asIs = <T,>(x: T): T => x;
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, CheckCircle, ChevronDown, ChevronRight, Download, Info, Loader2, RotateCcw,
@@ -123,20 +127,28 @@ function BackupSizeLine({ scope }: { scope: BackupScope }) {
  * «включено» неопровержима: она выглядит одинаково и когда копии снимаются, и когда они полгода
  * падают на нехватке места.
  */
+
 function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
   const [locale] = useLocale();
   const save = useSaveBackupSchedule();
-  const [form, setForm] = useState<BackupScheduleSettings>({
-    enabled: status.enabled, timeOfDay: status.timeOfDay, keepCount: status.keepCount,
-  });
+  /**
+   * Ответ сервера — источник истины: расписание могли поменять из другой вкладки, и форма,
+   * оставшаяся на своём, показывала бы не то, чем система живёт. Правка живёт поверх ответа и
+   * отбрасывается сама, когда придёт другой (issue #858).
+   *
+   * <p>Поверх ТРЁХ ПОЛЕЙ расписания, а не всего `status`: в нём же едут `running`, `lastRunAt` и
+   * прочий след службы, а запрос опрашивается каждые 15 секунд и каждые 3 во время снятия копии.
+   * Ключом по всему объекту любой опрос выбрасывал бы недописанную правку — человек меняет время
+   * и число копий, нажав до этого «Создать копию», и поля молча возвращаются к сохранённым
+   * (поймано ревью PR #864).</p>
+   */
+  const schedule = useMemo<BackupScheduleSettings>(
+    () => ({ enabled: status.enabled, timeOfDay: status.timeOfDay, keepCount: status.keepCount }),
+    [status.enabled, status.timeOfDay, status.keepCount],
+  );
+  const [form, setForm] = useServerForm(schedule, asIs);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
-
-  // Ответ сервера — источник истины: расписание могли поменять из другой вкладки, и форма,
-  // оставшаяся на своём, показывала бы не то, чем система живёт.
-  useEffect(() => {
-    setForm({ enabled: status.enabled, timeOfDay: status.timeOfDay, keepCount: status.keepCount });
-  }, [status.enabled, status.timeOfDay, status.keepCount]);
 
   const dirty = form.enabled !== status.enabled
     || form.timeOfDay !== status.timeOfDay

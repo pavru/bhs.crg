@@ -32,9 +32,26 @@ export function withRowUid<T extends object>(row: T): T {
     : { ...row, [ROW_UID]: `r${++counter}` };
 }
 
+/**
+ * Помеченные списки, разложенные по ИСХОДНОМУ массиву.
+ *
+ * <p>Один и тот же серверный массив обязан давать один и тот же помеченный список: личности — это
+ * ключи React, и новые ключи пересоздают строки, роняя каретку в поле, куда человек печатает. Пока
+ * список переливали в состояние один раз, за это отвечало само состояние; теперь его вычисляют
+ * (issue #858), и держаться на `useMemo` тут нельзя — React вправе забыть закэшированное, а
+ * гарантия нужна безусловная (поймано ревью PR #864).</p>
+ *
+ * <p>`WeakMap` — потому что ключ здесь сам массив: исчез он, исчезнет и запись.</p>
+ */
+const taggedLists = new WeakMap<object, unknown[]>();
+
 /** То же для списка — обычно применяется при загрузке списка в состояние. */
 export function withRowUids<T extends object>(rows: readonly T[]): T[] {
-  return rows.map(withRowUid);
+  const cached = taggedLists.get(rows);
+  if (cached) return cached as T[];
+  const tagged = rows.map(withRowUid);
+  taggedLists.set(rows, tagged);
+  return tagged;
 }
 
 /** Личность строки, если проставлена. */

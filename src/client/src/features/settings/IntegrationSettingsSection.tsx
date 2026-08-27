@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AlertTriangle, AlertCircle, Eye } from 'lucide-react';
+import { useServerForm } from '@/shared/hooks/useServerForm';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
@@ -11,7 +12,7 @@ import {
   useCheckVision,
   type EngineDto,
   type EngineUpdate,
-  type IntegrationSettingsUpdate,
+  type IntegrationSettingsUpdate, type IntegrationSettingsDto,
   type UnavailableModel,
 } from '../../shared/api/integrationSettings';
 import { CollapsibleSection } from './CollapsibleSection';
@@ -62,6 +63,29 @@ function toForm(dto: EngineDto | undefined): EngineForm {
     host: dto?.host ?? '',
   };
 }
+
+// ─── Ответ сервера → куски формы (useServerForm зовёт их с одним и тем же `data`) ────────────
+
+/** Порядок распознавателей: сперва сохранённый (из известных), затем не упомянутые в нём. */
+function recognitionOrderForm(d: IntegrationSettingsDto | undefined): string[] {
+  const recKeys = Object.keys(RECOGNIZERS);
+  if (!d) return recKeys;
+  return [
+    ...d.recognitionOrder.filter(k => recKeys.includes(k)),
+    ...recKeys.filter(k => !d.recognitionOrder.includes(k)),
+  ];
+}
+
+function recognizersForm(d: IntegrationSettingsDto | undefined): Record<string, EngineForm> {
+  return Object.fromEntries(Object.keys(RECOGNIZERS).map(k => [k, toForm(d?.recognition[k])]));
+}
+
+function webEnginesForm(d: IntegrationSettingsDto | undefined): Record<string, EngineForm> {
+  return Object.fromEntries(Object.keys(WEB_ENGINES).map(k => [k, toForm(d?.webSearch[k])]));
+}
+
+const fgisForm = (d: IntegrationSettingsDto | undefined): string[] => d?.fgisDomains ?? [];
+const manufacturersForm = (d: IntegrationSettingsDto | undefined): string[] => d?.manufacturerDomains ?? [];
 
 function toUpdate(meta: EngineMeta, f: EngineForm): EngineUpdate {
   const u: EngineUpdate = { enabled: f.enabled };
@@ -276,18 +300,25 @@ function EngineCard({
   );
 }
 
+/** Сырой текст → список доменов: строки без пробелов по краям, пустые отброшены. */
+const cleanDomains = (text: string) => text.split('\n').map(s => s.trim()).filter(Boolean).join('\n');
+
 function DomainList({ label, hint, value, onChange }: {
   label: string; hint: string; value: string[]; onChange: (v: string[]) => void;
 }) {
-  // Храним «сырой» текст, чтобы можно было добавлять переводы строк и пробелы;
-  // наружу отдаём очищенный список. Синхронизируемся с внешним значением (загрузка),
-  // но не сбрасываем при собственном вводе.
-  const [text, setText] = useState(value.join('\n'));
-  useEffect(() => {
-    const parsedLocal = text.split('\n').map(s => s.trim()).filter(Boolean).join('\n');
-    if (value.join('\n') !== parsedLocal) setText(value.join('\n'));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  /**
+   * Храним «сырой» текст, чтобы можно было добавлять переводы строк и пробелы; наружу отдаём
+   * очищенный список.
+   *
+   * <p>Показываем набранное, пока оно очищается РОВНО в нынешнее внешнее значение (issue #858).
+   * Разошлось — значит значение сменилось не нашим вводом (загрузка, ответ сервера), и показывать
+   * надо его. Правило то же, что было в эффекте, — но эффект переписывал состояние, глядя на него
+   * же, и лишний коммит с прежним текстом умещался между приходом значения и его запуском.</p>
+   */
+  const [typed, setTyped] = useState<string | null>(null);
+  const external = value.join('\n');
+  const text = typed !== null && cleanDomains(typed) === external ? typed : external;
+  const setText = setTyped;
 
   return (
     <TextAreaField
@@ -316,27 +347,15 @@ export function IntegrationSettingsSection() {
     }
   };
 
-  const [order, setOrder] = useState<string[]>([]);
-  const [recog, setRecog] = useState<Record<string, EngineForm>>({});
-  const [web, setWeb] = useState<Record<string, EngineForm>>({});
-  const [fgis, setFgis] = useState<string[]>([]);
-  const [manufacturers, setManufacturers] = useState<string[]>([]);
+  // Пять кусков формы поверх одного ответа сервера (issue #858). Раздельно, а не одним объектом,
+  // потому что и правятся они порознь: порядок движется стрелками, движки — своими полями, списки
+  // доменов — текстом. Общее у них одно — ответ, от которого каждая правка отсчитана.
+  const [order, setOrder] = useServerForm(data, recognitionOrderForm);
+  const [recog, setRecog] = useServerForm(data, recognizersForm);
+  const [web, setWeb] = useServerForm(data, webEnginesForm);
+  const [fgis, setFgis] = useServerForm(data, fgisForm);
+  const [manufacturers, setManufacturers] = useServerForm(data, manufacturersForm);
   const [saved, setSaved] = useState(false);
-
-  // Инициализация формы из загруженных данных
-  useEffect(() => {
-    if (!data) return;
-    const recKeys = Object.keys(RECOGNIZERS);
-    const ord = [
-      ...data.recognitionOrder.filter(k => recKeys.includes(k)),
-      ...recKeys.filter(k => !data.recognitionOrder.includes(k)),
-    ];
-    setOrder(ord);
-    setRecog(Object.fromEntries(recKeys.map(k => [k, toForm(data.recognition[k])])));
-    setWeb(Object.fromEntries(Object.keys(WEB_ENGINES).map(k => [k, toForm(data.webSearch[k])])));
-    setFgis(data.fgisDomains);
-    setManufacturers(data.manufacturerDomains);
-  }, [data]);
 
   function move(idx: number, dir: -1 | 1) {
     setOrder(prev => {

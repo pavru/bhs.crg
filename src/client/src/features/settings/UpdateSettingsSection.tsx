@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
+import { useServerForm } from '@/shared/hooks/useServerForm';
 import { useUpdateStatus, useCheckUpdatesNow, useSaveUpdateSettings } from '@/shared/api/updates';
 
 function whenText(iso: string | null): string {
@@ -23,19 +23,22 @@ function whenText(iso: string | null): string {
  * положении «включено» неопровержим: он выглядит одинаково и когда проверка ходит, и когда она
  * полгода падает на прокси.
  */
+/** Ответ сервера → положение выключателя. Пока ответа нет — считаем включённым, как и раньше. */
+const updateEnabled = (d: { enabled: boolean } | undefined) => d?.enabled ?? true;
+
 export function UpdateSettingsSection() {
   // Здесь заметки нужны — это единственное место, где их показывают.
   const { data, isLoading } = useUpdateStatus(true, true);
   const check = useCheckUpdatesNow();
   const save = useSaveUpdateSettings();
-  const [enabled, setEnabled] = useState(true);
+  // Переключатель поверх ответа сервера (issue #858): своё значение показываем, пока оно отвечает
+  // тому ответу, при котором нажали, — а пришёл другой, показываем его.
+  const [enabled, setEnabled] = useServerForm(data, updateEnabled);
 
   // Исход ПОСЛЕДНЕГО нажатия: сеть могла отработать (200), а проверка не состояться.
   const result = check.data;
   const failed = check.isError || result?.justChecked === false;
   const lastError = check.isError ? 'сервер не ответил' : result?.lastError ?? null;
-
-  useEffect(() => { if (data) setEnabled(data.enabled); }, [data]);
 
   async function toggle(next: boolean) {
     const prev = enabled;
