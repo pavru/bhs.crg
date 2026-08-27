@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { discriminatorProblem } from './UnionDiscriminatorEditor';
+import { discriminatorProblem } from './unionDiscriminator';
 import type { SchemaField } from '@/shared/api/schema';
 import type { MaterializeDiscriminator } from '@/shared/api/types';
 

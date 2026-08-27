@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Link2, FileText, Database, ChevronDown, Repeat, Unlink, AlertTriangle } from 'lucide-react';
-import { BaseCandidatePicker, type BaseCandidate } from './BaseCandidatePicker';
+import { BaseCandidatePicker } from './BaseCandidatePicker';
+import type { BaseCandidate } from './baseCandidates';
 
 /**
  * Chip «Основа» в шапке документа (issue #71, перенос из раздела формы в шапку — вариант друга 1a).

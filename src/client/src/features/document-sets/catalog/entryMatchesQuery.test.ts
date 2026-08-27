@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { entryMatchesQuery } from './ObjectsByTypeList';
-import type { CommonDataEntry } from '@/shared/api/types';
+import { entryMatchesQuery, groupObjectsByType } from './objectsByType';
+import type { CommonDataEntry, DocumentType } from '@/shared/api/types';
 
 function entry(over: Partial<CommonDataEntry>): CommonDataEntry {
   return {
@@ -43,5 +43,33 @@ describe('entryMatchesQuery (issue #249)', () => {
   it('typeName undefined не роняет', () => {
     expect(entryMatchesQuery(entry({ displayName: 'Ромашка' }), undefined, 'ромашка')).toBe(true);
     expect(entryMatchesQuery(entry({ displayName: 'Ромашка' }), undefined, 'орга')).toBe(false);
+  });
+});
+
+describe('группировка объектов по составному типу', () => {
+  const orgs = { id: 't1', name: 'Организация' } as unknown as DocumentType;
+  const persons = { id: 't2', name: 'Персона' } as unknown as DocumentType;
+
+  it('раскладывает по типам, сохраняя порядок входа', () => {
+    const a = entry({ id: 'a', compositeTypeId: 't1' });
+    const b = entry({ id: 'b', compositeTypeId: 't2' });
+    const c = entry({ id: 'c', compositeTypeId: 't1' });
+    const { groups, noType } = groupObjectsByType([a, b, c], [orgs, persons]);
+    expect(groups.map(g => [g.type.id, g.items.map(i => i.id)])).toEqual([['t1', ['a', 'c']], ['t2', ['b']]]);
+    expect(noType).toEqual([]);
+  });
+
+  it('пустые группы не показываются', () => {
+    const { groups } = groupObjectsByType([entry({ compositeTypeId: 't1' })], [orgs, persons]);
+    expect(groups.map(g => g.type.id)).toEqual(['t1']);
+  });
+
+  // Запись, чей тип удалён или не пришёл в списке, обязана остаться видимой: иначе объект исчезает
+  // из каталога, хотя он есть.
+  it('запись без известного типа уходит в отдельный список, а не пропадает', () => {
+    const orphan = entry({ id: 'x', compositeTypeId: 'снесённый' });
+    const { groups, noType } = groupObjectsByType([orphan], [orgs]);
+    expect(groups).toEqual([]);
+    expect(noType.map(e => e.id)).toEqual(['x']);
   });
 });

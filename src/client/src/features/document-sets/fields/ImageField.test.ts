@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkImageResult } from './ImageField';
+import { checkImageResult } from './checkImageResult';
 
 /**
  * Проверка прочитанного файла ДО записи в значение (issue #519). Раньше в значение уходило что

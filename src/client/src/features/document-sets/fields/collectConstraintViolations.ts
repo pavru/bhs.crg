@@ -1,6 +1,6 @@
 import type { DocumentType, PrimitiveTypeDef } from '@/shared/api/types';
 import { resolveEffectiveFields, type SchemaField } from '@/shared/api/schema';
-import { validateConstraint } from './PrimitiveInput';
+import { validateConstraint } from './fieldValidation';
 
 /**
  * Нарушения ограничений примитивов по ВСЕМУ документу, включая строки таблиц и составные поля

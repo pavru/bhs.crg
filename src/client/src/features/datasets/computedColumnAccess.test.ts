@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { columnAccessor } from './ComputedColumnsDialog';
+import { columnAccessor } from './computedColumnAccess';
 
 /**
  * Чем вставлять обращение к колонке (issue #539). Правило одно: заголовок, годный в имя переменной,
