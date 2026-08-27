@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useServerForm } from '@/shared/hooks/useServerForm';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, CheckCircle, ChevronDown, ChevronRight, Download, Info, Loader2, RotateCcw,
@@ -123,20 +124,18 @@ function BackupSizeLine({ scope }: { scope: BackupScope }) {
  * «включено» неопровержима: она выглядит одинаково и когда копии снимаются, и когда они полгода
  * падают на нехватке места.
  */
+const scheduleForm = (s: BackupScheduleStatus): BackupScheduleSettings =>
+  ({ enabled: s.enabled, timeOfDay: s.timeOfDay, keepCount: s.keepCount });
+
 function ScheduleForm({ status }: { status: BackupScheduleStatus }) {
   const [locale] = useLocale();
   const save = useSaveBackupSchedule();
-  const [form, setForm] = useState<BackupScheduleSettings>({
-    enabled: status.enabled, timeOfDay: status.timeOfDay, keepCount: status.keepCount,
-  });
+  // Ответ сервера — источник истины: расписание могли поменять из другой вкладки, и форма,
+  // оставшаяся на своём, показывала бы не то, чем система живёт. Правка живёт поверх ответа и
+  // отбрасывается сама, когда придёт другой (issue #858).
+  const [form, setForm] = useServerForm(status, scheduleForm);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
-
-  // Ответ сервера — источник истины: расписание могли поменять из другой вкладки, и форма,
-  // оставшаяся на своём, показывала бы не то, чем система живёт.
-  useEffect(() => {
-    setForm({ enabled: status.enabled, timeOfDay: status.timeOfDay, keepCount: status.keepCount });
-  }, [status.enabled, status.timeOfDay, status.keepCount]);
 
   const dirty = form.enabled !== status.enabled
     || form.timeOfDay !== status.timeOfDay
