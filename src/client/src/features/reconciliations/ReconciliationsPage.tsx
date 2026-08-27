@@ -115,6 +115,7 @@ function RunPicker({ runs, value, onChange }: {
   );
 }
 
+/** Секции раздела: сама сверка, замечания агента и алиасы — все три отвечают «что не так». */
 type ReconciliationView = 'reconciliation' | 'observations' | 'aliases';
 
 /** Что говорит адрес: своя секция либо открытая сверка. Разбор чистый — по строке запроса. */
@@ -139,8 +140,6 @@ export function ReconciliationsPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deciding, setDeciding] = useState<Finding | null>(null);
   const [onlyAttention, setOnlyAttention] = useState(false);
-  // Замечания агента — вторая секция того же раздела: оба отвечают «что не так с комплектом».
-
   // Связывание позиций: выбираем ровно две несопоставленные находки.
   const [linking, setLinking] = useState<string[]>([]);
 

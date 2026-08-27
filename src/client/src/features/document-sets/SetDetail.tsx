@@ -108,6 +108,20 @@ export function SetDetail() {
   const linkedInstance = docParam && set ? set.instances.find(i => i.id === docParam) ?? null : null;
   const editInstance = chosenInstance ?? linkedInstance;
 
+  /**
+   * Появились несохранённые правки — закрепляем открытый документ в состоянии.
+   *
+   * <p>Открытый по ссылке документ до сих пор жил только вычислением из ответа сервера. Если бы
+   * ответ перестал его содержать (другой пользователь удалил документ, пока его правят), редактор
+   * закрылся бы сам — молча, мимо предупреждения о несохранённом. Закреплённый снимок это
+   * закрывает, а заодно уравнивает оба входа: открытый из списка вёл себя так и раньше (поймано
+   * ревью PR #865).</p>
+   */
+  function onEditorDirtyChange(dirty: boolean) {
+    setEditDirty(dirty);
+    if (dirty && !chosenInstance && linkedInstance) setChosenInstance(linkedInstance);
+  }
+
   /** Закрытие редактора: снимаем и свой выбор, и параметр адреса — иначе он открылся бы снова. */
   function closeEditor() {
     setChosenInstance(null);
@@ -420,7 +434,7 @@ export function SetDetail() {
                 title="Не удалось открыть документ">
                 <InstanceEditor key={liveInstance.id} instance={liveInstance} setId={setId} docType={docTypeMap[liveInstance.documentTypeId]}
                   allDocTypes={docTypes} otherInstances={otherInstances}
-                  onClose={closeEditor} onDirtyChange={setEditDirty}
+                  onClose={closeEditor} onDirtyChange={onEditorDirtyChange}
                   requestClose={requestClose} />
               </ErrorBoundary>
             )}

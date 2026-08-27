@@ -21,6 +21,13 @@ const SYSTEM_DATASET = 'Данные системы';
 /** Тип документа, у которого шаблонов НЕТ, — на нём и видно, сбросился ли выбор от прежнего типа. */
 const EMPTY_TYPE = process.env.SMOKE_EMPTY_TYPE || 'Приказ';
 
+/**
+ * Строка → безопасный образец regexp. Имя типа может содержать скобки («АОСР (форма 3)»), и без
+ * экранирования `new RegExp` либо падает, либо ищет не то. Пустая строка сюда попадать не должна
+ * вовсе — проверка ниже об этом и говорит (поймано ревью PR #865).
+ */
+const rx = (text) => new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
 page.on('pageerror', e => console.log('  ! ошибка страницы:', e.message));
@@ -62,11 +69,12 @@ await check('templates-auto-select-after-type-pick', async () => {
  * экран, а не замену эффекта; замена проверена чтением.</p>
  */
 await check('templates-selection-does-not-leak-to-other-type', async () => {
-  const selector = page.locator('button').filter({ hasText: new RegExp(firstTypeName.slice(0, 12)) }).first();
+  if (!firstTypeName) throw new Error('тип не выбран предыдущей проверкой — проверять нечего');
+  const selector = page.locator('button').filter({ hasText: rx(firstTypeName.slice(0, 12)) }).first();
   await selector.click();
   await page.waitForTimeout(1200);
   const picker = page.locator('[role=dialog]').last();
-  const empty = picker.locator('button').filter({ hasText: new RegExp(EMPTY_TYPE) }).first();
+  const empty = picker.locator('button').filter({ hasText: rx(EMPTY_TYPE) }).first();
   if (!(await empty.count())) throw new Error(`типа «${EMPTY_TYPE}» в пикере нет`);
   await empty.click();
   await page.waitForTimeout(3000);
@@ -130,6 +138,26 @@ await check('source-editor-prefills-first-candidate', async () => {
   // Имя подставляется от ПЕРВОГО показанного кандидата: оно обязано его называть.
   if (!text.includes(value.replace(/ \(\d+\)$/, '')))
     throw new Error(`имя «${value}» не отвечает ни одному кандидату в списке`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(600);
+});
+
+// Подстановка обязана уступать человеку: стёртое поле остаётся пустым, набранное — набранным.
+// Пока «наше ли имя» вычислялось по виду («пустое — значит наше»), стереть его было нельзя:
+// поле тут же заполнялось обратно, и следующая буква приписывалась к подставленному.
+await check('source-editor-name-can-be-cleared-and-typed', async () => {
+  await page.locator('button').filter({ hasText: /Добавить источник/ }).first().click();
+  await page.waitForTimeout(3000);
+  const dlg = page.locator('[role=dialog]').last();
+  const field = dlg.locator('input').first();
+  await field.fill('');
+  await page.waitForTimeout(500);
+  const cleared = await field.inputValue();
+  if (cleared !== '') throw new Error(`очищенное поле заполнилось само: «${cleared}»`);
+  await field.fill('Мой источник');
+  await page.waitForTimeout(500);
+  const typed = await field.inputValue();
+  if (typed !== 'Мой источник') throw new Error(`набранное подменено: «${typed}»`);
   await page.keyboard.press('Escape');
   await page.waitForTimeout(600);
 });

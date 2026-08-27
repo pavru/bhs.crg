@@ -197,21 +197,26 @@ export function TemplateSidebar({ groups, selectedTemplate, maxVersions, documen
    * имя, не тронув то, что человек свернул.</p>
    */
   const selectedName = selectedTemplate?.name ?? null;
-  const [expanded, setExpanded] = useState<{ forName: string | null; names: Set<string> }>(
-    () => ({ forName: null, names: new Set<string>() }),
+  // Метка — ИДЕНТИФИКАТОР выбранного шаблона, а не имя группы. По имени свёрнутая группа не
+  // раскрывалась бы снова: выбрали шаблон из другой группы, вернулись в эту — имя то же, метка
+  // совпадает, и подмешивание не срабатывает. Новая версия, дубликат, свежесозданный шаблон — это
+  // другой идентификатор, и группа раскроется, как раскрывалась эффектом (поймано ревью PR #865).
+  const selectedId = selectedTemplate?.id ?? null;
+  const [expanded, setExpanded] = useState<{ forId: string | null; names: Set<string> }>(
+    () => ({ forId: null, names: new Set<string>() }),
   );
-  const expandedNames = expanded.forName === selectedName || !selectedName
-    ? expanded.names
-    : new Set([...expanded.names, selectedName]);
+  const withSelected = (names: Set<string>) =>
+    expanded.forId === selectedId || !selectedName ? names : new Set([...names, selectedName]);
+  const expandedNames = withSelected(expanded.names);
 
   function toggleExpand(name: string) {
     setExpanded(prev => {
-      const base = prev.forName === selectedName || !selectedName
+      const base = prev.forId === selectedId || !selectedName
         ? prev.names
         : new Set([...prev.names, selectedName]);
       const next = new Set(base);
       next.has(name) ? next.delete(name) : next.add(name);
-      return { forName: selectedName, names: next };
+      return { forId: selectedId, names: next };
     });
   }
 
