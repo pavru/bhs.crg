@@ -12,11 +12,16 @@ import { VariantPicker } from '@/features/document-sets/fields/ComplexFields';
 import { UnionDiscriminatorEditor } from './UnionDiscriminatorEditor';
 import { discriminatorProblem } from './unionDiscriminator';
 import { buildPreviewModel, getPath, type LeafCol } from './materializePreviewModel';
-import { resolveEffectiveFields } from '@/shared/api/schema';
+import { resolveEffectiveFields, type SchemaField } from '@/shared/api/schema';
 import { parseSourceColumnNames } from '@/shared/api/datasetHelpers';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
-import type { DataSetSource, MaterializeDiscriminator } from '@/shared/api/types';
+import type { DataSetSource, DocumentType, MaterializeDiscriminator } from '@/shared/api/types';
+
+// Пустые значения — модульными константами, а не инлайновыми `[]`: инлайновый литерал даёт новую
+// ссылку каждый рендер и ломает мемоизацию ниже по течению (issue #305, #870).
+const NO_FIELDS: SchemaField[] = [];
+const NO_TYPES: DocumentType[] = [];
 
 /**
  * Материализация источника в тип (issue #19): пользователь выбирает тип (составной/документ) и
@@ -24,7 +29,7 @@ import type { DataSetSource, MaterializeDiscriminator } from '@/shared/api/types
  * ссылаются на этот источник без маппинга (тип↔тип). Материализация — после всех обработок.
  */
 export function MaterializationDialog({ source, onClose }: { source: DataSetSource; onClose: () => void }) {
-  const { data: allDocTypes = [] } = useListDocumentTypes();
+  const { data: allDocTypes = NO_TYPES } = useListDocumentTypes();
   const [typeId, setTypeId] = useState(source.materializeTypeId ?? '');
   const [rawMapping, setMapping] = useState<Record<string, string>>(source.materializeMapping ?? {});
   const [showPreview, setShowPreview] = useState(false);
@@ -53,7 +58,20 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     const computed = (source.computedColumns ?? []).map(c => c.alias).filter(Boolean);
     return [...new Set([...parseSourceColumnNames(source.cachedSchema), ...computed])];
   }, [source.cachedSchema, source.computedColumns]);
-  const effectiveFields = selectedType ? resolveEffectiveFields(selectedType, allDocTypes) : [];
+  /**
+   * Поля выбранного типа — МЕМОИЗИРОВАННЫЕ. Считались инлайном, то есть давали НОВЫЙ массив на
+   * каждый рендер; стоя в зависимостях модели предпросмотра, они лишали её мемоизацию смысла —
+   * сравнение по ссылке не совпадало никогда (issue #870).
+   *
+   * Честно про цену: сколько это стоило, НЕ измерено. Проба показала, что при вводе в диалог
+   * модель не пересобиралась вовсе, то есть видимой платы на этом экране может и не быть. Правка
+   * не про скорость, а про то, чтобы мемо либо работало, либо его не стояло.
+   *
+   * Пустой список — модульная константа `NO_FIELDS`, причина — в комментарии у её объявления.
+   */
+  const effectiveFields = useMemo(
+    () => (selectedType ? resolveEffectiveFields(selectedType, allDocTypes) : NO_FIELDS),
+    [selectedType, allDocTypes]);
   // Union-тип (issue #320/#391): «заполняется ровно один вариант» — маппим один активный вариант,
   // а не все поля union разом. Материализатор кладёт один ключ на строку → корректный union-экземпляр.
   const isUnion = !!selectedType

@@ -23,7 +23,10 @@ export function evalComputed(expression: string, values: Record<string, unknown>
   if (!expression.trim()) return { value: undefined };
   try {
     const get = (key: string) => values[key];
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
+    // `new Function` здесь НАМЕРЕННО: вычисляемая колонка — это выражение, которое пишет админ,
+    // и другого способа его посчитать в браузере нет. Строка не приходит извне: источник — поле
+    // настройки, доступное только роли Admin. Директивы eslint тут не было бы толку — правила
+    // `no-implied-eval`/`no-new-func` в конфиге проекта не включены, и подавлять нечего.
     const fn = new Function('get', `"use strict"; return (${expression});`);
     const value = fn(get);
     return { value };
@@ -41,7 +44,8 @@ export function validateComputed(
   let syntaxError: string | undefined;
   if (expression.trim()) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
+      // `new Function` намеренно — см. пояснение в evalComputed выше; здесь выражение только
+      // компилируется, без запуска.
       new Function('get', `"use strict"; return (${expression});`);
     } catch (e) {
       syntaxError = e instanceof Error ? e.message : String(e);
