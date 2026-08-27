@@ -186,6 +186,13 @@ export function TemplatesPage() {
         persist(selectedTypeId, active.id);
       }
     }
+    // Зависимость ровно от `templates` — это и есть условие «приехал список, выбери в нём»
+    // (issue #870). Линт просит добавить `selectedTypeId`, `persist`, `selectedTemplate` и
+    // `setSelectedTemplate` — добавлять их НЕЛЬЗЯ: с `selectedTypeId` эффект побежит на смене типа
+    // ДО того, как приедут шаблоны нового, и авто-выбор возьмёт шаблон чужого типа из ещё не
+    // обновившегося списка; `persist` пересоздаётся каждый рендер, то есть эффект бежал бы на
+    // каждый. Смена типа и так меняет `templates` — у запроса свой ключ на тип.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templates]);
 
   function handleTypeChange(id: string) {

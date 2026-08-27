@@ -12,7 +12,7 @@ import { VariantPicker } from '@/features/document-sets/fields/ComplexFields';
 import { UnionDiscriminatorEditor } from './UnionDiscriminatorEditor';
 import { discriminatorProblem } from './unionDiscriminator';
 import { buildPreviewModel, getPath, type LeafCol } from './materializePreviewModel';
-import { resolveEffectiveFields } from '@/shared/api/schema';
+import { resolveEffectiveFields, type SchemaField } from '@/shared/api/schema';
 import { parseSourceColumnNames } from '@/shared/api/datasetHelpers';
 import { FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { isFileAttachment, formatBytes } from '@/shared/api/attachments';
@@ -23,6 +23,8 @@ import type { DataSetSource, MaterializeDiscriminator } from '@/shared/api/types
  * маппинг колонок → поля типа ОДИН РАЗ на источнике. Дальше поля документов, чьи тип совместим,
  * ссылаются на этот источник без маппинга (тип↔тип). Материализация — после всех обработок.
  */
+const NO_FIELDS: SchemaField[] = [];
+
 export function MaterializationDialog({ source, onClose }: { source: DataSetSource; onClose: () => void }) {
   const { data: allDocTypes = [] } = useListDocumentTypes();
   const [typeId, setTypeId] = useState(source.materializeTypeId ?? '');
@@ -53,7 +55,21 @@ export function MaterializationDialog({ source, onClose }: { source: DataSetSour
     const computed = (source.computedColumns ?? []).map(c => c.alias).filter(Boolean);
     return [...new Set([...parseSourceColumnNames(source.cachedSchema), ...computed])];
   }, [source.cachedSchema, source.computedColumns]);
-  const effectiveFields = selectedType ? resolveEffectiveFields(selectedType, allDocTypes) : [];
+  /**
+   * Поля выбранного типа — МЕМОИЗИРОВАННЫЕ. Считались инлайном, то есть давали НОВЫЙ массив на
+   * каждый рендер; стоя в зависимостях модели предпросмотра, они лишали её мемоизацию смысла —
+   * сравнение по ссылке не совпадало никогда (issue #870).
+   *
+   * Честно про цену: сколько это стоило, НЕ измерено. Проба показала, что при вводе в диалог
+   * модель не пересобиралась вовсе, то есть видимой платы на этом экране может и не быть. Правка
+   * не про скорость, а про то, чтобы мемо либо работало, либо его не стояло.
+   *
+   * Пустой список — модульной константой: инлайновый `[]` — новая ссылка каждый раз, ровно та
+   * нестабильная пустышка, что уже давала в проекте цикл memo → effect (issue #305).
+   */
+  const effectiveFields = useMemo(
+    () => (selectedType ? resolveEffectiveFields(selectedType, allDocTypes) : NO_FIELDS),
+    [selectedType, allDocTypes]);
   // Union-тип (issue #320/#391): «заполняется ровно один вариант» — маппим один активный вариант,
   // а не все поля union разом. Материализатор кладёт один ключ на строку → корректный union-экземпляр.
   const isUnion = !!selectedType
