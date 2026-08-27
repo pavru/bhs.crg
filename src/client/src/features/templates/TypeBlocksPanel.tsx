@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Editor from '@/shared/ui/CodeEditor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
-import { useTheme } from '@/shared/ui/ThemeProvider';
+import { useTheme } from '@/shared/ui/themeContext';
 import { useTypeBlocks, type TypeBlockFile, type TypeBlocksProblem } from '@/shared/api/typstUserLib';
 import { NavSection } from '@/shared/ui/ListDetailShell';
 import { FileCode, LogIn, Lock, AlertTriangle, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';

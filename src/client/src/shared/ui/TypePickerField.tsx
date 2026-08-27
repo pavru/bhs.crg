@@ -1,6 +1,7 @@
 import { createElement, useId, useRef, useState } from 'react';
 import { Boxes, Search, X } from 'lucide-react';
-import { TypePicker, typeIcon, type PickType } from './TypePicker';
+import { TypePicker, type PickType } from './TypePicker';
+import { typeIcon } from './typeIcons';
 import { OutlinedField } from './OutlinedField';
 
 /**

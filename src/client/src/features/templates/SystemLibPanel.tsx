@@ -1,6 +1,6 @@
 import Editor from '@/shared/ui/CodeEditor';
 import { registerTypstLanguage } from '@/shared/ui/typstLanguage';
-import { useTheme } from '@/shared/ui/ThemeProvider';
+import { useTheme } from '@/shared/ui/themeContext';
 import { useSystemTypstLib } from '@/shared/api/typstUserLib';
 import { Lock } from 'lucide-react';
 

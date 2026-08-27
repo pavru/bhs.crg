@@ -56,7 +56,8 @@ import { JsonPreview, FieldBuilder, DefaultValueCell, type FieldRegistries } fro
 import {
   TypeEditorProvider, useRegisterEditor, useTypeEditorRegistry, LeaveGuardDialog, SectionCard,
 } from './typeEditorShell';
-import { ListDetailShell, NavSearchInput, DetailHeader, useDirtyGuard } from '@/shared/ui/ListDetailShell';
+import { ListDetailShell, NavSearchInput, DetailHeader } from '@/shared/ui/ListDetailShell';
+import { useDirtyGuard } from '@/shared/ui/useDirtyGuard';
 import { useLeaveGuard } from '@/shared/ui/NavigationGuard';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { useRememberedSelection } from '@/shared/hooks/useRememberedSelection';

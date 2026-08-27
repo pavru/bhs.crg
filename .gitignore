@@ -57,3 +57,7 @@ backups/
 .ds-css/
 .ds-entry.tsx
 ds-bundle/
+
+# Настройки редактора: личные, у каждого свои. Правило записано после того, как `.vscode/settings.json`
+# уехал в master случайным `git add -A` (issue #858).
+.vscode/
