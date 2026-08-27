@@ -1,4 +1,4 @@
-import { createContext, useContext, useRef, useEffect, useState, useMemo } from 'react';
+import { createContext, useContext, useRef, useEffect, useLayoutEffect, useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
@@ -22,11 +22,16 @@ export function useRegisterEditor(key: string, dirty: boolean, save: () => Promi
   const saveRef = useRef(save);
   const resetRef = useRef(reset);
   /**
- * Свежий колбэк для отложенного вызова. Обновляется ЭФФЕКТОМ, а не присваиванием в рендере
- * (issue #858): рендер обязан быть чистым, а запись в ref — побочное действие, которое к тому же
- * случалось бы и на брошенном рендере (StrictMode, прерванный конкурентный проход).
- */
-  useEffect(() => {
+   * Свежий колбэк для отложенного вызова. Обновляется ЭФФЕКТОМ, а не присваиванием в рендере
+   * (issue #858): рендер обязан быть чистым, а запись в ref — побочное действие, которое к тому же
+   * случалось бы и на брошенном рендере (StrictMode, прерванный конкурентный проход).
+   *
+   * Эффект именно СЛОЙНЫЙ (useLayoutEffect). Обычный отложен до после отрисовки, и между коммитом и
+   * его срабатыванием ref держит ПРЕДЫДУЩИЙ колбэк — с прежним состоянием формы. Нажатие
+   * «Сохранить» в шапке, попавшее в эту щель, отправило бы прежние значения. Слойный эффект
+   * выполняется в том же задании, что и коммит: события в промежуток не попадают, щели нет.
+   */
+  useLayoutEffect(() => {
     saveRef.current = save;
     resetRef.current = reset;
   });

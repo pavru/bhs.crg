@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import { AlertTriangle, AlertCircle, CheckCircle2, Circle, CircleDot, Database, ScanText, Info, ChevronDown, ChevronRight, FunctionSquare } from 'lucide-react';
 import { Markdown } from '@/shared/ui/Markdown';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
@@ -352,7 +352,9 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
   }
 
   // Регистрируем актуальную функцию сохранения для родителя (guard смены вкладки).
-  useEffect(() => { saveRef.current = handleSaveCore; return () => { saveRef.current = null; }; });
+  // Эффект СЛОЙНЫЙ: обычный отложен до после отрисовки, и в щель между коммитом и ним смена вкладки
+  // сохранила бы прежние значения реквизитов (issue #858).
+  useLayoutEffect(() => { saveRef.current = handleSaveCore; return () => { saveRef.current = null; }; });
 
   if (schemaFields.length === 0)
     return <div className="text-sm text-fg4 py-4 text-center">Схема полей не задана.</div>;
