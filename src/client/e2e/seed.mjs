@@ -17,6 +17,10 @@
 //
 // Запуск:  SEED_API=http://localhost:5000 node e2e/seed.mjs
 // Печатает в конце строки `SMOKE_*=...` — их работа CI кладёт в окружение прогонов.
+//
+// ⚠️ Имена этих строк не должны совпадать с переменными, объявленными на уровне работы в
+// `ci.yml` (сегодня там `SMOKE_BASE`): переменная работы сильнее дописанной в `$GITHUB_ENV`, и
+// совпавшее имя приняли бы, дописали и МОЛЧА проигнорировали.
 
 const API = (process.env.SEED_API || 'http://localhost:5000').replace(/\/$/, '');
 const ADMIN_EMAIL = process.env.SMOKE_EMAIL || 'admin@bhs.local';
@@ -86,6 +90,8 @@ async function ensureUser() {
   console.log(`  + пользователь ${USER_EMAIL}`);
 }
 
+// Сверять здесь нечего: стройка ищется по имени, а имя — единственное её поле. Как только у
+// посева появится стройка с чем-то ещё, этот случай станет таким же, как у типов ниже.
 async function ensureConstruction() {
   const all = await api('GET', '/constructions');
   const found = all.find(c => c.name === 'Демо-стройка');
@@ -101,15 +107,18 @@ async function ensureConstruction() {
  * что ищет `types-smoke`.
  */
 async function ensurePrimitiveType() {
-  const all = await api('GET', '/primitive-types');
-  const found = all.find(t => t.code === 'INT_SEED');
-  if (found) return found.id;
-  const created = await api('POST', '/primitive-types', {
+  const body = {
     name: 'Цело число', code: 'INT_SEED', baseType: 'number',
     description: 'Целое число без дробной части',
     constraints: JSON.stringify({ integer: true }),
     allowedTags: null,
-  });
+  };
+  const found = (await api('GET', '/primitive-types')).find(t => t.code === 'INT_SEED');
+  if (found) {
+    await api('PUT', `/primitive-types/${found.id}`, body);
+    return found.id;
+  }
+  const created = await api('POST', '/primitive-types', body);
   console.log('  + тип поля «Цело число»');
   return created.id;
 }
@@ -148,9 +157,23 @@ async function findType(code) {
   return all.find(t => t.code === code) ?? null;
 }
 
+/**
+ * Заводит тип или ДОВОДИТ найденный до нужного состояния — схему и группу пишем всегда.
+ *
+ * «Код на месте — значит всё на месте» здесь неверно, и это не теория: создание типа и простановка
+ * группы — два запроса. Упади второй (сеть, 5xx, обрыв), и всякий следующий запуск видел бы код,
+ * возвращался сразу и оставлял тип без группы НАВСЕГДА, отчитываясь при этом «посев готов». Тем же
+ * способом протухала бы любая правка схемы в этом файле: посев зелёный, прогоны красные на старых
+ * данных, а искать причину в посеве догадаешься последним. Ровно на этом шаблон обманул меня в
+ * первой редакции скрипта.
+ */
 async function ensureType({ code, name, kind, schema, group }) {
   const found = await findType(code);
-  if (found) return found.id;
+  if (found) {
+    await api('PUT', `/document-types/${found.id}/schema`, { schema: JSON.stringify(schema) });
+    if (group) await api('PUT', `/document-types/${found.id}/group`, { group });
+    return found.id;
+  }
   const created = await api('POST', '/document-types', {
     name, code, kind, parentId: null, schema: JSON.stringify(schema), isAbstract: false,
   });
