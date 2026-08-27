@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type ReactNode } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import {
   Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check,
   AlertTriangle, Replace,
@@ -74,31 +74,36 @@ export interface MaterialRow { key: string; label: string; idValues: string[] }
 
 // ─── Модалка выбора/создания документа для связывания ───────────────────────────
 
-/** Выбор/создание документа качества для набора материалов. Переиспользуется экраном контроля
- *  связок (issue #555) — там материал приходит из самой связки, а не из набора данных. */
-export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, materials, onPick }: {
+interface LinkPickerModalProps {
   open: boolean; onClose: () => void; allDocTypes: DocumentType[];
   scope: CatalogScope; scopeId: string | null; materials: MaterialRow[];
   onPick: (doc: QualityDocument) => void;
-}) {
+}
+
+/** Выбор/создание документа качества для набора материалов. Переиспользуется экраном контроля
+ *  связок (issue #555) — там материал приходит из самой связки, а не из набора данных.
+ *
+ *  <p>Тело монтируется по открытию (issue #858): вкладка, строка поиска и тип документа задаются
+ *  инициализаторами состояния, а не эффектом «открылось — сбрось и заполни». Эффектом первый рендер
+ *  успевал показать вкладку и запрос от ПРОШЛОГО открытия.</p> */
+export function LinkPickerModal(props: LinkPickerModalProps) {
+  /**
+   * Выбранный тип для веб-поиска живёт в ОБЁРТКЕ, а не в теле (поймано ревью PR #862).
+   *
+   * <p>Прежний эффект сбрасывал при открытии всё, кроме него: `setSearchType(prev => prev || …)`
+   * — то есть выбор человека переживал закрытие намеренно. Тело монтируется по открытию, и
+   * инициализатор вернул бы «Сертификат соответствия» на каждом открытии; связывают же материалы
+   * подряд, десятками, и выбор пришлось бы делать заново на каждый.</p>
+   */
+  const [searchType, setSearchType] = useState('');
+  return props.open
+    ? <LinkPickerModalBody {...props} searchType={searchType} setSearchType={setSearchType} />
+    : null;
+}
+
+function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, onPick, searchType, setSearchType }:
+  LinkPickerModalProps & { searchType: string; setSearchType: (v: string) => void }) {
   const count = materials.length;
-  const [tab, setTab] = useState<'pick' | 'search' | 'create'>('pick');
-  const [includeExpired, setIncludeExpired] = useState(false);
-  // Единая строка поиска: фильтрует библиотеку и используется для веб-поиска.
-  const [query, setQuery] = useState('');
-  // Библиотека грузится ЦЕЛИКОМ, без фильтра по области, и это не небрежность: scope здесь говорит,
-  // где будет заведена СВЯЗКА (и где создастся новый документ на вкладке «Создать вручную»), а не из
-  // чего можно выбирать. Пока областью по умолчанию была System, разница не замечалась; с дефолтом
-  // «комплект» (#587) фильтр по области оставил бы пикер пустым при полной библиотеке на System — и
-  // пользователь пошёл бы заново импортировать из интернета то, что у него уже есть.
-  // Релевантность к материалу считается на клиенте.
-  const { data: docs = [], isLoading } = useListQualityDocs({ enabled: open });
-
-  const qualityTypes = useMemo(
-    () => allDocTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract && typeHasTag(dt, FUNCTIONAL_TAG.typeQualityDocument, allDocTypes)),
-    [allDocTypes],
-  );
-
   // Поисковый запрос формируем из выбранного материала (артикул + наименование).
   const baseQuery = useMemo(() => {
     const m = materials[0];
@@ -106,7 +111,30 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
     return Array.from(new Set(m.idValues.map(s => s.trim()).filter(Boolean))).join(' ');
   }, [materials]);
 
-  const [searchType, setSearchType] = useState('');
+  const [tab, setTab] = useState<'pick' | 'search' | 'create'>('pick');
+  const [includeExpired, setIncludeExpired] = useState(false);
+  // Единая строка поиска: фильтрует библиотеку и используется для веб-поиска. Заполняется
+  // материалом ПРИ ЗАВЕДЕНИИ состояния — тело монтируется на открытие, так что это и есть «сброс
+  // и инициализация при открытии», только без эффекта (issue #858).
+  const [query, setQuery] = useState(baseQuery);
+  // Библиотека грузится ЦЕЛИКОМ, без фильтра по области, и это не небрежность: scope здесь говорит,
+  // где будет заведена СВЯЗКА (и где создастся новый документ на вкладке «Создать вручную»), а не из
+  // чего можно выбирать. Пока областью по умолчанию была System, разница не замечалась; с дефолтом
+  // «комплект» (#587) фильтр по области оставил бы пикер пустым при полной библиотеке на System — и
+  // пользователь пошёл бы заново импортировать из интернета то, что у него уже есть.
+  // Релевантность к материалу считается на клиенте.
+  const { data: docs = [], isLoading } = useListQualityDocs({ enabled: true });
+
+  const qualityTypes = useMemo(
+    () => allDocTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract && typeHasTag(dt, FUNCTIONAL_TAG.typeQualityDocument, allDocTypes)),
+    [allDocTypes],
+  );
+
+  // Пока человек тип не выбрал — «сертификат», иначе первый доступный. Умолчание вычисляем, а не
+  // записываем в состояние: типы могут доехать позже, чем откроется окно.
+  const effectiveSearchType = searchType
+    || (qualityTypes.find(t => /сертификат/i.test(t.name)) ?? qualityTypes[0])?.id
+    || '';
   const [results, setResults] = useState<SearchCandidate[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [importingUrl, setImportingUrl] = useState<string | null>(null);
@@ -114,15 +142,6 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
   // Определения типов полей нужны распознаванию импортированного скана (issue #654).
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const { data: enumTypes = [] } = useListEnumTypes();
-
-  // Сброс и инициализация при открытии: строку поиска заполняем материалом.
-  useEffect(() => {
-    if (!open) return;
-    setTab('pick'); setIncludeExpired(false);
-    setResults(null); setSearchError(''); setQuery(baseQuery);
-    setSearchType(prev => prev || (qualityTypes.find(t => /сертификат/i.test(t.name)) ?? qualityTypes[0])?.id || '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
 
   // Взвешенные токены запроса (из материала или ручного ввода).
   const queryTokens = useMemo(() => weighted(query), [query]);
@@ -158,10 +177,10 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
   }
 
   async function importAndLink(c: SearchCandidate) {
-    if (!searchType) { setSearchError('Выберите тип документа'); return; }
+    if (!effectiveSearchType) { setSearchError('Выберите тип документа'); return; }
     setImportingUrl(c.url); setSearchError('');
     try {
-      let doc = await importQualityDocFromUrl({ url: c.url, title: c.title, documentTypeId: searchType, scope, scopeId });
+      let doc = await importQualityDocFromUrl({ url: c.url, title: c.title, documentTypeId: effectiveSearchType, scope, scopeId });
       // Автоматически распознаём скан импортированного документа (best-effort).
       // Определения типов — чтобы распознавание увидело варианты перечислений и вернуло КОДЫ,
       // а не подписи (issue #654): формы здесь нет, расхождение показать некому.
@@ -181,7 +200,7 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
     : `Документ качества для ${count} материал(ов)`;
 
   return (
-    <Modal open={open} onOpenChange={o => { if (!o) onClose(); }} title={title} extraWide>
+    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={title} extraWide>
       <div className="flex gap-1 mb-3 bg-muted rounded-lg p-0.5 w-fit">
         {(['pick', 'search', 'create'] as const).map(t => (
           <button key={t} onClick={() => { if (t === 'search') enterSearch(); else setTab(t); }}
@@ -253,7 +272,7 @@ export function LinkPickerModal({ open, onClose, allDocTypes, scope, scopeId, ma
             <TypePickerField className="w-64" aria-label="Тип документа качества" title="Тип документа качества"
               placeholder="Тип"
               types={qualityTypes.map<PickType>(t => ({ id: t.id, name: t.name, code: t.code, section: 'Документы качества' }))}
-              value={searchType || undefined}
+              value={effectiveSearchType || undefined}
               onChange={id => { if (id) setSearchType(id); }} />
             {/* Ведущей лупы здесь нет (issue #668): рядом стоял селектор типа со своей замыкающей
                 лупой — обещанием модалки поиска (#565), — и два одинаковых значка подряд означали

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { TypePicker, type PickType } from '@/shared/ui/TypePicker';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -9,26 +9,33 @@ import type { Construction } from '@/shared/api/types';
 
 interface TargetSet { id: string; name: string; constructionId: string }
 
-/**
- * Поток «Скопировать документ в другой комплект» (issue #283, фаза C): пикер комплекта (в стиле
- * TypePicker, подпись «Стройка › Раздел») → превью затронутых ссылок (dry-run) в диалоге ДО
- * подтверждения → копирование → тост с переходом. Стратегия B «умная очистка» (backend);
- * опция A «снимок» — фаза C2.
- */
-export function CopyDocumentDialog({ open, onClose, setId, instance, constructions }: {
+interface CopyDocumentDialogProps {
   open: boolean;
   onClose: () => void;
   setId: string;
   instance: { id: string; name: string };
   constructions: Construction[];
-}) {
+}
+
+/**
+ * Поток «Скопировать документ в другой комплект» (issue #283, фаза C): пикер комплекта (в стиле
+ * TypePicker, подпись «Стройка › Раздел») → превью затронутых ссылок (dry-run) в диалоге ДО
+ * подтверждения → копирование → тост с переходом. Стратегия B «умная очистка» (backend);
+ * опция A «снимок» — фаза C2.
+ *
+ * <p>Тело живёт ровно пока поток открыт (issue #858): выбранный комплект-цель заводится заново на
+ * каждое открытие, и эффекта «закрылось — забудь цель» больше не нужно.</p>
+ */
+export function CopyDocumentDialog(props: CopyDocumentDialogProps) {
+  return props.open ? <CopyDocumentDialogBody {...props} /> : null;
+}
+
+function CopyDocumentDialogBody({ onClose, setId, instance, constructions }: CopyDocumentDialogProps) {
   const navigate = useNavigate();
   const toast = useToast();
   const copyMutation = useCopyDocument();
   const [target, setTarget] = useState<TargetSet | null>(null);
   const targetRef = useRef<TargetSet | null>(null);
-
-  useEffect(() => { if (!open) { setTarget(null); targetRef.current = null; } }, [open]);
 
   // Плоский список комплектов для пикера (текущий исключаем — копирование только в другой).
   const options: PickType[] = [];
@@ -62,7 +69,7 @@ export function CopyDocumentDialog({ open, onClose, setId, instance, constructio
   return (
     <>
       <TypePicker
-        open={open && target === null}
+        open={target === null}
         onOpenChange={o => { if (!o && !targetRef.current) onClose(); }}
         title="Скопировать в комплект"
         recentKey="copy-target-set"
@@ -71,7 +78,7 @@ export function CopyDocumentDialog({ open, onClose, setId, instance, constructio
       />
 
       <ConfirmDialog
-        open={open && target !== null}
+        open={target !== null}
         onOpenChange={o => { if (!o) { setTarget(null); targetRef.current = null; onClose(); } }}
         title={`Скопировать «${instance.name}» в «${target?.name ?? ''}»?`}
         description={
