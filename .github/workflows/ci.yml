@@ -4,8 +4,8 @@
 # `claude-code-review` читал диф. Единственной защитой был ручной прогон в сессии — то есть её
 # отсутствие в любом PR, слитом без него.
 #
-# Две работы идут параллельно и падают независимо: сломанный клиент не должен прятать backend и
-# наоборот.
+# Работы идут параллельно и падают независимо: сломанный клиент не должен прятать backend и
+# наоборот. Их четыре — backend, frontend, скрипт обновления и живые прогоны в браузере (#872).
 #
 # ВАЖНО про статус этих проверок: сами по себе они СООБЩАЮТ, а не запрещают. Пока в настройках
 # репозитория не включены required status checks на master, красный прогон не мешает ни слить PR,
@@ -129,3 +129,174 @@ jobs:
 
       - name: Проверка логики update.sh
         run: bash deploy/update.tests.sh
+
+  e2e:
+    name: Живые прогоны (браузер)
+    runs-on: ubuntu-latest
+
+    # Единственная работа, которая поднимает ПРИЛОЖЕНИЕ ЦЕЛИКОМ и смотрит на него браузером.
+    # Юнит-тесты и типы её не заменяют: за девять порций линт-долга (#858) именно эти прогоны
+    # нашли восемь дефектов интерфейса, невидимых для `tsc` и vitest.
+    #
+    # ⚠️ ЭТА РАБОТА ГЕЙТИТ ВЫПУСК. `release.yml` спрашивает у API итог ПРОГОНА ЦЕЛИКОМ
+    # (`conclusion == success`) и различать работы не умеет. Значит её падение останавливает выпуск
+    # — включая падение по внешней причине: образ MinIO тянется с Docker Hub анонимно, Typst и
+    # браузер качаются из сети. Лекарство дешёвое и его надо знать заранее: перезапустить упавшую
+    # работу («Re-run failed jobs») — итог прогона пересчитается. Не молчаливое поведение: оно
+    # названо здесь, в CLAUDE.md и в e2e/README.md.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: xxsystem
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      # Приложение поднимается на своих портах — не на 5000/5173, чтобы работа не зависела от
+      # умолчаний машины разработчика и чтобы адрес в прогонах был задан явно.
+      #
+      # ⚠️ Имена здесь и имена, которые печатает посев, пересекаться НЕ ДОЛЖНЫ: переменная уровня
+      # работы сильнее той, что шаг дописал в $GITHUB_ENV. Напечатай посев `SMOKE_BASE` — его
+      # значение приняли бы, дописали и МОЛЧА проигнорировали, а прогоны пошли бы по здешнему
+      # адресу. Сегодня посев печатает только `SMOKE_CONSTRUCTION_ID`; список подрастёт, когда в
+      # CI поедут остальные прогоны, — вот тогда это и выстрелит, если забыть.
+      SMOKE_BASE: http://localhost:4173
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/client/package-lock.json
+
+      # MinIO поднимаем шагом, а не сервисом: сервисам GitHub нельзя передать аргументы команды
+      # (`server /data`), а образ minio без них не стартует.
+      - name: Хранилище MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio server /data
+
+      # Проверка Typst-блоков в редакторе типов зовёт компилятор на сервере. Без него эндпоинт
+      # отвечает ошибкой, и проверка краснеет — не из-за регресса, а из-за отсутствия бинаря.
+      #
+      # Версию ЧИТАЕМ из deploy/Dockerfile.api, а не дублируем числом. Два независимых литерала
+      # разъезжаются молча: подняли версию в образе — CI продолжил бы проверять блоки прежним
+      # Typst, и шаблон с новым синтаксисом зеленел бы здесь и падал в поставке (а убранный
+      # синтаксис — наоборот). Проверять надо ТЕМ ЖЕ компилятором, что поедет в продакшн.
+      - name: Typst CLI
+        run: |
+          TYPST_VERSION=$(sed -n 's/^ARG TYPST_VERSION=//p' deploy/Dockerfile.api | head -1)
+          if [ -z "$TYPST_VERSION" ]; then
+            echo "::error::В deploy/Dockerfile.api не нашлась строка ARG TYPST_VERSION= — версию Typst взять неоткуда"
+            exit 1
+          fi
+          echo "версия из образа API: $TYPST_VERSION"
+          curl -fsSL --retry 3 --retry-delay 2 "https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-x86_64-unknown-linux-musl.tar.xz" -o /tmp/typst.tar.xz
+          tar -xJf /tmp/typst.tar.xz -C /tmp
+          sudo mv /tmp/typst-x86_64-unknown-linux-musl/typst /usr/local/bin/typst
+          sudo chmod +x /usr/local/bin/typst
+          typst --version
+
+      - name: Кеш пакетов NuGet
+        uses: actions/cache@v4
+        with:
+          key: nuget-${{ runner.os }}-${{ hashFiles('src/server/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+          path: ~/.nuget/packages
+
+      - name: Сборка сервера
+        run: dotnet publish src/server/BHS.CRG.Api -c Release -o ${{ runner.temp }}/api
+
+      - name: Установка зависимостей клиента
+        working-directory: src/client
+        run: npm ci
+
+      # Playwright ставится ТОЛЬКО здесь и БЕЗ записи в package.json (`--no-save`): остальным
+      # работам он не нужен, а в общем package-lock он утяжелял бы каждую из них.
+      - name: Playwright и браузер
+        working-directory: src/client
+        run: |
+          npm i --no-save playwright@1.62.1
+          npx playwright install --with-deps chromium
+
+      - name: Сборка клиента
+        working-directory: src/client
+        run: npm run build
+
+      # Запускаем ИЗ каталога публикации. Запуск по полному пути к dll оставляет корнем содержимого
+      # текущий каталог — приложение не находит свой appsettings.json, поднимается на умолчаниях и
+      # выпускает токены без `aud`. Снаружи это выглядит как «прогоны не могут войти», и на поиск
+      # настоящей причины уходит час (проверено).
+      - name: Запуск сервера
+        working-directory: ${{ runner.temp }}/api
+        env:
+          ASPNETCORE_ENVIRONMENT: Production
+          ASPNETCORE_URLS: http://localhost:5055
+          ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=bhs_crg_e2e;Username=postgres;Password=xxsystem
+          # Ключ подписи — одноразовый и живёт ровно столько, сколько работа. Секретом он не
+          # является: база и адрес существуют только внутри этого прогона.
+          Jwt__Key: ci-only-signing-key-for-live-smokes-not-a-secret
+          BlobStorage__Endpoint: 127.0.0.1:9000
+          BlobStorage__AccessKey: minioadmin
+          BlobStorage__SecretKey: minioadmin
+          BlobStorage__Bucket: bhs-crg-e2e
+          AllowedOrigins: http://localhost:4173
+          App__PublicUrl: http://localhost:4173
+          TYPST_PATH: /usr/local/bin/typst
+        run: |
+          nohup dotnet ./BHS.CRG.Api.dll > ${{ runner.temp }}/api.log 2>&1 &
+          echo "сервер запущен, ждём в шаге посева"
+
+      # Посев ждёт готовности сервера сам и печатает переменные прогонов — их кладём в окружение
+      # работы. Данные синтетические: репозиторий публичный, дамп рабочей базы сюда нельзя.
+      - name: Посев данных
+        working-directory: src/client
+        env:
+          SEED_API: http://localhost:5055
+        run: |
+          # pipefail обязателен: код возврата конвейера — это код `tee`, то есть НОЛЬ. Без него
+          # упавший посев проходит молча, и работа краснеет позже и не там (или зеленеет на
+          # полупустой базе, где проверки сообщают «проверять нечего»).
+          set -o pipefail
+          node e2e/seed.mjs | tee ${{ runner.temp }}/seed.out
+          grep '^SMOKE_' ${{ runner.temp }}/seed.out >> "$GITHUB_ENV"
+
+      # Прогоны идут по СОБРАННОМУ клиенту, а не по dev-серверу: проверять надо то, что поедет
+      # в продакшн. Прокси на API у preview свой — адрес берётся из API_TARGET.
+      - name: Запуск клиента
+        working-directory: src/client
+        env:
+          API_TARGET: http://localhost:5055
+        run: |
+          nohup npx vite preview --port 4173 --strictPort > ${{ runner.temp }}/web.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf -o /dev/null http://localhost:4173/; then echo "клиент отвечает"; exit 0; fi
+            sleep 2
+          done
+          echo "клиент не поднялся за минуту"; cat ${{ runner.temp }}/web.log; exit 1
+
+      - name: Живые прогоны
+        working-directory: src/client
+        run: npm run test:e2e:ci
+
+      # Разбирать красный прогон по одной строке «✗ …» невозможно: причина обычно в логе сервера.
+      - name: Логи при провале
+        if: failure()
+        run: |
+          echo '── сервер ──'; tail -n 200 ${{ runner.temp }}/api.log || true
+          echo '── клиент ──'; tail -n 50 ${{ runner.temp }}/web.log || true

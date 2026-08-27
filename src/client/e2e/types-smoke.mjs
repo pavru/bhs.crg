@@ -170,4 +170,7 @@ await check('template-params-parsed-from-declaration', async () => {
   await browser.close();
 }
 
-process.exit(summarize('Smoke редакторов типов и шаблонов'));
+// Код возврата, а не process.exit(): тот обрывает недописанный stdout. Остальные семь прогонов
+// так и делают, этот отставал — и отставание стало заметно, когда набор поехал в CI, где итог
+// уходит в лог, а не на терминал: терялись бы ровно те строки, ради которых лог и читают.
+process.exitCode = summarize('Smoke редакторов типов и шаблонов');

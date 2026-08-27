@@ -13,6 +13,10 @@ export const BASE = process.env.SMOKE_BASE || 'http://localhost:5173';
 export const EMAIL = process.env.SMOKE_EMAIL || 'admin@bhs.local';
 export const PASSWORD = process.env.SMOKE_PASSWORD || 'Demo12345!';
 
+/**
+ * Путь к пакету Playwright, если он лежит в npx-кеше. `null` — не нашли: значит попробуем
+ * обычный `import('playwright')` (так пакет стоит в CI, где npx-кеша нет вовсе).
+ */
 export function findPlaywright() {
   if (process.env.PLAYWRIGHT_PKG) return process.env.PLAYWRIGHT_PKG;
   const npx = path.join(homedir(), 'AppData/Local/npm-cache/_npx');
@@ -20,9 +24,15 @@ export function findPlaywright() {
     const p = path.join(npx, hash, 'node_modules/playwright/index.js');
     if (existsSync(p)) return p;
   }
-  throw new Error('Playwright не найден в npx-кеше — задайте PLAYWRIGHT_PKG');
+  return null;
 }
 
+/**
+ * Путь к исполняемому файлу браузера, если он найден в локальной установке. `null` — не нашли:
+ * тогда браузер выбирает сам Playwright (в CI он ставит его себе `playwright install chromium`).
+ * Ищем ТОЛЬКО windows-сборку headless shell: это путь для машины разработчика, где Playwright
+ * приехал через npx и обычно ждёт версию браузера свежее установленной.
+ */
 export function findChromium() {
   if (process.env.CHROMIUM_EXE) return process.env.CHROMIUM_EXE;
   const root = path.join(homedir(), 'AppData/Local/ms-playwright');
@@ -33,14 +43,21 @@ export function findChromium() {
     const exe = path.join(root, b, 'chrome-headless-shell-win64/chrome-headless-shell.exe');
     if (existsSync(exe)) return exe;
   }
-  throw new Error('chrome-headless-shell не найден — задайте CHROMIUM_EXE');
+  return null;
 }
 
-/** Запускает браузер той сборкой, что реально установлена (версия Playwright обычно ждёт свежее). */
+/**
+ * Запускает браузер. Два разных окружения:
+ *  - машина разработчика: Playwright из npx-кеша + УЖЕ установленная сборка браузера;
+ *  - CI (linux): пакет в node_modules, браузер ставит сам Playwright — путь не подставляем.
+ * Оба находятся сами, оба переопределяются `PLAYWRIGHT_PKG` / `CHROMIUM_EXE`.
+ */
 export async function launchBrowser() {
-  const pw = await import(pathToFileURL(findPlaywright()).href);
+  const pkg = findPlaywright();
+  const pw = await import(pkg ? pathToFileURL(pkg).href : 'playwright');
   const { chromium } = pw.default ?? pw;   // пакет CJS — интероп кладёт экспорт в default
-  return chromium.launch({ executablePath: findChromium(), headless: true });
+  const executablePath = findChromium();
+  return chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
 }
 
 /**
