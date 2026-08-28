@@ -21,7 +21,7 @@
     "test:e2e:pages": "node e2e/pages-smoke.mjs",
     "test:e2e:types": "node e2e/types-smoke.mjs",
     "test:e2e:seed": "node e2e/seed.mjs",
-    "test:e2e:ci": "node e2e/run-suites.mjs keyboard routing types settings shared-ui pages"
+    "test:e2e:ci": "node e2e/run-suites.mjs keyboard routing types settings shared-ui pages fields"
   },
   "//engines": "Нижнюю границу Node задаёт react-router 8 (>=22.22.0). Соблюдение обеспечивает engine-strict в .npmrc: ниже порога npm ci падает с EBADENGINE. Образ сборки — node:22-alpine, см. deploy/Dockerfile.web.",
   "engines": {

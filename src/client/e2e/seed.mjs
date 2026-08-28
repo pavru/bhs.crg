@@ -166,20 +166,103 @@ async function findType(code) {
  * способом протухала бы любая правка схемы в этом файле: посев зелёный, прогоны красные на старых
  * данных, а искать причину в посеве догадаешься последним. Ровно на этом шаблон обманул меня в
  * первой редакции скрипта.
+ *
+ * ⚠️ ИМЕНА ТИПОВ несут суффикс «(посев)» и обязаны сортироваться ПОСЛЕ «АОСР (посев)». Обе части
+ * не украшение:
+ *
+ * 1. Имя типа документа уникально НАРАВНЕ с кодом (`EnsureUnique`). Посев ищет свой тип по КОДУ,
+ *    не находит и заводит новый — а тот падает с 400 «тип с именем уже существует». В рабочей базе
+ *    восемь имён из этого файла заняты (проверено запросом): «АОСР», «Организация», «Приказ»,
+ *    «Кабельный журнал», «Проект»… Без суффикса посев на живой базе умирал бы на первом же из них,
+ *    успев переписать схемы предыдущих, — а README зовёт натравливать его на свою базу.
+ * 2. Страница типов выбирает ПЕРВЫЙ по имени (`localeCompare('ru')`) сама, и `types-smoke` смотрит
+ *    сводку полей именно у него, ожидая АОСР. «Акт (основа)» сортировался перед ним (к < о), и
+ *    прогон в CI упал 4/9: открывался тип, где нет ни составного поля, ни поля из реестра.
  */
-async function ensureType({ code, name, kind, schema, group }) {
+async function ensureType({ code, name, kind, schema, group, parentId = null }) {
   const found = await findType(code);
   if (found) {
+    // Родителя доводим отдельно и по той же причине: он появился у типа не сразу (наследование
+    // включили ради «Основы»), и база, посеянная прежней редакцией скрипта, осталась бы без него.
+    if ((found.parentId ?? null) !== parentId)
+      await api('PUT', `/document-types/${found.id}`, { name, code, parentId });
     await api('PUT', `/document-types/${found.id}/schema`, { schema: JSON.stringify(schema) });
     if (group) await api('PUT', `/document-types/${found.id}/group`, { group });
     return found.id;
   }
   const created = await api('POST', '/document-types', {
-    name, code, kind, parentId: null, schema: JSON.stringify(schema), isAbstract: false,
+    name, code, kind, parentId, schema: JSON.stringify(schema), isAbstract: false,
   });
   if (group) await api('PUT', `/document-types/${created.id}/group`, { group });
   console.log(`  + тип «${name}»`);
   return created.id;
+}
+
+// ── Файлы-фикстуры ────────────────────────────────────────────────────────────
+//
+// Оба файла СОБИРАЮТСЯ ЗДЕСЬ, а не лежат бинарями рядом. Причин две. Первая: бинарь в репозитории
+// нечем прочитать глазами — что в нём, приходится верить имени файла, а посев должен быть виден
+// целиком. Вторая: он мгновенно перестаёт быть очевидно синтетическим, а репозиторий публичный, и
+// «маленький скан для проверки» однажды окажется настоящим.
+
+/** PNG 64×64: светлый квадрат в синей рамке. Сгенерирован раз и вставлен как есть — 146 байт. */
+const LOGO_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAWUlEQVR42u3aMREAMAgEQZREGOow'
+  + 'mT4ioGGyP2dg+4+TtboAABgE3CUDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+  + 'AAAAAOgBPHcBPgQ8h5hICnAHHpwAAAAASUVORK5CYII=';
+
+/**
+ * Одностраничный PDF. Смещения объектов в таблице xref считаются при сборке: вписанные числом,
+ * они разъезжаются от любой правки текста, и на выходе получается файл, который читалка молча
+ * покажет пустым.
+ */
+function makePdf(title) {
+  const stream = `BT /F1 18 Tf 60 760 Td (${title}) Tj ET\n`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] '
+      + '/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${stream.length} >>\nstream\n${stream}endstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = [];
+  objects.forEach((body, i) => {
+    offsets.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
+    + offsets.map(o => `${String(o).padStart(10, '0')} 00000 n \n`).join('')
+    + `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(pdf, 'latin1');
+}
+
+/**
+ * Лежит ли файл в хранилище НА САМОМ ДЕЛЕ. Значение в базе этого не доказывает: хранилище живёт в
+ * контейнере и пересоздаётся отдельно от Postgres (`docker compose down -v`), а запись с путём
+ * при этом остаётся. Посев тогда отчитался бы «готов», ничего не загрузив, а прогон упал бы с
+ * «картинка не разобралась» — сообщением, которое показывает на компонент, а не на пустое хранилище.
+ */
+async function blobExists(blobPath) {
+  const res = await fetch(`${API}/api/attachments?path=${encodeURIComponent(blobPath)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await res.arrayBuffer().catch(() => {});   // тело дочитываем, иначе соединение висит
+  return res.ok;
+}
+
+/** Многочастная отправка файла. FormData/Blob есть в Node 18+ — отдельная зависимость не нужна. */
+async function upload(path, bytes, fileName, mimeType) {
+  const form = new FormData();
+  form.append('file', new Blob([bytes], { type: mimeType }), fileName);
+  const res = await fetch(`${API}/api${path}`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form,
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`POST ${path} (файл) → ${res.status} ${text.slice(0, 300)}`);
+  return JSON.parse(text);
 }
 
 /**
@@ -188,23 +271,51 @@ async function ensureType({ code, name, kind, schema, group }) {
  * кандидатов нет вовсе. Тогда на странице наборов не появляется даже кнопка «Данные системы», а
  * диалогу источника нечего подставлять — обе проверки `pages-smoke` сообщили бы «проверять нечего».
  */
-async function ensureCatalogEntries(orgTypeId) {
-  const existing = await api('GET', '/common-data/for-scope?scope=System');
-  const orgs = [
+async function findEntry(displayName, compositeTypeId) {
+  const all = await api('GET', '/common-data/for-scope?scope=System');
+  return all.find(e => e.displayName === displayName
+    && (!compositeTypeId || e.compositeTypeId === compositeTypeId)) ?? null;
+}
+
+/**
+ * Запись каталога: заводит или ДОВОДИТ данные — по той же причине, что типы и документы выше.
+ *
+ * Совпадение ищется по имени И ТИПУ. Одного имени мало, и это не теория: доводка — это PUT,
+ * который заменяет данные и алиасы ЦЕЛИКОМ, а посев разрешено натравливать на свою базу. «Иванов
+ * И. И.» или «ПУЭ 7» там встречаются сами собой; совпади имя — живую запись молча заменило бы
+ * двухполевой синтетикой, и узнать об этом было бы неоткуда. Тип посева свой, поэтому чужая
+ * запись под тем же именем просто не считается найденной.
+ */
+async function ensureEntry(compositeTypeId, displayName, data) {
+  const found = await findEntry(displayName, compositeTypeId);
+  if (found) {
+    await api('PUT', `/common-data/${found.id}`, {
+      displayName, data: JSON.stringify(data), aliases: [],
+    });
+    return found.id;
+  }
+  const created = await api('POST', '/common-data', {
+    displayName, compositeTypeId, data: JSON.stringify(data),
+    scope: 'System', scopeId: null, aliases: [],
+  });
+  console.log(`  + запись каталога «${displayName}»`);
+  return created.id;
+}
+
+async function ensureCatalogEntries(orgTypeId, personTypeId) {
+  for (const [displayName, data] of [
     ['ООО «Монтажэлектро»', { Наименование: 'ООО «Монтажэлектро»', ИНН: '7701000001' }],
     ['АО «Демо-Заказчик»', { Наименование: 'АО «Демо-Заказчик»', ИНН: '7701000002' }],
     ['ООО «Стройнадзор-Демо»', { Наименование: 'ООО «Стройнадзор-Демо»', ИНН: '7701000003' }],
-  ];
-  let added = 0;
-  for (const [displayName, data] of orgs) {
-    if (existing.some(e => e.displayName === displayName)) continue;
-    await api('POST', '/common-data', {
-      displayName, compositeTypeId: orgTypeId, data: JSON.stringify(data),
-      scope: 'System', scopeId: null, aliases: [],
-    });
-    added++;
-  }
-  if (added) console.log(`  + записей каталога: ${added}`);
+  ]) await ensureEntry(orgTypeId, displayName, data);
+
+  // Члены комиссии — кандидаты пикера ссылки. Их непустота проверяется отдельным утверждением:
+  // на пустом списке «поиск сузил список» истинно при любом коде.
+  for (const [displayName, data] of [
+    ['Иванов И. И.', { ФИО: 'Иванов Иван Иванович', Должность: 'Производитель работ' }],
+    ['Петров П. П.', { ФИО: 'Петров Пётр Петрович', Должность: 'Представитель заказчика' }],
+    ['Сидоров С. С.', { ФИО: 'Сидоров Семён Семёнович', Должность: 'Технадзор' }],
+  ]) await ensureEntry(personTypeId, displayName, data);
 }
 
 /**
@@ -233,6 +344,10 @@ async function ensureSet(constructionId) {
     sections = await withSections();
   }
   const section = sections.find(s => s.name === 'ЭОМ-1');
+  // Раздел только что создан или уже был — не найтись он может лишь при сбое на предыдущем шаге.
+  // Молча свалиться на `section.documentSets` значит отчитаться «Cannot read properties of
+  // undefined», то есть не назвать ничего.
+  if (!section) throw new Error('Раздел «ЭОМ-1» не найден в стройке после создания');
   const found = (section.documentSets ?? []).find(s => s.name === 'Демо-комплект');
   if (found) return found.id;
   const created = await api('POST', `/sections/${section.id}/sets`, { name: 'Демо-комплект' });
@@ -245,12 +360,15 @@ async function ensureSet(constructionId) {
  * у типов выше (создание, переименование и заполнение — три отдельных запроса).
  *
  * Имя ищем среди уже существующих, а не заводим документ каждый раз: иначе повтор посева набивал
- * бы комплект копиями. Осколок оборванного запуска (документ создан, имя проставить не успели)
- * переиспользуем — без этого каждый обрыв оставлял бы в комплекте лишний безымянный документ.
+ * бы комплект копиями. Ищем имя ВМЕСТЕ С ТИПОМ: переедь документ посева на другой тип, найденный
+ * по одному имени получил бы реквизиты чужой формы, а его адрес уехал бы в `SMOKE_INSTANCE_ID` —
+ * и проверка ссылки открывала бы не тот документ. Осколок оборванного запуска (документ создан,
+ * имя проставить не успели) переиспользуем — без этого каждый обрыв оставлял бы в комплекте
+ * лишний безымянный документ.
  */
 async function ensureDocument(setId, documentTypeId, name, requisites) {
   const set = await api('GET', `/document-sets/${setId}`);
-  const inst = set.instances.find(i => i.name === name)
+  const inst = set.instances.find(i => i.name === name && i.documentTypeId === documentTypeId)
     ?? set.instances.find(i => !i.name && i.documentTypeId === documentTypeId)
     ?? await api('POST', `/document-sets/${setId}/documents`, { documentTypeId });
   await api('PUT', `/document-sets/${setId}/documents/${inst.id}/name`, { name });
@@ -274,7 +392,7 @@ async function main() {
   // Составной тип — третья ветвь сводки поля («Организация»). Заодно даёт пикеру раздел
   // «Составные типы»: без хотя бы одного составного типа раздела в списке не будет.
   const orgTypeId = await ensureType({
-    code: 'ORG_SEED', name: 'Организация', kind: 'Composite',
+    code: 'ORG_SEED', name: 'Организация (посев)', kind: 'Composite',
     schema: {
       fields: [
         field('Наименование', 'Наименование', 'string'),
@@ -283,29 +401,114 @@ async function main() {
     },
   });
 
+  // Люди в составе комиссии — тип строк массива-ссылок. Записи этого типа и есть кандидаты
+  // пикера «Из каталога».
+  const personTypeId = await ensureType({
+    code: 'PERSON_SEED', name: 'Член комиссии (посев)', kind: 'Composite',
+    schema: {
+      fields: [
+        field('ФИО', 'ФИО', 'string'),
+        field('Должность', 'Должность', 'string'),
+      ],
+    },
+  });
+
+  // Цель ссылки в union-варианте «Документ». Вариант сделан ССЫЛКОЙ, а не строкой, нарочно:
+  // проверка ищет содержимое активного варианта в ТЕКСТЕ диалога, а значение строкового поля
+  // живёт в `input.value` — в тексте его нет, и проверка краснела бы на исправном компоненте.
+  const normTypeId = await ensureType({
+    code: 'NORM_SEED', name: 'Нормативный документ (посев)', kind: 'Composite',
+    schema: {
+      fields: [
+        field('Обозначение', 'Обозначение', 'string'),
+        field('Наименование', 'Наименование', 'string'),
+      ],
+    },
+  });
+
+  // Цель ссылки в union-варианте «Проект».
+  const projectTypeId = await ensureType({
+    code: 'PROJECT_SEED', name: 'Проект (посев)', kind: 'Composite',
+    schema: {
+      fields: [
+        field('Шифр', 'Шифр', 'string'),
+        field('Наименование', 'Наименование', 'string'),
+      ],
+    },
+  });
+
+  /**
+   * Union-тип: обычный составной тип с тэгом `type.union` — «заполнено ровно одно из полей»
+   * (issue #320). Порядок полей ЗНАЧИМ: «Проект» стоит вторым нарочно. Подмена активного варианта
+   * подставляет ПЕРВЫЙ, и на строке, заполненной первым вариантом, дефект был бы неотличим от
+   * исправности — проверка так и написана.
+   */
+  const unionTypeId = await ensureType({
+    code: 'UNIONDOC_SEED', name: 'Документ произвольный (посев)', kind: 'Composite',
+    schema: {
+      tags: ['type.union'],
+      fields: [
+        field('Документ', 'Документ', 'complex', { typeId: normTypeId }),
+        field('Проект', 'Проект', 'complex', { typeId: projectTypeId }),
+      ],
+    },
+  });
+
+  // Строка реестра работ. Колонок нужно не меньше трёх: проверка ширин двигает разделитель
+  // ТРЕТЬЕЙ колонки, и на узкой таблице ей не за что взяться.
+  const workRowTypeId = await ensureType({
+    code: 'WORKROW_SEED', name: 'Строка работ (посев)', kind: 'Composite',
+    schema: {
+      fields: [
+        field('Наименование', 'Наименование', 'string'),
+        field('Единица', 'Единица', 'string'),
+        field('Количество', 'Количество', 'number'),
+        field('Примечание', 'Примечание', 'string'),
+      ],
+    },
+  });
+
+  // Тип-предок АОСР. Существует ради одного: без предков у типа нет и «Основы» — чип «Выбрать
+  // основу» не рисуется вовсе, и проверка пикера основы осталась бы без предмета.
+  // Имя не «Акт (основа)» именно поэтому: оно сортировалось перед «АОСР» и уводило страницу типов
+  // на себя (правило и разбор — у `ensureType`).
+  const baseTypeId = await ensureType({
+    code: 'ACT_BASE_SEED', name: 'Основа акта (посев)', kind: 'Document', group: 'Демо',
+    schema: { fields: [field('ОбщееОснование', 'Общее основание', 'string')] },
+  });
+
   // Главный тип прогона. Поля подобраны так, чтобы сводка показала ВСЕ ТРИ ветви разбора:
   // составной тип, тип из реестра и базовый скаляр. Ключ `ДатаНачалаРабот` проверка ищет
   // дословно — по нему она находит карточку поля после смены типа.
   const aosrId = await ensureType({
-    code: 'AOSR_SEED', name: 'АОСР', kind: 'Document', group: 'Демо',
+    code: 'AOSR_SEED', name: 'АОСР (посев)', kind: 'Document', group: 'Демо', parentId: baseTypeId,
     schema: {
       fields: [
         field('ДатаНачалаРабот', 'Дата начала работ', 'date'),
         field('Подрядчик', 'Подрядчик', 'complex', { typeId: orgTypeId }),
         field('КоличествоЭкземпляров', 'Количество экземпляров', 'primitive', { typeId: primitiveTypeId }),
         field('Примечание', 'Примечание', 'string'),
+        field('ЧленыКомиссии', 'Члены комиссии', 'array', { typeId: personTypeId }),
+        field('ДокументыСоответствия', 'Документы соответствия', 'array', { typeId: unionTypeId }),
       ],
-      // Группа полей нужна `shared-ui`: поле даты он ищет НЕ по всей форме, а внутри раздела
-      // «Даты работ» — раздел и есть адрес, по которому проверка находит именно дату, а не первый
-      // попавшийся input с четырьмя цифрами.
-      groups: [{ key: 'dates', title: 'Даты работ', fieldKeys: ['ДатаНачалаРабот'] }],
+      // Группы полей — это адреса, по которым проверки находят поля: дату ищут внутри «Дат работ»,
+      // целочисленное поле — внутри «Прочего». Без групп обе искали бы по всей форме и могли бы
+      // уехать на соседнее поле подходящего вида.
+      groups: [
+        { key: 'dates', title: 'Даты работ', fieldKeys: ['ДатаНачалаРабот'] },
+        { key: 'other', title: 'Прочее', fieldKeys: ['КоличествоЭкземпляров', 'Примечание'] },
+        // Разделу дано ИМЯ ПОЛЯ нарочно: проверка union'а сначала открывает раздел, потом
+        // разворачивает в нём массив — то есть жмёт кнопку с этим именем ДВАЖДЫ. Лежи поле среди
+        // безымянных «Основных реквизитов», второй кнопки не нашлось бы вовсе.
+        { key: 'conformity', title: 'Документы соответствия', fieldKeys: ['ДокументыСоответствия'] },
+      ],
     },
   });
 
   // Второй тип нужен ровно затем, чтобы БЫЛО КУДА уйти с несохранённой правкой: проверка
   // гарда переключается на него и ждёт вопроса «Несохранённые изменения».
   await ensureType({
-    code: 'AOSR_APP_SEED', name: 'Приложение АОСР', kind: 'Document', group: 'Демо',
+    code: 'AOSR_APP_SEED', name: 'Приложение АОСР (посев)', kind: 'Document', group: 'Демо',
     schema: { fields: [field('Номер', 'Номер', 'string')] },
   });
 
@@ -313,8 +516,41 @@ async function main() {
   // правая панель обязана предлагать выбрать или создать. Шаблонов ему не заводим — в этом вся
   // его роль, и первый же шаблон здесь молча обессмыслил бы проверку.
   await ensureType({
-    code: 'ORDER_SEED', name: 'Приказ', kind: 'Document', group: 'Демо',
+    code: 'ORDER_SEED', name: 'Приказ (посев)', kind: 'Document', group: 'Демо',
     schema: { fields: [field('Номер', 'Номер', 'string')] },
+  });
+
+  // Документ со ВСТРОЕННЫМИ строками массива: у АОСР члены комиссии хранятся ссылками, и там
+  // пустая таблица — законный ответ, а здесь строки обязаны показаться все и сразу.
+  const worksTypeId = await ensureType({
+    code: 'WORKS_SEED', name: 'Реестр работ (посев)', kind: 'Document', group: 'Демо',
+    schema: { fields: [field('Работы', 'Работы', 'array', { typeId: workRowTypeId })] },
+  });
+
+  // Тип с полем-файлом: предпросмотр вложения тянет байты из хранилища и показывает их
+  // объект-URL'ом — проверить это можно только на настоящем файле в MinIO.
+  const cableTypeId = await ensureType({
+    code: 'CABLE_SEED', name: 'Кабельный журнал (посев)', kind: 'Document', group: 'Демо',
+    schema: {
+      fields: [
+        field('Скан', 'Скан журнала', 'file'),
+        field('Номер', 'Номер', 'string'),
+      ],
+    },
+  });
+
+  // Тип записи каталога с картинками. Группа названа ДОСЛОВНО так, как её ищет прогон: заголовок
+  // раздела — это его адрес, а CSS-регистр к тексту в DOM отношения не имеет.
+  const sroTypeId = await ensureType({
+    code: 'SRO_SEED', name: 'Организация в СРО (посев)', kind: 'Composite',
+    schema: {
+      fields: [
+        field('Наименование', 'Наименование', 'string'),
+        field('Логотип', 'Логотип', 'image'),
+        field('Печать', 'Печать', 'image'),
+      ],
+      groups: [{ key: 'stamps', title: 'ЛОГОТИП, ПЕЧАТЬ', fieldKeys: ['Логотип', 'Печать'] }],
+    },
   });
 
   // Шаблон с ДВУМЯ версиями: проверка группировки требует, чтобы версии сложились под одно имя,
@@ -367,8 +603,30 @@ async function main() {
     console.log('  + настройки почты');
   }
 
-  await ensureCatalogEntries(orgTypeId);
+  await ensureCatalogEntries(orgTypeId, personTypeId);
   await ensureSystemDataSet();
+
+  // Цель ссылки union-варианта «Проект»: имя проверка ищет в открытом варианте дословно.
+  const projectEntryId = await ensureEntry(projectTypeId, 'Проект ЭОМ-1', {
+    Шифр: '250701-ЭОМ', Наименование: 'Электроосвещение и силовое оборудование',
+  });
+
+  const normEntryId = await ensureEntry(normTypeId, 'ПУЭ 7 (издание седьмое)', {
+    Обозначение: 'ПУЭ 7', Наименование: 'Правила устройства электроустановок',
+  });
+
+  // Картинку загружаем ТОЛЬКО если её ещё нет: повторный посев иначе плодил бы в хранилище копии
+  // одного и того же логотипа, а идемпотентность здесь — не украшение: посев гоняется и на живой базе.
+  const sroEntry = await findEntry('Техногид', sroTypeId);
+  const storedLogo = sroEntry?.data?.Логотип;
+  const logoOnDisk = storedLogo?.$type === 'image' && await blobExists(storedLogo.blobPath);
+  const logo = logoOnDisk ? storedLogo : await (async () => {
+    const up = await upload('/attachments/image', Buffer.from(LOGO_PNG_BASE64, 'base64'),
+      'logo-seed.png', 'image/png');
+    console.log('  + картинка логотипа в хранилище');
+    return { $type: 'image', blobPath: up.blobPath, fileName: up.fileName, mimeType: up.mimeType, width: '3cm' };
+  })();
+  await ensureEntry(sroTypeId, 'Техногид', { Наименование: 'ООО «Техногид»', Логотип: logo });
 
   // Комплект с документами. Имена документов повторяют те, что прогоны ищут ДОСЛОВНО: их шифр
   // («250701.ЭОМ-1.АОСР») — единственная примета, по которой проверка находит нужную строку.
@@ -378,7 +636,47 @@ async function main() {
     // сообщила бы «нечего откатывать», оставшись зелёной при сломанном компоненте.
     ДатаНачалаРабот: '2026-07-01',
     Примечание: 'Документ посева живых прогонов',
+    КоличествоЭкземпляров: 2,
+    ЧленыКомиссии: [],
+    // Две строки union'а, заполненные РАЗНЫМИ вариантами: по строке видно, какой вариант обязан
+    // открыться активным. Одинаковые варианты в обеих строках оставили бы проверку слепой к тому,
+    // что активный вариант берётся не из строки.
+    ДокументыСоответствия: [
+      { Проект: { $ref: 'catalog', entryId: projectEntryId, displayName: 'Проект ЭОМ-1', scope: 'System' } },
+      { Документ: { $ref: 'catalog', entryId: normEntryId, displayName: 'ПУЭ 7 (издание седьмое)', scope: 'System' } },
+    ],
   });
+
+  // Основа для АОСР: кандидатом её делает ТИП-ПРЕДОК, а не имя, — документ типа «Акт (основа)»
+  // в том же комплекте.
+  await ensureDocument(setId, baseTypeId, '250701.ЭОМ-1.Основа акта', {
+    ОбщееОснование: 'Рабочая документация 250701-ЭОМ',
+  });
+
+  // Девятнадцать строк — число из проверки: она сверяет ровно его, потому что «строк больше нуля»
+  // проходило и на таблице, которая показывала первую страницу вместо всех данных.
+  await ensureDocument(setId, worksTypeId, '250701.ЭОМ-1.1.Реестр работ', {
+    Работы: Array.from({ length: 19 }, (_, i) => ({
+      Наименование: `Прокладка кабеля, участок ${i + 1}`,
+      Единица: 'м',
+      Количество: 10 * (i + 1),
+      Примечание: i % 3 === 0 ? 'по проекту' : '',
+    })),
+  });
+
+  // Вложение: тот же принцип, что у картинки — грузим, только если его ещё нет.
+  const cableDocName = 'Кабельный журнал (из PDF)';
+  const cableExisting = (await api('GET', `/document-sets/${setId}`))
+    .instances.find(i => i.name === cableDocName);
+  const storedScan = cableExisting?.requisites?.Скан;
+  const scanOnDisk = storedScan?.$type === 'file' && await blobExists(storedScan.blobPath);
+  const scan = scanOnDisk ? storedScan : await (async () => {
+      const up = await upload('/attachments', makePdf('BHS.CRG seed attachment'),
+        'cable-journal-seed.pdf', 'application/pdf');
+      console.log('  + вложение-PDF в хранилище');
+      return { $type: 'file', blobPath: up.blobPath, fileName: up.fileName, mimeType: up.mimeType, size: up.size };
+    })();
+  await ensureDocument(setId, cableTypeId, cableDocName, { Скан: scan, Номер: 'КЖ-1' });
 
   console.log('\nПосев готов. Переменные прогонов:');
   console.log(`SMOKE_CONSTRUCTION_ID=${constructionId}`);
