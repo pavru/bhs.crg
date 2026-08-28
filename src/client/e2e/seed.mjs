@@ -182,6 +182,83 @@ async function ensureType({ code, name, kind, schema, group }) {
   return created.id;
 }
 
+/**
+ * Записи каталога уровня «Система». Они здесь не «для полноты картины»: провайдер системных данных
+ * предлагает кандидата на КАЖДЫЙ составной тип, у которого есть свои записи, и без записей
+ * кандидатов нет вовсе. Тогда на странице наборов не появляется даже кнопка «Данные системы», а
+ * диалогу источника нечего подставлять — обе проверки `pages-smoke` сообщили бы «проверять нечего».
+ */
+async function ensureCatalogEntries(orgTypeId) {
+  const existing = await api('GET', '/common-data/for-scope?scope=System');
+  const orgs = [
+    ['ООО «Монтажэлектро»', { Наименование: 'ООО «Монтажэлектро»', ИНН: '7701000001' }],
+    ['АО «Демо-Заказчик»', { Наименование: 'АО «Демо-Заказчик»', ИНН: '7701000002' }],
+    ['ООО «Стройнадзор-Демо»', { Наименование: 'ООО «Стройнадзор-Демо»', ИНН: '7701000003' }],
+  ];
+  let added = 0;
+  for (const [displayName, data] of orgs) {
+    if (existing.some(e => e.displayName === displayName)) continue;
+    await api('POST', '/common-data', {
+      displayName, compositeTypeId: orgTypeId, data: JSON.stringify(data),
+      scope: 'System', scopeId: null, aliases: [],
+    });
+    added++;
+  }
+  if (added) console.log(`  + записей каталога: ${added}`);
+}
+
+/**
+ * Системный набор данных — тот, что открывает `pages-smoke` на странице наборов. Источников ему
+ * НЕ добавляем нарочно: диалог «Добавить источник» подставляет ПЕРВОГО СВОБОДНОГО кандидата, и
+ * набор с разобранными кандидатами оставил бы проверку без предмета.
+ */
+async function ensureSystemDataSet() {
+  const files = await api('GET', '/datasets/files?scope=System');
+  const found = files.find(f => f.name === 'Данные системы');
+  if (found) return found.id;
+  const created = await api('POST', '/datasets/files/system', {
+    scope: 'System', scopeId: null, name: 'Данные системы',
+  });
+  console.log('  + системный набор «Данные системы»');
+  return created.id;
+}
+
+/** Раздел и комплект под стройкой: комплект живёт в разделе, а не прямо в стройке. */
+async function ensureSet(constructionId) {
+  const withSections = async () => (await api('GET', `/constructions/${constructionId}`)).sections ?? [];
+  let sections = await withSections();
+  if (!sections.some(s => s.name === 'ЭОМ-1')) {
+    await api('POST', `/constructions/${constructionId}/sections`, { name: 'ЭОМ-1' });
+    console.log('  + раздел «ЭОМ-1»');
+    sections = await withSections();
+  }
+  const section = sections.find(s => s.name === 'ЭОМ-1');
+  const found = (section.documentSets ?? []).find(s => s.name === 'Демо-комплект');
+  if (found) return found.id;
+  const created = await api('POST', `/sections/${section.id}/sets`, { name: 'Демо-комплект' });
+  console.log('  + комплект «Демо-комплект»');
+  return created.id;
+}
+
+/**
+ * Документ комплекта: заводит или ДОВОДИТ — имя и реквизиты пишем всегда, по той же причине, что
+ * у типов выше (создание, переименование и заполнение — три отдельных запроса).
+ *
+ * Имя ищем среди уже существующих, а не заводим документ каждый раз: иначе повтор посева набивал
+ * бы комплект копиями. Осколок оборванного запуска (документ создан, имя проставить не успели)
+ * переиспользуем — без этого каждый обрыв оставлял бы в комплекте лишний безымянный документ.
+ */
+async function ensureDocument(setId, documentTypeId, name, requisites) {
+  const set = await api('GET', `/document-sets/${setId}`);
+  const inst = set.instances.find(i => i.name === name)
+    ?? set.instances.find(i => !i.name && i.documentTypeId === documentTypeId)
+    ?? await api('POST', `/document-sets/${setId}/documents`, { documentTypeId });
+  await api('PUT', `/document-sets/${setId}/documents/${inst.id}/name`, { name });
+  if (requisites) await api('PUT', `/document-sets/${setId}/documents/${inst.id}/requisites`, requisites);
+  if (!set.instances.some(i => i.id === inst.id)) console.log(`  + документ «${name}»`);
+  return inst.id;
+}
+
 const field = (key, title, type, extra = {}) => ({ key, title, type, required: false, ...extra });
 
 async function main() {
@@ -218,6 +295,10 @@ async function main() {
         field('КоличествоЭкземпляров', 'Количество экземпляров', 'primitive', { typeId: primitiveTypeId }),
         field('Примечание', 'Примечание', 'string'),
       ],
+      // Группа полей нужна `shared-ui`: поле даты он ищет НЕ по всей форме, а внутри раздела
+      // «Даты работ» — раздел и есть адрес, по которому проверка находит именно дату, а не первый
+      // попавшийся input с четырьмя цифрами.
+      groups: [{ key: 'dates', title: 'Даты работ', fieldKeys: ['ДатаНачалаРабот'] }],
     },
   });
 
@@ -225,6 +306,14 @@ async function main() {
   // гарда переключается на него и ждёт вопроса «Несохранённые изменения».
   await ensureType({
     code: 'AOSR_APP_SEED', name: 'Приложение АОСР', kind: 'Document', group: 'Демо',
+    schema: { fields: [field('Номер', 'Номер', 'string')] },
+  });
+
+  // Тип БЕЗ ШАБЛОНОВ. На нём стоит проверка «выбор не протёк с прежнего типа»: у типа без шаблонов
+  // правая панель обязана предлагать выбрать или создать. Шаблонов ему не заводим — в этом вся
+  // его роль, и первый же шаблон здесь молча обессмыслил бы проверку.
+  await ensureType({
+    code: 'ORDER_SEED', name: 'Приказ', kind: 'Document', group: 'Демо',
     schema: { fields: [field('Номер', 'Номер', 'string')] },
   });
 
@@ -278,8 +367,23 @@ async function main() {
     console.log('  + настройки почты');
   }
 
+  await ensureCatalogEntries(orgTypeId);
+  await ensureSystemDataSet();
+
+  // Комплект с документами. Имена документов повторяют те, что прогоны ищут ДОСЛОВНО: их шифр
+  // («250701.ЭОМ-1.АОСР») — единственная примета, по которой проверка находит нужную строку.
+  const setId = await ensureSet(constructionId);
+  const aosrInstanceId = await ensureDocument(setId, aosrId, '250701.ЭОМ-1.АОСР', {
+    // Дата обязана быть ЗАПОЛНЕНА: проверка поля даты ищет сохранённый год и на пустом значении
+    // сообщила бы «нечего откатывать», оставшись зелёной при сломанном компоненте.
+    ДатаНачалаРабот: '2026-07-01',
+    Примечание: 'Документ посева живых прогонов',
+  });
+
   console.log('\nПосев готов. Переменные прогонов:');
   console.log(`SMOKE_CONSTRUCTION_ID=${constructionId}`);
+  console.log(`SMOKE_SET_ID=${setId}`);
+  console.log(`SMOKE_INSTANCE_ID=${aosrInstanceId}`);
 }
 
 main().catch(e => { console.error('ПОСЕВ УПАЛ:', e.message); process.exit(1); });
