@@ -1,6 +1,9 @@
+# Версии — те же и прибиты так же, как в поставке (issue #878): дев-стенд, отстающий от продакшна
+# по версии хранилища или базы, проверяет не то. Обновляются вместе, одним PR Dependabot'а.
+
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.15-alpine
     environment:
       POSTGRES_DB: bhs_crg
       POSTGRES_USER: postgres
@@ -11,7 +14,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:

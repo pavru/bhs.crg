@@ -1,8 +1,19 @@
 name: bhs-crg
 
+# ⚠️ ВЕРСИИ СТОРОННИХ ОБРАЗОВ ПРИБИТЫ ТОЧНО (issue #878), и `latest` сюда возвращать нельзя.
+#
+# Причина не в свежести, а в том, что этот файл едет ВМЕСТЕ С ВЫПУСКОМ: прибитая версия делает
+# смену стороннего образа событием — с датой, коммитом и откатом. С плавающим тегом новый MinIO
+# приезжал в продакшн как побочный груз обновления приложения (`update.sh` зовёт `compose pull` без
+# списка сервисов, то есть тянет ВСЁ), и `--rollback` его не возвращал: он откатывает APP_VERSION,
+# а тег `latest` остался тем же именем.
+#
+# Обновляет их Dependabot — раз в неделю, отдельным PR, который проходит весь CI (включая живые
+# прогоны на настоящем MinIO). ЧЕГО ОН НЕ ДЕЛАЕТ, названо в `.github/dependabot.yml`.
+
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.15-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -17,7 +28,7 @@ services:
     restart: unless-stopped
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -32,7 +43,7 @@ services:
 
   # Одноразовый сервис: создаёт bucket в MinIO
   createbuckets:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       - minio
     environment:
@@ -61,7 +72,7 @@ services:
   #   COMPOSE_PROFILES=ollama     — поднять контейнеры
   #   OLLAMA_MODEL=qwen2.5vl:7b   — какую модель качать и какой пользоваться приложению
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.33.1
     profiles: ["ollama"]
     volumes:
       - ollama_data:/root/.ollama
@@ -76,7 +87,7 @@ services:
 
   # Одноразовый сервис: загружает модель в Ollama (тяжёлая ~6 ГБ)
   ollama-init:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.33.1
     profiles: ["ollama"]
     depends_on:
       - ollama

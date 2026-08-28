@@ -35,7 +35,7 @@ jobs:
     # тестам не нужен (пропусков по его отсутствию в наборе нет).
     services:
       postgres:
-        image: postgres:16
+        image: postgres:16.15-alpine
         env:
           POSTGRES_PASSWORD: xxsystem
           POSTGRES_USER: postgres
@@ -66,6 +66,34 @@ jobs:
           # PR и обнулял бы кеш на ровном месте.
           key: nuget-${{ runner.os }}-${{ hashFiles('src/server/**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
+
+      # Образ сервисного контейнера вычислить из файла НЕЛЬЗЯ: блок `services:` разбирается до
+      # шагов, выражений и переменных работы там нет. Поэтому версия Postgres здесь — литерал, а не
+      # чтение из поставки, как у MinIO и Typst. Сторож закрывает ровно эту разницу: он падает,
+      # когда литерал и `deploy/docker-compose.yml` разъехались (issue #878).
+      #
+      # Дублирование без сторожа стоило бы дорого и незаметно: тесты и живые прогоны шли бы на
+      # одной базе, а поставка ехала бы на другой — а сортировка текста у сборок отличается, и
+      # именно на порядке в этой системе ломались проверки (issue #872).
+      - name: Версия Postgres совпадает с поставкой
+        run: |
+          image_of() { sed -n 's|^ *image: *\(postgres:[^ ]*\)$|\1|p' "$1"; }
+          DELIVERY=$(image_of deploy/docker-compose.yml | head -1)
+          if [ -z "$DELIVERY" ]; then
+            echo "::error::В deploy/docker-compose.yml не нашёлся образ postgres — сверять не с чем"
+            exit 1
+          fi
+          echo "поставка: $DELIVERY"
+          rc=0
+          for used in $(image_of .github/workflows/ci.yml | sort -u); do
+            if [ "$used" != "$DELIVERY" ]; then
+              echo "::error::В ci.yml объявлен $used, а поставка едет на $DELIVERY — версии разъехались"
+              rc=1
+            else
+              echo "ci.yml: $used — совпадает"
+            fi
+          done
+          exit $rc
 
       - name: Сборка
         working-directory: src/server
@@ -146,7 +174,7 @@ jobs:
     # названо здесь, в CLAUDE.md и в e2e/README.md.
     services:
       postgres:
-        image: postgres:16
+        image: postgres:16.15-alpine
         env:
           POSTGRES_PASSWORD: xxsystem
           POSTGRES_USER: postgres
@@ -202,11 +230,22 @@ jobs:
 
       # MinIO поднимаем шагом, а не сервисом: сервисам GitHub нельзя передать аргументы команды
       # (`server /data`), а образ minio без них не стартует.
+      #
+      # Версию ЧИТАЕМ из deploy/docker-compose.yml — тем же приёмом, что версию Typst ниже, и по
+      # той же причине: прогоны обязаны идти на том хранилище, что поедет в поставку. Раньше тег не
+      # указывался вовсе, то есть бралось `latest`, и разойтись эти два хранилища могли только
+      # молча (issue #878).
       - name: Хранилище MinIO
         run: |
+          MINIO_IMAGE=$(sed -n 's|^ *image: *\(minio/minio:.*\)$|\1|p' deploy/docker-compose.yml | head -1)
+          if [ -z "$MINIO_IMAGE" ]; then
+            echo "::error::В deploy/docker-compose.yml не нашёлся образ minio/minio — версию взять неоткуда"
+            exit 1
+          fi
+          echo "образ хранилища из поставки: $MINIO_IMAGE"
           docker run -d --name minio -p 9000:9000 \
             -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
-            minio/minio server /data
+            "$MINIO_IMAGE" server /data
 
       # Проверка Typst-блоков в редакторе типов зовёт компилятор на сервере. Без него эндпоинт
       # отвечает ошибкой, и проверка краснеет — не из-за регресса, а из-за отсутствия бинаря.
