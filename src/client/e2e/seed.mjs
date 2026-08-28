@@ -341,21 +341,42 @@ async function ensureCatalogEntries(orgTypeId, personTypeId) {
  * который ищет набор ПО ИМЕНИ, открывал бы первый попавшийся из двух.
  */
 async function ensureDataSetFile(name, bytes, fileName, mimeType) {
+  const send = async (method, path, note) => {
+    const form = new FormData();
+    form.append('file', new Blob([bytes], { type: mimeType }), fileName);
+    form.append('name', name);
+    form.append('scope', 'System');
+    const res = await fetch(`${API}/api${path}`, {
+      method, headers: { Authorization: `Bearer ${token}` }, body: form,
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`${method} ${path} → ${res.status} ${text.slice(0, 300)}`);
+    console.log(`  ${note} набор данных «${name}»`);
+    return JSON.parse(text).id;
+  };
+
   const files = await api('GET', '/datasets/files?scope=System');
   const found = files.find(f => f.name === name);
-  if (found) return found.id;
+  if (!found) return send('POST', '/datasets/files', '+');
 
-  const form = new FormData();
-  form.append('file', new Blob([bytes], { type: mimeType }), fileName);
-  form.append('name', name);
-  form.append('scope', 'System');
-  const res = await fetch(`${API}/api/datasets/files`, {
-    method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form,
+  // Запись в базе не доказывает, что файл ЛЕЖИТ в хранилище: MinIO живёт в контейнере и
+  // пересоздаётся отдельно от Postgres — та же причина, по которой картинка и вложение выше
+  // проверяются `blobExists`. Здесь спрашиваем скачиванием: у набора нет поля с путём блоба, а
+  // `GET .../download` читает хранилище по-настоящему.
+  //
+  // Молчать об этом нельзя: у CSV-источника нет `CachedData` (кэш пишется только PDF- и
+  // системным), значит КАЖДОЕ чтение — предпросмотр, материализация, экспорт — заново разбирает
+  // блоб. Посев отчитался бы «готов», а прогон упал бы на диалоге, показывая на компонент вместо
+  // пустого хранилища.
+  const dl = await fetch(`${API}/api/datasets/files/${found.id}/download`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`POST /datasets/files → ${res.status} ${text.slice(0, 300)}`);
-  console.log(`  + набор данных «${name}»`);
-  return JSON.parse(text).id;
+  await dl.arrayBuffer().catch(() => {});   // тело дочитываем, иначе соединение висит
+  if (dl.ok) return found.id;
+
+  // Замена файла, а не пересоздание набора: `PUT` перезаливает блоб и ПЕРЕ-РАЗБИРАЕТ существующие
+  // источники против него — их схема колонок восстанавливается сама, а адрес набора не меняется.
+  return send('PUT', `/datasets/files/${found.id}`, '⟳');
 }
 
 /**
@@ -863,9 +884,10 @@ async function main() {
   const copyTargetSetId = await ensureSet(constructionId, 'СКС-1', 'Демо-комплект СКС');
 
   /**
-   * Набор данных с источниками — предмет четырёх проверок материализации. Источника ДВА: диалог
-   * открывается из кебаба ПЕРВОГО источника, а второй держит форму экрана той же, что на живой
-   * базе, где у счёта разобраны и шапка, и товары.
+   * Набор данных с источниками — предмет четырёх проверок материализации. Диалог открывается из
+   * меню ПЕРВОГО источника; второй держит экран той же формы, что на живой базе, где у счёта
+   * разобраны и шапка, и товары. Проверено удалением: с одним источником прогон остаётся зелёным,
+   * так что второй — про сходство с живым экраном, а не про работоспособность проверок.
    *
    * Файл — CSV, а не PDF: колонки нужны настоящие, а PDF-источник получает их распознаванием,
    * то есть ИИ-движком, которого в CI нет (см. `e2e/README.md`).
