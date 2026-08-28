@@ -81,19 +81,32 @@ export async function clearSession(page) {
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
 }
 
-/** Счётчик проверок: `check` не роняет прогон на первом провале, `summarize` печатает итог. */
+/**
+ * Счётчик проверок: `check` не роняет прогон на первом провале, `summarize` печатает итог.
+ *
+ * `skip` — для проверок, которым в этом окружении нечем работать (issue #872): разбиению PDF нужны
+ * распознанные страницы, то есть ИИ-движок, а в CI его нет. Пропуск ЗАЯВЛЕН, а не сделан молча:
+ * зелёный прогон обязан говорить, сколько проверок он не делал, — иначе «69 из 82» незаметно
+ * превращается в «69 из 69», и недостающие тринадцать перестают существовать.
+ */
 export function createChecks() {
   const results = [];
+  const skipped = [];
   async function check(name, fn) {
     try { await fn(); results.push([name, true, '']); console.log(`  ✓ ${name}`); }
     catch (e) { results.push([name, false, e.message]); console.log(`  ✗ ${name} — ${e.message}`); }
   }
+  function skip(name, reason) {
+    skipped.push([name, reason]);
+    console.log(`  — ${name} — пропущено: ${reason}`);
+  }
   function summarize(title) {
     const failed = results.filter(([, ok]) => !ok);
-    console.log(`\n${results.length - failed.length}/${results.length} проверок прошло`);
+    console.log(`\n${results.length - failed.length}/${results.length} проверок прошло`
+      + (skipped.length ? `, ${skipped.length} пропущено: ${skipped.map(([n]) => n).join(', ')}` : ''));
     if (failed.length) { console.error('ПРОВАЛ:', failed.map(([n]) => n).join(', ')); return 1; }
     console.log(`${title} — OK`);
     return 0;
   }
-  return { check, summarize };
+  return { check, skip, summarize };
 }

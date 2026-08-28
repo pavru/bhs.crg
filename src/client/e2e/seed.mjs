@@ -240,6 +240,20 @@ function makePdf(title) {
 }
 
 /**
+ * CSV счёта — сырьё набора данных, на котором стоят проверки материализации. Колонок нужно не
+ * меньше одной непустой: диалог маппит колонку источника в поле варианта union'а, и на источнике
+ * без колонок проверка сообщила бы «нечего маппить», оставшись зелёной при сломанном диалоге.
+ *
+ * Разделитель — запятая: парсер выбирает его по первой строке (табуляция, иначе запятая).
+ */
+const INVOICE_CSV = [
+  'Артикул,Наименование,Количество,Цена',
+  'КГ-3х2.5,"Кабель ВВГнг(А)-LS 3х2,5",250,89.40',
+  'ЛТ-40,Лоток лестничный 400х80,36,1240.00',
+  'АВ-16,Автоматический выключатель C16,12,410.50',
+].join('\n');
+
+/**
  * Лежит ли файл в хранилище НА САМОМ ДЕЛЕ. Значение в базе этого не доказывает: хранилище живёт в
  * контейнере и пересоздаётся отдельно от Postgres (`docker compose down -v`), а запись с путём
  * при этом остаётся. Посев тогда отчитался бы «готов», ничего не загрузив, а прогон упал бы с
@@ -319,6 +333,52 @@ async function ensureCatalogEntries(orgTypeId, personTypeId) {
 }
 
 /**
+ * Набор данных из ФАЙЛА (в отличие от системного): загрузка многочастная, и полей у неё больше
+ * одного — общий `upload` сюда не годится, он шлёт только сам файл.
+ *
+ * Идемпотентность здесь дороже, чем у остальных: повторная загрузка не «перезапишет запись», а
+ * положит в хранилище второй файл и заведёт второй набор с тем же именем — и `dialogs-smoke`,
+ * который ищет набор ПО ИМЕНИ, открывал бы первый попавшийся из двух.
+ */
+async function ensureDataSetFile(name, bytes, fileName, mimeType) {
+  const files = await api('GET', '/datasets/files?scope=System');
+  const found = files.find(f => f.name === name);
+  if (found) return found.id;
+
+  const form = new FormData();
+  form.append('file', new Blob([bytes], { type: mimeType }), fileName);
+  form.append('name', name);
+  form.append('scope', 'System');
+  const res = await fetch(`${API}/api/datasets/files`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form,
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`POST /datasets/files → ${res.status} ${text.slice(0, 300)}`);
+  console.log(`  + набор данных «${name}»`);
+  return JSON.parse(text).id;
+}
+
+/**
+ * Источник набора. Для CSV `sheetOrPath` разбором не используется вовсе (парсер читает файл
+ * целиком), но поле обязательное — шлём канонический маркер `default`, тот же, что подставляет
+ * определение источников.
+ *
+ * Колонки НЕ передаются: сервер разбирает файл при создании источника и записывает схему сам.
+ * Именно она и нужна проверке маппинга — без колонок селектор в диалоге материализации пуст, и
+ * проверка сообщила бы «нечего маппить».
+ */
+async function ensureDataSetSource(fileId, name) {
+  const sources = await api('GET', `/datasets/files/${fileId}/sources`);
+  const found = sources.find(s => s.name === name);
+  if (found) return found.id;
+  const created = await api('POST', `/datasets/files/${fileId}/sources`, {
+    name, sheetOrPath: 'default', columnExpressions: null,
+  });
+  console.log(`  + источник «${name}»`);
+  return created.id;
+}
+
+/**
  * Системный набор данных — тот, что открывает `pages-smoke` на странице наборов. Источников ему
  * НЕ добавляем нарочно: диалог «Добавить источник» подставляет ПЕРВОГО СВОБОДНОГО кандидата, и
  * набор с разобранными кандидатами оставил бы проверку без предмета.
@@ -335,23 +395,23 @@ async function ensureSystemDataSet() {
 }
 
 /** Раздел и комплект под стройкой: комплект живёт в разделе, а не прямо в стройке. */
-async function ensureSet(constructionId) {
+async function ensureSet(constructionId, sectionName, setName) {
   const withSections = async () => (await api('GET', `/constructions/${constructionId}`)).sections ?? [];
   let sections = await withSections();
-  if (!sections.some(s => s.name === 'ЭОМ-1')) {
-    await api('POST', `/constructions/${constructionId}/sections`, { name: 'ЭОМ-1' });
-    console.log('  + раздел «ЭОМ-1»');
+  if (!sections.some(s => s.name === sectionName)) {
+    await api('POST', `/constructions/${constructionId}/sections`, { name: sectionName });
+    console.log(`  + раздел «${sectionName}»`);
     sections = await withSections();
   }
-  const section = sections.find(s => s.name === 'ЭОМ-1');
+  const section = sections.find(s => s.name === sectionName);
   // Раздел только что создан или уже был — не найтись он может лишь при сбое на предыдущем шаге.
   // Молча свалиться на `section.documentSets` значит отчитаться «Cannot read properties of
   // undefined», то есть не назвать ничего.
-  if (!section) throw new Error('Раздел «ЭОМ-1» не найден в стройке после создания');
-  const found = (section.documentSets ?? []).find(s => s.name === 'Демо-комплект');
+  if (!section) throw new Error(`Раздел «${sectionName}» не найден в стройке после создания`);
+  const found = (section.documentSets ?? []).find(s => s.name === setName);
   if (found) return found.id;
-  const created = await api('POST', `/sections/${section.id}/sets`, { name: 'Демо-комплект' });
-  console.log('  + комплект «Демо-комплект»');
+  const created = await api('POST', `/sections/${section.id}/sets`, { name: setName });
+  console.log(`  + комплект «${setName}»`);
   return created.id;
 }
 
@@ -378,6 +438,20 @@ async function ensureDocument(setId, documentTypeId, name, requisites) {
 }
 
 const field = (key, title, type, extra = {}) => ({ key, title, type, required: false, ...extra });
+
+/**
+ * Имена, которые прогон ищет ТОЧНЫМ совпадением, — константами, потому что каждое из них
+ * называется в двух местах: при заведении объекта и в строке `SMOKE_*` для прогона. Разъехавшись,
+ * эти два места не поссорятся ни с типами, ни с сервером — посев отчитается «готов», а прогон
+ * скажет «в пикере нет такого типа», и причину придётся искать в последнем месте, где её ждёшь.
+ */
+const NAME = {
+  unionType: 'Документ произвольный (посев)',
+  worksUnionType: 'Работы АОСР (посев)',
+  materialsUnionType: 'Материалы АОСР (посев)',
+  datasetFile: 'Счет на оплату (посев)',
+  materialsDoc: '250701.ЭОМ-1.2.Реестр материалов',
+};
 
 async function main() {
   const version = await waitForApi();
@@ -444,7 +518,7 @@ async function main() {
    * исправности — проверка так и написана.
    */
   const unionTypeId = await ensureType({
-    code: 'UNIONDOC_SEED', name: 'Документ произвольный (посев)', kind: 'Composite',
+    code: 'UNIONDOC_SEED', name: NAME.unionType, kind: 'Composite',
     schema: {
       tags: ['type.union'],
       fields: [
@@ -535,6 +609,93 @@ async function main() {
       fields: [
         field('Скан', 'Скан журнала', 'file'),
         field('Номер', 'Номер', 'string'),
+      ],
+    },
+  });
+
+  // ── Документы качества и материалы (dialogs-smoke) ──────────────────────────
+  //
+  // Типов качества нужно ДВА, и оба — с говорящими именами. Пикер поиска подставляет умолчанием
+  // тип, чьё имя похоже на «сертификат» (`/сертификат/i` в LinkPickerModal), а проверка «выбор
+  // пережил закрытие» выбирает ДРУГОЙ и сверяет, что вернулся именно он. С одним типом выбирать
+  // было бы не из чего, и проверка сообщила бы «второго типа в пикере нет».
+  await ensureType({
+    code: 'CERT_SEED', name: 'Сертификат соответствия (посев)', kind: 'Document', group: 'Демо',
+    schema: {
+      tags: ['type.qualityDocument'],
+      fields: [
+        field('Номер', 'Номер', 'string', { tags: ['doc.number'] }),
+        field('ДействуетДо', 'Действует до', 'date', { tags: ['quality.validUntil'] }),
+        field('Изготовитель', 'Изготовитель', 'string', { tags: ['quality.manufacturer'] }),
+      ],
+    },
+  });
+  await ensureType({
+    code: 'DECL_SEED', name: 'Декларация о соответствии (посев)', kind: 'Document', group: 'Демо',
+    schema: {
+      tags: ['type.qualityDocument'],
+      fields: [
+        field('Номер', 'Номер', 'string', { tags: ['doc.number'] }),
+        field('ДействуетДо', 'Действует до', 'date', { tags: ['quality.validUntil'] }),
+      ],
+    },
+  });
+
+  /**
+   * Строка материала. «Материальным» тип делает НЕ имя, а поле с тэгом `material.qualityDocLink`
+   * (`isMaterialType`): по нему редактор документа и решает, показывать ли вкладку «Документы
+   * качества». Тэг применим только к полю типа `complex`, и `typeId` ему не нужен — подмешивается
+   * туда документ качества любого типа.
+   *
+   * Поля идентичности пронумерованы: из них складывается ключ связки «материал → документ», и
+   * порядок компонентов задаёт именно номер (issue #663).
+   */
+  const materialRowTypeId = await ensureType({
+    code: 'MATROW_SEED', name: 'Строка материала (посев)', kind: 'Composite',
+    schema: {
+      fields: [
+        field('Артикул', 'Артикул', 'string', { tags: ['identity:1'] }),
+        field('Наименование', 'Наименование', 'string', { tags: ['identity:2'] }),
+        field('Количество', 'Количество', 'number'),
+        field('ДокументКачества', 'Документ качества', 'complex', { tags: ['material.qualityDocLink'] }),
+      ],
+    },
+  });
+
+  // Документ с материалами: без него вкладки «Документы качества» нет вовсе, а с ней нет и пикера,
+  // на котором стоят обе проверки типа для веб-поиска.
+  const materialsTypeId = await ensureType({
+    code: 'MATREG_SEED', name: 'Реестр материалов (посев)', kind: 'Document', group: 'Демо',
+    schema: { fields: [field('Материалы', 'Материалы', 'array', { typeId: materialRowTypeId })] },
+  });
+
+  /**
+   * Два union-типа для проверки «смена типа снимает пометку варианта». Второй вариант у обоих
+   * называется ОДИНАКОВО — «Реестр», и это главное в них.
+   *
+   * Совпадение ключей и делает проверку способной краснеть: пометка выбранного варианта хранится
+   * ключом, и при разных ключах она отбросилась бы сама собой — дефект был бы неотличим от
+   * исправности. Ровно это поймало ревью PR #862 на прежней паре типов.
+   *
+   * Порядок полей значим: первый вариант — тот, на котором тип обязан открыться после смены.
+   */
+  await ensureType({
+    code: 'AOSRWORKS_SEED', name: NAME.worksUnionType, kind: 'Composite',
+    schema: {
+      tags: ['type.union'],
+      fields: [
+        field('Работы', 'Работы', 'complex', { typeId: workRowTypeId }),
+        field('Реестр', 'Реестр', 'complex', { typeId: normTypeId }),
+      ],
+    },
+  });
+  await ensureType({
+    code: 'AOSRMAT_SEED', name: NAME.materialsUnionType, kind: 'Composite',
+    schema: {
+      tags: ['type.union'],
+      fields: [
+        field('Материалы', 'Материалы', 'complex', { typeId: materialRowTypeId }),
+        field('Реестр', 'Реестр', 'complex', { typeId: normTypeId }),
       ],
     },
   });
@@ -630,7 +791,7 @@ async function main() {
 
   // Комплект с документами. Имена документов повторяют те, что прогоны ищут ДОСЛОВНО: их шифр
   // («250701.ЭОМ-1.АОСР») — единственная примета, по которой проверка находит нужную строку.
-  const setId = await ensureSet(constructionId);
+  const setId = await ensureSet(constructionId, 'ЭОМ-1', 'Демо-комплект');
   const aosrInstanceId = await ensureDocument(setId, aosrId, '250701.ЭОМ-1.АОСР', {
     // Дата обязана быть ЗАПОЛНЕНА: проверка поля даты ищет сохранённый год и на пустом значении
     // сообщила бы «нечего откатывать», оставшись зелёной при сломанном компоненте.
@@ -678,10 +839,65 @@ async function main() {
     })();
   await ensureDocument(setId, cableTypeId, cableDocName, { Скан: scan, Номер: 'КЖ-1' });
 
+  /**
+   * Реестр материалов — предмет обеих проверок пикера документа качества. Строки заведены
+   * ВСТРОЕННЫМИ и НЕПРИВЯЗАННЫМИ нарочно: кнопка «Связать» стоит в непривязанной строке, и на
+   * реестре со связками её бы просто не было.
+   *
+   * Имя документа проверка ищет дословно — оно и есть её единственная примета в списке.
+   */
+  await ensureDocument(setId, materialsTypeId, NAME.materialsDoc, {
+    Материалы: [
+      { Артикул: 'КГ-3х2.5', Наименование: 'Кабель ВВГнг(А)-LS 3х2,5', Количество: 250 },
+      { Артикул: 'ЛТ-40', Наименование: 'Лоток лестничный 400х80', Количество: 36 },
+      { Артикул: 'АВ-16', Наименование: 'Автоматический выключатель C16', Количество: 12 },
+    ],
+  });
+
+  /**
+   * Второй комплект — цель копирования. Пикер «Скопировать в комплект» ИСКЛЮЧАЕТ текущий, поэтому
+   * на одном комплекте в базе список пуст, и обе проверки копирования сообщили бы «в пикере нет ни
+   * одного комплекта-цели». Раздел свой: комплект-близнец внутри «ЭОМ-1» отличался бы от исходного
+   * только именем, а так в пикере видно и раздел.
+   */
+  const copyTargetSetId = await ensureSet(constructionId, 'СКС-1', 'Демо-комплект СКС');
+
+  /**
+   * Набор данных с источниками — предмет четырёх проверок материализации. Источника ДВА: диалог
+   * открывается из кебаба ПЕРВОГО источника, а второй держит форму экрана той же, что на живой
+   * базе, где у счёта разобраны и шапка, и товары.
+   *
+   * Файл — CSV, а не PDF: колонки нужны настоящие, а PDF-источник получает их распознаванием,
+   * то есть ИИ-движком, которого в CI нет (см. `e2e/README.md`).
+   */
+  const invoiceFileId = await ensureDataSetFile(
+    NAME.datasetFile, Buffer.from(INVOICE_CSV, 'utf8'), 'invoice-seed.csv', 'text/csv');
+  await ensureDataSetSource(invoiceFileId, 'Товары счёта');
+  await ensureDataSetSource(invoiceFileId, 'Шапка счёта');
+
   console.log('\nПосев готов. Переменные прогонов:');
   console.log(`SMOKE_CONSTRUCTION_ID=${constructionId}`);
   console.log(`SMOKE_SET_ID=${setId}`);
   console.log(`SMOKE_INSTANCE_ID=${aosrInstanceId}`);
+  // Комплект-цель прогонам не адресуется (пикер ищет его по имени), но напечатан: строка в логе —
+  // единственное место, где видно, что цель копирования вообще создалась.
+  console.log(`SMOKE_COPY_TARGET_SET_ID=${copyTargetSetId}`);
+  /**
+   * ИМЕНА типов — тоже переменные прогона, наравне с адресами. Прогон кликает по имени типа
+   * ТОЧНЫМ совпадением, а имена посева несут суффикс «(посев)»: без него посев умирал бы на
+   * занятом имени в рабочей базе (см. `ensureType`). Умолчания в самом прогоне — имена ЖИВОЙ базы,
+   * где он и запускается руками; здесь они замещаются посеянными.
+   */
+  console.log(`SMOKE_UNION_TYPE=${NAME.unionType}`);
+  console.log(`SMOKE_WORKS_UNION_TYPE=${NAME.worksUnionType}`);
+  console.log(`SMOKE_MATERIALS_UNION_TYPE=${NAME.materialsUnionType}`);
+  console.log(`SMOKE_DATASET_FILE=${NAME.datasetFile}`);
+  console.log(`SMOKE_MATERIALS_DOC=${NAME.materialsDoc}`);
+  // ⚠️ `SMOKE_PDF_FILE_ID` здесь НЕ печатается, и это осознанно. Набора с распознанными страницами
+  // посев не создаёт (распознаёт их ИИ-движок), но объявляет это не он, а сама работа CI —
+  // переменной уровня работы. Причина в порядке сильнее-слабее: переменная работы перекрывает
+  // дописанную в `$GITHUB_ENV`, поэтому напечатай посев своё значение, его приняли бы и МОЛЧА
+  // проигнорировали. Один факт — одно место, и это место `ci.yml`.
 }
 
 main().catch(e => { console.error('ПОСЕВ УПАЛ:', e.message); process.exit(1); });
