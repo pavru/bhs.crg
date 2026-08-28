@@ -12,6 +12,10 @@
 // Требует поднятых фронта (:5173), бэка (:5000) и MinIO (:9000) — экран разбиения читает страницы
 // PDF из хранилища. Плюс демо-данные, см. e2e/README.md.
 //
+// В CI гоняются 10 проверок из 13: три проверки разбиения PDF требуют РАСПОЗНАННЫХ страниц, то
+// есть ИИ-движка, которого там нет (issue #872). Пропуск включается пустым `SMOKE_PDF_FILE_ID` и
+// называется вслух в итоге прогона — молчаливый превратил бы «10 из 13» в «10 из 10».
+//
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/dialogs-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
@@ -19,19 +23,37 @@ import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
-const PDF_FILE = process.env.SMOKE_PDF_FILE_ID || '688d45ed-834e-4d54-b74f-db1d4220e994';
+
+/**
+ * Набор с РАСПОЗНАННЫМИ страницами. ПУСТАЯ строка ⇒ три проверки разбиения PDF пропускаются:
+ * страницы распознаёт ИИ-движок, которого в CI нет и, вероятно, не будет (issue #872). Пустой её
+ * ставит `ci.yml` — переменной уровня работы: «чего не умеет окружение» объявляет само окружение,
+ * а не посев. Умолчание — набор живой базы, где прогон запускается руками.
+ *
+ * `??`, а не `||`: заданная пустая строка — это ответ «такого набора нет», и подменять её
+ * умолчанием значит гонять проверки по чужому идентификатору из моей базы.
+ */
+const PDF_FILE = process.env.SMOKE_PDF_FILE_ID ?? '688d45ed-834e-4d54-b74f-db1d4220e994';
 
 const AOSR = '250701.ЭОМ-1.АОСР';
-const MATERIALS_DOC = '250701.ЭОМ-1.2.Реестр материалов';   // у него есть материалы и связки качества
-const DATASET_FILE = 'Счет на оплату';   // PDF-набор с двумя источниками
-const UNION_TYPE = 'Документ произвольный';   // union с вариантами «Документ» и «Проект»
+// Имена, которые прогон ищет ТОЧНЫМ совпадением, приходят из окружения: посев заводит их с
+// суффиксом «(посев)» (иначе он умирал бы на занятом имени в рабочей базе — см. seed.mjs), а
+// умолчания здесь — имена ЖИВОЙ базы, где прогон и запускается руками.
+const MATERIALS_DOC = process.env.SMOKE_MATERIALS_DOC || '250701.ЭОМ-1.2.Реестр материалов';
+const DATASET_FILE = process.env.SMOKE_DATASET_FILE || 'Счет на оплату';
+const UNION_TYPE = process.env.SMOKE_UNION_TYPE || 'Документ произвольный';
+const WORKS_TYPE = process.env.SMOKE_WORKS_UNION_TYPE || 'Работы АОСР';
+const MATERIALS_TYPE = process.env.SMOKE_MATERIALS_UNION_TYPE || 'Материалы АОСР';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
 page.on('pageerror', e => console.log('  ! ошибка страницы:', e.message));
-const { check, summarize } = createChecks();
+const { check, skip, summarize } = createChecks();
 
 await login(page);
+
+/** Имя типа приходит из окружения и содержит скобки — в регулярное выражение его надо экранировать. */
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const checkedVariant = async () => {
   const dlg = page.locator('[role=dialog]').last();
@@ -43,6 +65,12 @@ const checkedVariant = async () => {
 try {
 
 // ── Разбиение PDF: серверные группы плюс правка поверх ─────────────────────────
+if (!PDF_FILE) {
+  const why = 'нужен набор с распознанными страницами (ИИ-движок), посев его не создаёт';
+  for (const name of ['pdf-grouping-loads-groups', 'pdf-grouping-edit-enables-save', 'pdf-page-viewer-opens'])
+    skip(name, why);
+} else {
+
 await page.goto(`${BASE}/datasets/files/${PDF_FILE}/grouping`);
 await page.waitForSelector('img', { timeout: 30000 });
 await page.waitForTimeout(1500);
@@ -82,6 +110,8 @@ await check('pdf-page-viewer-opens', async () => {
   await page.keyboard.press('Escape');
   await page.waitForTimeout(600);
 });
+
+}
 
 // ── Материализация: активный вариант union ────────────────────────────────────
 await page.goto(`${BASE}/datasets`);
@@ -138,7 +168,10 @@ await check('materialize-type-change-resets-chosen-variant', async () => {
   const dlg = page.locator('[role=dialog]').last();
   const pickType = async (name) => {
     // Поле типа — кнопка с названием выбранного типа (после первого выбора плейсхолдера уже нет).
-    await dlg.locator('button').filter({ hasText: /Документ произвольный|Работы АОСР/ }).first().click();
+    // Имена берём из констант: они приходят из окружения, и зашитый здесь литерал разъехался бы
+    // с посеянным типом молча — кнопка не нашлась бы, а сказано было бы про варианты.
+    const shown = new RegExp(`${escapeRe(UNION_TYPE)}|${escapeRe(WORKS_TYPE)}`);
+    await dlg.locator('button').filter({ hasText: shown }).first().click();
     await page.waitForTimeout(900);
     const picker = page.locator('[role=dialog]').last();
     await picker.locator('input').first().fill(name);
@@ -146,13 +179,13 @@ await check('materialize-type-change-resets-chosen-variant', async () => {
     await picker.getByText(name, { exact: true }).first().click();
     await page.waitForTimeout(1600);
   };
-  await pickType('Работы АОСР');
+  await pickType(WORKS_TYPE);
   if ((await checkedVariant()) !== 'Работы') throw new Error('новый тип открылся не на первом варианте');
   await dlg.getByRole('radio', { name: /^Реестр$/ }).first().click();
   await page.waitForTimeout(900);
   if ((await checkedVariant()) !== 'Реестр') throw new Error('второй вариант не выбрался');
 
-  await pickType('Материалы АОСР');
+  await pickType(MATERIALS_TYPE);
   const on = await checkedVariant();
   if (on !== 'Материалы') throw new Error(`после смены типа активен «${on}» — пометка пережила смену`);
 });
