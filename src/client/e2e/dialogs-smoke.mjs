@@ -65,18 +65,17 @@ const checkedVariant = async () => {
 try {
 
 // ── Разбиение PDF: серверные группы плюс правка поверх ─────────────────────────
-if (!PDF_FILE) {
-  const why = 'нужен набор с распознанными страницами (ИИ-движок), посев его не создаёт';
-  for (const name of ['pdf-grouping-loads-groups', 'pdf-grouping-edit-enables-save', 'pdf-page-viewer-opens'])
-    skip(name, why);
-} else {
-
-await page.goto(`${BASE}/datasets/files/${PDF_FILE}/grouping`);
-await page.waitForSelector('img', { timeout: 30000 });
-await page.waitForTimeout(1500);
+//
+// Проверки объявлены СПИСКОМ, потому что имена нужны дважды: чтобы прогнать и чтобы пропустить.
+// Записанные в двух местах, они разъезжаются молча — переименуй проверку, и прогон продолжил бы
+// печатать «3 пропущено» с именем, которого больше нет, а «79 из 82» перестало бы сходиться.
+// Одно объявление — и такому расхождению взяться неоткуда.
+//
+// `save` — локатор, а не найденный элемент: он ленив, поэтому объявляется до перехода на экран.
 const save = page.getByRole('button', { name: /^Сохранить$/ }).first();
 
-await check('pdf-grouping-loads-groups', async () => {
+const pdfChecks = [
+['pdf-grouping-loads-groups', async () => {
   const t = await page.locator('body').innerText();
   for (const g of ['Обложка', 'Титульный лист', 'Без группы']) {
     if (!t.includes(g)) throw new Error(`группы «${g}» на экране нет`);
@@ -85,9 +84,9 @@ await check('pdf-grouping-loads-groups', async () => {
   // Правки ещё не было — сохранять нечего. Если бы «грязно» и содержимое разошлись, здесь бы и
   // вылезло: кнопка активна на нетронутом экране.
   if (!(await save.isDisabled())) throw new Error('«Сохранить» активна на нетронутом разбиении');
-});
+}],
 
-await check('pdf-grouping-edit-enables-save', async () => {
+['pdf-grouping-edit-enables-save', async () => {
   await page.locator('img').first().click();
   await page.waitForTimeout(600);
   await page.getByRole('button', { name: /Отделить в новый документ/ }).first().click();
@@ -95,9 +94,9 @@ await check('pdf-grouping-edit-enables-save', async () => {
   if (await save.isDisabled()) throw new Error('после правки «Сохранить» так и не стала активной');
   const t = await page.locator('body').innerText();
   if (!/1 документ/.test(t)) throw new Error(`новый документ в сводке не появился: ${t.slice(-300)}`);
-});
+}],
 
-await check('pdf-page-viewer-opens', async () => {
+['pdf-page-viewer-opens', async () => {
   await page.getByRole('button', { name: /Просмотреть лист крупно/ }).first().click();
   await page.waitForTimeout(2500);
   const dlg = page.locator('[role=dialog]').last();
@@ -109,8 +108,17 @@ await check('pdf-page-viewer-opens', async () => {
   if (!ok) throw new Error('изображение листа не разобралось (naturalWidth = 0)');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(600);
-});
+}],
+];
 
+if (!PDF_FILE) {
+  const why = 'нужен набор с распознанными страницами (ИИ-движок), посев его не создаёт';
+  for (const [name] of pdfChecks) skip(name, why);
+} else {
+  await page.goto(`${BASE}/datasets/files/${PDF_FILE}/grouping`);
+  await page.waitForSelector('img', { timeout: 30000 });
+  await page.waitForTimeout(1500);
+  for (const [name, fn] of pdfChecks) await check(name, fn);
 }
 
 // ── Материализация: активный вариант union ────────────────────────────────────
@@ -118,7 +126,17 @@ await page.goto(`${BASE}/datasets`);
 await page.waitForTimeout(2500);
 await page.getByText(DATASET_FILE, { exact: false }).first().click();
 await page.waitForTimeout(2500);
-await page.locator('button[aria-haspopup]').nth(1).click();   // кебаб первого источника
+// Кебаб источника — ПО ИМЕНИ, а не порядковым номером. Раньше стояло `nth(1)` с пояснением
+// «кебаб первого источника», и пояснение было верным лишь по совпадению: `aria-haspopup` на этой
+// странице есть и у КОЛОКОЛЬЧИКА уведомлений в оболочке (`haspopup="dialog"`), он идёт нулевым и
+// сдвигает нумерацию ровно на единицу. Пропади колокольчик — и тот же `nth(1)` молча уехал бы на
+// второй источник (проверено пробой DOM: на экране ровно две такие кнопки — колокольчик и меню
+// источника). Имя ни от оболочки, ни от порядка не зависит.
+const sourceMenu = page.locator('button[aria-label="Действия над источником"]').first();
+if (!(await sourceMenu.count())) {
+  throw new Error(`у набора «${DATASET_FILE}» нет ни одного источника — материализацию открывать не из чего`);
+}
+await sourceMenu.click();
 await page.waitForTimeout(700);
 await page.getByText('Материализация', { exact: false }).first().click();
 await page.waitForTimeout(1800);
