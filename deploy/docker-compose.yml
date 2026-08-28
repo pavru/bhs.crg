@@ -13,13 +13,25 @@ name: bhs-crg
 
 services:
   postgres:
-    image: postgres:16.15-alpine
+    image: postgres:18.6-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # ⚠️ Путь монтирования и имя тома сменились вместе с мажором (issue #880), и обратно их вернуть
+    # нельзя — образ не даст. С 18-й версии официальный образ хранит кластер в подкаталоге с
+    # номером мажора (`PGDATA=/var/lib/postgresql/18/docker`) и объявляет томом
+    # `/var/lib/postgresql`, а не `/var/lib/postgresql/data`.
+    #
+    # Смонтируй мы том по-старому — контейнер НЕ СТАРТУЕТ и скажет почему (проверено: и с пустым
+    # томом, и с настоящим кластером 16). Это хорошая новость: тихой подмены пустой базой не
+    # бывает, цена ошибки — неподнявшаяся система, а не потерянные данные.
+    #
+    # Том назван ЗАНОВО, а прежний `postgres_data` из этого файла убран нарочно: там лежит кластер
+    # 16, и он остаётся нетронутой страховкой, пока администратор сам его не удалит. Заодно
+    # `docker compose down -v` его больше не сносит — удаляются только объявленные здесь тома.
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_18:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -209,7 +221,11 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres_data:
+  # `postgres_data` здесь БОЛЬШЕ НЕТ — см. пояснение у сервиса postgres: в нём лежит кластер 16,
+  # он остаётся страховкой после перехода на 18, и объявлять его значило бы отдать его под
+  # `docker compose down -v`. Удаляет его администратор руками, убедившись, что 18 работает
+  # (§8.6 DEPLOYMENT.md).
+  postgres_data_18:
   minio_data:
   ollama_data:
   dp_keys:

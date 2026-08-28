@@ -35,7 +35,7 @@ jobs:
     # тестам не нужен (пропусков по его отсутствию в наборе нет).
     services:
       postgres:
-        image: postgres:16.15-alpine
+        image: postgres:18.6-alpine
         env:
           POSTGRES_PASSWORD: xxsystem
           POSTGRES_USER: postgres
@@ -174,7 +174,7 @@ jobs:
     # названо здесь, в CLAUDE.md и в e2e/README.md.
     services:
       postgres:
-        image: postgres:16.15-alpine
+        image: postgres:18.6-alpine
         env:
           POSTGRES_PASSWORD: xxsystem
           POSTGRES_USER: postgres
