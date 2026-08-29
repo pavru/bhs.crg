@@ -257,6 +257,75 @@ check 'из 16.15-alpine'      16 "$(pg_major_of pg16.yml)"
 check 'нет postgres — пусто' ''  "$(pg_major_of pgnone.yml)"
 
 echo
+echo '── storage_kind_of / crosses_storage: смена хранилища ──'
+printf 'services:
+  minio:
+    image: ghcr.io/pavru/minio:RELEASE.2025-09-07T16-13-09Z
+' > st-minio.yml
+printf 'services:
+  garage:
+    image: dxflrs/garage:v2.3.0
+'                            > st-garage.yml
+printf 'services:
+  api:
+    image: ghcr.io/x/y:1
+'                                      > st-none.yml
+check 'MinIO по образу'        minio  "$(storage_kind_of st-minio.yml)"
+check 'Garage по образу'       garage "$(storage_kind_of st-garage.yml)"
+check 'ни того ни другого'     ''     "$(storage_kind_of st-none.yml)"
+check 'файла нет — пусто'      ''     "$(storage_kind_of нет-такого.yml)"
+
+# crosses_storage смотрит на пару «рабочий файл → файл целевой версии»: только MinIO → Garage.
+NEW_DIR=new; mkdir -p "$NEW_DIR"
+cp st-minio.yml docker-compose.yml; cp st-garage.yml "$NEW_DIR/docker-compose.yml"
+check 'MinIO → Garage: переход'      0 "$(run_e crosses_storage)"
+cp st-garage.yml docker-compose.yml
+check 'Garage → Garage: не переход'  1 "$(run_e crosses_storage)"
+cp st-minio.yml docker-compose.yml; cp st-minio.yml "$NEW_DIR/docker-compose.yml"
+check 'MinIO → MinIO: не переход'    1 "$(run_e crosses_storage)"
+
+echo
+echo '── ключи хранилища: генерируем, а не спрашиваем ──'
+# Формат жёсткий, и проверяет его сам Garage при старте: «GK»+24 hex, секреты по 64 hex. Значение
+# другой длины роняет хранилище — то есть ошибка здесь стоит не косметики, а неподнявшейся системы.
+CURRENT=0.159.0; TARGET=0.160.0
+GENERATE=(GARAGE_KEY_ID GARAGE_SECRET GARAGE_RPC_SECRET GARAGE_ADMIN_TOKEN)
+printf 'MINIO_BUCKET=свой-бакет
+' > .env
+: > env.gen
+generate_secrets env.gen >/dev/null
+key="$(env_get GARAGE_KEY_ID env.gen)"; secret="$(env_get GARAGE_SECRET env.gen)"; rpc="$(env_get GARAGE_RPC_SECRET env.gen)"
+check 'идентификатор начинается с GK'  да "$(case "$key" in GK*) echo да ;; *) echo нет ;; esac)"
+check 'и всего 26 знаков'              26 "${#key}"
+check 'секрет ровно 64 знака'          64 "${#secret}"
+check 'RPC-секрет ровно 64 знака'      64 "${#rpc}"
+check 'только шестнадцатеричные'       да "$(case "$secret" in *[!0-9a-f]*) echo нет ;; *) echo да ;; esac)"
+check 'два вызова — разные значения'   да "$(: > env.gen2; generate_secrets env.gen2 >/dev/null; [ "$(env_get GARAGE_SECRET env.gen2)" != "$secret" ] && echo да || echo нет)"
+# Имя бакета НАСЛЕДУЕТСЯ: установка с нестандартным MINIO_BUCKET иначе получила бы пустое
+# хранилище рядом с полным — и это выглядело бы как успешное обновление.
+check 'имя бакета перенесено из прежнего' 'свой-бакет' "$(env_get GARAGE_BUCKET env.gen)"
+
+echo
+echo '── check_new_vars: ключи хранилища не спрашиваются у человека ──'
+mkdir -p "$NEW_DIR"
+printf 'GARAGE_KEY_ID=
+GARAGE_SECRET=
+GARAGE_RPC_SECRET=
+GARAGE_ADMIN_TOKEN=
+' > "$NEW_DIR/env.example"
+printf 'services:
+  garage:
+    image: dxflrs/garage:v2.3.0
+' > "$NEW_DIR/docker-compose.yml"
+printf 'APP_VERSION=0.159.0
+' > .env
+AUTOFILL=(); GENERATE=()
+check 'обновление не останавливается'    0 "$(run_e check_new_vars)"
+AUTOFILL=(); GENERATE=()
+check_new_vars >/dev/null 2>&1 || true
+check 'все четыре помечены к генерации'  4 "${#GENERATE[@]}"
+
+echo
 echo '── latest_release: разбор номера версии из адреса выпуска ──'
 # Единственная проверка, которой нужна сеть. Обрыв связи — не поломка скрипта, поэтому она
 # пропускается, а не роняет прогон: красный прогон обязан означать «код сломан».

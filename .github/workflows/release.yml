@@ -97,7 +97,7 @@ jobs:
           # образы node:22-alpine и nginx-unprivileged:alpine плавающие), и один номер версии стал
           # бы означать две разные поставки. Проверка идёт ПОСЛЕ логина: без авторизации манифест
           # приватного пакета неотличим от несуществующего.
-          for image in bhs.crg-api bhs.crg-web; do
+          for image in bhs.crg-api bhs.crg-web bhs.crg-garage-init; do
             ref="ghcr.io/${{ github.repository_owner }}/$image:${{ steps.ver.outputs.version }}"
             set +e
             out=$(docker manifest inspect "$ref" 2>&1)
@@ -146,6 +146,22 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Третий образ выпуска (issue #885): инициализация хранилища. Ему нужен shell, которого в
+      # образе Garage нет, поэтому собираем «alpine + бинарь Garage из того же образа, что сервер».
+      # Едет тем же тегом версии, что api и web: compose тянет его по ${APP_VERSION}, и разъехаться
+      # с остальной поставкой он не может.
+      - name: Образ garage-init
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy
+          file: deploy/Dockerfile.garage-init
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/bhs.crg-garage-init:${{ steps.ver.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/bhs.crg-garage-init:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Тег и Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -172,10 +188,16 @@ jobs:
           # update.sh выкладывается КАЖДЫМ выпуском, даже когда сам не менялся: скрипт из
           # установки сверяется с файлом ЦЕЛЕВОГО релиза и, не найдя его, тихо считает, что
           # обновляться не надо, — а обновиться надо было бы (issue #837).
+          #
+          # garage.toml — тоже ассет, и это не «до кучи»: compose монтирует его РЯДОМ С СОБОЙ
+          # (`./garage.toml`). Файла нет — Docker создаёт на его месте КАТАЛОГ, и хранилище падает
+          # с «IO error: Is a directory», сообщением, которое ни на что не указывает. Поймано
+          # живым прогоном обновления (issue #885).
           gh release create "$tag" \
             --title "$tag" \
             --generate-notes \
             deploy/docker-compose.yml \
+            deploy/garage.toml \
             deploy/update.sh \
             env.example
 

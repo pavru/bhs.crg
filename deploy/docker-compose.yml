@@ -43,48 +43,60 @@ services:
       retries: 12
     restart: unless-stopped
 
-  # ⚠️ ОБРАЗ ХРАНИЛИЩА — КОПИЯ В НАШЕМ РЕЕСТРЕ, а не оригинал с Docker Hub (issue #882).
+  # ⚠️ ХРАНИЛИЩЕ — GARAGE (issue #885). До 0.160.0 здесь был MinIO; переход делает `update.sh`,
+  # перенося файлы внутри обновления (§8.7 DEPLOYMENT.md). Том прежнего хранилища
+  # (`minio_data`) обновление НЕ ТРОГАЕТ — он остаётся страховкой и точкой отката.
   #
-  # `minio/minio` архивирован 13.02.2026: community-версия больше не собирается и security-фиксов
-  # не получает, официальный путь — коммерческий AIStor. Прибитый тег во внутренней сети Compose —
-  # риск управляемый, но образ лежал на ЧУЖОЙ полке: архивированный репозиторий Docker Hub может
-  # быть убран или потерять теги, и тогда установка с нуля не поднимется, а откат не откатится.
-  # Побайтовая копия того же образа (тот же digest, все платформы) — в нашем GHCR, рядом с api и web.
+  # Почему ушли с MinIO: `minio/minio` архивирован 13.02.2026 — community-версия больше не
+  # собирается и security-фиксов не получает. Копия последнего образа лежит в нашем GHCR
+  # (issue #882) и остаётся там навсегда: она нужна установкам, которые придут на обновление
+  # со старых версий. Удалять её нельзя, даже когда все перейдут.
   #
-  # Тег заморожен НАВСЕГДА: обновлять его неоткуда, upstream мёртв. Замена хранилища (Garage,
-  # RustFS или своё файловое за `IBlobStorage`) — отдельная работа, см. issue #882.
-  minio:
-    image: ghcr.io/pavru/minio:RELEASE.2025-09-07T16-13-09Z
-    command: server /data --console-address ":9001"
+  # Регион `us-east-1` объявляет ХРАНИЛИЩЕ (см. garage.toml), и поэтому приложение работает без
+  # единой правки кода: наш SDK подписывает запросы этим регионом и переубедить его нельзя —
+  # `MakeBucket` подписывается отдельно и `WithRegion` игнорирует.
+  garage:
+    image: dxflrs/garage:v2.3.0
+    # Образ без ENTRYPOINT: команду пишем полным путём, иначе docker ищет «server» в $PATH.
+    command: ["/garage", "server"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN}
     volumes:
-      - minio_data:/data
-    ports:
-      # Только петля: консоль хранилища работает под учёткой администратора MinIO и даёт доступ
-      # ко всем файлам системы в обход приложения. Снаружи — через SSH-туннель.
-      - "${MINIO_CONSOLE_BIND:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
+      - ./garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+    # Наружу не публикуется НИЧЕГО: ни S3 (3900), ни admin (3903). У MinIO здесь была консоль на
+    # петле — у Garage веб-консоли нет вовсе, управление идёт CLI внутри контейнера (§6).
+    # Форма CMD, а не CMD-SHELL: в образе Garage нет shell.
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped
 
-  # Одноразовый сервис: создаёт bucket в MinIO. Клиент `mc` — из нашего же реестра и по той же
-  # причине, что и сам MinIO выше: репозиторий upstream архивирован.
-  createbuckets:
-    image: ghcr.io/pavru/mc:RELEASE.2025-08-13T08-35-41Z
+  # Одноразовый сервис: раскладка, ключ, бакет, права. Идемпотентен — поднимается при каждом
+  # старте стека и на настроенном хранилище ничего не делает.
+  #
+  # Своё изделие, а не сторонний образ: в образе Garage НЕТ shell (там один исполняемый файл), а
+  # инициализация — последовательность из четырёх команд, где идентификатор узла заранее
+  # неизвестен. Собирается как api и web, тем же выпуском, из deploy/Dockerfile.garage-init.
+  garage-init:
+    image: ghcr.io/pavru/bhs.crg-garage-init:${APP_VERSION:?APP_VERSION не задан — укажите версию в .env}
     depends_on:
-      - minio
+      garage:
+        condition: service_healthy
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_BUCKET: ${MINIO_BUCKET}
-    entrypoint: >
-      /bin/sh -c "
-      until mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD; do
-        echo 'ожидание MinIO...'; sleep 2;
-      done;
-      mc mb --ignore-existing local/$$MINIO_BUCKET;
-      echo 'bucket готов';
-      "
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET}
+      GARAGE_BUCKET: ${GARAGE_BUCKET}
+      GARAGE_KEY_ID: ${GARAGE_KEY_ID}
+      GARAGE_SECRET: ${GARAGE_SECRET}
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      # Том метаданных нужен клиенту не «на всякий случай»: в нём лежит ключ узла, без которого
+      # CLI не подключится к серверу даже по правильному адресу.
+      - garage_meta:/var/lib/garage/meta
     restart: "no"
 
   # Локальная модель распознавания сканов (опционально)
@@ -143,14 +155,19 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      minio:
-        condition: service_started
+      # Именно `service_completed_successfully`, а не «хранилище запущено». Разница не
+      # косметическая: неинициализированный Garage отвечает отказом на КАЖДЫЙ запрос, и без этого
+      # условия система поднялась бы «успешно», а первая же загрузка файла падала бы ошибкой S3,
+      # которая не называет причины. Так `docker compose up -d` возвращает ненулевой код, и
+      # обновление останавливается там, где ещё понятно, что случилось.
+      garage-init:
+        condition: service_completed_successfully
     environment:
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
-      BlobStorage__Endpoint: "minio:9000"
-      BlobStorage__AccessKey: ${MINIO_ROOT_USER}
-      BlobStorage__SecretKey: ${MINIO_ROOT_PASSWORD}
-      BlobStorage__Bucket: ${MINIO_BUCKET}
+      BlobStorage__Endpoint: "garage:3900"
+      BlobStorage__AccessKey: ${GARAGE_KEY_ID}
+      BlobStorage__SecretKey: ${GARAGE_SECRET}
+      BlobStorage__Bucket: ${GARAGE_BUCKET}
       BlobStorage__UseSSL: "false"
       Jwt__Key: ${JWT_KEY}
       Ollama__BaseUrl: "http://ollama:11434"
@@ -237,6 +254,13 @@ services:
 
 volumes:
   postgres_data:
+  garage_meta:
+  garage_data:
+  # Том прежнего хранилища. Сервиса MinIO здесь больше нет, но том ОБЪЯВЛЕН НАРОЧНО: на
+  # установках, пришедших с версий до 0.160.0, в нём лежат файлы на момент перехода — то есть
+  # страховка и точка отката (`update.sh --rollback` возвращает данные именно оттуда). Убрать его
+  # объявление значило бы, что `docker compose down -v` сносит эту страховку заодно со всем
+  # остальным, не сказав ни слова. На свежей установке том просто создаётся пустым и не мешает.
   minio_data:
   ollama_data:
   dp_keys:
