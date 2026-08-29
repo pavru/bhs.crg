@@ -84,41 +84,58 @@ jobs:
           # Потребителей двое: здешний сервисный контейнер базы (объявлен литералом — `services:`
           # разбирается до шагов, выражения там не работают) и дев-compose в корне. Дев-стенд,
           # отставший по версии базы или хранилища, проверяет не то, что поставляется.
-          PG='s|^ *image: *\(postgres:[^ ]*\)$|\1|p'
-          MINIO='s|^ *image: *\([^ ]*minio:[^ ]*\)$|\1|p'
           rc=0
-          same() { # $1 — эталон, $2 — файл, $3 — sed-выражение
-            local want="$1" file="$2" expr="$3" used found=0
+          same() { # $1 — эталон, $2 — файл, $3 — sed-выражение, $4 — что сверяем (человеку)
+            local want="$1" file="$2" expr="$3" what="$4" used found=0
             for used in $(sed -n "$expr" "$file" | sort -u); do
               found=1
               if [ "$used" != "$want" ]; then
-                echo "::error::В $file объявлен $used, а поставка едет на $want — образы разъехались"
+                echo "::error::В $file объявлен $used, а эталон $what — $want. Образы разъехались"
                 rc=1
               else
                 echo "$file: $used — совпадает"
               fi
             done
             if [ "$found" -eq 0 ]; then
-              echo "::error::В $file не нашлось ни одного образа по шаблону — сверять нечего, а раньше было"
+              echo "::error::В $file не нашлось образа ($what) — сверять нечего, а раньше было"
               rc=1
             fi
           }
-          for kind in PG MINIO; do
-            eval "expr=\$$kind"
-            want=$(sed -n "$expr" deploy/docker-compose.yml | head -1)
-            if [ -z "$want" ]; then
-              echo "::error::В deploy/docker-compose.yml не нашёлся образ ($kind) — сверять не с чем"
-              rc=1
-              continue
-            fi
-            echo "поставка ($kind): $want"
-            # if, а не `[ … ] && …`: шаг идёт под `bash -e`, и ложное условие последней командой
-            # строки уронило бы весь шаг на итерации MINIO — с пустым выводом вместо объяснения.
-            if [ "$kind" = PG ]; then
-              same "$want" .github/workflows/ci.yml "$expr"
-            fi
-            same "$want" docker-compose.yml "$expr"
-          done
+
+          # ── База: эталон — поставка, потребители — здешний литерал и дев-стенд ────────────
+          PG='s|^ *image: *\(postgres:[^ ]*\)$|\1|p'
+          PG_WANT=$(sed -n "$PG" deploy/docker-compose.yml | head -1)
+          if [ -z "$PG_WANT" ]; then
+            echo "::error::В deploy/docker-compose.yml не нашёлся образ postgres — сверять не с чем"
+            rc=1
+          else
+            echo "поставка (postgres): $PG_WANT"
+            same "$PG_WANT" .github/workflows/ci.yml "$PG" "postgres"
+            same "$PG_WANT" docker-compose.yml "$PG" "postgres"
+          fi
+
+          # ── Хранилище: эталон — ДЕВ-СТЕНД, а не поставка, и это переходное состояние ──────
+          # Первый этап issue #885 перевёл на Garage дев-стенд и живые прогоны, поставка пока на
+          # MinIO. Сверять их между собой сейчас нельзя — они РАЗНЫЕ намеренно; но и промолчать
+          # нельзя: версия Garage записана в двух местах — образ сервера в дев-compose и `FROM` в
+          # Dockerfile.garage-init, откуда берётся бинарь CLI. Клиент и сервер Garage обязаны быть
+          # одной версии, а разъехались бы они молча.
+          GG='s|^ *image: *\(dxflrs/garage:[^ ]*\)$|\1|p'
+          GG_WANT=$(sed -n "$GG" docker-compose.yml | head -1)
+          if [ -z "$GG_WANT" ]; then
+            echo "::error::В docker-compose.yml не нашёлся образ dxflrs/garage — сверять не с чем"
+            rc=1
+          else
+            echo "дев-стенд (garage): $GG_WANT"
+            same "$GG_WANT" deploy/Dockerfile.garage-init 's|^FROM \(dxflrs/garage:[^ ]*\) .*$|\1|p' "garage"
+          fi
+
+          # Пока переход не завершён, у поставки своё хранилище — говорим об этом вслух, чтобы
+          # «сторож молчит» не читалось как «всё сошлось».
+          DELIVERY_STORAGE=$(sed -n 's|^ *image: *\([^ ]*minio:[^ ]*\)$|\1|p' deploy/docker-compose.yml | head -1)
+          if [ -n "$DELIVERY_STORAGE" ]; then
+            echo "поставка пока на другом хранилище: $DELIVERY_STORAGE (переход — issue #885, этап 2)"
+          fi
           exit $rc
 
       - name: Сборка
@@ -254,25 +271,50 @@ jobs:
           cache: npm
           cache-dependency-path: src/client/package-lock.json
 
-      # MinIO поднимаем шагом, а не сервисом: сервисам GitHub нельзя передать аргументы команды
-      # (`server /data`), а образ minio без них не стартует.
+      # Хранилище поднимаем шагами, а не сервисом: сервисам GitHub нельзя передать аргументы команды,
+      # а Garage без них не стартует — и, в отличие от MinIO, его ещё надо ИНИЦИАЛИЗИРОВАТЬ.
       #
-      # Образ ЧИТАЕМ из deploy/docker-compose.yml целиком — вместе с реестром, а не одну версию, и
-      # тем же приёмом, что версию Typst ниже. Причина та же: прогоны обязаны идти на том хранилище,
-      # что поедет в поставку. Раньше тег не указывался вовсе, то есть бралось `latest`, и разойтись
-      # эти два хранилища могли только молча (issue #878). С #882 разъехаться может уже и РЕЕСТР:
-      # образ переехал в наш GHCR, потому что upstream архивирован, — поэтому берём строку целиком.
-      - name: Хранилище MinIO
+      # Образ ЧИТАЕМ из docker-compose.yml дев-стенда целиком — вместе с реестром, а не одну версию,
+      # и тем же приёмом, что версию Typst ниже. Причина та же: прогоны обязаны идти на том
+      # хранилище, что стоит у разработчика. Раньше тег не указывался вовсе, то есть бралось
+      # `latest`, и разойтись эти два хранилища могли только молча (issue #878).
+      #
+      # Почему из ДЕВ-файла, а не из поставки, как было. Первый этап issue #885 переводит на Garage
+      # дев-стенд и прогоны, а поставка пока на MinIO — источником истины для хранилища временно
+      # становится дев-compose. Вторым этапом поставка догонит, и обе строки снова сойдутся.
+      - name: Хранилище Garage
         run: |
-          MINIO_IMAGE=$(sed -n 's|^ *image: *\([^ ]*minio:[^ ]*\)$|\1|p' deploy/docker-compose.yml | head -1)
-          if [ -z "$MINIO_IMAGE" ]; then
-            echo "::error::В deploy/docker-compose.yml не нашёлся образ хранилища (…/minio:…) — брать неоткуда"
+          GARAGE_IMAGE=$(sed -n 's|^ *image: *\(dxflrs/garage:[^ ]*\)$|\1|p' docker-compose.yml | head -1)
+          if [ -z "$GARAGE_IMAGE" ]; then
+            echo "::error::В docker-compose.yml не нашёлся образ хранилища (dxflrs/garage:…) — брать неоткуда"
             exit 1
           fi
-          echo "образ хранилища из поставки: $MINIO_IMAGE"
-          docker run -d --name minio -p 9000:9000 \
-            -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
-            "$MINIO_IMAGE" server /data
+          echo "образ хранилища из дев-стенда: $GARAGE_IMAGE"
+
+          # Конфигурация — та же, что у дев-стенда и (со второго этапа) у поставки. Правим одно:
+          # rpc_public_addr, потому что здесь узел зовут не «garage», а по петле.
+          sed 's|^rpc_public_addr = .*|rpc_public_addr = "127.0.0.1:3901"|' deploy/garage.toml > /tmp/garage.toml
+
+          docker run -d --name garage --network host \
+            -e GARAGE_RPC_SECRET=6465765f6f6e6c795f7270635f7365637265745f6e6f745f666f725f6465706c \
+            -e GARAGE_ADMIN_TOKEN=ci-only-admin-token \
+            -v /tmp/garage.toml:/etc/garage.toml:ro \
+            -v garage_meta:/var/lib/garage/meta \
+            -v garage_data:/var/lib/garage/data \
+            "$GARAGE_IMAGE" /garage server
+
+          # Инициализация — ТЕМ ЖЕ скриптом, что поднимает дев-стенд и поедет в поставку. Повторить
+          # его команды здесь отдельно значило бы проверять не то, что работает у людей: разойдясь,
+          # два списка команд не сказали бы об этом никак.
+          docker build -f deploy/Dockerfile.garage-init -t garage-init deploy
+          docker run --rm --network host \
+            -e GARAGE_RPC_SECRET=6465765f6f6e6c795f7270635f7365637265745f6e6f745f666f725f6465706c \
+            -e GARAGE_BUCKET=bhs-crg-e2e \
+            -e GARAGE_KEY_ID=GK0123456789abcdef01234567 \
+            -e GARAGE_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+            -v /tmp/garage.toml:/etc/garage.toml:ro \
+            -v garage_meta:/var/lib/garage/meta \
+            garage-init
 
       # Проверка Typst-блоков в редакторе типов зовёт компилятор на сервере. Без него эндпоинт
       # отвечает ошибкой, и проверка краснеет — не из-за регресса, а из-за отсутствия бинаря.
@@ -334,9 +376,12 @@ jobs:
           # Ключ подписи — одноразовый и живёт ровно столько, сколько работа. Секретом он не
           # является: база и адрес существуют только внутри этого прогона.
           Jwt__Key: ci-only-signing-key-for-live-smokes-not-a-secret
-          BlobStorage__Endpoint: 127.0.0.1:9000
-          BlobStorage__AccessKey: minioadmin
-          BlobStorage__SecretKey: minioadmin
+          # Ключи Garage: формат жёсткий (GK + 24 hex у идентификатора, 64 hex у секрета), поэтому
+          # прежние «minioadmin» не годятся. Значения те же, что у дев-стенда, и секретом не
+          # являются — хранилище живёт внутри прогона.
+          BlobStorage__Endpoint: 127.0.0.1:3900
+          BlobStorage__AccessKey: GK0123456789abcdef01234567
+          BlobStorage__SecretKey: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           BlobStorage__Bucket: bhs-crg-e2e
           AllowedOrigins: http://localhost:4173
           App__PublicUrl: http://localhost:4173

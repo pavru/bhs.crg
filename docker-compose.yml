@@ -1,5 +1,15 @@
-# Версии — те же и прибиты так же, как в поставке (issue #878): дев-стенд, отстающий от продакшна
-# по версии хранилища или базы, проверяет не то. Обновляются вместе, одним PR Dependabot'а.
+# Дев-стенд. Версии прибиты точно (issue #878): стенд, отстающий от продакшна по версии базы или
+# хранилища, проверяет не то. Обновляются одним PR Dependabot'а.
+#
+# ⚠️ ХРАНИЛИЩЕ ЗДЕСЬ — GARAGE, А В ПОСТАВКЕ ПОКА MINIO. Это переходное состояние первого этапа
+# issue #885: сначала Garage обкатывается на дев-стенде и в живых прогонах CI, и только потом,
+# вторым этапом, на него переводится поставка — вместе с миграцией данных внутри `update.sh`.
+# Пока состояние переходное, сторож версий в CI сверяет с поставкой только базу.
+#
+# Что изменилось для разработчика: хранилище слушает 3900, а не 9000, и ключи не `minioadmin`
+# (Garage требует ключ вида GK+24 hex). Дев-значения проставлены в `appsettings.Development.json`,
+# отдельно ничего задавать не нужно. Старый том `minio_data` осиротеет — снести его можно так:
+# `docker volume rm bhscrg_minio_data` (файлов для разработки не жалко).
 
 services:
   postgres:
@@ -17,22 +27,45 @@ services:
       # остался: docker volume rm bhscrg_postgres_data (данных для разработки в нём не жалко).
       - postgres_data:/var/lib/postgresql
 
-  minio:
-    # Копия образа в нашем GHCR, не оригинал с Hub: репозиторий `minio/minio` архивирован
-    # (issue #882). Подробности — в `deploy/docker-compose.yml`; дев-стенд тянет то же самое,
-    # иначе он проверял бы не тот образ, что поедет в поставку.
-    image: ghcr.io/pavru/minio:RELEASE.2025-09-07T16-13-09Z
+  garage:
+    image: dxflrs/garage:v2.3.0
     restart: unless-stopped
-    command: server /data --console-address ":9001"
+    # Образ без ENTRYPOINT: команду пишем полным путём, иначе docker ищет «server» в $PATH.
+    command: ["/garage", "server"]
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      # На дев-стенде секреты фиксированы и лежат в открытую намеренно: стенд одноразовый, а
+      # плавающие значения означали бы, что после каждого пересоздания надо куда-то лезть.
+      GARAGE_RPC_SECRET: 6465765f6f6e6c795f7270635f7365637265745f6e6f745f666f725f6465706c
+      GARAGE_ADMIN_TOKEN: dev-only-admin-token
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "3900:3900"
     volumes:
-      - minio_data:/data
+      - ./deploy/garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+
+  # Одноразовый сервис: раскладка, ключ, бакет, права. Идемпотентен — на настроенном хранилище
+  # ничего не делает. Почему отдельный образ, а не команда в compose, объяснено в его Dockerfile:
+  # в образе Garage нет shell.
+  garage-init:
+    build:
+      context: ./deploy
+      dockerfile: Dockerfile.garage-init
+    depends_on:
+      - garage
+    environment:
+      GARAGE_RPC_SECRET: 6465765f6f6e6c795f7270635f7365637265745f6e6f745f666f725f6465706c
+      GARAGE_BUCKET: bhs-crg
+      GARAGE_KEY_ID: GK0123456789abcdef01234567
+      GARAGE_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    volumes:
+      - ./deploy/garage.toml:/etc/garage.toml:ro
+      # Том метаданных нужен клиенту не «на всякий случай»: в нём лежит ключ узла, без которого
+      # CLI не подключится к серверу даже по правильному адресу (проверено на стенде).
+      - garage_meta:/var/lib/garage/meta
+    restart: "no"
 
 volumes:
   postgres_data:
-  minio_data:
+  garage_meta:
+  garage_data:
