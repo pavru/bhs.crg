@@ -241,6 +241,15 @@ CURRENT=0.150.0; TARGET=0.157.0
 check 'до рубежа не дошли — молчит'               0 "$(run_e check_postgres_major)"
 
 echo
+echo '── pg_major_of: мажор PostgreSQL из compose ──'
+printf 'services:\n  postgres:\n    image: postgres:18.6-alpine\n' > pg18.yml
+printf 'services:\n  postgres:\n    image: postgres:16.15-alpine\n' > pg16.yml
+printf 'services:\n  api:\n    image: ghcr.io/x/y:1\n'              > pgnone.yml
+check 'из 18.6-alpine'       18 "$(pg_major_of pg18.yml)"
+check 'из 16.15-alpine'      16 "$(pg_major_of pg16.yml)"
+check 'нет postgres — пусто' ''  "$(pg_major_of pgnone.yml)"
+
+echo
 echo '── latest_release: разбор номера версии из адреса выпуска ──'
 # Единственная проверка, которой нужна сеть. Обрыв связи — не поломка скрипта, поэтому она
 # пропускается, а не роняет прогон: красный прогон обязан означать «код сломан».

@@ -56,6 +56,8 @@ src/
 
 ```bash
 # Инфраструктура (PostgreSQL + MinIO)
+# С #880 база — PostgreSQL 18, и путь тома сменился. Если контейнер отказывается стартовать с
+# упоминанием pg_upgrade, в томе лежит кластер 16: docker volume rm bhscrg_postgres_data
 docker compose up -d
 
 # Backend (запуск с автомиграцией при старте)
