@@ -3,7 +3,7 @@
 
 services:
   postgres:
-    image: postgres:16.15-alpine
+    image: postgres:18.6-alpine
     environment:
       POSTGRES_DB: bhs_crg
       POSTGRES_USER: postgres
@@ -11,7 +11,11 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Путь — как в поставке (issue #880): с 18-й версии образ хранит кластер в подкаталоге с
+      # номером мажора и объявляет томом /var/lib/postgresql. Имя тома прежнее — тогда старый
+      # кластер 16 даёт ГРОМКИЙ отказ старта, а не тихую пустую базу. Если у вас такой том
+      # остался: docker volume rm bhscrg_postgres_data (данных для разработки в нём не жалко).
+      - postgres_data:/var/lib/postgresql
 
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z

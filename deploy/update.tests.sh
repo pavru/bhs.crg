@@ -225,6 +225,31 @@ compose_default ALLOWED_ORIGINS >/dev/null && r=есть || r=нет
 check 'вложенное умолчание не выдаётся за значение' нет "$r"
 
 echo
+echo '── check_postgres_major: рубеж PostgreSQL 18 останавливает, но только тех, кто через него идёт ──'
+# Проверка стоит в разделе про errexit нарочно: это ОСТАНОВКА, и проверять её надо в том режиме,
+# в каком она работает. Здесь же видно, что она не срабатывает вхолостую: оговорка не по адресу
+# приучает пропускать оговорки — та же причина, по которой у legacy_notes появился `crosses`.
+CURRENT=0.157.0; TARGET=0.158.0
+check 'переход 0.157→0.158 останавливает'        1 "$(run_e check_postgres_major)"
+check 'и называет версию PostgreSQL'            да "$(said 'PostgreSQL 18')"
+check 'и адрес процедуры, а не «см. документацию»' да "$(said '8.6')"
+CURRENT=0.157.0; TARGET=0.160.0
+check 'переход через рубеж дальше — тоже стоп'    1 "$(run_e check_postgres_major)"
+CURRENT=0.158.0; TARGET=0.160.0
+check 'уже на 18 — молчит'                        0 "$(run_e check_postgres_major)"
+CURRENT=0.150.0; TARGET=0.157.0
+check 'до рубежа не дошли — молчит'               0 "$(run_e check_postgres_major)"
+
+echo
+echo '── pg_major_of: мажор PostgreSQL из compose ──'
+printf 'services:\n  postgres:\n    image: postgres:18.6-alpine\n' > pg18.yml
+printf 'services:\n  postgres:\n    image: postgres:16.15-alpine\n' > pg16.yml
+printf 'services:\n  api:\n    image: ghcr.io/x/y:1\n'              > pgnone.yml
+check 'из 18.6-alpine'       18 "$(pg_major_of pg18.yml)"
+check 'из 16.15-alpine'      16 "$(pg_major_of pg16.yml)"
+check 'нет postgres — пусто' ''  "$(pg_major_of pgnone.yml)"
+
+echo
 echo '── latest_release: разбор номера версии из адреса выпуска ──'
 # Единственная проверка, которой нужна сеть. Обрыв связи — не поломка скрипта, поэтому она
 # пропускается, а не роняет прогон: красный прогон обязан означать «код сломан».

@@ -20,7 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Frontend | React 19 + TypeScript, Radix UI, Tailwind v4, React Query, Monaco (редактор Typst-шаблонов) |
 | Backend | ASP.NET Core 10 (Minimal APIs), EF Core 10 (Npgsql), MediatR |
 | Auth | ASP.NET Identity + JWT, роли Admin/User (без SSO / корп. интеграций) |
-| БД | PostgreSQL 16 |
+| БД | PostgreSQL 18 |
 | Blob-хранилище | MinIO (self-hosted) |
 | PDF | **Typst** (CLI, env `TYPST_PATH`). DOCX **не поддерживается** |
 | Распознавание/поиск | Ollama / Anthropic / Gemini (распознавание сканов), Serper / Yandex (веб-поиск) — для документов качества |
@@ -56,6 +56,8 @@ src/
 
 ```bash
 # Инфраструктура (PostgreSQL + MinIO)
+# С #880 база — PostgreSQL 18, и путь тома сменился. Если контейнер отказывается стартовать с
+# упоминанием pg_upgrade, в томе лежит кластер 16: docker volume rm bhscrg_postgres_data
 docker compose up -d
 
 # Backend (запуск с автомиграцией при старте)
