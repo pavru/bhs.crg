@@ -35,13 +35,13 @@ public static class StorageConfigGuard
     public static void Require(string? connectionString, string? accessKey, string? secretKey, string? bucket)
     {
         RequireConnectionString(connectionString);
-        RequireStorageValue(accessKey, "BlobStorage__AccessKey", "MINIO_ROOT_USER");
-        RequireStorageValue(secretKey, "BlobStorage__SecretKey", "MINIO_ROOT_PASSWORD");
+        RequireStorageValue(accessKey, "BlobStorage__AccessKey", "GARAGE_KEY_ID");
+        RequireStorageValue(secretKey, "BlobStorage__SecretKey", "GARAGE_SECRET");
         // Бакет — третья дверь в том же ряду. Compose подставляет его так же (`${MINIO_BUCKET}`, без
         // значения по умолчанию), пустое значение так же перекрывает дефолт C#, а узнаётся об этом
         // ещё позже: имя бакета трогается лениво, на первой загрузке файла. Проверять два значения
         // из трёх значило бы оставить ровно тот отказ, ради устранения которого проверка и заведена.
-        RequireStorageValue(bucket, "BlobStorage__Bucket", "MINIO_BUCKET");
+        RequireStorageValue(bucket, "BlobStorage__Bucket", "GARAGE_BUCKET");
     }
 
     /// <summary>
