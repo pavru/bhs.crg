@@ -43,16 +43,38 @@ services:
       - ./deploy/garage.toml:/etc/garage.toml:ro
       - garage_meta:/var/lib/garage/meta
       - garage_data:/var/lib/garage/data
+    # Форма CMD, а не CMD-SHELL: в образе Garage нет shell, и `CMD-SHELL` там просто не выполнится.
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
 
   # Одноразовый сервис: раскладка, ключ, бакет, права. Идемпотентен — на настроенном хранилище
   # ничего не делает. Почему отдельный образ, а не команда в compose, объяснено в его Dockerfile:
   # в образе Garage нет shell.
+  # ⚠️ ПОДНИМАТЬ СТЕНД НАДО ТАК:
+  #
+  #     docker compose up -d && docker compose wait garage-init
+  #
+  # Потому что `docker compose up -d` возвращает 0 ДАЖЕ КОГДА ЭТА ИНИЦИАЛИЗАЦИЯ УПАЛА — проверено:
+  # битый ключ, init выходит с кодом 1, `up -d` отвечает 0. Дальше человек получает не отказ, а
+  # загадку: первая же загрузка файла падает внутри приложения ошибкой S3, которая не называет ни
+  # бакета, ни причины (а `MakeBucket` тут ещё и запрещён ключу — см. ниже).
+  #
+  # `up -d --wait` для этого НЕ ГОДИТСЯ, хотя выглядит подходящим: одноразовый контейнер он считает
+  # неуспешным ожиданием и возвращает 1 даже при коде выхода 0 (проверено). А `compose wait` отдаёт
+  # ровно код init: 0 при успехе, 1 при отказе.
   garage-init:
     build:
       context: ./deploy
       dockerfile: Dockerfile.garage-init
+    # Не просто `- garage`: тот означает «контейнер запущен», а инициализации нужно «RPC отвечает».
+    # Ожидание внутри скрипта остаётся — оно страхует от медленной машины, — но начинать гонку с
+    # ещё не поднявшимся узлом незачем.
     depends_on:
-      - garage
+      garage:
+        condition: service_healthy
     environment:
       GARAGE_RPC_SECRET: 6465765f6f6e6c795f7270635f7365637265745f6e6f745f666f725f6465706c
       GARAGE_BUCKET: bhs-crg

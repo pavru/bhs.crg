@@ -49,8 +49,17 @@ if garage status | grep -q 'NO ROLE ASSIGNED'; then
     garage layout assign -z "$ZONE" -c "$CAPACITY" "$NODE" >/dev/null
     # Номер версии раскладки берём из показаний самого Garage, а не «1»: на повторной настройке
     # (узел заменили, ёмкость поменяли) версия будет другой, и литерал молча промахнулся бы.
-    VER="$(garage layout show | sed -n 's/.*version \([0-9]*\).*/\1/p' | tail -1)"
-    garage layout apply --version "${VER:-1}" >/dev/null
+    #
+    # `[0-9][0-9]*`, а не `[0-9]*`: звёздочка соглашается на ПУСТОЕ совпадение, и строка со словом
+    # «version» без числа дала бы пустую строку — а дальше подстановка по умолчанию тихо вернула бы
+    # ту самую единицу, вместо которой всё это и написано. Пусто — останавливаемся и говорим.
+    VER="$(garage layout show | sed -n 's/.*version \([0-9][0-9]*\).*/\1/p' | tail -1)"
+    if [ -z "$VER" ]; then
+        echo "не удалось прочитать номер версии раскладки из вывода 'garage layout show'." >&2
+        garage layout show >&2
+        exit 1
+    fi
+    garage layout apply --version "$VER" >/dev/null
     say "раскладка применена (зона $ZONE, ёмкость $CAPACITY)"
 else
     say "раскладка уже применена"

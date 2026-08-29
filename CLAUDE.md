@@ -56,9 +56,12 @@ src/
 
 ```bash
 # Инфраструктура (PostgreSQL + Garage)
+# ⚠️ Именно с `compose wait`: `up -d` возвращает 0, даже если инициализация хранилища УПАЛА,
+# и тогда отказ приходит позже — ошибкой S3 из середины приложения. `up -d --wait` не годится:
+# он считает одноразовый init неуспешным и краснеет даже при коде 0.
 # С #880 база — PostgreSQL 18, и путь тома сменился. Если контейнер отказывается стартовать с
 # упоминанием pg_upgrade, в томе лежит кластер 16: docker volume rm bhscrg_postgres_data
-docker compose up -d
+docker compose up -d && docker compose wait garage-init
 
 # Backend (запуск с автомиграцией при старте)
 dotnet run --project src/server/BHS.CRG.Api
