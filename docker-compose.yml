@@ -1,5 +1,15 @@
-# Версии — те же и прибиты так же, как в поставке (issue #878): дев-стенд, отстающий от продакшна
-# по версии хранилища или базы, проверяет не то. Обновляются вместе, одним PR Dependabot'а.
+# Дев-стенд. Версии прибиты точно (issue #878): стенд, отстающий от продакшна по версии базы или
+# хранилища, проверяет не то. Обновляются одним PR Dependabot'а.
+#
+# ⚠️ ХРАНИЛИЩЕ ЗДЕСЬ — GARAGE, А В ПОСТАВКЕ ПОКА MINIO. Это переходное состояние первого этапа
+# issue #885: сначала Garage обкатывается на дев-стенде и в живых прогонах CI, и только потом,
+# вторым этапом, на него переводится поставка — вместе с миграцией данных внутри `update.sh`.
+# Пока состояние переходное, сторож версий в CI сверяет с поставкой только базу.
+#
+# Что изменилось для разработчика: хранилище слушает 3900, а не 9000, и ключи не `minioadmin`
+# (Garage требует ключ вида GK+24 hex). Дев-значения проставлены в `appsettings.Development.json`,
+# отдельно ничего задавать не нужно. Старый том `minio_data` осиротеет — снести его можно так:
+# `docker volume rm bhscrg_minio_data` (файлов для разработки не жалко).
 
 services:
   postgres:
@@ -17,22 +27,67 @@ services:
       # остался: docker volume rm bhscrg_postgres_data (данных для разработки в нём не жалко).
       - postgres_data:/var/lib/postgresql
 
-  minio:
-    # Копия образа в нашем GHCR, не оригинал с Hub: репозиторий `minio/minio` архивирован
-    # (issue #882). Подробности — в `deploy/docker-compose.yml`; дев-стенд тянет то же самое,
-    # иначе он проверял бы не тот образ, что поедет в поставку.
-    image: ghcr.io/pavru/minio:RELEASE.2025-09-07T16-13-09Z
+  garage:
+    image: dxflrs/garage:v2.3.0
     restart: unless-stopped
-    command: server /data --console-address ":9001"
+    # Образ без ENTRYPOINT: команду пишем полным путём, иначе docker ищет «server» в $PATH.
+    command: ["/garage", "server"]
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      # На дев-стенде секреты фиксированы и лежат в открытую намеренно: стенд одноразовый, а
+      # плавающие значения означали бы, что после каждого пересоздания надо куда-то лезть.
+      GARAGE_RPC_SECRET: 6465765f6f6e6c795f7270635f7365637265745f6e6f745f666f725f6465706c
+      GARAGE_ADMIN_TOKEN: dev-only-admin-token
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "3900:3900"
     volumes:
-      - minio_data:/data
+      - ./deploy/garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+    # Форма CMD, а не CMD-SHELL: в образе Garage нет shell, и `CMD-SHELL` там просто не выполнится.
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  # Одноразовый сервис: раскладка, ключ, бакет, права. Идемпотентен — на настроенном хранилище
+  # ничего не делает. Почему отдельный образ, а не команда в compose, объяснено в его Dockerfile:
+  # в образе Garage нет shell.
+  # ⚠️ ПОДНИМАТЬ СТЕНД НАДО ТАК:
+  #
+  #     docker compose up -d && docker compose wait garage-init
+  #
+  # Потому что `docker compose up -d` возвращает 0 ДАЖЕ КОГДА ЭТА ИНИЦИАЛИЗАЦИЯ УПАЛА — проверено:
+  # битый ключ, init выходит с кодом 1, `up -d` отвечает 0. Дальше человек получает не отказ, а
+  # загадку: первая же загрузка файла падает внутри приложения ошибкой S3, которая не называет ни
+  # бакета, ни причины (а `MakeBucket` тут ещё и запрещён ключу — см. ниже).
+  #
+  # `up -d --wait` для этого НЕ ГОДИТСЯ, хотя выглядит подходящим: одноразовый контейнер он считает
+  # неуспешным ожиданием и возвращает 1 даже при коде выхода 0 (проверено). А `compose wait` отдаёт
+  # ровно код init: 0 при успехе, 1 при отказе.
+  garage-init:
+    build:
+      context: ./deploy
+      dockerfile: Dockerfile.garage-init
+    # Не просто `- garage`: тот означает «контейнер запущен», а инициализации нужно «RPC отвечает».
+    # Ожидание внутри скрипта остаётся — оно страхует от медленной машины, — но начинать гонку с
+    # ещё не поднявшимся узлом незачем.
+    depends_on:
+      garage:
+        condition: service_healthy
+    environment:
+      GARAGE_RPC_SECRET: 6465765f6f6e6c795f7270635f7365637265745f6e6f745f666f725f6465706c
+      GARAGE_BUCKET: bhs-crg
+      GARAGE_KEY_ID: GK0123456789abcdef01234567
+      GARAGE_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    volumes:
+      - ./deploy/garage.toml:/etc/garage.toml:ro
+      # Том метаданных нужен клиенту не «на всякий случай»: в нём лежит ключ узла, без которого
+      # CLI не подключится к серверу даже по правильному адресу (проверено на стенде).
+      - garage_meta:/var/lib/garage/meta
+    restart: "no"
 
 volumes:
   postgres_data:
-  minio_data:
+  garage_meta:
+  garage_data:

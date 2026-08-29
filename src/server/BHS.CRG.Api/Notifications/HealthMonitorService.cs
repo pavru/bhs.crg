@@ -10,7 +10,7 @@ using Minio.DataModel.Args;
 namespace BHS.CRG.Api.Notifications;
 
 /// <summary>
-/// Периодически проверяет состояние БД, хранилища MinIO и (если включён) Ollama.
+/// Периодически проверяет состояние БД, объектного хранилища и (если включён) Ollama.
 /// Хранит актуальный снимок (<see cref="IHealthState"/>) и публикует уведомление
 /// при смене состояния компонента (упал → Ошибка/Предупреждение, восстановился → Информация).
 /// </summary>
@@ -59,7 +59,7 @@ public class HealthMonitorService(
         var checks = new List<ComponentHealth>
         {
             await CheckAsync("База данных", () => CheckPostgresAsync(sp, ct)),
-            await CheckAsync("Хранилище (MinIO)", () => CheckMinioAsync(ct)),
+            await CheckAsync("Хранилище", () => CheckStorageAsync(ct)),
         };
 
         // Движки распознавания проверяем ровно те, что РЕАЛЬНО участвуют в работе, — тем же
@@ -110,7 +110,7 @@ public class HealthMonitorService(
         }
     }
 
-    // Движки распознавания (Ollama/Gemini) → Предупреждение; ядро (БД/MinIO) → Ошибка.
+    // Движки распознавания (Ollama/Gemini) → Предупреждение; ядро (БД/хранилище) → Ошибка.
     private static NotificationSeverity SeverityFor(string name)
         => name.StartsWith("Ollama") || name.StartsWith("Gemini")
             ? NotificationSeverity.Warning
@@ -137,7 +137,7 @@ public class HealthMonitorService(
         return null;
     }
 
-    private async Task<string?> CheckMinioAsync(CancellationToken ct)
+    private async Task<string?> CheckStorageAsync(CancellationToken ct)
     {
         await minio.BucketExistsAsync(new BucketExistsArgs().WithBucket(blobOptions.Bucket), ct);
         return null;
