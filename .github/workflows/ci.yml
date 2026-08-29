@@ -75,23 +75,49 @@ jobs:
       # Дублирование без сторожа стоило бы дорого и незаметно: тесты и живые прогоны шли бы на
       # одной базе, а поставка ехала бы на другой — а сортировка текста у сборок отличается, и
       # именно на порядке в этой системе ломались проверки (issue #872).
-      - name: Версия Postgres совпадает с поставкой
+      - name: Образы инфраструктуры совпадают с поставкой
         run: |
-          image_of() { sed -n 's|^ *image: *\(postgres:[^ ]*\)$|\1|p' "$1"; }
-          DELIVERY=$(image_of deploy/docker-compose.yml | head -1)
-          if [ -z "$DELIVERY" ]; then
-            echo "::error::В deploy/docker-compose.yml не нашёлся образ postgres — сверять не с чем"
-            exit 1
-          fi
-          echo "поставка: $DELIVERY"
+          # Сверяем ОБРАЗ ЦЕЛИКОМ, а не версию: с issue #882 разъехаться может и реестр — копия
+          # архивированного MinIO лежит в нашем GHCR, и опечатка в длинном адресе тише опечатки
+          # в теге. Эталон один — deploy/docker-compose.yml, то, что реально поедет в продакшн.
+          #
+          # Потребителей двое: здешний сервисный контейнер базы (объявлен литералом — `services:`
+          # разбирается до шагов, выражения там не работают) и дев-compose в корне. Дев-стенд,
+          # отставший по версии базы или хранилища, проверяет не то, что поставляется.
+          PG='s|^ *image: *\(postgres:[^ ]*\)$|\1|p'
+          MINIO='s|^ *image: *\([^ ]*minio:[^ ]*\)$|\1|p'
           rc=0
-          for used in $(image_of .github/workflows/ci.yml | sort -u); do
-            if [ "$used" != "$DELIVERY" ]; then
-              echo "::error::В ci.yml объявлен $used, а поставка едет на $DELIVERY — версии разъехались"
+          same() { # $1 — эталон, $2 — файл, $3 — sed-выражение
+            local want="$1" file="$2" expr="$3" used found=0
+            for used in $(sed -n "$expr" "$file" | sort -u); do
+              found=1
+              if [ "$used" != "$want" ]; then
+                echo "::error::В $file объявлен $used, а поставка едет на $want — образы разъехались"
+                rc=1
+              else
+                echo "$file: $used — совпадает"
+              fi
+            done
+            if [ "$found" -eq 0 ]; then
+              echo "::error::В $file не нашлось ни одного образа по шаблону — сверять нечего, а раньше было"
               rc=1
-            else
-              echo "ci.yml: $used — совпадает"
             fi
+          }
+          for kind in PG MINIO; do
+            eval "expr=\$$kind"
+            want=$(sed -n "$expr" deploy/docker-compose.yml | head -1)
+            if [ -z "$want" ]; then
+              echo "::error::В deploy/docker-compose.yml не нашёлся образ ($kind) — сверять не с чем"
+              rc=1
+              continue
+            fi
+            echo "поставка ($kind): $want"
+            # if, а не `[ … ] && …`: шаг идёт под `bash -e`, и ложное условие последней командой
+            # строки уронило бы весь шаг на итерации MINIO — с пустым выводом вместо объяснения.
+            if [ "$kind" = PG ]; then
+              same "$want" .github/workflows/ci.yml "$expr"
+            fi
+            same "$want" docker-compose.yml "$expr"
           done
           exit $rc
 
@@ -231,15 +257,16 @@ jobs:
       # MinIO поднимаем шагом, а не сервисом: сервисам GitHub нельзя передать аргументы команды
       # (`server /data`), а образ minio без них не стартует.
       #
-      # Версию ЧИТАЕМ из deploy/docker-compose.yml — тем же приёмом, что версию Typst ниже, и по
-      # той же причине: прогоны обязаны идти на том хранилище, что поедет в поставку. Раньше тег не
-      # указывался вовсе, то есть бралось `latest`, и разойтись эти два хранилища могли только
-      # молча (issue #878).
+      # Образ ЧИТАЕМ из deploy/docker-compose.yml целиком — вместе с реестром, а не одну версию, и
+      # тем же приёмом, что версию Typst ниже. Причина та же: прогоны обязаны идти на том хранилище,
+      # что поедет в поставку. Раньше тег не указывался вовсе, то есть бралось `latest`, и разойтись
+      # эти два хранилища могли только молча (issue #878). С #882 разъехаться может уже и РЕЕСТР:
+      # образ переехал в наш GHCR, потому что upstream архивирован, — поэтому берём строку целиком.
       - name: Хранилище MinIO
         run: |
-          MINIO_IMAGE=$(sed -n 's|^ *image: *\(minio/minio:.*\)$|\1|p' deploy/docker-compose.yml | head -1)
+          MINIO_IMAGE=$(sed -n 's|^ *image: *\([^ ]*minio:[^ ]*\)$|\1|p' deploy/docker-compose.yml | head -1)
           if [ -z "$MINIO_IMAGE" ]; then
-            echo "::error::В deploy/docker-compose.yml не нашёлся образ minio/minio — версию взять неоткуда"
+            echo "::error::В deploy/docker-compose.yml не нашёлся образ хранилища (…/minio:…) — брать неоткуда"
             exit 1
           fi
           echo "образ хранилища из поставки: $MINIO_IMAGE"

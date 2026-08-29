@@ -194,7 +194,14 @@ docker() { return 0; }
 printf 'APP_VERSION=0.150.0\n' > .env
 printf 'services:\n  api:\n    build: .\n' > docker-compose.yml     # ни одного образа ghcr.io
 check 'compose без наших образов: код 1' 1 "$(run_e do_gc)"
-check 'и объяснение вместо тишины'  да "$(said 'нет образов с ghcr.io')"
+check 'и объяснение вместо тишины'  да "$(said 'нет образов BHS.CRG')"
+
+# Копия MinIO лежит в НАШЕМ реестре (issue #882), но нашим образом не является: её тег заморожен
+# и APP_VERSION не равен никогда. Посчитай её своей — и `--gc --yes` снёс бы хранилище, стоило
+# остановить контейнеры. Отбор идёт по имени `bhs.crg-*`, а не по адресу реестра.
+printf 'services:\n  minio:\n    image: ghcr.io/pavru/minio:RELEASE.2025-09-07T16-13-09Z\n' > docker-compose.yml
+check 'зеркало MinIO в ghcr.io — не наш образ' 1 "$(run_e do_gc)"
+check 'и сказано, что сторонние не трогаем'    да "$(said 'нет образов BHS.CRG')"
 
 printf 'services:\n  api:\n    image: ghcr.io/pavru/bhs.crg-api:${APP_VERSION}\n' > docker-compose.yml
 mv .env .env.hidden
