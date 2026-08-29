@@ -1,0 +1,503 @@
+#!/usr/bin/env bash
+#
+# Установка BHS.CRG одной командой (issue #890).
+#
+#   ./install.sh                  — поставить последний выпуск в текущий каталог
+#   ./install.sh 0.160.0          — поставить конкретную версию
+#   ./install.sh --dry-run        — показать, что будет сделано, ничего не меняя
+#   ./install.sh --non-interactive — без вопросов, значения из переменных окружения
+#
+# Устройство подчинено тому же правилу, что и update.sh: МЕХАНИКУ берём на себя, РЕШЕНИЯ оставляем
+# человеку. Разница в том, что при установке решений всего три (адрес, порт, локальное
+# распознавание) — остальное либо имеет разумное умолчание, либо не имеет пространства для выбора
+# вовсе: ключ хранилища с жёстким форматом человек не «выбирает», он его ошибается.
+#
+# Что делает и чего НЕ делает — в §3 DEPLOYMENT.md. Коротко: не ставит Docker, не настраивает HTTPS
+# и почту, не трогает существующую установку (для обновления есть update.sh).
+
+set -euo pipefail
+
+REPO="pavru/bhs.crg"
+RELEASE_URL="https://github.com/$REPO/releases/download"
+LATEST_URL="https://github.com/$REPO/releases/latest"
+ASSETS=(docker-compose.yml garage.toml update.sh env.example)
+
+TARGET=""              # версия; пусто — последний выпуск
+DRY_RUN=0
+INTERACTIVE=1
+DIR="."
+
+# Ответы, которые в неинтерактивном режиме берутся из окружения. Имена совпадают с ключами .env
+# там, где ключ существует, — чтобы не заводить второй словарь для тех же понятий.
+PUBLIC_URL="${APP_PUBLIC_URL:-}"
+PORT="${WEB_PORT:-8080}"
+WITH_OLLAMA="${WITH_OLLAMA:-}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
+ADMIN_NAME="${ADMIN_NAME:-Администратор}"
+
+# ── Разговор с человеком ────────────────────────────────────────────────────────
+head2() { printf '\n── %s ──\n' "$*"; }
+say()   { printf '%s\n' "$*"; }
+warn()  { printf '\n! %s\n' "$*" >&2; }
+stop()  { printf '\n╳ %s\n' "$*" >&2; exit 1; }
+
+usage() {
+    cat <<'EOF'
+Установка BHS.CRG.
+
+  ./install.sh [версия] [ключи]
+
+  версия              номер выпуска (по умолчанию — последний)
+  --dir КАТАЛОГ       куда ставить (по умолчанию — текущий каталог)
+  --non-interactive   не задавать вопросов; значения берутся из переменных окружения:
+                        APP_PUBLIC_URL   публичный адрес системы (можно пустым)
+                        WEB_PORT         порт веб-интерфейса (по умолчанию 8080)
+                        WITH_OLLAMA      yes — поднять локальное распознавание (~6 ГБ)
+                        ADMIN_EMAIL      почта первого администратора (обязательно)
+                        ADMIN_PASSWORD   его пароль (обязательно; ≥8 знаков, цифра, заглавная)
+                        ADMIN_NAME       отображаемое имя (по умолчанию «Администратор»)
+  --dry-run           показать план и выйти
+  -h, --help          эта справка
+
+Скрипт не ставит Docker, не настраивает HTTPS и не трогает уже существующую установку.
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --dry-run)         DRY_RUN=1 ;;
+        --non-interactive) INTERACTIVE=0 ;;
+        --dir)             shift; DIR="${1:-}"; [ -n "$DIR" ] || stop "После --dir нужен каталог." ;;
+        -h|--help)         usage; exit 0 ;;
+        -*)                usage >&2; stop "Неизвестный ключ: $1" ;;
+        *)                 [ -z "$TARGET" ] || stop "Версия указана дважды: $TARGET и $1"; TARGET="$1" ;;
+    esac
+    shift
+done
+
+# ── Предполёт ───────────────────────────────────────────────────────────────────
+# Всё, что может отказать, проверяем ДО первой записи на диск. Отказ здесь ничего не стоит:
+# каталог ещё пуст, контейнеров нет, и человек уходит с причиной, а не с полуустановкой.
+
+# Версия «24.0.7» → 24. Сравниваем мажор: нижняя граница объявлена в DEPLOYMENT.md как Docker 24.
+major_of() { printf '%s' "${1%%.*}"; }
+
+check_docker() {
+    command -v docker >/dev/null 2>&1 || stop "$(cat <<'EOF'
+Docker не найден. Скрипт его не ставит намеренно: это отдельное решение на сервере, где будет
+работать система, — см. Приложение А в инструкции по развёртыванию.
+EOF
+)"
+    local server_version compose_version
+    server_version="$(docker version --format '{{.Server.Version}}' 2>/dev/null || true)"
+    [ -n "$server_version" ] || stop "$(cat <<'EOF'
+Docker установлен, но не отвечает — демон не запущен или у вас нет прав на сокет.
+
+  sudo systemctl start docker      # запустить
+  sudo usermod -aG docker "$USER"  # права (нужен перезаход в систему)
+EOF
+)"
+    [ "$(major_of "$server_version")" -ge 24 ] 2>/dev/null || warn \
+        "Docker $server_version старше проверенной границы (24). Установка продолжится, но если что-то пойдёт не так — начните с обновления Docker."
+
+    compose_version="$(docker compose version --short 2>/dev/null || true)"
+    [ -n "$compose_version" ] || stop "$(cat <<'EOF'
+Плагин Docker Compose не найден (`docker compose version` не отвечает). Это отдельный пакет
+docker-compose-plugin — см. Приложение А в инструкции по развёртыванию.
+EOF
+)"
+    say "Docker $server_version, Compose $compose_version."
+}
+
+# Порт проверяем ПОПЫТКОЙ ПОДКЛЮЧЕНИЯ, а не разбором вывода ss/netstat: их формат разный на разных
+# системах, а половина серверов ещё и без ss. Соединение установилось — там кто-то слушает.
+port_busy() {
+    local port="$1"
+    (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && { exec 3<&-; return 0; } || return 1
+}
+
+check_port() {
+    port_busy "$PORT" || return 0
+    stop "$(cat <<EOF
+Порт $PORT на этом хосте уже занят — веб-интерфейс не поднимется.
+
+Выберите другой (--non-interactive: WEB_PORT=8081) или освободите этот. Кто его занял:
+  sudo ss -ltnp | grep :$PORT
+EOF
+)"
+}
+
+check_network() {
+    curl -fsI --max-time 20 "$LATEST_URL" -o /dev/null 2>/dev/null || stop "$(cat <<'EOF'
+До github.com не достучаться, а оттуда берутся файлы выпуска. Проверьте сеть и прокси; на закрытом
+контуре установка делается переносом файлов и образов вручную (Приложение Б).
+EOF
+)"
+    # ghcr.io отвечает 401 на анонимный запрос без токена — это НОРМАЛЬНЫЙ ответ живого реестра.
+    # Нам важно лишь, что до него есть сеть, поэтому смотрим на факт ответа, а не на код.
+    curl -sI --max-time 20 https://ghcr.io/v2/ -o /dev/null 2>/dev/null || stop "$(cat <<'EOF'
+До ghcr.io не достучаться, а оттуда тянутся образы системы. Проверьте сеть и прокси.
+EOF
+)"
+    say "Доступ к github.com и ghcr.io есть."
+}
+
+# Место меряем ТАМ, ГДЕ ЛЕЖАТ ТОМА, а не в каталоге установки: образы и данные занимают гигабайты,
+# и на многих серверах /var — отдельный раздел. Спрашиваем у самого Docker.
+check_space() {
+    local root free_kb free_gb
+    root="$(docker info -f '{{.DockerRootDir}}' 2>/dev/null || true)"
+    free_kb=""
+    # Каталога может не быть на этом хосте вовсе: Docker Desktop держит его в своей виртуальной
+    # машине, удалённый демон — на другой машине. Тогда мерить нечего, и мы говорим об этом вслух:
+    # «проверка молчит» и «проверка прошла» не должны выглядеть одинаково.
+    [ -z "$root" ] || free_kb="$(df -Pk "$root" 2>/dev/null | tail -1 | tr -s ' ' | cut -d' ' -f4 || true)"
+    if [ -z "$free_kb" ]; then
+        say "Свободное место проверить не удалось (демон Docker не на этом хосте) — оцените запас сами: нужно от 5 ГБ."
+        return 0
+    fi
+    free_gb=$((free_kb / 1024 / 1024))
+    if [ "$free_gb" -lt 5 ]; then
+        stop "На диске Docker свободно ${free_gb} ГБ — этого мало: образы системы и базы занимают около 3 ГБ, плюс место под ваши файлы. Освободите место и повторите."
+    fi
+    say "Свободно на диске Docker: ${free_gb} ГБ."
+}
+
+check_target_dir() {
+    [ -d "$DIR" ] || mkdir -p "$DIR" || stop "Не удалось создать каталог $DIR."
+    cd "$DIR" || stop "Не удалось перейти в каталог $DIR."
+    # Отказ, а не перезапись: .env хранит ключи, которыми расшифровывается доступ к данным этой
+    # установки. Затерев их «ради чистой установки», мы отняли бы доступ к её файлам молча.
+    if [ -f .env ]; then
+        stop "$(cat <<EOF
+В каталоге $(pwd) уже есть .env — здесь стоит система, и установка поверх затёрла бы её ключи
+вместе с доступом к данным.
+
+Обновить существующую установку: ./update.sh <версия>
+Поставить рядом ещё одну: ./install.sh --dir /другой/каталог
+EOF
+)"
+    fi
+}
+
+# ── Версия и файлы выпуска ──────────────────────────────────────────────────────
+latest_release() {
+    curl -fsSLI -o /dev/null -w '%{url_effective}' --max-time 20 "$LATEST_URL" 2>/dev/null \
+        | sed -n 's|.*/tag/v\([0-9][0-9.]*\)$|\1|p'
+}
+
+resolve_target() {
+    [ -z "$TARGET" ] || return 0
+    TARGET="$(latest_release || true)"
+    [ -n "$TARGET" ] || stop "Не удалось узнать последний выпуск. Укажите версию явно: ./install.sh 0.160.0"
+    say "Последний выпуск: $TARGET"
+}
+
+fetch_assets() {
+    local asset
+    for asset in "${ASSETS[@]}"; do
+        curl -fsSL --retry 3 --retry-delay 2 "$RELEASE_URL/v$TARGET/$asset" -o "$asset" || stop "$(cat <<EOF
+Не удалось скачать $asset выпуска $TARGET. Проверьте, что такой выпуск существует:
+  $LATEST_URL
+EOF
+)"
+        # Пустой файл — это не «скачалось»: так выглядит оборванная загрузка, а дальше она
+        # превратилась бы в непонятный отказ Compose. `garage.toml` мы уже ловили таким образом:
+        # его отсутствие даёт «IO error: Is a directory» — сообщение, по которому причину не найти.
+        [ -s "$asset" ] || stop "Файл $asset скачался пустым — загрузка оборвалась. Повторите установку."
+    done
+    chmod +x update.sh
+    say "Файлы выпуска $TARGET получены: ${ASSETS[*]}"
+}
+
+# ── Секреты ─────────────────────────────────────────────────────────────────────
+# Формат ключей хранилища проверяет сам Garage при старте: идентификатор — «GK» и 24
+# шестнадцатеричных знака, секреты — ровно 64. Значение другой длины роняет хранилище с
+# «Invalid RPC secret key», то есть система не поднимется. Поэтому их не спрашивают, а создают.
+rand_hex() { head -c "$1" /dev/urandom | od -An -tx1 | tr -d ' \n'; }
+rand_b64() { head -c "$1" /dev/urandom | base64 | tr -d '\n' | tr '+/' '-_'; }
+
+# ── Заполнение .env ─────────────────────────────────────────────────────────────
+# Подставляем значения В ОБРАЗЕЦ, а не пишем .env с нуля: в образце живут комментарии, которые
+# объясняют каждый ключ, и собственный файл лишил бы установку этих объяснений навсегда.
+set_env() {
+    local key="$1" value="$2" tmp
+    tmp="$(mktemp)"
+    # Через awk, а не sed: значения содержат «/», «&» и прочее, что sed истолковал бы как
+    # синтаксис замены. awk сравнивает имя ключа и печатает значение как данные.
+    awk -v k="$key" -v v="$value" '
+        $0 ~ "^[[:space:]]*" k "[[:space:]]*=" && !done { print k "=" v; done = 1; next }
+        { print }
+    ' .env > "$tmp" && mv "$tmp" .env
+}
+
+env_has() { grep -qE "^[[:space:]]*$1[[:space:]]*=" .env; }
+
+# ── Вопросы ─────────────────────────────────────────────────────────────────────
+ask() { # ask «вопрос» «умолчание» → ответ на stdout
+    local prompt="$1" default="$2" answer
+    if [ "$INTERACTIVE" -eq 0 ]; then printf '%s' "$default"; return 0; fi
+    printf '%s' "$prompt" >&2
+    [ -z "$default" ] || printf ' [%s]' "$default" >&2
+    printf ': ' >&2
+    IFS= read -r answer || answer=""
+    printf '%s' "${answer:-$default}"
+}
+
+ask_secret() { # то же, но без эха — для пароля
+    local prompt="$1" answer
+    printf '%s: ' "$prompt" >&2
+    IFS= read -rs answer || answer=""
+    printf '\n' >&2
+    printf '%s' "$answer"
+}
+
+# Требования Identity: не короче 8, цифра, строчная и заглавная (RequireNonAlphanumeric выключен).
+# Проверяем ЗДЕСЬ, а не узнаём от сервера после установки: отказ в самом конце, когда система уже
+# поднята, оставил бы окно первого входа открытым — ровно то, ради чего этот шаг и делается.
+password_bad() {
+    local p="$1"
+    [ "${#p}" -ge 8 ] || { printf 'короче 8 знаков'; return 0; }
+    printf '%s' "$p" | grep -q '[0-9]'   || { printf 'нет ни одной цифры'; return 0; }
+    printf '%s' "$p" | grep -q '[a-zа-я]' || { printf 'нет строчной буквы'; return 0; }
+    printf '%s' "$p" | grep -q '[A-ZА-Я]' || { printf 'нет заглавной буквы'; return 0; }
+    return 1
+}
+
+collect_answers() {
+    if [ "$INTERACTIVE" -eq 1 ]; then
+        head2 "Три вопроса"
+        say "Остальное скрипт заполнит сам — паролями и ключами, которые придумывать не нужно."
+        say ""
+        PUBLIC_URL="$(ask 'Публичный адрес системы (для ссылок в письмах; можно пустым)' "$PUBLIC_URL")"
+        PORT="$(ask 'Порт веб-интерфейса' "$PORT")"
+        local ollama_answer
+        ollama_answer="$(ask 'Поднять локальное распознавание сканов? Это ~6 ГБ диска и до 10 ГБ памяти (yes/no)' "${WITH_OLLAMA:-no}")"
+        WITH_OLLAMA="$ollama_answer"
+
+        head2 "Первый администратор"
+        say "Создадим его сразу. Пока учётной записи нет, страница регистрации открыта любому, кто"
+        say "дотянется до адреса, — администратором станет тот, кто успел первым."
+        say ""
+        ADMIN_EMAIL="$(ask 'Почта администратора' "$ADMIN_EMAIL")"
+        ADMIN_NAME="$(ask 'Отображаемое имя' "$ADMIN_NAME")"
+        while :; do
+            ADMIN_PASSWORD="$(ask_secret 'Пароль (≥8 знаков, цифра, строчная и заглавная)')"
+            local why
+            if why="$(password_bad "$ADMIN_PASSWORD")"; then
+                warn "Пароль не подойдёт: $why. Система отвергнет его при создании учётной записи."
+                continue
+            fi
+            local repeat
+            repeat="$(ask_secret 'Повторите пароль')"
+            [ "$ADMIN_PASSWORD" = "$repeat" ] && break
+            warn "Пароли не совпали."
+        done
+    fi
+
+    [ -n "$ADMIN_EMAIL" ] || stop "Не задана почта администратора (ADMIN_EMAIL). Без неё некому войти в систему, а страница регистрации осталась бы открытой всем."
+    [ -n "$ADMIN_PASSWORD" ] || stop "Не задан пароль администратора (ADMIN_PASSWORD)."
+    local why
+    if why="$(password_bad "$ADMIN_PASSWORD")"; then
+        stop "Пароль администратора не подойдёт: $why. Требования: не короче 8 знаков, цифра, строчная и заглавная буква."
+    fi
+    case "$PORT" in ''|*[!0-9]*) stop "Порт должен быть числом, а задано «$PORT»." ;; esac
+}
+
+# ── Установка ───────────────────────────────────────────────────────────────────
+compose() { docker compose "$@"; }
+
+fill_env() {
+    cp env.example .env
+    set_env APP_VERSION "$TARGET"
+    set_env POSTGRES_PASSWORD "$(rand_b64 24)"
+    set_env JWT_KEY "$(rand_b64 48)"
+    set_env GARAGE_KEY_ID "GK$(rand_hex 12)"
+    set_env GARAGE_SECRET "$(rand_hex 32)"
+    set_env GARAGE_RPC_SECRET "$(rand_hex 32)"
+    set_env GARAGE_ADMIN_TOKEN "$(rand_hex 24)"
+    set_env WEB_PORT "$PORT"
+    [ -z "$PUBLIC_URL" ] || set_env APP_PUBLIC_URL "$PUBLIC_URL"
+    case "$WITH_OLLAMA" in
+        y|Y|yes|Yes|YES|да)
+            set_env COMPOSE_PROFILES ollama
+            set_env OLLAMA_MODEL qwen2.5vl:7b
+            say "Локальное распознавание включено: модель qwen2.5vl:7b загрузится при первом старте." ;;
+    esac
+    chmod 600 .env
+    say "Файл .env заполнен: пароли и ключи созданы, права 600."
+}
+
+prepare_backups() {
+    local dir="backups"
+    mkdir -p "$dir"
+    # uid 1654 — пользователь app внутри образа. Каталог, созданный от root, система принять не
+    # может и останавливается при старте; делаем это здесь, чтобы отказ не пришёл потом.
+    if [ "$(id -u)" = 0 ]; then
+        chown 1654:1654 "$dir"
+        say "Каталог копий $dir создан и передан пользователю app (uid 1654)."
+    elif chown 1654:1654 "$dir" 2>/dev/null; then
+        say "Каталог копий $dir создан и передан пользователю app (uid 1654)."
+    else
+        warn "$(cat <<EOF
+Каталог $dir создан, но сменить владельца без прав root не вышло. Система откажется стартовать,
+пока каталог ей не принадлежит. Выполните и повторите запуск:
+  sudo chown 1654:1654 $(pwd)/$dir
+EOF
+)"
+    fi
+}
+
+# Печатает ТОЛЬКО ответ системы: функция вызывается через подстановку, и любое сообщение из неё
+# попало бы в переменную вместо версии. Проверено живьём — в первом прогоне так и вышло:
+# «Система ответила: Ждём готовности системы…». Поэтому ход дела — в stderr.
+wait_ready() {
+    local url="http://127.0.0.1:$PORT/api/version" i=0 answer
+    printf 'Ждём готовности системы (первый старт занимает до пяти минут: миграции и проверки)…
+' >&2
+    while [ "$i" -lt 100 ]; do
+        answer="$(curl -fsS --max-time 5 "$url" 2>/dev/null || true)"
+        case "$answer" in *'"version"'*) printf '%s' "$answer"; return 0 ;; esac
+        sleep 5
+        i=$((i + 1))
+    done
+    return 1
+}
+
+create_admin() {
+    local url="http://127.0.0.1:$PORT/api/auth/register" body code
+    body="$(printf '{"email":%s,"password":%s,"displayName":%s}' \
+        "$(json_string "$ADMIN_EMAIL")" "$(json_string "$ADMIN_PASSWORD")" "$(json_string "$ADMIN_NAME")")"
+    # Тело уходит ЧЕРЕЗ STDIN (`@-`), а не аргументом, по двум причинам, и вторая важнее первой.
+    #
+    # 1. Аргумент командной строки виден в `ps` любому пользователю сервера — а здесь в нём пароль
+    #    администратора системы.
+    # 2. Аргументы перекодируются: на Windows curl получает их через Win32 в UTF-16 и переводит в
+    #    ANSI, отчего кириллица в имени превращается в мусор и сервер отвечает 400 на невалидный
+    #    UTF-8. Проверено живьём: тот же JSON через stdin — 200, аргументом — 400.
+    code="$(printf '%s' "$body" | curl -s -o /tmp/bhs-install-register.$$ -w '%{http_code}' --max-time 30 \
+        -X POST -H 'Content-Type: application/json' --data-binary @- "$url" || true)"
+    if [ "$code" = 200 ] || [ "$code" = 201 ]; then
+        rm -f "/tmp/bhs-install-register.$$"
+        say "Администратор $ADMIN_EMAIL создан — страница регистрации закрыта."
+        return 0
+    fi
+    warn "$(cat <<EOF
+Создать администратора не удалось (ответ $code): $(head -c 300 "/tmp/bhs-install-register.$$" 2>/dev/null)
+
+Система при этом РАБОТАЕТ, но страница первого входа открыта: зайдите на неё и заведите
+администратора сами, прямо сейчас — до того, как адрес станет доступен кому-то ещё.
+EOF
+)"
+    rm -f "/tmp/bhs-install-register.$$"
+    return 1
+}
+
+# Строку в JSON собираем сами: значения приходят от человека, и кавычка или обратный слэш в пароле
+# порвали бы тело запроса. Экранируем ровно то, что обязано быть экранировано.
+json_string() {
+    printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | sed -e 's/^/"/' -e 's/$/"/'
+}
+
+show_plan() {
+    head2 "План установки"
+    say "  каталог:            $(pwd)"
+    say "  версия:             ${TARGET:-последний выпуск}"
+    say "  порт:               $PORT"
+    say "  публичный адрес:    ${PUBLIC_URL:-не задан (письма со ссылками отправляться не будут)}"
+    say "  распознавание:      ${WITH_OLLAMA:-no}"
+    say "  администратор:      ${ADMIN_EMAIL:-будет спрошен}"
+    say ""
+    say "Будет сделано: скачивание файлов выпуска, создание .env со случайными паролями,"
+    say "каталог копий, запуск контейнеров, ожидание готовности, создание администратора."
+}
+
+finish() {
+    local version="$1"
+    head2 "Готово"
+    say "Система работает: http://127.0.0.1:$PORT (версия $version)"
+    [ -z "$PUBLIC_URL" ] || say "Публичный адрес: $PUBLIC_URL"
+    say "Вход: $ADMIN_EMAIL"
+    say ""
+    say "Что дальше:"
+    say "  • обновление        ./update.sh <версия>   (проверит и заберёт новый выпуск)"
+    say "  • резервные копии   Настройка системы → Резервное копирование; каталог $(pwd)/backups"
+    say "  • пароли и ключи    лежат в $(pwd)/.env — файл читается только вами, храните копию"
+    if [ -z "$PUBLIC_URL" ]; then
+        say ""
+        say "Письма со ссылками (сброс пароля, отправка комплекта) отправляться не будут, пока в"
+        say ".env не задан APP_PUBLIC_URL."
+    fi
+    warn "Система отвечает по HTTP. Если она смотрит в интернет, поставьте перед ней HTTPS-прокси — Приложение В инструкции по развёртыванию."
+}
+
+# ── Ход установки ───────────────────────────────────────────────────────────────
+head2 "Установка BHS.CRG"
+check_docker
+check_target_dir
+check_port
+check_network
+check_space
+resolve_target
+collect_answers
+
+if [ "$DRY_RUN" -eq 1 ]; then
+    show_plan
+    say ""
+    say "Это был --dry-run: ничего не сделано."
+    exit 0
+fi
+
+head2 "Файлы выпуска"
+fetch_assets
+fill_env
+prepare_backups
+
+head2 "Загрузка образов"
+# Отдельно от `up -d` и с повторами — как в update.sh, и по той же причине: обрыв связи с
+# реестром это самый вероятный сбой всей процедуры, а стоит повтор ровно ничего. Проверено живьём:
+# первая же установка оборвалась таймаутом GHCR на одном слое из десятка. Уже скачанные слои
+# остаются на хосте, поэтому повтор продолжает с места обрыва, а не начинает сначала.
+attempt=1
+while :; do
+    compose pull && break
+    [ "$attempt" -ge 3 ] && stop "$(cat <<'EOF'
+Не удалось скачать образы (три попытки) — реестр не отвечает или связь рвётся.
+
+Ничего не запущено, файлы установки на месте. Когда связь наладится:
+  docker compose pull && docker compose up -d
+EOF
+)"
+    warn "Загрузка образов оборвалась (попытка $attempt из 3). Повторяем через 15 с…"
+    sleep 15
+    attempt=$((attempt + 1))
+done
+say "Образы на хосте."
+
+head2 "Запуск"
+compose up -d || stop "$(cat <<'EOF'
+Контейнеры не поднялись. Что смотреть:
+  docker compose logs api
+  docker compose logs garage
+Файлы установки на месте — исправив причину, повторите: docker compose up -d
+EOF
+)"
+
+if version="$(wait_ready)"; then
+    say "Система ответила: $version"
+else
+    stop "$(cat <<EOF
+Контейнеры запущены, но система не ответила за отведённое время.
+
+  docker compose ps
+  docker compose logs api
+
+Установка при этом состоялась: .env и файлы выпуска на месте. Разобравшись с причиной, поднимите
+систему снова (docker compose up -d) и заведите администратора на странице первого входа.
+EOF
+)"
+fi
+
+create_admin || true
+finish "$(printf '%s' "$version" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"

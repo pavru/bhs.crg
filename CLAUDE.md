@@ -148,12 +148,19 @@ checks на master, красный прогон не мешает ни слит�
 
 - `docs/` — инструкции (Markdown + PDF): `DEPLOYMENT.md`, `USER_GUIDE.md`, `ADMIN_GUIDE.md`
   (индекс — `docs/README.md`). Сборка PDF: `docs/tools/` (`npm run pdf`).
-- `deploy/` — Docker Compose на весь стек (postgres, minio, ollama, api, web) + Dockerfile'ы
+- `deploy/` — Docker Compose на весь стек (postgres, garage, ollama, api, web) + Dockerfile'ы
   и `.env.example`. api и web поставляются образами из GHCR (`APP_VERSION` в `.env`), выпуск —
   ручной запуск workflow `Release`, который берёт номер из `Directory.Build.props`. Запуск:
   `cp deploy/.env.example deploy/.env` → `docker compose -f deploy/docker-compose.yml up -d`;
   сборка из исходников — с оверлеем `-f deploy/docker-compose.build.yml`.
   Образ `api` включает **Typst CLI**.
+
+**Установка — `deploy/install.sh`** (issue #890), обновление — `deploy/update.sh`. Оба едут
+ассетами выпуска. Install ставит систему с нуля: предполёт, файлы выпуска, `.env` со случайными
+паролями и ключами нужного формата, каталог копий, запуск, ожидание готовности и **создание
+первого администратора** — последнее закрывает окно, в котором страница регистрации открыта любому.
+Отказывается работать в каталоге, где уже есть `.env`. Логика покрыта `install.tests.sh` (без
+Docker и сети), как у `update.sh`.
 
 **Версии сторонних образов прибиты точно** (issue #878) — `latest` в compose возвращать нельзя.
 Compose едет вместе с выпуском, поэтому прибитая версия делает смену postgres/MinIO/ollama/nginx
