@@ -723,11 +723,18 @@ do_gc() {
         "В текущем каталоге нет .env — непонятно, какая версия развёрнута, а значит и какие образы нужны сейчас. Запускайте из каталога установки."
 
     local repos
+    # Берём образы ПРИЛОЖЕНИЯ (`bhs.crg-*`), а не всё, что лежит на ghcr.io. Разница появилась с
+    # issue #882: там в наш реестр переехала копия MinIO, у которой upstream архивирован. Прежний
+    # отбор «любой ghcr.io» посчитал бы её нашей, а тег `RELEASE.…` никогда не равен APP_VERSION —
+    # то есть хранилище стало бы кандидатом на удаление, и спасал бы его только запущенный
+    # контейнер. После `docker compose down` образ хранилища ушёл бы молча, а строка ниже про
+    # «чужие образы не трогаем» врала бы в лицо.
+    #
     # `|| true`: grep без совпадений возвращает 1, и под errexit скрипт молча вышел бы прямо здесь
     # вместо объяснения строкой ниже (поймано ревью PR #860).
-    repos="$(grep -oE 'image:[[:space:]]*ghcr\.io/[^:[:space:]]+' docker-compose.yml | sed -E 's/^image:[[:space:]]*//' | sort -u || true)"
+    repos="$(grep -oE 'image:[[:space:]]*ghcr\.io/[^:[:space:]]*bhs\.crg-[^:[:space:]]*' docker-compose.yml | sed -E 's/^image:[[:space:]]*//' | sort -u || true)"
     [ -n "$repos" ] || stop \
-        "В docker-compose.yml нет образов с ghcr.io — чистить нечего. Чужие образы (postgres, minio, ollama) эта команда не трогает."
+        "В docker-compose.yml нет образов BHS.CRG (ghcr.io/…/bhs.crg-*) — чистить нечего. Сторонние образы (postgres, minio, ollama) эта команда не трогает, даже нашу копию хранилища в ghcr.io."
 
     local current in_use
     current="$(env_get APP_VERSION)"

@@ -43,8 +43,18 @@ services:
       retries: 12
     restart: unless-stopped
 
+  # ⚠️ ОБРАЗ ХРАНИЛИЩА — КОПИЯ В НАШЕМ РЕЕСТРЕ, а не оригинал с Docker Hub (issue #882).
+  #
+  # `minio/minio` архивирован 13.02.2026: community-версия больше не собирается и security-фиксов
+  # не получает, официальный путь — коммерческий AIStor. Прибитый тег во внутренней сети Compose —
+  # риск управляемый, но образ лежал на ЧУЖОЙ полке: архивированный репозиторий Docker Hub может
+  # быть убран или потерять теги, и тогда установка с нуля не поднимется, а откат не откатится.
+  # Побайтовая копия того же образа (тот же digest, все платформы) — в нашем GHCR, рядом с api и web.
+  #
+  # Тег заморожен НАВСЕГДА: обновлять его неоткуда, upstream мёртв. Замена хранилища (Garage,
+  # RustFS или своё файловое за `IBlobStorage`) — отдельная работа, см. issue #882.
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: ghcr.io/pavru/minio:RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -57,9 +67,10 @@ services:
       - "${MINIO_CONSOLE_BIND:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
     restart: unless-stopped
 
-  # Одноразовый сервис: создаёт bucket в MinIO
+  # Одноразовый сервис: создаёт bucket в MinIO. Клиент `mc` — из нашего же реестра и по той же
+  # причине, что и сам MinIO выше: репозиторий upstream архивирован.
   createbuckets:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: ghcr.io/pavru/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       - minio
     environment:
