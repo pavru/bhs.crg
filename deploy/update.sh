@@ -44,7 +44,7 @@ GENERATE=()        # ключи хранилища, которые скрипт 
 # Значения этих ключей человек не выбирает: они случайные и свои для каждой установки. Список
 # здесь, а не в проверке, потому что на него смотрят двое — check_new_vars (не спрашивать) и
 # generate_secrets (создать).
-GENERATED_KEYS=(GARAGE_KEY_ID GARAGE_SECRET GARAGE_RPC_SECRET GARAGE_ADMIN_TOKEN)
+GENERATED_KEYS=(GARAGE_KEY_ID GARAGE_SECRET GARAGE_RPC_SECRET GARAGE_ADMIN_TOKEN GARAGE_BUCKET)
 
 # ── Разговор с человеком ────────────────────────────────────────────────────────
 # Три уровня, и они не взаимозаменяемы: say — ход дела, warn — «прочтите, но идём дальше»,
@@ -503,9 +503,17 @@ check_storage_migration() {
 EOF
 )"
 
-    project="$(grep -oE '^name:[[:space:]]*[^[:space:]]+' docker-compose.yml | awk '{print $2}' | head -1 || true)"
-    [ -n "$project" ] || project="$(basename "$PWD")"
-    vol="${project}_minio_data"
+    # Том спрашиваем у САМОГО КОНТЕЙНЕРА, а не собираем из имени проекта. Имя можно переопределить
+    # (`COMPOSE_PROJECT_NAME` в .env), и собранное «на глазок» `<name>_minio_data` тогда указывает в
+    # никуда: `docker run -v` создал бы НОВЫЙ пустой том, `du` вернул бы ноль, и проверка места
+    # прошла бы, отчитавшись «файлов 0 МБ» — та же ошибка, от которой уже страхует network_of.
+    vol="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}' \
+        "$(compose ps -q minio 2>/dev/null | head -1)" 2>/dev/null || true)"
+    if [ -z "$vol" ]; then
+        warn "Контейнер прежнего хранилища не найден — объём файлов и запас места не измерить. Перенос возможен, но оцените запас сами."
+        say "Во время переноса приложение будет остановлено — иначе файл, записанный по ходу копирования, потерялся бы молча."
+        return 0
+    fi
 
     used_kb="$(storage_used_kb "$vol" "$mc_image")"
     free_kb="$(storage_free_kb "$vol" "$mc_image")"
@@ -779,7 +787,7 @@ check_new_vars() {
     done
 
     if [ "${#GENERATE[@]}" -gt 0 ]; then
-        say "Ключи хранилища ${GENERATE[*]} скрипт создаст сам — случайные, свои для этой установки."
+        say "Значения хранилища ${GENERATE[*]} скрипт впишет сам: ключи случайные, имя бакета прежнее."
     fi
 
     if [ "${#AUTOFILL[@]}" -gt 0 ]; then
@@ -849,22 +857,18 @@ generate_secrets() {
                 GARAGE_SECRET)      value="$(rand_hex 32)" ;;
                 GARAGE_RPC_SECRET)  value="$(rand_hex 32)" ;;
                 GARAGE_ADMIN_TOKEN) value="$(rand_hex 24)" ;;
+                # Имя бакета НАСЛЕДУЕМ, а не берём из образца: данные переносятся в бакет с тем же
+                # именем. Установка, где MINIO_BUCKET был не «bhs-crg», иначе получила бы пустое
+                # хранилище рядом с полным — и выглядело бы это как успешное обновление.
+                GARAGE_BUCKET)      value="$(env_get MINIO_BUCKET)"
+                                    [ -n "$value" ] || value="$(env_get GARAGE_BUCKET "$NEW_DIR/env.example")" ;;
                 *)                  value="$(rand_hex 32)" ;;
             esac
             printf '%s=%s\n' "$k" "$value"
         done
     } >> "$env_new"
-    say "Ключи хранилища созданы и вписаны в .env: ${GENERATE[*]}"
+    say "Значения хранилища вписаны в .env: ${GENERATE[*]} — ключи случайные, имя бакета прежнее"
 
-    # Имя бакета НАСЛЕДУЕМ, а не берём из образца. Данные переносятся в бакет с тем же именем, и
-    # установка, где MINIO_BUCKET был не «bhs-crg», иначе получила бы пустое хранилище рядом с
-    # полным — причём выглядело бы это как успешное обновление.
-    local old_bucket
-    old_bucket="$(env_get MINIO_BUCKET)"
-    if [ -n "$old_bucket" ] && ! grep -qE '^[[:space:]]*GARAGE_BUCKET[[:space:]]*=' "$env_new"; then
-        printf 'GARAGE_BUCKET=%s\n' "$old_bucket" >> "$env_new"
-        say "Имя бакета перенесено из прежнего хранилища: $old_bucket"
-    fi
 }
 
 # ── Самообновление скрипта ──────────────────────────────────────────────────────
@@ -1020,39 +1024,48 @@ mirror_blobs() {
     # знаком «!». В прямую сторону это молчит случайно (оригинал старше копии), а на возврате
     # сверка находила расхождение в КАЖДОМ объекте — то есть откат был бы невозможен.
     #
-    # Список «размер + путь» с обеих сторон, склеенный и пропущенный через `uniq -u`, оставляет
-    # ровно те строки, что встречаются один раз: пропавшие, лишние и изменившиеся в размере. Время
-    # в него не входит вовсе.
-    docker run --rm --network "$net" --entrypoint /bin/sh "$mc_image" -c "
+    # Сверяем списками «размер + путь» с обеих сторон. Время в них не входит вовсе.
+    # Значения передаём ПЕРЕМЕННЫМИ ОКРУЖЕНИЯ, а не подстановкой в текст скрипта: пароль
+    # хранилища выбирал администратор, и апостроф в нём разорвал бы кавычки — отказ пришёл бы как
+    # «перенос не сошёлся», то есть указывал бы на данные вместо кавычек (найдено ревью).
+    docker run --rm --network "$net" --entrypoint /bin/sh \
+        -e SRC_KEY="$src_key" -e SRC_SECRET="$src_secret" -e SRC_BUCKET="$src_bucket" \
+        -e DST_KEY="$dst_key" -e DST_SECRET="$dst_secret" -e DST_BUCKET="$dst_bucket" \
+        -e MODE="$mode" "$mc_image" -c '
         set -e
-        mc alias set minio http://minio:9000 '$src_key' '$src_secret' >/dev/null
-        mc alias set garage http://garage:3900 '$dst_key' '$dst_secret' >/dev/null
-        if [ '$mode' = mirror ]; then
-            from=minio/'$src_bucket'; to=garage/'$dst_bucket'
+        mc alias set minio http://minio:9000 "$SRC_KEY" "$SRC_SECRET" >/dev/null
+        mc alias set garage http://garage:3900 "$DST_KEY" "$DST_SECRET" >/dev/null
+        if [ "$MODE" = mirror ]; then
+            from=minio/$SRC_BUCKET; to=garage/$DST_BUCKET
         else
-            from=garage/'$dst_bucket'; to=minio/'$src_bucket'
+            from=garage/$DST_BUCKET; to=minio/$SRC_BUCKET
         fi
         # `--overwrite`: без него mirror ПРОПУСКАЕТ объект, если в приёмнике он новее (проверено
         # на стенде). Для отката это означало бы, что вернувшаяся установка получает не то
         # состояние, которое ей вернули, а смесь. `--retry` — потому что обрыв одного объекта из
         # тысяч не повод начинать всё заново.
-        mc mirror --quiet --overwrite --retry \"\$from\" \"\$to\"
+        mc mirror --quiet --overwrite --retry "$from" "$to"
 
-        # Поля \`mc ls --recursive\`: [дата, время, UTC], размер, класс, путь — отсюда 4 и 6-.
-        mc ls --recursive \"\$from\" | tr -s ' ' | cut -d' ' -f4,6- | sort > /tmp/from.lst
-        mc ls --recursive \"\$to\"   | tr -s ' ' | cut -d' ' -f4,6- | sort > /tmp/to.lst
-        from_n=\$(wc -l < /tmp/from.lst); to_n=\$(wc -l < /tmp/to.lst)
-        echo \"объектов: было \$from_n, стало \$to_n\"
+        # Поля `mc ls --recursive`: [дата, время, UTC], размер, класс, путь — отсюда 4 и 6-.
+        mc ls --recursive "$from" | tr -s " " | cut -d" " -f4,6- | sort > /tmp/from.lst
+        mc ls --recursive "$to"   | tr -s " " | cut -d" " -f4,6- | sort > /tmp/to.lst
+        echo "объектов: было $(wc -l < /tmp/from.lst), стало $(wc -l < /tmp/to.lst)"
 
-        cat /tmp/from.lst /tmp/to.lst | sort | uniq -u > /tmp/only.lst
-        diff_n=\$(wc -l < /tmp/only.lst)
-        echo \"расхождений по составу и размеру: \$diff_n\"
-        if [ \"\$diff_n\" != 0 ]; then
-            echo 'СВЕРКА НАШЛА РАСХОЖДЕНИЯ, первые из них:'
-            head -10 /tmp/only.lst
+        # Проверяем ОДНОСТОРОННЕ: каждый объект источника есть в приёмнике с тем же размером.
+        # Симметричная разность здесь неверна, и это не придирка: после перехода приложение УДАЛЯЕТ
+        # блобы (удалённый комплект, пересозданный шаблон, заменённый набор данных). При возврате
+        # такие объекты остаются в MinIO, но их уже нет в Garage — симметричная проверка считала бы
+        # это расхождением и блокировала откат НАВСЕГДА, хотя терять нечего (найдено ревью).
+        comm -23 /tmp/from.lst /tmp/to.lst > /tmp/lost.lst
+        lost_n=$(wc -l < /tmp/lost.lst)
+        extra_n=$(comm -13 /tmp/from.lst /tmp/to.lst | wc -l)
+        echo "не перенеслось: $lost_n; лишних в приёмнике: $extra_n"
+        if [ "$lost_n" != 0 ]; then
+            echo "СВЕРКА НАШЛА ПОТЕРИ, первые из них:"
+            head -10 /tmp/lost.lst
             exit 1
         fi
-    "
+    '
 }
 
 # Сеть проекта спрашиваем у самого Docker, а не собираем из имени: имя проекта можно задать в .env
@@ -1092,7 +1105,15 @@ migrate_blobs() {
 
     say "Поднимаем новое хранилище…"
     compose -f "$NEW_DIR/docker-compose.yml" --env-file "$env_new" up -d garage-init >/dev/null 2>&1 || true
-    if ! compose -f "$NEW_DIR/docker-compose.yml" --env-file "$env_new" wait garage-init >/dev/null 2>&1; then
+    # Код инициализации берём через `docker wait`, а НЕ `docker compose wait`: последняя команда
+    # появилась только в Compose 2.22, а инструкция объявляет нижней границей Docker Engine 24 —
+    # он приезжает с Compose 2.18–2.21. Там `compose wait` отвечает «unknown docker command», и
+    # обновление вставало бы с диагнозом «инициализация завершилась с ошибкой» — при исправной
+    # инициализации (найдено ревью). `docker wait` есть везде.
+    local init_cid init_code
+    init_cid="$(compose -f "$NEW_DIR/docker-compose.yml" --env-file "$env_new" ps -aq garage-init 2>/dev/null | head -1)"
+    init_code="$([ -n "$init_cid" ] && docker wait "$init_cid" 2>/dev/null || echo 1)"
+    if [ "${init_code:-1}" != 0 ]; then
         compose up -d >/dev/null 2>&1 || true
         stop "$(cat <<EOF
 Новое хранилище не удалось подготовить: инициализация (garage-init) завершилась с ошибкой.
@@ -1170,10 +1191,15 @@ EOF
 
     check_project_visible
     check_postgres_major
-    check_storage_migration
     check_self_update
     check_jobs
     fetch_release_files
+    # ПОСЛЕ fetch_release_files, и это принципиально: проверка смотрит на файл ЦЕЛЕВОЙ версии —
+    # понять, меняется ли хранилище, иначе не из чего. Стояла выше и не срабатывала никогда:
+    # new/docker-compose.yml к тому моменту ещё не скачан, `crosses_storage` отвечал «нет», и
+    # предполёт (место, предупреждение о простое) молча пропускался — на первом запуске всегда,
+    # а на повторном срабатывал, потому что new/ оставался от прошлой попытки. Найдено ревью.
+    check_storage_migration
     check_compose_drift
     check_new_vars
     legacy_notes
@@ -1234,7 +1260,12 @@ EOF
     # датой, как compose и .env: в ней могли поднять ёмкость узла или сменить движок метаданных,
     # и молча затирать такую правку нельзя.
     if [ -f "$NEW_DIR/garage.toml" ]; then
-        [ ! -f garage.toml ] || cp garage.toml "garage.toml.prev-$STAMP"
+        if [ -f garage.toml ] && ! cmp -s garage.toml "$NEW_DIR/garage.toml"; then
+            cp garage.toml "garage.toml.prev-$STAMP"
+            # Вслух: файл могли править (ёмкость узла, движок метаданных), и «тихо заменили»
+            # здесь равно «ваша настройка исчезла при обновлении».
+            say "Конфигурация хранилища заменена файлом версии; прежняя сохранена: garage.toml.prev-$STAMP"
+        fi
         cp "$NEW_DIR/garage.toml" garage.toml
     fi
     cp "$NEW_DIR/env.example" .env.example

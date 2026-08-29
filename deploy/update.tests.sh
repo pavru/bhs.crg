@@ -289,7 +289,7 @@ echo '── ключи хранилища: генерируем, а не спр
 # Формат жёсткий, и проверяет его сам Garage при старте: «GK»+24 hex, секреты по 64 hex. Значение
 # другой длины роняет хранилище — то есть ошибка здесь стоит не косметики, а неподнявшейся системы.
 CURRENT=0.159.0; TARGET=0.160.0
-GENERATE=(GARAGE_KEY_ID GARAGE_SECRET GARAGE_RPC_SECRET GARAGE_ADMIN_TOKEN)
+GENERATE=(GARAGE_KEY_ID GARAGE_SECRET GARAGE_RPC_SECRET GARAGE_ADMIN_TOKEN GARAGE_BUCKET)
 printf 'MINIO_BUCKET=свой-бакет
 ' > .env
 : > env.gen
@@ -312,6 +312,7 @@ printf 'GARAGE_KEY_ID=
 GARAGE_SECRET=
 GARAGE_RPC_SECRET=
 GARAGE_ADMIN_TOKEN=
+GARAGE_BUCKET=bhs-crg
 ' > "$NEW_DIR/env.example"
 printf 'services:
   garage:
@@ -323,7 +324,11 @@ AUTOFILL=(); GENERATE=()
 check 'обновление не останавливается'    0 "$(run_e check_new_vars)"
 AUTOFILL=(); GENERATE=()
 check_new_vars >/dev/null 2>&1 || true
-check 'все четыре помечены к генерации'  4 "${#GENERATE[@]}"
+check 'все пять помечены к генерации'   5 "${#GENERATE[@]}"
+# GARAGE_BUCKET тоже здесь, и это не мелочь: у него нет умолчания в compose, поэтому иначе он
+# попал бы в вопросы человеку — обновление останавливалось бы на КАЖДОЙ установке, а наследование
+# имени бакета не выполнялось бы никогда (найдено ревью).
+check 'имя бакета — среди них'          да  "$(case " ${GENERATE[*]} " in *" GARAGE_BUCKET "*) echo да ;; *) echo нет ;; esac)"
 
 echo
 echo '── latest_release: разбор номера версии из адреса выпуска ──'

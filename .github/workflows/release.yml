@@ -201,6 +201,29 @@ jobs:
             deploy/update.sh \
             env.example
 
+      # ⚠️ ПЕРВЫЙ ВЫПУСК НОВОГО ОБРАЗА ПРИВАТЕН. GHCR создаёт пакет закрытым, и наследование
+      # видимости репозитория срабатывает не всегда — `api` и `web` публичны потому, что их
+      # видимость выставляли руками однажды. Пока это не сделано для garage-init, `compose pull`
+      # у клиента отвечает `denied`, и обновиться нельзя ВООБЩЕ. Проверяем и говорим вслух, а не
+      # оставляем на память (issue #885).
+      - name: Образы доступны анонимно
+        run: |
+          owner="${{ github.repository_owner }}"
+          version="${{ steps.ver.outputs.version }}"
+          accept='application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json'
+          rc=0
+          for image in bhs.crg-api bhs.crg-web bhs.crg-garage-init; do
+            token=$(curl -s "https://ghcr.io/token?scope=repository:$owner/$image:pull&service=ghcr.io" | jq -r '.token // empty')
+            code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" -H "Accept: $accept" "https://ghcr.io/v2/$owner/$image/manifests/$version")
+            if [ "$code" = 200 ]; then
+              echo "$image - скачивается анонимно"
+            else
+              echo "::error::$image анонимно недоступен (HTTP $code). Сделайте пакет публичным (Packages, Package settings, Change visibility) и запустите проверку снова. Иначе установки не смогут обновиться - compose pull ответит denied"
+              rc=1
+            fi
+          done
+          exit $rc
+
       - name: Что делать, если выпуск оборвался
         if: failure()
         run: |
