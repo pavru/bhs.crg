@@ -55,7 +55,18 @@ src/
 ### Команды разработки
 
 ```bash
-# Инфраструктура (PostgreSQL + Garage)
+# Инфраструктура (PostgreSQL + Garage) — ВСЁ в контейнерах, как в поставке (issue #894).
+# ⚠️ База слушает 5433, а не 5432: 5432 может занимать нативная служба PostgreSQL, а строка
+# подключения у них одинаковая — при совпадении портов приложение молча ушло бы в чужую базу.
+# Порт 5433 указан везде: дев-compose, appsettings.Development.json, IntegrationTestFixture, ci.yml.
+#
+# ⚠️ ПЕРВЫЙ ЗАПУСК ПОСЛЕ ПЕРЕХОДА ДАЁТ ПУСТУЮ БАЗУ, и выглядит это как «данные пропали»:
+# приложение мигрирует схему само и поднимается зелёным. Если ваши данные были в нативной службе
+# (5432), перенесите их — она их не потеряла:
+#   pg_dump -h localhost -p 5432 -U postgres -d bhs_crg -Fc -f bhs_crg.dump
+#   psql   -h localhost -p 5433 -U postgres -c "DROP DATABASE IF EXISTS bhs_crg WITH (FORCE)"
+#   psql   -h localhost -p 5433 -U postgres -c "CREATE DATABASE bhs_crg"
+#   pg_restore -h localhost -p 5433 -U postgres -d bhs_crg --no-owner --no-privileges bhs_crg.dump
 # ⚠️ Именно с `compose wait`: `up -d` возвращает 0, даже если инициализация хранилища УПАЛА,
 # и тогда отказ приходит позже — ошибкой S3 из середины приложения. `up -d --wait` не годится:
 # он считает одноразовый init неуспешным и краснеет даже при коде 0.

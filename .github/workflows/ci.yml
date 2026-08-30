@@ -35,7 +35,9 @@ jobs:
     runs-on: ubuntu-latest
 
     # Интеграционные тесты ходят в ЖИВОЙ Postgres: IntegrationTestFixture прибит к
-    # localhost:5432 с postgres/xxsystem, имя базы берётся из BHS_TEST_DB. Базу заводить не нужно —
+    # localhost:5433 с postgres/xxsystem, имя базы берётся из BHS_TEST_DB. Порт 5433, а не 5432 —
+    # см. комментарий у фикстуры: на машине разработчика 5432 занимает нативная служба, и значение
+    # держится одно на все окружения, чтобы «локально прошло, в CI упало» не случалось из-за порта. Базу заводить не нужно —
     # приложение мигрирует при старте, а миграция создаёт её сама. MinIO подменён фейком, Typst
     # тестам не нужен (пропусков по его отсутствию в наборе нет).
     services:
@@ -46,7 +48,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
         ports:
-          - 5432:5432
+          - 5433:5432
         # Без health-проверки шаги стартуют раньше, чем сервер примет соединение, и падает первый
         # же тест — с сообщением про соединение, а не про причину.
         options: >-
@@ -240,7 +242,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
         ports:
-          - 5432:5432
+          - 5433:5432
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s
@@ -389,7 +391,7 @@ jobs:
         env:
           ASPNETCORE_ENVIRONMENT: Production
           ASPNETCORE_URLS: http://localhost:5055
-          ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=bhs_crg_e2e;Username=postgres;Password=xxsystem
+          ConnectionStrings__Postgres: Host=localhost;Port=5433;Database=bhs_crg_e2e;Username=postgres;Password=xxsystem
           # Ключ подписи — одноразовый и живёт ровно столько, сколько работа. Секретом он не
           # является: база и адрес существуют только внутри этого прогона.
           Jwt__Key: ci-only-signing-key-for-live-smokes-not-a-secret
