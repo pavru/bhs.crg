@@ -135,6 +135,12 @@ env_keys() { grep -oE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=' "$1" | 
 
 compose() { docker compose "$@"; }
 
+# ⚠️ ЗАПРОС К САМОМУ СЕБЕ — НЕ ДЕЛО ПРОКСИ (issue #896). На сервере с `all_proxy=socks5://…` curl
+# уважает эту переменную и для петли: опрос `http://localhost:8080/api/version` уходит в прокси,
+# который в петлю сервера не попадает, и обновление ждёт готовности до самого таймаута — при
+# работающей системе. Загрузки с github.com идут обычным curl: там прокси и есть путь наружу.
+curl_local() { curl --noproxy '*' "$@"; }
+
 # ── Общий предполёт ─────────────────────────────────────────────────────────────
 preflight_common() {
     command -v docker >/dev/null 2>&1 || stop "Docker не найден. Установка — Приложение А в DEPLOYMENT.md."
@@ -370,7 +376,7 @@ wait_for_version() {
     local want="$1" deadline=$((SECONDS + 420)) got=""
     say "Ждём ответа системы на http://localhost:$WEB_PORT/api/version (до 7 минут)…"
     while [ $SECONDS -lt $deadline ]; do
-        got="$(curl -fsS --max-time 5 "http://localhost:$WEB_PORT/api/version" 2>/dev/null \
+        got="$(curl_local -fsS --max-time 5 "http://localhost:$WEB_PORT/api/version" 2>/dev/null \
                | grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' | grep -oE '[0-9][^"]*' || true)"
         [ "$got" = "$want" ] && { say "Ответила версия $got."; return 0; }
         sleep 5
