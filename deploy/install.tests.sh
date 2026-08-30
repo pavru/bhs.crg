@@ -107,6 +107,54 @@ check 'слэш экранирован'     '"a\\b"'          "$(json_string 'a\
 check 'кириллица как есть'   '"Администратор"' "$(json_string 'Администратор')"
 
 echo
+echo '── --reverse-proxy: проверка имени ──'
+check 'обычное имя годится'      1 "$(proxy_host_bad 'docs.example.ru' >/dev/null; echo $?)"
+check 'схема отвергнута'         0 "$(proxy_host_bad 'https://docs.example.ru' >/dev/null; echo $?)"
+check 'слэш отвергнут'           0 "$(proxy_host_bad 'docs.example.ru/crg' >/dev/null; echo $?)"
+check 'пробел отвергнут'         0 "$(proxy_host_bad 'docs example ru' >/dev/null; echo $?)"
+check 'без точки отвергнуто'     0 "$(proxy_host_bad 'localhost' >/dev/null; echo $?)"
+check 'и причина названа'        'это не доменное имя: нет ни одной точки (нужно, например, docs.example.ru)' "$(proxy_host_bad 'localhost')"
+
+echo
+echo '── --reverse-proxy: подстановка в образец ──'
+# Меняем ровно три строки. Всё остальное — и особенно ЕДИНСТВЕННЫЙ блок на 80, которого ждёт
+# `certbot --nginx`, — обязано остаться нетронутым: готовый блок на 443 без сертификата nginx не
+# принимает вовсе, и `nginx -t` упал бы ещё до certbot.
+cat > reverse-proxy.conf.example <<'CONF'
+server {
+    listen 80;
+    server_name docs.example.ru;
+    client_max_body_size 600m;
+    location / {
+        proxy_pass http://127.0.0.1:8080;    # WEB_PORT из .env
+        proxy_set_header Host $host;
+    }
+}
+CONF
+printf 'BACKUP_MAX_ARCHIVE_MB=900
+' > .env
+PROXY_HOST=crg.example.org; PORT=9443; PUBLIC_URL=''
+prepare_reverse_proxy > /dev/null
+check 'имя подставлено'          '    server_name crg.example.org;' "$(grep 'server_name' reverse-proxy.conf)"
+check 'порт подставлен'          да "$(grep -q 'proxy_pass http://127.0.0.1:9443;' reverse-proxy.conf && echo да || echo нет)"
+check 'предел тела из .env + 100' '    client_max_body_size 1000m;' "$(grep 'client_max_body_size' reverse-proxy.conf)"
+check 'блок остался на 80'       1 "$(grep -c 'listen 80;' reverse-proxy.conf)"
+# Ищем именно директиву, а не число: порт стенда (9443) сам содержит «443», и проверка «нет
+# строки с 443» падала бы на ровном месте.
+check 'блока на 443 не появилось' 0 "$(grep -c 'listen.*443' reverse-proxy.conf)"
+check 'прочие строки не тронуты' да "$(grep -q 'proxy_set_header Host' reverse-proxy.conf && echo да || echo нет)"
+check 'веб закрыт на петлю'      'WEB_BIND=127.0.0.1' "$(grep '^WEB_BIND' .env)"
+check 'публичный адрес выставлен' 'APP_PUBLIC_URL=https://crg.example.org' "$(grep '^APP_PUBLIC_URL' .env)"
+
+# Заданный человеком адрес важнее выведенного из имени: он мог поставить прокси на другом домене.
+printf 'BACKUP_MAX_ARCHIVE_MB=500
+' > .env
+PUBLIC_URL='https://свой.адрес'
+prepare_reverse_proxy > /dev/null
+check 'заданный адрес не перезаписан' 'https://свой.адрес' "$PUBLIC_URL"
+check 'предел по умолчанию 500+100'   '    client_max_body_size 600m;' "$(grep 'client_max_body_size' reverse-proxy.conf)"
+
+echo
 echo '── Разбор версии Docker ──'
 check 'из 24.0.7'      24 "$(major_of 24.0.7)"
 check 'из 29.7.2'      29 "$(major_of 29.7.2)"
