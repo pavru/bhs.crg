@@ -1292,16 +1292,22 @@ sudo systemctl enable --now nginx
 ```
 
 > **Если система ставилась скриптом с `--reverse-proxy`**, готовый `reverse-proxy.conf` уже лежит
-> в каталоге установки — с вашим именем и портом. Тогда пропустите заполнение образца и переходите
-> сразу к копированию в `sites-available` (шаги ниже).
+> в каталоге установки — с вашим именем, портом и пределом размера тела. Тогда скачивать и
+> заполнять образец не нужно: копируйте свой файл (шаги про `ln -s`, `nginx -t` и `certbot` ниже —
+> те же).
+> ```bash
+> sudo cp /путь/к/установке/reverse-proxy.conf /etc/nginx/sites-available/bhs-crg
+> ```
+> Команды с подставленным путём скрипт печатает в конце установки, и они же — в шапке самого файла.
 
 Конфигурация — образец `reverse-proxy.conf.example`. Он **прикладывается к каждому выпуску начиная
 с 0.162.0**, поэтому берите его со страницы своего выпуска, а не из репозитория: файл в master
 может уйти вперёд установленной версии.
 
 ```bash
-# Со страницы выпуска
-curl -LO https://github.com/pavru/bhs.crg/releases/latest/download/reverse-proxy.conf.example
+# Со страницы СВОЕГО выпуска: подставьте номер установленной версии (APP_VERSION из .env)
+VER=0.162.0
+curl -LO "https://github.com/pavru/bhs.crg/releases/download/v$VER/reverse-proxy.conf.example"
 
 sudo cp reverse-proxy.conf.example /etc/nginx/sites-available/bhs-crg
 sudo nano /etc/nginx/sites-available/bhs-crg     # заменить docs.example.ru; порт — WEB_PORT из .env

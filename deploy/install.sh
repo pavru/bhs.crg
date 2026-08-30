@@ -425,16 +425,68 @@ prepare_reverse_proxy() {
     case "$body_mb" in ''|*[!0-9]*) body_mb=500 ;; esac
     limit=$((body_mb + 100))
 
-    # Замену делает awk, а не sed: в подставляемых значениях бывают точки и дефисы, а sed вдобавок
-    # истолковал бы «/» и «&» в адресе как синтаксис. Меняем ТОЛЬКО три строки — имя, адрес
-    # проксирования и предел тела; всё остальное в образце (и особенно единственный блок на 80,
-    # которого ждёт certbot) остаётся как есть.
-    awk -v host="$PROXY_HOST" -v port="$PORT" -v limit="$limit" '
-        /^[[:space:]]*server_name[[:space:]]/       { print "    server_name " host ";"; next }
-        /^[[:space:]]*proxy_pass[[:space:]]/        { print "        proxy_pass http://127.0.0.1:" port ";    # WEB_PORT из .env"; next }
-        /^[[:space:]]*client_max_body_size[[:space:]]/ { print "    client_max_body_size " limit "m;"; next }
-        { print }
-    ' "$PROXY_ASSET" > reverse-proxy.conf
+    # Шапку образца в результат НЕ ПЕРЕНОСИМ, а пишем свою. В образце она объясняет, что нужно
+    # заменить («заменить docs.example.ru на своё имя»), и называет certbot с примером домена —
+    # после подстановки это уже неправда, а файл человек откроет именно установленный. Инструкция,
+    # пережившая то, к чему относилась, отправляет выпускать сертификат на чужое имя (найдено ревью).
+    {
+        printf '# Обратный прокси для BHS.CRG. Подготовлен install.sh %s: имя %s, порт %s.
+'             "$(date +%Y-%m-%d)" "$PROXY_HOST" "$PORT"
+        printf '#
+'
+        printf '#   sudo cp %s/reverse-proxy.conf /etc/nginx/sites-available/bhs-crg
+' "$(pwd)"
+        printf '#   sudo ln -s /etc/nginx/sites-available/bhs-crg /etc/nginx/sites-enabled/
+'
+        printf '#   sudo nginx -t && sudo systemctl reload nginx
+'
+        printf '#   sudo certbot --nginx -d %s
+' "$PROXY_HOST"
+        printf '#
+'
+        printf '# ⚠️ Блок ниже ОДИН и он на 80 — так устроен `certbot --nginx`: он сам дописывает
+'
+        printf '# `listen 443 ssl` и создаёт перенаправление. Готовый блок на 443 без сертификата
+'
+        printf '# nginx не принимает вовсе, и `nginx -t` не прошёл бы ещё до certbot.
+'
+        printf '#
+'
+        printf '# Порядок установки целиком — Приложение В в инструкции по развёртыванию.
+'
+        printf '
+'
+        # Замену делает awk, а не sed: в подставляемых значениях бывают точки и дефисы, а sed вдобавок
+        # истолковал бы «/» и «&» в адресе как синтаксис. Меняем ТОЛЬКО три вида строк — имя, адрес
+        # проксирования и предел тела; всё прочее в блоке остаётся как есть.
+        #
+        # Комментарии образца до первого `server {` отбрасываем — их заменила шапка выше.
+        awk -v host="$PROXY_HOST" -v port="$PORT" -v limit="$limit" '
+            !started && $0 !~ /^[[:space:]]*server[[:space:]]*\{/ { next }
+            { started = 1 }
+            /^[[:space:]]*server_name[[:space:]]/       { print "    server_name " host ";"; next }
+            /^[[:space:]]*proxy_pass[[:space:]]/        { sub(/http:\/\/127\.0\.0\.1:[0-9]+/, "http://127.0.0.1:" port); print; next }
+            /^[[:space:]]*client_max_body_size[[:space:]]/ { print "    client_max_body_size " limit "m;"; next }
+            { print }
+        ' "$PROXY_ASSET"
+    } > reverse-proxy.conf
+
+    # ⚠️ ПРОВЕРЯЕМ, ЧТО ПОДСТАНОВКА СЛУЧИЛАСЬ. awk печатает замену только для строк, которые
+    # совпали: измени образец форматирование — и файл вышел бы без имени, без порта или без предела
+    # тела, а скрипт всё равно отчитался бы «конфиг подготовлен». Особенно дорог пропущенный предел:
+    # nginx по умолчанию рубит тело на 1 МБ, и загрузка резервной копии падала бы голой страницей
+    # 413 — ровно тот отказ, ради которого строка и существует (найдено ревью).
+    local missing=""
+    grep -q "server_name $PROXY_HOST;" reverse-proxy.conf || missing="$missing server_name"
+    grep -q "http://127.0.0.1:$PORT" reverse-proxy.conf   || missing="$missing proxy_pass"
+    grep -q "client_max_body_size ${limit}m;" reverse-proxy.conf || missing="$missing client_max_body_size"
+    [ -z "$missing" ] || stop "$(cat <<EOF
+В подготовленном reverse-proxy.conf не оказалось подставленных значений:$missing
+
+Похоже, образец $PROXY_ASSET выпуска $TARGET устроен иначе, чем ждёт скрипт. Файл оставлен рядом —
+заполните его руками по Приложению В, система при этом уже установлена и работает.
+EOF
+)"
 
     # За прокси порт наружу публиковать НЕ НУЖНО: иначе к системе можно подключиться в обход
     # HTTPS, по открытому порту. Раз человек сказал «ставлю прокси» — связка очевидна, и держать
@@ -569,7 +621,14 @@ show_plan() {
     say "  порт:               $PORT"
     say "  публичный адрес:    ${PUBLIC_URL:-не задан (письма со ссылками отправляться не будут)}"
     say "  распознавание:      ${WITH_OLLAMA:-no}"
-    [ -z "$PROXY_HOST" ] || say "  конфиг прокси для:  $PROXY_HOST (файл рядом; сам nginx не трогается)"
+    if [ -n "$PROXY_HOST" ]; then
+        # План обязан показывать ВСЁ, что ключ меняет, иначе он показывает не то. Две из трёх
+        # правок — закрытие порта на петлю и публичный адрес — иначе оставались бы невидимыми, а
+        # строка выше про «адрес не задан» прямо противоречила бы тому, что произойдёт (найдено ревью).
+        say "  конфиг прокси для:  $PROXY_HOST (файл рядом; сам nginx не трогается)"
+        say "  + порт закроется:   WEB_BIND=127.0.0.1 — снаружи только через прокси"
+        [ -n "$PUBLIC_URL" ] || say "  + публичный адрес:  https://$PROXY_HOST (выведен из имени)"
+    fi
     say "  администратор:      ${ADMIN_EMAIL:-будет спрошен}"
     say ""
     say "Будет сделано: скачивание файлов выпуска, создание .env со случайными паролями,"
