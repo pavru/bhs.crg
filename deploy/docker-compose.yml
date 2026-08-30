@@ -111,7 +111,7 @@ services:
   #   COMPOSE_PROFILES=ollama     — поднять контейнеры
   #   OLLAMA_MODEL=qwen2.5vl:7b   — какую модель качать и какой пользоваться приложению
   ollama:
-    image: ollama/ollama:0.33.1
+    image: ollama/ollama:0.33.2
     profiles: ["ollama"]
     volumes:
       - ollama_data:/root/.ollama
@@ -126,7 +126,7 @@ services:
 
   # Одноразовый сервис: загружает модель в Ollama (тяжёлая ~6 ГБ)
   ollama-init:
-    image: ollama/ollama:0.33.1
+    image: ollama/ollama:0.33.2
     profiles: ["ollama"]
     depends_on:
       - ollama
