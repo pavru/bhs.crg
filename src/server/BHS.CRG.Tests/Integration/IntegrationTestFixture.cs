@@ -30,8 +30,12 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
     ///
     /// Создавать базу вручную не нужно: приложение мигрирует при старте, а миграция создаёт БД.
     /// </summary>
+    /// Порт 5433, а не 5432 (issue #894): база стенда работает в контейнере, а 5432 может быть
+    /// занят нативной службой PostgreSQL на машине разработчика. Строка подключения у них
+    /// одинаковая, поэтому совпадение портов означало бы тесты, молча ушедшие в чужую базу.
+    /// В ci.yml сервисный контейнер публикует тот же 5433 — значение одно на все окружения.
     internal static readonly string TestConnectionString =
-        "Host=localhost;Port=5432;Username=postgres;Password=xxsystem;Database="
+        "Host=localhost;Port=5433;Username=postgres;Password=xxsystem;Database="
         + (Environment.GetEnvironmentVariable("BHS_TEST_DB") is { Length: > 0 } db ? db : "bhs_crg_test");
 
     /// <summary>
