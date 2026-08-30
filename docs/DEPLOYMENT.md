@@ -110,9 +110,26 @@ bash install.sh
 | `--dir /opt/bhs-crg` | поставить в другой каталог |
 | `--dry-run` | показать план и выйти, ничего не меняя |
 | `--non-interactive` | без вопросов; ответы из переменных окружения (`ADMIN_EMAIL`, `ADMIN_PASSWORD`, `WEB_PORT`, `APP_PUBLIC_URL`, `WITH_OLLAMA`) — для Ansible и подобного |
+| `--reverse-proxy docs.example.ru` | подготовить конфиг nginx для этого домена — см. ниже |
 
 Повторный запуск в каталоге, где уже есть `.env`, **отказывается работать**: там стоит система, и
 перезапись затёрла бы её ключи вместе с доступом к данным. Для обновления есть `./update.sh`.
+
+#### Ключ `--reverse-proxy`
+
+`bash install.sh --reverse-proxy docs.example.ru` дополнительно:
+
+- кладёт рядом с установкой готовый `reverse-proxy.conf` — образец из Приложения В с подставленными
+  доменным именем, портом и пределом размера тела (он берётся из `BACKUP_MAX_ARCHIVE_MB` плюс запас);
+- ставит `WEB_BIND=127.0.0.1`, закрывая порт снаружи: за прокси публиковать его не нужно, иначе к
+  системе можно подключиться в обход HTTPS;
+- ставит `APP_PUBLIC_URL=https://docs.example.ru`, если адрес не задан явно;
+- печатает команды, которыми конфиг ставится.
+
+**Сам nginx скрипт не трогает** — ни копирования в `/etc/nginx`, ни ссылки в `sites-enabled`, ни
+удаления `default`, ни перезагрузки, ни `certbot`. Это не осторожность ради осторожности: на хосте
+могут работать чужие сайты, и автоматическая перезагрузка чужого nginx способна их уронить. Прав
+`root` ключу поэтому не нужно вовсе.
 
 ### Руками
 
@@ -1274,14 +1291,23 @@ sudo apt update && sudo apt install -y nginx
 sudo systemctl enable --now nginx
 ```
 
-Конфигурация — образец `deploy/reverse-proxy.conf.example` (в установке из релиза его нет, он в
-репозитории; можно взять
-[отсюда](https://github.com/pavru/bhs.crg/blob/master/deploy/reverse-proxy.conf.example)):
+> **Если система ставилась скриптом с `--reverse-proxy`**, готовый `reverse-proxy.conf` уже лежит
+> в каталоге установки — с вашим именем, портом и пределом размера тела. Тогда скачивать и
+> заполнять образец не нужно: копируйте свой файл (шаги про `ln -s`, `nginx -t` и `certbot` ниже —
+> те же).
+> ```bash
+> sudo cp /путь/к/установке/reverse-proxy.conf /etc/nginx/sites-available/bhs-crg
+> ```
+> Команды с подставленным путём скрипт печатает в конце установки, и они же — в шапке самого файла.
+
+Конфигурация — образец `reverse-proxy.conf.example`. Он **прикладывается к каждому выпуску начиная
+с 0.162.0**, поэтому берите его со страницы своего выпуска, а не из репозитория: файл в master
+может уйти вперёд установленной версии.
 
 ```bash
-# В установке из релиза файла нет — берём из репозитория
-curl -fsSL https://raw.githubusercontent.com/pavru/bhs.crg/master/deploy/reverse-proxy.conf.example \
-  -o reverse-proxy.conf.example
+# Со страницы СВОЕГО выпуска: подставьте номер установленной версии (APP_VERSION из .env)
+VER=0.162.0
+curl -LO "https://github.com/pavru/bhs.crg/releases/download/v$VER/reverse-proxy.conf.example"
 
 sudo cp reverse-proxy.conf.example /etc/nginx/sites-available/bhs-crg
 sudo nano /etc/nginx/sites-available/bhs-crg     # заменить docs.example.ru; порт — WEB_PORT из .env

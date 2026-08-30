@@ -196,12 +196,17 @@ jobs:
           # (`./garage.toml`). Файла нет — Docker создаёт на его месте КАТАЛОГ, и хранилище падает
           # с «IO error: Is a directory», сообщением, которое ни на что не указывает. Поймано
           # живым прогоном обновления (issue #885).
+          #
+          # reverse-proxy.conf.example нужен ключу --reverse-proxy: скрипт заполняет этот образец
+          # именем и портом. Раньше инструкция посылала за ним в репозиторий — то есть за файлом,
+          # который мог уйти вперёд установленной версии (issue #892).
           gh release create "$tag" \
             --title "$tag" \
             --generate-notes \
             deploy/docker-compose.yml \
             deploy/garage.toml \
             deploy/install.sh \
+            deploy/reverse-proxy.conf.example \
             deploy/update.sh \
             env.example
 
