@@ -65,16 +65,16 @@ public class StorageConfigGuardTests
             "storage-user", "storage-password", "bhs-crg"));
 
     /// <summary>
-    /// Общеизвестные учётные данные пропускаем НАМЕРЕННО: на них работают и локальная разработка, и
-    /// контейнер MinIO из dev-окружения. Отказ, зависящий от среды, означал бы, что боевое поведение
-    /// в разработке никогда не выполняется — предупреждение об этом стоит в файле-примере.
+    /// Общеизвестные учётные данные пропускаем НАМЕРЕННО: на них работает локальная разработка.
+    /// Отказ, зависящий от среды, означал бы, что боевое поведение в разработке никогда не
+    /// выполняется — предупреждение об этом стоит в файле-примере.
     /// </summary>
     [Fact]
     public void WellKnownDevelopmentCredentials_Pass()
         => StorageConfigGuard.Require(GoodConnection, "minioadmin", "minioadmin", "bhs-crg");
 
     /// <summary>
-    /// Бакет — третья дверь в том же ряду, и подставляется так же (`${MINIO_BUCKET}` без значения
+    /// Бакет — третья дверь в том же ряду, и подставляется так же (`${GARAGE_BUCKET}` без значения
     /// по умолчанию). Проверять два значения из трёх значило бы оставить ровно тот поздний отказ,
     /// ради устранения которого проверка и заведена: имя бакета трогается лениво, на первой
     /// загрузке файла.
@@ -120,6 +120,6 @@ public class StorageConfigGuardTests
         var storage = Assert.Throws<InvalidOperationException>(
             () => StorageConfigGuard.Require(GoodConnection, null, "storage-password", "bhs-crg"));
         Assert.Contains("BlobStorage__AccessKey", storage.Message);
-        Assert.Contains("MINIO_ROOT_USER", storage.Message);
+        Assert.Contains("GARAGE_KEY_ID", storage.Message);
     }
 }

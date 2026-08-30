@@ -97,7 +97,7 @@ jobs:
           # образы node:22-alpine и nginx-unprivileged:alpine плавающие), и один номер версии стал
           # бы означать две разные поставки. Проверка идёт ПОСЛЕ логина: без авторизации манифест
           # приватного пакета неотличим от несуществующего.
-          for image in bhs.crg-api bhs.crg-web; do
+          for image in bhs.crg-api bhs.crg-web bhs.crg-garage-init; do
             ref="ghcr.io/${{ github.repository_owner }}/$image:${{ steps.ver.outputs.version }}"
             set +e
             out=$(docker manifest inspect "$ref" 2>&1)
@@ -146,6 +146,22 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Третий образ выпуска (issue #885): инициализация хранилища. Ему нужен shell, которого в
+      # образе Garage нет, поэтому собираем «alpine + бинарь Garage из того же образа, что сервер».
+      # Едет тем же тегом версии, что api и web: compose тянет его по ${APP_VERSION}, и разъехаться
+      # с остальной поставкой он не может.
+      - name: Образ garage-init
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy
+          file: deploy/Dockerfile.garage-init
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/bhs.crg-garage-init:${{ steps.ver.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/bhs.crg-garage-init:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Тег и Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -172,12 +188,53 @@ jobs:
           # update.sh выкладывается КАЖДЫМ выпуском, даже когда сам не менялся: скрипт из
           # установки сверяется с файлом ЦЕЛЕВОГО релиза и, не найдя его, тихо считает, что
           # обновляться не надо, — а обновиться надо было бы (issue #837).
+          #
+          # install.sh выкладывается по той же причине, что update.sh: человек берёт его со страницы
+          # выпуска, и версия скрипта обязана соответствовать тому, что он ставит (issue #890).
+          #
+          # garage.toml — тоже ассет, и это не «до кучи»: compose монтирует его РЯДОМ С СОБОЙ
+          # (`./garage.toml`). Файла нет — Docker создаёт на его месте КАТАЛОГ, и хранилище падает
+          # с «IO error: Is a directory», сообщением, которое ни на что не указывает. Поймано
+          # живым прогоном обновления (issue #885).
           gh release create "$tag" \
             --title "$tag" \
             --generate-notes \
             deploy/docker-compose.yml \
+            deploy/garage.toml \
+            deploy/install.sh \
             deploy/update.sh \
             env.example
+
+      # ⚠️ ПЕРВЫЙ ВЫПУСК НОВОГО ОБРАЗА ПРИВАТЕН. GHCR создаёт пакет закрытым, и наследование
+      # видимости репозитория срабатывает не всегда — `api` и `web` публичны потому, что их
+      # видимость выставляли руками однажды. Пока это не сделано для garage-init, `compose pull`
+      # у клиента отвечает `denied`, и обновиться нельзя ВООБЩЕ. Проверяем и говорим вслух, а не
+      # оставляем на память (issue #885).
+      #
+      # `continue-on-error`, и это не смягчение проверки. Шаг идёт ПОСЛЕ публикации образов и
+      # создания тега — то есть выпуск к этому моменту уже состоялся и необратим: повторить его
+      # нельзя, тег версии неизменяем (проверка «Тег ещё не занят» отвергнет). Роняя работу, шаг
+      # оставлял бы выпуск навсегда красным и подталкивал бы «выпустить заново» — а надо
+      # переключить видимость пакета, и всё. Поэтому: красная аннотация с точным указанием, что
+      # сделать, при зелёной работе.
+      - name: Образы доступны анонимно
+        continue-on-error: true
+        run: |
+          owner="${{ github.repository_owner }}"
+          version="${{ steps.ver.outputs.version }}"
+          accept='application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json'
+          rc=0
+          for image in bhs.crg-api bhs.crg-web bhs.crg-garage-init; do
+            token=$(curl -s "https://ghcr.io/token?scope=repository:$owner/$image:pull&service=ghcr.io" | jq -r '.token // empty')
+            code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" -H "Accept: $accept" "https://ghcr.io/v2/$owner/$image/manifests/$version")
+            if [ "$code" = 200 ]; then
+              echo "$image - скачивается анонимно"
+            else
+              echo "::error::$image анонимно недоступен (HTTP $code). ВЫПУСК СОСТОЯЛСЯ — повторять его не нужно и нельзя (тег занят). Сделайте пакет публичным: Packages, $image, Package settings, Change visibility. До этого установки не смогут обновиться: compose pull ответит denied"
+              rc=1
+            fi
+          done
+          exit $rc
 
       - name: Что делать, если выпуск оборвался
         if: failure()
