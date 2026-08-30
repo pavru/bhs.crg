@@ -9,7 +9,7 @@
 # бы, что они расходятся молча. Версия ниже прибита точно и сверяется с compose проверкой в CI —
 # ровно потому, что теперь она записана в ДВУХ местах.
 FROM dxflrs/garage:v2.3.0 AS garage
-FROM alpine:3.22.2
+FROM alpine:3.24.1
 
 COPY --from=garage /garage /usr/local/bin/garage
 COPY garage-init.sh /usr/local/bin/garage-init
