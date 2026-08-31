@@ -1,7 +1,9 @@
 using BHS.CRG.Application.Jobs;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace BHS.CRG.Infrastructure.Jobs;
 
@@ -11,11 +13,28 @@ namespace BHS.CRG.Infrastructure.Jobs;
 /// </summary>
 public class JobService(AppDbContext db, JobQueue queue) : IJobService
 {
+    /// <summary>Код нарушения уникальности в PostgreSQL — им отвечает индекс «одна задача на цель».</summary>
+    private const string UniqueViolation = "23505";
+
     public async Task<Guid> EnqueueAsync(JobKind kind, Guid userId, Guid targetId, string title, string? payload, CancellationToken ct)
     {
         var job = Job.Create(kind, userId, targetId, title, payload);
         db.Jobs.Add(job);
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: UniqueViolation })
+        {
+            // Проиграли гонку: пока мы проверяли «свободно» и вставляли, кто-то поставил свою задачу
+            // (issue #900). Отказ тот же по смыслу, что и у проверки перед постановкой, — разница
+            // только в том, что его вынесла база, у которой окна между проверкой и записью нет.
+            //
+            // Контекст после неудачного SaveChanges держит непринятую сущность: не отцепив её,
+            // следующий SaveChanges в этом же запросе повторил бы ту же вставку и тот же отказ.
+            db.Entry(job).State = EntityState.Detached;
+            throw new ConflictException("Такая задача по этому объекту уже выполняется.");
+        }
         queue.Enqueue(job.Id);
         return job.Id;
     }
