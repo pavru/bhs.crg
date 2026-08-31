@@ -21,8 +21,13 @@ const BASE = process.env.BHS_URL ?? 'http://localhost:5000';
 const ps = (script) => execFileSync('powershell', ['-NoProfile', '-Command', script], { encoding: 'utf8' });
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+/// Именно /api/version: он анонимный, не ходит в базу и им же проверяют готовность compose,
+/// update.sh и посев прогонов. Прежний /api/health в приложении не существует вовсе (здоровье живёт
+/// на /api/notifications/health, и то за авторизацией), а код ответа не проверялся — значит проба
+/// отвечала на вопрос «кто-нибудь слушает порт», а не «поднято ли БЕЗ приложение». Чужой слушатель
+/// на 5000 проходил бы её насквозь, и проверка снова обвинила бы мост.
 async function apiReachable() {
-  try { await fetch(`${BASE}/api/health`); return true; } catch { return false; }
+  try { return (await fetch(`${BASE}/api/version`)).ok; } catch { return false; }
 }
 
 async function waitForApi(timeoutMs = 120_000) {
@@ -34,12 +39,17 @@ async function waitForApi(timeoutMs = 120_000) {
   return false;
 }
 
-// Предусловие, а не первая проверка: с лежащим приложением мост честно отдаёт ноль инструментов, и
-// проверка объявляла бы сломанным ЕГО. Отказ должен называть то, чего не хватает.
+// Предусловия, а не первые проверки: не хватает чего-то снаружи — так и надо сказать. С лежащим
+// приложением мост честно отдаёт ноль инструментов, и проверка объявляла бы сломанным ЕГО.
+if (!process.env.BHS_EMAIL || !process.env.BHS_PASSWORD) {
+  // Без них мост выходит сразу же (bridge.mjs), и выглядело это так: скрипт ждал ответа девяносто
+  // секунд и падал на «нет ответа на tools/list», ни словом не помянув переменные.
+  console.log('Не заданы BHS_EMAIL и BHS_PASSWORD — мосту нечем войти в приложение.');
+  process.exit(2);
+}
 if (!await apiReachable()) {
-  console.log(`Приложение не отвечает на ${BASE} — проверять нечего.
-` +
-              'Поднимите его (dotnet run --project src/server/BHS.CRG.Api) и повторите.');
+  console.log(`Приложение не отвечает на ${BASE} — проверять нечего.`);
+  console.log('Поднимите его (dotnet run --project src/server/BHS.CRG.Api) и повторите.');
   process.exit(2);
 }
 
@@ -54,8 +64,17 @@ createInterface({ input: bridge.stdout }).on('line', line => {
   if (resolve) { pending.delete(msg.id); resolve(msg); }
 });
 
+// Мост может умереть и посреди прогона — например, если приложение перестало принимать его пароль.
+// Ждать после этого девяносто секунд бессмысленно: отвечать уже некому, и сказать надо сразу.
+const orphaned = [];
+bridge.on('exit', code => {
+  const err = new Error(`мост завершился с кодом ${code} — отвечать больше некому`);
+  for (const reject of orphaned.splice(0)) reject(err);
+});
+
 const send = obj => bridge.stdin.write(JSON.stringify(obj) + '\n');
 const ask = (id, method, params = {}) => new Promise((resolve, reject) => {
+  orphaned.push(reject);
   pending.set(id, resolve);
   send({ jsonrpc: '2.0', id, method, params });
   setTimeout(() => reject(new Error(`нет ответа на ${method}`)), 90_000);
@@ -85,15 +104,25 @@ console.log('поднимаю приложение…');
 // Start-Process сам не блокирует, поэтому синхронный вызов здесь уместен: отдельный detached-spawn
 // на Windows молча не доносил аргументы до powershell и приложение не поднималось.
 //
-// БЕЗ --no-launch-profile, хотя раньше он тут стоял. С ним приложение запускается из каталога,
-// откуда позвали, и своего appsettings не находит вовсе: до августа это сходило с рук, а с
-// появлением проверок конфигурации (StorageConfigGuard) старт честно обрывается на «Строка
-// подключения не задана». Проверка при этом краснела на строке «приложение поднялось» — то есть
-// сообщала о поломке МОСТА там, где не поднималось приложение, и разбираться отправляла не туда.
-// Профиль http из launchSettings даёт и среду Development, и адрес localhost:5000 — ровно то, чем
-// пользуется разработчик.
+// Профиль назван ЯВНО, и раньше он был отключён (--no-launch-profile) — из-за этого проверка не
+// проходила никогда.
+//
+// Дело не в рабочем каталоге: корень содержимого и без профиля указывает на каталог проекта, и
+// appsettings.json находится. Но в нём строка подключения ПУСТА — настоящая лежит в
+// appsettings.Development.json, а он подмешивается только когда среда равна Development. Профиль
+// её и задаёт; без профиля её не задаёт никто, и StorageConfigGuard честно обрывает старт словами
+// «Строка подключения не задана». Проверено обратным: с --no-launch-profile и вручную выставленной
+// ASPNETCORE_ENVIRONMENT=Development приложение поднимается.
+//
+// Краснела при этом строка «приложение поднялось», а следом «после перезапуска тем же мостом: 0» —
+// то есть проверка сообщала о поломке МОСТА там, где не поднялось приложение.
+//
+// -lp http, а не «первый попавшийся»: профилей два, и порядок в launchSettings.json меняется от
+// одного движения в IDE — а второй профиль слушает ещё и https-порт. --urls держит адрес тем же,
+// что опрашивает скрипт: иначе BHS_URL соблюдался бы наполовину — опрос по нему, а приложение по
+// адресу из профиля.
 ps(`Set-Location '${ROOT}'; Start-Process -FilePath 'dotnet' -ArgumentList ` +
-   `'run','--project','src/server/BHS.CRG.Api' -WindowStyle Hidden`);
+   `'run','--project','src/server/BHS.CRG.Api','-lp','http','--urls','${BASE}' -WindowStyle Hidden`);
 check(await waitForApi(), 'приложение поднялось');
 
 // Тот же мост, без перезапуска: обязан сам переиграть рукопожатие.
