@@ -8,6 +8,7 @@ import { useAppVersion } from '@/shared/api/version';
 import { uploadAttachment } from '@/shared/api/attachments';
 import { collectBugReportTech, submitBugReport } from '@/shared/api/bugReports';
 import { apiError } from '@/shared/utils/apiError';
+import { canCaptureScreen, captureScreenshotFile } from './screenCapture';
 
 /** С чем форму открыли: контекстная дверь приносит то, чего пользователь не перепечатает. */
 export interface BugReportPrefill {
@@ -66,10 +67,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
     setError(null);
     setCapturing(true);
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-      const file = await frameToFile(stream);
-      stream.getTracks().forEach(t => t.stop());
-      attach(file);
+      attach(await captureScreenshotFile());
     } catch (e) {
       // Отказ в выборе окна — не ошибка: человек передумал. Молчим, а не показываем красное.
       if (!(e instanceof DOMException && (e.name === 'NotAllowedError' || e.name === 'AbortError')))
@@ -108,8 +106,7 @@ export function BugReportDialog({ open, prefill, onClose }: {
     }
   }
 
-  const canCapture = typeof navigator !== 'undefined'
-    && typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+  const canCapture = canCaptureScreen();
 
   return (
     <Modal
@@ -234,24 +231,4 @@ function ContextFacts({ prefill, version, commit }: {
 function initialMessage(prefill: BugReportPrefill): string {
   if (!prefill.received) return '';
   return `Что делали: \nЧто ожидали: \nЧто получили: ${prefill.received}`;
-}
-
-/** Первый кадр потока → PNG-файл. Поток останавливает вызывающий код. */
-async function frameToFile(stream: MediaStream): Promise<File> {
-  const video = document.createElement('video');
-  video.srcObject = stream;
-  video.muted = true;
-  await video.play();
-  // Один кадр ожидания: сразу после play() размеры ещё нулевые, и канва вышла бы пустой.
-  await new Promise(requestAnimationFrame);
-
-  const canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.getContext('2d')!.drawImage(video, 0, 0);
-  video.pause();
-
-  const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-  if (!blob) throw new Error('Пустой снимок');
-  return new File([blob], 'снимок-экрана.png', { type: 'image/png' });
 }
