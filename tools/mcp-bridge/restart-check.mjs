@@ -34,6 +34,15 @@ async function waitForApi(timeoutMs = 120_000) {
   return false;
 }
 
+// Предусловие, а не первая проверка: с лежащим приложением мост честно отдаёт ноль инструментов, и
+// проверка объявляла бы сломанным ЕГО. Отказ должен называть то, чего не хватает.
+if (!await apiReachable()) {
+  console.log(`Приложение не отвечает на ${BASE} — проверять нечего.
+` +
+              'Поднимите его (dotnet run --project src/server/BHS.CRG.Api) и повторите.');
+  process.exit(2);
+}
+
 const bridge = spawn('node', [join(HERE, 'bridge.mjs')], {
   cwd: ROOT, env: process.env, stdio: ['pipe', 'pipe', 'inherit'],
 });
@@ -75,8 +84,16 @@ check(/недоступен/.test(down.error?.message ?? ''), `при лежащ
 console.log('поднимаю приложение…');
 // Start-Process сам не блокирует, поэтому синхронный вызов здесь уместен: отдельный detached-spawn
 // на Windows молча не доносил аргументы до powershell и приложение не поднималось.
+//
+// БЕЗ --no-launch-profile, хотя раньше он тут стоял. С ним приложение запускается из каталога,
+// откуда позвали, и своего appsettings не находит вовсе: до августа это сходило с рук, а с
+// появлением проверок конфигурации (StorageConfigGuard) старт честно обрывается на «Строка
+// подключения не задана». Проверка при этом краснела на строке «приложение поднялось» — то есть
+// сообщала о поломке МОСТА там, где не поднималось приложение, и разбираться отправляла не туда.
+// Профиль http из launchSettings даёт и среду Development, и адрес localhost:5000 — ровно то, чем
+// пользуется разработчик.
 ps(`Set-Location '${ROOT}'; Start-Process -FilePath 'dotnet' -ArgumentList ` +
-   `'run','--project','src/server/BHS.CRG.Api','--no-launch-profile' -WindowStyle Hidden`);
+   `'run','--project','src/server/BHS.CRG.Api' -WindowStyle Hidden`);
 check(await waitForApi(), 'приложение поднялось');
 
 // Тот же мост, без перезапуска: обязан сам переиграть рукопожатие.
