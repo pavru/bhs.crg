@@ -88,23 +88,33 @@ async function frameToFile(stream: MediaStream): Promise<File> {
  *
  * Ждём и кадры, и время. Одного времени мало: медленный поток не успел бы отдать ни кадра, и
  * снимок вернулся бы к той же ранней картинке. Одних кадров — тоже: у неподвижной страницы новых
- * кадров может не быть вовсе, и ожидание счётчиком повисло бы навсегда. Поэтому каждый кадр
- * гоняется наперегонки с общим сроком.
+ * кадров может не быть вовсе, и ожидание счётчиком повисло бы навсегда.
+ *
+ * Поэтому каждое ожидание гоняется наперегонки с ОСТАТКОМ общего срока, а не с новым отсчётом от
+ * нуля: со свежим таймером на каждый кадр поздний кадр отодвигал бы срок, и в худшем случае съёмка
+ * ждала бы вдвое дольше объявленного — всё это время форма спрятана, а кнопка выглядит нажатой
+ * впустую. Ждать здесь можно только вниз от общего бюджета.
+ *
+ * Гонка нужна ОБЕИМ ветвям. `requestAnimationFrame` у скрытой вкладки не срабатывает вовсе, и
+ * свернувший окно сразу после разрешения на съёмку ждал бы вечно: поток остался бы открытым
+ * (индикатор доступа горит), `capturing` — включённым, а форма с набранным текстом невидимой,
+ * без выхода кроме перезагрузки страницы.
  */
 export async function settle(video: HTMLVideoElement, now: () => number = () => performance.now()): Promise<void> {
   const started = now();
+  const left = () => SETTLE_MS - (now() - started);
 
   if (typeof video.requestVideoFrameCallback === 'function') {
     for (let i = 0; i < SETTLE_FRAMES; i++) {
       const frame = new Promise<void>(resolve => video.requestVideoFrameCallback(() => resolve()));
-      await Promise.race([frame, delay(SETTLE_MS)]);
-      if (now() - started >= SETTLE_MS) break;
+      await Promise.race([frame, delay(left())]);
+      if (left() <= 0) break;
     }
   } else {
-    await new Promise(requestAnimationFrame);
+    await Promise.race([new Promise(requestAnimationFrame), delay(left())]);
   }
 
-  await delay(SETTLE_MS - (now() - started));
+  await delay(left());
 }
 
 function delay(ms: number): Promise<void> {

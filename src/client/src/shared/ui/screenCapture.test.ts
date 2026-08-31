@@ -68,8 +68,25 @@ describe('settle', () => {
     expect(elapsed).toBeLessThan(SETTLE_MS * 3);
   });
 
+  it('укладывается в объявленный срок, даже когда кадры приходят под самый его конец', async () => {
+    // Со свежим таймером на каждый кадр поздний кадр отодвигал бы срок, и ожидание вышло бы
+    // вдвое длиннее объявленного — форма всё это время спрятана.
+    const video = fakeVideo(SETTLE_FRAMES, SETTLE_MS - 10);
+    expect(await run(video)).toBeLessThanOrEqual(SETTLE_MS + 20);
+  });
+
   it('обходится без requestVideoFrameCallback — там, где его нет', async () => {
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => setTimeout(() => cb(0), 16));
+    const video = {} as HTMLVideoElement;
+    expect(await run(video)).toBeGreaterThanOrEqual(SETTLE_MS);
+    vi.unstubAllGlobals();
+  });
+
+  it('не виснет без requestVideoFrameCallback, когда и кадров отрисовки нет', async () => {
+    // Скрытая вкладка (свернули окно сразу после разрешения на съёмку) не получает
+    // requestAnimationFrame вовсе: без гонки со сроком поток остался бы открытым, а форма с
+    // набранным текстом — невидимой навсегда.
+    vi.stubGlobal('requestAnimationFrame', () => 0);
     const video = {} as HTMLVideoElement;
     expect(await run(video)).toBeGreaterThanOrEqual(SETTLE_MS);
     vi.unstubAllGlobals();
