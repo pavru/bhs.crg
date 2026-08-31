@@ -238,25 +238,18 @@ public static class DataSetEndpoints
         // VERB вызова: ГОСТ и «Счёт» теперь оба входят через fileId, не только ГОСТ). confirm=true
         // подтверждает перезапись ручной правки разбиения (409 без него, только ГОСТ). Долгая операция
         // (ГОСТ, минуты) → фоновая задача, 202+jobId; короткая (Счёт, секунды) → синхронно, 200.
-        g.MapPost("/files/{fileId:guid}/recognize", async (Guid fileId, bool? confirm, IDataSetService svc, IJobService jobs, IRecognitionPreflight preflight, ClaimsPrincipal user, CancellationToken ct) =>
+        // Запуск и его защиты (порядок «уже идёт» → предполёт → confirm) — в IOperationLauncher:
+        // то же ядро зовёт MCP (issue #898).
+        g.MapPost("/files/{fileId:guid}/recognize", async (Guid fileId, bool? confirm, IOperationLauncher launcher, ClaimsPrincipal user, CancellationToken ct) =>
         {
             try
             {
-                if (await jobs.HasActiveForTargetAsync(UserId(user), fileId, ct))
-                    return Results.Conflict(new { error = "По этому набору уже идёт распознавание." });
-                // Предполёт ПОСЛЕ проверки «уже идёт»: он может уйти к движку на полторы минуты
-                // (холодная модель), и всё это время окно для второй такой же задачи оставалось бы
-                // открытым — два запроса подряд прошли бы оба.
-                if (await BlockedAsync(preflight, ct) is { } blocked) return blocked;
-                var plan = await svc.PlanFileRecognitionAsync(fileId, confirm ?? false, ct);
-                if (plan is null) return Results.NotFound();
-                if (plan.Background)
-                {
-                    var jobId = await jobs.EnqueueAsync(JobKind.RecognizeGostSet, UserId(user), fileId, plan.Title, null, ct);
-                    return Results.Accepted($"/api/jobs/active", new { jobId });
-                }
-                await svc.RecognizeFileAsync(fileId, confirm ?? false, ct);
-                return Results.Ok();
+                var launch = await launcher.RecognizeFileAsync(fileId, UserId(user), confirm ?? false, ct);
+                if (launch is null) return Results.NotFound();
+                if (launch.Blocked is { } b) return Results.UnprocessableEntity(new { error = b.Message, code = b.Code });
+                return launch.JobId is { } jobId
+                    ? Results.Accepted($"/api/jobs/active", new { jobId })
+                    : Results.Ok();
             }
             catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
             catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
@@ -264,27 +257,16 @@ public static class DataSetEndpoints
 
         // confirm=true — подтверждение перезаписи ручной корректировки разбиения (см.
         // ApplyGroupingAsync); без него, если источник уже правился вручную, — 409 Conflict.
-        g.MapPost("/sources/{sourceId:guid}/recognize", async (Guid sourceId, bool? confirm, IDataSetService svc, IJobService jobs, IRecognitionPreflight preflight, ClaimsPrincipal user, CancellationToken ct) =>
+        g.MapPost("/sources/{sourceId:guid}/recognize", async (Guid sourceId, bool? confirm, IOperationLauncher launcher, ClaimsPrincipal user, CancellationToken ct) =>
         {
             try
             {
-                // Защита от повторного запуска, пока по этому источнику уже идёт распознавание.
-                // Раньше предполёта: канарейка может ждать движок полторы минуты, и всё это время
-                // защита не работала бы (см. тот же порядок выше).
-                if (await jobs.HasActiveForTargetAsync(UserId(user), sourceId, ct))
-                    return Results.Conflict(new { error = "По этому источнику уже идёт распознавание." });
-                if (await BlockedAsync(preflight, ct) is { } blocked) return blocked;
-                // Пред-валидация синхронно (формат, 409 ручной правки). GOST-набор (минуты) → фоновая
-                // задача, 202+jobId сразу (реквест не держится). Счёт/legacy (секунды) → синхронно.
-                var plan = await svc.PlanRecognitionAsync(sourceId, confirm ?? false, ct);
-                if (plan is null) return Results.NotFound();
-                if (plan.Background)
-                {
-                    var jobId = await jobs.EnqueueAsync(JobKind.RecognizeGostSet, UserId(user), sourceId, plan.Title, null, ct);
-                    return Results.Accepted($"/api/jobs/active", new { jobId });
-                }
-                var result = await svc.RecognizePdfSourceAsync(sourceId, confirm ?? false, ct);
-                return result is null ? Results.NotFound() : Results.Ok(result);
+                var launch = await launcher.RecognizeSourceAsync(sourceId, UserId(user), confirm ?? false, ct);
+                if (launch is null) return Results.NotFound();
+                if (launch.Blocked is { } b) return Results.UnprocessableEntity(new { error = b.Message, code = b.Code });
+                return launch.JobId is { } jobId
+                    ? Results.Accepted($"/api/jobs/active", new { jobId })
+                    : Results.Ok(launch.Source);
             }
             catch (InvalidRequestException ex) { return Results.BadRequest(new { error = ex.Message }); }
             catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
