@@ -86,7 +86,8 @@ public class DataSetPdfRecognitionService(
                     "Разбиение набора было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
         }
         return new RecognizePlan(descriptor.Background,
-            descriptor.Kind == PdfProfileKind.Gost ? "Распознавание листов PDF" : "Распознавание PDF");
+            descriptor.Kind == PdfProfileKind.Gost ? "Распознавание листов PDF" : "Распознавание PDF",
+            file.Id);
     }
 
     /// <summary>Распознавание PDF-набора по НАБОРУ (issue #38/#44) — единая точка входа для всех профилей
@@ -133,15 +134,15 @@ public class DataSetPdfRecognitionService(
             if (existingGrouping is { ManuallyEdited: true } && !confirm)
                 throw new ConflictException(
                     "Разбиение этого источника было скорректировано вручную — повторное распознавание сотрёт ручные правки. Подтвердите, чтобы продолжить.");
-            return new RecognizePlan(descriptor.Background, Title: "Распознавание листов PDF");
+            return new RecognizePlan(descriptor.Background, Title: "Распознавание листов PDF", source.File.Id);
         }
         // Таблица документа — один vision-вызов на под-PDF; счёт/legacy тоже короткие. Синхронно.
         if (source.SheetOrPath.StartsWith(PdfProfiles.GostTableMarkerPrefix, StringComparison.Ordinal))
-            return new RecognizePlan(Background: false, Title: "Распознавание таблицы документа");
+            return new RecognizePlan(Background: false, Title: "Распознавание таблицы документа", source.File.Id);
         if (descriptor is null && source.SheetOrPath != PdfProfiles.LegacyTitleBlockRegistryMarker)
             throw new InvalidRequestException(
                 $"Источник «{source.Name}» не распознаётся по отдельности — запустите распознавание набора.");
-        return new RecognizePlan(Background: false, Title: "Распознавание PDF");
+        return new RecognizePlan(Background: false, Title: "Распознавание PDF", source.File.Id);
     }
 
     /// <summary>Legacy source-centric распознавание (issue #44: дискриминатор через дескриптор). Новый

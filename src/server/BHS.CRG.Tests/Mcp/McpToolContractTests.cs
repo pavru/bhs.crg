@@ -19,7 +19,7 @@ public class McpToolContractTests
     private static readonly Type[] ToolTypes =
     [
         typeof(DataSnapshotTools), typeof(DomainSnapshotTools), typeof(DocumentActionTools),
-        typeof(ObservationTools), typeof(ReconciliationTools),
+        typeof(ObservationTools), typeof(ReconciliationTools), typeof(JobTools), typeof(OperationTools),
     ];
 
     /// <summary>
@@ -36,7 +36,20 @@ public class McpToolContractTests
     /// сравнения означал бы модель внутри арифметики.
     /// </summary>
     private static readonly string[] WriteTools =
-        ["generate_document", "report_observation", "retract_observation", "propose_alias"];
+        ["generate_document", "report_observation", "retract_observation", "propose_alias",
+         "assemble_document_set", "recognize_dataset", "recognize_source"];
+
+    /// <summary>
+    /// Инструменты, объявленные РАЗРУШИТЕЛЬНЫМИ. До #898 таких не было ни одного, и тест ниже
+    /// требовал пустоты — оба распознавания её нарушают честно: с подтверждением они стирают ручную
+    /// правку разбиения на документы, а восстановить её нечем. Аннотация статическая, поэтому
+    /// объявляется худший случай — то, что без подтверждения запуск отвергается, её не смягчает:
+    /// именно по ней клиент решает, спрашивать ли человека.
+    ///
+    /// Сборка комплекта сюда НЕ входит: она пересоздаёт выпускаемые файлы, но введённых данных не
+    /// трогает — как и generate_document.
+    /// </summary>
+    private static readonly string[] DestructiveTools = ["recognize_dataset", "recognize_source"];
 
     /// <summary>
     /// Инструменты, отдающие выдачу страницей. Изначально — те, чей объём растёт вместе со стройкой
@@ -150,12 +163,13 @@ public class McpToolContractTests
             .Select(t => t.Name));
 
     /// <summary>
-    /// Разрушительным не является ни один: выпуск заменяет файлы СВОЕГО документа и ничего чужого не
-    /// трогает. Появись здесь настоящий разрушительный инструмент — он обязан объявиться честно.
+    /// Разрушительность объявлена явным списком — по ней клиент решает, спрашивать ли подтверждение
+    /// у человека. Инструмент, который стирает чужую работу и забыл про флаг, выполнялся бы молча.
     /// </summary>
     [Fact]
-    public void NoTool_IsDestructive()
-        => Assert.Empty(AllTools().Where(t => t.Attr.Destructive == true).Select(t => t.Name));
+    public void OnlyDeclaredTools_AreDestructive()
+        => Assert.Equal(DestructiveTools.Order(),
+            AllTools().Where(t => t.Attr.Destructive == true).Select(t => t.Name).Order());
 
     /// <summary>Имя — часть контракта с агентом: клиенты кешируют список, а переименование ломает
     /// уже написанные пользователем сценарии. Пустое имя вдобавок непредсказуемо (берётся имя метода).</summary>
@@ -181,6 +195,8 @@ public class McpToolContractTests
         "list_material_quality_links", "list_observations", "list_quality_documents",
         "list_reconciliations", "propose_alias", "report_observation", "retract_observation",
         "validate_document",
+        // Ось ACT, issue #898: запуск долгих операций и наблюдение за ними.
+        "assemble_document_set", "get_job", "recognize_dataset", "recognize_source",
     ];
 
     [Fact]

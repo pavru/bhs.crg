@@ -424,6 +424,8 @@ builder.Services
     .WithTools<BHS.CRG.Api.Mcp.DocumentActionTools>(BHS.CRG.Api.Mcp.McpSerialization.ToolOptions)
     .WithTools<BHS.CRG.Api.Mcp.ObservationTools>(BHS.CRG.Api.Mcp.McpSerialization.ToolOptions)
     .WithTools<BHS.CRG.Api.Mcp.ReconciliationTools>(BHS.CRG.Api.Mcp.McpSerialization.ToolOptions)
+    .WithTools<BHS.CRG.Api.Mcp.JobTools>(BHS.CRG.Api.Mcp.McpSerialization.ToolOptions)
+    .WithTools<BHS.CRG.Api.Mcp.OperationTools>(BHS.CRG.Api.Mcp.McpSerialization.ToolOptions)
     // Ресурсы сериализуем сами (McpJsonResource) — SDK принимает от них уже готовый текст.
     .WithResources<BHS.CRG.Api.Mcp.DataSnapshotResources>()
     .WithResources<BHS.CRG.Api.Mcp.DomainSnapshotResources>()
@@ -494,6 +496,8 @@ builder.Services.AddScoped<RefreshTokenService>();
 // ── Фоновые задачи (долгие операции: распознавание набора/таблицы) ──────────────
 builder.Services.AddSingleton<JobQueue>();
 builder.Services.AddScoped<IJobService, JobService>();
+// Запуск долгих операций вместе с их защитами — одно ядро для HTTP и MCP (issue #898).
+builder.Services.AddScoped<BHS.CRG.Application.Jobs.IOperationLauncher, OperationLauncher>();
 builder.Services.AddHostedService<JobBackgroundService>();
 
 // ── Notifications + health monitoring ───────────────────────────────────────────

@@ -213,17 +213,15 @@ public static class DocumentSetEndpoints
 
         // Запуск сборки всего комплекта (или подмножества) в один PDF — фоновая задача (генерация
         // недостающих + склейка могут занять десятки секунд). 202 + jobId, прогресс в индикаторе.
+        // Сам запуск и его защиты — в IOperationLauncher: то же ядро зовёт MCP (issue #898).
+        // Отказ «сборка уже идёт» приходит ConflictException → 409 общим обработчиком.
         g.MapPost("/{setId:guid}/assemble", async (
-            Guid setId, AssembleSetRequest? req, IMediator m, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
+            Guid setId, AssembleSetRequest? req, IOperationLauncher launcher, ClaimsPrincipal user, CancellationToken ct) =>
         {
-            var set = await m.Send(new GetDocumentSetQuery(setId), ct);
-            if (set is null) return Results.NotFound();
-            var payload = req?.InstanceIds is { Length: > 0 } ids
-                ? JsonSerializer.Serialize(new { instanceIds = ids })
-                : null;
-            var jobId = await jobs.EnqueueAsync(JobKind.AssembleDocumentSet, GetUserId(user), setId,
-                $"Сборка комплекта «{set.Name}»", payload, ct);
-            return Results.Accepted("/api/jobs/active", new { jobId });
+            var jobId = await launcher.AssembleDocumentSetAsync(setId, GetUserId(user), req?.InstanceIds, ct);
+            return jobId is null
+                ? Results.NotFound()
+                : Results.Accepted("/api/jobs/active", new { jobId });
         });
 
         // Отправка собранного комплекта на заданные адреса (подписчики + произвольные) — фоновая задача.
