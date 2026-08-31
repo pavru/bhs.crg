@@ -28,7 +28,11 @@ public class OperationLauncher(
         // Защиты от дубля у сборки не было вовсе: экран прикрыт блокировкой кнопки, но блокировка
         // живёт во вкладке — перезагрузка её снимает, и вторая сборка пишет тот же выход комплекта
         // поверх первой. Ставим здесь, а не в адаптере, чтобы правило было одно на все входы.
-        if (await jobs.HasActiveForTargetAsync(userId, setId, ct))
+        //
+        // Вид задачи назван ЯВНО: комплект — цель ещё и для отправки почтой, и для сверки качества.
+        // Без сужения идущая сверка (минуты) отвергала бы сборку — сообщением про сборку, которой
+        // не существует.
+        if (await jobs.HasActiveForTargetAsync(userId, setId, ct, JobKind.AssembleDocumentSet))
             throw new ConflictException("Сборка этого комплекта уже идёт.");
 
         var payload = instanceIds is { Count: > 0 } ids
@@ -41,34 +45,63 @@ public class OperationLauncher(
     public async Task<RecognitionLaunch?> RecognizeFileAsync(
         Guid fileId, Guid userId, bool confirm, CancellationToken ct)
     {
-        if (await jobs.HasActiveForTargetAsync(userId, fileId, ct))
-            throw new ConflictException("По этому набору уже идёт распознавание.");
-        if (await preflight.CheckAsync(ct) is { } blocked) return new RecognitionLaunch(null, null, blocked);
-
+        // План первым: он и проверяет существование набора, и решает судьбу вызова. Пока предполёт
+        // стоял раньше, неверный идентификатор получал ответ «распознавать некому» — отказ, который
+        // отправляет разбираться с настройками движка вместо опечатки в адресе.
         var plan = await dataSets.PlanFileRecognitionAsync(fileId, confirm, ct);
         if (plan is null) return null;
-        if (plan.Background)
-            return new RecognitionLaunch(
-                await jobs.EnqueueAsync(JobKind.RecognizeGostSet, userId, fileId, plan.Title, null, ct), null, null);
+        if (!plan.Background)
+        {
+            if (await preflight.CheckAsync(ct) is { } shortBlock)
+                return new RecognitionLaunch(null, null, shortBlock);
+            await dataSets.RecognizeFileAsync(fileId, confirm, ct);
+            return new RecognitionLaunch(null, null, null);
+        }
 
-        await dataSets.RecognizeFileAsync(fileId, confirm, ct);
-        return new RecognitionLaunch(null, null, null);
+        return await EnqueueRecognitionAsync(plan, userId, ct);
     }
 
     public async Task<RecognitionLaunch?> RecognizeSourceAsync(
         Guid sourceId, Guid userId, bool confirm, CancellationToken ct)
     {
-        if (await jobs.HasActiveForTargetAsync(userId, sourceId, ct))
-            throw new ConflictException("По этому источнику уже идёт распознавание.");
-        if (await preflight.CheckAsync(ct) is { } blocked) return new RecognitionLaunch(null, null, blocked);
-
         var plan = await dataSets.PlanRecognitionAsync(sourceId, confirm, ct);
         if (plan is null) return null;
-        if (plan.Background)
-            return new RecognitionLaunch(
-                await jobs.EnqueueAsync(JobKind.RecognizeGostSet, userId, sourceId, plan.Title, null, ct), null, null);
+        if (!plan.Background)
+        {
+            if (await preflight.CheckAsync(ct) is { } shortBlock)
+                return new RecognitionLaunch(null, null, shortBlock);
+            var source = await dataSets.RecognizePdfSourceAsync(sourceId, confirm, ct);
+            return source is null ? null : new RecognitionLaunch(null, source, null);
+        }
 
-        var source = await dataSets.RecognizePdfSourceAsync(sourceId, confirm, ct);
-        return source is null ? null : new RecognitionLaunch(null, source, null);
+        return await EnqueueRecognitionAsync(plan, userId, ct);
+    }
+
+    /// <summary>
+    /// Постановка распознавания в фон — общая для обоих входов, потому что и работа общая: ГОСТ-
+    /// профиль распознаёт НАБОР целиком, даже когда попросили один его источник (группировка живёт
+    /// на наборе, источников распознавание не создаёт).
+    ///
+    /// Отсюда цель задачи — <see cref="RecognizePlan.FileId" />, а не то, что назвал вызывающий.
+    /// Вход по источнику ставил задачу с его идентификатором, а исполнитель ищет по цели
+    /// <c>DataSetFile</c>: 202 с номером задачи приходил честно, и задача падала с «DataSetFile …
+    /// not found» — отказ, который вызывающий видел уже не в ответе на запуск.
+    /// </summary>
+    private async Task<RecognitionLaunch> EnqueueRecognitionAsync(
+        RecognizePlan plan, Guid userId, CancellationToken ct)
+    {
+        // Дубль — по НАБОРУ и только по видам распознавания: сборка комплекта или снятие копии с
+        // тем же идентификатором цели к делу не относятся.
+        if (await jobs.HasActiveForTargetAsync(userId, plan.FileId, ct,
+                JobKind.RecognizeGostSet, JobKind.RecognizeDocument, JobKind.RecognizeTable))
+            throw new ConflictException("По этому набору уже идёт распознавание.");
+
+        // Предполёт ПОСЛЕ проверки «уже идёт»: он может уйти к движку на полторы минуты (холодная
+        // модель), и всё это время окно для второй такой же задачи оставалось бы открытым.
+        if (await preflight.CheckAsync(ct) is { } blocked) return new RecognitionLaunch(null, null, blocked);
+
+        return new RecognitionLaunch(
+            await jobs.EnqueueAsync(JobKind.RecognizeGostSet, userId, plan.FileId, plan.Title, null, ct),
+            null, null);
     }
 }

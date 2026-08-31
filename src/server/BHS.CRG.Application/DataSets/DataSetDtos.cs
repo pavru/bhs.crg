@@ -210,10 +210,17 @@ public record UpdateSourceInput(string Name, string SheetOrPath, IReadOnlyList<C
 /// </summary>
 public record CreatePdfSourceInput(string Name, IReadOnlyList<string>? Tags, string? Profile = null);
 
-/// <summary>План распознавания источника: Background=true — операция долгая (GOST-набор), её ставят в
+/// <summary>План распознавания: Background=true — операция долгая (GOST-набор), её ставят в
 /// фоновую задачу; false — короткая (счёт/legacy), выполняется синхронно. Title — заголовок для
-/// индикатора задач. null-результат метода = источник не найден. Кидает 409/400 при пред-валидации.</summary>
-public record RecognizePlan(bool Background, string Title);
+/// индикатора задач. null-результат метода = набор/источник не найден. Кидает 409/400 при
+/// пред-валидации.
+///
+/// <paramref name="FileId" /> — НАБОР, к которому относится распознавание, даже когда просили один
+/// источник. Он же цель фоновой задачи: исполнитель <c>RecognizeGostSet</c> ищет по цели
+/// <c>DataSetFile</c>, и задача с идентификатором ИСТОЧНИКА падала с «DataSetFile … not found» —
+/// после честного 202 с номером задачи (issue #898). Работа ГОСТ-профиля и по смыслу принадлежит
+/// набору: группировка живёт на нём, источников распознавание не создаёт.</summary>
+public record RecognizePlan(bool Background, string Title, Guid FileId);
 
 /// <summary>
 /// Новая группировка ВСЕХ страниц — целиком заменяет предыдущую (ручную или автоматическую).

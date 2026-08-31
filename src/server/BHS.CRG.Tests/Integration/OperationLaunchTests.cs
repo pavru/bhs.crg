@@ -81,8 +81,11 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
     private static readonly RecognitionBlock NoEngines = new(
         RecognitionBlock.NoEngine, "Нет включённых и настроенных движков распознавания.");
 
-    /// <summary>ГОСТ-набор с разбиением, которое правил человек: перезапись такого требует согласия.</summary>
-    private async Task<Guid> SeedManuallyEditedSourceAsync()
+    /// <summary>
+    /// ГОСТ-набор с одним источником. <paramref name="manuallyEdited" /> — разбиение правил человек,
+    /// и перезапись такого требует согласия.
+    /// </summary>
+    private async Task<(Guid FileId, Guid SourceId)> SeedGostSourceAsync(bool manuallyEdited)
     {
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -101,12 +104,12 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
         file.SetGrouping(JsonSerializer.Serialize(new GostGroupingData(
             [new GostGroupingGroup(GostGroupKind.Document, "01-ЭМ", "План",
                 [new GostGroupingPage(0, new Dictionary<string, string?>())])],
-            ManuallyEdited: true)));
+            ManuallyEdited: manuallyEdited)));
 
         db.DataSetFiles.Add(file);
         db.DataSetSources.Add(source);
         await db.SaveChangesAsync();
-        return source.Id;
+        return (file.Id, source.Id);
     }
 
     private async Task<(HttpClient Client, Guid UserId)> AuthorizedClientAsync(
@@ -240,11 +243,12 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
     {
         using var host = HostWith(new FakePreflight(NoEngines));
         var (client, _) = await AuthorizedClientAsync(host);
+        var (fileId, _) = await SeedGostSourceAsync(manuallyEdited: false);
 
-        var response = await client.PostAsync($"/api/datasets/files/{Guid.NewGuid()}/recognize", null);
+        var response = await client.PostAsync($"/api/datasets/files/{fileId}/recognize", null);
 
-        // 422, а не 404: предполёт стоит ДО поиска набора — и отказ приходит своим кодом, по
-        // которому интерфейс отличает «не настроено» от «модель слепа».
+        // Отказ приходит своим кодом — по нему интерфейс отличает «не настроено» от «модель слепа»,
+        // и совет «проверьте настройки» во втором случае отправил бы искать то, что и так на месте.
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("recognition_unavailable", body.GetProperty("code").GetString());
@@ -347,9 +351,11 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
         var preflight = new FakePreflight(NoEngines);
         using var host = HostWith(preflight);
         var (client, userId) = await AuthorizedClientAsync(host);
-        var sourceId = Guid.NewGuid();
-        await SeedJobAsync(userId, sourceId, JobKind.RecognizeGostSet);
+        var (fileId, sourceId) = await SeedGostSourceAsync(manuallyEdited: false);
+        await SeedJobAsync(userId, fileId, JobKind.RecognizeGostSet);
 
+        // Спрашиваем по ИСТОЧНИКУ, а занят НАБОР: распознавание ГОСТ работает над набором целиком,
+        // и вход через источник обязан видеть ту же занятость — иначе защита обходится сменой входа.
         var response = await client.PostAsync($"/api/datasets/sources/{sourceId}/recognize", null);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
@@ -368,7 +374,7 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
     {
         using var host = HostWith(new FakePreflight(null));
         var (client, _) = await AuthorizedClientAsync(host);
-        var sourceId = await SeedManuallyEditedSourceAsync();
+        var (_, sourceId) = await SeedGostSourceAsync(manuallyEdited: true);
 
         var result = await McpCallAsync(client, "recognize_source", new { sourceId });
 
@@ -380,13 +386,19 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
     /// Обратная половина: с подтверждением запуск проходит. Без неё зелёный отказ выше доказывал бы
     /// лишь то, что распознавание не запускается НИКОГДА — например, потому что подтверждение не
     /// доходит до ядра и там всегда false.
+    ///
+    /// Цель задачи проверяется отдельно и придирчиво — это НАБОР, хотя просили источник. Ровно здесь
+    /// был дефект: вход по источнику ставил задачу с его идентификатором, а исполнитель ищет по цели
+    /// <c>DataSetFile</c>. Ответ приходил успешный (202 и номер задачи), задача падала с «DataSetFile
+    /// … not found», и увидеть это можно было только в её итоге. Проверка на «задача создана» такое
+    /// пропускает — она была зелёной и на сломанном.
     /// </summary>
     [Fact]
-    public async Task McpRecognizeSource_WithConfirmation_StartsJob()
+    public async Task McpRecognizeSource_WithConfirmation_StartsJobTargetingTheDataset()
     {
         using var host = HostWith(new FakePreflight(null));
         var (client, userId) = await AuthorizedClientAsync(host);
-        var sourceId = await SeedManuallyEditedSourceAsync();
+        var (fileId, sourceId) = await SeedGostSourceAsync(manuallyEdited: true);
 
         var result = await McpCallAsync(
             client, "recognize_source", new { sourceId, confirmOverwriteManualGrouping = true });
@@ -395,9 +407,46 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
 
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var job = await db.Jobs.SingleAsync(j => j.TargetId == sourceId);
+        var job = await db.Jobs.SingleAsync(j => j.Kind == JobKind.RecognizeGostSet);
+        Assert.Equal(fileId, job.TargetId);
+        Assert.NotEqual(sourceId, job.TargetId);
         Assert.Equal(userId, job.UserId);
         Assert.Equal(JobStatus.Queued, job.Status);
+    }
+
+    /// <summary>
+    /// Цель у задач общая, а операции разные: комплект — цель и сборки, и отправки почтой, и сверки
+    /// качества. Пока вид не спрашивали, запущенная сверка (минуты) отвергала бы сборку — сообщением
+    /// про сборку, которой не существует. Отказ, называющий несуществующую причину, хуже отсутствия
+    /// отказа: искать будут не там.
+    /// </summary>
+    [Fact]
+    public async Task Assemble_IsAllowed_WhileAnotherKindOfJobRunsOnTheSameSet()
+    {
+        var (client, userId) = await AuthorizedClientAsync();
+        var setId = await SeedDocumentSetAsync();
+        await SeedJobAsync(userId, setId, JobKind.SendEmail);
+
+        var response = await client.PostAsync($"/api/document-sets/{setId}/assemble", null);
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Неверный идентификатор обязан выглядеть неверным идентификатором. Пока предполёт стоял до
+    /// поиска цели, ответом было «распознавать некому» — и разбираться шли с настройками движка,
+    /// которые в порядке. Для агента это тупик вдвойне: инструмент сам говорит, что повторять
+    /// бессмысленно.
+    /// </summary>
+    [Fact]
+    public async Task Recognize_ReportsUnknownDataset_NotEngineBlock()
+    {
+        using var host = HostWith(new FakePreflight(NoEngines));
+        var (client, _) = await AuthorizedClientAsync(host);
+
+        var response = await client.PostAsync($"/api/datasets/files/{Guid.NewGuid()}/recognize", null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     /// <summary>Защита движка одинакова на обоих входах — иначе агент прошёл бы там, где человек нет.</summary>
@@ -406,10 +455,14 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
     {
         using var host = HostWith(new FakePreflight(NoEngines));
         var (client, _) = await AuthorizedClientAsync(host);
+        var (datasetId, _) = await SeedGostSourceAsync(manuallyEdited: false);
 
-        var result = await McpCallAsync(client, "recognize_dataset", new { datasetId = Guid.NewGuid() });
+        var result = await McpCallAsync(client, "recognize_dataset", new { datasetId });
 
         Assert.True(result.GetProperty("isError").GetBoolean());
         Assert.Contains("движков распознавания", TextOf(result));
+        // Машинный код — вместе с текстом: по нему агент отличает «не настроено» от «модель слепа»,
+        // не разбирая русскую фразу. По HTTP он приходит отдельным полем.
+        Assert.Contains(RecognitionBlock.NoEngine, TextOf(result));
     }
 }

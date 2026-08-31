@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using BHS.CRG.Application.Jobs;
+using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Common;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
@@ -31,7 +32,10 @@ public record RecognitionStarted(Guid? JobId, bool Completed);
 [McpServerToolType]
 public class OperationTools(IOperationLauncher launcher, IHttpContextAccessor http)
 {
-    [McpServerTool(Name = "assemble_document_set", ReadOnly = false, Idempotent = true, Destructive = false,
+    // Idempotent НЕ ставим ни одному из трёх: подсказку об идемпотентности клиенты используют для
+    // автоматического повтора при обрыве связи, а повтор здесь — вторая задача либо отказ. У
+    // распознавания цена выше: повторённый вызов несёт с собой и подтверждение перезаписи.
+    [McpServerTool(Name = "assemble_document_set", ReadOnly = false, Destructive = false,
         Title = "Собрать комплект в один PDF")]
     [Description("""
         Запускает сборку комплекта в один PDF: недостающие документы выпускаются, готовые
@@ -65,7 +69,7 @@ public class OperationTools(IOperationLauncher launcher, IHttpContextAccessor ht
         catch (DomainException ex) { throw new McpException(ex.Message); }
     }
 
-    [McpServerTool(Name = "recognize_dataset", ReadOnly = false, Idempotent = true, Destructive = true,
+    [McpServerTool(Name = "recognize_dataset", ReadOnly = false, Destructive = true,
         Title = "Распознать PDF-набор")]
     [Description("""
         Отправляет PDF-набор на распознавание: страницы читает vision-модель, из них извлекаются
@@ -93,13 +97,21 @@ public class OperationTools(IOperationLauncher launcher, IHttpContextAccessor ht
             var launch = await launcher.RecognizeFileAsync(
                 datasetId, JobTools.RequireUserId(http), confirmOverwriteManualGrouping, ct)
                 ?? throw new McpException("Набор данных не найден.");
-            if (launch.Blocked is { } blocked) throw new McpException(blocked.Message);
+            if (launch.Blocked is { } blocked) throw Refusal(blocked);
             return new RecognitionStarted(launch.JobId, launch.JobId is null);
         }
         catch (DomainException ex) { throw new McpException(ex.Message); }
     }
 
-    [McpServerTool(Name = "recognize_source", ReadOnly = false, Idempotent = true, Destructive = true,
+    /// <summary>
+    /// Отказ движка — вместе с машинным кодом. Без него агенту остаётся разбирать русскую фразу,
+    /// чтобы отличить «ни один движок не настроен» (вопрос к администратору) от «модель не видит
+    /// картинок» (вопрос к выбору модели), — а по HTTP этот код отдаётся отдельным полем.
+    /// </summary>
+    private static McpException Refusal(RecognitionBlock block)
+        => new($"[{block.Code}] {block.Message}");
+
+    [McpServerTool(Name = "recognize_source", ReadOnly = false, Destructive = true,
         Title = "Распознать источник набора")]
     [Description("""
         То же распознавание, но по одному источнику набора, а не по всему набору. Годится, когда
@@ -122,7 +134,7 @@ public class OperationTools(IOperationLauncher launcher, IHttpContextAccessor ht
             var launch = await launcher.RecognizeSourceAsync(
                 sourceId, JobTools.RequireUserId(http), confirmOverwriteManualGrouping, ct)
                 ?? throw new McpException("Источник не найден.");
-            if (launch.Blocked is { } blocked) throw new McpException(blocked.Message);
+            if (launch.Blocked is { } blocked) throw Refusal(blocked);
             return new RecognitionStarted(launch.JobId, launch.JobId is null);
         }
         catch (DomainException ex) { throw new McpException(ex.Message); }

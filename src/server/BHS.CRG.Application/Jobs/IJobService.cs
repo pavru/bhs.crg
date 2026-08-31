@@ -46,8 +46,15 @@ public interface IJobService
     /// </summary>
     Task<JobDto?> GetAsync(Guid jobId, Guid userId, CancellationToken ct);
 
-    /// <summary>Есть ли у пользователя активная (Queued/Running) задача по данной цели — защита от дубля.</summary>
-    Task<bool> HasActiveForTargetAsync(Guid userId, Guid targetId, CancellationToken ct);
+    /// <summary>
+    /// Есть ли у пользователя активная (Queued/Running) задача по данной цели — защита от дубля.
+    ///
+    /// <paramref name="kinds" /> сужает вопрос до перечисленных видов; пусто — любой вид. Сужение
+    /// нужно там, где цель у разных операций ОДНА: комплект — цель и сборки, и отправки почтой, и
+    /// сверки качества. Без него запущенная сверка (минуты) блокировала бы сборку — с сообщением,
+    /// называющим сборку, которой не существует (issue #898).
+    /// </summary>
+    Task<bool> HasActiveForTargetAsync(Guid userId, Guid targetId, CancellationToken ct, params JobKind[] kinds);
 
     /// <summary>
     /// Есть ли активная задача такого вида — у КОГО УГОДНО, а не только у спросившего.
