@@ -934,11 +934,6 @@ namespace BHS.CRG.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TargetId", "Kind")
-                        .IsUnique()
-                        .HasDatabaseName("ix_jobs_single_active_per_target")
-                        .HasFilter("\"Status\" IN ('Queued', 'Running') AND \"Kind\" <> 'SendEmail'");
-
                     b.HasIndex("UserId", "Status");
 
                     b.ToTable("jobs", (string)null);

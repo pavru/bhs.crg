@@ -13,8 +13,11 @@ namespace BHS.CRG.Infrastructure.Jobs;
 /// </summary>
 public class JobService(AppDbContext db, JobQueue queue) : IJobService
 {
-    /// <summary>Код нарушения уникальности в PostgreSQL — им отвечает индекс «одна задача на цель».</summary>
+    /// <summary>Код нарушения уникальности в PostgreSQL.</summary>
     private const string UniqueViolation = "23505";
+
+    /// <summary>Индекс «одна активная задача на цель» (issue #900), созданный миграцией.</summary>
+    private const string SingleActiveIndex = "ix_jobs_single_active_per_target";
 
     public async Task<Guid> EnqueueAsync(JobKind kind, Guid userId, Guid targetId, string title, string? payload, CancellationToken ct)
     {
@@ -24,16 +27,24 @@ public class JobService(AppDbContext db, JobQueue queue) : IJobService
         {
             await db.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: UniqueViolation })
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+               { SqlState: UniqueViolation, ConstraintName: SingleActiveIndex })
         {
             // Проиграли гонку: пока мы проверяли «свободно» и вставляли, кто-то поставил свою задачу
             // (issue #900). Отказ тот же по смыслу, что и у проверки перед постановкой, — разница
             // только в том, что его вынесла база, у которой окна между проверкой и записью нет.
             //
+            // Ловим ИМЕННО этот индекс, а не любое нарушение уникальности: контекст здесь общий на
+            // запрос, и SaveChanges сбрасывает всё, что вызывающий оставил неотправленным. Чужое
+            // столкновение, объявленное «задача уже выполняется», увело бы разбирательство в сторону.
+            //
+            // Исходное исключение уходит внутренним: без него в логе не остаётся ни имени индекса,
+            // ни текста базы — а именно они говорят, что и с чем столкнулось.
+            //
             // Контекст после неудачного SaveChanges держит непринятую сущность: не отцепив её,
             // следующий SaveChanges в этом же запросе повторил бы ту же вставку и тот же отказ.
             db.Entry(job).State = EntityState.Detached;
-            throw new ConflictException("Такая задача по этому объекту уже выполняется.");
+            throw new ConflictException("Такая задача по этому объекту уже выполняется.", ex);
         }
         queue.Enqueue(job.Id);
         return job.Id;

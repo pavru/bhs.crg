@@ -122,6 +122,34 @@ public class JobRaceGuardTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Equal(2, await db.Jobs.CountAsync(j => j.TargetId == setId));
     }
 
+    /// <summary>
+    /// А вот РАСПОЗНАВАНИЯ разных видов — не «разные операции»: они пишут один и тот же набор
+    /// (группировку, распознанные таблицы), и защита перед постановкой отвергает запуск, если по
+    /// набору идёт любое из трёх. Ключ индекса обязан быть таким же широким, иначе он подпирает
+    /// защиту уже той, что подпирает: одновременные RecognizeGostSet и RecognizeTable прошли бы оба.
+    ///
+    /// Пары взяты все три — семейство задаётся ПРЕФИКСОМ имени, и проверять надо, что в него попал
+    /// каждый, а не тот один, на котором писали правило.
+    /// </summary>
+    [Theory]
+    [InlineData(JobKind.RecognizeGostSet, JobKind.RecognizeTable)]
+    [InlineData(JobKind.RecognizeGostSet, JobKind.RecognizeDocument)]
+    [InlineData(JobKind.RecognizeTable, JobKind.RecognizeDocument)]
+    public async Task RecognitionKinds_ShareOneSlotPerDataset(JobKind first, JobKind second)
+    {
+        var userId = Guid.NewGuid();
+        var fileId = Guid.NewGuid();
+
+        await EnqueueAsync(first, userId, fileId);
+        var refusal = await Assert.ThrowsAsync<ConflictException>(
+            () => EnqueueAsync(second, userId, fileId));
+        Assert.Contains("уже выполняется", refusal.Message);
+
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(1, await db.Jobs.CountAsync(j => j.TargetId == fileId));
+    }
+
     private static async Task<(Guid Id, Exception? Error)> Wrap(Task<Guid> task)
     {
         try { return (await task, null); }

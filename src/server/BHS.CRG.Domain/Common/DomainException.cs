@@ -17,8 +17,13 @@ namespace BHS.CRG.Domain.Common;
 ///
 /// Код ответа выбирает слой API: здесь называется РОД отказа, а не HTTP-статус — Domain про HTTP
 /// не знает и знать не должен.
+///
+/// <paramref name="inner" /> нужен там, где наш отказ ВЫВЕДЕН из чужой ошибки: пользователю уходит
+/// наш текст, а в лог — исходное исключение целиком. Без него, например, отказ «задача уже
+/// выполняется», рождённый нарушением уникального индекса, не оставлял бы в журнале ни имени
+/// индекса, ни текста базы — то есть ничего, по чему разбирать столкновение.
 /// </summary>
-public abstract class DomainException(string message) : Exception(message);
+public abstract class DomainException(string message, Exception? inner = null) : Exception(message, inner);
 
 /// <summary>
 /// Текст отказа для человека — общий для всех выходов наружу, не только для HTTP-ответа.
@@ -57,7 +62,7 @@ public class NotFoundException(string message = "Запрошенный объе
 /// Отличается от <see cref="InvalidRequestException" /> тем, что запрос сам по себе правильный —
 /// не пускает текущее положение дел.
 /// </summary>
-public class ConflictException(string message) : DomainException(message);
+public class ConflictException(string message, Exception? inner = null) : DomainException(message, inner);
 
 /// <summary>Действие запрещено этому пользователю.</summary>
 public class ForbiddenException(string message) : DomainException(message);

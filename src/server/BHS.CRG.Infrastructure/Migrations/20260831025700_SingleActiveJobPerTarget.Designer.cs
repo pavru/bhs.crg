@@ -14,7 +14,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BHS.CRG.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260831021302_SingleActiveJobPerTarget")]
+    [Migration("20260831025700_SingleActiveJobPerTarget")]
     partial class SingleActiveJobPerTarget
     {
         /// <inheritdoc />
@@ -936,11 +936,6 @@ namespace BHS.CRG.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("TargetId", "Kind")
-                        .IsUnique()
-                        .HasDatabaseName("ix_jobs_single_active_per_target")
-                        .HasFilter("\"Status\" IN ('Queued', 'Running') AND \"Kind\" <> 'SendEmail'");
 
                     b.HasIndex("UserId", "Status");
 
