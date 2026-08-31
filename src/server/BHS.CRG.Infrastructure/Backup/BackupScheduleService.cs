@@ -1,6 +1,7 @@
 using System.Globalization;
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Jobs;
 using BHS.CRG.Infrastructure.Updates;
 using Microsoft.Extensions.DependencyInjection;
@@ -91,8 +92,21 @@ public class BackupScheduleService(
 
         // Владельца у плановой задачи нет: её поставил не человек. Отказ такой задачи уходит
         // общесистемным уведомлением (см. JobBackgroundService), а не в личный колокольчик.
-        await jobs.EnqueueAsync(JobKind.CreateBackup, Guid.Empty, Guid.Empty,
-            "Плановое резервное копирование", "{\"scheduled\":true}", ct);
+        try
+        {
+            await jobs.EnqueueAsync(JobKind.CreateBackup, Guid.Empty, Guid.Empty,
+                "Плановое резервное копирование", "{\"scheduled\":true}", ct);
+        }
+        catch (ConflictException)
+        {
+            // Копию успели начать вручную между проверкой выше и этой строкой: с issue #900 такое
+            // столкновение отвергает база. Это не сбой, а тот же случай, что и проверка «уже
+            // снимается», — и говорить о нём надо так же. Молчаливый проброс был бы хуже всего:
+            // срок уже отмечен, цикл принял бы отказ за общий сбой, и ночь осталась бы без копии,
+            // причём в журнале не было бы сказано почему.
+            logger.LogInformation("Плановое копирование пропущено: копия уже снимается");
+            return;
+        }
         logger.LogInformation("Плановое резервное копирование поставлено в очередь");
     }
 
