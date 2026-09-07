@@ -56,7 +56,7 @@ services:
   # единой правки кода: наш SDK подписывает запросы этим регионом и переубедить его нельзя —
   # `MakeBucket` подписывается отдельно и `WithRegion` игнорирует.
   garage:
-    image: dxflrs/garage:v2.3.0
+    image: dxflrs/garage:v2.4.0
     # Образ без ENTRYPOINT: команду пишем полным путём, иначе docker ищет «server» в $PATH.
     command: ["/garage", "server"]
     environment:
