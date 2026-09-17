@@ -15,7 +15,7 @@ public sealed class FakeCatalog : Dictionary<string, VisionStatus>, IRecognition
         => Task.FromResult<IReadOnlyList<string>?>(null);
 
     public Task<ModelStatus> GetStatusAsync(string engine, IntegrationEngine cfg, string model,
-        bool probe = true, CancellationToken ct = default)
+        ModelProbe probe = ModelProbe.IfUnknown, CancellationToken ct = default)
         => Task.FromResult(ModelStatus.Unknown);
 
     public Task<VisionStatus> GetVisionAsync(string engine, IntegrationEngine cfg, string model,

@@ -33,6 +33,11 @@ public class HealthMonitorService(
     // могла не отвечать, и тогда пробуем на следующем круге (issue #920).
     private bool _restored;
 
+    // Когда пробу модели последний раз разрешали и с какой конфигурацией (issue #921). В памяти
+    // намеренно: после перезапуска вердикта в кэше каталога всё равно нет, и первая проба нужна.
+    private readonly Dictionary<string, DateTimeOffset> _probePaidAt = [];
+    private readonly Dictionary<string, string> _probeConfig = [];
+
     // Что лежит в базе сейчас — чтобы писать только при изменении, а не каждые 45 секунд.
     private IReadOnlyDictionary<string, HealthState> _saved = new Dictionary<string, HealthState>();
 
@@ -79,7 +84,7 @@ public class HealthMonitorService(
             probes.Add(await ProbeAsync("recognition.ollama", "Ollama (распознавание)", HealthClass.Engine, async () =>
             {
                 await CheckOllamaAsync(ollama.BaseUrl, ct);
-                return await ModelDetailAsync(sp, "Ollama", ollama, ct);
+                return await ModelDetailAsync(sp, "recognition.ollama", "Ollama", ollama, ct);
             }));
 
         // Gemini — сначала лёгкий GET метаданных (доступен ли движок вообще), потом проверка самой
@@ -90,7 +95,7 @@ public class HealthMonitorService(
             probes.Add(await ProbeAsync("recognition.gemini", "Gemini (распознавание)", HealthClass.Engine, async () =>
             {
                 await CheckGeminiAsync(gemini.ApiKey!, gemini.Model, ct);
-                return await ModelDetailAsync(sp, "Gemini", gemini, ct);
+                return await ModelDetailAsync(sp, "recognition.gemini", "Gemini", gemini, ct);
             }));
 
         var store = sp.GetRequiredService<ServiceStateStore>();
@@ -99,6 +104,7 @@ public class HealthMonitorService(
         // Компоненты, которых больше не проверяем, забываем: иначе выключенный и снова включённый
         // движок унаследовал бы счётчики прошлой жизни.
         _hysteresis.Retain(probes.Select(p => p.Code));
+        ForgetProbeSchedule(probes.Select(p => p.Code));
 
         var notifier = sp.GetRequiredService<INotificationService>();
         var snapshot = new List<ComponentHealth>(probes.Count);
@@ -225,19 +231,39 @@ public class HealthMonitorService(
     /// своими настройками.
     ///
     /// Для облачного движка это РАСХОД: проба — настоящий запрос генерации (с ответом в один токен).
-    /// На круг мониторинга он не приходится — определённый ответ каталог держит четверть часа, а
-    /// неопределённый три минуты, что заведомо длиннее 45-секундного круга. Срок кэша короче круга
-    /// означал бы запрос на каждом круге, то есть беспрерывный стук в поставщика ровно тогда, когда
-    /// он и так отказывает.
+    /// Когда платить, решает <see cref="ModelProbeSchedule"/>, а не срок кэша каталога (issue #921):
+    /// на остальных кругах вердикт берётся из кэша. Ollama отвечает по списку установленных моделей,
+    /// и режим пробы её не касается — расписание к ней применяется, ничего не меняя.
     /// </summary>
-    private static async Task<string?> ModelDetailAsync(IServiceProvider sp, string name, IntegrationEngine cfg, CancellationToken ct)
+    private async Task<string?> ModelDetailAsync(IServiceProvider sp, string code, string name, IntegrationEngine cfg, CancellationToken ct)
     {
+        var config = $"{cfg.Model}|{cfg.ApiKey?.GetHashCode(StringComparison.Ordinal)}";
+        var paidAt = _probePaidAt.TryGetValue(code, out var at) ? at : (DateTimeOffset?)null;
+        var configChanged = _probeConfig.TryGetValue(code, out var seen) && seen != config;
+        var announcedDown = _hysteresis.Announced.TryGetValue(code, out var announced) && announced == HealthState.Down;
+
+        var now = DateTimeOffset.UtcNow;
+        var mode = ModelProbeSchedule.Decide(paidAt, configChanged, announcedDown, now);
+        if (mode != ModelProbe.CacheOnly)
+        {
+            _probePaidAt[code] = now;
+            _probeConfig[code] = config;
+        }
+
         var status = await sp.GetRequiredService<IRecognitionModelCatalog>()
-            .GetStatusAsync(name, cfg, cfg.Model ?? string.Empty, ct: ct);
+            .GetStatusAsync(name, cfg, cfg.Model ?? string.Empty, mode, ct);
         var issue = EngineReadiness.ModelIssue(name, cfg, status);
         // Через исключение — потому что «нездоров» в этом мониторинге выражается только так (CheckAsync).
         if (issue is not null) throw new InvalidOperationException(char.ToUpperInvariant(issue[0]) + issue[1..]);
         return null;
+    }
+
+    /// <summary>Расписание пробы для компонентов, которых больше не проверяем, забывается: включённый заново движок начинает с пробы.</summary>
+    private void ForgetProbeSchedule(IEnumerable<string> codes)
+    {
+        var keep = codes.ToHashSet();
+        foreach (var code in _probePaidAt.Keys.Where(c => !keep.Contains(c)).ToList()) _probePaidAt.Remove(code);
+        foreach (var code in _probeConfig.Keys.Where(c => !keep.Contains(c)).ToList()) _probeConfig.Remove(code);
     }
 
     private async Task<string?> CheckOllamaAsync(string? baseUrl, CancellationToken ct)
