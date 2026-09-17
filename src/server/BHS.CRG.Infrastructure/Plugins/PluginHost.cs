@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Runtime.Loader;
 using System.Text.Json;
+using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Plugins;
 using Microsoft.Extensions.Logging;
 
@@ -88,7 +89,19 @@ public class HttpDataSourcePlugin : IDataSourcePlugin
     private readonly HttpClient _http;
 
     public HttpDataSourcePlugin(HttpPluginConfig config)
-        : this(config, new HttpClient { BaseAddress = new Uri(config.BaseUrl) }) { }
+        : this(config, new HttpClient(Outbound()) { BaseAddress = new Uri(config.BaseUrl) }) { }
+
+    /// <summary>
+    /// Клиент создаётся мимо фабрики — плагины приходят из конфигурации, а не из DI, — поэтому
+    /// общий способ подключения приходится ставить здесь руками. Без этого плагин остаётся с двумя
+    /// умолчаниями платформы разом: последовательным перебором адресов и вечным DNS в пуле.
+    /// </summary>
+    private static SocketsHttpHandler Outbound()
+    {
+        var handler = new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) };
+        OutboundConnect.Apply(handler);
+        return handler;
+    }
 
     /// <summary>Тестовый конструктор — инъекция HttpClient (с мок-хендлером).</summary>
     public HttpDataSourcePlugin(HttpPluginConfig config, HttpClient http)

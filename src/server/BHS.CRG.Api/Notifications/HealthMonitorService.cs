@@ -26,7 +26,7 @@ public class HealthMonitorService(
     private static readonly TimeSpan StartDelay = TimeSpan.FromSeconds(5);
 
     private volatile IReadOnlyList<ComponentHealth> _snapshot = [];
-    private readonly Dictionary<string, bool> _previous = new();
+    private readonly HealthHysteresis _hysteresis = new();
 
     public IReadOnlyList<ComponentHealth> Snapshot => _snapshot;
 
@@ -56,10 +56,10 @@ public class HealthMonitorService(
         var sp = scope.ServiceProvider;
         var settings = await sp.GetRequiredService<IIntegrationSettings>().GetEffectiveAsync(ct);
 
-        var checks = new List<ComponentHealth>
+        var probes = new List<Probe>
         {
-            await CheckAsync("База данных", () => CheckPostgresAsync(sp, ct)),
-            await CheckAsync("Хранилище", () => CheckStorageAsync(ct)),
+            await ProbeAsync("db", "База данных", HealthClass.Core, () => CheckPostgresAsync(sp, ct)),
+            await ProbeAsync("storage", "Хранилище", HealthClass.Core, () => CheckStorageAsync(ct)),
         };
 
         // Движки распознавания проверяем ровно те, что РЕАЛЬНО участвуют в работе, — тем же
@@ -68,7 +68,7 @@ public class HealthMonitorService(
         // недоступности движка, которым система всё равно не пользуется.
         var ollama = settings.Rec("Ollama");
         if (EngineReadiness.IsUsableForRecognition("Ollama", ollama))
-            checks.Add(await CheckAsync("Ollama (распознавание)", async () =>
+            probes.Add(await ProbeAsync("recognition.ollama", "Ollama (распознавание)", HealthClass.Engine, async () =>
             {
                 await CheckOllamaAsync(ollama.BaseUrl, ct);
                 return await ModelDetailAsync(sp, "Ollama", ollama, ct);
@@ -79,53 +79,68 @@ public class HealthMonitorService(
         // про снятую с обслуживания модель молчат, и без пробы мониторинг её не увидит.
         var gemini = settings.Rec("Gemini");
         if (EngineReadiness.IsUsableForRecognition("Gemini", gemini))
-            checks.Add(await CheckAsync("Gemini (распознавание)", async () =>
+            probes.Add(await ProbeAsync("recognition.gemini", "Gemini (распознавание)", HealthClass.Engine, async () =>
             {
                 await CheckGeminiAsync(gemini.ApiKey!, gemini.Model, ct);
                 return await ModelDetailAsync(sp, "Gemini", gemini, ct);
             }));
 
-        _snapshot = checks;
+        // Компоненты, которых больше не проверяем, забываем: иначе выключенный и снова включённый
+        // движок унаследовал бы счётчики прошлой жизни.
+        _hysteresis.Retain(probes.Select(p => p.Code));
 
         var notifier = sp.GetRequiredService<INotificationService>();
-        foreach (var c in checks)
+        var snapshot = new List<ComponentHealth>(probes.Count);
+        foreach (var probe in probes)
         {
-            var known = _previous.TryGetValue(c.Name, out var prev);
-            if (!known)
-            {
-                if (!c.Healthy)
-                    await notifier.PublishAsync(SeverityFor(c.Name), $"{c.Name}: недоступен",
-                        c.Detail ?? "Компонент не отвечает.", "Состояние системы", ct: ct);
-            }
-            else if (prev != c.Healthy)
-            {
-                if (c.Healthy)
-                    await notifier.PublishAsync(NotificationSeverity.Info, $"{c.Name}: восстановлен",
-                        "Компонент снова доступен.", "Состояние системы", ct: ct);
-                else
-                    await notifier.PublishAsync(SeverityFor(c.Name), $"{c.Name}: недоступен",
-                        c.Detail ?? "Компонент перестал отвечать.", "Состояние системы", ct: ct);
-            }
-            _previous[c.Name] = c.Healthy;
+            // Объявление и снимок берутся из гистерезиса, а не из пробы: одна неудача внешнего
+            // движка — ещё не отказ (issue #917).
+            var move = _hysteresis.Observe(probe.Code, probe.Class, probe.Ok);
+            snapshot.Add(new ComponentHealth(probe.Code, probe.Name, probe.Class,
+                _hysteresis.StateOf(probe.Code, probe.Ok), probe.Detail, DateTimeOffset.UtcNow));
+
+            if (move == HealthTransition.WentDown)
+                await notifier.PublishAsync(SeverityFor(probe.Class), $"{probe.Name}: недоступен",
+                    Explain(probe), "Состояние системы", ct: ct);
+            else if (move == HealthTransition.CameUp)
+                await notifier.PublishAsync(NotificationSeverity.Info, $"{probe.Name}: восстановлен",
+                    "Компонент снова доступен.", "Состояние системы", ct: ct);
         }
+
+        // Снимок присваивается ПОСЛЕ разбора: до него состояние ещё не подтверждено.
+        _snapshot = snapshot;
     }
 
-    // Движки распознавания (Ollama/Gemini) → Предупреждение; ядро (БД/хранилище) → Ошибка.
-    private static NotificationSeverity SeverityFor(string name)
-        => name.StartsWith("Ollama") || name.StartsWith("Gemini")
-            ? NotificationSeverity.Warning
-            : NotificationSeverity.Error;
+    /// <summary>Результат одной пробы — сырой, до подтверждения сериями.</summary>
+    private sealed record Probe(string Code, string Name, HealthClass Class, bool Ok, string? Detail);
 
-    private static async Task<ComponentHealth> CheckAsync(string name, Func<Task<string?>> probe)
+    // Движки распознавания → Предупреждение; ядро (БД/хранилище) → Ошибка. По классу компонента, а
+    // не по началу отображаемого имени: переименование иначе меняло бы строгость молча.
+    private static NotificationSeverity SeverityFor(HealthClass @class)
+        => @class == HealthClass.Core ? NotificationSeverity.Error : NotificationSeverity.Warning;
+
+    /// <summary>
+    /// Порог назван в тексте нарочно: иначе из уведомления не видно, что отказ подтверждался серией,
+    /// и разбор обращения уйдёт искать единственную неудачную пробу.
+    /// </summary>
+    private static string Explain(Probe probe)
+    {
+        var detail = probe.Detail ?? "Компонент не отвечает.";
+        var (down, _) = HealthHysteresis.Thresholds(probe.Class);
+        return down > 1 ? $"{detail} Не отвечает {down} проверки подряд." : detail;
+    }
+
+    private static async Task<Probe> ProbeAsync(string code, string name, HealthClass @class, Func<Task<string?>> probe)
     {
         try
         {
-            var detail = await probe();
-            return new ComponentHealth(name, true, detail, DateTimeOffset.UtcNow);
+            return new Probe(code, name, @class, true, await probe());
         }
-        catch (Exception ex)
+        // Остановка приложения — не отказ компонента: иначе последний тик объявлял бы недоступным
+        // то, что просто не успело ответить перед выключением.
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return new ComponentHealth(name, false, Short(ex.Message), DateTimeOffset.UtcNow);
+            return new Probe(code, name, @class, false, Short(ex.Message));
         }
     }
 

@@ -161,45 +161,42 @@ public static class OutboundAddressPolicy
     /// проверкой и подключением закрывается только здесь: адреса берём один раз и подключаемся к
     /// ним же.
     /// </summary>
-    public static SocketsHttpHandler CreateGuardedHandler() => new()
+    /// Подключение — общее для всего приложения (<see cref="OutboundConnect"/>), проверка приходит
+    /// туда фильтром. Своего подключения здесь нет НАРОЧНО: пока их было два, второе перебирало
+    /// адреса по очереди и залипало на недостижимом — причём именно у тех двух клиентов, которые
+    /// ходят по произвольным пользовательским именам (issue #917).
+    /// </summary>
+    public static void ApplyGuard(SocketsHttpHandler handler)
     {
         // Перенаправления проходит SafeHttpGet, проверяя цель каждого.
-        AllowAutoRedirect = false,
-        ConnectCallback = async (context, ct) =>
-        {
-            var host = context.DnsEndPoint.Host;
-            IPAddress[] resolved;
-            if (IPAddress.TryParse(host, out var literal)) resolved = [literal];
-            else
-            {
-                try { resolved = await Dns.GetHostAddressesAsync(host, ct); }
-                catch (Exception e) when (e is SocketException or ArgumentException)
-                {
-                    throw new OutboundAddressRefusedException($"имя не разрешается: {host}");
-                }
-            }
+        handler.AllowAutoRedirect = false;
+        OutboundConnect.Apply(handler, KeepOnlyPublic);
+    }
 
-            if (resolved.Length == 0)
-                throw new OutboundAddressRefusedException($"имя не разрешается: {host}");
-            foreach (var address in resolved)
-                if (IsBlocked(address))
-                    throw new OutboundAddressRefusedException($"адрес вне общедоступных: {host} → {address}");
+    /// <summary>Тот же обработчик объектом — для вызывающих, которым нужен готовый экземпляр.</summary>
+    public static SocketsHttpHandler CreateGuardedHandler()
+    {
+        var handler = new SocketsHttpHandler();
+        ApplyGuard(handler);
+        return handler;
+    }
 
-            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
-            try
-            {
-                // Подключаемся к ПРОВЕРЕННЫМ адресам, а не к имени: иначе внутри снова случилось бы
-                // разрешение имени, и всё вышесказанное потеряло бы смысл.
-                await socket.ConnectAsync(resolved, context.DnsEndPoint.Port, ct);
-                return new NetworkStream(socket, ownsSocket: true);
-            }
-            catch
-            {
-                socket.Dispose();
-                throw;
-            }
-        },
-    };
+    /// <summary>
+    /// Фильтр политики: пропускает адреса дальше или отказывает. Вызывается ОДИН раз, сразу после
+    /// разрешения имени, и подключение идёт к тем самым адресам, которые он вернул.
+    ///
+    /// Пустой список означает, что имя не разрешилось: <see cref="OutboundConnect"/> приносит такой
+    /// случай сюда, а не наружу, чтобы отказ и здесь остался один на все причины.
+    /// </summary>
+    public static IPAddress[] KeepOnlyPublic(string host, IPAddress[] resolved)
+    {
+        if (resolved.Length == 0)
+            throw new OutboundAddressRefusedException($"имя не разрешается: {host}");
+        foreach (var address in resolved)
+            if (IsBlocked(address))
+                throw new OutboundAddressRefusedException($"адрес вне общедоступных: {host} → {address}");
+        return resolved;
+    }
 }
 
 /// <summary>
