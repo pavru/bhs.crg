@@ -163,6 +163,89 @@ public class HealthHysteresisTests
         Assert.Equal(HealthTransition.None, h.Observe(Engine, HealthClass.Engine, ok: false));
     }
 
+    // ── Перезапуск процесса (issue #920) ──────────────────────────────────────────────────────
+
+    /// <summary>Новый процесс, знающий только то, что объявил прошлый.</summary>
+    private static HealthHysteresis Restarted(HealthHysteresis before)
+    {
+        var after = new HealthHysteresis();
+        after.Restore(before.Announced);
+        return after;
+    }
+
+    [Fact]
+    public void Объявленный_отказ_после_перезапуска_не_объявляется_заново()
+    {
+        var before = new HealthHysteresis();
+        Run(before, Engine, HealthClass.Engine, "FFF");
+
+        var after = Restarted(before);
+        var moves = Run(after, Engine, HealthClass.Engine, "FFFFF");
+
+        Assert.All(moves, m => Assert.Equal(HealthTransition.None, m));
+    }
+
+    [Fact]
+    public void Отказ_ядра_после_перезапуска_не_объявляется_заново()
+    {
+        // У ядра порог — одна неудача, поэтому без сохранённого повтор приходил бы сразу.
+        var before = new HealthHysteresis();
+        before.Observe(Core, HealthClass.Core, ok: false);
+
+        var after = Restarted(before);
+
+        Assert.Equal(HealthTransition.None, after.Observe(Core, HealthClass.Core, ok: false));
+    }
+
+    [Fact]
+    public void Компонент_поднявшийся_во_время_перезапуска_объявляется_восстановленным()
+    {
+        // Раньше новый процесс фиксировал норму молча, и «недоступен» в колокольчике оставалось
+        // без парного «восстановлен» навсегда.
+        var before = new HealthHysteresis();
+        Run(before, Engine, HealthClass.Engine, "FFF");
+
+        var after = Restarted(before);
+        var moves = Run(after, Engine, HealthClass.Engine, "SS");
+
+        Assert.Equal([HealthTransition.None, HealthTransition.CameUp], moves);
+    }
+
+    [Fact]
+    public void После_перезапуска_расхождение_с_объявленным_видно_сразу()
+    {
+        var before = new HealthHysteresis();
+        Run(before, Engine, HealthClass.Engine, "FFF");
+        var after = Restarted(before);
+
+        after.Observe(Engine, HealthClass.Engine, ok: true);
+
+        // Не «в норме»: объявлен отказ, а подтверждения возврата ещё нет.
+        Assert.Equal(HealthState.Flapping, after.StateOf(Engine, ok: true));
+    }
+
+    [Fact]
+    public void Запоздавшее_восстановление_не_перебивает_свежее_решение()
+    {
+        // База не ответила на старте, сохранённое прочиталось кругом позже: к этому моменту процесс
+        // уже сам объявил отказ, и старое «в норме» его перебивать не должно.
+        var h = new HealthHysteresis();
+        h.Observe(Core, HealthClass.Core, ok: false);
+
+        h.Restore(new Dictionary<string, HealthState> { [Core] = HealthState.Up });
+
+        Assert.Equal(HealthState.Down, h.Announced[Core]);
+    }
+
+    [Fact]
+    public void Промежуточное_состояние_объявлением_не_принимается()
+    {
+        var h = new HealthHysteresis();
+        h.Restore(new Dictionary<string, HealthState> { [Engine] = HealthState.Flapping });
+
+        Assert.Empty(h.Announced);
+    }
+
     [Fact]
     public void Счётчики_разных_компонентов_не_смешиваются()
     {

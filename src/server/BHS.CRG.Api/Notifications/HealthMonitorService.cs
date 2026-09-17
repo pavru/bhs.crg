@@ -3,6 +3,7 @@ using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Storage;
+using BHS.CRG.Infrastructure.Updates;
 using Microsoft.EntityFrameworkCore;
 using Minio;
 using Minio.DataModel.Args;
@@ -27,6 +28,13 @@ public class HealthMonitorService(
 
     private volatile IReadOnlyList<ComponentHealth> _snapshot = [];
     private readonly HealthHysteresis _hysteresis = new();
+
+    // Объявленное прошлым процессом ещё не прочитано. Читаем на тике, а не на старте службы: база
+    // могла не отвечать, и тогда пробуем на следующем круге (issue #920).
+    private bool _restored;
+
+    // Что лежит в базе сейчас — чтобы писать только при изменении, а не каждые 45 секунд.
+    private IReadOnlyDictionary<string, HealthState> _saved = new Dictionary<string, HealthState>();
 
     public IReadOnlyList<ComponentHealth> Snapshot => _snapshot;
 
@@ -85,6 +93,9 @@ public class HealthMonitorService(
                 return await ModelDetailAsync(sp, "Gemini", gemini, ct);
             }));
 
+        var store = sp.GetRequiredService<ServiceStateStore>();
+        await RestoreAnnouncedAsync(store, ct);
+
         // Компоненты, которых больше не проверяем, забываем: иначе выключенный и снова включённый
         // движок унаследовал бы счётчики прошлой жизни.
         _hysteresis.Retain(probes.Select(p => p.Code));
@@ -109,7 +120,55 @@ public class HealthMonitorService(
 
         // Снимок присваивается ПОСЛЕ разбора: до него состояние ещё не подтверждено.
         _snapshot = snapshot;
+
+        await SaveAnnouncedAsync(store, ct);
     }
+
+    /// <summary>
+    /// Возвращает объявленное прошлым процессом — до разбора первых проб, иначе уже объявленный
+    /// отказ объявлялся бы заново. Не удалось прочитать — продолжаем с чистого листа и пробуем на
+    /// следующем круге: мониторинг, который молчит из-за своей же истории, хуже повторного
+    /// уведомления.
+    /// </summary>
+    private async Task RestoreAnnouncedAsync(ServiceStateStore store, CancellationToken ct)
+    {
+        if (_restored) return;
+        try
+        {
+            var announced = (await store.LoadAsync<HealthAnnouncedState>(HealthAnnouncedState.Key, ct)).ToStates();
+            _hysteresis.Restore(announced);
+            _saved = announced;
+            _restored = true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Не удалось прочитать объявленное состояние компонентов — повторим на следующей проверке");
+        }
+    }
+
+    /// <summary>
+    /// Пишет объявленное, когда оно изменилось. Сбой записи не роняет круг: значение останется
+    /// «несохранённым» и уйдёт на следующем — а база сама может быть тем, что сейчас не отвечает.
+    /// </summary>
+    private async Task SaveAnnouncedAsync(ServiceStateStore store, CancellationToken ct)
+    {
+        // Пока прошлое не прочитано, писать нельзя: затёрли бы его своим, ещё неполным.
+        if (!_restored) return;
+        var announced = _hysteresis.Announced;
+        if (SameAnnouncement(announced, _saved)) return;
+        try
+        {
+            await store.SaveAsync(HealthAnnouncedState.Key, HealthAnnouncedState.From(announced), ct);
+            _saved = announced;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Не удалось сохранить объявленное состояние компонентов — повторим на следующей проверке");
+        }
+    }
+
+    private static bool SameAnnouncement(IReadOnlyDictionary<string, HealthState> a, IReadOnlyDictionary<string, HealthState> b)
+        => a.Count == b.Count && a.All(x => b.TryGetValue(x.Key, out var v) && v == x.Value);
 
     /// <summary>Результат одной пробы — сырой, до подтверждения сериями.</summary>
     private sealed record Probe(string Code, string Name, HealthClass Class, bool Ok, string? Detail);
