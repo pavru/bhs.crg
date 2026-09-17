@@ -142,15 +142,22 @@ function HealthSection() {
         <HeartPulse size={16} /> Состояние системы
       </div>
       <div>
-        {health.map(c => (
-          <div key={c.name} className="flex items-center gap-2.5 h-9 text-sm">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${c.healthy ? 'bg-success' : 'bg-danger'}`} />
-            <span className="text-fg1 flex-1">{c.name}</span>
-            <span className={`text-xs font-medium ${c.healthy ? 'text-fg3' : 'text-danger'}`}>
-              {c.healthy ? 'в норме' : (c.detail ? 'сбой' : 'недоступен')}
-            </span>
-          </div>
-        ))}
+        {health.map(c => {
+          // Три состояния, а не два: «отвечает через раз» — не норма и ещё не отказ. Пока их было
+          // два, панель перекрашивалась на каждом опросе (issue #917).
+          const dot = c.state === 'Up' ? 'bg-success' : c.state === 'Flapping' ? 'bg-warning' : 'bg-danger';
+          const tone = c.state === 'Up' ? 'text-fg3' : c.state === 'Flapping' ? 'text-warning' : 'text-danger';
+          const label = c.state === 'Up' ? 'в норме'
+            : c.state === 'Flapping' ? 'отвечает через раз'
+            : (c.detail ? 'сбой' : 'недоступен');
+          return (
+            <div key={c.code} className="flex items-center gap-2.5 h-9 text-sm" title={c.detail ?? undefined}>
+              <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+              <span className="text-fg1 flex-1">{c.name}</span>
+              <span className={`text-xs font-medium ${tone}`}>{label}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

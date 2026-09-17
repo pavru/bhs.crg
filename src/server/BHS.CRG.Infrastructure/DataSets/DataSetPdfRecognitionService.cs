@@ -724,7 +724,7 @@ public class DataSetPdfRecognitionService(
     /// такого рода обязано быть проверяемым. Прежний признак полного провала был недостижим и
     /// выглядел рабочим; нашли это чтением, потому что смотреть прогоном было не на что (issue #801).
     ///
-    /// Открыт ради теста — как <c>RecognitionModelCatalog.AdviceFrom</c> и по той же причине.
+    /// Открыт ради теста — как <c>ModelGone.AdviceFrom</c> и по той же причине.
     /// </summary>
     public static (NotificationSeverity Severity, string Title, string Message) DescribeGostResult(
         int documentCount, int pageCount, int failedPages, string? failureReason, bool nothingRecognized,

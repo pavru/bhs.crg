@@ -91,6 +91,18 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
 });
 var cfg = builder.Configuration;
 
+// Как приложение открывает соединения наружу — один раз на всех клиентов фабрики. Платформа
+// перебирает адреса имени по очереди, и один недостижимый съедает весь бюджет: у health-пробы это
+// давало «недоступен/восстановлен» через раз, у распознавания и загрузки по ссылке — молчаливую
+// потерю секунд (issue #917). Настройка ставится ДО всех AddHttpClient — иначе клиент, собранный
+// раньше, останется со штатным последовательным перебором.
+//
+// Именно UseSocketsHttpHandler, а не ConfigurePrimaryHttpMessageHandler: первый ДОПОЛНЯЕТ
+// существующий обработчик, второй ЗАМЕНЯЕТ его целиком. С заменой порядок регистрации в DI решал
+// бы, что кого затрёт, — а среди затираемого есть проверка адреса (OutboundAddressPolicy).
+if (cfg.GetValue("Http:HappyEyeballs", true))
+    builder.Services.ConfigureHttpClientDefaults(b => b.UseSocketsHttpHandler((h, _) => OutboundConnect.Apply(h)));
+
 builder.Services.ConfigureHttpJsonOptions(opt =>
     opt.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
@@ -508,11 +520,17 @@ builder.Services.AddScoped<ServiceStateStore>();
 builder.Services.AddScoped<IUpdateCheck, UpdateCheckReader>();
 builder.Services.AddScoped<UpdateNotifier>();
 builder.Services.AddSingleton<UpdateCheckService>();
-builder.Services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService>());
-
 builder.Services.AddSingleton<HealthMonitorService>();
 builder.Services.AddSingleton<IHealthState>(sp => sp.GetRequiredService<HealthMonitorService>());
-builder.Services.AddHostedService(sp => sp.GetRequiredService<HealthMonitorService>());
+// Расписание проверки обновлений и мониторинга — выключаемое, по той же причине, что и плановое
+// копирование выше: под тестовым хостом обе службы пишут в базу по своему расписанию (уведомления,
+// service_state) и встречаются с TRUNCATE соседнего класса (issue #928). Сами службы остаются в
+// контейнере — кнопке «Проверить сейчас» и снимку состояния расписание не нужно. В поставке эти
+// переменные не задают.
+if (cfg.GetValue("Updates:CheckerEnabled", true))
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService>());
+if (cfg.GetValue("Health:MonitorEnabled", true))
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<HealthMonitorService>());
 builder.Services.AddHttpClient<SerperEngine>().ConfigureHttpClient(c => c.Timeout = SerperEngine.Timeout);
 builder.Services.AddHttpClient<YandexEngine>().ConfigureHttpClient(c => c.Timeout = YandexEngine.Timeout);
 builder.Services.AddScoped<IWebSearchEngine>(sp => sp.GetRequiredService<SerperEngine>());
@@ -521,7 +539,7 @@ builder.Services.AddScoped<IWebSearchEngine>(sp => sp.GetRequiredService<YandexE
 // цель каждого. С автоследованием проверка исходного адреса ничего не стоит — ответ общедоступного
 // хоста уводит куда угодно.
 builder.Services.AddHttpClient<TieredWebSearch>()
-    .ConfigurePrimaryHttpMessageHandler(OutboundAddressPolicy.CreateGuardedHandler)
+    .UseSocketsHttpHandler((h, _) => OutboundAddressPolicy.ApplyGuard(h))
     .ConfigureHttpClient(c =>
 {
     c.Timeout = TimeSpan.FromSeconds(15);
@@ -530,7 +548,7 @@ builder.Services.AddHttpClient<TieredWebSearch>()
 });
 builder.Services.AddScoped<IQualityDocSearch>(sp => sp.GetRequiredService<TieredWebSearch>());
 builder.Services.AddHttpClient<IFileUrlFetcher, HttpFileUrlFetcher>()
-    .ConfigurePrimaryHttpMessageHandler(OutboundAddressPolicy.CreateGuardedHandler)
+    .UseSocketsHttpHandler((h, _) => OutboundAddressPolicy.ApplyGuard(h))
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddSingleton<TypstGenerator>();
 builder.Services.AddSingleton<IDocumentGeneratorFactory, DocumentGeneratorFactory>();

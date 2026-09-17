@@ -20,8 +20,16 @@ export interface NotificationsResponse {
   unreadCount: number;
 }
 
+/** Подтверждённое состояние компонента. Flapping — отвечает через раз: последняя проба разошлась
+ *  с подтверждённым состоянием, но отказ ещё не объявлен. */
+export type HealthState = 'Up' | 'Down' | 'Flapping';
+
 export interface ComponentHealth {
+  /** Устойчивый код компонента; имя — для показа и меняться может. */
+  code: string;
   name: string;
+  state: HealthState;
+  /** Производное от state: «через раз» отказом ещё не считается. */
   healthy: boolean;
   detail?: string | null;
   checkedAt: string;
