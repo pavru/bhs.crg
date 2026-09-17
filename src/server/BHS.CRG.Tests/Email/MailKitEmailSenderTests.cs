@@ -16,10 +16,11 @@ public class MailKitEmailSenderTests
         public Task SaveUpdatesAsync(UpdateCheckSettings u, CancellationToken ct = default) => Task.CompletedTask;
         public Task SaveBackupScheduleAsync(BackupScheduleSettings b, CancellationToken ct = default) => Task.CompletedTask;
         public Task SaveGithubAsync(GithubSettings g, CancellationToken ct = default) => Task.CompletedTask;
+        public Task SaveProxyAsync(ProxySettings p, CancellationToken ct = default) => Task.CompletedTask;
         public void Invalidate() { }
     }
 
-    private static MailKitEmailSender Sender(SmtpSettings smtp) => new(new FakeSettings(smtp));
+    private static MailKitEmailSender Sender(SmtpSettings smtp) => new(new FakeSettings(smtp), new BHS.CRG.Infrastructure.Http.OutboundProxyState());
 
     [Fact]
     public async Task Send_WhenSmtpDisabled_ThrowsEmailNotConfigured()

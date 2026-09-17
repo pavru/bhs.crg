@@ -16,6 +16,7 @@ import {
   type UnavailableModel,
 } from '../../shared/api/integrationSettings';
 import { CollapsibleSection } from './CollapsibleSection';
+import { ProxyToggle } from './ProxyToggle';
 
 // ─── Метаданные движков (порядок отображения, подписи, какие поля показывать) ────
 
@@ -50,6 +51,7 @@ interface EngineForm {
   baseUrl: string;
   folderId: string;
   host: string;
+  useProxy: boolean;
 }
 
 function toForm(dto: EngineDto | undefined): EngineForm {
@@ -61,6 +63,7 @@ function toForm(dto: EngineDto | undefined): EngineForm {
     baseUrl: dto?.baseUrl ?? '',
     folderId: dto?.folderId ?? '',
     host: dto?.host ?? '',
+    useProxy: dto?.useProxy ?? false,
   };
 }
 
@@ -86,9 +89,10 @@ function webEnginesForm(d: IntegrationSettingsDto | undefined): Record<string, E
 
 const fgisForm = (d: IntegrationSettingsDto | undefined): string[] => d?.fgisDomains ?? [];
 const manufacturersForm = (d: IntegrationSettingsDto | undefined): string[] => d?.manufacturerDomains ?? [];
+const externalLinksProxyForm = (d: IntegrationSettingsDto | undefined): boolean => d?.externalLinksUseProxy ?? false;
 
 function toUpdate(meta: EngineMeta, f: EngineForm): EngineUpdate {
-  const u: EngineUpdate = { enabled: f.enabled };
+  const u: EngineUpdate = { enabled: f.enabled, useProxy: f.useProxy };
   if (!meta.keyless && f.apiKey.trim()) u.apiKey = f.apiKey.trim();
   if (meta.modelLabel) u.model = f.model.trim() || null;
   if (meta.showBaseUrl) u.baseUrl = f.baseUrl.trim() || null;
@@ -296,6 +300,8 @@ function EngineCard({
         <TextField label="Host (необязательно)" value={form.host} hint="https://yandex.ru/search/xml"
           onChange={e => onChange({ ...form, host: e.target.value })} />
       )}
+
+      <ProxyToggle checked={form.useProxy} onChange={v => onChange({ ...form, useProxy: v })} />
     </div>
   );
 }
@@ -355,6 +361,7 @@ export function IntegrationSettingsSection() {
   const [web, setWeb] = useServerForm(data, webEnginesForm);
   const [fgis, setFgis] = useServerForm(data, fgisForm);
   const [manufacturers, setManufacturers] = useServerForm(data, manufacturersForm);
+  const [linksViaProxy, setLinksViaProxy] = useServerForm(data, externalLinksProxyForm);
   const [saved, setSaved] = useState(false);
 
   function move(idx: number, dir: -1 | 1) {
@@ -374,6 +381,7 @@ export function IntegrationSettingsSection() {
       webSearch: Object.fromEntries(Object.keys(WEB_ENGINES).map(k => [k, toUpdate(WEB_ENGINES[k], web[k])])),
       fgisDomains: fgis,
       manufacturerDomains: manufacturers,
+      externalLinksUseProxy: linksViaProxy,
     };
     await save.mutateAsync(update);
     setSaved(true);
@@ -436,6 +444,13 @@ export function IntegrationSettingsSection() {
                   missing={data.webSearch[k]?.missing}
                 />
               ))}
+            </div>
+            {/* Своя галка, а не галка движка: движок ходит на известный хост API, а здесь адреса
+                произвольные — страницы из выдачи и файлы по ссылке (issue #936). */}
+            <div className="rounded-lg border border-stroke p-3 space-y-1">
+              <p className="text-sm font-medium text-fg1">Загрузка по внешним ссылкам</p>
+              <p className="text-xs text-fg4">Страницы из выдачи поиска и файлы, скачиваемые по ссылке.</p>
+              <ProxyToggle checked={linksViaProxy} onChange={setLinksViaProxy} />
             </div>
           </div>
 

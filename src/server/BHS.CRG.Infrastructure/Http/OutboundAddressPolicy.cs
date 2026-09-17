@@ -170,7 +170,32 @@ public static class OutboundAddressPolicy
     {
         // Перенаправления проходит SafeHttpGet, проверяя цель каждого.
         handler.AllowAutoRedirect = false;
+        OutboundProxy.Direct(handler);
         OutboundConnect.Apply(handler, KeepOnlyPublic);
+    }
+
+    /// <summary>
+    /// То же с галкой «загрузка по внешним ссылкам через прокси» (issue #936).
+    ///
+    /// При прокси обработчик открывает соединение не к цели, а К ПРОКСИ, и через тот же крючок
+    /// подключения. Проверка публичности там проверяла бы адрес прокси — почти всегда частный, — и
+    /// отказывала бы на любой ссылке тем самым общим текстом «ведите на общедоступный ресурс». Поэтому
+    /// соединение с прокси сервиса проверку минует, а цель проверяется, как и без прокси, заранее
+    /// нашим DNS на каждом переходе (<see cref="SafeHttpGet"/>).
+    ///
+    /// ⚠️ Честная граница: прокси разрешает имя повторно и видит свою сеть. Подмену DNS между нашей
+    /// проверкой и его разрешением и внутренние зоны прокси эта проверка не закрывает — внутренние
+    /// адреса обязан запрещать сам прокси (DEPLOYMENT, раздел о прокси). Если имя у нас не разрешается
+    /// вовсе, ссылка отклоняется: проверить цель нечем.
+    /// </summary>
+    public static void ApplyGuard(SocketsHttpHandler handler, OutboundProxyState proxy)
+    {
+        handler.AllowAutoRedirect = false;
+        OutboundProxy.Route(handler, OutboundService.ExternalLinks, proxy);
+        OutboundConnect.Apply(handler, (host, resolved) =>
+            proxy.IsProxyHostFor(OutboundService.ExternalLinks, host)
+                ? resolved.Length > 0 ? resolved : throw new OutboundAddressRefusedException($"прокси не разрешается: {host}")
+                : KeepOnlyPublic(host, resolved));
     }
 
     /// <summary>Тот же обработчик объектом — для вызывающих, которым нужен готовый экземпляр.</summary>

@@ -1,3 +1,4 @@
+using BHS.CRG.Tests.Support;
 using System.Net;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Settings;
@@ -37,7 +38,7 @@ public class RecognitionModelCatalogProbeTests
     private static (RecognitionModelCatalog Catalog, Provider Provider) Build()
     {
         var provider = new Provider();
-        var catalog = new RecognitionModelCatalog(new HttpClient(provider), new MemoryCache(new MemoryCacheOptions()),
+        var catalog = new RecognitionModelCatalog(new SingleClientFactory(new HttpClient(provider)), new MemoryCache(new MemoryCacheOptions()),
             NullLogger<RecognitionModelCatalog>.Instance, []);
         return (catalog, provider);
     }

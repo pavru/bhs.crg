@@ -28,6 +28,9 @@ public class UpdateCheckService(
     ILogger<UpdateCheckService> logger
 ) : BackgroundService
 {
+    /// <summary>Клиент проверки — свой, с галкой «через прокси» в настройках обновлений (issue #936).</summary>
+    public const string ClientName = "update-check";
+
     private const string LatestReleaseUrl = "https://api.github.com/repos/pavru/bhs.crg/releases/latest";
     private static readonly TimeSpan Interval = TimeSpan.FromHours(6);
     private static readonly TimeSpan StartDelay = TimeSpan.FromMinutes(2);
@@ -131,7 +134,7 @@ public class UpdateCheckService(
     private async Task<(string Tag, string? HtmlUrl, string? Body)?> FetchLatestAsync(
         UpdateCheckState state, CancellationToken ct)
     {
-        var http = httpFactory.CreateClient();
+        var http = httpFactory.CreateClient(ClientName);
         http.Timeout = TimeSpan.FromSeconds(20);
         using var req = new HttpRequestMessage(HttpMethod.Get, LatestReleaseUrl);
         // User-Agent обязателен: без него GitHub отвечает 403, и выглядит это в точности как

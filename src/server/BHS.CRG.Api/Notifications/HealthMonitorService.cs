@@ -1,6 +1,7 @@
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Notifications;
+using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Storage;
 using BHS.CRG.Infrastructure.Updates;
@@ -269,7 +270,7 @@ public class HealthMonitorService(
     private async Task<string?> CheckOllamaAsync(string? baseUrl, CancellationToken ct)
     {
         var url = (string.IsNullOrWhiteSpace(baseUrl) ? "http://localhost:11434" : baseUrl).TrimEnd('/') + "/api/tags";
-        using var http = httpFactory.CreateClient();
+        using var http = httpFactory.CreateClient(OutboundProxy.ClientName(ClientPurpose, OutboundService.Ollama));
         http.Timeout = TimeSpan.FromSeconds(5);
         var resp = await http.GetAsync(url, ct);
         if (!resp.IsSuccessStatusCode)
@@ -283,7 +284,7 @@ public class HealthMonitorService(
         // Ключ заголовком, а не в строке запроса — см. GeminiRecognizerEngine: URL уходит в тексты
         // исключений и в логи прокси, а сюда мы ходим по расписанию, то есть постоянно.
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{m}";
-        using var http = httpFactory.CreateClient();
+        using var http = httpFactory.CreateClient(OutboundProxy.ClientName(ClientPurpose, OutboundService.Gemini));
         http.Timeout = TimeSpan.FromSeconds(8);
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
         req.Headers.TryAddWithoutValidation("x-goog-api-key", apiKey);
@@ -292,6 +293,10 @@ public class HealthMonitorService(
             throw new InvalidOperationException($"Gemini ответил {(int)resp.StatusCode}");
         return null;
     }
+
+    /// <summary>Назначение в имени клиентов проб: у каждой пробы клиент своего сервиса, чтобы проба
+    /// шла тем же путём, что и работа, — через прокси, если у сервиса стоит галка (issue #936).</summary>
+    public const string ClientPurpose = "health";
 
     private static string Short(string s) => s.Length <= 200 ? s : s[..200];
 }

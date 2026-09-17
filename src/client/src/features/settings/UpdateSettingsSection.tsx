@@ -3,6 +3,7 @@ import { CollapsibleSection } from './CollapsibleSection';
 import { Button } from '@/shared/ui/Button';
 import { useServerForm } from '@/shared/hooks/useServerForm';
 import { useUpdateStatus, useCheckUpdatesNow, useSaveUpdateSettings } from '@/shared/api/updates';
+import { ProxyToggle } from './ProxyToggle';
 
 function whenText(iso: string | null): string {
   if (!iso) return 'ещё не выполнялась';
@@ -25,6 +26,7 @@ function whenText(iso: string | null): string {
  */
 /** Ответ сервера → положение выключателя. Пока ответа нет — считаем включённым, как и раньше. */
 const updateEnabled = (d: { enabled: boolean } | undefined) => d?.enabled ?? true;
+const updateViaProxy = (d: { useProxy?: boolean } | undefined) => d?.useProxy ?? false;
 
 export function UpdateSettingsSection() {
   // Здесь заметки нужны — это единственное место, где их показывают.
@@ -34,6 +36,7 @@ export function UpdateSettingsSection() {
   // Переключатель поверх ответа сервера (issue #858): своё значение показываем, пока оно отвечает
   // тому ответу, при котором нажали, — а пришёл другой, показываем его.
   const [enabled, setEnabled] = useServerForm(data, updateEnabled);
+  const [viaProxy, setViaProxy] = useServerForm(data, updateViaProxy);
 
   // Исход ПОСЛЕДНЕГО нажатия: сеть могла отработать (200), а проверка не состояться.
   const result = check.data;
@@ -44,12 +47,23 @@ export function UpdateSettingsSection() {
     const prev = enabled;
     setEnabled(next);
     try {
-      await save.mutateAsync({ enabled: next });
+      // Секция сохраняется целиком: без галки прокси переключатель сбрасывал бы её (issue #936).
+      await save.mutateAsync({ enabled: next, useProxy: viaProxy });
     } catch {
       // Возвращаем галку на место: иначе она показывает «выключено», служба продолжает ходить в
       // GitHub, и расхождение не исправится до перезагрузки страницы — переключатель врёт о том,
       // чем управляет.
       setEnabled(prev);
+    }
+  }
+
+  async function toggleProxy(next: boolean) {
+    const prev = viaProxy;
+    setViaProxy(next);
+    try {
+      await save.mutateAsync({ enabled, useProxy: next });
+    } catch {
+      setViaProxy(prev);
     }
   }
 
@@ -67,6 +81,9 @@ export function UpdateSettingsSection() {
           </span>
         </span>
       </label>
+
+      <ProxyToggle checked={viaProxy} disabled={isLoading || save.isPending}
+        onChange={v => void toggleProxy(v)} />
 
       <div className="flex items-center gap-3 flex-wrap">
         <Button type="button" variant="outlined" size="sm" icon={<RefreshCw size={14} />}

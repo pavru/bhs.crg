@@ -66,6 +66,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Minio;
 
+// Прокси по умолчанию для процесса — «никакого» (issue #936). Иначе .NET на Linux сам берёт
+// HTTP(S)_PROXY из окружения, и туда ушли бы все клиенты, не спросив галок: SDK хранилища со своим
+// HttpClient к garage:3900, Ollama рядом, плагины. Прокси внешних сервисов задаётся в настройках и
+// действует только у сервиса с галкой (OutboundProxy). Ставится ДО всего, что может создать клиента.
+HttpClient.DefaultProxy = new System.Net.WebProxy();
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Потолок тела запроса и разбора multipart — по НАШИМ пределам (issue #482). По умолчанию Kestrel
@@ -100,8 +106,21 @@ var cfg = builder.Configuration;
 // Именно UseSocketsHttpHandler, а не ConfigurePrimaryHttpMessageHandler: первый ДОПОЛНЯЕТ
 // существующий обработчик, второй ЗАМЕНЯЕТ его целиком. С заменой порядок регистрации в DI решал
 // бы, что кого затрёт, — а среди затираемого есть проверка адреса (OutboundAddressPolicy).
-if (cfg.GetValue("Http:HappyEyeballs", true))
-    builder.Services.ConfigureHttpClientDefaults(b => b.UseSocketsHttpHandler((h, _) => OutboundConnect.Apply(h)));
+//
+// Здесь же — «напрямую» для всех (issue #936): внутреннее ходит мимо прокси по построению, а внешний
+// сервис получает прокси явно, своей регистрацией ниже (OutboundProxy.Route).
+var happyEyeballs = cfg.GetValue("Http:HappyEyeballs", true);
+builder.Services.ConfigureHttpClientDefaults(b => b.UseSocketsHttpHandler((h, _) =>
+{
+    OutboundProxy.Direct(h);
+    if (happyEyeballs) OutboundConnect.Apply(h);
+}));
+builder.Services.AddSingleton<OutboundProxyState>();
+
+// Клиент внешнего сервиса: прокси — если у сервиса стоит галка (issue #936). Одна функция на все
+// регистрации, чтобы «чей это клиент» нельзя было пропустить молча — сторожит OutboundClientRoutingTests.
+static void RouteVia(IHttpClientBuilder b, OutboundService service) =>
+    b.UseSocketsHttpHandler((h, sp) => OutboundProxy.Route(h, service, sp.GetRequiredService<OutboundProxyState>()));
 
 builder.Services.ConfigureHttpJsonOptions(opt =>
     opt.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -383,8 +402,8 @@ builder.Services.AddScoped<IRepository<QualityAuditRun>, Repository<QualityAudit
 // ── Сообщения об ошибках (issue #834) ────────────────────────────────────────
 builder.Services.AddScoped<BHS.CRG.Application.Support.IBugReportService,
     BHS.CRG.Infrastructure.Support.BugReportService>();
-builder.Services.AddHttpClient<BHS.CRG.Infrastructure.Support.GithubIssueClient>()
-    .ConfigureHttpClient(c => c.Timeout = BHS.CRG.Infrastructure.Support.GithubIssueClient.Timeout);
+RouteVia(builder.Services.AddHttpClient<BHS.CRG.Infrastructure.Support.GithubIssueClient>()
+    .ConfigureHttpClient(c => c.Timeout = BHS.CRG.Infrastructure.Support.GithubIssueClient.Timeout), OutboundService.Github);
 
 // ── Backup ────────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<BackupService>();
@@ -480,9 +499,9 @@ builder.Services.AddScoped<BHS.CRG.Application.QualityDocs.IQualitySetAuditRunne
 builder.Services.AddScoped<ITemplateAssetResolver, TemplateAssetResolver>();
 // Сроки ответа — константами на самих движках (issue #797): движок называет своё число
 // пользователю в сообщении о таймауте, и число из регистрации разъехалось бы с текстом.
-builder.Services.AddHttpClient<AnthropicRecognizerEngine>().ConfigureHttpClient(c => c.Timeout = AnthropicRecognizerEngine.Timeout);
-builder.Services.AddHttpClient<GeminiRecognizerEngine>().ConfigureHttpClient(c => c.Timeout = GeminiRecognizerEngine.Timeout);
-builder.Services.AddHttpClient<OllamaRecognizerEngine>().ConfigureHttpClient(c => c.Timeout = OllamaRecognizerEngine.Timeout);
+RouteVia(builder.Services.AddHttpClient<AnthropicRecognizerEngine>().ConfigureHttpClient(c => c.Timeout = AnthropicRecognizerEngine.Timeout), OutboundService.Anthropic);
+RouteVia(builder.Services.AddHttpClient<GeminiRecognizerEngine>().ConfigureHttpClient(c => c.Timeout = GeminiRecognizerEngine.Timeout), OutboundService.Gemini);
+RouteVia(builder.Services.AddHttpClient<OllamaRecognizerEngine>().ConfigureHttpClient(c => c.Timeout = OllamaRecognizerEngine.Timeout), OutboundService.Ollama);
 builder.Services.AddScoped<IRecognizerEngine>(sp => sp.GetRequiredService<AnthropicRecognizerEngine>());
 builder.Services.AddScoped<IRecognizerEngine>(sp => sp.GetRequiredService<GeminiRecognizerEngine>());
 builder.Services.AddScoped<IRecognizerEngine>(sp => sp.GetRequiredService<OllamaRecognizerEngine>());
@@ -497,8 +516,12 @@ builder.Services.AddScoped<IntegrationSettingsService>();
 builder.Services.AddScoped<IIntegrationSettings>(sp => sp.GetRequiredService<IntegrationSettingsService>());
 // Каталог моделей движков (issue #799). Сам он без состояния — кэш ответов живёт в IMemoryCache,
 // то есть переживает запрос, а HTTP-клиент берётся у фабрики, как у движков распознавания.
-builder.Services.AddHttpClient<BHS.CRG.Infrastructure.Settings.RecognitionModelCatalog>()
-    .ConfigureHttpClient(c => c.Timeout = BHS.CRG.Infrastructure.Settings.RecognitionModelCatalog.Timeout);
+// Клиентов у каталога три — по одному на движок: он спрашивает и Gemini, и Anthropic, и Ollama, а
+// прокси выбирается по сервису, не по адресу (issue #936).
+foreach (var service in new[] { OutboundService.Gemini, OutboundService.Anthropic, OutboundService.Ollama })
+    RouteVia(builder.Services.AddHttpClient(OutboundProxy.ClientName(BHS.CRG.Infrastructure.Settings.RecognitionModelCatalog.ClientPurpose, service))
+        .ConfigureHttpClient(c => c.Timeout = BHS.CRG.Infrastructure.Settings.RecognitionModelCatalog.Timeout), service);
+builder.Services.AddScoped<BHS.CRG.Infrastructure.Settings.RecognitionModelCatalog>();
 builder.Services.AddScoped<BHS.CRG.Application.Settings.IRecognitionModelCatalog>(
     sp => sp.GetRequiredService<BHS.CRG.Infrastructure.Settings.RecognitionModelCatalog>());
 builder.Services.AddScoped<BHS.CRG.Application.Email.IEmailSender, BHS.CRG.Infrastructure.Email.MailKitEmailSender>();
@@ -520,6 +543,9 @@ builder.Services.AddScoped<ServiceStateStore>();
 builder.Services.AddScoped<IUpdateCheck, UpdateCheckReader>();
 builder.Services.AddScoped<UpdateNotifier>();
 builder.Services.AddSingleton<UpdateCheckService>();
+RouteVia(builder.Services.AddHttpClient(UpdateCheckService.ClientName), OutboundService.UpdateCheck);
+foreach (var service in new[] { OutboundService.Gemini, OutboundService.Ollama })
+    RouteVia(builder.Services.AddHttpClient(OutboundProxy.ClientName(HealthMonitorService.ClientPurpose, service)), service);
 builder.Services.AddSingleton<HealthMonitorService>();
 builder.Services.AddSingleton<IHealthState>(sp => sp.GetRequiredService<HealthMonitorService>());
 // Расписание проверки обновлений и мониторинга — выключаемое, по той же причине, что и плановое
@@ -531,15 +557,15 @@ if (cfg.GetValue("Updates:CheckerEnabled", true))
     builder.Services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService>());
 if (cfg.GetValue("Health:MonitorEnabled", true))
     builder.Services.AddHostedService(sp => sp.GetRequiredService<HealthMonitorService>());
-builder.Services.AddHttpClient<SerperEngine>().ConfigureHttpClient(c => c.Timeout = SerperEngine.Timeout);
-builder.Services.AddHttpClient<YandexEngine>().ConfigureHttpClient(c => c.Timeout = YandexEngine.Timeout);
+RouteVia(builder.Services.AddHttpClient<SerperEngine>().ConfigureHttpClient(c => c.Timeout = SerperEngine.Timeout), OutboundService.Serper);
+RouteVia(builder.Services.AddHttpClient<YandexEngine>().ConfigureHttpClient(c => c.Timeout = YandexEngine.Timeout), OutboundService.Yandex);
 builder.Services.AddScoped<IWebSearchEngine>(sp => sp.GetRequiredService<SerperEngine>());
 builder.Services.AddScoped<IWebSearchEngine>(sp => sp.GetRequiredService<YandexEngine>());
 // Автоследование за перенаправлениями выключено намеренно: переходы проходит SafeHttpGet, проверяя
 // цель каждого. С автоследованием проверка исходного адреса ничего не стоит — ответ общедоступного
 // хоста уводит куда угодно.
 builder.Services.AddHttpClient<TieredWebSearch>()
-    .UseSocketsHttpHandler((h, _) => OutboundAddressPolicy.ApplyGuard(h))
+    .UseSocketsHttpHandler((h, sp) => OutboundAddressPolicy.ApplyGuard(h, sp.GetRequiredService<OutboundProxyState>()))
     .ConfigureHttpClient(c =>
 {
     c.Timeout = TimeSpan.FromSeconds(15);
@@ -548,7 +574,7 @@ builder.Services.AddHttpClient<TieredWebSearch>()
 });
 builder.Services.AddScoped<IQualityDocSearch>(sp => sp.GetRequiredService<TieredWebSearch>());
 builder.Services.AddHttpClient<IFileUrlFetcher, HttpFileUrlFetcher>()
-    .UseSocketsHttpHandler((h, _) => OutboundAddressPolicy.ApplyGuard(h))
+    .UseSocketsHttpHandler((h, sp) => OutboundAddressPolicy.ApplyGuard(h, sp.GetRequiredService<OutboundProxyState>()))
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddSingleton<TypstGenerator>();
 builder.Services.AddSingleton<IDocumentGeneratorFactory, DocumentGeneratorFactory>();
@@ -638,6 +664,19 @@ using (var scope = app.Services.CreateScope())
         .GetRequiredService<IntegrationSettingsService>().ProtectStoredSecretsAsync();
     if (protectedCount > 0)
         app.Logger.LogInformation("Секретов настроек интеграций зашифровано при старте: {Count}", protectedCount);
+
+    // Прокси и галки внешних сервисов — в память сразу (issue #936): их читают на каждом запросе, и
+    // первый запрос после старта не должен уйти напрямую только потому, что настройки ещё никто не читал.
+    await scope.ServiceProvider.GetRequiredService<IIntegrationSettings>().GetEffectiveAsync();
+
+    // Переменные прокси в окружении приложение НЕ использует — и молчать об этом нельзя: администратор,
+    // задавший их, ждёт, что они действуют, а отказ пришёл бы диагнозом «сервис недоступен».
+    var envProxy = OutboundProxy.EnvironmentVariables.Where(v => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(v))).ToList();
+    if (envProxy.Count > 0)
+        app.Logger.LogWarning(
+            "В окружении заданы {Variables}, но приложение их не использует: прокси для внешних сервисов " +
+            "задаётся в «Настройки → Прокси», и действует он только у сервисов с галкой «через прокси»",
+            string.Join(", ", envProxy));
 
     // Разовый перенос размеров изображений из схем типов в значения инстансов (issue #246).
     // Идемпотентно: после первого прогона схемы очищены, карта пустеет — обход не запускается.

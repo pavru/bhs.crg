@@ -14,6 +14,7 @@ import { OrphanBlobsSection } from './OrphanBlobsSection';
 import { MaterialLabelSection } from './MaterialLabelSection';
 import { BackupSection } from './BackupSection';
 import { GithubSettingsSection } from './GithubSettingsSection';
+import { ProxySettingsSection } from './ProxySettingsSection';
 import { useMaxTemplateVersions } from './useMaxTemplateVersions';
 
 // ─── Locale settings section ───────────────────────────────────────────────────
@@ -147,6 +148,9 @@ export function SettingsPage() {
 
       {/* ── Locale / regional settings ─────────────────────────────────────── */}
       <LocaleSection />
+
+      {/* ── Прокси для внешних сервисов (issue #936) ─────────────────────────── */}
+      <ProxySettingsSection />
 
       {/* ── Поиск и распознавание (интеграции) ─────────────────────────────── */}
       <IntegrationSettingsSection />

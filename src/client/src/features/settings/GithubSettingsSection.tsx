@@ -5,6 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { useToast } from '@/shared/ui/Toast';
 import { useIntegrationSettings, useSaveGithubSettings } from '@/shared/api/integrationSettings';
+import { ProxyToggle } from './ProxyToggle';
 
 /** Тот же вид, что у сервера (GithubSettings.Normalize): без пробелов, косых по краям и регистра. */
 function normalizeRepository(value: string): string {
@@ -28,11 +29,13 @@ export function GithubSettingsSection() {
 
   const [repository, setRepository] = useState<string | null>(null);
   const [token, setToken] = useState('');
+  const [useProxy, setUseProxy] = useState<boolean | null>(null);
 
   const saved = data?.github;
   // Значение формы = правка пользователя, иначе сохранённое. Эффектом не синхронизируем: ввод
   // затирался бы ответом сервера ровно в момент набора.
   const repositoryValue = repository ?? saved?.repository ?? '';
+  const useProxyValue = useProxy ?? saved?.useProxy ?? false;
   // Сравниваем ТАК ЖЕ, как сервер: без учёта регистра и лишних косых. Иначе предупреждение «токен
   // будет удалён» появлялось бы на правке регистра, которую сервер за смену места не считает, —
   // интерфейс противоречил бы поведению, которое взялся объяснять.
@@ -41,9 +44,10 @@ export function GithubSettingsSection() {
 
   async function submit() {
     try {
-      await save.mutateAsync({ repository: repositoryValue.trim(), token: token.trim() || undefined });
+      await save.mutateAsync({ repository: repositoryValue.trim(), token: token.trim() || undefined, useProxy: useProxyValue });
       setToken('');
       setRepository(null);
+      setUseProxy(null);
       toast.success('Настройки GitHub сохранены.');
     } catch (e) {
       toast.apiError(e, 'Не удалось сохранить настройки GitHub.');
@@ -76,6 +80,8 @@ export function GithubSettingsSection() {
           hint="Fine-grained PAT с правом issues: write на этот репозиторий"
         />
       </div>
+
+      <ProxyToggle checked={useProxyValue} disabled={isLoading || save.isPending} onChange={setUseProxy} />
 
       {saved?.hasToken && (
         <p className="flex items-center gap-1.5 text-xs text-success">

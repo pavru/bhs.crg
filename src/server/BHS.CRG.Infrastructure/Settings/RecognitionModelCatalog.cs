@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.Recognition;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -14,10 +15,18 @@ namespace BHS.CRG.Infrastructure.Settings;
 /// Смысл проверки и почему она устроена именно так — в <see cref="IRecognitionModelCatalog" />.
 /// </summary>
 public class RecognitionModelCatalog(
-    HttpClient http, IMemoryCache cache, ILogger<RecognitionModelCatalog> logger,
+    IHttpClientFactory clients, IMemoryCache cache, ILogger<RecognitionModelCatalog> logger,
     IEnumerable<IRecognizerEngine> engines
 ) : IRecognitionModelCatalog
 {
+    /// <summary>
+    /// Назначение в имени клиента. Клиентов три, по одному на движок (issue #936): прокси выбирается
+    /// по сервису, а каталог спрашивает всех трёх, и один общий клиент не знал бы, чей это запрос.
+    /// </summary>
+    public const string ClientPurpose = "model-catalog";
+
+    private HttpClient For(OutboundService service) => clients.CreateClient(OutboundProxy.ClientName(ClientPurpose, service));
+
     /// <summary>
     /// «Поставщик модель принимает» — полсуток: каталог моделей меняется раз в месяцы. Пересмотр раньше
     /// срока — дело того, кто за него платит (<see cref="ModelProbe.Refresh"/>), а не этого числа.
@@ -110,7 +119,7 @@ public class RecognitionModelCatalog(
                 // столько же, сколько облако за океаном, — это задерживать страницу настроек впустую.
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
                 deadline.CancelAfter(LocalTimeout);
-                using var resp = await http.SendAsync(req, deadline.Token);
+                using var resp = await For(OutboundService.Ollama).SendAsync(req, deadline.Token);
                 if (!resp.IsSuccessStatusCode) return null;
                 using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(deadline.Token));
                 if (!doc.RootElement.TryGetProperty("models", out var arr) || arr.ValueKind != JsonValueKind.Array)
@@ -277,7 +286,7 @@ public class RecognitionModelCatalog(
             $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent")
         { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         req.Headers.TryAddWithoutValidation("x-goog-api-key", apiKey);
-        return await ProbeAsync("Gemini", model, req, ct);
+        return await ProbeAsync("Gemini", OutboundService.Gemini, model, req, ct);
     }
 
     private async Task<ModelStatus> ProbeAnthropicAsync(string apiKey, string model, CancellationToken ct)
@@ -292,7 +301,7 @@ public class RecognitionModelCatalog(
         { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         req.Headers.TryAddWithoutValidation("x-api-key", apiKey);
         req.Headers.TryAddWithoutValidation("anthropic-version", "2023-06-01");
-        return await ProbeAsync("Anthropic", model, req, ct);
+        return await ProbeAsync("Anthropic", OutboundService.Anthropic, model, req, ct);
     }
 
     /// <summary>
@@ -309,12 +318,12 @@ public class RecognitionModelCatalog(
     /// подключение внахлёст — 0 из 48, худший ответ 794 мс в обоих режимах. От двойной оплаты
     /// защищает общая проверка на ключ в <see cref="Cached{T}"/>, а не очередь.
     /// </summary>
-    private async Task<ModelStatus> ProbeAsync(string engine, string model, HttpRequestMessage req, CancellationToken ct)
+    private async Task<ModelStatus> ProbeAsync(string engine, OutboundService service, string model, HttpRequestMessage req, CancellationToken ct)
     {
         // Каждая проба здесь оплачивается — пишем о каждой. Без этого число платных запросов
         // проверяется только по счёту у поставщика (issue #921).
         logger.LogInformation("Платная проба модели {Engine}/{Model}", engine, model);
-        using var resp = await http.SendAsync(req, ct);
+        using var resp = await For(service).SendAsync(req, ct);
         if (resp.IsSuccessStatusCode) return ModelStatus.Ok;
         var body = await resp.Content.ReadAsStringAsync(ct);
         if (!ModelGone.Is(resp.StatusCode))
