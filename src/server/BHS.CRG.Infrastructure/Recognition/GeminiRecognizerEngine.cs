@@ -10,7 +10,7 @@ namespace BHS.CRG.Infrastructure.Recognition;
 
 /// <summary>Движок распознавания через Google Gemini (vision + PDF). Настройки — из IIntegrationSettings.</summary>
 public class GeminiRecognizerEngine(
-    HttpClient http, IIntegrationSettings settings, ILogger<GeminiRecognizerEngine> logger
+    HttpClient http, IIntegrationSettings settings, OutboundProxyState proxy, ILogger<GeminiRecognizerEngine> logger
 ) : IRecognizerEngine
 {
     /// <summary>
@@ -88,7 +88,9 @@ public class GeminiRecognizerEngine(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                if (attempt >= maxAttempts) throw new RecognitionUnavailableException($"Gemini: ошибка обращения: {ex.Message}");
+                if (attempt >= maxAttempts)
+                    throw new RecognitionUnavailableException(
+                        $"Gemini: ошибка обращения: {OutboundDiagnosis.Describe(ex, OutboundService.Gemini, proxy)}");
                 await Task.Delay(TimeSpan.FromSeconds(2 * attempt), ct); continue;
             }
 

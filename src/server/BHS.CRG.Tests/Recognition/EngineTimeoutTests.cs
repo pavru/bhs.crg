@@ -1,6 +1,7 @@
 using System.Net;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.Recognition;
 using BHS.CRG.Infrastructure.Search;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -80,7 +81,7 @@ public class EngineTimeoutTests
         var handler = new TimingOutHandler();
         var engine = new GeminiRecognizerEngine(new HttpClient(handler),
             Settings("rec", "Gemini", new IntegrationEngine { Enabled = true, ApiKey = "k" }),
-            NullLogger<GeminiRecognizerEngine>.Instance);
+            new OutboundProxyState(), NullLogger<GeminiRecognizerEngine>.Instance);
 
         // Именно RecognitionTimeoutException, а не базовый: постраничные прогоны отличают
         // «движок не работает» от «страница не уложилась в срок» (см. DataSetPdfRecognitionService).
@@ -100,7 +101,7 @@ public class EngineTimeoutTests
         var handler = new TimingOutHandler();
         var engine = new AnthropicRecognizerEngine(new HttpClient(handler),
             Settings("rec", "Anthropic", new IntegrationEngine { Enabled = true, ApiKey = "k" }),
-            NullLogger<AnthropicRecognizerEngine>.Instance);
+            new OutboundProxyState(), NullLogger<AnthropicRecognizerEngine>.Instance);
 
         var ex = await Assert.ThrowsAsync<RecognitionTimeoutException>(
             () => engine.RecognizeRawAsync(Png, "image/png", Fields));
@@ -114,7 +115,7 @@ public class EngineTimeoutTests
         var handler = new TimingOutHandler();
         var engine = new OllamaRecognizerEngine(new HttpClient(handler),
             Settings("rec", "Ollama", new IntegrationEngine { Enabled = true, Model = "qwen2.5vl:7b" }),
-            NullLogger<OllamaRecognizerEngine>.Instance);
+            new OutboundProxyState(), NullLogger<OllamaRecognizerEngine>.Instance);
 
         var ex = await Assert.ThrowsAsync<RecognitionTimeoutException>(
             () => engine.RecognizeRawAsync(Png, "image/png", Fields));
@@ -139,13 +140,13 @@ public class EngineTimeoutTests
         {
             "Gemini" => new GeminiRecognizerEngine(http,
                 Settings("rec", "Gemini", new IntegrationEngine { Enabled = true, ApiKey = "k" }),
-                NullLogger<GeminiRecognizerEngine>.Instance),
+                new OutboundProxyState(), NullLogger<GeminiRecognizerEngine>.Instance),
             "Anthropic" => new AnthropicRecognizerEngine(http,
                 Settings("rec", "Anthropic", new IntegrationEngine { Enabled = true, ApiKey = "k" }),
-                NullLogger<AnthropicRecognizerEngine>.Instance),
+                new OutboundProxyState(), NullLogger<AnthropicRecognizerEngine>.Instance),
             _ => new OllamaRecognizerEngine(http,
                 Settings("rec", "Ollama", new IntegrationEngine { Enabled = true, Model = "m" }),
-                NullLogger<OllamaRecognizerEngine>.Instance),
+                new OutboundProxyState(), NullLogger<OllamaRecognizerEngine>.Instance),
         };
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
@@ -220,8 +221,8 @@ public class EngineTimeoutTests
         var settings = new FakeSettings(TwoEngines());
         var chain = Chain(settings,
             [
-                new OllamaRecognizerEngine(new HttpClient(timingOut), settings, NullLogger<OllamaRecognizerEngine>.Instance),
-                new GeminiRecognizerEngine(new HttpClient(answering), settings, NullLogger<GeminiRecognizerEngine>.Instance),
+                new OllamaRecognizerEngine(new HttpClient(timingOut), settings, new OutboundProxyState(), NullLogger<OllamaRecognizerEngine>.Instance),
+                new GeminiRecognizerEngine(new HttpClient(answering), settings, new OutboundProxyState(), NullLogger<GeminiRecognizerEngine>.Instance),
             ]);
 
         var result = await chain.RecognizeAsync(Png, "image/png", Fields);
@@ -238,8 +239,8 @@ public class EngineTimeoutTests
         var settings = new FakeSettings(TwoEngines());
         var chain = Chain(settings,
             [
-                new OllamaRecognizerEngine(new HttpClient(new TimingOutHandler()), settings, NullLogger<OllamaRecognizerEngine>.Instance),
-                new GeminiRecognizerEngine(new HttpClient(new TimingOutHandler()), settings, NullLogger<GeminiRecognizerEngine>.Instance),
+                new OllamaRecognizerEngine(new HttpClient(new TimingOutHandler()), settings, new OutboundProxyState(), NullLogger<OllamaRecognizerEngine>.Instance),
+                new GeminiRecognizerEngine(new HttpClient(new TimingOutHandler()), settings, new OutboundProxyState(), NullLogger<GeminiRecognizerEngine>.Instance),
             ]);
 
         // Цепочка ловит базовый RecognitionUnavailableException — таймаут его наследник, и ни одно
@@ -266,8 +267,8 @@ public class EngineTimeoutTests
         });
         var chain = Chain(settings,
             [
-                new AnthropicRecognizerEngine(new HttpClient(untouched), settings, NullLogger<AnthropicRecognizerEngine>.Instance),
-                new GeminiRecognizerEngine(new HttpClient(answering), settings, NullLogger<GeminiRecognizerEngine>.Instance),
+                new AnthropicRecognizerEngine(new HttpClient(untouched), settings, new OutboundProxyState(), NullLogger<AnthropicRecognizerEngine>.Instance),
+                new GeminiRecognizerEngine(new HttpClient(answering), settings, new OutboundProxyState(), NullLogger<GeminiRecognizerEngine>.Instance),
             ]);
 
         Assert.Equal("7", (await chain.RecognizeAsync(Png, "image/png", Fields)).Values["Номер"]);

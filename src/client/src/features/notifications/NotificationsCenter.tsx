@@ -145,16 +145,24 @@ function HealthSection() {
         {health.map(c => {
           // Три состояния, а не два: «отвечает через раз» — не норма и ещё не отказ. Пока их было
           // два, панель перекрашивалась на каждом опросе (issue #917).
-          const dot = c.state === 'Up' ? 'bg-success' : c.state === 'Flapping' ? 'bg-warning' : 'bg-danger';
-          const tone = c.state === 'Up' ? 'text-fg3' : c.state === 'Flapping' ? 'text-warning' : 'text-danger';
+          const dot = c.state === 'Up' ? 'bg-success' : c.state === 'Flapping' ? 'bg-warning'
+            : c.state === 'Unknown' ? 'bg-fg4' : 'bg-danger';
+          const tone = c.state === 'Up' ? 'text-fg3' : c.state === 'Flapping' ? 'text-warning'
+            : c.state === 'Unknown' ? 'text-fg3' : 'text-danger';
+          // «Не проверяли» — не норма и не отказ: сервис за упавшим прокси, и сказано о нём одной
+          // строкой выше. Выдать это за норму значило бы спрятать, за отказ — обвинить невиновного.
           const label = c.state === 'Up' ? 'в норме'
             : c.state === 'Flapping' ? 'отвечает через раз'
+            : c.state === 'Unknown' ? 'не проверяли'
             : (c.detail ? 'сбой' : 'недоступен');
           return (
             <div key={c.code} className="flex items-center gap-2.5 h-9 text-sm" title={c.detail ?? undefined}>
               <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-              <span className="text-fg1 flex-1">{c.name}</span>
-              <span className={`text-xs font-medium ${tone}`}>{label}</span>
+              <span className="text-fg1 flex-1 truncate">
+                {c.name}
+                {c.viaProxy && <span className="ml-1.5 text-xs text-fg4">через прокси</span>}
+              </span>
+              <span className={`text-xs font-medium shrink-0 ${tone}`}>{label}</span>
             </div>
           );
         })}

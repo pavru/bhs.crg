@@ -1,7 +1,13 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Net.Sockets;
+using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -94,5 +100,131 @@ public class ProxySettingsTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Equal("socks5://proxy.example:1080/", state.ProxyFor(OutboundService.Gemini)?.ToString());
         Assert.NotNull(state.ProxyFor(OutboundService.ExternalLinks));
         Assert.Null(state.ProxyFor(OutboundService.Anthropic));
+    }
+
+    // ── Проверка связи по кнопке (issue #937) ────────────────────────────────────
+
+    [Fact]
+    public async Task Проверка_чужого_прокси_с_пустым_паролем_отклоняется()
+    {
+        // Иначе кнопка «Проверить» — это способ унести сохранённый пароль: вписать свой прокси,
+        // поле пароля не трогать, и первый же запрос принесёт его на чужой адрес (урок SMTP).
+        using var scope = fixture.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IIntegrationSettings>()
+            .SaveProxyAsync(new ProxySettings { Url = "http://proxy.example:3128", User = "svc", Password = ProxySecret });
+
+        using var listener = new Listener();
+        var answer = await CheckAsync(new { url = listener.Url, user = "svc" });
+
+        Assert.False(answer.GetProperty("ok").GetBoolean());
+        Assert.Contains("пароль", answer.GetProperty("message").GetString()!);
+        Assert.Equal(0, listener.Accepted);   // до чужого адреса проверка даже не дошла
+    }
+
+    [Fact]
+    public async Task Проверка_без_сохранённого_пароля_не_требует_его()
+    {
+        // Прокси без входа — обычное дело, и отказ «введите пароль» на пустом месте выглядел бы
+        // поломкой. Сторож против того, чтобы правило о пароле сработало там, где пароля нет.
+        using var listener = new Listener();
+        var answer = await CheckAsync(new { url = listener.Url });
+
+        Assert.True(answer.GetProperty("ok").GetBoolean(), answer.GetProperty("message").GetString());
+        Assert.Contains("Туннель не проверяли", answer.GetProperty("message").GetString()!);
+        Assert.Equal(1, listener.Accepted);
+    }
+
+    [Fact]
+    public async Task Проверка_идёт_по_значениям_формы_а_не_по_сохранённым()
+    {
+        // Проверять до сохранения — обычный порядок; проверка сохранённого адреса вместо набранного
+        // отвечала бы не про то, что человек видит на экране.
+        using var scope = fixture.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IIntegrationSettings>()
+            .SaveProxyAsync(new ProxySettings { Url = $"http://127.0.0.1:{DeadPort()}" });
+
+        using var listener = new Listener();
+        var answer = await CheckAsync(new { url = listener.Url });
+
+        Assert.True(answer.GetProperty("ok").GetBoolean(), answer.GetProperty("message").GetString());
+        Assert.Equal(1, listener.Accepted);
+    }
+
+    [Fact]
+    public async Task Проверка_неподнятого_прокси_называет_его_недоступным()
+    {
+        var answer = await CheckAsync(new { url = $"http://127.0.0.1:{DeadPort()}" });
+
+        Assert.False(answer.GetProperty("ok").GetBoolean());
+        Assert.Equal(nameof(OutboundProblem.ProxyUnreachable), answer.GetProperty("problem").GetString());
+    }
+
+    private async Task<JsonElement> CheckAsync(object body)
+    {
+        var client = await AdminClientAsync();
+        var resp = await client.PostAsJsonAsync("/api/settings/integrations/proxy/test", body);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    /// <summary>Клиент с токеном администратора: настройки читает и правит только эта роль.</summary>
+    private async Task<HttpClient> AdminClientAsync()
+    {
+        var email = $"admin_{Guid.NewGuid():N}@test.local";
+        const string password = "Passw0rd!";
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var um = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var rm = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+            if (!await rm.RoleExistsAsync("Admin")) Assert.True((await rm.CreateAsync(new IdentityRole<Guid>("Admin"))).Succeeded);
+            var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Админ", EmailConfirmed = true };
+            Assert.True((await um.CreateAsync(user, password)).Succeeded);
+            Assert.True((await um.AddToRoleAsync(user, "Admin")).Succeeded);
+        }
+
+        var client = fixture.CreateClient();
+        var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password });
+        login.EnsureSuccessStatusCode();
+        var token = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
+    /// <summary>Слушатель на петле вместо прокси: считает, сколько раз к нему пришли.</summary>
+    private sealed class Listener : IDisposable
+    {
+        private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
+        private int _accepted;
+
+        public string Url => $"http://127.0.0.1:{((IPEndPoint)_listener.LocalEndpoint).Port}";
+        public int Accepted => Volatile.Read(ref _accepted);
+
+        public Listener()
+        {
+            _listener.Start();
+            _ = Task.Run(async () =>
+            {
+                while (true)
+                {
+                    TcpClient client;
+                    try { client = await _listener.AcceptTcpClientAsync(); }
+                    catch { return; }
+                    Interlocked.Increment(ref _accepted);
+                    client.Dispose();
+                }
+            });
+        }
+
+        public void Dispose() => _listener.Stop();
+    }
+
+    /// <summary>Порт, на котором заведомо никого нет: слушателя подняли и закрыли.</summary>
+    private static int DeadPort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
     }
 }

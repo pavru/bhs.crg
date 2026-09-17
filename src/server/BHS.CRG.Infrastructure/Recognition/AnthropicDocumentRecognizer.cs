@@ -10,7 +10,7 @@ namespace BHS.CRG.Infrastructure.Recognition;
 
 /// <summary>Движок распознавания через Anthropic Claude (vision). Настройки — из IIntegrationSettings.</summary>
 public class AnthropicRecognizerEngine(
-    HttpClient http, IIntegrationSettings settings, ILogger<AnthropicRecognizerEngine> logger
+    HttpClient http, IIntegrationSettings settings, OutboundProxyState proxy, ILogger<AnthropicRecognizerEngine> logger
 ) : IRecognizerEngine
 {
     private const string ApiUrl = "https://api.anthropic.com/v1/messages";
@@ -81,7 +81,9 @@ public class AnthropicRecognizerEngine(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                if (attempt >= maxAttempts) throw new RecognitionUnavailableException($"Anthropic: ошибка обращения: {ex.Message}");
+                if (attempt >= maxAttempts)
+                    throw new RecognitionUnavailableException(
+                        $"Anthropic: ошибка обращения: {OutboundDiagnosis.Describe(ex, OutboundService.Anthropic, proxy)}");
                 await Task.Delay(TimeSpan.FromSeconds(2 * attempt), ct); continue;
             }
 
