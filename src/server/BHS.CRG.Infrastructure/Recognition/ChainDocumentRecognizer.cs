@@ -40,6 +40,14 @@ public class ChainDocumentRecognizer(
                 return new RecognitionResult(values, text, Engine: await DescribeAsync(engine, ct));
             }
             catch (RecognitionLimitException ex) { logger.LogWarning("Движок {Engine}: лимит — следующий. {Msg}", engine.Name, ex.Message); last = Keep(last, ex); }
+            catch (RecognitionModelGoneException ex)
+            {
+                // Бесплатный и точный сигнал: без передачи каталогу снятие модели узнавалось бы только
+                // плановой платной пробой, раз в часы (issue #923).
+                logger.LogWarning("Движок {Engine}: модель снята — следующий. {Msg}", engine.Name, ex.Message);
+                await selector.ObserveGoneAsync(ex, ct);
+                last = Keep(last, ex);
+            }
             catch (RecognitionUnavailableException ex) { logger.LogWarning("Движок {Engine}: недоступен — следующий. {Msg}", engine.Name, ex.Message); last = Keep(last, ex); }
         }
         throw last ?? new RecognitionUnavailableException("Распознавание не удалось ни одним движком.");

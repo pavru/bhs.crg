@@ -96,7 +96,11 @@ public class AnthropicRecognizerEngine(
             }
             if ((int)resp.StatusCode >= 500 && attempt < maxAttempts) { await Task.Delay(TimeSpan.FromSeconds(2 * attempt), ct); continue; }
 
-            // 400 «credit balance too low» и пр. — считаем движок недоступным, цепочка перейдёт к следующему
+            if (ModelGone.Is(resp.StatusCode))
+                throw new RecognitionModelGoneException(Name, model, ModelGone.AdviceFrom(body),
+                    $"Anthropic: модель {model} больше не обслуживается: {RecognitionShared.Truncate(body, 300)}");
+            // 400 «credit balance too low» и пр. — считаем движок недоступным, цепочка перейдёт к следующему.
+            // Пустой счёт отвечает 400 и на снятую модель, маскируя 404 (см. ModelGone.Is).
             throw new RecognitionUnavailableException($"Anthropic ответил {(int)resp.StatusCode}: {RecognitionShared.Truncate(body, 300)}");
         }
     }

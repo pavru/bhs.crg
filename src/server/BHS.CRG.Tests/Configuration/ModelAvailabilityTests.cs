@@ -1,5 +1,6 @@
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Settings;
+using BHS.CRG.Infrastructure.Recognition;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -84,7 +85,7 @@ public class ModelAvailabilityTests
             Please update your code to use models/gemini-3.5-flash-lite for the latest features and improvements.",
             "status":"NOT_FOUND"}}
             """;
-        Assert.Equal("поставщик рекомендует gemini-3.5-flash-lite", RecognitionModelCatalog.AdviceFrom(body));
+        Assert.Equal("поставщик рекомендует gemini-3.5-flash-lite", ModelGone.AdviceFrom(body));
     }
 
     [Fact]
@@ -92,7 +93,7 @@ public class ModelAvailabilityTests
     {
         // Модель, которой никогда не было (опечатка в имени), заменой не сопровождается — и выдумывать
         // её нельзя.
-        Assert.Null(RecognitionModelCatalog.AdviceFrom(
+        Assert.Null(ModelGone.AdviceFrom(
             """{"error":{"code":404,"message":"models/gemini-3.5-pro is not found.","status":"NOT_FOUND"}}"""));
     }
 }
