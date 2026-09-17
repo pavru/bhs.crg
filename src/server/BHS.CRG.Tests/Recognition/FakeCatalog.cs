@@ -18,6 +18,8 @@ public sealed class FakeCatalog : Dictionary<string, VisionStatus>, IRecognition
         ModelProbe probe = ModelProbe.IfUnknown, CancellationToken ct = default)
         => Task.FromResult(ModelStatus.Unknown);
 
+    public void ObserveGone(string engine, IntegrationEngine cfg, string model, string? advice) { }
+
     public Task<VisionStatus> GetVisionAsync(string engine, IntegrationEngine cfg, string model,
         VisionProbe probe = VisionProbe.IfUnknown, CancellationToken ct = default)
     {

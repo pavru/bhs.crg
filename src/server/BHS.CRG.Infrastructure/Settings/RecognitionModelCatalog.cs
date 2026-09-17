@@ -1,7 +1,6 @@
 ﻿using System.Text;
 using System.Collections.Concurrent;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Recognition;
@@ -14,7 +13,7 @@ namespace BHS.CRG.Infrastructure.Settings;
 /// Спрашивает у движка распознавания, принимает ли он назначенную ему модель (issue #799).
 /// Смысл проверки и почему она устроена именно так — в <see cref="IRecognitionModelCatalog" />.
 /// </summary>
-public partial class RecognitionModelCatalog(
+public class RecognitionModelCatalog(
     HttpClient http, IMemoryCache cache, ILogger<RecognitionModelCatalog> logger,
     IEnumerable<IRecognizerEngine> engines
 ) : IRecognitionModelCatalog
@@ -143,7 +142,7 @@ public partial class RecognitionModelCatalog(
         // В ключ кэша входит и ключ доступа: сменив его, пользователь ждёт ответа про НОВЫЙ доступ,
         // а не прежнего вердикта. Заодно «модель снята» уходит вместе со сменой модели или ключа —
         // других способов протухнуть у него нет (см. StatusTtl).
-        var cacheKey = $"status:{engine}:{model}:{cfg.ApiKey.GetHashCode(StringComparison.Ordinal)}";
+        var cacheKey = StatusKey(engine, cfg, model);
         var known = cache.TryGetValue<ModelStatus>(cacheKey, out var hit) ? hit! : null;
         if (probe == ModelProbe.CacheOnly) return known ?? ModelStatus.Unknown;
 
@@ -318,29 +317,29 @@ public partial class RecognitionModelCatalog(
         using var resp = await http.SendAsync(req, ct);
         if (resp.IsSuccessStatusCode) return ModelStatus.Ok;
         var body = await resp.Content.ReadAsStringAsync(ct);
-        if (resp.StatusCode != System.Net.HttpStatusCode.NotFound)
+        if (!ModelGone.Is(resp.StatusCode))
         {
             logger.LogInformation("Проверка модели {Engine}/{Model}: {Status} — считаем непроверенной", engine, model, (int)resp.StatusCode);
             return ModelStatus.Unknown;
         }
         logger.LogInformation("Модель {Engine}/{Model} больше не обслуживается: {Body}", engine, model, Short(body));
-        return new ModelStatus(ModelState.Gone, AdviceFrom(body));
+        return new ModelStatus(ModelState.Gone, ModelGone.AdviceFrom(body));
     }
 
-    /// <summary>
-    /// Совет поставщика из текста отказа (открыт ради теста: разбор чужого сообщения — то, что ломается
-    /// молча при смене формулировки). Google в ответе 404 прямо называет замену
-    /// («Please update your code to use models/gemini-3.5-flash-lite…») — это самое полезное, что есть
-    /// в сообщении, и терять его, оставив сухое «модель недоступна», было бы расточительством.
-    /// </summary>
-    public static string? AdviceFrom(string body)
+    public void ObserveGone(string engine, IntegrationEngine cfg, string model, string? advice)
     {
-        var m = SuggestedModel().Match(body);
-        return m.Success ? $"поставщик рекомендует {m.Groups[1].Value}" : null;
+        // Только облачные движки и только под ключом, под которым вердикт и читают: у Ollama «снята»
+        // определяется списком установленных, а вердикт под пустым ключом не прочтёт никто.
+        if (string.IsNullOrWhiteSpace(model) || string.IsNullOrWhiteSpace(cfg.ApiKey)) return;
+        if (!engine.Equals("Gemini", StringComparison.OrdinalIgnoreCase)
+            && !engine.Equals("Anthropic", StringComparison.OrdinalIgnoreCase)) return;
+
+        logger.LogWarning("Модель {Engine}/{Model} больше не обслуживается — по отказу распознавания", engine, model);
+        Remember(StatusKey(engine, cfg, model), new ModelStatus(ModelState.Gone, advice));
     }
 
-    [GeneratedRegex(@"use\s+models/([A-Za-z0-9.\-]+)", RegexOptions.IgnoreCase)]
-    private static partial Regex SuggestedModel();
+    private static string StatusKey(string engine, IntegrationEngine cfg, string model)
+        => $"status:{engine}:{model}:{cfg.ApiKey!.GetHashCode(StringComparison.Ordinal)}";
 
     /// <summary>
     /// Выполняющиеся проверки — по одной на ключ кэша на весь процесс (issue #924). Статическое поле,
@@ -386,6 +385,11 @@ public partial class RecognitionModelCatalog(
                 logger.LogInformation("Проверка модели ({Key}) не удалась: {Message}", key, ex.Message);
                 value = fallback;
             }
+            // Проба, ушедшая до того, как распознавание наблюдало 404 (ObserveGone), и вернувшаяся без
+            // ответа, наблюдённый вердикт не затирает — то же правило, что у Refresh (issue #923).
+            if (value is ModelStatus { State: ModelState.Unknown }
+                && cache.TryGetValue<ModelStatus>(key, out var observed) && observed!.State == ModelState.Gone)
+                return observed;
             if (ttl(value) is { } lifetime) cache.Set(key, value, lifetime);
             else cache.Set(key, value);
             return value;

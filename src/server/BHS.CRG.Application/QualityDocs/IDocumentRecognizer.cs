@@ -66,3 +66,23 @@ public class RecognitionSilentException(string message) : RecognitionUnavailable
 /// <see cref="TaskCanceledException" />, и классификация таймаута отобрала бы её, не дав замены.
 /// </summary>
 public class RecognitionTimeoutException(string message) : RecognitionUnavailableException(message);
+
+/// <summary>
+/// Поставщик ответил, что такой модели у него нет (issue #923) — настоящий 404 на генерацию.
+///
+/// Наследник <see cref="RecognitionUnavailableException" /> по тому же правилу, что таймаут и
+/// молчание: цепочке этого достаточно, чтобы перейти к следующему движку. Отдельный тип нужен
+/// цепочке, чтобы передать наблюдение каталогу моделей: до этого снятие модели узнавалось только
+/// плановой платной пробой, а бесплатный и точный отказ распознавания пропадал.
+///
+/// Модель — та, с которой движок РЕАЛЬНО обращался (с учётом умолчания), а не прочитанная заново из
+/// настроек: их могли сменить, пока запрос шёл.
+/// </summary>
+public class RecognitionModelGoneException(string engine, string model, string? advice, string message)
+    : RecognitionUnavailableException(message)
+{
+    public string Engine { get; } = engine;
+    public string Model { get; } = model;
+    /// <summary>Совет поставщика из текста отказа («поставщик рекомендует …»), если он есть.</summary>
+    public string? Advice { get; } = advice;
+}
