@@ -62,7 +62,7 @@ services:
     restart: unless-stopped
 
   garage:
-    image: dxflrs/garage:v2.3.0
+    image: dxflrs/garage:v2.4.1
     restart: unless-stopped
     # Образ без ENTRYPOINT: команду пишем полным путём, иначе docker ищет «server» в $PATH.
     command: ["/garage", "server"]
