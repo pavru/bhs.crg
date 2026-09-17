@@ -12,6 +12,9 @@ on:
 
 jobs:
   claude-review:
+    # Не на PR от Dependabot (#933): такие запуски получают только секреты Dependabot, токен Claude в
+    # них пустой, и проверка падала красным на каждом бампе образа — неотличимо от настоящей поломки.
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
     # Optional: Filter by PR author
     # if: |
     #   github.event.pull_request.user.login == 'external-contributor' ||

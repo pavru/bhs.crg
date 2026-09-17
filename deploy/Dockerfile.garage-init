@@ -8,7 +8,7 @@
 # сервер Garage должны быть одной версии, а второй источник (скачивание с сайта проекта) означал
 # бы, что они расходятся молча. Версия ниже прибита точно и сверяется с compose проверкой в CI —
 # ровно потому, что теперь она записана в ДВУХ местах.
-FROM dxflrs/garage:v2.3.0 AS garage
+FROM dxflrs/garage:v2.4.1 AS garage
 FROM alpine:3.24.1
 
 COPY --from=garage /garage /usr/local/bin/garage
