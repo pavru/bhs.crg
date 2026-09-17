@@ -132,6 +132,7 @@ public class OllamaContextLimitTests
         public Task SaveUpdatesAsync(UpdateCheckSettings u, CancellationToken ct = default) => Task.CompletedTask;
         public Task SaveBackupScheduleAsync(BackupScheduleSettings b, CancellationToken ct = default) => Task.CompletedTask;
         public Task SaveGithubAsync(GithubSettings g, CancellationToken ct = default) => Task.CompletedTask;
+        public Task SaveProxyAsync(ProxySettings p, CancellationToken ct = default) => Task.CompletedTask;
         public void Invalidate() { }
     }
 }

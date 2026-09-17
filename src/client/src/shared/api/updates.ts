@@ -14,6 +14,8 @@ export interface UpdateStatus {
   /** Когда проверка последний раз УДАЛАСЬ. null — ни разу: либо только поставили, либо не достучались. */
   lastCheckedAt: string | null;
   enabled: boolean;
+  /** Проверять через прокси (issue #936). Приходит только администратору с заметками. */
+  useProxy?: boolean;
   releaseUrl?: string | null;
   releaseNotes?: string | null;
   /** Ответ на явную проверку: состоялась ли она. null — просто читали известное. */
@@ -53,7 +55,7 @@ export function useCheckUpdatesNow() {
 
 export function useSaveUpdateSettings() {
   const qc = useQueryClient();
-  return useMutation<void, Error, { enabled: boolean }>({
+  return useMutation<void, Error, { enabled: boolean; useProxy: boolean }>({
     mutationFn: (body) => apiClient.put('/system/update/settings', body).then(() => undefined),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['system', 'update'] }); },
   });

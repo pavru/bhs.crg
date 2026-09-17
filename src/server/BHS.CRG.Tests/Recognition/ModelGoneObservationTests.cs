@@ -1,3 +1,4 @@
+using BHS.CRG.Tests.Support;
 using System.Net;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
@@ -43,6 +44,7 @@ public class ModelGoneObservationTests
         public Task SaveUpdatesAsync(UpdateCheckSettings u, CancellationToken ct = default) => Task.CompletedTask;
         public Task SaveBackupScheduleAsync(BackupScheduleSettings b, CancellationToken ct = default) => Task.CompletedTask;
         public Task SaveGithubAsync(GithubSettings g, CancellationToken ct = default) => Task.CompletedTask;
+        public Task SaveProxyAsync(ProxySettings p, CancellationToken ct = default) => Task.CompletedTask;
         public void Invalidate() { }
     }
 
@@ -57,7 +59,7 @@ public class ModelGoneObservationTests
     private static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47];
 
     private static RecognitionModelCatalog Catalog(HttpMessageHandler? probe = null)
-        => new(new HttpClient(probe ?? new Provider(HttpStatusCode.OK, "{}")), new MemoryCache(new MemoryCacheOptions()),
+        => new(new SingleClientFactory(new HttpClient(probe ?? new Provider(HttpStatusCode.OK, "{}"))), new MemoryCache(new MemoryCacheOptions()),
             NullLogger<RecognitionModelCatalog>.Instance, []);
 
     // ── Движки различают «модель снята» ─────────────────────────────────────────
@@ -148,7 +150,7 @@ public class ModelGoneObservationTests
     public void Наблюдение_без_читателя_не_записывается(string engine, string apiKey)
     {
         var cache = new MemoryCache(new MemoryCacheOptions());
-        var catalog = new RecognitionModelCatalog(new HttpClient(), cache, NullLogger<RecognitionModelCatalog>.Instance, []);
+        var catalog = new RecognitionModelCatalog(new SingleClientFactory(new HttpClient()), cache, NullLogger<RecognitionModelCatalog>.Instance, []);
 
         catalog.ObserveGone(engine, new IntegrationEngine { Enabled = true, ApiKey = apiKey, Model = "m" }, "m", null);
 

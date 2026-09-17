@@ -99,6 +99,8 @@ public class HttpDataSourcePlugin : IDataSourcePlugin
     private static SocketsHttpHandler Outbound()
     {
         var handler = new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) };
+        // Плагины — внутренние службы по замыслу: в прокси им нельзя, что бы ни было в окружении (issue #936).
+        OutboundProxy.Direct(handler);
         OutboundConnect.Apply(handler);
         return handler;
     }

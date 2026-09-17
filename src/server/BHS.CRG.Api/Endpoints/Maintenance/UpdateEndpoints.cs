@@ -24,7 +24,7 @@ public static class UpdateEndpoints
         // систему. Заметки первого выпуска весят 70 КБ (`--generate-notes` собрал весь список
         // изменений), и без этого разделения столько уезжало бы на каждый экран ради строки
         // «доступна 0.138.0». Замерено живым вызовом: 75 146 байт против ~200.
-        g.MapGet("/update", async (IUpdateCheck check, ClaimsPrincipal user, bool? withNotes,
+        g.MapGet("/update", async (IUpdateCheck check, IIntegrationSettings settings, ClaimsPrincipal user, bool? withNotes,
             CancellationToken ct) =>
         {
             var s = await check.GetStatusAsync(ct);
@@ -40,6 +40,9 @@ public static class UpdateEndpoints
                 s.Enabled,
                 releaseUrl = notes ? s.ReleaseUrl : null,
                 releaseNotes = notes ? s.ReleaseNotes : null,
+                // Галка «через прокси» — администратору, на странице настроек: без неё переключатель
+                // проверки, сохраняя себя, сбрасывал бы галку (секция сохраняется целиком, issue #936).
+                useProxy = notes && (await settings.GetEffectiveAsync(ct)).Updates.UseProxy,
             });
         });
 

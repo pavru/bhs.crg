@@ -1,5 +1,6 @@
 using BHS.CRG.Application.Email;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Http;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
@@ -10,7 +11,7 @@ namespace BHS.CRG.Infrastructure.Email;
 /// Отправка почты через MailKit поверх SMTP-настроек (<see cref="SmtpSettings"/> из БД-настроек).
 /// SmtpClient — новый на каждую отправку (MailKit-клиент не потокобезопасен и не переиспользуется).
 /// </summary>
-public class MailKitEmailSender(IIntegrationSettings settings) : IEmailSender
+public class MailKitEmailSender(IIntegrationSettings settings, OutboundProxyState proxy) : IEmailSender
 {
     public async Task SendAsync(EmailMessage message, CancellationToken ct = default)
     {
@@ -53,8 +54,12 @@ public class MailKitEmailSender(IIntegrationSettings settings) : IEmailSender
         await client.DisconnectAsync(true, ct); // соединение+аутентификация прошли — письмо не шлём
     }
 
-    private static async Task ConnectAndAuthAsync(SmtpClient client, SmtpSettings smtp, CancellationToken ct)
+    private async Task ConnectAndAuthAsync(SmtpClient client, SmtpSettings smtp, CancellationToken ct)
     {
+        // Галка берётся из переданных настроек, а не из сохранённых: проверка связи идёт по значениям
+        // ФОРМЫ, и «проверить через прокси» до сохранения должно проверять именно через прокси.
+        // Адрес прокси — сохранённый: его форма почты не задаёт.
+        client.ProxyClient = smtp.UseProxy ? OutboundProxy.ForMailKit(proxy) : null;
         // UseSsl: STARTTLS при 587, неявный SSL при 465; иначе — без шифрования.
         var security = smtp.UseSsl
             ? (smtp.Port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls)

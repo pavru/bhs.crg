@@ -56,7 +56,16 @@ public static class SettingsEndpoints
                         ? GithubSettings.DefaultRepository
                         : m.Github.Repository,
                     hasToken = !string.IsNullOrWhiteSpace(m.Github.Token),
+                    useProxy = m.Github.UseProxy,
                 },
+                // Прокси (issue #936): пароль не отдаём — только признак «задан», как у остальных секретов.
+                proxy = new
+                {
+                    url = m.Proxy.Url,
+                    user = m.Proxy.User,
+                    hasPassword = !string.IsNullOrWhiteSpace(m.Proxy.Password),
+                },
+                externalLinksUseProxy = m.ExternalLinksUseProxy,
             });
         });
 
@@ -66,6 +75,14 @@ public static class SettingsEndpoints
         g.MapPut("/github", async (GithubSettings github, IIntegrationSettings settings) =>
         {
             await settings.SaveGithubAsync(github);
+            return Results.NoContent();
+        });
+
+        // Сохранение только прокси (issue #936). Пустой пароль = оставить прежний, но ТОЛЬКО для того же
+        // прокси и логина (см. MergeProxy): иначе форма была бы способом унести пароль на чужой прокси.
+        g.MapPut("/proxy", async (ProxySettings proxy, IIntegrationSettings settings) =>
+        {
+            await settings.SaveProxyAsync(proxy);
             return Results.NoContent();
         });
 
@@ -254,6 +271,7 @@ public static class SettingsEndpoints
         folderId = e.FolderId,
         host = e.Host,
         missing,
+        useProxy = e.UseProxy,
     };
 
     // Пароль SMTP не возвращаем — только признак «задан» (как ключи движков).
@@ -267,6 +285,7 @@ public static class SettingsEndpoints
         from = s.From,
         fromName = s.FromName,
         useSsl = s.UseSsl,
+        useProxy = s.UseProxy,
     };
 
     private record EmailTestRequest(string? To);

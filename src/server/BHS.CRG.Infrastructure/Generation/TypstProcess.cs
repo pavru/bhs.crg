@@ -37,6 +37,12 @@ public static class TypstProcess
     public static async Task<(int ExitCode, string StdErr)> RunAsync(
         ProcessStartInfo psi, CancellationToken ct, TimeSpan? timeout = null)
     {
+        // Typst ходит в сеть сам — за пакетами @preview — и берёт прокси из окружения. Пакеты в продукт
+        // не приняты, и песочница компиляции задумана без сети; унаследованные переменные прокси
+        // тихо превратили бы «сети нет» в «сеть есть через прокси» (issue #936).
+        foreach (var name in BHS.CRG.Infrastructure.Http.OutboundProxy.EnvironmentVariables)
+            psi.Environment.Remove(name);
+
         var limit = timeout ?? DefaultTimeout;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(limit);

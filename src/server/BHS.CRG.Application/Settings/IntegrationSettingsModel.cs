@@ -9,6 +9,8 @@ public class IntegrationEngine
     public string? BaseUrl { get; set; }   // Ollama
     public string? FolderId { get; set; }  // Yandex
     public string? Host { get; set; }      // Yandex
+    /// <summary>Ходить к движку через прокси из <see cref="IntegrationSettingsModel.Proxy"/> (issue #936).</summary>
+    public bool UseProxy { get; set; }
 }
 
 /// <summary>Настройки SMTP для исходящей почты. Пароль хранится в том же JSON-store, что и API-ключи.</summary>
@@ -25,6 +27,8 @@ public class SmtpSettings
     public string? FromName { get; set; }
     /// <summary>true — STARTTLS/SSL (обычно порт 587/465); false — без шифрования.</summary>
     public bool UseSsl { get; set; } = true;
+    /// <summary>Подключаться к почтовому серверу через прокси (issue #936).</summary>
+    public bool UseProxy { get; set; }
 
     /// <summary>
     /// Тот же самый почтовый сервер и та же учётная запись на нём?
@@ -54,6 +58,9 @@ public class UpdateCheckSettings
     /// единственный способ не видеть в журнале бесконечные неудачи.
     /// </summary>
     public bool Enabled { get; set; } = true;
+
+    /// <summary>Ходить на GitHub за версиями через прокси (issue #936).</summary>
+    public bool UseProxy { get; set; }
 }
 
 /// <summary>
@@ -107,6 +114,10 @@ public class GithubSettings
 
     public const string DefaultRepository = "pavru/bhs.crg";
 
+    /// <summary>Отправлять issue через прокси (issue #936). Отдельно от проверки обновлений: хост тот
+    /// же, а решение разное — одно публикует текст, другое только спрашивает номер версии.</summary>
+    public bool UseProxy { get; set; }
+
     /// <summary>
     /// Тот же самый репозиторий?
     ///
@@ -158,6 +169,82 @@ public class GithubSettings
 }
 
 /// <summary>
+/// Прокси для исходящих соединений к внешним сервисам (issue #936).
+///
+/// Прокси ОДИН, а пользуется им только сервис, у которого стоит галка «через прокси»; по умолчанию
+/// все галки сняты. Не «весь трафик через прокси» намеренно: рядом с приложением живут хранилище,
+/// Ollama и плагины, и прокси, не знающий их имён, превратил бы их в «недоступно» — с диагнозом,
+/// который на прокси не указывает ничем.
+/// </summary>
+public class ProxySettings
+{
+    /// <summary>Адрес вида <c>http://proxy.corp:3128</c> или <c>socks5://proxy.corp:1080</c>. Пусто — прокси нет.</summary>
+    public string? Url { get; set; }
+    public string? User { get; set; }
+    /// <summary>Секрет: хранится зашифрованным, наружу отдаётся только признак «задан».</summary>
+    public string? Password { get; set; }
+
+    /// <summary>Схемы, которые понимают и HTTP-клиент .NET, и MailKit.</summary>
+    public static readonly string[] Schemes = ["http", "socks4", "socks4a", "socks5"];
+
+    public bool IsConfigured => TryParseUrl(Url, out _, out _);
+
+    /// <summary>
+    /// Разбирает адрес прокси. Имя — не <c>TryParse</c> НАРОЧНО: Minimal API принимает метод с таким
+    /// именем за способ разобрать параметр запроса и роняет запуск, не найдя подходящей сигнатуры.
+    /// Ошибка — готовой фразой для человека: её показывают там, где адрес
+    /// вводят, а не при первом запросе, где она выглядела бы как «сервис недоступен».
+    /// </summary>
+    public static bool TryParseUrl(string? url, out Uri? uri, out string? error)
+    {
+        uri = null; error = null;
+        var text = url?.Trim();
+        if (string.IsNullOrEmpty(text)) { error = "Адрес прокси не задан."; return false; }
+        if (!Uri.TryCreate(text, UriKind.Absolute, out var parsed) || string.IsNullOrEmpty(parsed.Host))
+        {
+            error = $"«{text}» не похоже на адрес прокси. Ожидается вид http://proxy.example:3128 или socks5://proxy.example:1080.";
+            return false;
+        }
+        if (!Schemes.Contains(parsed.Scheme, StringComparer.OrdinalIgnoreCase))
+        {
+            error = $"Схема «{parsed.Scheme}» не поддерживается. Допустимы: {string.Join(", ", Schemes)}.";
+            return false;
+        }
+        // Логин и пароль — только отдельными полями. В адресе они уезжали бы в журналы и тексты
+        // ошибок вместе с ним, а пароль в поле хранится зашифрованным.
+        if (!string.IsNullOrEmpty(parsed.UserInfo))
+        {
+            error = "Логин и пароль укажите в отдельных полях, а не в адресе прокси.";
+            return false;
+        }
+        if (parsed.AbsolutePath is not ("/" or "") || !string.IsNullOrEmpty(parsed.Query))
+        {
+            error = "В адресе прокси нужны только схема, хост и порт — без пути.";
+            return false;
+        }
+        // У SOCKS умолчательного порта нет: Uri подставил бы -1, и отказ пришёл бы только при запросе.
+        if (parsed.Port <= 0)
+        {
+            error = "Укажите порт прокси, например socks5://proxy.example:1080.";
+            return false;
+        }
+        uri = new Uri($"{parsed.Scheme.ToLowerInvariant()}://{parsed.Authority}");
+        return true;
+    }
+
+    /// <summary>
+    /// Тот же прокси и та же учётная запись на нём? Решает судьбу СОХРАНЁННОГО пароля — тот же урок,
+    /// что у SMTP (<see cref="SmtpSettings.SameServerAs"/>): иначе достаточно указать свой прокси с
+    /// пустым полем пароля, и первый же запрос унесёт на него сохранённый пароль.
+    /// </summary>
+    public bool SameProxyAs(ProxySettings other) =>
+        string.Equals(Normalize(Url), Normalize(other.Url), StringComparison.OrdinalIgnoreCase)
+        && string.Equals(User?.Trim() ?? "", other.User?.Trim() ?? "", StringComparison.Ordinal);
+
+    private static string Normalize(string? url) => TryParseUrl(url, out var u, out _) ? u!.ToString() : (url ?? "").Trim();
+}
+
+/// <summary>
 /// Управляемые из UI настройки ВНЕШНИХ служб: распознавание, веб-поиск, почта, проверка обновлений.
 /// Хранятся в БД; пустой ключ движка означает fallback на конфигурацию (user-secrets/appsettings).
 ///
@@ -185,6 +272,16 @@ public class IntegrationSettingsModel
     /// <summary>Передача сообщений об ошибках в GitHub (issue #834).</summary>
     public GithubSettings Github { get; set; } = new();
 
+    /// <summary>Прокси для внешних сервисов (issue #936).</summary>
+    public ProxySettings Proxy { get; set; } = new();
+
+    /// <summary>
+    /// Загрузка по внешним ссылкам — страницы из выдачи поиска и файлы по ссылке — через прокси.
+    /// Своя галка, а не галка движка поиска: движок ходит на известный хост API, а здесь адреса
+    /// произвольные, и риск у них другой (см. OutboundAddressPolicy).
+    /// </summary>
+    public bool ExternalLinksUseProxy { get; set; }
+
     public IntegrationEngine Rec(string name)
         => Recognition.TryGetValue(name, out var e) ? e : new IntegrationEngine();
     public IntegrationEngine Web(string name)
@@ -208,5 +305,8 @@ public interface IIntegrationSettings
 
     /// <summary>Сохраняет только настройки GitHub — по той же причине, что и SMTP.</summary>
     Task SaveGithubAsync(GithubSettings github, CancellationToken ct = default);
+
+    /// <summary>Сохраняет только прокси — по той же причине, что и SMTP. Пустой пароль — оставить прежний, но только для того же прокси.</summary>
+    Task SaveProxyAsync(ProxySettings proxy, CancellationToken ct = default);
     void Invalidate();
 }

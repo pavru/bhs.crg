@@ -9,8 +9,9 @@ import {
 } from '@/shared/api/integrationSettings';
 import { CollapsibleSection } from './CollapsibleSection';
 import { apiError } from '@/shared/utils/apiError';
+import { ProxyToggle } from './ProxyToggle';
 
-const EMPTY: SmtpUpdate = { enabled: false, host: '', port: 587, user: '', password: '', from: '', fromName: '', useSsl: true };
+const EMPTY: SmtpUpdate = { enabled: false, host: '', port: 587, user: '', password: '', from: '', fromName: '', useSsl: true, useProxy: false };
 
 /** Настройки SMTP → форма. Пароль всегда пуст: сервер его не отдаёт, а пустой означает «не менять». */
 function smtpForm(settings: IntegrationSettingsDto | undefined): SmtpUpdate {
@@ -18,7 +19,7 @@ function smtpForm(settings: IntegrationSettingsDto | undefined): SmtpUpdate {
   const s = settings.smtp;
   return {
     enabled: s.enabled, host: s.host ?? '', port: s.port, user: s.user ?? '',
-    password: '', from: s.from ?? '', fromName: s.fromName ?? '', useSsl: s.useSsl,
+    password: '', from: s.from ?? '', fromName: s.fromName ?? '', useSsl: s.useSsl, useProxy: s.useProxy,
   };
 }
 
@@ -97,6 +98,8 @@ export function EmailSettingsSection() {
         <input type="checkbox" checked={form.useSsl} onChange={e => set('useSsl', e.target.checked)} />
         Шифрование (STARTTLS/SSL — порт 587/465)
       </label>
+
+      <ProxyToggle checked={form.useProxy} onChange={v => set('useProxy', v)} />
 
       <div className="flex items-center gap-3 flex-wrap">
         <Button variant="filled" onClick={handleSave} loading={saveSmtp.isPending}>

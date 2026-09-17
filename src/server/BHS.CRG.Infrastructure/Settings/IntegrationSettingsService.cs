@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Settings;
+using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -9,7 +10,8 @@ using Microsoft.Extensions.Configuration;
 namespace BHS.CRG.Infrastructure.Settings;
 
 public class IntegrationSettingsService(
-    AppDbContext db, IConfiguration config, IMemoryCache cache, SettingsSecretProtector secrets) : IIntegrationSettings
+    AppDbContext db, IConfiguration config, IMemoryCache cache, SettingsSecretProtector secrets,
+    OutboundProxyState proxyState) : IIntegrationSettings
 {
     private const string CacheKey = "integration-settings-effective";
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
@@ -32,6 +34,7 @@ public class IntegrationSettingsService(
         raw.RecognitionOrder = update.RecognitionOrder;
         raw.FgisDomains = update.FgisDomains;
         raw.ManufacturerDomains = update.ManufacturerDomains;
+        raw.ExternalLinksUseProxy = update.ExternalLinksUseProxy;
         MergeEngines(raw.Recognition, update.Recognition);
         MergeEngines(raw.WebSearch, update.WebSearch);
         // Smtp у SaveAsync НЕ трогаем — им управляет отдельный SaveSmtpAsync (иначе форма распознавания
@@ -79,6 +82,18 @@ public class IntegrationSettingsService(
         await PersistRawAsync(raw, ct);
     }
 
+    public async Task SaveProxyAsync(ProxySettings proxy, CancellationToken ct = default)
+    {
+        // Пустой адрес — «прокси нет», это законное значение. Негодный — отказ там, где его вводят:
+        // иначе он всплыл бы при первом запросе сообщением «сервис недоступен».
+        if (!string.IsNullOrWhiteSpace(proxy.Url) && !ProxySettings.TryParseUrl(proxy.Url, out _, out var error))
+            throw new InvalidRequestException(error!);
+
+        var raw = await LoadRawAsync(ct);
+        raw.Proxy = MergeProxy(raw.Proxy, proxy);
+        await PersistRawAsync(raw, ct);
+    }
+
     /// <summary>
     /// Перешифровать секреты, оставшиеся открытыми от версий до 0.92.0. Вызывается один раз при
     /// старте (см. Program.cs). Сделано отдельным проходом, а не при чтении: запись на пути чтения
@@ -109,6 +124,7 @@ public class IntegrationSettingsService(
         foreach (var e in raw.WebSearch.Values) if (IsPlain(e.ApiKey)) n++;
         if (IsPlain(raw.Smtp.Password)) n++;
         if (IsPlain(raw.Github.Token)) n++;
+        if (IsPlain(raw.Proxy.Password)) n++;
         return n;
 
         static bool IsPlain(string? v) => !string.IsNullOrWhiteSpace(v) && !SettingsSecretProtector.IsProtected(v);
@@ -121,6 +137,7 @@ public class IntegrationSettingsService(
         foreach (var e in m.WebSearch.Values) e.ApiKey = secrets.Protect(e.ApiKey);
         m.Smtp.Password = secrets.Protect(m.Smtp.Password);
         m.Github.Token = secrets.Protect(m.Github.Token);
+        m.Proxy.Password = secrets.Protect(m.Proxy.Password);
     }
 
     /// <summary>Обратное к <see cref="ProtectSecrets"/>: наружу модель всегда отдаётся расшифрованной.</summary>
@@ -130,6 +147,7 @@ public class IntegrationSettingsService(
         foreach (var e in m.WebSearch.Values) e.ApiKey = secrets.Unprotect(e.ApiKey);
         m.Smtp.Password = secrets.Unprotect(m.Smtp.Password);
         m.Github.Token = secrets.Unprotect(m.Github.Token);
+        m.Proxy.Password = secrets.Unprotect(m.Proxy.Password);
     }
 
     private async Task PersistRawAsync(IntegrationSettingsModel raw, CancellationToken ct)
@@ -141,6 +159,9 @@ public class IntegrationSettingsService(
         else { row.Update(json); db.IntegrationSettings.Update(row); }
         await db.SaveChangesAsync(ct);
         Invalidate();
+        // Сразу собрать эффективную модель заново: прокси и галки читаются на каждом запросе из
+        // OutboundProxyState, и без этого новое значение ждало бы первого случайного читателя настроек.
+        await GetEffectiveAsync(ct);
     }
 
     public void Invalidate() => cache.Remove(CacheKey);
@@ -164,6 +185,7 @@ public class IntegrationSettingsService(
         From = update.From,
         FromName = update.FromName,
         UseSsl = update.UseSsl,
+        UseProxy = update.UseProxy,
         Password = !string.IsNullOrWhiteSpace(update.Password) ? update.Password
             : update.SameServerAs(existing) ? existing.Password
             : null,
@@ -179,8 +201,21 @@ public class IntegrationSettingsService(
     private static GithubSettings MergeGithub(GithubSettings existing, GithubSettings update) => new()
     {
         Repository = GithubSettings.Normalize(update.Repository),
+        UseProxy = update.UseProxy,
         Token = !string.IsNullOrWhiteSpace(update.Token) ? update.Token
             : update.SameRepositoryAs(existing) ? existing.Token
+            : null,
+    };
+
+    // Пароль прокси — по тому же правилу, что пароль SMTP: наследуется только тем же прокси под тем же
+    // логином. Иначе достаточно указать свой прокси с пустым полем пароля — и сохранённый уйдёт туда
+    // с первым же запросом. При смене прокси пароль обнуляется, и это заметно: прокси ответит 407.
+    private static ProxySettings MergeProxy(ProxySettings existing, ProxySettings update) => new()
+    {
+        Url = string.IsNullOrWhiteSpace(update.Url) ? null : update.Url.Trim(),
+        User = string.IsNullOrWhiteSpace(update.User) ? null : update.User.Trim(),
+        Password = !string.IsNullOrWhiteSpace(update.Password) ? update.Password
+            : update.SameProxyAs(existing) ? existing.Password
             : null,
     };
 
@@ -197,6 +232,7 @@ public class IntegrationSettingsService(
                 BaseUrl = u.BaseUrl,
                 FolderId = u.FolderId,
                 Host = u.Host,
+                UseProxy = u.UseProxy,
                 ApiKey = string.IsNullOrWhiteSpace(u.ApiKey) ? existing.ApiKey : u.ApiKey,
             };
         }
@@ -236,6 +272,8 @@ public class IntegrationSettingsService(
             Updates = raw.Updates,
             Backup = raw.Backup,
             Github = raw.Github,
+            Proxy = raw.Proxy,
+            ExternalLinksUseProxy = raw.ExternalLinksUseProxy,
         };
 
         foreach (var name in RecNames) m.Recognition[name] = EffRec(name, raw);
@@ -245,6 +283,7 @@ public class IntegrationSettingsService(
         // поиску и почте, и знать о способе хранения им незачем. Значения, подмешанные из
         // конфигурации, метки шифрования не имеют и проходят через Unprotect как есть.
         UnprotectSecrets(m);
+        proxyState.Update(m);
         return m;
     }
 
@@ -263,6 +302,7 @@ public class IntegrationSettingsService(
                 _ => null,
             }),
             BaseUrl = Pick(r.BaseUrl, name == "Ollama" ? (config["Ollama:BaseUrl"] ?? "http://localhost:11434") : null),
+            UseProxy = r.UseProxy,
         };
         e.Enabled = has ? r.Enabled : HasKey(name, e, web: false);
         return e;
@@ -277,6 +317,7 @@ public class IntegrationSettingsService(
             ApiKey = Pick(r.ApiKey, name switch { "Serper" => config["WebSearch:ApiKey"], "Yandex" => config["WebSearch:Yandex:ApiKey"], _ => null }),
             FolderId = Pick(r.FolderId, name == "Yandex" ? config["WebSearch:Yandex:FolderId"] : null),
             Host = Pick(r.Host, name == "Yandex" ? (config["WebSearch:Yandex:Host"] ?? "https://yandex.ru/search/xml") : null),
+            UseProxy = r.UseProxy,
         };
         e.Enabled = has ? r.Enabled : HasKey(name, e, web: true);
         return e;

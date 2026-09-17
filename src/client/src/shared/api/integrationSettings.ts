@@ -14,6 +14,8 @@ export interface EngineDto {
    * (issue #797): своя копия правила на клиенте обещала бы участие движку, который сервер не берёт.
    */
   missing?: string | null;
+  /** Ходить к движку через прокси из настроек (issue #936). */
+  useProxy: boolean;
 }
 
 export interface SmtpDto {
@@ -25,6 +27,7 @@ export interface SmtpDto {
   from?: string | null;
   fromName?: string | null;
   useSsl: boolean;
+  useProxy: boolean;
 }
 
 export interface GithubDto {
@@ -32,12 +35,31 @@ export interface GithubDto {
   repository: string;
   /** Токен наружу не отдаётся: только признак «задан», как у ключей движков. */
   hasToken: boolean;
+  useProxy: boolean;
+}
+
+/**
+ * Прокси для внешних сервисов (issue #936). Пароль с сервера не приходит — только признак «задан».
+ * Прокси один, а пользуется им только сервис с галкой «через прокси».
+ */
+export interface ProxyDto {
+  url?: string | null;
+  user?: string | null;
+  hasPassword: boolean;
+}
+
+/** Обновление прокси (пустой password = оставить прежний, но только для того же прокси и логина). */
+export interface ProxyUpdate {
+  url?: string | null;
+  user?: string | null;
+  password?: string;
 }
 
 /** Обновление настроек GitHub (пустой token = оставить прежний, но только для того же репозитория). */
 export interface GithubUpdate {
   repository: string;
   token?: string;
+  useProxy: boolean;
 }
 
 export interface IntegrationSettingsDto {
@@ -48,6 +70,9 @@ export interface IntegrationSettingsDto {
   manufacturerDomains: string[];
   smtp: SmtpDto;
   github: GithubDto;
+  proxy: ProxyDto;
+  /** Страницы из выдачи поиска и файлы по ссылке — через прокси. */
+  externalLinksUseProxy: boolean;
 }
 
 /** Обновление SMTP (пустой password = оставить прежний). */
@@ -60,6 +85,7 @@ export interface SmtpUpdate {
   from?: string | null;
   fromName?: string | null;
   useSsl: boolean;
+  useProxy: boolean;
 }
 
 export interface UserEmailStatus {
@@ -75,6 +101,7 @@ export interface EngineUpdate {
   baseUrl?: string | null;
   folderId?: string | null;
   host?: string | null;
+  useProxy: boolean;
 }
 
 export interface IntegrationSettingsUpdate {
@@ -83,6 +110,7 @@ export interface IntegrationSettingsUpdate {
   webSearch: Record<string, EngineUpdate>;
   fgisDomains: string[];
   manufacturerDomains: string[];
+  externalLinksUseProxy: boolean;
 }
 
 export function useIntegrationSettings() {
@@ -176,6 +204,19 @@ export function useSaveGithubSettings() {
       // сброса она объясняла бы «укажите токен» уже после того, как его указали.
       qc.invalidateQueries({ queryKey: ['bug-reports'] });
     },
+  });
+}
+
+/**
+ * Сохранение только прокси. Пустой пароль = оставить прежний — но сервер оставит его ТОЛЬКО для того же
+ * прокси и логина: иначе форма была бы способом унести пароль на чужой прокси.
+ */
+export function useSaveProxy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (update: ProxyUpdate) =>
+      apiClient.put('/settings/integrations/proxy', update).then(() => undefined),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['integration-settings'] }),
   });
 }
 
