@@ -137,6 +137,20 @@ jobs:
             same "$GG_WANT" deploy/Dockerfile.garage-init 's|^FROM \(dxflrs/garage:[^ ]*\) .*$|\1|p' "garage"
           fi
 
+          # ── Обратный прокси стенда: эталон — образ, на котором собирается web ────────────
+          # На стенде nginx стоит перед приложением и даёт ему HTTPS (issue #940). Своего образа у
+          # него нет: берётся тот же, на котором в поставке собирается web, — стенд, отставший по
+          # версии прокси, проверяет не то, что поедет заказчику. Эталон здесь не
+          # deploy/docker-compose.yml (там образ наш, из GHCR), а `FROM` в Dockerfile.web.
+          NG_WANT=$(sed -n 's|^FROM \(nginxinc/nginx-unprivileged:[^ ]*\).*$|\1|p' deploy/Dockerfile.web | head -1)
+          if [ -z "$NG_WANT" ]; then
+            echo "::error::В deploy/Dockerfile.web не нашёлся образ nginx — сверять не с чем"
+            rc=1
+          else
+            echo "поставка (nginx): $NG_WANT"
+            same "$NG_WANT" docker-compose.yml 's|^ *image: *\(nginxinc/nginx-unprivileged:[^ ]*\)$|\1|p' "nginx"
+          fi
+
           # Копия MinIO в нашем GHCR остаётся нужной и после перехода — ею пользуется миграция на
           # установках, которые придут со старых версий. Здесь она не сверяется ни с чем (сервиса
           # больше нет), но упомянута, чтобы её не удалили как ненужную.
