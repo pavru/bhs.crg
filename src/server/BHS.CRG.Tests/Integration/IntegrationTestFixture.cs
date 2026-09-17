@@ -1,5 +1,6 @@
 ﻿using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Jobs;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Storage;
 using Microsoft.AspNetCore.Hosting;
@@ -36,7 +37,9 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
     /// В ci.yml сервисный контейнер публикует тот же 5433 — значение одно на все окружения.
     /// </summary>
     internal static readonly string TestConnectionString =
-        "Host=localhost;Port=5433;Username=postgres;Password=xxsystem;Database="
+        // Include Error Detail — чтобы отказ базы называл, что именно сцепилось: без него взаимная
+        // блокировка из #928 пришла с «Detail redacted», и обе стороны пришлось вычислять по журналу.
+        "Host=localhost;Port=5433;Username=postgres;Password=xxsystem;Include Error Detail=true;Database="
         + (Environment.GetEnvironmentVariable("BHS_TEST_DB") is { Length: > 0 } db ? db : "bhs_crg_test");
 
     /// <summary>
@@ -57,6 +60,10 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         // TRUNCATE. Прогон целиком укладывается примерно в те же две минуты, то есть встретились бы
         // мы с этим не сразу и не там.
         ["Backup:SchedulerEnabled"] = "false",
+        // Проверка обновлений и мониторинг — то же самое (issue #928): обе службы пишут в базу по
+        // своему расписанию. Ни один тест на них не опирается; сами службы в контейнере остаются.
+        ["Updates:CheckerEnabled"] = "false",
+        ["Health:MonitorEnabled"] = "false",
     };
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -138,9 +145,38 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         "service_state",
     ];
 
+    /// <summary>Сколько ждать, пока доработают фоновые задачи прошлого теста.</summary>
+    private static readonly TimeSpan BackgroundJobsDeadline = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Ждёт, пока доработают фоновые задачи, поставленные прошлым тестом (issue #928).
+    ///
+    /// Тесты, запускающие сборку и распознавание по HTTP, ставят настоящие задачи, и те дорабатывают
+    /// в фоне сами по себе — уже после конца теста. Очистка базы следующим тестом встречалась с ними:
+    /// в CI это дало взаимную блокировку TRUNCATE, а там, где блокировки не случалось, задача
+    /// дописывала строки прошлого теста в чистую базу следующего.
+    ///
+    /// Не дождались — падаем, а не чистим поверх: зелёный прогон на базе с чужими строками хуже
+    /// честного отказа. Предел с запасом: задачи в тестах идут секунды.
+    /// </summary>
+    private async Task WaitForBackgroundJobsAsync()
+    {
+        var queue = Services.GetRequiredService<JobQueue>();
+        var deadline = DateTime.UtcNow + BackgroundJobsDeadline;
+        while (!queue.IsIdle)
+        {
+            if (DateTime.UtcNow > deadline)
+                throw new InvalidOperationException(
+                    $"Фоновые задачи прошлого теста не доработали за {BackgroundJobsDeadline.TotalSeconds:0} с — " +
+                    "очистка базы поверх них перемешала бы данные тестов. Проверьте, не зависла ли задача.");
+            await Task.Delay(25);
+        }
+    }
+
     /// <summary>Truncates all domain tables so each test class starts clean.</summary>
     public async Task ResetDatabaseAsync()
     {
+        await WaitForBackgroundJobsAsync();
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         // Имена берём в кавычки: сейчас список весь в нижнем регистре, но часть таблиц модели

@@ -27,11 +27,13 @@ public class JobBackgroundService(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await foreach (var jobId in queue.ReadAllAsync(stoppingToken))
+        // Через ProcessAllAsync, а не перебором канала: только так очередь знает, что задача
+        // доработана, и может честно сказать «пусто» (issue #928).
+        await queue.ProcessAllAsync(async jobId =>
         {
             try { await ProcessAsync(jobId, stoppingToken); }
             catch (Exception ex) { logger.LogError(ex, "Необработанная ошибка выполнения задачи {JobId}", jobId); }
-        }
+        }, stoppingToken);
     }
 
     private async Task ProcessAsync(Guid jobId, CancellationToken ct)
