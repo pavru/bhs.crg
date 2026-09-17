@@ -520,11 +520,17 @@ builder.Services.AddScoped<ServiceStateStore>();
 builder.Services.AddScoped<IUpdateCheck, UpdateCheckReader>();
 builder.Services.AddScoped<UpdateNotifier>();
 builder.Services.AddSingleton<UpdateCheckService>();
-builder.Services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService>());
-
 builder.Services.AddSingleton<HealthMonitorService>();
 builder.Services.AddSingleton<IHealthState>(sp => sp.GetRequiredService<HealthMonitorService>());
-builder.Services.AddHostedService(sp => sp.GetRequiredService<HealthMonitorService>());
+// Расписание проверки обновлений и мониторинга — выключаемое, по той же причине, что и плановое
+// копирование выше: под тестовым хостом обе службы пишут в базу по своему расписанию (уведомления,
+// service_state) и встречаются с TRUNCATE соседнего класса (issue #928). Сами службы остаются в
+// контейнере — кнопке «Проверить сейчас» и снимку состояния расписание не нужно. В поставке эти
+// переменные не задают.
+if (cfg.GetValue("Updates:CheckerEnabled", true))
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService>());
+if (cfg.GetValue("Health:MonitorEnabled", true))
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<HealthMonitorService>());
 builder.Services.AddHttpClient<SerperEngine>().ConfigureHttpClient(c => c.Timeout = SerperEngine.Timeout);
 builder.Services.AddHttpClient<YandexEngine>().ConfigureHttpClient(c => c.Timeout = YandexEngine.Timeout);
 builder.Services.AddScoped<IWebSearchEngine>(sp => sp.GetRequiredService<SerperEngine>());
