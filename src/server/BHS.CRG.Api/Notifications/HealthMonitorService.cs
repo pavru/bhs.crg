@@ -3,6 +3,7 @@ using BHS.CRG.Application.Settings;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Storage;
+using BHS.CRG.Infrastructure.Updates;
 using Microsoft.EntityFrameworkCore;
 using Minio;
 using Minio.DataModel.Args;
@@ -27,6 +28,18 @@ public class HealthMonitorService(
 
     private volatile IReadOnlyList<ComponentHealth> _snapshot = [];
     private readonly HealthHysteresis _hysteresis = new();
+
+    // Объявленное прошлым процессом ещё не прочитано. Читаем на тике, а не на старте службы: база
+    // могла не отвечать, и тогда пробуем на следующем круге (issue #920).
+    private bool _restored;
+
+    // Когда пробу модели последний раз разрешали и с какой конфигурацией (issue #921). В памяти
+    // намеренно: после перезапуска вердикта в кэше каталога всё равно нет, и первая проба нужна.
+    private readonly Dictionary<string, DateTimeOffset> _probePaidAt = [];
+    private readonly Dictionary<string, string> _probeConfig = [];
+
+    // Что лежит в базе сейчас — чтобы писать только при изменении, а не каждые 45 секунд.
+    private IReadOnlyDictionary<string, HealthState> _saved = new Dictionary<string, HealthState>();
 
     public IReadOnlyList<ComponentHealth> Snapshot => _snapshot;
 
@@ -71,7 +84,7 @@ public class HealthMonitorService(
             probes.Add(await ProbeAsync("recognition.ollama", "Ollama (распознавание)", HealthClass.Engine, async () =>
             {
                 await CheckOllamaAsync(ollama.BaseUrl, ct);
-                return await ModelDetailAsync(sp, "Ollama", ollama, ct);
+                return await ModelDetailAsync(sp, "recognition.ollama", "Ollama", ollama, ct);
             }));
 
         // Gemini — сначала лёгкий GET метаданных (доступен ли движок вообще), потом проверка самой
@@ -82,12 +95,16 @@ public class HealthMonitorService(
             probes.Add(await ProbeAsync("recognition.gemini", "Gemini (распознавание)", HealthClass.Engine, async () =>
             {
                 await CheckGeminiAsync(gemini.ApiKey!, gemini.Model, ct);
-                return await ModelDetailAsync(sp, "Gemini", gemini, ct);
+                return await ModelDetailAsync(sp, "recognition.gemini", "Gemini", gemini, ct);
             }));
+
+        var store = sp.GetRequiredService<ServiceStateStore>();
+        await RestoreAnnouncedAsync(store, ct);
 
         // Компоненты, которых больше не проверяем, забываем: иначе выключенный и снова включённый
         // движок унаследовал бы счётчики прошлой жизни.
         _hysteresis.Retain(probes.Select(p => p.Code));
+        ForgetProbeSchedule(probes.Select(p => p.Code));
 
         var notifier = sp.GetRequiredService<INotificationService>();
         var snapshot = new List<ComponentHealth>(probes.Count);
@@ -109,7 +126,55 @@ public class HealthMonitorService(
 
         // Снимок присваивается ПОСЛЕ разбора: до него состояние ещё не подтверждено.
         _snapshot = snapshot;
+
+        await SaveAnnouncedAsync(store, ct);
     }
+
+    /// <summary>
+    /// Возвращает объявленное прошлым процессом — до разбора первых проб, иначе уже объявленный
+    /// отказ объявлялся бы заново. Не удалось прочитать — продолжаем с чистого листа и пробуем на
+    /// следующем круге: мониторинг, который молчит из-за своей же истории, хуже повторного
+    /// уведомления.
+    /// </summary>
+    private async Task RestoreAnnouncedAsync(ServiceStateStore store, CancellationToken ct)
+    {
+        if (_restored) return;
+        try
+        {
+            var announced = (await store.LoadAsync<HealthAnnouncedState>(HealthAnnouncedState.Key, ct)).ToStates();
+            _hysteresis.Restore(announced);
+            _saved = announced;
+            _restored = true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Не удалось прочитать объявленное состояние компонентов — повторим на следующей проверке");
+        }
+    }
+
+    /// <summary>
+    /// Пишет объявленное, когда оно изменилось. Сбой записи не роняет круг: значение останется
+    /// «несохранённым» и уйдёт на следующем — а база сама может быть тем, что сейчас не отвечает.
+    /// </summary>
+    private async Task SaveAnnouncedAsync(ServiceStateStore store, CancellationToken ct)
+    {
+        // Пока прошлое не прочитано, писать нельзя: затёрли бы его своим, ещё неполным.
+        if (!_restored) return;
+        var announced = _hysteresis.Announced;
+        if (SameAnnouncement(announced, _saved)) return;
+        try
+        {
+            await store.SaveAsync(HealthAnnouncedState.Key, HealthAnnouncedState.From(announced), ct);
+            _saved = announced;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Не удалось сохранить объявленное состояние компонентов — повторим на следующей проверке");
+        }
+    }
+
+    private static bool SameAnnouncement(IReadOnlyDictionary<string, HealthState> a, IReadOnlyDictionary<string, HealthState> b)
+        => a.Count == b.Count && a.All(x => b.TryGetValue(x.Key, out var v) && v == x.Value);
 
     /// <summary>Результат одной пробы — сырой, до подтверждения сериями.</summary>
     private sealed record Probe(string Code, string Name, HealthClass Class, bool Ok, string? Detail);
@@ -166,19 +231,39 @@ public class HealthMonitorService(
     /// своими настройками.
     ///
     /// Для облачного движка это РАСХОД: проба — настоящий запрос генерации (с ответом в один токен).
-    /// На круг мониторинга он не приходится — определённый ответ каталог держит четверть часа, а
-    /// неопределённый три минуты, что заведомо длиннее 45-секундного круга. Срок кэша короче круга
-    /// означал бы запрос на каждом круге, то есть беспрерывный стук в поставщика ровно тогда, когда
-    /// он и так отказывает.
+    /// Когда платить, решает <see cref="ModelProbeSchedule"/>, а не срок кэша каталога (issue #921):
+    /// на остальных кругах вердикт берётся из кэша. Ollama отвечает по списку установленных моделей,
+    /// и режим пробы её не касается — расписание к ней применяется, ничего не меняя.
     /// </summary>
-    private static async Task<string?> ModelDetailAsync(IServiceProvider sp, string name, IntegrationEngine cfg, CancellationToken ct)
+    private async Task<string?> ModelDetailAsync(IServiceProvider sp, string code, string name, IntegrationEngine cfg, CancellationToken ct)
     {
+        var config = $"{cfg.Model}|{cfg.ApiKey?.GetHashCode(StringComparison.Ordinal)}";
+        var paidAt = _probePaidAt.TryGetValue(code, out var at) ? at : (DateTimeOffset?)null;
+        var configChanged = _probeConfig.TryGetValue(code, out var seen) && seen != config;
+        var announcedDown = _hysteresis.Announced.TryGetValue(code, out var announced) && announced == HealthState.Down;
+
+        var now = DateTimeOffset.UtcNow;
+        var mode = ModelProbeSchedule.Decide(paidAt, configChanged, announcedDown, now);
+        if (mode != ModelProbe.CacheOnly)
+        {
+            _probePaidAt[code] = now;
+            _probeConfig[code] = config;
+        }
+
         var status = await sp.GetRequiredService<IRecognitionModelCatalog>()
-            .GetStatusAsync(name, cfg, cfg.Model ?? string.Empty, ct: ct);
+            .GetStatusAsync(name, cfg, cfg.Model ?? string.Empty, mode, ct);
         var issue = EngineReadiness.ModelIssue(name, cfg, status);
         // Через исключение — потому что «нездоров» в этом мониторинге выражается только так (CheckAsync).
         if (issue is not null) throw new InvalidOperationException(char.ToUpperInvariant(issue[0]) + issue[1..]);
         return null;
+    }
+
+    /// <summary>Расписание пробы для компонентов, которых больше не проверяем, забывается: включённый заново движок начинает с пробы.</summary>
+    private void ForgetProbeSchedule(IEnumerable<string> codes)
+    {
+        var keep = codes.ToHashSet();
+        foreach (var code in _probePaidAt.Keys.Where(c => !keep.Contains(c)).ToList()) _probePaidAt.Remove(code);
+        foreach (var code in _probeConfig.Keys.Where(c => !keep.Contains(c)).ToList()) _probeConfig.Remove(code);
     }
 
     private async Task<string?> CheckOllamaAsync(string? baseUrl, CancellationToken ct)

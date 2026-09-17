@@ -67,6 +67,21 @@ public class RecognitionEngineSelector(
         return new EngineSelection(usable, blind);
     }
 
+    /// <summary>
+    /// Передать каталогу наблюдённое «модель снята» (issue #923). Здесь, а не в движке: каталог сам
+    /// зависит от движков, и запись из движка в каталог замкнула бы их в цикл.
+    ///
+    /// Записывается, только если отказавшая модель — та, что назначена сейчас: вердикт читают по
+    /// назначенной модели, а модель по умолчанию (поле пусто) и сменённую за время запроса не
+    /// проверяет никто — запись под их именем никому бы не сказала ничего.
+    /// </summary>
+    public async Task ObserveGoneAsync(RecognitionModelGoneException gone, CancellationToken ct = default)
+    {
+        var cfg = (await settings.GetEffectiveAsync(ct)).Rec(gone.Engine);
+        if (!EngineReadiness.SameModel(cfg.Model ?? "", gone.Model)) return;
+        catalog.ObserveGone(gone.Engine, cfg, cfg.Model!, gone.Advice);
+    }
+
     /// <summary>Какая модель назначена движку сейчас; пусто — не задана.</summary>
     public async Task<string?> ModelOfAsync(string engine, CancellationToken ct = default)
         => (await settings.GetEffectiveAsync(ct)).Rec(engine).Model;

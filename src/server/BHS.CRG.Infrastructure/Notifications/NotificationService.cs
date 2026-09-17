@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Linq.Expressions;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Domain.Notifications;
@@ -17,8 +18,21 @@ namespace BHS.CRG.Infrastructure.Notifications;
 /// </summary>
 public class NotificationService(AppDbContext db, ILogger<NotificationService> logger) : INotificationService
 {
-    /// <summary>Сколько уведомлений держим — НА КОРЗИНУ (на каждого получателя и отдельно на общесистемные).</summary>
+    /// <summary>
+    /// Сколько уведомлений держим — НА КОРЗИНУ (на каждого получателя и отдельно на общесистемные).
+    ///
+    /// Колокольчик — ящик входящих, а не журнал событий: старое вытесняется без следа в таблице.
+    /// Ровно <see cref="MaxKept"/> записей в корзине значит «история обрезана», и хронологию событий
+    /// по ней не восстановить (issue #919: поток мониторинга вытеснил две недели и был принят за
+    /// начало сбоев). Вытеснение молодых записей журнал отмечает предупреждением — см.
+    /// <see cref="NotificationEviction"/>.
+    /// </summary>
     private const int MaxKept = 300;
+
+    // Когда корзина последний раз предупреждала о потоке. Статически: сервис живёт запрос, а
+    // ограничение частоты — всё время процесса. Guid.Empty — корзина общесистемных. Гонка двух
+    // одновременных подрезок даст в худшем случае две строки вместо одной.
+    private static readonly ConcurrentDictionary<Guid, DateTimeOffset> LastFlowWarning = new();
 
     // Видимые пользователю: личные (его userId) + общесистемные (null).
     private static Expression<Func<Notification, bool>> VisibleTo(Guid userId)
@@ -39,7 +53,7 @@ public class NotificationService(AppDbContext db, ILogger<NotificationService> l
         await db.SaveChangesAsync(ct);
         logger.LogInformation("Уведомление [{Severity}] {Title} ({Source}) user={User}", severity, title, source, userId);
 
-        await PruneAsync(userId, ct);
+        await PruneAsync(userId, n.CreatedAt, ct);
     }
 
     /// <summary>
@@ -47,7 +61,7 @@ public class NotificationService(AppDbContext db, ILogger<NotificationService> l
     /// <see cref="MaxKept"/> и отдельно столько же общесистемных. Общий предел на всех вытеснял бы
     /// важное чужим потоком уведомлений о генерации и распознавании.
     /// </summary>
-    private async Task PruneAsync(Guid? userId, CancellationToken ct)
+    private async Task PruneAsync(Guid? userId, DateTimeOffset newestKept, CancellationToken ct)
     {
         // Отдельные ветки, а не `n.UserId == userId`: с nullable-параметром EF сгенерировал бы
         // сравнение `= NULL`, которое в SQL не истинно никогда, и корзина общесистемных не чистилась бы.
@@ -58,12 +72,28 @@ public class NotificationService(AppDbContext db, ILogger<NotificationService> l
         var total = await bucket.CountAsync(ct);
         if (total <= MaxKept) return;
 
-        var idsToRemove = await bucket
+        // С последней оставляемой: её дата — горизонт истории, который останется после подрезки.
+        var tail = await bucket
             .OrderByDescending(n => n.CreatedAt)
-            .Skip(MaxKept)
-            .Select(n => n.Id)
+            .Skip(MaxKept - 1)
+            .Select(n => new { n.Id, n.CreatedAt })
             .ToListAsync(ct);
+        var horizon = tail[0].CreatedAt;
+        var evicted = tail.Skip(1).ToList();   // от самой молодой к самой старой
+        var idsToRemove = evicted.Select(e => e.Id).ToList();
         await db.Notifications.Where(n => idsToRemove.Contains(n.Id)).ExecuteDeleteAsync(ct);
+
+        var flow = NotificationEviction.IsFlow(evicted[0].CreatedAt, newestKept);
+        var key = userId ?? Guid.Empty;
+        var now = DateTimeOffset.UtcNow;
+        if (!NotificationEviction.ShouldWarn(flow, LastFlowWarning.TryGetValue(key, out var last) ? last : null, now)) return;
+        LastFlowWarning[key] = now;
+
+        logger.LogWarning(
+            "Уведомления вытесняются потоком: корзина {Bucket} удалила {Removed} записей моложе {Days} дней; " +
+            "история теперь начинается с {Horizon:u}. Хронологию событий по колокольчику не восстанавливать — " +
+            "ищите издателя, который публикует слишком часто",
+            userId?.ToString() ?? "общесистемных", evicted.Count, NotificationEviction.FlowWindow.TotalDays, horizon);
     }
 
     public async Task<IReadOnlyList<NotificationDto>> GetAsync(Guid userId, bool unreadOnly = false, int take = 100, CancellationToken ct = default)
