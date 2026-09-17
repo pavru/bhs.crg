@@ -1,7 +1,46 @@
 namespace BHS.CRG.Application.Notifications;
 
-/// <summary>Состояние одного отслеживаемого компонента (БД, хранилище, Ollama).</summary>
-public record ComponentHealth(string Name, bool Healthy, string? Detail, DateTimeOffset CheckedAt);
+/// <summary>
+/// Подтверждённое состояние компонента. Не булево НАРОЧНО: между «отвечает» и «не отвечает» есть
+/// третье, и раньше оно выдавалось за первое — одна неудачная проба объявляла отказ, следующая
+/// удачная объявляла восстановление, и так по кругу (issue #917).
+/// </summary>
+public enum HealthState
+{
+    /// <summary>Отвечает.</summary>
+    Up,
+
+    /// <summary>Не отвечает — подтверждено серией, а не одной пробой.</summary>
+    Down,
+
+    /// <summary>Отвечает через раз: последняя проба разошлась с подтверждённым состоянием.</summary>
+    Flapping,
+}
+
+/// <summary>
+/// Класс компонента. Определяет и строгость уведомления, и то, сколькими пробами подтверждается
+/// отказ: для локального сокета базы «мигать» нечем, а движок за чужой сетью мигает постоянно.
+/// </summary>
+public enum HealthClass
+{
+    /// <summary>Своё: база, хранилище. Отказ объявляется первой же неудачей.</summary>
+    Core,
+
+    /// <summary>Внешний движок за чужой сетью. Отказ подтверждается серией.</summary>
+    Engine,
+}
+
+/// <summary>Состояние одного отслеживаемого компонента (БД, хранилище, Ollama, Gemini).</summary>
+/// <param name="Code">Устойчивый код — по нему ведутся счётчики. Отображаемое имя для этого не
+/// годится: переименование молча обнулило бы историю.</param>
+/// <param name="Detail">Текст ПОСЛЕДНЕЙ пробы, а не подтверждённого состояния, — иначе промежуточное
+/// «отвечает через раз» нечем объяснить.</param>
+public record ComponentHealth(
+    string Code, string Name, HealthClass Class, HealthState State, string? Detail, DateTimeOffset CheckedAt)
+{
+    /// <summary>Для потребителей, которым нужно булево. «Через раз» — ещё не отказ.</summary>
+    public bool Healthy => State != HealthState.Down;
+}
 
 /// <summary>Текущий снимок состояния системы и внешних компонент (обновляется фоновой проверкой).</summary>
 public interface IHealthState

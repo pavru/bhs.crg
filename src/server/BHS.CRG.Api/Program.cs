@@ -91,6 +91,18 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
 });
 var cfg = builder.Configuration;
 
+// Как приложение открывает соединения наружу — один раз на всех клиентов фабрики. Платформа
+// перебирает адреса имени по очереди, и один недостижимый съедает весь бюджет: у health-пробы это
+// давало «недоступен/восстановлен» через раз, у распознавания и загрузки по ссылке — молчаливую
+// потерю секунд (issue #917). Настройка ставится ДО всех AddHttpClient — иначе клиент, собранный
+// раньше, останется со штатным последовательным перебором.
+//
+// Именно UseSocketsHttpHandler, а не ConfigurePrimaryHttpMessageHandler: первый ДОПОЛНЯЕТ
+// существующий обработчик, второй ЗАМЕНЯЕТ его целиком. С заменой порядок регистрации в DI решал
+// бы, что кого затрёт, — а среди затираемого есть проверка адреса (OutboundAddressPolicy).
+if (cfg.GetValue("Http:HappyEyeballs", true))
+    builder.Services.ConfigureHttpClientDefaults(b => b.UseSocketsHttpHandler((h, _) => OutboundConnect.Apply(h)));
+
 builder.Services.ConfigureHttpJsonOptions(opt =>
     opt.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
@@ -521,7 +533,7 @@ builder.Services.AddScoped<IWebSearchEngine>(sp => sp.GetRequiredService<YandexE
 // цель каждого. С автоследованием проверка исходного адреса ничего не стоит — ответ общедоступного
 // хоста уводит куда угодно.
 builder.Services.AddHttpClient<TieredWebSearch>()
-    .ConfigurePrimaryHttpMessageHandler(OutboundAddressPolicy.CreateGuardedHandler)
+    .UseSocketsHttpHandler((h, _) => OutboundAddressPolicy.ApplyGuard(h))
     .ConfigureHttpClient(c =>
 {
     c.Timeout = TimeSpan.FromSeconds(15);
@@ -530,7 +542,7 @@ builder.Services.AddHttpClient<TieredWebSearch>()
 });
 builder.Services.AddScoped<IQualityDocSearch>(sp => sp.GetRequiredService<TieredWebSearch>());
 builder.Services.AddHttpClient<IFileUrlFetcher, HttpFileUrlFetcher>()
-    .ConfigurePrimaryHttpMessageHandler(OutboundAddressPolicy.CreateGuardedHandler)
+    .UseSocketsHttpHandler((h, _) => OutboundAddressPolicy.ApplyGuard(h))
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddSingleton<TypstGenerator>();
 builder.Services.AddSingleton<IDocumentGeneratorFactory, DocumentGeneratorFactory>();
