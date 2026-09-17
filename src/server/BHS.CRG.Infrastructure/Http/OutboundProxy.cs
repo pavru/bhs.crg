@@ -42,12 +42,28 @@ public sealed class OutboundProxyState
 
     private volatile Snapshot _current = new(null, null, new HashSet<OutboundService>());
 
+    /// <summary>
+    /// Состояние «этот прокси, для этих сервисов» — для проверки связи (issue #937). Она идёт по
+    /// значениям ФОРМЫ, ещё не сохранённым, и разбирать её отказы должен тот же классификатор, что
+    /// разбирает рабочие: иначе кнопка и работа объясняли бы одну беду по-разному.
+    /// </summary>
+    public static OutboundProxyState ForCheck(ProxySettings proxy, params OutboundService[] services)
+    {
+        ProxySettings.TryParseUrl(proxy.Url, out var uri, out _);
+        var state = new OutboundProxyState();
+        state._current = new Snapshot(uri, CredentialOf(proxy, uri), services.ToHashSet());
+        return state;
+    }
+
+    private static NetworkCredential? CredentialOf(ProxySettings proxy, Uri? uri)
+        => uri is not null && !string.IsNullOrWhiteSpace(proxy.User)
+            ? new NetworkCredential(proxy.User.Trim(), proxy.Password ?? "")
+            : null;
+
     public void Update(IntegrationSettingsModel m)
     {
         ProxySettings.TryParseUrl(m.Proxy.Url, out var uri, out _);
-        var credential = uri is not null && !string.IsNullOrWhiteSpace(m.Proxy.User)
-            ? new NetworkCredential(m.Proxy.User.Trim(), m.Proxy.Password ?? "")
-            : null;
+        var credential = CredentialOf(m.Proxy, uri);
 
         var services = new HashSet<OutboundService>();
         void Mark(bool on, OutboundService s) { if (on) services.Add(s); }
@@ -75,6 +91,16 @@ public sealed class OutboundProxyState
 
     /// <summary>Заданный прокси, независимо от галок; <c>null</c> — не задан.</summary>
     public Uri? Configured => _current.Proxy;
+
+    /// <summary>Сервисы, которые сейчас ходят через прокси. Пусто — прокси не задан или галок нет.</summary>
+    public IReadOnlyList<OutboundService> InUse
+    {
+        get
+        {
+            var s = _current;
+            return s.Proxy is null ? [] : [.. s.Services.Order()];
+        }
+    }
 
     /// <summary>
     /// Соединение к <paramref name="host"/> — это соединение с прокси сервиса, а не с целью запроса?
@@ -137,8 +163,33 @@ public static class OutboundProxy
         handler.Proxy = null;
     }
 
+    /// <summary>
+    /// Через ЭТОТ прокси, а не через настроенный. Нужно проверке связи: её запускают по значениям
+    /// формы, ещё не сохранённым, — иначе проверялось бы не то, что человек набрал.
+    /// </summary>
+    public static void RouteFixed(SocketsHttpHandler handler, Uri proxy, NetworkCredential? credential)
+    {
+        handler.UseProxy = true;
+        handler.Proxy = new WebProxy(proxy) { Credentials = credential };
+    }
+
     /// <summary>Имя именованного клиента: назначение и сервис. Одна функция, чтобы регистрация и вызов не разъехались.</summary>
     public static string ClientName(string purpose, OutboundService service) => $"{purpose}:{service}";
+
+    /// <summary>Имя сервиса для человека: оно попадает и в тексты отказов, и в строки состояния.</summary>
+    public static string DisplayName(OutboundService service) => service switch
+    {
+        OutboundService.Gemini => "Gemini",
+        OutboundService.Anthropic => "Anthropic",
+        OutboundService.Ollama => "Ollama",
+        OutboundService.Serper => "Serper",
+        OutboundService.Yandex => "Яндекс",
+        OutboundService.Smtp => "Почта",
+        OutboundService.UpdateCheck => "Проверка обновлений",
+        OutboundService.Github => "Передача в GitHub",
+        OutboundService.ExternalLinks => "Загрузка по внешним ссылкам",
+        _ => service.ToString(),
+    };
 
     /// <summary>
     /// Прокси для MailKit. Почта ходит не HTTP-клиентом, поэтому своя трансляция — но из того же

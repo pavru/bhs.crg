@@ -1,9 +1,10 @@
-using BHS.CRG.Tests.Support;
 using System.Net;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.Recognition;
 using BHS.CRG.Infrastructure.Settings;
+using BHS.CRG.Tests.Support;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -69,7 +70,7 @@ public class ModelGoneObservationTests
     {
         var cfg = new IntegrationEngine { Enabled = true, ApiKey = "k", Model = "gemini-old" };
         var engine = new GeminiRecognizerEngine(new HttpClient(new Provider(HttpStatusCode.NotFound, GoogleGone)),
-            Settings("Gemini", cfg), NullLogger<GeminiRecognizerEngine>.Instance);
+            Settings("Gemini", cfg), new OutboundProxyState(), NullLogger<GeminiRecognizerEngine>.Instance);
 
         var ex = await Assert.ThrowsAsync<RecognitionModelGoneException>(() => engine.RecognizeRawAsync(Png, "image/png", Fields));
 
@@ -86,7 +87,7 @@ public class ModelGoneObservationTests
     {
         var cfg = new IntegrationEngine { Enabled = true, ApiKey = "k", Model = "claude-x" };
         var engine = new AnthropicRecognizerEngine(new HttpClient(new Provider(status, "{\"error\":{}}")),
-            Settings("Anthropic", cfg), NullLogger<AnthropicRecognizerEngine>.Instance);
+            Settings("Anthropic", cfg), new OutboundProxyState(), NullLogger<AnthropicRecognizerEngine>.Instance);
 
         var ex = await Assert.ThrowsAsync<RecognitionUnavailableException>(() => engine.RecognizeRawAsync(Png, "image/png", Fields));
         Assert.IsNotType<RecognitionModelGoneException>(ex);
@@ -98,7 +99,7 @@ public class ModelGoneObservationTests
         var cfg = new IntegrationEngine { Enabled = true, ApiKey = "k", Model = "claude-old" };
         var engine = new AnthropicRecognizerEngine(
             new HttpClient(new Provider(HttpStatusCode.NotFound, "{\"type\":\"error\",\"error\":{\"type\":\"not_found_error\",\"message\":\"model: claude-old\"}}")),
-            Settings("Anthropic", cfg), NullLogger<AnthropicRecognizerEngine>.Instance);
+            Settings("Anthropic", cfg), new OutboundProxyState(), NullLogger<AnthropicRecognizerEngine>.Instance);
 
         var ex = await Assert.ThrowsAsync<RecognitionModelGoneException>(() => engine.RecognizeRawAsync(Png, "image/png", Fields));
         Assert.Equal("claude-old", ex.Model);
@@ -114,7 +115,7 @@ public class ModelGoneObservationTests
         var probe = new Provider(HttpStatusCode.OK, "{}");
         var catalog = Catalog(probe);
         var engine = new GeminiRecognizerEngine(new HttpClient(new Provider(HttpStatusCode.NotFound, GoogleGone)),
-            settings, NullLogger<GeminiRecognizerEngine>.Instance);
+            settings, new OutboundProxyState(), NullLogger<GeminiRecognizerEngine>.Instance);
         var selector = new RecognitionEngineSelector([engine], settings, catalog, NullLogger<RecognitionEngineSelector>.Instance);
         var chain = new ChainDocumentRecognizer(selector, NullLogger<ChainDocumentRecognizer>.Instance);
 

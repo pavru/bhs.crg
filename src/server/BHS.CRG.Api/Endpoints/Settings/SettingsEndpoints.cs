@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using BHS.CRG.Application.Email;
 using BHS.CRG.Application.Settings;
+using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -32,7 +33,7 @@ public static class SettingsEndpoints
         // Чтение: ключи НЕ возвращаем, только признак «ключ задан». Сюда НЕ добавляем проверок,
         // ходящих в сеть: этот запрос рисует страницу настроек, и секунда ожидания поставщика — это
         // секунда пустого экрана. Что известно про модели, отдаёт /models, отдельным запросом.
-        g.MapGet("/", async (IIntegrationSettings settings, CancellationToken ct) =>
+        g.MapGet("/", async (IIntegrationSettings settings, OutboundProxyState proxyState, CancellationToken ct) =>
         {
             var m = await settings.GetEffectiveAsync(ct);
             return Results.Ok(new
@@ -64,6 +65,10 @@ public static class SettingsEndpoints
                     url = m.Proxy.Url,
                     user = m.Proxy.User,
                     hasPassword = !string.IsNullOrWhiteSpace(m.Proxy.Password),
+                    // Кого можно проверить кнопкой (issue #937): сервисы с галкой и постоянным
+                    // адресом. Считает сервер — у клиента нет и не должно быть списка этих адресов.
+                    checkable = ProxyCheck.Checkable(proxyState, m)
+                        .Select(s => new { service = s.ToString(), name = OutboundProxy.DisplayName(s) }),
                 },
                 externalLinksUseProxy = m.ExternalLinksUseProxy,
             });
@@ -84,6 +89,55 @@ public static class SettingsEndpoints
         {
             await settings.SaveProxyAsync(proxy);
             return Results.NoContent();
+        });
+
+        // Проверка прокси по значениям ФОРМЫ (issue #937): соединение с прокси и туннель до одного из
+        // сервисов с галкой. Ключ API не отправляется — ответ поставщика 401/403 значит «дошли».
+        g.MapPost("/proxy/test", async (ProxyTestRequest req, IIntegrationSettings settings,
+            OutboundProxyState state, CancellationToken ct) =>
+        {
+            var proxy = new ProxySettings { Url = req.Url, User = req.User, Password = req.Password };
+            var model = await settings.GetEffectiveAsync(ct);
+
+            // Пустое поле пароля при СОХРАНЁННОМ пароле значит «взять прежний», и вот тут же —
+            // тот же урок, что у проверки SMTP: подставляется он ТОЛЬКО тому же прокси и тому же
+            // логину. Иначе кнопка «Проверить» была бы способом отправить сохранённый пароль на
+            // чужой адрес: достаточно вписать свой прокси и не трогать поле пароля.
+            //
+            // Когда сохранённого пароля нет, отправлять нечего — и требовать его нельзя: прокси без
+            // входа это обычное дело, а отказ «введите пароль» на пустом месте выглядел бы поломкой.
+            if (string.IsNullOrWhiteSpace(proxy.Password) && !string.IsNullOrWhiteSpace(model.Proxy.Password))
+            {
+                if (!proxy.SameProxyAs(model.Proxy))
+                    return Results.Ok(new
+                    {
+                        ok = false,
+                        problem = nameof(OutboundProblem.None),
+                        message = "Проверка другого прокси или под другим логином требует ввести пароль: сохранённый на чужой адрес не отправляется.",
+                    });
+                proxy.Password = model.Proxy.Password;
+            }
+
+            // Какой сервис туннелировать: названный, иначе первый с галкой. Проверять сервис БЕЗ
+            // галки бессмысленно — он и в работе пойдёт напрямую, и удачная проверка обещала бы не то.
+            var checkable = ProxyCheck.Checkable(state, model);
+            OutboundService? service =
+                Enum.TryParse<OutboundService>(req.Service, ignoreCase: true, out var named) && checkable.Contains(named)
+                    ? named
+                    : checkable.Count > 0 ? checkable[0] : null;
+
+            var result = await ProxyCheck.RunAsync(proxy, service,
+                service is { } s ? ProxyCheck.TargetFor(s, model) : null, ct);
+            return Results.Ok(new
+            {
+                ok = result.Ok,
+                problem = result.Problem.ToString(),
+                message = result.Message,
+                service = result.Service?.ToString(),
+                serviceName = result.Service is { } used ? OutboundProxy.DisplayName(used) : null,
+                target = result.Target,
+                ms = result.Milliseconds,
+            });
         });
 
         // Сохранение только SMTP (отдельно от распознавания/поиска — формы не затирают друг друга).
@@ -289,6 +343,9 @@ public static class SettingsEndpoints
     };
 
     private record EmailTestRequest(string? To);
+
+    /// <param name="Service">Какой сервис туннелировать; пусто — первый с галкой «Через прокси».</param>
+    private record ProxyTestRequest(string? Url, string? User, string? Password, string? Service);
 
     /// <summary>Какой движок проверять канарейкой; по умолчанию — Ollama, единственный, кого спрашиваем.</summary>
     private record VisionCheckRequest(string? Engine);

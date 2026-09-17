@@ -46,6 +46,8 @@ export interface ProxyDto {
   url?: string | null;
   user?: string | null;
   hasPassword: boolean;
+  /** Кого можно проверить кнопкой: сервисы с галкой и постоянным адресом (считает сервер). */
+  checkable: { service: string; name: string }[];
 }
 
 /** Обновление прокси (пустой password = оставить прежний, но только для того же прокси и логина). */
@@ -217,6 +219,28 @@ export function useSaveProxy() {
     mutationFn: (update: ProxyUpdate) =>
       apiClient.put('/settings/integrations/proxy', update).then(() => undefined),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['integration-settings'] }),
+  });
+}
+
+/** Ответ проверки прокси (issue #937): удача или диагноз — тот же, которым объясняются рабочие отказы. */
+export interface ProxyTestResult {
+  ok: boolean;
+  problem: string;
+  message: string;
+  service?: string | null;
+  serviceName?: string | null;
+  target?: string | null;
+  ms?: number;
+}
+
+/**
+ * Проверка прокси по значениям ФОРМЫ: соединение с прокси и туннель до одного из сервисов с галкой.
+ * Ключ API не отправляется — ответ поставщика 401/403 значит «дошли».
+ */
+export function useTestProxy() {
+  return useMutation({
+    mutationFn: (req: ProxyUpdate & { service?: string | null }) =>
+      apiClient.post<ProxyTestResult>('/settings/integrations/proxy/test', req).then(r => r.data),
   });
 }
 

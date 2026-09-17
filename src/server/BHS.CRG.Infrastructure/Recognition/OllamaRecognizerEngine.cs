@@ -13,7 +13,7 @@ namespace BHS.CRG.Infrastructure.Recognition;
 /// в PNG-страницы (<see cref="PdfRasterizer"/>) без потери качества.
 /// </summary>
 public class OllamaRecognizerEngine(
-    HttpClient http, IIntegrationSettings settings, ILogger<OllamaRecognizerEngine> logger
+    HttpClient http, IIntegrationSettings settings, OutboundProxyState proxy, ILogger<OllamaRecognizerEngine> logger
 ) : IRecognizerEngine
 {
     private const string PdfMime = "application/pdf";
@@ -161,7 +161,8 @@ public class OllamaRecognizerEngine(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new RecognitionUnavailableException($"Ollama недоступен ({baseUrl}): {ex.Message}");
+            throw new RecognitionUnavailableException(
+                $"Ollama недоступен ({baseUrl}): {OutboundDiagnosis.Describe(ex, OutboundService.Ollama, proxy)}");
         }
 
         if (!resp.IsSuccessStatusCode)

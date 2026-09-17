@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Application.Updates;
+using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.Updates;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -25,6 +26,7 @@ namespace BHS.CRG.Api.Updates;
 public class UpdateCheckService(
     IServiceScopeFactory scopeFactory,
     IHttpClientFactory httpFactory,
+    OutboundProxyState proxy,
     ILogger<UpdateCheckService> logger
 ) : BackgroundService
 {
@@ -181,7 +183,10 @@ public class UpdateCheckService(
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
-            Fail("не удалось получить сведения о выпусках — {Message}", ex.Message);
+            // Через общий классификатор (issue #937): с прокси в пути «GitHub недоступен» чаще всего
+            // означает беду не с GitHub, а текст без разбора уводил бы искать её не там.
+            Fail("не удалось получить сведения о выпусках — {Message}",
+                OutboundDiagnosis.Describe(ex, OutboundService.UpdateCheck, proxy));
             return null;
         }
     }

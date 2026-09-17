@@ -76,36 +76,64 @@ public class HealthMonitorService(
             await ProbeAsync("storage", "Хранилище", HealthClass.Core, () => CheckStorageAsync(ct)),
         };
 
+        // Прокси — отдельной строкой, когда он задан и им кто-то пользуется (issue #937). Без неё
+        // упавший прокси приходил бы пачкой одинаковых уведомлений «поставщик недоступен»: по одному
+        // на каждый сервис с галкой, и ни одно не называло бы настоящую причину.
+        var proxyState = sp.GetRequiredService<OutboundProxyState>();
+        var viaProxy = proxyState.InUse.ToHashSet();
+        Probe? proxyProbe = null;
+        if (viaProxy.Count > 0)
+        {
+            proxyProbe = await ProbeAsync("proxy", "Прокси", HealthClass.Engine, () => CheckProxyAsync(settings.Proxy, ct));
+            probes.Add(proxyProbe);
+        }
+
+        // Пока прокси не отвечает, сервисы за ним не проверяем вовсе: проба всё равно скажет только
+        // то, что уже сказано строкой выше, — а на облачном движке она ещё и стоит запроса.
+        var paused = new List<(string Code, string Name)>();
+        bool Skip(OutboundService service, string code, string name)
+        {
+            if (proxyProbe is not { Ok: false } || !viaProxy.Contains(service)) return false;
+            paused.Add((code, name));
+            return true;
+        }
+
         // Движки распознавания проверяем ровно те, что РЕАЛЬНО участвуют в работе, — тем же
         // правилом, что и цепочка (EngineReadiness, issue #797). Раньше условия были свои: Ollama
         // проверялась при одной галке «включён», и без выбранной модели мониторинг сообщал бы о
         // недоступности движка, которым система всё равно не пользуется.
         var ollama = settings.Rec("Ollama");
-        if (EngineReadiness.IsUsableForRecognition("Ollama", ollama))
+        if (EngineReadiness.IsUsableForRecognition("Ollama", ollama)
+            && !Skip(OutboundService.Ollama, "recognition.ollama", "Ollama (распознавание)"))
             probes.Add(await ProbeAsync("recognition.ollama", "Ollama (распознавание)", HealthClass.Engine, async () =>
             {
                 await CheckOllamaAsync(ollama.BaseUrl, ct);
                 return await ModelDetailAsync(sp, "recognition.ollama", "Ollama", ollama, ct);
-            }));
+            }, OutboundService.Ollama, proxyState));
 
         // Gemini — сначала лёгкий GET метаданных (доступен ли движок вообще), потом проверка самой
         // модели. Вторая стоит одного запроса генерации на ответ (см. ModelDetailAsync): метаданные
         // про снятую с обслуживания модель молчат, и без пробы мониторинг её не увидит.
         var gemini = settings.Rec("Gemini");
-        if (EngineReadiness.IsUsableForRecognition("Gemini", gemini))
+        if (EngineReadiness.IsUsableForRecognition("Gemini", gemini)
+            && !Skip(OutboundService.Gemini, "recognition.gemini", "Gemini (распознавание)"))
             probes.Add(await ProbeAsync("recognition.gemini", "Gemini (распознавание)", HealthClass.Engine, async () =>
             {
                 await CheckGeminiAsync(gemini.ApiKey!, gemini.Model, ct);
                 return await ModelDetailAsync(sp, "recognition.gemini", "Gemini", gemini, ct);
-            }));
+            }, OutboundService.Gemini, proxyState));
 
         var store = sp.GetRequiredService<ServiceStateStore>();
         await RestoreAnnouncedAsync(store, ct);
 
         // Компоненты, которых больше не проверяем, забываем: иначе выключенный и снова включённый
         // движок унаследовал бы счётчики прошлой жизни.
-        _hysteresis.Retain(probes.Select(p => p.Code));
-        ForgetProbeSchedule(probes.Select(p => p.Code));
+        // Приостановленные — тоже «наши»: забыв их, мы обнулили бы счётчики и объявленное состояние
+        // за время, пока прокси лежит, и вернувшийся движок отчитался бы «восстановлен» о том, о чём
+        // не объявляли.
+        var alive = probes.Select(p => p.Code).Concat(paused.Select(p => p.Code)).ToList();
+        _hysteresis.Retain(alive);
+        ForgetProbeSchedule(alive);
 
         var notifier = sp.GetRequiredService<INotificationService>();
         var snapshot = new List<ComponentHealth>(probes.Count);
@@ -115,7 +143,10 @@ public class HealthMonitorService(
             // движка — ещё не отказ (issue #917).
             var move = _hysteresis.Observe(probe.Code, probe.Class, probe.Ok);
             snapshot.Add(new ComponentHealth(probe.Code, probe.Name, probe.Class,
-                _hysteresis.StateOf(probe.Code, probe.Ok), probe.Detail, DateTimeOffset.UtcNow));
+                _hysteresis.StateOf(probe.Code, probe.Ok), probe.Detail, DateTimeOffset.UtcNow)
+            {
+                ViaProxy = probe.Service is { } via && viaProxy.Contains(via),
+            });
 
             if (move == HealthTransition.WentDown)
                 await notifier.PublishAsync(SeverityFor(probe.Class), $"{probe.Name}: недоступен",
@@ -124,6 +155,12 @@ public class HealthMonitorService(
                 await notifier.PublishAsync(NotificationSeverity.Info, $"{probe.Name}: восстановлен",
                     "Компонент снова доступен.", "Состояние системы", ct: ct);
         }
+
+        // Приостановленные — в снимке, но без состояния: их не проверяли. Пропасть из панели они не
+        // могут — исчезнувшая строка читается как «выключено», а сервис включён и ждёт прокси.
+        foreach (var (code, name) in paused)
+            snapshot.Add(new ComponentHealth(code, name, HealthClass.Engine, HealthState.Unknown,
+                "Не проверяли: прокси недоступен.", DateTimeOffset.UtcNow) { ViaProxy = true });
 
         // Снимок присваивается ПОСЛЕ разбора: до него состояние ещё не подтверждено.
         _snapshot = snapshot;
@@ -178,7 +215,9 @@ public class HealthMonitorService(
         => a.Count == b.Count && a.All(x => b.TryGetValue(x.Key, out var v) && v == x.Value);
 
     /// <summary>Результат одной пробы — сырой, до подтверждения сериями.</summary>
-    private sealed record Probe(string Code, string Name, HealthClass Class, bool Ok, string? Detail);
+    /// <param name="Service">Чей это путь наружу; <c>null</c> — своё, наружу не ходит.</param>
+    private sealed record Probe(string Code, string Name, HealthClass Class, bool Ok, string? Detail,
+        OutboundService? Service = null);
 
     // Движки распознавания → Предупреждение; ядро (БД/хранилище) → Ошибка. По классу компонента, а
     // не по началу отображаемого имени: переименование иначе меняло бы строгость молча.
@@ -196,18 +235,36 @@ public class HealthMonitorService(
         return down > 1 ? $"{detail} Не отвечает {down} проверки подряд." : detail;
     }
 
-    private static async Task<Probe> ProbeAsync(string code, string name, HealthClass @class, Func<Task<string?>> probe)
+    /// <param name="service">Чей путь наружу проверяем — чтобы отказ разбирал общий классификатор
+    /// (issue #937): за прокси «движок недоступен» чаще всего означает беду не с движком.</param>
+    private static async Task<Probe> ProbeAsync(string code, string name, HealthClass @class, Func<Task<string?>> probe,
+        OutboundService? service = null, OutboundProxyState? proxy = null)
     {
         try
         {
-            return new Probe(code, name, @class, true, await probe());
+            return new Probe(code, name, @class, true, await probe(), service);
         }
         // Остановка приложения — не отказ компонента: иначе последний тик объявлял бы недоступным
         // то, что просто не успело ответить перед выключением.
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return new Probe(code, name, @class, false, Short(ex.Message));
+            var detail = service is { } s && proxy is not null
+                ? OutboundDiagnosis.Describe(ex, s, proxy)
+                : OutboundDiagnosis.Mask(ex.Message);
+            return new Probe(code, name, @class, false, Short(detail), service);
         }
+    }
+
+    /// <summary>
+    /// Прокси проверяем СОКЕТОМ, а не туннелем до сервиса: круг идёт каждые 45 секунд, и туннель
+    /// означал бы постоянный стук в чужой сервис без нужды. Отказ прокси в авторизации или в цели
+    /// увидит проба самого сервиса — и назовёт его тем же классификатором.
+    /// </summary>
+    private static async Task<string?> CheckProxyAsync(ProxySettings proxy, CancellationToken ct)
+    {
+        var result = await ProxyCheck.RunAsync(proxy, null, null, ct, TimeSpan.FromSeconds(5));
+        if (!result.Ok) throw new InvalidOperationException(result.Message);
+        return null;
     }
 
     private static async Task<string?> CheckPostgresAsync(IServiceProvider sp, CancellationToken ct)

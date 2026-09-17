@@ -21,8 +21,9 @@ export interface NotificationsResponse {
 }
 
 /** Подтверждённое состояние компонента. Flapping — отвечает через раз: последняя проба разошлась
- *  с подтверждённым состоянием, но отказ ещё не объявлен. */
-export type HealthState = 'Up' | 'Down' | 'Flapping';
+ *  с подтверждённым состоянием, но отказ ещё не объявлен. Unknown — не проверяли: сервис ходит
+ *  через прокси, а прокси недоступен (issue #937). */
+export type HealthState = 'Up' | 'Down' | 'Flapping' | 'Unknown';
 
 export interface ComponentHealth {
   /** Устойчивый код компонента; имя — для показа и меняться может. */
@@ -33,6 +34,8 @@ export interface ComponentHealth {
   healthy: boolean;
   detail?: string | null;
   checkedAt: string;
+  /** Компонент ходит наружу через прокси: отказ у него значит не то же, что у остальных. */
+  viaProxy?: boolean;
 }
 
 const POLL_MS = 20_000;

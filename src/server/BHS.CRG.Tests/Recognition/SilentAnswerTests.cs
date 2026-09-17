@@ -1,6 +1,7 @@
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.DataSets;
+using BHS.CRG.Infrastructure.Http;
 using BHS.CRG.Infrastructure.Recognition;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -93,7 +94,7 @@ public class OllamaContextLimitTests
     {
         // Пятистраничный под-PDF таблицы: 2048 + 5*4608 + 8192 больше 32768 — в один вызов не влезет.
         var engine = new OllamaRecognizerEngine(new HttpClient(new ThrowingHandler()),
-            new StubSettings("qwen2.5vl:7b"), NullLogger<OllamaRecognizerEngine>.Instance);
+            new StubSettings("qwen2.5vl:7b"), new OutboundProxyState(), NullLogger<OllamaRecognizerEngine>.Instance);
 
         var ex = await Assert.ThrowsAsync<RecognitionUnavailableException>(() =>
             engine.RecognizeRawAsync(FivePagePdf(), "application/pdf", [], null, CancellationToken.None));
