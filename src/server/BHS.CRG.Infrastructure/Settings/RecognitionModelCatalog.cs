@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using BHS.CRG.Application.QualityDocs;
@@ -303,8 +304,8 @@ public partial class RecognitionModelCatalog(
     ///
     /// ⚠️ С #918 это обоснование устарело: адреса пробуются внахлёст у всех клиентов, в том числе у
     /// этого. Ворота оставлены не потому, что нужны, а потому, что снять их — утверждение о сети,
-    /// проверяемое только на машине с нерабочим IPv6. От двойной оплаты они НЕ защищают: два
-    /// одновременных промаха кэша ждут друг друга и платят оба.
+    /// проверяемое только на машине с нерабочим IPv6 (issue #925). От двойной оплаты защищают не они,
+    /// а общая проверка на ключ в <see cref="Cached{T}"/>.
     /// </summary>
     private static readonly SemaphoreSlim ProbeGate = new(1);
 
@@ -349,26 +350,58 @@ public partial class RecognitionModelCatalog(
     private static partial Regex SuggestedModel();
 
     /// <summary>
+    /// Выполняющиеся проверки — по одной на ключ кэша на весь процесс (issue #924). Статическое поле,
+    /// потому что каталог живёт в области запроса, а мониторинг и экран настроек — в разных областях:
+    /// поле экземпляра ничего бы не склеило.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, Lazy<Task<object?>>> InFlight = new();
+
+    /// <summary>
     /// Кэш с разным сроком для определённого и неопределённого ответа. Сбой любого рода — это
     /// «не проверено» (см. описание <see cref="IRecognitionModelCatalog" />), поэтому исключение
     /// гасится здесь, одним местом на все способы проверки.
+    ///
+    /// Одновременные промахи по одному ключу ждут ОДНУ проверку (issue #924). Раньше каждый шёл к
+    /// поставщику сам, и оплачивались оба запроса: мониторинг на своём круге и открытие настроек,
+    /// две вкладки настроек. <see cref="ProbeGate"/> этого не предотвращал — он только выстраивал
+    /// запросы в очередь, и второй, дождавшись первого, отправлял свой.
+    ///
+    /// Проверка запускается без токена вызывающего, а каждый ждёт её со своим: иначе ушедший со
+    /// страницы отменил бы уже оплаченную пробу для всех, кто ждёт того же ответа. Бесконечной она
+    /// от этого не становится — у каждого способа проверки свой срок (клиент каталога, срок Ollama,
+    /// срок канарейки).
     /// </summary>
     private async Task<T> Cached<T>(string key, CancellationToken ct, T fallback, Func<T, TimeSpan?> ttl, Func<CancellationToken, Task<T>> load)
     {
         if (cache.TryGetValue<T>(key, out var hit)) return hit!;
-        T value;
+        var flight = InFlight.GetOrAdd(key, _ => new Lazy<Task<object?>>(() => LoadAndStoreAsync(key, fallback, ttl, load)));
+        return (T)(await flight.Value.WaitAsync(ct))!;
+    }
+
+    private async Task<object?> LoadAndStoreAsync<T>(string key, T fallback, Func<T, TimeSpan?> ttl, Func<CancellationToken, Task<T>> load)
+    {
         try
         {
-            value = await load(ct);
+            T value;
+            try
+            {
+                value = await load(CancellationToken.None);
+            }
+            // Отменить нас может только собственный срок проверки — то есть это тоже «не проверено».
+            catch (Exception ex)
+            {
+                logger.LogInformation("Проверка модели ({Key}) не удалась: {Message}", key, ex.Message);
+                value = fallback;
+            }
+            if (ttl(value) is { } lifetime) cache.Set(key, value, lifetime);
+            else cache.Set(key, value);
+            return value;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        finally
         {
-            logger.LogInformation("Проверка модели ({Key}) не удалась: {Message}", key, ex.Message);
-            value = fallback;
+            // Снимаем ПОСЛЕ записи в кэш: пришедший в промежутке найдёт либо эту проверку, либо ответ.
+            InFlight.TryRemove(key, out _);
         }
-        if (ttl(value) is { } lifetime) cache.Set(key, value, lifetime);
-        else cache.Set(key, value);
-        return value;
     }
 
     private static string Short(string s) => s.Length <= 300 ? s : s[..300];
