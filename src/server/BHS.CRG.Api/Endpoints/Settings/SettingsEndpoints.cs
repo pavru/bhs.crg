@@ -164,13 +164,14 @@ public static class SettingsEndpoints
                 var checks = await Task.WhenAll(Offered(engine, curated).Select(async o =>
                     (Model: o, Status: await catalog.GetStatusAsync(engine, cfg, o,
                         probe: o.Equals(selected, StringComparison.OrdinalIgnoreCase)
-                               && EngineReadiness.IsUsableForRecognition(engine, cfg), ct))));
+                               && EngineReadiness.IsUsableForRecognition(engine, cfg)
+                            ? ModelProbe.IfUnknown : ModelProbe.CacheOnly, ct))));
                 var gone = checks.Where(c => c.Status.State == ModelState.Gone)
                     .Select(object (c) => new { model = c.Model, advice = c.Status.Advice })
                     .ToArray();
                 var status = checks.FirstOrDefault(c => c.Model.Equals(selected, StringComparison.OrdinalIgnoreCase)).Status
                              ?? ModelStatus.Unknown;
-                // Зрение — ТОЛЬКО из кэша (probe: false). Канарейка стоит секунд, а на холодной
+                // Зрение — ТОЛЬКО из кэша (CacheOnly). Канарейка стоит секунд, а на холодной
                 // модели — минуты: страница настроек столько не ждёт. Проверку запускает человек
                 // кнопкой, и он же видит, что она идёт.
                 var vision = await catalog.GetVisionAsync(engine, cfg, selected, VisionProbe.CacheOnly, ct);

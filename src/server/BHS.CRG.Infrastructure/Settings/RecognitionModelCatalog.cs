@@ -19,18 +19,20 @@ public partial class RecognitionModelCatalog(
 ) : IRecognitionModelCatalog
 {
     /// <summary>
-    /// Определённый ответ облачного поставщика («принимает» / «нет такой») живёт четверть часа:
-    /// каталог моделей меняется раз в месяцы, а спрашивают его на каждом открытии настроек.
+    /// «Поставщик модель принимает» — полсуток: каталог моделей меняется раз в месяцы. Пересмотр раньше
+    /// срока — дело того, кто за него платит (<see cref="ModelProbe.Refresh"/>), а не этого числа.
     /// </summary>
-    private static readonly TimeSpan KnownTtl = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan OkTtl = TimeSpan.FromHours(12);
 
     /// <summary>
-    /// Неопределённый ответ облачного поставщика. Три минуты, а НЕ полминуты, и это не про удобство:
-    /// пробу шлёт в том числе health-мониторинг раз в 45 секунд, и срок короче его круга означал бы
-    /// запрос на каждом круге — то есть беспрерывный стук в поставщика ровно тогда, когда он и так
-    /// отказывает (кончились деньги, превышен лимит).
+    /// «Не проверено» — минута. Это не вердикт, а его отсутствие (сеть, деньги, лимит), и держать его
+    /// долго значило бы показывать «не проверено» там, где поставщик уже ответил бы.
+    ///
+    /// Срок НЕ подгоняется под чьё-либо расписание (issue #921): частотой платной пробы владеет тот,
+    /// кто за неё платит, выбирая <see cref="ModelProbe"/>. Срок, подогнанный под чужой круг, делал бы
+    /// каталог молчаливым участником чужого расписания — и менять одно без другого стало бы нельзя.
     /// </summary>
-    private static readonly TimeSpan CloudRetryTtl = TimeSpan.FromMinutes(3);
+    private static readonly TimeSpan UnknownTtl = TimeSpan.FromMinutes(1);
 
     /// <summary>
     /// «Модель видит картинку» живёт час: свойство это у пары (модель, сборка Ollama) постоянное, а
@@ -47,8 +49,7 @@ public partial class RecognitionModelCatalog(
 
     /// <summary>
     /// «Канарейка ничего не выяснила» — двадцать минут, и это НЕ та же величина, что у облачной
-    /// пробы, хотя случай на вид тот же. У облачного повтора срок задан кругом health-мониторинга;
-    /// канарейку health не зовёт вовсе, зато повтор её стоит до полутора минут ВНУТРИ распознавания
+    /// пробы, хотя случай на вид тот же: повтор канарейки стоит до полутора минут ВНУТРИ распознавания
     /// страницы. Модель, отвечающая на канарейку молчанием (замер 2026-08-20: 196 с и пустота),
     /// при трёхминутном сроке съедала бы прогон альбома пробой, которой заведомо нечего выяснить.
     /// </summary>
@@ -76,8 +77,8 @@ public partial class RecognitionModelCatalog(
     ///
     /// Худший случай для списка моделей на странице настроек — сумма: пробы идут по одной, и два
     /// молчащих поставщика подряд дадут около полуминуты ожидания. Случай именно худший, а не
-    /// обычный: определённый ответ живёт четверть часа и обновляется по кругу health-мониторинга, а
-    /// сама страница к этому моменту уже отрисована — ждёт только выпадающий список моделей.
+    /// обычный: определённый ответ живёт долго, а сама страница к этому моменту уже отрисована — ждёт
+    /// только выпадающий список моделей.
     /// </summary>
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(12);
 
@@ -123,7 +124,7 @@ public partial class RecognitionModelCatalog(
     }
 
     public async Task<ModelStatus> GetStatusAsync(string engine, IntegrationEngine cfg, string model,
-        bool probe = true, CancellationToken ct = default)
+        ModelProbe probe = ModelProbe.IfUnknown, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(model)) return ModelStatus.Unknown;
 
@@ -139,19 +140,38 @@ public partial class RecognitionModelCatalog(
         if (string.IsNullOrWhiteSpace(cfg.ApiKey)) return ModelStatus.Unknown;
 
         // В ключ кэша входит и ключ доступа: сменив его, пользователь ждёт ответа про НОВЫЙ доступ,
-        // а не ещё четверти часа прежнего.
+        // а не прежнего вердикта. Заодно «модель снята» уходит вместе со сменой модели или ключа —
+        // других способов протухнуть у него нет (см. StatusTtl).
         var cacheKey = $"status:{engine}:{model}:{cfg.ApiKey.GetHashCode(StringComparison.Ordinal)}";
-        if (!probe)
-            // Спрашивать разрешили только кэш: пробу стоит тратить на ту модель, с которой работают,
-            // а не на каждый пункт списка (см. IRecognitionModelCatalog).
-            return cache.TryGetValue<ModelStatus>(cacheKey, out var known) ? known! : ModelStatus.Unknown;
-        return await Cached(cacheKey, ct, ModelStatus.Unknown,
-            s => s.State == ModelState.Unknown ? CloudRetryTtl : KnownTtl,
-            token => engine.Equals("Gemini", StringComparison.OrdinalIgnoreCase)
-                ? ProbeGeminiAsync(cfg.ApiKey!, model, token)
-                : engine.Equals("Anthropic", StringComparison.OrdinalIgnoreCase)
-                    ? ProbeAnthropicAsync(cfg.ApiKey!, model, token)
-                    : Task.FromResult(ModelStatus.Unknown));
+        var known = cache.TryGetValue<ModelStatus>(cacheKey, out var hit) ? hit! : null;
+        if (probe == ModelProbe.CacheOnly) return known ?? ModelStatus.Unknown;
+
+        Task<ModelStatus> Load(CancellationToken token) => engine.Equals("Gemini", StringComparison.OrdinalIgnoreCase)
+            ? ProbeGeminiAsync(cfg.ApiKey!, model, token)
+            : engine.Equals("Anthropic", StringComparison.OrdinalIgnoreCase)
+                ? ProbeAnthropicAsync(cfg.ApiKey!, model, token)
+                : Task.FromResult(ModelStatus.Unknown);
+
+        if (probe == ModelProbe.Refresh)
+        {
+            cache.Remove(cacheKey);
+            var fresh = await Cached(cacheKey, ct, ModelStatus.Unknown, StatusTtl, Load);
+            // Пересмотр, на который поставщик не ответил, прежний вердикт НЕ отменяет. Иначе
+            // «модель снята» при первом же сбое сети стало бы «не проверено», а проверка, молчащая на
+            // «не проверено», объявила бы снятую модель восстановленной (issue #921).
+            if (fresh.State != ModelState.Unknown || known is null || known.State == ModelState.Unknown)
+                return fresh;
+            Remember(cacheKey, known);
+            return known;
+        }
+
+        return await Cached(cacheKey, ct, ModelStatus.Unknown, StatusTtl, Load);
+    }
+
+    private void Remember(string key, ModelStatus status)
+    {
+        if (StatusTtl(status) is { } lifetime) cache.Set(key, status, lifetime);
+        else cache.Set(key, status);
     }
 
     public async Task<VisionStatus> GetVisionAsync(string engine, IntegrationEngine cfg, string model,
@@ -239,6 +259,18 @@ public partial class RecognitionModelCatalog(
     /// Проба генерацией: один токен на выходе. Ключ уходит заголовком, а не в строке запроса — URL
     /// попадает в логи и в тексты исключений (та же причина, что у <c>GeminiRecognizerEngine</c>).
     /// </summary>
+    /// <summary>
+    /// Срок вердикта по его виду. <c>null</c> — бессрочно: «модель снята» не должно само становиться
+    /// «не проверено», иначе проверка, которая на «не проверено» молчит, объявила бы снятую модель
+    /// восстановленной (issue #921). Открыт ради теста: ошибка здесь не видна ни на одном экране.
+    /// </summary>
+    public static TimeSpan? StatusTtl(ModelStatus status) => status.State switch
+    {
+        ModelState.Gone => null,
+        ModelState.Ok => OkTtl,
+        _ => UnknownTtl,
+    };
+
     private async Task<ModelStatus> ProbeGeminiAsync(string apiKey, string model, CancellationToken ct)
     {
         const string body = @"{""contents"":[{""parts"":[{""text"":""1""}]}],""generationConfig"":{""maxOutputTokens"":1}}";
@@ -265,10 +297,14 @@ public partial class RecognitionModelCatalog(
     }
 
     /// <summary>
-    /// Пробы идут по одной. Запущенные разом, они срывались в таймаут: на машине с нерабочим IPv6
-    /// первое соединение с облачным хостом обходится в несколько секунд (сначала AAAA, потом откат на
-    /// IPv4), и параллельные пробы этот срок друг другу только удлиняли — до таймаута у всех сразу.
-    /// Поодиночке каждая укладывается, а последующие достаются уже установленному соединению.
+    /// Пробы идут по одной. Введено, когда параллельные пробы срывались в таймаут: на машине с
+    /// нерабочим IPv6 первое соединение с облачным хостом обходилось в несколько секунд, и пробы этот
+    /// срок друг другу удлиняли.
+    ///
+    /// ⚠️ С #918 это обоснование устарело: адреса пробуются внахлёст у всех клиентов, в том числе у
+    /// этого. Ворота оставлены не потому, что нужны, а потому, что снять их — утверждение о сети,
+    /// проверяемое только на машине с нерабочим IPv6. От двойной оплаты они НЕ защищают: два
+    /// одновременных промаха кэша ждут друг друга и платят оба.
     /// </summary>
     private static readonly SemaphoreSlim ProbeGate = new(1);
 
@@ -279,6 +315,9 @@ public partial class RecognitionModelCatalog(
     /// </summary>
     private async Task<ModelStatus> ProbeAsync(string engine, string model, HttpRequestMessage req, CancellationToken ct)
     {
+        // Каждая проба здесь оплачивается — пишем о каждой. Без этого число платных запросов
+        // проверяется только по счёту у поставщика (issue #921).
+        logger.LogInformation("Платная проба модели {Engine}/{Model}", engine, model);
         await ProbeGate.WaitAsync(ct);
         HttpResponseMessage resp;
         try { resp = await http.SendAsync(req, ct); } finally { ProbeGate.Release(); }
@@ -314,7 +353,7 @@ public partial class RecognitionModelCatalog(
     /// «не проверено» (см. описание <see cref="IRecognitionModelCatalog" />), поэтому исключение
     /// гасится здесь, одним местом на все способы проверки.
     /// </summary>
-    private async Task<T> Cached<T>(string key, CancellationToken ct, T fallback, Func<T, TimeSpan> ttl, Func<CancellationToken, Task<T>> load)
+    private async Task<T> Cached<T>(string key, CancellationToken ct, T fallback, Func<T, TimeSpan?> ttl, Func<CancellationToken, Task<T>> load)
     {
         if (cache.TryGetValue<T>(key, out var hit)) return hit!;
         T value;
@@ -327,7 +366,8 @@ public partial class RecognitionModelCatalog(
             logger.LogInformation("Проверка модели ({Key}) не удалась: {Message}", key, ex.Message);
             value = fallback;
         }
-        cache.Set(key, value, ttl(value));
+        if (ttl(value) is { } lifetime) cache.Set(key, value, lifetime);
+        else cache.Set(key, value);
         return value;
     }
 
