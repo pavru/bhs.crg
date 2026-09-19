@@ -38,15 +38,29 @@ public sealed class ModuleRegistry
     ///
     /// Пустое значение — это НЕ «включить всё» и не «выключить всё»: пустая строка в <c>.env</c>
     /// появляется от невычищенной правки, и оба толкования были бы тихими. Берём умолчание.
+    ///
+    /// ⚠️ Если настройка задана ОБЕИМИ записями сразу — отказ, а не выбор одной из них. Так
+    /// бывает, когда массив лежит в appsettings, а поставка переопределяет набор строкой из
+    /// <c>.env</c>: приоритет провайдеров здесь не работает, потому что значение и дети живут в
+    /// разных местах ветки и не перекрывают друг друга. Любой молчаливый выбор означал бы
+    /// «поднялись зелёными без модуля, который заказали» (поймано на ревью #968).
     /// </summary>
     public static IReadOnlyList<string> ReadEnabledCodes(IConfiguration configuration)
     {
         var section = configuration.GetSection("Modules:Enabled");
 
-        var fromArray = section.GetChildren().Select(c => c.Value).ToList();
-        var codes = fromArray.Count > 0
-            ? fromArray
-            : (section.Value ?? string.Empty).Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries).ToList()!;
+        var fromArray = section.GetChildren().Select(c => c.Value).Where(v => !string.IsNullOrWhiteSpace(v)).ToList();
+        var fromScalar = (section.Value ?? string.Empty)
+            .Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries).ToList();
+
+        if (fromArray.Count > 0 && fromScalar.Count > 0)
+            throw new InvalidOperationException(
+                "Modules__Enabled задан и списком, и строкой сразу: " +
+                $"список [{string.Join(", ", fromArray)}], строка «{section.Value}». " +
+                "Одна из записей будет проигнорирована молча, поэтому уберите лишнюю — " +
+                "обычно это список в appsettings, если набор модулей задаётся поставкой.");
+
+        var codes = fromArray.Count > 0 ? fromArray : fromScalar!;
 
         var cleaned = codes
             .Where(c => !string.IsNullOrWhiteSpace(c))

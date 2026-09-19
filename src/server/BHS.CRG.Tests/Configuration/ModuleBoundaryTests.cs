@@ -33,7 +33,7 @@ public class ModuleBoundaryTests
         var csproj = Path.Combine(SolutionDir, "BHS.CRG.Modules", "BHS.CRG.Modules.csproj");
         var text = File.ReadAllText(csproj);
 
-        var refs = ProjectReference.Matches(text).Select(m => m.Groups[1].Value.Replace('\\', '/')).ToList();
+        var refs = ReferencedProjects(text).Select(r => r.Replace('\\', '/')).ToList();
 
         Assert.True(refs.Count == 0,
             "Проект контрактов ядра ссылается на наши проекты: " + string.Join(", ", refs) + ".\n" +
@@ -60,9 +60,9 @@ public class ModuleBoundaryTests
         {
             var name = Path.GetFileNameWithoutExtension(csproj);
             var text = File.ReadAllText(csproj);
-            foreach (Match m in ProjectReference.Matches(text))
+            foreach (var reference in ReferencedProjects(text))
             {
-                var referenced = Path.GetFileNameWithoutExtension(m.Groups[1].Value.Replace('\\', '/'));
+                var referenced = Path.GetFileNameWithoutExtension(reference.Replace('\\', '/'));
                 if (!allowed.Contains(referenced))
                     offenders.Add($"{name} → {referenced}");
             }
@@ -135,6 +135,69 @@ public class ModuleBoundaryTests
         Assert.Contains("nosuch", ex.Message);
     }
 
+    /// <summary>
+    /// Настройка, заданная сразу списком и строкой, останавливает старт.
+    ///
+    /// Приоритет провайдеров конфигурации здесь не спасает: значение ветки и её дети лежат в
+    /// разных местах и друг друга не перекрывают, поэтому «список из appsettings и строка из .env»
+    /// дали бы молчаливый выбор одной из записей — то есть экземпляр, поднявшийся без модуля,
+    /// который заказала поставка.
+    /// </summary>
+    [Fact]
+    public void Enabled_codes_refuse_two_notations_at_once()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Modules:Enabled:0"] = "id",
+                ["Modules:Enabled"] = "costs",
+            })
+            .Build();
+
+        var ex = Assert.Throws<InvalidOperationException>(() => ModuleRegistry.ReadEnabledCodes(configuration));
+        Assert.Contains("costs", ex.Message);
+        Assert.Contains("id", ex.Message);
+    }
+
+    /// <summary>
+    /// Адреса модуля остаются в документе API по умолчанию.
+    ///
+    /// Группа модуля нужна ради ворот, но имя группы в ASP.NET — это имя ДОКУМЕНТА OpenAPI.
+    /// Назвав группу кодом модуля, мы вынесли все его адреса в документ, которого никто не
+    /// заводит: адреса отвечали 401, то есть работали, а из описания API исчезли (ревью #968,
+    /// 201 путь и ни одного из модуля). Тест стережёт именно возврат этой правки.
+    /// </summary>
+    [Fact]
+    public void Module_endpoints_stay_in_the_default_api_document()
+    {
+        var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateSlimBuilder();
+        builder.Services.AddAppModules(builder.Configuration, new RouteModule());
+
+        using var app = builder.Build();
+        app.MapAppModules();
+
+        // DataSources у WebApplication — явная реализация интерфейса, отсюда приведение.
+        var probe = ((Microsoft.AspNetCore.Routing.IEndpointRouteBuilder)app).DataSources
+            .SelectMany(d => d.Endpoints)
+            .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
+            .Single(e => e.RoutePattern.RawText == "/probe-модуля");
+
+        Assert.Null(probe.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IEndpointGroupNameMetadata>());
+    }
+
+    /// <summary>Модуль с одним адресом — чтобы было что искать среди зарегистрированных.</summary>
+    private sealed class RouteModule : IAppModule
+    {
+        public string Code => ModuleRegistry.DefaultCode;
+        public string Title => "проба";
+        public IReadOnlyList<string> Permissions => [];
+        public void RegisterServices(
+            Microsoft.Extensions.DependencyInjection.IServiceCollection services, IConfiguration configuration) { }
+        public void MapEndpoints(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints) =>
+            Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions.MapGet(endpoints, "/probe-модуля", () => "ок");
+        public Task InitializeAsync(IServiceProvider services, CancellationToken ct) => Task.CompletedTask;
+    }
+
     private sealed class FakeModule(string code) : IAppModule
     {
         public string Code => code;
@@ -146,8 +209,29 @@ public class ModuleBoundaryTests
         public Task InitializeAsync(IServiceProvider services, CancellationToken ct) => Task.CompletedTask;
     }
 
-    private static readonly Regex ProjectReference = new(
-        @"<ProjectReference\s+Include\s*=\s*""([^""]+)""", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    /// <summary>
+    /// Ссылки на проекты из файла проекта.
+    ///
+    /// Разбор в два шага — тег целиком, потом атрибут — потому что однострочный регекс требовал
+    /// <c>Include</c> ПЕРВЫМ атрибутом и только в двойных кавычках, а
+    /// <c>&lt;ProjectReference Condition="…" Include='…'&gt;</c> проходил бы мимо правила
+    /// (поймано на ревью #968). Сторож, который обходится перестановкой атрибутов, — не сторож.
+    /// </summary>
+    private static IEnumerable<string> ReferencedProjects(string csproj)
+    {
+        foreach (Match tag in ProjectReferenceTag.Matches(csproj))
+        {
+            var include = IncludeAttribute.Match(tag.Value);
+            if (include.Success)
+                yield return (include.Groups[1].Success ? include.Groups[1] : include.Groups[2]).Value;
+        }
+    }
+
+    private static readonly Regex ProjectReferenceTag = new(
+        @"<ProjectReference\b[^>]*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex IncludeAttribute = new(
+        @"\bInclude\s*=\s*(?:""([^""]*)""|'([^']*)')", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>
     /// Проекты модулей по соглашению об именовании: <c>BHS.CRG.Modules.&lt;код&gt;</c>.

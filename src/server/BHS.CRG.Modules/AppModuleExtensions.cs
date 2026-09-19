@@ -50,16 +50,20 @@ public static class AppModuleExtensions
     /// отдельно от адресов даже сейчас, когда на ней ещё нет политики: ворота модуля вешаются на
     /// неё одной строкой, и тогда закрытым окажется всё, что модуль зарегистрировал, включая
     /// адреса, добавленные позже (AUTH-10).
+    ///
+    /// ⚠️ Имя группе НЕ даётся (<c>WithGroupName</c>), и это не упущение. Имя группы в ASP.NET — это
+    /// имя ДОКУМЕНТА OpenAPI, а не ярлык: адрес с именем «id» попадает в документ «id», которого
+    /// никто не заводил, и исчезает из «v1» — единственного, который создаёт <c>AddOpenApi()</c>.
+    /// Поймано на ревью #968: адреса модуля отвечали 401, то есть работали, а из описания API
+    /// пропали все до одного. Отказ, переодетый в результат: приложение исправно, документ неполон,
+    /// и заметит это тот, кто будет писать по нему клиента.
     /// </summary>
     public static IEndpointRouteBuilder MapAppModules(this IEndpointRouteBuilder app)
     {
         var registry = app.ServiceProvider.GetRequiredService<ModuleRegistry>();
 
         foreach (var module in registry.Enabled)
-        {
-            var group = app.MapGroup(string.Empty).WithGroupName(module.Code);
-            module.MapEndpoints(group);
-        }
+            module.MapEndpoints(app.MapGroup(string.Empty));
 
         return app;
     }
