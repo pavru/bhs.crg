@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,11 +44,15 @@ public static class AppModuleExtensions
                   $"Доступны: {string.Join(", ", available.Select(m => m.Code))}.");
 
         var enabled = codes.Select(c => byCode[c]).ToList();
+        var disabled = available.Except(enabled).ToList();
 
+        // Службы регистрирует только включённый модуль: выключенный не должен висеть в контейнере
+        // и попадать в фоновые задания (AUTH-19). Его адреса при этом всё равно появятся — отказом,
+        // см. MapAppModules.
         foreach (var module in enabled)
             module.RegisterServices(services, configuration);
 
-        services.AddSingleton(new ModuleRegistry(enabled));
+        services.AddSingleton(new ModuleRegistry(enabled, disabled));
         return services;
     }
 
@@ -79,7 +84,49 @@ public static class AppModuleExtensions
         foreach (var module in registry.Enabled)
             module.MapEndpoints(app.MapGroup(string.Empty).RequireAuthorization());
 
+        foreach (var module in registry.Disabled)
+            module.MapEndpoints(DisabledGroup(app, module));
+
         return app;
+    }
+
+    /// <summary>
+    /// Группа выключенного модуля: адреса те же, ответ — отказ с названной причиной.
+    ///
+    /// Почему адреса выключенного модуля вообще регистрируются. Незарегистрированный адрес отвечает
+    /// пустым 404 — тем же, что и опечатка в ссылке. По ТЗ выключенный модуль обязан отвечать
+    /// ОТКАЗОМ, а не пустым ответом (OVW-10), а клиент обязан показать честную страницу «нужен
+    /// модуль X» вместо бесконечной загрузки (AUTH-15). Различить это можно только по ответу.
+    ///
+    /// Почему не заглушка по префиксу, что было бы проще. Префиксы модуля и ядра пересекаются:
+    /// печатные формы исполнительной документации живут под <c>/api/document-sets</c>, где рядом
+    /// стоят общие адреса комплектов. Заглушка на префикс накрыла бы и их — то есть выключение
+    /// модуля унесло бы часть ядра. Поэтому отказ вешается на ТЕ ЖЕ маршруты, которые объявляет сам
+    /// модуль: ни одного лишнего адреса, ни одного забытого.
+    ///
+    /// Фильтр группы срабатывает ДО обработчика, поэтому код обработчика не выполняется и службы,
+    /// которых выключенный модуль не регистрировал, не понадобятся. Отсюда требование к модулю:
+    /// <see cref="IAppModule.MapEndpoints" /> не должен трогать службы В МОМЕНТ РЕГИСТРАЦИИ — только
+    /// при обработке запроса.
+    /// </summary>
+    private static IEndpointRouteBuilder DisabledGroup(IEndpointRouteBuilder app, IAppModule module)
+    {
+        var group = app.MapGroup(string.Empty);
+
+        group.AddEndpointFilter((context, _) => ValueTask.FromResult<object?>(
+            Results.Json(
+                new
+                {
+                    error = $"Модуль «{module.Title}» не подключён на этом экземпляре.",
+                    module = module.Code,
+                },
+                statusCode: StatusCodes.Status501NotImplemented)));
+
+        // Из описания API адреса выключенного модуля убираются: документ описывает то, что
+        // экземпляр УМЕЕТ, а не то, на что он отвечает отказом.
+        group.ExcludeFromDescription();
+
+        return group;
     }
 
     /// <summary>
