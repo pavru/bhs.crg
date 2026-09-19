@@ -3,7 +3,7 @@
        функциональности, PATCH — фиксы; 1.0.0 — первый релиз. К InformationalVersion SDK добавляет
        +<git-sha> (см. target ниже) для трассировки сборок на внутреннем тестировании. -->
   <PropertyGroup>
-    <Version>0.167.1</Version>
+    <Version>0.168.0</Version>
   </PropertyGroup>
 
   <!-- Доменные отказы (BHS.CRG.Domain.Common) доступны без using во всех проектах, кроме
@@ -12,8 +12,13 @@
        версию. Если появится ещё один проект без ссылки на Domain, сборка встанет здесь же.
 
        Общий using, а не строка в каждом файле: бросают эти типы под сотню мест, а имя
-       `NotFoundException` без пространства имён однозначно. -->
-  <ItemGroup Condition="'$(MSBuildProjectName)' != 'BHS.CRG.Plugins'">
+       `NotFoundException` без пространства имён однозначно.
+
+       Второй проект без ссылки на Domain появился (issue #942) — BHS.CRG.Modules, контракты ядра
+       для модулей. Причина та же по смыслу, что у плагинов: через этот проект модуль получает
+       ровно то, что ему положено, и ссылка на доменную сборку сделала бы «минимальный контракт»
+       неминимальным уже на второй правке. -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'BHS.CRG.Plugins' AND '$(MSBuildProjectName)' != 'BHS.CRG.Modules'">
     <Using Include="BHS.CRG.Domain.Common" />
   </ItemGroup>
 

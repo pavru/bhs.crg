@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    Проект КОНТРАКТОВ ядра: на него ссылаются модули, и больше в нём ничего нет.
+
+    ⚠️ Ссылок на другие наши проекты здесь нет и быть не должно (issue #942, ТЗ CORE-2). Ссылка
+    отсюда на Application или Infrastructure открыла бы модулю весь слой доступа к данным — а
+    ограничение «модуль знает ядро, ядро о модуле не знает» держится именно на том, что через этот
+    проект нечего протащить. Стережёт ModuleBoundaryTests: он читает ЭТОТ файл и падает на любой
+    строке ProjectReference.
+
+    FrameworkReference нужен потому, что модуль регистрирует службы и адреса: без
+    IServiceCollection и IEndpointRouteBuilder интерфейс модуля не выразить.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

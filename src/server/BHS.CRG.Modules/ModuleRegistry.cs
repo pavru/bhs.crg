@@ -1,0 +1,59 @@
+using Microsoft.Extensions.Configuration;
+
+namespace BHS.CRG.Modules;
+
+/// <summary>
+/// Какие модули включены на этом экземпляре. Набор задаёт ОПЕРАТОР ПОСТАВКИ переменной окружения
+/// <c>Modules__Enabled</c> (ТЗ AUTH-17); администратор заказчика его не меняет, поэтому это
+/// настройка запуска, а не строка в базе.
+///
+/// Реестр живёт в контейнере как singleton и отвечает на единственный вопрос — «включён ли модуль».
+/// Спрашивают его ворота адресов, инструменты MCP, наборы данных и уведомления.
+/// </summary>
+public sealed class ModuleRegistry
+{
+    /// <summary>Набор по умолчанию: исполнительная документация. С него начиналась система.</summary>
+    public const string DefaultCode = "id";
+
+    private readonly Dictionary<string, IAppModule> _byCode;
+
+    public ModuleRegistry(IReadOnlyList<IAppModule> enabled)
+    {
+        Enabled = enabled;
+        _byCode = enabled.ToDictionary(m => m.Code, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Включённые модули в том порядке, в каком их перечислил оператор.</summary>
+    public IReadOnlyList<IAppModule> Enabled { get; }
+
+    public bool IsEnabled(string code) => _byCode.ContainsKey(code);
+
+    public IAppModule? Find(string code) => _byCode.GetValueOrDefault(code);
+
+    /// <summary>
+    /// Читает коды включённых модулей. Принимаются обе записи, потому что путей настройки два и
+    /// они выглядят по-разному: массив (<c>Modules__Enabled__0=id</c>) приходит из конфигурации
+    /// среды, строка через запятую (<c>Modules__Enabled=id,costs</c>) — из <c>.env</c> поставки,
+    /// где массив записать нечем.
+    ///
+    /// Пустое значение — это НЕ «включить всё» и не «выключить всё»: пустая строка в <c>.env</c>
+    /// появляется от невычищенной правки, и оба толкования были бы тихими. Берём умолчание.
+    /// </summary>
+    public static IReadOnlyList<string> ReadEnabledCodes(IConfiguration configuration)
+    {
+        var section = configuration.GetSection("Modules:Enabled");
+
+        var fromArray = section.GetChildren().Select(c => c.Value).ToList();
+        var codes = fromArray.Count > 0
+            ? fromArray
+            : (section.Value ?? string.Empty).Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries).ToList()!;
+
+        var cleaned = codes
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return cleaned.Count > 0 ? cleaned : [DefaultCode];
+    }
+}

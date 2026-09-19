@@ -17,6 +17,8 @@ using BHS.CRG.Api.Endpoints.Catalog;
 using BHS.CRG.Api.Endpoints.Recognition;
 using BHS.CRG.Api.Endpoints.DataSets;
 using BHS.CRG.Api.Endpoints.Documents;
+using BHS.CRG.Api.Modules;
+using BHS.CRG.Modules;
 using BHS.CRG.Api.Endpoints.Email;
 using BHS.CRG.Api.Endpoints.Subscriptions;
 using BHS.CRG.Api.Endpoints.Generation;
@@ -645,6 +647,12 @@ builder.Services.AddCors(opt => opt.AddDefaultPolicy(p =>
 
 builder.Services.AddOpenApi();
 
+// ── Модули ────────────────────────────────────────────────────────────────────
+// Единственное место, где ядро знает имена модулей, — и это намеренно корень композиции, а не
+// сканер сборок рядом с приложением: набор модулей на экземпляре обязан быть решением поставки
+// (Modules__Enabled, AUTH-17), а не следствием того, какие DLL кто-то скопировал.
+builder.Services.AddAppModules(builder.Configuration, new IdModule());
+
 var app = builder.Build();
 
 // ExcelDataReader требует регистрации кодировок для .xls файлов
@@ -702,6 +710,10 @@ using (var scope = app.Services.CreateScope())
 
     // Прогрев плагинов: HTTP-плагины отдают схемы только по запросу (GET /schemas) — best-effort.
     await scope.ServiceProvider.GetRequiredService<IPluginHost>().WarmUpAsync();
+
+    // Первичная инициализация включённых модулей — после миграций и сидов ядра: модуль вправе
+    // рассчитывать, что схема базы и справочники ядра на месте.
+    await scope.ServiceProvider.InitializeAppModulesAsync();
 }
 
 if (app.Environment.IsDevelopment())
@@ -761,14 +773,14 @@ app.MapCommonDataEndpoints();
 app.MapTemplateEndpoints();
 app.MapTemplateAssetEndpoints();
 app.MapTypstUserLibEndpoints();
-app.MapPrintFormEndpoints();
 app.MapDocumentSetEndpoints();
-app.MapPlanEndpoints();
 app.MapGenerationEndpoints();
+
+// Адреса включённых модулей — каждый в своей группе (см. AppModuleExtensions.MapAppModules).
+app.MapAppModules();
 app.MapDataSetEndpoints();
 app.MapDataSetBindingEndpoints();
 app.MapDataSetBindingTemplateEndpoints();
-app.MapQualityDocEndpoints();
 app.MapReconciliationEndpoints();
 app.MapObservationEndpoints();
 app.MapObjectResolveEndpoints();

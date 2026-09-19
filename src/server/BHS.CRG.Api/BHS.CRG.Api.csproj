@@ -43,6 +43,7 @@
   <ItemGroup>
     <ProjectReference Include="..\BHS.CRG.Application\BHS.CRG.Application.csproj" />
     <ProjectReference Include="..\BHS.CRG.Infrastructure\BHS.CRG.Infrastructure.csproj" />
+    <ProjectReference Include="..\BHS.CRG.Modules\BHS.CRG.Modules.csproj" />
   </ItemGroup>
 
 </Project>
