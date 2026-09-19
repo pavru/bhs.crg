@@ -3,6 +3,7 @@
   <Project Path="BHS.CRG.Application/BHS.CRG.Application.csproj" />
   <Project Path="BHS.CRG.Domain/BHS.CRG.Domain.csproj" />
   <Project Path="BHS.CRG.Infrastructure/BHS.CRG.Infrastructure.csproj" />
+  <Project Path="BHS.CRG.Modules/BHS.CRG.Modules.csproj" />
   <Project Path="BHS.CRG.Plugins/BHS.CRG.Plugins.csproj" />
   <Project Path="BHS.CRG.Tests/BHS.CRG.Tests.csproj" />
 </Solution>

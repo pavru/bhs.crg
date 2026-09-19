@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\BHS.CRG.Api\BHS.CRG.Api.csproj" />
     <ProjectReference Include="..\BHS.CRG.Infrastructure\BHS.CRG.Infrastructure.csproj" />
+    <ProjectReference Include="..\BHS.CRG.Modules\BHS.CRG.Modules.csproj" />
   </ItemGroup>
 
 </Project>
