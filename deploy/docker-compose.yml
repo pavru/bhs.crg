@@ -170,6 +170,8 @@ services:
       BlobStorage__Bucket: ${GARAGE_BUCKET}
       BlobStorage__UseSSL: "false"
       Jwt__Key: ${JWT_KEY}
+      # Набор модулей экземпляра (issue #942). Пусто = умолчание `id`, см. .env.example.
+      Modules__Enabled: ${MODULES_ENABLED:-}
       Ollama__BaseUrl: "http://ollama:11434"
       # Пусто — Ollama выключена и в приложении: движок считается включённым ровно тогда, когда у
       # него выбрана модель (EngineReadiness, #797). Без этого выключенный профиль оборачивался бы

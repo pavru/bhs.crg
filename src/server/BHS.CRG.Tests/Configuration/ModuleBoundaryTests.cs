@@ -46,27 +46,22 @@ public class ModuleBoundaryTests
     /// Проект модуля ссылается только на контракты и домен. Ни инфраструктуры, ни приложения, ни
     /// другого модуля.
     ///
-    /// Сегодня таких проектов нет — модуль исполнительной документации объявлен обёрткой внутри
-    /// API и своего проекта не имеет. Тест от этого не бессмысленный, а ждущий: первый же проект,
-    /// названный по соглашению, попадёт под правило в день появления, а не после разбора.
+    /// Модуль опознаётся по СУЩЕСТВУ — по ссылке на контракты ядра, — а не по имени каталога.
+    /// Прежняя редакция отбирала каталоги с префиксом <c>BHS.CRG.Modules.</c>, то есть соглашение
+    /// об именовании было записано только в этом комментарии: проект <c>BHS.CRG.Costs</c>, названный
+    /// в стиле остальных в решении, прошёл бы мимо правила со ссылкой на инфраструктуру и тест
+    /// остался бы зелёным (поймано на ревью #968). Теперь имя не отбирает, а проверяется: см.
+    /// <see cref="Module_projects_are_named_by_convention" />.
     /// </summary>
     [Fact]
     public void Module_projects_reference_only_contracts_and_domain()
     {
-        string[] allowed = ["BHS.CRG.Modules", "BHS.CRG.Domain"];
+        string[] allowed = [ContractsProject, "BHS.CRG.Domain"];
 
         var offenders = new List<string>();
-        foreach (var csproj in ModuleProjectFiles())
-        {
-            var name = Path.GetFileNameWithoutExtension(csproj);
-            var text = File.ReadAllText(csproj);
-            foreach (var reference in ReferencedProjects(text))
-            {
-                var referenced = Path.GetFileNameWithoutExtension(reference.Replace('\\', '/'));
-                if (!allowed.Contains(referenced))
-                    offenders.Add($"{name} → {referenced}");
-            }
-        }
+        foreach (var (name, references) in ModuleProjects())
+            foreach (var referenced in references.Where(r => !allowed.Contains(r)))
+                offenders.Add($"{name} → {referenced}");
 
         Assert.True(offenders.Count == 0,
             "Модуль ссылается на то, на что ему нельзя: " + string.Join(", ", offenders) + ".\n" +
@@ -74,6 +69,28 @@ public class ModuleBoundaryTests
             "слой доступа к данным целиком; ссылка на другой модуль сводит два модуля в один —\n" +
             "и первая же задача, где графику нужна выработка, а учёту нормы, делает их неразделимыми.\n" +
             "Обмен данными между модулями идёт через контракты ядра.");
+    }
+
+    /// <summary>
+    /// Проект модуля назван по соглашению: <c>BHS.CRG.Modules.&lt;код&gt;</c>.
+    ///
+    /// Соглашение проверяется, а не подразумевается: по имени модуль ищут и человек, и правила
+    /// сборки, и следующий такой же тест. Проект, названный иначе, — это не «другой стиль», а
+    /// модуль, выпавший из всех перечислений сразу.
+    /// </summary>
+    [Fact]
+    public void Module_projects_are_named_by_convention()
+    {
+        var wrong = ModuleProjects()
+            .Select(p => p.Name)
+            .Where(n => !n.StartsWith(ContractsProject + ".", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(wrong.Count == 0,
+            "Проект ссылается на контракты ядра, то есть является модулем, но назван не по\n" +
+            "соглашению: " + string.Join(", ", wrong) + ".\n" +
+            $"Имя обязано быть «{ContractsProject}.<код модуля>» — например {ContractsProject}.Costs.\n" +
+            "Если это не модуль, а хост (приложение или тесты), добавьте его в KnownHosts с причиной.");
     }
 
     /// <summary>
@@ -185,6 +202,51 @@ public class ModuleBoundaryTests
         Assert.Null(probe.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IEndpointGroupNameMetadata>());
     }
 
+    /// <summary>
+    /// Адрес модуля закрыт группой, даже если модуль не ставил авторизацию сам.
+    ///
+    /// Ровно это обещает доккомментарий <c>IAppModule.MapEndpoints</c> — «свою авторизацию на
+    /// отдельные адреса модулю не нужно». Обещание было ложным: умолчания у приложения нет
+    /// (<c>FallbackPolicy</c> не задан), и адрес без явной авторизации анонимен, а незаметно это
+    /// было только потому, что обёртка исполнительной документации закрывает свои подгруппы сама
+    /// (ревью #968). Модуль в этом тесте нарочно не ставит ничего.
+    /// </summary>
+    [Fact]
+    public void Module_endpoints_are_closed_by_their_group()
+    {
+        var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateSlimBuilder();
+        builder.Services.AddAppModules(builder.Configuration, new RouteModule());
+
+        using var app = builder.Build();
+        app.MapAppModules();
+
+        var probe = ((Microsoft.AspNetCore.Routing.IEndpointRouteBuilder)app).DataSources
+            .SelectMany(d => d.Endpoints)
+            .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
+            .Single(e => e.RoutePattern.RawText == "/probe-модуля");
+
+        Assert.NotNull(probe.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>());
+    }
+
+    /// <summary>
+    /// Сборка без модуля по умолчанию и с незаданной настройкой отказывает понятными словами.
+    ///
+    /// Прежний текст был «в Modules__Enabled названы модули, которых нет: id» — при пустой
+    /// переменной. Человек читает это как «я такого не писал» и ищет не там (ревью #968).
+    /// </summary>
+    [Fact]
+    public void Missing_default_module_is_named_as_such()
+    {
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var configuration = new ConfigurationBuilder().Build();
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => services.AddAppModules(configuration, new FakeModule("costs")));
+
+        Assert.Contains("не задан", ex.Message);
+        Assert.Contains("costs", ex.Message);
+    }
+
     /// <summary>Модуль с одним адресом — чтобы было что искать среди зарегистрированных.</summary>
     private sealed class RouteModule : IAppModule
     {
@@ -233,17 +295,42 @@ public class ModuleBoundaryTests
     private static readonly Regex IncludeAttribute = new(
         @"\bInclude\s*=\s*(?:""([^""]*)""|'([^']*)')", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private const string ContractsProject = "BHS.CRG.Modules";
+
     /// <summary>
-    /// Проекты модулей по соглашению об именовании: <c>BHS.CRG.Modules.&lt;код&gt;</c>.
-    ///
-    /// Отбор по префиксу с точкой, а не шаблоном каталога: шаблон <c>BHS.CRG.Modules.*</c> в .NET
-    /// захватывает и сам <c>BHS.CRG.Modules</c> (наследие DOS-семантики «имя.*»), и проект
-    /// контрактов попадал бы под правило модулей. Правило у него другое и строже — см. первый тест.
+    /// Проекты, которые ссылаются на контракты ядра, но модулями не являются, и почему. Добавляя
+    /// сюда строку, вы принимаете решение — именно этого тест и добивается.
     /// </summary>
-    private static IEnumerable<string> ModuleProjectFiles() =>
-        Directory.EnumerateDirectories(SolutionDir)
-            .Where(d => Path.GetFileName(d).StartsWith("BHS.CRG.Modules.", StringComparison.Ordinal))
-            .SelectMany(d => Directory.EnumerateFiles(d, "*.csproj", SearchOption.TopDirectoryOnly));
+    private static readonly Dictionary<string, string> KnownHosts = new()
+    {
+        ["BHS.CRG.Api"] = "хост: перечисляет модули в корне композиции и держит обёртку `id`, пока её код не переехал",
+        ["BHS.CRG.Tests"] = "тесты: проверяют сам механизм модулей",
+    };
+
+    /// <summary>
+    /// Модули решения — проекты, ссылающиеся на контракты ядра, кроме известных хостов. Отбор по
+    /// ссылке, а не по имени каталога: имя — это соглашение, и оно проверяется отдельным тестом,
+    /// а не служит фильтром (иначе проект, названный иначе, просто выпал бы из проверки).
+    /// </summary>
+    private static IEnumerable<(string Name, IReadOnlyList<string> References)> ModuleProjects()
+    {
+        foreach (var csproj in Directory.EnumerateFiles(SolutionDir, "*.csproj", SearchOption.AllDirectories))
+        {
+            if (csproj.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                || csproj.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+                continue;
+
+            var name = Path.GetFileNameWithoutExtension(csproj);
+            if (name == ContractsProject || KnownHosts.ContainsKey(name)) continue;
+
+            var references = ReferencedProjects(File.ReadAllText(csproj))
+                .Select(r => Path.GetFileNameWithoutExtension(r.Replace('\\', '/')))
+                .ToList();
+
+            if (references.Contains(ContractsProject))
+                yield return (name, references);
+        }
+    }
 
     private static string SolutionDir { get; } = FindSolutionDir();
 

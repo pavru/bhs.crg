@@ -45,7 +45,14 @@ public sealed class ModuleRegistry
     /// разных местах ветки и не перекрывают друг друга. Любой молчаливый выбор означал бы
     /// «поднялись зелёными без модуля, который заказали» (поймано на ревью #968).
     /// </summary>
-    public static IReadOnlyList<string> ReadEnabledCodes(IConfiguration configuration)
+    public static IReadOnlyList<string> ReadEnabledCodes(IConfiguration configuration) =>
+        ReadEnabledCodes(configuration, out _);
+
+    /// <summary>
+    /// То же, но сообщает, взято ли умолчание. Нужно ради внятного отказа: «не задано, а умолчания
+    /// в сборке нет» и «названо то, чего нет» — разные неполадки, и лечатся они по-разному.
+    /// </summary>
+    public static IReadOnlyList<string> ReadEnabledCodes(IConfiguration configuration, out bool fromDefault)
     {
         var section = configuration.GetSection("Modules:Enabled");
 
@@ -68,6 +75,7 @@ public sealed class ModuleRegistry
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return cleaned.Count > 0 ? cleaned : [DefaultCode];
+        fromDefault = cleaned.Count == 0;
+        return fromDefault ? [DefaultCode] : cleaned;
     }
 }

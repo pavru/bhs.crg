@@ -27,14 +27,20 @@ public static class AppModuleExtensions
     public static IServiceCollection AddAppModules(
         this IServiceCollection services, IConfiguration configuration, params IAppModule[] available)
     {
-        var codes = ModuleRegistry.ReadEnabledCodes(configuration);
+        var codes = ModuleRegistry.ReadEnabledCodes(configuration, out var fromDefault);
         var byCode = available.ToDictionary(m => m.Code, StringComparer.OrdinalIgnoreCase);
 
         var unknown = codes.Where(c => !byCode.ContainsKey(c)).ToList();
         if (unknown.Count > 0)
-            throw new InvalidOperationException(
-                $"В Modules__Enabled названы модули, которых в этой сборке нет: {string.Join(", ", unknown)}. " +
-                $"Доступны: {string.Join(", ", available.Select(m => m.Code))}.");
+            // Про умолчание говорим отдельно: иначе сборка без модуля исполнительной документации
+            // отказывала бы словами «в Modules__Enabled названы модули, которых нет: id» — при
+            // пустой переменной. Человек читает это как «я такого не писал» и ищет не там
+            // (ревью #968).
+            throw new InvalidOperationException(fromDefault
+                ? $"Modules__Enabled не задан, а модуля по умолчанию «{ModuleRegistry.DefaultCode}» " +
+                  $"в этой сборке нет. Укажите набор явно. Доступны: {string.Join(", ", available.Select(m => m.Code))}."
+                : $"В Modules__Enabled названы модули, которых в этой сборке нет: {string.Join(", ", unknown)}. " +
+                  $"Доступны: {string.Join(", ", available.Select(m => m.Code))}.");
 
         var enabled = codes.Select(c => byCode[c]).ToList();
 
@@ -46,10 +52,18 @@ public static class AppModuleExtensions
     }
 
     /// <summary>
-    /// Регистрирует адреса включённых модулей, каждый — в СВОЕЙ группе. Группа существует
-    /// отдельно от адресов даже сейчас, когда на ней ещё нет политики: ворота модуля вешаются на
-    /// неё одной строкой, и тогда закрытым окажется всё, что модуль зарегистрировал, включая
-    /// адреса, добавленные позже (AUTH-10).
+    /// Регистрирует адреса включённых модулей, каждый — в СВОЕЙ группе, и группа **закрыта**:
+    /// всё, что модуль в ней зарегистрировал, требует вошедшего пользователя, включая адреса,
+    /// добавленные позже (AUTH-10).
+    ///
+    /// ⚠️ Ворота ставятся здесь, а не оставляются «на потом». Умолчания у приложения нет
+    /// (<c>FallbackPolicy</c> не задан), поэтому адрес без явной авторизации анонимен — и первый
+    /// же модуль, который поверит обещанию «свою авторизацию ставить не нужно», молча открыл бы
+    /// свои данные без токена (поймано на ревью #968). Сейчас это не видно только потому, что
+    /// обёртка исполнительной документации ставит авторизацию внутри своих подгрупп сама.
+    ///
+    /// Пока это базовые ворота «вошёл». Политика модуля (<c>module:&lt;код&gt;</c>, AUTH-8) заменит
+    /// их в задаче про проверку прав — там же, где появятся сами политики.
     ///
     /// ⚠️ Имя группе НЕ даётся (<c>WithGroupName</c>), и это не упущение. Имя группы в ASP.NET — это
     /// имя ДОКУМЕНТА OpenAPI, а не ярлык: адрес с именем «id» попадает в документ «id», которого
@@ -63,7 +77,7 @@ public static class AppModuleExtensions
         var registry = app.ServiceProvider.GetRequiredService<ModuleRegistry>();
 
         foreach (var module in registry.Enabled)
-            module.MapEndpoints(app.MapGroup(string.Empty));
+            module.MapEndpoints(app.MapGroup(string.Empty).RequireAuthorization());
 
         return app;
     }
