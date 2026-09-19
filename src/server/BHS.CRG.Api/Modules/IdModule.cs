@@ -38,6 +38,15 @@ public sealed class IdModule : IAppModule
     /// </summary>
     public void RegisterServices(IServiceCollection services, IConfiguration configuration) { }
 
+    /// <summary>
+    /// Пути модуля. <c>/api/document-sets</c> делится с ядром — там же стоят общие адреса
+    /// комплектов; это безопасно, потому что перехват выключенного модуля проигрывает конкретным
+    /// маршрутам ядра. Плата за общий префикс — при выключенном модуле опечатка в пути комплектов
+    /// получит отказ «модуль не подключён» вместо пустого 404; из двух неточностей эта безвреднее.
+    /// </summary>
+    public IReadOnlyList<string> RoutePrefixes =>
+        ["/api/quality-docs", "/api/plans", "/api/document-sets"];
+
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapQualityDocEndpoints();

@@ -110,6 +110,62 @@ public class DisabledModuleTests
     }
 
     /// <summary>
+    /// Выключенный модуль со служебным параметром в обработчике не роняет СТАРТ приложения.
+    ///
+    /// Это та самая ошибка, ради которой правка переписана (ревью #969). Первая редакция
+    /// регистрировала настоящие адреса выключенного модуля и вешала на них фильтр-отказ. Но
+    /// привязка параметров идёт до фильтров, а делегат строится вообще при регистрации: платформа
+    /// видит незнакомый тип <c>IModuleOwnService</c> — служб выключенного модуля в контейнере нет —
+    /// принимает его за тело запроса и отказывается строить адрес. Падал не запрос, а запуск.
+    ///
+    /// Проверено это не было потому, что живой прогон и тесты брали обработчик БЕЗ параметров,
+    /// где всё сходилось. Здесь обработчик нарочно требует и службу, и тело.
+    /// </summary>
+    [Fact]
+    public async Task Disabled_module_with_service_parameters_does_not_break_startup()
+    {
+        using var host = await StartAsync(enabled: "id", new IdLike(), new ServiceHungryModule());
+        var client = host.GetTestClient();
+
+        Assert.Equal(
+            HttpStatusCode.NotImplemented,
+            (await client.GetAsync("/api/costs/needs-service")).StatusCode);
+
+        var posted = await client.PostAsJsonAsync("/api/costs/needs-body", new { name = "x" });
+        Assert.Equal(HttpStatusCode.NotImplemented, posted.StatusCode);
+    }
+
+    /// <summary>
+    /// Отказ отдаётся на любом методе, а не только на GET: стрелка «сохранить» из старой вкладки
+    /// уходит POST-ом, и пустой 404 на ней так же неотличим от опечатки.
+    /// </summary>
+    [Theory]
+    [InlineData("POST")]
+    [InlineData("PUT")]
+    [InlineData("PATCH")]
+    [InlineData("DELETE")]
+    public async Task Disabled_module_refuses_on_every_method(string method)
+    {
+        using var host = await StartAsync(enabled: "id", new IdLike(), new CostsLike());
+
+        var response = await host.GetTestClient().SendAsync(
+            new HttpRequestMessage(new HttpMethod(method), "/api/costs/invoices"));
+
+        Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
+    }
+
+    /// <summary>Корень пути модуля тоже отказывает: перехват «всё остальное» пустой хвост не ловит.</summary>
+    [Fact]
+    public async Task Disabled_module_refuses_on_the_prefix_root()
+    {
+        using var host = await StartAsync(enabled: "id", new IdLike(), new CostsLike());
+
+        Assert.Equal(
+            HttpStatusCode.NotImplemented,
+            (await host.GetTestClient().GetAsync("/api/costs")).StatusCode);
+    }
+
+    /// <summary>
     /// Поднимает приложение с заданным набором модулей на тестовом сервере.
     /// </summary>
     private static async Task<IHost> StartAsync(
@@ -153,11 +209,39 @@ public class DisabledModuleTests
         public string Code => code;
         public string Title => title;
         public IReadOnlyList<string> Permissions => [];
+        public IReadOnlyList<string> RoutePrefixes => [route.Split('/', StringSplitOptions.RemoveEmptyEntries) is { Length: >= 2 } s ? "/" + s[0] + "/" + s[1] : route];
         public virtual void RegisterServices(IServiceCollection services, IConfiguration configuration) { }
         public void MapEndpoints(IEndpointRouteBuilder endpoints) =>
             endpoints.MapGet(route, () => Results.Ok("модуль отвечает"));
         public virtual Task InitializeAsync(IServiceProvider services, CancellationToken ct) => Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Модуль, обработчики которого требуют собственную службу и тело запроса. Если ядро когда-нибудь
+    /// снова возьмётся строить адреса выключенного модуля, эта регистрация уронит запуск — и тест
+    /// поймает это сразу, а не у заказчика.
+    /// </summary>
+    private sealed class ServiceHungryModule : IAppModule
+    {
+        public string Code => "costs";
+        public string Title => "Счета и накладные";
+        public IReadOnlyList<string> Permissions => [];
+        public IReadOnlyList<string> RoutePrefixes => ["/api/costs"];
+        public void RegisterServices(IServiceCollection services, IConfiguration configuration) { }
+
+        public void MapEndpoints(IEndpointRouteBuilder endpoints)
+        {
+            endpoints.MapGet("/api/costs/needs-service", (IModuleOwnService _) => Results.Ok());
+            endpoints.MapPost("/api/costs/needs-body", (Invoice _) => Results.Ok());
+        }
+
+        public Task InitializeAsync(IServiceProvider services, CancellationToken ct) => Task.CompletedTask;
+    }
+
+    /// <summary>Служба, которой нет в контейнере: её регистрирует только включённый модуль.</summary>
+    public interface IModuleOwnService;
+
+    public record Invoice(string Name);
 
     /// <summary>Считает, сколько раз ядро обратилось к модулю.</summary>
     private sealed class CountingModule(string code)
