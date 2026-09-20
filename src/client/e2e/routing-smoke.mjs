@@ -1,4 +1,4 @@
-// Маршрутный smoke-тест (issue #694).
+﻿// Маршрутный smoke-тест (issue #694).
 // Маршрутизация не покрыта юнит-тестами, а живёт на внешней библиотеке, которая обновляется
 // мажорными версиями. Этот прогон проверяет по живому фронту то, что ломается при таком
 // обновлении в первую очередь:
@@ -158,13 +158,37 @@ try {
     await page.waitForURL(atPath('/document-sets'), { timeout: 5000 });
   });
 
-  // ── AdminRoute уводит не-администратора ────────────────────────────────────
+  // ── Закрытый раздел отвечает страницей, а не переносом ─────────────────────
+  //
+  // Прежняя редакция ждала, что пользователя УВЕДЁТ на список строек, и проверяла смену адреса.
+  // Ровно это требование AUTH-15 и запрещает: молчаливое перенаправление неотличимо от поломки —
+  // человек нажал пункт, оказался не там и не знает, сломалась система или ему нельзя. С issue
+  // #952 поведение сменилось, и проверка упала — как и должна была.
   const userContext = await browser.newContext();
   const userPage = await userContext.newPage();
-  await check('admin-route-blocks-user', async () => {
+  await check('closed-section-answers-with-a-page', async () => {
     await login(userPage, USER_EMAIL, USER_PASSWORD);
     await userPage.goto(`${BASE}/settings`);
-    await userPage.waitForURL(atPath('/document-sets'), { timeout: 5000 });
+
+    // Адрес НЕ меняется: человек остался там, куда шёл.
+    await userPage.waitForSelector('text=недоступен', { timeout: 5000 });
+    const url = new URL(userPage.url());
+    if (url.pathname !== '/settings')
+      throw new Error(`адрес сменился на ${url.pathname} — это и есть запрещённое перенаправление`);
+
+    // И страница называет, ЧЕГО не хватает: без кода права разговор с администратором
+    // превращается в угадайку.
+    await userPage.waitForSelector('text=core.system.manage', { timeout: 5000 });
+  });
+
+  // Пункта закрытого раздела нет и в меню (AUTH-16): спрятать раздел и оставить пункт значило бы
+  // показывать дверь, которая отвечает отказом.
+  await check('closed-section-is-absent-from-the-menu', async () => {
+    await userPage.goto(`${BASE}/document-sets`);
+    await userPage.waitForSelector('nav', { timeout: 5000 });
+    const menu = await userPage.locator('nav').innerText();
+    if (menu.includes('Настройки'))
+      throw new Error('пункт «Настройки» виден пользователю, у которого нет права на него');
   });
   await userContext.close();
 } finally {
