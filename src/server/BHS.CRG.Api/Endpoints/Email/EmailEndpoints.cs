@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Modules;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Email;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +15,13 @@ public static class EmailEndpoints
 {
     public static void MapEmailEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/email").RequireAuthorization("Admin");
+        // Право УПРАВЛЕНИЯ ПОЛЬЗОВАТЕЛЯМИ, а не обслуживания экземпляра (issue #947). Адрес один, и
+        // зовут его с экрана пользователей: выбрать получателей из списка учётных записей и
+        // написать им. Сначала он ушёл под core.system.manage «за компанию» с настройками почты — и
+        // роль ровно с core.users.manage видела кнопку отправки, получая на неё отказ. Настройка
+        // SMTP — обслуживание; письмо выбранным пользователям — работа с пользователями.
+        var g = app.MapGroup("/api/email")
+            .RequireAuthorization(AppPolicies.Permission(CorePermissions.UsersManage));
 
         g.MapPost("/send", async (SendMessageRequest req, AppDbContext db, IEmailSender email, CancellationToken ct) =>
         {

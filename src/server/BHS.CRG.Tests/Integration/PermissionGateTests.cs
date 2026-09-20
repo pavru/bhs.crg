@@ -1,4 +1,4 @@
-using System.IdentityModel.Tokens.Jwt;
+﻿using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -117,6 +117,104 @@ public class PermissionGateTests(IntegrationTestFixture fixture)
         var token = (await renewed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/users")).StatusCode);
+    }
+
+    /// <summary>
+    /// Обслуживание экземпляра закрыто правом, а не ролью (issue #947, ТЗ CORE-37.1). Инженер ИД
+    /// вошёл и работает — но копии, обновление, почта и внешние службы ему не отвечают.
+    ///
+    /// Раньше на этих группах стояло имя роли. Разница не косметическая: пока ворота стоят на
+    /// имени, состав доступа нельзя ни увидеть в редакторе ролей, ни изменить, не трогая код.
+    /// </summary>
+    /// <remarks>
+    /// Адреса взяты из кода, а не придуманы: первая редакция теста спрашивала выдуманные пути и
+    /// получала 404 — проверка прав до такого ответа не доходит вовсе. Отказ по несуществующему
+    /// адресу выглядит как отказ по праву ровно настолько, чтобы обмануть невнимательный тест.
+    /// </remarks>
+    /// <remarks>
+    /// ⚠️ Один вход на все адреса, и это не экономия строк. Вход ограничен по частоте, а
+    /// ограничитель общий на прогон: редакция с [Theory] входила заново на каждый адрес и выбивала
+    /// 429 у ЧУЖИХ тестов, падавших следом. Проверка, которая роняет соседей, не проверка.
+    /// </remarks>
+    [Fact]
+    public async Task Instance_upkeep_refuses_a_user_without_the_system_right()
+    {
+        string[] addresses =
+        [
+            "/api/backup/size", "/api/backup/files",
+            "/api/settings/integrations", "/api/settings/integrations/models",
+        ];
+
+        var (engineer, _, _) = await SignInAsync(SystemRoles.IdEngineer);
+
+        foreach (var address in addresses)
+            Assert.Equal(HttpStatusCode.Forbidden, (await engineer.GetAsync(address)).StatusCode);
+
+        // Метод тоже берётся из кода: GET по адресу, который умеет только POST, отвечает 405 — и
+        // это опять ответ ДО проверки прав. Третий раз за задачу отказ не по той причине выглядел
+        // как отказ по праву.
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await engineer.PostAsync("/api/system/update/check", null)).StatusCode);
+
+        // ⚠️ А вот СТАТУС версии обязан остаться открытым любому вошедшему (issue #813). Сначала
+        // под право ушла вся группа /api/system — «обновления это же обслуживание», — и 403 стал
+        // приходить на КАЖДОМ экране: статус читает подвал боковой панели. Найдено ревью, поэтому
+        // проверка стоит здесь же, рядом с воротами, которые её чуть не съели.
+        Assert.Equal(HttpStatusCode.OK, (await engineer.GetAsync("/api/system/update")).StatusCode);
+    }
+
+    /// <summary>
+    /// Те же адреса открыты «Администратору» — иначе предыдущий тест доказывал бы лишь то, что
+    /// адреса сломаны для всех.
+    /// </summary>
+    [Fact]
+    public async Task Instance_upkeep_opens_for_the_administrator()
+    {
+        var (admin, _, _) = await SignInAsync(SystemRoles.Admin);
+        Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync("/api/backup/files")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync("/api/settings/integrations")).StatusCode);
+    }
+
+    /// <summary>
+    /// Файлы хранилища — под правом (ТЗ CORE-37.2).
+    ///
+    /// ⚠️ Отказ проверяется ролью БЕЗ права, заведённой здесь же. Сначала проверка опиралась на
+    /// «Руководителя» — единственную системную роль без <c>core.files.use</c>, — но ревью показало,
+    /// чего стоило это исключение: диалог «сообщить об ошибке» грузит снимок ДО отправки, и отказ
+    /// съедал не вложение, а всё сообщение. Право роли выдано, и опереться на неё больше нельзя:
+    /// тест, привязанный к составу роли, ломается от каждой правки этого состава.
+    ///
+    /// ⚠️ Тест доказывает ровно то, что написано: без права дверь не открывается. Он НЕ доказывает,
+    /// что чужой файл недостижим, — выдача идёт по пути и владельца не сверяет.
+    /// </summary>
+    [Fact]
+    public async Task Files_need_the_files_right()
+    {
+        var roleName = $"NoFiles_{Guid.NewGuid():N}";
+        var email = $"nofiles_{Guid.NewGuid():N}@test.local";
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+            Assert.True((await roles.CreateAsync(new IdentityRole<Guid>(roleName))).Succeeded);
+            var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Тест", EmailConfirmed = true };
+            Assert.True((await users.CreateAsync(user, Password)).Succeeded);
+            Assert.True((await users.AddToRoleAsync(user, roleName)).Succeeded);
+        }
+
+        var client = fixture.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", await TokenAsync(client, email));
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await client.GetAsync("/api/attachments?path=any/known/path.pdf")).StatusCode);
+
+        // У «Инженера ИД» право есть — отказ приходит не от ворот, а от отсутствия файла.
+        var (engineer, _, _) = await SignInAsync(SystemRoles.IdEngineer);
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await engineer.GetAsync("/api/attachments?path=any/known/path.pdf")).StatusCode);
     }
 
     /// <summary>Право есть — дверь открыта.</summary>

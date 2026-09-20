@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, Loader2, Monitor, Paperclip, X } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
@@ -84,7 +84,20 @@ export function BugReportDialog({ open, prefill, onClose }: {
     setSending(true);
     setError(null);
     try {
-      const uploaded = shot ? await uploadAttachment(shot.file) : null;
+      // Снимок — довесок, а сообщение — то, ради чего диалог открыли. Раньше отказ на загрузке
+      // снимка выбрасывал нас в catch, и пользователь получал ошибку вместо отправки: текст,
+      // который он писал, не уходил никуда (issue #947 — так ломались сообщения у роли без права
+      // на файлы). Не отправить сообщение из-за картинки — хуже, чем отправить его без картинки.
+      //
+      // ⚠️ Признак — ЛОКАЛЬНАЯ переменная, а не состояние: состояние, выставленное здесь, в этом же
+      // проходе не прочитается, и тост всегда говорил бы «передано» без оговорки. Показывать его
+      // всё равно негде — диалог закрывается.
+      let shotLost = false;
+      let uploaded: { blobPath: string } | null = null;
+      if (shot) {
+        try { uploaded = await uploadAttachment(shot.file); }
+        catch { shotLost = true; }
+      }
       await submitBugReport({
         message: text,
         tech: {
@@ -98,7 +111,9 @@ export function BugReportDialog({ open, prefill, onClose }: {
       removeShot();
       onClose();
       // Результат не виден на экране, с которого сообщали, — ровно случай для тоста.
-      toast.success('Передано администратору.');
+      toast.success(shotLost
+        ? 'Передано администратору — без снимка экрана: его не удалось загрузить.'
+        : 'Передано администратору.');
     } catch (e) {
       setError(apiError(e, 'Не удалось отправить сообщение.'));
     } finally {
