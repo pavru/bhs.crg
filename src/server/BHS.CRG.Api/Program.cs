@@ -652,6 +652,7 @@ builder.Services.AddOpenApi();
 // сканер сборок рядом с приложением: набор модулей на экземпляре обязан быть решением поставки
 // (Modules__Enabled, AUTH-17), а не следствием того, какие DLL кто-то скопировал.
 builder.Services.AddAppModules(builder.Configuration, CorePermissions.All, new IdModule());
+builder.Services.AddScoped<EffectivePermissions>();
 
 var app = builder.Build();
 
@@ -698,9 +699,7 @@ using (var scope = app.Services.CreateScope())
 
     // ── Роли + миграция существующих пользователей ──────────────────────────────
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
-    foreach (var role in new[] { "Admin", "User" })
-        if (!await roleManager.RoleExistsAsync(role))
-            await roleManager.CreateAsync(new IdentityRole<Guid>(role));
+    await RoleSynchronizer.SyncAsync(roleManager, scope.ServiceProvider.GetRequiredService<PermissionCatalog>(), app.Logger);
 
     // Существующие аккаунты без роли получают Admin (раньше у всех был полный доступ).
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
