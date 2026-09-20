@@ -85,7 +85,7 @@ public static class SystemRoles
     /// оставить экземпляр без управления пользователями и без возможности это исправить.
     /// Возвращается при каждом старте, даже если его убрали.
     /// </summary>
-    public const string AdminCannotLose = "core.users.manage";
+    public const string AdminCannotLose = CorePermissions.UsersManage;
 }
 
 /// <summary>Системная роль: техническое имя, человеческое название и состав прав.</summary>

@@ -1,7 +1,9 @@
-import { useState, useCallback, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { apiClient } from '@/shared/api/client';
-import { getToken, getRefreshToken, setTokens, clearToken, replaceTokens } from '@/shared/api/token';
+import {
+  getToken, getRefreshToken, setTokens, clearToken, replaceTokens, onTokenChanged,
+} from '@/shared/api/token';
 import { AuthContext, type AuthUser, type UserRole } from '@/shared/hooks/useAuth';
 
 function decodeUser(token: string): AuthUser {
@@ -16,6 +18,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = getToken();
     return token ? decodeUser(token) : null;
   });
+
+  // Токен меняется и мимо этого провайдера: перехватчик ответов обменивает его по refresh после
+  // 401 — например, когда администратор снял роль, и сервер перестал принимать прежний токен
+  // (issue #946). Без этой подписки экран остался бы с прежней ролью до перезагрузки страницы:
+  // кнопки на месте, действия отвечают отказом.
+  useEffect(() => onTokenChanged(token => setUser(token ? decodeUser(token) : null)), []);
 
   const login = useCallback(async (email: string, password: string, remember = true) => {
     const { data } = await apiClient.post<{ accessToken: string; refreshToken: string }>(

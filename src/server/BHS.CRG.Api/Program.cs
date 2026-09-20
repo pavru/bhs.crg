@@ -653,6 +653,8 @@ builder.Services.AddOpenApi();
 // (Modules__Enabled, AUTH-17), а не следствием того, какие DLL кто-то скопировал.
 builder.Services.AddAppModules(builder.Configuration, CorePermissions.All, new IdModule());
 builder.Services.AddScoped<EffectivePermissions>();
+// Чем ворота модулей и прав отвечают на вопрос «что этому пользователю можно» (AUTH-6).
+builder.Services.AddSingleton<IUserPermissions, PermissionCache>();
 
 var app = builder.Build();
 

@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.DependencyInjection;
 using BHS.CRG.Modules;
 using Microsoft.Extensions.Configuration;
 
@@ -189,6 +190,7 @@ public class ModuleBoundaryTests
     {
         var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateSlimBuilder();
         builder.Services.AddAppModules(builder.Configuration, new RouteModule());
+        builder.Services.AddSingleton<IUserPermissions>(new Support.StubUserPermissions());
 
         using var app = builder.Build();
         app.MapAppModules();
@@ -216,6 +218,7 @@ public class ModuleBoundaryTests
     {
         var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateSlimBuilder();
         builder.Services.AddAppModules(builder.Configuration, new RouteModule());
+        builder.Services.AddSingleton<IUserPermissions>(new Support.StubUserPermissions());
 
         using var app = builder.Build();
         app.MapAppModules();
@@ -225,7 +228,31 @@ public class ModuleBoundaryTests
             .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
             .Single(e => e.RoutePattern.RawText == "/probe-модуля");
 
-        Assert.NotNull(probe.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>());
+        var gate = probe.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>();
+
+        Assert.NotNull(gate);
+        // Именно политика модуля, а не «вошёл»: проверка «авторизация хоть какая-то есть» молча
+        // пережила бы возврат к воротам, которые пускают любого вошедшего (AUTH-10).
+        Assert.Equal(AppPolicies.Module(ModuleRegistry.DefaultCode), gate.Policy);
+    }
+
+    /// <summary>
+    /// Приложение, которое подключает модули и не умеет ответить, какие у пользователя права,
+    /// не собирается.
+    ///
+    /// Иначе ворота модуля отвечали бы отказом на всё: выглядит как «модуль сломался», а на деле
+    /// приложение собрано неправильно. Отказ при старте называет причину там, где её видно.
+    /// </summary>
+    [Fact]
+    public void Module_gate_without_a_permission_source_refuses_to_start()
+    {
+        var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateSlimBuilder();
+        builder.Services.AddAppModules(builder.Configuration, new RouteModule());
+
+        using var app = builder.Build();
+
+        var ex = Assert.Throws<InvalidOperationException>(() => app.MapAppModules());
+        Assert.Contains(nameof(IUserPermissions), ex.Message);
     }
 
     /// <summary>

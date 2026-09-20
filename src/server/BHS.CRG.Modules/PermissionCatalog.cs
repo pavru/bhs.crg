@@ -31,10 +31,16 @@ public sealed class PermissionCatalog
                 "Два объявления одного кода означают два разных объяснения у одной галки.");
 
         All = permissions;
+        _codes = new HashSet<string>(permissions.Select(p => p.Code), StringComparer.OrdinalIgnoreCase);
     }
+
+    private readonly HashSet<string> _codes;
 
     public IReadOnlyList<AppPermission> All { get; }
 
     /// <summary>Коды прав — для сверки с базой и проверок.</summary>
     public IReadOnlyList<string> Codes => [.. All.Select(p => p.Code)];
+
+    /// <summary>Объявлено ли такое право этой сборкой.</summary>
+    public bool Declares(string code) => _codes.Contains(code);
 }

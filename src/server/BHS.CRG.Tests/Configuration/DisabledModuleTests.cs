@@ -202,11 +202,13 @@ public class DisabledModuleTests
         builder.Configuration.AddInMemoryCollection(
             new Dictionary<string, string?> { ["Modules:Enabled"] = enabled });
 
-        // Ворота группы включённого модуля требуют служб авторизации — без них приложение не
-        // соберётся. Самим воротам здесь проверять нечего: тесты стучатся в адреса ядра и
-        // выключенного модуля, а закрытость включённой группы стережёт ModuleBoundaryTests.
+        // Ворота группы включённого модуля требуют служб авторизации и ответчика о правах — без
+        // них приложение не соберётся. Самим воротам здесь проверять нечего: тесты стучатся в
+        // адреса ядра и выключенного модуля, а закрытость включённой группы стережёт
+        // ModuleBoundaryTests.
         builder.Services.AddAuthentication();
         builder.Services.AddAuthorization();
+        builder.Services.AddSingleton<IUserPermissions>(new Support.StubUserPermissions());
         builder.Services.AddAppModules(builder.Configuration, available);
 
         var app = builder.Build();
