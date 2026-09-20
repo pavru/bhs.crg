@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,11 +44,15 @@ public static class AppModuleExtensions
                   $"Доступны: {string.Join(", ", available.Select(m => m.Code))}.");
 
         var enabled = codes.Select(c => byCode[c]).ToList();
+        var disabled = available.Except(enabled).ToList();
 
+        // Службы регистрирует только включённый модуль: выключенный не должен висеть в контейнере
+        // и попадать в фоновые задания (AUTH-19). Его адреса при этом всё равно появятся — отказом,
+        // см. MapAppModules.
         foreach (var module in enabled)
             module.RegisterServices(services, configuration);
 
-        services.AddSingleton(new ModuleRegistry(enabled));
+        services.AddSingleton(new ModuleRegistry(enabled, disabled));
         return services;
     }
 
@@ -77,10 +82,74 @@ public static class AppModuleExtensions
         var registry = app.ServiceProvider.GetRequiredService<ModuleRegistry>();
 
         foreach (var module in registry.Enabled)
-            module.MapEndpoints(app.MapGroup(string.Empty).RequireAuthorization());
+        {
+            var group = app.MapGroup(string.Empty).RequireAuthorization();
+            group.WithMetadata(new AppModuleEndpoint(module.Code));
+            module.MapEndpoints(group);
+        }
+
+        foreach (var module in registry.Disabled)
+            MapRefusal(app, module);
 
         return app;
     }
+
+    /// <summary>
+    /// Отказ на путях выключенного модуля: под каждым объявленным префиксом — перехват «всё
+    /// остальное».
+    ///
+    /// Почему на путях вообще что-то регистрируется. Незарегистрированный адрес отвечает пустым
+    /// 404 — тем же, что и опечатка в ссылке. По ТЗ выключенный модуль обязан отвечать ОТКАЗОМ, а
+    /// не пустым ответом (OVW-10), а клиент обязан показать честную страницу «нужен модуль X»
+    /// вместо бесконечной загрузки (AUTH-15). Различить это можно только по ответу.
+    ///
+    /// ⚠️ Почему не настоящие адреса модуля, что выглядело бы точнее. Их построение требует
+    /// разрешить параметры обработчика, а службы выключенного модуля не зарегистрированы — и адрес
+    /// со служебным параметром роняет СТАРТ приложения, а не запрос: платформа принимает незнакомый
+    /// тип за тело запроса и отказывается строить делегат. Первая редакция этой правки так и
+    /// делала, а проверена была на адресе без параметров, где всё сходилось (ревью #969).
+    ///
+    /// Перехват безопасен рядом с ядром: <c>{**rest}</c> проигрывает любому конкретному маршруту
+    /// под тем же префиксом, поэтому общие адреса комплектов продолжают работать при выключенной
+    /// исполнительной документации. Проверено тестом, а не предположением.
+    ///
+    /// Отказ анонимен намеренно: за ним нет данных, и требовать вход, чтобы сообщить «модуля нет»,
+    /// значит прятать состав поставки от того, кто и так увидит его в интерфейсе. В будущей
+    /// инвентаризации адресов (AUTH-9) эти пути попадут в список публичных явной строкой.
+    /// </summary>
+    private static void MapRefusal(IEndpointRouteBuilder app, IAppModule module)
+    {
+        string[] verbs = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+
+        foreach (var prefix in module.RoutePrefixes)
+        {
+            var group = app.MapGroup(prefix);
+
+            // Два образца: сам префикс («/api/quality-docs») и всё под ним. Catch-all пустой хвост
+            // не ловит, и без первого образца корневой адрес модуля отвечал бы пустым 404.
+            foreach (var pattern in new[] { string.Empty, "/{**rest}" })
+                group.MapMethods(pattern, verbs, () => Refuse(module))
+                    .AllowAnonymous()
+                    // Документ описывает то, что экземпляр УМЕЕТ, а не то, на что он отвечает отказом.
+                    .ExcludeFromDescription()
+                    // ⚠️ Отказ уступает ядру ЯВНО, а не по устройству сопоставления. Под самим
+                    // префиксом образцы совпадают по точности: адрес ядра ровно на «/api/costs» и
+                    // отказ на нём же неразличимы, и платформа отвечает не ядром, а отказом
+                    // «совпало несколько адресов» — то есть 500 (ревью #969, проверено прогоном).
+                    // Порядок решает такие ничьи: с наибольшим значением отказ проигрывает любому
+                    // адресу ядра. Правило «перехват проигрывает конкретному маршруту» само по себе
+                    // верно только глубже префикса.
+                    .Add(builder => ((RouteEndpointBuilder)builder).Order = int.MaxValue);
+        }
+    }
+
+    private static IResult Refuse(IAppModule module) => Results.Json(
+        new
+        {
+            error = $"Модуль «{module.Title}» не подключён на этом экземпляре.",
+            module = module.Code,
+        },
+        statusCode: StatusCodes.Status501NotImplemented);
 
     /// <summary>
     /// Первичная инициализация включённых модулей. Вызывается при каждом старте после миграций;

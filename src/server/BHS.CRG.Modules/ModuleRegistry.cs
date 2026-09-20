@@ -17,14 +17,25 @@ public sealed class ModuleRegistry
 
     private readonly Dictionary<string, IAppModule> _byCode;
 
-    public ModuleRegistry(IReadOnlyList<IAppModule> enabled)
+    public ModuleRegistry(IReadOnlyList<IAppModule> enabled, IReadOnlyList<IAppModule> disabled)
     {
         Enabled = enabled;
+        Disabled = disabled;
         _byCode = enabled.ToDictionary(m => m.Code, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>Включённые модули в том порядке, в каком их перечислил оператор.</summary>
     public IReadOnlyList<IAppModule> Enabled { get; }
+
+    /// <summary>
+    /// Модули, которые есть в сборке, но на этом экземпляре не включены.
+    ///
+    /// Нужны не для порядка: их адреса всё равно регистрируются — отказом с названной причиной
+    /// (<c>AppModuleExtensions.MapAppModules</c>). Незарегистрированный адрес отвечает пустым 404,
+    /// неотличимым от опечатки в ссылке, а ТЗ требует отказа, который называет причину
+    /// (OVW-10, AUTH-15, AUTH-19).
+    /// </summary>
+    public IReadOnlyList<IAppModule> Disabled { get; }
 
     public bool IsEnabled(string code) => _byCode.ContainsKey(code);
 
