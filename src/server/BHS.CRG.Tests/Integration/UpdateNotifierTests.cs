@@ -8,13 +8,16 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BHS.CRG.Tests.Integration;
 
 /// <summary>
-/// Кому достаётся сообщение о новой версии (issue #813).
+/// Кому достаётся сообщение о новой версии (issue #813, адресация по правам — issue #949).
 ///
-/// Проверяется здесь, а не на глаз, потому что цена ошибки скрытая: у ОБЩЕСИСТЕМНОГО уведомления
-/// (<c>UserId == null</c>) состояние прочтения общее на всех — любой пользователь пометил
-/// прочитанным или смахнул, и записи не стало ни у кого. Опубликуй мы так, единственный, кто может
-/// обновить систему, узнавал бы последним или никогда, а выглядело бы это как «уведомления
-/// работают».
+/// Проверяется здесь, а не на глаз, потому что «пришло всем» и «пришло кому надо» выглядят
+/// одинаково, пока смотришь со стороны администратора: у него есть все права, и любая ошибка
+/// отбора видна ему как успех.
+///
+/// ⚠️ Прежде здесь проверялась ЛИЧНАЯ копия каждому администратору — так пришлось делать, пока
+/// «прочитано» лежало на самой записи и первый прочитавший гасил её у всех (issue #821). Состояние
+/// давно у каждого своё, и адресация переведена на право <c>core.system.manage</c>: одна запись,
+/// получатели считаются при чтении.
 /// </summary>
 [Collection("Integration")]
 public class UpdateNotifierTests(IntegrationTestFixture fixture) : IAsyncLifetime
@@ -61,7 +64,7 @@ public class UpdateNotifierTests(IntegrationTestFixture fixture) : IAsyncLifetim
     }
 
     [Fact]
-    public async Task Notifies_AdminsOnly_AndPersonally()
+    public async Task Сообщение_об_обновлении_видит_тот_кто_обслуживает_систему()
     {
         var adminId = await CreateUserAsync("Администратор", "Admin");
         var userId = await CreateUserAsync("Пользователь", "User");
@@ -73,25 +76,19 @@ public class UpdateNotifierTests(IntegrationTestFixture fixture) : IAsyncLifetim
         using var check = fixture.Services.CreateScope();
         var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Проверяем адресно, по созданным здесь пользователям: учётные записи в тестовой базе
-        // намеренно НЕ очищаются между классами (их создают многие тесты), так что счёт «всех
-        // уведомлений об обновлении» ничего бы не сказал.
-        var forAdmin = await db.Notifications.AsNoTracking()
-            .Where(n => n.Source == UpdateNotifier.Source && n.UserId == adminId).ToListAsync();
-        var one = Assert.Single(forAdmin);
-        Assert.Contains("0.138.0", one.Title);
-        Assert.Contains("0.137.1", one.Message);
+        // Запись ОДНА, с названной аудиторией — а не копия на каждого администратора.
+        var sent = Assert.Single(await db.Notifications.AsNoTracking()
+            .Where(n => n.Source == UpdateNotifier.Source).ToListAsync());
+        Assert.Contains("0.138.0", sent.Title);
+        Assert.Contains("0.137.1", sent.Message);
+        Assert.Null(sent.UserId);
+        Assert.Equal("core.system.manage", sent.Audience);
 
-        // Ключевое: адресно, а НЕ общесистемно (UserId == null) — иначе первый же прочитавший
-        // погасил бы запись у администратора.
-        Assert.Empty(await db.Notifications.AsNoTracking()
-            .Where(n => n.Source == UpdateNotifier.Source && n.UserId == null).ToListAsync());
-
-        // Обычному пользователю сообщение не адресовано — но и не спрятано: номер версии он видит
-        // в подвале боковой панели, пассивно.
+        // Ключевое — двусторонне: обслуживающий видит, а инженеру сообщение не адресовано. Номер
+        // версии он и так видит пассивно, в подвале боковой панели.
         var notifier = check.ServiceProvider.GetRequiredService<INotificationService>();
-        Assert.Empty((await notifier.GetAsync(userId)).Where(n => n.Source == UpdateNotifier.Source));
-        Assert.Single((await notifier.GetAsync(adminId)).Where(n => n.Source == UpdateNotifier.Source));
+        Assert.Single(await notifier.GetAsync(adminId), n => n.Source == UpdateNotifier.Source);
+        Assert.DoesNotContain(await notifier.GetAsync(userId), n => n.Source == UpdateNotifier.Source);
     }
 
     [Fact]
@@ -109,7 +106,7 @@ public class UpdateNotifierTests(IntegrationTestFixture fixture) : IAsyncLifetim
         using var check = fixture.Services.CreateScope();
         var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
         var sent = await db.Notifications.AsNoTracking()
-            .Where(n => n.Source == UpdateNotifier.Source && n.UserId == adminId).ToListAsync();
+            .Where(n => n.Source == UpdateNotifier.Source).ToListAsync();
 
         // К третьему выпуску в колокольчике лежали бы три записи об одном и том же, и свежая
         // терялась бы среди устаревших.
@@ -118,7 +115,7 @@ public class UpdateNotifierTests(IntegrationTestFixture fixture) : IAsyncLifetim
     }
 
     [Fact]
-    public async Task WithoutAdmins_SendsNothing()
+    public async Task Без_права_на_обслуживание_сообщение_не_видно_никому()
     {
         var userId = await CreateUserAsync("Пользователь", "User");
         await KeepOnlyAdminsAsync();   // администраторов не осталось вовсе
@@ -127,12 +124,12 @@ public class UpdateNotifierTests(IntegrationTestFixture fixture) : IAsyncLifetim
             await Notifier(scope).NotifyAsync("0.138.0", "0.137.1", default);
 
         using var check = fixture.Services.CreateScope();
-        var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
-        // Ни личных, ни общесистемных: некому сообщать — значит молчим, а не рассылаем всем подряд.
-        Assert.Empty(await db.Notifications.AsNoTracking()
-            .Where(n => n.Source == UpdateNotifier.Source).ToListAsync());
-        Assert.Empty((await check.ServiceProvider.GetRequiredService<INotificationService>()
-            .GetAsync(userId)).Where(n => n.Source == UpdateNotifier.Source));
+        // Запись появляется — но получателей у неё нет, и инженер её не видит. Это отличие от
+        // прежнего поведения («нет администраторов — не публикуем»), и оно осознанное: выдайте
+        // право завтра, и сообщение найдёт человека, а не потеряется в дне, когда его выпустили.
+        Assert.DoesNotContain(
+            await check.ServiceProvider.GetRequiredService<INotificationService>().GetAsync(userId),
+            n => n.Source == UpdateNotifier.Source);
     }
 
     [Fact]

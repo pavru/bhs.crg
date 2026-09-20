@@ -16,7 +16,8 @@ namespace BHS.CRG.Infrastructure.Notifications;
 /// пользователя срабатывала у всех (issue #821). Строка состояния заводится лениво, поэтому
 /// «нет строки» == «не прочитано и не скрыто», а список читается левым соединением.
 /// </summary>
-public class NotificationService(AppDbContext db, ILogger<NotificationService> logger) : INotificationService
+public class NotificationService(
+    AppDbContext db, ILogger<NotificationService> logger, INotificationAudience audiences) : INotificationService
 {
     /// <summary>
     /// Сколько уведомлений держим — НА КОРЗИНУ (на каждого получателя и отдельно на общесистемные).
@@ -34,26 +35,34 @@ public class NotificationService(AppDbContext db, ILogger<NotificationService> l
     // одновременных подрезок даст в худшем случае две строки вместо одной.
     private static readonly ConcurrentDictionary<Guid, DateTimeOffset> LastFlowWarning = new();
 
-    // Видимые пользователю: личные (его userId) + общесистемные (null).
-    private static Expression<Func<Notification, bool>> VisibleTo(Guid userId)
-        => n => n.UserId == userId || n.UserId == null;
+    // Адресовано пользователю: личное (его userId) или общесистемное, чья аудитория ему подходит.
+    // keys — права пользователя и коды доступных ему модулей (INotificationAudience).
+    private static Expression<Func<Notification, bool>> AddressedTo(Guid userId, IReadOnlyCollection<string> keys)
+        => n => n.UserId == userId
+             || (n.UserId == null && (n.Audience == null || keys.Contains(n.Audience)));
 
     // То же, но общесистемные — только выпущенные после появления учётной записи.
-    private Expression<Func<Notification, bool>> VisibleSince(Guid userId)
+    private Expression<Func<Notification, bool>> VisibleSince(Guid userId, IReadOnlyCollection<string> keys)
         => n => n.UserId == userId
              || (n.UserId == null
+                 && (n.Audience == null || keys.Contains(n.Audience))
                  && n.CreatedAt >= db.Users.Where(u => u.Id == userId).Select(u => u.CreatedAt).FirstOrDefault());
 
-    public async Task PublishAsync(NotificationSeverity severity, string title, string message,
+    public async Task<Guid> PublishAsync(NotificationSeverity severity, string title, string message,
         string? source = null, Guid? userId = null, string? linkUrl = null, string? linkLabel = null,
-        CancellationToken ct = default)
+        string? audience = null, CancellationToken ct = default)
     {
-        var n = Notification.Create(severity, title, message, source, userId, linkUrl, linkLabel);
+        // Несуществующая аудитория — отказ на публикации, а не пустой список у всех потом.
+        if (audience is not null) audiences.EnsureDeclared(audience);
+
+        var n = Notification.Create(severity, title, message, source, userId, linkUrl, linkLabel, audience);
         db.Notifications.Add(n);
         await db.SaveChangesAsync(ct);
-        logger.LogInformation("Уведомление [{Severity}] {Title} ({Source}) user={User}", severity, title, source, userId);
+        logger.LogInformation("Уведомление [{Severity}] {Title} ({Source}) user={User} аудитория={Audience}",
+            severity, title, source, userId, audience ?? "все вошедшие");
 
         await PruneAsync(userId, n.CreatedAt, ct);
+        return n.Id;
     }
 
     /// <summary>
@@ -97,10 +106,11 @@ public class NotificationService(AppDbContext db, ILogger<NotificationService> l
     }
 
     public async Task<IReadOnlyList<NotificationDto>> GetAsync(Guid userId, bool unreadOnly = false, int take = 100, CancellationToken ct = default)
-        => await VisibleTo(userId, unreadOnly).Take(Math.Clamp(take, 1, MaxKept)).ToListAsync(ct);
+        => await VisibleTo(userId, await audiences.KeysForAsync(userId, ct), unreadOnly)
+            .Take(Math.Clamp(take, 1, MaxKept)).ToListAsync(ct);
 
     public async Task<int> UnreadCountAsync(Guid userId, CancellationToken ct = default)
-        => await VisibleTo(userId, unreadOnly: true).CountAsync(ct);
+        => await VisibleTo(userId, await audiences.KeysForAsync(userId, ct), unreadOnly: true).CountAsync(ct);
 
     /// <summary>
     /// Видимые пользователю уведомления с ЕГО состоянием; скрытые им отсеяны.
@@ -114,9 +124,13 @@ public class NotificationService(AppDbContext db, ILogger<NotificationService> l
     /// обращением: список опрашивают поллингом, лишний круг к базе тут не бесплатный. Отсечка
     /// нужна ровно из-за ленивых строк состояния: «нет строки» = «не прочитано», и без неё новый
     /// сотрудник открывал бы колокольчик с чужим прошлым, помеченным как непрочитанное.
+    ///
+    /// Аудитория проверяется здесь же, при чтении: список всегда соответствует СЕГОДНЯШНИМ правам
+    /// (ТЗ AUTH-13) — право выдали, и прошлые уведомления этой аудитории появились; отозвали —
+    /// исчезли.
     /// </summary>
-    private IQueryable<NotificationDto> VisibleTo(Guid userId, bool unreadOnly)
-        => from n in db.Notifications.AsNoTracking().Where(VisibleSince(userId))
+    private IQueryable<NotificationDto> VisibleTo(Guid userId, IReadOnlyCollection<string> keys, bool unreadOnly)
+        => from n in db.Notifications.AsNoTracking().Where(VisibleSince(userId, keys))
            join st in db.NotificationUserStates.AsNoTracking().Where(x => x.UserId == userId)
                on n.Id equals st.NotificationId into states
            from st in states.DefaultIfEmpty()
@@ -128,19 +142,26 @@ public class NotificationService(AppDbContext db, ILogger<NotificationService> l
 
     public async Task MarkReadAsync(Guid id, Guid userId, CancellationToken ct = default)
     {
-        var visible = await db.Notifications.AnyAsync(n => n.Id == id && (n.UserId == userId || n.UserId == null), ct);
+        var keys = await audiences.KeysForAsync(userId, ct);
+        var visible = await db.Notifications.Where(AddressedTo(userId, keys)).AnyAsync(n => n.Id == id, ct);
         if (!visible) return;
         await UpsertStateAsync(id, userId, isRead: true, isDismissed: false, ct);
     }
 
     public async Task MarkAllReadAsync(Guid userId, CancellationToken ct = default)
     {
+        // Аудитория учитывается и здесь: «прочитать все» не должно заводить состояние на записи,
+        // которых пользователь не видел. Иначе выданное позже право открыло бы прошлые уведомления
+        // сразу прочитанными — то есть не открыло бы.
+        var keys = (await audiences.KeysForAsync(userId, ct)).ToArray();
+
         // Одним запросом: состояние заводится сразу для всех видимых уведомлений, у которых его нет.
         await db.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO notification_user_states ("Id", "NotificationId", "UserId", "IsRead", "IsDismissed", "CreatedAt", "UpdatedAt")
             SELECT gen_random_uuid(), n."Id", {userId}, TRUE, FALSE, now(), now()
             FROM notifications n
-            WHERE (n."UserId" = {userId} OR n."UserId" IS NULL)
+            WHERE (n."UserId" = {userId}
+                   OR (n."UserId" IS NULL AND (n."Audience" IS NULL OR n."Audience" = ANY({keys}))))
               AND EXISTS (SELECT 1 FROM "AspNetUsers" u WHERE u."Id" = {userId})
             ON CONFLICT ("NotificationId", "UserId") DO UPDATE
                 SET "IsRead" = TRUE, "UpdatedAt" = now()
@@ -157,8 +178,10 @@ public class NotificationService(AppDbContext db, ILogger<NotificationService> l
             return;
         }
 
-        var isSystemWide = await db.Notifications.AnyAsync(n => n.Id == id && n.UserId == null, ct);
-        if (!isSystemWide) return;   // чужое личное — не наше дело
+        var keys = await audiences.KeysForAsync(userId, ct);
+        var isSystemWide = await db.Notifications.Where(AddressedTo(userId, keys))
+            .AnyAsync(n => n.Id == id && n.UserId == null, ct);
+        if (!isSystemWide) return;   // чужое личное или не его аудитория — не наше дело
 
         // Общесистемное: прячем только у этого пользователя, у остальных остаётся.
         await UpsertStateAsync(id, userId, isRead: true, isDismissed: true, ct);
@@ -169,6 +192,8 @@ public class NotificationService(AppDbContext db, ILogger<NotificationService> l
         // Обе половины — в одной транзакции, и НЕОБРАТИМАЯ идёт второй. Иначе отказ на втором шаге
         // (оборванное соединение, откатившийся запрос) оставлял бы личные уведомления удалёнными
         // навсегда, а общесистемные — на экране; повтор «Очистить все» удалённое уже не вернёт.
+        var keys = (await audiences.KeysForAsync(userId, ct)).ToArray();
+
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
         await db.Database.ExecuteSqlInterpolatedAsync($"""
@@ -176,6 +201,7 @@ public class NotificationService(AppDbContext db, ILogger<NotificationService> l
             SELECT gen_random_uuid(), n."Id", {userId}, TRUE, TRUE, now(), now()
             FROM notifications n
             WHERE n."UserId" IS NULL
+              AND (n."Audience" IS NULL OR n."Audience" = ANY({keys}))
               AND EXISTS (SELECT 1 FROM "AspNetUsers" u WHERE u."Id" = {userId})
             ON CONFLICT ("NotificationId", "UserId") DO UPDATE
                 SET "IsRead" = TRUE, "IsDismissed" = TRUE, "UpdatedAt" = now()

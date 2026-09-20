@@ -289,7 +289,7 @@ public class DataSetPdfRecognitionService(
                 (failures.NotAttemptedPages > 0 ? $" Прогон прекращён, ещё {failures.NotAttemptedPages} листов не обработаны." : "") +
                 (string.IsNullOrWhiteSpace(reason) ? "" : $" Причина: {reason.TrimEnd('.')}.") +
                 (sourceEngines.Count == 0 ? "" : $" Распознавал: {string.Join(", ", sourceEngines)}."),
-                "Распознавание PDF", ct: ct);
+                "Распознавание PDF", audience: NotificationAudiences.DataSetsEdit, ct: ct);
         }
 
         var columns = fields.Select(f => new DataSetColumnInfo(f.Path,
@@ -715,7 +715,8 @@ public class DataSetPdfRecognitionService(
     {
         var (severity, title, msg) = DescribeGostResult(
             documentCount, pageCount, failedPages, failureReason, nothingRecognized, failedSplits, invalidatedTables, engine);
-        await notifications.PublishAsync(severity, title, msg, "Распознавание PDF", ct: ct);
+        await notifications.PublishAsync(severity, title, msg, "Распознавание PDF",
+            audience: NotificationAudiences.DataSetsEdit, ct: ct);
     }
 
     /// <summary>
@@ -1230,7 +1231,7 @@ public class DataSetPdfRecognitionService(
             rows.Count == 0
                 ? $"«{tableName}» — модель не нашла в этих страницах ни одной строки таблицы. Проверьте границы документа и профиль распознавания."
                 : $"«{tableName}» — строк: {rows.Count}. Доступна как кандидат — создайте из него источник в наборе.",
-            "Распознавание PDF", ct: ct);
+            "Распознавание PDF", audience: NotificationAudiences.DataSetsEdit, ct: ct);
 
         var pageCount = await GetPdfPageCountAsync(file.BlobPath, ct);
         return new GostGroupingDto(
@@ -1383,7 +1384,8 @@ public class DataSetPdfRecognitionService(
 
         var pageCount = GetPdfPageCount(bytes);
         await notifications.PublishAsync(NotificationSeverity.Info, "Документ перераспознан",
-            $"«{(string.IsNullOrWhiteSpace(freshName) ? freshShifr : freshName)}» — обновлены поля {target.Pages.Count} листов.", "Распознавание PDF", ct: ct);
+            $"«{(string.IsNullOrWhiteSpace(freshName) ? freshShifr : freshName)}» — обновлены поля {target.Pages.Count} листов.", "Распознавание PDF",
+            audience: NotificationAudiences.DataSetsEdit, ct: ct);
         return new GostGroupingDto(
             unified.Groups.Select(g => new GostGroupingGroupDto(g.Kind, g.Code, g.Name, g.Pages.Select(p => p.PageIndex).ToList(), g.Tags, g.ProfileId,
                 g.Pages.Where(p => p.NoAnswer).Select(p => p.PageIndex).ToList())).ToList(),

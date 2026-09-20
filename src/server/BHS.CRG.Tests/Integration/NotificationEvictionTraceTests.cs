@@ -1,3 +1,4 @@
+using BHS.CRG.Application.Notifications;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Infrastructure.Notifications;
 using BHS.CRG.Infrastructure.Persistence;
@@ -54,7 +55,9 @@ public class NotificationEvictionTraceTests(IntegrationTestFixture fixture) : IA
     private async Task PublishAsync(Guid userId, CapturingLogger logger, int count)
     {
         using var scope = fixture.Services.CreateScope();
-        var svc = new NotificationService(scope.ServiceProvider.GetRequiredService<AppDbContext>(), logger);
+        var svc = new NotificationService(
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(), logger,
+            scope.ServiceProvider.GetRequiredService<INotificationAudience>());
         for (var i = 0; i < count; i++)
             await svc.PublishAsync(NotificationSeverity.Info, $"Новое {i}", "текст", "Тест", userId);
     }
