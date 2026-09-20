@@ -29,8 +29,14 @@ public sealed class ModuleAccessRequirement(string code) : IAuthorizationRequire
 /// ⚠️ Пустое имя после двоеточия — ОТКАЗ ПРИ СБОРКЕ политики, а не политика «без требований».
 /// <c>perm:</c> с обрезанным кодом выглядит как закрытая дверь и при этом не проверяет ничего;
 /// заметить такую дверь по ответу приложения нельзя — она отвечает так же, как настоящая.
+///
+/// ⚠️ Необъявленное право — тоже ОТКАЗ. Дверь на право, которого нет в справочнике, не откроется
+/// никому: её не выдать ни одной роли, и даже «Администратор», получающий ВСЁ объявленное, не
+/// получит несуществующего. Отвечает такая дверь обычным «нельзя» — то есть опечатка в коде права
+/// выглядит как правильная работа прав, и разбирают её как «почему у меня нет доступа». Отказ
+/// называет причину там, где её ещё можно исправить.
 /// </summary>
-public sealed class AppPolicyProvider(IOptions<AuthorizationOptions> options)
+public sealed class AppPolicyProvider(IOptions<AuthorizationOptions> options, PermissionCatalog catalog)
     : DefaultAuthorizationPolicyProvider(options)
 {
     // Политика строится один раз на имя. Имена берутся из ворот на адресах, то есть их конечное
@@ -41,7 +47,7 @@ public sealed class AppPolicyProvider(IOptions<AuthorizationOptions> options)
     {
         if (policyName.StartsWith(AppPolicies.PermissionPrefix, StringComparison.OrdinalIgnoreCase))
             return Task.FromResult<AuthorizationPolicy?>(_built.GetOrAdd(policyName,
-                name => Build(new PermissionRequirement(Tail(name, AppPolicies.PermissionPrefix)))));
+                name => Build(new PermissionRequirement(Declared(Tail(name, AppPolicies.PermissionPrefix))))));
 
         if (policyName.StartsWith(AppPolicies.ModulePrefix, StringComparison.OrdinalIgnoreCase))
             return Task.FromResult<AuthorizationPolicy?>(_built.GetOrAdd(policyName,
@@ -55,6 +61,21 @@ public sealed class AppPolicyProvider(IOptions<AuthorizationOptions> options)
             .RequireAuthenticatedUser()
             .AddRequirements(requirement)
             .Build();
+
+    /// <summary>
+    /// Право обязано быть объявлено — иначе дверь заперта навсегда и молча.
+    ///
+    /// Сверка идёт со справочником этой сборки: в него входят права ядра и права ВКЛЮЧЁННЫХ
+    /// модулей. Адреса выключенного модуля не регистрируются вовсе, поэтому его права здесь и не
+    /// спрашиваются.
+    /// </summary>
+    private string Declared(string code) =>
+        catalog.Declares(code)
+            ? code
+            : throw new InvalidOperationException(
+                $"Ворота требуют право «{code}», которого нет в справочнике объявленных прав. " +
+                "Такую дверь не открыть никому: право нельзя выдать ни одной роли. " +
+                "Либо опечатка в коде права, либо право объявить забыли.");
 
     private static string Tail(string policyName, string prefix)
     {

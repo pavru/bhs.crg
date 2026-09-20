@@ -12,8 +12,12 @@ namespace BHS.CRG.Tests.Configuration;
 /// </summary>
 public class PermissionPolicyTests
 {
+    /// <summary>Справочник с одним объявленным правом — этого хватает для всех проверок ниже.</summary>
+    private static PermissionCatalog Catalog() =>
+        new([new AppPermission("core.users.manage", "управлять пользователями", "учётные записи", [])]);
+
     private static AppPolicyProvider Provider() =>
-        new(Options.Create(new AuthorizationOptions()));
+        new(Options.Create(new AuthorizationOptions()), Catalog());
 
     [Fact]
     public async Task Permission_policy_is_built_from_its_name()
@@ -61,6 +65,21 @@ public class PermissionPolicyTests
         Assert.Contains(policyName.Trim(), ex.Message);
     }
 
+    /// <summary>
+    /// Право, которого нет в справочнике, — отказ. Такая дверь не откроется никому: право не выдать
+    /// ни одной роли, и «Администратор», получающий всё объявленное, несуществующего не получит.
+    /// Отвечала бы она обычным «нельзя», то есть опечатка выглядела бы как работающая проверка прав.
+    /// </summary>
+    [Fact]
+    public async Task Undeclared_permission_is_refused()
+    {
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => Provider().GetPolicyAsync(AppPolicies.Permission("core.users.manaage")));
+
+        Assert.Contains("core.users.manaage", ex.Message);
+        Assert.Contains("справочник", ex.Message);
+    }
+
     /// <summary>Чужие имена достаются обычному механизму: политика «Admin» жива и работает.</summary>
     [Fact]
     public async Task Other_names_are_left_to_the_default_provider()
@@ -68,7 +87,7 @@ public class PermissionPolicyTests
         var options = new AuthorizationOptions();
         options.AddPolicy("Admin", p => p.RequireRole("Admin"));
 
-        var policy = await new AppPolicyProvider(Options.Create(options)).GetPolicyAsync("Admin");
+        var policy = await new AppPolicyProvider(Options.Create(options), Catalog()).GetPolicyAsync("Admin");
 
         Assert.NotNull(policy);
         Assert.Empty(policy.Requirements.OfType<PermissionRequirement>());

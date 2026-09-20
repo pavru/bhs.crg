@@ -6,6 +6,27 @@
 const ACCESS = 'access_token';
 const REFRESH = 'refresh_token';
 
+/**
+ * Подписка на смену токена. Нужна потому, что токен меняется НЕ ТОЛЬКО через экран входа:
+ * перехватчик ответов молча обменивает его по refresh после 401 — и делает это в обход React.
+ *
+ * С тех пор как смена роли обесценивает выданный токен (issue #946), это стало видно: сервер уже
+ * знает новую роль, а состояние экрана — старую, и понижённый администратор до перезагрузки
+ * страницы видит кнопки, которые отвечают отказом. Ровно тот случай, который выглядит как поломка,
+ * а не как «вам больше нельзя».
+ */
+type TokenListener = (access: string | null) => void;
+const listeners = new Set<TokenListener>();
+
+export function onTokenChanged(listener: TokenListener): () => void {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
+
+function announce(access: string | null): void {
+  for (const listener of listeners) listener(access);
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(ACCESS) ?? sessionStorage.getItem(ACCESS);
 }
@@ -22,6 +43,7 @@ export function setTokens(access: string, refresh: string, remember: boolean): v
   store.setItem(REFRESH, refresh);
   other.removeItem(ACCESS);
   other.removeItem(REFRESH);
+  announce(access);
 }
 
 /** Обновить пару, сохранив текущее хранилище (после refresh-ротации или смены пароля). */
@@ -30,6 +52,7 @@ export function replaceTokens(access: string, refresh: string): void {
   const store = inSession ? sessionStorage : localStorage;
   store.setItem(ACCESS, access);
   store.setItem(REFRESH, refresh);
+  announce(access);
 }
 
 export function clearToken(): void {
@@ -37,4 +60,5 @@ export function clearToken(): void {
   sessionStorage.removeItem(ACCESS);
   localStorage.removeItem(REFRESH);
   sessionStorage.removeItem(REFRESH);
+  announce(null);
 }

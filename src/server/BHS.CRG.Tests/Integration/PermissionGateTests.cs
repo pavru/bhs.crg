@@ -6,6 +6,9 @@ using System.Security.Claims;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Modules;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -187,6 +190,38 @@ public class PermissionGateTests(IntegrationTestFixture fixture)
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await TokenAsync(client, email));
 
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/users")).StatusCode);
+    }
+
+    /// <summary>
+    /// Каждые ворота на праве называют ОБЪЯВЛЕННОЕ право — проверяется по всем адресам живого
+    /// приложения.
+    ///
+    /// Дверь на необъявленное право не открыть никому: право нельзя выдать ни одной роли, и даже
+    /// «Администратор», получающий всё объявленное, не получит несуществующего. Отвечает такая
+    /// дверь обычным «нельзя», то есть опечатка выглядит как правильная работа прав и разбирается
+    /// как «почему у меня нет доступа». Сборка политики такое имя отвергает — этот тест
+    /// заставляет её собраться на каждом адресе, то есть ловит опечатку в CI, а не на экземпляре.
+    ///
+    /// Это же — зародыш инвентаризации адресов (AUTH-9): она придёт вместе с воротами на остальные
+    /// адреса и будет требовать ворота у каждого, а не только сверять названное.
+    /// </summary>
+    [Fact]
+    public async Task Every_permission_gate_names_a_declared_permission()
+    {
+        _ = fixture.CreateClient();
+        var policies = fixture.Services.GetRequiredService<IAuthorizationPolicyProvider>();
+
+        var named = fixture.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .SelectMany(e => e.Metadata.GetOrderedMetadata<IAuthorizeData>())
+            .Select(a => a.Policy)
+            .Where(p => p is not null && p.StartsWith(AppPolicies.PermissionPrefix, StringComparison.Ordinal))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        Assert.NotEmpty(named);   // ворот на правах не осталось — значит тест проверяет пустоту
+
+        foreach (var policy in named)
+            Assert.NotNull(await policies.GetPolicyAsync(policy!));
     }
 
     /// <summary>

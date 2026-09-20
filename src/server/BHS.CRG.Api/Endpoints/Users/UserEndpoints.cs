@@ -22,7 +22,8 @@ public static class UserEndpoints
     {
         // Первая дверь на праве, а не на роли (ТЗ AUTH-8). Управление пользователями выбрано
         // первым не случайно: это дверь, за которой выдаются все остальные.
-        var g = app.MapGroup("/api/users").RequireAuthorization(AppPolicies.Permission("core.users.manage"));
+        var g = app.MapGroup("/api/users")
+            .RequireAuthorization(AppPolicies.Permission(BHS.CRG.Api.Auth.CorePermissions.UsersManage));
 
         g.MapGet("/", async (UserManager<ApplicationUser> users) =>
         {
