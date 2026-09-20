@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { NavLink, Link, Outlet } from 'react-router';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useAppVersion } from '@/shared/api/version';
@@ -12,9 +12,18 @@ import { Avatar } from '@/shared/ui/Avatar';
 import { CommandPalette } from '@/shared/ui/CommandPalette';
 import { ShortcutsHelp } from '@/shared/ui/ShortcutsHelp';
 import { workNav, settingsNav, type NavItem } from '@/shared/ui/navConfig';
+import { visibleNav } from '@/shared/ui/navAccess';
+import { useAccess, NO_ACCESS } from '@/shared/api/access';
 import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
 import { useBugReportDialog } from '@/shared/ui/bugReportBus';
 import { LogOut, Sun, Moon, Monitor, KeyRound, Check, ChevronsUpDown, MailWarning, X, Bug } from 'lucide-react';
+
+/** Человеческое имя роли. Две прежние роли названы явно, остальные показываются как есть —
+ *  выдумывать перевод для роли, заведённой заказчиком, неоткуда. */
+function roleTitle(role?: string): string {
+  if (!role) return '';
+  return role === 'Admin' ? 'Администратор' : role === 'User' ? 'Инженер ИД' : role;
+}
 
 const themeOptions: { value: Theme; icon: typeof Sun; label: string }[] = [
   { value: 'light',  icon: Sun,     label: 'Светлая'   },
@@ -93,7 +102,12 @@ function NavSection({
 export function AppShell() {
   const { user, logout } = useAuth();
   const { data: account } = useAccount();
-  const isAdmin = user?.role === 'Admin';
+  // Навигация строится ТОЛЬКО по ответу /api/account/access (ТЗ AUTH-14). Роли здесь больше нет:
+  // она приходила из токена, то есть устаревала ровно тогда, когда это опаснее всего — при снятии
+  // прав, — и показывала разделы, которые отвечают отказом (issue #952).
+  const { data: access } = useAccess();
+  const work = visibleNav(workNav, access ?? NO_ACCESS);
+  const settings = visibleNav(settingsNav, access ?? NO_ACCESS);
   const [pwOpen, setPwOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -131,11 +145,11 @@ export function AppShell() {
 
         {/* Nav sections */}
         <nav className="flex-1 px-2 py-3 space-y-4 overflow-y-auto">
-          <NavSection label="Документы и данные" items={workNav} />
-          {isAdmin && (
+          {work.length > 0 && <NavSection label="Документы и данные" items={work} />}
+          {settings.length > 0 && (
             <>
-              <div className="border-t border-stroke mt-2" />
-              <NavSection label="Настройка системы" items={settingsNav} />
+              {work.length > 0 && <div className="border-t border-stroke mt-2" />}
+              <NavSection label="Настройка системы" items={settings} />
             </>
           )}
         </nav>
@@ -154,7 +168,11 @@ export function AppShell() {
 
               <span className="flex-1 min-w-0">
                 <span className="block text-sm font-medium text-fg1 truncate">{user?.displayName || user?.email}</span>
-                <span className="block text-xs text-fg3">{isAdmin ? 'Администратор' : 'Пользователь'}</span>
+                {/* Роль — справочная подпись, и берётся она с СЕРВЕРА, а не из токена. Решений по
+                    ней больше не принимается: что показывать, решают права выше.
+                    ⚠️ Ролей в системе девять, а сервер отдаёт здесь одну (первую): несколько ролей
+                    у пользователя показывает редактор ролей — #951. */}
+                <span className="block text-xs text-fg3">{roleTitle(account?.role)}</span>
               </span>
               <ChevronsUpDown size={18} className="text-fg3 shrink-0" />
             </NavLink>
