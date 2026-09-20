@@ -651,7 +651,7 @@ builder.Services.AddOpenApi();
 // Единственное место, где ядро знает имена модулей, — и это намеренно корень композиции, а не
 // сканер сборок рядом с приложением: набор модулей на экземпляре обязан быть решением поставки
 // (Modules__Enabled, AUTH-17), а не следствием того, какие DLL кто-то скопировал.
-builder.Services.AddAppModules(builder.Configuration, new IdModule());
+builder.Services.AddAppModules(builder.Configuration, CorePermissions.All, new IdModule());
 
 var app = builder.Build();
 
@@ -710,6 +710,13 @@ using (var scope = app.Services.CreateScope())
 
     // Прогрев плагинов: HTTP-плагины отдают схемы только по запросу (GET /schemas) — best-effort.
     await scope.ServiceProvider.GetRequiredService<IPluginHost>().WarmUpAsync();
+
+    // Права, объявленные кодом, — в базу (AUTH-1). До ролей и до инициализации модулей: роль
+    // ссылается на права, и справочник обязан быть на месте раньше, чем кто-то начнёт их раздавать.
+    await PermissionSynchronizer.SyncAsync(
+        db,
+        scope.ServiceProvider.GetRequiredService<PermissionCatalog>(),
+        app.Logger);
 
     // Первичная инициализация включённых модулей — после миграций и сидов ядра: модуль вправе
     // рассчитывать, что схема базы и справочники ядра на месте.

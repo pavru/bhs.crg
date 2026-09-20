@@ -252,7 +252,7 @@ public class ModuleBoundaryTests
     {
         public string Code => ModuleRegistry.DefaultCode;
         public string Title => "проба";
-        public IReadOnlyList<string> Permissions => [];
+        public IReadOnlyList<AppPermission> Permissions => [];
         public IReadOnlyList<string> RoutePrefixes => ["/probe-модуля"];
         public void RegisterServices(
             Microsoft.Extensions.DependencyInjection.IServiceCollection services, IConfiguration configuration) { }
@@ -265,7 +265,7 @@ public class ModuleBoundaryTests
     {
         public string Code => code;
         public string Title => code;
-        public IReadOnlyList<string> Permissions => [];
+        public IReadOnlyList<AppPermission> Permissions => [];
         public IReadOnlyList<string> RoutePrefixes => ["/api/" + code];
         public void RegisterServices(
             Microsoft.Extensions.DependencyInjection.IServiceCollection services, IConfiguration configuration) { }

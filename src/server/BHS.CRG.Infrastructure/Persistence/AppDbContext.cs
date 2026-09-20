@@ -63,6 +63,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<BHS.CRG.Domain.Support.BugReport> BugReports
         => Set<BHS.CRG.Domain.Support.BugReport>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
+    /// <summary>Права, объявленные кодом (AUTH-1): наполняется при старте, правится только кодом.</summary>
+    public DbSet<BHS.CRG.Domain.Auth.Permission> Permissions
+        => Set<BHS.CRG.Domain.Auth.Permission>();
     public DbSet<BHS.CRG.Domain.Storage.BlobRegistryEntry> BlobRegistry
         => Set<BHS.CRG.Domain.Storage.BlobRegistryEntry>();
 

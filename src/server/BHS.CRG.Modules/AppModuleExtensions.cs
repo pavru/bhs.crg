@@ -26,7 +26,20 @@ public static class AppModuleExtensions
     /// неделю как «пропал раздел».
     /// </summary>
     public static IServiceCollection AddAppModules(
-        this IServiceCollection services, IConfiguration configuration, params IAppModule[] available)
+        this IServiceCollection services, IConfiguration configuration, params IAppModule[] available) =>
+        services.AddAppModules(configuration, [], available);
+
+    /// <inheritdoc cref="AddAppModules(IServiceCollection, IConfiguration, IAppModule[])" />
+    /// <param name="corePermissions">
+    /// Права самого ядра (`core.*`). Они объявляются рядом с модульными и проверяются теми же
+    /// правилами: ядро не освобождено от требования объяснять свои права — их в редакторе ролей
+    /// больше всего.
+    /// </param>
+    public static IServiceCollection AddAppModules(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IReadOnlyList<AppPermission> corePermissions,
+        params IAppModule[] available)
     {
         var codes = ModuleRegistry.ReadEnabledCodes(configuration, out var fromDefault);
         var byCode = available.ToDictionary(m => m.Code, StringComparer.OrdinalIgnoreCase);
@@ -53,6 +66,12 @@ public static class AppModuleExtensions
             module.RegisterServices(services, configuration);
 
         services.AddSingleton(new ModuleRegistry(enabled, disabled));
+
+        // Каталог собирается ЗДЕСЬ, а не лениво при первом обращении: негодное объявление права
+        // обязано ронять старт, а не первый заход администратора в редактор ролей.
+        services.AddSingleton(new PermissionCatalog(
+            [.. corePermissions, .. enabled.SelectMany(m => m.Permissions)]));
+
         return services;
     }
 
