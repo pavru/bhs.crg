@@ -37,7 +37,7 @@ public class ModulePrefixCoverageTests(IntegrationTestFixture fixture)
             if (!prefixes.TryGetValue(owner.Code, out var declared)) continue;
 
             var path = "/" + route.RoutePattern.RawText?.TrimStart('/');
-            if (!declared.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
+            if (!declared.Any(p => CoveredBy(path, p)))
                 offenders.Add($"{owner.Code}: {path}");
         }
 
@@ -47,6 +47,19 @@ public class ModulePrefixCoverageTests(IntegrationTestFixture fixture)
             "подключён». Допишите путь в RoutePrefixes модуля — или перенесите адрес под уже\n" +
             "объявленный.");
     }
+
+    /// <summary>
+    /// Покрывает ли объявленный путь адрес — ПО СЕГМЕНТАМ, а не посимвольно.
+    ///
+    /// Отказ строится группой по пути, то есть по границе сегмента: <c>/api/plans</c> накрывает
+    /// <c>/api/plans</c> и <c>/api/plans/...</c>, но не <c>/api/plans-summary/...</c>. Посимвольное
+    /// сравнение считало последний покрытым, и адрес прошёл бы сторожа зелёным, а при выключенном
+    /// модуле ответил бы пустым 404 — ровно тем расхождением, ради которого сторож и написан
+    /// (ревью #969).
+    /// </summary>
+    private static bool CoveredBy(string path, string prefix) =>
+        path.Equals(prefix, StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith(prefix.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Пути модуля не пусты: модуль без объявленных путей выключается «в тишину» — ни одного

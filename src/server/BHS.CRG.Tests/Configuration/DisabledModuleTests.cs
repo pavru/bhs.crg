@@ -166,6 +166,28 @@ public class DisabledModuleTests
     }
 
     /// <summary>
+    /// Адрес ядра РОВНО на пути выключенного модуля отвечает ядром, а не отказом и не ошибкой.
+    ///
+    /// Этот случай отличается от адреса глубже префикса: там перехват <c>{**rest}</c> проигрывает
+    /// по точности образца, а на самом префиксе образцы неразличимы — и платформа отвечала
+    /// «совпало несколько адресов», то есть 500 (ревью #969). Ничью решает явный порядок: отказ
+    /// стоит последним. Предыдущая редакция теста брала адрес глубже префикса и этого не ловила.
+    /// </summary>
+    [Fact]
+    public async Task Core_route_exactly_on_the_prefix_wins_over_the_refusal()
+    {
+        using var host = await StartAsync(
+            enabled: "id",
+            configureCore: app => app.MapGet("/api/costs", () => Results.Ok("ядро на корне")),
+            new IdLike(), new CostsLike());
+
+        var response = await host.GetTestClient().GetAsync("/api/costs");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("ядро на корне", await response.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>
     /// Поднимает приложение с заданным набором модулей на тестовом сервере.
     /// </summary>
     private static async Task<IHost> StartAsync(
