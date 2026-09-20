@@ -1,4 +1,4 @@
-using BHS.CRG.Modules;
+﻿using BHS.CRG.Modules;
 
 namespace BHS.CRG.Api.Auth;
 
@@ -8,9 +8,12 @@ namespace BHS.CRG.Api.Auth;
 /// Объявлены рядом с правами модулей и теми же средствами: ядро не освобождено от требования
 /// объяснять свои права — в редакторе ролей их больше всего, и именно они раздаются чаще прочих.
 ///
-/// ⚠️ Список объявляет права, но ещё не ставит их на адреса: проверка появится вместе с политиками.
-/// Порядок именно такой, потому что редактор ролей нельзя строить на пустом справочнике, а
+/// Права заводились раньше ворот НАРОЧНО: редактор ролей нельзя строить на пустом справочнике, а
 /// поставить право на адрес, которого нет в справочнике, — значит выдать его некому.
+///
+/// ⚠️ Объявленное право обязано стоять хотя бы на одной двери либо быть записано в список
+/// неиспользуемых (<c>EndpointGateInventoryTests.NotYetUsed</c>). Право без двери не заметить в
+/// работе: администратор видит галку, выдаёт её — и она не делает ничего.
 /// </summary>
 public static class CorePermissions
 {
@@ -35,6 +38,42 @@ public static class CorePermissions
     /// </summary>
     public const string FilesUse = "core.files.use";
 
+    /// <summary>Чтение справочника типов, перечислений, примитивов и реестра тэгов.</summary>
+    public const string TypesRead = "core.types.read";
+
+    /// <summary>Правка типов и схем (ТЗ CORE-37).</summary>
+    public const string TypesEdit = "core.types.edit";
+
+    /// <summary>Чтение справочника сущностей и общих данных.</summary>
+    public const string CatalogRead = "core.catalog.read";
+
+    /// <summary>Правка справочника сущностей и общих данных.</summary>
+    public const string CatalogEdit = "core.catalog.edit";
+
+    /// <summary>Чтение наборов данных, их источников и привязок.</summary>
+    public const string DataSetsRead = "core.datasets.read";
+
+    /// <summary>Настройка наборов данных: источники, обработка, привязки.</summary>
+    public const string DataSetsEdit = "core.datasets.edit";
+
+    /// <summary>Чтение справочника строек и разделов.</summary>
+    public const string ConstructionsRead = "core.constructions.read";
+
+    /// <summary>Правка строек и разделов (ТЗ CORE-37).</summary>
+    public const string ConstructionsEdit = "core.constructions.edit";
+
+    /// <summary>Разбор чужих сообщений об ошибках.</summary>
+    public const string SupportReview = "core.support.review";
+
+    /// <summary>Управление аудиторией уведомлений: кто на что подписан.</summary>
+    public const string NotifyManage = "core.notify.manage";
+
+    /// <summary>Настройка движков и профилей распознавания (ТЗ CORE-37).</summary>
+    public const string RecognitionSettings = "core.recognition.settings";
+
+    /// <summary>Сверка на непротиворечивость и разбор находок (ТЗ CORE-37).</summary>
+    public const string ReconciliationRun = "core.reconciliation.run";
+
     public static IReadOnlyList<AppPermission> All =>
     [
         new(UsersManage,
@@ -42,10 +81,10 @@ public static class CorePermissions
             "учётные записи и роли всего экземпляра; по сути — любой доступ, который можно выдать",
             ["core.audit.read"]),
 
-        new("core.types.edit",
+        new(TypesEdit,
             "менять типы документов и их схемы в пределах уровня правки",
             "схемы всех типов, включая типы модулей: поля, тэги, печатные формы",
-            ["core.nomenclature.edit"]),
+            [TypesRead, "core.nomenclature.edit"]),
 
         new("core.worktypes.edit",
             "вести классификатор видов работ компании",
@@ -67,10 +106,10 @@ public static class CorePermissions
             "карточки сотрудников целиком, включая поля, добавленные заказчиком",
             ["core.employees.read"]),
 
-        new("core.constructions.edit",
+        new(ConstructionsEdit,
             "заводить и править стройки и их разделы",
             "справочник строек — основу, на которую ссылаются все модули",
-            []),
+            [ConstructionsRead]),
 
         new("core.period.close",
             "закрывать учётный период",
@@ -87,7 +126,7 @@ public static class CorePermissions
             "общие настройки колонок и отборов — их видят все, у кого есть доступ к списку",
             []),
 
-        new("core.reconciliation.run",
+        new(ReconciliationRun,
             "запускать сверку на непротиворечивость и разбирать находки",
             "данные, которые сверка сравнивает: наборы модулей, участвующих в правиле",
             []),
@@ -97,7 +136,7 @@ public static class CorePermissions
             "данные всех включённых модулей на чтение; модуль сам объявляет, что входит в «читать всё»",
             []),
 
-        new("core.recognition.settings",
+        new(RecognitionSettings,
             "настраивать движки и профили распознавания",
             "ключи внешних движков и профили разбора сканов",
             []),
@@ -110,6 +149,46 @@ public static class CorePermissions
         new(FilesUse,
             "загружать вложения и получать файлы из хранилища",
             "файлы, путь к которым известен: сверки владельца при выдаче пока нет (ТЗ AUTH-12)",
+            []),
+
+        new(TypesRead,
+            "видеть типы документов, перечисления, примитивы и реестр тэгов",
+            "устройство типов: состав полей и их вид — без содержимого самих документов",
+            []),
+
+        new(CatalogRead,
+            "видеть справочник организаций, лиц и объектов",
+            "карточки контрагентов и общие данные экземпляра",
+            []),
+
+        new(CatalogEdit,
+            "заводить и править записи справочника сущностей",
+            "то же, что и чтение, плюс изменение: на эти карточки ссылаются документы всех модулей",
+            [CatalogRead]),
+
+        new(DataSetsRead,
+            "видеть наборы данных, их источники и привязки",
+            "сырьё наборов: таблицы, файлы и разобранные сканы, подключённые к документам",
+            []),
+
+        new(DataSetsEdit,
+            "настраивать наборы данных: источники, обработку, привязки",
+            "устройство наборов целиком; от него зависит содержимое печатных форм",
+            [DataSetsRead]),
+
+        new(ConstructionsRead,
+            "видеть справочник строек и разделов",
+            "перечень строек компании и их разделов — основу, на которую ссылаются все модули",
+            []),
+
+        new(SupportReview,
+            "читать и разбирать чужие сообщения об ошибках",
+            "сообщения всех пользователей вместе со снимками их экранов",
+            []),
+
+        new(NotifyManage,
+            "управлять аудиторией уведомлений",
+            "кто на что подписан и по каким адресам получает письма",
             []),
     ];
 }

@@ -89,26 +89,9 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     /// </summary>
     private static readonly Dictionary<string, string> Debt = new()
     {
-        ["/api/bug-reports"] = "→ личное для своих обращений, право — для чужих и для разбора",
-        ["/api/catalog"] = "→ справочник сущностей; переезжает в ядро вместе с #961",
-        ["/api/common-data"] = "→ общие данные; тот же переезд, что и каталог",
-        ["/api/constructions"] = "→ core.constructions.edit (чтение — всем вошедшим?)",
-        ["/api/datasets"] = "→ наборы данных: право чтения и право настройки (в ТЗ ещё не названы)",
-        ["/api/document-sets"] = "→ id.document.read / id.document.edit",
-        ["/api/document-types"] = "→ core.types.edit на правку, чтение схемы нужно всем",
-        ["/api/enum-types"] = "→ core.types.edit",
-        ["/api/generate"] = "→ id.document.generate",
-        ["/api/objects"] = "→ разбор строки в объект каталога: доступ к данным каталога",
-        ["/api/observations"] = "→ core.reconciliation.run",
-        ["/api/primitive-types"] = "→ core.types.edit",
-        ["/api/recognition-profiles"] = "→ core.recognition.settings",
-        ["/api/reconciliations"] = "→ core.reconciliation.run",
-        ["/api/sections"] = "→ core.constructions.edit",
-        ["/api/subscriptions"] = "→ #949: аудитория уведомлений по правам; сейчас любой вошедший подписывает любого и видит чужие адреса",
-        ["/api/tags"] = "→ реестр функциональных тэгов: устройство типов, не личные данные",
-        ["/api/template-assets"] = "→ id.config.edit",
-        ["/api/templates"] = "→ id.config.edit",
-        ["/api/typst-userlib"] = "→ id.config.edit",
+        ["/api/bug-reports"] = "→ отправка своего обращения открыта любому вошедшему; разбор чужих "
+            + "уже под правом. Остаётся решить, куда отнести саму отправку: это личное действие, "
+            + "но адрес не отвечает данными пользователя, а принимает их",
         ["/mcp"] = "→ #948: модуль и право у каждого инструмента MCP (ТЗ AUTH-12.1)",
     };
 
@@ -162,24 +145,17 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     /// </summary>
     private static readonly Dictionary<string, string> NotYetUsed = new()
     {
-        ["core.types.edit"] = "типы и схемы — группы /api/document-types и прочие ещё в долге",
         ["core.worktypes.edit"] = "классификатор видов работ — модуль учёта работ, этап 2",
         ["core.nomenclature.edit"] = "номенклатура — модуль затрат, этап 2",
         ["core.employees.read"] = "справочник сотрудников — #962",
         ["core.employees.edit"] = "справочник сотрудников — #962",
-        ["core.constructions.edit"] = "стройки и разделы — группы ещё в долге",
         ["core.period.close"] = "закрытие периода — этап 2",
         ["core.audit.read"] = "журнал действий — #950",
         ["core.views.share"] = "общие представления таблиц — отдельной группы адресов пока нет",
-        ["core.reconciliation.run"] = "сверка — группы /api/reconciliations и /api/observations в долге",
-        ["core.recognition.settings"] = "ключи движков ушли под core.system.manage вместе со всей "
-            + "группой настроек; своя дверь появится, когда настройки разделятся (или право уйдёт)",
         ["*.read.all"] = "составное право; раскрытие по модулям — этап 2 (AUTH-5.2)",
-        ["id.document.read"] = "комплекты и документы — группы ещё в долге",
-        ["id.document.edit"] = "комплекты и документы — группы ещё в долге",
-        ["id.document.generate"] = "генерация — /api/generate в долге",
+        ["id.document.edit"] = "правка комплектов идёт теми же адресами, что и чтение; разделение "
+            + "придёт с переездом кода модуля",
         ["id.quality.edit"] = "документы качества закрыты воротами МОДУЛЯ, своего права пока не носят",
-        ["id.config.edit"] = "шаблоны и типы — группы ещё в долге",
     };
 
     /// <summary>

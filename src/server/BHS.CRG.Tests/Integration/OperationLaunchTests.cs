@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
@@ -127,6 +127,12 @@ public class OperationLaunchTests(IntegrationTestFixture fixture) : IAsyncLifeti
             };
             var created = await users.CreateAsync(user, password);
             Assert.True(created.Succeeded, string.Join("; ", created.Errors.Select(e => e.Description)));
+            // Роль обязательна: с переходом на права (issue #947) пользователь БЕЗ роли не имеет
+            // ни одного права и получает 403 на всём. В живой системе такой учётной записи не
+            // бывает — регистрация открыта только первому администратору, остальных заводит экран
+            // пользователей и всегда с ролью, — так что заводить её здесь значило бы проверять
+            // состояние, которого не существует.
+            Assert.True((await users.AddToRoleAsync(user, BHS.CRG.Api.Auth.SystemRoles.IdEngineer)).Succeeded);
             userId = user.Id;
         }
 

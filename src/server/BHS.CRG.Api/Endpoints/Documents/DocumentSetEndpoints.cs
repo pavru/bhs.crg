@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
 using System.Security.Claims;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
@@ -14,7 +16,10 @@ public static class DocumentSetEndpoints
     public static void MapDocumentSetEndpoints(this IEndpointRouteBuilder app)
     {
         // ── Constructions ──────────────────────────────────────────────────────
-        var c = app.MapGroup("/api/constructions").RequireAuthorization();
+        // Чтение и запись — разными правами: справочник строек видят все рабочие роли, а правят
+        // его единицы. Одно право на группу оставило бы core.constructions.edit без единой двери.
+        var c = app.MapGroup("/api/constructions").RequireAuthorization(AppPolicies.Permission(CorePermissions.ConstructionsRead));
+        var cEdit = app.MapGroup("/api/constructions").RequireAuthorization(AppPolicies.Permission(CorePermissions.ConstructionsEdit));
 
         c.MapGet("/", async (IMediator m, ClaimsPrincipal user, IDomainObjectRepository objRepo, CancellationToken ct) =>
         {
@@ -34,44 +39,45 @@ public static class DocumentSetEndpoints
             return Results.Ok(ConstructionDto.From(construction, counts));
         });
 
-        c.MapPost("/", async (CreateConstructionRequest req, IMediator m, ClaimsPrincipal user) =>
+        cEdit.MapPost("/", async (CreateConstructionRequest req, IMediator m, ClaimsPrincipal user) =>
         {
             var userId = GetUserId(user);
             return Results.Ok(await m.Send(new CreateConstructionCommand(req.Name, userId)));
         });
 
-        c.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
+        cEdit.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
             => Results.Ok(await m.Send(new RenameConstructionCommand(id, req.Name))));
 
-        c.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        cEdit.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             await m.Send(new DeleteConstructionCommand(id));
             return Results.NoContent();
         });
 
         // ── Sections ───────────────────────────────────────────────────────────
-        c.MapPost("/{constructionId:guid}/sections", async (Guid constructionId, CreateSectionRequest req, IMediator m)
+        cEdit.MapPost("/{constructionId:guid}/sections", async (Guid constructionId, CreateSectionRequest req, IMediator m)
             => Results.Ok(await m.Send(new CreateSectionCommand(constructionId, req.Name))));
 
-        var s = app.MapGroup("/api/sections").RequireAuthorization();
+        var s = app.MapGroup("/api/sections").RequireAuthorization(AppPolicies.Permission(CorePermissions.ConstructionsRead));
+        var sEdit = app.MapGroup("/api/sections").RequireAuthorization(AppPolicies.Permission(CorePermissions.ConstructionsEdit));
 
-        s.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
+        sEdit.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
             => Results.Ok(await m.Send(new RenameSectionCommand(id, req.Name))));
 
-        s.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        sEdit.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             await m.Send(new DeleteSectionCommand(id));
             return Results.NoContent();
         });
 
         // ── DocumentSets ───────────────────────────────────────────────────────
-        s.MapPost("/{sectionId:guid}/sets", async (Guid sectionId, CreateSetRequest req, IMediator m)
+        sEdit.MapPost("/{sectionId:guid}/sets", async (Guid sectionId, CreateSetRequest req, IMediator m)
             => Results.Ok(await m.Send(new CreateDocumentSetCommand(sectionId, req.Name))));
 
         // Документ из адреса обязан лежать в комплекте из того же адреса — проверкой на всю группу,
         // а не в каждом обработчике: см. DocumentBelongsToSetFilter.
         var g = app.MapGroup("/api/document-sets")
-            .RequireAuthorization()
+            .RequireAuthorization(AppPolicies.Permission("id.document.read"))
             .AddEndpointFilter<DocumentBelongsToSetFilter>();
 
         // Поиск документов по всем комплектам (имя документа/типа + текст реквизитов). ?q= обязателен,

@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
 using BHS.CRG.Application.DataSets;
 
 namespace BHS.CRG.Api.Endpoints.DataSets;
@@ -6,7 +8,7 @@ public static class DataSetBindingEndpoints
 {
     public static void MapDataSetBindingEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/datasets/bindings").RequireAuthorization();
+        var g = app.MapGroup("/api/datasets/bindings").RequireAuthorization(AppPolicies.Permission(CorePermissions.DataSetsRead));
 
         g.MapGet("", async (Guid ownerId, IDataSetService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListBindingsAsync(ownerId, ct)));

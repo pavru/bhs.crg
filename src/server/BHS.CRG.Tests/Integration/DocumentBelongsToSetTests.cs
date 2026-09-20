@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -38,6 +38,13 @@ public class DocumentBelongsToSetTests(IntegrationTestFixture fixture) : IAsyncL
                 new ApplicationUser { UserName = email, Email = email, DisplayName = "Т", EmailConfirmed = true },
                 password);
             Assert.True(created.Succeeded);
+            // Роль обязательна: с переходом на права (issue #947) пользователь БЕЗ роли не
+            // имеет ни одного права и получает 403 на всём. В живой системе такой учётной
+            // записи не бывает — регистрация открыта только первому администратору, остальных
+            // заводит экран пользователей и всегда с ролью, — так что заводить её здесь значило
+            // бы проверять состояние, которого не существует.
+            await users.AddToRoleAsync(
+                (await users.FindByEmailAsync(email))!, BHS.CRG.Api.Auth.SystemRoles.IdEngineer);
         }
         var client = fixture.CreateClient();
         var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password });
