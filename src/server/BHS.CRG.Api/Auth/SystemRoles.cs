@@ -24,6 +24,24 @@ public static class SystemRoles
     public const string Admin = "Admin";
     public const string IdEngineer = "User";
 
+    /// <summary>
+    /// Права на ЧТЕНИЕ справочников ядра, которые получает каждая рабочая роль (решение владельца
+    /// 20.09.2026, вариант «А»: у каждого справочника своё право на чтение).
+    ///
+    /// ⚠️ Выдаются всем восьми ролям, и это следствие выбранного варианта, а не недосмотр: типы,
+    /// справочник сущностей, стройки и наборы данных нужны на экранах практически любой роли, и без
+    /// них интерфейс не рисует ничего. Разграничивать этими правами сегодня нечего — они существуют
+    /// ради единообразия и ради дня, когда учётную запись выдадут кому-то вне компании (issue #675).
+    /// До того дня снятая галка здесь ломает экран, а не закрывает данные.
+    /// </summary>
+    private static readonly string[] ReferenceReads =
+    [
+        CorePermissions.TypesRead,
+        CorePermissions.CatalogRead,
+        CorePermissions.ConstructionsRead,
+        CorePermissions.DataSetsRead,
+    ];
+
     public static IReadOnlyList<RoleDefinition> All =>
     [
         new(Admin, "Администратор",
@@ -35,6 +53,7 @@ public static class SystemRoles
             [
                 "id.document.read", "id.document.edit", "id.document.generate", "id.quality.edit",
                 "core.constructions.edit", "core.reconciliation.run", CorePermissions.FilesUse,
+                CorePermissions.CatalogEdit, CorePermissions.DataSetsEdit, .. ReferenceReads,
                 // Чужие модули: права появятся вместе с ними, до тех пор строка просто не находит
                 // объявления и пропускается.
                 "work.facts.read", "costs.materials.read",
@@ -42,12 +61,13 @@ public static class SystemRoles
 
         new("Installer", "Монтажник",
             "Подача своих отчётов о работах",
-            ["work.report.own", CorePermissions.FilesUse]),
+            ["work.report.own", CorePermissions.FilesUse, .. ReferenceReads]),
 
         new("ProjectManager", "Менеджер проекта",
             "Назначение монтажников на свои стройки, приёмка отчётов, графики",
             [
                 "core.employees.read", "core.constructions.edit", "core.period.close", CorePermissions.FilesUse,
+                .. ReferenceReads,
                 "work.report.review", "work.assign", "work.crew.approve", "work.devices.manage",
                 "costs.materials.read", "costs.request.read", "costs.request.edit",
             ]),
@@ -55,7 +75,7 @@ public static class SystemRoles
         new("Estimator", "Сметчик",
             "Сметы и обмен с ГРАНД-Сметой, классификатор видов работ",
             ["core.worktypes.edit", "core.nomenclature.edit", "plan.estimate.edit", "plan.offer.edit",
-             CorePermissions.FilesUse]),
+             CorePermissions.FilesUse, .. ReferenceReads]),
 
         // «Руководитель» — роль с ОДНИМ составным правом на данные (ТЗ AUTH-5.2), и вторым правом
         // на данные её наделять нельзя. core.files.use — не право на данные, а обиходный доступ к
@@ -68,12 +88,12 @@ public static class SystemRoles
         // развилка — довод к тому, что files.use вышло неудачной формы (см. CorePermissions).
         new("Executive", "Руководитель",
             "Чтение сводок по всем стройкам без права правки",
-            ["*.read.all", CorePermissions.FilesUse]),
+            ["*.read.all", CorePermissions.FilesUse, .. ReferenceReads]),
 
         new("Supplier", "Снабженец",
             "Счета, накладные, разноска, сопоставление наименований, заявки на закупку",
             [
-                "core.nomenclature.edit", CorePermissions.FilesUse,
+                "core.nomenclature.edit", CorePermissions.FilesUse, .. ReferenceReads,
                 "costs.invoice.read", "costs.invoice.edit", "costs.waybill.read", "costs.waybill.edit",
                 "costs.allocate", "costs.request.read", "costs.request.edit", "plan.estimate.materials",
             ]),
@@ -81,13 +101,13 @@ public static class SystemRoles
         new("Accountant", "Бухгалтер",
             "Отметка оплаты, реестр счетов, отчёты по затратам",
             [
-                "core.employees.read", "core.period.close", CorePermissions.FilesUse,
+                "core.employees.read", "core.period.close", CorePermissions.FilesUse, .. ReferenceReads,
                 "costs.invoice.read", "costs.invoice.pay", "costs.report", "costs.articles.edit",
             ]),
 
         new("WorksManager", "Производитель работ",
             "Ведение общего журнала работ, выпуск на подпись, отметка подписания",
-            ["work.facts.read", "ozhr.record.edit", "ozhr.release", CorePermissions.FilesUse]),
+            ["work.facts.read", "ozhr.record.edit", "ozhr.release", CorePermissions.FilesUse, .. ReferenceReads]),
     ];
 
     /// <summary>

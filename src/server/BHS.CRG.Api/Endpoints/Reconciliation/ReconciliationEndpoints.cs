@@ -1,4 +1,6 @@
-﻿using System.Security.Claims;
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
+using System.Security.Claims;
 using System.Text.Json;
 using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Reconciliation;
@@ -14,9 +16,9 @@ public static class ReconciliationEndpoints
     public static void MapReconciliationEndpoints(this IEndpointRouteBuilder app)
     {
         // Определение сверки — конфигурация, как типы и шаблоны.
-        var admin = app.MapGroup("/api/reconciliations").RequireAuthorization("Admin");
+        var admin = app.MapGroup("/api/reconciliations").RequireAuthorization(AppPolicies.Permission(CorePermissions.ReconciliationRun));
         // Прогон и разбор находок — работа: их ведёт тот, кто отвечает за комплект, а не администратор.
-        var user = app.MapGroup("/api/reconciliations").RequireAuthorization();
+        var user = app.MapGroup("/api/reconciliations").RequireAuthorization(AppPolicies.Permission(CorePermissions.ReconciliationRun));
 
         user.MapGet("/", async (string? scope, Guid? scopeId, IMediator m) =>
         {

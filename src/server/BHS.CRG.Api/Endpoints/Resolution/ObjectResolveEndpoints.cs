@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
 using BHS.CRG.Application.Resolution;
 using BHS.CRG.Domain.Catalog;
 using MediatR;
@@ -28,7 +30,7 @@ public static class ObjectResolveEndpoints
             return Results.Ok(res.Select(r => r is null
                 ? null
                 : new { entryId = r.EntryId, displayName = r.DisplayName, scope = r.Scope.ToString() }));
-        }).RequireAuthorization();
+        }).RequireAuthorization(AppPolicies.Permission(CorePermissions.CatalogRead));
     }
 
     private record ResolveBatchReq(string Scope, Guid? ScopeId, List<ResolveItemReq>? Items);

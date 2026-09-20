@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Documents;
@@ -8,7 +10,7 @@ public static class TypstUserLibEndpoints
 {
     public static void MapTypstUserLibEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/typst-userlib").RequireAuthorization("Admin");
+        var g = app.MapGroup("/api/typst-userlib").RequireAuthorization(AppPolicies.Permission("id.config.edit"));
 
         g.MapGet("/", async (IUserLibProvider provider, CancellationToken ct) =>
         {

@@ -1,4 +1,6 @@
-﻿using System.Security.Claims;
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
+using System.Security.Claims;
 using BHS.CRG.Application.Reconciliation;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Reconciliation;
@@ -14,7 +16,7 @@ public static class ObservationEndpoints
 {
     public static void MapObservationEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/observations").RequireAuthorization();
+        var g = app.MapGroup("/api/observations").RequireAuthorization(AppPolicies.Permission(CorePermissions.ReconciliationRun));
 
         g.MapGet("/", async (string? scope, Guid? scopeId, string? status, IMediator m) =>
         {

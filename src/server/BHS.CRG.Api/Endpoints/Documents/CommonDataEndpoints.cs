@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
 using System.Text.Json;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
@@ -9,7 +11,9 @@ public static class CommonDataEndpoints
 {
     public static void MapCommonDataEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/common-data").RequireAuthorization();
+        // Чтение и запись — разными правами (см. CatalogEndpoints).
+        var g = app.MapGroup("/api/common-data").RequireAuthorization(AppPolicies.Permission(CorePermissions.CatalogRead));
+        var edit = app.MapGroup("/api/common-data").RequireAuthorization(AppPolicies.Permission(CorePermissions.CatalogEdit));
 
         // List — optional filters: scope, scopeId, typeId
         g.MapGet("/", async (string? scope, Guid? scopeId, Guid? typeId, IMediator m) =>
@@ -82,7 +86,7 @@ public static class CommonDataEndpoints
             catch (NotFoundException) { return Results.NotFound(); }
         });
 
-        g.MapPost("/", async (CreateRequest req, IMediator m) =>
+        edit.MapPost("/", async (CreateRequest req, IMediator m) =>
         {
             var scope = req.Scope switch
             {
@@ -96,11 +100,11 @@ public static class CommonDataEndpoints
                 JsonDocument.Parse(req.Data), scope, req.ScopeId, req.Aliases))));
         });
 
-        g.MapPut("/{id:guid}", async (Guid id, UpdateRequest req, IMediator m) =>
+        edit.MapPut("/{id:guid}", async (Guid id, UpdateRequest req, IMediator m) =>
             Results.Ok(CommonDataEntryDto.From(await m.Send(new UpdateCommonDataEntryCommand(
                 id, req.DisplayName, JsonDocument.Parse(req.Data), req.Aliases)))));
 
-        g.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        edit.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             try { await m.Send(new DeleteCommonDataEntryCommand(id)); return Results.NoContent(); }
             catch (NotFoundException) { return Results.NotFound(); }

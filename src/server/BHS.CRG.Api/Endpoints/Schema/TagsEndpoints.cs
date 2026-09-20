@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
 using BHS.CRG.Application.Schema;
 
 namespace BHS.CRG.Api.Endpoints.Schema;
@@ -8,6 +10,6 @@ public static class TagsEndpoints
     {
         // Реестр функциональных тэгов для UI (выбор тэгов поля/типа).
         app.MapGet("/api/tags", () => Results.Ok(TagRegistry.All))
-            .RequireAuthorization();
+            .RequireAuthorization(AppPolicies.Permission(CorePermissions.TypesRead));
     }
 }

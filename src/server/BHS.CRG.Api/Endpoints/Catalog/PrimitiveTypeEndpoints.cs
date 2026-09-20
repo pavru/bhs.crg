@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
 using System.Text.Json;
 using BHS.CRG.Application.Catalog;
 using MediatR;
@@ -8,8 +10,8 @@ public static class PrimitiveTypeEndpoints
 {
     public static void MapPrimitiveTypeEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/primitive-types").RequireAuthorization();
-        var admin = app.MapGroup("/api/primitive-types").RequireAuthorization("Admin");
+        var g = app.MapGroup("/api/primitive-types").RequireAuthorization(AppPolicies.Permission(CorePermissions.TypesRead));
+        var admin = app.MapGroup("/api/primitive-types").RequireAuthorization(AppPolicies.Permission(CorePermissions.TypesEdit));
 
         g.MapGet("/", async (IMediator m) =>
             Results.Ok(await m.Send(new ListPrimitiveTypesQuery())));

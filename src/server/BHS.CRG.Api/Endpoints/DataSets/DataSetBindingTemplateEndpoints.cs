@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
 using BHS.CRG.Application.DataSets;
 
 namespace BHS.CRG.Api.Endpoints.DataSets;
@@ -7,9 +9,9 @@ public static class DataSetBindingTemplateEndpoints
     public static void MapDataSetBindingTemplateEndpoints(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/api/document-types/{docTypeId:guid}/binding-templates")
-                   .RequireAuthorization();
+                   .RequireAuthorization(AppPolicies.Permission(CorePermissions.DataSetsRead));
         var admin = app.MapGroup("/api/document-types/{docTypeId:guid}/binding-templates")
-                   .RequireAuthorization("Admin");
+                   .RequireAuthorization(AppPolicies.Permission(CorePermissions.DataSetsEdit));
 
         g.MapGet("", async (Guid docTypeId, IDataSetService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListTemplatesAsync(docTypeId, ct)));

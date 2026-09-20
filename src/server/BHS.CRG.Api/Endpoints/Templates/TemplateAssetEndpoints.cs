@@ -1,4 +1,6 @@
-﻿using BHS.CRG.Application.Common;
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Templates;
 using BHS.CRG.Domain.Templates;
 using BHS.CRG.Infrastructure.Templates;
@@ -28,8 +30,8 @@ public static class TemplateAssetEndpoints
 
     public static void MapTemplateAssetEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/template-assets").RequireAuthorization();
-        var admin = app.MapGroup("/api/template-assets").RequireAuthorization("Admin");
+        var g = app.MapGroup("/api/template-assets").RequireAuthorization(AppPolicies.Permission("id.document.read"));
+        var admin = app.MapGroup("/api/template-assets").RequireAuthorization(AppPolicies.Permission("id.config.edit"));
 
         g.MapGet("/", async (TemplateAssetScope scope, Guid? scopeId, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new ListTemplateAssetsQuery(scope, scopeId), ct)));

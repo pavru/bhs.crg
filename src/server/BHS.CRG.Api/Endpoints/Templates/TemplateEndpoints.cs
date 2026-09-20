@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Templates;
 using MediatR;
@@ -8,8 +10,17 @@ public static class TemplateEndpoints
 {
     public static void MapTemplateEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/templates").RequireAuthorization();
-        var admin = app.MapGroup("/api/templates").RequireAuthorization("Admin");
+        // ⚠️ Ворота на праве МОДУЛЯ, а адрес регистрируется ОБЩИМ кодом запуска (переезд кода в модуль
+        // отложен, см. IdModule). Сегодня это безопасно: в сборке модуль один, он же умолчание, и
+        // конфигурации с выключенным «id» не существует — пустой Modules__Enabled подставляет умолчание,
+        // а любое другое значение роняет запуск. Проверено живым приложением 21.09.2026.
+        //
+        // Ловушка не исчезла, а отложена: как появится второй модуль и сборка, где «id» можно выключить,
+        // права выключенного модуля перестанут попадать в справочник (AUTH-19) — и эти ворота начнут
+        // отвечать 500 при сборке политики вместо отказа. Лечится переездом адресов в модуль, а не
+        // смягчением проверки: проверка здесь права.
+        var g = app.MapGroup("/api/templates").RequireAuthorization(AppPolicies.Permission("id.document.read"));
+        var admin = app.MapGroup("/api/templates").RequireAuthorization(AppPolicies.Permission("id.config.edit"));
 
         g.MapGet("/", async (Guid documentTypeId, IMediator m)
             => Results.Ok(await m.Send(new ListTemplatesQuery(documentTypeId))));

@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
 using System.Text.Json;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Generation;
@@ -11,8 +13,8 @@ public static class DocumentTypeEndpoints
 {
     public static void MapDocumentTypeEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/document-types").RequireAuthorization();
-        var admin = app.MapGroup("/api/document-types").RequireAuthorization("Admin");
+        var g = app.MapGroup("/api/document-types").RequireAuthorization(AppPolicies.Permission(CorePermissions.TypesRead));
+        var admin = app.MapGroup("/api/document-types").RequireAuthorization(AppPolicies.Permission(CorePermissions.TypesEdit));
 
         g.MapGet("/", async (string? kind, IMediator m) =>
         {

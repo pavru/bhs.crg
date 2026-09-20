@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
 using BHS.CRG.Application.Subscriptions;
 using BHS.CRG.Domain.Catalog;
 
@@ -11,7 +13,7 @@ public static class SubscriptionEndpoints
 {
     public static void MapSubscriptionEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/subscriptions").RequireAuthorization();
+        var g = app.MapGroup("/api/subscriptions").RequireAuthorization(AppPolicies.Permission(CorePermissions.NotifyManage));
 
         // Прямые подписчики уровня.
         g.MapGet("/", async (string scope, Guid scopeId, ISubscriptionService svc, CancellationToken ct) =>

@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
 using BHS.CRG.Application.Recognition;
 using MediatR;
 
@@ -9,8 +11,8 @@ public static class RecognitionProfileEndpoints
     {
         // Чтение доступно всем аутентифицированным (профиль выбирается при распознавании),
         // запись — только Admin, как и прочая конфигурация системы.
-        var g = app.MapGroup("/api/recognition-profiles").RequireAuthorization();
-        var admin = app.MapGroup("/api/recognition-profiles").RequireAuthorization("Admin");
+        var g = app.MapGroup("/api/recognition-profiles").RequireAuthorization(AppPolicies.Permission(CorePermissions.DataSetsRead));
+        var admin = app.MapGroup("/api/recognition-profiles").RequireAuthorization(AppPolicies.Permission(CorePermissions.RecognitionSettings));
 
         g.MapGet("/", async (IMediator m) =>
             Results.Ok(await m.Send(new ListRecognitionProfilesQuery())));

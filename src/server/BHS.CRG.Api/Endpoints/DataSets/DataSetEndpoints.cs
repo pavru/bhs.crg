@@ -1,4 +1,6 @@
-﻿using System.Security.Claims;
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
+using System.Security.Claims;
 using System.Text.Json;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.QualityDocs;
@@ -13,7 +15,7 @@ public static class DataSetEndpoints
 {
     public static void MapDataSetEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/datasets").RequireAuthorization();
+        var g = app.MapGroup("/api/datasets").RequireAuthorization(AppPolicies.Permission(CorePermissions.DataSetsRead));
 
         // ── Файлы ──────────────────────────────────────────────────────────────
 

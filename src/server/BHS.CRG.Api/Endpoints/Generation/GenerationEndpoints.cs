@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
 using System.Security.Claims;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
@@ -13,7 +15,16 @@ public static class GenerationEndpoints
 {
     public static void MapGenerationEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/generate").RequireAuthorization();
+        // ⚠️ Ворота на праве МОДУЛЯ, а адрес регистрируется ОБЩИМ кодом запуска (переезд кода в модуль
+        // отложен, см. IdModule). Сегодня это безопасно: в сборке модуль один, он же умолчание, и
+        // конфигурации с выключенным «id» не существует — пустой Modules__Enabled подставляет умолчание,
+        // а любое другое значение роняет запуск. Проверено живым приложением 21.09.2026.
+        //
+        // Ловушка не исчезла, а отложена: как появится второй модуль и сборка, где «id» можно выключить,
+        // права выключенного модуля перестанут попадать в справочник (AUTH-19) — и эти ворота начнут
+        // отвечать 500 при сборке политики вместо отказа. Лечится переездом адресов в модуль, а не
+        // смягчением проверки: проверка здесь права.
+        var g = app.MapGroup("/api/generate").RequireAuthorization(AppPolicies.Permission("id.document.generate"));
 
         g.MapPost("/{instanceId:guid}", async (
             Guid instanceId, GenerateRequest req, IMediator m, ClaimsPrincipal user) =>
