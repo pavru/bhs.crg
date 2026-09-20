@@ -16,6 +16,9 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
         b.Property(e => e.Source);
         b.Property(e => e.LinkUrl);
         b.Property(e => e.LinkLabel);
+        // Код права или модуля — короткая строка; длина ограничена, чтобы в поле адресата не
+        // оказался текст.
+        b.Property(e => e.Audience).HasMaxLength(128);
         b.HasIndex(e => e.CreatedAt);
         b.HasIndex(e => e.UserId);
     }

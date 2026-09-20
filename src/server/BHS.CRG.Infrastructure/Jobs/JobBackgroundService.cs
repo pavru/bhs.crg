@@ -140,13 +140,13 @@ public class JobBackgroundService(
             var notifications = scope.ServiceProvider.GetRequiredService<INotificationService>();
             // Задача без владельца — системная (её поставило расписание, а не человек). Уведомление,
             // посланное «пользователю Guid.Empty», не увидел бы никто, то есть ночная неудача
-            // копирования пропала бы бесследно; общесистемное видно всем вошедшим — не только
-            // администраторам. Адресовать его одним администраторам нечем: видимость уведомления
-            // задаётся владельцем, а не ролью. Для нашего случая это приемлемо (пользователи —
-            // сотрудники одной компании с равным допуском, см. issue #675), но текст такого отказа
-            // пишется с оглядкой: его прочитает и тот, кто не знает, что такое deploy/.env.
+            // копирования пропала бы бесследно. Адресуем его тем, кто обслуживает систему
+            // (core.system.manage, ТЗ AUTH-13): до issue #949 адресовать было нечем — видимость
+            // задавалась владельцем, и отказ ночного копирования читали все, включая тех, кто не
+            // знает, что такое deploy/.env.
             await notifications.PublishAsync(NotificationSeverity.Error, $"Ошибка: {title}", error,
-                "Фоновые задачи", userId: userId == Guid.Empty ? null : userId);
+                "Фоновые задачи", userId: userId == Guid.Empty ? null : userId,
+                audience: userId == Guid.Empty ? NotificationAudiences.SystemManage : null);
         }
         catch (Exception ex) { logger.LogWarning(ex, "Не удалось опубликовать уведомление об ошибке задачи"); }
     }

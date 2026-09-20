@@ -245,11 +245,12 @@ public class DataSetGostRecognitionTests(IntegrationTestFixture fixture) : IAsyn
     private sealed class RecordingNotificationService : INotificationService
     {
         public readonly List<(NotificationSeverity Severity, string Title, string Message)> Published = [];
-        public Task PublishAsync(NotificationSeverity severity, string title, string message,
-            string? source = null, Guid? userId = null, string? linkUrl = null, string? linkLabel = null, CancellationToken ct = default)
+        public Task<Guid> PublishAsync(NotificationSeverity severity, string title, string message,
+            string? source = null, Guid? userId = null, string? linkUrl = null, string? linkLabel = null,
+            string? audience = null, CancellationToken ct = default)
         {
             Published.Add((severity, title, message));
-            return Task.CompletedTask;
+            return Task.FromResult(Guid.NewGuid());
         }
         public Task<IReadOnlyList<NotificationDto>> GetAsync(Guid userId, bool unreadOnly = false, int take = 100, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<int> UnreadCountAsync(Guid userId, CancellationToken ct = default) => throw new NotImplementedException();

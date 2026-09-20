@@ -1,11 +1,14 @@
 ﻿using System.Text.Json;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Mcp;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.Reconciliation;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Reconciliation;
+using BHS.CRG.Infrastructure.Persistence;
 using MediatR;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol;
@@ -25,6 +28,18 @@ public class AgentObservationsTests(IntegrationTestFixture fixture) : IAsyncLife
     private static ObservationTools Tools(IServiceScope s) => new(
         s.ServiceProvider.GetRequiredService<IMediator>(),
         s.ServiceProvider.GetRequiredService<IHttpContextAccessor>());
+
+    /// <summary>Пользователь с правом гонять сверку — роль «Инженер ИД» несёт core.reconciliation.run.</summary>
+    private async Task<Guid> UserWithReconciliationRightAsync()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var email = $"obs_{Guid.NewGuid():N}@test.local";
+        var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Тест", EmailConfirmed = true };
+        Assert.True((await users.CreateAsync(user, "Passw0rd!")).Succeeded);
+        Assert.True((await users.AddToRoleAsync(user, SystemRoles.IdEngineer)).Succeeded);
+        return user.Id;
+    }
 
     private static JsonElement Refs(string raw = """{"documentIds":["d1"],"note":"акт 5"}""")
         => JsonDocument.Parse(raw).RootElement;
@@ -153,7 +168,11 @@ public class AgentObservationsTests(IntegrationTestFixture fixture) : IAsyncLife
         var m = scope.ServiceProvider.GetRequiredService<IMediator>();
         var notifications = scope.ServiceProvider.GetRequiredService<INotificationService>();
         var tools = Tools(scope);
-        var user = Guid.NewGuid();
+        // Читатель — настоящий пользователь с правом на сверку: с issue #949 замечание внешнего
+        // анализа адресовано тем, кто сверку гоняет (AUTH-13), и выдуманный идентификатор не
+        // получает ничего. Раньше здесь годился любой Guid — и это ровно та адресация «всем
+        // подряд», которую сняли.
+        var user = await UserWithReconciliationRightAsync();
 
         async Task<int> CountAsync() =>
             (await notifications.GetAsync(user)).Count(n => n.Source == "Сверка");

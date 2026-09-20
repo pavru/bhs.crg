@@ -61,7 +61,7 @@ public class BugReportServiceTests(IntegrationTestFixture fixture) : IAsyncLifet
     private static JsonElement Json(string text) => JsonDocument.Parse(text).RootElement.Clone();
 
     [Fact]
-    public async Task Submit_NotifiesEveryAdminPersonally_AndLeadsToTheScreen()
+    public async Task Обращение_видят_те_кто_его_разбирает_и_ведёт_оно_на_экран_разбора()
     {
         var firstAdmin = await CreateUserAsync("Первый администратор", "Admin");
         var secondAdmin = await CreateUserAsync("Второй администратор", "Admin");
@@ -73,35 +73,43 @@ public class BugReportServiceTests(IntegrationTestFixture fixture) : IAsyncLifet
 
         using var check = fixture.Services.CreateScope();
         var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
-        var mine = await db.Notifications.AsNoTracking()
-            .Where(n => n.Source == BugReportService.NotificationSource).ToListAsync();
 
-        Assert.Equal(2, mine.Count);
-        Assert.Contains(mine, n => n.UserId == firstAdmin);
-        Assert.Contains(mine, n => n.UserId == secondAdmin);
-        // Ни одной общесистемной: у неё прочтение общее на всех, и первый прочитавший погасил бы
-        // запись у остальных.
-        Assert.DoesNotContain(mine, n => n.UserId is null);
-        // Автор — не адресат: он только что нажал «Отправить» и результат видел.
-        Assert.DoesNotContain(mine, n => n.UserId == author);
+        // Запись ОДНА и адресована правом (issue #949), а не копией каждому администратору.
+        var sent = Assert.Single(await db.Notifications.AsNoTracking()
+            .Where(n => n.Source == BugReportService.NotificationSource).ToListAsync());
+        Assert.Null(sent.UserId);
+        Assert.Equal("core.support.review", sent.Audience);
         // Колокольчик — сигнал, а не рабочее место: уведомление ведёт на экран разбора.
-        Assert.All(mine, n => Assert.Equal(BugReportService.AdminScreenLink, n.LinkUrl));
+        Assert.Equal(BugReportService.AdminScreenLink, sent.LinkUrl);
+
+        // Двусторонне: разборщики видят оба, автор-инженер — нет (право на разбор ему не выдано).
+        var notifier = check.ServiceProvider.GetRequiredService<INotificationService>();
+        Assert.Single(await notifier.GetAsync(firstAdmin), n => n.Source == BugReportService.NotificationSource);
+        Assert.Single(await notifier.GetAsync(secondAdmin), n => n.Source == BugReportService.NotificationSource);
+        Assert.DoesNotContain(await notifier.GetAsync(author), n => n.Source == BugReportService.NotificationSource);
     }
 
-    /// <summary>Администратор, отправивший сообщение сам, не уведомляет сам себя.</summary>
+    /// <summary>
+    /// Администратор, отправивший сообщение сам, не уведомляет сам себя: он только что нажал
+    /// «Отправить». С адресацией по правам запись у него не личная, а общая с другими
+    /// разборщиками, — поэтому она именно СКРЫТА у автора, как смахнутая крестиком, и у остальных
+    /// остаётся. На установке с единственным администратором разница видна сразу: он и автор, и
+    /// разборщик.
+    /// </summary>
     [Fact]
-    public async Task Submit_ByAdmin_DoesNotNotifyTheAuthor()
+    public async Task Автор_обращения_не_уведомляет_сам_себя()
     {
         var onlyAdmin = await CreateUserAsync("Единственный администратор", "Admin");
-        await KeepOnlyAdminsAsync(onlyAdmin);
+        var otherAdmin = await CreateUserAsync("Второй администратор", "Admin");
+        await KeepOnlyAdminsAsync(onlyAdmin, otherAdmin);
 
         using (var scope = fixture.Services.CreateScope())
             await Service(scope).SubmitAsync(onlyAdmin, "Сам нашёл, сам записал.", null, null);
 
         using var check = fixture.Services.CreateScope();
-        var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
-        Assert.Empty(await db.Notifications.AsNoTracking()
-            .Where(n => n.Source == BugReportService.NotificationSource).ToListAsync());
+        var notifier = check.ServiceProvider.GetRequiredService<INotificationService>();
+        Assert.DoesNotContain(await notifier.GetAsync(onlyAdmin), n => n.Source == BugReportService.NotificationSource);
+        Assert.Single(await notifier.GetAsync(otherAdmin), n => n.Source == BugReportService.NotificationSource);
     }
 
     [Fact]

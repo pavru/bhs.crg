@@ -121,8 +121,9 @@ public class ObservationHandlers(
     }
 
     /// <summary>
-    /// Уведомление общесистемное, без адресата: замечание относится к КОМПЛЕКТУ, а не к тому, от чьего
-    /// имени работал агент, — увидеть его должен тот, кто ведёт комплект.
+    /// Уведомление без личного адресата: замечание относится к КОМПЛЕКТУ, а не к тому, от чьего
+    /// имени работал агент. Аудитория — те, кто гоняет сверку (<c>core.reconciliation.run</c>,
+    /// ТЗ AUTH-13): замечание внешнего анализа — их работа, остальным оно ничего не говорит.
     /// </summary>
     private async Task NotifyAsync(AgentObservation o, CancellationToken ct)
     {
@@ -135,6 +136,7 @@ public class ObservationHandlers(
             userId: null,
             linkUrl: link,
             linkLabel: link is null ? null : "Открыть проблемы комплекта",
+            audience: NotificationAudiences.ReconciliationRun,
             ct: ct);
     }
 

@@ -193,7 +193,7 @@ public class DataSetFileService(
                 "Файл набора обновлён — проверьте источники",
                 $"Файл «{file.Name}» заменён. Источников, требующих внимания: {staleSources} " +
                 "(PDF-распознавание — перераспознайте вручную; прочие — проверьте определение источника, если данные не совпали).",
-                "Наборы данных", ct: ct);
+                "Наборы данных", audience: NotificationAudiences.DataSetsEdit, ct: ct);
 
         return DataSetDtoMapper.MapFile(file);
     }

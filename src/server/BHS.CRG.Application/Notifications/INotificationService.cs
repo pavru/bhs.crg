@@ -15,13 +15,26 @@ public record NotificationDto(
 
 /// <summary>
 /// Подсистема уведомлений: публикация событий (длительные операции, переходы состояния)
-/// и управление списком. Видимость: пользователь видит свои (userId) + общесистемные (userId == null).
+/// и управление списком.
+///
+/// Видимость: личные (свой <c>userId</c>) плюс общесистемные, аудитория которых пользователю
+/// подходит (ТЗ AUTH-13, CORE-27). Аудитория — код права или код модуля; без неё уведомление
+/// приходит всем вошедшим, и это осознанный выбор издателя, а не значение по умолчанию «потому что
+/// так вышло»: см. <see cref="NotificationAudiences" />.
 /// </summary>
 public interface INotificationService
 {
-    Task PublishAsync(NotificationSeverity severity, string title, string message,
+    /// <param name="audience">
+    /// Кому адресовано общесистемное уведомление: право или модуль (<see cref="NotificationAudiences" />).
+    /// Вместе с <paramref name="userId" /> не задаётся — это разные способы назвать адресата.
+    /// </param>
+    /// <returns>
+    /// Идентификатор созданной записи — чтобы издатель мог сразу скрыть её у того, кому она не
+    /// нужна (автор собственного обращения), не заводя для этого поля в самой записи.
+    /// </returns>
+    Task<Guid> PublishAsync(NotificationSeverity severity, string title, string message,
         string? source = null, Guid? userId = null, string? linkUrl = null, string? linkLabel = null,
-        CancellationToken ct = default);
+        string? audience = null, CancellationToken ct = default);
 
     Task<IReadOnlyList<NotificationDto>> GetAsync(Guid userId, bool unreadOnly = false, int take = 100, CancellationToken ct = default);
     Task<int> UnreadCountAsync(Guid userId, CancellationToken ct = default);

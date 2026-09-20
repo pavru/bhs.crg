@@ -331,31 +331,29 @@ public class BugReportService(
     }
 
     /// <summary>
-    /// Уведомляем администраторов ЛИЧНО — каждого своей записью, а не одной общесистемной.
+    /// Уведомляем тех, кто разбирает обращения, — аудиторией <c>core.support.review</c>
+    /// (ТЗ AUTH-13, issue #949), а не перебором пользователей роли <c>Admin</c>.
     ///
-    /// Причина та же, что у сообщений об обновлении (issue #813): у общесистемного уведомления
-    /// состояние прочтения общее на всех, и первый, кто смахнул его крестиком, снял бы запись со
-    /// всех остальных (issue #821). Сообщение об ошибке — работа, у неё должен быть адресат.
+    /// ⚠️ Прежний перебор давал одно полезное свойство, которого при отборе на чтении нет: автора
+    /// среди получателей можно было пропустить. Теперь автор-разборщик увидит и своё обращение —
+    /// оно попадает в тот же список, куда он пойдёт его разбирать. Цена приемлемая: адресат
+    /// определяется правом, а не именем роли, и выданное завтра право открывает вчерашние
+    /// обращения.
     /// </summary>
     private async Task NotifyAdminsAsync(BugReport report, CancellationToken ct)
     {
-        var adminIds = await db.UserRoles
-            .Where(ur => db.Roles.Any(r => r.Id == ur.RoleId && r.Name == "Admin"))
-            .Select(ur => ur.UserId)
-            .Distinct()
-            .ToListAsync(ct);
+        var id = await notifications.PublishAsync(NotificationSeverity.Warning,
+            "Сообщение об ошибке",
+            Summary(report.Message),
+            NotificationSource, audience: NotificationAudiences.SupportReview,
+            linkUrl: AdminScreenLink, linkLabel: "Открыть сообщения", ct: ct);
 
-        foreach (var id in adminIds)
-        {
-            // Автор-администратор о собственном сообщении не уведомляется: он только что нажал
-            // «Отправить» и результат уже видел.
-            if (id == report.AuthorId) continue;
-            await notifications.PublishAsync(NotificationSeverity.Warning,
-                "Сообщение об ошибке",
-                Summary(report.Message),
-                NotificationSource, userId: id,
-                linkUrl: AdminScreenLink, linkLabel: "Открыть сообщения", ct: ct);
-        }
+        // Автор о собственном обращении не уведомляется: он только что нажал «Отправить» и
+        // результат видел. Скрываем запись лично у него — тем же способом, каким пользователь
+        // смахивает уведомление крестиком; у остальных разборщиков она остаётся. Отдельного поля
+        // «кроме такого-то» для этого не нужно, а на установке с единственным администратором
+        // разница заметная: он и автор, и разборщик.
+        await notifications.DismissAsync(id, report.AuthorId, ct);
     }
 
     private async Task NotifyAuthorAsync(BugReport report, string title, string message,

@@ -655,6 +655,10 @@ builder.Services.AddAppModules(builder.Configuration, CorePermissions.All, new I
 builder.Services.AddScoped<EffectivePermissions>();
 // Чем ворота модулей и прав отвечают на вопрос «что этому пользователю можно» (AUTH-6).
 builder.Services.AddSingleton<IUserPermissions, PermissionCache>();
+// Кому адресовано уведомление (AUTH-13): тем же правам, что и двери, — и считается это в одном
+// месте, а не перебором ролей у каждого издателя.
+builder.Services.AddSingleton<BHS.CRG.Application.Notifications.INotificationAudience,
+    BHS.CRG.Api.Notifications.PermissionAudience>();
 
 var app = builder.Build();
 
