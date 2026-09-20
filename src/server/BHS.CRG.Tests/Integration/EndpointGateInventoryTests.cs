@@ -73,6 +73,9 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
         ["/api/notifications/health"] =
             "состояние системы и внешних служб показывает колокольчик, а он есть у каждого; " +
             "закрыть правом значит убрать индикатор у всех, кроме администратора",
+        ["/api/system/update"] =
+            "номер доступной версии показывает подвал боковой панели, то есть КАЖДЫЙ экран; " +
+            "закрытая группа давала 403 на всех экранах у всех, кроме администратора (issue #813)",
     };
 
     /// <summary>
@@ -144,6 +147,76 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
 
         Assert.NotEmpty(withoutDebt);
         Assert.All(withoutDebt, line => Assert.Contains("/", line));
+    }
+
+    /// <summary>
+    /// Объявленные права, которые пока не открывают ни одного адреса. Зеркало корзины долга: там
+    /// адрес без права, здесь право без адреса.
+    ///
+    /// Зачем отдельный ратчет. Право, не стоящее ни на одной двери, невозможно заметить в работе:
+    /// администратор видит галку в редакторе ролей, выдаёт её — и она не делает ничего. Выглядит
+    /// это как «право выдано», а не как «права нет», и разбираются с этим не здесь и не скоро.
+    /// Ровно так и вышло на ревью: <c>core.recognition.settings</c> осталось без адресов, когда
+    /// ключи распознавания уехали под <c>core.system.manage</c> вместе со всей группой настроек, —
+    /// и ратчет адресов об этом промолчал, потому что со стороны адресов всё было закрыто.
+    /// </summary>
+    private static readonly Dictionary<string, string> NotYetUsed = new()
+    {
+        ["core.types.edit"] = "типы и схемы — группы /api/document-types и прочие ещё в долге",
+        ["core.worktypes.edit"] = "классификатор видов работ — модуль учёта работ, этап 2",
+        ["core.nomenclature.edit"] = "номенклатура — модуль затрат, этап 2",
+        ["core.employees.read"] = "справочник сотрудников — #962",
+        ["core.employees.edit"] = "справочник сотрудников — #962",
+        ["core.constructions.edit"] = "стройки и разделы — группы ещё в долге",
+        ["core.period.close"] = "закрытие периода — этап 2",
+        ["core.audit.read"] = "журнал действий — #950",
+        ["core.views.share"] = "общие представления таблиц — отдельной группы адресов пока нет",
+        ["core.reconciliation.run"] = "сверка — группы /api/reconciliations и /api/observations в долге",
+        ["core.recognition.settings"] = "ключи движков ушли под core.system.manage вместе со всей "
+            + "группой настроек; своя дверь появится, когда настройки разделятся (или право уйдёт)",
+        ["*.read.all"] = "составное право; раскрытие по модулям — этап 2 (AUTH-5.2)",
+        ["id.document.read"] = "комплекты и документы — группы ещё в долге",
+        ["id.document.edit"] = "комплекты и документы — группы ещё в долге",
+        ["id.document.generate"] = "генерация — /api/generate в долге",
+        ["id.quality.edit"] = "документы качества закрыты воротами МОДУЛЯ, своего права пока не носят",
+        ["id.config.edit"] = "шаблоны и типы — группы ещё в долге",
+    };
+
+    /// <summary>
+    /// Право без двери — такой же отказ, как дверь без права (ТЗ AUTH-8.2 — зеркально).
+    /// </summary>
+    [Fact]
+    public void Every_declared_permission_opens_a_door_or_is_written_down_as_unused()
+    {
+        _ = fixture.CreateClient();
+        var catalog = fixture.Services.GetRequiredService<PermissionCatalog>();
+
+        var used = Routes()
+            .SelectMany(e => e.Metadata.GetOrderedMetadata<IAuthorizeData>())
+            .Select(a => a.Policy)
+            .Where(p => p is not null
+                && p.StartsWith(AppPolicies.PermissionPrefix, StringComparison.OrdinalIgnoreCase))
+            .Select(p => p![AppPolicies.PermissionPrefix.Length..].Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var silent = catalog.Codes
+            .Where(c => !used.Contains(c) && !NotYetUsed.ContainsKey(c))
+            .Order(StringComparer.Ordinal).ToList();
+
+        Assert.True(silent.Count == 0,
+            "Права объявлены, но не стоят ни на одном адресе. Галка в редакторе ролей будет " +
+            "выдаваться и не делать ничего. Поставьте право на дверь либо запишите его в " +
+            "NotYetUsed с причиной:\n  " + string.Join("\n  ", silent));
+
+        var stale = NotYetUsed.Keys.Where(c => used.Contains(c)).Order(StringComparer.Ordinal).ToList();
+        Assert.True(stale.Count == 0,
+            "Права записаны как неиспользуемые, а двери у них уже есть — уберите записи:\n  " +
+            string.Join("\n  ", stale));
+
+        var unknown = NotYetUsed.Keys.Where(c => !catalog.Declares(c)).Order(StringComparer.Ordinal).ToList();
+        Assert.True(unknown.Count == 0,
+            "В списке неиспользуемых есть коды, которых нет в справочнике объявленных прав:\n  " +
+            string.Join("\n  ", unknown));
     }
 
     /// <summary>Адреса, не закрытые воротами и не найденные ни в одной корзине.</summary>

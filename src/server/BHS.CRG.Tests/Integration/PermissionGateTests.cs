@@ -1,4 +1,4 @@
-using System.IdentityModel.Tokens.Jwt;
+﻿using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -141,7 +141,7 @@ public class PermissionGateTests(IntegrationTestFixture fixture)
     {
         string[] addresses =
         [
-            "/api/backup/size", "/api/backup/files", "/api/system/update",
+            "/api/backup/size", "/api/backup/files",
             "/api/settings/integrations", "/api/settings/integrations/models",
         ];
 
@@ -149,6 +149,18 @@ public class PermissionGateTests(IntegrationTestFixture fixture)
 
         foreach (var address in addresses)
             Assert.Equal(HttpStatusCode.Forbidden, (await engineer.GetAsync(address)).StatusCode);
+
+        // Метод тоже берётся из кода: GET по адресу, который умеет только POST, отвечает 405 — и
+        // это опять ответ ДО проверки прав. Третий раз за задачу отказ не по той причине выглядел
+        // как отказ по праву.
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await engineer.PostAsync("/api/system/update/check", null)).StatusCode);
+
+        // ⚠️ А вот СТАТУС версии обязан остаться открытым любому вошедшему (issue #813). Сначала
+        // под право ушла вся группа /api/system — «обновления это же обслуживание», — и 403 стал
+        // приходить на КАЖДОМ экране: статус читает подвал боковой панели. Найдено ревью, поэтому
+        // проверка стоит здесь же, рядом с воротами, которые её чуть не съели.
+        Assert.Equal(HttpStatusCode.OK, (await engineer.GetAsync("/api/system/update")).StatusCode);
     }
 
     /// <summary>
@@ -164,22 +176,44 @@ public class PermissionGateTests(IntegrationTestFixture fixture)
     }
 
     /// <summary>
-    /// Файлы хранилища — под правом (ТЗ CORE-37.2). «Руководитель» единственный из системных ролей
-    /// его не имеет, на нём и проверяется.
+    /// Файлы хранилища — под правом (ТЗ CORE-37.2).
+    ///
+    /// ⚠️ Отказ проверяется ролью БЕЗ права, заведённой здесь же. Сначала проверка опиралась на
+    /// «Руководителя» — единственную системную роль без <c>core.files.use</c>, — но ревью показало,
+    /// чего стоило это исключение: диалог «сообщить об ошибке» грузит снимок ДО отправки, и отказ
+    /// съедал не вложение, а всё сообщение. Право роли выдано, и опереться на неё больше нельзя:
+    /// тест, привязанный к составу роли, ломается от каждой правки этого состава.
     ///
     /// ⚠️ Тест доказывает ровно то, что написано: без права дверь не открывается. Он НЕ доказывает,
-    /// что чужой файл недостижим, — выдача идёт по пути и владельца не сверяет. Разницу видно
-    /// здесь: инженер получает не свой файл, а любой, путь к которому знает.
+    /// что чужой файл недостижим, — выдача идёт по пути и владельца не сверяет.
     /// </summary>
     [Fact]
     public async Task Files_need_the_files_right()
     {
-        var (executive, _, _) = await SignInAsync("Executive");
-        Assert.Equal(HttpStatusCode.Forbidden,
-            (await executive.GetAsync("/api/attachments?path=any/known/path.pdf")).StatusCode);
+        var roleName = $"NoFiles_{Guid.NewGuid():N}";
+        var email = $"nofiles_{Guid.NewGuid():N}@test.local";
 
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+            Assert.True((await roles.CreateAsync(new IdentityRole<Guid>(roleName))).Succeeded);
+            var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Тест", EmailConfirmed = true };
+            Assert.True((await users.CreateAsync(user, Password)).Succeeded);
+            Assert.True((await users.AddToRoleAsync(user, roleName)).Succeeded);
+        }
+
+        var client = fixture.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", await TokenAsync(client, email));
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await client.GetAsync("/api/attachments?path=any/known/path.pdf")).StatusCode);
+
+        // У «Инженера ИД» право есть — отказ приходит не от ворот, а от отсутствия файла.
         var (engineer, _, _) = await SignInAsync(SystemRoles.IdEngineer);
-        Assert.NotEqual(HttpStatusCode.Forbidden,
+        Assert.Equal(HttpStatusCode.NotFound,
             (await engineer.GetAsync("/api/attachments?path=any/known/path.pdf")).StatusCode);
     }
 
