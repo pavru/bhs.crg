@@ -724,8 +724,11 @@ using (var scope = app.Services.CreateScope())
     await scope.ServiceProvider.InitializeAppModulesAsync();
 }
 
+// Описание API поднимается только в Development — у заказчика этого адреса нет вовсе. Ворота всё
+// равно ставятся: адрес перечисляет ВСЕ пути экземпляра вместе с составом включённых модулей, и
+// «его нет в поставке» — это свойство конфигурации, а не запрет. Свойство однажды меняют.
 if (app.Environment.IsDevelopment())
-    app.MapOpenApi();
+    app.MapOpenApi().RequireAuthorization(AppPolicies.Permission(CorePermissions.SystemManage));
 
 // Первым в конвейере: дальше адрес клиента читают и лимитер, и логи.
 app.UseForwardedHeaders();

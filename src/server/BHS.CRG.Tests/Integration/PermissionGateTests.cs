@@ -119,6 +119,70 @@ public class PermissionGateTests(IntegrationTestFixture fixture)
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/users")).StatusCode);
     }
 
+    /// <summary>
+    /// Обслуживание экземпляра закрыто правом, а не ролью (issue #947, ТЗ CORE-37.1). Инженер ИД
+    /// вошёл и работает — но копии, обновление, почта и внешние службы ему не отвечают.
+    ///
+    /// Раньше на этих группах стояло имя роли. Разница не косметическая: пока ворота стоят на
+    /// имени, состав доступа нельзя ни увидеть в редакторе ролей, ни изменить, не трогая код.
+    /// </summary>
+    /// <remarks>
+    /// Адреса взяты из кода, а не придуманы: первая редакция теста спрашивала выдуманные пути и
+    /// получала 404 — проверка прав до такого ответа не доходит вовсе. Отказ по несуществующему
+    /// адресу выглядит как отказ по праву ровно настолько, чтобы обмануть невнимательный тест.
+    /// </remarks>
+    /// <remarks>
+    /// ⚠️ Один вход на все адреса, и это не экономия строк. Вход ограничен по частоте, а
+    /// ограничитель общий на прогон: редакция с [Theory] входила заново на каждый адрес и выбивала
+    /// 429 у ЧУЖИХ тестов, падавших следом. Проверка, которая роняет соседей, не проверка.
+    /// </remarks>
+    [Fact]
+    public async Task Instance_upkeep_refuses_a_user_without_the_system_right()
+    {
+        string[] addresses =
+        [
+            "/api/backup/size", "/api/backup/files", "/api/system/update",
+            "/api/settings/integrations", "/api/settings/integrations/models",
+        ];
+
+        var (engineer, _, _) = await SignInAsync(SystemRoles.IdEngineer);
+
+        foreach (var address in addresses)
+            Assert.Equal(HttpStatusCode.Forbidden, (await engineer.GetAsync(address)).StatusCode);
+    }
+
+    /// <summary>
+    /// Те же адреса открыты «Администратору» — иначе предыдущий тест доказывал бы лишь то, что
+    /// адреса сломаны для всех.
+    /// </summary>
+    [Fact]
+    public async Task Instance_upkeep_opens_for_the_administrator()
+    {
+        var (admin, _, _) = await SignInAsync(SystemRoles.Admin);
+        Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync("/api/backup/files")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync("/api/settings/integrations")).StatusCode);
+    }
+
+    /// <summary>
+    /// Файлы хранилища — под правом (ТЗ CORE-37.2). «Руководитель» единственный из системных ролей
+    /// его не имеет, на нём и проверяется.
+    ///
+    /// ⚠️ Тест доказывает ровно то, что написано: без права дверь не открывается. Он НЕ доказывает,
+    /// что чужой файл недостижим, — выдача идёт по пути и владельца не сверяет. Разницу видно
+    /// здесь: инженер получает не свой файл, а любой, путь к которому знает.
+    /// </summary>
+    [Fact]
+    public async Task Files_need_the_files_right()
+    {
+        var (executive, _, _) = await SignInAsync("Executive");
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await executive.GetAsync("/api/attachments?path=any/known/path.pdf")).StatusCode);
+
+        var (engineer, _, _) = await SignInAsync(SystemRoles.IdEngineer);
+        Assert.NotEqual(HttpStatusCode.Forbidden,
+            (await engineer.GetAsync("/api/attachments?path=any/known/path.pdf")).StatusCode);
+    }
+
     /// <summary>Право есть — дверь открыта.</summary>
     [Fact]
     public async Task Permission_opens_the_door()

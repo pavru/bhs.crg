@@ -1,4 +1,6 @@
-﻿using System.Text.Json;
+﻿using BHS.CRG.Modules;
+using BHS.CRG.Api.Auth;
+using System.Text.Json;
 using BHS.CRG.Application.Email;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Http;
@@ -28,7 +30,7 @@ public static class SettingsEndpoints
 
     public static void MapSettingsEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/settings/integrations").RequireAuthorization("Admin");
+        var g = app.MapGroup("/api/settings/integrations").RequireAuthorization(AppPolicies.Permission(CorePermissions.SystemManage));
 
         // Чтение: ключи НЕ возвращаем, только признак «ключ задан». Сюда НЕ добавляем проверок,
         // ходящих в сеть: этот запрос рисует страницу настроек, и секунда ожидания поставщика — это

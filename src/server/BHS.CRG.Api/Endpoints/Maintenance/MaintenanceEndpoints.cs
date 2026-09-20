@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Modules;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Infrastructure.Maintenance;
 
 namespace BHS.CRG.Api.Endpoints.Maintenance;
@@ -13,7 +15,7 @@ public static class MaintenanceEndpoints
 {
     public static void MapMaintenanceEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/maintenance").RequireAuthorization("Admin");
+        var g = app.MapGroup("/api/maintenance").RequireAuthorization(AppPolicies.Permission(CorePermissions.SystemManage));
 
         // dryRun=true (по умолчанию) — только посчитать: сколько записей и картинок переедет и
         // сколько байт освободится в JSONB. Пересчёт безопасен и повторяем.

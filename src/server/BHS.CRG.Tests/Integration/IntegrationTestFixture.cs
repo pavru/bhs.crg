@@ -3,13 +3,18 @@ using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Jobs;
 using BHS.CRG.Infrastructure.Persistence;
 using BHS.CRG.Infrastructure.Storage;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System.Threading.RateLimiting;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -94,6 +99,31 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
                 sp.GetRequiredService<FakeBlobStorage>(),
                 sp.GetRequiredService<IServiceScopeFactory>(),
                 sp.GetRequiredService<ILogger<RegisteredBlobStorage>>()));
+
+            // Пределы частоты входа — только в тестовом хосте (issue #947). Боевая настройка НЕ
+            // трогается, и ручки для её ослабления в приложении не заводится.
+            //
+            // Зачем. Предел «30 входов за 5 минут» считается по адресу клиента, а под тестовым
+            // хостом адрес один на весь прогон: тридцать входов делятся между ВСЕМИ тестами набора.
+            // Прогон подошёл к потолку вплотную, и тест, добавивший вход, ронял не себя, а соседей —
+            // они получали 429 просто потому, что шли следом. Ищут причину при этом в соседях, а
+            // записывают её в «набор нестабильный».
+            //
+            // ⚠️ Именно RemoveAll, а не повторный AddPolicy с тем же именем: AddPolicy на занятое
+            // имя БРОСАЕТ ArgumentException, а не заменяет политику. Ошибка при этом вылезает не
+            // там, где сделана: конвейер приложения перестаёт собираться целиком, и падает каждый
+            // запрос каждого теста (проверено — набор шёл 16 минут вместо трёх).
+            //
+            // ⚠️ Сам ограничитель после этого в тестах не проверяется — и не проверялся раньше:
+            // теста на него нет ни одного. Появится — ему нужен свой хост с боевыми пределами,
+            // иначе он будет зелёным, ничего не проверяя.
+            services.RemoveAll<IConfigureOptions<RateLimiterOptions>>();
+            services.AddRateLimiter(o =>
+            {
+                o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                foreach (var policy in (string[])["login", "auth", "refresh", "bug-report"])
+                    o.AddPolicy(policy, _ => RateLimitPartition.GetNoLimiter("tests"));
+            });
         });
     }
 

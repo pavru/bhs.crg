@@ -1,4 +1,4 @@
-using BHS.CRG.Modules;
+﻿using BHS.CRG.Modules;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -10,7 +10,8 @@ namespace BHS.CRG.Tests.Integration;
 /// Инвентаризация адресов (issue #947, ТЗ AUTH-9/AUTH-10/AUTH-11).
 ///
 /// Сторож обходит адреса ЖИВОГО приложения и требует, чтобы каждый незакрытый адрес попал ровно в
-/// одну названную корзину: публичный, личный или долг. Адрес, не попавший никуда, роняет прогон с
+/// одну названную корзину: публичный, личный, открытый вошедшим или долг. Адрес, не попавший
+/// никуда, роняет прогон с
 /// перечислением — новый адрес нельзя завести молча.
 ///
 /// Почему сторож, а не обещание. Забытые ворота — самая тихая из поломок прав: адрес отвечает
@@ -44,14 +45,34 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     ///
     /// ⚠️ Граница корзины жёсткая: адрес пускают сюда, только если он отвечает данными САМОГО
     /// пользователя, и это видно по коду обработчика. Как только адрес показывает чужое — он уходит
-    /// под право. Поэтому <c>/api/notifications/health</c> записан в долг отдельной строкой: он
-    /// лежит среди личных уведомлений, но отвечает состоянием системы, общим для всех.
+    /// под право — или в корзину «вошедшим», если разграничивать нечего. Поэтому
+    /// <c>/api/notifications/health</c> вынесен отдельной строкой: он лежит среди личных
+    /// уведомлений, но отвечает состоянием системы, общим для всех.
     /// </summary>
     private static readonly Dictionary<string, string> Personal = new()
     {
         ["/api/account"] = "свой профиль, свой пароль, своя почта — обработчики берут пользователя из принципала",
         ["/api/jobs"] = "свои фоновые задачи; чужая задача отвечает 404 (IJobService сверяет владельца)",
-        ["/api/notifications"] = "свои уведомления и отметки о прочтении; кроме /health — он в долге",
+        ["/api/notifications"] = "свои уведомления и отметки о прочтении; кроме /health — он открыт всем вошедшим",
+    };
+
+    /// <summary>
+    /// Открыто любому вошедшему — разграничивать нечего (решение 20.09.2026).
+    ///
+    /// Корзина отдельная от «личных» нарочно: там адрес отвечает данными САМОГО пользователя, а
+    /// здесь — общими для всех. Смешать их значило бы потерять единственное, что делает «личную»
+    /// корзину проверяемой: правило «отвечает своим — значит личный».
+    ///
+    /// ⚠️ Каждая запись здесь — признание, что данные видны всем вошедшим. Это не то же самое, что
+    /// «неважные данные»: это решение, принятое вслух, и пересматривается оно при том же условии,
+    /// что и прочие допущения о равном допуске (issue #675) — учётная запись, выданная кому-то вне
+    /// компании.
+    /// </summary>
+    private static readonly Dictionary<string, string> SignedIn = new()
+    {
+        ["/api/notifications/health"] =
+            "состояние системы и внешних служб показывает колокольчик, а он есть у каждого; " +
+            "закрыть правом значит убрать индикатор у всех, кроме администратора",
     };
 
     /// <summary>
@@ -65,8 +86,6 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     /// </summary>
     private static readonly Dictionary<string, string> Debt = new()
     {
-        ["/api/attachments"] = "→ решить: вложения и выдача файла из хранилища по пути (ТЗ AUTH-12)",
-        ["/api/backup"] = "→ право обслуживания экземпляра (в ТЗ такого права ещё нет)",
         ["/api/bug-reports"] = "→ личное для своих обращений, право — для чужих и для разбора",
         ["/api/catalog"] = "→ справочник сущностей; переезжает в ядро вместе с #961",
         ["/api/common-data"] = "→ общие данные; тот же переезд, что и каталог",
@@ -74,42 +93,34 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
         ["/api/datasets"] = "→ наборы данных: право чтения и право настройки (в ТЗ ещё не названы)",
         ["/api/document-sets"] = "→ id.document.read / id.document.edit",
         ["/api/document-types"] = "→ core.types.edit на правку, чтение схемы нужно всем",
-        ["/api/email"] = "→ право обслуживания экземпляра",
         ["/api/enum-types"] = "→ core.types.edit",
         ["/api/generate"] = "→ id.document.generate",
-        ["/api/maintenance"] = "→ право обслуживания экземпляра",
-        ["/api/notifications/health"] = "→ состояние системы и внешних движков — не личное",
         ["/api/objects"] = "→ разбор строки в объект каталога: доступ к данным каталога",
         ["/api/observations"] = "→ core.reconciliation.run",
         ["/api/primitive-types"] = "→ core.types.edit",
         ["/api/recognition-profiles"] = "→ core.recognition.settings",
         ["/api/reconciliations"] = "→ core.reconciliation.run",
         ["/api/sections"] = "→ core.constructions.edit",
-        ["/api/settings"] = "→ core.recognition.settings и право обслуживания экземпляра",
         ["/api/subscriptions"] = "→ #949: аудитория уведомлений по правам; сейчас любой вошедший подписывает любого и видит чужие адреса",
-        ["/api/system"] = "→ право обслуживания экземпляра (проверка и установка обновлений)",
         ["/api/tags"] = "→ реестр функциональных тэгов: устройство типов, не личные данные",
         ["/api/template-assets"] = "→ id.config.edit",
         ["/api/templates"] = "→ id.config.edit",
         ["/api/typst-userlib"] = "→ id.config.edit",
         ["/mcp"] = "→ #948: модуль и право у каждого инструмента MCP (ТЗ AUTH-12.1)",
-        ["/openapi"] = "→ решить: описание API отдаётся БЕЗ входа и перечисляет все адреса; " +
-                       "устройство системы этим не выдаётся (репозиторий публичный), но состав " +
-                       "включённых у заказчика модулей — выдаётся",
     };
 
     [Fact]
     public void Every_endpoint_is_gated_declared_public_or_written_into_the_debt()
     {
-        var homeless = Homeless(Routes(), Public, Personal, Debt);
+        var homeless = Homeless(Routes(), Public, Personal, SignedIn, Debt);
 
         Assert.True(homeless.Count == 0,
             "Адреса без ворот и без записи в списке. Каждому нужно либо право (политика perm: или " +
-            "module:), либо строка в Public/Personal/Debt с объяснением:\n  " +
+            "module:), либо строка в Public/Personal/SignedIn/Debt с объяснением:\n  " +
             string.Join("\n  ", homeless));
 
-        var touched = Touched(Routes(), Public, Personal, Debt);
-        var stale = new[] { Public, Personal, Debt }.SelectMany(b => b.Keys)
+        var touched = Touched(Routes(), Public, Personal, SignedIn, Debt);
+        var stale = new[] { Public, Personal, SignedIn, Debt }.SelectMany(b => b.Keys)
             .Where(k => !touched.Contains(k)).Order().ToList();
 
         Assert.True(stale.Count == 0,
@@ -129,7 +140,7 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     [Fact]
     public void Guard_speaks_when_a_gate_is_missing()
     {
-        var withoutDebt = Homeless(Routes(), Public, Personal);
+        var withoutDebt = Homeless(Routes(), Public, Personal, SignedIn);
 
         Assert.NotEmpty(withoutDebt);
         Assert.All(withoutDebt, line => Assert.Contains("/", line));

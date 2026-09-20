@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Modules;
+using BHS.CRG.Api.Auth;
 using System.Security.Claims;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Jobs;
@@ -15,7 +17,7 @@ public static class BackupEndpoints
 {
     public static void MapBackupEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/backup").RequireAuthorization("Admin");
+        var g = app.MapGroup("/api/backup").RequireAuthorization(AppPolicies.Permission(CorePermissions.SystemManage));
 
         // Вес копии и предел, на котором откажет ЗАГРУЗКА через браузер, — одним ответом (issue #711).
         // Считается по требованию: раздел настроек свёрнут по умолчанию, и запрос уходит, когда его

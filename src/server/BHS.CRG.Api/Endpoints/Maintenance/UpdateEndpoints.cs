@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Modules;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Updates;
 using BHS.CRG.Application.Settings;
 using BHS.CRG.Application.Updates;
@@ -17,7 +19,7 @@ public static class UpdateEndpoints
 {
     public static void MapUpdateEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/system").RequireAuthorization();
+        var g = app.MapGroup("/api/system").RequireAuthorization(AppPolicies.Permission(CorePermissions.SystemManage));
 
         // withNotes=true — только для страницы настроек. По умолчанию заметки НЕ отдаются, и это не
         // экономия ради экономии: статус читает подвал боковой панели, то есть каждый заход в

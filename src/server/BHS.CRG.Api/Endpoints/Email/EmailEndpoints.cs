@@ -1,3 +1,5 @@
+﻿using BHS.CRG.Modules;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Email;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +15,7 @@ public static class EmailEndpoints
 {
     public static void MapEmailEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/email").RequireAuthorization("Admin");
+        var g = app.MapGroup("/api/email").RequireAuthorization(AppPolicies.Permission(CorePermissions.SystemManage));
 
         g.MapPost("/send", async (SendMessageRequest req, AppDbContext db, IEmailSender email, CancellationToken ct) =>
         {

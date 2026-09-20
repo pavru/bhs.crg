@@ -1,4 +1,6 @@
-﻿using BHS.CRG.Application.Common;
+﻿using BHS.CRG.Modules;
+using BHS.CRG.Api.Auth;
+using BHS.CRG.Application.Common;
 using BHS.CRG.Infrastructure.Generation;
 
 using BHS.CRG.Api.Endpoints.Common;
@@ -9,7 +11,7 @@ public static class AttachmentEndpoints
 {
     public static void MapAttachmentEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/attachments").RequireAuthorization();
+        var g = app.MapGroup("/api/attachments").RequireAuthorization(AppPolicies.Permission(CorePermissions.FilesUse));
 
         g.MapPost("/", async (IFormFile file, IBlobStorage blob, ILoggerFactory loggers, CancellationToken ct) =>
         {

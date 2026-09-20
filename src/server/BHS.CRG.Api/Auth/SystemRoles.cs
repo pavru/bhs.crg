@@ -1,4 +1,4 @@
-namespace BHS.CRG.Api.Auth;
+﻿namespace BHS.CRG.Api.Auth;
 
 /// <summary>
 /// Системные роли — стартовый набор, который создаётся при установке (ТЗ AUTH-4).
@@ -34,7 +34,7 @@ public static class SystemRoles
             "Работа с документами и комплектами исполнительной документации",
             [
                 "id.document.read", "id.document.edit", "id.document.generate", "id.quality.edit",
-                "core.constructions.edit", "core.reconciliation.run",
+                "core.constructions.edit", "core.reconciliation.run", CorePermissions.FilesUse,
                 // Чужие модули: права появятся вместе с ними, до тех пор строка просто не находит
                 // объявления и пропускается.
                 "work.facts.read", "costs.materials.read",
@@ -42,20 +42,25 @@ public static class SystemRoles
 
         new("Installer", "Монтажник",
             "Подача своих отчётов о работах",
-            ["work.report.own"]),
+            ["work.report.own", CorePermissions.FilesUse]),
 
         new("ProjectManager", "Менеджер проекта",
             "Назначение монтажников на свои стройки, приёмка отчётов, графики",
             [
-                "core.employees.read", "core.constructions.edit", "core.period.close",
+                "core.employees.read", "core.constructions.edit", "core.period.close", CorePermissions.FilesUse,
                 "work.report.review", "work.assign", "work.crew.approve", "work.devices.manage",
                 "costs.materials.read", "costs.request.read", "costs.request.edit",
             ]),
 
         new("Estimator", "Сметчик",
             "Сметы и обмен с ГРАНД-Сметой, классификатор видов работ",
-            ["core.worktypes.edit", "core.nomenclature.edit", "plan.estimate.edit", "plan.offer.edit"]),
+            ["core.worktypes.edit", "core.nomenclature.edit", "plan.estimate.edit", "plan.offer.edit",
+             CorePermissions.FilesUse]),
 
+        // ⚠️ Единственная роль без core.files.use, и это НАРОЧНО: «Руководитель» — роль с одним
+        // составным правом (ТЗ AUTH-5.2), и второе право сломало бы ровно то, ради чего она такая.
+        // Следствие названо вслух: файлы из хранилища он не получит, пока раскрытие *.read.all по
+        // модулям (этап 2) не решит, входит ли туда работа с файлами.
         new("Executive", "Руководитель",
             "Чтение сводок по всем стройкам без права правки",
             ["*.read.all"]),
@@ -63,7 +68,7 @@ public static class SystemRoles
         new("Supplier", "Снабженец",
             "Счета, накладные, разноска, сопоставление наименований, заявки на закупку",
             [
-                "core.nomenclature.edit",
+                "core.nomenclature.edit", CorePermissions.FilesUse,
                 "costs.invoice.read", "costs.invoice.edit", "costs.waybill.read", "costs.waybill.edit",
                 "costs.allocate", "costs.request.read", "costs.request.edit", "plan.estimate.materials",
             ]),
@@ -71,13 +76,13 @@ public static class SystemRoles
         new("Accountant", "Бухгалтер",
             "Отметка оплаты, реестр счетов, отчёты по затратам",
             [
-                "core.employees.read", "core.period.close",
+                "core.employees.read", "core.period.close", CorePermissions.FilesUse,
                 "costs.invoice.read", "costs.invoice.pay", "costs.report", "costs.articles.edit",
             ]),
 
         new("WorksManager", "Производитель работ",
             "Ведение общего журнала работ, выпуск на подпись, отметка подписания",
-            ["work.facts.read", "ozhr.record.edit", "ozhr.release"]),
+            ["work.facts.read", "ozhr.record.edit", "ozhr.release", CorePermissions.FilesUse]),
     ];
 
     /// <summary>
