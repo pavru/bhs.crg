@@ -38,7 +38,8 @@ public class BackupServiceTests(IntegrationTestFixture fixture) : IAsyncLifetime
     private BackupService Backup(IServiceScope scope) => new(
         scope.ServiceProvider.GetRequiredService<AppDbContext>(),
         scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
-        NullLogger<BackupService>.Instance);
+        NullLogger<BackupService>.Instance,
+        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Activity.IActivityLog>());
 
     [Fact]
     public async Task Export_Import_RoundTrips_EnumTypes_TemplateAssets_And_TypstUserLib()

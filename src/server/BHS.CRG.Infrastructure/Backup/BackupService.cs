@@ -18,7 +18,8 @@ using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Backup;
 
-public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupService> logger)
+public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupService> logger,
+    BHS.CRG.Application.Activity.IActivityLog journal)
 {
     // v2 (issue #84): общие данные теперь DomainObject (без документной фасеты). Старые копии (v1)
     // несовместимы — чистый разрыв (решение пользователя): импорт отклоняется.
@@ -160,6 +161,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             new("Алиасы сверки", manifest.ReconciliationAliases?.Length ?? 0),
             new("Документы качества", manifest.QualityDocuments?.Length ?? 0),
             new("Файлы библиотеки Typst", manifest.TypstUserLibFiles?.Count ?? 0),
+            new("Журнал действий", manifest.ActivityLog?.Length ?? 0),
             // Проектные данные (issue #833) — в полной копии.
             new("Стройки", manifest.Constructions?.Length ?? 0),
             new("Разделы", manifest.Sections?.Length ?? 0),
@@ -315,6 +317,10 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             .Where(a => a.Status != AliasStatus.Proposed)
             .ToListAsync(ct);
 
+        // Журнал действий целиком: он дописывается редко (правки ролей и схем), и «последние N»
+        // означало бы копию, которая тем короче помнит, чем дольше ею пользуются.
+        var activity = await journal.ExportAsync(ct);
+
         // Проектные данные (issue #833) читаются ТОЛЬКО для полной копии: конфигурационная
         // остаётся ровно тем, чем была, и весит столько же. Порядок чтения не важен - снимок один.
         var full = scope == BackupScope.Full;
@@ -445,7 +451,12 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 r.CreatedAt, r.UpdatedAt)).ToArray() : null,
             MaterialQualityLinks: full ? materialLinks.Select(l => new BackupMaterialQualityLink(
                 l.Id, l.Scope.ToString(), l.ScopeId, l.MaterialKey, l.MaterialLabel,
-                l.QualityDocumentId, l.CreatedAt, l.UpdatedAt)).ToArray() : null);
+                l.QualityDocumentId, l.CreatedAt, l.UpdatedAt)).ToArray() : null,
+            // Журнал действий — в любой копии, включая конфигурационную (ТЗ CORE-28). Читается
+            // через службу, а не из набора: прямой доступ к журналу есть только у неё.
+            ActivityLog: activity.Select(r => new BackupActivityRecord(
+                r.Id, r.OccurredAt, r.Action, r.ActorId, r.ActorName,
+                r.TargetId, r.TargetLabel, r.Before, r.After)).ToArray());
     }
 
     // ── Import ────────────────────────────────────────────────────────────────
@@ -549,6 +560,7 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             await RestoreReconciliationsAsync(manifest.Reconciliations ?? [], stats, warnings, ct);
             // Связка «материал ↔ документ качества» — после самих документов качества.
             await RestoreMaterialQualityLinksAsync(manifest.MaterialQualityLinks ?? [], stats, warnings, ct);
+            await RestoreActivityLogAsync(manifest.ActivityLog ?? [], stats, ct);
             await tx.CommitAsync(ct);
 
             return new RestoreReport(true, conversionNotice, warnings,
@@ -1129,6 +1141,31 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
         }
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
+    }
+
+    /// <summary>
+    /// Журнал действий из копии (ТЗ CORE-28).
+    ///
+    /// Только ДОПИСЫВАНИЕ и только новых идентификаторов: обновления здесь нет и быть не может —
+    /// запись журнала неизменяема, и upsert поверх собственной истории экземпляра стёр бы её.
+    /// Поэтому и счётчик один: «добавлено».
+    ///
+    /// Идёт через службу журнала, а не через набор напрямую: прямой доступ есть только у неё
+    /// (сторож <c>ActivityLogInventoryTests</c>).
+    /// </summary>
+    private async Task RestoreActivityLogAsync(
+        BackupActivityRecord[] items, RestoreStats stats, CancellationToken ct)
+    {
+        if (items.Length == 0) return;
+
+        var added = await journal.ImportAsync(
+            [.. items.Select(i => BHS.CRG.Domain.Activity.ActivityRecord.Create(
+                i.Action, i.ActorId, i.ActorName, i.TargetId, i.TargetLabel, i.Before, i.After,
+                id: i.Id, occurredAt: i.OccurredAt))],
+            ct);
+
+        db.ChangeTracker.Clear();
+        stats.Count("Журнал действий", added, 0);
     }
 
     private async Task RestoreReconciliationAliasesAsync(

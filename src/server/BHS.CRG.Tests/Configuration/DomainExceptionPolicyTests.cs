@@ -49,6 +49,7 @@ public class DomainExceptionPolicyTests
         ["BHS.CRG.Infrastructure/Storage/BlobStorage.cs"] = "путь берётся из базы, а не из запроса: «исправьте запрос» тут неверно по существу",
         ["BHS.CRG.Domain/Objects/DomainObject.cs"] = "документные свойства спросили у не-документа — дефект вызывающего кода",
         ["BHS.CRG.Domain/Notifications/Notification.cs"] = "уведомление адресовано и лично, и по праву разом — путаница в издателе; до пользователя такой отказ не доходит вовсе",
+        ["BHS.CRG.Infrastructure/Persistence/AppDbContext.cs"] = "правка записи журнала действий — дефект кода, а не отказ пользователю: такой правки в интерфейсе нет вовсе (ТЗ CORE-28)",
         ["BHS.CRG.Application/Backup/BackupStorageOptions.cs"] = "негодная настройка каталога копий: отказ на старте, адресованный администратору в журнале, — до пользователя не доходит вовсе",
         ["BHS.CRG.Infrastructure/Backup/CountingStream.cs"] = "счётчик байтов: чтения и перемотки у него нет по устройству, до пользователя это не доходит",
     };

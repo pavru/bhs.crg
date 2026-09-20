@@ -65,6 +65,17 @@ public static class CorePermissions
     /// <summary>Разбор чужих сообщений об ошибках.</summary>
     public const string SupportReview = "core.support.review";
 
+    /// <summary>
+    /// Чтение журнала действий (ТЗ CORE-28).
+    ///
+    /// ⚠️ Код исторически называет журнал «audit», а служба и таблица — «activity». Расхождение
+    /// намеренное: словом «аудит» в этой системе уже названы проверки данных против схемы
+    /// (<c>QualityAuditRun</c>, аудит типа), и служба с таким же именем перестала бы находиться
+    /// поиском. Код права менять нельзя — он объявлен в справочнике и уже назван соседями в
+    /// «обычно выдаётся вместе».
+    /// </summary>
+    public const string AuditRead = "core.audit.read";
+
     /// <summary>Управление аудиторией уведомлений: кто на что подписан.</summary>
     public const string NotifyManage = "core.notify.manage";
 
@@ -79,7 +90,7 @@ public static class CorePermissions
         new(UsersManage,
             "заводить пользователей, назначать им роли, менять состав прав роли",
             "учётные записи и роли всего экземпляра; по сути — любой доступ, который можно выдать",
-            ["core.audit.read"]),
+            [AuditRead]),
 
         new(TypesEdit,
             "менять типы документов и их схемы в пределах уровня правки",
@@ -114,9 +125,9 @@ public static class CorePermissions
         new("core.period.close",
             "закрывать учётный период",
             "итоги периода по всем включённым модулям; после закрытия правка идёт версиями",
-            ["core.audit.read"]),
+            [AuditRead]),
 
-        new("core.audit.read",
+        new(AuditRead,
             "читать журнал действий",
             "кто, что и когда менял: роли, права, схемы, включение модулей",
             []),
@@ -144,7 +155,7 @@ public static class CorePermissions
         new(SystemManage,
             "обслуживать экземпляр: копии, обновление, почта, внешние службы",
             "настройки всего экземпляра и его резервные копии — по сути, доступ к данным целиком",
-            ["core.audit.read"]),
+            [AuditRead]),
 
         new(FilesUse,
             "загружать вложения и получать файлы из хранилища",

@@ -142,6 +142,8 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         ["DataSetBinding"] = nameof(BackupManifest.DataSetBindings),
         ["ReconciliationDefinition"] = nameof(BackupManifest.Reconciliations),
         ["MaterialQualityLink"] = nameof(BackupManifest.MaterialQualityLinks),
+        // Журнал действий (ТЗ CORE-28 требует его переносить) — в любой копии, не только полной.
+        ["ActivityRecord"] = nameof(BackupManifest.ActivityLog),
     };
 
     [Fact]
@@ -215,7 +217,8 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
             var (zipStream, _) = await new BackupService(
                 scope.ServiceProvider.GetRequiredService<AppDbContext>(),
                 scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
-                NullLogger<BackupService>.Instance).ExportAsync(BackupScope.Full);
+                NullLogger<BackupService>.Instance,
+                scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Activity.IActivityLog>()).ExportAsync(BackupScope.Full);
 
             await using var _zipHandle = zipStream;
             using var zip = new ZipArchive(zipStream, ZipArchiveMode.Read);
@@ -344,5 +347,11 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
             Guid.NewGuid(), CatalogScope.Set, setId, "кабель ВВГнг", "Кабель", qualityDoc.Id, now, now));
 
         await db.SaveChangesAsync();
+
+        // Журнал действий (issue #950) — через службу: прямой доступ к набору есть только у неё,
+        // и посев мимо неё разошёлся бы с тем, как записи появляются в работе.
+        await scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Activity.IActivityLog>()
+            .RecordAsync(BHS.CRG.Application.Activity.ActivityActions.UserRoleChanged,
+                Guid.NewGuid().ToString(), "покрытие@test.local", before: "Инженер ИД", after: "Администратор");
     }
 }

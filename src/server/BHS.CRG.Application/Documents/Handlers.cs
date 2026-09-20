@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
 using BHS.CRG.Application.Generation;
@@ -20,7 +21,8 @@ public class DocumentTypeHandlers(
     IRepository<QualityDocument> qualityDocRepo,
     IRepository<PrimitiveType> primitiveRepo,
     IRepository<DocumentSetPlanItem> planRepo,
-    IDataSetService dataSetService) :
+    IDataSetService dataSetService,
+    IActivityLog journal) :
     IRequestHandler<CreateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeSchemaCommand, DocumentType>,
@@ -299,9 +301,25 @@ public class DocumentTypeHandlers(
         // Ограничения тэгов (issue #258): считаем носителей среди прочих типов + входящей схемы.
         var all = await repo.GetAllAsync(ct);
         ValidateTagRestrictions(cmd.Schema, dt.Id, dt.Name, all);
+
+        // Прежнее состояние — ДО правки: после UpdateSchema сравнивать уже не с чем.
+        var wasFields = SchemaChangeSummary.Describe(dt.Schema);
+        var change = SchemaChangeSummary.Describe(dt.Schema, cmd.Schema);
+
         dt.UpdateSchema(cmd.Schema);
         repo.Update(dt);
         await repo.SaveChangesAsync(ct);
+
+        // Правка схемы — в журнал действий (ТЗ CORE-28). Пишем ПОСЛЕ сохранения: запись о том, чего
+        // не случилось, хуже отсутствия записи.
+        //
+        // ⚠️ Сегодня пишутся правки ЛЮБОГО типа, а ТЗ называет уровни «расширяемый» и «закрытый».
+        // Уровней в коде ещё нет (они придут с владельцем-модулем у типа, STG-5 п.7), и более узкое
+        // условие было бы написано наугад. Шире — не ошибка: журнал знает лишнее, а не упускает
+        // нужное; сузить его, когда уровни появятся, — одна строка здесь.
+        await journal.RecordAsync(ActivityActions.TypeSchemaChanged,
+            dt.Id.ToString(), dt.Name, before: wasFields, after: change, ct: ct);
+
         return dt;
     }
 

@@ -173,6 +173,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         "dataset_files",
         "integration_settings",
         "service_state",
+        "activity_log",
     ];
 
     /// <summary>Сколько ждать, пока доработают фоновые задачи прошлого теста.</summary>

@@ -1,4 +1,4 @@
-import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Scale, Bug } from 'lucide-react';
+import { FolderOpen, BookOpen, FileText, Settings, Layers, Database, Tag, ShieldCheck, Users, ScanText, Scale, Bug, History } from 'lucide-react';
 
 /**
  * Пункты навигации — общий источник для сайдбара (AppShell) и командной палитры (Ctrl+K).
@@ -36,6 +36,7 @@ export const settingsNav: NavItem[] = [
   { to: '/templates',            label: 'Шаблоны',               icon: FileText, permission: 'id.config.edit' },
   { to: '/recognition-profiles', label: 'Профили распознавания', icon: ScanText, permission: 'core.recognition.settings' },
   { to: '/users',                label: 'Пользователи',          icon: Users,    permission: 'core.users.manage' },
+  { to: '/activity',             label: 'Журнал действий',       icon: History,  permission: 'core.audit.read' },
   { to: '/bug-reports',          label: 'Сообщения об ошибках',  icon: Bug,      permission: 'core.support.review' },
   { to: '/settings',             label: 'Настройки',             icon: Settings, permission: 'core.system.manage' },
 ];

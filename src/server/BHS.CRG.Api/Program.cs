@@ -37,6 +37,8 @@ using BHS.CRG.Application.Settings;
 using BHS.CRG.Application.Notifications;
 using BHS.CRG.Api.Endpoints.Settings;
 using BHS.CRG.Api.Endpoints.Users;
+using BHS.CRG.Api.Endpoints.Activity;
+using BHS.CRG.Application.Activity;
 using BHS.CRG.Api.Endpoints.Schema;
 using BHS.CRG.Api.Endpoints.Notifications;
 using BHS.CRG.Api.Endpoints.Jobs;
@@ -659,6 +661,10 @@ builder.Services.AddSingleton<IUserPermissions, PermissionCache>();
 // месте, а не перебором ролей у каждого издателя.
 builder.Services.AddSingleton<BHS.CRG.Application.Notifications.INotificationAudience,
     BHS.CRG.Api.Notifications.PermissionAudience>();
+// Журнал действий — одна служба на весь продукт (ТЗ CORE-28). Scoped: пишет через тот же контекст
+// базы, что и само действие, и живёт ровно столько же.
+builder.Services.AddScoped<IActivityLog, BHS.CRG.Infrastructure.Activity.ActivityLog>();
+builder.Services.AddSingleton<IActivityActor, BHS.CRG.Api.Activity.HttpContextActivityActor>();
 
 var app = builder.Build();
 
@@ -726,6 +732,13 @@ using (var scope = app.Services.CreateScope())
     // Первичная инициализация включённых модулей — после миграций и сидов ядра: модуль вправе
     // рассчитывать, что схема базы и справочники ядра на месте.
     await scope.ServiceProvider.InitializeAppModulesAsync();
+
+    // Состав модулей — в журнал действий (ТЗ CORE-28), если он изменился с прошлого запуска.
+    // После инициализации: записывать «включён модуль», который не смог подняться, значит
+    // оставить в журнале утверждение, опровергнутое соседней строкой лога.
+    await BHS.CRG.Api.Activity.ModuleCompositionJournal.RecordIfChangedAsync(
+        scope.ServiceProvider.GetRequiredService<IActivityLog>(),
+        scope.ServiceProvider.GetRequiredService<ModuleRegistry>());
 }
 
 // Описание API поднимается только в Development — у заказчика этого адреса нет вовсе. Ворота всё
@@ -772,6 +785,7 @@ app.MapAttachmentEndpoints();
 app.MapAuthEndpoints();
 app.MapAccountEndpoints();
 app.MapUserEndpoints();
+app.MapActivityEndpoints();
 app.MapBackupEndpoints();
 app.MapBugReportEndpoints();
 app.MapMaintenanceEndpoints();

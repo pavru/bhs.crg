@@ -70,9 +70,56 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<BHS.CRG.Domain.Storage.BlobRegistryEntry> BlobRegistry
         => Set<BHS.CRG.Domain.Storage.BlobRegistryEntry>();
 
+    /// <summary>
+    /// Журнал действий (ТЗ CORE-28). Обращаться к набору напрямую позволено ОДНОЙ службе —
+    /// <c>Infrastructure/Activity/ActivityLog.cs</c>; сторож <c>ActivityLogInventoryTests</c>
+    /// перечисляет упоминания и падает на новом.
+    /// </summary>
+    public DbSet<BHS.CRG.Domain.Activity.ActivityRecord> ActivityRecords
+        => Set<BHS.CRG.Domain.Activity.ActivityRecord>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
         builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        RefuseActivityLogEdits();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken ct = default)
+    {
+        RefuseActivityLogEdits();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, ct);
+    }
+
+    /// <summary>
+    /// Журнал только дописывается (ТЗ CORE-28): правка и удаление записи отвергаются здесь, в
+    /// единственной точке сохранения.
+    ///
+    /// Приватных сеттеров для этого мало: <c>ChangeTracker</c> ставит состояние <c>Modified</c> и по
+    /// прямому <c>Entry(...).State</c>, и по правке через рефлексию, и запись ушла бы в базу без
+    /// единого признака. Отказ громкий и без обработки — поправить журнал может только код, а код
+    /// чинят, а не уговаривают.
+    ///
+    /// ⚠️ Чего это НЕ закрывает: <c>ExecuteUpdate</c>/<c>ExecuteDelete</c> и голый SQL идут мимо
+    /// трекера. Их закрывает сторож по исходникам — там, где такую строку ещё можно не дописать.
+    /// </summary>
+    private void RefuseActivityLogEdits()
+    {
+        var touched = ChangeTracker.Entries<BHS.CRG.Domain.Activity.ActivityRecord>()
+            .Where(e => e.State is EntityState.Modified or EntityState.Deleted)
+            .Select(e => $"{e.Entity.Action} от {e.Entity.OccurredAt:u} ({e.State})")
+            .ToList();
+
+        if (touched.Count == 0) return;
+
+        throw new InvalidOperationException(
+            "Записи журнала действий изменению и удалению не подлежат (ТЗ CORE-28), а изменены: " +
+            string.Join("; ", touched) +
+            ". Новое событие записывается новой строкой через IActivityLog.RecordAsync.");
     }
 }
