@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 
@@ -128,9 +128,8 @@ public sealed class ModuleAccessHandler(IUserPermissions permissions)
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context, ModuleAccessRequirement requirement)
     {
-        var prefix = requirement.Code + ".";
         var granted = await permissions.ForAsync(context.User, CancellationToken.None);
-        if (granted.Any(code => code.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+        if (ModuleAccess.IsOpen(requirement.Code, granted))
             context.Succeed(requirement);
     }
 }

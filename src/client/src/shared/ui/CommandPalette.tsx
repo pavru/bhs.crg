@@ -1,10 +1,12 @@
-import * as Dialog from '@radix-ui/react-dialog';
+﻿import * as Dialog from '@radix-ui/react-dialog';
 import { Search, Sun, Moon, Monitor, LogOut, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useTheme } from '@/shared/ui/themeContext';
 import { workNav, settingsNav } from './navConfig';
+import { visibleNav } from './navAccess';
+import { useAccess, NO_ACCESS } from '@/shared/api/access';
 
 interface Cmd { id: string; label: string; section: string; icon: LucideIcon; run: () => void }
 
@@ -23,14 +25,19 @@ export function CommandPalette(props: { open: boolean; onOpenChange: (o: boolean
 
 function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const { setTheme } = useTheme();
-  const isAdmin = user?.role === 'Admin';
+  // Те же права, что и у сайдбара, и из того же источника (issue #952). Палитра — второй вход в
+  // те же разделы: отфильтруй сайдбар и забудь палитру — и скрытый раздел останется доступен по
+  // Ctrl+K, то есть «скрыт» он будет только на вид.
+  const { data: access } = useAccess();
+  const work = visibleNav(workNav, access ?? NO_ACCESS);
+  const settings = visibleNav(settingsNav, access ?? NO_ACCESS);
 
   const items = useMemo<Cmd[]>(() => {
     const nav = [
-      ...workNav.map(n => ({ ...n, section: 'Документы и данные' })),
-      ...(isAdmin ? settingsNav.map(n => ({ ...n, section: 'Настройка системы' })) : []),
+      ...work.map(n => ({ ...n, section: 'Документы и данные' })),
+      ...settings.map(n => ({ ...n, section: 'Настройка системы' })),
     ].map(n => ({ id: n.to, label: n.label, section: n.section, icon: n.icon, run: () => navigate(n.to) }));
     const actions: Cmd[] = [
       { id: 'theme-light',  label: 'Тема: светлая',   section: 'Действия', icon: Sun,     run: () => setTheme('light') },
@@ -39,7 +46,7 @@ function CommandPaletteBody({ onOpenChange }: { open: boolean; onOpenChange: (o:
       { id: 'logout',       label: 'Выйти',           section: 'Действия', icon: LogOut,  run: logout },
     ];
     return [...nav, ...actions];
-  }, [isAdmin, navigate, setTheme, logout]);
+  }, [work, settings, navigate, setTheme, logout]);
 
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);

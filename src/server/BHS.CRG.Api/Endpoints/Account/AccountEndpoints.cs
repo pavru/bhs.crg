@@ -1,6 +1,7 @@
-using System.IdentityModel.Tokens.Jwt;
+﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Modules;
 using BHS.CRG.Application.Email;
 using BHS.CRG.Infrastructure.Email;
 using BHS.CRG.Infrastructure.Persistence;
@@ -18,6 +19,34 @@ public static class AccountEndpoints
     public static void MapAccountEndpoints(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/api/account").RequireAuthorization();
+
+        /// Что доступно ЭТОМУ пользователю (ТЗ AUTH-14). Единственный источник, по которому клиент
+        /// строит навигацию: названия ролей он не читает вовсе.
+        ///
+        /// Почему один адрес, а не «список прав» отдельно и «модули» отдельно: навигация — это
+        /// ответ на один вопрос, и собранный из двух ответов он умеет расходиться сам с собой.
+        ///
+        /// ⚠️ Ответ НЕ кэшируется на клиенте бессрочно: права меняются немедленно (AUTH-7), и
+        /// устаревший ответ рисует меню, которого у пользователя больше нет, — то есть пункты,
+        /// отвечающие отказом. Это тот же случай, что и роль в токене, только этажом выше.
+        g.MapGet("/access", async (ClaimsPrincipal principal, IUserPermissions permissions,
+            ModuleRegistry modules, CancellationToken ct) =>
+        {
+            var granted = await permissions.ForAsync(principal, ct);
+            return Results.Ok(new
+            {
+                permissions = granted.Order(StringComparer.Ordinal).ToArray(),
+                // Модули экземпляра целиком: и доступные, и нет. Клиенту нужны оба списка —
+                // «нет такого модуля на экземпляре» и «модуль есть, но не для вас» это разные
+                // отказы, и страница AUTH-15 обязана называть их по-разному.
+                modules = modules.Enabled.Select(m => new
+                {
+                    code = m.Code,
+                    title = m.Title,
+                    available = ModuleAccess.IsOpen(m.Code, granted),
+                }).ToArray(),
+            });
+        });
 
         g.MapGet("/", async (UserManager<ApplicationUser> users, ClaimsPrincipal principal) =>
         {

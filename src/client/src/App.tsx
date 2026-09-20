@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
+﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/shared/ui/ThemeProvider';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
@@ -7,7 +7,7 @@ import { DocumentTitleManager } from '@/shared/ui/DocumentTitleManager';
 import { ToastProvider } from '@/shared/ui/ToastProvider';
 import { BugReportProvider } from '@/shared/ui/BugReportProvider';
 import { AuthProvider } from '@/shared/ui/AuthProvider';
-import { ProtectedRoute, AdminRoute } from '@/shared/ui/ProtectedRoute';
+import { ProtectedRoute, RequireAccess } from '@/shared/ui/ProtectedRoute';
 import { AppShell } from '@/shared/ui/AppShell';
 import { LoginPage } from '@/features/catalog/LoginPage';
 import { DocumentTypesPage } from '@/features/settings/DocumentTypesPage';
@@ -57,13 +57,16 @@ export default function App() {
               <Route element={<AppShell />}>
                 <Route index element={<Navigate to="/document-sets" replace />} />
                 <Route path="document-sets/*" element={<DocumentSetsPage />} />
-                <Route path="common-data" element={<SystemCommonDataPage />} />
-                <Route path="datasets" element={<DataSetsPage />} />
-                <Route path="datasets/files/:fileId/grouping" element={<PdfGroupingEditor />} />
-                <Route path="quality-docs" element={<QualityDocsPage />} />
-                <Route path="reconciliations" element={<ReconciliationsPage />} />
+                {/* Свой профиль — без права: он и есть «своё» (см. корзину личных адресов). */}
                 <Route path="profile" element={<ProfilePage />} />
-                <Route element={<AdminRoute />}>
+                <Route element={<RequireAccess />}>
+                  <Route path="common-data" element={<SystemCommonDataPage />} />
+                  <Route path="datasets" element={<DataSetsPage />} />
+                  <Route path="datasets/files/:fileId/grouping" element={<PdfGroupingEditor />} />
+                  <Route path="quality-docs" element={<QualityDocsPage />} />
+                  <Route path="reconciliations" element={<ReconciliationsPage />} />
+                </Route>
+                <Route element={<RequireAccess />}>
                   {/* key — чтобы React перемонтировал страницу между двумя маршрутами: без него это
                       один экземпляр компонента (тот же тип в той же позиции дерева), и поиск,
                       раскрытые группы и восстановленный выбор переезжали с одной страницы на
