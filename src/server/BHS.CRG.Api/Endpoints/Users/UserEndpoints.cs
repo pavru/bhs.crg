@@ -10,7 +10,12 @@ namespace BHS.CRG.Api.Endpoints.Users;
 
 public static class UserEndpoints
 {
-    private static readonly string[] ValidRoles = ["Admin", "User"];
+    /// <summary>
+    /// Роли, которые можно назначить. Берутся из каталога системных ролей (issue #945), а не
+    /// перечисляются здесь: список из двух имён означал, что заведённые роли назначить нечем, и
+    /// про это узнали бы не сразу — назначение просто отказывало бы «недопустимой ролью».
+    /// </summary>
+    private static string[] ValidRoles => [.. BHS.CRG.Api.Auth.SystemRoles.All.Select(r => r.Name)];
 
     public static void MapUserEndpoints(this IEndpointRouteBuilder app)
     {
