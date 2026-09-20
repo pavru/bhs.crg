@@ -3,6 +3,7 @@ using System.Security.Claims;
 using BHS.CRG.Application.Email;
 using BHS.CRG.Infrastructure.Email;
 using BHS.CRG.Infrastructure.Persistence;
+using BHS.CRG.Modules;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,7 +20,9 @@ public static class UserEndpoints
 
     public static void MapUserEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/users").RequireAuthorization("Admin");
+        // Первая дверь на праве, а не на роли (ТЗ AUTH-8). Управление пользователями выбрано
+        // первым не случайно: это дверь, за которой выдаются все остальные.
+        var g = app.MapGroup("/api/users").RequireAuthorization(AppPolicies.Permission("core.users.manage"));
 
         g.MapGet("/", async (UserManager<ApplicationUser> users) =>
         {
@@ -82,6 +85,16 @@ public static class UserEndpoints
 
             if (current.Count > 0) await users.RemoveFromRolesAsync(user, current);
             await users.AddToRoleAsync(user, role);
+
+            // Смена ролей действует НЕМЕДЛЕННО (ТЗ AUTH-7). Отметка безопасности обновляется —
+            // выданные токены с прежними ролями перестают приниматься на следующем же запросе, и
+            // вместе с ними теряет силу посчитанный по ним набор прав: ключ кэша содержит отметку.
+            //
+            // Перелогина это не стоит: refresh-сессии НЕ отзываются (в отличие от смены пароля
+            // ниже), клиент молча меняет токен и продолжает работу — уже с новыми правами. Отзыв
+            // одного права не должен выглядеть как «меня разлогинило».
+            await users.UpdateSecurityStampAsync(user);
+
             return Results.Ok(new UserDto(user.Id, user.Email ?? "", user.DisplayName, role));
         });
 

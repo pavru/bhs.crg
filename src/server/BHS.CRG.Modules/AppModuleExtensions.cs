@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -72,6 +73,13 @@ public static class AppModuleExtensions
         services.AddSingleton(new PermissionCatalog(
             [.. corePermissions, .. enabled.SelectMany(m => m.Permissions)]));
 
+        // Политики прав и модулей (AUTH-8) — часть механизма модулей, а не приложения: ворота на
+        // группу модуля ставит MapAppModules, и он обязан ставить их тем, что здесь объявлено.
+        // Обработчики — scoped: счётчик прав приложения ходит в базу и живёт в области запроса.
+        services.AddSingleton<IAuthorizationPolicyProvider, AppPolicyProvider>();
+        services.AddScoped<IAuthorizationHandler, PermissionHandler>();
+        services.AddScoped<IAuthorizationHandler, ModuleAccessHandler>();
+
         return services;
     }
 
@@ -86,8 +94,13 @@ public static class AppModuleExtensions
     /// свои данные без токена (поймано на ревью #968). Сейчас это не видно только потому, что
     /// обёртка исполнительной документации ставит авторизацию внутри своих подгрупп сама.
     ///
-    /// Пока это базовые ворота «вошёл». Политика модуля (<c>module:&lt;код&gt;</c>, AUTH-8) заменит
-    /// их в задаче про проверку прав — там же, где появятся сами политики.
+    /// Ворота — политика модуля (<c>module:&lt;код&gt;</c>, AUTH-8): мало войти, нужен доступ
+    /// именно к этому модулю. Доступ считается по правам (<see cref="ModuleAccessHandler" />).
+    ///
+    /// ⚠️ Отсутствие <see cref="IUserPermissions" /> — ОТКАЗ ПРИ СТАРТЕ. Ворота, которым некого
+    /// спросить о правах, отвечали бы отказом на всё — то есть выглядели бы как «модуль сломался»,
+    /// а не как «приложение собрано неправильно». Проверка стоит здесь, потому что здесь впервые
+    /// есть собранный контейнер.
     ///
     /// ⚠️ Имя группе НЕ даётся (<c>WithGroupName</c>), и это не упущение. Имя группы в ASP.NET — это
     /// имя ДОКУМЕНТА OpenAPI, а не ярлык: адрес с именем «id» попадает в документ «id», которого
@@ -100,9 +113,15 @@ public static class AppModuleExtensions
     {
         var registry = app.ServiceProvider.GetRequiredService<ModuleRegistry>();
 
+        if (registry.Enabled.Count > 0
+            && app.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(IUserPermissions)) != true)
+            throw new InvalidOperationException(
+                $"Ворота модулей некому открыть: {nameof(IUserPermissions)} не зарегистрирована. " +
+                "Приложение, которое подключает модули, обязано уметь ответить, какие права у владельца токена.");
+
         foreach (var module in registry.Enabled)
         {
-            var group = app.MapGroup(string.Empty).RequireAuthorization();
+            var group = app.MapGroup(string.Empty).RequireAuthorization(AppPolicies.Module(module.Code));
             group.WithMetadata(new AppModuleEndpoint(module.Code));
             module.MapEndpoints(group);
         }
