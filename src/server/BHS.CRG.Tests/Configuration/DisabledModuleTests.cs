@@ -230,7 +230,7 @@ public class DisabledModuleTests
     {
         public string Code => code;
         public string Title => title;
-        public IReadOnlyList<string> Permissions => [];
+        public IReadOnlyList<AppPermission> Permissions => [];
         public IReadOnlyList<string> RoutePrefixes => [route.Split('/', StringSplitOptions.RemoveEmptyEntries) is { Length: >= 2 } s ? "/" + s[0] + "/" + s[1] : route];
         public virtual void RegisterServices(IServiceCollection services, IConfiguration configuration) { }
         public void MapEndpoints(IEndpointRouteBuilder endpoints) =>
@@ -247,7 +247,7 @@ public class DisabledModuleTests
     {
         public string Code => "costs";
         public string Title => "Счета и накладные";
-        public IReadOnlyList<string> Permissions => [];
+        public IReadOnlyList<AppPermission> Permissions => [];
         public IReadOnlyList<string> RoutePrefixes => ["/api/costs"];
         public void RegisterServices(IServiceCollection services, IConfiguration configuration) { }
 
