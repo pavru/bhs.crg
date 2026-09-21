@@ -229,9 +229,20 @@ try {
     await page.goto(`${BASE}/roles`);
     await page.waitForSelector('text=Состав этой роли не правится', { timeout: 5000 });
 
+    // ⚠️ Сперва ПОЛОЖИТЕЛЬНОЕ утверждение, и только потом запреты. Баннер приходит ответом
+    // /roles, а галки — отдельным ответом /roles/permissions: пока справочник не ответил, живых
+    // галок ноль и кнопки нет — оба запрета ниже «выполнены», а проверять нечего (ревью #986).
+    const boxes = page.locator('input[type=checkbox]');
+    await boxes.nth(9).waitFor({ timeout: 5000 });
+
     const enabled = await page.locator('input[type=checkbox]:not([disabled])').count();
     if (enabled > 0)
       throw new Error(`у роли «все права» ${enabled} живых галок — сервер откажет на сохранении`);
+
+    // Галки не просто мертвы — они отмечены: состав такой роли равен справочнику целиком.
+    const ticked = await page.locator('input[type=checkbox]:checked').count();
+    if (ticked < 10)
+      throw new Error(`у роли «все права» отмечено ${ticked} галок — состав показан неполным`);
 
     if (await page.locator('text=Сохранить состав прав').count())
       throw new Error('у роли «все права» предлагается сохранить состав, которого она не имеет');
@@ -245,9 +256,21 @@ try {
     await page.goto(`${BASE}/users`);
     await page.click('text=Добавить пользователя');
     await page.waitForSelector('text=Новый пользователь', { timeout: 5000 });
-    await page.waitForTimeout(500);
 
     const dialog = page.locator('[role=dialog]');
+
+    // ⚠️ Сперва убеждаемся, что роли ЕСТЬ. На пустом списке подставлять нечего: placeholder на
+    // месте, кнопка выключена — оба утверждения ниже прошли бы, не коснувшись регрессии, которую
+    // проверка заведена ловить (ревью #986). Список открываем — заодно видно, что он живой.
+    await dialog.locator('button', { hasText: 'Выберите роль' }).click();
+    await page.waitForSelector('text=Инженер ИД', { timeout: 5000 });
+    for (const role of ['Администратор', 'Инженер ИД']) {
+      if (!(await page.locator(`[role=option]:has-text("${role}")`).count()))
+        throw new Error(`в списке ролей диалога нет «${role}» — подставлять было бы нечего`);
+    }
+    await page.keyboard.press('Escape');
+
+    // Список закрыт, роль по-прежнему не выбрана — вот это и проверяем.
     const text = await dialog.innerText();
     if (!text.includes('Выберите роль'))
       throw new Error('роль в диалоге подставлена заранее — выдача прав идёт по умолчанию');
