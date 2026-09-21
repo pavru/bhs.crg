@@ -744,7 +744,8 @@ using (var scope = app.Services.CreateScope())
     // оставить в журнале утверждение, опровергнутое соседней строкой лога.
     await BHS.CRG.Api.Activity.ModuleCompositionJournal.RecordIfChangedAsync(
         scope.ServiceProvider.GetRequiredService<IActivityLog>(),
-        scope.ServiceProvider.GetRequiredService<ModuleRegistry>());
+        scope.ServiceProvider.GetRequiredService<ModuleRegistry>(),
+        scope.ServiceProvider.GetRequiredService<BHS.CRG.Infrastructure.Updates.ServiceStateStore>());
 }
 
 // Описание API поднимается только в Development — у заказчика этого адреса нет вовсе. Ворота всё

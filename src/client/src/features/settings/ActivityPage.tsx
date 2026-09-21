@@ -60,7 +60,10 @@ export function ActivityPage() {
           Журнал действий
         </h1>
         <div className="w-64">
-          <Select value={action} onValueChange={v => { setAction(v); setPage(0); }}>
+          {/* aria-label обязателен: видимой подписи у отбора нет — её заменяет заголовок рядом,
+              а тот читалке отбор не называет, и объявлен он был бы просто «список». */}
+          <Select value={action} onValueChange={v => { setAction(v); setPage(0); }}
+            aria-label="Отбор по действию">
             <SelectItem value={ALL}>Все действия</SelectItem>
             {actions.map(a => <SelectItem key={a.code} value={a.code}>{a.title}</SelectItem>)}
           </Select>

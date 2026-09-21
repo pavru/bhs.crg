@@ -27,10 +27,18 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor) : IActivi
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// ⚠️ Добивка по <c>Id</c> — не украшение (issue #980). Время у записи неуникально: массовая
+    /// правка схемы или восстановление копии кладут несколько строк в одну миллисекунду, а без
+    /// добивки порядок таких строк база вправе менять от запроса к запросу. Страницы тогда едут:
+    /// вторая повторяет строки первой и прячет пограничные — то есть журнал молча не показывает
+    /// запись, которая в нём есть.
+    /// </summary>
     public async Task<IReadOnlyList<ActivityRecord>> ReadAsync(int skip, int take, string? action = null,
         CancellationToken ct = default) =>
         await Filtered(action)
             .OrderByDescending(r => r.OccurredAt)
+            .ThenByDescending(r => r.Id)
             .Skip(Math.Max(0, skip))
             .Take(Math.Clamp(take, 1, MaxTake))
             .AsNoTracking()
@@ -39,14 +47,19 @@ public sealed class ActivityLog(AppDbContext db, IActivityActor actor) : IActivi
     public Task<int> CountAsync(string? action = null, CancellationToken ct = default) =>
         Filtered(action).CountAsync(ct);
 
+    // Та же добивка и здесь: «последняя запись» при совпавшем времени иначе выбирается наугад, а по
+    // ней сверяют состояние — и тогда наугад решается, записывать ли смену.
     public Task<ActivityRecord?> LastAsync(ActivityAction action, CancellationToken ct = default) =>
         db.ActivityRecords.Where(r => r.Action == action.Code)
             .OrderByDescending(r => r.OccurredAt)
+            .ThenByDescending(r => r.Id)
             .AsNoTracking()
             .FirstOrDefaultAsync(ct);
 
     public async Task<IReadOnlyList<ActivityRecord>> ExportAsync(CancellationToken ct = default) =>
-        await db.ActivityRecords.OrderBy(r => r.OccurredAt).AsNoTracking().ToListAsync(ct);
+        await db.ActivityRecords
+            .OrderBy(r => r.OccurredAt).ThenBy(r => r.Id)
+            .AsNoTracking().ToListAsync(ct);
 
     public async Task<int> ImportAsync(IReadOnlyList<ActivityRecord> records, CancellationToken ct = default)
     {

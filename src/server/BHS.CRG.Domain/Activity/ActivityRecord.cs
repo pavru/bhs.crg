@@ -17,6 +17,17 @@ namespace BHS.CRG.Domain.Activity;
 /// </summary>
 public class ActivityRecord
 {
+    /// <summary>
+    /// Ширины колонок-снимков. Объявлены ЗДЕСЬ, а не только в настройке EF, потому что обрезать
+    /// приходится до вставки, а место обрезки и объявленная ширина обязаны совпадать: разойдясь,
+    /// они дают отказ базы 22001 — и не при записи в журнал, а «внутри» удавшегося действия.
+    /// Поэтому число здесь ОДНО: настройка EF берёт его отсюда же, а не повторяет литералом.
+    /// </summary>
+    public const int ActorNameMax = 256;
+
+    /// <inheritdoc cref="ActorNameMax" />
+    public const int TargetLabelMax = 512;
+
     // ReSharper disable once UnusedMember.Local — конструктор для EF.
     private ActivityRecord() { }
 
@@ -57,6 +68,13 @@ public class ActivityRecord
     /// Собирает запись. <paramref name="occurredAt" /> задаётся только при восстановлении копии:
     /// приехавшая запись сохраняет своё время, иначе восстановление выдало бы чужие действия за
     /// сегодняшние.
+    ///
+    /// ⚠️ Имя автора и название цели обрезаются ЗДЕСЬ — в единственном месте, где запись вообще
+    /// возникает (issue #980). Оба приходят из полей, длину которых никто не ограничивал:
+    /// отображаемое имя в профиле, название типа, название роли. Без обрезки отказ базы 22001
+    /// приходил бы ПОСЛЕ удавшегося действия — роль уже сменилась, а запрос отвечает 500. Платой в
+    /// <c>IActivityLog</c> заявлена потеря записи, а не падение действия; обрезанный хвост эту
+    /// плату соблюдает, отказ вставки — нет.
     /// </summary>
     public static ActivityRecord Create(
         string action, Guid? actorId, string actorName,
@@ -68,10 +86,18 @@ public class ActivityRecord
             OccurredAt = occurredAt ?? DateTimeOffset.UtcNow,
             Action = action,
             ActorId = actorId,
-            ActorName = actorName,
+            ActorName = Fit(actorName, ActorNameMax) ?? "",
             TargetId = targetId,
-            TargetLabel = targetLabel,
+            TargetLabel = Fit(targetLabel, TargetLabelMax),
             Before = before,
             After = after,
         };
+
+    /// <summary>
+    /// Укоротить до ширины колонки, пометив обрез многоточием: строка «Иван Иванов…» читается как
+    /// урезанная, а молча срезанная — как настоящее имя. Прежнее и новое значение не трогаем: их
+    /// длина не ограничена нарочно (см. настройку EF).
+    /// </summary>
+    private static string? Fit(string? value, int max) =>
+        value is not null && value.Length > max ? value[..(max - 1)] + "…" : value;
 }

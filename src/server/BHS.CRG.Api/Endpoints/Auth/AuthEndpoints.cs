@@ -1,4 +1,5 @@
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Application.Activity;
 using BHS.CRG.Infrastructure.Email;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -15,7 +16,8 @@ public static class AuthEndpoints
         // Первый зарегистрированный становится администратором. Дальше пользователей
         // заводит администратор через /api/users.
         g.MapPost("/register", async (RegisterRequest req,
-            UserManager<ApplicationUser> users) =>
+            UserManager<ApplicationUser> users, IActivityLog journal, RoleEditor editor,
+            CancellationToken ct) =>
         {
             if (users.Users.Any())
                 return Results.Problem("Регистрация закрыта. Обратитесь к администратору.", statusCode: 403);
@@ -29,7 +31,16 @@ public static class AuthEndpoints
             // потребитель (issue #826): клиенту пришлось бы переводить коды самому, теряя
             // «Пароль должен содержать хотя бы одну заглавную букву» ради общей фразы про политику.
             if (!result.Succeeded) return Results.BadRequest(new { error = DescribeErrors(result) });
-            await users.AddToRoleAsync(user, "Admin");
+            await users.AddToRoleAsync(user, SystemRoles.Admin);
+
+            // Заведение первого администратора — в журнал (issue #980). Именно про него потом и
+            // спрашивают «кто это завёл»: учётная запись самая широкая из всех, а заведена без
+            // приглашения и без автора. Автором запись назовёт «Систему» — это честно, ни один
+            // пользователь в тот момент не вошёл, и другого имени взять неоткуда.
+            await journal.RecordAsync(ActivityActions.UserCreated,
+                user.Id.ToString(), user.Email,
+                after: (await editor.TitlesAsync()).GetValueOrDefault(SystemRoles.Admin, SystemRoles.Admin),
+                ct: ct);
             return Results.Ok();
         }).RequireRateLimiting("login");
 

@@ -154,16 +154,130 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
     public async Task Состав_модулей_пишется_при_изменении_а_не_при_каждом_старте()
     {
         using var scope = fixture.Services.CreateScope();
-        var journal = Journal(scope);
-        var modules = scope.ServiceProvider.GetRequiredService<BHS.CRG.Modules.ModuleRegistry>();
 
-        await BHS.CRG.Api.Activity.ModuleCompositionJournal.RecordIfChangedAsync(journal, modules);
-        await BHS.CRG.Api.Activity.ModuleCompositionJournal.RecordIfChangedAsync(journal, modules);
+        await RecordCompositionAsync(scope);
+        await RecordCompositionAsync(scope);
 
         var first = Assert.Single(await RecordsAsync(ActivityActions.ModulesChanged));
         Assert.Null(first.Before);                      // начало отсчёта, а не «включили сегодня»
         Assert.Equal("id", first.After);
     }
+
+    /// <summary>
+    /// Сторож находки 1 (#980): восстановление копии с ДРУГИМ составом модулей не оставляет записи
+    /// о смене, которой не было.
+    ///
+    /// Копия здесь — это записи чужого экземпляра в журнале: именно их старт и принимал за прежнее
+    /// состояние, пока состояние жило в журнале. Прежний состав теперь лежит в <c>service_state</c>,
+    /// а он в копию не входит — и старт после восстановления сверяется со СВОИМ прошлым.
+    /// </summary>
+    [Fact]
+    public async Task Восстановление_копии_с_другим_составом_не_пишет_смену_модулей()
+    {
+        using var scope = fixture.Services.CreateScope();
+
+        // Экземпляр уже работал: состав записан и в журнал, и в состояние службы.
+        await RecordCompositionAsync(scope);
+
+        // Приехала копия с установки, где был включён ещё один модуль. Её запись — самая свежая.
+        var foreign = ActivityRecord.Create(
+            ActivityActions.ModulesChanged.Code, null, "Система",
+            targetLabel: "Состав модулей экземпляра", after: "costs, id",
+            occurredAt: DateTimeOffset.UtcNow.AddMinutes(1));
+        Assert.Equal(1, await Journal(scope).ImportAsync([foreign]));
+
+        await RecordCompositionAsync(scope);
+
+        var records = await RecordsAsync(ActivityActions.ModulesChanged);
+        // Две записи: наша собственная и приехавшая. Третьей — «costs, id → id» — быть не должно.
+        Assert.Equal(2, records.Count);
+        Assert.DoesNotContain(records, r => r.Before == "costs, id");
+    }
+
+    /// <summary>
+    /// Сторож находки 2 (#980): длинное отображаемое имя не роняет запрос ПОСЛЕ совершённого
+    /// действия. Платой за журнал заявлена потеря записи, а не 500 на удавшейся смене роли.
+    /// </summary>
+    [Fact]
+    public async Task Длинное_имя_автора_не_роняет_удавшееся_действие()
+    {
+        var (admin, _, _) = await SignInAsync(SystemRoles.Admin, displayName: new string('я', 400));
+        var (_, targetId, _) = await SignInAsync(SystemRoles.IdEngineer);
+
+        var change = await admin.PutAsJsonAsync($"/api/users/{targetId}/role", new { role = SystemRoles.Admin });
+        change.EnsureSuccessStatusCode();   // действие удалось — и ответ об этом говорит
+
+        var record = Assert.Single(await RecordsAsync(ActivityActions.UserRoleChanged));
+        Assert.Equal(ActivityRecord.ActorNameMax, record.ActorName.Length);
+        Assert.EndsWith("…", record.ActorName);         // обрез виден, а не выдан за настоящее имя
+    }
+
+    /// <summary>
+    /// Сторож находки 3 (#980): страницы не едут при совпавшем времени. Записи с одинаковым
+    /// <c>OccurredAt</c> без добивки по <c>Id</c> база вправе отдавать в разном порядке — и вторая
+    /// страница тогда повторяет строки первой, пряча пограничные.
+    /// </summary>
+    [Fact]
+    public async Task Страницы_не_едут_когда_время_записей_совпадает()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var sameMoment = DateTimeOffset.UtcNow;
+
+        // Идентификаторы заданы явно и различаются ПОСЛЕДНИМ байтом: так их порядок одинаков и в
+        // PostgreSQL (сравнение uuid побайтно), и в .NET. Случайные Guid для проверки порядка не
+        // годятся — эти два порядка у них расходятся, и тест утверждал бы не то, что проверяет.
+        var ids = Enumerable.Range(1, 10)
+            .Select(i => new Guid($"00000000-0000-0000-0000-0000000000{i:x2}"))
+            .ToList();
+        await Journal(scope).ImportAsync(ids
+            .Select((id, i) => ActivityRecord.Create(
+                ActivityActions.ModulesChanged.Code, null, "Система",
+                after: $"набор {i}", id: id, occurredAt: sameMoment))
+            .ToList());
+
+        var first = await Journal(scope).ReadAsync(0, 5, ActivityActions.ModulesChanged.Code);
+        var second = await Journal(scope).ReadAsync(5, 5, ActivityActions.ModulesChanged.Code);
+
+        // Без добивки по Id порядок при совпавшем времени задаёт база — и это порядок хранения,
+        // то есть тот, в котором записи вставляли. Ожидаем обратный ему.
+        Assert.Equal(ids.AsEnumerable().Reverse(), first.Concat(second).Select(r => r.Id));
+    }
+
+    /// <summary>
+    /// Сторож находки 4 (#980): заведение ПЕРВОГО администратора попадает в журнал. Про него потом
+    /// и спрашивают «кто завёл» — а заводится он через страницу регистрации, мимо /api/users.
+    /// </summary>
+    [Fact]
+    public async Task Первый_администратор_попадает_в_журнал()
+    {
+        // Учётные записи фикстура НЕ чистит — их «чистят точечно те, кто их заводит»
+        // (FixtureResetCoverageTests). Регистрация же открыта, только пока не заведён ни один
+        // пользователь, поэтому освобождаем это условие здесь, а не надеемся на пустую базу.
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            foreach (var u in await users.Users.ToListAsync()) await users.DeleteAsync(u);
+        }
+
+        var client = fixture.CreateClient();
+        var email = $"bootstrap_{Guid.NewGuid():N}@test.local";
+
+        var created = await client.PostAsJsonAsync("/api/auth/register",
+            new { email, password = Password, displayName = "Первый" });
+        created.EnsureSuccessStatusCode();
+
+        var record = Assert.Single(await RecordsAsync(ActivityActions.UserCreated));
+        Assert.Equal(email, record.TargetLabel);
+        Assert.Equal("Администратор", record.After);    // выданная роль названа, а не подразумевается
+        Assert.Null(record.ActorId);                    // автор — сам экземпляр: войти было некому
+        Assert.Equal("Система", record.ActorName);
+    }
+
+    private static Task RecordCompositionAsync(IServiceScope scope) =>
+        BHS.CRG.Api.Activity.ModuleCompositionJournal.RecordIfChangedAsync(
+            Journal(scope),
+            scope.ServiceProvider.GetRequiredService<BHS.CRG.Modules.ModuleRegistry>(),
+            scope.ServiceProvider.GetRequiredService<BHS.CRG.Infrastructure.Updates.ServiceStateStore>());
 
     /// <summary>
     /// Журнал переносится резервной копией (ТЗ CORE-28) и не удваивает уже известное: восстановление
@@ -201,16 +315,17 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
     }
 
     /// <summary>Заводит пользователя с ролью и возвращает клиент с его токеном.</summary>
-    private async Task<(HttpClient Client, Guid Id, string Email)> SignInAsync(string role)
+    private async Task<(HttpClient Client, Guid Id, string Email)> SignInAsync(
+        string role, string displayName = "")
     {
         var email = $"log_{role.ToLowerInvariant()}_{Guid.NewGuid():N}@test.local";
         Guid id;
         using (var scope = fixture.Services.CreateScope())
         {
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            // DisplayName пуст НАРОЧНО: автора журнал тогда берёт из почты, и проверка заодно
-            // показывает, что «автор неизвестен» в записи не появляется никогда.
-            var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "", EmailConfirmed = true };
+            // DisplayName пуст ПО УМОЛЧАНИЮ и нарочно: автора журнал тогда берёт из почты, и
+            // проверка заодно показывает, что «автор неизвестен» в записи не появляется никогда.
+            var user = new ApplicationUser { UserName = email, Email = email, DisplayName = displayName, EmailConfirmed = true };
             Assert.True((await users.CreateAsync(user, Password)).Succeeded);
             Assert.True((await users.AddToRoleAsync(user, role)).Succeeded);
             id = user.Id;

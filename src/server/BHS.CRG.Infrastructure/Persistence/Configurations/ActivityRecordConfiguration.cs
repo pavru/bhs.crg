@@ -15,9 +15,13 @@ public class ActivityRecordConfiguration : IEntityTypeConfiguration<ActivityReco
         // Имя автора — снимок, а не ссылка: внешнего ключа на учётную запись здесь нет нарочно,
         // иначе удаление пользователя либо унесло бы его след из журнала, либо запретило бы
         // удаление вовсе (см. ActivityRecord).
-        b.Property(e => e.ActorName).IsRequired().HasMaxLength(256);
+        //
+        // Ширины взяты из констант сущности, а не набраны числом: обрезка перед вставкой живёт там
+        // же (ActivityRecord.Create), и разъехавшись с колонкой она дала бы отказ 22001 уже после
+        // совершённого действия — issue #980.
+        b.Property(e => e.ActorName).IsRequired().HasMaxLength(ActivityRecord.ActorNameMax);
         b.Property(e => e.TargetId).HasMaxLength(128);
-        b.Property(e => e.TargetLabel).HasMaxLength(512);
+        b.Property(e => e.TargetLabel).HasMaxLength(ActivityRecord.TargetLabelMax);
 
         // Прежнее и новое значение длины не ограничены: у смены роли это два слова, у правки схемы —
         // перечень полей. Обрезать перечень значило бы записать «изменено 7 полей: …» и потерять
