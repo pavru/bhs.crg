@@ -34,8 +34,25 @@ public static class ActivityActions
     /// <summary>Изменён состав включённых модулей (ТЗ AUTH-17) — замечается при старте.</summary>
     public static readonly ActivityAction ModulesChanged = new("core.modules.changed", "Изменён состав модулей");
 
+    /// <summary>Заведена роль (ТЗ AUTH-5): новый набор прав, который теперь можно кому-то выдать.</summary>
+    public static readonly ActivityAction RoleCreated = new("core.role.created", "Заведена роль");
+
+    /// <summary>
+    /// Изменён состав прав роли (ТЗ AUTH-5.1). Действует немедленно у ВСЕХ, кто эту роль носит, —
+    /// то есть это выдача или снятие доступа сразу многим, и без записи спросить потом не у кого.
+    /// </summary>
+    public static readonly ActivityAction RolePermissionsChanged =
+        new("core.role.permissions.changed", "Изменён состав прав роли");
+
+    /// <summary>Переименована роль: кто и когда решил, что «Кладовщик» теперь называется иначе.</summary>
+    public static readonly ActivityAction RoleRenamed = new("core.role.renamed", "Переименована роль");
+
+    /// <summary>Удалена роль — вместе со всем, что она давала.</summary>
+    public static readonly ActivityAction RoleDeleted = new("core.role.deleted", "Удалена роль");
+
     public static IReadOnlyList<ActivityAction> All =>
-        [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, ModulesChanged];
+        [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, ModulesChanged,
+         RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted];
 
     /// <summary>
     /// Название по коду. Неизвестный код возвращается как есть: он приходит из записей, сделанных

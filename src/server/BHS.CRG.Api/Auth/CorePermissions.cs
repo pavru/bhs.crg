@@ -79,6 +79,9 @@ public static class CorePermissions
     /// <summary>Управление аудиторией уведомлений: кто на что подписан.</summary>
     public const string NotifyManage = "core.notify.manage";
 
+    /// <summary>Делать представления таблиц общими (ТЗ CORE-33). Своей двери пока не носит.</summary>
+    public const string ViewsShare = "core.views.share";
+
     /// <summary>Настройка движков и профилей распознавания (ТЗ CORE-37).</summary>
     public const string RecognitionSettings = "core.recognition.settings";
 
@@ -132,7 +135,7 @@ public static class CorePermissions
             "кто, что и когда менял: роли, права, схемы, включение модулей",
             []),
 
-        new("core.views.share",
+        new(ViewsShare,
             "делать представления таблиц общими",
             "общие настройки колонок и отборов — их видят все, у кого есть доступ к списку",
             []),
