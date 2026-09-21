@@ -150,7 +150,6 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
         ["core.employees.read"] = "справочник сотрудников — #962",
         ["core.employees.edit"] = "справочник сотрудников — #962",
         ["core.period.close"] = "закрытие периода — этап 2",
-        ["core.audit.read"] = "журнал действий — #950",
         ["core.views.share"] = "общие представления таблиц — отдельной группы адресов пока нет",
         ["*.read.all"] = "составное право; раскрытие по модулям — этап 2 (AUTH-5.2)",
         ["id.document.edit"] = "правка комплектов идёт теми же адресами, что и чтение; разделение "

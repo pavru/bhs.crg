@@ -336,7 +336,8 @@ public class DocumentPlanTests(IntegrationTestFixture fixture) : IAsyncLifetime
     private static BackupService BackupOf(IServiceScope scope) => new(
         scope.ServiceProvider.GetRequiredService<AppDbContext>(),
         scope.ServiceProvider.GetRequiredService<IBlobStorage>(),
-        NullLogger<BackupService>.Instance);
+        NullLogger<BackupService>.Instance,
+        scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Activity.IActivityLog>());
 
     /// <summary>Комплект удалён — его план уходит с ним: строки без носителя не оставляем.</summary>
     [Fact]

@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Email;
 using BHS.CRG.Infrastructure.Email;
 using BHS.CRG.Infrastructure.Persistence;
@@ -38,7 +39,8 @@ public static class UserEndpoints
         });
 
         g.MapPost("/", async (CreateUserRequest req,
-            UserManager<ApplicationUser> users, AccountEmailService emails, CancellationToken ct) =>
+            UserManager<ApplicationUser> users, AccountEmailService emails, IActivityLog journal,
+            CancellationToken ct) =>
         {
             var role = NormalizeRole(req.Role);
             if (role is null) return Results.BadRequest(new { error = "Недопустимая роль" });
@@ -53,6 +55,12 @@ public static class UserEndpoints
             var created = await users.CreateAsync(user, req.Password);
             if (!created.Succeeded) return Results.BadRequest(new { error = DescribeErrors(created) });
             await users.AddToRoleAsync(user, role);
+
+            // Заведение пользователя — это и выдача прав (ТЗ CORE-28): роль названа прямо здесь, и
+            // без этой записи в журнале было бы видно только последующие СМЕНЫ роли, а начальная
+            // выдача — самая широкая из всех — оставалась бы неизвестно чьей.
+            await journal.RecordAsync(ActivityActions.UserCreated,
+                user.Id.ToString(), user.Email, after: RoleTitle(role), ct: ct);
 
             // По желанию админа — сразу отправить письмо для подтверждения адреса (issue #148).
             // Ошибку отправки не роняем в ответ: пользователь уже создан, письмо можно переслать позже.
@@ -70,7 +78,8 @@ public static class UserEndpoints
         });
 
         g.MapPut("/{id:guid}/role", async (Guid id, ChangeRoleRequest req,
-            UserManager<ApplicationUser> users, ClaimsPrincipal principal) =>
+            UserManager<ApplicationUser> users, ClaimsPrincipal principal, IActivityLog journal,
+            CancellationToken ct) =>
         {
             var role = NormalizeRole(req.Role);
             if (role is null) return Results.BadRequest(new { error = "Недопустимая роль" });
@@ -96,6 +105,13 @@ public static class UserEndpoints
             // одного права не должен выглядеть как «меня разлогинило».
             await users.UpdateSecurityStampAsync(user);
 
+            // То самое «Готово» из issue #950: автор, время и ПРЕЖНЕЕ значение. Прежнее — потому
+            // что по нынешнему составу ролей нельзя ответить на единственный вопрос, ради которого
+            // в журнал заглядывают: что у человека было до того, как ему это выдали.
+            await journal.RecordAsync(ActivityActions.UserRoleChanged,
+                user.Id.ToString(), user.Email,
+                before: RoleTitles(current), after: RoleTitle(role), ct: ct);
+
             return Results.Ok(new UserDto(user.Id, user.Email ?? "", user.DisplayName, role));
         });
 
@@ -116,7 +132,8 @@ public static class UserEndpoints
         });
 
         g.MapDelete("/{id:guid}", async (Guid id,
-            UserManager<ApplicationUser> users, AppDbContext db, ClaimsPrincipal principal) =>
+            UserManager<ApplicationUser> users, AppDbContext db, ClaimsPrincipal principal,
+            IActivityLog journal, CancellationToken ct) =>
         {
             if (id == CurrentUserId(principal))
                 return Results.BadRequest(new { error = "Нельзя удалить самого себя" });
@@ -136,8 +153,30 @@ public static class UserEndpoints
             // корзину удалённого больше никто не напишет никогда, и её три сотни строк остались бы
             // в базе навсегда, невидимые ниоткуда. Отметки прочтения уходят каскадом сами.
             await db.Notifications.Where(n => n.UserId == id).ExecuteDeleteAsync();
+
+            // Удаление — снятие всех прав разом, и след от него остаётся только здесь: самой
+            // учётной записи больше нет, а кто её убрал и с какой ролью — вопрос, который задают.
+            await journal.RecordAsync(ActivityActions.UserDeleted,
+                id.ToString(), user.Email, before: RoleTitles(roles), ct: ct);
+
             return Results.NoContent();
         });
+    }
+
+    /// <summary>
+    /// Название роли для человека. В журнал уходит именно оно, а не техническое имя: запись читают
+    /// глазами, и «Инженер ИД» отвечает на вопрос, а <c>User</c> — нет.
+    ///
+    /// ⚠️ Название записывается СНИМКОМ. Переименуют роль — прежние записи останутся со старым
+    /// названием, и это верно: тогда выдали именно то, что так называлось.
+    /// </summary>
+    private static string RoleTitle(string name) =>
+        BHS.CRG.Api.Auth.SystemRoles.All.FirstOrDefault(r => r.Name == name)?.Title ?? name;
+
+    private static string? RoleTitles(IEnumerable<string> names)
+    {
+        var titles = names.Select(RoleTitle).ToList();
+        return titles.Count == 0 ? null : string.Join(", ", titles);
     }
 
     private static string? NormalizeRole(string? role) =>

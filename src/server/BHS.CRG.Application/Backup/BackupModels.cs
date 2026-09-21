@@ -37,7 +37,24 @@ public record BackupManifest(
     BackupDataSetBinding[]? DataSetBindings = null,
     BackupReconciliationDefinition[]? Reconciliations = null,
     BackupMaterialQualityLink[]? MaterialQualityLinks = null,
-    BackupDocumentSetPlan[]? DocumentSetPlans = null);
+    BackupDocumentSetPlan[]? DocumentSetPlans = null,
+    BackupActivityRecord[]? ActivityLog = null);
+
+/// <summary>
+/// Запись журнала действий (ТЗ CORE-28 прямо требует переносить журнал копией, issue #950).
+///
+/// Едет в ЛЮБОЙ копии, не только в полной. Журнал — это «почему настройки такие»: копия несёт
+/// схемы типов и роли, а журнал — кто и когда привёл их в этот вид. Разделить их значило бы
+/// восстановить состояние без единого объяснения, как оно сложилось.
+///
+/// Автор переносится ИМЕНЕМ и идентификатором, как записан: учётные записи копия не переносит
+/// («переносятся отдельно»), но имя в записи — снимок, а не ссылка, и потому читается и на чужой
+/// системе.
+/// </summary>
+public record BackupActivityRecord(
+    Guid Id, DateTimeOffset OccurredAt, string Action,
+    Guid? ActorId, string ActorName,
+    string? TargetId, string? TargetLabel, string? Before, string? After);
 
 // ── Проектные данные (issue #833) ────────────────────────────────────────────────────────────
 
