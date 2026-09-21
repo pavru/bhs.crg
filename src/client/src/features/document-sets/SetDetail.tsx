@@ -32,7 +32,7 @@ import { InstanceEditor } from './editor';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { EmailSendDialog } from './EmailSendDialog';
 import { useEmailSet } from '@/shared/api/documentSets';
-import { useAuth } from '@/shared/hooks/useAuth';
+import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
 
 // ── Экран комплекта ────────────────────────────────────────────────────────
 // Выделено из DocumentSetsPage (#488): страница была роутером и четырьмя независимыми
@@ -79,8 +79,11 @@ export function SetDetail() {
   const [emailKitOpen, setEmailKitOpen] = useState(false);
   const watchStartRef = useRef<string | undefined>(undefined);
   const { data: output } = useDocumentSetOutput(setId, watching ? 2500 : false);
-  const { user: me } = useAuth();
-  const isAdmin = me?.role === 'Admin';
+  // Кнопка отправки — по ПРАВУ, а не по имени роли (ТЗ ID-4.1, issue #989). Состав роли меняют в
+  // редакторе, а имя остаётся прежним: проверка по имени означала, что носитель заведённой
+  // администратором роли с правом рассылки кнопки не увидит, хотя сервер его пропускает.
+  const { data: access = NO_ACCESS } = useAccess();
+  const canSend = hasPermission(access, 'id.document.send');
   const emailSet = useEmailSet();
   const toast = useToast();
 
@@ -244,7 +247,7 @@ export function SetDetail() {
             <Button variant="outlined" size="sm" icon={<Download size={15} />} onClick={() => downloadSetOutput(set.id, set.name)}
               title={`Собран ${new Date(output.generatedAt).toLocaleString('ru-RU')}`}>Скачать</Button>
           )}
-          {isAdmin && output && (
+          {canSend && output && (
             <Button variant="outlined" size="sm" icon={<Mail size={15} />} onClick={() => setEmailKitOpen(true)}
               title="Отправить собранный комплект по почте">Почта</Button>
           )}
@@ -402,7 +405,7 @@ export function SetDetail() {
         titleBadge={<PlanProgressBadge progress={plan?.own} />}
         headerAction={headerAction} nav={nav} detail={detail} />
 
-      {isAdmin && (
+      {canSend && (
         <EmailSendDialog open={emailKitOpen} onClose={() => setEmailKitOpen(false)}
           setId={set.id} itemName={`Комплект «${set.name}»`}
           defaultSubjectHint={`Исполнительная документация — ${set.name}`}

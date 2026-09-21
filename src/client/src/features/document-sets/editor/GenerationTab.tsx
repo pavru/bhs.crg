@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Loader2, FileText, Download, Eye, Bug, ShieldCheck, AlertTriangle, AlertCircle, CheckCircle2, Mail, Stethoscope } from 'lucide-react';
-import { useAuth } from '@/shared/hooks/useAuth';
+import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
 import { useEmailDocument } from '@/shared/api/documentSets';
 import { EmailSendDialog } from '../EmailSendDialog';
 import { useGenerateDocument, useSetDocumentTemplates, downloadGeneratedFile, previewGeneratedFile, downloadDebugBundle, useResolutionDiagnostics, type ResolutionDiagnostic } from '@/shared/api/documentSets';
@@ -62,8 +62,11 @@ function extractDiagnostics(err: unknown): ResolutionDiagnostic[] | null {
 
 export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: DocumentInstance; setId: string; schemaFieldKeys: string[] }) {
   const [auditOpen, setAuditOpen] = useState(false);
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'Admin';
+  // Кнопка отправки — по ПРАВУ, а не по имени роли (ТЗ ID-4.1, issue #989). Состав роли меняют в
+  // редакторе, а имя остаётся прежним: проверка по имени означала, что носитель заведённой
+  // администратором роли с правом рассылки кнопки не увидит, хотя сервер его пропускает.
+  const { data: access = NO_ACCESS } = useAccess();
+  const canSend = hasPermission(access, 'id.document.send');
   const [emailOpen, setEmailOpen] = useState(false);
   const emailDoc = useEmailDocument();
   const [error, setError] = useState('');
@@ -240,7 +243,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-fg2">Сгенерированные файлы</p>
-            {isAdmin && (
+            {canSend && (
               <button onClick={() => setEmailOpen(true)}
                 className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-stroke rounded-md hover:bg-base transition-colors"
                 title="Отправить сгенерированные PDF документа по почте (подписчикам и/или на внешние адреса)">
@@ -271,7 +274,7 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
         </div>
       )}
 
-      {isAdmin && (
+      {canSend && (
         <EmailSendDialog open={emailOpen} onClose={() => setEmailOpen(false)}
           setId={setId} itemName={`Документ «${instance.name || 'документ'}»`}
           defaultSubjectHint={`Исполнительная документация — ${instance.name || 'документ'}`}

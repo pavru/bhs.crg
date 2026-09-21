@@ -13,6 +13,17 @@ namespace BHS.CRG.Api.Endpoints.Documents;
 
 public static class DocumentSetEndpoints
 {
+    /// <summary>
+    /// Право на отправку по почте (ТЗ ID-4.1, issue #989). Код объявлен модулем <c>id</c>
+    /// (<see cref="Modules.IdModule" />) — здесь только ссылка на него, чтобы строка не разошлась с
+    /// объявлением: ворота на необъявленное право не соберутся вовсе (ТЗ AUTH-8.2).
+    ///
+    /// ⚠️ До 0.181.0 обе двери закрывались именем роли — <c>RequireAuthorization("Admin")</c>,
+    /// последним таким остатком в приложении. Имя роли не разграничивает ничего: состав роли
+    /// меняют в редакторе, и проверка по имени начинает означать не то, ради чего её ставили.
+    /// </summary>
+    private const string SendPermission = "id.document.send";
+
     public static void MapDocumentSetEndpoints(this IEndpointRouteBuilder app)
     {
         // ── Constructions ──────────────────────────────────────────────────────
@@ -241,7 +252,7 @@ public static class DocumentSetEndpoints
             var jobId = await jobs.EnqueueAsync(JobKind.SendEmail, GetUserId(user), setId,
                 $"Отправка комплекта «{set.Name}»", payload, ct);
             return Results.Accepted("/api/jobs/active", new { jobId });
-        }).RequireAuthorization("Admin");
+        }).RequireAuthorization(AppPolicies.Permission(SendPermission));
 
         // Отправка отдельного документа (его сгенерированных PDF) на заданные адреса — фоновая задача.
         g.MapPost("/{setId:guid}/documents/{id:guid}/email", async (
@@ -254,7 +265,7 @@ public static class DocumentSetEndpoints
             var jobId = await jobs.EnqueueAsync(JobKind.SendEmail, GetUserId(user), id,
                 $"Отправка документа «{inst.DisplayName ?? "документ"}»", payload, ct);
             return Results.Accepted("/api/jobs/active", new { jobId });
-        }).RequireAuthorization("Admin");
+        }).RequireAuthorization(AppPolicies.Permission(SendPermission));
 
         // Метаданные собранного комплекта (для показа кнопки скачивания) — 404, если ещё не собран.
         g.MapGet("/{setId:guid}/output", async (Guid setId, IRepository<DocumentSetOutput> outputRepo, CancellationToken ct) =>
