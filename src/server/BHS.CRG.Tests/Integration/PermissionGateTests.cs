@@ -321,6 +321,32 @@ public class PermissionGateTests(IntegrationTestFixture fixture)
         }
     }
 
+    /// <summary>
+    /// Список получателей открыт ТЕМ ЖЕ правом, что и отправка (issue #989, нашло ревью PR #991).
+    ///
+    /// ⚠️ Проверка про связку, а не про один адрес. Тот же список отдаёт
+    /// <c>/api/subscriptions/recipients</c> под правом «управлять аудиторией уведомлений», которого
+    /// у отправителя может не быть, — и диалог показывал бы пустой список подписчиков вместо
+    /// отказа. Выданное право рассылки обязано открывать рассылку целиком.
+    /// </summary>
+    [Fact]
+    public async Task Recipients_open_with_the_same_permission_as_sending()
+    {
+        var missing = Guid.NewGuid();
+        var url = $"/api/document-sets/{missing}/email/recipients";
+
+        var reader = await SignInWithPermissionsAsync("id.document.read");
+        var sender = await SignInWithPermissionsAsync("id.document.read", "id.document.send");
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync(url)).StatusCode);
+
+        // Права аудитории у отправителя НЕТ — и они не нужны: список приходит пустым, а не отказом.
+        var answer = await sender.GetAsync(url);
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await sender.GetAsync($"/api/subscriptions/recipients?scope=Set&scopeId={missing}")).StatusCode);
+    }
+
     /// <summary>Клиент с ролью, состав которой перечислен здесь и нигде не объявлен.</summary>
     private async Task<HttpClient> SignInWithPermissionsAsync(params string[] permissions)
     {

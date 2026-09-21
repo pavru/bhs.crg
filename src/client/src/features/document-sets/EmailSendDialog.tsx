@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle } from 'lucide-react';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
-import { useRecipients } from '@/shared/api/subscriptions';
+import { useSetEmailRecipients } from '@/shared/api/documentSets';
 import { apiError } from '@/shared/utils/apiError';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -26,7 +26,9 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
   ready: boolean; notReadyHint: string;
   onSend: (to: string[], subject?: string, body?: string) => Promise<unknown>;
 }) {
-  const { data: recipients = [] } = useRecipients('Set', setId, open);
+  // Список получателей приходит под тем же правом, что и отправка (issue #989). Ошибку ПОКАЗЫВАЕМ:
+  // молча пустой список читается как «подписчиков нет», то есть отказ переодевается в результат.
+  const { data: recipients = [], error: recipientsError } = useSetEmailRecipients(setId, open);
   const [unchecked, setUnchecked] = useState<Set<string>>(new Set()); // снятые подписчики (по умолчанию все отмечены)
   const [external, setExternal] = useState('');
   const [subject, setSubject] = useState('');
@@ -77,6 +79,14 @@ export function EmailSendDialog({ open, onClose, setId, itemName, defaultSubject
         {!ready && (
           <p className="flex items-start gap-2 text-sm text-warning bg-warning-subtle rounded-md p-3">
             <AlertTriangle size={16} className="shrink-0 mt-0.5" /> {notReadyHint}
+          </p>
+        )}
+
+        {recipientsError && (
+          <p className="flex items-start gap-2 text-sm text-warning bg-warning-subtle rounded-md p-3">
+            <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+            Список подписчиков не загрузился — отправляйте по адресам, введённым вручную.
+            Пустой список здесь означал бы «подписчиков нет», а это не так.
           </p>
         )}
 

@@ -3,6 +3,7 @@ import { apiClient } from './client';
 import { invalidatePlans } from './plans';
 import type { DocumentSet, DocumentInstance, DocumentSearchResult } from './types';
 import { filenameFromContentDisposition } from './attachments';
+import type { Recipient } from './subscriptions';
 
 /** Поиск документов по всем комплектам (имя документа/типа + текст реквизитов). Пустой q → без запроса. */
 export function useSearchDocuments(q: string, constructionId?: string) {
@@ -201,6 +202,23 @@ export function useReorderInstances() {
 }
 
 /** Отправка собранного комплекта на заданные адреса (подписчики + произвольные), фоновая задача. */
+/**
+ * Кому уйдёт письмо по этому комплекту: подписчики уровня плюс унаследованные сверху.
+ *
+ * ⚠️ Тот же список отдаёт `/subscriptions/recipients`, и диалог брал его оттуда — но тот адрес
+ * закрыт правом «управлять аудиторией уведомлений», которого у отправителя может не быть. Выходило,
+ * что право рассылки выдали, а блок подписчиков молча пуст: 403 съедался умолчанием, и отказ
+ * выглядел как «подписчиков нет» (нашло ревью PR #991). Здесь адрес модуля и то же право, что и у
+ * самой отправки.
+ */
+export function useSetEmailRecipients(setId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['document-sets', setId, 'email-recipients'],
+    queryFn: () => apiClient.get<Recipient[]>(`/document-sets/${setId}/email/recipients`).then(r => r.data),
+    enabled,
+  });
+}
+
 export function useEmailSet() {
   return useMutation({
     mutationFn: ({ setId, to, subject, body }: { setId: string; to: string[]; subject?: string; body?: string }) =>

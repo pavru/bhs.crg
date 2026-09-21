@@ -15,25 +15,30 @@ public static class ReconciliationEndpoints
 {
     public static void MapReconciliationEndpoints(this IEndpointRouteBuilder app)
     {
-        // Определение сверки — конфигурация, как типы и шаблоны.
-        var admin = app.MapGroup("/api/reconciliations").RequireAuthorization(AppPolicies.Permission(CorePermissions.ReconciliationRun));
-        // Прогон и разбор находок — работа: их ведёт тот, кто отвечает за комплект, а не администратор.
-        var user = app.MapGroup("/api/reconciliations").RequireAuthorization(AppPolicies.Permission(CorePermissions.ReconciliationRun));
+        // ОДНА группа и одно право на всё: и на прогон с разбором находок, и на правку определения
+        // сверки. Здесь стояли две группы, `admin` и `user`, с комментариями про разные роли — а
+        // ворота у них были одинаковые, и различались они только именами переменных. Имена
+        // достались от прежнего устройства, где доступ давала роль; читались они как граница,
+        // которой в коде нет (issue #989, нашло ревью).
+        //
+        // ⚠️ Если правку определения надо сузить — это ОТДЕЛЬНОЕ право, и заводится оно здесь, а не
+        // скрытием кнопок: спрятанная кнопка обходится запросом к API. Вопрос открыт в issue #990.
+        var g = app.MapGroup("/api/reconciliations").RequireAuthorization(AppPolicies.Permission(CorePermissions.ReconciliationRun));
 
-        user.MapGet("/", async (string? scope, Guid? scopeId, IMediator m) =>
+        g.MapGet("/", async (string? scope, Guid? scopeId, IMediator m) =>
         {
             CatalogScope? s = scope is not null && Enum.TryParse<CatalogScope>(scope, true, out var v) ? v : null;
             var items = await m.Send(new ListReconciliationsQuery(s, scopeId));
             return Results.Ok(items.Select(ToDto));
         });
 
-        user.MapGet("/{id:guid}", async (Guid id, IMediator m) =>
+        g.MapGet("/{id:guid}", async (Guid id, IMediator m) =>
         {
             var d = await m.Send(new GetReconciliationQuery(id));
             return d is null ? Results.NotFound() : Results.Ok(ToDto(d));
         });
 
-        admin.MapPost("/", async (CreateReq req, IMediator m) =>
+        g.MapPost("/", async (CreateReq req, IMediator m) =>
         {
             var scope = Enum.TryParse<CatalogScope>(req.Scope, true, out var s) ? s : CatalogScope.System;
             var d = await m.Send(new CreateReconciliationCommand(
@@ -41,7 +46,7 @@ public static class ReconciliationEndpoints
             return Results.Ok(ToDto(d));
         });
 
-        admin.MapPut("/{id:guid}", async (Guid id, UpdateReq req, IMediator m) =>
+        g.MapPut("/{id:guid}", async (Guid id, UpdateReq req, IMediator m) =>
         {
             try
             {
@@ -52,7 +57,7 @@ public static class ReconciliationEndpoints
             catch (NotFoundException) { return Results.NotFound(); }
         });
 
-        admin.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        g.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             try
             {
@@ -64,27 +69,27 @@ public static class ReconciliationEndpoints
 
         // ── Прогоны ─────────────────────────────────────────────────────────────
 
-        user.MapPost("/{id:guid}/run", async (Guid id, IMediator m) =>
+        g.MapPost("/{id:guid}/run", async (Guid id, IMediator m) =>
         {
             try { return Results.Ok(ToDto(await m.Send(new RunReconciliationCommand(id)))); }
             catch (NotFoundException) { return Results.NotFound(); }
         });
 
-        user.MapGet("/{id:guid}/runs", async (Guid id, int? limit, IMediator m) =>
+        g.MapGet("/{id:guid}/runs", async (Guid id, int? limit, IMediator m) =>
             Results.Ok((await m.Send(new ListReconciliationRunsQuery(id, limit ?? 20))).Select(ToDto)));
 
-        user.MapGet("/{id:guid}/findings", async (Guid id, Guid? runId, IMediator m) =>
+        g.MapGet("/{id:guid}/findings", async (Guid id, Guid? runId, IMediator m) =>
             Results.Ok((await m.Send(new ListFindingsQuery(id, runId))).Select(ToDto)));
 
         // ── Алиасы позиций ──────────────────────────────────────────────────────
 
-        user.MapGet("/aliases", async (string? status, IMediator m) =>
+        g.MapGet("/aliases", async (string? status, IMediator m) =>
         {
             AliasStatus? st = Enum.TryParse<AliasStatus>(status, true, out var v) ? v : null;
             return Results.Ok((await m.Send(new ListAliasesQuery(st))).Select(ToDto));
         });
 
-        user.MapPost("/aliases", async (AliasReq req, IMediator m, ClaimsPrincipal u) =>
+        g.MapPost("/aliases", async (AliasReq req, IMediator m, ClaimsPrincipal u) =>
         {
             var by = u.FindFirst("displayName")?.Value ?? u.FindFirstValue(ClaimTypes.Email);
             try
@@ -97,7 +102,7 @@ public static class ReconciliationEndpoints
             catch (ConflictException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
 
-        user.MapPut("/aliases/{id:guid}", async (Guid id, AliasReviewReq req, IMediator m, ClaimsPrincipal u) =>
+        g.MapPut("/aliases/{id:guid}", async (Guid id, AliasReviewReq req, IMediator m, ClaimsPrincipal u) =>
         {
             if (!Enum.TryParse<AliasStatus>(req.Status, true, out var status))
                 return Results.BadRequest(new { error = $"Неизвестный статус: «{req.Status}»." });
@@ -106,7 +111,7 @@ public static class ReconciliationEndpoints
             catch (NotFoundException) { return Results.NotFound(); }
         });
 
-        user.MapDelete("/aliases/{id:guid}", async (Guid id, IMediator m) =>
+        g.MapDelete("/aliases/{id:guid}", async (Guid id, IMediator m) =>
         {
             try { await m.Send(new DeleteAliasCommand(id)); return Results.NoContent(); }
             catch (NotFoundException) { return Results.NotFound(); }
@@ -114,7 +119,7 @@ public static class ReconciliationEndpoints
 
         // ── Связанные проблемы уровня ───────────────────────────────────────────
 
-        user.MapGet("/related", async (string scope, Guid scopeId, IMediator m) =>
+        g.MapGet("/related", async (string scope, Guid scopeId, IMediator m) =>
         {
             if (!Enum.TryParse<CatalogScope>(scope, true, out var s) || s == CatalogScope.System)
                 return Results.BadRequest(new { error = "Ожидается Construction, Section или Set." });
@@ -122,7 +127,7 @@ public static class ReconciliationEndpoints
         });
 
         // Счётчики для маркеров: свой уровень + разбивка по детям одним ответом (#454).
-        user.MapGet("/summary", async (string scope, Guid? scopeId, IMediator m) =>
+        g.MapGet("/summary", async (string scope, Guid? scopeId, IMediator m) =>
         {
             if (!Enum.TryParse<CatalogScope>(scope, true, out var s))
                 return Results.BadRequest(new { error = $"Неизвестная область: «{scope}»." });
@@ -135,7 +140,7 @@ public static class ReconciliationEndpoints
 
         // Отчёт собирается по КОМПЛЕКТУ, а не по сверке: наружу уходит один файл про комплект, как и
         // тот, что сегодня ведут руками. Сверок на комплекте может быть несколько.
-        user.MapGet("/report/{setId:guid}", async (
+        g.MapGet("/report/{setId:guid}", async (
             Guid setId, string? format, IMediator m, IDomainSnapshotService domain,
             IProblemAttribution attribution, CancellationToken ct) =>
         {
@@ -178,7 +183,7 @@ public static class ReconciliationEndpoints
 
         // ── Решения ─────────────────────────────────────────────────────────────
 
-        user.MapPut("/{id:guid}/decisions", async (Guid id, DecisionReq req, IMediator m, ClaimsPrincipal u) =>
+        g.MapPut("/{id:guid}/decisions", async (Guid id, DecisionReq req, IMediator m, ClaimsPrincipal u) =>
         {
             var kind = Enum.TryParse<DecisionKind>(req.Kind, true, out var k) ? k : DecisionKind.Accepted;
             var by = u.FindFirst("displayName")?.Value ?? u.FindFirstValue(ClaimTypes.Email);
@@ -186,7 +191,7 @@ public static class ReconciliationEndpoints
             return Results.Ok(ToDto(d));
         });
 
-        user.MapDelete("/{id:guid}/decisions", async (Guid id, string key, IMediator m) =>
+        g.MapDelete("/{id:guid}/decisions", async (Guid id, string key, IMediator m) =>
         {
             await m.Send(new RemoveDecisionCommand(id, key));
             return Results.NoContent();

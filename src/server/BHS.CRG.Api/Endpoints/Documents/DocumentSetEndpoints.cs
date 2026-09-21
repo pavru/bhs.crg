@@ -5,6 +5,8 @@ using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Jobs;
+using BHS.CRG.Application.Subscriptions;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Jobs;
 using MediatR;
@@ -240,6 +242,19 @@ public static class DocumentSetEndpoints
                 ? Results.NotFound()
                 : Results.Accepted("/api/jobs/active", new { jobId });
         });
+
+        // Кому уйдёт письмо: подписчики уровня плюс унаследованные сверху — ПОД ТЕМ ЖЕ ПРАВОМ, что
+        // и сама отправка (issue #989, нашло ревью PR #991).
+        //
+        // ⚠️ Тот же список отдаёт /api/subscriptions/recipients, но он закрыт правом
+        // core.notify.manage — «управлять аудиторией уведомлений». Читать, кому уйдёт ЭТО письмо, и
+        // распоряжаться подписками всего экземпляра — разные вещи, и требовать второго ради первого
+        // значит: выдали право рассылки, а список подписчиков молча пуст (403 в диалоге выглядел бы
+        // как «подписчиков нет»). Одна возможность — одно право.
+        g.MapGet("/{setId:guid}/email/recipients", async (
+            Guid setId, ISubscriptionService subscriptions, CancellationToken ct) =>
+            Results.Ok(await subscriptions.ResolveRecipientsAsync(CatalogScope.Set, setId, ct)))
+            .RequireAuthorization(AppPolicies.Permission(SendPermission));
 
         // Отправка собранного комплекта на заданные адреса (подписчики + произвольные) — фоновая задача.
         g.MapPost("/{setId:guid}/email", async (
