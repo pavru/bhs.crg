@@ -2,15 +2,15 @@ import { useState } from 'react';
 import { Plus, KeyRound, Trash2, ShieldCheck, User as UserIcon, Mail } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button, IconButton } from '@/shared/ui/Button';
-import { Select, SelectItem } from '@/shared/ui/Select';
 import { TextField } from '@/shared/ui/TextField';
 import { PASSWORD_MIN_LENGTH, PASSWORD_HINT } from '@/shared/auth/passwordPolicy';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SendMessageDialog } from '@/shared/ui/SendMessageDialog';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useRoles } from '@/shared/api/roles';
+import { RolePicker } from './RolePicker';
 import {
-  useListUsers, useCreateUser, useChangeUserRole, useResetUserPassword, useDeleteUser,
+  useListUsers, useCreateUser, useChangeUserRoles, useResetUserPassword, useDeleteUser,
   type AppUser,
 } from '@/shared/api/users';
 
@@ -23,7 +23,7 @@ export function UsersPage() {
   const { user: me } = useAuth();
   const { data: users = [], isLoading } = useListUsers();
   const { data: roles = [] } = useRoles();
-  const changeRole = useChangeUserRole();
+  const changeRoles = useChangeUserRoles();
   const del = useDeleteUser();
   const [createOpen, setCreateOpen] = useState(false);
   const [resetFor, setResetFor] = useState<AppUser | null>(null);
@@ -31,9 +31,9 @@ export function UsersPage() {
   const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
 
-  async function onRoleChange(u: AppUser, role: string) {
+  async function onRolesChange(u: AppUser, roles: string[]) {
     setRowError(null);
-    try { await changeRole.mutateAsync({ id: u.id, role }); }
+    try { await changeRoles.mutateAsync({ id: u.id, roles }); }
     catch (e) { setRowError({ id: u.id, msg: apiError(e) }); }
   }
 
@@ -63,7 +63,7 @@ export function UsersPage() {
             <thead className="bg-base border-b border-stroke">
               <tr>
                 <th className="text-left px-4 py-2.5 font-medium text-fg2">Пользователь</th>
-                <th className="text-left px-4 py-2.5 font-medium text-fg2 w-48">Роль</th>
+                <th className="text-left px-4 py-2.5 font-medium text-fg2 w-56">Роли</th>
                 <th className="px-4 py-2.5 w-24" />
               </tr>
             </thead>
@@ -75,8 +75,10 @@ export function UsersPage() {
                     <td className="px-4 py-2.5">
                       <div className="text-fg1 font-medium flex items-center gap-2">
                         {/* Щит — у роли «все права», а не у роли с именем «Admin»: признак
-                            приходит с сервера, а имя ничего не значит (issues #989/#990). */}
-                        {roles.find(r => r.name === u.role)?.allPermissions
+                            приходит с сервера, а имя ничего не значит (issues #989/#990).
+                            Ролей может быть несколько, и щит ставится, если ТАКАЯ есть хотя бы
+                            одна: «все права» плюс что-то ещё — всё равно все права. */}
+                        {u.roles.some(ur => roles.find(r => r.name === ur.name)?.allPermissions)
                           ? <ShieldCheck size={14} className="text-brand shrink-0" />
                           : <UserIcon size={14} className="text-fg4 shrink-0" />}
                         {u.displayName || u.email}
@@ -86,12 +88,10 @@ export function UsersPage() {
                       {rowError?.id === u.id && <div className="text-xs text-danger mt-1">{rowError.msg}</div>}
                     </td>
                     <td className="px-4 py-2.5">
-                      <Select value={u.role} onValueChange={v => onRoleChange(u, v)}
-                        disabled={changeRole.isPending} aria-label="Роль" className="w-44">
-                        {/* Список ЖИВОЙ: роль, заведённую администратором, иначе некому было бы
-                            назначить — она есть, права у неё есть, а в выпадающем списке её нет. */}
-                        {roles.map(r => <SelectItem key={r.name} value={r.name}>{r.title}</SelectItem>)}
-                      </Select>
+                      <RolePicker value={u.roles.map(r => r.name)} known={u.roles}
+                        onChange={next => onRolesChange(u, next)}
+                        disabled={changeRoles.isPending}
+                        ariaLabel={`Роли — ${u.displayName || u.email}`} className="w-52" />
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
@@ -114,8 +114,10 @@ export function UsersPage() {
       )}
 
       <p className="text-xs text-fg4 mt-3">
-        Роль — это набор прав. Что именно даёт каждая и кому её выдавать — на экране
-        «Роли и права»: там же состав правится, и правка действует немедленно у всех носителей.
+        Ролей у человека может быть несколько: действующие права — объединение прав всех его ролей.
+        Что именно даёт каждая и кому её выдавать — на экране «Роли и права»: там же состав
+        правится, и правка действует немедленно у всех носителей. Снятые все роли означают
+        отозванный доступ: человек войдёт, но не увидит ничего.
       </p>
 
       <CreateUserModal open={createOpen} onClose={() => setCreateOpen(false)} />
@@ -134,7 +136,6 @@ export function UsersPage() {
 
 function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const create = useCreateUser();
-  const { data: roles = [] } = useRoles();
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
@@ -146,17 +147,21 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
   // имени, первой шла Accountant, и новый сотрудник заводился «Бухгалтером» — с правом отмечать
   // оплату и закрывать период (ревью #983). Порядок на сервере починен, но умолчание опасно самим
   // своим существованием: выдача прав — не то место, где подставляют «что-нибудь».
-  const [role, setRole] = useState('');
+  //
+  // Ролей может быть несколько (issue #984), но пустой список при ЗАВЕДЕНИИ отвергает и сервер:
+  // завести человека без единой роли — почти всегда промах, он войдёт и не увидит ничего.
+  // Снять же все роли у работающего можно, и это другое действие — осознанный отзыв доступа.
+  const [chosen, setChosen] = useState<string[]>([]);
   const [error, setError] = useState('');
 
-  function reset() { setEmail(''); setDisplayName(''); setPassword(''); setRole(''); setError(''); }
+  function reset() { setEmail(''); setDisplayName(''); setPassword(''); setChosen([]); setError(''); }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (!role) { setError('Выберите роль: она и есть набор прав, который получит человек.'); return; }
+    if (chosen.length === 0) { setError('Выберите роль: она и есть набор прав, который получит человек.'); return; }
     try {
-      await create.mutateAsync({ email: email.trim(), displayName: displayName.trim(), password, role });
+      await create.mutateAsync({ email: email.trim(), displayName: displayName.trim(), password, roles: chosen });
       reset(); onClose();
     } catch (err) { setError(apiError(err)); }
   }
@@ -169,19 +174,17 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
         <TextField label="Начальный пароль" type="text" value={password} onChange={e => setPassword(e.target.value)}
           required minLength={PASSWORD_MIN_LENGTH} className="font-mono"
           hint={`${PASSWORD_HINT} Пользователь сможет сменить его сам.`} />
-        <Select label="Роль" value={role || undefined} onValueChange={setRole} required
-          placeholder="Выберите роль" invalid={!!error && !role}
-          hint="Что даёт каждая роль — на экране «Роли и права».">
-          {roles.map(r => (
-            <SelectItem key={r.name} value={r.name}>
-              {r.summary ? `${r.title} — ${r.summary}` : r.title}
-            </SelectItem>
-          ))}
-        </Select>
+        <div>
+          <div className="text-xs text-fg4 mb-1">Роли</div>
+          <RolePicker value={chosen} onChange={setChosen} ariaLabel="Роли нового пользователя" />
+          <p className="text-xs text-fg4 mt-1">
+            Можно выбрать несколько: права складываются. Что даёт каждая — на экране «Роли и права».
+          </p>
+        </div>
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="text" onClick={() => { reset(); onClose(); }}>Отмена</Button>
-          <Button type="submit" variant="filled" loading={create.isPending} disabled={!role}>
+          <Button type="submit" variant="filled" loading={create.isPending} disabled={chosen.length === 0}>
             {create.isPending ? 'Создание…' : 'Создать'}
           </Button>
         </div>

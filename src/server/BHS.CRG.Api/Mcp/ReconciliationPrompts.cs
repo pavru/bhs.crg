@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSnapshots;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
@@ -58,6 +59,7 @@ public class ReconciliationPrompts(IDomainSnapshotService domain)
         => await domain.GetDocumentSetAsync(setId, ct)
            ?? throw new McpException($"Комплект не найден: {setId}");
 
+    [McpPermission(CorePermissions.ReconciliationRun)]
     [McpServerPrompt(Name = "reconcile_document_set", Title = "Сверка комплекта на непротиворечивость")]
     [Description("Проверить документы комплекта и связанные данные на внутренние расхождения и составить отчёт.")]
     public async Task<string> ReconcileDocumentSetAsync(
@@ -96,6 +98,7 @@ public class ReconciliationPrompts(IDomainSnapshotService domain)
             """;
     }
 
+    [McpPermission(CorePermissions.ReconciliationRun)]
     [McpServerPrompt(Name = "check_set_readiness", Title = "Готовность комплекта к выпуску")]
     [Description("Проверить каждый документ комплекта средствами системы и сказать, что мешает выпуску.")]
     public async Task<string> CheckSetReadinessAsync(

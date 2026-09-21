@@ -10,8 +10,8 @@ namespace BHS.CRG.Tests.Integration;
 /// Инвентаризация адресов (issue #947, ТЗ AUTH-9/AUTH-10/AUTH-11).
 ///
 /// Сторож обходит адреса ЖИВОГО приложения и требует, чтобы каждый незакрытый адрес попал ровно в
-/// одну названную корзину: публичный, личный, открытый вошедшим или долг. Адрес, не попавший
-/// никуда, роняет прогон с
+/// одну названную корзину: публичный, личный, открытый вошедшим, закрытый воротами внутри или
+/// долг. Адрес, не попавший никуда, роняет прогон с
 /// перечислением — новый адрес нельзя завести молча.
 ///
 /// Почему сторож, а не обещание. Забытые ворота — самая тихая из поломок прав: адрес отвечает
@@ -92,21 +92,35 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
         ["/api/bug-reports"] = "→ отправка своего обращения открыта любому вошедшему; разбор чужих "
             + "уже под правом. Остаётся решить, куда отнести саму отправку: это личное действие, "
             + "но адрес не отвечает данными пользователя, а принимает их",
-        ["/mcp"] = "→ #948: модуль и право у каждого инструмента MCP (ТЗ AUTH-12.1)",
+    };
+
+    /// <summary>
+    /// Адреса, у которых ворота стоят ВНУТРИ, а не на самом адресе (issue #948).
+    ///
+    /// Корзина отдельная от долга: долг — это «прав нет», а здесь права есть и проверяются, просто
+    /// не средствами маршрутизации. Смешать их значило бы потерять смысл обеих записей.
+    ///
+    /// ⚠️ Запись сюда обязана называть СВОЙ сторож. Иначе «ворота внутри» — это обещание, а
+    /// проверять его будет некому: снаружи такой адрес неотличим от закрытого одним входом.
+    /// </summary>
+    private static readonly Dictionary<string, string> GatedInside = new()
+    {
+        ["/mcp"] = "право у каждого инструмента, ресурса и промпта MCP (ТЗ AUTH-12.1); адрес один "
+            + "на все примитивы, и потребовать на нём можно только вход. Сторож — McpGateInventoryTests",
     };
 
     [Fact]
     public void Every_endpoint_is_gated_declared_public_or_written_into_the_debt()
     {
-        var homeless = Homeless(Routes(), Public, Personal, SignedIn, Debt);
+        var homeless = Homeless(Routes(), Public, Personal, SignedIn, GatedInside, Debt);
 
         Assert.True(homeless.Count == 0,
             "Адреса без ворот и без записи в списке. Каждому нужно либо право (политика perm: или " +
-            "module:), либо строка в Public/Personal/SignedIn/Debt с объяснением:\n  " +
+            "module:), либо строка в Public/Personal/SignedIn/GatedInside/Debt с объяснением:\n  " +
             string.Join("\n  ", homeless));
 
-        var touched = Touched(Routes(), Public, Personal, SignedIn, Debt);
-        var stale = new[] { Public, Personal, SignedIn, Debt }.SelectMany(b => b.Keys)
+        var touched = Touched(Routes(), Public, Personal, SignedIn, GatedInside, Debt);
+        var stale = new[] { Public, Personal, SignedIn, GatedInside, Debt }.SelectMany(b => b.Keys)
             .Where(k => !touched.Contains(k)).Order().ToList();
 
         Assert.True(stale.Count == 0,
@@ -126,7 +140,7 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     [Fact]
     public void Guard_speaks_when_a_gate_is_missing()
     {
-        var withoutDebt = Homeless(Routes(), Public, Personal, SignedIn);
+        var withoutDebt = Homeless(Routes(), Public, Personal, SignedIn, GatedInside);
 
         Assert.NotEmpty(withoutDebt);
         Assert.All(withoutDebt, line => Assert.Contains("/", line));
