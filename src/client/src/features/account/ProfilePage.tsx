@@ -136,7 +136,7 @@ export function ProfilePage() {
 
         <div>
           <div className="text-xs text-fg4 mb-1">Роль</div>
-          <div className="text-sm text-fg1">{account.role === 'Admin' ? 'Администратор' : 'Пользователь'}</div>
+          <div className="text-sm text-fg1">{account.roleTitle}</div>
         </div>
 
         <TextField label="Отображаемое имя" value={displayName}

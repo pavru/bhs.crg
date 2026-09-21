@@ -7,7 +7,8 @@ import { TextField } from '@/shared/ui/TextField';
 import { PASSWORD_MIN_LENGTH, PASSWORD_HINT } from '@/shared/auth/passwordPolicy';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SendMessageDialog } from '@/shared/ui/SendMessageDialog';
-import { useAuth, type UserRole } from '@/shared/hooks/useAuth';
+import { useAuth } from '@/shared/hooks/useAuth';
+import { useRoles } from '@/shared/api/roles';
 import {
   useListUsers, useCreateUser, useChangeUserRole, useResetUserPassword, useDeleteUser,
   type AppUser,
@@ -21,6 +22,7 @@ function apiError(e: unknown): string {
 export function UsersPage() {
   const { user: me } = useAuth();
   const { data: users = [], isLoading } = useListUsers();
+  const { data: roles = [] } = useRoles();
   const changeRole = useChangeUserRole();
   const del = useDeleteUser();
   const [createOpen, setCreateOpen] = useState(false);
@@ -29,7 +31,7 @@ export function UsersPage() {
   const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
 
-  async function onRoleChange(u: AppUser, role: UserRole) {
+  async function onRoleChange(u: AppUser, role: string) {
     setRowError(null);
     try { await changeRole.mutateAsync({ id: u.id, role }); }
     catch (e) { setRowError({ id: u.id, msg: apiError(e) }); }
@@ -82,10 +84,11 @@ export function UsersPage() {
                       {rowError?.id === u.id && <div className="text-xs text-danger mt-1">{rowError.msg}</div>}
                     </td>
                     <td className="px-4 py-2.5">
-                      <Select value={u.role} onValueChange={v => onRoleChange(u, v as UserRole)}
+                      <Select value={u.role} onValueChange={v => onRoleChange(u, v)}
                         disabled={changeRole.isPending} aria-label="Роль" className="w-44">
-                        <SelectItem value="Admin">Администратор</SelectItem>
-                        <SelectItem value="User">Пользователь</SelectItem>
+                        {/* Список ЖИВОЙ: роль, заведённую администратором, иначе некому было бы
+                            назначить — она есть, права у неё есть, а в выпадающем списке её нет. */}
+                        {roles.map(r => <SelectItem key={r.name} value={r.name}>{r.title}</SelectItem>)}
                       </Select>
                     </td>
                     <td className="px-4 py-2.5">
@@ -109,7 +112,8 @@ export function UsersPage() {
       )}
 
       <p className="text-xs text-fg4 mt-3">
-        Администратор — полный доступ. Пользователь — только работа с документами и данными (без настройки системы).
+        Роль — это набор прав. Что именно даёт каждая и кому её выдавать — на экране
+        «Роли и права»: там же состав правится, и правка действует немедленно у всех носителей.
       </p>
 
       <CreateUserModal open={createOpen} onClose={() => setCreateOpen(false)} />
@@ -128,19 +132,23 @@ export function UsersPage() {
 
 function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const create = useCreateUser();
+  const { data: roles = [] } = useRoles();
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('User');
+  // Умолчание — первая роль списка, а не имя, зашитое здесь: «User» в коде экрана означало бы, что
+  // на установке без этой роли диалог открывается с пустым выбором.
+  const [role, setRole] = useState('');
   const [error, setError] = useState('');
+  const picked = role || roles[0]?.name || '';
 
-  function reset() { setEmail(''); setDisplayName(''); setPassword(''); setRole('User'); setError(''); }
+  function reset() { setEmail(''); setDisplayName(''); setPassword(''); setRole(''); setError(''); }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     try {
-      await create.mutateAsync({ email: email.trim(), displayName: displayName.trim(), password, role });
+      await create.mutateAsync({ email: email.trim(), displayName: displayName.trim(), password, role: picked });
       reset(); onClose();
     } catch (err) { setError(apiError(err)); }
   }
@@ -153,9 +161,12 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
         <TextField label="Начальный пароль" type="text" value={password} onChange={e => setPassword(e.target.value)}
           required minLength={PASSWORD_MIN_LENGTH} className="font-mono"
           hint={`${PASSWORD_HINT} Пользователь сможет сменить его сам.`} />
-        <Select label="Роль" value={role} onValueChange={v => setRole(v as UserRole)}>
-          <SelectItem value="User">Пользователь — только документы и данные</SelectItem>
-          <SelectItem value="Admin">Администратор — полный доступ</SelectItem>
+        <Select label="Роль" value={picked} onValueChange={setRole}>
+          {roles.map(r => (
+            <SelectItem key={r.name} value={r.name}>
+              {r.summary ? `${r.title} — ${r.summary}` : r.title}
+            </SelectItem>
+          ))}
         </Select>
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">

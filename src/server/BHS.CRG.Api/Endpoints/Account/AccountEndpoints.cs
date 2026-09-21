@@ -48,16 +48,15 @@ public static class AccountEndpoints
             });
         });
 
-        g.MapGet("/", async (UserManager<ApplicationUser> users, ClaimsPrincipal principal) =>
+        g.MapGet("/", async (UserManager<ApplicationUser> users, RoleEditor editor, ClaimsPrincipal principal) =>
         {
             var user = await FindCurrent(users, principal);
             if (user is null) return Results.Unauthorized();
-            var roles = await users.GetRolesAsync(user);
-            return Results.Ok(ToDto(user, roles));
+            return Results.Ok(await ToDtoAsync(user, users, editor));
         });
 
         g.MapPut("/", async (UpdateAccountRequest req,
-            UserManager<ApplicationUser> users, ClaimsPrincipal principal) =>
+            UserManager<ApplicationUser> users, RoleEditor editor, ClaimsPrincipal principal) =>
         {
             var user = await FindCurrent(users, principal);
             if (user is null) return Results.Unauthorized();
@@ -66,13 +65,12 @@ public static class AccountEndpoints
             var result = await users.UpdateAsync(user);
             if (!result.Succeeded) return Results.BadRequest(new { error = DescribeErrors(result) });
 
-            var roles = await users.GetRolesAsync(user);
-            return Results.Ok(ToDto(user, roles));
+            return Results.Ok(await ToDtoAsync(user, users, editor));
         });
 
         // Аватар профиля (issue #245): data-URI уменьшённой на клиенте картинки; null — удалить.
         g.MapPut("/avatar", async (UpdateAvatarRequest req,
-            UserManager<ApplicationUser> users, ClaimsPrincipal principal) =>
+            UserManager<ApplicationUser> users, RoleEditor editor, ClaimsPrincipal principal) =>
         {
             var user = await FindCurrent(users, principal);
             if (user is null) return Results.Unauthorized();
@@ -95,8 +93,7 @@ public static class AccountEndpoints
             var result = await users.UpdateAsync(user);
             if (!result.Succeeded) return Results.BadRequest(new { error = DescribeErrors(result) });
 
-            var roles = await users.GetRolesAsync(user);
-            return Results.Ok(ToDto(user, roles));
+            return Results.Ok(await ToDtoAsync(user, users, editor));
         });
 
         // Смена пароля текущим пользователем (перенесено из /api/auth в #148).
@@ -169,13 +166,26 @@ public static class AccountEndpoints
         return id is null ? null : await users.FindByIdAsync(id);
     }
 
-    private static AccountDto ToDto(ApplicationUser u, IList<string> roles) =>
-        new(u.Email ?? "", u.DisplayName, roles.FirstOrDefault() ?? "User", u.EmailConfirmed, u.AvatarDataUri);
+    /// <summary>
+    /// Профиль вместе с НАЗВАНИЕМ роли (issue #951).
+    ///
+    /// Раньше подпись роли собирал клиент по техническому имени, и знал он ровно два: «Admin» и
+    /// «User». Роль, заведённую администратором, он подписать не мог вовсе, а системные подписывал
+    /// по-своему — «User» в трёх местах интерфейса звался и «Пользователь», и «Инженер ИД».
+    /// </summary>
+    private static async Task<AccountDto> ToDtoAsync(
+        ApplicationUser u, UserManager<ApplicationUser> users, RoleEditor editor)
+    {
+        var role = (await users.GetRolesAsync(u)).FirstOrDefault() ?? SystemRoles.IdEngineer;
+        return new(u.Email ?? "", u.DisplayName, role,
+            (await editor.FindAsync(role))?.Title ?? role, u.EmailConfirmed, u.AvatarDataUri);
+    }
 
     private static string DescribeErrors(IdentityResult r) =>
         string.Join("; ", r.Errors.Select(e => e.Description));
 
-    record AccountDto(string Email, string DisplayName, string Role, bool EmailConfirmed, string? Avatar);
+    record AccountDto(
+        string Email, string DisplayName, string Role, string RoleTitle, bool EmailConfirmed, string? Avatar);
     record UpdateAccountRequest(string? DisplayName);
     record UpdateAvatarRequest(string? Avatar);
     record ChangePasswordRequest(string CurrentPassword, string NewPassword);

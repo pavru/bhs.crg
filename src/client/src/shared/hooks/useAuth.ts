@@ -1,12 +1,17 @@
 import { createContext, useContext } from 'react';
 
-export type UserRole = 'Admin' | 'User';
-
 export interface AuthUser {
   sub: string;
   email: string;
   displayName: string;
-  role: UserRole;
+  /**
+   * Техническое имя роли из токена.
+   *
+   * ⚠️ Решений по нему не принимают: что доступно — отвечает `/api/account/access` (AUTH-14).
+   * Перечисления здесь больше нет НАРОЧНО: ролей девять системных плюс те, что заводит
+   * администратор (issue #951), и тип из двух имён означал бы, что про остальные клиент не знает.
+   */
+  role: string;
 }
 
 export interface AuthContextValue {
