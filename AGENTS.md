@@ -1,0 +1,419 @@
+# AGENTS.md
+
+Указания агентам, работающим с этим репозиторием (Codex и другие, кто читает `AGENTS.md`).
+
+⚠️ **Это копия `CLAUDE.md`.** Единственный источник — он: правку вносите туда и переносите сюда тем
+же коммитом. Два расходящихся файла с правилами — это два разных набора правил, и узнают об этом
+тогда, когда агенты начнут делать разное.
+
+## Что это за проект
+
+Система генерации **исполнительной документации** для электромонтажных строительных проектов.
+
+- `СтароеРешение/` — архивный прототип (VSTO Word Add-in + XSL 3.0). Используется как справочник по доменной логике и типам документов. **Не разрабатывается.**
+- `src/` — новая система (в разработке, см. ниже).
+
+---
+
+## Новая система
+
+### Стек
+
+| Слой | Технология |
+|---|---|
+| Frontend | React 19 + TypeScript, Radix UI, Tailwind v4, React Query, Monaco (редактор Typst-шаблонов) |
+| Backend | ASP.NET Core 10 (Minimal APIs), EF Core 10 (Npgsql), MediatR |
+| Auth | ASP.NET Identity + JWT, роли Admin/User (без SSO / корп. интеграций) |
+| БД | PostgreSQL 18 |
+| Blob-хранилище | Garage (self-hosted, S3-совместимое) |
+| PDF | **Typst** (CLI, env `TYPST_PATH`). DOCX **не поддерживается** |
+| Распознавание/поиск | Ollama / Anthropic / Gemini (распознавание сканов), Serper / Yandex (веб-поиск) — для документов качества |
+| Скриптовой движок | Jint (JavaScript — вычисляемые колонки DataSet) |
+| Плагины | .NET AssemblyLoadContext + HTTP-плагины |
+
+### Структура solution
+
+```
+src/
+  server/
+    BHS.CRG.slnx          — solution file (.NET 10 format)
+    BHS.CRG.Api/          — ASP.NET Core Minimal API (точка входа)
+    BHS.CRG.Application/  — MediatR команды/запросы, интерфейсы (IBlobStorage, IRepository)
+    BHS.CRG.Domain/       — доменные сущности (чистый C#, без зависимостей)
+    BHS.CRG.Infrastructure/ — EF Core, MinIO, Typst-генерация, распознавание/поиск, плагины
+    BHS.CRG.Plugins/      — контракты плагинов (IDataSourcePlugin)
+  client/
+    package.json          — React SPA (Vite + Tailwind v4)
+    src/
+      features/
+        catalog/          — управление каталогом сущностей + LoginPage
+        templates/        — редактор Typst-шаблонов (Monaco) + библиотека Typst
+        document-sets/    — комплекты документов + генерация
+        settings/         — типы документов, SettingsPage
+      shared/
+        api/              — apiClient (axios + JWT), React Query hooks, types.ts
+        hooks/            — useAuth
+        ui/               — AuthProvider, ProtectedRoute, AppShell, Modal
+```
+
+### Команды разработки
+
+```bash
+# Инфраструктура (PostgreSQL + Garage) — ВСЁ в контейнерах, как в поставке (issue #894).
+# ⚠️ База слушает 5433, а не 5432: 5432 может занимать нативная служба PostgreSQL, а строка
+# подключения у них одинаковая — при совпадении портов приложение молча ушло бы в чужую базу.
+# Порт 5433 указан везде: дев-compose, appsettings.Development.json, IntegrationTestFixture, ci.yml.
+#
+# ⚠️ ПЕРВЫЙ ЗАПУСК ПОСЛЕ ПЕРЕХОДА ДАЁТ ПУСТУЮ БАЗУ, и выглядит это как «данные пропали»:
+# приложение мигрирует схему само и поднимается зелёным. Если ваши данные были в нативной службе
+# (5432), перенесите их — она их не потеряла:
+#   pg_dump -h localhost -p 5432 -U postgres -d bhs_crg -Fc -f bhs_crg.dump
+#   psql   -h localhost -p 5433 -U postgres -c "DROP DATABASE IF EXISTS bhs_crg WITH (FORCE)"
+#   psql   -h localhost -p 5433 -U postgres -c "CREATE DATABASE bhs_crg"
+#   pg_restore -h localhost -p 5433 -U postgres -d bhs_crg --no-owner --no-privileges bhs_crg.dump
+# ⚠️ Именно с `compose wait`: `up -d` возвращает 0, даже если инициализация хранилища УПАЛА,
+# и тогда отказ приходит позже — ошибкой S3 из середины приложения. `up -d --wait` не годится:
+# он считает одноразовый init неуспешным и краснеет даже при коде 0.
+# С #880 база — PostgreSQL 18, и путь тома сменился. Если контейнер отказывается стартовать с
+# упоминанием pg_upgrade, в томе лежит кластер 16: docker volume rm bhscrg_postgres_data
+docker compose up -d && docker compose wait garage-init
+
+# Backend (запуск с автомиграцией при старте)
+dotnet run --project src/server/BHS.CRG.Api
+
+# Frontend (dev-сервер на :5173, proxy /api → :5000)
+cd src/client && npm run dev
+
+# Создать EF-миграцию
+dotnet ef migrations add <Name> --project src/server/BHS.CRG.Infrastructure \
+                                --startup-project src/server/BHS.CRG.Api
+
+# Ручное применение миграций (обычно не нужно — app мигрирует сам при старте)
+dotnet ef database update --project src/server/BHS.CRG.Infrastructure \
+                          --startup-project src/server/BHS.CRG.Api
+
+# TypeScript проверка (ВАЖНО: -b, т.к. корневой tsconfig только ссылки;
+# `tsc --noEmit` на нём ничего не проверяет и всегда «зелёный»)
+cd src/client && npx tsc -b
+
+# Backend сборка
+cd src/server && dotnet build BHS.CRG.slnx
+
+# Backend тесты (xUnit, проект BHS.CRG.Tests)
+cd src/server && dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj
+
+# Frontend тесты (vitest; *.test.ts рядом с кодом)
+cd src/client && npm test
+
+# Линт с храповиком (issue #854): падает, если ошибок по какому-то правилу стало БОЛЬШЕ
+cd src/client && npm run lint:ratchet
+cd src/client && npm run lint:ratchet:update   # переписать базовый уровень (осознанно!)
+
+# Логика скрипта обновления (без Docker и сети; сеть нужна одной проверке — она пропускается)
+bash deploy/update.tests.sh
+```
+
+> Тесты покрывают чистую логику: исполнители фильтра/вычисляемых колонок наборов
+> данных, CSV-парсер, авто-маппер, доменные инварианты, метатеги (backend);
+> наследование схем (`resolveEffectiveFields`), группировку полей, дерево фильтров
+> и хелперы наборов данных (frontend).
+
+### HTTPS на стенде
+
+Стенд отвечает по HTTPS на одном адресе — **`https://localhost/`**: перед локально запущенными API
+(`:5000`) и дев-сервером клиента (`:5173`) стоит nginx из того же `docker compose` (issue #940). Так
+на стенде появляется контур заказчика: защищённый контекст браузера — без него камера, геолокация,
+service worker и установка как приложение недоступны **вовсе**, то есть мобильный клиент на
+`http://…:5173` не проверить никак, — и заголовки `X-Forwarded-*`, которых иначе на стенде не бывает.
+
+⚠️ **API и клиент обязаны слушать не только петлю.** Контейнер приходит к ним снаружи, с адреса
+шлюза, и к `localhost:5000` подключиться не может в принципе. Поэтому профиль запуска API поднимает
+Kestrel на `http://+:5000`, а `npm run dev` зовёт vite с ключом `--host`. Запустили иначе — ответом
+будет 502, и выглядеть это будет как поломка приложения.
+
+Сертификат **самоподписанный**: одноразовый сервис `dev-tls` выпускает мини-УЦ (`dev-tls/ca.crt`) и
+сертификат сервера; каталог `dev-tls/` — вне репозитория. Let's Encrypt здесь неприменим (нужно имя
+в DNS и доступность по порту 80 снаружи). В поставке всё иначе: TLS терминирует nginx на хосте с
+certbot — Приложение В в `docs/DEPLOYMENT.md`.
+
+Чтобы браузер перестал ругаться, УЦ ставится в доверенные **один раз** (перевыпуск сертификата
+сервера доверие не сбрасывает — ради этого он и отделён от УЦ):
+
+```powershell
+certutil -addstore -user Root dev-tls\ca.crt    # Windows, текущий пользователь
+```
+
+Открыть стенд с телефона: дописать в корневой `.env` адрес машины в локальной сети. Без него
+сертификат выписан только на `localhost`, и телефон получит не предупреждение о доверии, а отказ
+«выписан не на этот адрес», который установкой УЦ не лечится:
+
+```
+DEV_TLS_NAMES=192.168.1.10,crg.local   # пример: адреса и имена через запятую
+DEV_HTTPS_PORT=8443                    # если 443 на машине занят
+```
+
+После правки — `docker compose up -d dev-tls && docker compose restart nginx`: nginx читает
+сертификат при старте и сам перевыпуск не подхватывает. На телефон ставится тот же `dev-tls/ca.crt`.
+
+### CI
+
+`.github/workflows/ci.yml` гоняет всё это на каждый PR и на каждый push в master: backend
+(сборка + тесты, PostgreSQL сервисным контейнером), frontend (`tsc -b`, `npm run build`, vitest,
+храповик линта), логика `deploy/update.sh` и **живые прогоны в браузере** — четырьмя независимыми
+работами. Node в CI — той же версии, что в `deploy/Dockerfile.web`. ⚠️ **Имена работ в `ci.yml` — договор с настройками репозитория**: обязательные проверки в
+«Master ruleset» перечислены ПО ИМЕНАМ, и переименование работы блокирует слияние навсегда
+(проверка с прежним именем не появится, а GitHub говорит лишь «the base branch policy prohibits
+the merge»). Менять имя можно только вместе с правилом, и сначала правило.
+
+Обязательными в настройках
+репозитория сделаны первые две: остальные владелец добавляет по желанию — **но это про слияние PR,
+не про выпуск**. `release.yml` спрашивает итог прогона ЦЕЛИКОМ и работы различать не умеет, поэтому
+падение ЛЮБОЙ из четырёх останавливает выпуск. Для живых прогонов это ощутимо: они тянут образ
+хранилище, Typst и браузер из сети. Лекарство — «Re-run failed jobs», итог прогона пересчитывается.
+
+Живые прогоны (issue #872) поднимают приложение целиком — postgres, Garage, Typst CLI,
+опубликованный API, **собранный** клиент — сеют синтетические данные (`src/client/e2e/seed.mjs`,
+дамп рабочей базы невозможен: репозиторий публичный) и гоняют все восемь прогонов, 82 проверки из
+85. Ручными остались три — разбиение PDF: им нужны распознанные страницы, то есть ИИ-движок,
+которого в CI нет. Пропуск заявлен вслух в итоге прогона, а не сделан молча. Подробности и
+таблица — `src/client/e2e/README.md`.
+
+**Проверки ЗАПРЕЩАЮТ слияние — с 25 августа 2026.** В репозитории включён набор правил «Master
+ruleset»: master меняется только через PR, а слить его нельзя, пока не прошли три обязательные
+проверки — **Backend (сборка + тесты)**, **Frontend (типы + тесты + линт)** и **Скрипт обновления
+(логика)**. Одобрений не требуется (`required_approving_review_count: 0`), ветка обязана быть
+актуальной относительно master (`strict`). Живые прогоны и claude-review обязательными не сделаны:
+они сообщают.
+
+⚠️ **Имена работ в `ci.yml` — договор с этим правилом**: обязательные проверки перечислены там ПО
+ИМЕНАМ. Переименование работы означает, что обязательная проверка не появится никогда, и слияние
+блокируется навсегда — с сообщением «the base branch policy prohibits the merge», которое на имя не
+указывает ничем (наступали, #890). Менять имя можно только вместе с правилом, и сначала правило.
+
+Выпуск прикрыт отдельно и другим способом: `release.yml` спрашивает у API итог прогона CI на своём
+коммите и отказывается публиковать образы, если тот не `success`. Это не дублирование — правило
+ветки смотрит на PR, а выпуск делается с уже слитого master.
+
+Линт **не требует** чинить накопленные ошибки (на момент включения — 112). Требование одно: не
+добавлять новых. Сравнение идёт по правилам, а не по общему числу — иначе «починил одну, добавил
+другую» прошло бы молча. Базовый уровень — `src/client/eslint-baseline.json`; стало лучше — локально
+он опускается сам, в CI шаг падает с просьбой опустить и закоммитить (иначе храповик прокручивается
+назад: починили пять, вернули пять, проверка молчит).
+
+### Версия приложения
+
+Единственный источник — `src/server/Directory.Build.props`, `<Version>`. Клиент своей версии не
+имеет (`package.json` = `0.0.0`): UI берёт её из `/api/version`, git-хеш SDK подставляет сам.
+
+**Версию поднимаем в том же PR, что и изменение.** MINOR — набор функциональности, PATCH — фиксы.
+
+Правило записано здесь, потому что до этого оно нигде не было записано и держалось на памяти: с
+7 июля версия менялась 221 раз (практически каждым PR), а 22 июля обрыв — и следующие **104 PR**
+прошли на одной и той же `0.53.15`. Ничего при этом не сломалось и никто не предупредил, поэтому
+единственная защита — чтобы правило попадалось на глаза (issue #550).
+
+### Документация и развёртывание
+
+- `docs/` — инструкции (Markdown + PDF): `DEPLOYMENT.md`, `USER_GUIDE.md`, `ADMIN_GUIDE.md`
+  (индекс — `docs/README.md`). Сборка PDF: `docs/tools/` (`npm run pdf`).
+- `deploy/` — Docker Compose на весь стек (postgres, garage, ollama, api, web) + Dockerfile'ы
+  и `.env.example`. api и web поставляются образами из GHCR (`APP_VERSION` в `.env`), выпуск —
+  ручной запуск workflow `Release`, который берёт номер из `Directory.Build.props`. Запуск:
+  `cp deploy/.env.example deploy/.env` → `docker compose -f deploy/docker-compose.yml up -d`;
+  сборка из исходников — с оверлеем `-f deploy/docker-compose.build.yml`.
+  Образ `api` включает **Typst CLI**.
+
+**Установка — `deploy/install.sh`** (issue #890), обновление — `deploy/update.sh`. Оба едут
+ассетами выпуска. Install ставит систему с нуля: предполёт, файлы выпуска, `.env` со случайными
+паролями и ключами нужного формата, каталог копий, запуск, ожидание готовности и **создание
+первого администратора** — последнее закрывает окно, в котором страница регистрации открыта любому.
+Отказывается работать в каталоге, где уже есть `.env`. Логика покрыта `install.tests.sh` (без
+Docker и сети), как у `update.sh`.
+
+**Версии сторонних образов прибиты точно** (issue #878) — `latest` в compose возвращать нельзя.
+Compose едет вместе с выпуском, поэтому прибитая версия делает смену postgres/MinIO/ollama/nginx
+событием: с датой, коммитом и откатом. С плавающим тегом новый образ приезжал в продакшн как
+побочный груз обновления приложения (`update.sh` зовёт `compose pull` без списка сервисов), а
+`--rollback` его не возвращал.
+
+**Копия прежнего хранилища в нашем GHCR** (issue #882): `ghcr.io/pavru/minio` и
+`ghcr.io/pavru/mc` — побайтовые копии последнего выпуска MinIO с навсегда замороженным тегом.
+После перехода на Garage они не убраны НАРОЧНО: ими `update.sh` переносит файлы на установках,
+которые придут со старых версий, — возможно, спустя годы. Отбор «наших» образов в `update.sh --gc`
+идёт по имени `bhs.crg-*`, а не по адресу реестра, иначе эта копия попала бы под удаление.
+
+**Хранилище — Garage, с 0.160.0** (issue #885). MinIO архивирован upstream'ом; переход сделан
+целиком: поставка, дев-стенд, живые прогоны. Кода приложения он не коснулся — регион `us-east-1`
+объявляет само хранилище (`deploy/garage.toml`), потому что SDK подписывает запросы им и
+переубедить его нельзя: `MakeBucket` подписывается отдельно и `WithRegion` игнорирует.
+
+Что важно помнить: хранилище слушает **3900**, ключи — вида `GK`+24 hex, а перед работой Garage
+надо ИНИЦИАЛИЗИРОВАТЬ — без применённой раскладки он отвечает отказом на любой запрос. Делает это
+идемпотентный `garage-init` (`deploy/garage-init.sh`); свой образ у него потому, что в образе
+Garage нет shell. **Версия Garage записана в трёх местах** — поставка, дев-стенд и `FROM` в
+`Dockerfile.garage-init` (клиент и сервер обязаны совпадать); сверяет их сторож в CI.
+
+**Миграция с MinIO — внутри `update.sh`** (§8.7 DEPLOYMENT.md): предполёт по месту, остановка
+приложения, `mc mirror`, сверка составом и размерами, и только потом подмена файлов. Сверка НЕ
+через `mc diff`: он считает различием разницу во времени, а копия всегда новее оригинала. Том
+`minio_data` и копия образа MinIO в GHCR остаются — ими пользуются установки, которые придут со
+старых версий.
+
+Следит `.github/dependabot.yml` — раз в неделю, отдельным PR, который проходит весь CI. Чего он
+**не** покрывает, названо там же: теги MinIO (`RELEASE.…`) — не semver, остаются ручными; мажор
+postgres — не бамп, а работа с `pg_upgrade`; .NET за `ARG` Dependabot пропускает. CI берёт версии
+из `deploy/docker-compose.yml`: MinIO — чтением, postgres — литералом со сторожем (образ сервисного
+контейнера из файла не вычислить: `services:` разбирается до шагов).
+
+### Статус первой версии
+
+Первая версия полностью реализована (backend + frontend + EF-миграция):
+
+| Модуль | Статус |
+|---|---|
+| Auth (регистрация/вход, JWT) | ✅ |
+| Каталог сущностей (CRUD) | ✅ |
+| Типы документов (CRUD + схема) | ✅ |
+| Шаблоны (Monaco/Typst + версионирование) | ✅ |
+| Комплекты документов (CRUD + состав) | ✅ |
+| Реквизиты и связи документа | ✅ |
+| Генерация PDF (Typst) | ✅ |
+| Документы качества, тэги, уведомления, интеграции, роли | ✅ |
+| EF Core migrations | ✅ |
+
+### REST API
+
+```
+POST   /api/auth/register           { email, password, displayName }
+POST   /api/auth/login              { email, password } → { accessToken }
+
+GET    /api/catalog?entityType=     → CatalogEntity[]
+POST   /api/catalog                 { entityType, displayName, data: string(JSON) }
+PUT    /api/catalog/{id}            { displayName, data: string(JSON) }
+DELETE /api/catalog/{id}
+
+GET    /api/document-types
+POST   /api/document-types          { name, code, schema: string(JSON) }
+PUT    /api/document-types/{id}/schema  { schema: string(JSON) }
+
+GET    /api/templates?documentTypeId=
+POST   /api/templates               { documentTypeId, name, content }      — content = Typst
+PUT    /api/templates/{id}          { content }  — создаёт новую версию
+                                    (запись типов/полей/шаблонов/настроек — только роль Admin)
+
+GET    /api/document-sets
+GET    /api/document-sets/{id}      → DocumentSet (с instances[].generatedFiles[])
+POST   /api/document-sets           { name, projectEntityId? }
+PUT    /api/document-sets/{id}/name { name }
+DELETE /api/document-sets/{id}
+
+POST   /api/document-sets/{setId}/documents          { documentTypeId }
+PUT    /api/document-sets/{setId}/documents/{id}/requisites   body = JSON object
+PUT    /api/document-sets/{setId}/documents/{id}/entity-refs  body = JSON object
+PUT    /api/document-sets/{setId}/documents/{id}/plugin-data  body = JSON object
+
+POST   /api/generate/{instanceId}   { format: "Pdf" }   (DOCX не поддерживается)
+GET    /api/generate/download/{instanceId}/{format}
+GET    /api/generate/debug-bundle/{instanceId}  → ZIP (template.typ + data.json + typeblocks.typ + userlib.typ) для отладки шаблона во внешнем Typst
+GET    /api/generate/plugins
+POST   /api/generate/plugins/{pluginId}/search  { entityType, query }
+POST   /api/generate/plugins/{pluginId}/fetch   { entityType, externalId }
+
+GET    /api/jobs/active             → активные фоновые задачи (сборка комплекта, распознавание)
+                                      Ход долгих операций доставляется ПОЛЛИНГОМ, не сокетом.
+```
+
+### Архитектура
+
+#### Два режима работы
+
+1. **Настройка** (роль Admin): типы документов (схема полей), Typst-шаблоны, привязки наборов данных/плагинов, пользователи, настройки.
+2. **Генерация** (роль User): создаёт `DocumentSet` (комплект), заполняет реквизиты, связывает с сущностями каталога, подключает наборы данных и документы качества → получает PDF.
+
+Роли разграничены и в UI (раздел «Настройка системы» — только Admin), и в API
+(запись конфигурации защищена политикой `Admin`). См. память `project-roles-users`.
+
+#### Инвариант: `CatalogScope` — не граница безопасности
+
+`CatalogScope` (`Set` / `Section` / `Construction` / `System`) организует данные и задаёт приоритет
+их разрешения. **Правами он не управляет.** Привязки данных к пользователю в системе нет вовсе:
+любой вошедший видит и правит объекты всех уровней и всех строек. Это решение, а не упущение —
+пользователи суть сотрудники одной компании с равным допуском (issue #675, 2026-08-05).
+
+Записано потому, что уровни выглядят как области видимости, и однажды на них сошлются как на
+разграничение доступа. Не выдавайте проверку уровня за проверку прав.
+
+**Условие пересмотра:** учётная запись выдана кому-то вне компании (заказчик, технадзор,
+субподрядчик) — тогда изоляция данных обязательна и делается прежде остального. Затронет
+наследование по поддереву, `_baseRef` из родительской области, провайдеры системных наборов,
+библиотеку документов качества и инструменты MCP (они действуют правами пользователя).
+
+#### Пайплайн генерации документа
+
+```
+DocumentInstance (реквизиты JSON + ссылки на сущности)
+    │
+    ▼ EntityResolver (C#-аналог ref/merge из старой XSL-системы)
+    │   подмешивает данные Organization/Person/etc. из EntityCatalog
+    ▼
+    ▼ DataSetResolver / QualityLinkResolver
+    │   подмешивают наборы данных и документы качества (по функциональным тэгам)
+    ▼
+GenerationContext (единый JSON-контекст)
+    │
+    ▼ TypstGenerator: контекст → data.json; шаблон + typeblocks.typ + userlib.typ
+    │   компилируются Typst CLI (env TYPST_PATH)
+    ▼
+PDF
+```
+
+#### Ключевой паттерн шаблона
+
+Шаблон хранится как **Typst-документ** (поле `Template.Content`). При генерации во
+временной папке создаются файлы:
+
+- `data.json` — контекст генерации (реквизиты + подмешанные данные);
+- `typeblocks.typ` — авто-сгенерированные Typst-функции отображения составных типов;
+- `userlib.typ` — общая библиотека Typst (Typst User Lib, редактируется админом);
+- картинки из data-URI материализуются в файлы (`TypstImageMaterializer`).
+
+Шаблон обращается к данным через JSON и переиспользуемые функции. Отладка — через
+`GET /api/generate/debug-bundle/{instanceId}` (ZIP со всеми этими файлами) во внешнем Typst.
+
+#### Модель данных (PostgreSQL)
+
+```
+EntityCatalog: Organization, Person, ConstructionObject, Project  — JSONB data
+DocumentType: id, name, schema JSONB, pluginBindings JSONB
+Template: id, documentTypeId, content TEXT (Typst), version
+DocumentSet: id, projectId, name
+DocumentInstance: id, documentSetId, documentTypeId,
+                  requisites JSONB, entityRefs JSONB, pluginData JSONB
+GeneratedFile: id, documentInstanceId, format, blobPath, generatedAt
+```
+
+#### Плагины
+
+```csharp
+interface IDataSourcePlugin
+{
+    string Id { get; }
+    EntitySchema[] ProvidedSchemas { get; }
+    Task<SearchResult> SearchAsync(string entityType, string query, CancellationToken ct);
+    Task<JsonDocument> FetchAsync(string entityType, string externalId, CancellationToken ct);
+}
+```
+
+.NET-плагины загружаются через `AssemblyLoadContext`. HTTP-плагины работают через стандартный REST-контракт (те же методы, но по HTTP).
+
+#### Типы документов (из старой системы, требуют шаблонов)
+
+АОСР, ЖурналПрокладкиКабеля, КабельныйЖурнал, ВедомостьМатериалов, ПротоколИзмеренияИзоляции, ПротоколИзмеренияЗаземления, ПротоколИзмеренияМеталосвязи, ПротоколИзмеренияФазаНоль, РеестрДокументов, РеестрРабот, ВедомостьСхем, ТитульныйЛист, ПНР-документы (5 форм).
+
+---
+
+## Старое решение (справочник)
+
+`СтароеРешение/Xml/CommonDataTypes.xsd` — доменная модель (типы сущностей, структура документов).
+`СтароеРешение/Xml/NewElementResolverStyles.xsl` — логика ref/merge, которую нужно воспроизвести в `EntityResolver` на C#.
+`СтароеРешение/Xml/*TemplateData.xml` — примеры данных для каждого типа документа.
