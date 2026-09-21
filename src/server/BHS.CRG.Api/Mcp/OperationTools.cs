@@ -74,6 +74,10 @@ public class OperationTools(IOperationLauncher launcher, IHttpContextAccessor ht
     // Право на НАСТРОЙКУ наборов, а не на чтение: распознавание переписывает их содержимое и с
     // подтверждением стирает ручную правку разбиения на документы. Оба распознавания объявлены
     // разрушительными (McpToolContractTests) — ворота обязаны называть то же самое.
+    //
+    // Тем же правом закрыты и адреса запуска — группа `recognize` в DataSetEndpoints (ревью #998).
+    // До неё они лежали в группе наборов под правом на чтение, и агент оказался бы прикрыт
+    // строже человека: одна и та же операция, два разных ответа на вопрос «можно ли».
     [McpPermission(CorePermissions.DataSetsEdit)]
     [McpServerTool(Name = "recognize_dataset", ReadOnly = false, Destructive = true,
         Title = "Распознать PDF-набор")]

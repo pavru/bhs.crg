@@ -58,9 +58,10 @@ public static class McpResourceCatalog
     /// </summary>
     /// <param name="granted">
     /// Действующие права спрашивающего. Каждый вид записи витрины отбирается тем же правом, каким
-    /// закрыто чтение соответствующего ресурса: стройки — <c>core.constructions.read</c>, комплекты
-    /// — <c>id.document.read</c>, наборы — <c>core.datasets.read</c>. Пусто — витрина пуста, и это
-    /// правильный ответ: прикреплять к разговору нечего.
+    /// закрыто чтение соответствующего ресурса, и НЕЗАВИСИМО от остальных: стройки —
+    /// <c>core.constructions.read</c>, комплекты — <c>id.document.read</c>, наборы —
+    /// <c>core.datasets.read</c>. Пусто — витрина пуста, и это правильный ответ: прикреплять к
+    /// разговору нечего.
     /// </param>
     public static async Task<IReadOnlyList<Resource>> BuildAsync(
         IDomainSnapshotService domain, IDataSnapshotService datasets,
@@ -68,17 +69,29 @@ public static class McpResourceCatalog
     {
         var resources = new List<Resource>();
 
-        if (Has(granted, CorePermissions.ConstructionsRead))
+        // Два права — ДВА независимых решения, а не вложенных (нашло ревью #948). Стройки и
+        // комплекты лежат в витрине рядом, и «комплектов нет» у того, кому их как раз читать можно,
+        // — это отказ, переодетый в пустой список: get_document_set у него работает, а прикрепить
+        // комплект неоткуда.
+        //
+        // Обход строек при этом идёт всегда: это ВНУТРЕННЯЯ механика перечисления, а не чтение от
+        // имени пользователя. Запись комплекта называет свою стройку и раздел — ровно тот же
+        // контекст, который тому же человеку отдаёт его собственный get_document_set, поэтому
+        // ничего сверх его прав здесь не открывается.
+        var showConstructions = Has(granted, CorePermissions.ConstructionsRead);
+        var showSets = Has(granted, "id.document.read");
+
+        if (showConstructions || showSets)
         {
             var constructions = await ReadAllAsync(
                 (offset, token) => domain.ListConstructionsAsync(Guid.Empty, offset, ct: token), ct);
             foreach (var c in constructions)
             {
-                resources.Add(New($"bhs://construction/{c.Id}", c.Name, "Стройка",
-                    $"Разделов: {c.SectionCount}, комплектов: {c.SetCount}, документов: {c.DocumentCount}."));
+                if (showConstructions)
+                    resources.Add(New($"bhs://construction/{c.Id}", c.Name, "Стройка",
+                        $"Разделов: {c.SectionCount}, комплектов: {c.SetCount}, документов: {c.DocumentCount}."));
 
-                // Комплекты — отдельное право: стройка видна справочником, а её документы нет.
-                if (!Has(granted, "id.document.read")) continue;
+                if (!showSets) continue;
                 var detail = await domain.GetConstructionAsync(c.Id, ct);
                 if (detail is null) continue;
                 foreach (var section in detail.Sections)

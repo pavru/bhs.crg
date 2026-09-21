@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Reflection;
+using System.Security.Claims;
 using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Mcp;
@@ -132,6 +133,25 @@ public class McpToolGateTests(IntegrationTestFixture fixture) : IAsyncLifetime
             await McpTestClient.CallAsync(engineer, "prompts/list"), "prompts"));
     }
 
+    /// <summary>
+    /// Два права витрины — НЕЗАВИСИМЫ (нашло ревью PR #998). Комплекты были вложены в ветку права
+    /// на стройки, то есть требовали обоих: у роли, которой можно читать документы и нельзя —
+    /// справочник строек, витрина приходила пустой при работающем get_document_set. Пустой список
+    /// там, где отказ, — худший из исходов: прикрепить комплект неоткуда, и не сказано почему.
+    /// </summary>
+    [Fact]
+    public async Task Комплекты_в_витрине_не_требуют_права_на_стройки()
+    {
+        var (_, setId) = await SeedAsync();
+        var documents = await SignInWithPermissionsAsync("id.document.read");
+
+        var uris = await ResourceUrisAsync(documents);
+
+        Assert.Contains($"bhs://document-set/{setId}", uris);
+        // А стройки — не показываются: право на них своё, и его нет.
+        Assert.DoesNotContain(uris, u => u.StartsWith("bhs://construction/"));
+    }
+
     private static async Task<IReadOnlyList<string>> ToolsAsync(HttpClient client)
         => McpTestClient.NamesOf(await McpTestClient.CallAsync(client, "tools/list"), "tools");
 
@@ -167,6 +187,27 @@ public class McpToolGateTests(IntegrationTestFixture fixture) : IAsyncLifetime
         await m.Send(new AddDocumentToSetCommand(set.Id, type.Id));
 
         return (construction.Id, set.Id);
+    }
+
+    /// <summary>
+    /// Клиент с ролью, состав которой перечислен здесь: системной роли с нужным сочетанием прав
+    /// может не быть, а сочетание — как раз то, что проверяется.
+    /// </summary>
+    private async Task<HttpClient> SignInWithPermissionsAsync(params string[] permissions)
+    {
+        var roleName = $"McpGate_{Guid.NewGuid():N}";
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+            Assert.True((await roles.CreateAsync(new IdentityRole<Guid>(roleName))).Succeeded);
+            var role = (await roles.FindByNameAsync(roleName))!;
+            foreach (var code in permissions)
+                Assert.True((await roles.AddClaimAsync(
+                    role, new Claim(RoleSynchronizer.PermissionClaim, code))).Succeeded);
+        }
+
+        return await SignInAsync(roleName);
     }
 
     private async Task<HttpClient> SignInAsync(string role)
