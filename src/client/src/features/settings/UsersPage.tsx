@@ -88,7 +88,7 @@ export function UsersPage() {
                       {rowError?.id === u.id && <div className="text-xs text-danger mt-1">{rowError.msg}</div>}
                     </td>
                     <td className="px-4 py-2.5">
-                      <RolePicker value={u.roles.map(r => r.name)}
+                      <RolePicker value={u.roles.map(r => r.name)} known={u.roles}
                         onChange={next => onRolesChange(u, next)}
                         disabled={changeRoles.isPending}
                         ariaLabel={`Роли — ${u.displayName || u.email}`} className="w-52" />

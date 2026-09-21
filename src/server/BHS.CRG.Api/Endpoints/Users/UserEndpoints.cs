@@ -63,13 +63,24 @@ public static class UserEndpoints
             };
             var created = await users.CreateAsync(user, req.Password);
             if (!created.Succeeded) return Results.BadRequest(new { error = DescribeErrors(created) });
-            await users.AddToRolesAsync(user, wanted.Select(r => r.Name));
+
+            // Итог выдачи проверяется, и дальше всё — по факту (ревью #984). Учётная запись к
+            // этому моменту уже заведена: молча пропущенный отказ дал бы пользователя без единой
+            // роли — ровно то состояние, которое эндпоинт только что объявил недопустимым, — и
+            // отчитался бы о нём кодом 200 со списком ролей, которых в базе нет.
+            var grant = await users.AddToRolesAsync(user, wanted.Select(r => r.Name));
+            var actual = Refs(await users.GetRolesAsync(user), await editor.TitlesAsync());
 
             // Заведение пользователя — это и выдача прав (ТЗ CORE-28): роли названы прямо здесь, и
             // без этой записи в журнале было бы видно только последующие СМЕНЫ ролей, а начальная
             // выдача — самая широкая из всех — оставалась бы неизвестно чьей.
             await journal.RecordAsync(ActivityActions.UserCreated,
-                user.Id.ToString(), user.Email, after: Describe(wanted), ct: ct);
+                user.Id.ToString(), user.Email, after: Describe(actual), ct: ct);
+
+            if (!grant.Succeeded)
+                return Results.BadRequest(new { error =
+                    $"Пользователь заведён, но роли выдать не удалось: {DescribeErrors(grant)}. " +
+                    "Назначьте их в строке на экране «Пользователи»." });
 
             // По желанию админа — сразу отправить письмо для подтверждения адреса (issue #148).
             // Ошибку отправки не роняем в ответ: пользователь уже создан, письмо можно переслать позже.
@@ -83,7 +94,7 @@ public static class UserEndpoints
                 // SMTP/App:PublicUrl не настроены — пользователь создан, письмо отправят позже.
                 catch (Exception ex) when (ex is EmailNotConfiguredException or AppUrlNotConfiguredException) { }
             }
-            return Results.Ok(new UserDto(user.Id, user.Email!, user.DisplayName, Refs(wanted)));
+            return Results.Ok(new UserDto(user.Id, user.Email!, user.DisplayName, actual));
         });
 
         // Адрес назначения ОДИН и принимает список (ТЗ AUTH-3, issue #984). Одиночный
@@ -115,8 +126,18 @@ public static class UserEndpoints
                 return Results.BadRequest(new { error =
                     "Это последний, кто может управлять пользователями, — экземпляр остался бы без управления" });
 
-            if (current.Count > 0) await users.RemoveFromRolesAsync(user, current);
-            if (wanted.Count > 0) await users.AddToRolesAsync(user, wanted.Select(r => r.Name));
+            // ⚠️ Итог КАЖДОЙ половины проверяется, и дальше всё говорится по ФАКТУ, а не по
+            // заявке (ревью #984). Замена состава — две записи подряд: сняли, выдали. Откажи
+            // вторая — человек остался бы вовсе без ролей, а ответ и журнал сообщили бы о
+            // выданном списке. Это худший вид неверности: доступ отозван, и никто об этом не знает.
+            var removal = current.Count > 0
+                ? await users.RemoveFromRolesAsync(user, current)
+                : IdentityResult.Success;
+            if (!removal.Succeeded) return Results.BadRequest(new { error = DescribeErrors(removal) });
+
+            var grant = wanted.Count > 0
+                ? await users.AddToRolesAsync(user, wanted.Select(r => r.Name))
+                : IdentityResult.Success;
 
             // Смена ролей действует НЕМЕДЛЕННО (ТЗ AUTH-7). Отметка безопасности обновляется —
             // выданные токены с прежними ролями перестают приниматься на следующем же запросе, и
@@ -130,11 +151,20 @@ public static class UserEndpoints
             // То самое «Готово» из issue #950: автор, время и ПРЕЖНЕЕ значение. Прежнее — потому
             // что по нынешнему составу ролей нельзя ответить на единственный вопрос, ради которого
             // в журнал заглядывают: что у человека было до того, как ему это выдали.
+            // Состав перечитывается из базы: в журнал и в ответ уходит то, что там ЛЕЖИТ.
+            var actual = Refs(await users.GetRolesAsync(user), await editor.TitlesAsync());
             await journal.RecordAsync(ActivityActions.UserRoleChanged,
                 user.Id.ToString(), user.Email,
-                before: await TitlesAsync(editor, current), after: Describe(wanted), ct: ct);
+                before: await TitlesAsync(editor, current), after: Describe(actual), ct: ct);
 
-            return Results.Ok(new UserDto(user.Id, user.Email ?? "", user.DisplayName, Refs(wanted)));
+            // Выдача отказала уже после снятия — говорим об этом прямо и называем, в каком
+            // состоянии человек сейчас. Промолчать значило бы отчитаться об успехе отзыва доступа.
+            if (!grant.Succeeded)
+                return Results.BadRequest(new { error =
+                    $"Прежние роли сняты, а новые выдать не удалось: {DescribeErrors(grant)}. " +
+                    $"Сейчас у пользователя {Describe(actual)} — назначьте роли заново." });
+
+            return Results.Ok(new UserDto(user.Id, user.Email ?? "", user.DisplayName, actual));
         });
 
         g.MapPost("/{id:guid}/reset-password", async (Guid id, ResetPasswordRequest req,
@@ -278,8 +308,8 @@ public static class UserEndpoints
                  .OrderBy(r => r.Title, StringComparer.CurrentCulture)];
 
     /// <summary>Роли одной строкой для журнала: читают её глазами, и названия отвечают на вопрос.</summary>
-    private static string Describe(IEnumerable<RoleView> roles) =>
-        Refs(roles) is { Count: > 0 } refs ? string.Join(", ", refs.Select(r => r.Title)) : "без ролей";
+    private static string Describe(IReadOnlyList<RoleRef> roles) =>
+        roles.Count > 0 ? string.Join(", ", roles.Select(r => r.Title)) : "без ролей";
 
     private static Guid CurrentUserId(ClaimsPrincipal p) =>
         Guid.TryParse(p.FindFirstValue(JwtRegisteredClaimNames.Sub)

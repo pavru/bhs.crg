@@ -5,6 +5,7 @@ using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BHS.CRG.Tests.Integration;
@@ -243,6 +244,71 @@ public class UserRolesTests(IntegrationTestFixture fixture)
             Assert.True((await users.AddToRoleAsync(user, role)).Succeeded);
         }
         return (await ClientForAsync(email), email);
+    }
+
+    /// <summary>
+    /// Сторож находки ревью #984: снять право управления НЕЛЬЗЯ и на экране ролей.
+    ///
+    /// До #984 этот путь был закрыт сам собой: право жило только у роли «все права», а её состав
+    /// не правится вовсе. Проверка «по праву, а не по имени роли» открыла обход: единственный
+    /// администратор уходит из «Администратора» в свою роль с этим правом — и снимает галку там.
+    /// Защита у пользователей такого хода не видит: состав ролей она не меняла.
+    /// </summary>
+    [Fact]
+    public async Task Снять_право_управления_с_единственной_управляющей_роли_нельзя()
+    {
+        // Чужие администраторы прошлых классов сделали бы «кроме него есть кто-то ещё» истинным, и
+        // проверка прошла бы, не коснувшись защиты. Учётные записи фикстура не чистит — чистим сами.
+        await ClearUsersAsync();
+
+        var (admin, me) = await SignInAsync(SystemRoles.Admin);
+        var manager = await CreateRoleAsync(admin, "Управляющий", CorePermissions.UsersManage);
+
+        // Единственный администратор уходит в свою роль: право остаётся при нём, и это разрешено.
+        var myId = await IdOfAsync(admin, me);
+        (await admin.PutAsJsonAsync($"/api/users/{myId}/roles", new { roles = new[] { manager.Name } }))
+            .EnsureSuccessStatusCode();
+        admin = await ClientForAsync(me);   // смена своих ролей обнулила прежний токен
+
+        var stripped = await admin.PutAsJsonAsync($"/api/roles/{manager.Name}/permissions",
+            new { permissions = Array.Empty<string>() });
+
+        Assert.Equal(HttpStatusCode.Conflict, stripped.StatusCode);
+        Assert.Contains(CorePermissions.UsersManage, await stripped.Content.ReadAsStringAsync());
+
+        // И управление на месте — отказ не оставил экземпляр в половинчатом состоянии.
+        Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync("/api/users")).StatusCode);
+    }
+
+    /// <summary>
+    /// Обратное тоже верно: пока право есть у кого-то ещё, снять его с роли можно. Без этой
+    /// проверки защита выше читалась бы как «право управления не снимается никогда».
+    /// </summary>
+    [Fact]
+    public async Task Снять_право_управления_можно_пока_оно_есть_у_кого_то_ещё()
+    {
+        var (admin, _) = await SignInAsync(SystemRoles.Admin);
+        var manager = await CreateRoleAsync(admin, "Второй управляющий", CorePermissions.UsersManage);
+        await CreateUserAsync(admin, [manager]);   // носитель у роли есть
+
+        var stripped = await admin.PutAsJsonAsync($"/api/roles/{manager.Name}/permissions",
+            new { permissions = Array.Empty<string>() });
+
+        // Админ с ролью «все права» на месте, и он — тот самый «кто-то ещё».
+        stripped.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// Убирает все учётные записи: иначе «кроме него никто не управляет» не проверить — чужие
+    /// администраторы прошлых классов остаются в базе (фикстура их не чистит, см.
+    /// <c>FixtureResetCoverageTests</c>).
+    /// </summary>
+    private async Task ClearUsersAsync()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        foreach (var u in await users.Users.ToListAsync())
+            Assert.True((await users.DeleteAsync(u)).Succeeded);
     }
 
     /// <summary>Идентификатор пользователя по почте — через тот же список, что видит экран.</summary>

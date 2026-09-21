@@ -49,7 +49,11 @@ export function useChangeUserRoles() {
   return useMutation({
     mutationFn: ({ id, roles }: { id: string; roles: string[] }) =>
       apiClient.put<AppUser>(`/users/${id}/roles`, { roles }).then(r => r.data),
-    onSuccess: () => {
+    onSuccess: (updated) => {
+      // Ответ кладём в кэш СРАЗУ, а не ждём перезагрузки списка: строка — это ещё и источник
+      // для следующего открытия меню ролей, и до обновления она предлагала бы прежний состав.
+      qc.setQueryData<AppUser[]>([QK], prev =>
+        prev?.map(u => (u.id === updated.id ? updated : u)));
       qc.invalidateQueries({ queryKey: [QK] });
       qc.invalidateQueries({ queryKey: ['account'] });
     },
