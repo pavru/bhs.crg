@@ -14,9 +14,17 @@ namespace BHS.CRG.Api.Auth;
 /// состав роли принадлежит не коду (см. <see cref="RoleSynchronizer" />).
 /// </param>
 /// <param name="Users">Сколько людей носит роль: снятие права затронет ровно их.</param>
+/// <param name="AllPermissions">
+/// Роль «все права»: состав не перечислен, он равен справочнику и пополняется вместе с ним, а
+/// потому не правится вовсе (см. <see cref="RoleEditor.SetPermissionsAsync" />).
+///
+/// ⚠️ Признак отдаётся КЛИЕНТУ нарочно. Без него редактор рисовал бы у такой роли обычные галки,
+/// щёлкал ими, а сервер на сохранение отвечал бы 409 — запрет, о котором узнаёшь, только нарушив
+/// его (нашло ревью #983).
+/// </param>
 public sealed record RoleView(
     string Name, string Title, string? Summary, bool System, bool Edited,
-    IReadOnlyList<string> Permissions, int Users);
+    IReadOnlyList<string> Permissions, int Users, bool AllPermissions);
 
 /// <summary>Итог правки: либо роль, либо отказ с кодом ответа и причиной для человека.</summary>
 /// <remarks>
@@ -59,12 +67,52 @@ public sealed class RoleEditor(
         return role is null ? null : await ViewAsync(role);
     }
 
+    /// <summary>
+    /// Все роли, упорядоченные ПО НАЗВАНИЮ — тому, которое видит человек.
+    ///
+    /// ⚠️ Сортировка по техническому имени выглядела здесь безобидной мелочью и стоила регрессии:
+    /// список ролей — это ещё и выпадающий список на экране «Пользователи», а диалог создания брал
+    /// из него первую роль умолчанием. По именам первой шла <c>Accountant</c>, и новый сотрудник
+    /// заводился «Бухгалтером» — с правом отмечать оплату и закрывать период (нашло ревью #983).
+    /// Умолчание в диалоге с тех пор убрано, но порядок всё равно обязан быть тем, который читают.
+    /// </summary>
     public async Task<IReadOnlyList<RoleView>> ListAsync()
     {
         var result = new List<RoleView>();
-        foreach (var role in roles.Roles.OrderBy(r => r.Name).ToList())
+        foreach (var role in roles.Roles.ToList())
             result.Add(await ViewAsync(role));
-        return result;
+        return [.. result.OrderBy(r => r.Title, StringComparer.CurrentCulture)];
+    }
+
+    /// <summary>
+    /// Название роли — без пересчёта её носителей.
+    ///
+    /// ⚠️ Существует отдельно от <see cref="FindAsync" /> ровно поэтому: подпись роли нужна в
+    /// профиле и в каждой строке списка пользователей, а <see cref="ViewAsync" /> ради неё
+    /// поднимал ВСЕХ носителей роли — соединением по таблице связи, по разу на пользователя
+    /// (нашло ревью #983). Здесь читаются только утверждения самой роли.
+    /// </summary>
+    public async Task<string> TitleAsync(string? name)
+    {
+        name = (name ?? "").Trim();
+        if (name.Length == 0) return "";
+        var role = await roles.FindByNameAsync(name);
+        return role is null ? name : Title(await roles.GetClaimsAsync(role), name);
+    }
+
+    /// <summary>
+    /// Названия всех ролей по техническим именам — одним проходом, для списков.
+    /// Неизвестное имя в словарь не попадает: подписывать его нечем, и подставляется само имя.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, string>> TitlesAsync()
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var role in roles.Roles.ToList())
+        {
+            var name = role.Name ?? "";
+            map[name] = Title(await roles.GetClaimsAsync(role), name);
+        }
+        return map;
     }
 
     public async Task<RoleResult> CreateAsync(
@@ -266,14 +314,20 @@ public sealed class RoleEditor(
 
         return new RoleView(
             name,
-            claims.FirstOrDefault(c => c.Type == RoleSynchronizer.TitleClaim)?.Value ?? declared?.Title ?? name,
+            Title(claims, name),
             claims.FirstOrDefault(c => c.Type == RoleSynchronizer.SummaryClaim)?.Value ?? declared?.Summary,
             System: declared is not null,
             Edited: claims.Any(c => c.Type == RoleSynchronizer.EditedClaim),
             [.. claims.Where(c => c.Type == RoleSynchronizer.PermissionClaim)
                       .Select(c => c.Value).Order(StringComparer.Ordinal)],
-            (await users.GetUsersInRoleAsync(name)).Count);
+            (await users.GetUsersInRoleAsync(name)).Count,
+            AllPermissions: declared?.AllPermissions == true);
     }
+
+    /// <summary>Название роли из её утверждений; нет — из объявления; нет и его — техническое имя.</summary>
+    private static string Title(IList<Claim> claims, string name) =>
+        claims.FirstOrDefault(c => c.Type == RoleSynchronizer.TitleClaim)?.Value
+        ?? Declared(name)?.Title ?? name;
 
     /// <summary>
     /// Объявленные коды отдельно от неизвестных: неизвестный — опечатка, а не «просто нет».

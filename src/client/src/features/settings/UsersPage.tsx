@@ -136,19 +136,25 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
-  // Умолчание — первая роль списка, а не имя, зашитое здесь: «User» в коде экрана означало бы, что
-  // на установке без этой роли диалог открывается с пустым выбором.
+  // Умолчания у роли НЕТ, и это главное в этом диалоге.
+  //
+  // ⚠️ Здесь стояло `role || roles[0]?.name`. Выглядело безобидно — «первая роль списка вместо
+  // имени, зашитого в код», — а означало: какая роль окажется первой в ответе сервера, такую и
+  // получит человек, у которого администратор роль не выбрал. Сервер сортировал по техническому
+  // имени, первой шла Accountant, и новый сотрудник заводился «Бухгалтером» — с правом отмечать
+  // оплату и закрывать период (ревью #983). Порядок на сервере починен, но умолчание опасно самим
+  // своим существованием: выдача прав — не то место, где подставляют «что-нибудь».
   const [role, setRole] = useState('');
   const [error, setError] = useState('');
-  const picked = role || roles[0]?.name || '';
 
   function reset() { setEmail(''); setDisplayName(''); setPassword(''); setRole(''); setError(''); }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    if (!role) { setError('Выберите роль: она и есть набор прав, который получит человек.'); return; }
     try {
-      await create.mutateAsync({ email: email.trim(), displayName: displayName.trim(), password, role: picked });
+      await create.mutateAsync({ email: email.trim(), displayName: displayName.trim(), password, role });
       reset(); onClose();
     } catch (err) { setError(apiError(err)); }
   }
@@ -161,7 +167,9 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
         <TextField label="Начальный пароль" type="text" value={password} onChange={e => setPassword(e.target.value)}
           required minLength={PASSWORD_MIN_LENGTH} className="font-mono"
           hint={`${PASSWORD_HINT} Пользователь сможет сменить его сам.`} />
-        <Select label="Роль" value={picked} onValueChange={setRole}>
+        <Select label="Роль" value={role || undefined} onValueChange={setRole} required
+          placeholder="Выберите роль" invalid={!!error && !role}
+          hint="Что даёт каждая роль — на экране «Роли и права».">
           {roles.map(r => (
             <SelectItem key={r.name} value={r.name}>
               {r.summary ? `${r.title} — ${r.summary}` : r.title}
@@ -171,7 +179,7 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="text" onClick={() => { reset(); onClose(); }}>Отмена</Button>
-          <Button type="submit" variant="filled" loading={create.isPending}>
+          <Button type="submit" variant="filled" loading={create.isPending} disabled={!role}>
             {create.isPending ? 'Создание…' : 'Создать'}
           </Button>
         </div>

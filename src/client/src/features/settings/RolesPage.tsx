@@ -58,6 +58,11 @@ export function RolesPage() {
   // draft ещё null. Типы этого не видят, экран падает целиком (поймано живым прогоном).
   const codes = draft !== null && selected !== null && draft.role === selected.name ? draft.codes : null;
 
+  // Роль «все права»: её состав сервер править отказывается (409). Признак приходит С СЕРВЕРА, а не
+  // угадывается по имени «Admin»: правило живёт там, где ему отказывают, и имя роли к делу не
+  // относится — им распоряжается объявление, а не этот экран.
+  const locked = selected?.allPermissions === true;
+
   const checked = useMemo(
     () => new Set(codes ?? selected?.permissions ?? []),
     [codes, selected]);
@@ -67,7 +72,7 @@ export function RolesPage() {
         || codes.some(c => !selected.permissions.includes(c)));
 
   function toggle(code: string) {
-    if (!selected) return;
+    if (!selected || locked) return;
     const next = new Set(codes ?? selected.permissions);
     if (next.has(code)) next.delete(code); else next.add(code);
     setDraft({ role: selected.name, codes: [...next] });
@@ -115,12 +120,16 @@ export function RolesPage() {
       nav={
         <>
           <NavSection label="Роли" />
-          <div className="px-2 pb-3 space-y-0.5">
+          {/* Своя прокрутка у каждого слота — правило этого shell: он раздаёт высоту, но не
+              прокручивает. Без неё растут обе колонки сразу, и панель «Сохранить», приклеенная к
+              низу detail, уезжает за край экрана вместе со списком ролей. */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3 space-y-0.5">
             {isLoading ? <div className="px-3 py-2 text-sm text-fg4">Загрузка…</div> : roles.map(row)}
           </div>
         </>
       }
       detail={selected && (
+        <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="px-6 py-4 pb-2 max-w-3xl">
           <div className="flex items-start justify-between gap-4 mb-1">
             <div>
@@ -145,18 +154,31 @@ export function RolesPage() {
           </div>
 
           <p className="text-[13px] text-fg4 mb-4">
-            Роль носят {selected.users} чел. Правка состава действует немедленно у всех них —
-            перезаходить в систему никому не нужно.
+            Роль носят {selected.users} чел.{' '}
+            {locked
+              ? 'Состав этой роли задан не здесь — см. ниже.'
+              : 'Правка состава действует немедленно у всех них — перезаходить в систему никому не нужно.'}
           </p>
+
+          {locked && (
+            <p className="text-[13px] text-fg2 border border-stroke rounded-lg bg-muted px-4 py-3 mb-4">
+              <span className="font-medium">Состав этой роли не правится.</span> Он не перечислен:
+              он равен справочнику прав и пополняется вместе с ним — поэтому право следующего
+              обновления достанется ей само. Снятое здесь вернулось бы при ближайшем запуске, а
+              снятое управление пользователями оставило бы систему без администратора. Нужен
+              администратор с ограничениями — заведите отдельную роль и выдайте ей нужные галки.
+            </p>
+          )}
 
           {groups.map(group => (
             <section key={group.module} className="mb-5">
               <h2 className="text-[11px] font-medium uppercase tracking-wide text-fg4 mb-2">{group.title}</h2>
               <div className="border border-stroke rounded-lg divide-y divide-muted bg-surface">
                 {group.permissions.map((p: PermissionInfo) => (
-                  <label key={p.code} className="flex gap-3 px-4 py-2.5 cursor-pointer hover:bg-base">
+                  <label key={p.code} className={`flex gap-3 px-4 py-2.5 hover:bg-base ${
+                    locked ? 'cursor-default' : 'cursor-pointer'}`}>
                     <input type="checkbox" className="mt-1 shrink-0" checked={checked.has(p.code)}
-                      onChange={() => toggle(p.code)} />
+                      disabled={locked} onChange={() => toggle(p.code)} />
                     <span className="min-w-0">
                       <span className="block text-sm text-fg1">{p.gives}</span>
                       <span className="block text-[12px] text-fg3">Открывает доступ: {p.opens}</span>
@@ -175,12 +197,17 @@ export function RolesPage() {
 
           {error && <p className="text-sm text-danger mb-2">{error}</p>}
 
-          <div className="flex items-center gap-2 sticky bottom-0 bg-base/90 backdrop-blur py-3">
-            <Button variant="filled" disabled={!dirty} loading={save.isPending} onClick={submit}>
-              Сохранить состав прав
-            </Button>
-            {dirty && <Button variant="text" onClick={() => setDraft(null)}>Отменить</Button>}
-          </div>
+          {/* У роли «все права» сохранять нечего — кнопки нет вовсе, а не выключенная: выключенная
+              кнопка обещает, что когда-нибудь включится. */}
+          {!locked && (
+            <div className="flex items-center gap-2 sticky bottom-0 bg-base/90 backdrop-blur py-3">
+              <Button variant="filled" disabled={!dirty} loading={save.isPending} onClick={submit}>
+                Сохранить состав прав
+              </Button>
+              {dirty && <Button variant="text" onClick={() => setDraft(null)}>Отменить</Button>}
+            </div>
+          )}
+        </div>
         </div>
       )}
     />

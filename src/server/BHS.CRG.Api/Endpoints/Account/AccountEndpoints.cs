@@ -177,8 +177,10 @@ public static class AccountEndpoints
         ApplicationUser u, UserManager<ApplicationUser> users, RoleEditor editor)
     {
         var role = (await users.GetRolesAsync(u)).FirstOrDefault() ?? SystemRoles.IdEngineer;
+        // Именно TitleAsync, а не FindAsync: профиль спрашивают на каждой загрузке экрана, а полный
+        // вид роли ради одной подписи поднимал всех её носителей (ревью #983).
         return new(u.Email ?? "", u.DisplayName, role,
-            (await editor.FindAsync(role))?.Title ?? role, u.EmailConfirmed, u.AvatarDataUri);
+            await editor.TitleAsync(role), u.EmailConfirmed, u.AvatarDataUri);
     }
 
     private static string DescribeErrors(IdentityResult r) =>
