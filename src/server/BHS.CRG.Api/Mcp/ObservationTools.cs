@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Security.Claims;
 using System.Text.Json;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Reconciliation;
 using BHS.CRG.Domain.Catalog;
@@ -49,6 +50,7 @@ public class ObservationTools(IMediator mediator, IHttpContextAccessor http)
         ObservationReferences.Unwrap(o.References.RootElement).Clone(),
         o.ReportedBy, o.ReviewedBy, o.ReviewNote, o.UpdatedAt);
 
+    [McpPermission(CorePermissions.ReconciliationRun)]
     [McpServerTool(Name = "list_observations", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Замечания анализа")]
     [Description("""
@@ -80,6 +82,7 @@ public class ObservationTools(IMediator mediator, IHttpContextAccessor http)
             [.. items.Select(ToInfo)], offset, limit, ObservationsMaxLimit);
     }
 
+    [McpPermission(CorePermissions.ReconciliationRun)]
     [McpServerTool(Name = "report_observation", ReadOnly = false, Idempotent = true, Destructive = false,
         Title = "Сообщить замечание")]
     [Description("""
@@ -137,6 +140,7 @@ public class ObservationTools(IMediator mediator, IHttpContextAccessor http)
         return ToInfo(observation);
     }
 
+    [McpPermission(CorePermissions.ReconciliationRun)]
     [McpServerTool(Name = "retract_observation", ReadOnly = false, Idempotent = true, Destructive = false,
         Title = "Отозвать замечание")]
     [Description("""

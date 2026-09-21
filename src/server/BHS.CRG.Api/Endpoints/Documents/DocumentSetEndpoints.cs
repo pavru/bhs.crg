@@ -234,6 +234,11 @@ public static class DocumentSetEndpoints
         // недостающих + склейка могут занять десятки секунд). 202 + jobId, прогресс в индикаторе.
         // Сам запуск и его защиты — в IOperationLauncher: то же ядро зовёт MCP (issue #898).
         // Отказ «сборка уже идёт» приходит ConflictException → 409 общим обработчиком.
+        //
+        // ⚠️ Право ВЫПУСКА, а не чтения (нашло ревью #948). Группа закрыта id.document.read, и
+        // сборка досталась бы всем, кто комплекты видит, — а выпуск одного документа тем временем
+        // требует id.document.generate (/api/generate). Разъехавшись, эти двое означали бы, что
+        // собрать весь комплект проще, чем выпустить из него один лист.
         g.MapPost("/{setId:guid}/assemble", async (
             Guid setId, AssembleSetRequest? req, IOperationLauncher launcher, ClaimsPrincipal user, CancellationToken ct) =>
         {
@@ -241,7 +246,7 @@ public static class DocumentSetEndpoints
             return jobId is null
                 ? Results.NotFound()
                 : Results.Accepted("/api/jobs/active", new { jobId });
-        });
+        }).RequireAuthorization(AppPolicies.Permission("id.document.generate"));
 
         // Кому уйдёт письмо: подписчики уровня плюс унаследованные сверху — ПОД ТЕМ ЖЕ ПРАВОМ, что
         // и сама отправка (issue #989, нашло ревью PR #991).

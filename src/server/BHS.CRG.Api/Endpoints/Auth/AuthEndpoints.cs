@@ -1,4 +1,5 @@
 using BHS.CRG.Api.Auth;
+using BHS.CRG.Application.Activity;
 using BHS.CRG.Infrastructure.Email;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -15,7 +16,8 @@ public static class AuthEndpoints
         // Первый зарегистрированный становится администратором. Дальше пользователей
         // заводит администратор через /api/users.
         g.MapPost("/register", async (RegisterRequest req,
-            UserManager<ApplicationUser> users) =>
+            UserManager<ApplicationUser> users, IActivityLog journal, RoleEditor editor,
+            ILoggerFactory loggers) =>
         {
             if (users.Users.Any())
                 return Results.Problem("Регистрация закрыта. Обратитесь к администратору.", statusCode: 403);
@@ -29,7 +31,38 @@ public static class AuthEndpoints
             // потребитель (issue #826): клиенту пришлось бы переводить коды самому, теряя
             // «Пароль должен содержать хотя бы одну заглавную букву» ради общей фразы про политику.
             if (!result.Succeeded) return Results.BadRequest(new { error = DescribeErrors(result) });
-            await users.AddToRoleAsync(user, "Admin");
+            await users.AddToRoleAsync(user, SystemRoles.Admin);
+
+            // Заведение первого администратора — в журнал (issue #980). Именно про него потом и
+            // спрашивают «кто это завёл»: учётная запись самая широкая из всех, а заведена без
+            // приглашения и без автора. Автором запись назовёт «Систему» — это честно, ни один
+            // пользователь в тот момент не вошёл, и другого имени взять неоткуда.
+            //
+            // ⚠️ Отказ записи НЕ роняет ответ, и только здесь (ревью #980). Эта дверь закрывается
+            // НАВСЕГДА: пользователь уже заведён, значит следующий запрос получит 403 «Регистрация
+            // закрыта», а install.sh на 500 посоветует «заведите администратора сами» — совет,
+            // выполнить который уже нечем. У остальных записей журнала отказ виден и поправим,
+            // поэтому там он остаётся отказом.
+            //
+            // Токен запроса сюда не передаём умышленно: обрыв связи (curl --max-time 30 в
+            // install.sh на холодном старте) не отменяет того, что действие состоялось, — а
+            // отменённая запись потеряла бы след ровно у той учётной записи, про которую спросят.
+            //
+            // Глушить это внутри самой службы нельзя: RecordAsync сохраняет ЧУЖИМ контекстом базы,
+            // и его SaveChanges выносит заодно правки вызывающего. Проглоченный там отказ прятал бы
+            // не потерю записи, а несохранённое действие.
+            try
+            {
+                await journal.RecordAsync(ActivityActions.UserCreated,
+                    user.Id.ToString(), user.Email,
+                    after: (await editor.TitlesAsync()).GetValueOrDefault(SystemRoles.Admin, SystemRoles.Admin),
+                    ct: CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                loggers.CreateLogger("Auth").LogWarning(ex,
+                    "Первый администратор заведён, но запись в журнал не удалась");
+            }
             return Results.Ok();
         }).RequireRateLimiting("login");
 

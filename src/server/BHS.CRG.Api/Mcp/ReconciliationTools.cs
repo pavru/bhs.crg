@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Security.Claims;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Reconciliation;
 using BHS.CRG.Domain.Reconciliation;
@@ -59,6 +60,7 @@ public class ReconciliationTools(IMediator mediator, IHttpContextAccessor http)
         a.Id, a.AliasKey, a.AliasLabel, a.CanonicalKey, a.CanonicalLabel,
         a.Status.ToString(), a.Note, a.ProposedBy, a.ConfirmedBy);
 
+    [McpPermission(CorePermissions.ReconciliationRun)]
     [McpServerTool(Name = "list_reconciliations", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Сверки")]
     [Description("""
@@ -83,6 +85,7 @@ public class ReconciliationTools(IMediator mediator, IHttpContextAccessor http)
         return SnapshotPage<ReconciliationInfo>.Of(all, offset, limit, ListMaxLimit);
     }
 
+    [McpPermission(CorePermissions.ReconciliationRun)]
     [McpServerTool(Name = "get_reconciliation_findings", ReadOnly = true, Idempotent = true,
         Destructive = false, Title = "Находки сверки")]
     [Description("""
@@ -117,6 +120,7 @@ public class ReconciliationTools(IMediator mediator, IHttpContextAccessor http)
         return SnapshotPage<FindingInfo>.Of(all, offset, limit, FindingsMaxLimit);
     }
 
+    [McpPermission(CorePermissions.ReconciliationRun)]
     [McpServerTool(Name = "list_aliases", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Алиасы позиций")]
     [Description("""
@@ -138,6 +142,7 @@ public class ReconciliationTools(IMediator mediator, IHttpContextAccessor http)
         return SnapshotPage<AliasInfo>.Of(all, offset, limit, ListMaxLimit);
     }
 
+    [McpPermission(CorePermissions.ReconciliationRun)]
     [McpServerTool(Name = "propose_alias", ReadOnly = false, Idempotent = true, Destructive = false,
         Title = "Предложить соответствие позиций")]
     [Description("""

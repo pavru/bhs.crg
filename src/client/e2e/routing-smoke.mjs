@@ -259,21 +259,27 @@ try {
 
     const dialog = page.locator('[role=dialog]');
 
-    // ⚠️ Сперва убеждаемся, что роли ЕСТЬ. На пустом списке подставлять нечего: placeholder на
-    // месте, кнопка выключена — оба утверждения ниже прошли бы, не коснувшись регрессии, которую
-    // проверка заведена ловить (ревью #986). Список открываем — заодно видно, что он живой.
-    await dialog.locator('button', { hasText: 'Выберите роль' }).click();
-    await page.waitForSelector('text=Инженер ИД', { timeout: 5000 });
+    // ⚠️ Сперва убеждаемся, что роли ЕСТЬ. На пустом списке подставлять нечего: подпись «Без ролей»
+    // на месте, кнопка выключена — оба утверждения ниже прошли бы, не коснувшись регрессии, которую
+    // проверка заведена ловить (ревью #986). Меню открываем — заодно видно, что список живой.
+    //
+    // С #984 роль выбирается меню с ГАЛКАМИ (их может быть несколько), а не выпадающим списком:
+    // пункты объявлены как menuitemcheckbox, и «не выбрано» читается по ним, а не по placeholder.
+    await dialog.locator('button[aria-label="Роли нового пользователя"]').click();
+    await page.waitForSelector('[role=menuitemcheckbox]', { timeout: 5000 });
     for (const role of ['Администратор', 'Инженер ИД']) {
-      if (!(await page.locator(`[role=option]:has-text("${role}")`).count()))
-        throw new Error(`в списке ролей диалога нет «${role}» — подставлять было бы нечего`);
+      if (!(await page.locator(`[role=menuitemcheckbox]:has-text("${role}")`).count()))
+        throw new Error(`в меню ролей диалога нет «${role}» — подставлять было бы нечего`);
     }
+    const checked = await page.locator('[role=menuitemcheckbox][aria-checked=true]').count();
+    if (checked > 0)
+      throw new Error(`роль в диалоге отмечена заранее (${checked}) — выдача прав идёт по умолчанию`);
     await page.keyboard.press('Escape');
 
-    // Список закрыт, роль по-прежнему не выбрана — вот это и проверяем.
+    // Меню закрыто, и подпись кнопки говорит то же самое словами.
     const text = await dialog.innerText();
-    if (!text.includes('Выберите роль'))
-      throw new Error('роль в диалоге подставлена заранее — выдача прав идёт по умолчанию');
+    if (!text.includes('Без ролей'))
+      throw new Error('диалог не говорит, что роль не выбрана');
 
     const create = dialog.locator('button', { hasText: 'Создать' }).last();
     if (await create.isEnabled())

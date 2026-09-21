@@ -7,13 +7,11 @@ import {
 import { AuthContext, type AuthUser } from '@/shared/hooks/useAuth';
 
 function decodeUser(token: string): AuthUser {
-  const payload = jwtDecode<{ sub: string; email: string; displayName: string; role?: string | string[] }>(token);
-  const roles = Array.isArray(payload.role) ? payload.role : payload.role ? [payload.role] : [];
-  // Имя роли берётся КАК ЕСТЬ. Прежняя строка сводила любой набор к «Admin» или «User» — то есть
-  // клиент принимал решение по имени роли, а ролей теперь девять системных плюс заведённые
-  // администратором (issue #951). Решений по этому имени не принимают вовсе: что доступно,
-  // отвечает /api/account/access (AUTH-14), а подпись приходит с сервера.
-  return { sub: payload.sub, email: payload.email, displayName: payload.displayName, role: roles[0] ?? '' };
+  // Роли из токена не читаются вовсе (issue #984). Раньше отсюда брали ПЕРВУЮ — и у человека с
+  // двумя ролями это была ложь ровно в том месте, где её не проверишь. Решений по имени роли не
+  // принимают: что доступно, отвечает /api/account/access (AUTH-14), а подписи — /api/account.
+  const payload = jwtDecode<{ sub: string; email: string; displayName: string }>(token);
+  return { sub: payload.sub, email: payload.email, displayName: payload.displayName };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
