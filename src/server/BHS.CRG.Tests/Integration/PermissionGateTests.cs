@@ -291,6 +291,91 @@ public class PermissionGateTests(IntegrationTestFixture fixture)
     }
 
     /// <summary>
+    /// Отправка по почте закрыта СВОИМ правом (ТЗ ID-4.1, issue #989).
+    ///
+    /// ⚠️ Проверяется двусторонне, и обе стороны нужны. Отказ без права прошёл бы и на прежних
+    /// воротах <c>RequireAuthorization("Admin")</c> — он ничего не доказывает про право. А проход с
+    /// правом прошёл бы и в том случае, если бы ворота сняли вовсе.
+    ///
+    /// Различаем 403 и 404: комплекта с таким идентификатором нет, поэтому пропущенный запрос
+    /// обязан дойти до обработчика и не найти комплект. Совпади коды — тест не отличал бы
+    /// «не пустили» от «пустили».
+    /// </summary>
+    [Fact]
+    public async Task Sending_by_email_is_closed_by_its_own_permission()
+    {
+        var missing = Guid.NewGuid();
+        var letter = new { to = new[] { "someone@example.com" }, subject = "Тема", body = "Текст" };
+
+        var reader = await SignInWithPermissionsAsync("id.document.read");
+        var sender = await SignInWithPermissionsAsync("id.document.read", "id.document.send");
+
+        foreach (var url in new[]
+        {
+            $"/api/document-sets/{missing}/email",
+            $"/api/document-sets/{missing}/documents/{Guid.NewGuid()}/email",
+        })
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, (await reader.PostAsJsonAsync(url, letter)).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await sender.PostAsJsonAsync(url, letter)).StatusCode);
+        }
+    }
+
+    /// <summary>
+    /// Список получателей открыт ТЕМ ЖЕ правом, что и отправка (issue #989, нашло ревью PR #991).
+    ///
+    /// ⚠️ Проверка про связку, а не про один адрес. Тот же список отдаёт
+    /// <c>/api/subscriptions/recipients</c> под правом «управлять аудиторией уведомлений», которого
+    /// у отправителя может не быть, — и диалог показывал бы пустой список подписчиков вместо
+    /// отказа. Выданное право рассылки обязано открывать рассылку целиком.
+    /// </summary>
+    [Fact]
+    public async Task Recipients_open_with_the_same_permission_as_sending()
+    {
+        var missing = Guid.NewGuid();
+        var url = $"/api/document-sets/{missing}/email/recipients";
+
+        var reader = await SignInWithPermissionsAsync("id.document.read");
+        var sender = await SignInWithPermissionsAsync("id.document.read", "id.document.send");
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync(url)).StatusCode);
+
+        // Права аудитории у отправителя НЕТ — и они не нужны: список приходит пустым, а не отказом.
+        var answer = await sender.GetAsync(url);
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await sender.GetAsync($"/api/subscriptions/recipients?scope=Set&scopeId={missing}")).StatusCode);
+    }
+
+    /// <summary>Клиент с ролью, состав которой перечислен здесь и нигде не объявлен.</summary>
+    private async Task<HttpClient> SignInWithPermissionsAsync(params string[] permissions)
+    {
+        var roleName = $"Granted_{Guid.NewGuid():N}";
+        var email = $"granted_{Guid.NewGuid():N}@test.local";
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+            var role = new IdentityRole<Guid>(roleName);
+            Assert.True((await roles.CreateAsync(role)).Succeeded);
+            foreach (var code in permissions)
+                Assert.True((await roles.AddClaimAsync(
+                    role, new Claim(RoleSynchronizer.PermissionClaim, code))).Succeeded);
+
+            var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "Тест", EmailConfirmed = true };
+            Assert.True((await users.CreateAsync(user, Password)).Succeeded);
+            Assert.True((await users.AddToRoleAsync(user, roleName)).Succeeded);
+        }
+
+        var client = fixture.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", await TokenAsync(client, email));
+        return client;
+    }
+
+    /// <summary>
     /// Каждые ворота на праве называют ОБЪЯВЛЕННОЕ право — проверяется по всем адресам живого
     /// приложения.
     ///

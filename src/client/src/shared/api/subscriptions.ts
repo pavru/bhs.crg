@@ -20,10 +20,11 @@ export interface Recipient {
 }
 
 /** Прямые подписчики уровня. */
-export function useSubscribers(scope: SubscriptionScope, scopeId: string) {
+export function useSubscribers(scope: SubscriptionScope, scopeId: string, enabled = true) {
   return useQuery({
     queryKey: ['subscriptions', scope, scopeId],
     queryFn: () => apiClient.get<Subscriber[]>('/subscriptions', { params: { scope, scopeId } }).then(r => r.data),
+    enabled,
   });
 }
 

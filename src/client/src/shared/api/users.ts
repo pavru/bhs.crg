@@ -13,10 +13,11 @@ export interface AppUser {
   roleTitle: string;
 }
 
-export function useListUsers() {
+export function useListUsers(enabled = true) {
   return useQuery<AppUser[]>({
     queryKey: [QK],
     queryFn: () => apiClient.get('/users').then(r => r.data),
+    enabled,
   });
 }
 

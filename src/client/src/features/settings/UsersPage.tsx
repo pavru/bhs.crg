@@ -74,7 +74,9 @@ export function UsersPage() {
                   <tr key={u.id} className="group hover:bg-base align-top">
                     <td className="px-4 py-2.5">
                       <div className="text-fg1 font-medium flex items-center gap-2">
-                        {u.role === 'Admin'
+                        {/* Щит — у роли «все права», а не у роли с именем «Admin»: признак
+                            приходит с сервера, а имя ничего не значит (issues #989/#990). */}
+                        {roles.find(r => r.name === u.role)?.allPermissions
                           ? <ShieldCheck size={14} className="text-brand shrink-0" />
                           : <UserIcon size={14} className="text-fg4 shrink-0" />}
                         {u.displayName || u.email}

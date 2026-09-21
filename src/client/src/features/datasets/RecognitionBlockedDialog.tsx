@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
-import { useAuth } from '@/shared/hooks/useAuth';
+import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
 
 /**
  * «Распознавание не запущено» (issue #801) — отказ ДО постановки задачи: распознавать некому.
@@ -14,8 +14,10 @@ export function RecognitionBlockedDialog(
   { message, configurable = true, onClose }: { message: string; configurable?: boolean; onClose: () => void },
 ) {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'Admin';
+  // Совет даём по ПРАВУ: носителю роли с core.system.manage незачем советовать обратиться к
+  // администратору — он и есть тот, кто чинит. По имени роли этот текст врал бы именно ему.
+  const { data: access = NO_ACCESS } = useAccess();
+  const canConfigure = hasPermission(access, 'core.system.manage');
 
   return (
     <Modal open onOpenChange={o => { if (!o) onClose(); }} title="Распознавание не запущено"
@@ -23,7 +25,7 @@ export function RecognitionBlockedDialog(
         <div className="flex justify-end gap-2">
           {/* Кнопка ведёт в раздел под AdminRoute: обычному пользователю она дала бы 403 — то есть
               совет, за которым следует отказ. Ему адресован другой текст, ниже. */}
-          {isAdmin && configurable && (
+          {canConfigure && configurable && (
             <Button type="button" variant="text"
               onClick={() => { onClose(); navigate('/settings'); }}>
               Открыть настройки
@@ -38,7 +40,7 @@ export function RecognitionBlockedDialog(
             не чинится, и отправлять туда человека значит тратить его время. */}
         {configurable && (
         <p className="text-sm text-fg2">
-          {isAdmin
+          {canConfigure
             ? 'Что сделать: в «Настройка системы → Поиск и распознавание» выберите модель, которая принимает изображения, или поставьте выше другой движок распознавания.'
             : 'Что сделать: обратитесь к администратору — нужно сменить модель распознавания в настройках системы.'}
         </p>

@@ -12,7 +12,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
 import { useToast } from '@/shared/ui/Toast';
 import { ListDetailShell, NavSearchInput, NavItem, NavSection } from '@/shared/ui/ListDetailShell';
-import { useAuth } from '@/shared/hooks/useAuth';
+import { useAccess, NO_ACCESS, hasPermission } from '@/shared/api/access';
 import {
   useReconciliations, useReconciliationRuns, useFindings, useRunReconciliation,
   useDeleteReconciliation, useSetDecision, useRemoveDecision, downloadDiscrepancyReport,
@@ -130,8 +130,11 @@ function navFromQuery(query: string): { view: ReconciliationView; selectedId: st
 }
 
 export function ReconciliationsPage() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'Admin';
+  // Правка определения сверки — по ПРАВУ, и по тому же, что и прогон: сервер разрешает их ОДНИМ
+  // правом (ReconciliationEndpoints). Имя роли здесь изображало границу, которой в коде нет, — а
+  // спрятанная кнопка и не граница вовсе: её обходит запрос к API. Нужна граница — нужно право.
+  const { data: access = NO_ACCESS } = useAccess();
+  const canEdit = hasPermission(access, 'core.reconciliation.run');
   const toast = useToast();
 
   const [search, setSearch] = useState('');
@@ -284,7 +287,7 @@ export function ReconciliationsPage() {
         <Button variant="filled" onClick={onRun} disabled={run.isPending} className="shrink-0">
           <Play size={14} /> {run.isPending ? 'Считаю…' : 'Прогнать'}
         </Button>
-        {isAdmin && (
+        {canEdit && (
           <RowActionsMenu actions={[
             { key: 'edit', label: 'Изменить', onSelect: () => setEditing(selected.id) },
             { key: 'delete', label: 'Удалить', danger: true, onSelect: () => setDeleting(selected.id) },
@@ -378,7 +381,7 @@ export function ReconciliationsPage() {
                 </Button>
               </>
             )}
-            {isAdmin && (
+            {canEdit && (
               <Button variant="filled" onClick={() => setEditing('new')}><Plus size={14} /> Создать</Button>
             )}
           </div>

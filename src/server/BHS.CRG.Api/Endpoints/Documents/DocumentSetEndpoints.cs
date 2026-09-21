@@ -5,6 +5,8 @@ using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Application.Jobs;
+using BHS.CRG.Application.Subscriptions;
+using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Jobs;
 using MediatR;
@@ -13,6 +15,17 @@ namespace BHS.CRG.Api.Endpoints.Documents;
 
 public static class DocumentSetEndpoints
 {
+    /// <summary>
+    /// Право на отправку по почте (ТЗ ID-4.1, issue #989). Код объявлен модулем <c>id</c>
+    /// (<see cref="Modules.IdModule" />) — здесь только ссылка на него, чтобы строка не разошлась с
+    /// объявлением: ворота на необъявленное право не соберутся вовсе (ТЗ AUTH-8.2).
+    ///
+    /// ⚠️ До 0.181.0 обе двери закрывались именем роли — <c>RequireAuthorization("Admin")</c>,
+    /// последним таким остатком в приложении. Имя роли не разграничивает ничего: состав роли
+    /// меняют в редакторе, и проверка по имени начинает означать не то, ради чего её ставили.
+    /// </summary>
+    private const string SendPermission = "id.document.send";
+
     public static void MapDocumentSetEndpoints(this IEndpointRouteBuilder app)
     {
         // ── Constructions ──────────────────────────────────────────────────────
@@ -230,6 +243,19 @@ public static class DocumentSetEndpoints
                 : Results.Accepted("/api/jobs/active", new { jobId });
         });
 
+        // Кому уйдёт письмо: подписчики уровня плюс унаследованные сверху — ПОД ТЕМ ЖЕ ПРАВОМ, что
+        // и сама отправка (issue #989, нашло ревью PR #991).
+        //
+        // ⚠️ Тот же список отдаёт /api/subscriptions/recipients, но он закрыт правом
+        // core.notify.manage — «управлять аудиторией уведомлений». Читать, кому уйдёт ЭТО письмо, и
+        // распоряжаться подписками всего экземпляра — разные вещи, и требовать второго ради первого
+        // значит: выдали право рассылки, а список подписчиков молча пуст (403 в диалоге выглядел бы
+        // как «подписчиков нет»). Одна возможность — одно право.
+        g.MapGet("/{setId:guid}/email/recipients", async (
+            Guid setId, ISubscriptionService subscriptions, CancellationToken ct) =>
+            Results.Ok(await subscriptions.ResolveRecipientsAsync(CatalogScope.Set, setId, ct)))
+            .RequireAuthorization(AppPolicies.Permission(SendPermission));
+
         // Отправка собранного комплекта на заданные адреса (подписчики + произвольные) — фоновая задача.
         g.MapPost("/{setId:guid}/email", async (
             Guid setId, EmailSendRequest? req, IMediator m, IJobService jobs, ClaimsPrincipal user, CancellationToken ct) =>
@@ -241,7 +267,7 @@ public static class DocumentSetEndpoints
             var jobId = await jobs.EnqueueAsync(JobKind.SendEmail, GetUserId(user), setId,
                 $"Отправка комплекта «{set.Name}»", payload, ct);
             return Results.Accepted("/api/jobs/active", new { jobId });
-        }).RequireAuthorization("Admin");
+        }).RequireAuthorization(AppPolicies.Permission(SendPermission));
 
         // Отправка отдельного документа (его сгенерированных PDF) на заданные адреса — фоновая задача.
         g.MapPost("/{setId:guid}/documents/{id:guid}/email", async (
@@ -254,7 +280,7 @@ public static class DocumentSetEndpoints
             var jobId = await jobs.EnqueueAsync(JobKind.SendEmail, GetUserId(user), id,
                 $"Отправка документа «{inst.DisplayName ?? "документ"}»", payload, ct);
             return Results.Accepted("/api/jobs/active", new { jobId });
-        }).RequireAuthorization("Admin");
+        }).RequireAuthorization(AppPolicies.Permission(SendPermission));
 
         // Метаданные собранного комплекта (для показа кнопки скачивания) — 404, если ещё не собран.
         g.MapGet("/{setId:guid}/output", async (Guid setId, IRepository<DocumentSetOutput> outputRepo, CancellationToken ct) =>
