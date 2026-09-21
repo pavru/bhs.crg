@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Mcp;
 using BHS.CRG.Application.DataSnapshots;
 using BHS.CRG.Application.Documents;
@@ -20,10 +21,16 @@ public class McpResourceCatalogTests(IntegrationTestFixture fixture) : IAsyncLif
     public async Task InitializeAsync() => await fixture.ResetDatabaseAsync();
     public Task DisposeAsync() => Task.CompletedTask;
 
+    /// <summary>Права, при которых витрина видна целиком: отбор по правам проверяется отдельно
+    /// (<see cref="McpToolGateTests" />), здесь речь о её составе.</summary>
+    private static readonly string[] AllReads =
+        [CorePermissions.ConstructionsRead, CorePermissions.DataSetsRead, "id.document.read"];
+
     private static async Task<IReadOnlyList<Resource>> ListAsync(IServiceScope scope)
         => await McpResourceCatalog.BuildAsync(
             scope.ServiceProvider.GetRequiredService<IDomainSnapshotService>(),
-            scope.ServiceProvider.GetRequiredService<IDataSnapshotService>());
+            scope.ServiceProvider.GetRequiredService<IDataSnapshotService>(),
+            AllReads);
 
     [Fact]
     public async Task Lists_Constructions_Sets_AndDatasets_ByHumanNames()

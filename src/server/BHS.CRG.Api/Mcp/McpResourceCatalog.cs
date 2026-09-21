@@ -1,4 +1,8 @@
-﻿using BHS.CRG.Application.DataSnapshots;
+﻿using System.Security.Claims;
+using BHS.CRG.Api.Auth;
+using BHS.CRG.Application.DataSnapshots;
+using BHS.CRG.Modules;
+using Microsoft.AspNetCore.Http;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -32,36 +36,61 @@ public static class McpResourceCatalog
     {
         var services = request.Services
             ?? throw new InvalidOperationException("Нет области сервисов для перечисления ресурсов.");
+        // Права спрашивающего (issue #948). Витрина собирается СВОИМ обработчиком, а не из
+        // объявленных ресурсов, — значит, фильтры SDK её не видят, и отбор приходится делать здесь.
+        // Иначе получилось бы худшее: чтение каждого ресурса закрыто правом, а список показывает
+        // имена строек и комплектов тому, кому они не открываются.
+        var permissions = (IUserPermissions)services.GetService(typeof(IUserPermissions))!;
+        var principal = ((IHttpContextAccessor)services.GetService(typeof(IHttpContextAccessor))!)
+            .HttpContext?.User ?? new ClaimsPrincipal();
+
         return new ListResourcesResult
         {
             Resources = [.. await BuildAsync(
                 (IDomainSnapshotService)services.GetService(typeof(IDomainSnapshotService))!,
-                (IDataSnapshotService)services.GetService(typeof(IDataSnapshotService))!, ct)],
+                (IDataSnapshotService)services.GetService(typeof(IDataSnapshotService))!,
+                await permissions.ForAsync(principal, ct), ct)],
         };
     }
 
-    /// <summary>Сама витрина, без привязки к транспорту — тем же приёмом, что и везде: MCP-слой тонкий.</summary>
+    /// <summary>
+    /// Сама витрина, без привязки к транспорту — тем же приёмом, что и везде: MCP-слой тонкий.
+    /// </summary>
+    /// <param name="granted">
+    /// Действующие права спрашивающего. Каждый вид записи витрины отбирается тем же правом, каким
+    /// закрыто чтение соответствующего ресурса: стройки — <c>core.constructions.read</c>, комплекты
+    /// — <c>id.document.read</c>, наборы — <c>core.datasets.read</c>. Пусто — витрина пуста, и это
+    /// правильный ответ: прикреплять к разговору нечего.
+    /// </param>
     public static async Task<IReadOnlyList<Resource>> BuildAsync(
-        IDomainSnapshotService domain, IDataSnapshotService datasets, CancellationToken ct = default)
+        IDomainSnapshotService domain, IDataSnapshotService datasets,
+        IReadOnlyCollection<string> granted, CancellationToken ct = default)
     {
         var resources = new List<Resource>();
 
-        var constructions = await ReadAllAsync(
-            (offset, token) => domain.ListConstructionsAsync(Guid.Empty, offset, ct: token), ct);
-        foreach (var c in constructions)
+        if (Has(granted, CorePermissions.ConstructionsRead))
         {
-            resources.Add(New($"bhs://construction/{c.Id}", c.Name, "Стройка",
-                $"Разделов: {c.SectionCount}, комплектов: {c.SetCount}, документов: {c.DocumentCount}."));
+            var constructions = await ReadAllAsync(
+                (offset, token) => domain.ListConstructionsAsync(Guid.Empty, offset, ct: token), ct);
+            foreach (var c in constructions)
+            {
+                resources.Add(New($"bhs://construction/{c.Id}", c.Name, "Стройка",
+                    $"Разделов: {c.SectionCount}, комплектов: {c.SetCount}, документов: {c.DocumentCount}."));
 
-            var detail = await domain.GetConstructionAsync(c.Id, ct);
-            if (detail is null) continue;
-            foreach (var section in detail.Sections)
-                foreach (var set in section.Sets)
-                    // Контекст в описании обязателен: одноимённые комплекты разных разделов иначе
-                    // неразличимы в списке выбора.
-                    resources.Add(New($"bhs://document-set/{set.Id}", set.Name, "Комплект документов",
-                        $"{c.Name} / {section.Name}. Документов: {set.DocumentCount}."));
+                // Комплекты — отдельное право: стройка видна справочником, а её документы нет.
+                if (!Has(granted, "id.document.read")) continue;
+                var detail = await domain.GetConstructionAsync(c.Id, ct);
+                if (detail is null) continue;
+                foreach (var section in detail.Sections)
+                    foreach (var set in section.Sets)
+                        // Контекст в описании обязателен: одноимённые комплекты разных разделов иначе
+                        // неразличимы в списке выбора.
+                        resources.Add(New($"bhs://document-set/{set.Id}", set.Name, "Комплект документов",
+                            $"{c.Name} / {section.Name}. Документов: {set.DocumentCount}."));
+            }
         }
+
+        if (!Has(granted, CorePermissions.DataSetsRead)) return resources;
 
         foreach (var d in await ReadAllAsync(
                      (offset, token) => datasets.ListDatasetsAsync(null, null, offset, ct: token), ct))
@@ -92,6 +121,9 @@ public static class McpResourceCatalog
             if (!page.Truncated || page.Items.Count == 0) return all;
         }
     }
+
+    private static bool Has(IReadOnlyCollection<string> granted, string code) =>
+        granted.Contains(code, StringComparer.OrdinalIgnoreCase);
 
     private static Resource New(string uri, string name, string kind, string description) => new()
     {

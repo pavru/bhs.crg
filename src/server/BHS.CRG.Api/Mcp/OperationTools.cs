@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Jobs;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Common;
@@ -35,6 +36,7 @@ public class OperationTools(IOperationLauncher launcher, IHttpContextAccessor ht
     // Idempotent НЕ ставим ни одному из трёх: подсказку об идемпотентности клиенты используют для
     // автоматического повтора при обрыве связи, а повтор здесь — вторая задача либо отказ. У
     // распознавания цена выше: повторённый вызов несёт с собой и подтверждение перезаписи.
+    [McpPermission("id.document.generate")]
     [McpServerTool(Name = "assemble_document_set", ReadOnly = false, Destructive = false,
         Title = "Собрать комплект в один PDF")]
     [Description("""
@@ -69,6 +71,10 @@ public class OperationTools(IOperationLauncher launcher, IHttpContextAccessor ht
         catch (DomainException ex) { throw new McpException(ex.Message); }
     }
 
+    // Право на НАСТРОЙКУ наборов, а не на чтение: распознавание переписывает их содержимое и с
+    // подтверждением стирает ручную правку разбиения на документы. Оба распознавания объявлены
+    // разрушительными (McpToolContractTests) — ворота обязаны называть то же самое.
+    [McpPermission(CorePermissions.DataSetsEdit)]
     [McpServerTool(Name = "recognize_dataset", ReadOnly = false, Destructive = true,
         Title = "Распознать PDF-набор")]
     [Description("""
@@ -111,6 +117,7 @@ public class OperationTools(IOperationLauncher launcher, IHttpContextAccessor ht
     private static McpException Refusal(RecognitionBlock block)
         => new($"[{block.Code}] {block.Message}");
 
+    [McpPermission(CorePermissions.DataSetsEdit)]
     [McpServerTool(Name = "recognize_source", ReadOnly = false, Destructive = true,
         Title = "Распознать источник набора")]
     [Description("""
