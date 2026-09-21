@@ -347,6 +347,58 @@ public class PermissionGateTests(IntegrationTestFixture fixture)
             (await sender.GetAsync($"/api/subscriptions/recipients?scope=Set&scopeId={missing}")).StatusCode);
     }
 
+    /// <summary>
+    /// Сборка комплекта в один PDF — под правом ВЫПУСКА (нашло ревью PR #998).
+    ///
+    /// Адрес сборки висел на группе комплектов, закрытой чтением, а выпуск ОДНОГО документа
+    /// (<c>/api/generate</c>) требовал права выпуска. Разъехавшись, эти двое означали, что собрать
+    /// весь комплект проще, чем выпустить из него один лист. Заметить такое по экрану нельзя:
+    /// кнопка работает, файл появляется.
+    /// </summary>
+    [Fact]
+    public async Task Assembling_a_set_requires_the_generate_permission()
+    {
+        var url = $"/api/document-sets/{Guid.NewGuid()}/assemble";
+
+        var reader = await SignInWithPermissionsAsync("id.document.read");
+        var publisher = await SignInWithPermissionsAsync("id.document.read", "id.document.generate");
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await reader.PostAsJsonAsync(url, new { })).StatusCode);
+        // У того, кому выпуск разрешён, дверь открыта: дальше отвечает уже отсутствие комплекта.
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await publisher.PostAsJsonAsync(url, new { })).StatusCode);
+    }
+
+    /// <summary>
+    /// Запуск распознавания — под правом НАСТРОЙКИ наборов (нашло ревью PR #998).
+    ///
+    /// Все четыре входа в распознавание лежали в группе наборов, закрытой правом на чтение, — то
+    /// есть «видеть наборы данных» позволяло переписать их содержимое, стереть ручную правку
+    /// разбиения (восстановить её нечем) и потратить деньги на внешние vision-вызовы.
+    ///
+    /// Проверяются все четыре сразу: закрыть один вход и оставить три — ровно та ошибка, ради
+    /// которой они собраны в общую группу.
+    /// </summary>
+    [Theory]
+    [InlineData("/files/{0}/recognize")]
+    [InlineData("/sources/{0}/recognize")]
+    [InlineData("/files/{0}/recognize-table")]
+    [InlineData("/files/{0}/recognize-document")]
+    public async Task Starting_recognition_requires_the_datasets_edit_permission(string route)
+    {
+        var url = "/api/datasets" + string.Format(route, Guid.NewGuid());
+
+        var reader = await SignInWithPermissionsAsync(CorePermissions.DataSetsRead);
+        var editor = await SignInWithPermissionsAsync(
+            CorePermissions.DataSetsRead, CorePermissions.DataSetsEdit);
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await reader.PostAsJsonAsync(url, new { firstPageIndex = 0 })).StatusCode);
+        Assert.NotEqual(HttpStatusCode.Forbidden,
+            (await editor.PostAsJsonAsync(url, new { firstPageIndex = 0 })).StatusCode);
+    }
+
     /// <summary>Клиент с ролью, состав которой перечислен здесь и нигде не объявлен.</summary>
     private async Task<HttpClient> SignInWithPermissionsAsync(params string[] permissions)
     {

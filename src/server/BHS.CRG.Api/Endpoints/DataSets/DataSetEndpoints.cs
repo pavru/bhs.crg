@@ -17,6 +17,19 @@ public static class DataSetEndpoints
     {
         var g = app.MapGroup("/api/datasets").RequireAuthorization(AppPolicies.Permission(CorePermissions.DataSetsRead));
 
+        // ⚠️ Запуск РАСПОЗНАВАНИЯ — под правом настройки наборов, а не чтения (нашло ревью #948).
+        // Он переписывает разобранные данные набора и, с подтверждением, стирает ручную правку
+        // разбиения на документы — восстановить её нечем; вдобавок он тратит деньги на внешние
+        // vision-вызовы. Право на «видеть наборы данных» такого не обещает.
+        //
+        // Отдельная группа, а не ключ у каждого адреса: четыре входа в распознавание обязаны
+        // закрываться одинаково, и забытый пятый бросался бы в глаза здесь, а не в чужом файле.
+        //
+        // Остальные адреса группы наборов пока закрыты одним правом на чтение: разделение их на
+        // чтение и настройку — отдельная работа (ТЗ CORE-37), и здесь она не сделана.
+        var recognize = app.MapGroup("/api/datasets")
+            .RequireAuthorization(AppPolicies.Permission(CorePermissions.DataSetsEdit));
+
         // ── Файлы ──────────────────────────────────────────────────────────────
 
         g.MapGet("/files", async (string? scope, Guid? scopeId, bool? includeInherited,
@@ -242,7 +255,7 @@ public static class DataSetEndpoints
         // (ГОСТ, минуты) → фоновая задача, 202+jobId; короткая (Счёт, секунды) → синхронно, 200.
         // Запуск и его защиты (порядок «уже идёт» → предполёт → confirm) — в IOperationLauncher:
         // то же ядро зовёт MCP (issue #898).
-        g.MapPost("/files/{fileId:guid}/recognize", async (Guid fileId, bool? confirm, IOperationLauncher launcher, ClaimsPrincipal user, CancellationToken ct) =>
+        recognize.MapPost("/files/{fileId:guid}/recognize", async (Guid fileId, bool? confirm, IOperationLauncher launcher, ClaimsPrincipal user, CancellationToken ct) =>
         {
             try
             {
@@ -259,7 +272,7 @@ public static class DataSetEndpoints
 
         // confirm=true — подтверждение перезаписи ручной корректировки разбиения (см.
         // ApplyGroupingAsync); без него, если источник уже правился вручную, — 409 Conflict.
-        g.MapPost("/sources/{sourceId:guid}/recognize", async (Guid sourceId, bool? confirm, IOperationLauncher launcher, ClaimsPrincipal user, CancellationToken ct) =>
+        recognize.MapPost("/sources/{sourceId:guid}/recognize", async (Guid sourceId, bool? confirm, IOperationLauncher launcher, ClaimsPrincipal user, CancellationToken ct) =>
         {
             try
             {
@@ -350,7 +363,7 @@ public static class DataSetEndpoints
 
         // Распознать таблицу помеченного документа (спецификация/кабельный журнал) → отдельный табличный
         // источник. Vision-вызов (минуты на большом документе) → фоновая задача, 202+jobId сразу.
-        g.MapPost("/files/{fileId:guid}/recognize-table", async (
+        recognize.MapPost("/files/{fileId:guid}/recognize-table", async (
             Guid fileId, RecognizeTableRequest req, IJobService jobs, IRecognitionPreflight preflight, ClaimsPrincipal user, CancellationToken ct) =>
         {
             if (await jobs.HasActiveForTargetAsync(UserId(user), fileId, ct))
@@ -362,7 +375,7 @@ public static class DataSetEndpoints
         });
 
         // Точечное перераспознавание ОДНОГО документа набора (не всего альбома, P6) → фоновая задача.
-        g.MapPost("/files/{fileId:guid}/recognize-document", async (
+        recognize.MapPost("/files/{fileId:guid}/recognize-document", async (
             Guid fileId, RecognizeTableRequest req, IJobService jobs, IRecognitionPreflight preflight, ClaimsPrincipal user, CancellationToken ct) =>
         {
             if (await jobs.HasActiveForTargetAsync(UserId(user), fileId, ct))

@@ -89,6 +89,7 @@ public class DocumentActionTools(IMediator mediator, IHttpContextAccessor http)
             .ThenByDescending(g => g.Count)
             .ThenBy(g => g.Message, StringComparer.OrdinalIgnoreCase)];
 
+    [McpPermission("id.document.read")]
     [McpServerTool(Name = "validate_document", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Проверка документа")]
     [Description("""
@@ -124,6 +125,7 @@ public class DocumentActionTools(IMediator mediator, IHttpContextAccessor http)
             Group(diagnostics, allPaths));
     }
 
+    [McpPermission("id.document.generate")]
     [McpServerTool(Name = "generate_document", ReadOnly = false, Idempotent = true, Destructive = false,
         Title = "Выпустить документ (PDF)")]
     [Description("""

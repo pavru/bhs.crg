@@ -1,4 +1,8 @@
-﻿using BHS.CRG.Application.DataSnapshots;
+﻿using System.Security.Claims;
+using BHS.CRG.Api.Auth;
+using BHS.CRG.Application.DataSnapshots;
+using BHS.CRG.Modules;
+using Microsoft.AspNetCore.Http;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -32,36 +36,74 @@ public static class McpResourceCatalog
     {
         var services = request.Services
             ?? throw new InvalidOperationException("Нет области сервисов для перечисления ресурсов.");
+        // Права спрашивающего (issue #948). Витрина собирается СВОИМ обработчиком, а не из
+        // объявленных ресурсов, — значит, фильтры SDK её не видят, и отбор приходится делать здесь.
+        // Иначе получилось бы худшее: чтение каждого ресурса закрыто правом, а список показывает
+        // имена строек и комплектов тому, кому они не открываются.
+        var permissions = (IUserPermissions)services.GetService(typeof(IUserPermissions))!;
+        var principal = ((IHttpContextAccessor)services.GetService(typeof(IHttpContextAccessor))!)
+            .HttpContext?.User ?? new ClaimsPrincipal();
+
         return new ListResourcesResult
         {
             Resources = [.. await BuildAsync(
                 (IDomainSnapshotService)services.GetService(typeof(IDomainSnapshotService))!,
-                (IDataSnapshotService)services.GetService(typeof(IDataSnapshotService))!, ct)],
+                (IDataSnapshotService)services.GetService(typeof(IDataSnapshotService))!,
+                await permissions.ForAsync(principal, ct), ct)],
         };
     }
 
-    /// <summary>Сама витрина, без привязки к транспорту — тем же приёмом, что и везде: MCP-слой тонкий.</summary>
+    /// <summary>
+    /// Сама витрина, без привязки к транспорту — тем же приёмом, что и везде: MCP-слой тонкий.
+    /// </summary>
+    /// <param name="granted">
+    /// Действующие права спрашивающего. Каждый вид записи витрины отбирается тем же правом, каким
+    /// закрыто чтение соответствующего ресурса, и НЕЗАВИСИМО от остальных: стройки —
+    /// <c>core.constructions.read</c>, комплекты — <c>id.document.read</c>, наборы —
+    /// <c>core.datasets.read</c>. Пусто — витрина пуста, и это правильный ответ: прикреплять к
+    /// разговору нечего.
+    /// </param>
     public static async Task<IReadOnlyList<Resource>> BuildAsync(
-        IDomainSnapshotService domain, IDataSnapshotService datasets, CancellationToken ct = default)
+        IDomainSnapshotService domain, IDataSnapshotService datasets,
+        IReadOnlyCollection<string> granted, CancellationToken ct = default)
     {
         var resources = new List<Resource>();
 
-        var constructions = await ReadAllAsync(
-            (offset, token) => domain.ListConstructionsAsync(Guid.Empty, offset, ct: token), ct);
-        foreach (var c in constructions)
-        {
-            resources.Add(New($"bhs://construction/{c.Id}", c.Name, "Стройка",
-                $"Разделов: {c.SectionCount}, комплектов: {c.SetCount}, документов: {c.DocumentCount}."));
+        // Два права — ДВА независимых решения, а не вложенных (нашло ревью #948). Стройки и
+        // комплекты лежат в витрине рядом, и «комплектов нет» у того, кому их как раз читать можно,
+        // — это отказ, переодетый в пустой список: get_document_set у него работает, а прикрепить
+        // комплект неоткуда.
+        //
+        // Обход строек при этом идёт всегда: это ВНУТРЕННЯЯ механика перечисления, а не чтение от
+        // имени пользователя. Запись комплекта называет свою стройку и раздел — ровно тот же
+        // контекст, который тому же человеку отдаёт его собственный get_document_set, поэтому
+        // ничего сверх его прав здесь не открывается.
+        var showConstructions = Has(granted, CorePermissions.ConstructionsRead);
+        var showSets = Has(granted, "id.document.read");
 
-            var detail = await domain.GetConstructionAsync(c.Id, ct);
-            if (detail is null) continue;
-            foreach (var section in detail.Sections)
-                foreach (var set in section.Sets)
-                    // Контекст в описании обязателен: одноимённые комплекты разных разделов иначе
-                    // неразличимы в списке выбора.
-                    resources.Add(New($"bhs://document-set/{set.Id}", set.Name, "Комплект документов",
-                        $"{c.Name} / {section.Name}. Документов: {set.DocumentCount}."));
+        if (showConstructions || showSets)
+        {
+            var constructions = await ReadAllAsync(
+                (offset, token) => domain.ListConstructionsAsync(Guid.Empty, offset, ct: token), ct);
+            foreach (var c in constructions)
+            {
+                if (showConstructions)
+                    resources.Add(New($"bhs://construction/{c.Id}", c.Name, "Стройка",
+                        $"Разделов: {c.SectionCount}, комплектов: {c.SetCount}, документов: {c.DocumentCount}."));
+
+                if (!showSets) continue;
+                var detail = await domain.GetConstructionAsync(c.Id, ct);
+                if (detail is null) continue;
+                foreach (var section in detail.Sections)
+                    foreach (var set in section.Sets)
+                        // Контекст в описании обязателен: одноимённые комплекты разных разделов иначе
+                        // неразличимы в списке выбора.
+                        resources.Add(New($"bhs://document-set/{set.Id}", set.Name, "Комплект документов",
+                            $"{c.Name} / {section.Name}. Документов: {set.DocumentCount}."));
+            }
         }
+
+        if (!Has(granted, CorePermissions.DataSetsRead)) return resources;
 
         foreach (var d in await ReadAllAsync(
                      (offset, token) => datasets.ListDatasetsAsync(null, null, offset, ct: token), ct))
@@ -92,6 +134,9 @@ public static class McpResourceCatalog
             if (!page.Truncated || page.Items.Count == 0) return all;
         }
     }
+
+    private static bool Has(IReadOnlyCollection<string> granted, string code) =>
+        granted.Contains(code, StringComparer.OrdinalIgnoreCase);
 
     private static Resource New(string uri, string name, string kind, string description) => new()
     {

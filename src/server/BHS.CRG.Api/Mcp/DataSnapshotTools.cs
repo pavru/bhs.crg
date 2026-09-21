@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSnapshots;
 using ModelContextProtocol.Server;
 
@@ -20,6 +21,7 @@ namespace BHS.CRG.Api.Mcp;
 [McpServerToolType]
 public class DataSnapshotTools(IDataSnapshotService snapshots)
 {
+    [McpPermission(CorePermissions.DataSetsRead)]
     [McpServerTool(Name = "list_datasets", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Список наборов данных")]
     [Description("""
@@ -42,6 +44,7 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
         int limit = DomainSnapshotLimits.NavigationDefault)
         => await snapshots.ListDatasetsAsync(scope, scopeId, offset, limit, ct);
 
+    [McpPermission(CorePermissions.DataSetsRead)]
     [McpServerTool(Name = "get_dataset", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Структура набора данных")]
     [Description("""
@@ -62,6 +65,7 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
         CancellationToken ct)
         => await snapshots.GetDatasetAsync(datasetId, ct);
 
+    [McpPermission(CorePermissions.DataSetsRead)]
     [McpServerTool(Name = "get_source", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Источник данных: колонки и достоверность")]
     [Description("""
@@ -88,6 +92,7 @@ public class DataSnapshotTools(IDataSnapshotService snapshots)
         CancellationToken ct)
         => await snapshots.GetSourceAsync(sourceId, ct);
 
+    [McpPermission(CorePermissions.DataSetsRead)]
     [McpServerTool(Name = "get_rows", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Строки источника (страница)")]
     [Description("""

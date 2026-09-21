@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.Security.Claims;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSnapshots;
 using ModelContextProtocol.Server;
 
@@ -26,6 +27,7 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         }
     }
 
+    [McpPermission(CorePermissions.ConstructionsRead)]
     [McpServerTool(Name = "list_constructions", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Стройки")]
     [Description("""
@@ -41,6 +43,7 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         int limit = DomainSnapshotLimits.NavigationDefault)
         => await domain.ListConstructionsAsync(CurrentUserId, offset, limit, ct);
 
+    [McpPermission(CorePermissions.ConstructionsRead)]
     [McpServerTool(Name = "get_construction", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Разделы и комплекты стройки")]
     [Description("Разделы стройки (ЭОМ, СС, ВК, ОВиК и т.п.) и комплекты документов в каждом, с числом документов.")]
@@ -48,6 +51,7 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         [Description("Идентификатор стройки.")] Guid constructionId, CancellationToken ct)
         => await domain.GetConstructionAsync(constructionId, ct);
 
+    [McpPermission("id.document.read")]
     [McpServerTool(Name = "get_document_set", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Документы комплекта")]
     [Description("""
@@ -58,6 +62,7 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         [Description("Идентификатор комплекта документов.")] Guid setId, CancellationToken ct)
         => await domain.GetDocumentSetAsync(setId, ct);
 
+    [McpPermission("id.document.read")]
     [McpServerTool(Name = "get_document", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Документ с реквизитами")]
     [Description("""
@@ -115,6 +120,7 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
             """)] bool expandDocumentRefs = false)
         => await domain.GetDocumentAsync(documentId, resolveRefs, fields, expandDocumentRefs, ct);
 
+    [McpPermission(CorePermissions.CatalogRead)]
     [McpServerTool(Name = "list_catalog_entries", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Каталог: записи")]
     [Description("""
@@ -136,6 +142,7 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         int limit = DomainSnapshotLimits.CatalogEntriesDefault)
         => await domain.ListCatalogEntriesAsync(scope, scopeId, typeId, search, offset, limit, ct);
 
+    [McpPermission(CorePermissions.CatalogRead)]
     [McpServerTool(Name = "get_catalog_entry", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Каталог: запись")]
     [Description("""
@@ -147,6 +154,7 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         [Description("Идентификатор записи каталога.")] Guid entryId, CancellationToken ct)
         => await domain.GetCatalogEntryAsync(entryId, ct);
 
+    [McpPermission(CorePermissions.TypesRead)]
     [McpServerTool(Name = "get_document_type", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Схема типа документа")]
     [Description("""
@@ -157,6 +165,11 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         [Description("Идентификатор типа документа.")] Guid typeId, CancellationToken ct)
         => await domain.GetDocumentTypeAsync(typeId, ct);
 
+    // Ворота МОДУЛЯ, а не права: библиотека документов качества закрыта на адресах так же
+    // (/api/quality-docs), собственного права она пока не носит. Придумать инструменту право,
+    // которого нет у его же адреса, значило бы завести второе правило доступа к тем же данным —
+    // и разойтись они смогли бы молча.
+    [McpModule("id")]
     [McpServerTool(Name = "list_material_quality_links", ReadOnly = true, Idempotent = true,
         Destructive = false, Title = "Связи материал → документ качества")]
     [Description("""
@@ -186,6 +199,8 @@ public class DomainSnapshotTools(IDomainSnapshotService domain, IHttpContextAcce
         int limit = DomainSnapshotLimits.MaterialLinksDefault)
         => await domain.ListMaterialQualityLinksAsync(setId, changedSince, offset, limit, ct);
 
+    // Тоже ворота модуля — см. соседний инструмент.
+    [McpModule("id")]
     [McpServerTool(Name = "list_quality_documents", ReadOnly = true, Idempotent = true, Destructive = false,
         Title = "Документы качества")]
     [Description("""

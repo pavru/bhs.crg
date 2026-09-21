@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.DataSnapshots;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -16,12 +17,14 @@ namespace BHS.CRG.Api.Mcp;
 [McpServerResourceType]
 public class DataSnapshotResources(IDataSnapshotService snapshots)
 {
+    [McpPermission(CorePermissions.DataSetsRead)]
     [McpServerResource(UriTemplate = "bhs://dataset/{datasetId}", Name = "dataset",
         Title = "Набор данных", MimeType = "application/json")]
     [Description("Структура набора данных: источники, число строк, происхождение, признак устаревания.")]
     public async Task<ResourceContents> GetDatasetAsync(Guid datasetId, CancellationToken ct)
         => McpJsonResource.Json($"bhs://dataset/{datasetId}", await snapshots.GetDatasetAsync(datasetId, ct));
 
+    [McpPermission(CorePermissions.DataSetsRead)]
     [McpServerResource(UriTemplate = "bhs://source/{sourceId}", Name = "source",
         Title = "Источник данных", MimeType = "application/json")]
     [Description("Источник: колонки с примерами, происхождение, свежесть, якорь на листы исходного PDF.")]
