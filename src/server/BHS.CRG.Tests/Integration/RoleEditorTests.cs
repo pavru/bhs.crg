@@ -354,6 +354,75 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
             (await engineer.PostAsJsonAsync("/api/roles", new { title = "Своя роль" })).StatusCode);
     }
 
+    /// <summary>
+    /// Список ролей упорядочен ПО НАЗВАНИЮ — тому, которое читает человек.
+    ///
+    /// ⚠️ Проверка не косметическая. Этот же список — выпадающий на экране «Пользователи», и пока
+    /// он шёл по техническому имени, первой оказывалась <c>Accountant</c>: диалог создания брал из
+    /// него умолчание, и новый сотрудник заводился «Бухгалтером» — с правом отмечать оплату и
+    /// закрывать период (ревью #983). Умолчание убрано, но порядок обязан быть читаемым.
+    /// </summary>
+    [Fact]
+    public async Task Роли_упорядочены_по_названию()
+    {
+        var admin = await SignInAsync(SystemRoles.Admin);
+
+        var list = await admin.GetFromJsonAsync<JsonElement>("/api/roles");
+        var titles = list.EnumerateArray().Select(r => r.GetProperty("title").GetString()!).ToList();
+
+        Assert.Equal([.. titles.OrderBy(t => t, StringComparer.CurrentCulture)], titles);
+
+        // Пара, на которой два порядка расходятся: по названию «Администратор» раньше «Бухгалтера»,
+        // по техническому имени — наоборот (Accountant раньше Admin). Без неё проверка выше прошла
+        // бы и на сортировке по имени, если названия случайно легли тем же порядком.
+        Assert.True(titles.IndexOf("Администратор") < titles.IndexOf("Бухгалтер"),
+            "порядок совпал с сортировкой по техническому имени");
+    }
+
+    /// <summary>
+    /// Роль «все права» помечена признаком, и редактор узнаёт о запрете ДО щелчка.
+    ///
+    /// ⚠️ Отказ сервера (409) был, а признака не было: экран рисовал у «Администратора» обычные
+    /// галки, щёлкал ими и получал отказ на сохранение — запрет, о котором узнаёшь, только нарушив
+    /// его (ревью #983).
+    /// </summary>
+    [Fact]
+    public async Task Роль_все_права_помечена_признаком()
+    {
+        var admin = await SignInAsync(SystemRoles.Admin);
+        var custom = await CreateRoleAsync(admin, Title("Обычная"), [CorePermissions.CatalogRead]);
+
+        var list = await admin.GetFromJsonAsync<JsonElement>("/api/roles");
+        var byName = list.EnumerateArray().ToDictionary(r => r.GetProperty("name").GetString()!);
+
+        Assert.True(byName[SystemRoles.Admin].GetProperty("allPermissions").GetBoolean());
+        Assert.False(byName[custom].GetProperty("allPermissions").GetBoolean());
+        Assert.False(byName[SystemRoles.IdEngineer].GetProperty("allPermissions").GetBoolean());
+    }
+
+    /// <summary>
+    /// Подпись роли в профиле и в списке пользователей — та же, что в редакторе.
+    ///
+    /// Проверка держит дешёвый путь получения названия (<c>TitleAsync</c>/<c>TitlesAsync</c>),
+    /// заведённый вместо полного вида роли: тот ради одной подписи поднимал всех её носителей
+    /// (ревью #983). Ошибись этот путь — подписи разойдутся между экранами.
+    /// </summary>
+    [Fact]
+    public async Task Подпись_роли_одинакова_в_профиле_и_в_списке_пользователей()
+    {
+        var admin = await SignInAsync(SystemRoles.Admin);
+        var title = Title("Кладовщик");
+        var role = await CreateRoleAsync(admin, title, [CorePermissions.CatalogRead]);
+        var holder = await SignInWithRoleAsync(role);
+
+        var profile = await holder.GetFromJsonAsync<JsonElement>("/api/account");
+        Assert.Equal(title, profile.GetProperty("roleTitle").GetString());
+
+        var users = await admin.GetFromJsonAsync<JsonElement>("/api/users");
+        var row = users.EnumerateArray().First(u => u.GetProperty("role").GetString() == role);
+        Assert.Equal(title, row.GetProperty("roleTitle").GetString());
+    }
+
     // ── Вспомогательное ───────────────────────────────────────────────────────
 
     /// <summary>Заводит роль через живой адрес и возвращает её техническое имя.</summary>

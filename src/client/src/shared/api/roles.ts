@@ -23,6 +23,12 @@ export interface AppRole {
   permissions: string[];
   /** Сколько людей носит роль: снятие права затронет ровно их. */
   users: number;
+  /**
+   * Роль «все права»: состав равен справочнику и правке не подлежит — сервер отвечает 409.
+   * Редактор обязан показать это ДО щелчка: галка, которая щёлкается и не сохраняется, —
+   * это запрет, о котором узнают, только нарушив его.
+   */
+  allPermissions: boolean;
 }
 
 export interface PermissionInfo {
@@ -83,8 +89,12 @@ export function useSetRolePermissions() {
       apiClient.put<AppRole>(`/roles/${name}/permissions`, { permissions }).then(r => r.data),
     // Правка действует немедленно у всех носителей роли (AUTH-5.1) — в том числе у того, кто её
     // правит: свои права он мог только что и сменить, а по ним строится меню.
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QK] });
+    onSuccess: saved => {
+      // Сохранённый состав кладём в кэш СРАЗУ, ответом сервера. Раньше здесь был только запрос
+      // заново: экран успевал погасить черновик и на один кадр показать прежние галки — снятая
+      // возвращалась и снова снималась (ревью #983). Ответ и есть новое состояние роли.
+      qc.setQueryData<AppRole[]>([QK], old =>
+        old?.map(r => (r.name === saved.name ? saved : r)));
       qc.invalidateQueries({ queryKey: ACCESS_KEY });
       qc.invalidateQueries({ queryKey: ['users'] });
     },

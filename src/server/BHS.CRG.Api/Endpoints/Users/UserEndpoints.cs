@@ -28,13 +28,17 @@ public static class UserEndpoints
         g.MapGet("/", async (UserManager<ApplicationUser> users, RoleEditor editor) =>
         {
             var list = await users.Users.OrderBy(u => u.Email).ToListAsync();
+            // Подписи ролей — ОДНИМ словарём на весь список. Спрошенные по одной, они поднимали
+            // полный вид роли вместе со всеми её носителями — на каждого пользователя в списке
+            // (ревью #983). Ролей единицы, и словарь дешевле любого из тех запросов.
+            var titles = await editor.TitlesAsync();
             var result = new List<UserDto>(list.Count);
             foreach (var u in list)
             {
                 var roles = await users.GetRolesAsync(u);
                 var role = roles.FirstOrDefault() ?? SystemRoles.IdEngineer;
                 result.Add(new UserDto(u.Id, u.Email ?? "", u.DisplayName, role,
-                    (await editor.FindAsync(role))?.Title ?? role));
+                    titles.GetValueOrDefault(role, role)));
             }
             return Results.Ok(result);
         });
@@ -176,7 +180,7 @@ public static class UserEndpoints
     private static async Task<string?> TitlesAsync(RoleEditor editor, IEnumerable<string> names)
     {
         var titles = new List<string>();
-        foreach (var name in names) titles.Add((await editor.FindAsync(name))?.Title ?? name);
+        foreach (var name in names) titles.Add(await editor.TitleAsync(name));
         return titles.Count == 0 ? null : string.Join(", ", titles);
     }
 
