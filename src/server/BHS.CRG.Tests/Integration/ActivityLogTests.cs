@@ -40,7 +40,8 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var (_, targetId, targetEmail) = await SignInAsync(SystemRoles.IdEngineer);
         var before = DateTimeOffset.UtcNow.AddSeconds(-5);
 
-        var change = await admin.PutAsJsonAsync($"/api/users/{targetId}/role", new { role = SystemRoles.Admin });
+        var change = await admin.PutAsJsonAsync($"/api/users/{targetId}/roles",
+            new { roles = new[] { SystemRoles.Admin } });
         change.EnsureSuccessStatusCode();
 
         var record = Assert.Single(await RecordsAsync(ActivityActions.UserRoleChanged));
@@ -206,7 +207,8 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var (admin, _, _) = await SignInAsync(SystemRoles.Admin, displayName: new string('я', 400));
         var (_, targetId, _) = await SignInAsync(SystemRoles.IdEngineer);
 
-        var change = await admin.PutAsJsonAsync($"/api/users/{targetId}/role", new { role = SystemRoles.Admin });
+        var change = await admin.PutAsJsonAsync($"/api/users/{targetId}/roles",
+            new { roles = new[] { SystemRoles.Admin } });
         change.EnsureSuccessStatusCode();   // действие удалось — и ответ об этом говорит
 
         var record = Assert.Single(await RecordsAsync(ActivityActions.UserRoleChanged));

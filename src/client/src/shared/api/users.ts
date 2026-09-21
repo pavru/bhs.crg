@@ -3,14 +3,21 @@ import { apiClient } from './client';
 
 const QK = 'users';
 
+/** Ссылка на роль: имя — чтобы назначить, название — чтобы прочитать (issue #951). */
+export interface RoleRef {
+  name: string;
+  title: string;
+}
+
 export interface AppUser {
   id: string;
   email: string;
   displayName: string;
-  /** Техническое имя роли — им же роль и назначают. */
-  role: string;
-  /** Название для человека: техническое имя заведённой роли нечитаемо (issue #951). */
-  roleTitle: string;
+  /**
+   * ВСЕ роли человека (ТЗ AUTH-3, issue #984), упорядоченные по названию. Пустой список —
+   * законное состояние: доступ отозван, учётная запись цела.
+   */
+  roles: RoleRef[];
 }
 
 export function useListUsers(enabled = true) {
@@ -24,18 +31,28 @@ export function useListUsers(enabled = true) {
 export function useCreateUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (dto: { email: string; displayName: string; password: string; role: string }) =>
+    mutationFn: (dto: { email: string; displayName: string; password: string; roles: string[] }) =>
       apiClient.post<AppUser>('/users', dto).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }
 
-export function useChangeUserRole() {
+/**
+ * Назначить роли. Адрес ОДИН и принимает список (issue #984): одиночный `/role` убран, а не
+ * оставлен рядом — два пути назначения разошлись бы в том, снимают ли они прочие роли.
+ *
+ * Профиль сбрасываем тоже: администратор вправе поменять роли и себе, а подпись под его именем
+ * в боковой панели берётся из `/api/account`.
+ */
+export function useChangeUserRoles() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, role }: { id: string; role: string }) =>
-      apiClient.put<AppUser>(`/users/${id}/role`, { role }).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+    mutationFn: ({ id, roles }: { id: string; roles: string[] }) =>
+      apiClient.put<AppUser>(`/users/${id}/roles`, { roles }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QK] });
+      qc.invalidateQueries({ queryKey: ['account'] });
+    },
   });
 }
 

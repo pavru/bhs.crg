@@ -1,15 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
+import type { RoleRef } from './users';
 
 const QK = 'account';
 
 export interface Account {
   email: string;
   displayName: string;
-  /** Техническое имя роли. */
-  role: string;
-  /** Название роли для человека — его и показываем. Собирает сервер (issue #951). */
-  roleTitle: string;
+  /**
+   * ВСЕ роли, по названию (issue #984). Раньше сервер отдавал первую, а человеку без ролей
+   * подставлял «Инженера ИД» — профиль называл роль, которой нет, ровно тому, у кого нет доступа.
+   */
+  roles: RoleRef[];
   emailConfirmed: boolean;
   /** Аватар профиля (issue #245) — data-URI уменьшённой картинки, null = нет. */
   avatar?: string | null;

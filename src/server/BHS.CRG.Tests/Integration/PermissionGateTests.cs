@@ -71,7 +71,7 @@ public class PermissionGateTests(IntegrationTestFixture fixture)
         // До снятия роли доступ есть — иначе проверка ниже ничего не значила бы.
         Assert.Equal(HttpStatusCode.OK, (await victim.GetAsync("/api/users")).StatusCode);
 
-        var changed = await admin.PutAsJsonAsync($"/api/users/{victimId}/role", new { role = SystemRoles.IdEngineer });
+        var changed = await admin.PutAsJsonAsync($"/api/users/{victimId}/roles", new { roles = new[] { SystemRoles.IdEngineer } });
         changed.EnsureSuccessStatusCode();
 
         // Тот же токен, следующий запрос.
@@ -107,7 +107,7 @@ public class PermissionGateTests(IntegrationTestFixture fixture)
         var pair = await login.Content.ReadFromJsonAsync<JsonElement>();
         var refresh = pair.GetProperty("refreshToken").GetString();
 
-        (await admin.PutAsJsonAsync($"/api/users/{id}/role", new { role = SystemRoles.IdEngineer }))
+        (await admin.PutAsJsonAsync($"/api/users/{id}/roles", new { roles = new[] { SystemRoles.IdEngineer } }))
             .EnsureSuccessStatusCode();
 
         var renewed = await client.PostAsJsonAsync("/api/auth/refresh", new { refreshToken = refresh });

@@ -161,13 +161,15 @@ export function AppShell() {
 
               <span className="flex-1 min-w-0">
                 <span className="block text-sm font-medium text-fg1 truncate">{user?.displayName || user?.email}</span>
-                {/* Роль — справочная подпись, и берётся она с СЕРВЕРА целиком, вместе с названием
+                {/* Роли — справочная подпись, и берутся они с СЕРВЕРА целиком, вместе с названиями
                     (issue #951). Собирать подпись по техническому имени клиент больше не умеет и не
                     должен: имён девять системных плюс те, что заводит администратор, и три места
                     интерфейса успели подписать одно и то же имя по-разному.
-                    ⚠️ Сервер отдаёт здесь ОДНУ роль (первую): назначение нескольких — отдельная
-                    работа, см. issue про множественные роли. */}
-                <span className="block text-xs text-fg3">{account?.roleTitle ?? ''}</span>
+                    Ролей может быть несколько (issue #984) — перечисляем все: показанная первая
+                    означала бы, что человек носит меньше прав, чем носит. */}
+                <span className="block text-xs text-fg3 truncate">
+                  {account?.roles.map(r => r.title).join(', ') || ''}
+                </span>
               </span>
               <ChevronsUpDown size={18} className="text-fg3 shrink-0" />
             </NavLink>
