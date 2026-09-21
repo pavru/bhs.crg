@@ -23,6 +23,18 @@ public static class RoleSynchronizer
     /// <summary>Тип утверждения с человеческим названием роли.</summary>
     public const string TitleClaim = "title";
 
+    /// <summary>Тип утверждения с описанием роли — оно стоит в редакторе рядом с названием.</summary>
+    public const string SummaryClaim = "summary";
+
+    /// <summary>
+    /// Отметка «состав прав правил администратор» (ТЗ AUTH-5, issue #951).
+    ///
+    /// С этого момента состав роли принадлежит не коду: приводить его к объявленному при каждом
+    /// старте значило бы отменять правку — молча и через перезапуск, то есть тогда, когда связать
+    /// пропажу права с чем-либо уже невозможно.
+    /// </summary>
+    public const string EditedClaim = "edited";
+
     public static async Task SyncAsync(
         RoleManager<IdentityRole<Guid>> roles, PermissionCatalog catalog, ILogger logger)
     {
@@ -41,8 +53,7 @@ public static class RoleSynchronizer
                         string.Join("; ", created.Errors.Select(e => e.Description)));
             }
 
-            var wanted = Wanted(definition, declared);
-            await SyncClaimsAsync(roles, role, wanted, definition.Title, logger);
+            await SyncClaimsAsync(roles, role, definition, declared, logger);
         }
     }
 
@@ -68,16 +79,37 @@ public static class RoleSynchronizer
     private static async Task SyncClaimsAsync(
         RoleManager<IdentityRole<Guid>> roles,
         IdentityRole<Guid> role,
-        HashSet<string> wanted,
-        string title,
+        RoleDefinition definition,
+        HashSet<string> declared,
         ILogger logger)
     {
         var existing = await roles.GetClaimsAsync(role);
+
+        // Название и описание остаются за кодом даже у правленой роли: администратор меняет СОСТАВ
+        // системной роли, а не то, что она означает. Переименование системной роли редактор
+        // отклоняет прямо (см. RoleEditor), и возвращать здесь нечего.
+        await SetSingleAsync(roles, role, existing, TitleClaim, definition.Title);
+        await SetSingleAsync(roles, role, existing, SummaryClaim, definition.Summary);
 
         var current = existing
             .Where(c => c.Type == PermissionClaim)
             .Select(c => c.Value)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Состав правил администратор (AUTH-5) — код больше им не распоряжается.
+        //
+        // ⚠️ Кроме роли «все права». У неё состав не перечислен вовсе: он РАВЕН справочнику и
+        // пополняется вместе с ним. Замри он однажды — право следующего выпуска и права нового
+        // модуля не достались бы никому, включая администратора, и выглядело бы это как отказ
+        // доступа всем сразу без единой причины в логе. Поэтому такая роль приводится к полному
+        // составу всегда, даже с отметкой правки (её можно поставить и прямо в базе). Редактор
+        // править её состав и не даёт — см. RoleEditor.
+        if (existing.Any(c => c.Type == EditedClaim) && !definition.AllPermissions)
+        {
+            return;
+        }
+
+        var wanted = Wanted(definition, declared);
 
         foreach (var code in wanted.Except(current, StringComparer.OrdinalIgnoreCase))
             await roles.AddClaimAsync(role, new Claim(PermissionClaim, code));
@@ -89,14 +121,23 @@ public static class RoleSynchronizer
                 "Право {Code} убрано из системной роли {Role}: его больше нет в объявленном составе",
                 code, role.Name);
         }
+    }
 
-        var storedTitle = existing.FirstOrDefault(c => c.Type == TitleClaim);
-        if (storedTitle is null)
-            await roles.AddClaimAsync(role, new Claim(TitleClaim, title));
-        else if (storedTitle.Value != title)
+    private static async Task SetSingleAsync(
+        RoleManager<IdentityRole<Guid>> roles, IdentityRole<Guid> role,
+        IList<Claim> existing, string type, string? value)
+    {
+        var stored = existing.FirstOrDefault(c => c.Type == type);
+        value = (value ?? "").Trim();
+
+        if (stored is null)
         {
-            await roles.RemoveClaimAsync(role, storedTitle);
-            await roles.AddClaimAsync(role, new Claim(TitleClaim, title));
+            if (value.Length > 0) await roles.AddClaimAsync(role, new Claim(type, value));
+            return;
         }
+
+        if (stored.Value == value) return;
+        await roles.RemoveClaimAsync(role, stored);
+        if (value.Length > 0) await roles.AddClaimAsync(role, new Claim(type, value));
     }
 }
