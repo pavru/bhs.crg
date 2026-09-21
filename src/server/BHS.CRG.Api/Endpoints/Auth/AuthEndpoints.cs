@@ -17,7 +17,7 @@ public static class AuthEndpoints
         // заводит администратор через /api/users.
         g.MapPost("/register", async (RegisterRequest req,
             UserManager<ApplicationUser> users, IActivityLog journal, RoleEditor editor,
-            CancellationToken ct) =>
+            ILoggerFactory loggers) =>
         {
             if (users.Users.Any())
                 return Results.Problem("Регистрация закрыта. Обратитесь к администратору.", statusCode: 403);
@@ -37,10 +37,32 @@ public static class AuthEndpoints
             // спрашивают «кто это завёл»: учётная запись самая широкая из всех, а заведена без
             // приглашения и без автора. Автором запись назовёт «Систему» — это честно, ни один
             // пользователь в тот момент не вошёл, и другого имени взять неоткуда.
-            await journal.RecordAsync(ActivityActions.UserCreated,
-                user.Id.ToString(), user.Email,
-                after: (await editor.TitlesAsync()).GetValueOrDefault(SystemRoles.Admin, SystemRoles.Admin),
-                ct: ct);
+            //
+            // ⚠️ Отказ записи НЕ роняет ответ, и только здесь (ревью #980). Эта дверь закрывается
+            // НАВСЕГДА: пользователь уже заведён, значит следующий запрос получит 403 «Регистрация
+            // закрыта», а install.sh на 500 посоветует «заведите администратора сами» — совет,
+            // выполнить который уже нечем. У остальных записей журнала отказ виден и поправим,
+            // поэтому там он остаётся отказом.
+            //
+            // Токен запроса сюда не передаём умышленно: обрыв связи (curl --max-time 30 в
+            // install.sh на холодном старте) не отменяет того, что действие состоялось, — а
+            // отменённая запись потеряла бы след ровно у той учётной записи, про которую спросят.
+            //
+            // Глушить это внутри самой службы нельзя: RecordAsync сохраняет ЧУЖИМ контекстом базы,
+            // и его SaveChanges выносит заодно правки вызывающего. Проглоченный там отказ прятал бы
+            // не потерю записи, а несохранённое действие.
+            try
+            {
+                await journal.RecordAsync(ActivityActions.UserCreated,
+                    user.Id.ToString(), user.Email,
+                    after: (await editor.TitlesAsync()).GetValueOrDefault(SystemRoles.Admin, SystemRoles.Admin),
+                    ct: CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                loggers.CreateLogger("Auth").LogWarning(ex,
+                    "Первый администратор заведён, но запись в журнал не удалась");
+            }
             return Results.Ok();
         }).RequireRateLimiting("login");
 

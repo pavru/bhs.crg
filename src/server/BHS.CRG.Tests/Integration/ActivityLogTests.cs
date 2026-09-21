@@ -5,8 +5,10 @@ using System.Text.Json;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Application.Activity;
 using BHS.CRG.Domain.Activity;
+using BHS.CRG.Infrastructure.Activity;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -250,14 +252,7 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
     [Fact]
     public async Task Первый_администратор_попадает_в_журнал()
     {
-        // Учётные записи фикстура НЕ чистит — их «чистят точечно те, кто их заводит»
-        // (FixtureResetCoverageTests). Регистрация же открыта, только пока не заведён ни один
-        // пользователь, поэтому освобождаем это условие здесь, а не надеемся на пустую базу.
-        using (var scope = fixture.Services.CreateScope())
-        {
-            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            foreach (var u in await users.Users.ToListAsync()) await users.DeleteAsync(u);
-        }
+        await ClearUsersAsync();
 
         var client = fixture.CreateClient();
         var email = $"bootstrap_{Guid.NewGuid():N}@test.local";
@@ -271,6 +266,82 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Equal("Администратор", record.After);    // выданная роль названа, а не подразумевается
         Assert.Null(record.ActorId);                    // автор — сам экземпляр: войти было некому
         Assert.Equal("Система", record.ActorName);
+    }
+
+    /// <summary>
+    /// Сторож находки ревью #980: отказ журнала НЕ отменяет заведение первого администратора.
+    ///
+    /// Эта дверь закрывается навсегда. Учётная запись к моменту записи уже создана, поэтому 500
+    /// оставлял бы установку в положении, из которого нет выхода: повторный запрос получает 403
+    /// «Регистрация закрыта», а install.sh на ошибку советует завести администратора самому —
+    /// совет, выполнить который уже нечем.
+    /// </summary>
+    [Fact]
+    public async Task Отказ_журнала_не_отменяет_заведение_первого_администратора()
+    {
+        await ClearUsersAsync();
+
+        // Падает ТОЛЬКО на «заведён пользователь»: журнал зовёт и старт (состав модулей), и
+        // уронив его целиком, мы проверяли бы не эндпоинт, а невзлетевший хост.
+        using var broken = fixture.WithWebHostBuilder(b => b.ConfigureTestServices(s =>
+            s.AddScoped<IActivityLog>(sp => new JournalFailingOnUserCreated(
+                sp.GetRequiredService<AppDbContext>(),
+                sp.GetRequiredService<IActivityActor>()))));
+
+        var email = $"bootstrap_{Guid.NewGuid():N}@test.local";
+        var created = await broken.CreateClient().PostAsJsonAsync("/api/auth/register",
+            new { email, password = Password, displayName = "Первый" });
+
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+        Assert.Empty(await RecordsAsync(ActivityActions.UserCreated));   // след потерян — и только
+
+        using var scope = fixture.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var admin = await users.FindByEmailAsync(email);
+        Assert.NotNull(admin);
+        Assert.Contains(SystemRoles.Admin, await users.GetRolesAsync(admin));
+    }
+
+    /// <summary>Журнал, который отказывает на заведении пользователя и работает во всём остальном.</summary>
+    private sealed class JournalFailingOnUserCreated(AppDbContext db, IActivityActor actor) : IActivityLog
+    {
+        private readonly ActivityLog inner = new(db, actor);
+
+        public Task RecordAsync(ActivityAction action, string? targetId = null, string? targetLabel = null,
+            string? before = null, string? after = null, CancellationToken ct = default) =>
+            action.Code == ActivityActions.UserCreated.Code
+                ? throw new InvalidOperationException("журнал недоступен")
+                : inner.RecordAsync(action, targetId, targetLabel, before, after, ct);
+
+        public Task<IReadOnlyList<ActivityRecord>> ReadAsync(int skip, int take, string? action = null,
+            CancellationToken ct = default) => inner.ReadAsync(skip, take, action, ct);
+
+        public Task<int> CountAsync(string? action = null, CancellationToken ct = default) =>
+            inner.CountAsync(action, ct);
+
+        public Task<ActivityRecord?> LastAsync(ActivityAction action, CancellationToken ct = default) =>
+            inner.LastAsync(action, ct);
+
+        public Task<IReadOnlyList<ActivityRecord>> ExportAsync(CancellationToken ct = default) =>
+            inner.ExportAsync(ct);
+
+        public Task<int> ImportAsync(IReadOnlyList<ActivityRecord> records, CancellationToken ct = default) =>
+            inner.ImportAsync(records, ct);
+    }
+
+    /// <summary>
+    /// Убирает все учётные записи: регистрация открыта, только пока нет ни одной. Фикстура их НЕ
+    /// чистит — «чистят точечно те, кто их заводит» (FixtureResetCoverageTests), поэтому условие
+    /// освобождаем сами, а не надеемся на пустую базу.
+    /// </summary>
+    private async Task ClearUsersAsync()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        // Удаление сверяем: несостоявшееся всплыло бы не здесь, а отказом 403 на регистрации —
+        // и отчёт обвинил бы журнал, хотя дело было в неубранной учётной записи.
+        foreach (var u in await users.Users.ToListAsync())
+            Assert.True((await users.DeleteAsync(u)).Succeeded);
     }
 
     private static Task RecordCompositionAsync(IServiceScope scope) =>
