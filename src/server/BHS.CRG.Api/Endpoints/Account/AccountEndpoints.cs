@@ -176,18 +176,26 @@ public static class AccountEndpoints
     private static async Task<AccountDto> ToDtoAsync(
         ApplicationUser u, UserManager<ApplicationUser> users, RoleEditor editor)
     {
-        var role = (await users.GetRolesAsync(u)).FirstOrDefault() ?? SystemRoles.IdEngineer;
+        // ВСЕ роли, а не первая (issue #984). Здесь же был и второй обман: у человека без ролей
+        // подставлялся «Инженер ИД» — профиль называл роль, которой нет, ровно тому, у кого нет
+        // никакого доступа, и «мне ничего не открывается» переставало сходиться с «у меня роль».
+        //
         // Именно TitleAsync, а не FindAsync: профиль спрашивают на каждой загрузке экрана, а полный
         // вид роли ради одной подписи поднимал всех её носителей (ревью #983).
-        return new(u.Email ?? "", u.DisplayName, role,
-            await editor.TitleAsync(role), u.EmailConfirmed, u.AvatarDataUri);
+        var roles = new List<RoleRef>();
+        foreach (var name in await users.GetRolesAsync(u))
+            roles.Add(new RoleRef(name, await editor.TitleAsync(name)));
+
+        return new(u.Email ?? "", u.DisplayName,
+            [.. roles.OrderBy(r => r.Title, StringComparer.CurrentCulture)],
+            u.EmailConfirmed, u.AvatarDataUri);
     }
 
     private static string DescribeErrors(IdentityResult r) =>
         string.Join("; ", r.Errors.Select(e => e.Description));
 
     record AccountDto(
-        string Email, string DisplayName, string Role, string RoleTitle, bool EmailConfirmed, string? Avatar);
+        string Email, string DisplayName, IReadOnlyList<RoleRef> Roles, bool EmailConfirmed, string? Avatar);
     record UpdateAccountRequest(string? DisplayName);
     record UpdateAvatarRequest(string? Avatar);
     record ChangePasswordRequest(string CurrentPassword, string NewPassword);

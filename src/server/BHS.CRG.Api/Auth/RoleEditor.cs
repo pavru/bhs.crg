@@ -26,6 +26,20 @@ public sealed record RoleView(
     string Name, string Title, string? Summary, bool System, bool Edited,
     IReadOnlyList<string> Permissions, int Users, bool AllPermissions);
 
+/// <summary>
+/// Роль в ответах о ПОЛЬЗОВАТЕЛЕ: техническое имя и название для человека — и больше ничего
+/// (issue #984).
+///
+/// Отдельно от <see cref="RoleView" /> потому, что тот считает носителей роли: список
+/// пользователей спрашивают на каждой загрузке экрана, и полный вид роли там поднимал бы всех её
+/// носителей по разу на каждого пользователя в списке (ревью #983).
+///
+/// ⚠️ Имя И название вместе, а не что-то одно. Имя нужно, чтобы роль назначить; название — чтобы
+/// её прочитать, и совпадают они далеко не всегда: <c>User</c> — это «Инженер ИД», а у роли,
+/// заведённой администратором, имя вида <c>role-1a2b3c4d</c> не читается вовсе.
+/// </summary>
+public sealed record RoleRef(string Name, string Title);
+
 /// <summary>Итог правки: либо роль, либо отказ с кодом ответа и причиной для человека.</summary>
 /// <remarks>
 /// Отказ возвращается значением, а не исключением: слой API отвечает кодами (это проверяет
@@ -218,6 +232,21 @@ public sealed class RoleEditor(
         var removed = was.Except(wanted, StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal).ToList();
         if (added.Count == 0 && removed.Count == 0) return new RoleResult(view);
 
+        // ⚠️ Снятие права управления пользователями проверяется ЗДЕСЬ тоже (ревью #984).
+        //
+        // До #984 этот путь был закрыт сам собой: право управления жило только у роли «все права»,
+        // а её состав не правится вовсе. С тех пор единственный администратор вправе уйти из
+        // «Администратора» в свою роль с этим правом — и тогда галка на ЭТОМ экране снимает
+        // управление со всего экземпляра. Защита у пользователей такой ход не видит: состав ролей
+        // там не менялся.
+        if (removed.Contains(CorePermissions.UsersManage, StringComparer.OrdinalIgnoreCase)
+            && view.Users > 0
+            && !await SomeoneElseManagesAsync(role.Name!))
+            return RoleResult.Refuse(StatusCodes.Status409Conflict,
+                $"«{view.Title}» — единственная роль, дающая {CorePermissions.UsersManage} тем, кто её " +
+                "носит. Сняв это право, вы оставите экземпляр без управления пользователями и без " +
+                "возможности это исправить. Сначала выдайте право другой роли и назначьте её кому-нибудь.");
+
         foreach (var code in added) await roles.AddClaimAsync(role, Permission(code));
         foreach (var code in removed) await roles.RemoveClaimAsync(role, Permission(code));
         await SetClaimAsync(role, RoleSynchronizer.EditedClaim, "да");
@@ -304,6 +333,24 @@ public sealed class RoleEditor(
     {
         foreach (var holder in await users.GetUsersInRoleAsync(roleName))
             await users.UpdateSecurityStampAsync(holder);
+    }
+
+    /// <summary>
+    /// Есть ли КРОМЕ этой роли другая, которая даёт <c>core.users.manage</c> и которую кто-то
+    /// носит. Роль без носителей не считается: право, выданное роли, которую никто не носит, не
+    /// открывает дверь никому — и «управление есть» было бы неправдой.
+    /// </summary>
+    private async Task<bool> SomeoneElseManagesAsync(string exceptRoleName)
+    {
+        foreach (var other in await ListAsync())
+        {
+            if (string.Equals(other.Name, exceptRoleName, StringComparison.OrdinalIgnoreCase)) continue;
+            if (other.Users == 0) continue;
+            if (other.AllPermissions
+                || other.Permissions.Contains(CorePermissions.UsersManage, StringComparer.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     private async Task<RoleView> ViewAsync(IdentityRole<Guid> role)

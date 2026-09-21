@@ -85,7 +85,8 @@ async function ensureUser() {
   const list = Array.isArray(users) ? users : users.items ?? [];
   if (list.some(u => (u.email ?? '').toLowerCase() === USER_EMAIL.toLowerCase())) return;
   await api('POST', '/users', {
-    email: USER_EMAIL, displayName: 'Пётр Петров', password: USER_PASSWORD, role: 'User',
+    // Роли СПИСКОМ (issue #984): адрес назначения один и принимает перечень.
+    email: USER_EMAIL, displayName: 'Пётр Петров', password: USER_PASSWORD, roles: ['User'],
   });
   console.log(`  + пользователь ${USER_EMAIL}`);
 }

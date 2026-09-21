@@ -93,14 +93,15 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var email = $"role_{Guid.NewGuid():N}@test.local";
         var created = await admin.PostAsJsonAsync("/api/users", new
         {
-            email, displayName = "Тест", password = Password, role,
+            email, displayName = "Тест", password = Password, roles = new[] { role },
         });
         created.EnsureSuccessStatusCode();
 
         // Ответ называет и техническое имя, и подпись: имя вида role-1a2b3c4d человеку не показать.
         var dto = await created.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(role, dto.GetProperty("role").GetString());
-        Assert.Equal(title, dto.GetProperty("roleTitle").GetString());
+        var assigned = dto.GetProperty("roles").EnumerateArray().Single();
+        Assert.Equal(role, assigned.GetProperty("name").GetString());
+        Assert.Equal(title, assigned.GetProperty("title").GetString());
 
         // Роль действует: выданная дверь открыта, соседняя закрыта.
         var clerk = await SignInAsync(email);
@@ -121,7 +122,7 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var refused = await admin.PostAsJsonAsync("/api/users", new
         {
             email = $"role_{Guid.NewGuid():N}@test.local",
-            displayName = "Тест", password = Password, role = "role-нетакой",
+            displayName = "Тест", password = Password, roles = new[] { "role-нетакой" },
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
@@ -416,11 +417,12 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
         var holder = await SignInWithRoleAsync(role);
 
         var profile = await holder.GetFromJsonAsync<JsonElement>("/api/account");
-        Assert.Equal(title, profile.GetProperty("roleTitle").GetString());
+        Assert.Equal(title, profile.GetProperty("roles").EnumerateArray().Single().GetProperty("title").GetString());
 
         var users = await admin.GetFromJsonAsync<JsonElement>("/api/users");
-        var row = users.EnumerateArray().First(u => u.GetProperty("role").GetString() == role);
-        Assert.Equal(title, row.GetProperty("roleTitle").GetString());
+        var row = users.EnumerateArray().First(
+            u => u.GetProperty("roles").EnumerateArray().Any(r => r.GetProperty("name").GetString() == role));
+        Assert.Equal(title, row.GetProperty("roles").EnumerateArray().Single().GetProperty("title").GetString());
     }
 
     // ── Вспомогательное ───────────────────────────────────────────────────────

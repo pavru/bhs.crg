@@ -135,8 +135,15 @@ export function ProfilePage() {
         </div>
 
         <div>
-          <div className="text-xs text-fg4 mb-1">Роль</div>
-          <div className="text-sm text-fg1">{account.roleTitle}</div>
+          <div className="text-xs text-fg4 mb-1">{account.roles.length === 1 ? 'Роль' : 'Роли'}</div>
+          {/* Все роли, а не первая (issue #984): действующие права — объединение прав всех.
+              Пусто — так и сказано словами: прежде здесь подставлялся «Инженер ИД», и профиль
+              называл роль, которой нет, ровно тому, у кого нет никакого доступа. */}
+          <div className="text-sm text-fg1">
+            {account.roles.length > 0
+              ? account.roles.map(r => r.title).join(', ')
+              : <span className="text-fg4">Ролей нет — доступ не выдан</span>}
+          </div>
         </div>
 
         <TextField label="Отображаемое имя" value={displayName}
