@@ -18,13 +18,6 @@ import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
 import { useBugReportDialog } from '@/shared/ui/bugReportBus';
 import { LogOut, Sun, Moon, Monitor, KeyRound, Check, ChevronsUpDown, MailWarning, X, Bug } from 'lucide-react';
 
-/** Человеческое имя роли. Две прежние роли названы явно, остальные показываются как есть —
- *  выдумывать перевод для роли, заведённой заказчиком, неоткуда. */
-function roleTitle(role?: string): string {
-  if (!role) return '';
-  return role === 'Admin' ? 'Администратор' : role === 'User' ? 'Инженер ИД' : role;
-}
-
 const themeOptions: { value: Theme; icon: typeof Sun; label: string }[] = [
   { value: 'light',  icon: Sun,     label: 'Светлая'   },
   { value: 'dark',   icon: Moon,    label: 'Тёмная'    },
@@ -168,11 +161,13 @@ export function AppShell() {
 
               <span className="flex-1 min-w-0">
                 <span className="block text-sm font-medium text-fg1 truncate">{user?.displayName || user?.email}</span>
-                {/* Роль — справочная подпись, и берётся она с СЕРВЕРА, а не из токена. Решений по
-                    ней больше не принимается: что показывать, решают права выше.
-                    ⚠️ Ролей в системе девять, а сервер отдаёт здесь одну (первую): несколько ролей
-                    у пользователя показывает редактор ролей — #951. */}
-                <span className="block text-xs text-fg3">{roleTitle(account?.role)}</span>
+                {/* Роль — справочная подпись, и берётся она с СЕРВЕРА целиком, вместе с названием
+                    (issue #951). Собирать подпись по техническому имени клиент больше не умеет и не
+                    должен: имён девять системных плюс те, что заводит администратор, и три места
+                    интерфейса успели подписать одно и то же имя по-разному.
+                    ⚠️ Сервер отдаёт здесь ОДНУ роль (первую): назначение нескольких — отдельная
+                    работа, см. issue про множественные роли. */}
+                <span className="block text-xs text-fg3">{account?.roleTitle ?? ''}</span>
               </span>
               <ChevronsUpDown size={18} className="text-fg3 shrink-0" />
             </NavLink>

@@ -21,6 +21,7 @@ import { ReconciliationsPage } from '@/features/reconciliations/ReconciliationsP
 import { UsersPage } from '@/features/settings/UsersPage';
 import { BugReportsPage } from '@/features/settings/BugReportsPage';
 import { ActivityPage } from '@/features/settings/ActivityPage';
+import { RolesPage } from '@/features/settings/RolesPage';
 import { DataSetsPage } from '@/features/datasets/DataSetsPage';
 import { PdfGroupingEditor } from '@/features/datasets/PdfGroupingEditor';
 import { QualityDocsPage } from '@/features/quality-docs/QualityDocsPage';
@@ -78,6 +79,7 @@ export default function App() {
                   <Route path="field-types" element={<PrimitiveTypesPage />} />
                   <Route path="recognition-profiles" element={<RecognitionProfilesPage />} />
                   <Route path="users" element={<UsersPage />} />
+                  <Route path="roles" element={<RolesPage />} />
                   <Route path="activity" element={<ActivityPage />} />
                   <Route path="bug-reports" element={<BugReportsPage />} />
                   <Route path="settings" element={<SettingsPage />} />

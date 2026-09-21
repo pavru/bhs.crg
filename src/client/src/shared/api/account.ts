@@ -1,13 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { UserRole } from '@/shared/hooks/useAuth';
 
 const QK = 'account';
 
 export interface Account {
   email: string;
   displayName: string;
-  role: UserRole;
+  /** Техническое имя роли. */
+  role: string;
+  /** Название роли для человека — его и показываем. Собирает сервер (issue #951). */
+  roleTitle: string;
   emailConfirmed: boolean;
   /** Аватар профиля (issue #245) — data-URI уменьшённой картинки, null = нет. */
   avatar?: string | null;

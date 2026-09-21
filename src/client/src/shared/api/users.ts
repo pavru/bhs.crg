@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { UserRole } from '@/shared/hooks/useAuth';
 
 const QK = 'users';
 
@@ -8,7 +7,10 @@ export interface AppUser {
   id: string;
   email: string;
   displayName: string;
-  role: UserRole;
+  /** Техническое имя роли — им же роль и назначают. */
+  role: string;
+  /** Название для человека: техническое имя заведённой роли нечитаемо (issue #951). */
+  roleTitle: string;
 }
 
 export function useListUsers() {
@@ -21,7 +23,7 @@ export function useListUsers() {
 export function useCreateUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (dto: { email: string; displayName: string; password: string; role: UserRole }) =>
+    mutationFn: (dto: { email: string; displayName: string; password: string; role: string }) =>
       apiClient.post<AppUser>('/users', dto).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
@@ -30,7 +32,7 @@ export function useCreateUser() {
 export function useChangeUserRole() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, role }: { id: string; role: UserRole }) =>
+    mutationFn: ({ id, role }: { id: string; role: string }) =>
       apiClient.put<AppUser>(`/users/${id}/role`, { role }).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });

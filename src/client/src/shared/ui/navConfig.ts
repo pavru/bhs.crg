@@ -36,6 +36,7 @@ export const settingsNav: NavItem[] = [
   { to: '/templates',            label: 'Шаблоны',               icon: FileText, permission: 'id.config.edit' },
   { to: '/recognition-profiles', label: 'Профили распознавания', icon: ScanText, permission: 'core.recognition.settings' },
   { to: '/users',                label: 'Пользователи',          icon: Users,    permission: 'core.users.manage' },
+  { to: '/roles',                label: 'Роли и права',          icon: ShieldCheck, permission: 'core.users.manage' },
   { to: '/activity',             label: 'Журнал действий',       icon: History,  permission: 'core.audit.read' },
   { to: '/bug-reports',          label: 'Сообщения об ошибках',  icon: Bug,      permission: 'core.support.review' },
   { to: '/settings',             label: 'Настройки',             icon: Settings, permission: 'core.system.manage' },

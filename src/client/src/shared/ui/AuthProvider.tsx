@@ -4,13 +4,16 @@ import { apiClient } from '@/shared/api/client';
 import {
   getToken, getRefreshToken, setTokens, clearToken, replaceTokens, onTokenChanged,
 } from '@/shared/api/token';
-import { AuthContext, type AuthUser, type UserRole } from '@/shared/hooks/useAuth';
+import { AuthContext, type AuthUser } from '@/shared/hooks/useAuth';
 
 function decodeUser(token: string): AuthUser {
   const payload = jwtDecode<{ sub: string; email: string; displayName: string; role?: string | string[] }>(token);
   const roles = Array.isArray(payload.role) ? payload.role : payload.role ? [payload.role] : [];
-  const role: UserRole = roles.includes('Admin') ? 'Admin' : 'User';
-  return { sub: payload.sub, email: payload.email, displayName: payload.displayName, role };
+  // Имя роли берётся КАК ЕСТЬ. Прежняя строка сводила любой набор к «Admin» или «User» — то есть
+  // клиент принимал решение по имени роли, а ролей теперь девять системных плюс заведённые
+  // администратором (issue #951). Решений по этому имени не принимают вовсе: что доступно,
+  // отвечает /api/account/access (AUTH-14), а подпись приходит с сервера.
+  return { sub: payload.sub, email: payload.email, displayName: payload.displayName, role: roles[0] ?? '' };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
