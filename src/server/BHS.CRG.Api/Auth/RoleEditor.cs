@@ -48,6 +48,17 @@ public sealed class RoleEditor(
     PermissionCatalog catalog,
     IActivityLog journal)
 {
+    /// <summary>
+    /// Роль по техническому имени; null — такой роли нет. Через неё же проверяется, можно ли
+    /// назначить роль пользователю: живой список ролей — единственный ответ на этот вопрос.
+    /// </summary>
+    public async Task<RoleView?> FindAsync(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        var role = await roles.FindByNameAsync(name.Trim());
+        return role is null ? null : await ViewAsync(role);
+    }
+
     public async Task<IReadOnlyList<RoleView>> ListAsync()
     {
         var result = new List<RoleView>();
@@ -138,13 +149,21 @@ public sealed class RoleEditor(
 
         var view = await ViewAsync(role);
 
-        // Администратора нельзя лишить управления пользователями (ТЗ AUTH-5): экземпляр остался бы
-        // без единого человека, способного это исправить, и чинилось бы это руками в базе.
-        if (string.Equals(role.Name, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase)
-            && !wanted.Contains(SystemRoles.AdminCannotLose))
+        // Роль «все права» составом не правится вовсе (ТЗ AUTH-5 — «Администратора» нельзя лишить
+        // core.users.manage; здесь причина шире).
+        //
+        // Состав у неё не перечислен: он РАВЕН справочнику прав и пополняется вместе с ним. Разреши
+        // мы правку — состав замер бы на сегодняшнем справочнике, и право следующего выпуска, как и
+        // права нового модуля, не достались бы никому, включая администратора. Отказ доступа всем
+        // сразу, без причины в логе и без связи с той давней галкой.
+        //
+        // Нужен «администратор с ограничениями» — это другая роль, и заводится она рядом.
+        if (Declared(role.Name)?.AllPermissions == true)
             return RoleResult.Refuse(StatusCodes.Status409Conflict,
-                $"У роли «{view.Title}» нельзя снять право {SystemRoles.AdminCannotLose}: " +
-                "без него экземпляр остаётся без управления пользователями, и вернуть право будет некому.");
+                $"«{view.Title}» — роль «все права»: её состав не перечислен, он равен справочнику " +
+                "прав и пополняется вместе с ним. Снятое здесь право вернулось бы при следующем " +
+                $"запуске, а снятое навсегда {SystemRoles.AdminCannotLose} оставило бы экземпляр " +
+                "без управления пользователями. Заведите отдельную роль с нужным набором.");
 
         var was = view.Permissions.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var added = wanted.Except(was, StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal).ToList();
@@ -243,8 +262,7 @@ public sealed class RoleEditor(
     {
         var claims = await roles.GetClaimsAsync(role);
         var name = role.Name ?? "";
-        var declared = SystemRoles.All.FirstOrDefault(r =>
-            string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase));
+        var declared = Declared(name);
 
         return new RoleView(
             name,
@@ -257,7 +275,14 @@ public sealed class RoleEditor(
             (await users.GetUsersInRoleAsync(name)).Count);
     }
 
-    /// <summary>Объявленные коды отдельно от неизвестных: неизвестный — опечатка, а не «просто нет».</summary>
+    /// <summary>
+    /// Объявленные коды отдельно от неизвестных: неизвестный — опечатка, а не «просто нет».
+    ///
+    /// ⚠️ Известный код приводится к написанию ИЗ СПРАВОЧНИКА. Справочник отвечает про право без
+    /// учёта регистра, а дальше код живёт строкой: записанный как <c>CORE.USERS.MANAGE</c>, он
+    /// разошёлся бы и с галкой в редакторе, и с проверкой «нельзя снять» — право выглядело бы
+    /// выданным и не совпадало бы ни с чем.
+    /// </summary>
     private (List<string> Granted, List<string> Unknown) Split(IReadOnlyList<string>? permissions)
     {
         var codes = (permissions ?? [])
@@ -266,8 +291,15 @@ public sealed class RoleEditor(
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return ([.. codes.Where(catalog.Declares)], [.. codes.Where(c => !catalog.Declares(c))]);
+        var canonical = catalog.All.ToDictionary(p => p.Code, p => p.Code, StringComparer.OrdinalIgnoreCase);
+
+        return ([.. codes.Where(catalog.Declares).Select(c => canonical[c])],
+                [.. codes.Where(c => !catalog.Declares(c))]);
     }
+
+    /// <summary>Объявление системной роли по имени; null — роль завёл администратор.</summary>
+    private static RoleDefinition? Declared(string? name) =>
+        SystemRoles.All.FirstOrDefault(r => string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase));
 
     private static RoleResult UnknownPermissions(IReadOnlyList<string> unknown) =>
         RoleResult.Refuse(StatusCodes.Status400BadRequest,

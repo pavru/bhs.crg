@@ -85,57 +85,42 @@ public static class RoleSynchronizer
     {
         var existing = await roles.GetClaimsAsync(role);
 
-        var current = existing
-            .Where(c => c.Type == PermissionClaim)
-            .Select(c => c.Value)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        // Состав правил администратор (AUTH-5) — код больше им не распоряжается. Остаётся
-        // единственная гарантия, которую нельзя отдать никому: управление пользователями у
-        // «Администратора». Без неё экземпляр чинится только руками в базе, и это относится и к
-        // правке через редактор, и к правке прямо в таблице.
-        if (existing.Any(c => c.Type == EditedClaim))
-        {
-            await GuaranteeAdminAsync(roles, role, current, declared, logger);
-        }
-        else
-        {
-            var wanted = Wanted(definition, declared);
-
-            foreach (var code in wanted.Except(current, StringComparer.OrdinalIgnoreCase))
-                await roles.AddClaimAsync(role, new Claim(PermissionClaim, code));
-
-            foreach (var code in current.Except(wanted, StringComparer.OrdinalIgnoreCase))
-            {
-                await roles.RemoveClaimAsync(role, new Claim(PermissionClaim, code));
-                logger.LogInformation(
-                    "Право {Code} убрано из системной роли {Role}: его больше нет в объявленном составе",
-                    code, role.Name);
-            }
-        }
-
         // Название и описание остаются за кодом даже у правленой роли: администратор меняет СОСТАВ
         // системной роли, а не то, что она означает. Переименование системной роли редактор
         // отклоняет прямо (см. RoleEditor), и возвращать здесь нечего.
         await SetSingleAsync(roles, role, existing, TitleClaim, definition.Title);
         await SetSingleAsync(roles, role, existing, SummaryClaim, definition.Summary);
-    }
 
-    private static async Task GuaranteeAdminAsync(
-        RoleManager<IdentityRole<Guid>> roles,
-        IdentityRole<Guid> role,
-        HashSet<string> current,
-        HashSet<string> declared,
-        ILogger logger)
-    {
-        if (!string.Equals(role.Name, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase)) return;
-        if (!declared.Contains(SystemRoles.AdminCannotLose)) return;
-        if (current.Contains(SystemRoles.AdminCannotLose)) return;
+        var current = existing
+            .Where(c => c.Type == PermissionClaim)
+            .Select(c => c.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        await roles.AddClaimAsync(role, new Claim(PermissionClaim, SystemRoles.AdminCannotLose));
-        logger.LogWarning(
-            "Право {Code} возвращено роли «Администратор»: без него экземпляр остаётся без " +
-            "управления пользователями", SystemRoles.AdminCannotLose);
+        // Состав правил администратор (AUTH-5) — код больше им не распоряжается.
+        //
+        // ⚠️ Кроме роли «все права». У неё состав не перечислен вовсе: он РАВЕН справочнику и
+        // пополняется вместе с ним. Замри он однажды — право следующего выпуска и права нового
+        // модуля не достались бы никому, включая администратора, и выглядело бы это как отказ
+        // доступа всем сразу без единой причины в логе. Поэтому такая роль приводится к полному
+        // составу всегда, даже с отметкой правки (её можно поставить и прямо в базе). Редактор
+        // править её состав и не даёт — см. RoleEditor.
+        if (existing.Any(c => c.Type == EditedClaim) && !definition.AllPermissions)
+        {
+            return;
+        }
+
+        var wanted = Wanted(definition, declared);
+
+        foreach (var code in wanted.Except(current, StringComparer.OrdinalIgnoreCase))
+            await roles.AddClaimAsync(role, new Claim(PermissionClaim, code));
+
+        foreach (var code in current.Except(wanted, StringComparer.OrdinalIgnoreCase))
+        {
+            await roles.RemoveClaimAsync(role, new Claim(PermissionClaim, code));
+            logger.LogInformation(
+                "Право {Code} убрано из системной роли {Role}: его больше нет в объявленном составе",
+                code, role.Name);
+        }
     }
 
     private static async Task SetSingleAsync(

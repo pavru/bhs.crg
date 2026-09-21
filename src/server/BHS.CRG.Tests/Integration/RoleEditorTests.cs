@@ -8,6 +8,7 @@ using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Security.Claims;
 
 namespace BHS.CRG.Tests.Integration;
 
@@ -25,17 +26,20 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
     /// <summary>
     /// ⚠️ Роли фикстура НЕ чистит: <c>AspNetRoles</c> сознательно вне списка очистки — системные
     /// роли создаёт приложение при старте, и TRUNCATE их не вернёт. Значит, за собой обязаны
-    /// прибирать мы, и с обеих сторон: правка состава СИСТЕМНОЙ роли переживает перезапуск (в том и
-    /// смысл задачи), то есть оставленная — переживёт и весь остальной прогон. Роль «Инженер ИД» с
-    /// одним правом ломала бы чужие тесты там, где про роли не сказано ни слова.
+    /// прибирать мы, и с обеих сторон.
+    ///
+    /// Прибирается двое. Правка состава СИСТЕМНОЙ роли переживает перезапуск (в том и смысл
+    /// задачи), то есть оставленная — переживёт и весь остальной прогон: роль «Инженер ИД» с одним
+    /// правом ломала бы чужие тесты там, где про роли не сказано ни слова. А заведённые тестами
+    /// роли копятся на постоянной базе разработчика, и список ролей спрашивает носителей у каждой.
     /// </summary>
     public async Task InitializeAsync()
     {
         await fixture.ResetDatabaseAsync();
-        await RestoreDeclaredRolesAsync();
+        await CleanRolesAsync();
     }
 
-    public Task DisposeAsync() => RestoreDeclaredRolesAsync();
+    public Task DisposeAsync() => CleanRolesAsync();
 
     private const string Password = "Passw0rd!";
 
@@ -67,6 +71,61 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
         // …и ничего лишнего с ним не пришло: ни пользователей, ни журнала, ни настроек.
         foreach (var closed in new[] { "/api/users", "/api/activity", "/api/roles" })
             Assert.Equal(HttpStatusCode.Forbidden, (await clerk.GetAsync(closed)).StatusCode);
+    }
+
+    /// <summary>
+    /// Заведённую роль можно НАЗНАЧИТЬ, и она действует.
+    ///
+    /// ⚠️ Назначение идёт через живой адрес <c>/api/users</c>, а не через <c>UserManager</c>, как в
+    /// остальных проверках этого класса. Разница решающая: назначение — единственный путь, которым
+    /// роль попадает к человеку, и пока оно сверяло имя со списком СИСТЕМНЫХ ролей, заведённая
+    /// роль создавалась, права ей выдавались, а носить её было некому. Проверка, идущая мимо
+    /// адреса, этого не видит вовсе (поймано ревью PR #981).
+    /// </summary>
+    [Fact]
+    public async Task Заведённую_роль_можно_назначить_пользователю_и_она_действует()
+    {
+        var admin = await SignInAsync(SystemRoles.Admin);
+
+        var title = Title("Разбор обращений");
+        var role = await CreateRoleAsync(admin, title, [CorePermissions.SupportReview]);
+
+        var email = $"role_{Guid.NewGuid():N}@test.local";
+        var created = await admin.PostAsJsonAsync("/api/users", new
+        {
+            email, displayName = "Тест", password = Password, role,
+        });
+        created.EnsureSuccessStatusCode();
+
+        // Ответ называет и техническое имя, и подпись: имя вида role-1a2b3c4d человеку не показать.
+        var dto = await created.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(role, dto.GetProperty("role").GetString());
+        Assert.Equal(title, dto.GetProperty("roleTitle").GetString());
+
+        // Роль действует: выданная дверь открыта, соседняя закрыта.
+        var clerk = await SignInAsync(email);
+        Assert.Equal(HttpStatusCode.OK, (await clerk.GetAsync("/api/bug-reports")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await clerk.GetAsync("/api/users")).StatusCode);
+
+        // И в журнале — название роли, а не её техническое имя.
+        var record = Assert.Single(await RecordsAsync(ActivityActions.UserCreated));
+        Assert.Equal(title, record.After);
+    }
+
+    /// <summary>Роли, которой нет, назначить нельзя — и отказ называет, что именно не нашлось.</summary>
+    [Fact]
+    public async Task Несуществующую_роль_назначить_нельзя()
+    {
+        var admin = await SignInAsync(SystemRoles.Admin);
+
+        var refused = await admin.PostAsJsonAsync("/api/users", new
+        {
+            email = $"role_{Guid.NewGuid():N}@test.local",
+            displayName = "Тест", password = Password, role = "role-нетакой",
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("role-нетакой", await refused.Content.ReadAsStringAsync());
     }
 
     /// <summary>
@@ -121,11 +180,15 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
     }
 
     /// <summary>
-    /// «Администратора» нельзя лишить управления пользователями (ТЗ AUTH-5): иначе экземпляр
-    /// остаётся без единого человека, способного это исправить.
+    /// Роль «все права» составом не правится (ТЗ AUTH-5 — «Администратора» нельзя лишить
+    /// <c>core.users.manage</c>; причина здесь шире).
+    ///
+    /// Состав у неё не перечислен: он равен справочнику и пополняется вместе с ним. Разреши мы
+    /// правку — состав замер бы на сегодняшнем справочнике, и право следующего выпуска не
+    /// досталось бы никому.
     /// </summary>
     [Fact]
-    public async Task Администратор_не_может_лишиться_управления_пользователями()
+    public async Task Роль_все_права_составом_не_правится()
     {
         var admin = await SignInAsync(SystemRoles.Admin);
 
@@ -137,6 +200,35 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         // И право осталось на месте: отказ обязан быть отказом, а не половиной правки.
         Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync("/api/users")).StatusCode);
+    }
+
+    /// <summary>
+    /// Роль «все права» получает НОВОЕ право при старте, даже если кто-то отметил её правленой.
+    ///
+    /// ⚠️ Проверка сделана нарушением: отметка правки и снятое право ставятся прямо в базе — через
+    /// редактор такого не сделать. Без этого правила замороженный состав «Администратора» означал
+    /// бы, что право очередного выпуска и права нового модуля не достаются никому: 403 у всех
+    /// сразу, без строки в логе и без связи с той давней правкой (поймано ревью PR #981).
+    /// </summary>
+    [Fact]
+    public async Task Роль_все_права_получает_новое_право_при_старте()
+    {
+        var admin = await SignInAsync(SystemRoles.Admin);
+
+        using (var scope = fixture.Services.CreateScope())
+        {
+            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+            var role = (await roles.FindByNameAsync(SystemRoles.Admin))!;
+            await roles.AddClaimAsync(role, new Claim(RoleSynchronizer.EditedClaim, "да"));
+            foreach (var code in new[] { CorePermissions.ViewsShare, CorePermissions.UsersManage })
+                await roles.RemoveClaimAsync(role, new Claim(RoleSynchronizer.PermissionClaim, code));
+        }
+
+        await SynchronizeRolesAsync();
+
+        var after = await PermissionsOfAsync(admin, SystemRoles.Admin);
+        Assert.Contains(CorePermissions.ViewsShare, after);     // новое право дошло
+        Assert.Contains(CorePermissions.UsersManage, after);    // и управление вернулось
     }
 
     /// <summary>Системную роль правят, но не удаляют (ТЗ AUTH-4, AUTH-5).</summary>
@@ -177,33 +269,6 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
 
         var after = await PermissionsOfAsync(admin, SystemRoles.IdEngineer);
         Assert.Equal([CorePermissions.CatalogRead], after);
-    }
-
-    /// <summary>
-    /// А вот управление пользователями «Администратору» возвращается даже у правленой роли: это
-    /// последняя гарантия, и она не про то, кто владеет составом, а про то, что экземпляр остаётся
-    /// управляемым. Снять его можно только в обход приложения — прямо в базе.
-    /// </summary>
-    [Fact]
-    public async Task Управление_пользователями_возвращается_администратору_при_старте()
-    {
-        var admin = await SignInAsync(SystemRoles.Admin);
-        // Отмечаем роль правленой честным путём — через редактор; состав при этом не меняем.
-        (await admin.PutAsJsonAsync($"/api/roles/{SystemRoles.Admin}/permissions",
-            new { permissions = await PermissionsOfAsync(admin, SystemRoles.Admin) })).EnsureSuccessStatusCode();
-
-        // Право снимаем мимо приложения: редактор такого не позволит, а правка в базе — да.
-        using (var scope = fixture.Services.CreateScope())
-        {
-            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
-            var role = (await roles.FindByNameAsync(SystemRoles.Admin))!;
-            await roles.RemoveClaimAsync(role,
-                new System.Security.Claims.Claim(RoleSynchronizer.PermissionClaim, CorePermissions.UsersManage));
-        }
-
-        await SynchronizeRolesAsync();
-
-        Assert.Contains(CorePermissions.UsersManage, await PermissionsOfAsync(admin, SystemRoles.Admin));
     }
 
     /// <summary>
@@ -260,6 +325,24 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Contains("носят", await refused.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// Код права принимается в любом регистре и записывается в каноническом.
+    ///
+    /// Справочник отвечает про право без учёта регистра, а дальше код живёт строкой: записанный как
+    /// <c>CORE.CATALOG.READ</c>, он разошёлся бы и с галкой в редакторе, и с проверками — право
+    /// выглядело бы выданным и не совпадало бы ни с чем (поймано ревью PR #981).
+    /// </summary>
+    [Fact]
+    public async Task Код_права_записывается_в_каноническом_виде()
+    {
+        var admin = await SignInAsync(SystemRoles.Admin);
+
+        var role = await CreateRoleAsync(admin, Title("Регистр"),
+            [CorePermissions.CatalogRead.ToUpperInvariant()]);
+
+        Assert.Equal([CorePermissions.CatalogRead], await PermissionsOfAsync(admin, role));
+    }
+
     /// <summary>Редактор ролей закрыт тем же правом, что и пользователи (ТЗ AUTH-8).</summary>
     [Fact]
     public async Task Редактор_ролей_закрыт_правом()
@@ -291,15 +374,17 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
     }
 
     /// <summary>
-    /// Возвращает системные роли к объявленному составу: снимаем отметку «правил администратор» и
-    /// зовём синхронизатор. Именно эта отметка и делает правку живучей — без её снятия уборка
-    /// ничего не убрала бы.
+    /// Возвращает системные роли к объявленному составу и уносит заведённые тестами.
+    ///
+    /// Отметку «правил администратор» снимаем первой: именно она делает правку живучей — без её
+    /// снятия уборка ничего не убрала бы.
     /// </summary>
-    private async Task RestoreDeclaredRolesAsync()
+    private async Task CleanRolesAsync()
     {
         using (var scope = fixture.Services.CreateScope())
         {
             var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+
             foreach (var definition in SystemRoles.All)
             {
                 var role = await roles.FindByNameAsync(definition.Name);
@@ -308,6 +393,10 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
                          .Where(c => c.Type == RoleSynchronizer.EditedClaim))
                     await roles.RemoveClaimAsync(role, mark);
             }
+
+            // Заведённые редактором роли узнаются по имени: его даёт он сам (role-xxxxxxxx).
+            foreach (var mine in roles.Roles.Where(r => r.Name!.StartsWith("role-")).ToList())
+                await roles.DeleteAsync(mine);
         }
         await SynchronizeRolesAsync();
     }
@@ -331,7 +420,18 @@ public class RoleEditorTests(IntegrationTestFixture fixture) : IAsyncLifetime
         return await scope.ServiceProvider.GetRequiredService<IActivityLog>().ReadAsync(0, 100, action.Code);
     }
 
-    private Task<HttpClient> SignInAsync(string role) => SignInWithRoleAsync(role);
+    /// <summary>Вход уже заведённой учётной записью — по почте.</summary>
+    private async Task<HttpClient> SignInAsync(string emailOrRole)
+    {
+        if (!emailOrRole.Contains('@')) return await SignInWithRoleAsync(emailOrRole);
+
+        var client = fixture.CreateClient();
+        var login = await client.PostAsJsonAsync("/api/auth/login", new { email = emailOrRole, password = Password });
+        login.EnsureSuccessStatusCode();
+        var token = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString()!;
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
 
     /// <summary>Заводит пользователя с ролью и возвращает клиент с его токеном.</summary>
     private async Task<HttpClient> SignInWithRoleAsync(string role)
