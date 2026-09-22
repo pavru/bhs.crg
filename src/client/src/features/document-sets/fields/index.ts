@@ -4,6 +4,7 @@ export * from './ImageField';
 export * from './checkImageResult';
 export * from './PrimitiveInput';
 export * from './lockedFields';
+export * from './bindableFields';
 export * from './LockedFieldMarks';
 export * from './fieldValidation';
 export * from './collectConstraintViolations';

@@ -31,7 +31,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   return (
     <OutlinedField
       label={label} required={required} invalid={invalid} error={error} hint={hint}
-      htmlFor={inputId} trailing={trailing} containerClassName={containerClassName}
+      readOnly={rest.readOnly} htmlFor={inputId} trailing={trailing} containerClassName={containerClassName}
     >
       <input
         ref={ref} id={inputId} placeholder=" " required={required}

@@ -30,6 +30,23 @@ const primitiveTypes = [
 const defs = { enumTypes, primitiveTypes };
 
 describe('buildRecognitionFields', () => {
+  it('запертое поле модели не показывает — ни на верхнем уровне, ни внутри составного', () => {
+    // Ответ модели уходит прямо в реквизиты, а охрана записи (ТЗ CORE-20.2) требует оставить
+    // запертое поле бит-в-бит: распознай мы его — сохранение получило бы 400, и вернуть прежнее
+    // значение из формы было бы нечем. Вместе с ним человек терял бы все остальные ответы.
+    const inner = docType('inner', [
+      field('Открытое', 'string'),
+      field('ЗапертоеВнутри', 'string', { locked: true }),
+    ]);
+    const outer = docType('outer', [
+      field('Обычное', 'string'),
+      field('Запертое', 'string', { locked: true }),
+      field('Состав', 'complex', { typeId: 'inner' }),
+    ]);
+    expect(buildRecognitionFields(outer.schema.fields as SchemaField[], [inner, outer], defs).fields.map(f => f.path))
+      .toEqual(['Обычное', 'Состав.Открытое']);
+  });
+
   it('перечислению из реестра подставляет ПОДПИСИ — их модель и увидит в скане', () => {
     const t = docType('t', [field('Вид', 'enum', { typeId: 'e-kind' })]);
     const plan = buildRecognitionFields(t.schema.fields as SchemaField[], [t], defs);

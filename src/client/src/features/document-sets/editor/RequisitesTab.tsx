@@ -15,7 +15,7 @@ import { useCommonDataForSet } from '@/shared/api/commonData';
 import { groupEffectiveFields, parseSchemaFields, getDefaultValues, isScalarField, type SchemaField } from '@/shared/api/schema';
 import { FieldSourceBinding } from './FieldSourceBinding';
 import { ContainerFieldBinding } from './ContainerFieldBinding';
-import { validateConstraint, isMissing, PrimitiveInput, FileField, ImageField, collectConstraintViolations, DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup, AutoFieldsSection, isWideField, isLockedField, LockedFieldIcon, LockedFieldValue, SCOPE_TIER, ancestorTypeIds, parseBaseRef, BaseCandidatePicker, type BaseCandidate } from '../fields';
+import { validateConstraint, isMissing, PrimitiveInput, FileField, ImageField, collectConstraintViolations, DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup, AutoFieldsSection, isWideField, isLockedField, bindableFields, LockedFieldIcon, LockedFieldValue, LOCKED_HINT, SCOPE_TIER, ancestorTypeIds, parseBaseRef, BaseCandidatePicker, type BaseCandidate } from '../fields';
 import { evalComputed, referencedKeys } from '@/shared/utils/computedExpression';
 import { DocumentPreviewPanel } from './DocumentPreviewPanel';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
@@ -64,6 +64,21 @@ function SourceBoundDocField(
 
 /// Подсказка о состоянии связанного скалярного поля без значения (issue #67): грузится / источник
 /// недоступен / источник не дал значения — чтобы пустой read-only бокс не выглядел как «немой».
+/**
+ * Подпись под запертым полем — словами, а не одним значком у заголовка.
+ *
+ * Значок говорит «что-то с этим полем не так, как с соседним», но не говорит ЧТО, а наведение
+ * мышью — не способ узнать: читают-то глазами. Инструкция администратора обещает эту подпись во
+ * всех трёх формах по схеме, и обещание должно быть верным во всех трёх (issue #958).
+ */
+function LockedFieldNote() {
+  return (
+    <p className="text-[11px] text-fg4 mt-0.5 flex items-center gap-1">
+      <LockedFieldIcon />{LOCKED_HINT}
+    </p>
+  );
+}
+
 function BoundStateHint({ loading, error }: { loading: boolean; error: boolean }) {
   const text = loading ? 'Загрузка значения из источника…'
     : error ? 'Источник недоступен — проверьте в «Источниках»'
@@ -151,7 +166,12 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
   const staleReasonOf = (key: string) => staleReasons.get(key) ?? null;
   // Скалярные поля — для per-field привязки «линза» (issue #296, фаза 1): выбор источника на поле +
   // авто-предложение покрыть остальные скалярные поля этого источника.
-  const scalarSchemaFields = useMemo(() => schemaFields.filter(f => isScalarField(f) && f.type !== 'file'), [schemaFields]);
+  // Через общее правило (`bindableFields`): этот список — не только «чьи линзы рисуем», но и
+  // КАНДИДАТЫ на авто-покрытие соседним источником. Оставь запертые здесь — и привязка к ним
+  // заводилась бы из чужой линзы, галкой «этот источник заполнит также», включённой по умолчанию.
+  const scalarSchemaFields = useMemo(
+    () => bindableFields(schemaFields).filter(f => isScalarField(f) && f.type !== 'file'),
+    [schemaFields]);
 
   // Битые ссылки (issue #332): цель удалена. Диагностику резолва тянем ОДИН раз в общий кэш (её же
   // читает панель «Проверить ссылки»), только если в реквизитах есть ссылки. Instance-промахи фронт
@@ -453,7 +473,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
             return (
               <div key={field.key} className="col-span-2 relative group">
                 {/* Per-field привязка контейнерного поля «линза» (issue #296, фаза 2a) — модалка в углу. */}
-                {isContainer && !locked && (
+                {isContainer && (!locked || bound) && (
                   <div className="absolute top-0.5 right-0.5 z-10">
                     <ContainerFieldBinding instanceId={instance.id} setId={setId} field={field}
                       allDocTypes={allDocTypes} bindings={dsBindings} />
@@ -548,6 +568,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     readOnly={bound || locked} />
                 )}
                 {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
+                {locked && <LockedFieldNote />}
                 {missing && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
                 {!missing && constraintError && <p className="text-xs text-danger mt-1">{constraintError}</p>}
                 {/* Расхождение с типом (issue #644) — после ошибок формы: те про текущий ввод, это
@@ -562,9 +583,11 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
           return (
             <div key={field.key} className="col-span-1 min-w-0 relative group">
               {/* Per-field привязка «линза» (issue #296, фаза 1): иконка в углу — привязать/изменить/отвязать. */}
-              {/* Запертому полю источник не назначается: значение кладёт код модуля, и привязка
-                  спорила бы с ним — поэтому «линзы» у него нет вовсе, а не отключённая. */}
-              {!locked && (
+              {/* Запертому полю источник не назначается — «линзы» у него нет. Но если привязка
+                  ДОСТАЛАСЬ ему от прежней версии типа (замок модуль объявляет поверх живых данных),
+                  линзу показываем: иначе единственный выход — снять привязку — оказался бы закрыт,
+                  а поле навсегда заполнялось бы источником вместо модуля. */}
+              {(!locked || bound) && (
               <div className="absolute top-0.5 right-0.5 z-10">
                 <FieldSourceBinding instanceId={instance.id} setId={setId} field={field}
                   scalarFields={scalarSchemaFields} bindings={dsBindings} />
@@ -612,6 +635,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                   invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} />
               )}
               {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
+              {locked && <LockedFieldNote />}
               {missing && <p className="text-[11px] text-danger mt-0.5">Обязательное поле</p>}
               {!missing && constraintError && <p className="text-[11px] text-danger mt-0.5">{constraintError}</p>}
               {!hasError && <ValueIssueHint messages={valueIssues.get(field.key)} compact />}

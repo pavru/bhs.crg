@@ -9,6 +9,7 @@ import {
 import type { DataSetBinding, DataSetSource, DocumentType, CatalogScope } from '@/shared/api/types';
 import { SCOPE_LABELS } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
+import { isLockedField } from '../fields';
 
 type FlatSource = DataSetSource & { fileName: string; fileScope: CatalogScope };
 
@@ -123,13 +124,23 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
     } finally { setBusy(false); }
   }
 
-  const saveDisabled = !selectedSource || busy || (refMode && !mapping[field.key]) || (isTabular && !isMaterialized && Object.keys(mapping).length === 0);
+  /**
+   * Запертое поле (ТЗ CORE-20.2) источником не заполняется. Сегодня контейнер под замком не
+   * заводится — объявление модуля принимает только самодостаточные виды значения, — но модалка
+   * тут единственный выход для привязки, ДОСТАВШЕЙСЯ от прежней версии типа: снять можно, завести
+   * нельзя. Условие здесь, а не только у вызывающего: спрятать кнопку и оставить действие рабочим
+   * значит закрыть дверь, не заперев её.
+   */
+  const locked = isLockedField(field);
+  const saveDisabled = locked || !selectedSource || busy || (refMode && !mapping[field.key]) || (isTabular && !isMaterialized && Object.keys(mapping).length === 0);
 
   return (
     <>
       <button type="button" onClick={() => onOpenChange(true)}
-        title={isBound ? 'Заполняется из источника — изменить/отвязать' : 'Привязать к источнику данных'}
-        aria-label={isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
+        title={locked ? 'Поле заперто модулем — привязку можно только снять'
+          : isBound ? 'Заполняется из источника — изменить/отвязать' : 'Привязать к источнику данных'}
+        aria-label={locked ? 'Снять привязку к источнику'
+          : isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
         className={`inline-flex items-center justify-center rounded transition-colors ${
           isBound ? 'text-brand hover:text-brand-hover' : 'text-fg4 opacity-0 group-hover:opacity-100 hover:text-fg2'}`}>
         <Database size={13} />
@@ -147,9 +158,11 @@ export function ContainerFieldBinding({ instanceId, setId, field, allDocTypes, b
             </div>
             <div className="flex gap-2">
               <Button variant="text" size="sm" onClick={() => setOpen(false)}>Отмена</Button>
-              <Button variant="filled" size="sm" onClick={save} disabled={saveDisabled} loading={busy}>
-                {isBound ? 'Изменить' : 'Привязать'}
-              </Button>
+              {!locked && (
+                <Button variant="filled" size="sm" onClick={save} disabled={saveDisabled} loading={busy}>
+                  {isBound ? 'Изменить' : 'Привязать'}
+                </Button>
+              )}
             </div>
           </div>
         }>

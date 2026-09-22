@@ -161,7 +161,11 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
         const p = findTaggedFieldPath(activeType, FUNCTIONAL_TAG.docPageCount, allDocTypes);
         // Числом, а не строкой: сервер уже сосчитал его числом, и `String()` здесь был тем самым
         // местом, где в числовое поле ложилась строка (issue #1005).
-        if (p) fieldValues[p.join('.')] = rec.pageCount;
+        //
+        // Второй вход к тому же полю, помимо плана распознавания: тэг стоит и на поле модуля —
+        // системные поля видны тэгам так же, как поля схемы (#958). Запертое поле пропускаем здесь
+        // отдельно, иначе число страниц обошло бы запрет, который план уже соблюдает.
+        if (p && !activeFields.some(f => f.key === p[0] && isLockedField(f))) fieldValues[p.join('.')] = rec.pageCount;
       }
       setValues(v => applyRecognized(v, fieldValues));
       setRecognizedKeys(recognizedFieldKeys(fieldValues));

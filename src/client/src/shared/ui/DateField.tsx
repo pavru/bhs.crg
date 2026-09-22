@@ -29,7 +29,7 @@ export function DateField({
   const [focused, setFocused] = useState(false);
   return (
     <OutlinedField label={label} required={required} invalid={invalid} hint={hint}
-      raise="always" focused={focused}>
+      raise="always" focused={focused} readOnly={readOnly}>
       <div className={`h-14 rounded-md px-4 flex items-center text-sm text-fg1 ${disabled ? 'opacity-50' : ''}`}
         onFocus={() => setFocused(true)}
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>

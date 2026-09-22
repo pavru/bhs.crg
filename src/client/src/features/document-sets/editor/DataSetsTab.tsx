@@ -11,6 +11,7 @@ import {
 import type { DocumentInstance, DocumentType, DataSetBinding, DataSetBindingPreviewResult, ComputedColumn } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { resolveEffectiveFields, isScalarField, type SchemaField } from '@/shared/api/schema';
+import { bindableFields } from '../fields/bindableFields';
 import { parseSourceColumnNames, parseRefMapping, buildRefMappingByName, buildRefMappingByIdentity, parseFileMapping, buildFileMapping, parseInlineMapping, buildInlineMapping } from '@/shared/api/datasetHelpers';
 import { StaleSourceAction } from '@/shared/ui/StaleSourceAction';
 import { ruCount } from '@/shared/utils/pluralize';
@@ -247,25 +248,27 @@ export function MappingEditor({
   // для табличного — поля типа элемента (составной тип для `array`;
   // тип-документ, на который ссылается `doc-array`, — строки источника
   // разворачиваются в объекты его формы, см. DataSetResolver).
+  // Что источнику вообще позволено заполнять — единым правилом (`bindableFields`): расчётные и
+  // запертые поля отсеиваются здесь, а не в каждом из четырёх списков ниже и не у вызывающего.
   const effectiveFields = useMemo(() => {
-    if (targetFieldKey === null) return schemaFields;
+    if (targetFieldKey === null) return bindableFields(schemaFields);
     const tabularField = tabularFields.find(f => f.key === targetFieldKey);
     if (!tabularField?.typeId) return [];
     const elementType = allDocTypes.find(dt => dt.id === tabularField.typeId);
     if (!elementType) return [];
-    return resolveEffectiveFields(elementType, allDocTypes);
+    return bindableFields(resolveEffectiveFields(elementType, allDocTypes));
   }, [targetFieldKey, tabularFields, allDocTypes, schemaFields]);
 
-  // Расчётные поля (computed, #368) вычисляются при генерации — из маппинга исключаем (issue #397);
-  // тот же принцип уже действует в CompositeFieldMapping для под-полей.
-  const scalarMappable = effectiveFields.filter(f => isScalarField(f) && f.type !== 'file' && !f.computed);
+  // Расчётные (issue #368/#397) и запертые (ТЗ CORE-20.2) сюда уже не доходят — их снял
+  // `bindableFields` выше; тот же принцип действует в CompositeFieldMapping для под-полей.
+  const scalarMappable = effectiveFields.filter(f => isScalarField(f) && f.type !== 'file');
   // Составные поля: ссылка на каталог ИЛИ встроенный объект — редактор в CompositeFieldMapping (issue #374).
-  const complexMappable = effectiveFields.filter(f => f.type === 'complex' && f.typeId && !f.computed);
+  const complexMappable = effectiveFields.filter(f => f.type === 'complex' && f.typeId);
   // Файловые поля заполняются вложением, синтезированным из колонки-пути (+ опц. колонка-размер) той же строки.
-  const fileMappable = effectiveFields.filter(f => f.type === 'file' && !f.computed);
+  const fileMappable = effectiveFields.filter(f => f.type === 'file');
   // Ссылки на документы комплекта — обычная колонка с Ид (issue #715). Своего токена у них нет:
   // поле само объявляет тип, и сервер приводит ячейку к ссылке по объявленному типу поля.
-  const docRefMappable = allowDocRef ? effectiveFields.filter(f => f.type === 'doc-ref' && !f.computed) : [];
+  const docRefMappable = allowDocRef ? effectiveFields.filter(f => f.type === 'doc-ref') : [];
 
   function setTarget(t: string) {
     // При смене цели сбрасываем маппинг
@@ -303,7 +306,10 @@ export function MappingEditor({
             className="w-full border border-stroke rounded-md px-2 py-1.5 text-sm bg-surface text-fg1"
           >
             <option value="">Скалярный — первая строка заполняет отдельные поля</option>
-            {tabularFields.map(f => (
+            {/* Тем же правилом, что и поля маппинга: запертую таблицу источник не заполняет.
+                Сегодня объявление модуля таких полей не принимает, но выбор цели — ВТОРОЙ вход,
+                и фильтр у одного из них вместо обоих и есть та дыра, которую здесь закрывают. */}
+            {bindableFields(tabularFields).map(f => (
               <option key={f.key} value={f.key}>
                 Табличный → {f.title} ({f.key}){f.type === 'doc-array' ? ' — документы' : ''}
               </option>
@@ -426,20 +432,24 @@ function AddBindingPanel({
   const create = useCreateDataSetBinding();
 
   const selectedSource = allSources.find(s => s.id === sourceId);
+  // Всё, что предлагается источнику, — из одного списка: расчётные и запертые поля сюда не
+  // попадают (`bindableFields`). Списки НИЖЕ уезжают в авто-маппинг и в эвристику составных, а те
+  // пишут `mapping` НАПРЯМУЮ, минуя редактор маппинга, — то есть фильтр там их не прикрывает.
+  const openToSource = useMemo(() => bindableFields(schemaFields), [schemaFields]);
   // Цели табличного режима: inline-массив (`array`) и список ссылок на документы
   // (`doc-array`) — строки источника разворачиваются в объекты формы элемента-типа.
-  const tabularFields = schemaFields.filter(f => f.type === 'array' || f.type === 'doc-array');
-  const scalarFields = schemaFields.filter(f => isScalarField(f) && f.type !== 'file');
+  const tabularFields = openToSource.filter(f => f.type === 'array' || f.type === 'doc-array');
+  const scalarFields = openToSource.filter(f => isScalarField(f) && f.type !== 'file');
 
   // Материализованный источник (issue #19): привязка — типизированный указатель без маппинга.
   // Поля-цели — те, чей тип совместим (тип источника == тип поля или его потомок).
   const materializeTypeId = selectedSource?.materializeTypeId ?? null;
   const compatibleFields = useMemo(() =>
     materializeTypeId
-      ? schemaFields.filter(f => f.typeId && MATERIALIZABLE_FIELD_TYPES.includes(f.type)
+      ? openToSource.filter(f => f.typeId && MATERIALIZABLE_FIELD_TYPES.includes(f.type)
           && isSameOrDescendant(materializeTypeId, f.typeId, allDocTypes))
       : [],
-    [materializeTypeId, schemaFields, allDocTypes]);
+    [materializeTypeId, openToSource, allDocTypes]);
 
   async function handleSourceChange(id: string) {
     setSourceId(id);
@@ -455,7 +465,7 @@ function AddBindingPanel({
       });
       // Составные поля бэкенд-авто-маппинг не покрывает — предлагаем режим эвристикой (issue #374, Ф3).
       const cols = parseSourceColumnNames(allSources.find(s => s.id === id)?.cachedSchema ?? null);
-      const complexSug = suggestComplexTokens(cols, schemaFields.filter(f => f.type === 'complex' && f.typeId), allDocTypes);
+      const complexSug = suggestComplexTokens(cols, openToSource.filter(f => f.type === 'complex' && f.typeId), allDocTypes);
       setMappingState({ ...m, ...complexSug });
     } catch { /* авто-маппинг необязателен */ }
   }
@@ -582,8 +592,11 @@ function BindingRow({
   const file = source?.file;
   // Цели табличного режима: inline-массив (`array`) и список ссылок на документы
   // (`doc-array`) — строки источника разворачиваются в объекты формы элемента-типа.
-  const tabularFields = schemaFields.filter(f => f.type === 'array' || f.type === 'doc-array');
-  const scalarFields = schemaFields.filter(f => isScalarField(f) && f.type !== 'file');
+  // Тем же правилом, что и в панели добавления: авто-маппинг и эвристика составных пишут
+  // `mapping` напрямую, мимо редактора маппинга.
+  const openToSource = bindableFields(schemaFields);
+  const tabularFields = openToSource.filter(f => f.type === 'array' || f.type === 'doc-array');
+  const scalarFields = openToSource.filter(f => isScalarField(f) && f.type !== 'file');
 
   async function handleAutoRemap() {
     if (!source) return;
@@ -593,7 +606,7 @@ function BindingRow({
     });
     // Составные поля — эвристика режима (issue #374, Ф3).
     const cols = parseSourceColumnNames(source.cachedSchema);
-    const complexSug = suggestComplexTokens(cols, schemaFields.filter(f => f.type === 'complex' && f.typeId), allDocTypes);
+    const complexSug = suggestComplexTokens(cols, openToSource.filter(f => f.type === 'complex' && f.typeId), allDocTypes);
     setMappingState({ ...m, ...complexSug });
   }
 

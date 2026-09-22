@@ -9,7 +9,6 @@ import {
   isUnionType,
   placeInUnion,
   getDefaultValues,
-  isFieldMissing,
   isScalarField,
   isMaterialType,
   materialIdentityKeys,
@@ -215,30 +214,6 @@ describe('getDefaultValues', () => {
   it('collects only fields with a default', () => {
     const fields = [field('A', { defaultValue: 'x' }), field('B'), field('C', { defaultValue: 0 })];
     expect(getDefaultValues(fields)).toEqual({ A: 'x', C: 0 });
-  });
-});
-
-// ── isFieldMissing ──────────────────────────────────────────────────────────────
-
-describe('isFieldMissing', () => {
-  it('optional field is never missing', () => {
-    expect(isFieldMissing(field('A', { required: false }), '')).toBe(false);
-  });
-  it('required string missing when empty/null', () => {
-    const f = field('A', { required: true });
-    expect(isFieldMissing(f, '')).toBe(true);
-    expect(isFieldMissing(f, null)).toBe(true);
-    expect(isFieldMissing(f, '  ')).toBe(true);
-    expect(isFieldMissing(f, 'x')).toBe(false);
-  });
-  it('required boolean is never missing', () => {
-    expect(isFieldMissing(field('A', { required: true, type: 'boolean' }), undefined)).toBe(false);
-  });
-  it('required complex missing when empty object', () => {
-    const f = field('A', { required: true, type: 'complex' });
-    expect(isFieldMissing(f, {})).toBe(true);
-    expect(isFieldMissing(f, null)).toBe(true);
-    expect(isFieldMissing(f, { x: 1 })).toBe(false);
   });
 });
 

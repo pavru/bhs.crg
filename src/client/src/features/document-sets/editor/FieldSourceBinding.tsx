@@ -10,6 +10,7 @@ import { parseSourceColumnNames } from '@/shared/api/datasetHelpers';
 import type { DataSetBinding, DataSetSource, CatalogScope } from '@/shared/api/types';
 import { SCOPE_LABELS } from '@/shared/api/types';
 import type { SchemaField } from '@/shared/api/schema';
+import { isLockedField, bindableFields, LOCKED_HINT } from '../fields';
 
 type FlatSource = DataSetSource & { fileName: string; fileScope: CatalogScope };
 
@@ -34,6 +35,15 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
 
   const currentBinding = bindings.find(b => !b.targetFieldKey && b.mapping?.[field.key]);
   const isBound = !!currentBinding;
+  /**
+   * Запертому полю (ТЗ CORE-20.2) источник не назначается: значение кладёт код модуля, и привязка
+   * вытеснила бы его при генерации.
+   *
+   * Модалка при этом остаётся доступной — ОТВЯЗАТЬ: привязка могла достаться от времён, когда поле
+   * замка ещё не носило (модуль объявляет замок новой версией, поверх живых данных). Спрятав
+   * «линзу» совсем, мы закрыли бы единственный выход и оставили поле привязанным навсегда.
+   */
+  const locked = isLockedField(field);
 
   const { data: files = [] } = useAvailableDataSetFiles(setId);
   const create = useCreateDataSetBinding();
@@ -77,7 +87,9 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
     setSourceId(id); setColumn(''); setCover({});
     const src = sources.find(s => s.id === id);
     if (!src) return;
-    const siblings = scalarFields.filter(f => f.key !== field.key && !boundKeys.has(f.key));
+    // Запертые — вон из «покрыть остальные»: именно этот список, а не выбранное поле, был вторым
+    // входом к запертому полю. Галка включена по умолчанию, и привязка уезжала в `mapping` молча.
+    const siblings = bindableFields(scalarFields).filter(f => f.key !== field.key && !boundKeys.has(f.key));
     if (siblings.length === 0) return;
     try {
       const { mapping } = await autoMap.mutateAsync({ sourceId: id, fields: siblings.map(f => ({ key: f.key, title: f.title })) });
@@ -91,7 +103,7 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
   const coverTitles = Object.keys(cover).map(k => scalarFields.find(f => f.key === k)?.title ?? k);
 
   async function bind() {
-    if (!selectedSource || !column) return;
+    if (locked || !selectedSource || !column) return;
     setBusy(true);
     try {
       const existing = bindings.find(b => !b.targetFieldKey && b.sourceId === selectedSource.id);
@@ -119,8 +131,10 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
   return (
     <>
       <button type="button" onClick={() => onOpenChange(true)}
-        title={isBound ? 'Заполняется из источника данных — изменить/отвязать' : 'Привязать к источнику данных'}
-        aria-label={isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
+        title={locked ? 'Поле заперто модулем — привязку можно только снять'
+          : isBound ? 'Заполняется из источника данных — изменить/отвязать' : 'Привязать к источнику данных'}
+        aria-label={locked ? 'Снять привязку к источнику'
+          : isBound ? 'Привязка к источнику' : 'Привязать к источнику'}
         className={`inline-flex items-center justify-center rounded transition-colors ${
           isBound ? 'text-brand hover:text-brand-hover' : 'text-fg4 opacity-0 group-hover:opacity-100 hover:text-fg2'}`}>
         <Database size={13} />
@@ -138,13 +152,20 @@ export function FieldSourceBinding({ instanceId, setId, field, scalarFields, bin
             </div>
             <div className="flex gap-2">
               <Button variant="text" size="sm" onClick={() => setOpen(false)}>Отмена</Button>
-              <Button variant="filled" size="sm" onClick={bind} disabled={!column || busy} loading={busy}>
-                {isBound ? 'Изменить' : 'Привязать'}
-              </Button>
+              {!locked && (
+                <Button variant="filled" size="sm" onClick={bind} disabled={!column || busy} loading={busy}>
+                  {isBound ? 'Изменить' : 'Привязать'}
+                </Button>
+              )}
             </div>
           </div>
         }>
-        {sources.length === 0 ? (
+        {locked ? (
+          <p className="text-xs text-fg3 py-2">
+            {LOCKED_HINT}. Источник такому полю не назначается — значение вытеснило бы то, что кладёт
+            модуль. Привязку, доставшуюся от прежней версии типа, можно только снять.
+          </p>
+        ) : sources.length === 0 ? (
           <p className="text-xs text-fg4 py-2">
             Нет подходящих источников. Загрузите набор данных на странице «Наборы данных» или в панели уровня.
           </p>

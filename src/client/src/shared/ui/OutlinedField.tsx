@@ -47,6 +47,15 @@ export interface OutlinedFieldProps {
   htmlFor?: string;
   /** id самой метки — для `aria-labelledby` у контролов, которым `<label for>` не годится. */
   labelId?: string;
+  /**
+   * Значение показано, но не правится (issue #958). Отмечается приглушённой подложкой — той же,
+   * что у полей без оболочки (`fieldInputClass`), чтобы read-only выглядел одинаково во всей форме.
+   *
+   * ⚠️ Это НЕ `disabled`: рамка, метка и фокус остаются обычными. Поле доступно — в него встают
+   * клавиатурой, значение выделяют и копируют; приглушена только подложка, и она говорит «сюда не
+   * пишут», а не «сейчас недоступно».
+   */
+  readOnly?: boolean;
   /** Правый адорнмент (например «глаз» пароля). */
   trailing?: ReactNode;
   /** Классы внешней обёртки (поле + подпись под ним). */
@@ -56,7 +65,7 @@ export interface OutlinedFieldProps {
 
 export function OutlinedField({
   label, required, invalid, error, hint, raise = 'auto', focused, htmlFor, labelId,
-  trailing, containerClassName = '', children,
+  readOnly, trailing, containerClassName = '', children,
 }: OutlinedFieldProps) {
   const bad = !!error || invalid;
   const auto = raise === 'auto';
@@ -90,6 +99,9 @@ export function OutlinedField({
   return (
     <div className={containerClassName}>
       <div className="relative">
+        {/* Подложка ПЕРЕД детьми: контролы внутри прозрачные и рисуются поверх неё. Своим фоном на
+            контейнере не обойтись — оболочка намеренно прозрачна, чтобы поле жило на любом фоне. */}
+        {readOnly && <div aria-hidden className="absolute inset-0 rounded-md bg-muted" />}
         {children}
         {/* Рамка с вырезом: fieldset даёт границу, legend прорезает верх под меткой. Ширина legend
             и есть вырез — она же анимируется, когда метка всплывает. */}

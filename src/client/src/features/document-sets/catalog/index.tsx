@@ -351,7 +351,9 @@ export function CatalogEntryForm({
       // Число страниц надёжнее брать из самого файла, чем просить модель прочитать его на штампе.
       if (rec.pageCount != null) {
         const p = findTaggedFieldPath(selectedType, FUNCTIONAL_TAG.docPageCount, allDocTypes);
-        if (p) {
+        // Тэг стоит и на поле модуля (#958) — запертое пропускаем, как и план распознавания:
+        // иначе число страниц обошло бы запрет, и охрана записи отвергла бы сохранение целиком.
+        if (p && !effectiveFields.some(f => f.key === p[0] && isLockedField(f))) {
           next = applyRecognized(next, { [p.join('.')]: rec.pageCount }); // числом (issue #1005)
           marked.add(p[0]);
         }
