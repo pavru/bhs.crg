@@ -10,6 +10,7 @@ import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/sh
 import { toCamelKey, nextAutoKey, nextSavedKey } from './schemaConstants';
 import { buildFieldTypeOptions, decodeFieldType, fieldTypeSummary, type FieldRegistries } from './fieldTypeOptions';
 import { useAccess } from '@/shared/api/access';
+import { ModuleFieldBadge } from './ModuleFieldBadge';
 import { similarKeyOf } from './schemaKeyChecks';
 import {
   useTagRegistry, fieldTags, findTagEntry, hasTag, tagCode, withTagOrder,
@@ -328,6 +329,7 @@ export function FieldCard({
             </span>
             <span className="block text-xs text-fg4 font-mono truncate">{field.key || '—'}</span>
           </span>
+          <ModuleFieldBadge field={field} />
           {tags.slice(0, 2).map(tc => (
             <FunctionalTagBadge key={tc} registry={tagRegistry} entry={tc} />
           ))}

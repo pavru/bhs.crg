@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { apiError } from '@/shared/utils/apiError';
+import { SchemaLevelBanner } from './SchemaLevelBanner';
 import { useNavigate } from 'react-router';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
@@ -676,6 +677,7 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
 
   return (
     <div className="space-y-4">
+      <SchemaLevelBanner level={docType.editLevel} module={docType.module} />
       {parentType && (
         <div>
           <div className="flex items-center gap-2 mb-2">
