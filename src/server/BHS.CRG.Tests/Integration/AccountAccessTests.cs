@@ -87,6 +87,68 @@ public class AccountAccessTests(IntegrationTestFixture fixture)
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    /// <summary>
+    /// «Мои права» в профиле (issue #954, ТЗ AUTH-16.6): человек видит СВОИ права словами, а не
+    /// кодами, и видит ровно свои.
+    ///
+    /// Зачем это в профиле: вопрос «почему у меня нет раздела» задаётся уже после отказа, и без
+    /// ответа его несут администратору. Список, показывающий чужие права, отвечал бы на него
+    /// неверно — то есть хуже, чем не отвечал бы вовсе.
+    /// </summary>
+    [Fact]
+    public async Task Мои_права_показываются_словами_и_только_свои()
+    {
+        var engineer = await SignInAsync(SystemRoles.IdEngineer);
+        var groups = await MyPermissionsAsync(engineer);
+
+        var codes = groups.SelectMany(g => g.Permissions).Select(p => p.Code).ToList();
+        Assert.Contains(CorePermissions.CatalogRead, codes);
+        Assert.DoesNotContain(CorePermissions.UsersManage, codes);
+
+        // Каждое право объяснено — иначе профиль показывал бы те же коды, только в рамке.
+        Assert.All(groups.SelectMany(g => g.Permissions), p => Assert.False(string.IsNullOrWhiteSpace(p.Gives)));
+        // И у каждой группы есть название для человека: «Ядро», а не «core».
+        Assert.All(groups, g => Assert.False(string.IsNullOrWhiteSpace(g.Title)));
+        Assert.Contains(groups, g => g.Title == "Ядро");
+    }
+
+    /// <summary>
+    /// У администратора список шире, и пустых групп в нём нет. Группа без прав — это заголовок,
+    /// под которым ничего не написано: человек читает его как «здесь у меня что-то есть».
+    /// </summary>
+    [Fact]
+    public async Task У_администратора_прав_больше_и_пустых_групп_нет()
+    {
+        var admin = await SignInAsync(SystemRoles.Admin);
+        var engineer = await SignInAsync(SystemRoles.IdEngineer);
+
+        var adminGroups = await MyPermissionsAsync(admin);
+        var engineerGroups = await MyPermissionsAsync(engineer);
+
+        Assert.True(adminGroups.SelectMany(g => g.Permissions).Count()
+                  > engineerGroups.SelectMany(g => g.Permissions).Count());
+        Assert.All(adminGroups, g => Assert.NotEmpty(g.Permissions));
+    }
+
+    /// <summary>Свои права — личное: без входа спрашивать их не у кого.</summary>
+    [Fact]
+    public async Task Без_входа_своих_прав_нет()
+    {
+        var response = await fixture.CreateClient().GetAsync("/api/account/permissions");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    private sealed record PermissionDto(string Code, string Gives, string Opens, string[] UsuallyWith);
+    private sealed record PermissionGroupDto(string Module, string Title, PermissionDto[] Permissions);
+
+    private static async Task<PermissionGroupDto[]> MyPermissionsAsync(HttpClient client)
+    {
+        var response = await client.GetAsync("/api/account/permissions");
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<PermissionGroupDto[]>(
+            new JsonSerializerOptions(JsonSerializerDefaults.Web)))!;
+    }
+
     private sealed record ModuleDto(string Code, string Title, bool Available);
     private sealed record AccessDto(string[] Permissions, ModuleDto[] Modules);
 

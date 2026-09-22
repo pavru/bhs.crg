@@ -88,6 +88,35 @@ public static class AccountEndpoints
             return Results.Ok(await store.GetAsync(user.Id, ct));
         });
 
+        // Мои права — человеческими словами (issue #954, ТЗ AUTH-16.6).
+        //
+        // Зачем отдельный адрес, когда тот же справочник уже отдаёт редактор ролей: редакторский
+        // адрес закрыт правом «управлять пользователями», то есть человеку о СВОИХ правах он не
+        // расскажет. А вопрос у человека ровно один и задаётся он уже после отказа: «почему у меня
+        // нет этого раздела». Без ответа его несут администратору, и тот выясняет то же самое.
+        //
+        // Коды здесь не годятся: `core.reconciliation.run` не объясняет ничего тому, кто не читал
+        // справочник. Поэтому берётся ТО ЖЕ объяснение, что стоит рядом с галкой в редакторе ролей
+        // (AUTH-5) — одно на двоих, иначе у права появилось бы два описания и разошлись бы они
+        // молча.
+        g.MapGet("/permissions", async (IUserPermissions permissions, RoleEditor editor,
+            ModuleRegistry modules, ClaimsPrincipal principal, CancellationToken ct) =>
+        {
+            var granted = (await permissions.ForAsync(principal, ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Группы и их порядок — редакторские: ядро, модули, составные. Своё упорядочивание
+            // здесь означало бы, что один и тот же список прав в двух местах выглядит по-разному.
+            var mine = editor.PermissionGroups(modules)
+                .Select(group => group with
+                {
+                    Permissions = [.. group.Permissions.Where(p => granted.Contains(p.Code))],
+                })
+                .Where(group => group.Permissions.Count > 0)
+                .ToArray();
+
+            return Results.Ok(mine);
+        });
+
         g.MapGet("/", async (UserManager<ApplicationUser> users, RoleEditor editor, ClaimsPrincipal principal) =>
         {
             var user = await FindCurrent(users, principal);

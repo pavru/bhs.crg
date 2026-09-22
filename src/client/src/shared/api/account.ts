@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 import type { RoleRef } from './users';
+// Форма та же, что у редактора ролей, и НАРОЧНО одна: право с двумя описаниями рано или поздно
+// покажет в профиле не то, что в редакторе. Отсюда берётся только тип — адрес свой, личный.
+import type { PermissionGroup } from './roles';
 
 const QK = 'account';
 
@@ -22,6 +25,25 @@ export function useAccount() {
   return useQuery<Account>({
     queryKey: [QK],
     queryFn: () => apiClient.get('/account').then(r => r.data),
+  });
+}
+
+/**
+ * Мои права словами (issue #954, ТЗ AUTH-16.6).
+ *
+ * Редакторский `/roles/permissions` закрыт правом «управлять пользователями» — о СВОИХ правах он
+ * человеку не расскажет. Отвечает на единственный вопрос, который возникает после отказа: «почему
+ * у меня нет этого раздела».
+ *
+ * Справочник меняется правкой кода и роли — не в этом сеансе, поэтому `staleTime` большой; но НЕ
+ * бесконечный: администратор может снять право сейчас, и тогда профиль обязан перестать его
+ * обещать.
+ */
+export function useMyPermissions() {
+  return useQuery<PermissionGroup[]>({
+    queryKey: [QK, 'permissions'],
+    queryFn: () => apiClient.get('/account/permissions').then(r => r.data),
+    staleTime: 5 * 60_000,
   });
 }
 

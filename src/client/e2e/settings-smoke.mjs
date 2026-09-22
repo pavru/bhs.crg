@@ -142,6 +142,60 @@ await check('profile-shows-account-name-and-keeps-typing', async () => {
 });
 
 // ── Профили распознавания ─────────────────────────────────────────────────────
+// Мои права в профиле (issue #954, ТЗ AUTH-16.6). Проверяется не «блок есть», а что он отвечает
+// на вопрос «почему у меня нет раздела»: группы раскрываются и внутри стоят ОБЪЯСНЕНИЯ, а не
+// только коды. Список из одних кодов — это те же коды, только в рамке.
+//
+// ⚠️ Сверка идёт со СПИСКОМ прав, а не с текстом страницы. Первая редакция искала слова
+// «видеть|править|…» по всему body и проходила на сломанном блоке: «править» нашлось внутри
+// «ОтПРАВИТЬ подтверждение» — в форме смены почты этажом ниже. Проверка по подстроке в чужом
+// абзаце подтверждает лишь то, что на странице есть буквы.
+await check('profile-shows-my-permissions-in-words', async () => {
+  await page.goto(`${BASE}/profile`);
+  await page.waitForTimeout(2500);
+
+  const core = page.getByRole('button', { name: /^Ядро/ });
+  if ((await core.count()) < 1) throw new Error('в профиле нет группы прав «Ядро»');
+  await core.first().click();
+  await page.waitForTimeout(600);
+
+  const list = page.locator('ul').filter({ hasText: /core\./ }).first();
+  const items = await list.locator('li').allInnerTexts();
+  if (items.length < 5) throw new Error(`в раскрытой группе ${items.length} прав — список не собрался`);
+
+  // У каждого права, кроме кода, обязана быть строка словами: код в переписке с администратором
+  // нужен, но объясняет он только тому, кто читал справочник.
+  const isCode = (line) => /^[a-z*][a-z.*]+$/i.test(line.trim());
+  const bare = items.filter(t => t.split(/\r?\n/).filter(l => l.trim() && !isCode(l)).length === 0);
+  if (bare.length > 0) throw new Error(`права показаны одними кодами, без объяснений: ${bare.length} из ${items.length}`);
+});
+
+// Тема и язык — личные настройки, и место им в профиле (ТЗ AUTH-16.6). Язык до #954 лежал в
+// «Настройке системы» за правом core.system.manage: сменить формат дат мог только администратор
+// экземпляра. Проверка держит переезд с двух сторон.
+//
+// ⚠️ Заголовки ищутся ПО РОЛИ, а не по тексту страницы. Первая редакция сверялась с body: якорь
+// «Шаблоны» находился в боковом меню (то есть подтверждал открытие ЛЮБОЙ страницы), а запрет не
+// срабатывал вовсе — заголовки разделов настроек подняты в верхний регистр средствами CSS, и
+// innerText отдаёт их прописными.
+await check('appearance-and-language-live-in-the-profile', async () => {
+  await page.goto(`${BASE}/profile`);
+  await page.waitForTimeout(2500);
+  if ((await page.getByRole('heading', { name: /Оформление и язык/i }).count()) < 1)
+    throw new Error('в профиле нет блока «Оформление и язык»');
+  if ((await page.getByRole('group', { name: 'Тема оформления' }).count()) < 1)
+    throw new Error('в профиле нет выбора темы');
+  if ((await page.getByRole('button', { name: /Русский \(Россия\)/ }).count()) < 1)
+    throw new Error('в профиле нет выбора языка');
+
+  await page.goto(`${BASE}/settings`);
+  await page.waitForTimeout(2500);
+  if ((await page.getByRole('heading', { name: /шаблоны/i }).count()) < 1)
+    throw new Error('раздел настроек не открылся — запрет ниже ничего не значит');
+  if ((await page.getByRole('heading', { name: /региональн/i }).count()) > 0)
+    throw new Error('язык остался в «Настройке системы»: личная настройка под административным правом');
+});
+
 await check('recognition-profile-detail-shows-fields', async () => {
   await page.goto(`${BASE}/recognition-profiles`);
   await page.waitForTimeout(3000);
