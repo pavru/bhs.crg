@@ -5,7 +5,8 @@ import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { useUpdateRequisites, useResolutionDiagnostics, brokenRefPaths, useAuditInstance } from '@/shared/api/documentSets';
 import { valueIssuesByPath, deepIssueCount, issueCountInFields } from '@/shared/api/valueIssues';
-import { refusalIssues, refusalText } from '@/shared/api/refusals';
+import { refusalIssues } from '@/shared/api/refusals';
+import { apiError } from '@/shared/utils/apiError';
 import { ValueIssueHint, ValueIssueBadge } from '@/shared/ui/ValueIssue';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import type { DocumentInstance, DocumentType, PrimitiveTypeDef, EnumTypeDef, CommonDataEntry, DataSetStaleReason } from '@/shared/api/types';
@@ -352,7 +353,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
       // которому неверное значение внутри строки таблицы не найти.
       const issues = refusalIssues(err);
       if (Object.keys(issues).length > 0) setConstraintErrors(issues);
-      setError(refusalText(err, 'Ошибка'));
+      setError(apiError(err, 'Ошибка'));
       return false;
     }
   }
