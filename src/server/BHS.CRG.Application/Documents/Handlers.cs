@@ -247,6 +247,8 @@ public class DocumentTypeHandlers(
         // чтобы его объекты попали в общие данные, в печать и в наборы; роди мы его закрытым, он
         // отличался бы от всех уже существующих типов, и отличие это всплыло бы не сегодня, а в
         // день, когда признак начнёт действовать.
+        EnsureParentAllowsDerived(cmd.ParentId, all);
+
         var dt = DocumentType.Create(
             cmd.Name.Trim(), cmd.Code.Trim(), cmd.Kind, cmd.ParentId, cmd.Schema,
             cmd.Module, TypeVisibility.Shared, cmd.IsAbstract);
@@ -277,6 +279,21 @@ public class DocumentTypeHandlers(
         await journal.RecordAsync(ActivityActions.TypeOwnerChanged,
             dt.Id.ToString(), dt.Name, before: was, after: dt.Module, ct: ct);
         return dt;
+    }
+
+    /// <summary>
+    /// Производный тип от ЗАКРЫТОГО типа не заводится (ТЗ CORE-19.1, последняя строка таблицы).
+    /// Наследник — способ обойти замок: он добавляет поля, исключает унаследованные и переопределяет
+    /// их, то есть делает ровно то, что закрытый уровень запрещает, только этажом ниже.
+    /// </summary>
+    private static void EnsureParentAllowsDerived(Guid? parentId, IReadOnlyList<DocumentType> all)
+    {
+        if (parentId is not { } id) return;
+        var parent = all.FirstOrDefault(t => t.Id == id);
+        if (parent is null || parent.EditLevel != SchemaEditLevel.Closed) return;
+        throw new ConflictException(
+            $"От типа «{parent.Name}» нельзя произвести новый: его схему задаёт модуль, " +
+            "а производный тип менял бы её в обход — добавлял бы поля и исключал унаследованные.");
     }
 
     /// <summary>
@@ -318,6 +335,8 @@ public class DocumentTypeHandlers(
         // Prevent cycles: parentId must not be a descendant of this type
         if (cmd.ParentId.HasValue && IsDescendant(cmd.ParentId.Value, cmd.Id, all))
             throw new ConflictException("Нельзя установить дочерний тип в качестве родителя — возникнет цикл.");
+
+        if (cmd.ParentId != dt.ParentId) EnsureParentAllowsDerived(cmd.ParentId, all);
 
         dt.Rename(cmd.Name.Trim(), cmd.Code.Trim());
         dt.SetParent(cmd.ParentId);
@@ -364,6 +383,12 @@ public class DocumentTypeHandlers(
         // Ограничения тэгов (issue #258): считаем носителей среди прочих типов + входящей схемы.
         var all = await repo.GetAllAsync(ct);
         ValidateTagRestrictions(cmd.Schema, dt.Id, dt.Name, all);
+
+        // Уровень правки (ТЗ CORE-19.1): что администратору можно сделать со схемой ЭТОГО типа.
+        // Проверка идёт ДО записи и сравнивает старую схему с новой по полям модуля.
+        if (SchemaEditPolicy.Refusals(dt.Schema, cmd.Schema, dt.EditLevel) is { Count: > 0 } refusals)
+            throw new ConflictException(
+                $"Схему типа «{dt.Name}» так править нельзя: " + string.Join("; ", refusals) + ".");
 
         // Прежнее состояние — ДО правки: после UpdateSchema сравнивать уже не с чем.
         var wasFields = SchemaChangeSummary.Describe(dt.Schema);

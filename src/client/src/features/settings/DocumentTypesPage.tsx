@@ -663,7 +663,11 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
       renamesRef.current.clear();
       if (renames.length) setPendingMigration(renames.map(([from, to]) => ({ from, to })));
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Ошибка сохранения');
+      // Текст сервера, а не «Request failed with status code 409». С уровнями правки схемы
+      // (issue #956) это стало решающим: отказ называет ПОЛЕ и причину — «поле модуля „Табельный
+      // номер" удалено или переименовано», — а схема правится десятком изменений сразу, и без
+      // имени поля откатывать нечего.
+      setError(errorText(err, 'Ошибка сохранения'));
       throw err;
     }
   }

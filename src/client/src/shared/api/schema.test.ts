@@ -28,7 +28,7 @@ function dt(schema: Record<string, unknown>, parentId: string | null = null, id?
     id: id ?? `dt${++seq}`,
     name: 'T', code: 'C', kind: 'Document', isAbstract: false, allowsProxy: false,
     parentId, schema, pluginBindings: {}, group: null,
-    module: 'core', storage: 'SharedObject', visibility: 'Shared', readChannels: [],
+    module: 'core', storage: 'SharedObject', visibility: 'Shared', readChannels: [], editLevel: 'Open',
     createdAt: '', updatedAt: '',
   };
 }

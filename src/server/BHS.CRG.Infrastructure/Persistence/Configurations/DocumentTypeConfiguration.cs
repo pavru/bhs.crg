@@ -37,6 +37,7 @@ public class DocumentTypeConfiguration : IEntityTypeConfiguration<DocumentType>
         // строкам значения проставляет миграция, новым — код, который их создаёт.
         b.Property(e => e.Storage).HasConversion<string>().HasMaxLength(32).IsRequired();
         b.Property(e => e.Visibility).HasConversion<string>().HasMaxLength(32).IsRequired();
+        b.Property(e => e.EditLevel).HasConversion<string>().HasMaxLength(32).IsRequired();
 
         // Список каналов — строкой через запятую: коды каналов объявлены (TypeReadChannels), запятых
         // в них нет, а jsonb здесь дал бы массив ради трёх слов.
