@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+import { useSyncedPreference } from '@/shared/hooks/useSyncedPreference';
 import { Ctx, type Theme, type ThemeCtx } from './themeContext';
 
+/**
+ * Ключ ЗЕРКАЛА в браузере — не хранилища (issue #953). Выбор темы лежит на сервере и приезжает на
+ * другой компьютер; здесь остаётся последнее известное значение, чтобы первый кадр не мигал. Тот
+ * же ключ читает `public/theme-init.js` до первой отрисовки — менять его можно только вместе с ним.
+ */
 const STORAGE_KEY = 'crg-theme';
 
 const SYSTEM_DARK = '(prefers-color-scheme: dark)';
@@ -32,35 +38,29 @@ function getSystemTheme(): 'light' | 'dark' {
   return window.matchMedia(SYSTEM_DARK).matches ? 'dark' : 'light';
 }
 
-/** Тема, выбранная человеком: сохранённая настройка либо «как в системе». */
-function storedTheme(): Theme {
-  return (localStorage.getItem(STORAGE_KEY) as Theme | null) ?? 'system';
-}
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(storedTheme);
+  // Выбор человека хранит сервер, браузер — зеркало (useSyncedPreference). Значения сервер
+  // принимает только объявленные (`UserSettingKeys.Theme`), поэтому привести к Theme можно.
+  const [stored, setThemeState] = useSyncedPreference('theme', STORAGE_KEY, 'system');
+  const theme = stored as Theme;
   const systemTheme = useSyncExternalStore(
     theme === 'system' ? subscribeSystemTheme : NO_SUBSCRIPTION,
     getSystemTheme,
   );
   const resolvedTheme: 'light' | 'dark' = theme === 'system' ? systemTheme : theme;
 
-  // В эффекте остаётся только то, что и есть побочное действие: запись в DOM и в localStorage.
-  // Атрибут ставится и при первом рендере — anti-FOUC-скрипт в index.html делает то же самое
-  // раньше нас, поэтому мигания не будет, а расхождения не останется.
+  // В эффекте остаётся только то, что и есть побочное действие: запись в DOM. Атрибут ставится и
+  // при первом рендере — anti-FOUC-скрипт в index.html делает то же самое раньше нас, поэтому
+  // мигания не будет, а расхождения не останется. Зеркало в браузере пишет useSyncedPreference.
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', resolvedTheme);
   }, [resolvedTheme]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, theme);
-  }, [theme]);
 
   // Значение контекста — мемоизированное: свежий объект-литерал на каждый рендер провайдера
   // перерисовывал бы всех потребителей useTheme даже тогда, когда тема не изменилась.
   const value = useMemo<ThemeCtx>(
     () => ({ theme, setTheme: setThemeState, resolvedTheme }),
-    [theme, resolvedTheme],
+    [theme, resolvedTheme, setThemeState],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

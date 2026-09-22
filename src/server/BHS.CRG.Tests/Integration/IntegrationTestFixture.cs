@@ -174,6 +174,10 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>
         "integration_settings",
         "service_state",
         "activity_log",
+        // Предпочтения пользователей (issue #953). Учётные записи переживают класс тестов нарочно,
+        // а их настройки — нет: тест, записавший тему, иначе достался бы следующему, и «настройки
+        // пусты у нового пользователя» перестало бы проверяться.
+        "user_settings",
     ];
 
     /// <summary>Сколько ждать, пока доработают фоновые задачи прошлого теста.</summary>

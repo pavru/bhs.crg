@@ -3,6 +3,7 @@ using System.Security.Claims;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Modules;
 using BHS.CRG.Application.Email;
+using BHS.CRG.Application.Settings;
 using BHS.CRG.Infrastructure.Email;
 using BHS.CRG.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -46,6 +47,45 @@ public static class AccountEndpoints
                     available = ModuleAccess.IsOpen(m.Code, granted),
                 }).ToArray(),
             });
+        });
+
+        // ── Предпочтения на сервере (issue #953, ТЗ CORE-25.3) ───────────────────────────────
+        //
+        // Тема и язык лежали в браузере (crg-theme, crg.locale) и не переживали смену компьютера:
+        // человек настраивал систему заново на каждой машине. Теперь браузер держит лишь ЗЕРКАЛО
+        // последнего известного значения — чтобы первый кадр не мигал, — а решает сервер.
+        //
+        // Отдельный адрес, а не поле профиля: профиль спрашивают раз за экран, настройки пишут по
+        // каждому переключателю, и мешать их значило бы гонять аватар при смене темы.
+        g.MapGet("/settings", async (IUserSettingsStore store,
+            UserManager<ApplicationUser> users, ClaimsPrincipal principal, CancellationToken ct) =>
+        {
+            var user = await FindCurrent(users, principal);
+            return user is null ? Results.Unauthorized() : Results.Ok(await store.GetAsync(user.Id, ct));
+        });
+
+        // Правка частичная: присланные ключи записываются, остальные остаются как были, а значение
+        // null убирает настройку (возврат к умолчанию). Полная замена набора означала бы, что
+        // экран, который знает про тему и не знает про язык, стирает язык каждым сохранением.
+        g.MapPut("/settings", async (Dictionary<string, string?> patch, IUserSettingsStore store,
+            UserManager<ApplicationUser> users, ClaimsPrincipal principal, CancellationToken ct) =>
+        {
+            var user = await FindCurrent(users, principal);
+            if (user is null) return Results.Unauthorized();
+
+            // Сначала проверяем ВСЁ, потом пишем: принять половину набора — значит оставить
+            // настройки в состоянии, которого человек не выбирал, и отчитаться об этом отказом.
+            foreach (var (key, value) in patch)
+            {
+                var declared = UserSettingKeys.Find(key);
+                if (declared is null)
+                    return Results.BadRequest(new { error = $"Неизвестная настройка: {key}" });
+                if (value is not null && !declared.Accepts(value))
+                    return Results.BadRequest(new { error = $"Недопустимое значение настройки {key}" });
+            }
+
+            await store.ApplyAsync(user.Id, patch, ct);
+            return Results.Ok(await store.GetAsync(user.Id, ct));
         });
 
         g.MapGet("/", async (UserManager<ApplicationUser> users, RoleEditor editor, ClaimsPrincipal principal) =>

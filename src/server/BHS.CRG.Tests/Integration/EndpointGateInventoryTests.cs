@@ -51,7 +51,8 @@ public class EndpointGateInventoryTests(IntegrationTestFixture fixture)
     /// </summary>
     private static readonly Dictionary<string, string> Personal = new()
     {
-        ["/api/account"] = "свой профиль, свой пароль, своя почта — обработчики берут пользователя из принципала",
+        ["/api/account"] = "свой профиль, свой пароль, своя почта, свои настройки (тема и язык, "
+            + "issue #953) — обработчики берут пользователя из принципала",
         ["/api/jobs"] = "свои фоновые задачи; чужая задача отвечает 404 (IJobService сверяет владельца)",
         ["/api/notifications"] = "свои уведомления и отметки о прочтении; кроме /health — он открыт всем вошедшим",
     };

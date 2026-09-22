@@ -532,6 +532,10 @@ builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<SettingsSecretProtector>();
 builder.Services.AddScoped<IntegrationSettingsService>();
 builder.Services.AddScoped<IIntegrationSettings>(sp => sp.GetRequiredService<IntegrationSettingsService>());
+// Предпочтения пользователя на сервере (issue #953, ТЗ CORE-25.3): тема и язык переживают смену
+// компьютера, потому что лежат не в браузере.
+builder.Services.AddScoped<BHS.CRG.Application.Settings.IUserSettingsStore,
+    BHS.CRG.Infrastructure.Settings.UserSettingsStore>();
 // Каталог моделей движков (issue #799). Сам он без состояния — кэш ответов живёт в IMemoryCache,
 // то есть переживает запрос, а HTTP-клиент берётся у фабрики, как у движков распознавания.
 // Клиентов у каталога три — по одному на движок: он спрашивает и Gemini, и Anthropic, и Ollama, а

@@ -15,11 +15,15 @@
 // Запуск (Git Bash):  MSYS_NO_PATHCONV=1 node e2e/shared-ui-smoke.mjs
 // Код возврата: 0 — все проверки прошли, 1 — есть провал.
 
-import { BASE, launchBrowser, login, createChecks } from './harness.mjs';
+import { BASE, EMAIL, PASSWORD, launchBrowser, login, clearSession, createChecks } from './harness.mjs';
 
 const SET = process.env.SMOKE_SET_ID || 'e9d618fb-1035-4938-96a1-ffca6c857dc1';
 const CONSTRUCTION = process.env.SMOKE_CONSTRUCTION_ID || '66b75946-5954-4505-a7e8-535b868bff6f';
 const AOSR = '250701.ЭОМ-1.АОСР';
+// Второй человек — для проверки «настройки уходят вместе с сессией». Значения те же, что у посева
+// (e2e/seed.mjs): отдельного источника заводить незачем, а разойдясь, они дали бы «не вошёл».
+const OTHER_EMAIL = process.env.SMOKE_USER_EMAIL || 'petrov@bhs.local';
+const OTHER_PASSWORD = process.env.SMOKE_USER_PASSWORD || 'Demo12345!';
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
@@ -36,6 +40,42 @@ const pickTheme = async (label) => {
 await login(page);
 
 try {
+
+// ── Настройки сразу после входа ────────────────────────────────────────────────
+//
+// Вход через форму страницу НЕ перезагружает: приложение продолжает работать тем же деревом, что
+// рисовало страницу входа. Обработчик выбора темы, розданный потребителям ДО входа, помнил бы
+// «никто не вошёл» — и первое нажатие темнило бы экран, не отправив ничего на сервер: молча, до
+// первой перезагрузки, которая всё и откатит. Каждая проверка ниже идёт после page.goto, то есть
+// по перезагруженному дереву, и этого пути не касается вовсе (найдено ревью PR #999).
+//
+// ⚠️ Подготовка обязательна и стоит трёх шагов — без неё проверка проходит, ничего не проверяя
+// (так и вышло с первого раза). Протухшее замыкание помнит «никто не вошёл» ТОЛЬКО если дерево
+// загрузилось без токена, и срабатывает это ТОЛЬКО когда вход не меняет показанного значения:
+// изменись оно — пересчитается мемоизация, а с ней и замыкание. Поэтому:
+//   1) тема в учётной записи доводится до «как в системе» — по перезагруженному дереву, наверняка;
+//   2) зеркало и сессия стираются, страница входа открывается ЗАНОВО (дерево без токена);
+//   3) вход через форму, и первое же нажатие — то самое, вокруг которого всё и строится.
+await check('theme-saves-right-after-form-login', async () => {
+  await page.goto(`${BASE}/document-sets`);
+  await page.waitForTimeout(2000);
+  await pickTheme('Системная');
+
+  await clearSession(page);
+  await page.evaluate(() => localStorage.removeItem('crg-theme'));
+  await page.goto(`${BASE}/login`);
+  await page.fill('input[type=email]', EMAIL);
+  await page.fill('input[type=password]', PASSWORD);
+  await page.click('button[type=submit]');
+  await page.waitForTimeout(2000);
+
+  await pickTheme('Тёмная');
+  await page.evaluate(() => localStorage.removeItem('crg-theme'));
+  await page.reload();
+  await page.waitForTimeout(2500);
+  if ((await domTheme()) !== 'dark')
+    throw new Error(`выбор темы сразу после входа не доехал до сервера: на <html> «${await domTheme()}»`);
+});
 
 // ── Тема ───────────────────────────────────────────────────────────────────────
 await page.emulateMedia({ colorScheme: 'light' });
@@ -83,6 +123,50 @@ await check('pinned-theme-ignores-os-change', async () => {
   await page.emulateMedia({ colorScheme: 'light' });
   await page.waitForTimeout(400);
 });
+
+// Тема хранится на СЕРВЕРЕ (issue #953, ТЗ CORE-25.3), а в браузере остаётся только зеркало.
+// Проверяем это единственным честным способом: убираем зеркало — то есть делаем из этой машины
+// «другую» — и ждём, что выбор вернётся. Пока тема жила в localStorage, проверка «переживает
+// перезагрузку» проходила бы и здесь: она читала то же самое хранилище, куда сама и писала.
+//
+// Чистим ровно один ключ, а не хранилище целиком: там же лежит токен входа, и полная очистка
+// проверяла бы не настройки, а страницу входа.
+await check('theme-comes-from-the-server-not-the-browser', async () => {
+  await pickTheme('Тёмная');
+  await page.evaluate(() => localStorage.removeItem('crg-theme'));
+  if ((await storedTheme()) !== null) throw new Error('зеркало темы не удалилось — проверка ничего не значит');
+  await page.reload();
+  await page.waitForTimeout(2500);
+  if ((await domTheme()) !== 'dark')
+    throw new Error(`без зеркала тема не приехала с сервера: на <html> «${await domTheme()}»`);
+});
+
+// Настройки уходят ВМЕСТЕ с сессией. Кэш ответов переживал выход из системы, и следующий
+// вошедший в той же вкладке получал чужую тему и чужой язык — без единого запроса к серверу, то
+// есть без всякого признака подмены (ревью PR #999). На общем компьютере это обычное дело:
+// «выйти — войти другим» занимает пять секунд, а кэш жил пять минут.
+await check('settings-do-not-survive-a-change-of-user', async () => {
+  await pickTheme('Тёмная');
+  await page.getByRole('button', { name: 'Выйти' }).click();
+  await page.waitForSelector('input[type=email]', { timeout: 10000 });
+
+  // Вход ДРУГИМ человеком в той же вкладке — без перезагрузки страницы.
+  await page.fill('input[type=email]', OTHER_EMAIL);
+  await page.fill('input[type=password]', OTHER_PASSWORD);
+  await page.click('button[type=submit]');
+  await page.waitForTimeout(2500);
+
+  if ((await domTheme()) === 'dark')
+    throw new Error('вошедшему второму человеку досталась тема первого');
+
+  // Возвращаем прогон к администратору: дальше нужны его данные.
+  await page.getByRole('button', { name: 'Выйти' }).click();
+  await page.waitForSelector('input[type=email]', { timeout: 10000 });
+});
+
+await login(page);
+await page.goto(`${BASE}/document-sets`);
+await page.waitForTimeout(2000);
 
 await pickTheme('Светлая');   // возвращаем окружение в исходное
 
