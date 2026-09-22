@@ -28,7 +28,7 @@ function dt(schema: Record<string, unknown>, parentId: string | null = null, id?
     id: id ?? `dt${++seq}`,
     name: 'T', code: 'C', kind: 'Document', isAbstract: false, allowsProxy: false,
     parentId, schema, pluginBindings: {}, group: null,
-    module: 'core', storage: 'SharedObject', visibility: 'Shared', readChannels: [],
+    module: 'core', storage: 'SharedObject', visibility: 'Shared', readChannels: [], editLevel: 'Open',
     createdAt: '', updatedAt: '',
   };
 }
@@ -53,6 +53,21 @@ describe('parseSchemaFields', () => {
   it('preserves provided props', () => {
     const [f] = parseSchemaFields({ fields: [{ key: 'A', title: 'Имя', type: 'number', required: true }] });
     expect(f).toMatchObject({ key: 'A', title: 'Имя', type: 'number', required: true });
+  });
+
+  /**
+   * Происхождение поля (issue #956) обязано пережить круг «разобрали → показали → сохранили»:
+   * редактор пересобирает поля поимённо и отдаёт их обратно как схему. Пропусти он `origin` —
+   * единственный редактор схемы стирал бы разметку модуля при каждом сохранении: у закрытого типа
+   * даже правка подписи упиралась бы в отказ «нельзя убрать происхождение», у открытого замок
+   * исчезал бы молча. Найдено ревью PR #1004.
+   */
+  it('переносит происхождение поля — на нём держится замок', () => {
+    const [module, own] = parseSchemaFields({
+      fields: [{ key: 'Табельный', origin: 'module' }, { key: 'Разряд' }],
+    });
+    expect(module.origin).toBe('module');
+    expect(own.origin).toBeUndefined();
   });
 });
 

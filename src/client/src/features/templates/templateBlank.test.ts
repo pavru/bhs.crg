@@ -9,7 +9,7 @@ function docType(overrides: Partial<DocumentType> & { schema: Record<string, unk
     code: overrides.code ?? 'TEST',
     kind: 'Document' as DocumentType['kind'],
     isAbstract: false, allowsProxy: false,
-    module: 'core', storage: 'SharedObject', visibility: 'Shared', readChannels: [],
+    module: 'core', storage: 'SharedObject', visibility: 'Shared', readChannels: [], editLevel: 'Open',
     parentId: overrides.parentId ?? null,
     schema: overrides.schema,
     pluginBindings: {},

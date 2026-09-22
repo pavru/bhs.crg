@@ -367,7 +367,8 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 dt.Id, dt.Name, dt.Code, dt.Kind.ToString(), dt.ParentId, dt.IsAbstract,
                 dt.Schema.RootElement.Clone(), dt.PluginBindings.RootElement.Clone(),
                 dt.CreatedAt, dt.UpdatedAt, dt.Group, dt.AllowsProxy,
-                dt.Module, dt.Storage.ToString(), dt.Visibility.ToString(), [.. dt.ReadChannels])).ToArray(),
+                dt.Module, dt.Storage.ToString(), dt.Visibility.ToString(), [.. dt.ReadChannels],
+                dt.EditLevel.ToString())).ToArray(),
             Templates: templates.Select(t => new BackupTemplate(
                 t.Id, t.DocumentTypeId, t.Name, t.Content, t.Version,
                 t.IsActive, t.IsDefault,
@@ -958,12 +959,18 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 warnings.Add($"Тип документа «{item.Name}»: неизвестные каналы чтения — " +
                              string.Join(", ", unknownChannels) + "; перенесены как есть.");
 
+            // Уровень правки из копии, снятой до его появления, — «открытый»: замков тогда не
+            // было, и придумывать их задним числом значило бы запереть схему, которую никто не
+            // запирал.
+            var editLevel = Enum.TryParse<SchemaEditLevel>(item.EditLevel, out var parsedLevel)
+                ? parsedLevel : SchemaEditLevel.Open;
+
             var entity = DocumentType.Restore(
                 item.Id, item.Name, item.Code, kind, item.ParentId,
                 JsonDocument.Parse(item.Schema.GetRawText()),
                 JsonDocument.Parse(item.PluginBindings.GetRawText()),
                 item.IsAbstract, item.CreatedAt, item.UpdatedAt, item.Group, item.AllowsProxy,
-                module, storage, visibility, channels);
+                module, storage, visibility, channels, editLevel);
             db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
             if (existingIds.Contains(item.Id)) stats.DocumentTypesUpdated++; else stats.DocumentTypesCreated++;
         }

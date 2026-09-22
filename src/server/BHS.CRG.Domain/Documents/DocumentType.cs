@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Domain.Common;
 
 namespace BHS.CRG.Domain.Documents;
@@ -37,6 +37,12 @@ public class DocumentType : Entity
     public TypeStorage Storage { get; private set; }
 
     /// <summary>
+    /// Насколько администратор правит схему (ТЗ CORE-19). Объявляет МОДУЛЬ для своих типов;
+    /// тип, заведённый человеком, открыт — его поля и так его собственные.
+    /// </summary>
+    public SchemaEditLevel EditLevel { get; private set; }
+
+    /// <summary>
     /// Видно ли объекты типа за пределами модуля-владельца.
     ///
     /// ⚠️ **Сегодня признак не действует ни на один путь чтения** и заведён заранее, вместе с
@@ -70,11 +76,13 @@ public class DocumentType : Entity
     public static DocumentType Create(
         string name, string code, DocumentTypeKind kind, Guid? parentId, JsonDocument schema,
         string module, TypeVisibility visibility, bool isAbstract = false,
-        TypeStorage storage = TypeStorage.SharedObject)
+        TypeStorage storage = TypeStorage.SharedObject,
+        SchemaEditLevel editLevel = SchemaEditLevel.Open)
         => new()
         {
             Name = name, Code = code, Kind = kind, ParentId = parentId, Schema = schema,
             IsAbstract = isAbstract, Module = module, Visibility = visibility, Storage = storage,
+            EditLevel = editLevel,
         };
 
     /// <summary>
@@ -88,13 +96,15 @@ public class DocumentType : Entity
         JsonDocument schema, JsonDocument pluginBindings, bool isAbstract,
         DateTimeOffset createdAt, DateTimeOffset updatedAt, string? group = null, bool allowsProxy = false,
         string module = TypeOwner.Core, TypeStorage storage = TypeStorage.SharedObject,
-        TypeVisibility visibility = TypeVisibility.Shared, IReadOnlyList<string>? readChannels = null)
+        TypeVisibility visibility = TypeVisibility.Shared, IReadOnlyList<string>? readChannels = null,
+        SchemaEditLevel editLevel = SchemaEditLevel.Open)
         => new()
         {
             Id = id, Name = name, Code = code, Kind = kind, ParentId = parentId,
             Schema = schema, PluginBindings = pluginBindings, IsAbstract = isAbstract,
             CreatedAt = createdAt, UpdatedAt = updatedAt, Group = group, AllowsProxy = allowsProxy,
             Module = module, Storage = storage, Visibility = visibility, ReadChannels = readChannels ?? [],
+            EditLevel = editLevel,
         };
 
     public void UpdateSchema(JsonDocument schema) { Schema = schema; TouchUpdatedAt(); }
