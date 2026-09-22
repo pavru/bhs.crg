@@ -37,6 +37,8 @@ import {
   SectionRail, collectConstraintViolations, describeViolationPath, violationRootKey,
 } from '../fields';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { apiError } from '@/shared/utils/apiError';
+import { refusalIssues } from '@/shared/api/refusals';
 import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 import { useCommonDataValueIssues, valueIssuesByPath, deepIssueCount } from '@/shared/api/valueIssues';
 import { ValueIssueHint, ValueIssueBadge } from '@/shared/ui/ValueIssue';
@@ -392,7 +394,14 @@ export function CatalogEntryForm({
         await createMutation.mutateAsync({ displayName, compositeTypeId: typeId, data: JSON.stringify(values), scope, scopeId, aliases });
       }
       onClose();
-    } catch (err: unknown) { setError(err instanceof Error ? err.message : 'Ошибка'); }
+    } catch (err: unknown) {
+      // Было `err.message` — то есть «Request failed with status code 400»: ни поля, ни причины,
+      // хотя сервер называет и то и другое (issue #1008). Текст — общим помощником, адреса
+      // нарушений — у полей.
+      const issues = refusalIssues(err);
+      if (Object.keys(issues).length > 0) setConstraintErrors(issues);
+      setError(apiError(err, 'Ошибка'));
+    }
   }
 
     const isAuto = (f: SchemaField) =>

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { refusalIssues, refusalText } from './refusals';
+import { refusalIssues } from './refusals';
+import { apiError } from '@/shared/utils/apiError';
 
 /**
  * Разбор отказа сервера (issue #957). Проверяется то, ради чего он написан: текст, написанный для
@@ -19,7 +20,9 @@ describe('отказ сервера', () => {
   };
 
   it('текст отказа берётся у сервера, а не подменяется общей фразой', () => {
-    expect(refusalText(refusal, 'Ошибка')).toContain('Количество');
+    // Текст — общим помощником, он был раньше адресов; здесь проверяется, что тело отказа
+    // охраны ему по зубам (issue #1008).
+    expect(apiError(refusal, 'Ошибка')).toContain('Количество');
   });
 
   it('места нарушений раскладываются по путям — включая путь внутрь строки таблицы', () => {
@@ -34,7 +37,7 @@ describe('отказ сервера', () => {
     // пережить это молча.
     expect(refusalIssues({ response: { data: { error: 'Имя занято.' } } })).toEqual({});
     expect(refusalIssues(new Error('сеть'))).toEqual({});
-    expect(refusalText(new Error('сеть'), 'Ошибка')).toBe('сеть');
-    expect(refusalText(undefined, 'Ошибка')).toBe('Ошибка');
+    expect(apiError(new Error('сеть'), 'Ошибка')).toBe('сеть');
+    expect(apiError(undefined, 'Ошибка')).toBe('Ошибка');
   });
 });

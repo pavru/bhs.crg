@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { Loader2, ShieldCheck, Upload, Eye } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { apiError } from '@/shared/utils/apiError';
+import { refusalIssues } from '@/shared/api/refusals';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import type { PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
@@ -207,7 +208,13 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
       onSaved(doc);
     // apiError, а не e.message: у 409 (имя занято, issue #588) объяснение лежит в теле ответа, а
     // e.message даёт «Request failed with status code 409» — то есть ровно ничего.
-    } catch (e: unknown) { setError(apiError(e, 'Ошибка сохранения')); }
+    } catch (e: unknown) {
+      // Адреса нарушений (issue #957) — у полей, тем же способом, что и собственные проверки формы.
+      // Без этого отказ охраны доезжает баннером, а поле внутри строки таблицы искать нечем (#1008).
+      const issues = refusalIssues(e);
+      if (Object.keys(issues).length > 0) setConstraintErrors(issues);
+      setError(apiError(e, 'Ошибка сохранения'));
+    }
   }
 
   return (

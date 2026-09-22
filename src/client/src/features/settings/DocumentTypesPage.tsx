@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { refusalText } from '@/shared/api/refusals';
+import { apiError } from '@/shared/utils/apiError';
 import { useNavigate } from 'react-router';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
@@ -280,7 +280,7 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
     } catch (err: unknown) {
       // Текст сервера, а не «Request failed with status code 409»: отказ называет КОНКРЕТНЫЙ тип
       // («опора типа ядра принадлежит модулю „id“»), и без него человеку нечего чинить.
-      setError(refusalText(err, 'Ошибка сохранения'));
+      setError(apiError(err, 'Ошибка сохранения'));
       throw err;
     }
   }
@@ -324,7 +324,7 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
           onValueChange={v => {
             setOwnerError('');
             ownerMutation.mutate({ id: docType.id, module: v },
-              { onError: (e: unknown) => setOwnerError(refusalText(e, 'Не удалось сменить владельца')) });
+              { onError: (e: unknown) => setOwnerError(apiError(e, 'Не удалось сменить владельца')) });
           }}>
           {ownerOptions(access ?? NO_ACCESS).map(o => <SelectItem key={o.code} value={o.code}>{o.title}</SelectItem>)}
         </Select>
@@ -658,7 +658,7 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
       // (issue #956) это стало решающим: отказ называет ПОЛЕ и причину — «поле модуля „Табельный
       // номер" удалено или переименовано», — а схема правится десятком изменений сразу, и без
       // имени поля откатывать нечего.
-      setError(refusalText(err, 'Ошибка сохранения'));
+      setError(apiError(err, 'Ошибка сохранения'));
       throw err;
     }
   }
