@@ -792,9 +792,12 @@ app.UseExceptionHandler(exApp => exApp.Run(async ctx =>
     // читает форма «Сообщить об ошибке», и вытаскивать его регулярным выражением из фразы значило
     // бы, что первая же правка формулировки молча отключит кнопку. Только у 500: у доменного отказа
     // («укажите название») искать в логе нечего, и предлагать по нему сообщить об ошибке — шум.
+    // Адреса нарушений (issue #957) уходят отдельным полем: по ним клиент подсвечивает поле, а не
+    // показывает баннер. У отказа без адресов поле пустое — форма ответа одна на все отказы.
+    var details = ApiErrorMapping.DetailsOf(ex);
     await ctx.Response.WriteAsJsonAsync(status == StatusCodes.Status500InternalServerError
-        ? new { error = message, traceId = (string?)ctx.TraceIdentifier }
-        : new { error = message, traceId = (string?)null });
+        ? new { error = message, traceId = (string?)ctx.TraceIdentifier, details }
+        : new { error = message, traceId = (string?)null, details });
 }));
 
 app.UseCors();

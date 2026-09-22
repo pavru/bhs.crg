@@ -27,6 +27,7 @@ public static class PrintFormEndpoints
                 IFormFile file,
                 IRepository<DomainObject> instanceRepo,
                 IRepository<DocumentType> docTypeRepo,
+                IRepository<BHS.CRG.Domain.Catalog.PrimitiveType> primitiveRepo,
                 IBlobStorage blob,
                 IMetadataExtractor metadataExtractor,
                 ClaimsPrincipal user,
@@ -95,7 +96,12 @@ public static class PrintFormEndpoints
                 foreach (var (k, v) in updatedFields)
                     dict[k] = JsonSerializer.SerializeToElement(v);
 
-                instance.SetData(JsonDocument.Parse(JsonSerializer.Serialize(dict)));
+                var patched = JsonDocument.Parse(JsonSerializer.Serialize(dict));
+                // Охрана записи (issue #957). Этот адрес пишет данные ПРЯМО здесь, мимо MediatR, и
+                // кладёт значения «как прочитал» — то есть ровно то, ради чего охрана и заведена.
+                await WriteGuard.EnsureAllowedAsync(
+                    instance.Data, patched, instance.CompositeTypeId, docTypeRepo, primitiveRepo, ct);
+                instance.SetData(patched);
                 instanceRepo.Update(instance);
                 await instanceRepo.SaveChangesAsync(ct);
 

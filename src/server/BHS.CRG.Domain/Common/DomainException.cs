@@ -66,3 +66,22 @@ public class ConflictException(string message, Exception? inner = null) : Domain
 
 /// <summary>Действие запрещено этому пользователю.</summary>
 public class ForbiddenException(string message) : DomainException(message);
+
+/// <summary>
+/// Место, на которое указывает отказ: путь в данных, код рода находки и текст для человека.
+/// </summary>
+public record RefusalDetail(string Code, string Path, string Message);
+
+/// <summary>
+/// Отказ, который называет МЕСТА, а не только причину (issue #957).
+///
+/// Заведено интерфейсом, а не полем конкретного класса, чтобы конвейер ответа не знал ни одного
+/// отказа поимённо: он спрашивает «есть ли адреса», а не «ты ли та самая охрана записи».
+/// Нужно это там, где нарушений может быть несколько и лежат они внутри структуры: отказ без
+/// адреса превращается в баннер, по которому неверное значение внутри строки таблицы не найти —
+/// её ещё надо догадаться открыть.
+/// </summary>
+public interface IDetailedRefusal
+{
+    IReadOnlyList<RefusalDetail> Details { get; }
+}

@@ -44,30 +44,11 @@ public static class ResolutionScanner
     public static void ScanMissingRequired(
         GenerationContext ctx, IReadOnlyList<SchemaFieldInfo> effectiveFields, List<ResolutionDiagnostic> diagnostics)
     {
-        foreach (var f in effectiveFields)
-        {
-            if (!f.Required) continue;
-            if (f.Computed) continue; // расчётные поля производные — «обязательность» к ним не применима (#368)
-            ctx.Data.TryGetValue(f.Key, out var v);
-            if (IsEmpty(v))
-                diagnostics.Add(new ResolutionDiagnostic(DiagnosticSeverity.Error, f.Key,
-                    $"Обязательное поле «{f.Title ?? f.Key}» не заполнено.", "missing-required"));
-        }
-    }
-
-    private static bool IsEmpty(object? v)
-    {
-        if (v is null) return true;
-        if (v is JsonElement el)
-            return el.ValueKind switch
-            {
-                JsonValueKind.Null or JsonValueKind.Undefined => true,
-                JsonValueKind.String => string.IsNullOrWhiteSpace(el.GetString()),
-                JsonValueKind.Array => el.GetArrayLength() == 0,
-                JsonValueKind.Object => !el.EnumerateObject().Any(),
-                _ => false, // number / true / false — заполнено
-            };
-        return false; // резолвнутые не-JSON значения считаем заполненными
+        // Само правило — в RequiredFields (issue #957): генерация здесь ПЕРВЫЙ его потребитель, а
+        // переход модуля этапа 2 позовёт ту же функцию, а не напишет вторую.
+        foreach (var f in RequiredFields.Missing(effectiveFields, key => ctx.Data.GetValueOrDefault(key)))
+            diagnostics.Add(new ResolutionDiagnostic(DiagnosticSeverity.Error, f.Key,
+                $"Обязательное поле «{f.Title ?? f.Key}» не заполнено.", "missing-required"));
     }
 
     private static void Walk(string path, JsonElement el, List<ResolutionDiagnostic> diagnostics)

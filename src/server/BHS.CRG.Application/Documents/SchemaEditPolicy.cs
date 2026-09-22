@@ -20,6 +20,20 @@ public static class SchemaFieldOrigin
 }
 
 /// <summary>
+/// Замок поля (issue #957, ТЗ CORE-20.2): значение кладёт код модуля, а не человек за формой.
+/// Охрана записи требует оставить запертое поле бит-в-бит таким, как оно лежит.
+///
+/// <para>⚠️ Отдельная метка, а НЕ <see cref="SchemaFieldOrigin.Module"/>: происхождение говорит,
+/// кто ОБЪЯВИЛ поле, а не кто пишет значение. Поле модуля «Табельный номер» человек как раз
+/// заполняет руками, и «поле модуля ⇒ значение заперто» заперло бы форму на ровном месте.</para>
+/// </summary>
+public static class SchemaFieldLock
+{
+    /// <summary>Имя свойства в JSON поля.</summary>
+    public const string Property = "locked";
+}
+
+/// <summary>
 /// Что администратору можно сделать со схемой типа — таблица ТЗ CORE-19.1, выраженная кодом.
 ///
 /// Проверка живёт НА СЕРВЕРЕ и при сохранении СХЕМЫ: старая схема сравнивается с новой по полям
@@ -47,6 +61,26 @@ public static class SchemaEditPolicy
         var problems = new List<string>();
         var old = Snapshot(before);
         var now = Snapshot(after);
+
+        // ── Замок: проверяется НА ЛЮБОМ УРОВНЕ, до раннего выхода ─────────────
+        //
+        // ⚠️ Здесь, а не ниже, потому что замок действует в ДАННЫХ (issue #957), и уровень правки
+        // схемы ему не указ: поставив «locked» своему полю в открытом типе, администратор запер бы
+        // себе форму без способа снять замок — метку снимает та же проверка, под которую он попал.
+        // Происхождение поля, наоборот, остаётся НИЖЕ раннего выхода намеренно: оно значит что-то
+        // только там, где уровень запирает, а над выходом отказывало бы законному переименованию
+        // поля модуля в открытом типе (чинилось в #956).
+        //
+        // Цена, вслух: запертое поле нельзя и переименовать — в сохранённой схеме личности поля
+        // нет, и переименование неотличимо от «снял замок с одного, повесил на другое».
+        foreach (var field in now.Fields.Values)
+            if (field.Locked && (!old.Fields.TryGetValue(field.Key, out var wasLocked) || !wasLocked.Locked))
+                problems.Add($"поле «{Name(field)}» нельзя запереть: замок ставит модуль на свои поля, " +
+                             "а не редактор типов");
+
+        foreach (var field in old.Fields.Values)
+            if (field.Locked && now.Fields.TryGetValue(field.Key, out var nowLocked) && !nowLocked.Locked)
+                problems.Add($"с поля «{Name(field)}» нельзя снять замок: его значение кладёт код модуля");
 
         // На открытом уровне администратор «меняет схему как хочет» — и это вся проверка.
         // Происхождение поля там тоже ни от чего не защищает: запирать в открытом типе нечего.
@@ -170,7 +204,7 @@ public static class SchemaEditPolicy
     private sealed record FieldSnapshot(
         string Key, string Type, string? TypeId, bool Required, string? Title,
         IReadOnlyList<string> Tags, IReadOnlyList<string> Options, bool FromModule,
-        bool Computed, string? Expression, JsonElement? DefaultValue);
+        bool Computed, string? Expression, JsonElement? DefaultValue, bool Locked);
 
     private sealed record SchemaSnapshot(
         IReadOnlyDictionary<string, FieldSnapshot> Fields, IReadOnlyList<string> Order,
@@ -216,7 +250,8 @@ public static class SchemaEditPolicy
                     string.Equals(Str(f, SchemaFieldOrigin.Property), SchemaFieldOrigin.Module, StringComparison.Ordinal),
                     f.TryGetProperty("computed", out var cp) && cp.ValueKind == JsonValueKind.True,
                     Str(f, "expression"),
-                    Element(f, "defaultValue"));
+                    Element(f, "defaultValue"),
+                    f.TryGetProperty(SchemaFieldLock.Property, out var lk) && lk.ValueKind == JsonValueKind.True);
                 fields[key] = snapshot;
                 order.Add(key);
             }

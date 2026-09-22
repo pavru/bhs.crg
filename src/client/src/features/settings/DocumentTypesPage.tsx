@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { refusalText } from '@/shared/api/refusals';
 import { useNavigate } from 'react-router';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
@@ -222,16 +223,6 @@ function getDescendantIds(id: string, allDocTypes: DocumentType[]): Set<string> 
   return result;
 }
 
-/**
- * Текст отказа сервера. Ответ называет конкретный тип («опора типа ядра — тип модуля «Проект»»), и
- * подменять его общим «не удалось сохранить» значит выбрасывать единственное, что помогает понять,
- * что именно чинить.
- */
-function errorText(e: unknown, fallback: string): string {
-  return (e as { response?: { data?: { error?: string } } })?.response?.data?.error
-    ?? (e instanceof Error ? e.message : fallback);
-}
-
 function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; allDocTypes: DocumentType[] }) {
   const [name, setName] = useState(docType.name);
   const [code, setCode] = useState(docType.code);
@@ -289,7 +280,7 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
     } catch (err: unknown) {
       // Текст сервера, а не «Request failed with status code 409»: отказ называет КОНКРЕТНЫЙ тип
       // («опора типа ядра принадлежит модулю „id“»), и без него человеку нечего чинить.
-      setError(errorText(err, 'Ошибка сохранения'));
+      setError(refusalText(err, 'Ошибка сохранения'));
       throw err;
     }
   }
@@ -333,7 +324,7 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
           onValueChange={v => {
             setOwnerError('');
             ownerMutation.mutate({ id: docType.id, module: v },
-              { onError: (e: unknown) => setOwnerError(errorText(e, 'Не удалось сменить владельца')) });
+              { onError: (e: unknown) => setOwnerError(refusalText(e, 'Не удалось сменить владельца')) });
           }}>
           {ownerOptions(access ?? NO_ACCESS).map(o => <SelectItem key={o.code} value={o.code}>{o.title}</SelectItem>)}
         </Select>
@@ -667,7 +658,7 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
       // (issue #956) это стало решающим: отказ называет ПОЛЕ и причину — «поле модуля „Табельный
       // номер" удалено или переименовано», — а схема правится десятком изменений сразу, и без
       // имени поля откатывать нечего.
-      setError(errorText(err, 'Ошибка сохранения'));
+      setError(refusalText(err, 'Ошибка сохранения'));
       throw err;
     }
   }

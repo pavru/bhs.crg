@@ -629,6 +629,7 @@ public class DocumentSetHandlers(
     IRepository<Section> sectionRepo,
     IDomainObjectRepository objRepo,
     IRepository<DocumentType> docTypeRepo,
+    IRepository<PrimitiveType> primitiveRepo,
     IRepository<QualityDocument> qualityDocRepo,
     IReferenceIndex refIndex,
     IBlobStorage blobStorage,
@@ -945,6 +946,10 @@ public class DocumentSetHandlers(
     public async Task<DomainObject> Handle(UpdateRequisitesCommand cmd, CancellationToken ct)
     {
         var obj = await objRepo.GetByIdAsync(cmd.InstanceId, ct) ?? throw new NotFoundException();
+        // Охрана записи (issue #957) — ДО сброса в черновик: отказ, который «почти сохранил»
+        // (снёс выпущенный PDF и не записал данные), хуже отсутствия отказа.
+        await Schema.WriteGuard.EnsureAllowedAsync(
+            obj.Data, cmd.Requisites, obj.CompositeTypeId, docTypeRepo, primitiveRepo, ct);
         var blobs = obj.ResetToDraft();
         obj.SetData(cmd.Requisites);
         objRepo.Update(obj);
@@ -1004,6 +1009,7 @@ public class DocumentSetHandlers(
 public class CommonDataHandlers(
     IRepository<DomainObject> repo,
     IRepository<DocumentType> typeRepo,
+    IRepository<PrimitiveType> primitiveRepo,
     IRepository<DocumentSet> setRepo,
     IRepository<Section> sectionRepo,
     IRepository<Construction> constructionRepo,
@@ -1025,6 +1031,10 @@ public class CommonDataHandlers(
         var type = await typeRepo.GetByIdAsync(cmd.CompositeTypeId, ct)
             ?? throw new NotFoundException($"DocumentType {cmd.CompositeTypeId} not found");
         TypeStorageRules.EnsureCommonPathAllowed(type);
+        // Охрана записи (issue #957): у создания «как лежит» — ничего, поэтому всё содержимое
+        // вносится этой записью, и запертое поле нельзя заполнить даже впервые.
+        await Schema.WriteGuard.EnsureAllowedAsync(
+            null, cmd.Data, cmd.CompositeTypeId, typeRepo, primitiveRepo, ct);
 
         var entry = DomainObject.Create(cmd.CompositeTypeId, cmd.DisplayName, cmd.Data, cmd.Scope, cmd.ScopeId, cmd.Aliases);
         await repo.AddAsync(entry, ct);
@@ -1040,6 +1050,10 @@ public class CommonDataHandlers(
         var resolved = await dataSetResolver.ResolveOwnerBindingsAsync(
             cmd.Id, entry.CompositeTypeId, entry.ScopeLevel, entry.ScopeId, null, ct);
         var data = resolved.Count == 0 ? cmd.Data : CommonDataBindingMerge.Merge(cmd.Data, resolved);
+        // ⚠️ Охрана — ПОСЛЕ слияния с привязками, а не над телом запроса: иначе привязка набора
+        // пронесла бы мимо охраны что угодно (issue #957).
+        await Schema.WriteGuard.EnsureAllowedAsync(
+            entry.Data, data, entry.CompositeTypeId, typeRepo, primitiveRepo, ct);
         entry.Update(cmd.DisplayName, data, cmd.Aliases);
         repo.Update(entry);
         await repo.SaveChangesAsync(ct);
