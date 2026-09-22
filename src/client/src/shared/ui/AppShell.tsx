@@ -4,7 +4,7 @@ import { useAuth } from '@/shared/hooks/useAuth';
 import { useAppVersion } from '@/shared/api/version';
 import { useUpdateStatus } from '@/shared/api/updates';
 import { useAccount, useResendConfirmation } from '@/shared/api/account';
-import { useTheme, type Theme } from '@/shared/ui/themeContext';
+import { ThemeToggle } from '@/shared/ui/ThemeToggle';
 import { NotificationsCenter } from '@/features/notifications/NotificationsCenter';
 import { ActiveJobsIndicator } from '@/features/jobs/ActiveJobsIndicator';
 import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
@@ -16,37 +16,8 @@ import { visibleNav } from '@/shared/ui/navAccess';
 import { useAccess, NO_ACCESS } from '@/shared/api/access';
 import { useGuardedNavClick } from '@/shared/ui/NavigationGuard';
 import { useBugReportDialog } from '@/shared/ui/bugReportBus';
-import { LogOut, Sun, Moon, Monitor, KeyRound, Check, ChevronsUpDown, MailWarning, X, Bug } from 'lucide-react';
+import { LogOut, KeyRound, ChevronsUpDown, MailWarning, X, Bug } from 'lucide-react';
 
-const themeOptions: { value: Theme; icon: typeof Sun; label: string }[] = [
-  { value: 'light',  icon: Sun,     label: 'Светлая'   },
-  { value: 'dark',   icon: Moon,    label: 'Тёмная'    },
-  { value: 'system', icon: Monitor, label: 'Системная' },
-];
-
-// MD3 segmented button (issue #157): выбранный сегмент — tonal + галочка.
-function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
-  return (
-    <div role="group" aria-label="Тема оформления"
-      className="flex h-10 rounded-full border border-stroke-strong overflow-hidden">
-      {themeOptions.map(({ value, icon: Icon, label }, i) => {
-        const active = theme === value;
-        return (
-          <button key={value} type="button" onClick={() => setTheme(value)}
-            title={label} aria-label={label} aria-pressed={active}
-            className={`flex-1 flex items-center justify-center gap-1 text-xs transition-colors ` +
-              `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ` +
-              `${i > 0 ? 'border-l border-stroke-strong' : ''} ` +
-              (active ? 'bg-tonal text-on-tonal' : 'text-fg3 hover:bg-black/5 dark:hover:bg-white/10')}>
-            {active && <Check size={14} className="shrink-0" />}
-            <Icon size={16} />
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 function NavSection({
   label,

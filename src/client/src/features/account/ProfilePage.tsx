@@ -7,7 +7,9 @@ import { Avatar } from '@/shared/ui/Avatar';
 import { downscaleToDataUri } from '@/shared/ui/avatarHelpers';
 import { ChangePasswordModal } from '@/shared/ui/ChangePasswordModal';
 import { apiError } from '@/shared/utils/apiError';
-import { KeyRound, CheckCircle2, AlertCircle, Mail, Upload, Trash2 } from 'lucide-react';
+import { AppearanceSection } from './AppearanceSection';
+import { MyPermissionsSection } from './MyPermissionsSection';
+import { KeyRound, CheckCircle2, AlertCircle, Mail, Upload, Trash2, Palette, ShieldCheck } from 'lucide-react';
 
 /** Ответ сервера → имя в форме. Пока учётка не загружена — пусто, как и раньше. */
 const accountName = (a: { displayName: string } | undefined) => a?.displayName ?? '';
@@ -161,6 +163,27 @@ export function ProfilePage() {
           </Button>
         </div>
       </form>
+
+      {/* Оформление и язык (issue #954, ТЗ AUTH-16.6): личные настройки — в профиле, а не в
+          «Настройке системы», где язык лежал за административным правом. */}
+      <div className="mt-8 pt-6 border-t border-stroke">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-fg1 mb-4">
+          <Palette size={15} className="text-fg3" /> Оформление и язык
+        </h2>
+        <AppearanceSection />
+      </div>
+
+      {/* Мои роли и права — только для чтения (ТЗ AUTH-16.6): ответ на вопрос «почему у меня нет
+          этого раздела», который иначе задают администратору. */}
+      <div className="mt-8 pt-6 border-t border-stroke">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-fg1 mb-1">
+          <ShieldCheck size={15} className="text-fg3" /> Мои права
+        </h2>
+        <p className="text-xs text-fg4 mb-4">
+          Что открывают выданные вам роли. Изменить их может только администратор.
+        </p>
+        <MyPermissionsSection />
+      </div>
 
       <div className="mt-8 pt-6 border-t border-stroke">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-fg1 mb-1">

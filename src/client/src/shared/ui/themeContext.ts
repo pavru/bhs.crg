@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { PreferenceSaveState } from '@/shared/hooks/useSyncedPreference';
 
 /**
  * Контекст темы и доступ к нему. Отдельным файлом от провайдера (issue #858): модуль,
@@ -11,8 +12,11 @@ export interface ThemeCtx {
   theme: Theme;
   setTheme: (t: Theme) => void;
   resolvedTheme: 'light' | 'dark';
+  /** Чем кончилась последняя отправка выбора на сервер (ревью PR #1000). */
+  saveState: PreferenceSaveState;
 }
 
-export const Ctx = createContext<ThemeCtx>({ theme: 'system', setTheme: () => {}, resolvedTheme: 'light' });
+export const Ctx = createContext<ThemeCtx>(
+  { theme: 'system', setTheme: () => {}, resolvedTheme: 'light', saveState: 'idle' });
 
 export function useTheme() { return useContext(Ctx); }

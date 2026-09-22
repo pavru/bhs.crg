@@ -41,7 +41,7 @@ function getSystemTheme(): 'light' | 'dark' {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   // Выбор человека хранит сервер, браузер — зеркало (useSyncedPreference). Значения сервер
   // принимает только объявленные (`UserSettingKeys.Theme`), поэтому привести к Theme можно.
-  const [stored, setThemeState] = useSyncedPreference('theme', STORAGE_KEY, 'system');
+  const [stored, setThemeState, saveState] = useSyncedPreference('theme', STORAGE_KEY, 'system');
   const theme = stored as Theme;
   const systemTheme = useSyncExternalStore(
     theme === 'system' ? subscribeSystemTheme : NO_SUBSCRIPTION,
@@ -59,8 +59,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Значение контекста — мемоизированное: свежий объект-литерал на каждый рендер провайдера
   // перерисовывал бы всех потребителей useTheme даже тогда, когда тема не изменилась.
   const value = useMemo<ThemeCtx>(
-    () => ({ theme, setTheme: setThemeState, resolvedTheme }),
-    [theme, resolvedTheme, setThemeState],
+    () => ({ theme, setTheme: setThemeState, resolvedTheme, saveState }),
+    [theme, resolvedTheme, setThemeState, saveState],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { PreferenceSaveState } from '@/shared/hooks/useSyncedPreference';
 
 /**
  * Ключ ЗЕРКАЛА в браузере (issue #953): сам выбор лежит на сервере и приезжает на другой
@@ -35,10 +36,16 @@ export const LOCALE_OPTIONS: LocaleOption[] = [
  * кольцо импортов роняло бы приложение целиком («Cannot access 'SYSTEM_LOCALE' before
  * initialization») — при зелёных типах и зелёных тестах. Поймано живым прогоном.
  */
-export const LocaleContext = createContext<[string, (value: string) => void]>([SYSTEM_LOCALE, () => {}]);
+export const LocaleContext = createContext<[string, (value: string) => void, PreferenceSaveState]>(
+  [SYSTEM_LOCALE, () => {}, 'idle']);
 
-/** Выбранный язык и способ его сменить. */
-export function useLocale(): [string, (locale: string) => void] {
+/**
+ * Выбранный язык, способ его сменить и чем кончилась последняя отправка.
+ *
+ * Третий элемент нужен экрану настройки: «Сохранено» обязано означать сохранено, а не «нажато»
+ * (ревью PR #1000). Кто им не пользуется, тот его и не берёт.
+ */
+export function useLocale(): [string, (locale: string) => void, PreferenceSaveState] {
   return useContext(LocaleContext);
 }
 
