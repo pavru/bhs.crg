@@ -84,6 +84,23 @@ await check('pinned-theme-ignores-os-change', async () => {
   await page.waitForTimeout(400);
 });
 
+// Тема хранится на СЕРВЕРЕ (issue #953, ТЗ CORE-25.3), а в браузере остаётся только зеркало.
+// Проверяем это единственным честным способом: убираем зеркало — то есть делаем из этой машины
+// «другую» — и ждём, что выбор вернётся. Пока тема жила в localStorage, проверка «переживает
+// перезагрузку» проходила бы и здесь: она читала то же самое хранилище, куда сама и писала.
+//
+// Чистим ровно один ключ, а не хранилище целиком: там же лежит токен входа, и полная очистка
+// проверяла бы не настройки, а страницу входа.
+await check('theme-comes-from-the-server-not-the-browser', async () => {
+  await pickTheme('Тёмная');
+  await page.evaluate(() => localStorage.removeItem('crg-theme'));
+  if ((await storedTheme()) !== null) throw new Error('зеркало темы не удалилось — проверка ничего не значит');
+  await page.reload();
+  await page.waitForTimeout(2500);
+  if ((await domTheme()) !== 'dark')
+    throw new Error(`без зеркала тема не приехала с сервера: на <html> «${await domTheme()}»`);
+});
+
 await pickTheme('Светлая');   // возвращаем окружение в исходное
 
 // ── Поле даты ──────────────────────────────────────────────────────────────────

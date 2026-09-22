@@ -1,5 +1,10 @@
-import { useState } from 'react';
+import { createContext, useContext } from 'react';
 
+/**
+ * Ключ ЗЕРКАЛА в браузере (issue #953): сам выбор лежит на сервере и приезжает на другой
+ * компьютер, здесь остаётся последнее известное значение — чтобы до ответа сервера форматировать
+ * не наугад.
+ */
 export const LOCALE_KEY = 'crg.locale';
 export const SYSTEM_LOCALE = 'system';
 
@@ -17,17 +22,24 @@ export const LOCALE_OPTIONS: LocaleOption[] = [
   { value: 'de-DE',  label: 'Deutsch',           nativeLabel: 'Deutsch' },
 ];
 
+/**
+ * Язык форматирования — ОДИН на приложение (issue #953). Значение держит `LocaleProvider`, а
+ * хранит сервер.
+ *
+ * Раньше язык читал каждый потребитель сам, своим `useState` из localStorage, и значений было
+ * столько же, сколько потребителей: сменив язык в настройках, человек видел новый формат дат там
+ * — и старый в разделе копий, пока тот не перемонтируется.
+ *
+ * ⚠️ Контекст объявлен ЗДЕСЬ, вместе с константами, а не в соседнем файле рядом с провайдером:
+ * отдельный модуль импортировал бы отсюда `SYSTEM_LOCALE`, а этот модуль — контекст оттуда, и
+ * кольцо импортов роняло бы приложение целиком («Cannot access 'SYSTEM_LOCALE' before
+ * initialization») — при зелёных типах и зелёных тестах. Поймано живым прогоном.
+ */
+export const LocaleContext = createContext<[string, (value: string) => void]>([SYSTEM_LOCALE, () => {}]);
+
+/** Выбранный язык и способ его сменить. */
 export function useLocale(): [string, (locale: string) => void] {
-  const [locale, setLocaleState] = useState(
-    () => localStorage.getItem(LOCALE_KEY) ?? SYSTEM_LOCALE,
-  );
-
-  function setLocale(l: string) {
-    localStorage.setItem(LOCALE_KEY, l);
-    setLocaleState(l);
-  }
-
-  return [locale, setLocale];
+  return useContext(LocaleContext);
 }
 
 export function resolveLocale(stored: string): string {

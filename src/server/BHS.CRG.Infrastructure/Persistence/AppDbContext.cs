@@ -44,6 +44,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<QualityAuditRun> QualityAuditRuns => Set<QualityAuditRun>();
     public DbSet<BHS.CRG.Domain.Settings.IntegrationSettingsEntity> IntegrationSettings => Set<BHS.CRG.Domain.Settings.IntegrationSettingsEntity>();
     public DbSet<BHS.CRG.Domain.Settings.ServiceStateEntity> ServiceState => Set<BHS.CRG.Domain.Settings.ServiceStateEntity>();
+
+    /// <summary>Предпочтения пользователя на сервере (ТЗ CORE-25.3): тема, язык и что придёт дальше.</summary>
+    public DbSet<BHS.CRG.Domain.Settings.UserSetting> UserSettings => Set<BHS.CRG.Domain.Settings.UserSetting>();
     public DbSet<BHS.CRG.Domain.Notifications.Notification> Notifications => Set<BHS.CRG.Domain.Notifications.Notification>();
     public DbSet<BHS.CRG.Domain.Notifications.NotificationUserState> NotificationUserStates
         => Set<BHS.CRG.Domain.Notifications.NotificationUserState>();

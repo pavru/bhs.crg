@@ -1,6 +1,7 @@
 ﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/shared/ui/ThemeProvider';
+import { LocaleProvider } from '@/shared/ui/LocaleProvider';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary';
 import { NavigationGuardProvider } from '@/shared/ui/NavigationGuardProvider';
 import { DocumentTitleManager } from '@/shared/ui/DocumentTitleManager';
@@ -37,9 +38,13 @@ const queryClient = new QueryClient({
 
 export default function App() {
   return (
-    <ThemeProvider>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        {/* Тема и язык — НИЖЕ входа в систему (issue #953): их хранит сервер, и спросить их можно
+            только у вошедшего. До ответа показывается зеркало в браузере, поэтому страница входа
+            и первый кадр выглядят как прежде. */}
+        <ThemeProvider>
+        <LocaleProvider>
         <ToastProvider>
         {/* Выше корневой границы ошибок намеренно (issue #834): поймав сбой, граница РАЗМОНТИРУЕТ
             своих детей — окажись форма внутри, кнопка «Сообщить об ошибке» пропала бы ровно на том
@@ -93,8 +98,9 @@ export default function App() {
         </BrowserRouter>
         </BugReportProvider>
         </ToastProvider>
+        </LocaleProvider>
+        </ThemeProvider>
       </AuthProvider>
     </QueryClientProvider>
-    </ThemeProvider>
   );
 }

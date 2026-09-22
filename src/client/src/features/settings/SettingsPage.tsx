@@ -37,7 +37,8 @@ function LocaleSection() {
   return (
     <CollapsibleSection title="Региональные настройки" storageKey="locale" defaultOpen={false}>
       <p className="text-xs text-fg3">
-        Определяет формат дат и чисел в интерфейсе. Сохраняется в браузере.
+        Определяет формат дат и чисел в интерфейсе. Сохраняется в учётной записи — вместе с темой
+        оформления приедет на любой компьютер, где вы войдёте.
       </p>
 
       <div className="space-y-1">
