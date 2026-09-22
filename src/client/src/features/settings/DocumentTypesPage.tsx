@@ -17,7 +17,7 @@ import type { PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
 import { Select, SelectItem } from '@/shared/ui/Select';
 import { NO_ACCESS, useAccess } from '@/shared/api/access';
-import { CORE_OWNER, offeredTypes, ownerOptions, ownerTitle } from '@/shared/api/typeOwners';
+import { CORE_OWNER, keepingCurrent, offeredTypes, ownerOptions, ownerTitle } from '@/shared/api/typeOwners';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { countTemplatesUsingTypeCode } from '@/shared/api/typstUserLib';
 import {
@@ -245,11 +245,15 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
   const [ownerError, setOwnerError] = useState('');
 
   const descendantIds = getDescendantIds(docType.id, allDocTypes);
-  // В родители предлагаются типы включённых модулей; уже записанный родитель разрешается по
-  // полному списку — иначе он исчез бы из поля, а сохранение стёрло бы наследование.
-  const eligibleParents = offeredTypes(allDocTypes, access).filter(
+  // В родители ПРЕДЛАГАЮТСЯ типы включённых модулей, но уже записанный родитель остаётся в
+  // списке, даже если его модуль выключен: этим же списком пикер разрешает своё значение, и без
+  // записанного родителя поле показало бы «— без родителя —» — наследование выглядело бы
+  // потерянным.
+  const candidates = allDocTypes.filter(
     dt => dt.kind === docType.kind && dt.id !== docType.id && !descendantIds.has(dt.id),
   );
+  const eligibleParents = keepingCurrent(
+    offeredTypes(candidates, access), candidates, parentId || docType.parentId);
 
   const dirty = name !== docType.name || code !== docType.code || parentId !== (docType.parentId ?? '');
 

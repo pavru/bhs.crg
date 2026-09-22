@@ -45,6 +45,22 @@ export function isOfferedType(type: Pick<DocumentType, 'module'>, access: Access
   return type.module === CORE_OWNER || access.modules.some(m => m.code === type.module);
 }
 
+/**
+ * Вернуть в список выбора УЖЕ ВЫБРАННОЕ значение, если фильтр его выбросил.
+ *
+ * ⚠️ Без этого пикер, который одним списком и предлагает, и разрешает своё значение
+ * (`TypePickerField`), не находит выбранного типа и показывает «— без родителя —» с выключенным
+ * крестиком: наследование выглядит потерянным, хотя оно на месте. Найдено ревью PR #1002 — там же,
+ * где я оставил комментарий, обещавший обратное.
+ */
+export function keepingCurrent<T extends { id: string }>(
+  offered: T[], all: T[], currentId: string | null | undefined,
+): T[] {
+  if (!currentId || offered.some(t => t.id === currentId)) return offered;
+  const current = all.find(t => t.id === currentId);
+  return current ? [...offered, current] : offered;
+}
+
 /** Те же правила для списка: удобнее в месте выбора, чем фильтр вручную. */
 export function offeredTypes<T extends Pick<DocumentType, 'module'>>(
   types: T[], access: AccessInfo | undefined,

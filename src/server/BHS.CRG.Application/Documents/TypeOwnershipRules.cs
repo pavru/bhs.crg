@@ -46,12 +46,17 @@ public static class TypeOwnershipRules
     /// </summary>
     /// <param name="byId">Все типы; опора, которой нет в словаре, пропускается — её отсутствие
     /// ловится другими проверками, и выдавать за нарушение прав чужую поломку незачем.</param>
+    /// <param name="onlySupport">Проверять только опору на этот тип. Нужно, чтобы правка одного
+    /// типа не спотыкалась о ЧУЖОЕ расхождение, уже лежащее в базе (например, приехавшее чужой
+    /// копией): иначе один застарелый разлад запирает правки не связанных с ним типов, и чинить
+    /// его остаётся правкой базы руками. Найдено ревью PR #1002.</param>
     public static IReadOnlyList<string> Violations(
-        DocumentType type, IReadOnlyDictionary<Guid, DocumentType> byId)
+        DocumentType type, IReadOnlyDictionary<Guid, DocumentType> byId, Guid? onlySupport = null)
     {
         var problems = new List<string>();
         foreach (var support in SupportsOf(type))
         {
+            if (onlySupport is { } only && support.TypeId != only) continue;
             if (!byId.TryGetValue(support.TypeId, out var target)) continue;
             if (Allows(type.Module, target.Module)) continue;
             problems.Add(

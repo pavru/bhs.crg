@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { AccessInfo } from './access';
-import { CORE_OWNER, isOfferedType, offeredTypes, ownerOptions, ownerTitle } from './typeOwners';
+import { CORE_OWNER, isOfferedType, keepingCurrent, offeredTypes, ownerOptions, ownerTitle } from './typeOwners';
 
 const access: AccessInfo = {
   permissions: [],
@@ -57,5 +57,29 @@ describe('что предлагать к выбору', () => {
   it('список фильтруется целиком', () => {
     const types = [type(CORE_OWNER), type('id'), type('work')];
     expect(offeredTypes(types, access)).toHaveLength(2);
+  });
+});
+
+describe('уже выбранное из списка не пропадает', () => {
+  const all = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  const offered = [{ id: 'a' }, { id: 'b' }];
+
+  it('выбранное возвращается в список, если фильтр его выбросил', () => {
+    // Иначе пикер, который одним списком и предлагает, и разрешает своё значение, показал бы
+    // «— без родителя —»: наследование выглядело бы потерянным, хотя оно на месте.
+    expect(keepingCurrent(offered, all, 'c').map(t => t.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('ничего не добавляется, когда выбранное и так на месте', () => {
+    expect(keepingCurrent(offered, all, 'a')).toBe(offered);
+  });
+
+  it('пустой выбор ничего не добавляет', () => {
+    expect(keepingCurrent(offered, all, null)).toBe(offered);
+    expect(keepingCurrent(offered, all, '')).toBe(offered);
+  });
+
+  it('выбранное, которого нет нигде, не выдумывается', () => {
+    expect(keepingCurrent(offered, all, 'нет-такого')).toHaveLength(2);
   });
 });

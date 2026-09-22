@@ -32,6 +32,8 @@ public class TypeOwnershipTests(IntegrationTestFixture fixture) : IAsyncLifetime
     public Task DisposeAsync() => Task.CompletedTask;
 
     private const string Module = "id";
+    private const string EmptySchema = """{"fields":[]}""";
+    private const string OneFieldSchema = """{"fields":[{"key":"Поле","title":"Поле","type":"string"}]}""";
 
     // ── Опора ядра — ядро ─────────────────────────────────────────────────────
 
@@ -193,6 +195,97 @@ public class TypeOwnershipTests(IntegrationTestFixture fixture) : IAsyncLifetime
         Assert.Equal(TypeOwner.Core, created.GetProperty("module").GetString());
         // Общий, а не закрытый: заводят такой тип затем, чтобы его объекты попали в общие данные.
         Assert.Equal(nameof(TypeVisibility.Shared), created.GetProperty("visibility").GetString());
+    }
+
+    /// <summary>
+    /// Код владельца сохраняется ОБЪЯВЛЕННЫМ, а не тем, как его написали в запросе. Сверка идёт
+    /// без учёта регистра и краёв, поэтому «ID» её проходит — а дальше никто так не сравнивает:
+    /// и клиент, и правило опоры сверяют коды строго. Тип с владельцем «ID» пропал бы из
+    /// редактора при ВКЛЮЧЁННОМ модуле, и вернуть его было бы нечем: выбор владельца живёт в
+    /// редакторе типа. Найдено ревью PR #1002.
+    /// </summary>
+    [Fact]
+    public async Task Владелец_записывается_объявленным_кодом_а_не_как_написали()
+    {
+        var client = await AdminClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/document-types", new
+        {
+            name = "Чужое написание", code = "SLOPPY", kind = "Composite",
+            schema = EmptySchema, module = "  ID  ",
+        });
+
+        response.EnsureSuccessStatusCode();
+        var created = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(Module, created.GetProperty("module").GetString());
+    }
+
+    // ── Чужое расхождение не запирает правку ──────────────────────────────────
+
+    /// <summary>
+    /// Расхождение, уже лежащее в базе (приехало чужой копией, появилось до правила), не должно
+    /// запрещать правки, к которым оно не относится. Иначе один застарелый разлад запирает
+    /// соседние типы, и чинить его остаётся правкой базы руками — то есть тем единственным
+    /// способом, ради отмены которого заведён адрес владельца. Найдено ревью PR #1002.
+    ///
+    /// Расстановка: тип ядра <c>X</c> опирается и на <c>W</c> (ядро, всё в порядке), и на
+    /// <c>Y</c> (модуль — это и есть застарелое расхождение). Правится <c>W</c>, который к
+    /// расхождению отношения не имеет.
+    /// </summary>
+    [Fact]
+    public async Task Чужое_расхождение_в_базе_не_запрещает_правку_соседа()
+    {
+        var (w, _, _) = await SeedStaleViolationAsync();
+
+        // Правка соседа проходит: расхождение X↔Y её не касается.
+        var saved = await SendAsync(new UpdateDocumentTypeSchemaCommand(
+            w, JsonDocument.Parse(OneFieldSchema)));
+
+        Assert.Contains("Поле", saved.Schema.RootElement.GetRawText());
+    }
+
+    /// <summary>
+    /// Обратная половина того же: расхождение не запирает СОСЕДНИЕ правки, но своя опора
+    /// по-прежнему проверяется — иначе первая половина чинилась бы отключением правила.
+    /// </summary>
+    [Fact]
+    public async Task Но_своя_опора_проверяется_и_при_чужом_расхождении()
+    {
+        var (w, _, _) = await SeedStaleViolationAsync();
+
+        var refusal = await Assert.ThrowsAsync<ConflictException>(() => SendAsync(
+            new SetDocumentTypeOwnerCommand(w, Module)));
+
+        // Отказ называет ТИП, из-за которого он случился, — тот самый X, что опирается на W.
+        Assert.Contains("Опирается на обоих", refusal.Message);
+        Assert.Contains("поле «Сосед»", refusal.Message);
+    }
+
+    /// <summary>Кладёт в базу мимо проверок пару «тип ядра опирается на тип модуля».</summary>
+    private async Task<(Guid W, Guid X, Guid Y)> SeedStaleViolationAsync()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var w = DocumentType.Create("Сосед", "STALE_W", DocumentTypeKind.Composite, null,
+            JsonDocument.Parse(EmptySchema), TypeOwner.Core, TypeVisibility.Shared);
+        var y = DocumentType.Create("Тип модуля", "STALE_Y", DocumentTypeKind.Composite, null,
+            JsonDocument.Parse(EmptySchema), Module, TypeVisibility.Shared);
+        db.DocumentTypes.AddRange(w, y);
+        await db.SaveChangesAsync();
+
+        var x = DocumentType.Create("Опирается на обоих", "STALE_X", DocumentTypeKind.Composite, null,
+            JsonDocument.Parse(
+                $$"""
+                {"fields":[
+                  {"key":"Сосед","title":"Сосед","type":"complex","typeId":"{{w.Id}}"},
+                  {"key":"Чужой","title":"Чужой","type":"complex","typeId":"{{y.Id}}"}
+                ]}
+                """), TypeOwner.Core, TypeVisibility.Shared);
+        db.DocumentTypes.Add(x);
+        await db.SaveChangesAsync();
+
+        return (w.Id, x.Id, y.Id);
     }
 
     // ── Способ хранения ───────────────────────────────────────────────────────

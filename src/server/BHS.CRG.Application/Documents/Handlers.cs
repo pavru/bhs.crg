@@ -295,9 +295,12 @@ public class DocumentTypeHandlers(
         var byId = all.ToDictionary(t => t.Id);
         var problems = new List<string>(TypeOwnershipRules.Violations(edited, byId));
 
+
+        // У зависимых смотрим ТОЛЬКО их опору на этот тип: чужие расхождения, уже лежащие в базе,
+        // не должны запрещать правку, к которой они не относятся.
         foreach (var dependent in all.Where(t => t.Id != edited.Id
                      && TypeOwnershipRules.SupportsOf(t).Any(s => s.TypeId == edited.Id)))
-            problems.AddRange(TypeOwnershipRules.Violations(dependent, byId));
+            problems.AddRange(TypeOwnershipRules.Violations(dependent, byId, onlySupport: edited.Id));
 
         if (problems.Count == 0) return;
         throw new ConflictException(
