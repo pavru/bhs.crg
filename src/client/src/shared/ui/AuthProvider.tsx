@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { jwtDecode } from 'jwt-decode';
 import { apiClient } from '@/shared/api/client';
 import {
@@ -15,6 +16,7 @@ function decodeUser(token: string): AuthUser {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser | null>(() => {
     const token = getToken();
     return token ? decodeUser(token) : null;
@@ -24,7 +26,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 401 — например, когда администратор снял роль, и сервер перестал принимать прежний токен
   // (issue #946). Без этой подписки экран остался бы с прежней ролью до перезагрузки страницы:
   // кнопки на месте, действия отвечают отказом.
-  useEffect(() => onTokenChanged(token => setUser(token ? decodeUser(token) : null)), []);
+  //
+  // ⚠️ Вместе с сессией выбрасывается ВЕСЬ кэш ответов (issue #953). Ответы адресованы человеку:
+  // его права, его профиль, его настройки. Пережив выход, они достались бы следующему вошедшему в
+  // этой же вкладке — на общем компьютере это буквально чужая тема и чужой язык, причём без
+  // единого запроса к серверу, то есть без всякого признака подмены. Чистится на пропаже токена, а
+  // не в кнопке «Выйти»: сессия кончается и сама — отказом refresh, — и кнопка про это не знает.
+  useEffect(() => onTokenChanged(token => {
+    setUser(token ? decodeUser(token) : null);
+    if (!token) queryClient.clear();
+  }), [queryClient]);
 
   const login = useCallback(async (email: string, password: string, remember = true) => {
     const { data } = await apiClient.post<{ accessToken: string; refreshToken: string }>(

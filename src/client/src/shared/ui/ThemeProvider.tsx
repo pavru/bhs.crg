@@ -60,7 +60,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // перерисовывал бы всех потребителей useTheme даже тогда, когда тема не изменилась.
   const value = useMemo<ThemeCtx>(
     () => ({ theme, setTheme: setThemeState, resolvedTheme }),
-    [theme, resolvedTheme],
+    [theme, resolvedTheme, setThemeState],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

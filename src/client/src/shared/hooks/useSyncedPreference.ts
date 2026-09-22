@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/shared/hooks/useAuth';
+import { getToken } from '@/shared/api/token';
 import { resolvePreference, useSaveUserSettings, useUserSettings } from '@/shared/api/userSettings';
 
 /**
@@ -43,8 +44,15 @@ export function useSyncedPreference(
   const choose = useCallback((next: string) => {
     setChosen(next);
     // Отправка — только здесь, и только потому, что это нажал человек (см. предупреждение выше).
-    if (user) mutate({ [key]: next }, { onSettled: () => setChosen(null) });
-  }, [key, mutate, user]);
+    //
+    // ⚠️ «Вошёл ли кто-то» спрашивается У ХРАНИЛИЩА ТОКЕНА, а не у замыкания на `user`. Замыкание
+    // устаревает: вход через форму не перезагружает страницу, и обработчик, розданный потребителям
+    // до входа, помнил бы `user === null`. Тогда первое нажатие на тему после входа темнило бы
+    // экран, писало зеркало и НЕ отправляло ничего на сервер — а обнаружилось бы это только
+    // перезагрузкой, откатывающей тему. Найдено ревью PR #999; заодно обработчик стал неизменным,
+    // и та же ошибка не вернётся через чужой useMemo с неполным списком зависимостей.
+    if (getToken()) mutate({ [key]: next }, { onSettled: () => setChosen(null) });
+  }, [key, mutate]);
 
   return [value, choose];
 }
