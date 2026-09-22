@@ -8,6 +8,10 @@ import { isFieldRef } from '@/shared/api/types';
 
 export function isMissing(field: SchemaField, val: unknown): boolean {
   if (!field.required) return false;
+  // Поле с замком (ТЗ CORE-20.2) заполняет код модуля, и форма не даёт его править. Требовать
+  // заполнить то, чего заполнить нельзя, — претензия без пути: человек её не снимет никогда.
+  // Здесь, а не в каждой из трёх форм по схеме: обязательность они спрашивают ровно отсюда.
+  if (field.locked) return false;
   if (field.type === 'boolean') return false;
   if (field.type === 'complex') return false;
   if (isFieldRef(val)) return false;

@@ -469,16 +469,6 @@ export function getDefaultValues(fields: SchemaField[]): Record<string, unknown>
   return result;
 }
 
-/** Checks whether a field value is considered "missing" for validation purposes. */
-export function isFieldMissing(field: SchemaField, value: unknown): boolean {
-  if (!field.required) return false;
-  if (field.type === 'boolean') return false;
-  if (field.type === 'complex') {
-    return value == null || (typeof value === 'object' && Object.keys(value as object).length === 0);
-  }
-  return value == null || String(value).trim() === '';
-}
-
 /**
  * Тип-МАТЕРИАЛ — тот, что может нести документ качества (issue #569).
  *

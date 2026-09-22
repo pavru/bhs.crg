@@ -37,7 +37,7 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
   return (
     <OutlinedField
       label={label} required={required} invalid={invalid} error={error} hint={hint}
-      raise="always" focused={focused} htmlFor={areaId} containerClassName={containerClassName}
+      raise="always" focused={focused} readOnly={rest.readOnly} htmlFor={areaId} containerClassName={containerClassName}
     >
       <textarea
         ref={ref} id={areaId} required={required} rows={rows}

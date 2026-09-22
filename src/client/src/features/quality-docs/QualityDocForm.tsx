@@ -20,12 +20,10 @@ import { useListEnumTypes } from '@/shared/api/enumTypes';
 import {
   PrimitiveInput, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField, ImageField, FileField,
   validateConstraint, collectConstraintViolations, describeViolationPath,
+  isWideField, isLockedField, LockedFieldIcon, LockedFieldValue, LOCKED_HINT, AutoFieldsSection,
 } from '@/features/document-sets/fields';
 import { useUploadsInFlight } from '@/shared/ui/uploadsInFlight';
 import { RECOGNIZED_HINT, recognizedFieldKeys, applyRecognized } from './recognizedMark';
-
-/** Поля, занимающие обе колонки сетки — тот же набор, что в редакторе реквизитов (`RequisitesTab`). */
-const WIDE_TYPES = new Set(['complex', 'array', 'doc-ref', 'doc-array', 'image', 'file', 'text']);
 
 export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, onCancel }: {
   allDocTypes: DocumentType[]; scope: CatalogScope; scopeId: string | null;
@@ -163,7 +161,11 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
         const p = findTaggedFieldPath(activeType, FUNCTIONAL_TAG.docPageCount, allDocTypes);
         // Числом, а не строкой: сервер уже сосчитал его числом, и `String()` здесь был тем самым
         // местом, где в числовое поле ложилась строка (issue #1005).
-        if (p) fieldValues[p.join('.')] = rec.pageCount;
+        //
+        // Второй вход к тому же полю, помимо плана распознавания: тэг стоит и на поле модуля —
+        // системные поля видны тэгам так же, как поля схемы (#958). Запертое поле пропускаем здесь
+        // отдельно, иначе число страниц обошло бы запрет, который план уже соблюдает.
+        if (p && !activeFields.some(f => f.key === p[0] && isLockedField(f))) fieldValues[p.join('.')] = rec.pageCount;
       }
       setValues(v => applyRecognized(v, fieldValues));
       setRecognizedKeys(recognizedFieldKeys(fieldValues));
@@ -217,6 +219,71 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
     }
   }
 
+  function renderCell(f: SchemaField) {
+    const v = values[f.key];
+    // Поле с замком (ТЗ CORE-20.2): значение кладёт код модуля — форма его показывает, но не правит.
+    const locked = isLockedField(f);
+    // Тонкая левая полоска, а не значок: полей в форме бывает сорок, а в плотной сетке в две
+    // колонки значок съедает ширину у самого значения.
+    const mark = recognizedKeys.has(f.key) ? ' border-l-2 border-brand pl-2' : '';
+    const cls = (isWideField(f) ? 'col-span-2' : 'col-span-1 min-w-0') + mark;
+    const hint = recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined;
+    const label = (
+      <label className="block text-xs font-medium text-fg2 mb-1">{f.title}
+        {f.required && !locked && <span className="ml-0.5 text-danger">*</span>}
+        {locked && <LockedFieldIcon className="ml-1 align-text-bottom" />}</label>
+    );
+    // Составное, массив и ссылка под замком сегодня не заводятся (белый список видов значения в
+    // объявлении модуля), но редактор им не даём: см. `LockedFieldValue`.
+    if (locked && (f.type === 'complex' || f.type === 'array' || f.type === 'doc-ref' || f.type === 'doc-array'))
+      return <div key={f.key} className={cls} title={hint}>{label}<LockedFieldValue value={v} /></div>;
+    if (f.type === 'complex')
+      return <div key={f.key} className={cls} title={hint}>{label}<ComplexFieldGroup field={f} allDocTypes={allDocTypes} value={v}
+        onChange={x => setValue(f.key, x)} showValidation={false} docRefMode="catalog" scope={scope} scopeId={scopeId} /></div>;
+    if (f.type === 'array')
+      return <div key={f.key} className={cls} title={hint}>{label}<ArrayFieldEditor field={f} allDocTypes={allDocTypes} value={v}
+        onChange={x => setValue(f.key, x)} showValidation={false} docRefMode="catalog" scope={scope} scopeId={scopeId} /></div>;
+    if (f.type === 'doc-ref')
+      return <div key={f.key} className={cls} title={hint}>{label}<DocRefCatalogPickerField field={f} allDocTypes={allDocTypes} value={v}
+        onChange={x => setValue(f.key, x ?? undefined)} scope={scope} scopeId={scopeId} /></div>;
+    if (f.type === 'image')
+      return <div key={f.key} className={cls} title={hint}>{label}<ImageField value={v} onChange={x => setValue(f.key, x)} readOnly={locked} /></div>;
+    if (f.type === 'file')
+      return <div key={f.key} className={cls} title={hint}>{label}<FileField value={v} onChange={x => setValue(f.key, x ?? undefined)} readOnly={locked} /></div>;
+    return (
+      <div key={f.key} className={cls} title={hint}>
+        <PrimitiveInput field={f} value={v} label={f.title}
+          onChange={x => setValue(f.key, x)} invalid={!!constraintErrors[f.key]}
+          primitiveTypeDef={primitiveDef(f)} enumTypeDef={enumDef(f)} readOnly={locked} />
+        {locked && <p className="text-[11px] text-fg4 mt-0.5 flex items-center gap-1"><LockedFieldIcon />{LOCKED_HINT}</p>}
+        {constraintErrors[f.key] && (
+          <p className="text-xs text-danger mt-0.5">{constraintErrors[f.key]}</p>
+        )}
+      </div>
+    );
+  }
+
+  function fieldGrid(list: SchemaField[]) {
+    return <div className="grid grid-cols-2 gap-x-4 gap-y-4">{list.map(renderCell)}</div>;
+  }
+
+  /**
+   * Запертые поля прячем под ту же сворачиваемую секцию «Заполняются автоматически», что и поля,
+   * приходящие из источника данных (issue #102, #958): человек их не заполняет, и в общем ряду они
+   * занимали бы место, отвлекая от того, что заполнить надо.
+   */
+  function renderFields(list: SchemaField[]) {
+    const auto = list.filter(isLockedField);
+    if (auto.length === 0) return fieldGrid(list);
+    const normal = list.filter(f => !isLockedField(f));
+    return (
+      <div className="space-y-4">
+        {normal.length > 0 && fieldGrid(normal)}
+        <AutoFieldsSection count={auto.length} lockedCount={auto.length}>{fieldGrid(auto)}</AutoFieldsSection>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {/* Тип документа — своей строкой, а не в паре с названием (issue #565): он решает, какие поля
@@ -261,42 +328,7 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
 
       {/* Раскладка как в редакторе реквизитов: простые поля по два в ряд, широкие — на обе колонки.
           Ключ схемы в подписи не показываем — он нужен настройщику типа, а не тому, кто заполняет. */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-4 border-t border-muted pt-3">
-        {fields.map(f => {
-          const v = values[f.key];
-          // Тонкая левая полоска, а не значок: полей в форме бывает сорок, а в плотной сетке в две
-          // колонки значок съедает ширину у самого значения.
-          const mark = recognizedKeys.has(f.key) ? ' border-l-2 border-brand pl-2' : '';
-          const cls = (WIDE_TYPES.has(f.type) ? 'col-span-2' : 'col-span-1 min-w-0') + mark;
-          const label = (
-            <label className="block text-xs font-medium text-fg2 mb-1">{f.title}
-              {f.required && <span className="ml-0.5 text-danger">*</span>}</label>
-          );
-          if (f.type === 'complex')
-            return <div key={f.key} className={cls} title={recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined}>{label}<ComplexFieldGroup field={f} allDocTypes={allDocTypes} value={v}
-              onChange={x => setValue(f.key, x)} showValidation={false} docRefMode="catalog" scope={scope} scopeId={scopeId} /></div>;
-          if (f.type === 'array')
-            return <div key={f.key} className={cls} title={recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined}>{label}<ArrayFieldEditor field={f} allDocTypes={allDocTypes} value={v}
-              onChange={x => setValue(f.key, x)} showValidation={false} docRefMode="catalog" scope={scope} scopeId={scopeId} /></div>;
-          if (f.type === 'doc-ref')
-            return <div key={f.key} className={cls} title={recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined}>{label}<DocRefCatalogPickerField field={f} allDocTypes={allDocTypes} value={v}
-              onChange={x => setValue(f.key, x ?? undefined)} scope={scope} scopeId={scopeId} /></div>;
-          if (f.type === 'image')
-            return <div key={f.key} className={cls} title={recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined}>{label}<ImageField value={v} onChange={x => setValue(f.key, x)} /></div>;
-          if (f.type === 'file')
-            return <div key={f.key} className={cls} title={recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined}>{label}<FileField value={v} onChange={x => setValue(f.key, x ?? undefined)} /></div>;
-          return (
-            <div key={f.key} className={cls} title={recognizedKeys.has(f.key) ? RECOGNIZED_HINT : undefined}>
-              <PrimitiveInput field={f} value={v} label={f.title}
-                onChange={x => setValue(f.key, x)} invalid={!!constraintErrors[f.key]}
-                primitiveTypeDef={primitiveDef(f)} enumTypeDef={enumDef(f)} />
-              {constraintErrors[f.key] && (
-                <p className="text-xs text-danger mt-0.5">{constraintErrors[f.key]}</p>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      <div className="border-t border-muted pt-3">{renderFields(fields)}</div>
 
       {error && <p className="text-sm text-danger">{error}</p>}
       <div className="flex items-center gap-2 pt-1">

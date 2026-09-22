@@ -32,16 +32,31 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
 }) {
   const strVal = value == null ? '' : String(value);
   const cls = fieldInputClass(invalid, readOnly);
+  /**
+   * Звёздочку обязательности у нередактируемого поля не рисуем (issue #958): она — указание тому,
+   * кто заполняет, а у read-only поля ввода нет вовсе. Значение кладёт либо источник данных, либо
+   * код модуля; человеку звёздочка обещала бы работу, которой он сделать не может.
+   *
+   * Само требование при этом никуда не девается — его держит генерация, а не форма.
+   */
+  const askRequired = readOnly ? undefined : field.required;
 
   if (field.type === 'text')
     return label != null
-      ? <TextAreaField label={label} required={field.required} hint={hint} invalid={invalid}
+      ? <TextAreaField label={label} required={askRequired} hint={hint} invalid={invalid}
           value={strVal} readOnly={readOnly} onChange={e => onChange(e.target.value)} className="resize-y" />
       : <textarea value={strVal} onChange={e => onChange(e.target.value)} rows={3} readOnly={readOnly} className={cls + ' resize-y'} />;
   if (field.type === 'boolean')
     return (
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" checked={!!value} onChange={e => onChange(e.target.checked)} disabled={readOnly} className="w-4 h-4 rounded border-stroke-strong text-brand" />
+      // Read-only флажок НЕ отключаем (issue #958): `disabled` убирает его из обхода клавиатурой и
+      // читается вспомогательными средствами как «сейчас недоступно», хотя значение настоящее и
+      // окончательное. У флажка нет своего `readOnly`, поэтому правку гасим сами: клик отменяем,
+      // состояние объявляем через `aria-readonly`.
+      <label className={`flex items-center gap-2 ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}>
+        <input type="checkbox" checked={!!value} aria-readonly={readOnly || undefined}
+          onChange={e => { if (!readOnly) onChange(e.target.checked); }}
+          onClick={e => { if (readOnly) e.preventDefault(); }}
+          className={`w-4 h-4 rounded border-stroke-strong text-brand ${readOnly ? 'opacity-70' : ''}`} />
         <span className="text-sm text-fg2">{label ?? field.title}</span>
       </label>
     );
@@ -55,10 +70,21 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
     const empty = opts.length === 0;
     if (empty && label == null)
       return <p className="text-xs text-fg4 italic py-1">{NO_OPTIONS}</p>;
+    if (readOnly) {
+      // Отключённый список — не то же, что показанный выбор (issue #958): из `disabled`-контрола
+      // значение не выделить и не скопировать, а клавиатура его пропускает. Показываем ПОДПИСЬ
+      // выбранного варианта обычным read-only полем — код варианта человеку ничего не говорит.
+      const shown = opts.find(o => o.code === strVal)?.label ?? strVal;
+      return label != null
+        ? <TextField label={label} required={undefined} hint={hint} invalid={invalid}
+            value={shown} readOnly onChange={() => {}} />
+        : <input type="text" value={shown} readOnly aria-label={field.title}
+            onChange={() => {}} className={cls} />;
+    }
     return (
-      <Select value={strVal || undefined} onValueChange={onChange} disabled={readOnly || empty}
+      <Select value={strVal || undefined} onValueChange={onChange} disabled={empty}
         placeholder={empty ? '—' : '— выберите —'}
-        label={label} required={label != null ? field.required : undefined}
+        label={label} required={label != null ? askRequired : undefined}
         // Про отсутствие вариантов сообщаем подписью ПОД полем, а не вместо поля: иначе исчезала бы
         // и подпись, и на форме оставалась висеть фраза без имени поля, к которому она относится.
         hint={empty ? NO_OPTIONS : hint} invalid={invalid}
@@ -73,14 +99,14 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
     if (bt === 'date') {
       const prec = primitiveTypeDef.constraints.datePrecision ?? 'day';
       return label != null
-        ? <DateField label={label} required={field.required} hint={hint ?? primitiveTypeDef.description}
-            invalid={invalid} value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} disabled={readOnly} />
-        : <DateInput value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} className={cls} disabled={readOnly} />;
+        ? <DateField label={label} required={askRequired} hint={hint ?? primitiveTypeDef.description}
+            invalid={invalid} value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} readOnly={readOnly} />
+        : <DateInput value={dateForDisplay(strVal)} onChange={v => onChange(v)} precision={prec} className={cls} readOnly={readOnly} />;
     }
     const step = bt === 'number' && primitiveTypeDef.constraints.integer ? 1 : undefined;
     const onCh = (v: string) => onChange(bt === 'number' ? (v === '' ? '' : Number(v)) : v);
     if (label != null)
-      return <TextField label={label} required={field.required} hint={hint ?? primitiveTypeDef.description}
+      return <TextField label={label} required={askRequired} hint={hint ?? primitiveTypeDef.description}
         type={bt === 'number' ? 'number' : 'text'} step={step} value={strVal} readOnly={readOnly}
         invalid={invalid} onChange={e => onCh(e.target.value)} />;
     return (
@@ -90,13 +116,13 @@ export function PrimitiveInput({ field, value, onChange, invalid, primitiveTypeD
   }
   if (field.type === 'date') {
     return label != null
-      ? <DateField label={label} required={field.required} hint={hint} invalid={invalid}
-          value={dateForDisplay(strVal)} onChange={v => onChange(v)} disabled={readOnly} />
-      : <DateInput value={dateForDisplay(strVal)} onChange={v => onChange(v)} className={cls} disabled={readOnly} />;
+      ? <DateField label={label} required={askRequired} hint={hint} invalid={invalid}
+          value={dateForDisplay(strVal)} onChange={v => onChange(v)} readOnly={readOnly} />
+      : <DateInput value={dateForDisplay(strVal)} onChange={v => onChange(v)} className={cls} readOnly={readOnly} />;
   }
   const onCh = (v: string) => onChange(field.type === 'number' ? (v === '' ? '' : Number(v)) : v);
   if (label != null)
-    return <TextField label={label} required={field.required} hint={hint}
+    return <TextField label={label} required={askRequired} hint={hint}
       type={field.type === 'number' ? 'number' : 'text'} value={strVal} readOnly={readOnly}
       invalid={invalid} onChange={e => onCh(e.target.value)} />;
   return (

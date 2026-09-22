@@ -15,7 +15,7 @@ import { useCommonDataForSet } from '@/shared/api/commonData';
 import { groupEffectiveFields, parseSchemaFields, getDefaultValues, isScalarField, type SchemaField } from '@/shared/api/schema';
 import { FieldSourceBinding } from './FieldSourceBinding';
 import { ContainerFieldBinding } from './ContainerFieldBinding';
-import { validateConstraint, isMissing, PrimitiveInput, FileField, ImageField, collectConstraintViolations, DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup, AutoFieldsSection, SCOPE_TIER, ancestorTypeIds, parseBaseRef, BaseCandidatePicker, type BaseCandidate } from '../fields';
+import { validateConstraint, isMissing, PrimitiveInput, FileField, ImageField, collectConstraintViolations, DocRefField, DocArrayField, ArrayFieldEditor, ComplexFieldGroup, AutoFieldsSection, isWideField, isLockedField, bindableFields, LockedFieldIcon, LockedFieldValue, LOCKED_HINT, SCOPE_TIER, ancestorTypeIds, parseBaseRef, BaseCandidatePicker, type BaseCandidate } from '../fields';
 import { evalComputed, referencedKeys } from '@/shared/utils/computedExpression';
 import { DocumentPreviewPanel } from './DocumentPreviewPanel';
 import { useListDataSetBindings, usePreviewDataSetBindings } from '@/shared/api/datasets';
@@ -64,6 +64,21 @@ function SourceBoundDocField(
 
 /// Подсказка о состоянии связанного скалярного поля без значения (issue #67): грузится / источник
 /// недоступен / источник не дал значения — чтобы пустой read-only бокс не выглядел как «немой».
+/**
+ * Подпись под запертым полем — словами, а не одним значком у заголовка.
+ *
+ * Значок говорит «что-то с этим полем не так, как с соседним», но не говорит ЧТО, а наведение
+ * мышью — не способ узнать: читают-то глазами. Инструкция администратора обещает эту подпись во
+ * всех трёх формах по схеме, и обещание должно быть верным во всех трёх (issue #958).
+ */
+function LockedFieldNote() {
+  return (
+    <p className="text-[11px] text-fg4 mt-0.5 flex items-center gap-1">
+      <LockedFieldIcon />{LOCKED_HINT}
+    </p>
+  );
+}
+
 function BoundStateHint({ loading, error }: { loading: boolean; error: boolean }) {
   const text = loading ? 'Загрузка значения из источника…'
     : error ? 'Источник недоступен — проверьте в «Источниках»'
@@ -151,7 +166,12 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
   const staleReasonOf = (key: string) => staleReasons.get(key) ?? null;
   // Скалярные поля — для per-field привязки «линза» (issue #296, фаза 1): выбор источника на поле +
   // авто-предложение покрыть остальные скалярные поля этого источника.
-  const scalarSchemaFields = useMemo(() => schemaFields.filter(f => isScalarField(f) && f.type !== 'file'), [schemaFields]);
+  // Через общее правило (`bindableFields`): этот список — не только «чьи линзы рисуем», но и
+  // КАНДИДАТЫ на авто-покрытие соседним источником. Оставь запертые здесь — и привязка к ним
+  // заводилась бы из чужой линзы, галкой «этот источник заполнит также», включённой по умолчанию.
+  const scalarSchemaFields = useMemo(
+    () => bindableFields(schemaFields).filter(f => isScalarField(f) && f.type !== 'file'),
+    [schemaFields]);
 
   // Битые ссылки (issue #332): цель удалена. Диагностику резолва тянем ОДИН раз в общий кэш (её же
   // читает панель «Проверить ссылки»), только если в реквизитах есть ссылки. Instance-промахи фронт
@@ -310,7 +330,9 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
   function sectionStats(fields: SchemaField[]) {
     let total = 0, filled = 0, missing = 0;
     for (const f of fields) {
-      if (f.computed) continue; // расчётные поля не заполняются пользователем — вне прогресса (#368)
+      // Расчётное (#368) и запертое замком модуля (ТЗ CORE-20.2) поля человек не заполняет —
+      // держать их в знаменателе значит показывать прогресс, который никогда не дойдёт до конца.
+      if (f.computed || isLockedField(f)) continue;
       total++;
       if (hasValue(values[f.key]) || sourceBoundFields.has(f.key) || baseCoveredFields.has(f.key)) filled++;
       if (isFieldMissing(f, values[f.key])) missing++;
@@ -401,10 +423,6 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
   const nextItem = activeIdx >= 0 && activeIdx < items.length - 1 ? items[activeIdx + 1] : null;
   const fieldsItems = items.filter(i => i.kind === 'fields'); // для подстроки «раздел X из Y»
 
-    const isWide = (f: SchemaField) =>
-      f.type === 'complex' || f.type === 'array' || f.type === 'doc-ref' ||
-      f.type === 'doc-array' || f.type === 'image' || f.type === 'file' || f.type === 'text';
-
     function renderCell(field: SchemaField) {
           // Расчётное поле (issue #368) — не ввод: read-only fx-дисплей с клиентским live-предпросмотром
           // (авторитет — бэкенд при генерации). До заполнения зависимостей подсказываем, чего не хватает.
@@ -436,6 +454,10 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
           const raw = values[field.key];
           const missing = showValidation && isFieldMissing(field, raw);
           const bound = sourceBoundFields.has(field.key);
+          // Замок модуля (ТЗ CORE-20.2): значение кладёт код модуля. Для формы это ТРЕТЬЕ основание
+          // не давать ввод — после привязки к источнику и покрытия базовым экземпляром; в отличие
+          // от них, снять его нельзя ничем, поэтому и выбора источника у поля быть не должно.
+          const locked = isLockedField(field);
           // Значение для показа связанного скалярного поля — резолвнутое из источника (issue #67);
           // в saved-values не пишем. Пусто → покажем подсказку о состоянии вместо «немого» бокса.
           const boundVal = bound ? boundValues[field.key] : undefined;
@@ -444,14 +466,14 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
           const primitiveDef = getPrimitiveDef(field);
           const constraintError = constraintErrors[field.key];
           const hasError = missing || !!constraintError;
-          const wide = isWide(field);
+          const wide = isWideField(field);
 
           if (wide) {
             const isContainer = field.type === 'complex' || field.type === 'array' || field.type === 'doc-ref' || field.type === 'doc-array';
             return (
               <div key={field.key} className="col-span-2 relative group">
                 {/* Per-field привязка контейнерного поля «линза» (issue #296, фаза 2a) — модалка в углу. */}
-                {isContainer && (
+                {isContainer && (!locked || bound) && (
                   <div className="absolute top-0.5 right-0.5 z-10">
                     <ContainerFieldBinding instanceId={instance.id} setId={setId} field={field}
                       allDocTypes={allDocTypes} bindings={dsBindings} />
@@ -462,11 +484,15 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     Кроме привязанного к источнику: там контрол read-only и подпись сверху идёт
                     вместе с бейджем привязки — как и у простых полей ниже. */}
                 {field.type !== 'boolean' && field.type !== 'complex' && field.type !== 'array'
-                  && !(field.type === 'text' && !bound) && (
+                  && !(field.type === 'text' && !bound && !locked) && (
                   <label className="block text-xs font-medium text-fg2 mb-1 pr-5">
                     {field.title}
-                    {field.required && <span className="ml-0.5 text-danger">*</span>}
-                    {!field.required && <span className="ml-1 text-[10px] text-fg4 font-normal">опц.</span>}
+                    {/* У запертого поля ни звёздочки, ни «опц.»: и то и другое — указание тому, кто
+                        заполняет, а заполняет здесь не человек. Вместо них — замок. */}
+                    {locked ? <LockedFieldIcon className="ml-1 align-text-bottom" /> : <>
+                      {field.required && <span className="ml-0.5 text-danger">*</span>}
+                      {!field.required && <span className="ml-1 text-[10px] text-fg4 font-normal">опц.</span>}
+                    </>}
                     <BrokenCountBadge count={deepBrokenCount(field.key)} className="ml-1.5 align-middle" />
                     <ValueIssueBadge count={deepIssueCount(valueIssues, field.key)} className="ml-1.5 align-middle" />
                     {/* Широкие поля (многострочный текст, картинка, файл) подписываются здесь, и
@@ -482,7 +508,9 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     )}
                   </label>
                 )}
-                {field.type === 'complex' ? (
+                {locked && isContainer ? (
+                  <LockedFieldValue value={raw} />
+                ) : field.type === 'complex' ? (
                   bound ? <SourceBoundDocField recognized={recognizedBoundFields.has(field.key)}
                     stale={staleBoundFields.has(field.key)} staleReason={staleReasonOf(field.key)} /> : (
                   <div>
@@ -523,9 +551,9 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                       brokenPaths={brokenPaths} basePath={field.key} savedAt={instance.updatedAt} />
                   )
                 ) : field.type === 'image' ? (
-                  <ImageField value={raw} onChange={v => setValue(field.key, v)} />
+                  <ImageField value={raw} onChange={v => setValue(field.key, v)} readOnly={locked} />
                 ) : field.type === 'file' ? (
-                  <FileField value={raw} onChange={v => setValue(field.key, v)}
+                  <FileField value={raw} onChange={v => setValue(field.key, v)} readOnly={locked}
                     printForm={hasTag(field.tags, FUNCTIONAL_TAG.docPrintForm) ? {
                       setId, instanceId: instance.id, fieldKey: field.key,
                       onMetaUpdated: updates => {
@@ -534,11 +562,13 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                     } : undefined} />
                 ) : (
                   <PrimitiveInput field={field} value={displayValue}
-                    label={field.type === 'text' && !bound ? field.title : undefined}
+                    label={field.type === 'text' && !bound && !locked ? field.title : undefined}
                     onChange={v => setValue(field.key, v, primitiveDef)}
-                    invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} readOnly={bound} />
+                    invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)}
+                    readOnly={bound || locked} />
                 )}
                 {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
+                {locked && <LockedFieldNote />}
                 {missing && <p className="text-xs text-danger mt-1">Обязательное поле</p>}
                 {!missing && constraintError && <p className="text-xs text-danger mt-1">{constraintError}</p>}
                 {/* Расхождение с типом (issue #644) — после ошибок формы: те про текущий ввод, это
@@ -553,15 +583,25 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
           return (
             <div key={field.key} className="col-span-1 min-w-0 relative group">
               {/* Per-field привязка «линза» (issue #296, фаза 1): иконка в углу — привязать/изменить/отвязать. */}
+              {/* Запертому полю источник не назначается — «линзы» у него нет. Но если привязка
+                  ДОСТАЛАСЬ ему от прежней версии типа (замок модуль объявляет поверх живых данных),
+                  линзу показываем: иначе единственный выход — снять привязку — оказался бы закрыт,
+                  а поле навсегда заполнялось бы источником вместо модуля. */}
+              {(!locked || bound) && (
               <div className="absolute top-0.5 right-0.5 z-10">
                 <FieldSourceBinding instanceId={instance.id} setId={setId} field={field}
                   scalarFields={scalarSchemaFields} bindings={dsBindings} />
               </div>
-              {bound ? (
+              )}
+              {bound || locked ? (
                 <>
+                  {/* Флажок подписывает себя сам — текстом справа от квадратика. Своя подпись
+                      сверху дала бы ВТОРУЮ, слово в слово: у read-only флажка так и выходило. */}
+                  {field.type !== 'boolean' && (
                   <label className="block text-xs font-medium text-fg2 mb-1 pr-5">
                     {field.title}
-                    {field.required && <span className="ml-0.5 text-danger">*</span>}
+                    {locked ? <LockedFieldIcon className="ml-1 align-text-bottom" />
+                      : field.required && <span className="ml-0.5 text-danger">*</span>}
                     {primitiveDef && <span className="ml-1 text-[10px] text-fg4 font-normal">· {primitiveDef.name}</span>}
                     {(recognizedBoundFields.has(field.key) || staleBoundFields.has(field.key)) && (
                       <span className="ml-1 inline-block align-text-bottom">
@@ -572,9 +612,21 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                       </span>
                     )}
                   </label>
-                  <PrimitiveInput field={field} value={displayValue}
-                    onChange={v => setValue(field.key, v, primitiveDef)}
-                    invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} readOnly />
+                  )}
+                  <span className="flex items-center gap-1.5">
+                    <PrimitiveInput field={field} value={displayValue}
+                      onChange={v => setValue(field.key, v, primitiveDef)}
+                      invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} readOnly />
+                    {/* У флажка признаки становятся рядом с его собственной подписью: подписи
+                        сверху, где они стоят у остальных типов, здесь нет. */}
+                    {field.type === 'boolean' && locked && <LockedFieldIcon />}
+                    {field.type === 'boolean' && (recognizedBoundFields.has(field.key) || staleBoundFields.has(field.key)) && (
+                      <SourceOriginIcon
+                        origin={recognizedBoundFields.has(field.key) ? 'Recognized' : undefined}
+                        stale={staleBoundFields.has(field.key)}
+                        staleReason={staleReasonOf(field.key)} />
+                    )}
+                  </span>
                 </>
               ) : (
                 <PrimitiveInput field={field} value={displayValue} label={field.title}
@@ -583,6 +635,7 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
                   invalid={hasError} primitiveTypeDef={primitiveDef} enumTypeDef={getEnumDef(field)} />
               )}
               {boundEmpty && <BoundStateHint loading={previewingBindings} error={hasBindingError} />}
+              {locked && <LockedFieldNote />}
               {missing && <p className="text-[11px] text-danger mt-0.5">Обязательное поле</p>}
               {!missing && constraintError && <p className="text-[11px] text-danger mt-0.5">{constraintError}</p>}
               {!hasError && <ValueIssueHint messages={valueIssues.get(field.key)} compact />}
@@ -597,15 +650,20 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
     // Поля, заполняемые из источника данных (read-only), прячем под сворачиваемую секцию
     // «Заполняются автоматически» — чтобы форма не превращалась в «портянку» (issue #102, P2).
     function renderFields(fields: SchemaField[]) {
-      const auto = fields.filter(f => sourceBoundFields.has(f.key));
+      // Поле «заполняется автоматически» по двум разным причинам: привязка к источнику данных
+      // (issue #102) и замок модуля (ТЗ CORE-20.2, issue #958). Для человека это один и тот же
+      // факт — заполнять не ему, — поэтому секция общая, а основания названы в её подписи.
+      const isAuto = (f: SchemaField) => sourceBoundFields.has(f.key) || isLockedField(f);
+      const auto = fields.filter(isAuto);
       if (auto.length === 0) return fieldGrid(fields);
-      const normal = fields.filter(f => !sourceBoundFields.has(f.key));
+      const normal = fields.filter(f => !isAuto(f));
       return (
         <div className="space-y-4">
           {normal.length > 0 && fieldGrid(normal)}
           <AutoFieldsSection count={auto.length}
             recognizedCount={auto.filter(f => recognizedBoundFields.has(f.key)).length}
             staleCount={auto.filter(f => staleBoundFields.has(f.key)).length}
+            lockedCount={auto.filter(isLockedField).length}
             staleHint={staleHint}>
             {fieldGrid(auto)}
           </AutoFieldsSection>

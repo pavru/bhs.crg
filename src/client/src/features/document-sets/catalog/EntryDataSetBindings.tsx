@@ -11,6 +11,7 @@ import { MappingEditor } from '@/features/document-sets/editor/DataSetsTab';
 import type { CatalogScope, DataSetBinding, DataSetFile, DocumentType } from '@/shared/api/types';
 import { DATA_SET_FORMAT_LABELS, SCOPE_LABELS } from '@/shared/api/types';
 import { isScalarField, type SchemaField } from '@/shared/api/schema';
+import { bindableFields } from '@/features/document-sets/fields';
 
 /// Записи каталога не всегда живут внутри комплекта (System/Section/Construction-скоуп
 /// без setId) — для них берём файлы своего уровня ВМЕСТЕ с родительскими (issue #721).
@@ -40,8 +41,13 @@ function AddEntryBindingPanel({
   const create = useCreateDataSetBinding();
 
   const selectedSource = allSources.find(s => s.id === sourceId);
-  const tabularFields = schemaFields.filter(f => f.type === 'array' || f.type === 'doc-array');
-  const scalarFields = schemaFields.filter(f => isScalarField(f) && f.type !== 'file');
+  // Тем же правилом, что и редактор маппинга: запертые поля (ТЗ CORE-20.2) в кандидаты не идут.
+  // Привязку сюда сервер сливает В ДАННЫЕ до охраны записи, и запись каталога переставала бы
+  // сохраняться вовсе — пока привязку не снимут в этой самой панели, о которой из формы догадаться
+  // нечем. Авто-маппинг ниже пишет `mapping` напрямую, минуя редактор, — поэтому фильтр и здесь.
+  const bindable = bindableFields(schemaFields);
+  const tabularFields = bindable.filter(f => f.type === 'array' || f.type === 'doc-array');
+  const scalarFields = bindable.filter(f => isScalarField(f) && f.type !== 'file');
 
   async function handleSourceChange(id: string) {
     setSourceId(id);
@@ -140,7 +146,7 @@ function EntryBindingRow({
 
   const source = binding.source;
   const file = source?.file;
-  const tabularFields = schemaFields.filter(f => f.type === 'array' || f.type === 'doc-array');
+  const tabularFields = bindableFields(schemaFields).filter(f => f.type === 'array' || f.type === 'doc-array');
   const mappedCount = Object.keys(mapping).filter(k => mapping[k]).length;
 
   async function handleSave() {

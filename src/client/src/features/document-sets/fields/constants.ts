@@ -19,11 +19,28 @@ export const SCOPE_COLORS: Record<CatalogScope, string> = {
 
 export function fieldInputClass(invalid = false, readOnly = false) {
   if (readOnly) {
-    return 'w-full border rounded-md px-3 py-2 text-sm text-fg3 bg-muted border-stroke cursor-not-allowed';
+    // Курсор обычный, а не `not-allowed`: поле ДОСТУПНО — в него можно встать, выделить значение и
+    // скопировать. `not-allowed` — знак отключённого контрола, и на read-only он просто врёт
+    // (issue #958). Отличие от обычного поля несёт фон и приглушённый текст.
+    return 'w-full border rounded-md px-3 py-2 text-sm text-fg3 bg-muted border-stroke';
   }
   return `w-full border rounded-md px-3 py-2 text-sm text-fg1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface ${
     invalid ? 'border-danger focus-visible:ring-danger' : 'border-stroke-strong'
   }`;
+}
+
+/**
+ * Поле занимает обе колонки сетки формы (составное, массив, ссылка, картинка, файл, многострочный
+ * текст) — в отличие от скалярного, которому хватает половины ряда.
+ *
+ * Общим местом, потому что набор типов обязан совпадать во всех формах по схеме: он разошёлся бы
+ * молча — лишняя запись в одном списке даёт не ошибку, а поле, которое в одной форме на всю ширину,
+ * а в соседней в половину (issue #958).
+ */
+export function isWideField(field: SchemaField): boolean {
+  return field.type === 'complex' || field.type === 'array' || field.type === 'doc-ref'
+    || field.type === 'doc-array' || field.type === 'image' || field.type === 'file'
+    || field.type === 'text';
 }
 
 export const TABLE_SHOWN_TYPES = new Set([
