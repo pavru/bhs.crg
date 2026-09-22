@@ -5,6 +5,7 @@ import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
 import { useUpdateRequisites, useResolutionDiagnostics, brokenRefPaths, useAuditInstance } from '@/shared/api/documentSets';
 import { valueIssuesByPath, deepIssueCount, issueCountInFields } from '@/shared/api/valueIssues';
+import { refusalIssues, refusalText } from '@/shared/api/refusals';
 import { ValueIssueHint, ValueIssueBadge } from '@/shared/ui/ValueIssue';
 import { FUNCTIONAL_TAG, hasTag } from '@/shared/api/tags';
 import type { DocumentInstance, DocumentType, PrimitiveTypeDef, EnumTypeDef, CommonDataEntry, DataSetStaleReason } from '@/shared/api/types';
@@ -346,7 +347,12 @@ export function RequisitesTab({ instance, setId, schemaFields, allDocTypes, docT
       onDirty(false);
       return true;
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Ошибка');
+      // Отказ охраны записи (issue #957) называет МЕСТА — показываем их у полей, тем же способом,
+      // что и собственные проверки формы. Иначе «отказ с указанием поля» доезжает баннером, по
+      // которому неверное значение внутри строки таблицы не найти.
+      const issues = refusalIssues(err);
+      if (Object.keys(issues).length > 0) setConstraintErrors(issues);
+      setError(refusalText(err, 'Ошибка'));
       return false;
     }
   }

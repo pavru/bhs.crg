@@ -39,6 +39,13 @@ public static class ApiErrorMapping
             $"Внутренняя ошибка сервера. Идентификатор запроса: {traceId}");
     }
 
+    /// <summary>
+    /// Места, на которые указывает отказ, — если он их называет (issue #957). Спрашиваем ИНТЕРФЕЙС,
+    /// а не конкретный тип: конвейеру ответа незачем знать охрану записи поимённо.
+    /// </summary>
+    public static IReadOnlyList<RefusalDetail>? DetailsOf(Exception? ex) =>
+        ex is IDetailedRefusal detailed && detailed.Details.Count > 0 ? detailed.Details : null;
+
     /// <summary>Код ответа по РОДУ отказа. Domain про HTTP не знает — соответствие живёт здесь.</summary>
     public static int StatusOf(DomainException ex) => ex switch
     {
