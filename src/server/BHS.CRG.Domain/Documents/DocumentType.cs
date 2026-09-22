@@ -140,6 +140,13 @@ public class DocumentType : Entity
 
     public void SetStorage(TypeStorage storage) { Storage = storage; TouchUpdatedAt(); }
 
+    /// <summary>
+    /// Уровень правки схемы. Ставит его МОДУЛЬ, проецируя своё объявление при старте (issue #958),
+    /// и никто больше: адреса «сменить уровень» нет и не будет — иначе замок открывался бы тем же
+    /// ключом, которым заперт.
+    /// </summary>
+    public void SetLevel(SchemaEditLevel level) { EditLevel = level; TouchUpdatedAt(); }
+
     /// <summary>Видимость и каналы задаются вместе: список каналов без видимости ничего не значит.</summary>
     public void SetSharing(TypeVisibility visibility, IReadOnlyList<string>? readChannels)
     {

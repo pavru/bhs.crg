@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ModuleFieldBadge } from './ModuleFieldBadge';
 import { GripVertical, Layers, Trash2, Plus, Lock } from 'lucide-react';
 import { MoveButtons } from '@/shared/ui/MoveButtons';
 import { Button } from '@/shared/ui/Button';
@@ -366,6 +367,7 @@ function InheritedRow({ field, typeLabel, dragging, onDragStart, onDragEnd, onDr
         </span>
         <span className="block text-xs text-fg4 font-mono truncate">{field.key}</span>
       </span>
+      <ModuleFieldBadge field={field} />
       <span className="text-[11px] px-1.5 py-0.5 rounded bg-warning-subtle text-warning shrink-0">унаслед.</span>
       <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-fg3 shrink-0">{typeLabel}</span>
     </div>
