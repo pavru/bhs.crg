@@ -1,10 +1,11 @@
-using System.Data;
+﻿using System.Data;
 using System.IO.Compression;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Common;
+using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.DataSets;
 using BHS.CRG.Domain.Documents;
@@ -365,7 +366,8 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
             DocumentTypes: docTypes.Select(dt => new BackupDocumentType(
                 dt.Id, dt.Name, dt.Code, dt.Kind.ToString(), dt.ParentId, dt.IsAbstract,
                 dt.Schema.RootElement.Clone(), dt.PluginBindings.RootElement.Clone(),
-                dt.CreatedAt, dt.UpdatedAt, dt.Group, dt.AllowsProxy)).ToArray(),
+                dt.CreatedAt, dt.UpdatedAt, dt.Group, dt.AllowsProxy,
+                dt.Module, dt.Storage.ToString(), dt.Visibility.ToString(), [.. dt.ReadChannels])).ToArray(),
             Templates: templates.Select(t => new BackupTemplate(
                 t.Id, t.DocumentTypeId, t.Name, t.Content, t.Version,
                 t.IsActive, t.IsDefault,
@@ -941,11 +943,27 @@ public class BackupService(AppDbContext db, IBlobStorage blob, ILogger<BackupSer
                 warnings.Add($"Тип документа «{item.Name}»: неизвестный вид «{item.Kind}», пропущен.");
                 continue;
             }
+            // Копия, снятая ДО появления владельца, владельца не несёт. Подставлять умолчание
+            // нельзя: «ядро» отдало бы ядру всю исполнительную документацию, «id» — отобрало бы у
+            // ядра справочники. Применяется то же правило, что и в миграции, — по коду типа.
+            var module = string.IsNullOrWhiteSpace(item.Module)
+                ? CoreOwnedTypes.OwnerFor(item.Code)
+                : item.Module.Trim();
+            var storage = Enum.TryParse<TypeStorage>(item.Storage, out var parsedStorage)
+                ? parsedStorage : TypeStorage.SharedObject;
+            var visibility = Enum.TryParse<TypeVisibility>(item.Visibility, out var parsedVisibility)
+                ? parsedVisibility : TypeVisibility.Shared;
+            var channels = item.ReadChannels ?? [];
+            if (TypeReadChannels.Unknown(channels) is { Count: > 0 } unknownChannels)
+                warnings.Add($"Тип документа «{item.Name}»: неизвестные каналы чтения — " +
+                             string.Join(", ", unknownChannels) + "; перенесены как есть.");
+
             var entity = DocumentType.Restore(
                 item.Id, item.Name, item.Code, kind, item.ParentId,
                 JsonDocument.Parse(item.Schema.GetRawText()),
                 JsonDocument.Parse(item.PluginBindings.GetRawText()),
-                item.IsAbstract, item.CreatedAt, item.UpdatedAt, item.Group, item.AllowsProxy);
+                item.IsAbstract, item.CreatedAt, item.UpdatedAt, item.Group, item.AllowsProxy,
+                module, storage, visibility, channels);
             db.Entry(entity).State = existingIds.Contains(item.Id) ? EntityState.Modified : EntityState.Added;
             if (existingIds.Contains(item.Id)) stats.DocumentTypesUpdated++; else stats.DocumentTypesCreated++;
         }

@@ -6,6 +6,7 @@ function type(id: string, parentId: string | null): DocumentType {
   return {
     id, name: id, code: id, kind: 'Composite', isAbstract: false, allowsProxy: false,
     parentId, schema: {}, pluginBindings: {}, group: null, createdAt: '', updatedAt: '',
+    module: 'core', storage: 'SharedObject', visibility: 'Shared', readChannels: [],
   };
 }
 

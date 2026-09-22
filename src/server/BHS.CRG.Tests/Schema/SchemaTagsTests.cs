@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Documents;
 
@@ -8,7 +8,7 @@ public class SchemaTagsTests
 {
     private static DocumentType Type(string schemaJson, Guid? parentId = null,
         DocumentTypeKind kind = DocumentTypeKind.Document) =>
-        DocumentType.Create("T", "C", kind, parentId, JsonDocument.Parse(schemaJson));
+        DocumentType.Create("T", "C", kind, parentId, JsonDocument.Parse(schemaJson), TypeOwner.Core, TypeVisibility.Shared);
 
     [Fact]
     public void TaggedFields_ReturnsOwnTaggedFields()

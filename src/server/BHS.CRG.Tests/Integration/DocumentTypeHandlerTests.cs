@@ -136,7 +136,7 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
     {
         using var scope = fixture.Services.CreateScope();
         var created = await Mediator(scope).Send(
-            new CreateDocumentTypeCommand("Тип", "T2", DocumentTypeKind.Document, null, EmptySchema(), false));
+            new CreateDocumentTypeCommand("Тип", "T2", DocumentTypeKind.Document, null, EmptySchema(), IsAbstract: false));
 
         using var scope2 = fixture.Services.CreateScope();
         var updated = await Mediator(scope2).Send(

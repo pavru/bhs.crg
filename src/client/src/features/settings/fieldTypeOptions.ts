@@ -2,6 +2,8 @@ import type { DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/t
 import type { SchemaField } from '@/shared/api/schema';
 import type { PickType } from '@/shared/ui/TypePicker';
 import type { TagDefinition } from '@/shared/api/tags';
+import type { AccessInfo } from '@/shared/api/access';
+import { offeredTypes } from '@/shared/api/typeOwners';
 import { TYPE_LABELS } from './schemaConstants';
 
 // Отдельным файлом от компонента (issue #858): модуль, экспортирующий и компонент, и
@@ -42,15 +44,23 @@ const BUILTIN_TYPES: { type: SchemaField['type']; label: string }[] = [
   { type: 'file', label: 'Файл (вложение)' },
 ];
 
-/** Плоский список выбираемых типов поля для TypePicker (сгруппирован по section). */
-export function buildFieldTypeOptions(reg: FieldRegistries): PickType[] {
+/**
+  * Плоский список ВЫБИРАЕМЫХ типов поля для TypePicker (сгруппирован по section).
+  *
+  * ⚠️ Типы выключенного модуля отсюда убраны (ТЗ TYPE-5) — но только отсюда. Разрешение уже
+  * записанного `typeId` (`fieldTypeSummary` и всё, что зовёт его) идёт по полным реестрам:
+  * селектор, не нашедший своего значения, показался бы пустым, и следующее сохранение схемы
+  * записало бы `typeId: null` — потеря, неотличимая на экране от «сохранилось как было».
+  */
+export function buildFieldTypeOptions(reg: FieldRegistries, access: AccessInfo | undefined): PickType[] {
   const opts: PickType[] = [];
+  const composites = offeredTypes(reg.compositeTypes, access);
   for (const b of BUILTIN_TYPES) opts.push({ id: `builtin::${b.type}`, name: b.label, code: b.type, section: 'Базовые' });
   for (const pt of reg.primitiveTypes) opts.push({ id: `primitive::${pt.id}`, name: pt.name, code: pt.code, section: 'Типы полей (реестр)' });
   for (const et of reg.enumTypes) opts.push({ id: `enum::${et.id}`, name: `${et.name} · ${et.values.length}`, code: et.code, section: 'Перечисления' });
-  for (const ct of reg.compositeTypes) opts.push({ id: `complex::${ct.id}`, name: ct.name, code: ct.code, section: 'Составные типы' });
-  for (const ct of reg.compositeTypes) opts.push({ id: `array::${ct.id}`, name: `${ct.name} — список`, code: ct.code, section: 'Списки (массивы)' });
-  const docs = reg.allDocTypes.filter(dt => dt.kind === 'Document');
+  for (const ct of composites) opts.push({ id: `complex::${ct.id}`, name: ct.name, code: ct.code, section: 'Составные типы' });
+  for (const ct of composites) opts.push({ id: `array::${ct.id}`, name: `${ct.name} — список`, code: ct.code, section: 'Списки (массивы)' });
+  const docs = offeredTypes(reg.allDocTypes, access).filter(dt => dt.kind === 'Document');
   for (const dt of docs) opts.push({ id: `doc-ref::${dt.id}`, name: dt.name, code: dt.code, section: 'Ссылки на документы' });
   for (const dt of docs) opts.push({ id: `doc-array::${dt.id}`, name: `${dt.name} — список`, code: dt.code, section: 'Списки документов' });
   return opts;

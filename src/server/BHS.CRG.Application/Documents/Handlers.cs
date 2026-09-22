@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.Activity;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.DataSets;
@@ -26,6 +26,7 @@ public class DocumentTypeHandlers(
     IRequestHandler<CreateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeSchemaCommand, DocumentType>,
+    IRequestHandler<SetDocumentTypeOwnerCommand, DocumentType>,
     IRequestHandler<SetDocumentTypeAbstractCommand, DocumentType>,
     IRequestHandler<SetDocumentTypeAllowsProxyCommand, DocumentType>,
     IRequestHandler<SetDocumentTypeGroupCommand, DocumentType>,
@@ -241,10 +242,71 @@ public class DocumentTypeHandlers(
         // Ограничения тэгов (issue #258): новый тип может сразу нести restricted-тэг (POST несёт схему).
         ValidateTagRestrictions(cmd.Schema, Guid.Empty, cmd.Name.Trim(), all);
 
-        var dt = DocumentType.Create(cmd.Name.Trim(), cmd.Code.Trim(), cmd.Kind, cmd.ParentId, cmd.Schema, cmd.IsAbstract);
+        // Тип, заведённый ЧЕЛОВЕКОМ в редакторе, рождается ОБЩИМ (ТЗ CORE-18 называет умолчанием
+        // «закрыто» — но это умолчание для типа, который объявил модуль). Заводят такой тип затем,
+        // чтобы его объекты попали в общие данные, в печать и в наборы; роди мы его закрытым, он
+        // отличался бы от всех уже существующих типов, и отличие это всплыло бы не сегодня, а в
+        // день, когда признак начнёт действовать.
+        var dt = DocumentType.Create(
+            cmd.Name.Trim(), cmd.Code.Trim(), cmd.Kind, cmd.ParentId, cmd.Schema,
+            cmd.Module, TypeVisibility.Shared, cmd.IsAbstract);
+        EnsureOwnershipHolds(dt, [.. all, dt]);
         await repo.AddAsync(dt, ct);
         await repo.SaveChangesAsync(ct);
         return dt;
+    }
+
+    /// <summary>
+    /// Передача типа другому владельцу (ТЗ CORE-30). Нужна потому, что владельца существующим
+    /// типам расставила миграция по явному списку, а список составлялся по смыслу: справочник,
+    /// заведённый человеком, мог оказаться не у того владельца, и чинить это правкой базы руками —
+    /// не починка.
+    /// </summary>
+    public async Task<DocumentType> Handle(SetDocumentTypeOwnerCommand cmd, CancellationToken ct)
+    {
+        var dt = await repo.GetByIdAsync(cmd.Id, ct)
+            ?? throw new NotFoundException($"DocumentType {cmd.Id} not found");
+        var all = await repo.GetAllAsync(ct);
+        var was = dt.Module;
+
+        dt.SetOwner(cmd.Module);
+        EnsureOwnershipHolds(dt, all);
+        repo.Update(dt);
+        await repo.SaveChangesAsync(ct);
+
+        await journal.RecordAsync(ActivityActions.TypeOwnerChanged,
+            dt.Id.ToString(), dt.Name, before: was, after: dt.Module, ct: ct);
+        return dt;
+    }
+
+    /// <summary>
+    /// Правило «опора ядра — ядро» (ТЗ CORE-30), <see cref="TypeOwnershipRules" />.
+    ///
+    /// ⚠️ Проверяются ОБА направления, и второе менее очевидно: тип нельзя не только поставить на
+    /// чужую опору, но и отдать модулю, если на него опирается тип ядра. Проверь мы одно
+    /// направление — правило обходилось бы с другого конца, причём тем же действием.
+    ///
+    /// Проверяется только окрестность правки, а не вся база: расхождения, которые уже лежат в
+    /// базе (например, после восстановления чужой копии), не должны запрещать не связанные с ними
+    /// правки — иначе единственным способом починки осталась бы правка базы руками.
+    /// </summary>
+    private static void EnsureOwnershipHolds(DocumentType edited, IReadOnlyList<DocumentType> all)
+    {
+        var byId = all.ToDictionary(t => t.Id);
+        var problems = new List<string>(TypeOwnershipRules.Violations(edited, byId));
+
+
+        // У зависимых смотрим ТОЛЬКО их опору на этот тип: чужие расхождения, уже лежащие в базе,
+        // не должны запрещать правку, к которой они не относятся.
+        foreach (var dependent in all.Where(t => t.Id != edited.Id
+                     && TypeOwnershipRules.SupportsOf(t).Any(s => s.TypeId == edited.Id)))
+            problems.AddRange(TypeOwnershipRules.Violations(dependent, byId, onlySupport: edited.Id));
+
+        if (problems.Count == 0) return;
+        throw new ConflictException(
+            "Опора типа ядра обязана принадлежать ядру: " + string.Join("; ", problems.Distinct()) +
+            ". Иначе при выключенном модуле тип ядра остался бы без родителя или без вложенного " +
+            "типа — то есть неописуемым, хотя сам никуда не делся.");
     }
 
     public async Task<DocumentType> Handle(UpdateDocumentTypeCommand cmd, CancellationToken ct)
@@ -259,6 +321,7 @@ public class DocumentTypeHandlers(
 
         dt.Rename(cmd.Name.Trim(), cmd.Code.Trim());
         dt.SetParent(cmd.ParentId);
+        EnsureOwnershipHolds(dt, all);
         repo.Update(dt);
         await repo.SaveChangesAsync(ct);
         return dt;
@@ -307,6 +370,7 @@ public class DocumentTypeHandlers(
         var change = SchemaChangeSummary.Describe(dt.Schema, cmd.Schema);
 
         dt.UpdateSchema(cmd.Schema);
+        EnsureOwnershipHolds(dt, all);
         repo.Update(dt);
         await repo.SaveChangesAsync(ct);
 
@@ -619,6 +683,10 @@ public class DocumentSetHandlers(
         // Новый документ — в конец комплекта (порядок сборки задаётся SortOrder).
         var maxOrder = docs.Count == 0 ? -1 : docs.Max(d => d.SortOrder);
 
+        var type = await docTypeRepo.GetByIdAsync(cmd.DocumentTypeId, ct)
+            ?? throw new NotFoundException($"DocumentType {cmd.DocumentTypeId} not found");
+        TypeStorageRules.EnsureCommonPathAllowed(type);
+
         var obj = DomainObject.Create(cmd.DocumentTypeId, null, JsonDocument.Parse("{}"),
             CatalogScope.Set, cmd.DocumentSetId);
         obj.EnsureFacet();
@@ -910,6 +978,7 @@ public class DocumentSetHandlers(
 
 public class CommonDataHandlers(
     IRepository<DomainObject> repo,
+    IRepository<DocumentType> typeRepo,
     IRepository<DocumentSet> setRepo,
     IRepository<Section> sectionRepo,
     IRepository<Construction> constructionRepo,
@@ -928,6 +997,10 @@ public class CommonDataHandlers(
     public async Task<DomainObject> Handle(CreateCommonDataEntryCommand cmd, CancellationToken ct)
     {
         // Запись общих данных — DomainObject БЕЗ документной фасеты (issue #84).
+        var type = await typeRepo.GetByIdAsync(cmd.CompositeTypeId, ct)
+            ?? throw new NotFoundException($"DocumentType {cmd.CompositeTypeId} not found");
+        TypeStorageRules.EnsureCommonPathAllowed(type);
+
         var entry = DomainObject.Create(cmd.CompositeTypeId, cmd.DisplayName, cmd.Data, cmd.Scope, cmd.ScopeId, cmd.Aliases);
         await repo.AddAsync(entry, ct);
         await repo.SaveChangesAsync(ct);

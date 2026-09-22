@@ -1,4 +1,4 @@
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
@@ -27,7 +27,7 @@ public class GetTypeBlocksHandlerTests
 
     private static DocumentType Type(string name, string code, string fn, string block) =>
         DocumentType.Create(name, code, DocumentTypeKind.Composite, null, JsonDocument.Parse(
-            $$"""{"typstRenders":[{"name":"осн","fnName":{{JsonSerializer.Serialize(fn)}},"block":{{JsonSerializer.Serialize(block)}}}]}"""));
+            $$"""{"typstRenders":[{"name":"осн","fnName":{{JsonSerializer.Serialize(fn)}},"block":{{JsonSerializer.Serialize(block)}}}]}"""), TypeOwner.Core, TypeVisibility.Shared);
 
     private static Task<TypeBlocksView> Handle(params DocumentType[] types) =>
         new GetTypeBlocksHandler(new FakeTypeRepo(types)).Handle(new GetTypeBlocksQuery(), default);

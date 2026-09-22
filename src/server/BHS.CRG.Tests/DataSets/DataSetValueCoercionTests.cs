@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
@@ -146,7 +146,7 @@ public class DataSetValueCoercionTests
     private static DocumentType Composite(Guid id, string name, string fieldsJson)
     {
         var t = DocumentType.Create(name, name + id.ToString("N")[..6], DocumentTypeKind.Composite, null,
-            JsonDocument.Parse(fieldsJson));
+            JsonDocument.Parse(fieldsJson), TypeOwner.Core, TypeVisibility.Shared);
         typeof(DocumentType).GetProperty("Id")!.GetSetMethod(nonPublic: true)!.Invoke(t, [id]);
         return t;
     }

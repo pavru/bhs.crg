@@ -11,7 +11,7 @@ public class TagRestrictionValidatorTests
 
     private static DocumentType Type(string name, string schema, Guid? parentId = null) =>
         DocumentType.Create(name, name, DocumentTypeKind.Composite, parentId,
-            JsonDocument.Parse(schema.Replace('\'', '"')));
+            JsonDocument.Parse(schema.Replace('\'', '"')), TypeOwner.Core, TypeVisibility.Shared);
 
     private static JsonDocument Schema(string json) => JsonDocument.Parse(json.Replace('\'', '"'));
 

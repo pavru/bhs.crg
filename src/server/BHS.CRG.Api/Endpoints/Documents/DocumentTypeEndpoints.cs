@@ -33,19 +33,32 @@ public static class DocumentTypeEndpoints
             return dt is null ? Results.NotFound() : Results.Ok(dt);
         });
 
-        admin.MapPost("/", async (CreateTypeRequest req, IMediator m) =>
+        admin.MapPost("/", async (CreateTypeRequest req, ModuleRegistry modules, IMediator m) =>
         {
             var kind = req.Kind switch
             {
                 "Composite" => DocumentTypeKind.Composite,
                 _           => DocumentTypeKind.Document,
             };
+            if (!TryOwner(req.Module, modules, out var owner, out var refusal)) return refusal;
             try
             {
                 return Results.Ok(await m.Send(new CreateDocumentTypeCommand(
-                    req.Name, req.Code, kind, req.ParentId, JsonDocument.Parse(req.Schema), req.IsAbstract)));
+                    req.Name, req.Code, kind, req.ParentId, JsonDocument.Parse(req.Schema),
+                    owner, req.IsAbstract)));
             }
             catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
+        });
+
+        // Передача типа другому владельцу (ТЗ CORE-30). Владельца существующим типам расставила
+        // миграция по явному списку, а список — по смыслу: справочник, заведённый человеком, мог
+        // оказаться не у того владельца, и без этого адреса чинить это было бы нечем.
+        admin.MapPut("/{id:guid}/module", async (Guid id, SetModuleRequest req, ModuleRegistry modules, IMediator m) =>
+        {
+            if (!TryOwner(req.Module, modules, out var owner, out var refusal)) return refusal;
+            try { return Results.Ok(await m.Send(new SetDocumentTypeOwnerCommand(id, owner))); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         admin.MapPut("/{id:guid}", async (Guid id, UpdateTypeRequest req, IMediator m) =>
@@ -115,7 +128,43 @@ public static class DocumentTypeEndpoints
         });
     }
 
-    record CreateTypeRequest(string Name, string Code, string Kind, Guid? ParentId, string Schema, bool IsAbstract = false);
+    /// <summary>
+    /// Владельцем можно назвать ядро или ВКЛЮЧЁННЫЙ модуль. Выключенный отвергается нарочно: тип,
+    /// отданный тому, кого на этом экземпляре нет, исчез бы из редактора тем же действием, каким
+    /// его отдавали, — и вернуть его было бы нечем, потому что адрес владельца тоже в редакторе.
+    ///
+    /// ⚠️ Возвращается НЕ пришедшая строка, а объявленный код: сверка идёт без учёта регистра и
+    /// краёв, и «ID» или « core » её проходят — а дальше сохранились бы как есть. Дальше их никто
+    /// так не сравнивает: и клиент, и правило опоры сверяют коды строго, поэтому тип с владельцем
+    /// «ID» пропал бы из редактора при включённом модуле, а правило ядра сочло бы его чужим. Найдено
+    /// ревью PR #1002.
+    ///
+    /// Отказ называет, что можно: список допустимых кодов короткий, и человеку он полезнее, чем
+    /// слово «недопустимо».
+    /// </summary>
+    private static bool TryOwner(string? module, ModuleRegistry modules,
+        out string owner, out IResult refusal)
+    {
+        var allowed = new List<string> { TypeOwner.Core };
+        allowed.AddRange(modules.Enabled.Select(m => m.Code));
+
+        var match = string.IsNullOrWhiteSpace(module)
+            ? null
+            : allowed.FirstOrDefault(c => string.Equals(c, module.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        owner = match ?? string.Empty;
+        refusal = Results.BadRequest(new
+        {
+            error = string.IsNullOrWhiteSpace(module)
+                ? "У типа обязан быть владелец: " + string.Join(", ", allowed.Select(c => $"«{c}»")) + "."
+                : $"Владелец «{module}» не подходит: на этом экземпляре доступны " +
+                  string.Join(", ", allowed.Select(c => $"«{c}»")) + ".",
+        });
+        return match is not null;
+    }
+
+    record CreateTypeRequest(string Name, string Code, string Kind, Guid? ParentId, string Schema, string Module, bool IsAbstract = false);
+    record SetModuleRequest(string Module);
     record UpdateTypeRequest(string Name, string Code, Guid? ParentId);
     record UpdateSchemaRequest(string Schema);
     record SetAbstractRequest(bool IsAbstract);

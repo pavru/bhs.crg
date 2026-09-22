@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
@@ -7,7 +7,12 @@ using MediatR;
 namespace BHS.CRG.Application.Documents;
 
 // --- DocumentType ---
-public record CreateDocumentTypeCommand(string Name, string Code, DocumentTypeKind Kind, Guid? ParentId, JsonDocument Schema, bool IsAbstract = false) : IRequest<DocumentType>;
+/// <param name="Module">Владелец типа (ТЗ CORE-18). Умолчание — ЯДРО, и оно не «лишь бы что»:
+/// тип, заведённый не модулем, принадлежит экземпляру целиком и не исчезает из редактора при
+/// выключении модуля. Адрес создания умолчанием не пользуется — он требует владельца явно и
+/// отказывает без него, потому что там выбор делает человек.</param>
+public record CreateDocumentTypeCommand(string Name, string Code, DocumentTypeKind Kind, Guid? ParentId, JsonDocument Schema, string Module = TypeOwner.Core, bool IsAbstract = false) : IRequest<DocumentType>;
+public record SetDocumentTypeOwnerCommand(Guid Id, string Module) : IRequest<DocumentType>;
 public record UpdateDocumentTypeCommand(Guid Id, string Name, string Code, Guid? ParentId) : IRequest<DocumentType>;
 public record UpdateDocumentTypeSchemaCommand(Guid Id, JsonDocument Schema) : IRequest<DocumentType>;
 public record SetDocumentTypeAbstractCommand(Guid Id, bool IsAbstract) : IRequest<DocumentType>;

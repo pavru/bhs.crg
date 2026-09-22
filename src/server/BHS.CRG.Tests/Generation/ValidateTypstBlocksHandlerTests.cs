@@ -1,4 +1,4 @@
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
@@ -55,7 +55,7 @@ public class ValidateTypstBlocksHandlerTests
 
     private static DocumentType Type(string name, string code, params (string variant, string fn, string block)[] rs) =>
         DocumentType.Create(name, code, DocumentTypeKind.Composite, null,
-            JsonDocument.Parse($"{{\"typstRenders\":[{RendersJson(rs)}]}}"));
+            JsonDocument.Parse($"{{\"typstRenders\":[{RendersJson(rs)}]}}"), TypeOwner.Core, TypeVisibility.Shared);
 
     private static JsonElement Draft(params (string variant, string fn, string block)[] rs) =>
         JsonDocument.Parse($"[{RendersJson(rs)}]").RootElement.Clone();
