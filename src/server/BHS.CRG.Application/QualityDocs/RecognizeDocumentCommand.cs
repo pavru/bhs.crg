@@ -18,16 +18,27 @@ namespace BHS.CRG.Application.QualityDocs;
 public record RecognizeDocumentCommand(
     string BlobPath, string MimeType, IReadOnlyList<RecognitionField> Fields,
     Guid? UserId = null, bool Notify = true,
-    Func<IReadOnlyList<RecognitionField>, string>? PromptBuilder = null) : IRequest<RecognitionResult>;
+    Func<IReadOnlyList<RecognitionField>, string>? PromptBuilder = null) : IRequest<RecognizedDocument>;
+
+/// <summary>
+/// Прочитанное из скана — значениями В ОБЪЯВЛЕННОМ ВИДЕ (issue #1005), а не текстом.
+///
+/// Отдельный тип от <see cref="RecognitionResult"/> намеренно: у движка контракт текстовый и таким
+/// остаётся — на нём стоит распознавание таблиц PDF, где ячейка и есть текст. Приведение к виду
+/// поля — забота этого адреса, у которого есть схема: ему сказали, какое поле чем объявлено.
+/// </summary>
+public record RecognizedDocument(
+    IReadOnlyDictionary<string, System.Text.Json.Nodes.JsonNode?> Values,
+    string? RawText, int? PageCount = null, string? Engine = null);
 
 public class RecognizeDocumentHandler(
     IBlobStorage blobStorage,
     IDocumentRecognizer recognizer,
     IMetadataExtractor metadataExtractor,
     INotificationService notifications
-) : IRequestHandler<RecognizeDocumentCommand, RecognitionResult>
+) : IRequestHandler<RecognizeDocumentCommand, RecognizedDocument>
 {
-    public async Task<RecognitionResult> Handle(RecognizeDocumentCommand cmd, CancellationToken ct)
+    public async Task<RecognizedDocument> Handle(RecognizeDocumentCommand cmd, CancellationToken ct)
     {
         try
         {
@@ -36,9 +47,13 @@ public class RecognizeDocumentHandler(
             await stream.CopyToAsync(ms, ct);
             var bytes = ms.ToArray();
             var result = await recognizer.RecognizeAsync(bytes, cmd.MimeType, cmd.Fields, cmd.PromptBuilder, ct: ct);
+            // Приведение к объявленному виду — ДО любого возврата: служебный вызов уходит той же
+            // дорогой, и «типизировано только когда уведомляем» было бы правилом ниоткуда.
+            var read = new RecognizedDocument(
+                RecognizedValues.InDeclaredShape(result.Values, cmd.Fields), result.RawText, Engine: result.Engine);
 
             // Служебные вызовы (напр. классификация типа) не уведомляют и не считают страницы.
-            if (!cmd.Notify) return result;
+            if (!cmd.Notify) return read;
 
             // Число страниц берём из файла (надёжнее LLM) — для поля с тэгом doc.pageCount.
             var pageCount = ComputePageCount(bytes, cmd.MimeType);
@@ -54,7 +69,7 @@ public class RecognizeDocumentHandler(
                     ? $"Модель не нашла в документе ни одного из {cmd.Fields.Count} реквизитов. Проверьте качество скана."
                     : $"Извлечено полей: {result.Values.Count} из {cmd.Fields.Count}.",
                 "Распознавание", userId: cmd.UserId, ct: ct);
-            return result with { PageCount = pageCount };
+            return read with { PageCount = pageCount };
         }
         // Отмену пользователем не объявляем ошибкой: уведомлять некого (запрос уже брошен), а
         // публиковать его тем же `ct` — значит уронить публикацию и подменить причину (issue #797).

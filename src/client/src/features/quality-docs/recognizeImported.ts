@@ -42,11 +42,11 @@ export async function recognizeAndUpdate(
   });
 
   const values = codesFromLabels(rec.values, plan.enumCodes);
-  const summary = (values[SUMMARY] ?? '').trim();
+  const summary = String(values[SUMMARY] ?? '').trim();
   const { [SUMMARY]: _omit, ...fieldValues } = values;
   if (rec.pageCount != null) {
     const p = findTaggedFieldPath(type, FUNCTIONAL_TAG.docPageCount, allDocTypes);
-    if (p) fieldValues[p.join('.')] = String(rec.pageCount);
+    if (p) fieldValues[p.join('.')] = rec.pageCount; // числом (issue #1005)
   }
 
   const requisites = applyRecognized(doc.requisites, fieldValues);

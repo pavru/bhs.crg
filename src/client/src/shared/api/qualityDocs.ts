@@ -100,8 +100,11 @@ export interface RecognitionFieldReq { path: string; title: string; type: string
  * не задан — общий промпт (сертификат/декларация). */
 export async function recognizeDocument(
   req: { blobPath: string; mimeType: string; fields: RecognitionFieldReq[]; silent?: boolean; promptKind?: 'titleblock' },
-): Promise<{ values: Record<string, string>; pageCount: number | null }> {
-  const { data } = await apiClient.post<{ values: Record<string, string>; pageCount: number | null }>('/quality-docs/recognize', req);
+): Promise<{ values: Record<string, unknown>; pageCount: number | null }> {
+  // Значения приходят В ОБЪЯВЛЕННОМ ВИДЕ (issue #1005): число — числом, логическое — логическим,
+  // прочее — строкой. Приводит их сервер одним правилом; «строка, и разбирайтесь сами» было
+  // прежним контрактом, и по нему в числовое поле ложилась строка.
+  const { data } = await apiClient.post<{ values: Record<string, unknown>; pageCount: number | null }>('/quality-docs/recognize', req);
   return { values: data.values ?? {}, pageCount: data.pageCount ?? null };
 }
 

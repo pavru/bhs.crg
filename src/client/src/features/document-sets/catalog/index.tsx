@@ -349,7 +349,7 @@ export function CatalogEntryForm({
       if (rec.pageCount != null) {
         const p = findTaggedFieldPath(selectedType, FUNCTIONAL_TAG.docPageCount, allDocTypes);
         if (p) {
-          next = applyRecognized(next, { [p.join('.')]: String(rec.pageCount) });
+          next = applyRecognized(next, { [p.join('.')]: rec.pageCount }); // числом (issue #1005)
           marked.add(p[0]);
         }
       }

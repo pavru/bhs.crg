@@ -103,12 +103,14 @@ export function buildRecognitionFields(
  * его же в сохранённой записи.
  */
 export function codesFromLabels(
-  values: Record<string, string>, enumCodes: RecognitionPlan['enumCodes'],
-): Record<string, string> {
-  const out: Record<string, string> = {};
+  values: Record<string, unknown>, enumCodes: RecognitionPlan['enumCodes'],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
   for (const [path, value] of Object.entries(values)) {
     const index = enumCodes[path];
-    out[path] = index ? index[normalize(value)] ?? value : value;
+    // Отображаем только СТРОКИ: перечисление приходит подписью, а число уже пришло числом
+    // (issue #1005), и `normalize` на нём означал бы поиск кода по тексту числа.
+    out[path] = index && typeof value === 'string' ? index[normalize(value)] ?? value : value;
   }
   return out;
 }
