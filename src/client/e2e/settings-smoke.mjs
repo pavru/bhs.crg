@@ -183,8 +183,11 @@ await check('appearance-and-language-live-in-the-profile', async () => {
   await page.waitForTimeout(2500);
   if ((await page.getByRole('heading', { name: /Оформление и язык/i }).count()) < 1)
     throw new Error('в профиле нет блока «Оформление и язык»');
-  if ((await page.getByRole('group', { name: 'Тема оформления' }).count()) < 1)
-    throw new Error('в профиле нет выбора темы');
+  // ⚠️ Имя группы — ЛИЧНОЕ («…, личная настройка»), а не общее. Такой же переключатель стоит в
+  // боковой панели на каждом экране: с общим именем проверка удовлетворялась панелью и проходила
+  // даже с убранным из профиля переключателем (ревью PR #1000).
+  if ((await page.getByRole('group', { name: 'Тема оформления, личная настройка' }).count()) < 1)
+    throw new Error('в профиле нет своего выбора темы');
   if ((await page.getByRole('button', { name: /Русский \(Россия\)/ }).count()) < 1)
     throw new Error('в профиле нет выбора языка');
 

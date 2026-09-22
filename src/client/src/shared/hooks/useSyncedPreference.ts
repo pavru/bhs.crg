@@ -15,14 +15,23 @@ import { resolvePreference, useSaveUserSettings, useUserSettings } from '@/share
  * наверх» — тихо присвоило бы новому пользователю настройки предыдущего хозяина машины, причём
  * один раз и навсегда: он бы их не выбирал и не заметил бы, откуда они взялись.
  */
+export type PreferenceSaveState = 'idle' | 'saving' | 'saved' | 'error';
+
 export function useSyncedPreference(
   key: string,
   mirrorKey: string,
   fallback: string,
-): [string, (value: string) => void] {
+): [string, (value: string) => void, PreferenceSaveState] {
   const { user } = useAuth();
   const { data: server } = useUserSettings(!!user);
   const { mutate } = useSaveUserSettings();
+
+  /**
+   * Чем кончилась последняя отправка. Возвращается наружу затем, что «Сохранено» обязано означать
+   * сохранено: экран, показывающий это по факту НАЖАТИЯ, врёт ровно в том случае, когда врать
+   * нельзя — запрос не дошёл, выбор откатился на глазах, а зелёная надпись горит (ревью PR #1000).
+   */
+  const [saveState, setSaveState] = useState<PreferenceSaveState>('idle');
 
   /**
    * Выбор, сделанный ПРЯМО СЕЙЧАС и ещё не подтверждённый ответом сервера. Нужен затем, чтобы
@@ -51,10 +60,17 @@ export function useSyncedPreference(
     // экран, писало зеркало и НЕ отправляло ничего на сервер — а обнаружилось бы это только
     // перезагрузкой, откатывающей тему. Найдено ревью PR #999; заодно обработчик стал неизменным,
     // и та же ошибка не вернётся через чужой useMemo с неполным списком зависимостей.
-    if (getToken()) mutate({ [key]: next }, { onSettled: () => setChosen(null) });
+    if (!getToken()) return;
+
+    setSaveState('saving');
+    mutate({ [key]: next }, {
+      onSuccess: () => setSaveState('saved'),
+      onError: () => setSaveState('error'),
+      onSettled: () => setChosen(null),
+    });
   }, [key, mutate]);
 
-  return [value, choose];
+  return [value, choose, saveState];
 }
 
 /** Приватный режим и запрет хранилища — не отказ приложения: настройка просто не запомнится. */

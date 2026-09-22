@@ -53,8 +53,6 @@ export function SettingsPage() {
         </CollapsibleSection>
       </form>
 
-      {/* ── Locale / regional settings ─────────────────────────────────────── */}
-
       {/* ── Прокси для внешних сервисов (issue #936) ─────────────────────────── */}
       <ProxySettingsSection />
 

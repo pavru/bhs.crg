@@ -45,6 +45,13 @@ public class WorkspaceIsNotApiParameterTests(IntegrationTestFixture fixture)
         Assert.True(named.Count > 50, $"Сторож не разобрал адреса: собрано {named.Count} имён");
         Assert.Contains(named, x => x.Name == "setId");
 
+        // Тело разбирается — у запроса видны его поля…
+        Assert.Contains(named, x => x.Where == "поле тела" && x.Name == "DisplayName");
+        // …а наборы базы полями тела НЕ считаются: AppDbContext внедряется прямо в обработчики, и
+        // его DbSet-ы попадали сюда до правки по ревью PR #1000. С ними сторож однажды упал бы на
+        // невинном адресе — стоило появиться набору с подходящим именем.
+        Assert.DoesNotContain(named, x => x.Where == "поле тела" && x.Name == "Notifications");
+
         var found = named
             .Where(x => Banned.Any(b => x.Name.Contains(b, StringComparison.OrdinalIgnoreCase)))
             .Select(x => $"{x.Route} → {x.Where} «{x.Name}»")
@@ -68,6 +75,9 @@ public class WorkspaceIsNotApiParameterTests(IntegrationTestFixture fixture)
         var endpoints = fixture.Services.GetRequiredService<EndpointDataSource>()
             .Endpoints.OfType<RouteEndpoint>();
 
+        // Службу от тела запроса отличает КОНТЕЙНЕР, а не догадка по имени типа.
+        var isService = fixture.Services.GetRequiredService<IServiceProviderIsService>();
+
         var names = new List<(string, string, string)>();
 
         foreach (var endpoint in endpoints)
@@ -81,7 +91,7 @@ public class WorkspaceIsNotApiParameterTests(IntegrationTestFixture fixture)
             {
                 names.Add((route, "параметр обработчика", parameter.Name ?? ""));
 
-                foreach (var property in OwnProperties(parameter.ParameterType))
+                foreach (var property in BodyProperties(parameter.ParameterType, isService))
                     names.Add((route, "поле тела", property));
             }
         }
@@ -90,11 +100,19 @@ public class WorkspaceIsNotApiParameterTests(IntegrationTestFixture fixture)
     }
 
     /// <summary>
-    /// Свойства НАШЕГО типа: службы, <c>HttpContext</c>, <c>CancellationToken</c> и прочая
-    /// платформа сюда не входят — их свойства не наши, и перечислять их значило бы утонуть в шуме.
+    /// Поля того, что приходит ТЕЛОМ: наш тип, который контейнер выдать не может.
+    ///
+    /// ⚠️ Проверка «наш ли тип» сама по себе недостаточна, и это нашло ревью PR #1000: наши службы
+    /// тоже наши. <c>AppDbContext</c> внедряется прямо в обработчики, и его наборы (<c>DbSet</c>)
+    /// собирались здесь как «поля тела» — сторож проходил лишь потому, что среди них нет набора с
+    /// подходящим именем. Появись <c>DbSet&lt;Workspace&gt;</c> — и он упал бы на невинных адресах
+    /// с сообщением, называющим не то.
+    ///
+    /// Отличает службу от тела КОНТЕЙНЕР (<see cref="IServiceProviderIsService" />), а не догадка:
+    /// ровно он решает это и в работе приложения, когда связывает параметры обработчика.
     /// </summary>
-    private static IEnumerable<string> OwnProperties(Type type) =>
-        type.FullName?.StartsWith("BHS.CRG", StringComparison.Ordinal) == true
+    private static IEnumerable<string> BodyProperties(Type type, IServiceProviderIsService isService) =>
+        type.FullName?.StartsWith("BHS.CRG", StringComparison.Ordinal) == true && !isService.IsService(type)
             ? type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(p => p.Name)
             : [];
 }
