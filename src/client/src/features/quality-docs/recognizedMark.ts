@@ -9,7 +9,7 @@ export const RECOGNIZED_HINT = 'Заполнено распознаванием 
  * не заслуживают (issue #807). Правило одно на подстановку и на пометку — вычислив «что тронуто»
  * отдельно, мы завели бы вторую копию, и она разошлась бы с первой на первом же частном случае.
  */
-export function recognizedPaths(flat: Record<string, string>): string[] {
+export function recognizedPaths(flat: Record<string, unknown>): string[] {
   return Object.entries(flat)
     .filter(([, val]) => val != null && String(val).trim() !== '')
     .map(([path]) => path);
@@ -20,12 +20,12 @@ export function recognizedPaths(flat: Record<string, string>): string[] {
  * потому что помечается поле целиком: у составного значения («Организация.ИНН») отдельной рамки нет,
  * да и проверять человек будет весь блок.
  */
-export function recognizedFieldKeys(flat: Record<string, string>): Set<string> {
+export function recognizedFieldKeys(flat: Record<string, unknown>): Set<string> {
   return new Set(recognizedPaths(flat).map(path => path.split('.')[0]));
 }
 
 /** Раскладывает плоские значения (путь через точку) во вложенный объект и сливает с текущими. */
-export function applyRecognized(values: Record<string, unknown>, flat: Record<string, string>): Record<string, unknown> {
+export function applyRecognized(values: Record<string, unknown>, flat: Record<string, unknown>): Record<string, unknown> {
   const next: Record<string, unknown> = JSON.parse(JSON.stringify(values ?? {}));
   for (const path of recognizedPaths(flat)) {
     const val = flat[path];

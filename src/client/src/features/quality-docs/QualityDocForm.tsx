@@ -124,7 +124,8 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
             blobPath: scan.blobPath, mimeType: scan.mimeType, silent: true,
             fields: [{ path: '__type__', title: 'Тип документа — выбери наиболее подходящий из вариантов', type: 'enum', options: qualityTypes.map(t => t.name) }],
           })).values;
-          const picked = cls['__type__'];
+          // Классификация спрашивает перечисление — ответ приходит подписью типа, то есть строкой.
+          const picked = typeof cls['__type__'] === 'string' ? cls['__type__'] : '';
           if (picked) {
             const norm = (s: string) => s.trim().toLowerCase();
             const m = qualityTypes.find(t => norm(t.name) === norm(picked))
@@ -154,12 +155,14 @@ export function QualityDocForm({ allDocTypes, scope, scopeId, initial, onSaved, 
         ],
       });
       const recognized = codesFromLabels(rec.values, plan.enumCodes);
-      const summary = (recognized[SUMMARY] ?? '').trim();
+      const summary = String(recognized[SUMMARY] ?? '').trim();
       const { [SUMMARY]: _omitSummary, ...fieldValues } = recognized;
       // Число страниц берём из файла → в поле с тэгом doc.pageCount (напр. «КоличествоЛистов»).
       if (rec.pageCount != null && activeType) {
         const p = findTaggedFieldPath(activeType, FUNCTIONAL_TAG.docPageCount, allDocTypes);
-        if (p) fieldValues[p.join('.')] = String(rec.pageCount);
+        // Числом, а не строкой: сервер уже сосчитал его числом, и `String()` здесь был тем самым
+        // местом, где в числовое поле ложилась строка (issue #1005).
+        if (p) fieldValues[p.join('.')] = rec.pageCount;
       }
       setValues(v => applyRecognized(v, fieldValues));
       setRecognizedKeys(recognizedFieldKeys(fieldValues));
