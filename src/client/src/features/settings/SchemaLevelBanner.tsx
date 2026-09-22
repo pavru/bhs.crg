@@ -27,9 +27,13 @@ export function SchemaLevelBanner({ level, module }: { level: DocumentType['edit
     : 'Можно добавлять свои НЕОБЯЗАТЕЛЬНЫЕ поля и править их. Поля модуля заперты: их ведёт он сам.';
 
   return (
-    <div className="flex items-start gap-2 rounded-md border border-info/50 bg-info/10 px-3 py-2">
-      <Lock size={14} className="text-info shrink-0 mt-0.5" />
-      <p className="text-xs text-fg2">
+    // Цвет — из объявленных токенов: невыдуманного имени Tailwind не знает, и полоса осталась бы
+    // без фона и рамки, ничем не отличаясь от текста рядом (найдено ревью PR #1010).
+    <div className="flex items-start gap-2 rounded-md border border-stroke bg-tonal px-3 py-2">
+      <Lock size={14} className="text-on-tonal shrink-0 mt-0.5" />
+      {/* Текст берёт цвет из того же набора, что и подложка: fg2 рассчитан на фон страницы, и на
+          тональной подложке его контраст никто не проверял — ни в светлой теме, ни в тёмной. */}
+      <p className="text-xs text-on-tonal">
         <span className="font-medium">Тип модуля «{owner}»{level === 'Closed' ? ' — закрытый' : ' — расширяемый'}.</span>{' '}
         {what}
       </p>

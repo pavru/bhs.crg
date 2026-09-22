@@ -36,7 +36,7 @@ public static class ModuleTypeProjector
 
     private static ModuleTypeSpec Translate(string moduleCode, ModuleRecordType declared) => new(
         moduleCode, declared.Code, declared.Name, Level(declared.Level),
-        [.. declared.Fields.Select(f => new ModuleFieldSpec(f.Key, f.Title, f.Type, f.TypeId, f.Tags, f.Required))],
+        [.. declared.Fields.Select(f => new ModuleFieldSpec(f.Key, f.Title, f.Type, f.Tags, f.Required, f.Locked))],
         declared.Group);
 
     /// <summary>

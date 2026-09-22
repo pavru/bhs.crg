@@ -26,6 +26,7 @@ const FIELD_WITH_EVERYTHING = {
   expression: 'get("Кол") * 2',
   origin: 'module',
   locked: true,
+  moduleTitle: 'Сумма по журналу',
 };
 
 describe('круг схемы', () => {
@@ -39,12 +40,14 @@ describe('круг схемы', () => {
   });
 
   it('метки модуля — то, ради чего сторож стоит', () => {
-    // Отдельным утверждением, а не строкой в цикле: потеря именно этих двух свойств стоит не
-    // неудобства, а неработающей записи — замок снимается молча или тип перестаёт сохраняться.
+    // Отдельным утверждением, а не строкой в цикле: потеря именно этих трёх свойств стоит не
+    // неудобства, а неработающей записи — замок снимается молча, тип перестаёт сохраняться, а
+    // подпись поля модуля навсегда числится правленной человеком.
     const parsed = parseSchemaFields({ fields: [FIELD_WITH_EVERYTHING] });
 
     expect(parsed[0].origin).toBe('module');
     expect(parsed[0].locked).toBe(true);
+    expect(parsed[0].moduleTitle).toBe('Сумма по журналу');
   });
 
   it('поле заказчика не обрастает метками из ниоткуда', () => {
@@ -53,5 +56,6 @@ describe('круг схемы', () => {
 
     expect(saved.fields[0].origin).toBeUndefined();
     expect(saved.fields[0].locked).toBeUndefined();
+    expect(saved.fields[0].moduleTitle).toBeUndefined();
   });
 });

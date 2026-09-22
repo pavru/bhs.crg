@@ -10,8 +10,8 @@ namespace BHS.CRG.Application.Documents;
 
 /// <summary>Системное поле в объявлении модуля — то же, что <c>ModuleSystemField</c>, но в словах ядра.</summary>
 public sealed record ModuleFieldSpec(
-    string Key, string Title, string Type, string? TypeId = null,
-    IReadOnlyList<string>? Tags = null, bool Required = false)
+    string Key, string Title, string Type,
+    IReadOnlyList<string>? Tags = null, bool Required = false, bool Locked = true)
 {
     public IReadOnlyList<string> Tags { get; init; } = Tags ?? [];
 }
@@ -29,13 +29,14 @@ public sealed record ModuleTypeSpec(
 /// (<see cref="SchemaTags"/>), на котором стоят печать, метаданные генерации и ключ идентичности
 /// материала. Подмешивай мы системные поля веткой резолвера, тэг на системном поле не нашёлся бы, и
 /// «печать теряет поле» случилось бы не в тесте, а у заказчика. Положив их в схему обычными полями
-/// с метками <c>origin: module</c> и <c>locked: true</c>, мы получаем тэги, печать, ссылки, охрану
-/// записи и аудит без единой правки в них.</para>
+/// с метками <c>origin</c> и <c>locked</c>, мы получаем тэги, печать, ссылки, охрану записи и аудит
+/// без единой правки в них.</para>
 ///
 /// <para><b>Идемпотентность.</b> Вызывается при КАЖДОМ старте. Повторный запуск не плодит полей и
-/// не затирает работу администратора: его поля остаются как есть, а у системного поля сохраняется
-/// его ПОДПИСЬ — единственное, что ему оставлено даже в закрытом типе. Затирай проекция подпись,
-/// правка админа молча отменялась бы при первом же перезапуске.</para>
+/// не затирает работу администратора: его поля остаются как есть, а объявленное кладётся ПОВЕРХ
+/// того, что лежит, — не пересобирая поле поимённо. Подпись системного поля, правленная
+/// администратором, переживает проекцию (иначе его правка молча отменялась бы первым же
+/// перезапуском), а подпись, которой он не касался, обновляется новой версией модуля.</para>
 ///
 /// <para><b>Почему это не обход F2.</b> <see cref="SchemaEditPolicy"/> стережёт редактор
 /// АДМИНИСТРАТОРА. Здесь пишет модуль — второй законный автор схемы, и ему политика администратора
@@ -53,13 +54,26 @@ public sealed record ProjectModuleTypeCommand(ModuleTypeSpec Spec) : IRequest<Do
 public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo)
     : IRequestHandler<ProjectModuleTypeCommand, DocumentType>
 {
+    /// <summary>
+    /// Виды значения, которым не нужна ссылка на другой тип, — единственные, что модуль вправе
+    /// объявить. Белый список, а не чёрный: новый вид поля появится однажды в другом файле, и
+    /// «чего нет в списке — отказ» встретит его вопросом, а список запретов — молчанием.
+    /// </summary>
+    private static readonly HashSet<string> SelfContainedKinds = new(StringComparer.Ordinal)
+        { "string", "text", "number", "date", "boolean", "image", "file" };
+
     public async Task<DocumentType> Handle(ProjectModuleTypeCommand cmd, CancellationToken ct)
     {
         var spec = cmd.Spec;
         Validate(spec);
 
         var all = await repo.GetAllAsync(ct);
-        var type = all.FirstOrDefault(t => string.Equals(t.Code, spec.Code, StringComparison.Ordinal));
+        // Код ищем БЕЗ учёта регистра — именно так его стережёт от повторов редактор типов
+        // (EnsureUnique). Сверяй мы посимвольно, «work» в базе и «WORK» в объявлении разошлись бы:
+        // проекция завела бы второй тип, а администратор после этого не сохранил бы ни одного из
+        // двух — уникальность кода запрещала бы оба.
+        var type = all.FirstOrDefault(t => string.Equals(t.Code, spec.Code, StringComparison.OrdinalIgnoreCase));
+        if (type is not null) EnsureOwnedByModule(type, spec);
 
         if (type is null)
         {
@@ -96,7 +110,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo)
 
         var wasFields = root["fields"] as JsonArray ?? [];
         var customer = new List<JsonNode?>();
-        var titles = new Dictionary<string, string>(StringComparer.Ordinal);
+        var system = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
         foreach (var f in wasFields)
         {
             if (f is not JsonObject obj) continue;
@@ -115,32 +129,84 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo)
                 customer.Add(obj.DeepClone());
                 continue;
             }
-            // Подпись системного поля администратор правит законно — она переживает проекцию.
-            if (obj["title"]?.GetValue<string>() is { Length: > 0 } title) titles[key] = title;
+            system[key] = (JsonObject)obj.DeepClone()!;
         }
 
         var fields = new JsonArray();
-        foreach (var f in spec.Fields) fields.Add(Field(f, titles.GetValueOrDefault(f.Key)));
+        foreach (var f in spec.Fields) fields.Add(Field(f, system.GetValueOrDefault(f.Key)));
         foreach (var c in customer) fields.Add(c);
 
         root["fields"] = fields;
         return root;
     }
 
-    private static JsonObject Field(ModuleFieldSpec f, string? adminTitle)
+    /// <summary>
+    /// Поле модуля = то, что лежит, ПОВЕРХ которого положено объявленное.
+    ///
+    /// <para>⚠️ Не пересборка поимённо, и это главное здесь. Пересборка сохраняет ровно те свойства,
+    /// которые я перечислил, и молча стирает все остальные — а политика правки разрешает
+    /// администратору кое-что добавлять и на поле модуля: на уровне «расширяемый» он ВПРАВЕ дописать
+    /// варианты перечисления (убирать нельзя — прежние записи на них ссылаются). Стирались бы они
+    /// каждым стартом, мимо политики и без единого отказа, а записи ссылались бы в пустоту. Тот же
+    /// класс ошибки стоил дефекта в #1004 и ещё одного в #1008; лечится он не памятью, а тем, что
+    /// умолчание здесь — «сохранить», а не «забыть».</para>
+    /// </summary>
+    private static JsonObject Field(ModuleFieldSpec f, JsonObject? existing)
     {
-        var node = new JsonObject
-        {
-            ["key"] = f.Key,
-            ["title"] = adminTitle ?? f.Title,
-            ["type"] = f.Type,
-            [SchemaFieldOrigin.Property] = SchemaFieldOrigin.Module,
-            [SchemaFieldLock.Property] = true,
-        };
-        if (!string.IsNullOrWhiteSpace(f.TypeId)) node["typeId"] = f.TypeId;
-        if (f.Required) node["required"] = true;
+        var node = existing ?? [];
+
+        node["key"] = f.Key;
+        node["type"] = f.Type;
+        node[SchemaFieldOrigin.Property] = SchemaFieldOrigin.Module;
+        node[SchemaFieldLock.Property] = f.Locked;
+        node["title"] = MergedTitle(f, node);
+        node[SchemaFieldModuleTitle.Property] = f.Title;
+
+        // Обязательность и тэги ведёт модуль: чего он больше не объявляет, того быть не должно —
+        // иначе снятый тэг оставался бы в базе и код продолжал бы находить по нему поле.
+        if (f.Required) node["required"] = true; else node.Remove("required");
         if (f.Tags.Count > 0) node["tags"] = new JsonArray([.. f.Tags.Select(t => (JsonNode?)t)]);
+        else node.Remove("tags");
+
         return node;
+    }
+
+    /// <summary>
+    /// Чья подпись победит. Правка администратора остаётся; нетронутая подпись обновляется
+    /// объявлением. Различает их <see cref="SchemaFieldModuleTitle"/> — подпись, какой её положила
+    /// прошлая проекция.
+    /// </summary>
+    private static string MergedTitle(ModuleFieldSpec f, JsonObject node)
+    {
+        if (node["title"]?.GetValue<string>() is not { Length: > 0 } shown) return f.Title;
+
+        // Метки нет — поле легло до того, как она появилась. Отличить правку человека от прошлого
+        // объявления уже нечем, и выбор здесь в пользу человека: его работа дороже одной подписи.
+        // Метку ставим сейчас, и со следующего старта поле живёт по общему правилу.
+        if (node[SchemaFieldModuleTitle.Property]?.GetValue<string>() is not { } declared) return shown;
+
+        return string.Equals(shown, declared, StringComparison.Ordinal) ? f.Title : shown;
+    }
+
+    /// <summary>
+    /// Тип с этим кодом уже есть — но он должен принадлежать ТОМУ ЖЕ модулю.
+    ///
+    /// <para>Без этой проверки совпадение кода означало бы тихий захват: тип администратора (или
+    /// чужого модуля) получал бы владельца и уровень правки от нас, мимо <c>TypeOwnershipRules</c>,
+    /// которые стоят на всех остальных путях записи. Дальше — по цепочке: администратор теряет
+    /// правку собственного типа, зависимый тип ядра нарушает ТЗ CORE-30 и перестаёт сохраняться, а
+    /// при выключении модуля тип остаётся без родителя. Совпадение кода — случайность, и разнимать
+    /// её должен человек, зная оба типа.</para>
+    /// </summary>
+    private static void EnsureOwnedByModule(DocumentType type, ModuleTypeSpec spec)
+    {
+        if (string.Equals(type.Module, spec.Module, StringComparison.OrdinalIgnoreCase)) return;
+
+        throw new ConflictException(
+            $"Модуль «{spec.Module}» объявляет тип с кодом «{spec.Code}», а тип с таким кодом уже " +
+            $"есть и принадлежит {TypeOwnershipRules.OwnerWords(type.Module)} — это «{type.Name}». " +
+            "Проекция его не забирает: переименуйте код одного из двух. Иначе модуль стал бы вести " +
+            "чужой тип, а его владелец молча потерял бы право его править.");
     }
 
     /// <summary>
@@ -148,6 +214,15 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo)
     /// </summary>
     private static void Validate(ModuleTypeSpec spec)
     {
+        foreach (var f in spec.Fields)
+            if (!SelfContainedKinds.Contains(f.Type))
+                throw new ConflictException(
+                    $"Модуль «{spec.Module}» объявил полю «{f.Key}» типа «{spec.Code}» вид " +
+                    $"«{f.Type}». Так нельзя: этот вид адресует цель — составной тип, перечисление, " +
+                    "примитив или документ — по Guid, а Guid в каждой установке свой, и в коде " +
+                    "модуля его нет. Поле осталось бы без цели: не нарисовалось бы и не заполнилось. " +
+                    $"Допустимые виды: {string.Join(", ", SelfContainedKinds.Order(StringComparer.Ordinal))}.");
+
         var duplicates = spec.Fields.GroupBy(f => f.Key, StringComparer.Ordinal)
             .Where(g => g.Count() > 1).Select(g => g.Key).ToList();
         if (duplicates.Count > 0)
