@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
 
@@ -14,10 +14,10 @@ public class QualityLinkScannerTests
     private const string Target = "ДокументПодтверждающийКачество";
 
     private static DocumentType Composite(string name, string schema)
-        => DocumentType.Create(name, name, DocumentTypeKind.Composite, null, JsonDocument.Parse(schema), false);
+        => DocumentType.Create(name, name, DocumentTypeKind.Composite, null, JsonDocument.Parse(schema), TypeOwner.Core, TypeVisibility.Shared, false);
 
     private static DocumentType Document(string name, string schema)
-        => DocumentType.Create(name, name, DocumentTypeKind.Document, null, JsonDocument.Parse(schema), false);
+        => DocumentType.Create(name, name, DocumentTypeKind.Document, null, JsonDocument.Parse(schema), TypeOwner.Core, TypeVisibility.Shared, false);
 
     private static readonly DocumentType Material = Composite("Материал", $$"""
         { "fields": [

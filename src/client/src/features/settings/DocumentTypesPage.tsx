@@ -15,6 +15,9 @@ import { Button } from '@/shared/ui/Button';
 import { TypePickerField } from '@/shared/ui/TypePickerField';
 import type { PickType } from '@/shared/ui/TypePicker';
 import { TextField } from '@/shared/ui/TextField';
+import { Select, SelectItem } from '@/shared/ui/Select';
+import { NO_ACCESS, useAccess } from '@/shared/api/access';
+import { CORE_OWNER, offeredTypes, ownerOptions, ownerTitle } from '@/shared/api/typeOwners';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { countTemplatesUsingTypeCode } from '@/shared/api/typstUserLib';
 import {
@@ -27,6 +30,7 @@ import {
   useDocumentTypeUsage,
   useSetDocumentTypeAbstract,
   useSetDocumentTypeAllowsProxy,
+  useSetDocumentTypeOwner,
   useSetDocumentTypeGroup,
   useIdentityImpact,
   type IdentityImpact,
@@ -218,6 +222,16 @@ function getDescendantIds(id: string, allDocTypes: DocumentType[]): Set<string> 
   return result;
 }
 
+/**
+ * Текст отказа сервера. Ответ называет конкретный тип («опора типа ядра — тип модуля «Проект»»), и
+ * подменять его общим «не удалось сохранить» значит выбрасывать единственное, что помогает понять,
+ * что именно чинить.
+ */
+function errorText(e: unknown, fallback: string): string {
+  return (e as { response?: { data?: { error?: string } } })?.response?.data?.error
+    ?? (e instanceof Error ? e.message : fallback);
+}
+
 function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; allDocTypes: DocumentType[] }) {
   const [name, setName] = useState(docType.name);
   const [code, setCode] = useState(docType.code);
@@ -226,9 +240,14 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
   const mutation = useUpdateDocumentType();
   const abstractMutation = useSetDocumentTypeAbstract();
   const proxyMutation = useSetDocumentTypeAllowsProxy();
+  const ownerMutation = useSetDocumentTypeOwner();
+  const { data: access } = useAccess();
+  const [ownerError, setOwnerError] = useState('');
 
   const descendantIds = getDescendantIds(docType.id, allDocTypes);
-  const eligibleParents = allDocTypes.filter(
+  // В родители предлагаются типы включённых модулей; уже записанный родитель разрешается по
+  // полному списку — иначе он исчез бы из поля, а сохранение стёрло бы наследование.
+  const eligibleParents = offeredTypes(allDocTypes, access).filter(
     dt => dt.kind === docType.kind && dt.id !== docType.id && !descendantIds.has(dt.id),
   );
 
@@ -264,7 +283,9 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
     try {
       await mutation.mutateAsync({ id: docType.id, name: name.trim(), code: code.trim(), parentId: parentId || null });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Ошибка сохранения');
+      // Текст сервера, а не «Request failed with status code 409»: отказ называет КОНКРЕТНЫЙ тип
+      // («опора типа ядра принадлежит модулю „id“»), и без него человеку нечего чинить.
+      setError(errorText(err, 'Ошибка сохранения'));
       throw err;
     }
   }
@@ -300,6 +321,25 @@ function PropertiesEditor({ docType, allDocTypes }: { docType: DocumentType; all
         placeholder="— без родителя —" clearable={{ label: 'Без родителя' }}
         types={toParentPickTypes(eligibleParents)} value={parentId || undefined}
         onChange={id => setParentId(id ?? '')} />
+      {/* Владелец — мгновенная мутация, как прокси и абстрактность: это не часть формы параметров.
+          Отказ сервера («опора ядра — ядро») показывается здесь же: ответ называет конкретный тип,
+          и пересказывать его своими словами значило бы потерять это имя. */}
+      <div>
+        <Select label="Владелец" value={docType.module} disabled={ownerMutation.isPending}
+          onValueChange={v => {
+            setOwnerError('');
+            ownerMutation.mutate({ id: docType.id, module: v },
+              { onError: (e: unknown) => setOwnerError(errorText(e, 'Не удалось сменить владельца')) });
+          }}>
+          {ownerOptions(access ?? NO_ACCESS).map(o => <SelectItem key={o.code} value={o.code}>{o.title}</SelectItem>)}
+        </Select>
+        <p className="mt-1 text-xs text-fg4">
+          {docType.module === CORE_OWNER
+            ? 'Тип ядра: остаётся в редакторе при любом наборе модулей.'
+            : `Тип модуля «${ownerTitle(docType.module, access ?? NO_ACCESS)}»: при выключенном модуле не предлагается.`}
+        </p>
+        {ownerError && <p className="mt-1 text-xs text-danger">{ownerError}</p>}
+      </div>
       {/* Прокси/абстрактность — отдельные мгновенные переключатели (не часть формы «Сохранить
           параметры»): каждый — своя мутация, применяется сразу по щелчку (issue #197 Фаза C). */}
       <div className="flex flex-col gap-2 pt-1">
@@ -338,9 +378,15 @@ function CreateForm({
 }) {
   const { data: primitiveTypes = [] } = useListPrimitiveTypes();
   const { data: enumTypes = [] } = useListEnumTypes();
+  const { data: access } = useAccess();
+  const owners = ownerOptions(access ?? NO_ACCESS);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [parentId, setParentId] = useState('');
+  // Владелец нового типа: ЯДРО по умолчанию (ТЗ CORE-18). Тип, заведённый человеком, не объявлен
+  // ни одним модулем — значит принадлежит экземпляру целиком и не исчезает из редактора в тот
+  // день, когда модуль выключат. Отдать его модулю можно потом, в параметрах типа.
+  const [module, setModule] = useState(CORE_OWNER);
   const [isAbstract, setIsAbstract] = useState(false);
   const [fields, setFields] = useState<SchemaField[]>([]);
   const [showJson, setShowJson] = useState(false);
@@ -367,7 +413,7 @@ function CreateForm({
     if (conflict) { setError(`Ключ "${conflict.key}" уже есть в родительском типе`); return; }
     try {
       const created = await mutation.mutateAsync({
-        name, code, kind,
+        name, code, kind, module,
         parentId: parentId || null,
         schema: schemaToJson(fields, [], {}),
         isAbstract: kind === 'Document' ? isAbstract : false,
@@ -397,10 +443,18 @@ function CreateForm({
         </label>
       )}
 
+      <Select label="Владелец" value={module} onValueChange={setModule}>
+        {owners.map(o => <SelectItem key={o.code} value={o.code}>{o.title}</SelectItem>)}
+      </Select>
+      <p className="-mt-3 text-xs text-fg4">
+        Типы выключенного модуля не предлагаются в редакторе. Тип, заведённый здесь, принадлежит
+        ядру: его не объявлял ни один модуль.
+      </p>
+
       {sameKindTypes.length > 0 && (
         <TypePickerField className="w-full" label="Родительский тип (наследование)" title="Родительский тип"
           placeholder="— без родителя —" clearable={{ label: 'Без родителя' }}
-          types={toParentPickTypes(sameKindTypes)} value={parentId || undefined}
+          types={toParentPickTypes(offeredTypes(sameKindTypes, access))} value={parentId || undefined}
           onChange={id => setParentId(id ?? '')} />
       )}
 
@@ -1115,6 +1169,7 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   const selectedId = values.type || null;
   const setSelectedId = (id: string | null) => remember({ type: id ?? '' });
   const { data: allDocTypes = [], isLoading } = useListDocumentTypes();
+  const { data: access } = useAccess();
 
   // Реестр незасохранённых форм текущего типа (явное сохранение, issue #197 / #210 — общий).
   const { registry, anyDirty, saving, saveAll, resetAll } = useTypeEditorRegistry();
@@ -1149,7 +1204,12 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   const [routeLeave, setRouteLeave] = useState<(() => void) | null>(null);
   useLeaveGuard(anyDirty, (proceed) => setRouteLeave(() => proceed));
 
-  const filtered = allDocTypes
+  // ⚠️ Фильтруется СПИСОК ВЫБОРА, а не источник разрешения: `allDocTypes` ниже уходит в детали
+  // как есть. Убери мы типы выключенного модуля из общего массива — селектор поля, чей `typeId`
+  // указывает на такой тип, не нашёл бы своего значения, показался бы пустым, и следующее
+  // сохранение схемы записало бы `typeId: null`. На экране это неотличимо от «сохранилось как
+  // было», то есть потеря вышла бы тихой.
+  const filtered = offeredTypes(allDocTypes, access)
     .filter(dt => dt.kind === kind)
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   const allGroups = [...new Set(filtered.map(dt => dt.group).filter((g): g is string => !!g))]
@@ -1183,7 +1243,9 @@ export function DocumentTypesPage({ kind }: TypesPageProps) {
   const createDoc = useCreateDocumentType();
   const duplicateType = (dt: DocumentType) => createDoc.mutate({
     name: `Копия ${dt.name}`, code: uniqueCode(dt.code, new Set(allDocTypes.map(x => x.code))),
-    kind: dt.kind, parentId: dt.parentId ?? null,
+    // Копия достаётся тому же владельцу: дублируют тип, чтобы получить такой же, а не такой же,
+    // но у другого хозяина.
+    kind: dt.kind, parentId: dt.parentId ?? null, module: dt.module,
     schema: JSON.stringify(dt.schema), isAbstract: dt.kind === 'Document' ? dt.isAbstract : false,
   });
 

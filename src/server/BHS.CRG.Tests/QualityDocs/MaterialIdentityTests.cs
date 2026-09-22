@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Domain.Documents;
 
@@ -13,7 +13,7 @@ namespace BHS.CRG.Tests.QualityDocs;
 public class MaterialIdentityTests
 {
     private static DocumentType Composite(string name, string schema)
-        => DocumentType.Create(name, name, DocumentTypeKind.Composite, null, JsonDocument.Parse(schema), false);
+        => DocumentType.Create(name, name, DocumentTypeKind.Composite, null, JsonDocument.Parse(schema), TypeOwner.Core, TypeVisibility.Shared, false);
 
     private static readonly DocumentType Material = Composite("Материал", """
         { "fields": [

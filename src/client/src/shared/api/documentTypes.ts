@@ -43,6 +43,8 @@ export function useCreateDocumentType() {
       kind: DocumentTypeKind;
       parentId?: string | null;
       schema: string;
+      /** Владелец типа (ТЗ CORE-18) — обязателен: сервер отказывает без него. */
+      module: string;
       isAbstract?: boolean;
     }) => apiClient.post<DocumentType>('/document-types', payload).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['document-types'] }),
@@ -54,6 +56,20 @@ export function useUpdateDocumentType() {
   return useMutation({
     mutationFn: ({ id, name, code, parentId }: { id: string; name: string; code: string; parentId: string | null }) =>
       apiClient.put<DocumentType>(`/document-types/${id}`, { name, code, parentId }).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['document-types'] }),
+  });
+}
+
+/**
+ * Передать тип другому владельцу (ТЗ CORE-30). Владельца существующим типам расставила миграция
+ * по явному списку, составленному по смыслу, — и справочник, заведённый человеком, мог оказаться
+ * не у того владельца.
+ */
+export function useSetDocumentTypeOwner() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, module }: { id: string; module: string }) =>
+      apiClient.put<DocumentType>(`/document-types/${id}/module`, { module }).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['document-types'] }),
   });
 }

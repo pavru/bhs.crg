@@ -208,10 +208,13 @@ public record BackupPrimitiveType(
     JsonElement Constraints,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string? Group = null);
 
+/// <param name="Module">Владелец типа (ТЗ CORE-18). Пусто — копия снята ДО появления владельца:
+/// восстановление применяет то же правило, что и миграция, а не подставляет умолчание.</param>
 public record BackupDocumentType(
     Guid Id, string Name, string Code, string Kind, Guid? ParentId, bool IsAbstract,
     JsonElement Schema, JsonElement PluginBindings,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string? Group = null, bool AllowsProxy = false);
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string? Group = null, bool AllowsProxy = false,
+    string? Module = null, string? Storage = null, string? Visibility = null, string[]? ReadChannels = null);
 
 public record BackupTemplate(
     Guid Id, Guid DocumentTypeId, string Name, string Content, int Version,

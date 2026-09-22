@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Domain.Catalog;
 using BHS.CRG.Domain.Documents;
@@ -12,7 +12,7 @@ namespace BHS.CRG.Tests.Schema;
 public class DocumentTypeSchemaReaderTests
 {
     private static DocumentType Type(string schemaJson) =>
-        DocumentType.Create("T", "C", DocumentTypeKind.Document, null, JsonDocument.Parse(schemaJson));
+        DocumentType.Create("T", "C", DocumentTypeKind.Document, null, JsonDocument.Parse(schemaJson), TypeOwner.Core, TypeVisibility.Shared);
 
     private static EnumType Enum(string valuesJson) =>
         EnumType.Create("Статус", "STATUS", null, JsonDocument.Parse(valuesJson));

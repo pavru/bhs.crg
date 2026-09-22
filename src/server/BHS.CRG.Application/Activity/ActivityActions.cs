@@ -1,4 +1,4 @@
-namespace BHS.CRG.Application.Activity;
+﻿namespace BHS.CRG.Application.Activity;
 
 /// <summary>Действие, которое журнал умеет записывать: код в базе и название для человека.</summary>
 /// <param name="Code">Код вида <c>ядро.объект.действие</c> — он и хранится в записи.</param>
@@ -31,6 +31,13 @@ public static class ActivityActions
     /// <summary>Изменена схема типа документа: состав полей, от которого зависят данные и печать.</summary>
     public static readonly ActivityAction TypeSchemaChanged = new("core.type.schema.changed", "Изменена схема типа");
 
+    /// <summary>
+    /// Тип передан другому владельцу (ТЗ CORE-30). В журнал — потому что передача меняет судьбу
+    /// типа при выключении модуля: вчера он предлагался в редакторе, сегодня нет, и спросить
+    /// «кто и когда» будет не у кого.
+    /// </summary>
+    public static readonly ActivityAction TypeOwnerChanged = new("core.type.owner.changed", "Изменён владелец типа");
+
     /// <summary>Изменён состав включённых модулей (ТЗ AUTH-17) — замечается при старте.</summary>
     public static readonly ActivityAction ModulesChanged = new("core.modules.changed", "Изменён состав модулей");
 
@@ -51,7 +58,7 @@ public static class ActivityActions
     public static readonly ActivityAction RoleDeleted = new("core.role.deleted", "Удалена роль");
 
     public static IReadOnlyList<ActivityAction> All =>
-        [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, ModulesChanged,
+        [UserCreated, UserRoleChanged, UserDeleted, TypeSchemaChanged, TypeOwnerChanged, ModulesChanged,
          RoleCreated, RolePermissionsChanged, RoleRenamed, RoleDeleted];
 
     /// <summary>

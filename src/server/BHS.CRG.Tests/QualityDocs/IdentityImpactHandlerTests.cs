@@ -1,4 +1,4 @@
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using System.Text.Json;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.QualityDocs;
@@ -26,7 +26,7 @@ public class IdentityImpactHandlerTests
     }
 
     private static DocumentType Material(string schema)
-        => DocumentType.Create("Материал", "MAT", DocumentTypeKind.Composite, null, JsonDocument.Parse(schema));
+        => DocumentType.Create("Материал", "MAT", DocumentTypeKind.Composite, null, JsonDocument.Parse(schema), TypeOwner.Core, TypeVisibility.Shared);
 
     private const string TwoKeys = """
         { "fields": [

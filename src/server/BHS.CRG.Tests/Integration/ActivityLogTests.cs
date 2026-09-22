@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -87,6 +87,7 @@ public class ActivityLogTests(IntegrationTestFixture fixture) : IAsyncLifetime
             code = $"jt{Guid.NewGuid():N}"[..12],
             kind = "Document",
             schema = """{"fields":[{"key":"номер","type":"string"}]}""",
+            module = "core",
         });
         created.EnsureSuccessStatusCode();
         var typeId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();

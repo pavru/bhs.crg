@@ -166,6 +166,125 @@ await check('template-params-parsed-from-declaration', async () => {
     throw new Error(`у панели нет числа параметров — объявление не разобралось: «${panel}»`);
 });
 
+// ── Владелец типа (issue #955) ────────────────────────────────────────────────
+//
+// Проверяется не «поле есть на странице», а то, ради чего признак заведён: владелец виден, его
+// можно сменить, и правило «опора ядра — ядро» доезжает до экрана ОТКАЗОМ, называющим тип.
+//
+// ⚠️ Чего здесь нет и быть не может: «типы выключенного модуля не предлагаются». Модуль в сборке
+// один, а единственный модуль не выключить — пустая настройка означает умолчание, а не «ничего».
+// Эта ветка проверена чистым тестом (typeOwners.test.ts) и станет проверяемой живьём со вторым
+// модулем.
+/**
+ * Запрос к API ИЗ СТРАНИЦЫ, её же токеном. Из Node это делать нельзя: адрес API у дев-сервера и у
+ * собранного клиента в CI разный, а страница в обоих случаях ходит по одному и тому же `/api`.
+ */
+async function api(method, path, body) {
+  return page.evaluate(async ([m, p, b]) => {
+    const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+    const res = await fetch(`/api${p}`, {
+      method: m,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: b === null ? undefined : JSON.stringify(b),
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`${m} ${p} → ${res.status} ${text.slice(0, 200)}`);
+    return text ? JSON.parse(text) : null;
+  }, [method, path, body ?? null]);
+}
+
+// Два своих типа вместо чужих: типы заказчика связаны между собой, и «первый попавшийся
+// составной» тянет за собой чужие опоры — проверка проверяла бы их, а не правило.
+const stamp = Date.now().toString(36).slice(-6);
+const OWNED = `Владелец ${stamp}`;
+const LEANING = `Опора ${stamp}`;
+let ownedId = null;
+let leaningId = null;
+
+await page.goto(`${BASE}/composite-types`);
+await page.waitForTimeout(3000);
+
+/**
+ * Открыть составной тип по имени.
+ *
+ * ⚠️ Через ПОИСК, а не прямым щелчком по списку: список сгруппирован в аккордеоны, и группа «без
+ * группы» по умолчанию свёрнута — её содержимого в DOM нет вовсе. Первая редакция проверки
+ * щёлкала по имени напрямую и падала по таймауту, хотя тип был на месте.
+ */
+async function openComposite(name) {
+  const search = page.getByPlaceholder('Поиск типа…');
+  await search.fill(name);
+  await page.waitForTimeout(1200);
+  await page.locator('button').filter({ hasText: name }).first().click();
+  await page.waitForTimeout(1500);
+}
+
+await check('type-owner-is-visible-and-changeable', async () => {
+  ownedId = (await api('POST', '/document-types', {
+    name: OWNED, code: `OWN${stamp}`, kind: 'Composite',
+    schema: '{"fields":[]}', module: 'core',
+  })).id;
+  leaningId = (await api('POST', '/document-types', {
+    name: LEANING, code: `LEAN${stamp}`, kind: 'Composite',
+    schema: '{"fields":[]}', module: 'core',
+  })).id;
+  await page.reload();
+  await page.waitForTimeout(3000);
+
+  await openComposite(OWNED);
+  // Утверждение о ЧАСТИ экрана ищется в этой части: селектор владельца адресуется своей ролью и
+  // именем, а не текстом всей страницы, где слово «Ядро» могло бы встретиться где угодно.
+  const owner = page.getByRole('combobox', { name: 'Владелец' }).first();
+  if (!(await owner.count())) throw new Error('в параметрах типа нет выбора владельца');
+  const before = (await owner.innerText()).trim();
+  if (!['Ядро', 'Исполнительная документация'].includes(before))
+    throw new Error(`владелец показан не словами: «${before}»`);
+
+  await owner.click();
+  await page.waitForTimeout(600);
+  await page.getByRole('option', { name: 'Исполнительная документация' }).first().click();
+  await page.waitForTimeout(1500);
+
+  await page.reload();
+  await page.waitForTimeout(3000);
+  await openComposite(OWNED);
+  const after = (await page.getByRole('combobox', { name: 'Владелец' }).first().innerText()).trim();
+  if (after !== 'Исполнительная документация')
+    throw new Error(`смена владельца не пережила перезагрузку: «${after}»`);
+});
+
+await check('core-type-refuses-to-lean-on-a-module-type', async () => {
+  // Тип ядра; ставим ему родителем тип, только что отданный модулю.
+  await openComposite(LEANING);
+  // Пикер адресуется ИМЕНЕМ (подпись связана через aria-labelledby), а не текстом кнопки: текст
+  // у неё — выбранное значение, «— без родителя —», и совпал бы с любым другим пустым пикером.
+  await page.getByRole('button', { name: /Родительский тип/ }).first().click();
+  await page.waitForTimeout(1200);
+  await page.locator('[role=dialog]').last().locator('button')
+    .filter({ hasText: OWNED }).first().click();
+  await page.waitForTimeout(1000);
+  await page.locator('button').filter({ hasText: /^Сохранить/ }).first().click();
+  await page.waitForTimeout(2500);
+
+  const t = await page.locator('body').innerText();
+  if (!/Опора типа ядра обязана принадлежать ядру/.test(t))
+    throw new Error('отказ не доехал до экрана');
+  // Отказ обязан НАЗВАТЬ тип: без имени чинить нечего, и такой отказ ничем не лучше кода 409.
+  if (!t.includes(OWNED))
+    throw new Error('в отказе не назван тип, из-за которого он случился');
+  // И правка не сохранилась: «почти сохранил» было бы хуже отказа.
+  const saved = await api('GET', `/document-types/${leaningId}`);
+  if (saved.parentId) throw new Error('родитель всё-таки записался — отказ был только на экране');
+});
+
+// Свои типы за собой убираем: следом идут другие прогоны, и база должна остаться той же, какой была.
+await check('temporary-types-are-cleaned-up', async () => {
+  await api('DELETE', `/document-types/${leaningId}`);
+  await api('DELETE', `/document-types/${ownedId}`);
+  const left = (await api('GET', '/document-types')).filter(t => t.code.endsWith(stamp));
+  if (left.length) throw new Error(`после уборки остались типы: ${left.map(t => t.code).join(', ')}`);
+});
+
 } finally {
   await browser.close();
 }

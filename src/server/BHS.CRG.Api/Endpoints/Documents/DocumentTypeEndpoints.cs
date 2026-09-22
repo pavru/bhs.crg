@@ -33,19 +33,32 @@ public static class DocumentTypeEndpoints
             return dt is null ? Results.NotFound() : Results.Ok(dt);
         });
 
-        admin.MapPost("/", async (CreateTypeRequest req, IMediator m) =>
+        admin.MapPost("/", async (CreateTypeRequest req, ModuleRegistry modules, IMediator m) =>
         {
             var kind = req.Kind switch
             {
                 "Composite" => DocumentTypeKind.Composite,
                 _           => DocumentTypeKind.Document,
             };
+            if (OwnerRefusal(req.Module, modules) is { } refusal) return refusal;
             try
             {
                 return Results.Ok(await m.Send(new CreateDocumentTypeCommand(
-                    req.Name, req.Code, kind, req.ParentId, JsonDocument.Parse(req.Schema), req.IsAbstract)));
+                    req.Name, req.Code, kind, req.ParentId, JsonDocument.Parse(req.Schema),
+                    req.Module, req.IsAbstract)));
             }
             catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
+        });
+
+        // Передача типа другому владельцу (ТЗ CORE-30). Владельца существующим типам расставила
+        // миграция по явному списку, а список — по смыслу: справочник, заведённый человеком, мог
+        // оказаться не у того владельца, и без этого адреса чинить это было бы нечем.
+        admin.MapPut("/{id:guid}/module", async (Guid id, SetModuleRequest req, ModuleRegistry modules, IMediator m) =>
+        {
+            if (OwnerRefusal(req.Module, modules) is { } refusal) return refusal;
+            try { return Results.Ok(await m.Send(new SetDocumentTypeOwnerCommand(id, req.Module))); }
+            catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (NotFoundException) { return Results.NotFound(); }
         });
 
         admin.MapPut("/{id:guid}", async (Guid id, UpdateTypeRequest req, IMediator m) =>
@@ -115,7 +128,33 @@ public static class DocumentTypeEndpoints
         });
     }
 
-    record CreateTypeRequest(string Name, string Code, string Kind, Guid? ParentId, string Schema, bool IsAbstract = false);
+    /// <summary>
+    /// Владельцем можно назвать ядро или ВКЛЮЧЁННЫЙ модуль. Выключенный отвергается нарочно: тип,
+    /// отданный тому, кого на этом экземпляре нет, исчез бы из редактора тем же действием, каким
+    /// его отдавали, — и вернуть его было бы нечем, потому что адрес владельца тоже в редакторе.
+    ///
+    /// Отказ называет, что можно: список допустимых кодов короткий, и человеку он полезнее, чем
+    /// слово «недопустимо».
+    /// </summary>
+    private static IResult? OwnerRefusal(string? module, ModuleRegistry modules)
+    {
+        var allowed = new List<string> { TypeOwner.Core };
+        allowed.AddRange(modules.Enabled.Select(m => m.Code));
+
+        if (!string.IsNullOrWhiteSpace(module)
+            && allowed.Contains(module.Trim(), StringComparer.OrdinalIgnoreCase)) return null;
+
+        return Results.BadRequest(new
+        {
+            error = string.IsNullOrWhiteSpace(module)
+                ? "У типа обязан быть владелец: " + string.Join(", ", allowed.Select(c => $"«{c}»")) + "."
+                : $"Владелец «{module}» не подходит: на этом экземпляре доступны " +
+                  string.Join(", ", allowed.Select(c => $"«{c}»")) + ".",
+        });
+    }
+
+    record CreateTypeRequest(string Name, string Code, string Kind, Guid? ParentId, string Schema, string Module, bool IsAbstract = false);
+    record SetModuleRequest(string Module);
     record UpdateTypeRequest(string Name, string Code, Guid? ParentId);
     record UpdateSchemaRequest(string Schema);
     record SetAbstractRequest(bool IsAbstract);

@@ -9,6 +9,7 @@ import type { DocumentType, PrimitiveTypeDef, EnumTypeDef } from '@/shared/api/t
 import { FIELD_UID, withFieldUid, type SchemaField, type FieldGroup } from '@/shared/api/schema';
 import { toCamelKey, nextAutoKey, nextSavedKey } from './schemaConstants';
 import { buildFieldTypeOptions, decodeFieldType, fieldTypeSummary, type FieldRegistries } from './fieldTypeOptions';
+import { useAccess } from '@/shared/api/access';
 import { similarKeyOf } from './schemaKeyChecks';
 import {
   useTagRegistry, fieldTags, findTagEntry, hasTag, tagCode, withTagOrder,
@@ -267,8 +268,9 @@ export function FieldCard({
   // на первом же лишнем различии.
   const similarKey = similarKeyOf(field.key, otherKeys ?? []);
   const keyAutoNew = isNew && !!field.title.trim() && field.key === toCamelKey(field.title);
-  const pickTypes = useMemo(() => buildFieldTypeOptions(reg),
-    [reg.compositeTypes, reg.primitiveTypes, reg.enumTypes, reg.allDocTypes]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data: access } = useAccess();
+  const pickTypes = useMemo(() => buildFieldTypeOptions(reg, access),
+    [reg.compositeTypes, reg.primitiveTypes, reg.enumTypes, reg.allDocTypes, access]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Тэг снимаем по КОДУ: в схеме он мог быть записан с параметром («identity:2», issue #583), и
   // сравнение всей записи со строкой кода не сняло бы его вовсе.

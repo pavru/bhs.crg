@@ -192,7 +192,9 @@ async function ensureType({ code, name, kind, schema, group, parentId = null }) 
     return found.id;
   }
   const created = await api('POST', '/document-types', {
-    name, code, kind, parentId, schema: JSON.stringify(schema), isAbstract: false,
+    // Владелец обязателен (issue #955). Посев заводит типы ЯДРА — как и редактор: их не
+    // объявлял ни один модуль, и при выключении модуля они остаются на месте.
+    name, code, kind, parentId, schema: JSON.stringify(schema), isAbstract: false, module: 'core',
   });
   if (group) await api('PUT', `/document-types/${created.id}/group`, { group });
   console.log(`  + тип «${name}»`);
