@@ -242,13 +242,13 @@ public class DocumentTypeHandlers(
         // Ограничения тэгов (issue #258): новый тип может сразу нести restricted-тэг (POST несёт схему).
         ValidateTagRestrictions(cmd.Schema, Guid.Empty, cmd.Name.Trim(), all);
 
+        EnsureParentAllowsDerived(cmd.ParentId, all);
+
         // Тип, заведённый ЧЕЛОВЕКОМ в редакторе, рождается ОБЩИМ (ТЗ CORE-18 называет умолчанием
         // «закрыто» — но это умолчание для типа, который объявил модуль). Заводят такой тип затем,
         // чтобы его объекты попали в общие данные, в печать и в наборы; роди мы его закрытым, он
         // отличался бы от всех уже существующих типов, и отличие это всплыло бы не сегодня, а в
         // день, когда признак начнёт действовать.
-        EnsureParentAllowsDerived(cmd.ParentId, all);
-
         var dt = DocumentType.Create(
             cmd.Name.Trim(), cmd.Code.Trim(), cmd.Kind, cmd.ParentId, cmd.Schema,
             cmd.Module, TypeVisibility.Shared, cmd.IsAbstract);

@@ -54,6 +54,21 @@ describe('parseSchemaFields', () => {
     const [f] = parseSchemaFields({ fields: [{ key: 'A', title: 'Имя', type: 'number', required: true }] });
     expect(f).toMatchObject({ key: 'A', title: 'Имя', type: 'number', required: true });
   });
+
+  /**
+   * Происхождение поля (issue #956) обязано пережить круг «разобрали → показали → сохранили»:
+   * редактор пересобирает поля поимённо и отдаёт их обратно как схему. Пропусти он `origin` —
+   * единственный редактор схемы стирал бы разметку модуля при каждом сохранении: у закрытого типа
+   * даже правка подписи упиралась бы в отказ «нельзя убрать происхождение», у открытого замок
+   * исчезал бы молча. Найдено ревью PR #1004.
+   */
+  it('переносит происхождение поля — на нём держится замок', () => {
+    const [module, own] = parseSchemaFields({
+      fields: [{ key: 'Табельный', origin: 'module' }, { key: 'Разряд' }],
+    });
+    expect(module.origin).toBe('module');
+    expect(own.origin).toBeUndefined();
+  });
 });
 
 // ── chainFieldKeys (issue #639) ─────────────────────────────────────────────────

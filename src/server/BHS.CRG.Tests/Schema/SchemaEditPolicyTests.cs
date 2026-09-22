@@ -29,7 +29,9 @@ public class SchemaEditPolicyTests
     /// <param name="Open">Разрешено ли на открытом уровне.</param>
     /// <param name="Extendable">…на расширяемом.</param>
     /// <param name="Closed">…на закрытом.</param>
-    public record Case(string Row, string After, bool Open, bool Extendable, bool Closed);
+    /// <param name="OwnBefore">Своя исходная схема, если общей для случая не хватает.</param>
+    public record Case(string Row, string After, bool Open, bool Extendable, bool Closed,
+        string? OwnBefore = null);
 
     public static TheoryData<Case, SchemaEditLevel, bool> Table()
     {
@@ -152,6 +154,63 @@ public class SchemaEditPolicyTests
             ],"groups":[{"name":"Общее","keys":["Табельный"]}]}
             """, Open: true, Extendable: false, Closed: false),
 
+        // ── Дыры, найденные ревью PR #1004 ────────────────────────────────────
+        new("+ Сделать поле модуля расчётным (значение уходит из-под модуля)", """
+            {"fields":[
+              {"key":"Табельный","title":"Табельный номер","type":"string","origin":"module","tags":["work.badge"],"computed":true,"expression":"1"},
+              {"key":"Смена","title":"Смена","type":"enum","origin":"module","options":["День","Ночь"]},
+              {"key":"Разряд","title":"Разряд","type":"string","tags":["own.tag"]}
+            ],"groups":[{"name":"Общее","keys":["Табельный"]}]}
+            """, Open: true, Extendable: false, Closed: false),
+
+        new("+ Значение по умолчанию у поля модуля", """
+            {"fields":[
+              {"key":"Табельный","title":"Табельный номер","type":"string","origin":"module","tags":["work.badge"],"defaultValue":"000"},
+              {"key":"Смена","title":"Смена","type":"enum","origin":"module","options":["День","Ночь"]},
+              {"key":"Разряд","title":"Разряд","type":"string","tags":["own.tag"]}
+            ],"groups":[{"name":"Общее","keys":["Табельный"]}]}
+            """, Open: true, Extendable: false, Closed: false),
+
+        new("+ Тэги ТИПА (а не поля)", """
+            {"fields":[
+              {"key":"Табельный","title":"Табельный номер","type":"string","origin":"module","tags":["work.badge"]},
+              {"key":"Смена","title":"Смена","type":"enum","origin":"module","options":["День","Ночь"]},
+              {"key":"Разряд","title":"Разряд","type":"string","tags":["own.tag"]}
+            ],"groups":[{"name":"Общее","keys":["Табельный"]}],"tags":["quality.doc"]}
+            """, Open: true, Extendable: true, Closed: false),
+
+        new("+ Переопределить унаследованное поле", """
+            {"fields":[
+              {"key":"Табельный","title":"Табельный номер","type":"string","origin":"module","tags":["work.badge"]},
+              {"key":"Смена","title":"Смена","type":"enum","origin":"module","options":["День","Ночь"]},
+              {"key":"Разряд","title":"Разряд","type":"string","tags":["own.tag"]}
+            ],"groups":[{"name":"Общее","keys":["Табельный"]}],"fieldOverrides":{"Чужое":{"defaultValue":"х"}}}
+            """, Open: true, Extendable: true, Closed: false),
+
+        new("+ Исключить унаследованное поле", """
+            {"fields":[
+              {"key":"Табельный","title":"Табельный номер","type":"string","origin":"module","tags":["work.badge"]},
+              {"key":"Смена","title":"Смена","type":"enum","origin":"module","options":["День","Ночь"]},
+              {"key":"Разряд","title":"Разряд","type":"string","tags":["own.tag"]}
+            ],"groups":[{"name":"Общее","keys":["Табельный"]}],"excludedFields":["Чужое"]}
+            """, Open: true, Extendable: false, Closed: false),
+
+        // Обратная сторона: СНЯТЬ исключение — то же добавление поля, только из родительского типа.
+        new("+ Вернуть исключённое поле", """
+            {"fields":[
+              {"key":"Табельный","title":"Табельный номер","type":"string","origin":"module","tags":["work.badge"]},
+              {"key":"Смена","title":"Смена","type":"enum","origin":"module","options":["День","Ночь"]},
+              {"key":"Разряд","title":"Разряд","type":"string","tags":["own.tag"]}
+            ],"groups":[{"name":"Общее","keys":["Табельный"]}]}
+            """, Open: true, Extendable: false, Closed: false,
+            OwnBefore: """
+            {"fields":[
+              {"key":"Табельный","title":"Табельный номер","type":"string","origin":"module","tags":["work.badge"]},
+              {"key":"Смена","title":"Смена","type":"enum","origin":"module","options":["День","Ночь"]},
+              {"key":"Разряд","title":"Разряд","type":"string","tags":["own.tag"]}
+            ],"groups":[{"name":"Общее","keys":["Табельный"]}],"excludedFields":["Чужое"]}
+            """),
+
         new("+ Сделать СВОЁ поле обязательным", """
             {"fields":[
               {"key":"Табельный","title":"Табельный номер","type":"string","origin":"module","tags":["work.badge"]},
@@ -166,7 +225,7 @@ public class SchemaEditPolicyTests
     public void Таблица_уровней_правки_схемы(Case row, SchemaEditLevel level, bool allowed)
     {
         var refusals = SchemaEditPolicy.Refusals(
-            JsonDocument.Parse(Before), JsonDocument.Parse(row.After), level);
+            JsonDocument.Parse(row.OwnBefore ?? Before), JsonDocument.Parse(row.After), level);
 
         if (allowed)
             Assert.True(refusals.Count == 0,
@@ -193,6 +252,32 @@ public class SchemaEditPolicyTests
         var text = string.Join("; ", refusals);
         Assert.Contains("Табельный номер", text);
         Assert.Contains("опирается", text);
+    }
+
+    /// <summary>
+    /// ⚠️ Та же схема, записанная ИНАЧЕ, — не изменение. Старая схема приходит из <c>jsonb</c>,
+    /// который Postgres отдаёт со своими пробелами и своим порядком свойств, новая — из тела
+    /// запроса, где клиент шлёт компактную запись. Сравнивай мы текстом — закрытый тип с группами
+    /// отказывал бы на КАЖДОМ сохранении, и заметить это по тестам было нельзя: в них обе схемы
+    /// разбирались из одинаково отформатированных литералов. Найдено ревью PR #1004.
+    /// </summary>
+    [Theory]
+    [InlineData(SchemaEditLevel.Extendable)]
+    [InlineData(SchemaEditLevel.Closed)]
+    public void Та_же_схема_в_другом_форматировании_проходит(SchemaEditLevel level)
+    {
+        const string spaced = """
+            { "fields" : [
+                { "key" : "Табельный" , "title" : "Табельный номер" , "type" : "string" , "origin" : "module" , "tags" : [ "work.badge" ] } ,
+                { "key" : "Смена" , "title" : "Смена" , "type" : "enum" , "origin" : "module" , "options" : [ "День" , "Ночь" ] } ,
+                { "key" : "Разряд" , "title" : "Разряд" , "type" : "string" , "tags" : [ "own.tag" ] }
+              ] , "groups" : [ { "name" : "Общее" , "keys" : [ "Табельный" ] } ] }
+            """;
+
+        var refusals = SchemaEditPolicy.Refusals(
+            JsonDocument.Parse(spaced), JsonDocument.Parse(Before), level);
+
+        Assert.True(refusals.Count == 0, "отказ на пробелах: " + string.Join("; ", refusals));
     }
 
     /// <summary>

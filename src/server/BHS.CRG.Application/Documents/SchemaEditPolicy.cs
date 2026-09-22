@@ -30,11 +30,12 @@ public static class SchemaFieldOrigin
 /// личности поля, только ключ. Поэтому оба случая ловятся одним правилом — «поле модуля исчезло», —
 /// и отказ говорит «удалено или переименовано», а не гадает, что именно случилось.
 ///
-/// ⚠️ Чего эта проверка НЕ делает: не разбирает <c>excludedFields</c> по происхождению. Исключение
-/// унаследованного поля в производном типе считается удалением ПЕССИМИСТИЧНО — на уровнях
-/// «расширяемый» и «закрытый» запрещено любое новое исключение. Разбирать чужие поля по
-/// происхождению пришлось бы через всю цепочку наследования, а цена ошибки здесь несимметрична:
-/// лишний отказ виден и обсуждаем, пропущенное удаление поля модуля — нет.
+/// ⚠️ Чего эта проверка НЕ делает: не разбирает <c>excludedFields</c> по происхождению. Правка
+/// набора исключений считается правкой состава полей ПЕССИМИСТИЧНО — на уровнях «расширяемый» и
+/// «закрытый» запрещено и добавить исключение, и снять его: первое убирает поле из эффективной
+/// схемы, второе добавляет. Разбирать чужие поля по происхождению пришлось бы через всю цепочку
+/// наследования, а цена ошибки здесь несимметрична: лишний отказ виден и обсуждаем, пропущенное
+/// удаление поля модуля — нет.
 /// </summary>
 public static class SchemaEditPolicy
 {
@@ -99,10 +100,18 @@ public static class SchemaEditPolicy
             {
                 if (was.Type != became.Type || was.TypeId != became.TypeId)
                     problems.Add($"у поля модуля «{Name(was)}» нельзя сменить вид: по нему модуль читает значение");
+                // Расчётное поле не вводится и не хранится вовсе (issue #368). Сделать таким поле
+                // модуля — не «сменить вид», а увести значение из-под модуля совсем; поэтому
+                // отдельной строкой, а не внутри проверки вида. Найдено ревью PR #1004.
+                if (was.Computed != became.Computed || was.Expression != became.Expression)
+                    problems.Add($"поле модуля «{Name(was)}» нельзя сделать расчётным: " +
+                                 "вычисленное значение не вводится и не хранится, а модуль его ждёт");
                 if (!was.Tags.SequenceEqual(became.Tags))
                     problems.Add($"тэги поля модуля «{Name(was)}» ставит модуль: по ним его находит код");
                 if (was.Required != became.Required)
                     problems.Add($"обязательность поля модуля «{Name(was)}» задаёт модуль");
+                if (!JsonEquals(was.DefaultValue, became.DefaultValue))
+                    problems.Add($"значение по умолчанию у поля модуля «{Name(was)}» задаёт модуль");
                 if (closed && !was.Options.SequenceEqual(became.Options))
                     problems.Add($"варианты поля «{Name(was)}» задаёт модуль");
                 else if (!closed && was.Options.Any(o => !became.Options.Contains(o)))
@@ -112,6 +121,8 @@ public static class SchemaEditPolicy
             else if (closed)
             {
                 if (was.Type != became.Type || was.TypeId != became.TypeId || was.Required != became.Required
+                    || was.Computed != became.Computed || was.Expression != became.Expression
+                    || !JsonEquals(was.DefaultValue, became.DefaultValue)
                     || !was.Tags.SequenceEqual(became.Tags) || !was.Options.SequenceEqual(became.Options))
                     problems.Add($"поле «{Name(was)}» правке не подлежит: в закрытом типе " +
                                  "администратору остаётся только подпись");
@@ -125,14 +136,28 @@ public static class SchemaEditPolicy
             }
         }
 
-        // ── Порядок, группы, исключения ───────────────────────────────────────
+        // ── Порядок, группы, переопределения, исключения ──────────────────────
         if (closed && !old.Order.SequenceEqual(now.Order))
             problems.Add("порядок полей закрытого типа задаёт модуль: администратору остаётся подпись");
-        if (closed && old.Groups != now.Groups)
+        if (closed && !JsonEquals(old.Groups, now.Groups))
             problems.Add("группы полей закрытого типа задаёт модуль: администратору остаётся подпись");
+        if (closed && !JsonEquals(old.TypeTags, now.TypeTags))
+            problems.Add("тэги закрытого типа ставит модуль: по ним его находит код");
 
+        // Переопределения касаются УНАСЛЕДОВАННЫХ полей — то есть чужих. В закрытом типе это та же
+        // правка схемы, только через заднюю дверь: значение по умолчанию и обязательность меняются
+        // не у своего поля.
+        if (closed && !JsonEquals(old.Overrides, now.Overrides))
+            problems.Add("переопределения унаследованных полей в закрытом типе задаёт модуль");
+
+        // ⚠️ Сравнивается НАБОР исключений целиком, в обе стороны. Одностороннюю проверку («нельзя
+        // добавить исключение») обходит снятие: вернув исключённое поле, администратор добавляет
+        // поле в эффективную схему — ровно то, что запрещено. Найдено ревью PR #1004.
         foreach (var excluded in now.Excluded.Where(e => !old.Excluded.Contains(e)))
             problems.Add($"унаследованное поле «{excluded}» нельзя исключить: оно принадлежит родительскому типу");
+        foreach (var returned in old.Excluded.Where(e => !now.Excluded.Contains(e)))
+            problems.Add($"унаследованное поле «{returned}» нельзя вернуть: это то же добавление поля, " +
+                         "только из родительского типа");
 
         return problems;
     }
@@ -144,21 +169,35 @@ public static class SchemaEditPolicy
     /// <summary>Ровно то, что сравнивается, и ничего больше.</summary>
     private sealed record FieldSnapshot(
         string Key, string Type, string? TypeId, bool Required, string? Title,
-        IReadOnlyList<string> Tags, IReadOnlyList<string> Options, bool FromModule);
+        IReadOnlyList<string> Tags, IReadOnlyList<string> Options, bool FromModule,
+        bool Computed, string? Expression, JsonElement? DefaultValue);
 
     private sealed record SchemaSnapshot(
         IReadOnlyDictionary<string, FieldSnapshot> Fields, IReadOnlyList<string> Order,
-        IReadOnlyList<string> Excluded, string Groups);
+        IReadOnlyList<string> Excluded, JsonElement? Groups, JsonElement? Overrides, JsonElement? TypeTags);
+
+    /// <summary>
+    /// ⚠️ Куски JSON сравниваются ПО СОДЕРЖАНИЮ, а не текстом. Старая схема приходит из
+    /// <c>jsonb</c>, который Postgres отдаёт со своими пробелами, новая — из тела запроса, где
+    /// клиент шлёт компактную запись: текстом они не совпадут НИКОГДА, и закрытый тип с группами
+    /// отказывал бы на любом сохранении. Тесты этого не видели — в них обе схемы разбирались из
+    /// одинаково отформатированных литералов. Найдено ревью PR #1004.
+    /// </summary>
+    private static bool JsonEquals(JsonElement? a, JsonElement? b) => (a, b) switch
+    {
+        (null, null) => true,
+        ({ } x, { } y) => JsonElement.DeepEquals(x, y),
+        _ => false,
+    };
 
     private static SchemaSnapshot Snapshot(JsonDocument schema)
     {
         var fields = new Dictionary<string, FieldSnapshot>(StringComparer.Ordinal);
         var order = new List<string>();
         var excluded = new List<string>();
-        var groups = string.Empty;
         var root = schema.RootElement;
         if (root.ValueKind != JsonValueKind.Object)
-            return new SchemaSnapshot(fields, order, excluded, groups);
+            return new SchemaSnapshot(fields, order, excluded, null, null, null);
 
         if (root.TryGetProperty("fields", out var fs) && fs.ValueKind == JsonValueKind.Array)
             foreach (var f in fs.EnumerateArray())
@@ -174,7 +213,10 @@ public static class SchemaEditPolicy
                     Str(f, "title"),
                     Strings(f, "tags"),
                     Strings(f, "options"),
-                    string.Equals(Str(f, SchemaFieldOrigin.Property), SchemaFieldOrigin.Module, StringComparison.Ordinal));
+                    string.Equals(Str(f, SchemaFieldOrigin.Property), SchemaFieldOrigin.Module, StringComparison.Ordinal),
+                    f.TryGetProperty("computed", out var cp) && cp.ValueKind == JsonValueKind.True,
+                    Str(f, "expression"),
+                    Element(f, "defaultValue"));
                 fields[key] = snapshot;
                 order.Add(key);
             }
@@ -183,13 +225,16 @@ public static class SchemaEditPolicy
             excluded.AddRange(ex.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String)
                 .Select(e => e.GetString()!));
 
-        // Группы сравниваются целиком, текстом: их состав, порядок и состав полей внутри —
-        // одинаково «оформление», и различать их тремя правилами значило бы придумывать оттенки,
-        // которых в таблице ТЗ нет.
-        if (root.TryGetProperty("groups", out var gr)) groups = gr.GetRawText();
-
-        return new SchemaSnapshot(fields, order, excluded, groups);
+        // Группы, переопределения и тэги ТИПА сравниваются целиком: их состав, порядок и
+        // содержимое — одинаково «оформление» либо одинаково «разметка модуля», и различать их
+        // отдельными правилами значило бы придумывать оттенки, которых в таблице ТЗ нет.
+        return new SchemaSnapshot(fields, order, excluded,
+            Element(root, "groups"), Element(root, "fieldOverrides"), Element(root, "tags"));
     }
+
+    /// <summary>Кусок JSON как значение: <c>Clone()</c>, потому что документ живёт короче снимка.</summary>
+    private static JsonElement? Element(JsonElement node, string name) =>
+        node.TryGetProperty(name, out var v) && v.ValueKind != JsonValueKind.Undefined ? v.Clone() : null;
 
     private static string? Str(JsonElement node, string name) =>
         node.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
