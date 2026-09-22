@@ -5,7 +5,7 @@
 # Свой образ, а не команда в compose, — по той же причине, что и у garage-init: openssl нужен
 # вместе с оболочкой, а тянуть его установкой при каждом подъёме стенда значило бы требовать сеть
 # там, где хватает одного собранного слоя.
-FROM alpine:3.22.3
+FROM alpine:3.24.1
 RUN apk add --no-cache openssl
 COPY --chmod=0755 dev-tls.sh /usr/local/bin/dev-tls.sh
 ENTRYPOINT ["/usr/local/bin/dev-tls.sh"]
