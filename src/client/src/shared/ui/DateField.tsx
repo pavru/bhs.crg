@@ -11,7 +11,7 @@ import type { DatePrecision } from '@/shared/api/types';
  * подсказкой. Фокус ловим сами: он приходит на любой из сегментов, а не на единственный input.
  */
 export function DateField({
-  label, value, onChange, precision, required, hint, invalid, disabled,
+  label, value, onChange, precision, required, hint, invalid, disabled, readOnly,
 }: {
   label: string;
   value: string;
@@ -21,6 +21,10 @@ export function DateField({
   hint?: string;
   invalid?: boolean;
   disabled?: boolean;
+  /** Значение показано, но не правится (issue #958) — см. `DateInput.readOnly`. Приглушением НЕ
+   *  отмечается: поле не отключено, а отличается фоном и отсутствием календаря, как соседние
+   *  read-only поля формы. */
+  readOnly?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   return (
@@ -29,7 +33,7 @@ export function DateField({
       <div className={`h-14 rounded-md px-4 flex items-center text-sm text-fg1 ${disabled ? 'opacity-50' : ''}`}
         onFocus={() => setFocused(true)}
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
-        <DateInput value={value} onChange={onChange} precision={precision} disabled={disabled} />
+        <DateInput value={value} onChange={onChange} precision={precision} disabled={disabled} readOnly={readOnly} />
       </div>
     </OutlinedField>
   );

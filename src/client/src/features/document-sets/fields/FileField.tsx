@@ -86,10 +86,16 @@ function FilePreviewBody({ attachment }: { attachment: FileAttachment }) {
   );
 }
 
-export function FileField({ value, onChange, printForm }: {
+export function FileField({ value, onChange, printForm, readOnly = false }: {
   value: unknown;
   onChange: (val: FileAttachment | null) => void;
   printForm?: PrintFormContext;
+  /**
+   * Файл кладёт не человек (привязка к источнику, замок модуля — issue #958): показываем вложение
+   * и даём его открыть, но выбор и удаление убираем СОВСЕМ — отключённая корзина обещала бы
+   * действие, которого не будет.
+   */
+  readOnly?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -140,16 +146,25 @@ export function FileField({ value, onChange, printForm }: {
             className="p-1 text-fg4 hover:text-brand transition-colors shrink-0">
             <Eye size={14} />
           </button>
-          <button type="button" onClick={() => onChange(null)} title="Удалить"
-            className="p-1 text-fg4 hover:text-danger transition-colors shrink-0">
-            <Trash2 size={13} />
-          </button>
+          {!readOnly && (
+            <button type="button" onClick={() => onChange(null)} title="Удалить"
+              className="p-1 text-fg4 hover:text-danger transition-colors shrink-0">
+              <Trash2 size={13} />
+            </button>
+          )}
         </div>
         {uploadError && <p className="text-xs text-danger mt-1">{uploadError}</p>}
         <FilePreviewModal open={previewOpen} onOpenChange={setPreviewOpen} attachment={attachment} />
       </>
     );
   }
+
+  if (readOnly)
+    return (
+      <div className="flex items-center justify-center border border-dashed border-stroke rounded-lg py-5">
+        <span className="text-xs text-fg4">Файла нет</span>
+      </div>
+    );
 
   return (
     <>

@@ -33,6 +33,7 @@ import { EntryDataSetBindings } from './EntryDataSetBindings';
 import {
   SCOPE_COLORS, ComplexFieldGroup, ArrayFieldEditor, DocRefCatalogPickerField,
   PrimitiveInput, FileField, ImageField, AutoFieldsSection,
+  isLockedField, LockedFieldIcon, LockedFieldValue, LOCKED_HINT,
   BaseInstanceChip, SCOPE_TIER, type BaseCandidate,
   SectionRail, collectConstraintViolations, describeViolationPath, violationRootKey,
 } from '../fields';
@@ -404,14 +405,47 @@ export function CatalogEntryForm({
     }
   }
 
+    // «Заполняется автоматически» — по двум разным основаниям: привязка к источнику данных
+    // (issue #102) и замок модуля (ТЗ CORE-20.2, issue #958). Человеку это один и тот же факт —
+    // заполнять не ему; какое именно основание, говорит подпись секции.
     const isAuto = (f: SchemaField) =>
+      isLockedField(f) ||
       (f.type === 'array' && boundArrayKeys.has(f.key)) ||
       (f.type !== 'array' && boundFieldKeys.has(f.key));
 
     function renderCell(field: SchemaField) {
           const val = values[field.key];
-          const isBoundArray = field.type === 'array' && boundArrayKeys.has(field.key);
-          const isBoundScalar = field.type !== 'array' && boundFieldKeys.has(field.key);
+          // Замок модуля проверяем ПЕРЕД привязкой: поле, которое кладёт код модуля, источником
+          // не заполняется, и показывать его как «из источника» значило бы назвать неверную причину.
+          const locked = isLockedField(field);
+          const isBoundArray = !locked && field.type === 'array' && boundArrayKeys.has(field.key);
+          const isBoundScalar = !locked && field.type !== 'array' && boundFieldKeys.has(field.key);
+
+          if (locked) {
+            const lockedLabel = (
+              <label className="flex items-center gap-1.5 text-sm font-medium text-fg2 mb-1">
+                {field.title}
+                <LockedFieldIcon />
+              </label>
+            );
+            if (field.type === 'image')
+              return <div key={field.key}>{lockedLabel}<ImageField value={val} onChange={() => {}} readOnly /></div>;
+            if (field.type === 'file')
+              return <div key={field.key}>{lockedLabel}<FileField value={val} onChange={() => {}} readOnly /></div>;
+            // Составное, массив и ссылка под замком сегодня не заводятся — см. `LockedFieldValue`.
+            if (field.type === 'complex' || field.type === 'array' || field.type === 'doc-ref' || field.type === 'doc-array')
+              return <div key={field.key}>{lockedLabel}<LockedFieldValue value={val} /></div>;
+            return (
+              <div key={field.key}>
+                <PrimitiveInput field={field} value={val} label={field.title}
+                  hint={getPrimitiveDef(field)?.name} onChange={() => {}} invalid={false}
+                  primitiveTypeDef={getPrimitiveDef(field)} enumTypeDef={getEnumDef(field)} readOnly />
+                <p className="text-[11px] text-fg4 mt-0.5 flex items-center gap-1">
+                  <LockedFieldIcon />{LOCKED_HINT}
+                </p>
+              </div>
+            );
+          }
 
           if (isBoundArray) {
             const rows = Array.isArray(val) ? val as Record<string, unknown>[] : [];
@@ -584,6 +618,7 @@ export function CatalogEntryForm({
           <AutoFieldsSection count={auto.length}
             recognizedCount={auto.filter(f => recognizedBoundKeys.has(f.key)).length}
             staleCount={auto.filter(f => staleBoundKeys.has(f.key)).length}
+            lockedCount={auto.filter(isLockedField).length}
             staleHint={staleFieldsHint}>
             {fieldStack(auto)}
           </AutoFieldsSection>

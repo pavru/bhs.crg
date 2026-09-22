@@ -3,6 +3,8 @@ export * from './FileField';
 export * from './ImageField';
 export * from './checkImageResult';
 export * from './PrimitiveInput';
+export * from './lockedFields';
+export * from './LockedFieldMarks';
 export * from './fieldValidation';
 export * from './collectConstraintViolations';
 export * from './RefPickerModal';

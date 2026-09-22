@@ -18,6 +18,12 @@ interface DateInputProps {
   /** Applied to the outer container div (border, bg, padding, focus-within:ring, width) */
   className?: string;
   disabled?: boolean;
+  /**
+   * Значение показано, но не правится (issue #958) — в отличие от `disabled`, поле остаётся в
+   * обходе клавиатурой, а сегменты можно выделить и скопировать. Так рисуются поля, значение
+   * которых кладёт не человек: привязка к источнику данных и замок модуля.
+   */
+  readOnly?: boolean;
   /** Показывать иконку-триггер календаря (docked date picker, issue #338). По умолчанию — да. */
   calendar?: boolean;
   /** Компактный режим (ячейка таблицы): иконка появляется по hover/focus, не занимает место постоянно. */
@@ -26,7 +32,7 @@ interface DateInputProps {
 
 const EMPTY_SEGMENTS = { d: '', m: '', y: '' };
 
-export function DateInput({ value, onChange, precision = 'day', className = '', disabled = false, calendar = true, compact = false }: DateInputProps) {
+export function DateInput({ value, onChange, precision = 'day', className = '', disabled = false, readOnly = false, calendar = true, compact = false }: DateInputProps) {
   /**
    * Набранное человеком, пока он печатает. Показанные сегменты ВЫЧИСЛЯЮТСЯ (issue #858): пока поле
    * в фокусе — из набранного, иначе прямо из значения.
@@ -162,9 +168,13 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
     'rounded-sm tabular-nums',
   ].join(' ');
 
+  // Иконка календаря у нередактируемого поля — приглашение к действию, которого нет: открыв её,
+  // человек выберет дату, и ничего не произойдёт. Убираем её вместе с жестом Alt+↓ (issue #958).
+  const showCalendar = calendar && !readOnly;
+
   // Alt+↓ из любого сегмента открывает календарь (штатный MD3-жест).
   function onContainerKey(e: React.KeyboardEvent) {
-    if (calendar && !disabled && e.altKey && e.key === 'ArrowDown') { e.preventDefault(); setPickerOpen(true); }
+    if (showCalendar && !disabled && e.altKey && e.key === 'ArrowDown') { e.preventDefault(); setPickerOpen(true); }
   }
 
   const segments = (
@@ -176,7 +186,7 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
             placeholder="ДД" maxLength={2}
             style={{ width: '2.2ch' }}
             value={d}
-            disabled={disabled}
+            disabled={disabled} readOnly={readOnly}
             onChange={e => handleD(e.target.value)}
             onKeyDown={onDayKey}
             onFocus={onFocus}
@@ -193,7 +203,7 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
             placeholder="ММ" maxLength={2}
             style={{ width: '2.2ch' }}
             value={m}
-            disabled={disabled}
+            disabled={disabled} readOnly={readOnly}
             onChange={e => handleM(e.target.value)}
             onKeyDown={onMonKey}
             onFocus={onFocus}
@@ -208,14 +218,14 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
         placeholder="ГГГГ" maxLength={4}
         style={{ width: '4ch' }}
         value={y}
-        disabled={disabled}
+        disabled={disabled} readOnly={readOnly}
         onChange={e => handleY(e.target.value)}
         onKeyDown={onYrKey}
         onFocus={onFocus}
         onBlur={onBlur}
         className={seg}
       />
-      {calendar && (
+      {showCalendar && (
         <Popover.Trigger asChild>
           <button type="button" disabled={disabled} aria-label="Открыть календарь"
             className={`ml-1 shrink-0 flex items-center justify-center h-5 w-5 rounded-full text-fg4 hover:text-brand hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
@@ -227,7 +237,7 @@ export function DateInput({ value, onChange, precision = 'day', className = '', 
     </div>
   );
 
-  if (!calendar) return segments;
+  if (!showCalendar) return segments;
 
   function handleOpenChange(o: boolean) {
     if (o) setPortalContainer((anchorRef.current?.closest('[role="dialog"]') as HTMLElement) ?? null);

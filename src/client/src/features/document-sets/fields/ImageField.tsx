@@ -19,8 +19,14 @@ import { checkImageResult } from './checkImageResult';
  * размер/выравнивание задаются здесь, в инстансе (раньше — в определении типа). Легаси-значение
  * (голая data-URI строка) читается как `{ src }` без размера.
  */
-export function ImageField({ value, onChange }: {
+export function ImageField({ value, onChange, readOnly = false }: {
   value: unknown; onChange: (val: ImageValue | ImageBlobValue | null) => void;
+  /**
+   * Картинку кладёт не человек (привязка к источнику, замок модуля — issue #958): показываем её,
+   * но не даём ни выбрать, ни удалить, ни менять размер. Выбор и удаление убираем СОВСЕМ, а не
+   * отключаем: отключённая кнопка «Удалить изображение» обещает действие, которого не будет.
+   */
+  readOnly?: boolean;
 }) {
   const [sizeOpen, setSizeOpen] = useState(false);
   const [error, setError] = useState('');
@@ -115,6 +121,12 @@ export function ImageField({ value, onChange }: {
   };
 
   if (!img && !pending) {
+    if (readOnly)
+      return (
+        <div className="flex items-center justify-center border border-dashed border-stroke rounded-lg py-6">
+          <span className="text-xs text-fg4">Изображения нет</span>
+        </div>
+      );
     return (
       <>
         <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-stroke-strong rounded-lg py-6 cursor-pointer hover:border-brand hover:bg-brand-subtle transition-colors">
@@ -148,6 +160,7 @@ export function ImageField({ value, onChange }: {
         )}
       </div>
 
+      {!readOnly && (
       <div className="flex items-center gap-4">
         <button type="button" onClick={() => { pick.current++; setPending(null); setShrunk(null); onChange(null); }}
           className="flex items-center gap-1.5 text-xs text-danger hover:text-danger transition-colors">
@@ -159,6 +172,7 @@ export function ImageField({ value, onChange }: {
           Размер и выравнивание{!sizeOpen && hasSize ? ' ·' : ''}
         </button>
       </div>
+      )}
 
       {shrunk && <p className="text-[11px] text-fg4">{shrunk}</p>}
 

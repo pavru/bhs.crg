@@ -29,6 +29,7 @@ import {
   CELL_INPUT, ROW_DRAG_MIME, SCOPE_COLORS, TABLE_SHOWN_TYPES, defaultColWidth, showsArrayTable,
 } from './constants';
 import { PrimitiveInput } from './PrimitiveInput';
+import { LOCKED_HINT } from './lockedFields';
 import { isMissing } from './fieldValidation';
 import { ImageField } from './ImageField';
 import { FileField } from './FileField';
@@ -1065,8 +1066,9 @@ function isRowEmpty(row: Record<string, unknown> | undefined, subFields: SchemaF
 /** Сворачиваемая секция «Заполняются автоматически» (issue #102, P2): read-only поля из источника
  *  прячем по умолчанию, чтобы длинная форма не выглядела «портянкой» одинаковых боксов. */
 export function AutoFieldsSection(
-  { count, recognizedCount = 0, staleCount = 0, staleHint, children }:
-  { count: number; recognizedCount?: number; staleCount?: number; staleHint?: string; children: ReactNode },
+  { count, recognizedCount = 0, staleCount = 0, lockedCount = 0, staleHint, children }:
+  { count: number; recognizedCount?: number; staleCount?: number; lockedCount?: number;
+    staleHint?: string; children: ReactNode },
 ) {
   const [open, setOpen] = useState(false);
   return (
@@ -1101,6 +1103,16 @@ export function AutoFieldsSection(
           {staleCount > 0 && (
             <span className="text-warning" title={staleHint}>
               {' · '}устарело: {staleCount}
+            </span>
+          )}
+          {/* Поля с замком (ТЗ CORE-20.2) — ТРЕТЬЕ слагаемое, а не оттенок первых двух: их кладёт
+              код модуля, а не источник данных, и «со сканов» про них неверно. Без этой строки
+              свёрнутая секция говорила бы только «8 п.», и человек, ищущий поле, которое вдруг
+              стало нередактируемым, не узнал бы причину, не раскрыв её. */}
+          {lockedCount > 0 && (
+            <span className="text-fg4" title={LOCKED_HINT}>
+              {' · '}
+              {lockedCount === count ? 'все от модуля' : `от модуля: ${lockedCount}`}
             </span>
           )}
         </span>
