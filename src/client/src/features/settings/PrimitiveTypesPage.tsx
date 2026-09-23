@@ -34,7 +34,7 @@ import {
 } from '@/shared/api/enumTypes';
 import type { FieldConstraints, PrimitiveTypeDef, EnumTypeDef, EnumOptionDef, DatePrecision, DocumentType } from '@/shared/api/types';
 import { formatDateRu } from '@/shared/utils/date';
-import { useTagRegistry, fieldTags } from '@/shared/api/tags';
+import { useTagRegistry, fieldTags, unknownTagCodes } from '@/shared/api/tags';
 import { GroupPicker } from './TypeGroupAccordion';
 import { ValuesEditor, EnumForm } from './EnumTypesSection';
 import { humanEnumPreview } from './enumPreview';
@@ -376,6 +376,10 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
   const groupMutation = useSetPrimitiveTypeGroup();
   const { data: tagRegistry } = useTagRegistry();
   const applicableTags = fieldTags(tagRegistry, type.baseType);
+  // Тэги вне реестра этого экземпляра — третье место с тем же правилом (issue #959): не предлагаем,
+  // но и не прячем. Сохранение их не теряет (список правится поимённым переключением), а невидимая
+  // метка оживёт при включении модуля.
+  const unknownAllowed = unknownTagCodes(allowedTags, tagRegistry);
 
   const localDirty = name !== type.name
     || description !== (type.description ?? '')
@@ -437,6 +441,18 @@ function PrimitiveTypeDetail({ type, allGroups, usedByNames, dirty, saving, onSa
                     </button>
                   );
                 })}
+              </div>
+            )}
+            {unknownAllowed.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-xs text-fg4">Тэги модуля:</span>
+                {unknownAllowed.map(code => (
+                  <span key={code}
+                    title="Тэг модуля, выключенного на этом экземпляре. Разрешение остаётся и заработает, когда модуль включат."
+                    className="rounded-full border border-dashed border-stroke px-2 py-0.5 text-[11px] text-fg4">
+                    {code}
+                  </span>
+                ))}
               </div>
             )}
           </Card>

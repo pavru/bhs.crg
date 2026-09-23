@@ -672,6 +672,9 @@ builder.Services.AddOpenApi();
 // сканер сборок рядом с приложением: набор модулей на экземпляре обязан быть решением поставки
 // (Modules__Enabled, AUTH-17), а не следствием того, какие DLL кто-то скопировал.
 builder.Services.AddAppModules(builder.Configuration, CorePermissions.All, new IdModule());
+// Реестр функциональных тэгов: ядро + тэги ВКЛЮЧЁННЫХ модулей (ТЗ TYPE-22, issue #959). Сразу за
+// регистрацией модулей — он собирается из их объявлений.
+builder.Services.AddTagCatalog();
 builder.Services.AddScoped<EffectivePermissions>();
 // Чем ворота модулей и прав отвечают на вопрос «что этому пользователю можно» (AUTH-6).
 builder.Services.AddSingleton<IUserPermissions, PermissionCache>();
@@ -738,6 +741,13 @@ using (var scope = app.Services.CreateScope())
     foreach (var u in userManager.Users.ToList())
         if ((await userManager.GetRolesAsync(u)).Count == 0)
             await userManager.AddToRoleAsync(u, "Admin");
+
+    // Реестр тэгов — СОБИРАЕМ ЗДЕСЬ, а не ждём первого обращения (issue #959). Он singleton, то
+    // есть ленивый: без этой строки два объявления одного кода тэга дали бы зелёный старт и 500 на
+    // первом запросе списка тэгов — отказ, который обязан останавливать запуск, приходил бы
+    // пользователю в редактор схем. Поймано ревью PR #1012: сторож, который не срабатывает, —
+    // не сторож.
+    _ = scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Schema.TagCatalog>();
 
     // Прогрев плагинов: HTTP-плагины отдают схемы только по запросу (GET /schemas) — best-effort.
     await scope.ServiceProvider.GetRequiredService<IPluginHost>().WarmUpAsync();

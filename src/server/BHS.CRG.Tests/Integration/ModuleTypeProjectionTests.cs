@@ -311,6 +311,37 @@ public class ModuleTypeProjectionTests(IntegrationTestFixture fixture) : IAsyncL
         Assert.Contains("Guid", refusal.Message);
     }
 
+    [Fact]
+    public async Task Тэг_модуля_рядом_с_тем_же_тэгом_заказчика_останавливает_старт()
+    {
+        // Объявление ставит `doc.number` своему полю, а у заказчика тот же тэг уже стоит на своём.
+        // Пропусти проекция это — модуль завёл бы тип, который администратор не сохранит НИКОГДА:
+        // отказ по кратности приходил бы на каждую правку схемы, а снять тэг с поля модуля на
+        // уровне «расширяемый» ему не дадут (поймано ревью PR #1012).
+        await SeedCustomerTypeAsync("WORK_DUP",
+            """{"fields":[{"key":"СвойНомер","type":"string","tags":["doc.number"]}]}""",
+            owner: "work");
+
+        var refusal = await Assert.ThrowsAsync<ConflictException>(() =>
+            SendAsync(new ProjectModuleTypeCommand(Spec("WORK_DUP", Numbered))));
+
+        Assert.Contains("кратность", refusal.Message);
+        Assert.Contains("СвойНомер", refusal.Message);
+        Assert.Contains("Номер", refusal.Message);
+    }
+
+    [Fact]
+    public async Task Тэг_модуля_без_соседа_проекции_не_мешает()
+    {
+        // Контроль к предыдущему: тот же тэг у модуля, но у заказчика его нет — проекция проходит.
+        await SeedCustomerTypeAsync("WORK_OK",
+            """{"fields":[{"key":"Тема","type":"string"}]}""", owner: "work");
+
+        var type = await SendAsync(new ProjectModuleTypeCommand(Spec("WORK_OK", Numbered)));
+
+        Assert.Equal("WORK_OK", type.Code);
+    }
+
     // ── Посев и помощники ─────────────────────────────────────────────────────
 
     private async Task<DocumentType> SeedCustomerTypeAsync(string code, string schema, string owner = TypeOwner.Core)

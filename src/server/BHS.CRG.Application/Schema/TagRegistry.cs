@@ -28,6 +28,32 @@ public record TagRestriction(int? MaxBearers);
 /// <param name="Description">Что означает номер — подсказка при наведении.</param>
 public record TagParameter(string Label, string Description);
 
+/// <summary>Кто объявил тэг. Модуль назван своим кодом; тэги ядра — <see cref="Core" />.</summary>
+public static class TagOwners
+{
+    /// <summary>
+    /// Владелец тэгов, которые читает само ядро. Не модуль: выключить ядро нельзя, поэтому такой
+    /// тэг предлагается всегда.
+    ///
+    /// Значение выбрано так, чтобы не совпасть ни с одним кодом модуля (<c>id</c>, <c>work</c>,
+    /// <c>plan</c>, <c>costs</c>, <c>ozhr</c>) — иначе «ядро» и «модуль по имени core» стали бы
+    /// неразличимы, и тэг ядра пропал бы вместе с выключённым однофамильцем.
+    /// </summary>
+    public const string Core = "core";
+}
+
+/// <param name="Owner">
+/// Код модуля-владельца либо <see cref="TagOwners.Core" /> (ТЗ TYPE-22, issue #959). Владелец —
+/// тот, чей код читает тэг: выключен модуль — тэг не предлагается, потому что прочитать его
+/// некому.
+///
+/// ⚠️ Пусто быть не может: тэг без владельца невозможно ни выключить, ни объяснить, и первым же
+/// вопросом о нём станет «а кто это читает?». Сторож в тестах требует непустого владельца у
+/// каждой записи реестра.
+/// </param>
+/// <param name="Group">
+/// Группа для редактора схем. Пусто — тэг идёт под названием владельца.
+/// </param>
 public record TagDefinition(
     string Code,
     string Label,
@@ -36,26 +62,26 @@ public record TagDefinition(
     string[] AppliesTo,
     bool Multiple,
     TagRestriction? Restriction = null,
-    TagParameter? Parameter = null);
+    TagParameter? Parameter = null,
+    string Owner = TagOwners.Core,
+    string? Group = null);
 
-/// <summary>Реестр функциональных тэгов — единый источник правды (см. <see cref="FunctionalTag"/>).</summary>
+/// <summary>
+/// Тэги ЯДРА — те, что читает общий код (см. <see cref="FunctionalTag"/>). Модули добавляют свои
+/// через <c>IAppModule.Tags</c>; собранный реестр включённых — <see cref="TagCatalog" />.
+///
+/// ⚠️ Напрямую этот список читают только сборка каталога и её тесты. Всем остальным нужен
+/// <see cref="TagCatalog" />: он знает, какие модули включены, а статический список — нет, и
+/// обращение к нему мимо каталога вернуло бы тэги выключенного модуля (TYPE-22).
+/// </summary>
 public static class TagRegistry
 {
-    public static readonly IReadOnlyList<TagDefinition> All =
+    public static readonly IReadOnlyList<TagDefinition> Core =
     [
-        // ── Field: метаданные генерации ──
-        new(FunctionalTag.DocPageCount, "Кол-во страниц (PDF)",
-            "Автозаполняется числом страниц после генерации/загрузки печатной формы.",
-            TagScope.Field, ["number", "string", "text"], Multiple: false),
-        new(FunctionalTag.DocGeneratedAt, "Дата публикации",
-            "Автозаполняется датой генерации документа.",
-            TagScope.Field, ["date", "string", "text"], Multiple: false),
-        new(FunctionalTag.DocGeneratedBy, "Публикатор",
-            "Автозаполняется именем пользователя, запустившего генерацию.",
-            TagScope.Field, ["string", "text"], Multiple: false),
-        new(FunctionalTag.DocPrintForm, "Печатная форма (файл)",
-            "Поле-файл: при загрузке система извлекает метаданные (кол-во страниц и т.п.).",
-            TagScope.Field, ["file"], Multiple: false),
+        // ── Field: реквизиты документа ──
+        // Метаданные генерации (кол-во страниц, дата и автор публикации, печатная форма) и тэги
+        // документов качества переехали к модулю исполнительной документации (issue #959):
+        // читает их его код, и на экземпляре без него предлагать их незачем.
         new(FunctionalTag.DocNumber, "Номер документа",
             "Номер документа — показывается в списках (напр. в библиотеке документов качества).",
             TagScope.Field, ["string", "text"], Multiple: false),
@@ -70,20 +96,7 @@ public static class TagRegistry
             Parameter: new("№", "Номер компонента в составном ключе. Задаёт порядок склейки — менять его "
                 + "нельзя без последствий: ключи всех объектов изменятся разом и заведённые связки "
                 + "перестанут находиться. Поля без номера идут после нумерованных, в порядке схемы.")),
-        new(FunctionalTag.MaterialQualityDocLink, "Ссылка на документ качества",
-            "Целевое поле, в которое подмешивается привязанный документ, подтверждающий качество.",
-            TagScope.Field, ["complex"], Multiple: false),
-        new(FunctionalTag.QualityValidUntil, "Срок действия (до)",
-            "Дата окончания действия документа качества. Просроченные документы исключаются при подборе сертификата к материалу.",
-            TagScope.Field, ["date"], Multiple: false),
-        new(FunctionalTag.QualityManufacturer, "Производитель",
-            "Поле производителя. Используется для группировки библиотеки и оценки релевантности при подборе к материалу.",
-            TagScope.Field, ["string", "text"], Multiple: false),
-
         // ── Type ──
-        new(FunctionalTag.TypeQualityDocument, "Документ качества",
-            "Тип документа считается «документом качества» (для библиотеки и распознавания). Наследуется подтипами.",
-            TagScope.Type, ["Document"], Multiple: false),
         new(FunctionalTag.TypeProjectDocumentation, "Проектная документация",
             "Тип документа относится к проектной документации (ГОСТ Р 21.101-2020).",
             TagScope.Type, ["Document"], Multiple: false),
@@ -122,5 +135,4 @@ public static class TagRegistry
             TagScope.GostDocument, [], Multiple: false),
     ];
 
-    public static TagDefinition? Find(string code) => All.FirstOrDefault(t => t.Code == code);
 }

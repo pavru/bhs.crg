@@ -1,5 +1,6 @@
 using BHS.CRG.Api.Endpoints.Documents;
 using BHS.CRG.Api.Endpoints.QualityDocs;
+using BHS.CRG.Domain.Schema;
 using BHS.CRG.Modules;
 
 namespace BHS.CRG.Api.Modules;
@@ -76,6 +77,52 @@ public sealed class IdModule : IAppModule
     /// общим кодом запуска. Появятся при переезде кода в собственный проект модуля.
     /// </summary>
     public void RegisterServices(IServiceCollection services, IConfiguration configuration) { }
+
+    /// <summary>
+    /// Тэги модуля (ТЗ TYPE-20/TYPE-22, issue #959) — те, что читает ЕГО код: метаданные генерации
+    /// документа и библиотека документов качества. Выключен модуль — этих тэгов в редакторе схем
+    /// нет: предлагать метку, которую некому прочитать, значит обещать поведение.
+    ///
+    /// <para>Почему именно эти восемь, а не все двадцать. Владелец тэга — тот, чей код его читает.
+    /// Адреса документов качества и сборки документов уже забраны этим модулем, поэтому их тэги
+    /// уходят вместе с ними. Остальные читает общий код — резолвер «строка→объект»
+    /// (<c>identity</c>), наборы данных (<c>dataset.*</c>, <c>gostDoc.*</c>), профили уровней
+    /// (<c>profile.*</c>), консолидации (<c>doc.number</c>, <c>doc.date</c>), — и переезжать им
+    /// некуда: они принадлежат ядру.</para>
+    ///
+    /// <para>⚠️ <c>profile.set</c> оставлен ядру НАРОЧНО, хотя комплект — понятие этого модуля:
+    /// механизм профилей уровня един (<c>ILevelProfileService</c>) и живёт в ядре целиком. Выдерни
+    /// из тройки один уровень — и в редакторе исчез бы ровно один пункт из трёх соседних, без
+    /// объяснимой для администратора причины.</para>
+    /// </summary>
+    public IReadOnlyList<ModuleTag> Tags =>
+    [
+        new(FunctionalTag.DocPageCount, "Кол-во страниц (PDF)",
+            "Автозаполняется числом страниц после генерации/загрузки печатной формы.",
+            ModuleTagScope.Field, ["number", "string", "text"], Group: "Генерация документа"),
+        new(FunctionalTag.DocGeneratedAt, "Дата публикации",
+            "Автозаполняется датой генерации документа.",
+            ModuleTagScope.Field, ["date", "string", "text"], Group: "Генерация документа"),
+        new(FunctionalTag.DocGeneratedBy, "Публикатор",
+            "Автозаполняется именем пользователя, запустившего генерацию.",
+            ModuleTagScope.Field, ["string", "text"], Group: "Генерация документа"),
+        new(FunctionalTag.DocPrintForm, "Печатная форма (файл)",
+            "Поле-файл: при загрузке система извлекает метаданные (кол-во страниц и т.п.).",
+            ModuleTagScope.Field, ["file"], Group: "Генерация документа"),
+
+        new(FunctionalTag.MaterialQualityDocLink, "Ссылка на документ качества",
+            "Целевое поле, в которое подмешивается привязанный документ, подтверждающий качество.",
+            ModuleTagScope.Field, ["complex"], Group: "Документы качества"),
+        new(FunctionalTag.QualityValidUntil, "Срок действия (до)",
+            "Дата окончания действия документа качества. Просроченные документы исключаются при подборе сертификата к материалу.",
+            ModuleTagScope.Field, ["date"], Group: "Документы качества"),
+        new(FunctionalTag.QualityManufacturer, "Производитель",
+            "Поле производителя. Используется для группировки библиотеки и оценки релевантности при подборе к материалу.",
+            ModuleTagScope.Field, ["string", "text"], Group: "Документы качества"),
+        new(FunctionalTag.TypeQualityDocument, "Документ качества",
+            "Тип документа считается «документом качества» (для библиотеки и распознавания). Наследуется подтипами.",
+            ModuleTagScope.Type, ["Document"], Group: "Документы качества"),
+    ];
 
     /// <summary>
     /// Пути модуля. <c>/api/document-sets</c> делится с ядром — там же стоят общие адреса

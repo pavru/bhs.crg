@@ -13,7 +13,7 @@ import { useAccess } from '@/shared/api/access';
 import { ModuleFieldBadge } from './ModuleFieldBadge';
 import { similarKeyOf } from './schemaKeyChecks';
 import {
-  useTagRegistry, fieldTags, findTagEntry, hasTag, tagCode, withTagOrder,
+  useTagRegistry, fieldTags, findTagEntry, hasTag, tagCode, withTagOrder, unknownTagCodes,
 } from '@/shared/api/tags';
 import { FunctionalTagBadge, FunctionalTagChip } from './FunctionalTagChip';
 import { evalComputed, validateComputed, findComputedCycles, referencedKeys } from '@/shared/utils/computedExpression';
@@ -225,6 +225,8 @@ export function FieldCard({
 }: FieldCardProps) {
   const { primitiveTypes, enumTypes, tagRegistry } = reg;
   const tags = field.tags ?? [];
+  // Тэги вне реестра этого экземпляра — их не предлагают, но и не прячут (issue #959).
+  const unknownTags = unknownTagCodes(field.tags, tagRegistry);
   const [pickerOpen, setPickerOpen] = useState(false);
   // Курсор в «Название» сразу после добавления поля (issue #526): иначе после нажатия «Добавить поле»
   // приходится ещё раз целиться мышью в развернувшуюся карточку.
@@ -540,6 +542,24 @@ export function FieldCard({
             className="flex items-center gap-1 text-xs text-brand hover:text-brand-hover">
             <Plus size={11} /> Добавить вариант
           </button>
+        </div>
+      )}
+      {/* Тэги, которых в реестре этого экземпляра нет, — обычно тэги выключенного модуля (#959).
+          Показываем отдельно и без действия: снять их можно только там, где их читают, а спрятать
+          значило бы оставить поле с невидимой меткой, которая оживёт при включении модуля. */}
+      {unknownTags.length > 0 && (
+        <div className="ml-[calc(33%+0.5rem)] mr-[calc(5rem)] flex items-start gap-2">
+          <Cpu size={12} className="mt-1 text-stroke-strong" />
+          <span className="text-xs text-fg4 shrink-0 w-28 mt-1">Тэги модуля:</span>
+          <div className="flex flex-wrap gap-1.5">
+            {unknownTags.map(code => (
+              <span key={code}
+                title="Тэг модуля, выключенного на этом экземпляре. Значение остаётся в схеме и заработает, когда модуль включат."
+                className="inline-flex items-center gap-1 rounded-full border border-dashed border-stroke px-2 py-0.5 text-[11px] text-fg4">
+                <Lock size={9} />{code}
+              </span>
+            ))}
+          </div>
         </div>
       )}
       {/* Функциональные тэги поля (для primitive — из типа поля, иначе из реестра) */}

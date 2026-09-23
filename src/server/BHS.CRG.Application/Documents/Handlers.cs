@@ -22,7 +22,8 @@ public class DocumentTypeHandlers(
     IRepository<PrimitiveType> primitiveRepo,
     IRepository<DocumentSetPlanItem> planRepo,
     IDataSetService dataSetService,
-    IActivityLog journal) :
+    IActivityLog journal,
+    TagCatalog tags) :
     IRequestHandler<CreateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeCommand, DocumentType>,
     IRequestHandler<UpdateDocumentTypeSchemaCommand, DocumentType>,
@@ -239,9 +240,6 @@ public class DocumentTypeHandlers(
     {
         var all = await repo.GetAllAsync(ct);
         EnsureUnique(all, cmd.Name, cmd.Code, excludeId: null);
-        // Ограничения тэгов (issue #258): новый тип может сразу нести restricted-тэг (POST несёт схему).
-        ValidateTagRestrictions(cmd.Schema, Guid.Empty, cmd.Name.Trim(), all);
-
         EnsureParentAllowsDerived(cmd.ParentId, all);
 
         // Тип, заведённый ЧЕЛОВЕКОМ в редакторе, рождается ОБЩИМ (ТЗ CORE-18 называет умолчанием
@@ -252,6 +250,10 @@ public class DocumentTypeHandlers(
         var dt = DocumentType.Create(
             cmd.Name.Trim(), cmd.Code.Trim(), cmd.Kind, cmd.ParentId, cmd.Schema,
             cmd.Module, TypeVisibility.Shared, cmd.IsAbstract);
+        // Ограничения тэгов — ПОСЛЕ построения типа (issue #258, #959): новый тип может сразу нести
+        // и ограниченный тэг, и второе поле с одиночным, а кратность считается по цепочке
+        // наследования — то есть по типу, а не по одной схеме.
+        ValidateTagRestrictions(dt, all);
         EnsureOwnershipHolds(dt, [.. all, dt]);
         await repo.AddAsync(dt, ct);
         await repo.SaveChangesAsync(ct);
@@ -340,6 +342,10 @@ public class DocumentTypeHandlers(
 
         dt.Rename(cmd.Name.Trim(), cmd.Code.Trim());
         dt.SetParent(cmd.ParentId);
+        // Смена родителя — ВТОРАЯ дверь к тому же нарушению кратности (issue #959, ревью PR #1012):
+        // схема не менялась, но набор унаследованных полей стал другим, и одиночный тэг мог
+        // оказаться сразу у двух полей. Проверка после SetParent: считать надо по НОВОЙ цепочке.
+        ValidateTagRestrictions(dt, all);
         EnsureOwnershipHolds(dt, all);
         repo.Update(dt);
         await repo.SaveChangesAsync(ct);
@@ -380,9 +386,11 @@ public class DocumentTypeHandlers(
     {
         var dt = await repo.GetByIdAsync(cmd.Id, ct)
             ?? throw new NotFoundException($"DocumentType {cmd.Id} not found");
-        // Ограничения тэгов (issue #258): считаем носителей среди прочих типов + входящей схемы.
+        // Ограничения тэгов (issue #258, #959): носителей считаем среди прочих типов + входящей
+        // схемы, кратность — по типу С ВХОДЯЩЕЙ схемой (`WithSchema` даёт копию, не сущность БД:
+        // подмена схемы у отслеживаемой записала бы черновик чужим SaveChanges в том же запросе).
         var all = await repo.GetAllAsync(ct);
-        ValidateTagRestrictions(cmd.Schema, dt.Id, dt.Name, all);
+        ValidateTagRestrictions(dt.WithSchema(cmd.Schema), all);
 
         // Уровень правки (ТЗ CORE-19.1): что администратору можно сделать со схемой ЭТОГО типа.
         // Проверка идёт ДО записи и сравнивает старую схему с новой по полям модуля.
@@ -412,13 +420,23 @@ public class DocumentTypeHandlers(
         return dt;
     }
 
-    // Бросает ConflictException (маппится в 409) со списком занятых мест — issue #258.
-    private static void ValidateTagRestrictions(JsonDocument schema, Guid savingId, string savingName,
-        IReadOnlyList<DocumentType> all)
+    /// <summary>
+    /// Ограничения тэгов сохраняемой схемы. Бросает ConflictException (409) со списком занятых мест.
+    ///
+    /// Проверок две, и они про РАЗНОЕ: глобальный максимум носителей во всей системе (issue #258 —
+    /// «профиль уровня во всей системе один») и кратность внутри одного типа (ТЗ TYPE-21, issue
+    /// #959 — «одно поле типа на тэг»). Обе нарушаются независимо, поэтому сообщаются вместе:
+    /// починив одну и получив отказ по второй, администратор решил бы, что ничего не изменилось.
+    /// </summary>
+    /// <param name="saving">Сохраняемый тип, уже несущий входящую схему.</param>
+    private void ValidateTagRestrictions(DocumentType saving, IReadOnlyList<DocumentType> all)
     {
-        var violations = TagRestrictionValidator.Validate(schema, savingId, savingName, all);
-        if (violations.Count > 0)
-            throw new ConflictException(string.Join(" ", violations.Select(v => v.Describe())));
+        var messages = TagRestrictionValidator
+            .Validate(tags, saving.Schema, saving.Id, saving.Name, all)
+            .Select(v => v.Describe())
+            .Concat(TagCardinalityValidator.Validate(tags, saving, all).Select(v => v.Describe()))
+            .ToList();
+        if (messages.Count > 0) throw new ConflictException(string.Join(" ", messages));
     }
 
     public async Task<DocumentType> Handle(SetDocumentTypeAbstractCommand cmd, CancellationToken ct)

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tagCode, tagOrder, hasTag, findTagEntry, withTagOrder, tagLabelOf, type TagDefinition } from './tags';
+import { tagCode, tagOrder, hasTag, findTagEntry, withTagOrder, tagLabelOf, unknownTagCodes, type TagDefinition } from './tags';
 
 /**
  * Разбор записи тэга «код» / «код:параметр» (issue #583). Правила совпадают с серверным TagCode —
@@ -49,8 +49,8 @@ describe('поиск тэга по коду', () => {
 
 describe('подпись тэга по записи', () => {
   const registry: TagDefinition[] = [
-    { code: 'identity', label: 'Идентификатор', description: '', scope: 'Field', appliesTo: [], multiple: true },
-    { code: 'doc.number', label: 'Номер документа', description: '', scope: 'Field', appliesTo: [], multiple: false },
+    { code: 'identity', label: 'Идентификатор', description: '', scope: 'Field', appliesTo: [], multiple: true, owner: 'core' },
+    { code: 'doc.number', label: 'Номер документа', description: '', scope: 'Field', appliesTo: [], multiple: false, owner: 'core' },
   ];
 
   it('находит подпись и у параметризованной записи', () => {
@@ -78,5 +78,28 @@ describe('правка номера', () => {
 
   it('непроставленный тэг не появляется', () => {
     expect(withTagOrder(['doc.number'], 'identity', 1)).toEqual(['doc.number']);
+  });
+});
+
+describe('тэги вне реестра экземпляра', () => {
+  const registry: TagDefinition[] = [
+    { code: 'identity', label: 'Идентификатор', description: '', scope: 'Field', appliesTo: [], multiple: true, owner: 'core' },
+  ];
+
+  it('находит тэг выключенного модуля и не считает своим параметр', () => {
+    // Такой тэг остаётся в схеме — выключение модуля не повод переписывать конфигурацию
+    // заказчика, — но в редакторе его не предлагают: читать его здесь некому (issue #959).
+    expect(unknownTagCodes(['identity:2', 'work.shift'], registry)).toEqual(['work.shift']);
+  });
+
+  it('пустое поле не ломает', () => {
+    expect(unknownTagCodes(undefined, registry)).toEqual([]);
+  });
+
+  it('пока реестр не пришёл — молчит, а не объявляет незнакомыми все тэги', () => {
+    // «Ещё не знаем» — не «пусто». Пока запрос идёт или упал, трактовка `undefined` как пустого
+    // списка объявила бы чужим КАЖДЫЙ тэг: поле рисовало бы «тэг выключенного модуля», а
+    // настоящий список тэгов пустовал бы.
+    expect(unknownTagCodes(['identity', 'doc.number'], undefined)).toEqual([]);
   });
 });

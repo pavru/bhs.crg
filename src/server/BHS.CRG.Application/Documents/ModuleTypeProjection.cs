@@ -51,7 +51,7 @@ public sealed record ModuleTypeSpec(
 /// </summary>
 public sealed record ProjectModuleTypeCommand(ModuleTypeSpec Spec) : IRequest<DocumentType>;
 
-public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo)
+public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, TagCatalog tags)
     : IRequestHandler<ProjectModuleTypeCommand, DocumentType>
 {
     /// <summary>
@@ -65,7 +65,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo)
     public async Task<DocumentType> Handle(ProjectModuleTypeCommand cmd, CancellationToken ct)
     {
         var spec = cmd.Spec;
-        Validate(spec);
+        Validate(spec, tags);
 
         var all = await repo.GetAllAsync(ct);
         // Код ищем БЕЗ учёта регистра — именно так его стережёт от повторов редактор типов
@@ -81,12 +81,15 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo)
                 JsonDocument.Parse(Schema(spec, existing: null).ToJsonString()),
                 spec.Module, TypeVisibility.Shared, editLevel: spec.Level);
             type.SetGroup(spec.Group);
+            EnsureCardinalityHolds(type, all, spec);
             await repo.AddAsync(type, ct);
             await repo.SaveChangesAsync(ct);
             return type;
         }
 
-        type.UpdateSchema(JsonDocument.Parse(Schema(spec, type.Schema).ToJsonString()));
+        var projected = JsonDocument.Parse(Schema(spec, type.Schema).ToJsonString());
+        EnsureCardinalityHolds(type.WithSchema(projected), all, spec);
+        type.UpdateSchema(projected);
         // Уровень и владелец — свойства модуля, и он их подтверждает каждым стартом. Название и
         // группу НЕ трогаем после создания: их правит администратор, и возвращать их объявлением
         // значило бы отменять его работу молча.
@@ -95,6 +98,28 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo)
         repo.Update(type);
         await repo.SaveChangesAsync(ct);
         return type;
+    }
+
+    /// <summary>
+    /// Кратность тэгов после проекции (ТЗ TYPE-21, issue #959; ревью PR #1012).
+    ///
+    /// <para>Объявление модуля ставит тэги на свои поля, а рядом в том же типе (и в его потомках)
+    /// уже могут стоять поля заказчика с теми же тэгами. Пропусти мы это — модуль завёл бы тип,
+    /// который администратор не сможет сохранить НИКОГДА, а на уровнях «закрытый» и «расширяемый»
+    /// не сможет и починить: снимать тэг с поля модуля ему не дадут.</para>
+    ///
+    /// <para>Отказ останавливает старт, как и прочие расхождения объявления с базой: тихо это
+    /// значило бы оставить систему с типом, в котором код модуля найдёт не то поле.</para>
+    /// </summary>
+    private void EnsureCardinalityHolds(DocumentType projected, IReadOnlyList<DocumentType> all, ModuleTypeSpec spec)
+    {
+        var violations = TagCardinalityValidator.Validate(tags, projected, all);
+        if (violations.Count == 0) return;
+        throw new ConflictException(
+            $"Объявление модуля «{spec.Module}» нарушает кратность тэгов в типе «{spec.Code}»: " +
+            string.Join(" ", violations.Select(v => v.Describe())) +
+            " Снимите тэг с поля заказчика или уберите его из объявления модуля: " +
+            "иначе тип нельзя будет сохранить из редактора.");
     }
 
     /// <summary>
@@ -212,7 +237,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo)
     /// <summary>
     /// Что проверяется ДО записи. Каждая строка — про то, что иначе сломается молча и поздно.
     /// </summary>
-    private static void Validate(ModuleTypeSpec spec)
+    private static void Validate(ModuleTypeSpec spec, TagCatalog tags)
     {
         foreach (var f in spec.Fields)
             if (!SelfContainedKinds.Contains(f.Type))
@@ -232,7 +257,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo)
 
         foreach (var f in spec.Fields)
             foreach (var tag in f.Tags)
-                if (TagRegistry.Find(Domain.Schema.TagCode.CodeOf(tag)) is null)
+                if (tags.Find(Domain.Schema.TagCode.CodeOf(tag)) is null)
                     throw new ConflictException(
                         $"Модуль «{spec.Module}» поставил полю «{f.Key}» типа «{spec.Code}» неизвестный " +
                         $"тэг «{tag}». Тэгом код находит поле — с опечаткой печать не нашла бы его никогда.");
