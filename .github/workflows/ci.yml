@@ -164,7 +164,11 @@ jobs:
         working-directory: src/server
         env:
           BHS_TEST_DB: bhs_crg_ci
-        run: dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj -c Debug --no-build --logger "console;verbosity=normal"
+        # ⚠️ minimal, а не normal: при 2373 тестах normal печатает строку на КАЖДЫЙ прошедший,
+        # и единственный упавший тонет в тысячах строк — лог открывают ровно тогда, когда он
+        # красный. Про отказ minimal не теряет ничего: имя теста, Error Message целиком, Stack
+        # Trace с файлом и строкой, итоговая сводка. Проверено ломанием сторожа, а не догадкой.
+        run: dotnet test BHS.CRG.Tests/BHS.CRG.Tests.csproj -c Debug --no-build --logger "console;verbosity=minimal"
 
   frontend:
     name: Frontend (типы + тесты + линт)
