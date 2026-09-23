@@ -1,470 +1,47 @@
-import { useState, useEffect, useRef, type ReactNode } from 'react';
-import {
-  AlertTriangle, Clipboard, ChevronDown, ChevronUp, Database, FileSpreadsheet, GripVertical, Info, Link2, Pencil, Plus, RefreshCw, Share2, Trash2, Unlink, X,
-} from 'lucide-react';
-import { toggleInSet } from '@/shared/utils/toggleInSet';
-import { DateInput } from '@/shared/ui/DateInput';
+/**
+ * Рекурсивные редакторы составного значения: массив строк, группа подполей и union-вариант.
+ *
+ * <p>Эти три зовут друг друга по кругу, и это не запутанность, а форма данных: схема — дерево,
+ * массив содержит составные поля, составное поле содержит массив. Развести их по файлам значило бы
+ * завести круговой импорт между модулями; тот же довод уже записан рядом про `VariantPicker`
+ * (issue #747). Поэтому они остаются вместе — это одна ответственность, а не склад.</p>
+ *
+ * <p>Из прежних 1573 строк вынесено всё, что в круг не входит (issue #1014): ячейки таблицы
+ * (`./ComplexCells`), окно таблицы (`./ArrayTableModal`), секция автополей
+ * (`./AutoFieldsSection`) и чистые помощники (`./complexFieldHelpers`).</p>
+ */
+import { useState, useEffect, useRef } from 'react';
+import { AlertTriangle, ChevronDown, ChevronUp, FileSpreadsheet, GripVertical, Info, Link2, Pencil, Plus, RefreshCw, Share2, Trash2, Unlink } from 'lucide-react';
 import { Modal } from '@/shared/ui/Modal';
 import { Button } from '@/shared/ui/Button';
 import { RowActionsMenu } from '@/shared/ui/RowActionsMenu';
-import type {
-  CatalogScope, DocumentInstance, DocumentType, EnumTypeDef, FieldRef, PrimitiveTypeDef,
-} from '@/shared/api/types';
+import type { CatalogScope, DocumentInstance, DocumentType, EnumTypeDef, FieldRef, PrimitiveTypeDef } from '@/shared/api/types';
 import { isFieldRef, SCOPE_LABELS } from '@/shared/api/types';
 import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
-import {
-  resolveEffectiveFields, getDefaultValues, isUnionType, type SchemaField,
-} from '@/shared/api/schema';
+import { resolveEffectiveFields, getDefaultValues, isUnionType, type SchemaField } from '@/shared/api/schema';
 import { useListEnumTypes } from '@/shared/api/enumTypes';
-import { formatFieldValue, type FieldTypeDefs } from '@/shared/utils/fieldDisplay';
+import { type FieldTypeDefs } from '@/shared/utils/fieldDisplay';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { objectSummary } from './objectSummary';
-import {
-  mergeTableSources, mergeTableOrigins, moveOrder, dropOrder, applyOrder, remapSelection,
-  identityOrigins, appendOrigins, type PathOrigins,
-} from './arrayRows';
+import { mergeTableSources, mergeTableOrigins, moveOrder, dropOrder, applyOrder, remapSelection, identityOrigins, appendOrigins, type PathOrigins } from './arrayRows';
 import { VariantPicker } from './VariantPicker';
 import { ExtractToCommonDataModal } from './ExtractToCommonDataModal';
-import {
-  CELL_INPUT, ROW_DRAG_MIME, SCOPE_COLORS, TABLE_SHOWN_TYPES, defaultColWidth, showsArrayTable,
-} from './constants';
+import { ROW_DRAG_MIME, SCOPE_COLORS, showsArrayTable } from './constants';
 import { PrimitiveInput } from './PrimitiveInput';
-import { LOCKED_HINT } from './lockedFields';
 import { isMissing } from './fieldValidation';
 import { ImageField } from './ImageField';
 import { FileField } from './FileField';
 import { RefPickerModal } from './RefPickerModal';
 import { DocRefCatalogPickerField } from './DocRefCatalogPickerField';
 import { DocRefField, DocArrayField } from './DocRefField';
-import { PasteMappingModal } from './PasteMappingModal';
 import { BROKEN_PLATE, BROKEN_LABEL, BrokenRefNote } from './BrokenRef';
-import { newLocalId } from '@/shared/utils/localId';
+import { ArrayTableModal } from './ArrayTableModal';
+import {
+  isRowEmpty, filledVariants, overfilledNote, isVariantFilled, unionSummary,
+} from './complexFieldHelpers';
 
 /** Модульная пустышка для дефолта пропа: инлайновый `= []` — новый массив на каждый рендер. */
 const EMPTY_ENUM_TYPES: EnumTypeDef[] = [];
-
-// ─── Complex cell picker (inline table cell) ──────────────────────────────────
-
-export function ComplexCellPicker({ value, onChange, compositeType, setId, allDocTypes, scope, scopeId }: {
-  field: SchemaField; value: unknown; onChange: (v: unknown) => void;
-  compositeType: DocumentType | null;
-  setId?: string; allDocTypes: DocumentType[];
-  scope?: CatalogScope; scopeId?: string | null;
-}) {
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const ref = isFieldRef(value) ? value : null;
-  return (
-    <div className="flex items-center w-full h-full">
-      <button type="button" onClick={() => setPickerOpen(true)}
-        className="flex-1 min-w-0 h-full flex items-center gap-1 px-1.5 focus:outline-none focus:bg-brand-subtle">
-        {ref
-          ? <><Link2 size={10} className="text-brand shrink-0" /><span className="text-xs truncate text-brand-hover">{ref.displayName}</span></>
-          : <span className="text-xs text-fg4">—</span>
-        }
-      </button>
-      {ref && (
-        <button type="button" onClick={e => { e.stopPropagation(); onChange(undefined); }}
-          className="shrink-0 p-0.5 mr-0.5 text-stroke-strong hover:text-danger transition-colors">
-          <X size={9} />
-        </button>
-      )}
-      <RefPickerModal open={pickerOpen} onOpenChange={setPickerOpen}
-        compositeType={compositeType}
-        setId={setId} scope={scope} scopeId={scopeId}
-        allDocTypes={allDocTypes}
-        onSelect={r => onChange(r)} />
-    </div>
-  );
-}
-
-// ─── Table cell ───────────────────────────────────────────────────────────────
-
-export function TableCell({ field, value, onChange, compositeType, setId, allDocTypes, scope, scopeId,
-  primitiveTypeDef, enumTypeDef }: {
-  field: SchemaField; value: unknown; onChange: (v: unknown) => void;
-  compositeType: DocumentType | null;
-  setId?: string; allDocTypes: DocumentType[];
-  scope?: CatalogScope; scopeId?: string | null;
-  primitiveTypeDef?: PrimitiveTypeDef;
-  /** Перечисление из реестра (issue #59): без него ячейка читает только легаси-`options` и пустеет. */
-  enumTypeDef?: EnumTypeDef;
-}) {
-  const strVal = value == null ? '' : String(value);
-  if (field.type === 'complex') {
-    return (
-      <ComplexCellPicker field={field} value={value} onChange={onChange}
-        compositeType={compositeType} setId={setId} allDocTypes={allDocTypes}
-        scope={scope} scopeId={scopeId} />
-    );
-  }
-  if (field.type === 'boolean') {
-    return (
-      <div className="flex items-center justify-center w-full h-full">
-        <input type="checkbox" checked={!!value}
-          onChange={e => onChange(e.target.checked)}
-          className="w-3.5 h-3.5 rounded border-stroke-strong text-brand" />
-      </div>
-    );
-  }
-  if (field.type === 'enum') {
-    // Варианты знает реестр (issue #59); в схеме их нет вовсе — там только typeId. Легаси-поля,
-    // наоборот, хранят коды прямо в options, и код там же и есть отображаемое имя.
-    const opts = enumTypeDef
-      ? enumTypeDef.values.map(v => ({ code: v.code, label: v.label }))
-      : (field.options ?? []).filter(o => o !== '').map(o => ({ code: o, label: o }));
-    return (
-      <select value={strVal} onChange={e => onChange(e.target.value)}
-        className={CELL_INPUT + ' cursor-pointer'}>
-        <option value="">—</option>
-        {opts.map(o => <option key={o.code} value={o.code}>{o.label}</option>)}
-      </select>
-    );
-  }
-  if (field.type === 'date') {
-    return <DateInput value={strVal} onChange={v => onChange(v)} compact
-      className="w-full h-full flex items-center px-1.5 focus-within:bg-brand-subtle" />;
-  }
-  // primitive-тип на базе date (issue #60) — иначе рендерился обычным текст-инпутом без DateInput/точности
-  if (field.type === 'primitive' && primitiveTypeDef?.baseType === 'date') {
-    return <DateInput value={strVal} onChange={v => onChange(v)} compact
-      precision={primitiveTypeDef.constraints.datePrecision ?? 'day'}
-      className="w-full h-full flex items-center px-1.5 focus-within:bg-brand-subtle" />;
-  }
-  return (
-    <input type={field.type === 'number' ? 'number' : 'text'}
-      value={strVal}
-      onChange={e => {
-        const v = e.target.value;
-        onChange(field.type === 'number' ? (v === '' ? '' : Number(v)) : v);
-      }}
-      className={CELL_INPUT}
-    />
-  );
-}
-
-// ─── Array table modal ────────────────────────────────────────────────────────
-
-interface ArrayTableModalProps {
-  open: boolean; onOpenChange: (v: boolean) => void;
-  field: SchemaField; compositeType: DocumentType | null; allDocTypes: DocumentType[];
-  items: Record<string, unknown>[];
-  /** @param origins место каждой строки среди исходных (null — добавлена в таблице), см. mergeTableRows. */
-  onSave: (rows: Record<string, unknown>[], origins: (number | null)[]) => void;
-  setId?: string; scope?: CatalogScope; scopeId?: string | null;
-}
-
-/**
- * Таблица массива. Тело монтируется по открытию (issue #858).
- *
- * <p>Правки идут по СВОЕЙ копии строк, и снимок с `items` раньше делал эффект на `open`. Снимок,
- * сделанный эффектом, — это всегда лишний коммит с чужим содержимым между ними: первый рендер
- * открытой таблицы успевал показать пустой список и старые «личности строк» (#755), по которым
- * потом считается, какой слот удалён. Мы вместо этого заводим состояние заново — снимок делает
- * инициализатор `useState`, и первого-неправильного рендера не существует.</p>
- */
-export function ArrayTableModal(props: ArrayTableModalProps) {
-  // Ширины колонок живут в ОБЁРТКЕ, а не в теле: их человек задаёт руками, и переживать закрытие
-  // таблицы они обязаны — как переживали, пока тело было смонтировано постоянно. Прежний эффект не
-  // трогал их намеренно, сбрасывая только строки и выбор (поймано ревью PR #861).
-  const [colWidths, setColWidths] = useState<Record<string, number>>({});
-  return props.open
-    ? <ArrayTableModalBody {...props} colWidths={colWidths} setColWidths={setColWidths} />
-    : null;
-}
-
-function ArrayTableModalBody({
-  onOpenChange, field, compositeType, allDocTypes, items, onSave,
-  setId, scope, scopeId, colWidths, setColWidths,
-}: ArrayTableModalProps & {
-  colWidths: Record<string, number>;
-  setColWidths: React.Dispatch<React.SetStateAction<Record<string, number>>>;
-}) {
-  const [rows, setRows] = useState<Record<string, unknown>[]>(() => items.map(r => ({ ...r })));
-  // Стабильные id строк (issue #171): переживают reorder/удаление, служат ключом выбора.
-  const [rowIds, setRowIds] = useState<string[]>(() => items.map(() => newLocalId()));
-  // Личности строк, какими они были при ОТКРЫТИИ таблицы. Только по ним видно, КАКОЙ слот исчез
-  // при удалении: сами строки после правки неотличимы, а порядок мог измениться (issue #755).
-  const [openedIds] = useState<string[]>(rowIds);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
-  const [dropIdx, setDropIdx] = useState<number | null>(null);
-  const [pasteOpen, setPasteOpen] = useState(false);
-  const [pasteText, setPasteText] = useState('');
-
-  // Единый scope-контекст владельца (issue #82): комплект → (Set, setId), иначе (scope, scopeId).
-  const resolveScope = setId ? 'Set' as const : scope;
-  const resolveScopeId = setId ?? scopeId;
-  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
-  const { data: enumTypes = [] } = useListEnumTypes();
-  const primDef = (f: SchemaField) => f.type === 'primitive' ? primitiveTypes.find(pt => pt.id === f.typeId) : undefined;
-  const enumDef = (f: SchemaField) => f.type === 'enum' ? enumTypes.find(et => et.id === f.typeId) : undefined;
-
-  // Расчётные подполя (issue #368) не редактируются вручную — считаются при генерации; в редакторе скрыты.
-  const subFields = compositeType ? resolveEffectiveFields(compositeType, allDocTypes).filter(f => !f.computed) : [];
-  const tableFields = subFields.filter(f => TABLE_SHOWN_TYPES.has(f.type));
-  const hiddenFields = subFields.filter(f => !TABLE_SHOWN_TYPES.has(f.type));
-
-  function getW(f: SchemaField) { return colWidths[f.key] ?? defaultColWidth(f); }
-
-  function startResize(e: React.MouseEvent, key: string, curW: number) {
-    e.preventDefault();
-    const startX = e.clientX;
-    function onMove(ev: MouseEvent) {
-      setColWidths(prev => ({ ...prev, [key]: Math.max(44, curW + ev.clientX - startX) }));
-    }
-    function onUp() {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    }
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  }
-
-  function updateCell(ri: number, key: string, val: unknown) {
-    setRows(prev => prev.map((r, i) => i === ri ? { ...r, [key]: val } : r));
-  }
-  function addRow() {
-    setRows(prev => [...prev, getDefaultValues(subFields)]);
-    setRowIds(prev => [...prev, newLocalId()]);
-  }
-  function removeRow(idx: number) {
-    const id = rowIds[idx];
-    setRows(prev => prev.filter((_, i) => i !== idx));
-    setRowIds(prev => prev.filter((_, i) => i !== idx));
-    if (id) setSelected(prev => { const n = new Set(prev); n.delete(id); return n; });
-  }
-  function handleSave() {
-    // Происхождение строки: её место среди тех, что были при открытии, либо null — добавлена здесь.
-    onSave(rows, rowIds.map(id => { const k = openedIds.indexOf(id); return k >= 0 ? k : null; }));
-    onOpenChange(false);
-  }
-
-  // ── Выбор строк (issue #171) ────────────────────────────────────────────
-  function toggleSelect(id: string) {
-    setSelected(prev => toggleInSet(prev, id));
-  }
-  function toggleAll() {
-    setSelected(prev => prev.size === rowIds.length ? new Set() : new Set(rowIds));
-  }
-  function deleteSelected() {
-    setRows(prev => prev.filter((_, i) => !selected.has(rowIds[i])));
-    setRowIds(prev => prev.filter(id => !selected.has(id)));
-    setSelected(new Set());
-  }
-
-  // ── Изменение порядка строк: drag-and-drop + клавиатура (issue #171) ─────
-  function moveRow(from: number, to: number) {
-    if (to < 0 || to >= rows.length || from === to) return;
-    setRows(prev => { const a = [...prev]; const [m] = a.splice(from, 1); a.splice(to, 0, m); return a; });
-    setRowIds(prev => { const a = [...prev]; const [m] = a.splice(from, 1); a.splice(to, 0, m); return a; });
-  }
-
-  async function handlePasteClick() {
-    let text = '';
-    try { text = await navigator.clipboard.readText(); } catch { /* permission denied */ }
-    setPasteText(text);
-    setPasteOpen(true);
-  }
-
-  // ↑↓-навигация между ячейками ОДНОЙ колонки (issue #107, F8a). Полный APG grid (←→, роли,
-  // выделение строк, ресайз с клавиатуры) отложен в фазу таблиц MD3. <select> не трогаем — там
-  // ↑↓ выбирают опцию; для остальных (text/number/date/checkbox/пикер) нативное ↑↓ — no-op либо
-  // нежелательный инкремент, так что перехват безопасен и полезен при вводе столбца сверху вниз.
-  const tableRef = useRef<HTMLTableElement>(null);
-  // Фокус на контрол ячейки (r,c). true — удалось.
-  function focusCell(r: number, c: number): boolean {
-    const target = tableRef.current?.querySelector<HTMLElement>(`td[data-r="${r}"][data-c="${c}"]`);
-    const f = target?.querySelector<HTMLElement>('input, select, textarea, button');
-    if (!f) return false;
-    f.focus();
-    if (f instanceof HTMLInputElement && f.type !== 'checkbox') f.select();
-    return true;
-  }
-  // APG grid-навигация (issue #107 F8b): ↑↓ — строки; ←→ — колонки, но для текст-инпута только
-  // когда каретка на краю (иначе стрелка двигает курсор). <select> хранит ↑↓ за собой (опции).
-  function onGridKey(e: React.KeyboardEvent) {
-    const el = e.target as HTMLElement;
-    const td = el.closest('td[data-r]') as HTMLElement | null;
-    if (!td) return;
-    const r = Number(td.dataset.r), c = Number(td.dataset.c);
-    const input = el instanceof HTMLInputElement ? el : null;
-    const isText = !!input && input.type !== 'checkbox';
-    const atStart = !isText || (input!.selectionStart === 0 && input!.selectionEnd === 0);
-    const atEnd = !isText || (input!.selectionStart === input!.value.length && input!.selectionEnd === input!.value.length);
-
-    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      if (el.tagName === 'SELECT') return;
-      const nr = e.key === 'ArrowUp' ? r - 1 : r + 1;
-      if (nr < 0 || nr >= rows.length) return;
-      if (focusCell(nr, c)) e.preventDefault();
-    } else if (e.key === 'ArrowLeft') {
-      if (!atStart || c - 1 < 0) return;
-      if (focusCell(r, c - 1)) e.preventDefault();
-    } else if (e.key === 'ArrowRight') {
-      if (!atEnd || c + 1 >= tableFields.length) return;
-      if (focusCell(r, c + 1)) e.preventDefault();
-    }
-  }
-
-  const BORDER = '1px solid #d1d5db';
-  const TH_BG = '#f3f4f6';
-
-  return (
-    <Modal open onOpenChange={onOpenChange}
-      title={`${compositeType?.name ?? field.title} — таблица`}
-      extraWide
-      footer={
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            {selected.size > 0 ? (
-              <>
-                <span className="text-sm font-medium text-fg2 px-2">Выбрано: {selected.size}</span>
-                <Button variant="text" size="sm" danger icon={<Trash2 size={13} />} onClick={deleteSelected}>Удалить выбранные</Button>
-                <Button variant="text" size="sm" onClick={() => setSelected(new Set())}>Сбросить</Button>
-              </>
-            ) : (
-              <>
-                <Button variant="text" size="sm" icon={<Plus size={13} />} onClick={addRow}>Добавить строку</Button>
-                <span className="text-stroke-strong">·</span>
-                <Button variant="text" size="sm" icon={<Clipboard size={13} />} onClick={handlePasteClick}>Вставить из Excel</Button>
-              </>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button variant="text" onClick={() => onOpenChange(false)}>Отмена</Button>
-            <Button variant="filled" onClick={handleSave}>Применить</Button>
-          </div>
-        </div>
-      }>
-      <div className="overflow-x-auto -mx-6 px-6">
-        <table ref={tableRef} onKeyDown={onGridKey} role="grid" aria-label={`Строки: ${compositeType?.name ?? field.title}`}
-          style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
-          <colgroup>
-            <col style={{ width: 34 }} />
-            <col style={{ width: 44 }} />
-            {tableFields.map(f => <col key={f.key} style={{ width: getW(f) }} />)}
-            <col style={{ width: 26 }} />
-          </colgroup>
-          <thead>
-            <tr role="row">
-              <th style={{ border: BORDER, background: TH_BG, padding: 0, width: 34 }}>
-                <span className="flex items-center justify-center" style={{ height: 28 }}>
-                  <input type="checkbox" aria-label="Выбрать все строки"
-                    checked={rowIds.length > 0 && selected.size === rowIds.length}
-                    ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < rowIds.length; }}
-                    onChange={toggleAll} className="w-4 h-4 accent-brand cursor-pointer" />
-                </span>
-              </th>
-              <th role="columnheader" style={{ border: BORDER, background: TH_BG, padding: 0, width: 44 }}>
-                <span className="flex items-center justify-center text-xs text-fg4 font-normal" style={{ height: 28 }}>#</span>
-              </th>
-              {tableFields.map(f => (
-                <th key={f.key} role="columnheader"
-                  style={{ border: BORDER, background: TH_BG, padding: 0, position: 'relative', userSelect: 'none' }}>
-                  <span className="flex items-center px-2 text-left text-xs font-semibold text-fg2 truncate" style={{ height: 28 }}>
-                    {f.title}{f.required && <span className="text-danger ml-0.5">*</span>}
-                  </span>
-                  <div role="separator" aria-orientation="vertical" tabIndex={0}
-                    aria-label={`Ширина колонки «${f.title}» — стрелки ←→`}
-                    onMouseDown={e => startResize(e, f.key, getW(f))}
-                    onKeyDown={e => {
-                      if (e.key === 'ArrowLeft') { e.preventDefault(); setColWidths(p => ({ ...p, [f.key]: Math.max(44, getW(f) - 16) })); }
-                      else if (e.key === 'ArrowRight') { e.preventDefault(); setColWidths(p => ({ ...p, [f.key]: getW(f) + 16 })); }
-                    }}
-                    className="hover:bg-brand-subtle/40 focus-visible:bg-brand focus-visible:outline-none transition-colors"
-                    style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 5, cursor: 'col-resize', zIndex: 1 }} />
-                </th>
-              ))}
-              <th style={{ border: BORDER, background: TH_BG, padding: 0, width: 26 }} />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => {
-              const sel = selected.has(rowIds[i]);
-              return (
-              <tr key={rowIds[i]} role="row"
-                onDragOver={e => { if (dragIdx !== null) { e.preventDefault(); if (dropIdx !== i) setDropIdx(i); } }}
-                onDrop={e => { e.preventDefault(); if (dragIdx !== null) moveRow(dragIdx, i); setDragIdx(null); setDropIdx(null); }}
-                style={dragIdx !== null && dropIdx === i && dragIdx !== i
-                  ? { outline: '2px solid var(--color-brand)', outlineOffset: '-2px' } : undefined}>
-                <td style={{ border: BORDER, padding: 0, textAlign: 'center' }} className={sel ? 'bg-brand-subtle' : ''}>
-                  <span className="flex items-center justify-center" style={{ height: 26 }}>
-                    <input type="checkbox" checked={sel} onChange={() => toggleSelect(rowIds[i])}
-                      aria-label={`Выбрать строку ${i + 1}`} className="w-4 h-4 accent-brand cursor-pointer" />
-                  </span>
-                </td>
-                <td role="rowheader" style={{ border: BORDER, padding: 0 }} className={sel ? 'bg-brand-subtle' : 'bg-base'}>
-                  <div className="flex items-center justify-center gap-0.5" style={{ height: 26 }}>
-                    <button type="button" draggable
-                      // Груз — страховка по спецификации, свой тип вместо text/plain (см. ROW_DRAG_MIME).
-                      onDragStart={e => {
-                        setDragIdx(i);
-                        e.dataTransfer.effectAllowed = 'move';
-                        e.dataTransfer.setData(ROW_DRAG_MIME, String(i));
-                      }}
-                      onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
-                      onKeyDown={e => {
-                        if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); moveRow(i, i - 1); }
-                        else if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); moveRow(i, i + 1); }
-                      }}
-                      title="Перетащить для изменения порядка (или стрелки ↑↓)"
-                      aria-label={`Переместить строку ${i + 1}: стрелки вверх/вниз`}
-                      className="cursor-grab active:cursor-grabbing text-fg4 hover:text-fg2 focus-visible:outline-none focus-visible:text-brand">
-                      <GripVertical size={12} />
-                    </button>
-                    <span className="text-xs text-fg4 font-mono">{i + 1}</span>
-                  </div>
-                </td>
-                {tableFields.map((f, ci) => {
-                  const compositeForField = f.type === 'complex'
-                    ? allDocTypes.find(dt => dt.id === f.typeId) ?? null : null;
-                  return (
-                    <td key={f.key} data-r={i} data-c={ci} role="gridcell"
-                      className={`focus-within:bg-brand-subtle transition-colors ${sel ? 'bg-brand-subtle' : ''}`}
-                      style={{ border: BORDER, padding: 0, height: 26 }}>
-                      <TableCell field={f} value={row[f.key]} onChange={v => updateCell(i, f.key, v)}
-                        compositeType={compositeForField} setId={setId} allDocTypes={allDocTypes}
-                        scope={scope} scopeId={scopeId} primitiveTypeDef={primDef(f)} enumTypeDef={enumDef(f)} />
-                    </td>
-                  );
-                })}
-                <td style={{ border: BORDER, padding: 0, width: 26 }} className={sel ? 'bg-brand-subtle' : ''}>
-                  <button type="button" onClick={() => removeRow(i)}
-                    className="w-full h-full flex items-center justify-center text-stroke-strong hover:text-danger transition-colors"
-                    style={{ height: 26 }}>
-                    <Trash2 size={11} />
-                  </button>
-                </td>
-              </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {rows.length === 0 && (
-          <p className="text-center text-xs text-fg4 py-6">Нет строк — нажмите «Добавить строку»</p>
-        )}
-      </div>
-      {hiddenFields.length > 0 && (
-        <p className="text-xs text-fg4 mt-3">
-          {hiddenFields.length === 1
-            ? `Поле «${hiddenFields[0].title}» скрыто`
-            : `${hiddenFields.length} полей скрыто`} — редактируйте в режиме аккордеона
-        </p>
-      )}
-      <PasteMappingModal
-        open={pasteOpen} onOpenChange={setPasteOpen}
-        initialText={pasteText}
-        tableFields={tableFields}
-        allDocTypes={allDocTypes}
-        scope={resolveScope} scopeId={resolveScopeId}
-        onApply={newRows => {
-          setRows(prev => [...prev, ...newRows]);
-          setRowIds(prev => [...prev, ...newRows.map(() => newLocalId())]);
-        }}
-      />
-    </Modal>
-  );
-}
 
 // ─── Array field editor ───────────────────────────────────────────────────────
 
@@ -1055,72 +632,7 @@ export function ArrayFieldEditor({ field, allDocTypes, value, onChange, showVali
   );
 }
 
-/** Строка без единого заполненного подполя — выносить нечего. */
-function isRowEmpty(row: Record<string, unknown> | undefined, subFields: SchemaField[]): boolean {
-  if (!row) return true;
-  return subFields.every(f => { const v = row[f.key]; return v == null || v === ''; });
-}
-
 // ─── Complex field group ──────────────────────────────────────────────────────
-
-/** Сворачиваемая секция «Заполняются автоматически» (issue #102, P2): read-only поля из источника
- *  прячем по умолчанию, чтобы длинная форма не выглядела «портянкой» одинаковых боксов. */
-export function AutoFieldsSection(
-  { count, recognizedCount = 0, staleCount = 0, lockedCount = 0, staleHint, children }:
-  { count: number; recognizedCount?: number; staleCount?: number; lockedCount?: number;
-    staleHint?: string; children: ReactNode },
-) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="border border-dashed border-stroke rounded-lg overflow-hidden">
-      <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}
-        className="w-full flex items-center gap-2 px-3 py-2 bg-base/40 hover:bg-base transition-colors text-left">
-        {open ? <ChevronUp size={12} className="text-fg4 shrink-0" /> : <ChevronDown size={12} className="text-fg4 shrink-0" />}
-        {/* Глиф называет НАЗНАЧЕНИЕ секции, а не её содержимое, и продублирован подписью рядом —
-            поэтому он приглушён: brand в этой строке должен быть ровно один, и указывать он должен
-            на факт, ради которого сюда смотрят. */}
-        <Database size={11} className="text-fg4 shrink-0" />
-        <span className="text-xs text-fg3 flex-1">Заполняются автоматически</span>
-        {/* Факт в подписи самой раскрывашки — здесь он НЕСУЩИЙ, а не дублирующий: секция свёрнута
-            по умолчанию, и значок у поля внутри неё человек по умолчанию не видит вовсе. Отдельной
-            интерактивности факту не даём — заголовок и так кнопка с очевидным действием.
-            Общее число оставлено намеренно: «со сканов: 4» — подмножество, и без основания оно не
-            читается. 4 из 4 и 4 из 40 — разные решения, а решает именно отношение. */}
-        <span className="text-xs text-fg4">
-          {count} п.
-          {recognizedCount > 0 && (
-            <span className="text-brand"
-              title="Часть значений распознана с отсканированных документов — возможны ошибки чтения. Править их можно в источнике данных.">
-              {' · '}
-              {/* Совпали — говорим словом: сравнивать два числа на глаз читателю не должно
-                  приходиться (в прошлый раз этот дефект пришлось записать в «не чиним»). */}
-              {recognizedCount === count ? 'все со сканов' : `со сканов: ${recognizedCount}`}
-            </span>
-          )}
-          {/* Устаревание — ОТДЕЛЬНОЕ слагаемое, а не оттенок предыдущего (issue #815): устареть
-              может и обычный источник, не разобравшийся против нового файла, так что «со сканов: 0 ·
-              устарело: 2» — законная строка. Цвет warning: это оговорка к данным, а не поломка. */}
-          {staleCount > 0 && (
-            <span className="text-warning" title={staleHint}>
-              {' · '}устарело: {staleCount}
-            </span>
-          )}
-          {/* Поля с замком (ТЗ CORE-20.2) — ТРЕТЬЕ слагаемое, а не оттенок первых двух: их кладёт
-              код модуля, а не источник данных, и «со сканов» про них неверно. Без этой строки
-              свёрнутая секция говорила бы только «8 п.», и человек, ищущий поле, которое вдруг
-              стало нередактируемым, не узнал бы причину, не раскрыв её. */}
-          {lockedCount > 0 && (
-            <span className="text-fg4" title={LOCKED_HINT}>
-              {' · '}
-              {lockedCount === count ? 'все от модуля' : `от модуля: ${lockedCount}`}
-            </span>
-          )}
-        </span>
-      </button>
-      {open && <div className="px-3 py-3 border-t border-stroke">{children}</div>}
-    </div>
-  );
-}
 
 export function ComplexFieldGroup({ field, allDocTypes, value, onChange, showValidation,
   setId, otherInstances = [],
@@ -1400,43 +912,6 @@ function SubfieldEditor({ sf, value, onChange, allDocTypes, showValidation, setI
 
 // ─── Union-поле (issue #320): заполняется РОВНО ОДИН вариант (подполе union-типа) ──
 
-/**
- * Подписи заполненных вариантов union-значения (issue #756).
- *
- * <p>Инвариант — «заполнен ровно один» (#320), и записать иное приложение не даёт. Но
- * <code>PUT …/requisites</code> кладёт тело как есть (путь записи схема-агностичен сознательно), так
- * что значение с двумя ключами приезжает из восстановленной копии, правки JSONB руками или импорта.
- * Единственный путь через такие данные в редакторе — потеря части: он показывает ПЕРВЫЙ заполненный
- * вариант, а первая же правка выбрасывает остальные. Поэтому — сказать заранее.</p>
- *
- * <p><code>subFields</code> приходит уже без расчётных подполей (#368) — их значение считает
- * генерация, вариантами они не являются, и серверная проверка арности их так же исключает.</p>
- */
-function filledVariants(row: Record<string, unknown>, subFields: SchemaField[]): string[] {
-  return subFields.filter(sf => isVariantFilled(row[sf.key])).map(sf => sf.title);
-}
-
-/**
- * Текст предупреждения о нескольких заполненных вариантах — одинаковый в списке и в редакторе.
- *
- * <p>Про «попадёт в документ» не говорим: в data.json уходят оба ключа, а что напечатается, решает
- * блок типа в шаблоне — утверждать за него нечего. Обещаем только то, что гарантирует код.</p>
- */
-function overfilledNote(titles: string[]): string {
-  return `Заполнено вариантов: ${titles.length} (${titles.join(', ')}), а должен быть один. `
-    + 'В данные уйдут все; что попадёт в документ, решит блок типа в шаблоне. '
-    + 'Редактор откроет первый и при правке потеряет остальные.';
-}
-
-/** Вариант считается заполненным: непустой массив / FieldRef / непустой объект / непустая строка. */
-function isVariantFilled(v: unknown): boolean {
-  if (v == null) return false;
-  if (isFieldRef(v)) return true;
-  if (Array.isArray(v)) return v.length > 0;
-  if (typeof v === 'object') return Object.keys(v as object).length > 0;
-  return String(v).trim() !== '';
-}
-
 // VariantPicker живёт своим файлом (issue #747): его зовёт ещё и пикер ссылок, а импорт
 // оттуда в ComplexFields замкнул бы цикл. Реэкспорт — чтобы не трогать существующих потребителей.
 export { VariantPicker };
@@ -1561,13 +1036,4 @@ function UnionFieldGroup({ field, allDocTypes, value, onChange, showValidation, 
       {activeEditor}
     </div>
   );
-}
-
-/** Короткая сводка активного варианта union — для свёрнутой строки во вложенном режиме. */
-function unionSummary(sf: SchemaField | null, val: unknown, defs: FieldTypeDefs = {}): string {
-  if (!sf) return '(пусто)';
-  if (!isVariantFilled(val)) return `${sf.title}: —`;
-  if (isFieldRef(val)) return `${sf.title} → ${val.displayName}`;
-  if (Array.isArray(val)) return `${sf.title} · ${val.length} стр.`;
-  return `${sf.title}: ${formatFieldValue(sf, val, defs).slice(0, 40)}`; // формат по типу (issue #611)
 }

@@ -8,7 +8,7 @@ import type { PickType } from '@/shared/ui/TypePicker';
 import { useListDocumentTypes } from '@/shared/api/documentTypes';
 import { useSetMaterialization, useMaterializePreview } from '@/shared/api/datasets';
 import { MappingEditor } from '@/features/document-sets/editor/DataSetsTab';
-import { VariantPicker } from '@/features/document-sets/fields/ComplexFields';
+import { VariantPicker } from '@/features/document-sets/fields/VariantPicker';
 import { UnionDiscriminatorEditor } from './UnionDiscriminatorEditor';
 import { discriminatorProblem } from './unionDiscriminator';
 import { buildPreviewModel, getPath, type LeafCol } from './materializePreviewModel';
