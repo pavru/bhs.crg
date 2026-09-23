@@ -1,4 +1,4 @@
-using BHS.CRG.Application.QualityDocs;
+﻿using BHS.CRG.Application.QualityDocs;
 
 namespace BHS.CRG.Tests.Recognition;
 
@@ -29,11 +29,23 @@ public class PageTimeoutToleranceTests
         // Ветки написаны с `when`-фильтрами, и на них компилятор про «наследник после базового»
         // не ругается (CS0160 выдаётся только для голых catch). То есть переставить их местами
         // можно молча — а поведение поменяется на противоположное.
-        var src = File.ReadAllText(Path.Combine(
-            SolutionDir, "BHS.CRG.Infrastructure/DataSets/DataSetPdfRecognitionService.cs"));
+        // Ищем по ВСЕМ частям сервиса, а не по одному имени файла: класс разнесён на partial-части
+        // (issue #1022), и сторож, прибитый к имени файла, ослеп бы молча при следующем разрезе —
+        // именно это с ним и случилось. Требуем ровно одно вхождение: ноль значит «проверять негде»,
+        // больше одного — что инвариант размножился и проверять надо каждое.
+        var parts = Directory.GetFiles(
+            Path.Combine(SolutionDir, "BHS.CRG.Infrastructure", "DataSets"),
+            "DataSetPdfRecognitionService*.cs");
+        const string signature = "public async Task<GostGroupingDto?> RecognizeDocumentAsync";
+        var hits = parts.Where(f => File.ReadAllText(f).Contains(signature, StringComparison.Ordinal)).ToArray();
 
-        var method = src.IndexOf("public async Task<GostGroupingDto?> RecognizeDocumentAsync", StringComparison.Ordinal);
-        Assert.True(method >= 0, "Не найден RecognizeDocumentAsync — метод переименован; проверять инвариант стало негде.");
+        Assert.True(hits.Length == 1,
+            $"RecognizeDocumentAsync найден в {hits.Length} файлах из {parts.Length} частей сервиса "
+            + "(ожидалось ровно одно). Ноль — метод переименован и проверять инвариант негде; "
+            + "больше одного — инвариант размножился, и стеречь надо каждое вхождение.");
+
+        var src = File.ReadAllText(hits[0]);
+        var method = src.IndexOf(signature, StringComparison.Ordinal);
 
         var timeout = src.IndexOf("RecognitionTimeoutException", method, StringComparison.Ordinal);
         var general = src.IndexOf("RecognitionUnavailableException or RecognitionLimitException", method, StringComparison.Ordinal);
