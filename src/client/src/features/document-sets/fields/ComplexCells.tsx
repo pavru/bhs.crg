@@ -17,7 +17,11 @@ import { RefPickerModal } from './RefPickerModal';
 // ─── Complex cell picker (inline table cell) ──────────────────────────────────
 
 export function ComplexCellPicker({ value, onChange, compositeType, setId, allDocTypes, scope, scopeId }: {
-  field: SchemaField; value: unknown; onChange: (v: unknown) => void;
+  // `field` здесь НЕ объявляется намеренно: кандидатов выбирает `compositeType`, а `RefPickerModal`
+  // пропа `field` не принимает вовсе. Объявленный, но не берущийся проп — обещание, что значение
+  // на что-то влияет, и вызывающий передавал его впустую (поймано ревью PR #1020). Теперь лишний
+  // проп отвергают типы: проверено возвратом `field=` — TS2322.
+  value: unknown; onChange: (v: unknown) => void;
   compositeType: DocumentType | null;
   setId?: string; allDocTypes: DocumentType[];
   scope?: CatalogScope; scopeId?: string | null;
@@ -63,7 +67,7 @@ export function TableCell({ field, value, onChange, compositeType, setId, allDoc
   const strVal = value == null ? '' : String(value);
   if (field.type === 'complex') {
     return (
-      <ComplexCellPicker field={field} value={value} onChange={onChange}
+      <ComplexCellPicker value={value} onChange={onChange}
         compositeType={compositeType} setId={setId} allDocTypes={allDocTypes}
         scope={scope} scopeId={scopeId} />
     );
