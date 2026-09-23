@@ -1,4 +1,3 @@
-using System.Data;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Domain.Reconciliation;
 using Microsoft.EntityFrameworkCore;
@@ -6,11 +5,19 @@ using Microsoft.EntityFrameworkCore;
 namespace BHS.CRG.Infrastructure.Backup;
 
 /// <summary>
-/// Чтение манифеста копии: разбор архива в <c>BackupManifest</c> — часть <see cref="BackupService" />.
+/// Снимок живой базы в паспорт копии — часть <see cref="BackupService" />.
 ///
-/// <para>Выделено из одного файла в 1790 строк (issue #1014-родственный, #1021). Разбор входного
-/// архива — отдельное занятие от выгрузки и от применения: он ничего не пишет, а только читает и
-/// проверяет, и ошибка здесь означает «копия негодна», а не «восстановление сломалось».</para>
+/// <para>Это шаг ВЫГРУЗКИ, а не применения: <c>ReadManifestAsync</c> читает таблицы и складывает
+/// их в <c>BackupManifest</c>, который потом ложится в архив. Разбор ВХОДНОГО архива живёт в
+/// <c>BackupService.Import.cs</c>, и путать их нельзя — правка здесь меняет состав НОВЫХ копий,
+/// а не проверку загруженных.</para>
+///
+/// <para>⚠️ Имя метода обманчиво: «Read» здесь про чтение базы, а не про чтение копии. На этом я и
+/// ошибся в первой редакции доккомментария (ревью PR #1025), поверив имени вместо кода.</para>
+///
+/// <para>Зовётся только из <c>BuildManifestAsync</c>, который оборачивает вызов в транзакцию
+/// <c>RepeatableRead</c>: снимок обязан быть целостным, иначе части копии окажутся из разных
+/// моментов времени.</para>
 /// </summary>
 public partial class BackupService
 {
@@ -200,6 +207,4 @@ public partial class BackupService
                 r.Id, r.OccurredAt, r.Action, r.ActorId, r.ActorName,
                 r.TargetId, r.TargetLabel, r.Before, r.After)).ToArray());
     }
-
-    // ── Import ────────────────────────────────────────────────────────────────
 }

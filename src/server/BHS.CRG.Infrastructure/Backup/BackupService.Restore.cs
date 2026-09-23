@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Documents;
@@ -16,7 +15,7 @@ namespace BHS.CRG.Infrastructure.Backup;
 /// <summary>
 /// Восстановление таблиц по одной — часть <see cref="BackupService" />.
 ///
-/// <para>Двадцать пять методов-ровесников, по одному на сущность, плюс общие для них помощники
+/// <para>26 методов-ровесников, по одному на сущность, плюс общие для них помощники
 /// (<c>UpsertAsync</c>, топосорт типов, проверка носителя скопа). Файл немаленький, и это
 /// осознанно: это СПИСОК однородных операций, а не переплетение — каждая коротка, читается сама по
 /// себе, и порядок их вызова задан в <c>BackupService.Import.cs</c>.</para>
