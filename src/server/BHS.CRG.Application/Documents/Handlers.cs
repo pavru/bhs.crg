@@ -342,6 +342,10 @@ public class DocumentTypeHandlers(
 
         dt.Rename(cmd.Name.Trim(), cmd.Code.Trim());
         dt.SetParent(cmd.ParentId);
+        // Смена родителя — ВТОРАЯ дверь к тому же нарушению кратности (issue #959, ревью PR #1012):
+        // схема не менялась, но набор унаследованных полей стал другим, и одиночный тэг мог
+        // оказаться сразу у двух полей. Проверка после SetParent: считать надо по НОВОЙ цепочке.
+        ValidateTagRestrictions(dt, all);
         EnsureOwnershipHolds(dt, all);
         repo.Update(dt);
         await repo.SaveChangesAsync(ct);

@@ -108,6 +108,36 @@ public class TagCatalogTests
     }
 
     /// <summary>
+    /// Реестр обязан собираться ПРИ СТАРТЕ, а не при первом обращении (ревью PR #1012).
+    ///
+    /// <para>Он singleton, то есть ленивый: без явного разрешения на старте два объявления одного
+    /// кода дали бы зелёный запуск и 500 на первом списке тэгов — отказ, который обязан
+    /// останавливать приложение, приходил бы администратору в редактор схем. На этом же
+    /// утверждении стоит исключение в <c>DomainExceptionPolicyTests</c>: «до пользователя такой
+    /// отказ не доходит вовсе».</para>
+    ///
+    /// <para>Текстом, а не запуском приложения: поднять его с подставным модулем-дублёром негде —
+    /// состав модулей задан в корне композиции литералом.</para>
+    /// </summary>
+    [Fact]
+    public void Реестр_разрешается_на_старте()
+    {
+        var program = File.ReadAllText(Path.Combine(SolutionDir, "BHS.CRG.Api", "Program.cs"));
+        Assert.Contains("GetRequiredService<BHS.CRG.Application.Schema.TagCatalog>()", program, StringComparison.Ordinal);
+    }
+
+    /// <summary>Корень решения — от каталога сборки тестов вверх до <c>BHS.CRG.slnx</c>.</summary>
+    private static string SolutionDir
+    {
+        get
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "BHS.CRG.slnx"))) dir = dir.Parent;
+            return dir?.FullName ?? throw new InvalidOperationException("не найден BHS.CRG.slnx");
+        }
+    }
+
+    /// <summary>
     /// Зеркало уровней тэга (та же идиома, что у <c>ModuleSchemaLevel</c>): у сборки контрактов
     /// модулей НОЛЬ ссылок на проекты, поэтому доменный перечень туда не дотянуть — и состав
     /// приходится сверять сторожем.

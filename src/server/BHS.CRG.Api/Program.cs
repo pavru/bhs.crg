@@ -742,6 +742,13 @@ using (var scope = app.Services.CreateScope())
         if ((await userManager.GetRolesAsync(u)).Count == 0)
             await userManager.AddToRoleAsync(u, "Admin");
 
+    // Реестр тэгов — СОБИРАЕМ ЗДЕСЬ, а не ждём первого обращения (issue #959). Он singleton, то
+    // есть ленивый: без этой строки два объявления одного кода тэга дали бы зелёный старт и 500 на
+    // первом запросе списка тэгов — отказ, который обязан останавливать запуск, приходил бы
+    // пользователю в редактор схем. Поймано ревью PR #1012: сторож, который не срабатывает, —
+    // не сторож.
+    _ = scope.ServiceProvider.GetRequiredService<BHS.CRG.Application.Schema.TagCatalog>();
+
     // Прогрев плагинов: HTTP-плагины отдают схемы только по запросу (GET /schemas) — best-effort.
     await scope.ServiceProvider.GetRequiredService<IPluginHost>().WarmUpAsync();
 

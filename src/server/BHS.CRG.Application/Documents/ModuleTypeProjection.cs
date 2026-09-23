@@ -81,12 +81,15 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
                 JsonDocument.Parse(Schema(spec, existing: null).ToJsonString()),
                 spec.Module, TypeVisibility.Shared, editLevel: spec.Level);
             type.SetGroup(spec.Group);
+            EnsureCardinalityHolds(type, all, spec);
             await repo.AddAsync(type, ct);
             await repo.SaveChangesAsync(ct);
             return type;
         }
 
-        type.UpdateSchema(JsonDocument.Parse(Schema(spec, type.Schema).ToJsonString()));
+        var projected = JsonDocument.Parse(Schema(spec, type.Schema).ToJsonString());
+        EnsureCardinalityHolds(type.WithSchema(projected), all, spec);
+        type.UpdateSchema(projected);
         // Уровень и владелец — свойства модуля, и он их подтверждает каждым стартом. Название и
         // группу НЕ трогаем после создания: их правит администратор, и возвращать их объявлением
         // значило бы отменять его работу молча.
@@ -95,6 +98,28 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
         repo.Update(type);
         await repo.SaveChangesAsync(ct);
         return type;
+    }
+
+    /// <summary>
+    /// Кратность тэгов после проекции (ТЗ TYPE-21, issue #959; ревью PR #1012).
+    ///
+    /// <para>Объявление модуля ставит тэги на свои поля, а рядом в том же типе (и в его потомках)
+    /// уже могут стоять поля заказчика с теми же тэгами. Пропусти мы это — модуль завёл бы тип,
+    /// который администратор не сможет сохранить НИКОГДА, а на уровнях «закрытый» и «расширяемый»
+    /// не сможет и починить: снимать тэг с поля модуля ему не дадут.</para>
+    ///
+    /// <para>Отказ останавливает старт, как и прочие расхождения объявления с базой: тихо это
+    /// значило бы оставить систему с типом, в котором код модуля найдёт не то поле.</para>
+    /// </summary>
+    private void EnsureCardinalityHolds(DocumentType projected, IReadOnlyList<DocumentType> all, ModuleTypeSpec spec)
+    {
+        var violations = TagCardinalityValidator.Validate(tags, projected, all);
+        if (violations.Count == 0) return;
+        throw new ConflictException(
+            $"Объявление модуля «{spec.Module}» нарушает кратность тэгов в типе «{spec.Code}»: " +
+            string.Join(" ", violations.Select(v => v.Describe())) +
+            " Снимите тэг с поля заказчика или уберите его из объявления модуля: " +
+            "иначе тип нельзя будет сохранить из редактора.");
     }
 
     /// <summary>

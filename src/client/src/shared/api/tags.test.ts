@@ -92,8 +92,14 @@ describe('тэги вне реестра экземпляра', () => {
     expect(unknownTagCodes(['identity:2', 'work.shift'], registry)).toEqual(['work.shift']);
   });
 
-  it('пустое поле и пустой реестр не ломают', () => {
+  it('пустое поле не ломает', () => {
     expect(unknownTagCodes(undefined, registry)).toEqual([]);
-    expect(unknownTagCodes(['identity'], undefined)).toEqual(['identity']);
+  });
+
+  it('пока реестр не пришёл — молчит, а не объявляет незнакомыми все тэги', () => {
+    // «Ещё не знаем» — не «пусто». Пока запрос идёт или упал, трактовка `undefined` как пустого
+    // списка объявила бы чужим КАЖДЫЙ тэг: поле рисовало бы «тэг выключенного модуля», а
+    // настоящий список тэгов пустовал бы.
+    expect(unknownTagCodes(['identity', 'doc.number'], undefined)).toEqual([]);
   });
 });

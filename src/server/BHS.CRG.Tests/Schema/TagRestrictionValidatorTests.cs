@@ -70,10 +70,17 @@ public class TagRestrictionValidatorTests
     [Fact]
     public void UnrestrictedTags_NeverViolate()
     {
-        // type.qualityDocument без Restriction — сколько угодно носителей.
-        var a = Type("К1", "{'tags':['type.qualityDocument'],'fields':[]}");
-        var b = Type("К2", "{'tags':['type.qualityDocument'],'fields':[]}");
-        var incoming = Schema("{'tags':['type.qualityDocument'],'fields':[]}");
+        // Тэг БЕЗ Restriction — сколько угодно носителей во всей системе.
+        //
+        // ⚠️ Раньше здесь стоял `type.qualityDocument`, и тест стал ХОЛОСТЫМ, когда тэг уехал к
+        // модулю исполнительной документации: каталог теста собран без модулей, тэга в нём нет, и
+        // цикл по реестру до проверки просто не доходил — «пусто» получалось само собой (поймано
+        // ревью PR #1012). Поэтому тэг берётся ИЗ САМОГО каталога, а не по памяти, и отбирается по
+        // признаку, ради которого тест написан.
+        var unrestricted = Catalog.All.First(t => t.Scope == TagScope.Type && t.Restriction is null);
+        var a = Type("К1", $"{{'tags':['{unrestricted.Code}'],'fields':[]}}");
+        var b = Type("К2", $"{{'tags':['{unrestricted.Code}'],'fields':[]}}");
+        var incoming = Schema($"{{'tags':['{unrestricted.Code}'],'fields':[]}}");
         var v = TagRestrictionValidator.Validate(Catalog, incoming, Guid.Empty, "К3", [a, b]);
         Assert.Empty(v);
     }

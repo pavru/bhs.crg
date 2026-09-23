@@ -112,6 +112,27 @@ public class DocumentTypeHandlerTests(IntegrationTestFixture fixture) : IAsyncLi
         Assert.Equal(parent.Id, updated.ParentId);
     }
 
+    [Fact]
+    public async Task Update_ОтказываетЕслиНовыйРодительДаётВторойТэг()
+    {
+        // Схема не меняется — меняется РОДИТЕЛЬ, а вместе с ним набор унаследованных полей: после
+        // такой правки одиночный тэг оказался бы сразу у двух полей. Эта дверь к нарушению стояла
+        // открытой, пока проверка висела только на сохранении схемы (ревью PR #1012).
+        using var scope = fixture.Services.CreateScope();
+        var parent = await Mediator(scope).Send(new CreateDocumentTypeCommand(
+            "Базовый", "BASE_T", DocumentTypeKind.Document, null,
+            JsonDocument.Parse("""{"fields":[{"key":"Номер","type":"string","tags":["doc.number"]}]}""")));
+        var child = await Mediator(scope).Send(new CreateDocumentTypeCommand(
+            "Дочерний", "CHILD_T", DocumentTypeKind.Document, null,
+            JsonDocument.Parse("""{"fields":[{"key":"НомерАкта","type":"string","tags":["doc.number"]}]}""")));
+
+        using var scope2 = fixture.Services.CreateScope();
+        var refusal = await Assert.ThrowsAsync<ConflictException>(() =>
+            Mediator(scope2).Send(new UpdateDocumentTypeCommand(child.Id, "Дочерний", "CHILD_T", parent.Id)));
+
+        Assert.Contains("НомерАкта", refusal.Message);
+    }
+
     // ── Cycle detection ───────────────────────────────────────────────────────
 
     [Fact]

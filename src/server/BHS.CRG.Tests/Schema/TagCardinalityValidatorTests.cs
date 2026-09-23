@@ -27,6 +27,9 @@ public class TagCardinalityValidatorTests
     private static string Field(string key, string tag) =>
         $"{{'key':'{key}','type':'string','tags':['{tag}']}}";
 
+    /// <summary>Схема из записи с одинарными кавычками — как у <see cref="Type" />.</summary>
+    private static JsonDocument Schema(string json) => JsonDocument.Parse(json.Replace('\'', '"'));
+
     [Fact]
     public void Второе_поле_с_одиночным_тэгом_отказывает()
     {
@@ -90,6 +93,37 @@ public class TagCardinalityValidatorTests
         var child = Type("Акт", $"{{'fields':[{Field("Номер", Single)}]}}", parent.Id);
 
         Assert.Empty(TagCardinalityValidator.Validate(Catalog, child, [parent, child]));
+    }
+
+    [Fact]
+    public void Правка_предка_ловится_по_потомку()
+    {
+        // Схема ПОТОМКА не менялась и сама по себе безупречна — второго носителя создаёт правка
+        // ПРЕДКА. Смотри проверка только вверх от сохраняемого типа, эта правка прошла бы молча, а
+        // потомок после неё не сохранялся бы уже никогда: любая правка его схемы упиралась бы в
+        // отказ про поля, которых в ней нет (поймано ревью PR #1012).
+        var parent = Type("Документ", "{'fields':[]}");
+        var child = Type("Акт", $"{{'fields':[{Field("НомерАкта", Single)}]}}", parent.Id);
+        var parentWithTag = parent.WithSchema(Schema($"{{'fields':[{Field("Номер", Single)}]}}"));
+
+        var v = TagCardinalityValidator.Validate(Catalog, parentWithTag, [parent, child]);
+
+        var one = Assert.Single(v);
+        // Имя типа обязательно: поля «Номер» и «НомерАкта» лежат в РАЗНЫХ схемах, и без него
+        // сообщение называло бы поле, которого в открытой форме нет вовсе.
+        Assert.Contains("Акт", one.Describe());
+        Assert.Contains("НомерАкта", one.Describe());
+    }
+
+    [Fact]
+    public void Правка_предка_без_нарушения_у_потомка_проходит()
+    {
+        // Контроль к предыдущему: обход потомков не должен запрещать безобидную правку предка.
+        var parent = Type("Документ", "{'fields':[]}");
+        var child = Type("Акт", $"{{'fields':[{Field("НомерАкта", Single)}]}}", parent.Id);
+        var parentWithOther = parent.WithSchema(Schema("{'fields':[{'key':'Тема','type':'string'}]}"));
+
+        Assert.Empty(TagCardinalityValidator.Validate(Catalog, parentWithOther, [parent, child]));
     }
 
     [Fact]

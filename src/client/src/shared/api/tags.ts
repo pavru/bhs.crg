@@ -144,7 +144,11 @@ export function datasetTags(all: TagDefinition[] | undefined): TagDefinition[] {
  * Коды сравниваются БЕЗ параметра (`identity:2` → `identity`): параметр — часть записи, а не кода.
  */
 export function unknownTagCodes(fieldTags: string[] | undefined, all: TagDefinition[] | undefined): string[] {
-  if (!fieldTags?.length) return [];
-  const known = new Set((all ?? []).map(t => t.code));
+  // ⚠️ Реестра ЕЩЁ НЕТ — это не «реестр пуст» (issue #959, ревью PR #1012). Пока запрос идёт (или
+  // упал), `all` приходит `undefined`, и трактуй мы его как пустой список — незнакомыми оказались
+  // бы ВСЕ тэги разом: каждое поле рисовало бы пунктирную строку «тэг выключенного модуля», а
+  // настоящий список тэгов при этом пустовал бы. Пока не знаем — молчим.
+  if (!all || !fieldTags?.length) return [];
+  const known = new Set(all.map(t => t.code));
   return [...new Set(fieldTags.map(tagCode).filter(c => !known.has(c)))];
 }

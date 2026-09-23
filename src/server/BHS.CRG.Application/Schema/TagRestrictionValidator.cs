@@ -23,11 +23,18 @@ public record TagRestrictionViolation(string TagCode, string TagLabel, int MaxBe
 /// Нарушение КРАТНОСТИ тэга внутри одного типа (ТЗ TYPE-21, столбец «Сколько»; issue #959):
 /// одиночный тэг стоит на нескольких полях типа.
 /// </summary>
-public record TagCardinalityViolation(string TagCode, string TagLabel, IReadOnlyList<string> FieldKeys)
+/// <param name="TypeName">
+/// Чей это тип. Нарушение бывает и НЕ у сохраняемого — правка схемы предка создаёт второго
+/// носителя у потомка, — и тогда без имени типа сообщение называет поля, которых в открытой форме
+/// нет вовсе.
+/// </param>
+public record TagCardinalityViolation(
+    string TagCode, string TagLabel, string TypeName, IReadOnlyList<string> FieldKeys)
 {
     public string Describe() =>
-        $"Тэг «{TagLabel}» ставится не более чем одному полю типа — сейчас он стоит у полей: " +
-        $"{string.Join(", ", FieldKeys)}. Код находит поле по тэгу и взял бы первое попавшееся из них.";
+        $"Тэг «{TagLabel}» ставится не более чем одному полю типа — в типе «{TypeName}» он стоит " +
+        $"у полей: {string.Join(", ", FieldKeys)}. Код находит поле по тэгу и взял бы первое " +
+        "попавшееся из них.";
 }
 
 /// <summary>
@@ -103,6 +110,13 @@ public static class TagRestrictionValidator
 /// <para>⚠️ Тэг, которого нет в реестре этого экземпляра (модуль-владелец выключен), не
 /// проверяется и не считается нарушением: его кратность объявлена в коде, которого здесь нет. Он
 /// просто остаётся в схеме — выключение модуля не повод отказывать в сохранении чужой схемы.</para>
+///
+/// <para><b>Где проверка стоит.</b> Везде, где меняется состав тэгов типа ИЛИ его цепочка
+/// наследования: заведение типа, сохранение схемы, смена родителя и проекция объявления модуля.
+/// Перечень полный по состоянию на issue #959; остальные места, правящие схему, — миграция
+/// адресации блоков (#773) и снятие размеров картинки — тэгов не добавляют вовсе, а восстановление
+/// из копии проверкой и не должно закрываться: правило, введённое позже архива, не повод не дать
+/// его развернуть.</para>
 /// </summary>
 public static class TagCardinalityValidator
 {
@@ -114,22 +128,51 @@ public static class TagCardinalityValidator
     public static IReadOnlyList<TagCardinalityViolation> Validate(
         TagCatalog catalog, DocumentType saving, IReadOnlyList<DocumentType> allDocTypes)
     {
+        // Каталог типов, каким он СТАНЕТ: сохраняемый тип подменён входящей схемой, новый —
+        // добавлен. Без подмены потомки считались бы по старой схеме предка, то есть по тому, что
+        // как раз и правят.
+        var effective = allDocTypes.Where(t => t.Id != saving.Id).Append(saving).ToList();
+
+        // Проверяем сохраняемый тип И ЕГО ПОТОМКОВ. Наверх смотреть мало: правка схемы ПРЕДКА
+        // добавляет носителя потомку, и без этого обхода она проходила бы молча — а потомок после
+        // неё не сохранялся бы уже никогда, отказом про поля, которых в его схеме нет (поймано
+        // ревью PR #1012).
+        var violations = new List<TagCardinalityViolation>();
+        foreach (var type in effective.Where(t => t.Id == saving.Id || IsDescendantOf(t, saving.Id, effective)))
+            violations.AddRange(ViolationsIn(catalog, type, effective));
+        return violations;
+    }
+
+    private static IEnumerable<TagCardinalityViolation> ViolationsIn(
+        TagCatalog catalog, DocumentType type, IReadOnlyList<DocumentType> effective)
+    {
         var byKey = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        foreach (var (key, tag) in SchemaTags.TaggedFieldsInSchemaOrder(saving, allDocTypes))
+        foreach (var (key, tag) in SchemaTags.TaggedFieldsInSchemaOrder(type, effective))
         {
             if (!byKey.TryGetValue(tag.Code, out var keys)) byKey[tag.Code] = keys = [];
             // Одно поле, помеченное тэгом дважды, кратности не нарушает: носитель один.
             if (!keys.Contains(key, StringComparer.Ordinal)) keys.Add(key);
         }
 
-        var violations = new List<TagCardinalityViolation>();
         foreach (var (code, keys) in byKey)
         {
             if (keys.Count < 2) continue;
             // Тэг вне реестра — чужой или выключённого модуля: его правил здесь не знают.
             if (catalog.Find(code) is not { Multiple: false } def) continue;
-            violations.Add(new(def.Code, def.Label, keys));
+            yield return new(def.Code, def.Label, type.Name, keys);
         }
-        return violations;
+    }
+
+    /// <summary>Потомок ли тип — по цепочке родителей, со страховкой от цикла.</summary>
+    private static bool IsDescendantOf(DocumentType type, Guid ancestorId, IReadOnlyList<DocumentType> all)
+    {
+        var visited = new HashSet<Guid>();
+        var current = type.ParentId;
+        while (current is { } id && visited.Add(id))
+        {
+            if (id == ancestorId) return true;
+            current = all.FirstOrDefault(t => t.Id == id)?.ParentId;
+        }
+        return false;
     }
 }
