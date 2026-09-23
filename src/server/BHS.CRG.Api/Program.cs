@@ -672,6 +672,9 @@ builder.Services.AddOpenApi();
 // сканер сборок рядом с приложением: набор модулей на экземпляре обязан быть решением поставки
 // (Modules__Enabled, AUTH-17), а не следствием того, какие DLL кто-то скопировал.
 builder.Services.AddAppModules(builder.Configuration, CorePermissions.All, new IdModule());
+// Реестр функциональных тэгов: ядро + тэги ВКЛЮЧЁННЫХ модулей (ТЗ TYPE-22, issue #959). Сразу за
+// регистрацией модулей — он собирается из их объявлений.
+builder.Services.AddTagCatalog();
 builder.Services.AddScoped<EffectivePermissions>();
 // Чем ворота модулей и прав отвечают на вопрос «что этому пользователю можно» (AUTH-6).
 builder.Services.AddSingleton<IUserPermissions, PermissionCache>();

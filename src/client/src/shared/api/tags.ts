@@ -92,9 +92,20 @@ export interface TagDefinition {
   scope: TagScope;
   /** For Field: allowed SchemaField.type values; for Type: allowed kinds ("Document"/"Composite"). Empty = any. */
   appliesTo: string[];
+  /**
+   * Сколько полей ОДНОГО типа могут нести тэг: `false` — одно, `true` — сколько угодно.
+   * Проверяет сервер при сохранении схемы (ТЗ TYPE-21, issue #959).
+   */
   multiple: boolean;
   /** Внутреннее ограничение назначения (напр. глобальный максимум носителей). */
   restriction?: TagRestriction | null;
+  /**
+   * Кто объявил тэг: код модуля-владельца либо `core` — ядро (ТЗ TYPE-22, issue #959). Тэги
+   * выключенного модуля сюда не приходят вовсе: сервер отдаёт реестр ЭТОГО экземпляра.
+   */
+  owner: string;
+  /** Группа для редактора схем. Пусто — тэг идёт под названием владельца. */
+  group?: string | null;
   /** Числовой параметр тэга — есть только у тех, кто его принимает (напр. «identity:1»). */
   parameter?: TagParameter | null;
 }
@@ -120,4 +131,20 @@ export function typeTags(all: TagDefinition[] | undefined, kind: string): TagDef
 
 export function datasetTags(all: TagDefinition[] | undefined): TagDefinition[] {
   return (all ?? []).filter(t => t.scope === 'Dataset');
+}
+
+/**
+ * Тэги, проставленные полю, но отсутствующие в реестре этого экземпляра (issue #959).
+ *
+ * Обычно это тэги ВЫКЛЮЧЕННОГО модуля: в схеме они остались — выключение модуля не повод
+ * переписывать конфигурацию заказчика, — но предлагать их к постановке незачем, читать их здесь
+ * некому. Показать их всё-таки надо: поле с невидимой меткой выглядит обычным, а ведёт себя иначе,
+ * стоит модуль включить обратно.
+ *
+ * Коды сравниваются БЕЗ параметра (`identity:2` → `identity`): параметр — часть записи, а не кода.
+ */
+export function unknownTagCodes(fieldTags: string[] | undefined, all: TagDefinition[] | undefined): string[] {
+  if (!fieldTags?.length) return [];
+  const known = new Set((all ?? []).map(t => t.code));
+  return [...new Set(fieldTags.map(tagCode).filter(c => !known.has(c)))];
 }

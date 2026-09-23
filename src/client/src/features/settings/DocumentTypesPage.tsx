@@ -57,7 +57,7 @@ import { TypstRendersEditor } from './TypstRendersEditor';
 import { TypstBlocksPanel } from './TypstBlocksCheck';
 import { useTypstBlocksCheck, blocksCheckProblemsByFn } from './useTypstBlocksCheck';
 import { schemaToJson, validateFields, TYPE_LABELS, nextAutoKey } from './schemaConstants';
-import { useTagRegistry, typeTags as typeTagDefs, FUNCTIONAL_TAG } from '@/shared/api/tags';
+import { useTagRegistry, typeTags as typeTagDefs, unknownTagCodes, FUNCTIONAL_TAG } from '@/shared/api/tags';
 import { GroupedFieldsEditor } from './GroupedFieldsEditor';
 import { JsonPreview, FieldBuilder, DefaultValueCell } from './FieldBuilder';
 import type { FieldRegistries } from './fieldTypeOptions';
@@ -540,6 +540,8 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
   const [helpPreview, setHelpPreview] = useState(false);
   const { data: tagRegistry } = useTagRegistry();
   const applicableTypeTags = typeTagDefs(tagRegistry, docType.kind);
+  // Тэги вне реестра этого экземпляра — их не предлагают, но и не прячут (issue #959).
+  const unknownTypeTags = unknownTagCodes(docTypeTags, tagRegistry);
   const [showJson, setShowJson] = useState(false);
   const [showTypstRenders, setShowTypstRenders] = useState(typstRenders.length > 0);
   const [showTypeTags, setShowTypeTags] = useState(false);
@@ -764,6 +766,22 @@ function SchemaEditor({ docType, allDocTypes, onSelectType }: {
             />
         </div>
       </div>
+
+      {/* Тэги типа, которых в реестре этого экземпляра нет, — тэги выключенного модуля (#959).
+          Та же строка, что у поля, и по той же причине: тип с невидимой меткой выглядит обычным,
+          а ведёт себя иначе, стоит модуль включить обратно. */}
+      {!showJson && unknownTypeTags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 px-1 pt-1">
+          <span className="text-xs text-fg4">Тэги модуля:</span>
+          {unknownTypeTags.map(code => (
+            <span key={code}
+              title="Тэг модуля, выключенного на этом экземпляре. Пометка остаётся в схеме и заработает, когда модуль включат."
+              className="rounded-full border border-dashed border-stroke px-2 py-0.5 text-[11px] text-fg4">
+              {code}
+            </span>
+          ))}
+        </div>
+      )}
 
       {!showJson && applicableTypeTags.length > 0 && (
         <SectionCard icon={<Cpu size={15} />} title="Функциональные тэги типа"

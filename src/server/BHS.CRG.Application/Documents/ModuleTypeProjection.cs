@@ -51,7 +51,7 @@ public sealed record ModuleTypeSpec(
 /// </summary>
 public sealed record ProjectModuleTypeCommand(ModuleTypeSpec Spec) : IRequest<DocumentType>;
 
-public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo)
+public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, TagCatalog tags)
     : IRequestHandler<ProjectModuleTypeCommand, DocumentType>
 {
     /// <summary>
@@ -65,7 +65,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo)
     public async Task<DocumentType> Handle(ProjectModuleTypeCommand cmd, CancellationToken ct)
     {
         var spec = cmd.Spec;
-        Validate(spec);
+        Validate(spec, tags);
 
         var all = await repo.GetAllAsync(ct);
         // Код ищем БЕЗ учёта регистра — именно так его стережёт от повторов редактор типов
@@ -212,7 +212,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo)
     /// <summary>
     /// Что проверяется ДО записи. Каждая строка — про то, что иначе сломается молча и поздно.
     /// </summary>
-    private static void Validate(ModuleTypeSpec spec)
+    private static void Validate(ModuleTypeSpec spec, TagCatalog tags)
     {
         foreach (var f in spec.Fields)
             if (!SelfContainedKinds.Contains(f.Type))
@@ -232,7 +232,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo)
 
         foreach (var f in spec.Fields)
             foreach (var tag in f.Tags)
-                if (TagRegistry.Find(Domain.Schema.TagCode.CodeOf(tag)) is null)
+                if (tags.Find(Domain.Schema.TagCode.CodeOf(tag)) is null)
                     throw new ConflictException(
                         $"Модуль «{spec.Module}» поставил полю «{f.Key}» типа «{spec.Code}» неизвестный " +
                         $"тэг «{tag}». Тэгом код находит поле — с опечаткой печать не нашла бы его никогда.");

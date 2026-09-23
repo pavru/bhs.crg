@@ -8,8 +8,10 @@ public static class TagsEndpoints
 {
     public static void MapTagsEndpoints(this IEndpointRouteBuilder app)
     {
-        // Реестр функциональных тэгов для UI (выбор тэгов поля/типа).
-        app.MapGet("/api/tags", () => Results.Ok(TagRegistry.All))
+        // Реестр функциональных тэгов для UI (выбор тэгов поля/типа) — ЭТОГО экземпляра: ядро
+        // плюс включённые модули. Тэги выключенного модуля не отдаются (ТЗ TYPE-22, issue #959):
+        // предлагать метку, которую на этом экземпляре некому прочитать, значит обещать поведение.
+        app.MapGet("/api/tags", (TagCatalog tags) => Results.Ok(tags.All))
             .RequireAuthorization(AppPolicies.Permission(CorePermissions.TypesRead));
     }
 }
