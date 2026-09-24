@@ -112,7 +112,6 @@ internal static class DomainRegistration
         BHS.CRG.Infrastructure.DataSets.DataSnapshotService>();
     builder.Services.AddScoped<BHS.CRG.Application.DataSnapshots.IDomainSnapshotService,
         BHS.CRG.Infrastructure.Generation.DomainSnapshotService>();
-    // MCP-инструментам домена нужен ClaimsPrincipal (act-as-user): агент работает от имени пользователя.
     }
 
     /// <summary>
@@ -120,6 +119,7 @@ internal static class DomainRegistration
     /// </summary>
     internal static void AddApplicationServices(this WebApplicationBuilder builder)
     {
+    // MCP-инструментам домена нужен ClaimsPrincipal (act-as-user): агент работает от имени пользователя.
     builder.Services.AddHttpContextAccessor();
     // MCP-сервер: ВТОРОЙ тонкий адаптер над тем же ядром, in-process с API — переиспользует ту же
     // аутентификацию, DI и scoping DbContext. Только чтение: инструментов записи в этом срезе нет.
