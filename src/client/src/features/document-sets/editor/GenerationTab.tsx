@@ -236,7 +236,9 @@ export function GenerationTab({ instance, setId, schemaFieldKeys }: { instance: 
           Генерация PDF может занять несколько секунд — идёт сбор данных и компиляция Typst.
         </p>
       )}
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {/* whitespace-pre-line: отказ компилятора шаблона приходит несколькими строками — место
+          ошибки отдельной строкой (issue #1047). Без этого они слипаются в один абзац. */}
+      {error && <p className="text-sm text-danger whitespace-pre-line">{error}</p>}
 
       {shownDiagnostics && <DiagnosticsPanel diagnostics={shownDiagnostics} objectName={instance.name || 'без названия'} />}
       {pdfFiles.length > 0 && (

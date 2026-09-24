@@ -160,6 +160,8 @@ PUT    /api/document-sets/{setId}/documents/{id}/entity-refs  body = JSON object
 PUT    /api/document-sets/{setId}/documents/{id}/plugin-data  body = JSON object
 
 POST   /api/generate/{instanceId}   { format: "Pdf" }   (DOCX не поддерживается)
+                                      шаблон не скомпилировался → 400 с местом ошибки (issue #1047);
+                                      вывод компилятора наружу не уходит — он несёт пути папки прогона
 GET    /api/generate/download/{instanceId}/{format}
 GET    /api/generate/debug-bundle/{instanceId}  → ZIP (template.typ + data.json + typeblocks.typ + userlib.typ) для отладки шаблона во внешнем Typst
 GET    /api/generate/plugins

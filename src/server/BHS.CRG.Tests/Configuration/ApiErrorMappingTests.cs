@@ -87,6 +87,33 @@ public class ApiErrorMappingTests
     }
 
     /// <summary>
+    /// Отказ компилятора шаблона — наш отказ, а не внутренняя ошибка (issue #1047).
+    ///
+    /// <para>Обе половины в одном тесте нарочно: РАЗОБРАННЫЙ отказ уходит пользователю дословно и
+    /// с кодом 400, а вывод компилятора, который разобрать не удалось, остаётся чужим — 500 с
+    /// идентификатором запроса. Проверять только первую половину значило бы согласиться и на то,
+    /// чтобы сырой stderr поехал наружу под видом отказа: правило здесь ровно в их различии.</para>
+    /// </summary>
+    [Fact]
+    public void TemplateCompilation_IsOurRefusal_RawCompilerOutputIsNot()
+    {
+        var (status, message) = ApiErrorMapping.Describe(
+            new BHS.CRG.Application.Generation.TemplateCompilationException(
+                "Шаблон не собрался…\n  шаблон документа, строка 8: в словаре нет ключа «pageCount»"),
+            TraceId);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, status);
+        Assert.Contains("шаблон документа, строка 8", message);
+
+        var (rawStatus, rawMessage) = ApiErrorMapping.Describe(
+            new InvalidOperationException("Typst compilation failed (exit 1):\nC:\\НЕЧТО\\template.typ:12"),
+            TraceId);
+
+        Assert.Equal(StatusCodes.Status500InternalServerError, rawStatus);
+        Assert.DoesNotContain("НЕЧТО", rawMessage);
+    }
+
+    /// <summary>
     /// То же правило вне HTTP-ответа: запись фоновой задачи, уведомление в колокольчике, поле ошибки
     /// в журнале сверки. Выходов наружу больше одного, и правило у всех обязано быть общим — иначе
     /// закрытая дверь соседствует с открытой (через колокольчик уходил вывод компилятора шаблона).

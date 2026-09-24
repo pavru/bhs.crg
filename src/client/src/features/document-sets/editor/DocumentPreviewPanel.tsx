@@ -104,7 +104,8 @@ export function DocumentPreviewPanel({ instanceId, requisites }: {
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 text-fg4">
             <FileWarning size={28} className="text-danger" />
             <p className="text-sm text-danger">Не удалось построить предпросмотр</p>
-            <p className="text-xs break-words max-w-full">{state.message}</p>
+            {/* whitespace-pre-line — отказ компилятора шаблона приходит несколькими строками (issue #1047). */}
+            <p className="text-xs break-words max-w-full whitespace-pre-line">{state.message}</p>
             <button type="button" onClick={() => void run()} className="text-xs text-brand hover:text-brand-hover mt-1">Повторить</button>
           </div>
         )}

@@ -2,6 +2,7 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Application.Templates;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using BHS.CRG.Domain.Templates;
@@ -112,8 +113,17 @@ public class PreviewDocumentHandler(
         {
             return PreviewDocumentResult.Fail("Не все ссылки разрешены — предпросмотр недоступен.", ex.Diagnostics);
         }
-        catch (Exception ex)
+        catch (DomainException ex)
         {
+            // Только НАШ отказ: его текст написан для человека и уходит дословно — это тот же
+            // порядок, что у ответа на запрос (ApiErrorMapping, issue #691). Так сюда приходит
+            // разобранный отказ компилятора шаблона (issue #1047) — панели предпросмотра он нужен
+            // не меньше, чем генерации: правят шаблон как раз в ней.
+            //
+            // ⚠️ Прежде здесь стоял catch(Exception) с `ex.Message` наружу, то есть предпросмотр
+            // отдавал чужие сообщения дословно — и вывод компилятора с путями папки прогона, и
+            // текст Npgsql со строкой подключения. Чужое исключение теперь проходит выше: конвейер
+            // запишет его в журнал целиком и ответит идентификатором запроса.
             return PreviewDocumentResult.Fail(ex.Message);
         }
     }
