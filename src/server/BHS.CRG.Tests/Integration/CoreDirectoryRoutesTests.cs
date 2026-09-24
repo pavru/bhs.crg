@@ -5,8 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BHS.CRG.Tests.Integration;
 
 /// <summary>
-/// Справочник строек и разделов принадлежит ЯДРУ и переживает выключение любого модуля
-/// (ТЗ CORE-5, issue #960).
+/// Справочники ядра — стройки с разделами (ТЗ CORE-5, issue #960) и каталог организаций и лиц
+/// (ТЗ CORE-6, issue #961) — принадлежат ЯДРУ и переживают выключение любого модуля.
 ///
 /// <para>Зачем сторож. На стройках стоит весь <c>CatalogScope</c>: наборы данных, шаблоны,
 /// профили уровней и комплекты адресуют уровни через стройку и раздел. Уедь хоть один из этих
@@ -23,8 +23,8 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
 {
-    /// <summary>Пути справочника ядра. Всё, что под ними, обязано быть ядром и только справочником.</summary>
-    private static readonly string[] DirectoryPrefixes = ["/api/constructions", "/api/sections"];
+    /// <summary>Пути справочников ядра. Всё, что под ними, обязано быть ядром и только справочником.</summary>
+    private static readonly string[] DirectoryPrefixes = ["/api/constructions", "/api/sections", "/api/catalog"];
 
     private static readonly string[] Expected =
     [
@@ -39,10 +39,21 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         "PUT /api/constructions/{id:guid}/external-id",
         "DELETE /api/sections/{id:guid}",
         "PUT /api/sections/{id:guid}",
+
+        // Каталог организаций и лиц (ТЗ CORE-6). Переезд состоялся раньше этой записи: типы
+        // отданы ядру миграцией владельцев (issue #955), адреса закрыты core.catalog.* воротами
+        // (issue #947) и регистрируются корнем композиции. Запись же держит переезд: без неё
+        // каталог мог бы уехать к модулю одной строкой в RoutePrefixes — и организации исчезли бы
+        // вместе с выключенным модулем, а с ними реквизиты во ВСЕХ документах.
+        "GET /api/catalog/",
+        "GET /api/catalog/{id:guid}",
+        "POST /api/catalog/",
+        "PUT /api/catalog/{id:guid}",
+        "DELETE /api/catalog/{id:guid}",
     ];
 
     [Fact]
-    public void Construction_directory_belongs_to_the_core_and_holds_nothing_else()
+    public void Core_directories_belong_to_the_core_and_hold_nothing_else()
     {
         // Клиент нужен, чтобы хост поднялся: до первого запроса служб ещё нет.
         _ = fixture.CreateClient();
@@ -67,7 +78,7 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         }
 
         Assert.True(owned.Count == 0,
-            "Адрес справочника строек зарегистрирован модулем: " + string.Join(", ", owned) + ".\n" +
+            "Адрес справочника ядра зарегистрирован модулем: " + string.Join(", ", owned) + ".\n" +
             "Выключение этого модуля унесло бы общий справочник, на котором стоит CatalogScope:\n" +
             "наборы данных, шаблоны и профили уровней адресуют уровни через стройку и раздел.");
 
