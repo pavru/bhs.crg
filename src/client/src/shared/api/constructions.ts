@@ -89,7 +89,9 @@ export function useCreateDocumentSet() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ sectionId, name, constructionId }: { sectionId: string; name: string; constructionId: string }) =>
-      apiClient.post<DocumentSet>(`/sections/${sectionId}/sets`, { name }).then(r => ({ ...r.data, _constructionId: constructionId })),
+      // Комплект заводится под своим префиксом, а не под разделом (#960): стройки и разделы —
+      // справочник ядра, комплекты — модуль исполнительной документации.
+      apiClient.post<DocumentSet>('/document-sets', { sectionId, name }).then(r => ({ ...r.data, _constructionId: constructionId })),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: KEYS.detail(data._constructionId) });
       // Новый комплект — пока без плана: он попадает в «без плана: N» уровнем выше (#796).

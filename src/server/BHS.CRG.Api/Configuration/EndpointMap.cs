@@ -5,6 +5,7 @@ using BHS.CRG.Api.Endpoints.Backup;
 using BHS.CRG.Api.Endpoints.Maintenance;
 using BHS.CRG.Api.Endpoints.Support;
 using BHS.CRG.Api.Endpoints.Catalog;
+using BHS.CRG.Api.Endpoints.Core;
 using BHS.CRG.Api.Endpoints.Recognition;
 using BHS.CRG.Api.Endpoints.DataSets;
 using BHS.CRG.Api.Endpoints.Documents;
@@ -55,7 +56,9 @@ internal static class EndpointMap
     app.MapTemplateEndpoints();
     app.MapTemplateAssetEndpoints();
     app.MapTypstUserLibEndpoints();
-    app.MapDocumentSetEndpoints();
+    // Стройки и разделы — справочник ядра (CORE-5, issue #960). Комплекты документов
+    // регистрирует модуль исполнительной документации: см. IdModule.MapEndpoints.
+    app.MapConstructionEndpoints();
     app.MapGenerationEndpoints();
 
     // Адреса включённых модулей — каждый в своей группе (см. AppModuleExtensions.MapAppModules).
