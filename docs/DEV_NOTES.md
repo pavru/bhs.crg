@@ -143,10 +143,10 @@ POST   /api/templates               { documentTypeId, name, content }      — c
 PUT    /api/templates/{id}          { content }  — создаёт новую версию
                                     (запись типов/полей/шаблонов/настроек — только роль Admin)
 
-GET    /api/document-sets
+GET    /api/document-sets/search?q=&constructionId=   — списка «все комплекты» нет: только поиск
 GET    /api/document-sets/{id}      → DocumentSet (с instances[].generatedFiles[])
-POST   /api/document-sets           { name, projectEntityId? }
-PUT    /api/document-sets/{id}/name { name }
+POST   /api/document-sets           { sectionId, name }   — раздел ТЕЛОМ запроса (issue #960)
+PUT    /api/document-sets/{id}      { name }
 DELETE /api/document-sets/{id}
 
 POST   /api/document-sets/{setId}/documents          { documentTypeId }

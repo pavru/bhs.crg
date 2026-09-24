@@ -371,6 +371,60 @@ public class PermissionGateTests(IntegrationTestFixture fixture)
     }
 
     /// <summary>
+    /// Правка комплекта — под правом ПРАВКИ, а не чтения (ревью PR #1045).
+    ///
+    /// До 0.192.0 пишущие адреса комплектов стояли под <c>id.document.read</c>: роль, которой
+    /// выдали только просмотр, удаляла комплект со всеми документами — удаление каскадное, и
+    /// вернуть его нечем. Само право <c>id.document.edit</c> при этом было объявлено и не
+    /// открывало ни одной двери: в редакторе ролей значилось, а не значило ничего.
+    ///
+    /// Проверяются вход, правка и удаление вместе: закрыть один адрес и оставить рядом открытым
+    /// другой — ровно та ошибка, ради которой они собраны в общую группу.
+    /// </summary>
+    [Theory]
+    [InlineData("POST", "/api/document-sets")]
+    [InlineData("PUT", "/api/document-sets/{0}")]
+    [InlineData("DELETE", "/api/document-sets/{0}")]
+    [InlineData("POST", "/api/document-sets/{0}/documents")]
+    [InlineData("PUT", "/api/document-sets/{0}/documents/{1}/requisites")]
+    [InlineData("DELETE", "/api/document-sets/{0}/documents/{1}")]
+    public async Task Changing_a_set_requires_the_document_edit_permission(string method, string route)
+    {
+        var url = string.Format(route, Guid.NewGuid(), Guid.NewGuid());
+
+        var reader = await SignInWithPermissionsAsync("id.document.read");
+        var editor = await SignInWithPermissionsAsync("id.document.read", "id.document.edit");
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(reader, method, url)).StatusCode);
+        // У правщика дверь открыта: дальше отвечает уже отсутствие комплекта или документа —
+        // что угодно, кроме отказа по правам.
+        Assert.NotEqual(HttpStatusCode.Forbidden, (await SendAsync(editor, method, url)).StatusCode);
+    }
+
+    /// <summary>
+    /// Чтение комплектов правкой НЕ заменяется: право правки объявлено зависимым от чтения
+    /// (<c>id.document.edit</c> → <c>id.document.read</c>), но группы независимы, и роль с одной
+    /// правкой без чтения к списку комплектов не попадёт. Записано тестом, потому что это решение,
+    /// а не случайность: иначе первый же отказ выглядел бы поломкой ворот.
+    /// </summary>
+    [Fact]
+    public async Task Edit_permission_alone_does_not_open_reading()
+    {
+        var editorOnly = await SignInWithPermissionsAsync("id.document.edit");
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await editorOnly.GetAsync($"/api/document-sets/{Guid.NewGuid()}")).StatusCode);
+    }
+
+    private static Task<HttpResponseMessage> SendAsync(HttpClient client, string method, string url) => method switch
+    {
+        "POST" => client.PostAsJsonAsync(url, new { }),
+        "PUT" => client.PutAsJsonAsync(url, new { }),
+        "DELETE" => client.DeleteAsync(url),
+        _ => throw new InvalidOperationException("Неизвестный метод: " + method),
+    };
+
+    /// <summary>
     /// Запуск распознавания — под правом НАСТРОЙКИ наборов (нашло ревью PR #998).
     ///
     /// Все четыре входа в распознавание лежали в группе наборов, закрытой правом на чтение, — то

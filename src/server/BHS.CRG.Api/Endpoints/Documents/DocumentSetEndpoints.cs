@@ -35,14 +35,24 @@ public static class DocumentSetEndpoints
             .RequireAuthorization(AppPolicies.Permission("id.document.read"))
             .AddEndpointFilter<DocumentBelongsToSetFilter>();
 
+        // Правка — СВОИМ правом, а не тем же, что чтение (ревью PR #1045). До 0.192.0 всё, что
+        // пишет, стояло под id.document.read: роль, которой выдали только просмотр, удаляла любой
+        // комплект со всеми документами. Право id.document.edit при этом было объявлено и не
+        // открывало ни одной двери — то есть в редакторе ролей значилось, но не значило ничего.
+        //
+        // Группой, а не пометкой на каждом адресе: пометок пятнадцать, и шестнадцатую забудут.
+        // Фильтр принадлежности документа комплекту обязан стоять и здесь — группы независимы.
+        var gEdit = app.MapGroup("/api/document-sets")
+            .RequireAuthorization(AppPolicies.Permission("id.document.edit"))
+            .AddEndpointFilter<DocumentBelongsToSetFilter>();
+
         // Комплект заводится ЗДЕСЬ, а не под /api/sections (issue #960). Прежний адрес
         // POST /api/sections/{id}/sets стоял под префиксом ядра: стройки и разделы переехали в
         // ядро, и создание комплекта пережило бы выключение модуля — то есть заводить комплекты
         // было бы можно, а открыть ни один из них нельзя. Право тоже сменилось: комплект заводит
         // тот, кто ведёт документацию (id.document.edit), а не тот, кому выдали справочник строек.
-        g.MapPost("/", async (CreateSetRequest req, IMediator m)
-            => Results.Ok(await m.Send(new CreateDocumentSetCommand(req.SectionId, req.Name))))
-            .RequireAuthorization(AppPolicies.Permission("id.document.edit"));
+        gEdit.MapPost("/", async (CreateSetRequest req, IMediator m)
+            => Results.Ok(await m.Send(new CreateDocumentSetCommand(req.SectionId, req.Name))));
 
         // Поиск документов по всем комплектам (имя документа/типа + текст реквизитов). ?q= обязателен,
         // ?constructionId= — необязательный фильтр по стройке.
@@ -57,10 +67,10 @@ public static class DocumentSetEndpoints
             return Results.Ok(DocumentSetDto.From(set, await ConstructionOfAsync(m, set), docs));
         });
 
-        g.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
+        gEdit.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
             => Results.Ok(await m.Send(new RenameDocumentSetCommand(id, req.Name))));
 
-        g.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
+        gEdit.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
         {
             await m.Send(new DeleteDocumentSetCommand(id));
             return Results.NoContent();
@@ -70,11 +80,11 @@ public static class DocumentSetEndpoints
         g.MapGet("/{id:guid}/available-instances", async (Guid id, IMediator m)
             => Results.Ok((await m.Send(new ListAvailableInstancesQuery(id))).Select(InstanceDto.From)));
 
-        g.MapPost("/{setId:guid}/documents", async (Guid setId, AddDocumentRequest req, IMediator m)
+        gEdit.MapPost("/{setId:guid}/documents", async (Guid setId, AddDocumentRequest req, IMediator m)
             => Results.Ok(InstanceDto.From(await m.Send(new AddDocumentToSetCommand(setId, req.DocumentTypeId)))));
 
         // issue #283 (фаза B): дублировать документ в тот же комплект.
-        g.MapPost("/{setId:guid}/documents/{id:guid}/duplicate", async (Guid id, IMediator m) =>
+        gEdit.MapPost("/{setId:guid}/documents/{id:guid}/duplicate", async (Guid id, IMediator m) =>
         {
             try { return Results.Ok(InstanceDto.From(await m.Send(new DuplicateDocumentInstanceCommand(id)))); }
             catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
@@ -86,7 +96,7 @@ public static class DocumentSetEndpoints
             try { return Results.Ok(await m.Send(new PreviewCopyDocumentQuery(id, req.TargetSetId, CopyStrategy.SmartCleanup))); }
             catch (NotFoundException) { return Results.NotFound(); }
         });
-        g.MapPost("/{setId:guid}/documents/{id:guid}/copy", async (Guid id, CopyDocumentRequest req, IMediator m) =>
+        gEdit.MapPost("/{setId:guid}/documents/{id:guid}/copy", async (Guid id, CopyDocumentRequest req, IMediator m) =>
         {
             try
             {
@@ -103,7 +113,7 @@ public static class DocumentSetEndpoints
             try { return Results.Ok(await m.Send(new PreviewMoveDocumentQuery(id, req.TargetSetId, CopyStrategy.SmartCleanup))); }
             catch (NotFoundException) { return Results.NotFound(); }
         });
-        g.MapPost("/{setId:guid}/documents/{id:guid}/move", async (Guid id, CopyDocumentRequest req, IMediator m) =>
+        gEdit.MapPost("/{setId:guid}/documents/{id:guid}/move", async (Guid id, CopyDocumentRequest req, IMediator m) =>
         {
             try
             {
@@ -120,11 +130,11 @@ public static class DocumentSetEndpoints
             return inst is null ? Results.NotFound() : Results.Ok(InstanceDto.From(inst));
         });
 
-        g.MapPut("/{setId:guid}/documents/{id:guid}/name",
+        gEdit.MapPut("/{setId:guid}/documents/{id:guid}/name",
             async (Guid id, RenameDocumentInstanceRequest req, IMediator m)
                 => Results.Ok(InstanceDto.From(await m.Send(new RenameDocumentInstanceCommand(id, req.Name)))));
 
-        g.MapPut("/{setId:guid}/documents/{id:guid}/requisites",
+        gEdit.MapPut("/{setId:guid}/documents/{id:guid}/requisites",
             async (Guid id, JsonElement body, IMediator m)
                 => Results.Ok(InstanceDto.From(await m.Send(new UpdateRequisitesCommand(
                     id, JsonDocument.Parse(body.GetRawText()))))));
@@ -139,34 +149,34 @@ public static class DocumentSetEndpoints
 
         // Применение исправлений к ЭТОМУ документу. instanceId жёстко берём из маршрута (клиент не может
         // подсунуть чужой) — фиксы несут только action/path/targetKey.
-        g.MapPost("/{setId:guid}/documents/{id:guid}/audit/apply", async (Guid id, InstanceAuditApplyRequest req, IMediator m) =>
+        gEdit.MapPost("/{setId:guid}/documents/{id:guid}/audit/apply", async (Guid id, InstanceAuditApplyRequest req, IMediator m) =>
         {
             var fixes = req.Fixes.Select(f => new AuditFix(id, f.Action, f.Path, f.TargetKey)).ToList();
             return Results.Ok(await m.Send(new ApplyAuditFixesCommand(fixes)));
         });
 
-        g.MapPut("/{setId:guid}/documents/{id:guid}/plugin-data",
+        gEdit.MapPut("/{setId:guid}/documents/{id:guid}/plugin-data",
             async (Guid id, JsonElement body, IMediator m)
                 => Results.Ok(InstanceDto.From(await m.Send(new UpdatePluginDataCommand(
                     id, JsonDocument.Parse(body.GetRawText()))))));
 
-        g.MapPut("/{setId:guid}/documents/{id:guid}/template",
+        gEdit.MapPut("/{setId:guid}/documents/{id:guid}/template",
             async (Guid id, SetTemplateRequest req, IMediator m)
                 => Results.Ok(InstanceDto.From(await m.Send(new SetDocumentTemplateCommand(id, req.TemplateId)))));
 
         // Набор выбранных шаблонов для мульти-генерации (JSON-массив Guid в теле или null).
-        g.MapPut("/{setId:guid}/documents/{id:guid}/templates",
+        gEdit.MapPut("/{setId:guid}/documents/{id:guid}/templates",
             async (Guid id, JsonElement body, IMediator m)
                 => Results.Ok(InstanceDto.From(await m.Send(new SetDocumentTemplatesCommand(
                     id, body.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined ? null : body.GetRawText())))));
 
         // Переопределения значений параметров шаблона на документе (JSON-объект {имя:значение} или null).
-        g.MapPut("/{setId:guid}/documents/{id:guid}/template-params",
+        gEdit.MapPut("/{setId:guid}/documents/{id:guid}/template-params",
             async (Guid id, JsonElement body, IMediator m)
                 => Results.Ok(InstanceDto.From(await m.Send(new SetDocumentTemplateParamsCommand(
                     id, body.ValueKind == JsonValueKind.Null ? null : body.GetRawText())))));
 
-        g.MapDelete("/{setId:guid}/documents/{id:guid}", async (Guid id, IMediator m) =>
+        gEdit.MapDelete("/{setId:guid}/documents/{id:guid}", async (Guid id, IMediator m) =>
         {
             try { await m.Send(new DeleteDocumentInstanceCommand(id)); return Results.NoContent(); }
             catch (ConflictException ex) { return Results.Conflict(new { error = ex.Message }); }
@@ -174,7 +184,7 @@ public static class DocumentSetEndpoints
 
         // ── Сборка комплекта ───────────────────────────────────────────────────
         // Порядок документов в собранном файле (тела — массив id в нужном порядке).
-        g.MapPut("/{setId:guid}/documents/order", async (Guid setId, Guid[] orderedIds, IMediator m, IDomainObjectRepository objRepo, CancellationToken ct) =>
+        gEdit.MapPut("/{setId:guid}/documents/order", async (Guid setId, Guid[] orderedIds, IMediator m, IDomainObjectRepository objRepo, CancellationToken ct) =>
         {
             var set = await m.Send(new ReorderDocumentInstancesCommand(setId, orderedIds));
             var docs = await objRepo.GetSetDocumentsAsync(setId, tracked: false, ct);

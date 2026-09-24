@@ -2,6 +2,7 @@
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Objects;
 using BHS.CRG.Domain.Catalog;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Objects;
 using MediatR;
@@ -42,6 +43,17 @@ public class DocumentSetHandlers(
 {
     public async Task<DocumentSet> Handle(CreateDocumentSetCommand cmd, CancellationToken ct)
     {
+        // Раздел приходит ТЕЛОМ запроса (issue #960), а не сегментом адреса, и потому может не
+        // прийти вовсе. Два разных отказа, а не один: пустой ключ — это «поле забыли» (400),
+        // непустой и ненайденный — «такого раздела нет» (404). Без проверки оба доезжали до
+        // внешнего ключа в базе и возвращались пятисоткой: ApiErrorMapping не разбирает
+        // DbUpdateException и прячет её целиком, то есть ошибка вызывающего выглядела бы поломкой
+        // сервера (ревью PR #1045).
+        if (cmd.SectionId == Guid.Empty)
+            throw new InvalidRequestException("Не указан раздел, в котором заводится комплект.");
+        _ = await sectionRepo.GetByIdAsync(cmd.SectionId, ct)
+            ?? throw new NotFoundException("Раздел не найден.");
+
         var set = DocumentSet.Create(cmd.SectionId, cmd.Name);
         await setRepo.AddAsync(set, ct);
         await setRepo.SaveChangesAsync(ct);
