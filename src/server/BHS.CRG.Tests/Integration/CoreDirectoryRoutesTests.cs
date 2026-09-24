@@ -5,8 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace BHS.CRG.Tests.Integration;
 
 /// <summary>
-/// Справочник строек и разделов принадлежит ЯДРУ и переживает выключение любого модуля
-/// (ТЗ CORE-5, issue #960).
+/// Справочники ядра — стройки с разделами (ТЗ CORE-5, issue #960) и каталог организаций и лиц
+/// (ТЗ CORE-6, issue #961) — принадлежат ЯДРУ и переживают выключение любого модуля.
 ///
 /// <para>Зачем сторож. На стройках стоит весь <c>CatalogScope</c>: наборы данных, шаблоны,
 /// профили уровней и комплекты адресуют уровни через стройку и раздел. Уедь хоть один из этих
@@ -23,8 +23,9 @@ namespace BHS.CRG.Tests.Integration;
 [Collection("Integration")]
 public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
 {
-    /// <summary>Пути справочника ядра. Всё, что под ними, обязано быть ядром и только справочником.</summary>
-    private static readonly string[] DirectoryPrefixes = ["/api/constructions", "/api/sections"];
+    /// <summary>Пути справочников ядра. Всё, что под ними, обязано быть ядром и только справочником.</summary>
+    private static readonly string[] DirectoryPrefixes =
+        ["/api/constructions", "/api/sections", "/api/common-data", "/api/catalog"];
 
     private static readonly string[] Expected =
     [
@@ -39,10 +40,41 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         "PUT /api/constructions/{id:guid}/external-id",
         "DELETE /api/sections/{id:guid}",
         "PUT /api/sections/{id:guid}",
+
+        // ── Каталог организаций и лиц (ТЗ CORE-6) ──────────────────────────────
+        //
+        // ⚠️ Живой каталог — это /api/common-data, а НЕ /api/catalog. Организации и лица лежат
+        // объектами (DomainObject) после объединения (issue #84): этими адресами их правит
+        // интерфейс, и из этих же объектов EntityResolver берёт реквизиты для генерации. Первая
+        // редакция сторожа взяла под охрану /api/catalog — дверь к CatalogEntity, у которой в
+        // клиенте нет ни одного потребителя и которая в генерации не участвует вовсе; сторож стоял
+        // бы у двери, через которую никто не ходит, и переезд common-data к модулю прошёл бы
+        // зелёным (нашло ревью PR #1048).
+        //
+        // Зачем держать: уедь эти адреса к модулю — вместе с выключенным модулем исчезли бы
+        // организации и лица, а с ними реквизиты во ВСЕХ документах.
+        "GET /api/common-data/",
+        "GET /api/common-data/for-set/{setId:guid}",
+        "GET /api/common-data/for-scope",
+        "GET /api/common-data/{id:guid}",
+        "GET /api/common-data/{id:guid}/audit",
+        "GET /api/common-data/{id:guid}/binding-check",
+        "POST /api/common-data/",
+        "PUT /api/common-data/{id:guid}",
+        "DELETE /api/common-data/{id:guid}",
+
+        // CatalogEntity — прежнее хранилище того же справочника (аналог «КаталогОбщихДанных»
+        // старой системы). Потребителей у него не осталось, но адреса живы и закрыты теми же
+        // воротами, поэтому под присмотром тоже: пока дверь есть, она обязана быть дверью ядра.
+        "GET /api/catalog/",
+        "GET /api/catalog/{id:guid}",
+        "POST /api/catalog/",
+        "PUT /api/catalog/{id:guid}",
+        "DELETE /api/catalog/{id:guid}",
     ];
 
     [Fact]
-    public void Construction_directory_belongs_to_the_core_and_holds_nothing_else()
+    public void Core_directories_belong_to_the_core_and_hold_nothing_else()
     {
         // Клиент нужен, чтобы хост поднялся: до первого запроса служб ещё нет.
         _ = fixture.CreateClient();
@@ -67,7 +99,7 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         }
 
         Assert.True(owned.Count == 0,
-            "Адрес справочника строек зарегистрирован модулем: " + string.Join(", ", owned) + ".\n" +
+            "Адрес справочника ядра зарегистрирован модулем: " + string.Join(", ", owned) + ".\n" +
             "Выключение этого модуля унесло бы общий справочник, на котором стоит CatalogScope:\n" +
             "наборы данных, шаблоны и профили уровней адресуют уровни через стройку и раздел.");
 
