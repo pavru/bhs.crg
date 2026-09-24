@@ -1,6 +1,7 @@
 ﻿using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Application.Notifications;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.Schema;
@@ -77,9 +78,14 @@ public class RecognizeDocumentHandler(
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
+            // Дословно уходит только НАШ отказ (issue #691): распознавание ходит по сети к движку,
+            // и чужое сообщение здесь — это ответ стороннего сервиса вместе с его адресом. Наши
+            // отказы движка (RecognitionUnavailableException и прочие) доменные, поэтому доходят как
+            // были; остальное — общим текстом, а целиком пишет конвейер, получив исключение по throw.
             if (cmd.Notify)
                 await notifications.PublishAsync(NotificationSeverity.Error, "Ошибка распознавания",
-                    ex.Message, "Распознавание", userId: cmd.UserId, ct: ct);
+                    Refusals.TextOr(ex, "Внутренняя ошибка — подробности в журнале сервера."),
+                    "Распознавание", userId: cmd.UserId, ct: ct);
             throw;
         }
     }

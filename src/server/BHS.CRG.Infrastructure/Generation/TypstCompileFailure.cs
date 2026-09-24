@@ -43,14 +43,14 @@ public static partial class TypstCompileFailure
         ["template.typ"] = "шаблон документа",
         [TypstGenerator.TypeBlocksFileName] = "блоки отображения типов",
         [TypstGenerator.UserLibFileName] = "библиотека Typst",
-        ["systemlib.typ"] = "системная библиотека",
+        [SystemTypstLib.FileName] = "системная библиотека",
         [TypstGenerator.DataFileName] = "данные документа",
     };
 
     // Остаток абсолютного пути после вычистки папки прогона: диск Windows (в т.ч. с префиксом
     // «\\?\») или системный каталог Unix. Такой путь приходит не из нашей папки — из окружения
     // сервера, — и пользователю не адресует ничего.
-    [GeneratedRegex(@"(\\\\\?\\)?[A-Za-z]:[\\/][^\s)""']*|/(?:tmp|home|root|usr|var|etc|opt|app)/[^\s)""']*")]
+    [GeneratedRegex(@"(\\\\\?\\)?[A-Za-z]:[\\/][^\s)""']*|/(?:private|tmp|home|root|usr|var|etc|opt|app)/[^\s)""']*")]
     private static partial Regex AbsolutePathRe { get; }
 
     /// <summary>
@@ -88,16 +88,37 @@ public static partial class TypstCompileFailure
     /// <summary>
     /// Путь диагностики — относительно папки прогона, или <c>null</c>, если он вне её.
     ///
-    /// <para>Сравнение по СУФФИКСУ, а не по равенству: Typst печатает абсолютный путь, на Windows
-    /// ещё и с префиксом «\\?\», — тем же приёмом привязывает диагностики
-    /// <see cref="TypstSyntaxChecker" />. Отбор по одному имени файла не совпал бы ни с чем, и
-    /// сторож молча показывал бы ошибки без адреса.</para>
+    /// <para>⚠️ Отрезается всё до ИМЕНИ папки прогона, а не сверяется её полный путь. Сверка полного
+    /// пути в этом решении уже подводила: она зависит от того, как хост канонизирует временную папку
+    /// (короткие имена 8.3, «/private/var/…» вместо «/var/…»), и МОЛЧА перестаёт совпадать — см.
+    /// <see cref="UserLibChecker" />, где этот приём именно поэтому и убрали. Последствие тихое и
+    /// поэтому скверное: адрес ошибки исчезает, а в тексте сообщения путь не вычищается и целиком
+    /// уходит под заглушку — вместе с «assets/missing.png», то есть с единственным, что человеку и
+    /// нужно было. Имя папки задаём мы сами (GUID), канонизация его не трогает.</para>
     /// </summary>
     private static string? Relative(string file, string runDir)
     {
         var path = Normalize(file);
-        var root = Normalize(runDir).TrimEnd('/') + "/";
-        return path.StartsWith(root, StringComparison.OrdinalIgnoreCase) ? path[root.Length..] : null;
+
+        var leaf = LeafOf(runDir);
+        if (leaf.Length > 0)
+        {
+            var marker = "/" + leaf + "/";
+            var at = path.LastIndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (at >= 0) return path[(at + marker.Length)..];
+        }
+
+        // Путь напечатан относительным — значит он уже относителен папке прогона (рабочая папка
+        // процесса — она). Абсолютный путь, не принадлежащий прогону, адресом быть не может.
+        return !path.StartsWith('/') && !path.Contains(':') ? path : null;
+    }
+
+    /// <summary>Имя папки прогона — то, по чему её узнают в любом написании пути.</summary>
+    private static string LeafOf(string runDir)
+    {
+        var s = Normalize(runDir).TrimEnd('/');
+        var at = s.LastIndexOf('/');
+        return at < 0 ? s : s[(at + 1)..];
     }
 
     private static string Normalize(string path)
@@ -130,22 +151,20 @@ public static partial class TypstCompileFailure
     /// <summary>
     /// Путь папки прогона — вон из текста, остатки абсолютных путей — под заглушку.
     ///
-    /// <para>⚠️ Формы перебираются от ДЛИННОЙ к короткой, и это не косметика. Сначала сняв короткую
-    /// (<c>C:\…\tmp\&lt;guid&gt;\</c>), мы оставили бы от длинной висящий префикс <c>\\?\</c> — он уже
-    /// ни к чему не приклеен, и следующая подстановка его не узнаёт. Поймано тестом на живом выводе
-    /// «file not found», где путь лежит внутри сообщения.</para>
+    /// <para>Правило то же, что у <see cref="Relative" />: снимается всё, что кончается именем папки
+    /// прогона и разделителем, — с любым написанием ведущей части (<c>\\?\</c>, «/private/var/…»,
+    /// короткие имена). Перебор написаний полного пути, стоявший здесь прежде, мало того что зависел
+    /// от канонизации, так ещё и рвался на порядке: сняв короткую форму первой, он оставлял от
+    /// длинной висящий префикс <c>\\?\</c>, которого следующая подстановка уже не узнавала (поймал
+    /// тест на живом выводе «file not found», где путь лежит ВНУТРИ сообщения).</para>
     /// </summary>
     private static string Scrub(string message, string runDir)
     {
-        var roots = new[] { runDir, runDir.Replace('\\', '/') }.Where(r => !string.IsNullOrEmpty(r));
-        var forms = roots
-            .SelectMany(r => new[] { @"\\?\" + r, "//?/" + r, r })
-            .SelectMany(f => new[] { f + '\\', f + '/', f })
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(f => f.Length);
-
-        var withoutRun = forms.Aggregate(message,
-            (text, form) => text.Replace(form, string.Empty, StringComparison.OrdinalIgnoreCase));
+        var leaf = LeafOf(runDir);
+        var withoutRun = leaf.Length == 0
+            ? message
+            : new Regex($@"[^\s""']*{Regex.Escape(leaf)}[\\/]",
+                RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)).Replace(message, string.Empty);
 
         return AbsolutePathRe.Replace(withoutRun, "‹путь на сервере›").Trim();
     }

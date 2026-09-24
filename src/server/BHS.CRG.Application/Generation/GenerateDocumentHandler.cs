@@ -5,6 +5,7 @@ using BHS.CRG.Application.Notifications;
 using BHS.CRG.Application.QualityDocs;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Application.Templates;
+using BHS.CRG.Domain.Common;
 using BHS.CRG.Domain.Documents;
 using BHS.CRG.Domain.Notifications;
 using BHS.CRG.Domain.Objects;
@@ -196,8 +197,16 @@ public class GenerateDocumentHandler(
             instance.MarkFailed();
             instanceRepo.Update(instance);
             await instanceRepo.SaveChangesAsync(ct);
+            // Колокольчик — такой же выход наружу, как ответ на запрос: дословно уходит только НАШ
+            // отказ (issue #691). Здесь стоял сырой ex.Message, то есть через уведомление уезжал и
+            // вывод компилятора шаблона с путями папки прогона, и текст Npgsql со строкой
+            // подключения при сбое сохранения. Теперь разобранный отказ компиляции (issue #1047)
+            // доходит как есть, а чужая ошибка — общим текстом; целиком её пишет конвейер, который
+            // получит это исключение ниже по throw.
             await notifications.PublishAsync(NotificationSeverity.Error, "Ошибка генерации",
-                $"«{instance.DisplayName}»: {ex.Message}", "Генерация", userId: cmd.UserId, ct: ct);
+                $"«{instance.DisplayName}»: " + Refusals.TextOr(ex,
+                    "внутренняя ошибка — подробности в журнале сервера."),
+                "Генерация", userId: cmd.UserId, ct: ct);
             throw;
         }
     }

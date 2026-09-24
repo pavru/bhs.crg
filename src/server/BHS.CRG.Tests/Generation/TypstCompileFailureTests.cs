@@ -94,6 +94,42 @@ public class TypstCompileFailureTests
         Assert.Contains("unknown variable: undefined_thing", refusal.Message);
     }
 
+    /// <summary>
+    /// Ведущая часть пути написана иначе, чем у нас, — адрес всё равно находится (нашло ревью #1049).
+    ///
+    /// <para>Хост канонизирует временную папку по-своему: macOS печатает «/private/var/…» там, где
+    /// приложение знает «/var/…», Windows умеет отдать короткое имя 8.3. Сверка ПОЛНОГО пути тут
+    /// молча перестаёт совпадать — в этом решении на том уже обжигались (<c>UserLibChecker</c>), — и
+    /// отказ терял бы и адрес, и «assets/missing.png» из текста: путь целиком уходил бы под заглушку.
+    /// Узнаём папку по ИМЕНИ: его задаём мы, канонизация его не трогает.</para>
+    /// </summary>
+    [Fact]
+    public void A_differently_canonicalized_prefix_still_resolves()
+    {
+        const string ourView = "/var/folders/T/tmp.Lg1WPk04YT";
+        const string typstView = "/private/var/folders/T/tmp.Lg1WPk04YT";
+
+        var refusal = TypstCompileFailure.TryDescribe(
+            $"{typstView}/template.typ:2:7: error: file not found (searched at {typstView}/assets/missing.png)",
+            ourView);
+
+        Assert.NotNull(refusal);
+        Assert.Contains("шаблон документа, строка 2", refusal.Message);
+        Assert.Contains("assets/missing.png", refusal.Message);
+        Assert.DoesNotContain("/private/var", refusal.Message);
+    }
+
+    [Fact]
+    public void A_relative_path_is_already_the_address()
+    {
+        // Рабочая папка процесса — папка прогона, поэтому относительный путь в диагностике
+        // относителен ей же. Требовать абсолютный значило бы потерять адрес на ровном месте.
+        var refusal = TypstCompileFailure.TryDescribe(
+            "template.typ:8:24: error: unknown variable: foo", RunDir);
+
+        Assert.Contains("шаблон документа, строка 8", refusal!.Message);
+    }
+
     [Fact]
     public void Unparseable_output_is_not_our_refusal()
     {
