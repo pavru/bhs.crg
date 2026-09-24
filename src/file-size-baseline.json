@@ -1,4 +1,6 @@
 {
+  "deploy/install.sh": 569,
+  "deploy/update.sh": 818,
   "src/client/e2e/seed.mjs": 566,
   "src/client/src/features/datasets/PdfGroupingEditor.tsx": 538,
   "src/client/src/features/document-sets/catalog/index.tsx": 716,
