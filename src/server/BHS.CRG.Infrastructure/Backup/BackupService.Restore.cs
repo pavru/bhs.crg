@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using BHS.CRG.Application.Backup;
 using BHS.CRG.Application.Documents;
 using BHS.CRG.Domain.Catalog;
@@ -417,28 +417,6 @@ public partial class BackupService
     /// Идёт через службу журнала, а не через набор напрямую: прямой доступ есть только у неё
     /// (сторож <c>ActivityLogInventoryTests</c>).
     /// </summary>
-    /// <summary>
-    /// Настройки экземпляра (issue #960). Upsert по ключу: копия восстанавливается и поверх живой
-    /// системы, и ключ, которого в копии нет, трогать нельзя — его задали здесь, а не там.
-    /// </summary>
-    private async Task RestoreAppSettingsAsync(
-        BackupAppSetting[] items, RestoreStats stats, CancellationToken ct)
-    {
-        if (items.Length == 0) return;
-
-        var existing = await db.AppSettings.ToDictionaryAsync(a => a.Key, StringComparer.Ordinal, ct);
-        int created = 0, updated = 0;
-        foreach (var item in items)
-        {
-            if (existing.TryGetValue(item.Key, out var row)) { row.SetValue(item.Value); updated++; }
-            else { db.AppSettings.Add(BHS.CRG.Domain.Settings.AppSetting.Create(item.Key, item.Value)); created++; }
-        }
-
-        await db.SaveChangesAsync(ct);
-        db.ChangeTracker.Clear();
-        stats.Count("Настройки системы", created, updated);
-    }
-
     private async Task RestoreActivityLogAsync(
         BackupActivityRecord[] items, RestoreStats stats, CancellationToken ct)
     {

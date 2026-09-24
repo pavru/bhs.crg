@@ -52,13 +52,42 @@ public class ConstructionHandlers(
         return c;
     }
 
+    /// <summary>
+    /// Внешний идентификатор стройки (ТЗ CORE-5).
+    ///
+    /// <para>⚠️ Всё, что можно отвергнуть ДО базы, отвергается здесь. Иначе длинный код упирался бы
+    /// в ширину колонки (22001), а повтор пары — в уникальный индекс (23505), и оба возвращались бы
+    /// пятисоткой: <c>ApiErrorMapping</c> разбирает только наши отказы, а прочее прячет целиком,
+    /// чтобы наружу не уехали хост и имя базы. То есть ошибка вызывающего выглядела бы поломкой
+    /// сервера (ревью PR #1046 — та же находка, что уже была у создания комплекта в PR #1045).</para>
+    /// </summary>
     public async Task<Construction> Handle(SetConstructionExternalIdCommand cmd, CancellationToken ct)
     {
         var c = await constructionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
+
+        if (cmd.System is { Length: > 128 })
+            throw new InvalidRequestException("Название системы-источника длиннее 128 символов.");
+        if (cmd.Code is { Length: > 256 })
+            throw new InvalidRequestException("Код в системе-источнике длиннее 256 символов.");
+
         // Половину пары отвергает сам домен — нашим типом отказа, то есть текстом, который дойдёт
         // до вызывающего (см. DomainExceptionPolicyTests).
         c.SetExternalId(cmd.System, cmd.Code);
+
+        if (c.ExternalSystem is not null)
+        {
+            var taken = await constructionRepo.FindAsync(
+                x => x.Id != c.Id && x.ExternalSystem == c.ExternalSystem && x.ExternalCode == c.ExternalCode, ct);
+            if (taken.Count > 0)
+                throw new ConflictException(
+                    $"Код «{c.ExternalCode}» в системе «{c.ExternalSystem}» уже занят стройкой «{taken[0].Name}». " +
+                    "Пара «система + код» адресует ровно одну стройку: иначе следующая загрузка извне " +
+                    "выбрала бы любую из них.");
+        }
+
         constructionRepo.Update(c);
+        // Гонку (пара занята между проверкой и записью) ловит АДРЕС: здесь, в прикладном слое, нет
+        // ни EF, ни Npgsql — а различить 23505 нечем иначе. См. ConstructionEndpoints.
         await constructionRepo.SaveChangesAsync(ct);
         return c;
     }

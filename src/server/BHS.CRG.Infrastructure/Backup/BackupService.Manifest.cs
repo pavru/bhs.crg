@@ -1,4 +1,4 @@
-﻿using BHS.CRG.Application.Backup;
+using BHS.CRG.Application.Backup;
 using BHS.CRG.Domain.Reconciliation;
 using Microsoft.EntityFrameworkCore;
 

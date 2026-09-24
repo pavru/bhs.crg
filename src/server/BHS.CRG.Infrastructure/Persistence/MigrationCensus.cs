@@ -18,13 +18,23 @@ namespace BHS.CRG.Infrastructure.Persistence;
 /// <para>⚠️ Читается СЫРЫМ SQL, а не через EF. До миграции модель и схема не совпадают по
 /// определению — это и есть причина миграции, — и запрос через контекст упал бы на первой же новой
 /// колонке, то есть сторож ронял бы старт вместо того, чтобы его проверить.</para>
+///
+/// <para>⚠️ Считается то, что ЕСТЬ, а не «всё или ничего» (ревью PR #1046). База старше объединения
+/// в <c>domain_objects</c> не знает этой таблицы — и перепись «всё или ничего» выключилась бы на
+/// ней целиком и молча: самое рискованное обновление, через десятки версий, прошло бы без единой
+/// проверки и выглядело бы сошедшимся. Здесь непосчитанное просто отсутствует в
+/// <see cref="Counts" />, а сверка требует объяснения, если строка ПРОПАЛА между «до» и «после».</para>
 /// </summary>
-public sealed record MigrationCensus(
-    long Constructions, long Sections, long DocumentSets,
-    long OrphanSections, long OrphanSets, long OrphanObjects)
+/// <param name="Counts">Что посчитано: подпись → число. Подпись уходит в текст отказа как есть.</param>
+public sealed record MigrationCensus(IReadOnlyDictionary<string, long> Counts)
 {
+    private const string Constructions = "constructions";
+    private const string Sections = "sections";
+    private const string Sets = "document_sets";
+    private const string Objects = "domain_objects";
+
     /// <summary>
-    /// Перепись или <c>null</c>, если справочника ещё нет — пустая база, первый запуск. Отличать
+    /// Перепись или <c>null</c>, если справочника нет вовсе — пустая база, первый запуск. Отличать
     /// обязательно: «ноль строек» и «таблицы нет» — разные вещи, и первую миграцию сверять не с чем.
     /// </summary>
     public static async Task<MigrationCensus?> ReadAsync(DbContext db, CancellationToken ct = default)
@@ -46,40 +56,50 @@ public sealed record MigrationCensus(
                 return null;
             }
         }
+
         try
         {
-            await using var exists = new NpgsqlCommand(
-                "SELECT to_regclass('public.constructions') IS NOT NULL " +
-                "AND to_regclass('public.sections') IS NOT NULL " +
-                "AND to_regclass('public.document_sets') IS NOT NULL " +
-                "AND to_regclass('public.domain_objects') IS NOT NULL", conn);
-            if (await exists.ExecuteScalarAsync(ct) is not true) return null;
+            var present = await PresentTablesAsync(conn, ct);
+            if (!present.Contains(Constructions) && !present.Contains(Sections) && !present.Contains(Sets))
+                return null;
 
-            await using var cmd = new NpgsqlCommand("""
-                SELECT
-                  (SELECT count(*) FROM constructions),
-                  (SELECT count(*) FROM sections),
-                  (SELECT count(*) FROM document_sets),
-                  -- Сироты: ссылка есть, а того, на что она указывает, нет. Считаются отдельно от
-                  -- итогов, потому что «стройки все на месте, но разделы отвязались» — это тоже
-                  -- потеря, и по одним лишь счётчикам она не видна.
-                  (SELECT count(*) FROM sections s
-                     WHERE NOT EXISTS (SELECT 1 FROM constructions c WHERE c."Id" = s."ConstructionId")),
-                  (SELECT count(*) FROM document_sets d
-                     WHERE NOT EXISTS (SELECT 1 FROM sections s WHERE s."Id" = d."SectionId")),
-                  (SELECT count(*) FROM domain_objects o
-                     WHERE o."ScopeId" IS NOT NULL
-                       AND (  (o."ScopeLevel" = 'Construction'
-                               AND NOT EXISTS (SELECT 1 FROM constructions c WHERE c."Id" = o."ScopeId"))
-                           OR (o."ScopeLevel" = 'Section'
-                               AND NOT EXISTS (SELECT 1 FROM sections s WHERE s."Id" = o."ScopeId"))
-                           OR (o."ScopeLevel" = 'Set'
-                               AND NOT EXISTS (SELECT 1 FROM document_sets d WHERE d."Id" = o."ScopeId"))))
-                """, conn);
-            await using var r = await cmd.ExecuteReaderAsync(ct);
-            if (!await r.ReadAsync(ct)) return null;
-            return new MigrationCensus(
-                r.GetInt64(0), r.GetInt64(1), r.GetInt64(2), r.GetInt64(3), r.GetInt64(4), r.GetInt64(5));
+            var parts = new List<(string Label, string Sql)>();
+            if (present.Contains(Constructions)) parts.Add(("строек", "SELECT count(*) FROM constructions"));
+            if (present.Contains(Sections)) parts.Add(("разделов", "SELECT count(*) FROM sections"));
+            if (present.Contains(Sets)) parts.Add(("комплектов", "SELECT count(*) FROM document_sets"));
+
+            // Сироты — ссылка есть, а того, на что она указывает, нет. Считаются отдельно от итогов,
+            // потому что «стройки все на месте, но разделы отвязались» — это тоже потеря, и по одним
+            // лишь счётчикам она не видна. Пара считается, только если есть ОБЕ её таблицы.
+            if (present.Contains(Sections) && present.Contains(Constructions))
+                parts.Add(("разделов без своей стройки",
+                    "SELECT count(*) FROM sections s WHERE NOT EXISTS " +
+                    "(SELECT 1 FROM constructions c WHERE c.\"Id\" = s.\"ConstructionId\")"));
+
+            if (present.Contains(Sets) && present.Contains(Sections))
+                parts.Add(("комплектов без своего раздела",
+                    "SELECT count(*) FROM document_sets d WHERE NOT EXISTS " +
+                    "(SELECT 1 FROM sections s WHERE s.\"Id\" = d.\"SectionId\")"));
+
+            if (present.Contains(Objects) && present.Contains(Constructions)
+                && present.Contains(Sections) && present.Contains(Sets))
+                parts.Add(("объектов без своего уровня",
+                    "SELECT count(*) FROM domain_objects o WHERE o.\"ScopeId\" IS NOT NULL AND (" +
+                    "   (o.\"ScopeLevel\" = 'Construction' AND NOT EXISTS " +
+                    "      (SELECT 1 FROM constructions c WHERE c.\"Id\" = o.\"ScopeId\"))" +
+                    " OR (o.\"ScopeLevel\" = 'Section' AND NOT EXISTS " +
+                    "      (SELECT 1 FROM sections s WHERE s.\"Id\" = o.\"ScopeId\"))" +
+                    " OR (o.\"ScopeLevel\" = 'Set' AND NOT EXISTS " +
+                    "      (SELECT 1 FROM document_sets d WHERE d.\"Id\" = o.\"ScopeId\")))"));
+
+            await using var cmd = new NpgsqlCommand(
+                "SELECT " + string.Join(", ", parts.Select(p => "(" + p.Sql + ")")), conn);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct)) return null;
+
+            var counts = new Dictionary<string, long>(StringComparer.Ordinal);
+            for (var i = 0; i < parts.Count; i++) counts[parts[i].Label] = reader.GetInt64(i);
+            return new MigrationCensus(counts);
         }
         finally
         {
@@ -87,37 +107,45 @@ public sealed record MigrationCensus(
         }
     }
 
+    /// <summary>Какие из нужных таблиц существуют в базе сейчас.</summary>
+    private static async Task<HashSet<string>> PresentTablesAsync(NpgsqlConnection conn, CancellationToken ct)
+    {
+        var present = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var table in new[] { Constructions, Sections, Sets, Objects })
+        {
+            await using var cmd = new NpgsqlCommand("SELECT to_regclass(@name) IS NOT NULL", conn);
+            cmd.Parameters.AddWithValue("name", "public." + table);
+            if (await cmd.ExecuteScalarAsync(ct) is true) present.Add(table);
+        }
+        return present;
+    }
+
     /// <summary>
     /// Сверить перепись до и после. Расхождение — исключение, то есть отказ старта.
     ///
-    /// <para>Сверяются и итоги, и сироты. Сирот стало больше — значит миграция обрубила ссылку:
-    /// сама строка осталась, но уровень, на который она смотрит, исчез. По итогам это невидимо —
-    /// количество не изменилось.</para>
+    /// <para>Строка, посчитанная ДО и не посчитавшаяся ПОСЛЕ, — тоже расхождение: значит таблица
+    /// исчезла, и дальше сторож ослеп бы молча. Обратное — строка появилась — нормально: миграция
+    /// создала таблицу, которой раньше не было.</para>
     /// </summary>
     public static void EnsureUnchanged(MigrationCensus? before, MigrationCensus? after)
     {
-        // Нечего сверять: базы не было, миграция создала её с нуля. Пустая перепись ПОСЛЕ при
-        // непустой ДО — другое дело, и она сравнится ниже как расхождение.
+        // Нечего сверять: справочника не было, миграция создаёт его с нуля.
         if (before is null) return;
 
         var problems = new List<string>();
-        void Check(string what, long was, long now)
-        {
-            if (was != now) problems.Add($"{what}: было {was}, стало {now}");
-        }
-
         if (after is null)
         {
-            problems.Add("справочник исчез целиком: таблиц строек, разделов или комплектов после миграции нет");
+            problems.Add("справочник исчез целиком: таблиц строек, разделов и комплектов после миграции нет");
         }
         else
         {
-            Check("строек", before.Constructions, after.Constructions);
-            Check("разделов", before.Sections, after.Sections);
-            Check("комплектов", before.DocumentSets, after.DocumentSets);
-            Check("разделов без своей стройки", before.OrphanSections, after.OrphanSections);
-            Check("комплектов без своего раздела", before.OrphanSets, after.OrphanSets);
-            Check("объектов без своего уровня", before.OrphanObjects, after.OrphanObjects);
+            foreach (var (label, was) in before.Counts)
+            {
+                if (!after.Counts.TryGetValue(label, out var now))
+                    problems.Add($"{label}: было {was}, а после миграции считать стало нечем — таблица исчезла");
+                else if (was != now)
+                    problems.Add($"{label}: было {was}, стало {now}");
+            }
         }
 
         if (problems.Count == 0) return;
@@ -129,4 +157,7 @@ public sealed record MigrationCensus(
             "данных, наборов и профилей уровней, и потеря здесь выглядит потом как «пропали " +
             "документы». Восстановите базу из резервной копии прежней версией и сообщите о находке.");
     }
+
+    /// <summary>Что посчитано — одной строкой для журнала запуска.</summary>
+    public string Describe() => string.Join(", ", Counts.Select(c => c.Key + " " + c.Value));
 }

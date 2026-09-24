@@ -145,7 +145,7 @@ PUT    /api/templates/{id}          { content }  — создаёт новую �
 
 PUT    /api/constructions/{id}/timezone     { timeZoneId }   — null = «как у компании» (#960)
 PUT    /api/constructions/{id}/external-id  { system, code } — только парой
-GET    /api/settings/company                → { timeZoneId, effectiveTimeZoneId, serverTimeZoneId }
+GET    /api/settings/company                → { timeZoneId, effectiveTimeZoneId, serverTimeZoneId, resolved }
 PUT    /api/settings/company                { timeZoneId }  — null снимает настройку
 
 GET    /api/document-sets/search?q=&constructionId=   — списка «все комплекты» нет: только поиск

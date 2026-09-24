@@ -35,7 +35,7 @@ public class MigrationCensusTests
 
         var after = await MigrationCensus.ReadAsync(db);
         Assert.NotNull(after);
-        Assert.Equal(0, after.Constructions);
+        Assert.Equal(0, after.Counts["строек"]);
         MigrationCensus.EnsureUnchanged(before, after);   // не бросает
     }
 
@@ -90,7 +90,7 @@ public class MigrationCensusTests
 
         var before = await MigrationCensus.ReadAsync(db);
         Assert.NotNull(before);
-        Assert.Equal(1, before.Constructions);
+        Assert.Equal(1, before.Counts["строек"]);
 
         await db.Database.MigrateAsync();
 
@@ -111,24 +111,47 @@ public class MigrationCensusTests
     [Fact]
     public void Census_refuses_when_something_disappeared()
     {
-        var before = new MigrationCensus(2, 5, 4, 0, 0, 0);
+        static MigrationCensus Census(long constructions, long sections, long sets, long orphanSections) =>
+            new(new Dictionary<string, long>(StringComparer.Ordinal)
+            {
+                ["строек"] = constructions,
+                ["разделов"] = sections,
+                ["комплектов"] = sets,
+                ["разделов без своей стройки"] = orphanSections,
+            });
+
+        var before = Census(2, 5, 4, 0);
 
         var lost = Assert.Throws<InvalidOperationException>(
-            () => MigrationCensus.EnsureUnchanged(before, new MigrationCensus(2, 4, 4, 0, 0, 0)));
+            () => MigrationCensus.EnsureUnchanged(before, Census(2, 4, 4, 0)));
         Assert.Contains("разделов: было 5, стало 4", lost.Message);
 
         // Ссылка обрублена: строки на месте, но раздел больше не находит свою стройку. По итогам
         // это невидимо — ловится только счётом сирот.
         var orphaned = Assert.Throws<InvalidOperationException>(
-            () => MigrationCensus.EnsureUnchanged(before, new MigrationCensus(2, 5, 4, 3, 0, 0)));
+            () => MigrationCensus.EnsureUnchanged(before, Census(2, 5, 4, 3)));
         Assert.Contains("разделов без своей стройки: было 0, стало 3", orphaned.Message);
 
         var wiped = Assert.Throws<InvalidOperationException>(
             () => MigrationCensus.EnsureUnchanged(before, null));
         Assert.Contains("справочник исчез целиком", wiped.Message);
 
+        // Строка ПРОПАЛА из переписи — таблицы больше нет, и дальше сторож ослеп бы молча.
+        var blinded = Assert.Throws<InvalidOperationException>(() => MigrationCensus.EnsureUnchanged(
+            before,
+            new MigrationCensus(new Dictionary<string, long>(StringComparer.Ordinal)
+            {
+                ["строек"] = 2, ["разделов"] = 5, ["комплектов"] = 4,
+            })));
+        Assert.Contains("считать стало нечем", blinded.Message);
+
+        // Новая строка в переписи — НЕ расхождение: миграция создала таблицу, которой не было.
+        MigrationCensus.EnsureUnchanged(before, new MigrationCensus(
+            before.Counts.Concat([new KeyValuePair<string, long>("объектов без своего уровня", 0)])
+                .ToDictionary(StringComparer.Ordinal)));
+
         // А равные переписи проходят молча.
-        MigrationCensus.EnsureUnchanged(before, new MigrationCensus(2, 5, 4, 0, 0, 0));
+        MigrationCensus.EnsureUnchanged(before, Census(2, 5, 4, 0));
     }
 
     private static async Task<AppDbContext> CreateDatabaseAsync(string name)
