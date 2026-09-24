@@ -39,6 +39,30 @@ public class MigrationCensusTests
         MigrationCensus.EnsureUnchanged(before, after);   // не бросает
     }
 
+    /// <summary>
+    /// ЧИСТАЯ УСТАНОВКА: базы ещё нет вовсе, её создаст первая миграция. Перепись обязана молча
+    /// вернуть «нечего сверять», а не уронить старт.
+    ///
+    /// <para>Написан по следам отказа CI на PR #1046: сторож, поставленный ПЕРЕД миграцией, падал с
+    /// «database does not exist» — то есть install.sh у заказчика не поднялся бы вовсе. Локально
+    /// этого не видно никогда: база разработчика существует всегда, и проверка проходит вхолостую.</para>
+    /// </summary>
+    [Fact]
+    public async Task Missing_database_is_not_a_failure_it_is_the_first_start()
+    {
+        var name = "bhs_crg_census_absent";
+        await using (var conn = new NpgsqlConnection(AdminConnectionString()))
+        {
+            await conn.OpenAsync();
+            await using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)", conn);
+            await drop.ExecuteNonQueryAsync();
+        }
+
+        await using var db = new AppDbContext(OptionsFor(name));
+        Assert.Null(await MigrationCensus.ReadAsync(db));
+        MigrationCensus.EnsureUnchanged(null, null);   // и сверять нечего — не бросает
+    }
+
     [Fact]
     public async Task Database_with_history_keeps_every_construction_section_and_set()
     {
@@ -109,17 +133,7 @@ public class MigrationCensusTests
 
     private static async Task<AppDbContext> CreateDatabaseAsync(string name)
     {
-        var admin = new NpgsqlConnectionStringBuilder(IntegrationTestFixture.TestConnectionString)
-        {
-            Database = "postgres",
-            // Таймаут и здесь: DROP/CREATE DATABASE ждут, пока сервер освободится, а рядом идёт
-            // остальной прогон. Тридцати секунд по умолчанию под нагрузкой не хватало, и отказ
-            // приходил «таймаутом чтения» — виноватой выглядела база, а не теснота.
-            CommandTimeout = 300,
-            Timeout = 60,
-        }.ConnectionString;
-
-        await using (var conn = new NpgsqlConnection(admin))
+        await using (var conn = new NpgsqlConnection(AdminConnectionString()))
         {
             await conn.OpenAsync();
             await using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)", conn);
@@ -128,19 +142,32 @@ public class MigrationCensusTests
             await create.ExecuteNonQueryAsync();
         }
 
-        var options = new DbContextOptionsBuilder<AppDbContext>()
+        return new AppDbContext(OptionsFor(name));
+    }
+
+    /// <summary>
+    /// Подключение к служебной базе — для DROP/CREATE. Таймаут поднят: эти команды ждут, пока
+    /// сервер освободится, а рядом идёт остальной прогон; тридцати секунд по умолчанию не хватало,
+    /// и отказ приходил «таймаутом чтения» — виноватой выглядела база, а не теснота.
+    /// </summary>
+    private static string AdminConnectionString() =>
+        new NpgsqlConnectionStringBuilder(IntegrationTestFixture.TestConnectionString)
+        {
+            Database = "postgres",
+            CommandTimeout = 300,
+            Timeout = 60,
+        }.ConnectionString;
+
+    /// <summary>Схема с нуля — это десятки миграций подряд, отсюда тот же поднятый таймаут.</summary>
+    private static DbContextOptions<AppDbContext> OptionsFor(string database) =>
+        new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(new NpgsqlConnectionStringBuilder(IntegrationTestFixture.TestConnectionString)
             {
-                Database = name,
-                // Схема с нуля — это десятки миграций подряд, и под общей нагрузкой прогона они не
-                // укладываются в тридцать секунд по умолчанию. В одиночку тест проходил, в полном
-                // прогоне падал таймаутом чтения — отказ, который читается как «база сломалась».
+                Database = database,
                 CommandTimeout = 300,
                 Timeout = 60,
             }.ConnectionString)
             .Options;
-        return new AppDbContext(options);
-    }
 
     private static async Task ExecAsync(AppDbContext db, string sql) =>
         await db.Database.ExecuteSqlRawAsync(sql);

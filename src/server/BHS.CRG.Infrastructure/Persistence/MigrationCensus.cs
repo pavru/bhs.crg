@@ -31,7 +31,21 @@ public sealed record MigrationCensus(
     {
         var conn = (NpgsqlConnection)db.Database.GetDbConnection();
         var opened = conn.State != System.Data.ConnectionState.Open;
-        if (opened) await conn.OpenAsync(ct);
+        if (opened)
+        {
+            try
+            {
+                await conn.OpenAsync(ct);
+            }
+            catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.InvalidCatalogName)
+            {
+                // БАЗЫ ЕЩЁ НЕТ — первый запуск: её создаст сама миграция. Сверять не с чем, и это
+                // не отказ. Без этой ветки сторож ронял бы ЧИСТУЮ УСТАНОВКУ: приложение падало бы
+                // до первой миграции, то есть install.sh у заказчика не поднялся бы вовсе
+                // (поймано CI PR #1046 — локально база уже была, и проверка прошла вхолостую).
+                return null;
+            }
+        }
         try
         {
             await using var exists = new NpgsqlCommand(
