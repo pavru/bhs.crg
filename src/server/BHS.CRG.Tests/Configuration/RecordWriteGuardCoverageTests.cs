@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -36,11 +36,11 @@ public class RecordWriteGuardCoverageTests
     /// </summary>
     private static readonly Dictionary<string, (bool Guarded, string Why)> Writes = new()
     {
-        ["BHS.CRG.Application/Documents/Handlers.cs|obj.SetData(cmd.Requisites);"] =
+        ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|obj.SetData(cmd.Requisites);"] =
             (Guarded, "реквизиты документа — главный ручной путь"),
-        ["BHS.CRG.Application/Documents/Handlers.cs|var entry = DomainObject.Create(cmd.CompositeTypeId, cmd.DisplayName, cmd.Data, cmd.Scope, cmd.ScopeId, cmd.Aliases);"] =
+        ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|var entry = DomainObject.Create(cmd.CompositeTypeId, cmd.DisplayName, cmd.Data, cmd.Scope, cmd.ScopeId, cmd.Aliases);"] =
             (Guarded, "создание записи общих данных"),
-        ["BHS.CRG.Application/Documents/Handlers.cs|entry.Update(cmd.DisplayName, data, cmd.Aliases);"] =
+        ["BHS.CRG.Application/Documents/CommonDataHandlers.cs|entry.Update(cmd.DisplayName, data, cmd.Aliases);"] =
             (Guarded, "правка записи общих данных — проверяется ПОСЛЕ слияния с привязками наборов"),
         ["BHS.CRG.Application/QualityDocs/Handlers.cs|var doc = QualityDocument.Create(cmd.DocumentTypeId, cmd.DisplayName, cmd.Requisites, cmd.Scope, cmd.ScopeId, cmd.Source);"] =
             (Guarded, "создание документа качества — сегодняшнего прообраза записи модуля"),
@@ -49,13 +49,13 @@ public class RecordWriteGuardCoverageTests
         ["BHS.CRG.Api/Endpoints/Documents/PrintFormEndpoints.cs|instance.SetData(patched);"] =
             (Guarded, "печатная форма кладёт прочитанные значения как есть — и пишет прямо в слое API, мимо MediatR"),
 
-        ["BHS.CRG.Application/Documents/Handlers.cs|inst.SetData(System.Text.Json.JsonDocument.Parse(root.ToJsonString()));"] =
+        ["BHS.CRG.Application/Documents/DocumentTypeHandlers.cs|inst.SetData(System.Text.Json.JsonDocument.Parse(root.ToJsonString()));"] =
             (Free, "перенос ключа поля и починка аудита: их работа и есть трогать кривые данные; " +
                    "охрана сделала бы битую запись непочинимой, а правку схемы — обрывающейся на середине"),
-        ["BHS.CRG.Application/Documents/Handlers.cs|source.SetData(data);"] =
+        ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|source.SetData(data);"] =
             (Free, "перенос документа в другой комплект переписывает СВОИ же значения (вычищает " +
                    "неразрешимые ссылки); отказ сделал бы документ непереносимым"),
-        ["BHS.CRG.Application/Documents/Handlers.cs|var obj = DomainObject.Create(cmd.DocumentTypeId, null, JsonDocument.Parse(\"{}\"),"] =
+        ["BHS.CRG.Application/Documents/DocumentSetHandlers.cs|var obj = DomainObject.Create(cmd.DocumentTypeId, null, JsonDocument.Parse(\"{}\"),"] =
             (Free, "создание пустого документа в комплекте: вносить нечего"),
         ["BHS.CRG.Application/QualityDocs/SearchCommands.cs|var doc = QualityDocument.Create(cmd.DocumentTypeId, name, System.Text.Json.JsonDocument.Parse(\"{}\"),"] =
             (Free, "импорт из интернета заводит документ с пустыми реквизитами — вносить нечего"),
