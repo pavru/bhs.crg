@@ -47,6 +47,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     /// <summary>Предпочтения пользователя на сервере (ТЗ CORE-25.3): тема, язык и что придёт дальше.</summary>
     public DbSet<BHS.CRG.Domain.Settings.UserSetting> UserSettings => Set<BHS.CRG.Domain.Settings.UserSetting>();
+
+    /// <summary>Настройки экземпляра системы (ТЗ CORE-25.3, issue #960): часовой пояс компании.</summary>
+    public DbSet<BHS.CRG.Domain.Settings.AppSetting> AppSettings => Set<BHS.CRG.Domain.Settings.AppSetting>();
     public DbSet<BHS.CRG.Domain.Notifications.Notification> Notifications => Set<BHS.CRG.Domain.Notifications.Notification>();
     public DbSet<BHS.CRG.Domain.Notifications.NotificationUserState> NotificationUserStates
         => Set<BHS.CRG.Domain.Notifications.NotificationUserState>();

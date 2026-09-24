@@ -113,6 +113,7 @@ public partial class BackupService
             await RestoreReconciliationsAsync(manifest.Reconciliations ?? [], stats, warnings, ct);
             // Связка «материал ↔ документ качества» — после самих документов качества.
             await RestoreMaterialQualityLinksAsync(manifest.MaterialQualityLinks ?? [], stats, warnings, ct);
+            await RestoreAppSettingsAsync(manifest.AppSettings ?? [], stats, warnings, ct);
             await RestoreActivityLogAsync(manifest.ActivityLog ?? [], stats, ct);
             await tx.CommitAsync(ct);
 

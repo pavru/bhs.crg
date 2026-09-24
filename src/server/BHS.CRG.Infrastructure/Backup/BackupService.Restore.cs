@@ -675,7 +675,8 @@ public partial class BackupService
         if (items.Length == 0) return;
         var existing = await db.Constructions.Select(x => x.Id).ToHashSetAsync(ct);
         var (c, u) = await UpsertAsync(items.Select(i => (i.Id, Construction.Restore(
-            i.Id, i.Name, i.CreatedByUserId, i.ProfileObjectId, i.CreatedAt, i.UpdatedAt))), existing, ct);
+            i.Id, i.Name, i.CreatedByUserId, i.ProfileObjectId, i.CreatedAt, i.UpdatedAt,
+            i.TimeZoneId, i.ExternalSystem, i.ExternalCode))), existing, ct);
         stats.Count("Стройки", c, u);
     }
 

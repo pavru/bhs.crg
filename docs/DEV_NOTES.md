@@ -143,6 +143,11 @@ POST   /api/templates               { documentTypeId, name, content }      — c
 PUT    /api/templates/{id}          { content }  — создаёт новую версию
                                     (запись типов/полей/шаблонов/настроек — только роль Admin)
 
+PUT    /api/constructions/{id}/timezone     { timeZoneId }   — null = «как у компании» (#960)
+PUT    /api/constructions/{id}/external-id  { system, code } — только парой
+GET    /api/settings/company                → { timeZoneId, effectiveTimeZoneId, serverTimeZoneId, resolved }
+PUT    /api/settings/company                { timeZoneId }  — null снимает настройку
+
 GET    /api/document-sets/search?q=&constructionId=   — списка «все комплекты» нет: только поиск
 GET    /api/document-sets/{id}      → DocumentSet (с instances[].generatedFiles[])
 POST   /api/document-sets           { sectionId, name }   — раздел ТЕЛОМ запроса (issue #960)

@@ -119,6 +119,7 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
     /// <summary>Сущность → свойство манифеста, которым она представлена.</summary>
     private static readonly Dictionary<string, string> CoveredByManifest = new()
     {
+        ["AppSetting"] = nameof(BackupManifest.AppSettings),
         ["DocumentType"] = nameof(BackupManifest.DocumentTypes),
         ["Template"] = nameof(BackupManifest.Templates),
         ["TemplateAsset"] = nameof(BackupManifest.TemplateAssets),
@@ -263,6 +264,8 @@ public class BackupManifestCoverageTests(IntegrationTestFixture fixture)
         db.RecognitionProfiles.RemoveRange(db.RecognitionProfiles.Where(p => p.Code == null));
         await db.SaveChangesAsync();
 
+        db.AppSettings.Add(BHS.CRG.Domain.Settings.AppSetting.Create(
+            BHS.CRG.Application.Settings.AppSettingKeys.CompanyTimeZone, "Europe/Moscow"));
         db.PrimitiveTypes.Add(PrimitiveType.Restore(
             Guid.NewGuid(), "Строка", $"str-{Guid.NewGuid():N}", "string", null, JsonDocument.Parse("{}"), now, now));
         db.EnumTypes.Add(EnumType.Restore(

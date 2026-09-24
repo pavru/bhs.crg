@@ -67,6 +67,7 @@ public partial class BackupService
         // Журнал действий целиком: он дописывается редко (правки ролей и схем), и «последние N»
         // означало бы копию, которая тем короче помнит, чем дольше ею пользуются.
         var activity = await journal.ExportAsync(ct);
+        var appSettings = await db.AppSettings.AsNoTracking().OrderBy(a => a.Key).ToListAsync(ct);
 
         // Проектные данные (issue #833) читаются ТОЛЬКО для полной копии: конфигурационная
         // остаётся ровно тем, чем была, и весит столько же. Порядок чтения не важен - снимок один.
@@ -165,7 +166,8 @@ public partial class BackupService
                 q.CreatedAt, q.UpdatedAt)).ToArray(),
             IncludesProjectData: full,
             Constructions: full ? constructions.Select(c => new BackupConstruction(
-                c.Id, c.Name, c.CreatedByUserId, c.ProfileObjectId, c.CreatedAt, c.UpdatedAt)).ToArray() : null,
+                c.Id, c.Name, c.CreatedByUserId, c.ProfileObjectId, c.CreatedAt, c.UpdatedAt,
+                c.TimeZoneId, c.ExternalSystem, c.ExternalCode)).ToArray() : null,
             Sections: full ? sections.Select(x => new BackupSection(
                 x.Id, x.ConstructionId, x.Name, x.ProfileObjectId, x.CreatedAt, x.UpdatedAt)).ToArray() : null,
             DocumentSets: full ? sets.Select(x => new BackupDocumentSet(
@@ -205,6 +207,7 @@ public partial class BackupService
             // через службу, а не из набора: прямой доступ к журналу есть только у неё.
             ActivityLog: activity.Select(r => new BackupActivityRecord(
                 r.Id, r.OccurredAt, r.Action, r.ActorId, r.ActorName,
-                r.TargetId, r.TargetLabel, r.Before, r.After)).ToArray());
+                r.TargetId, r.TargetLabel, r.Before, r.After)).ToArray(),
+            AppSettings: appSettings.Select(a => new BackupAppSetting(a.Key, a.Value, a.UpdatedAt)).ToArray());
     }
 }

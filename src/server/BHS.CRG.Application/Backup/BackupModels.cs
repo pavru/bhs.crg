@@ -38,7 +38,14 @@ public record BackupManifest(
     BackupReconciliationDefinition[]? Reconciliations = null,
     BackupMaterialQualityLink[]? MaterialQualityLinks = null,
     BackupDocumentSetPlan[]? DocumentSetPlans = null,
-    BackupActivityRecord[]? ActivityLog = null);
+    BackupActivityRecord[]? ActivityLog = null,
+    // Настройки экземпляра (issue #960): часовой пояс компании. В ЛЮБОЙ копии, как журнал: это
+    // конфигурация, а не проектные данные, и потеря пояса при восстановлении означала бы молча
+    // сдвинутые сутки — то есть неверные даты в документах на новой машине.
+    BackupAppSetting[]? AppSettings = null);
+
+/// <summary>Настройка экземпляра системы: ключ и значение как есть (ТЗ CORE-25.3).</summary>
+public record BackupAppSetting(string Key, string Value, DateTimeOffset UpdatedAt);
 
 /// <summary>
 /// Запись журнала действий (ТЗ CORE-28 прямо требует переносить журнал копией, issue #950).
@@ -69,9 +76,15 @@ public record BackupActivityRecord(
 /// значило бы соврать о том, кто завёл стройку. На целевой системе такой пользователь может не
 /// найтись — интерфейс показывает имя только там, где оно есть.
 /// </remarks>
+/// <param name="TimeZoneId">
+/// Часовой пояс стройки, IANA (issue #960). Аддитивно и в конце, без поднятия SchemaVersion:
+/// копия, снятая старой версией, поля не несёт — стройка восстановится «как у компании», что и
+/// было её поведением до появления колонки.
+/// </param>
 public record BackupConstruction(
     Guid Id, string Name, Guid CreatedByUserId, Guid? ProfileObjectId,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
+    string? TimeZoneId = null, string? ExternalSystem = null, string? ExternalCode = null);
 
 public record BackupSection(
     Guid Id, Guid ConstructionId, string Name, Guid? ProfileObjectId,

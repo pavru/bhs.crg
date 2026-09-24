@@ -34,6 +34,9 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         "POST /api/constructions/",
         "POST /api/constructions/{constructionId:guid}/sections",
         "PUT /api/constructions/{id:guid}",
+        // Пояс и внешний идентификатор — свойства САМОЙ стройки (ТЗ CORE-5), поэтому им здесь место.
+        "PUT /api/constructions/{id:guid}/timezone",
+        "PUT /api/constructions/{id:guid}/external-id",
         "DELETE /api/sections/{id:guid}",
         "PUT /api/sections/{id:guid}",
     ];

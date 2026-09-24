@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Modules;
 using BHS.CRG.Modules;
@@ -34,7 +34,33 @@ internal static class StartupTasks
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Перепись справочника ядра до и после миграции (ТЗ CORE-29/CORE-31, issue #960).
+        // Расхождение — отказ старта: см. MigrationCensus, там записано почему.
+        //
+        // Считается ТОЛЬКО когда есть что применять: без ожидающих миграций терять данные нечему,
+        // а шесть агрегатов по справочнику выполнялись бы каждым запуском — в том числе при
+        // перезапуске контейнера, когда база не менялась вовсе (ревью PR #1046).
+        var pending = await db.Database.GetPendingMigrationsAsync();
+        var migrating = pending.Any();
+        var censusBefore = migrating
+            ? await BHS.CRG.Infrastructure.Persistence.MigrationCensus.ReadAsync(db)
+            : null;
+
         await db.Database.MigrateAsync();
+
+        if (migrating)
+        {
+            var censusAfter = await BHS.CRG.Infrastructure.Persistence.MigrationCensus.ReadAsync(db);
+            BHS.CRG.Infrastructure.Persistence.MigrationCensus.EnsureUnchanged(censusBefore, censusAfter);
+            // В журнал — ЧТО именно сошлось. Иначе «сверка прошла» и «сверять было нечем» выглядят
+            // одинаково: молчанием, — а на старой базе часть счётчиков может не посчитаться вовсе.
+            app.Logger.LogInformation(
+                censusBefore is null
+                    ? "Миграций применено: {Count}; справочника до миграции не было — сверять было нечего"
+                    : "Миграций применено: {Count}; состав справочника сошёлся: {Census}",
+                pending.Count(), censusBefore?.Describe() ?? "");
+        }
 
         // Встроенные профили распознавания (issue #406) — идемпотентно; правленые пользователем не трогает.
         await BHS.CRG.Infrastructure.Recognition.RecognitionProfileSeeder.SeedAsync(db);
