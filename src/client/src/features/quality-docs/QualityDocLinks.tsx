@@ -12,7 +12,7 @@ import { nameOf, matchesLink } from './qualityLinkSearch';
 import {
   useRemoveMaterialLink, useRemoveMaterialLinks, useSetMaterialLinks, type MaterialQualityLink,
 } from '@/shared/api/qualityDocs';
-import { LinkPickerModal } from '@/features/document-sets/editor/QualityLinksTab';
+import { LinkPickerModal } from '@/features/document-sets/editor/LinkPickerModal';
 import type { CatalogScope, DocumentType } from '@/shared/api/types';
 
 /**
