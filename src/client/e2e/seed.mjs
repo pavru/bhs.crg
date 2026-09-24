@@ -434,7 +434,7 @@ async function ensureSet(constructionId, sectionName, setName) {
   if (!section) throw new Error(`Раздел «${sectionName}» не найден в стройке после создания`);
   const found = (section.documentSets ?? []).find(s => s.name === setName);
   if (found) return found.id;
-  const created = await api('POST', `/sections/${section.id}/sets`, { name: setName });
+  const created = await api('POST', '/document-sets', { sectionId: section.id, name: setName });
   console.log(`  + комплект «${setName}»`);
   return created.id;
 }

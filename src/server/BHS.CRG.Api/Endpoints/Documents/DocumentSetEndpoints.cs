@@ -28,70 +28,21 @@ public static class DocumentSetEndpoints
 
     public static void MapDocumentSetEndpoints(this IEndpointRouteBuilder app)
     {
-        // ── Constructions ──────────────────────────────────────────────────────
-        // Чтение и запись — разными правами: справочник строек видят все рабочие роли, а правят
-        // его единицы. Одно право на группу оставило бы core.constructions.edit без единой двери.
-        var c = app.MapGroup("/api/constructions").RequireAuthorization(AppPolicies.Permission(CorePermissions.ConstructionsRead));
-        var cEdit = app.MapGroup("/api/constructions").RequireAuthorization(AppPolicies.Permission(CorePermissions.ConstructionsEdit));
-
-        c.MapGet("/", async (IMediator m, ClaimsPrincipal user, IDomainObjectRepository objRepo, CancellationToken ct) =>
-        {
-            var userId = GetUserId(user);
-            var list = await m.Send(new ListConstructionsQuery(userId));
-            var setIds = list.SelectMany(x => x.Sections).SelectMany(s => s.DocumentSets).Select(ds => ds.Id).ToList();
-            var counts = await objRepo.CountDocumentsInSetsAsync(setIds, ct);
-            return Results.Ok(list.Select(x => ConstructionDto.From(x, counts)).ToList());
-        });
-
-        c.MapGet("/{id:guid}", async (Guid id, IMediator m, IDomainObjectRepository objRepo, CancellationToken ct) =>
-        {
-            var construction = await m.Send(new GetConstructionQuery(id));
-            if (construction is null) return Results.NotFound();
-            var setIds = construction.Sections.SelectMany(s => s.DocumentSets).Select(ds => ds.Id).ToList();
-            var counts = await objRepo.CountDocumentsInSetsAsync(setIds, ct);
-            return Results.Ok(ConstructionDto.From(construction, counts));
-        });
-
-        cEdit.MapPost("/", async (CreateConstructionRequest req, IMediator m, ClaimsPrincipal user) =>
-        {
-            var userId = GetUserId(user);
-            return Results.Ok(await m.Send(new CreateConstructionCommand(req.Name, userId)));
-        });
-
-        cEdit.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
-            => Results.Ok(await m.Send(new RenameConstructionCommand(id, req.Name))));
-
-        cEdit.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
-        {
-            await m.Send(new DeleteConstructionCommand(id));
-            return Results.NoContent();
-        });
-
-        // ── Sections ───────────────────────────────────────────────────────────
-        cEdit.MapPost("/{constructionId:guid}/sections", async (Guid constructionId, CreateSectionRequest req, IMediator m)
-            => Results.Ok(await m.Send(new CreateSectionCommand(constructionId, req.Name))));
-
-        var s = app.MapGroup("/api/sections").RequireAuthorization(AppPolicies.Permission(CorePermissions.ConstructionsRead));
-        var sEdit = app.MapGroup("/api/sections").RequireAuthorization(AppPolicies.Permission(CorePermissions.ConstructionsEdit));
-
-        sEdit.MapPut("/{id:guid}", async (Guid id, RenameRequest req, IMediator m)
-            => Results.Ok(await m.Send(new RenameSectionCommand(id, req.Name))));
-
-        sEdit.MapDelete("/{id:guid}", async (Guid id, IMediator m) =>
-        {
-            await m.Send(new DeleteSectionCommand(id));
-            return Results.NoContent();
-        });
-
         // ── DocumentSets ───────────────────────────────────────────────────────
-        sEdit.MapPost("/{sectionId:guid}/sets", async (Guid sectionId, CreateSetRequest req, IMediator m)
-            => Results.Ok(await m.Send(new CreateDocumentSetCommand(sectionId, req.Name))));
-
         // Документ из адреса обязан лежать в комплекте из того же адреса — проверкой на всю группу,
         // а не в каждом обработчике: см. DocumentBelongsToSetFilter.
         var g = app.MapGroup("/api/document-sets")
             .RequireAuthorization(AppPolicies.Permission("id.document.read"))
             .AddEndpointFilter<DocumentBelongsToSetFilter>();
+
+        // Комплект заводится ЗДЕСЬ, а не под /api/sections (issue #960). Прежний адрес
+        // POST /api/sections/{id}/sets стоял под префиксом ядра: стройки и разделы переехали в
+        // ядро, и создание комплекта пережило бы выключение модуля — то есть заводить комплекты
+        // было бы можно, а открыть ни один из них нельзя. Право тоже сменилось: комплект заводит
+        // тот, кто ведёт документацию (id.document.edit), а не тот, кому выдали справочник строек.
+        g.MapPost("/", async (CreateSetRequest req, IMediator m)
+            => Results.Ok(await m.Send(new CreateDocumentSetCommand(req.SectionId, req.Name))))
+            .RequireAuthorization(AppPolicies.Permission("id.document.edit"));
 
         // Поиск документов по всем комплектам (имя документа/типа + текст реквизитов). ?q= обязателен,
         // ?constructionId= — необязательный фильтр по стройке.
@@ -324,9 +275,7 @@ public static class DocumentSetEndpoints
     static Guid GetUserId(ClaimsPrincipal user)
         => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub")!);
 
-    record CreateConstructionRequest(string Name);
-    record CreateSectionRequest(string Name);
-    record CreateSetRequest(string Name);
+    record CreateSetRequest(Guid SectionId, string Name);
     record RenameRequest(string Name);
     record AddDocumentRequest(Guid DocumentTypeId);
     record CopyDocumentRequest(Guid TargetSetId);
