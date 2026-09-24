@@ -104,10 +104,13 @@ await check('typst-blocks-check-reports-result', async () => {
   await page.locator('button').filter({ hasText: 'Typst-блоки' }).first().click();
   await page.waitForTimeout(1200);
   await page.locator('button').filter({ hasText: 'Проверить блоки' }).first().click();
-  await page.waitForTimeout(4000);
-  const t = await page.locator('body').innerText();
-  if (!/Все Typst-блоки собираются|Проблемы сборки блоков/.test(t))
-    throw new Error('проверка блоков не вернула результата');
+  // Ждём состояние, а не время: на холодном API первый ответ приходит позже фиксированных
+  // четырёх секунд, и проверка краснела БЕЗ поломки — ровно тот же промах, что уже описан у
+  // первой проверки этого файла — поэтому срок здесь щедрый, а не подогнанный.
+  await page.waitForFunction(
+    () => /Все Typst-блоки собираются|Проблемы сборки блоков/.test(document.body.innerText),
+    null, { timeout: 25000 },
+  ).catch(() => { throw new Error('проверка блоков не вернула результата'); });
 });
 
 // ── Типы полей: превью вариантов перечисления в строке списка ─────────────────
