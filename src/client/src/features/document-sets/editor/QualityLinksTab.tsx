@@ -1,352 +1,36 @@
-import { useState, useMemo, type ReactNode } from 'react';
-import {
-  Loader2, Link2, Unlink, ShieldCheck, Search, Globe, ExternalLink, Download, Eye, Check,
-  AlertTriangle, Replace,
-} from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Loader2, ShieldCheck, Check } from 'lucide-react';
 import { toggleInSet } from '@/shared/utils/toggleInSet';
 import { Modal } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
-import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { SearchInput } from '@/shared/ui/SearchInput';
-import { Select, SelectItem } from '@/shared/ui/Select';
-import { TypePickerField } from '@/shared/ui/TypePickerField';
-import type { PickType } from '@/shared/ui/TypePicker';
 import { usePreviewDataSetBindings } from '@/shared/api/datasets';
 import { useGetDocumentSet } from '@/shared/api/documentSets';
 import {
   useListQualityDocs, useListMaterialLinks, useSetMaterialLinks, useRemoveMaterialLink,
-  suggestLinks, searchQualityDocs, importQualityDocFromUrl,
-  type LinkSuggestion, type SearchCandidate, type QualityDocument, type MaterialLinkInput,
+  suggestLinks,
+  type LinkSuggestion, type QualityDocument, type MaterialLinkInput,
   type MaterialQualityLink,
 } from '@/shared/api/qualityDocs';
 import {
-  SCOPE_LABELS, SCOPE_PRIORITY, type DocumentInstance, type DocumentType, type CatalogScope,
+  SCOPE_PRIORITY, type DocumentInstance, type DocumentType, type CatalogScope,
 } from '@/shared/api/types';
-import { ScopeIcon } from '@/shared/ui/ScopeIcon';
-import { ScopeReachNote } from '@/features/quality-docs/ScopeReachNote';
-import { scopeBreakdownText } from '@/features/quality-docs/linkScopes';
 import { groupByTargetScope, needsFallbackScope, widestTargetScope, type LinkScope } from './linkTargets';
-import {
-  typeHasTag, findTaggedFieldPath, collectMaterialRows, materialIdentityKeys,
-} from '@/shared/api/schema';
-import { FUNCTIONAL_TAG } from '@/shared/api/tags';
-import { useListPrimitiveTypes } from '@/shared/api/primitiveTypes';
-import { useListEnumTypes } from '@/shared/api/enumTypes';
+import { collectMaterialRows, materialIdentityKeys } from '@/shared/api/schema';
 import { identityKey, isIdentityKeyEmpty, normalizeKey } from '@/shared/api/identityKey';
 import {
   assessBulkLink, bestSuggestion, collectStrings, collidingIdentities, docHaystackStems,
-  relevance, weighted, type BulkLinkAssessment,
+  type BulkLinkAssessment,
 } from './qualityMatch';
 import { QualityDocForm } from '@/features/quality-docs/QualityDocForm';
-import { docNumberOf } from '@/features/quality-docs/docIdentity';
-import { formatDateRu } from '@/shared/utils/date';
-import { recognizeAndUpdate } from '@/features/quality-docs/recognizeImported';
-import { openAttachmentInNewTab } from '@/shared/api/attachments';
 import { useToast } from '@/shared/ui/Toast';
-
-// ─── Срок действия документа качества (по функциональному тэгу quality.validUntil) ──
-function readPath(obj: Record<string, unknown>, path: string[]): unknown {
-  return path.reduce<unknown>((o, k) => (o && typeof o === 'object') ? (o as Record<string, unknown>)[k] : undefined, obj);
-}
-function getValidUntil(doc: QualityDocument, allDocTypes: DocumentType[]): string | null {
-  const dt = allDocTypes.find(t => t.id === doc.documentTypeId);
-  if (!dt) return null;
-  const path = findTaggedFieldPath(dt, FUNCTIONAL_TAG.qualityValidUntil, allDocTypes);
-  if (!path) return null;
-  const v = readPath(doc.requisites, path);
-  return typeof v === 'string' && v.trim() ? v : null;
-}
-function isExpired(doc: QualityDocument, allDocTypes: DocumentType[]): boolean {
-  const vu = getValidUntil(doc, allDocTypes);
-  if (!vu) return false; // нет даты — не считаем просроченным
-  const d = new Date(vu);
-  if (Number.isNaN(d.getTime())) return false;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  return d < today;
-}
-// ─── Оценка релевантности документа материалу ──────────────────────────────────
-// Сопоставление материала с документом — общий модуль qualityMatch (issue #552).
-
-/**
- * Строка материала на вкладке: `key` — составной ключ идентичности (им связка и заводится, и
- * ищется), `label` — то же для человека, `idValues` — непустые значения для оценки релевантности.
- */
-export interface MaterialRow { key: string; label: string; idValues: string[] }
-
-// ─── Модалка выбора/создания документа для связывания ───────────────────────────
-
-interface LinkPickerModalProps {
-  open: boolean; onClose: () => void; allDocTypes: DocumentType[];
-  scope: CatalogScope; scopeId: string | null; materials: MaterialRow[];
-  onPick: (doc: QualityDocument) => void;
-}
-
-/** Выбор/создание документа качества для набора материалов. Переиспользуется экраном контроля
- *  связок (issue #555) — там материал приходит из самой связки, а не из набора данных.
- *
- *  <p>Тело монтируется по открытию (issue #858): вкладка, строка поиска и тип документа задаются
- *  инициализаторами состояния, а не эффектом «открылось — сбрось и заполни». Эффектом первый рендер
- *  успевал показать вкладку и запрос от ПРОШЛОГО открытия.</p> */
-export function LinkPickerModal(props: LinkPickerModalProps) {
-  /**
-   * Выбранный тип для веб-поиска живёт в ОБЁРТКЕ, а не в теле (поймано ревью PR #862).
-   *
-   * <p>Прежний эффект сбрасывал при открытии всё, кроме него: `setSearchType(prev => prev || …)`
-   * — то есть выбор человека переживал закрытие намеренно. Тело монтируется по открытию, и
-   * инициализатор вернул бы «Сертификат соответствия» на каждом открытии; связывают же материалы
-   * подряд, десятками, и выбор пришлось бы делать заново на каждый.</p>
-   */
-  const [searchType, setSearchType] = useState('');
-  return props.open
-    ? <LinkPickerModalBody {...props} searchType={searchType} setSearchType={setSearchType} />
-    : null;
-}
-
-function LinkPickerModalBody({ onClose, allDocTypes, scope, scopeId, materials, onPick, searchType, setSearchType }:
-  LinkPickerModalProps & { searchType: string; setSearchType: (v: string) => void }) {
-  const count = materials.length;
-  // Поисковый запрос формируем из выбранного материала (артикул + наименование).
-  const baseQuery = useMemo(() => {
-    const m = materials[0];
-    if (!m) return '';
-    return Array.from(new Set(m.idValues.map(s => s.trim()).filter(Boolean))).join(' ');
-  }, [materials]);
-
-  const [tab, setTab] = useState<'pick' | 'search' | 'create'>('pick');
-  const [includeExpired, setIncludeExpired] = useState(false);
-  // Единая строка поиска: фильтрует библиотеку и используется для веб-поиска. Заполняется
-  // материалом ПРИ ЗАВЕДЕНИИ состояния — тело монтируется на открытие, так что это и есть «сброс
-  // и инициализация при открытии», только без эффекта (issue #858).
-  const [query, setQuery] = useState(baseQuery);
-  // Библиотека грузится ЦЕЛИКОМ, без фильтра по области, и это не небрежность: scope здесь говорит,
-  // где будет заведена СВЯЗКА (и где создастся новый документ на вкладке «Создать вручную»), а не из
-  // чего можно выбирать. Пока областью по умолчанию была System, разница не замечалась; с дефолтом
-  // «комплект» (#587) фильтр по области оставил бы пикер пустым при полной библиотеке на System — и
-  // пользователь пошёл бы заново импортировать из интернета то, что у него уже есть.
-  // Релевантность к материалу считается на клиенте.
-  const { data: docs = [], isLoading } = useListQualityDocs({ enabled: true });
-
-  const qualityTypes = useMemo(
-    () => allDocTypes.filter(dt => dt.kind === 'Document' && !dt.isAbstract && typeHasTag(dt, FUNCTIONAL_TAG.typeQualityDocument, allDocTypes)),
-    [allDocTypes],
-  );
-
-  // Пока человек тип не выбрал — «сертификат», иначе первый доступный. Умолчание вычисляем, а не
-  // записываем в состояние: типы могут доехать позже, чем откроется окно.
-  const effectiveSearchType = searchType
-    || (qualityTypes.find(t => /сертификат/i.test(t.name)) ?? qualityTypes[0])?.id
-    || '';
-  const [results, setResults] = useState<SearchCandidate[] | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [importingUrl, setImportingUrl] = useState<string | null>(null);
-  const [searchError, setSearchError] = useState('');
-  // Определения типов полей нужны распознаванию импортированного скана (issue #654).
-  const { data: primitiveTypes = [] } = useListPrimitiveTypes();
-  const { data: enumTypes = [] } = useListEnumTypes();
-
-  // Взвешенные токены запроса (из материала или ручного ввода).
-  const queryTokens = useMemo(() => weighted(query), [query]);
-  const hasQuery = queryTokens.length > 0;
-  const ranked = useMemo(() => {
-    const arr = docs.map(d => ({
-      d,
-      expired: isExpired(d, allDocTypes),
-      validUntil: getValidUntil(d, allDocTypes),
-      score: relevance(queryTokens, docHaystackStems(d.displayName, d.requisites)), // релевантность 0..1 по всем реквизитам
-    }));
-    return arr.sort((a, b) => b.score - a.score);
-  }, [docs, allDocTypes, queryTokens]);
-  const expiredCount = ranked.filter(x => x.expired).length; // всего просроченных (по области)
-  // Действующие — по релевантности; просроченные — только при включённой галке.
-  const visible = ranked.filter(x => x.expired ? includeExpired : (!hasQuery || x.score > 0));
-
-  async function runSearch(q?: string) {
-    const term = (q ?? query).trim();
-    if (!term) return;
-    setSearching(true); setSearchError(''); setResults(null);
-    try { setResults(await searchQualityDocs(term)); }
-    catch (e: unknown) { setSearchError(e instanceof Error ? e.message : 'Ошибка поиска'); }
-    finally { setSearching(false); }
-  }
-
-  // Переход в веб-поиск: сохраняем строку и сразу запускаем поиск (как библиотека показывает сразу).
-  function enterSearch() {
-    setTab('search');
-    const q = query.trim() || baseQuery;
-    setQuery(q);
-    if (results === null && q) void runSearch(q);
-  }
-
-  async function importAndLink(c: SearchCandidate) {
-    if (!effectiveSearchType) { setSearchError('Выберите тип документа'); return; }
-    setImportingUrl(c.url); setSearchError('');
-    try {
-      let doc = await importQualityDocFromUrl({ url: c.url, title: c.title, documentTypeId: effectiveSearchType, scope, scopeId });
-      // Автоматически распознаём скан импортированного документа (best-effort).
-      // Определения типов — чтобы распознавание увидело варианты перечислений и вернуло КОДЫ,
-      // а не подписи (issue #654): формы здесь нет, расхождение показать некому.
-      try { doc = await recognizeAndUpdate(doc, allDocTypes, { primitiveTypes, enumTypes }); }
-      catch { /* распознавание не критично */ }
-      onPick(doc);
-    } catch (e: unknown) {
-      setSearchError(e instanceof Error ? e.message : 'Не удалось импортировать');
-    } finally { setImportingUrl(null); }
-  }
-
-  const tabLabel = { pick: 'Из библиотеки', search: 'Поиск в интернете', create: 'Создать вручную' };
-
-  // Одиночный случай называем материалом (issue #680): «для 1 материал(ов)» не говорит, для какого
-  // именно, а окно открывается из строки таблицы, где строк бывает под сотню.
-  const title = count === 1 ? `Документ качества: ${materials[0].label}`
-    : `Документ качества для ${count} материал(ов)`;
-
-  return (
-    <Modal open onOpenChange={o => { if (!o) onClose(); }} title={title} extraWide>
-      <div className="flex gap-1 mb-3 bg-muted rounded-lg p-0.5 w-fit">
-        {(['pick', 'search', 'create'] as const).map(t => (
-          <button key={t} onClick={() => { if (t === 'search') enterSearch(); else setTab(t); }}
-            className={`px-3 py-1.5 text-sm rounded-md ${tab === t ? 'bg-surface text-fg1 font-medium shadow-sm' : 'text-fg3'}`}>
-            {tabLabel[t]}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'pick' && (
-        <div className="space-y-2">
-          <SearchInput value={query} onChange={setQuery} placeholder="Поиск по материалу / названию..." />
-          <label className="flex items-center gap-1.5 text-xs text-fg3 cursor-pointer">
-            <input type="checkbox" checked={includeExpired} onChange={e => setIncludeExpired(e.target.checked)}
-              className="w-3.5 h-3.5 rounded border-stroke-strong text-brand" />
-            Показать просроченные{expiredCount > 0 ? ` (${expiredCount})` : ''}
-          </label>
-          {isLoading ? <p className="text-sm text-fg4 py-3 text-center">Загрузка...</p>
-            : visible.length === 0 ? (
-              <div className="text-center py-5 space-y-2">
-                <p className="text-sm text-fg4">
-                  {docs.length === 0 ? 'Библиотека пуста.'
-                    : queryTokens.length > 0 ? 'По материалу в библиотеке ничего не найдено.'
-                    : 'Нет подходящих (непросроченных) документов.'}
-                </p>
-                <Button variant="filled" size="sm" onClick={enterSearch} icon={<Globe size={14} />}>
-                  Искать в интернете
-                </Button>
-              </div>
-            ) : (
-              <div className="max-h-80 overflow-y-auto divide-y divide-muted border border-stroke rounded-md">
-                {visible.map(({ d, expired, validUntil, score }) => (
-                  <div key={d.id} className="flex items-center gap-2 px-3 py-2 hover:bg-brand-subtle transition-colors">
-                    <button onClick={() => onPick(d)} className="flex-1 flex items-center gap-2 min-w-0 text-left">
-                      <ShieldCheck size={14} className={expired ? 'text-fg4 shrink-0' : 'text-brand shrink-0'} />
-                      {/* Номер документа рядом с именем (issue #588): два сертификата в библиотеке
-                          назывались одинаково, а внутри были разные номера, органы и области
-                          продукции — по имени человек выбирал вслепую. */}
-                      <span className="flex-1 min-w-0">
-                        <span className="block text-sm text-fg1 truncate">{d.displayName}</span>
-                        {/* Только НОМЕР: срок действия у строки уже есть справа, и вторая дата рядом
-                            (да ещё в другом формате) читалась бы как два разных срока. */}
-                        {docNumberOf(d, allDocTypes) && (
-                          <span className="block text-[11px] text-fg4 truncate">№ {docNumberOf(d, allDocTypes)}</span>
-                        )}
-                      </span>
-                      {queryTokens.length > 0 && score > 0 && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{Math.round(score * 100)}%</span>
-                      )}
-                      {validUntil && <span className={`text-[10px] shrink-0 ${expired ? 'text-danger' : 'text-fg4'}`}>
-                        {expired ? 'просрочен ' : 'до '}{formatDateRu(validUntil)}</span>}
-                    </button>
-                    {d.scanBlobPath && (
-                      <button onClick={() => void openAttachmentInNewTab(d.scanBlobPath!)} title="Просмотр скана (в новой вкладке)"
-                        className="p-1 text-fg4 hover:text-brand shrink-0"><Eye size={14} /></button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-        </div>
-      )}
-
-      {tab === 'search' && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            {/* w-64, а не w-52 (issue #668): «Сертификат соответствия» — типичное значение, и в
-                208 px оно обрезалось многоточием почти сразу даже без кода типа. */}
-            <TypePickerField className="w-64" aria-label="Тип документа качества" title="Тип документа качества"
-              placeholder="Тип"
-              types={qualityTypes.map<PickType>(t => ({ id: t.id, name: t.name, code: t.code, section: 'Документы качества' }))}
-              value={effectiveSearchType || undefined}
-              onChange={id => { if (id) setSearchType(id); }} />
-            {/* Ведущей лупы здесь нет (issue #668): рядом стоял селектор типа со своей замыкающей
-                лупой — обещанием модалки поиска (#565), — и два одинаковых значка подряд означали
-                разное. У самой строки намерение уже названо кнопкой «Найти» справа. */}
-            <div className="flex-1 flex items-center gap-2 border border-stroke-strong rounded-md px-2 transition-colors focus-within:border-brand focus-within:ring-1 focus-within:ring-brand">
-              <input value={query} onChange={e => setQuery(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') void runSearch(); }}
-                placeholder="строка поиска" className="flex-1 py-2 text-sm bg-transparent focus:outline-none" />
-            </div>
-            <Button variant="filled" size="sm" onClick={() => runSearch()} loading={searching}
-              disabled={!query.trim()} icon={<Search size={14} />}>
-              Найти
-            </Button>
-          </div>
-          {searchError && <p className="text-sm text-danger">{searchError}</p>}
-          {results && results.length === 0 && <p className="text-sm text-fg4 py-3 text-center">Ничего не найдено.</p>}
-          {results && results.length > 0 && (
-            <div className="max-h-80 overflow-y-auto divide-y divide-muted border border-stroke rounded-md">
-              {results.map(c => (
-                <div key={c.url} className="flex items-start gap-2 px-3 py-2">
-                  <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-base text-fg3 shrink-0 mt-0.5">{c.source}</span>
-                  <div className="flex-1 min-w-0">
-                    <a href={c.url} target="_blank" rel="noreferrer"
-                      className="text-sm text-brand-hover hover:underline flex items-center gap-1">
-                      <span className="truncate">{c.title || c.url}</span><ExternalLink size={11} className="shrink-0" />
-                    </a>
-                    {c.snippet && <p className="text-xs text-fg4 line-clamp-2">{c.snippet}</p>}
-                  </div>
-                  <Button variant="filled" size="sm" onClick={() => importAndLink(c)}
-                    loading={importingUrl === c.url} disabled={importingUrl !== null}
-                    icon={<Download size={12} />} className="shrink-0">
-                    В библиотеку
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === 'create' && (
-        <QualityDocForm allDocTypes={allDocTypes} scope={scope} scopeId={scopeId}
-          onSaved={doc => onPick(doc)} onCancel={() => setTab('pick')} />
-      )}
-
-    </Modal>
-  );
-}
-
-/**
- * Действие в строке материала (issue #680).
- *
- * Своя пилюля, а не `Button size="sm"`: у кнопки высота 32 px, а строк на живом реестре 130 — это
- * лишний экран прокрутки в таблице, которая и так скроллится внутри себя. Размер взят у пилюли
- * «привязать», которая в строке уже стояла, поэтому вертикальная цена нулевая.
- *
- * Тон говорит о роли: `brand` — согласие с догадкой машины (главное действие подсказки),
- * `tonal` — «сделаю выбор сам».
- */
-function RowPill({ onClick, title, tone = 'tonal', children }: {
-  onClick: () => void; title: string; tone?: 'brand' | 'tonal'; children: ReactNode;
-}) {
-  return (
-    <button type="button" onClick={onClick} title={title}
-      className={'flex items-center gap-1 px-1.5 py-0.5 text-xs rounded-full shrink-0 '
-        + 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand '
-        + (tone === 'brand'
-          ? 'bg-brand hover:bg-brand-hover text-on-brand'
-          : 'bg-tonal text-on-tonal hover:brightness-[.97]')}>
-      {children}
-    </button>
-  );
-}
+import { isExpired } from './qualityValidity';
+import type { MaterialRow } from './materialRow';
+import { LinkPickerModal } from './LinkPickerModal';
+import { MaterialsTable } from './MaterialsTable';
+import { SuggestionsModal } from './SuggestionsModal';
+import { BulkLinkMismatchDialog } from './BulkLinkMismatchDialog';
+import { BreakLinkDialog } from './BreakLinkDialog';
+import { ScopeToolbar } from './ScopeToolbar';
+import { BulkSelectionBar } from './BulkSelectionBar';
 
 // ─── Вкладка «Документы качества» ───────────────────────────────────────────────
 
@@ -689,177 +373,25 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <button onClick={() => refetch()} disabled={isFetching}
-          className="flex items-center gap-2 text-sm px-3 py-2 rounded-md bg-muted text-fg2 disabled:opacity-50">
-          {isFetching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />} Обновить материалы
-        </button>
-        <span className="text-xs text-fg4">{materials.length} материалов · привязано {linkedCount}</span>
-        <div className="ml-auto flex items-center gap-2">
-          <label className="text-xs text-fg3">Область связи:</label>
-          {/* Четыре уровня (issue #587) — ровно те, что разрешает резолвер. Раньше их было два, и
-              «общая» стояла по умолчанию: узкая ошибка обратима (связка не нашлась), широкая тиха
-              (чужой сертификат подставился в чужой документ). Уровень без известного id не
-              предлагаем — привязку было бы некуда положить. */}
-          <Select value={scope} onValueChange={v => setScope(v as CatalogScope)}
-            aria-label="Область связи" className="w-56">
-            <SelectItem value="Set">Только этот комплект</SelectItem>
-            {sectionId && <SelectItem value="Section">Весь раздел</SelectItem>}
-            {constructionId && <SelectItem value="Construction">Вся стройка</SelectItem>}
-            {/* Слово «Система» — из общего словаря областей (issue #649): экран контроля называет
-                этот уровень так же, и выбирать одним словом, а читать другое человек не должен. */}
-            <SelectItem value="System">Все стройки (Система)</SelectItem>
-          </Select>
-        </div>
-      </div>
+      <ScopeToolbar isFetching={isFetching} refetch={refetch} materialsCount={materials.length}
+        linkedCount={linkedCount} scope={scope} setScope={setScope}
+        sectionId={sectionId} constructionId={constructionId} />
 
       {materials.length === 0 ? (
         <p className="text-sm text-fg4 text-center py-6">
           Нет материалов. Настройте набор данных (кнопка «Источники» в шапке документа) и нажмите «Обновить материалы».
         </p>
       ) : (
-        <div className="border border-stroke rounded-lg overflow-hidden">
-          <div className="max-h-[50vh] overflow-y-auto">
-            {/* table-fixed — ради ВИДИМОСТИ действий, а не ради вида. Ячейка таблицы с обычной
-                раскладкой берёт ширину по содержимому и `truncate` в ней не работает: на живом
-                реестре строка выходила 1776 px в контейнере 1550, и правая колонка с «Разорвать»
-                уезжала за край — добраться до неё можно было только горизонтальной прокруткой
-                внутри таблицы. Фиксированная раскладка берёт ширины из шапки, и обрезка начинает
-                действовать (issue #680). */}
-            <table className="w-full table-fixed text-sm">
-              <thead className="bg-base sticky top-0">
-                <tr>
-                  <th className="w-8 px-2 py-2"></th>
-                  <th className="px-2 py-2 text-left font-medium text-fg3">Материал</th>
-                  <th className="px-2 py-2 text-left font-medium text-fg3 w-2/5">Документ качества</th>
-                </tr>
-              </thead>
-              <tbody>
-                {materials.map(m => {
-                  const link = findLink(m);
-                  const suggestion = !link ? suggestionByKey.get(m.key) : undefined;
-                  return (
-                    <tr key={m.key} className="border-t border-muted hover:bg-base">
-                      <td className="px-2 py-1.5 text-center">
-                        <input type="checkbox" checked={selected.has(m.key)} onChange={() => toggle(m.key)}
-                          className="w-4 h-4 rounded border-stroke-strong text-brand" />
-                      </td>
-                      <td className="px-2 py-1.5 text-fg1">
-                        <span className="flex items-center gap-1.5">
-                          {/* min-w-0 — не косметика: без него `truncate` не ужимает имя, минимальная
-                              ширина ячейки равна всей строке, и таблица разъезжается шире
-                              контейнера. Действия правой колонки при этом уезжают за край экрана —
-                              то есть аффорданс, ради видимости которого затевался issue #680,
-                              достаётся только тому, кто догадался прокрутить таблицу вбок. */}
-                          <span className="truncate min-w-0">{m.label}</span>
-                          {/* Строка спорит с другой за связку (issue #585): совпало значение, но не
-                              ключ целиком. Различить их система не может — решение за человеком. */}
-                          {colliding.has(m.key) && (
-                            <span
-                              title={`Совпадает с другой строкой по «${colliding.get(m.key)!.join('», «')}», но ключ целиком разный. `
-                                + 'Либо это одна позиция, записанная по-разному — тогда исправьте материал, '
-                                + 'либо разные товары — тогда заведите две связки.'}
-                              className="shrink-0 text-warning">
-                              <AlertTriangle size={13} />
-                            </span>
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-2 py-1.5">
-                        {link ? (
-                          <span className="flex items-center gap-1.5">
-                            <ShieldCheck size={13} className="text-success shrink-0" />
-                            {/* Уровень показываем, ТОЛЬКО когда он расходится с селектором (issue
-                                #681): в обычном случае он у всех строк один, и повторённый 130 раз
-                                значок стал бы фоном. А расхождение — ровно то место, где человек
-                                думает, что правит связку комплекта, а правит общесистемную. */}
-                            {(link.scope !== scope || (link.scopeId ?? null) !== scopeId) && (
-                              <ScopeIcon scope={link.scope}
-                                title={`Связка заведена на уровне «${SCOPE_LABELS[link.scope]}», а в селекторе выбрано `
-                                  + `«${SCOPE_LABELS[scope]}». Перепривязка изменит её на своём уровне — то есть всюду, `
-                                  + 'куда этот уровень достаёт.'} />
-                            )}
-                            {/* Имя документа — единственный вход в просмотр: рядом стояла иконка
-                                Eye с тем же обработчиком и той же подсказкой (issue #682). Место,
-                                которое она занимала, ушло под «Перепривязать». */}
-                            <button onClick={() => { const d = docById.get(link.qualityDocumentId); if (d) setViewDoc(d); }}
-                              title="Просмотреть документ"
-                              className="flex-1 min-w-0 text-left text-brand-hover hover:underline truncate">
-                              {docName.get(link.qualityDocumentId) ?? '(документ)'}
-                            </button>
-                            {/* Починка неверной связки — перепривязкой, а не разрывом: разрыв меняет
-                                одну ошибку («не тот документ») на другую («документа нет»). До этого
-                                единственный путь починки шёл через destructive-действие. */}
-                            <button onClick={() => openPickerFor(m)} title="Перепривязать к другому документу"
-                              className="p-0.5 text-fg4 hover:text-brand"><Replace size={13} /></button>
-                            <button onClick={() => setBreaking({ link, label: m.label })} title="Снять связь"
-                              className="p-0.5 text-fg4 hover:text-danger"><Unlink size={13} /></button>
-                          </span>
-                        ) : suggestion ? (
-                          <span className="flex items-center gap-1.5">
-                            <span className="text-[10px] px-1 py-0.5 rounded bg-brand-subtle text-brand shrink-0">{Math.round(suggestion.score * 100)}%</span>
-                            <button onClick={() => setViewDoc(suggestion.doc)} title="Просмотреть предложенный документ"
-                              className="flex-1 min-w-0 text-left text-fg3 italic hover:underline truncate">
-                              {suggestion.doc.displayName}
-                            </button>
-                            <RowPill tone="brand" onClick={() => void acceptSuggestion(m, suggestion.doc.id)}
-                              title="Привязать предложенный документ">
-                              <Check size={12} /> привязать
-                            </RowPill>
-                            {/* Подсказка — это согласие с догадкой машины, а не вход в выбор (issue
-                                #680). Промахнулась догадка — до этой кнопки уйти из строки было
-                                некуда, кроме как через чекбокс и кнопку под таблицей. */}
-                            <RowPill onClick={() => openPickerFor(m)} title="Выбрать другой документ качества">
-                              другой
-                            </RowPill>
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1.5">
-                            <span className="flex-1 min-w-0 text-fg4">—</span>
-                            {/* Кнопка ВИДИМАЯ, не по hover: необнаруживаемость одиночного пути и есть
-                                предмет жалобы, а мерцающая колонка на 130 строках недоступна ни с
-                                клавиатуры, ни с тача. */}
-                            <RowPill onClick={() => openPickerFor(m)} title="Выбрать документ качества для этого материала">
-                              <Link2 size={12} /> Связать
-                            </RowPill>
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <MaterialsTable
+          materials={materials} selected={selected} toggle={toggle} colliding={colliding}
+          findLink={findLink} suggestionByKey={suggestionByKey} scope={scope} scopeId={scopeId}
+          docById={docById} docName={docName} setViewDoc={setViewDoc}
+          openPickerFor={openPickerFor} setBreaking={setBreaking} acceptSuggestion={acceptSuggestion} />
       )}
 
-      {/* Панель массового действия — только при непустом выборе (issue #680). Постоянно висевшая
-          выключенная «Связать выбранные (0)» была единственным местом на экране, где произносилось
-          слово «Связать», и обучала, что работа делается отсюда; теперь то же слово стоит в каждой
-          непривязанной строке, а колонка чекбоксов остаётся сигналом массового пути. */}
       {selected.size > 0 && (
-        <div className="sticky bottom-0 rounded-md border border-stroke bg-surface px-3 py-2 shadow-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-fg2">Выбрано: {selected.size}</span>
-            <Button variant="filled" size="sm" onClick={openPickerForSelected} icon={<Link2 size={13} />}>
-              Связать выбранные ({selected.size})
-            </Button>
-            <button onClick={() => setSelected(new Set())}
-              className="ml-auto text-xs text-fg4 hover:text-fg2">Снять выбор</button>
-          </div>
-          {/* Часть выбранных уже связана ШИРЕ, чем выбрано в селекторе, и правка уйдёт на их
-              уровень — за пределы этого комплекта. В строке уровень виден значком, но на сотне
-              строк его никто не пересчитывает, а панель говорит только «Выбрано: N». Показываем
-              здесь, до нажатия: не диалогом — предупреждение, на которое нельзя ответить «нет»,
-              приучает жать «да». */}
-          {widerThanSelector.length > 0 && (
-            <p className="mt-1.5 text-xs text-warning">
-              Шире выбранного уровня — {widerThanSelector.length} ({scopeBreakdownText(widerThanSelector)}):
-              {' '}документ сменится на уровне самой связки, то есть и в других комплектах.
-            </p>
-          )}
-        </div>
+        <BulkSelectionBar selected={selected} setSelected={setSelected}
+          openPickerForSelected={openPickerForSelected} widerThanSelector={widerThanSelector} />
       )}
 
       <div className="flex items-center gap-3">
@@ -882,72 +414,11 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
         (без просроченных); их можно принять по одной в строке или разобрать списком.
       </p>
 
-      {/* Сводка перед массовой привязкой (issue #552). Появляется, ТОЛЬКО если что-то не сходится:
-          у артикулов сравнивать нечего, и показывать её всегда значило бы приучить нажимать «да». */}
-      <ConfirmDialog
-        open={!!pendingLink} onOpenChange={o => { if (!o) { setPendingLink(null); setSingleTarget(null); } }}
-        title="Материалы не похожи на этот документ"
-        description={pendingLink ? (
-          <div className="space-y-2">
-            {/* Один материал называем по имени: «из 1 выбранных материалов ему соответствуют 0» —
-                это отчёт о выборке там, где речь об одной строке (issue #680). */}
-            {pendingLink.chosen.length === 1 ? (
-              <p>
-                Материал <b>{pendingLink.chosen[0].label}</b> не похож на документ
-                {' '}<b>{pendingLink.docName}</b>: ни одно его слово в документе не встречается.
-              </p>
-            ) : (
-              <p>
-                Документ <b>{pendingLink.docName}</b>: из {pendingLink.chosen.length} выбранных
-                материалов ему соответствуют {pendingLink.assessment.fits.length},
-                {' '}не похожи — <b>{pendingLink.assessment.mismatched.length}</b>
-                {pendingLink.assessment.unverifiable.length > 0
-                  && `, ещё ${pendingLink.assessment.unverifiable.length} проверить нечем (только артикул)`}.
-              </p>
-            )}
-            {pendingLink.chosen.length > 1 && (
-              <ul className="text-xs text-fg3 space-y-0.5 max-h-40 overflow-y-auto">
-                {pendingLink.assessment.mismatched.slice(0, 8).map(m => (
-                  <li key={m.key} className="truncate">• {m.label}</li>
-                ))}
-                {pendingLink.assessment.mismatched.length > 8 && (
-                  <li>… и ещё {pendingLink.assessment.mismatched.length - 8}</li>
-                )}
-              </ul>
-            )}
-            <p className="text-xs text-fg4">
-              Проверка приблизительная — она сравнивает слова материала с текстом документа. Если
-              документ действительно тот, привязывайте.
-            </p>
-          </div>
-        ) : ''}
-        confirmLabel="Всё равно привязать" errorTitle="Не удалось привязать"
-        onConfirm={() => { if (pendingLink) return linkChosen(pendingLink.docId, pendingLink.chosen); }}
-      />
+      <BulkLinkMismatchDialog pendingLink={pendingLink} setPendingLink={setPendingLink}
+        setSingleTarget={setSingleTarget} linkChosen={linkChosen} />
 
-      {/* Область — только для показа библиотеки и создания документа. Куда ляжет связка, решает
-          linkMaterials: у строки со связкой это область ЕЁ связки (issue #681). */}
-      <ConfirmDialog
-        open={!!breaking} onOpenChange={o => { if (!o) setBreaking(null); }}
-        title="Разорвать связь?"
-        description={breaking ? (
-          <>
-            <p className="mb-2">{breaking.label}</p>
-            {shadowedBy(breaking.link) ? (
-              <p>Материал без документа качества НЕ останется: под этой связкой лежит другая, уровня
-                {' '}«{SCOPE_LABELS[shadowedBy(breaking.link)!.scope]}», с документом
-                {' '}<b>{shadowedBy(breaking.link)!.qualityDocumentName}</b> — при генерации
-                подставится он. Чтобы материал остался пустым, снимите и её.</p>
-            ) : (
-              <p>Материал останется без документа качества — при генерации поле документа качества
-                будет пустым.</p>
-            )}
-            <ScopeReachNote links={[breaking.link]} />
-          </>
-        ) : ''}
-        confirmLabel="Разорвать" errorTitle="Не удалось снять связь"
-        onConfirm={() => { if (breaking) return removeLink.mutateAsync(breaking.link.id); }}
-      />
+      <BreakLinkDialog breaking={breaking} setBreaking={setBreaking} shadowedBy={shadowedBy}
+        removeLink={id => removeLink.mutateAsync(id)} />
 
       {/* Область здесь — только про показ библиотеки и создание нового документа. Куда ляжет
           связка, решает linkMaterials: у строки со связкой это область ЕЁ связки (issue #681). */}
@@ -961,37 +432,9 @@ export function QualityLinksTab({ instance, setId, allDocTypes }: {
         )}
       </Modal>
 
-      <Modal open={suggestions !== null} onOpenChange={o => { if (!o) setSuggestions(null); }}
-        title="Предложенные связи" wide
-        footer={
-          <div className="flex items-center gap-2">
-            <Button variant="filled" onClick={applySuggestions} loading={setLinks.isPending}
-              disabled={suggestSel.size === 0}>
-              {setLinks.isPending ? 'Применение...' : `Применить выбранные (${suggestSel.size})`}
-            </Button>
-            <Button variant="text" onClick={() => setSuggestions(null)}>Отмена</Button>
-          </div>
-        }>
-        {suggestions && suggestions.length === 0 ? (
-          <p className="text-sm text-fg4 py-4 text-center">
-            Подходящих документов не найдено. Свяжите несколько материалов вручную — дальше похожие предложатся автоматически.
-          </p>
-        ) : (
-          <div className="divide-y divide-muted border border-stroke rounded-md max-h-[55vh] overflow-y-auto">
-            {(suggestions ?? []).map(s => (
-              <label key={s.materialKey} className="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-base">
-                <input type="checkbox" checked={suggestSel.has(s.materialKey)}
-                  onChange={() => setSuggestSel(prev => toggleInSet(prev, s.materialKey))}
-                  className="w-4 h-4 rounded border-stroke-strong text-brand" />
-                <span className="flex-1 truncate text-fg1">{s.materialName}</span>
-                <span className="text-fg4">→</span>
-                <span className="flex-1 truncate text-brand-hover">{s.docDisplayName}</span>
-                <span className="text-xs text-fg4 shrink-0">{Math.round(s.score * 100)}%</span>
-              </label>
-            ))}
-          </div>
-        )}
-      </Modal>
+      <SuggestionsModal suggestions={suggestions} setSuggestions={setSuggestions}
+        suggestSel={suggestSel} setSuggestSel={setSuggestSel}
+        applySuggestions={applySuggestions} applying={setLinks.isPending} />
     </div>
   );
 }
