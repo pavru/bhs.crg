@@ -62,13 +62,20 @@ public record SectionSummaryDto(
 }
 
 /// <summary>Стройка с деревом разделов/комплектов и счётчиками документов.</summary>
+/// <param name="TimeZoneId">
+/// Свой часовой пояс стройки или null — «как у компании» (ТЗ CORE-5, issue #960). Клиент обязан
+/// различать эти два состояния: подставить сюда пояс компании значило бы показать выбор, которого
+/// никто не делал, — и тогда смена пояса компании выглядела бы не подействовавшей.
+/// </param>
 public record ConstructionDto(
     Guid Id, string Name, Guid CreatedByUserId, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
-    IReadOnlyList<SectionSummaryDto> Sections)
+    IReadOnlyList<SectionSummaryDto> Sections,
+    string? TimeZoneId, string? ExternalSystem, string? ExternalCode)
 {
     public static ConstructionDto From(Construction c, IReadOnlyDictionary<Guid, int> counts) => new(
         c.Id, c.Name, c.CreatedByUserId, c.CreatedAt, c.UpdatedAt,
-        c.Sections.Select(s => SectionSummaryDto.From(s, counts)).ToList());
+        c.Sections.Select(s => SectionSummaryDto.From(s, counts)).ToList(),
+        c.TimeZoneId, c.ExternalSystem, c.ExternalCode);
 }
 
 /// <summary>Запись общих данных — форма клиентского CommonDataEntry.</summary>

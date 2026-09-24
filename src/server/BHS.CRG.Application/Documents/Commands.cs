@@ -80,6 +80,12 @@ public record AuditFixOutcome(Guid InstanceId, string Path, string Action, bool 
 // --- Construction ---
 public record CreateConstructionCommand(string Name, Guid UserId) : IRequest<Construction>;
 public record RenameConstructionCommand(Guid Id, string Name) : IRequest<Construction>;
+/// <param name="TimeZoneId">IANA-идентификатор или null — «как у компании» (ТЗ CORE-5, issue #960).</param>
+public record SetConstructionTimeZoneCommand(Guid Id, string? TimeZoneId) : IRequest<Construction>;
+
+/// <summary>Внешний идентификатор стройки — парой «система + код» (ТЗ CORE-5, issue #960).</summary>
+public record SetConstructionExternalIdCommand(Guid Id, string? System, string? Code) : IRequest<Construction>;
+
 public record DeleteConstructionCommand(Guid Id) : IRequest;
 public record GetConstructionQuery(Guid Id) : IRequest<Construction?>;
 public record ListConstructionsQuery(Guid UserId) : IRequest<IReadOnlyList<Construction>>;

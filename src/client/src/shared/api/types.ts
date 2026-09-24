@@ -126,6 +126,13 @@ export interface Construction {
   createdAt: string;
   updatedAt: string;
   sections: Section[];
+  /** Свой часовой пояс стройки (IANA) либо null — «как у компании» (#960).
+   *  Два разных состояния: подставлять сюда пояс компании нельзя, иначе её смена
+   *  выглядела бы не подействовавшей. */
+  timeZoneId: string | null;
+  /** Внешний идентификатор — всегда парой; половина пары не адресует ничего. */
+  externalSystem: string | null;
+  externalCode: string | null;
 }
 
 export interface Section {

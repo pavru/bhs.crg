@@ -3,6 +3,7 @@ using BHS.CRG.Api.Auth;
 using BHS.CRG.Api.Endpoints.Documents;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Documents;
+using BHS.CRG.Application.Settings;
 using BHS.CRG.Modules;
 using MediatR;
 
@@ -65,6 +66,21 @@ public static class ConstructionEndpoints
             return Results.NoContent();
         });
 
+        // Пояс и внешний идентификатор — СВОИМИ адресами, а не полями в теле переименования
+        // (ТЗ CORE-5). Сложи их в одно тело — и клиент, присылающий только имя, снимал бы пояс
+        // каждым переименованием: отсутствие поля неотличимо от «убрать».
+        cEdit.MapPut("/{id:guid}/timezone", async (Guid id, TimeZoneRequest req, IMediator m) =>
+        {
+            // Пустое значение — «как у компании», это разрешённый выбор. Непустое обязано
+            // разбираться ЗДЕСЬ: иначе отказ придёт при первом подсчёте суток, далеко от ввода.
+            if (!string.IsNullOrWhiteSpace(req.TimeZoneId) && !AppSettingKeys.IsKnownTimeZone(req.TimeZoneId))
+                return Results.BadRequest(new { error = $"Часовой пояс «{req.TimeZoneId}» этой системе неизвестен." });
+            return Results.Ok(await m.Send(new SetConstructionTimeZoneCommand(id, req.TimeZoneId)));
+        });
+
+        cEdit.MapPut("/{id:guid}/external-id", async (Guid id, ExternalIdRequest req, IMediator m)
+            => Results.Ok(await m.Send(new SetConstructionExternalIdCommand(id, req.System, req.Code))));
+
         // ── Разделы ────────────────────────────────────────────────────────────
         cEdit.MapPost("/{constructionId:guid}/sections", async (Guid constructionId, CreateSectionRequest req, IMediator m)
             => Results.Ok(await m.Send(new CreateSectionCommand(constructionId, req.Name))));
@@ -84,6 +100,8 @@ public static class ConstructionEndpoints
     static Guid GetUserId(ClaimsPrincipal user)
         => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub")!);
 
+    record TimeZoneRequest(string? TimeZoneId);
+    record ExternalIdRequest(string? System, string? Code);
     record CreateConstructionRequest(string Name);
     record CreateSectionRequest(string Name);
     record RenameRequest(string Name);

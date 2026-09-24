@@ -34,7 +34,13 @@ internal static class StartupTasks
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Перепись справочника ядра до и после миграции (ТЗ CORE-29/CORE-31, issue #960).
+        // Расхождение — отказ старта: см. MigrationCensus, там записано почему.
+        var censusBefore = await BHS.CRG.Infrastructure.Persistence.MigrationCensus.ReadAsync(db);
         await db.Database.MigrateAsync();
+        BHS.CRG.Infrastructure.Persistence.MigrationCensus.EnsureUnchanged(
+            censusBefore, await BHS.CRG.Infrastructure.Persistence.MigrationCensus.ReadAsync(db));
 
         // Встроенные профили распознавания (issue #406) — идемпотентно; правленые пользователем не трогает.
         await BHS.CRG.Infrastructure.Recognition.RecognitionProfileSeeder.SeedAsync(db);

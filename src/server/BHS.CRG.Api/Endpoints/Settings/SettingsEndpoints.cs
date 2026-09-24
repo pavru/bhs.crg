@@ -30,6 +30,40 @@ public static class SettingsEndpoints
 
     public static void MapSettingsEndpoints(this IEndpointRouteBuilder app)
     {
+        // ── Настройки компании (ТЗ CORE-25.3, issue #960) ──────────────────────
+        // Отдельной группой, а не полем в настройках интеграций: там секреты, и они шифруются.
+        // Часовой пояс — открытое значение, которое читает код подсчёта суток.
+        var company = app.MapGroup("/api/settings/company")
+            .RequireAuthorization(AppPolicies.Permission(CorePermissions.SystemManage));
+
+        company.MapGet("/", async (IAppSettingsStore store, CancellationToken ct) =>
+        {
+            var stored = await store.GetAsync(AppSettingKeys.CompanyTimeZone, ct);
+            var effective = await store.GetCompanyTimeZoneAsync(ct);
+            // Три значения, а не одно, и это не избыточность: «что выбрали», «что действует» и «что
+            // на сервере». Совпадать они перестают ровно тогда, когда базу перенесли на машину, где
+            // выбранного пояса нет, — и администратор обязан увидеть это здесь, а не по сдвинутым
+            // датам в документах.
+            return Results.Ok(new
+            {
+                timeZoneId = stored,
+                effectiveTimeZoneId = effective.Id,
+                serverTimeZoneId = TimeZoneInfo.Local.Id,
+                resolved = stored is null || string.Equals(stored, effective.Id, StringComparison.Ordinal),
+            });
+        });
+
+        company.MapPut("/", async (CompanyTimeZoneRequest req, IAppSettingsStore store, CancellationToken ct) =>
+        {
+            // Пусто — снять настройку, вернуться к поясу сервера. Непустое обязано разбираться.
+            if (!string.IsNullOrWhiteSpace(req.TimeZoneId) && !AppSettingKeys.IsKnownTimeZone(req.TimeZoneId))
+                return Results.BadRequest(new { error = $"Часовой пояс «{req.TimeZoneId}» этой системе неизвестен." });
+
+            await store.SetAsync(AppSettingKeys.CompanyTimeZone,
+                string.IsNullOrWhiteSpace(req.TimeZoneId) ? null : req.TimeZoneId.Trim(), ct);
+            return Results.NoContent();
+        });
+
         var g = app.MapGroup("/api/settings/integrations").RequireAuthorization(AppPolicies.Permission(CorePermissions.SystemManage));
 
         // Чтение: ключи НЕ возвращаем, только признак «ключ задан». Сюда НЕ добавляем проверок,
@@ -344,6 +378,7 @@ public static class SettingsEndpoints
         useProxy = s.UseProxy,
     };
 
+    private record CompanyTimeZoneRequest(string? TimeZoneId);
     private record EmailTestRequest(string? To);
 
     /// <param name="Service">Какой сервис туннелировать; пусто — первый с галкой «Через прокси».</param>

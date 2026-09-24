@@ -12,6 +12,8 @@ public class ConstructionHandlers(
     IScopeCascade cascade) :
     IRequestHandler<CreateConstructionCommand, Construction>,
     IRequestHandler<RenameConstructionCommand, Construction>,
+    IRequestHandler<SetConstructionTimeZoneCommand, Construction>,
+    IRequestHandler<SetConstructionExternalIdCommand, Construction>,
     IRequestHandler<DeleteConstructionCommand>,
     IRequestHandler<GetConstructionQuery, Construction?>,
     IRequestHandler<ListConstructionsQuery, IReadOnlyList<Construction>>,
@@ -32,6 +34,30 @@ public class ConstructionHandlers(
     {
         var c = await constructionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
         c.Rename(cmd.Name);
+        constructionRepo.Update(c);
+        await constructionRepo.SaveChangesAsync(ct);
+        return c;
+    }
+
+    /// <summary>
+    /// Часовой пояс стройки (ТЗ CORE-5). Пустое значение СНИМАЕТ свой пояс — стройка снова считает
+    /// сутки по поясу компании; проверяет идентификатор вызывающий, здесь он уже разобран.
+    /// </summary>
+    public async Task<Construction> Handle(SetConstructionTimeZoneCommand cmd, CancellationToken ct)
+    {
+        var c = await constructionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
+        c.SetTimeZone(cmd.TimeZoneId);
+        constructionRepo.Update(c);
+        await constructionRepo.SaveChangesAsync(ct);
+        return c;
+    }
+
+    public async Task<Construction> Handle(SetConstructionExternalIdCommand cmd, CancellationToken ct)
+    {
+        var c = await constructionRepo.GetByIdAsync(cmd.Id, ct) ?? throw new NotFoundException();
+        // Половину пары отвергает сам домен — нашим типом отказа, то есть текстом, который дойдёт
+        // до вызывающего (см. DomainExceptionPolicyTests).
+        c.SetExternalId(cmd.System, cmd.Code);
         constructionRepo.Update(c);
         await constructionRepo.SaveChangesAsync(ct);
         return c;
