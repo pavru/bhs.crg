@@ -59,7 +59,8 @@ public class OutboundClientRoutingTests(IntegrationTestFixture fixture)
         var unknown = RegisteredNames().Where(n => !Expected.ContainsKey(n)).ToList();
         Assert.True(unknown.Count == 0,
             "Клиенты без маршрута: " + string.Join(", ", unknown) + ".\n" +
-            "Скажите, чей клиент: внешнему сервису — RouteVia(..., OutboundService.X) в Program.cs, " +
+            "Скажите, чей клиент: внешнему сервису — RouteVia(..., OutboundService.X) при регистрации " +
+            "(Configuration/ServiceRegistration.*.cs), " +
             "внутреннему — ничего, но впишите его сюда со значением null.");
 
         // И обратное: сторож не должен молча устареть, проверяя клиентов, которых больше нет.

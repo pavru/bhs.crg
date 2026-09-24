@@ -1,4 +1,4 @@
-using BHS.CRG.Api.Modules;
+﻿using BHS.CRG.Api.Modules;
 using BHS.CRG.Application.Schema;
 using BHS.CRG.Modules;
 using Microsoft.AspNetCore.Routing;
@@ -122,8 +122,22 @@ public class TagCatalogTests
     [Fact]
     public void Реестр_разрешается_на_старте()
     {
-        var program = File.ReadAllText(Path.Combine(SolutionDir, "BHS.CRG.Api", "Program.cs"));
-        Assert.Contains("GetRequiredService<BHS.CRG.Application.Schema.TagCatalog>()", program, StringComparison.Ordinal);
+        // Ищем по ВСЕМ исходникам проекта, а не в Program.cs по имени: корень композиции разошёлся
+        // по методам-расширениям (issue #1030), и сторож, прибитый к имени файла, ослеп бы молча —
+        // ровно это случилось с PageTimeoutToleranceTests в #1022.
+        const string needle = "GetRequiredService<BHS.CRG.Application.Schema.TagCatalog>()";
+        var hits = Directory
+            .GetFiles(Path.Combine(SolutionDir, "BHS.CRG.Api"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                        && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+            .Where(f => File.ReadAllText(f).Contains(needle, StringComparison.Ordinal))
+            .ToArray();
+
+        // Ровно одно вхождение: ноль — разрешение убрали или переименовали, и реестр снова ленивый;
+        // больше одного — разрешают в двух местах, и какое из них работает, по коду уже не видно.
+        Assert.True(hits.Length == 1,
+            $"Ожидалось ровно одно место, где реестр тэгов разрешается на старте, найдено {hits.Length}: "
+            + string.Join(", ", hits.Select(Path.GetFileName)));
     }
 
     /// <summary>Корень решения — от каталога сборки тестов вверх до <c>BHS.CRG.slnx</c>.</summary>
