@@ -4,10 +4,11 @@ using System.Text.Json.Nodes;
 using BHS.CRG.Application.Common;
 using BHS.CRG.Application.Generation;
 using BHS.CRG.Domain.Documents;
+using Microsoft.Extensions.Logging;
 
 namespace BHS.CRG.Infrastructure.Generation;
 
-public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
+public class TypstGenerator(IBlobStorage blob, ILogger<TypstGenerator> log) : IDocumentGenerator
 {
     // Имя точки входа — одно на всю систему: сборка (TypeBlockSlug), раскладка на диск, проверка
     // блоков и заглушка в проверке библиотеки обязаны звать один и тот же файл.
@@ -119,6 +120,11 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
             psi.ArgumentList.Add("compile");
             psi.ArgumentList.Add("template.typ");   // относительный путь — tmpDir уже WorkingDirectory
             psi.ArgumentList.Add("output.pdf");
+            // Короткий формат диагностик — «путь:строка:колонка: error: текст» — чтобы отказ
+            // компиляции можно было РАЗОБРАТЬ и назвать пользователю место (issue #1047). Тот же
+            // формат и тот же разборщик, что у проверки блоков и библиотеки.
+            psi.ArgumentList.Add("--diagnostic-format");
+            psi.ArgumentList.Add("short");
             psi.ArgumentList.Add("--root");
             psi.ArgumentList.Add(tmpDir);
             if (fontsDirForCli is not null)
@@ -129,7 +135,19 @@ public class TypstGenerator(IBlobStorage blob) : IDocumentGenerator
 
             var (exitCode, err) = await TypstProcess.RunAsync(psi, ct);
             if (exitCode != 0)
-                throw new InvalidOperationException($"Typst compilation failed (exit {exitCode}):\n{err}");
+            {
+                // Вывод компилятора — в журнал ЦЕЛИКОМ и здесь, а не конвейером ответа: доменный
+                // отказ конвейер не логирует (это штатный ответ), и без этой записи точная причина
+                // с путями не осталась бы нигде.
+                log.LogWarning("Компиляция шаблона не удалась (код {ExitCode}). Вывод Typst:\n{StdErr}",
+                    exitCode, err);
+
+                // Разобрали — отказ наш и адресован пользователю. Не разобрали — исключение остаётся
+                // чужим: 500 с идентификатором запроса. «Компилятор сказал непонятное» — это про
+                // установку, а не про шаблон, и человеку тут исправлять нечего.
+                throw TypstCompileFailure.TryDescribe(err, tmpDir)
+                      ?? (Exception)new InvalidOperationException($"Typst compilation failed (exit {exitCode}):\n{err}");
+            }
 
             var outputPath = Path.Combine(tmpDir, "output.pdf");
             if (!File.Exists(outputPath))
