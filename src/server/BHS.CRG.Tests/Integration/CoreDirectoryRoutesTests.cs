@@ -24,7 +24,8 @@ namespace BHS.CRG.Tests.Integration;
 public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
 {
     /// <summary>Пути справочников ядра. Всё, что под ними, обязано быть ядром и только справочником.</summary>
-    private static readonly string[] DirectoryPrefixes = ["/api/constructions", "/api/sections", "/api/catalog"];
+    private static readonly string[] DirectoryPrefixes =
+        ["/api/constructions", "/api/sections", "/api/common-data", "/api/catalog"];
 
     private static readonly string[] Expected =
     [
@@ -40,11 +41,31 @@ public class CoreDirectoryRoutesTests(IntegrationTestFixture fixture)
         "DELETE /api/sections/{id:guid}",
         "PUT /api/sections/{id:guid}",
 
-        // Каталог организаций и лиц (ТЗ CORE-6). Переезд состоялся раньше этой записи: типы
-        // отданы ядру миграцией владельцев (issue #955), адреса закрыты core.catalog.* воротами
-        // (issue #947) и регистрируются корнем композиции. Запись же держит переезд: без неё
-        // каталог мог бы уехать к модулю одной строкой в RoutePrefixes — и организации исчезли бы
-        // вместе с выключенным модулем, а с ними реквизиты во ВСЕХ документах.
+        // ── Каталог организаций и лиц (ТЗ CORE-6) ──────────────────────────────
+        //
+        // ⚠️ Живой каталог — это /api/common-data, а НЕ /api/catalog. Организации и лица лежат
+        // объектами (DomainObject) после объединения (issue #84): этими адресами их правит
+        // интерфейс, и из этих же объектов EntityResolver берёт реквизиты для генерации. Первая
+        // редакция сторожа взяла под охрану /api/catalog — дверь к CatalogEntity, у которой в
+        // клиенте нет ни одного потребителя и которая в генерации не участвует вовсе; сторож стоял
+        // бы у двери, через которую никто не ходит, и переезд common-data к модулю прошёл бы
+        // зелёным (нашло ревью PR #1048).
+        //
+        // Зачем держать: уедь эти адреса к модулю — вместе с выключенным модулем исчезли бы
+        // организации и лица, а с ними реквизиты во ВСЕХ документах.
+        "GET /api/common-data/",
+        "GET /api/common-data/for-set/{setId:guid}",
+        "GET /api/common-data/for-scope",
+        "GET /api/common-data/{id:guid}",
+        "GET /api/common-data/{id:guid}/audit",
+        "GET /api/common-data/{id:guid}/binding-check",
+        "POST /api/common-data/",
+        "PUT /api/common-data/{id:guid}",
+        "DELETE /api/common-data/{id:guid}",
+
+        // CatalogEntity — прежнее хранилище того же справочника (аналог «КаталогОбщихДанных»
+        // старой системы). Потребителей у него не осталось, но адреса живы и закрыты теми же
+        // воротами, поэтому под присмотром тоже: пока дверь есть, она обязана быть дверью ядра.
         "GET /api/catalog/",
         "GET /api/catalog/{id:guid}",
         "POST /api/catalog/",
