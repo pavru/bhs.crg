@@ -16,10 +16,40 @@ public sealed record ModuleFieldSpec(
     public IReadOnlyList<string> Tags { get; init; } = Tags ?? [];
 }
 
-/// <summary>Объявление типа модуля в словах ядра. Переводит объявление слой Api — он один знает и модули, и ядро.</summary>
+/// <summary>
+/// Объявление типа модуля в словах ядра. Переводит объявление слой Api — он один знает и модули, и ядро.
+/// </summary>
+/// <param name="Parent">
+/// КОД родительского типа — или <c>null</c>, если тип ничего не наследует (issue #962).
+///
+/// <para>По коду, а не по <c>Guid</c>: идентификатор в каждой установке свой, и в объявлении его
+/// нет — та же причина, по которой в скелете запрещены виды полей, адресующие цель. Родителя
+/// обязана разрешать ТЗ CORE-30: опора — ядро или свой владелец, иначе при выключенном модуле тип
+/// остался бы без родителя, то есть неописуемым, хотя сам никуда не делся.</para>
+///
+/// <para>⚠️ Модулям это пока НЕ отдано: <c>ModuleRecordType</c> родителя не объявляет, потому что
+/// сегодня наследник нужен одному ядру («Сотрудник» производен от «Персоны», ТЗ CORE-7/TYPE-7.1).
+/// Понадобится модулю — вернётся туда тем же приёмом, по коду цели и с той же проверкой. Поле с
+/// выбором, у которого нет ни одного пользователя, — обещание, которое некому исполнить.</para>
+/// </param>
+/// <param name="SkipWhenParentMissing">
+/// Что делать, если родителя в базе нет, а типа ещё нет тоже: <c>false</c> (умолчание) — отказ
+/// старта, <c>true</c> — тип не заводится вовсе.
+///
+/// <para>Нужно ядру и только ему. Справочник сотрудников производен от «Персоны», а «Персону» ядро
+/// НЕ заводит: она существует у заказчика потому, что её когда-то завёл человек. На чистой
+/// установке справочников нет ни одного — и отказ старта означал бы, что новая установка не
+/// поднимается вовсе (поймано тестом; живая проверка на копии рабочей базы этого показать не может
+/// в принципе — там «Персона» есть).</para>
+///
+/// <para>⚠️ Послабление касается ТОЛЬКО случая «ни родителя, ни наследника». Если тип уже заведён,
+/// а родитель пропал — это отказ при любом значении: существующий «Сотрудник» остался бы без ФИО,
+/// и заметили бы это не здесь.</para>
+/// </param>
 public sealed record ModuleTypeSpec(
     string Module, string Code, string Name, SchemaEditLevel Level,
-    IReadOnlyList<ModuleFieldSpec> Fields, string? Group = null, DocumentTypeKind Kind = DocumentTypeKind.Document);
+    IReadOnlyList<ModuleFieldSpec> Fields, string? Group = null, DocumentTypeKind Kind = DocumentTypeKind.Document,
+    string? Parent = null, bool SkipWhenParentMissing = false);
 
 /// <summary>
 /// Проекция объявленного модулем типа в схему (ТЗ CORE-20.1, CORE-20.2, issue #958).
@@ -49,10 +79,10 @@ public sealed record ModuleTypeSpec(
 /// прав модуля и у миграции справочников). Тихая версия этого отказа — печать, печатающая
 /// пустоту, и искать её будут долго.</para>
 /// </summary>
-public sealed record ProjectModuleTypeCommand(ModuleTypeSpec Spec) : IRequest<DocumentType>;
+public sealed record ProjectModuleTypeCommand(ModuleTypeSpec Spec) : IRequest<DocumentType?>;
 
 public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, TagCatalog tags)
-    : IRequestHandler<ProjectModuleTypeCommand, DocumentType>
+    : IRequestHandler<ProjectModuleTypeCommand, DocumentType?>
 {
     /// <summary>
     /// Виды значения, которым не нужна ссылка на другой тип, — единственные, что модуль вправе
@@ -62,7 +92,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
     private static readonly HashSet<string> SelfContainedKinds = new(StringComparer.Ordinal)
         { "string", "text", "number", "date", "boolean", "image", "file" };
 
-    public async Task<DocumentType> Handle(ProjectModuleTypeCommand cmd, CancellationToken ct)
+    public async Task<DocumentType?> Handle(ProjectModuleTypeCommand cmd, CancellationToken ct)
     {
         var spec = cmd.Spec;
         Validate(spec, tags);
@@ -75,9 +105,14 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
         var type = all.FirstOrDefault(t => string.Equals(t.Code, spec.Code, StringComparison.OrdinalIgnoreCase));
         if (type is not null) EnsureOwnedByModule(type, spec);
 
+        var parentId = ResolveParent(spec, all, typeExists: type is not null);
+        // Родителя нет, наследника тоже — заводить нечего (см. SkipWhenParentMissing).
+        if (parentId is null && spec.Parent is { Length: > 0 } && type is null) return null;
+
         if (type is null)
         {
-            type = DocumentType.Create(spec.Name, spec.Code, spec.Kind, null,
+            EnsureNameFree(spec, all);
+            type = DocumentType.Create(spec.Name, spec.Code, spec.Kind, parentId,
                 JsonDocument.Parse(Schema(spec, existing: null).ToJsonString()),
                 spec.Module, TypeVisibility.Shared, editLevel: spec.Level);
             type.SetGroup(spec.Group);
@@ -88,11 +123,14 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
         }
 
         var projected = JsonDocument.Parse(Schema(spec, type.Schema).ToJsonString());
+        // Родителя ставим ДО проверки кратности: она считает по цепочке наследования, и посчитанная
+        // по прежней цепочке сказала бы про набор полей, которого уже не будет.
+        type.SetParent(parentId);
         EnsureCardinalityHolds(type.WithSchema(projected), all, spec);
         type.UpdateSchema(projected);
-        // Уровень и владелец — свойства модуля, и он их подтверждает каждым стартом. Название и
-        // группу НЕ трогаем после создания: их правит администратор, и возвращать их объявлением
-        // значило бы отменять его работу молча.
+        // Уровень, владелец и родитель — свойства модуля, и он их подтверждает каждым стартом.
+        // Название и группу НЕ трогаем после создания: их правит администратор, и возвращать их
+        // объявлением значило бы отменять его работу молча.
         type.SetLevel(spec.Level);
         type.SetOwner(spec.Module);
         repo.Update(type);
@@ -116,7 +154,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
         var violations = TagCardinalityValidator.Validate(tags, projected, all);
         if (violations.Count == 0) return;
         throw new ConflictException(
-            $"Объявление модуля «{spec.Module}» нарушает кратность тэгов в типе «{spec.Code}»: " +
+            $"Объявление, которое делает {Who(spec)}, нарушает кратность тэгов в типе «{spec.Code}»: " +
             string.Join(" ", violations.Select(v => v.Describe())) +
             " Снимите тэг с поля заказчика или уберите его из объявления модуля: " +
             "иначе тип нельзя будет сохранить из редактора.");
@@ -148,8 +186,8 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
                 // достанется коду модуля, решал бы порядок.
                 if (spec.Fields.Any(sf => string.Equals(sf.Key, key, StringComparison.Ordinal)))
                     throw new ConflictException(
-                        $"В типе «{spec.Code}» уже есть поле заказчика «{key}», а модуль " +
-                        $"«{spec.Module}» объявляет системное поле с тем же ключом. Переименуйте поле " +
+                        $"В типе «{spec.Code}» уже есть поле заказчика «{key}», а {Who(spec)} " +
+                        "объявляет системное поле с тем же ключом. Переименуйте поле " +
                         "заказчика — иначе непонятно, из какого из двух код модуля читает значение.");
                 customer.Add(obj.DeepClone());
                 continue;
@@ -214,6 +252,97 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
     }
 
     /// <summary>
+    /// Имя нового типа не должно быть занято (issue #962).
+    ///
+    /// <para>Дыра, найденная на живой базе: проекция создавала тип, минуя проверку уникальности
+    /// имени, которая стоит на пути администратора (<c>EnsureUnique</c>). Последствие не в том, что
+    /// имён станет два, — а в том, что ПОСЛЕ этого из редактора не сохранится НИ ОДИН из двух
+    /// типов: уникальность запретит обоих. Приложение при этом поднимется, и связь между «не
+    /// сохраняется тип» и «полгода назад появился модуль» никто не восстановит.</para>
+    ///
+    /// <para>Наступили на это с «Сотрудником»: в рабочей базе тип с кодом <c>Персона</c> носит имя
+    /// «Сотрудник» (ТЗ TYPE-7.1 велит вернуть ему «Лицо» — ровно «чтобы два типа не назывались
+    /// одинаково»). Проверка кода тут не спасает: коды как раз РАЗНЫЕ.</para>
+    ///
+    /// <para>Только при СОЗДАНИИ. У существующего типа имя ведёт администратор, и проекция его не
+    /// трогает — сверять его с объявлением значило бы запрещать переименование задним числом.</para>
+    /// </summary>
+    private static void EnsureNameFree(ModuleTypeSpec spec, IReadOnlyList<DocumentType> all)
+    {
+        var taken = all.FirstOrDefault(
+            t => string.Equals(t.Name.Trim(), spec.Name.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (taken is null) return;
+
+        throw new ConflictException(
+            $"{WhoCapitalized(spec)} заводит тип «{spec.Name}» (код «{spec.Code}»), а тип с таким " +
+            $"именем уже есть — код «{taken.Code}», принадлежит {TypeOwnershipRules.OwnerWords(taken.Module)}. " +
+            "Завести второй нельзя: после этого из редактора не сохранился бы ни один из двух — " +
+            "уникальность имени запретила бы обоих. Переименуйте существующий тип.");
+    }
+
+    /// <summary>
+    /// Родитель по КОДУ из объявления (issue #962) — или <c>null</c>, если родителя не объявляли.
+    ///
+    /// <para>Отказ старта, а не тихий пропуск, обеим половинам. Нет типа с таким кодом — наследник
+    /// поднялся бы без половины полей, и «Сотрудник» оказался бы без ФИО: форма нарисовалась бы,
+    /// печать промолчала, а заметили бы это на выгрузке. Опора запрещена по ТЗ CORE-30 — тип ядра
+    /// остался бы без родителя при выключенном модуле, то есть неописуемым, хотя сам никуда не
+    /// делся; ровно это проверяет <c>EnsureParentAllowsDerived</c> на пути администратора, и
+    /// проекция не вправе быть дырой мимо него.</para>
+    /// </summary>
+    private static Guid? ResolveParent(ModuleTypeSpec spec, IReadOnlyList<DocumentType> all, bool typeExists)
+    {
+        if (string.IsNullOrWhiteSpace(spec.Parent)) return null;
+
+        var parent = all.FirstOrDefault(
+            t => string.Equals(t.Code, spec.Parent, StringComparison.OrdinalIgnoreCase));
+
+        // Ни родителя, ни наследника — чистая установка: справочников в ней нет ни одного, и
+        // выводить один из другого не из чего. Заведётся сам, как только появится родитель.
+        if (parent is null && !typeExists && spec.SkipWhenParentMissing) return null;
+
+        if (parent is null)
+            throw new ConflictException(
+                $"{WhoCapitalized(spec)} объявляет тип «{spec.Code}» производным от «{spec.Parent}», а типа с " +
+                "таким кодом в системе нет. Наследник поднялся бы без унаследованных полей — с виду " +
+                "целый, но без половины сведений. Проверьте код родителя в объявлении: его могли " +
+                "переименовать из редактора типов.");
+
+        if (!TypeOwnershipRules.Allows(spec.Module, parent.Module))
+            throw new ConflictException(
+                $"{WhoCapitalized(spec)} объявляет тип «{spec.Code}» производным от «{parent.Name}», а тот " +
+                $"принадлежит {TypeOwnershipRules.OwnerWords(parent.Module)} (ТЗ CORE-30). Опора " +
+                "разрешена на ядро и на своего владельца: иначе при выключенном модуле наследник " +
+                "остался бы без родителя — неописуемым, хотя сам никуда не делся.");
+
+        if (parent.Kind != spec.Kind)
+            throw new ConflictException(
+                $"{WhoCapitalized(spec)} объявляет тип «{spec.Code}» ({spec.Kind}) производным от «{parent.Name}» " +
+                $"({parent.Kind}). Наследование идёт внутри одного рода: род решает, чем объект " +
+                "является, и сменить его через родителя значило бы описать одну сущность дважды.");
+
+        return parent.Id;
+    }
+
+    /// <summary>
+    /// Кто объявил — словами. У ядра модуля нет, и «модуль «core»» было бы неправдой: с issue #962
+    /// по этому же пути ходит ядро, а отказ, называющий его модулем, отправил бы читателя искать
+    /// выключатель, которого не существует. Тот же приём, что у
+    /// <see cref="TypeOwnershipRules.OwnerWords" />.
+    ///
+    /// <para>⚠️ Глаголы в этих отказах — в НАСТОЯЩЕМ времени: «ядро объявляет» и «модуль объявляет»
+    /// согласуются одинаково, а «объявил/объявило» разошлись бы по роду, и одна из двух половин
+    /// звучала бы безграмотно.</para>
+    /// </summary>
+    private static string Who(ModuleTypeSpec spec) => TypeOwner.IsCore(spec.Module)
+        ? "ядро"
+        : $"модуль «{spec.Module}»";
+
+    /// <summary>То же с заглавной — для начала фразы.</summary>
+    private static string WhoCapitalized(ModuleTypeSpec spec) =>
+        char.ToUpperInvariant(Who(spec)[0]) + Who(spec)[1..];
+
+    /// <summary>
     /// Тип с этим кодом уже есть — но он должен принадлежать ТОМУ ЖЕ модулю.
     ///
     /// <para>Без этой проверки совпадение кода означало бы тихий захват: тип администратора (или
@@ -228,7 +357,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
         if (string.Equals(type.Module, spec.Module, StringComparison.OrdinalIgnoreCase)) return;
 
         throw new ConflictException(
-            $"Модуль «{spec.Module}» объявляет тип с кодом «{spec.Code}», а тип с таким кодом уже " +
+            $"{WhoCapitalized(spec)} объявляет тип с кодом «{spec.Code}», а тип с таким кодом уже " +
             $"есть и принадлежит {TypeOwnershipRules.OwnerWords(type.Module)} — это «{type.Name}». " +
             "Проекция его не забирает: переименуйте код одного из двух. Иначе модуль стал бы вести " +
             "чужой тип, а его владелец молча потерял бы право его править.");
@@ -242,7 +371,7 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
         foreach (var f in spec.Fields)
             if (!SelfContainedKinds.Contains(f.Type))
                 throw new ConflictException(
-                    $"Модуль «{spec.Module}» объявил полю «{f.Key}» типа «{spec.Code}» вид " +
+                    $"{WhoCapitalized(spec)} объявляет полю «{f.Key}» типа «{spec.Code}» вид " +
                     $"«{f.Type}». Так нельзя: этот вид адресует цель — составной тип, перечисление, " +
                     "примитив или документ — по Guid, а Guid в каждой установке свой, и в коде " +
                     "модуля его нет. Поле осталось бы без цели: не нарисовалось бы и не заполнилось. " +
@@ -252,14 +381,14 @@ public sealed class ModuleTypeProjectionHandler(IRepository<DocumentType> repo, 
             .Where(g => g.Count() > 1).Select(g => g.Key).ToList();
         if (duplicates.Count > 0)
             throw new ConflictException(
-                $"Модуль «{spec.Module}» объявил тип «{spec.Code}» с повторяющимися полями: " +
+                $"{WhoCapitalized(spec)} объявляет тип «{spec.Code}» с повторяющимися полями: " +
                 $"{string.Join(", ", duplicates)}. Второе объявление молча вытеснило бы первое.");
 
         foreach (var f in spec.Fields)
             foreach (var tag in f.Tags)
                 if (tags.Find(Domain.Schema.TagCode.CodeOf(tag)) is null)
                     throw new ConflictException(
-                        $"Модуль «{spec.Module}» поставил полю «{f.Key}» типа «{spec.Code}» неизвестный " +
+                        $"{WhoCapitalized(spec)} ставит полю «{f.Key}» типа «{spec.Code}» неизвестный " +
                         $"тэг «{tag}». Тэгом код находит поле — с опечаткой печать не нашла бы его никогда.");
     }
 }

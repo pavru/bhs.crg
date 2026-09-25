@@ -29,6 +29,22 @@ public static class ModuleTypeProjector
         var registry = services.GetRequiredService<ModuleRegistry>();
         var mediator = services.GetRequiredService<IMediator>();
 
+        // Типы ЯДРА — первыми (issue #962). Порядок обязателен: тип модуля вправе опереться на тип
+        // ядра (ТЗ CORE-30), и опора должна существовать к моменту проекции наследника. Обратной
+        // зависимости не бывает — ядро о модулях не знает (CORE-2), — поэтому порядок здесь
+        // односторонний и спорить с ним нечему.
+        foreach (var core in CoreRecordTypes.All)
+            if (await mediator.Send(new ProjectModuleTypeCommand(core), ct) is null)
+                // Не завели — и об этом надо сказать вслух. Молчание здесь означало бы, что
+                // справочника в системе нет, а почему — не знает никто: администратор ищет его в
+                // списке типов и не находит, а в журнале запуска ровно ничего.
+                services.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger(typeof(ModuleTypeProjector))
+                    .LogInformation(
+                        "Справочник «{Code}» не заведён: нет типа-родителя «{Parent}». " +
+                        "Так и должно быть на новой установке — справочник появится, как только " +
+                        "появится родитель.", core.Code, core.Parent);
+
         foreach (var module in registry.Enabled)
             foreach (var declared in module.RecordTypes)
                 await mediator.Send(new ProjectModuleTypeCommand(Translate(module.Code, declared)), ct);
