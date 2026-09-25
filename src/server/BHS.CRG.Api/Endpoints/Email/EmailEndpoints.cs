@@ -49,6 +49,16 @@ public static class EmailEndpoints
                 await email.SendAsync(new EmailMessage([], req.Subject, req.Body, Bcc: recipients), ct);
                 return Results.Ok(new { ok = true, sent = recipients.Count, skipped });
             }
+            // ⚠️ Раньше общего перехвата: НАШИ отказы доходят как есть. «SMTP не настроен или
+            // выключен (Настройки → Почта)» написано нами и называет причину, которую человек
+            // устранит сам; общий перехват ниже подменил бы его на «сервер не принял письмо» —
+            // то есть соврал бы про соединение, которого не было вовсе. Перехват по фильтру, а не
+            // общий: тип здесь и есть признак нашего отказа (issue #691).
+            catch (Exception ex) when (ex is EmailNotConfiguredException
+                or AppUrlNotConfiguredException or DomainException)
+            {
+                return Results.Ok(new { ok = false, error = ex.Message });
+            }
             catch (Exception ex)
             {
                 // Сообщение MailKit наружу не уходит (issue #691): оно называет почтовый сервер,

@@ -199,6 +199,9 @@ public static class SettingsEndpoints
             }
             catch (Exception ex)
             {
+                // Здесь — СОХРАНЁННОЕ состояние, и это не оплошность: тест-письмо уходит через
+                // SendAsync, а тот берёт настройки из базы, а не из формы. Разбирать его отказ по
+                // значениям формы значило бы объяснять не тот путь.
                 return Results.Ok(new { ok = false, error = SmtpFailure(ex, proxyState, loggers, "Тестовое письмо не отправлено") });
             }
         });
@@ -206,8 +209,20 @@ public static class SettingsEndpoints
         // Проверка подключения: соединение + аутентификация по значениям ФОРМЫ (без отправки письма и
         // без сохранения). Пустой пароль = взять сохранённый (форма не присылает существующий).
         g.MapPost("/email/test-connection", async (SmtpSettings smtp, IIntegrationSettings settings, IEmailSender email,
-            OutboundProxyState proxyState, ILoggerFactory loggers, CancellationToken ct) =>
+            ILoggerFactory loggers, CancellationToken ct) =>
         {
+            var effective = await settings.GetEffectiveAsync(ct);
+
+            // ⚠️ Отказ разбирается по ТОМУ ЖЕ прокси, через который шло соединение, а идёт оно по
+            // значениям ФОРМЫ: MailKitEmailSender.ConnectAndAuthAsync смотрит на smtp.UseProxy из
+            // присланных настроек, а не на сохранённую галку. Возьми мы сохранённое состояние,
+            // проверка с только что поставленной галкой получила бы совет её поставить: классификатор
+            // увидел бы «прокси задан, а у почты галки нет» и ответил бы ProxyOffForService. Адрес
+            // прокси при этом сохранённый — форма почты его не задаёт. Приём тот же, что у кнопки
+            // проверки прокси: ProxyCheck строит состояние через ForCheck (issue #937).
+            OutboundService[] viaProxy = smtp.UseProxy ? [OutboundService.Smtp] : [];
+            var asChecked = OutboundProxyState.ForCheck(effective.Proxy, viaProxy);
+
             try
             {
                 if (string.IsNullOrWhiteSpace(smtp.Password))
@@ -218,7 +233,7 @@ public static class SettingsEndpoints
                     // достаточно указать свой сервер, чтобы он пришёл на него сам. Роль Admin по
                     // модели угроз всесильна, но украденная сессия администратора — нет, а здесь
                     // секрет уходил без единого «покажи пароль».
-                    var saved = (await settings.GetEffectiveAsync(ct)).Smtp;
+                    var saved = effective.Smtp;
                     if (!smtp.SameServerAs(saved))
                         return Results.Ok(new { ok = false, error = "Проверка на другом сервере, под другим пользователем или без шифрования требует ввести пароль: сохранённый на чужой адрес не отправляется." });
                     smtp.Password = saved.Password;
@@ -228,7 +243,7 @@ public static class SettingsEndpoints
             }
             catch (Exception ex)
             {
-                return Results.Ok(new { ok = false, error = SmtpFailure(ex, proxyState, loggers, "Проверка связи с SMTP не удалась") });
+                return Results.Ok(new { ok = false, error = SmtpFailure(ex, asChecked, loggers, "Проверка связи с SMTP не удалась") });
             }
         });
 

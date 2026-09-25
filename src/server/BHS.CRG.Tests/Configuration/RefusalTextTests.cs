@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using BHS.CRG.Application.Generation;
+using BHS.CRG.Infrastructure.Generation;
 
 namespace BHS.CRG.Tests.Configuration;
 
@@ -32,9 +34,37 @@ public class RefusalTextTests
     private static readonly string[] Projects =
         ["BHS.CRG.Domain", "BHS.CRG.Application", "BHS.CRG.Infrastructure", "BHS.CRG.Api"];
 
+    /// <summary>
+    /// Все потомки <see cref="DomainException" /> — ОТРАЖЕНИЕМ, а не списком имён.
+    ///
+    /// <para>Список имён здесь был бы дырой, и притом приглашённой: <c>DomainException</c> прямо
+    /// зовёт заводить свои роды («Роды отказа не запечатаны: свой тип с говорящим именем
+    /// наследуется от подходящего рода»), и так уже сделаны <c>TemplateCompilationException</c> и
+    /// <c>TypstTimeoutException</c>. Первый же следующий такой тип с <c>{ex.Message}</c> внутри
+    /// прошёл бы проверку молча — ровно тем способом, ради закрытия которого она написана.</para>
+    ///
+    /// <para>Сборки называются типом из каждой, а не берутся из <c>AppDomain</c>: та отдаёт лишь
+    /// ЗАГРУЖЕННЫЕ, а .NET грузит сборку по первому обращению — проверка молча обеднела бы в
+    /// зависимости от того, какие тесты успели отработать раньше.</para>
+    /// </summary>
+    private static readonly string[] RefusalTypeNames =
+        new[]
+        {
+            typeof(DomainException).Assembly,
+            typeof(TemplateCompilationException).Assembly,
+            typeof(TypstTimeoutException).Assembly,
+        }
+        .Distinct()
+        .SelectMany(a => a.GetTypes())
+        .Where(t => !t.IsAbstract && typeof(DomainException).IsAssignableFrom(t))
+        .Select(t => t.Name)
+        .Distinct(StringComparer.Ordinal)
+        .OrderBy(n => n, StringComparer.Ordinal)
+        .ToArray();
+
     /// <summary>Роды нашего отказа: их текст конвейер отдаёт клиенту дословно.</summary>
     private static readonly Regex DomainThrow = new(
-        @"throw\s+new\s+(InvalidRequest|NotFound|Conflict|Forbidden|TemplateCompilation|TypstTimeout|RecordWriteRefused)Exception\s*\(",
+        @"throw\s+new\s+(" + string.Join("|", RefusalTypeNames) + @")\s*\(",
         RegexOptions.Compiled | RegexOptions.Singleline);
 
     /// <summary>Семейство отказов движков: текст уходит наружу через <c>EngineRefusal.TextOf</c>.</summary>
@@ -72,6 +102,18 @@ public class RefusalTextTests
     [Fact]
     public void Наш_отказ_не_собирается_из_чужого_сообщения()
     {
+        // Сначала — что проверять вообще есть чем. Отражение обеднеет тихо (переименован базовый
+        // тип, не та сборка), и тогда регулярное выражение перестанет совпадать хоть с чем-нибудь,
+        // а проверка останется зелёной — отказ, переодетый в успех. Сверяются четыре рода из
+        // BHS.CRG.Domain: они объявлены в одном файле с базовым типом и исчезнуть порознь не могут.
+        // Две другие сборки названы typeof-ами, то есть сверены компилятором.
+        string[] baseKinds =
+            ["InvalidRequestException", "NotFoundException", "ConflictException", "ForbiddenException"];
+        Assert.True(baseKinds.All(k => RefusalTypeNames.Contains(k, StringComparer.Ordinal)),
+            "Роды отказа собраны отражением, и среди них нет базовых. Собрано: " +
+            string.Join(", ", RefusalTypeNames) + ". Значит базовый тип переименован или сборка " +
+            "названа не та, и проверка ниже не смотрит ни на что.");
+
         var offenders = new List<string>();
 
         foreach (var (file, text) in Sources(Projects))
